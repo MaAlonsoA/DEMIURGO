@@ -2,11 +2,13 @@
 
 Fecha: 2026-09-24. Rama `v2` (sin push ni merge a `main`). La v1 queda en la etiqueta local `v1-referencia` (`bf8a9cd`). Encargo: `docs/brief-autonomo-v2-h1.md`.
 
+> **Código en inglés.** Después de este informe, todo el código pasó a inglés: nombres, archivos, API, mensajes, pruebas y prompts (sección 11). Las secciones 2 a 7 describen el trabajo con los nombres de entonces, por ejemplo `durabilidad.test.ts` o `design/datos/`. Las secciones 8 a 11 ya usan los nombres actuales.
+
 ## 1. Resumen
 
 - **Hecho:** D0, S0, S1 y S2 con sus criterios de salida de §5 (las excepciones están en la sección 2) y H1 preparado. La importación de `design/` genera el lote pendiente y, tras ratificarlo, la exportación coincide byte a byte.
 - **No ratificado:** el lote de H1 está pendiente en la instancia de la v2, esperando tu ratificación (sección 8.3).
-- **`pnpm gate:all`:** en verde en `v2`. Pasan los tipos, el lint, el formato, el validador de `design/` y la deriva de las tablas, 390 pruebas (unitarias e integración) y 491 invariantes. La trazabilidad AC → prueba está completa: 80 criterios automáticos con prueba pasada.
+- **`pnpm gate:all`:** en verde en `v2`. Pasan los tipos, el lint, el formato, el validador de `design/` y la deriva de las tablas, 392 pruebas (unitarias e integración) y 491 invariantes. La trazabilidad AC → prueba está completa: 80 criterios automáticos con prueba pasada.
 - **Revisiones:** un subagente revisor independiente intentó refutar cada incremento (D0, S0, S1, S2 y H1). Todo lo que encontraron se corrigió con pruebas nuevas o queda documentado aquí (sección 4).
 - **Pendiente de ti:**
   - aprobar los documentos de `design/`, que siguen en estado «propuesto»;
@@ -257,148 +259,146 @@ corepack enable              # pnpm 11.27.1 fijado en packageManager
 pnpm install
 pnpm db:up                   # Postgres 18.6 de desarrollo: proyecto demiurgo-v2-dev, 127.0.0.1:55432
 pnpm gate:all                # tipos, lint, formato, design/, deriva, pruebas, invariantes y trazabilidad
-node packages/design/src/cli.ts estado-ac   # tabla del estado de cada AC (tras gate:test y gate:invariantes)
+node packages/design/src/cli.ts ac-status   # tabla del estado de cada AC (tras gate:test y gate:invariants)
 ```
 
 Las pruebas crean y borran bases efímeras `dmg_t_*`, nunca usan una base en uso. Algunos comandos útiles:
-- `pnpm gen`: regenera las tablas del dominio desde `design/datos/*.yaml`.
-- `node packages/design/src/cli.ts canonizar`: reescribe `design/` en forma canónica.
-- `npx vitest run --project integracion <archivo>`: ejecuta un solo archivo de pruebas.
+- `pnpm gen`: regenera las tablas del dominio desde `design/data/*.yaml`.
+- `node packages/design/src/cli.ts canonicalize`: reescribe `design/` en forma canónica.
+- `npx vitest run --project integration <archivo>`: ejecuta un solo archivo de pruebas.
 
 ### 8.2 Instancia de la v2 (ya montada)
 
 ```powershell
-pnpm instancia:bd            # Postgres de la instancia: proyecto demiurgo-v2, 127.0.0.1:55433, volumen con nombre
+pnpm instance:db             # Postgres de la instancia: proyecto demiurgo-v2, 127.0.0.1:55433, volumen demiurgo-v2_data
 $env:DEMIURGO_DATABASE_URL = 'postgres://demiurgo:demiurgo-v2-local@127.0.0.1:55433/demiurgo_v2'
-pnpm cli migrar
-pnpm instancia:api           # API en http://127.0.0.1:8100 (DEMIURGO_PUERTO para cambiarlo; el 8000 está prohibido)
+pnpm cli migrate
+pnpm instance:api            # API en http://127.0.0.1:8100 (DEMIURGO_PORT para cambiarlo; el 8000 está prohibido)
 ```
 
-Variables de entorno:
+Variables de entorno (con un nombre antiguo en español, la configuración se niega a arrancar y dice el nuevo):
 
 | Variable | Valores | Por defecto |
 |---|---|---|
-| `DEMIURGO_AGENTE` | `simulado`, `claude` | `simulado` |
-| `DEMIURGO_MODELO_AGENTE` | modelo de Claude | `haiku` |
-| `DEMIURGO_CLASIFICADOR` | `simulado`, `referencia`, `jev` | `simulado` |
-| `DEMIURGO_MODELO_CLASIFICADOR` | modelo de Claude | `haiku` |
-| `DEMIURGO_REVISOR` | `ninguno`, `referencia` (revisor de la cascada para la confianza media) | `ninguno` |
-| `DEMIURGO_MODELO_REVISOR` | modelo de Claude del revisor | `sonnet` |
+| `DEMIURGO_AGENT` | `simulated`, `claude` | `simulated` |
+| `DEMIURGO_AGENT_MODEL` | modelo de Claude | `haiku` |
+| `DEMIURGO_CLASSIFIER` | `simulated`, `reference`, `jev` | `simulated` |
+| `DEMIURGO_CLASSIFIER_MODEL` | modelo de Claude | `haiku` |
+| `DEMIURGO_REVIEWER` | `none`, `reference` (revisor de la cascada para la confianza media) | `none` |
+| `DEMIURGO_REVIEWER_MODEL` | modelo de Claude del revisor | `sonnet` |
 | `DEMIURGO_HOST` | | `127.0.0.1` |
-| `DEMIURGO_PUERTO` | | `8100` |
-| `DEMIURGO_ORIGENES` | orígenes permitidos | |
-| `DEMIURGO_HORAS_SESION` | | `12` |
+| `DEMIURGO_PORT` | | `8100` |
+| `DEMIURGO_ORIGINS` | orígenes permitidos | |
+| `DEMIURGO_SESSION_HOURS` | | `12` |
 
-La clave de la base de la instancia se puede cambiar con `DEMIURGO_V2_CLAVE_BD` al crearla.
+La clave de la base de la instancia se puede cambiar con `DEMIURGO_V2_DB_PASSWORD` al crearla.
 
-Estado actual de la instancia (montada y migrada hasta `0004_integridad`):
-- proyecto «DEMIURGO»: `01a0d3f7-016c-78f5-8e19-8e0be545f7a3`;
-- lote de importación de `design/`: `01a0d415-9d41-7989-87e8-54c35ef41dce`, en estado `pending`, en paquete y producido por `system:importador@1`. El primer lote (`01a0d3f7-14f5-7cab-a224-aab54f1c2640`) quedó obsoleto al reimportar tras el último cambio de `design/datos/transiciones.yaml`.
+Estado actual de la instancia, recreada tras pasar el código a inglés (sección 11):
+- proyecto «DEMIURGO»: `01a0d478-fa55-789e-831d-33a569a835f6`;
+- lote de importación de `design/`: `01a0d479-14ab-7c42-8358-852cd742c32c`, en estado `pending`, en paquete y producido por `system:importer@1`;
+- contenido: 14 propuestas (13 registros y la taxonomía): 1 decisión, 7 ADR, 5 FDR, 13 versiones, 114 criterios, 12 enlaces, 1 taxonomía y 2 anexos. Incluye el ADR-WEB-001 y la FDR-INT-001 que añadió la sesión de diseño de la interfaz;
+- 0 registros y 0 versiones aprobadas;
+- la persona `marcos` está creada (la clave no se guarda en el repo). La API no está arrancada: arráncala con `pnpm instance:api`.
 
-Su contenido:
-- 12 propuestas;
-- recuentos: 1 decisión, 6 ADR, 4 FDR, 11 versiones, 92 criterios, 10 enlaces, 1 taxonomía y 2 anexos;
-- 0 registros y 0 versiones aprobadas.
-
-La persona `marcos` ya está creada (a petición tuya; la clave no se guarda en el repo) y la API de la instancia se dejó arrancada en `http://127.0.0.1:8100`.
+El volumen anterior (`demiurgo-v2_datos`, con el lote que había antes del paso a inglés) sigue en Docker sin usar. Se puede borrar con `docker volume rm demiurgo-v2_datos`. No se ha borrado por si quieres consultarlo.
 
 ### 8.3 Ratificar H1 (lo haces tú)
 
 ```powershell
 $env:DEMIURGO_DATABASE_URL = 'postgres://demiurgo:demiurgo-v2-local@127.0.0.1:55433/demiurgo_v2'
-# pnpm cli crear-persona <usuario>        # ya hecho para «marcos»; la clave mínima es de 12 caracteres
-pnpm instancia:api                        # en otra terminal
+# pnpm cli create-person <usuario>        # ya hecho para «marcos»; la clave mínima es de 12 caracteres
+pnpm instance:api                         # en otra terminal
 
 $api = 'http://127.0.0.1:8100'
-$proyecto = '01a0d3f7-016c-78f5-8e19-8e0be545f7a3'; $lote = '01a0d415-9d41-7989-87e8-54c35ef41dce'
+$proyecto = '01a0d478-fa55-789e-831d-33a569a835f6'; $lote = '01a0d479-14ab-7c42-8358-852cd742c32c'
 $s = New-Object Microsoft.PowerShell.Commands.WebRequestSession
-$sesion = Invoke-RestMethod -Method Post "$api/api/sesion" -WebSession $s -ContentType 'application/json' `
-  -Body (@{ usuario = 'marcos'; clave = '<clave>' } | ConvertTo-Json)
-# Revisa el lote antes de ratificar: 12 propuestas (11 registros y la taxonomía), todas pendientes.
-Invoke-RestMethod "$api/api/proyectos/$proyecto/lotes/$lote" -WebSession $s | ConvertTo-Json -Depth 6
+$sesion = Invoke-RestMethod -Method Post "$api/api/session" -WebSession $s -ContentType 'application/json' `
+  -Body (@{ username = 'marcos'; password = '<clave>' } | ConvertTo-Json)
+# Revisa el lote antes de ratificar: 14 propuestas (13 registros y la taxonomía), todas pendientes.
+Invoke-RestMethod "$api/api/projects/$proyecto/batches/$lote" -WebSession $s | ConvertTo-Json -Depth 6
 # Ratifica en un paso (comando decisivo, solo humano; sin el token CSRF da 403).
-Invoke-RestMethod -Method Post "$api/api/proyectos/$proyecto/comandos/batch.accept_package" -WebSession $s `
+Invoke-RestMethod -Method Post "$api/api/projects/$proyecto/commands/batch.accept_package" -WebSession $s `
   -Headers @{ 'x-demiurgo-csrf' = $sesion.csrf } -ContentType 'application/json' `
-  -Body (@{ entidad_id = $lote; datos = @{} } | ConvertTo-Json)
-pnpm cli exportar-diseno $proyecto --comprobar design    # ✓ La exportación coincide byte a byte con design/.
+  -Body (@{ entity_id = $lote; data = @{} } | ConvertTo-Json)
+pnpm cli export-design $proyecto --check design    # la exportación coincide byte a byte con design/
 ```
 
 Si antes de ratificar quieres aprobar documentos, tienes dos formas:
-- cambia `estado: aprobado` en esos documentos de `design/`, vuelve a importar (`pnpm cli importar-diseno <proyectoId> design`, que deja obsoleto el lote anterior) y ratifica el nuevo;
-- o ratifica y apruébalos después en la v2 con `record_version.approve`, y regenera `design/` con `pnpm cli exportar-diseno <proyectoId> design`.
+- cambia `state: approved` en esos documentos de `design/`, vuelve a importar (`pnpm cli import-design <proyectoId> design`, que deja obsoleto el lote anterior) y ratifica el nuevo;
+- o ratifica y apruébalos después en la v2 con `record_version.approve`, y regenera `design/` con `pnpm cli export-design <proyectoId> design`.
 
-Tras ratificar, `design/` pasa a ser una exportación generada. El gate que falla si alguien lo edita a mano está fuera de H1 preparado (FDR-AUT-001, Fuera de alcance) y se activa en un cambio aparte.
+Tras ratificar, `design/` pasa a ser una exportación generada. El gate que falla si alguien lo edita a mano está fuera de H1 preparado (FDR-AUT-001, Out of scope) y se activa en un cambio aparte.
 
 ### 8.4 Canal de agentes
 
-- **Token:** emítelo con el comando `agent_token.issue` (datos `{ "nombre": "claude-code" }`). El secreto `dmg_agente_…` solo se muestra una vez.
+- **Token:** emítelo con el comando `agent_token.issue` (datos `{ "name": "claude-code" }`). El secreto `dmg_agent_…` solo se muestra una vez.
 - **API:** con `Authorization: Bearer <token>`, el agente puede leer, conversar con su nombre, registrar fuentes y proponer. Todo lo demás da 403.
-- **MCP:** `DEMIURGO_API_URL=http://127.0.0.1:8100 DEMIURGO_AGENT_TOKEN=… DEMIURGO_PROYECTO=<uuid> node packages/mcp/src/main.ts` (stdio). Expone 11 herramientas:
-  - `leer_estado_producto`, `leer_bandeja`, `leer_exploraciones`, `leer_exploracion`, `leer_registro`, `leer_lote`, `leer_fuentes`;
-  - `buscar_conocimiento`;
-  - `conversar`, `registrar_fuente` y `proponer`.
+- **MCP:** `DEMIURGO_API_URL=http://127.0.0.1:8100 DEMIURGO_AGENT_TOKEN=… DEMIURGO_PROJECT=<uuid> node packages/mcp/src/main.ts` (stdio). Expone 11 herramientas:
+  - `read_product_state`, `read_inbox`, `read_explorations`, `read_exploration`, `read_record`, `read_batch`, `read_sources`;
+  - `search_knowledge` (argumento `query`);
+  - `converse`, `register_source` y `propose`.
   Ninguna resuelve propuestas.
 
 ## 9. Qué necesita el frontend (sesión con Claude Design)
 
 **Contrato.**
-- `GET /api/comandos`: por comando, quién puede ejecutarlo, si es decisivo y el JSON Schema de sus datos.
-- `GET /api/tablas`: estados, etiquetas en español y transiciones de cada entidad. Los botones deben salir de aquí, no fijarse a mano.
-- `POST /api/proyectos/:id/comandos/:comando` con `{ entidad_id?, datos }`: la única vía de escritura.
-- Errores: 403 (no permitido), 404, 409 (transición inválida o guarda, con `motivos` en lenguaje de producto) y 422 (datos no válidos, con `motivos`).
-- `GET /api/proyectos/:id/eventos/flujo` (SSE con Last-Event-ID): para refrescar de forma incremental.
+- `GET /api/commands`: por comando, quién puede ejecutarlo, si es decisivo y el JSON Schema de sus datos.
+- `GET /api/tables`: estados, etiquetas (en inglés) y transiciones de cada entidad. Los botones deben salir de aquí, no fijarse a mano.
+- `POST /api/projects/:projectId/commands/:command` con `{ entity_id?, data }`: la única vía de escritura.
+- Errores con `{ error, message, reasons }`: 403 (no permitido), 404, 409 (transición inválida o guarda, con `reasons` en lenguaje de producto) y 422 (datos no válidos, con `reasons`).
+- `GET /api/projects/:projectId/events/stream` (SSE con Last-Event-ID): para refrescar de forma incremental.
 
 **Sesión.**
-- `POST /api/sesion` con `{usuario, clave}` devuelve la cookie httpOnly SameSite=Strict y el `csrf`.
+- `POST /api/session` con `{ username, password }` devuelve la cookie httpOnly SameSite=Strict y el `csrf`.
 - Toda mutación lleva la cabecera `x-demiurgo-csrf`.
-- `GET /api/sesion` y `DELETE /api/sesion` para consultarla y cerrarla.
+- `GET /api/session` y `DELETE /api/session` para consultarla y cerrarla.
 
 ### 9.1 Pantallas
 
 | Pantalla | Lectura | Acciones (comandos) |
 |---|---|---|
-| **Estado del producto** | `GET …/estado`: decisiones y diseños con versión vigente, última versión, estado epistémico, readiness y realización («sin implementar»), `listos_para_construir`, exploraciones con preguntas abiertas y el recuento de la bandeja | Abrir el registro, abrir la bandeja |
-| **Bandeja única** | `GET …/bandeja`: propuestas pendientes por lote (productor, tipo de lote, resolución por elemento o en paquete, ejecución, avisos de obsolescencia, evaluación de la idea con citas), `preguntas_por_confirmar` (inferidas), `preguntas_abiertas`, `versiones_por_aprobar`, `enlaces_en_revision`, `clasificaciones_por_revisar` y `actualizaciones_rechazadas` | `proposal.accept` (con «Aceptar y aprobar»: `aprobar: true`), `proposal.accept_edited`, `proposal.reject`, `batch.accept_package`, `batch.reject_package`, `question.confirm`, `record_version.approve`, `link.keep`, `link.change`, `link.obsolete`, `classification.resolve`, `knowledge_update.retry` |
-| **Exploración y conversación** | `GET …/exploraciones`, `GET …/exploraciones/:id`: hilo de mensajes (autor humano, agente o ejecución; observaciones con estado epistémico), preguntas con estado y conclusión, exploraciones hijas y origen | `exploration.open`, `message.post` (con `responder`), `question.raise`/`confirm`/`postpone`/`discard`/`reopen`, `exploration.conclude`, `set_aside`, `resume`, `run.request` (`exploration_chat`, `design_proposal`) |
-| **Registro con versiones** | `GET …/registros/:codigo`: versiones (borrador, aprobada, sustituida, descartada), cuál es la vigente, secciones de la plantilla, criterios con verificación, comprobación y arrastre (nuevo, mantenido, modificado), enlaces con su estado, anexos, nota de cambio, autor y quién aprobó, y readiness por versión | `record.create`, `record_version.create` (arrastre explícito: mantener, modificar o descartar cada AC), `record_version.approve`, `record_version.discard` |
-| **Readiness** | `GET …/versiones/:id/readiness`: `listo`, `motivos` (en lenguaje de producto) y `avisos` de verificabilidad | — |
-| **Lote** | `GET …/lotes/:id`: productor, ejecución y context pack de procedencia, propuestas con estado epistémico y resolución | Las de la bandeja |
-| **Ejecuciones** | `GET …/runs/:id`: estado, `failure_kind`, reintento de, context pack (rol, constructor, presupuesto, versión del grafo, dependencias, contenido y hash); los eventos, en `GET …/eventos` | `run.retry` (mismo context pack), `run.cancel` |
-| **Conocimiento** | `GET …/conocimiento` (nodos y aristas vigentes, versión del grafo, frescura), `…/conocimiento/buscar`, `…/conocimiento/reconstruccion` (huella) | `taxonomy.propose`, `taxonomy.approve` |
-| **Fuentes** | `GET …/fuentes` | `source.register` |
+| **Estado del producto** | `GET …/state`: decisiones y diseños con versión vigente, última versión, `epistemic_status`, readiness e `implementation` («not implemented»), `ready_to_build`, exploraciones con `open_questions` y el recuento de la bandeja | Abrir el registro, abrir la bandeja |
+| **Bandeja única** | `GET …/inbox`: propuestas pendientes por lote (productor, tipo de lote, resolución por elemento o en paquete, ejecución, avisos de obsolescencia, evaluación de la idea con citas), `questions_to_confirm` (inferidas), `open_questions`, `versions_to_approve`, `links_under_review`, `classifications_to_review` y `rejected_updates` | `proposal.accept` (con «Accept and approve»: `approve: true`), `proposal.accept_edited`, `proposal.reject`, `batch.accept_package`, `batch.reject_package`, `question.confirm`, `record_version.approve`, `link.keep`, `link.change`, `link.obsolete`, `classification.resolve`, `knowledge_update.retry` |
+| **Exploración y conversación** | `GET …/explorations`, `GET …/explorations/:explorationId`: hilo de mensajes (autor humano, agente o ejecución; observaciones con estado epistémico), preguntas con estado y conclusión, exploraciones hijas y origen | `exploration.open`, `message.post` (con `respond`), `question.raise`/`confirm`/`postpone`/`discard`/`reopen`, `exploration.conclude`, `set_aside`, `resume`, `run.request` (`exploration_chat`, `design_proposal`) |
+| **Registro con versiones** | `GET …/records/:code`: versiones (draft, approved, superseded, discarded), cuál es la vigente, secciones de la plantilla, criterios con verificación, comprobación y arrastre (new, kept, modified), enlaces con su estado, anexos, nota de cambio, autor y quién aprobó, y readiness por versión | `record.create`, `record_version.create` (arrastre explícito: mantener, modificar o descartar cada AC), `record_version.approve`, `record_version.discard` |
+| **Readiness** | `GET …/versions/:versionId/readiness`: `ready`, `reasons` (en lenguaje de producto) y `warnings` de verificabilidad | — |
+| **Lote** | `GET …/batches/:batchId`: productor, ejecución y context pack de procedencia, propuestas con estado epistémico y resolución | Las de la bandeja |
+| **Ejecuciones** | `GET …/runs/:runId`: estado, `failure_kind`, reintento de, context pack (rol, constructor, presupuesto, versión del grafo, dependencias, contenido y hash); los eventos, en `GET …/events` | `run.retry` (mismo context pack), `run.cancel` |
+| **Conocimiento** | `GET …/knowledge` (nodos y aristas vigentes, versión del grafo, frescura), `…/knowledge/search?q=`, `…/knowledge/rebuild` (huella: `live`, `rebuilt`, `equal`, `drift`) | `taxonomy.propose`, `taxonomy.approve` |
+| **Fuentes** | `GET …/sources` | `source.register` |
 | **Tokens de agente** | `GET …/tokens` | `agent_token.issue` (el secreto se muestra una sola vez), `agent_token.revoke` |
 | **Importación y ratificación** | El lote `import` con recuentos y cada documento | `design.import`, `batch.accept_package` |
 
 ### 9.2 Estados que la UI debe mostrar
 
-Las etiquetas vienen de `/api/tablas`:
-- **Versión:** Borrador, Aprobada, Sustituida, Descartada.
-- **Pregunta:** Pendiente, Inferida, Confirmada, Pospuesta, Descartada.
-- **Lote:** Pendiente, Aceptado, Rechazado, Resuelto, Obsoleto.
-- **Propuesta:** Pendiente, Aceptada, Aceptada con cambios, Rechazada, Obsoleta.
-- **Enlace:** Vigente, Pendiente de revisión, Mantenido, Cambiado, Obsoleto.
-- **Ejecución:** En cola, En curso, Completada, Fallida, Cancelada, Interrumpida.
-- **Actualización de conocimiento:** En cola, Clasificando, Verificando, Aplicada, Rechazada.
-- **Clasificación:** Aplicada, Pendiente de revisión, Resuelta.
-- **Exploración:** Activa, Concluida, Apartada.
+Las etiquetas vienen de `/api/tables`, ahora en inglés (Draft, Approved, Superseded, Discarded…):
+- **Versión:** draft, approved, superseded, discarded.
+- **Pregunta:** pending, inferred, confirmed, postponed, discarded.
+- **Lote:** pending, accepted, rejected, resolved, superseded (etiqueta «Obsolete»).
+- **Propuesta:** pending, accepted, accepted_edited, rejected, superseded (etiqueta «Obsolete»).
+- **Enlace:** current, needs_review, kept, changed, obsolete.
+- **Ejecución:** queued, running, completed, failed, cancelled, interrupted.
+- **Actualización de conocimiento:** queued, classifying, verifying, applied, rejected.
+- **Clasificación:** applied, pending_review, resolved.
+- **Exploración:** active, concluded, set_aside.
 
 ### 9.3 Invariantes que la UI debe hacer visibles
 
-1. **Estado epistémico en cada elemento** (confirmado, propuesto, pendiente o desconocido). Lo propuesto por un agente nunca se ve igual que lo confirmado.
+1. **Estado epistémico en cada elemento** (`confirmed`, `proposed`, `pending` o `unknown`). Lo propuesto por un agente nunca se ve igual que lo confirmado.
 2. **Quién hizo qué.** Productor de cada lote (`agent:run:<id>`, `agent:<nombre>:<token>`, `system:…`) y actor de cada evento. Lo decisivo siempre es `human:…`.
 3. **Aceptar es siempre un gesto humano explícito.**
    - Los lotes de agentes externos se resuelven elemento a elemento, con un máximo de 10 por lote.
    - Los paquetes del sistema (FDR con sus AC, importación) se aceptan o rechazan enteros.
-   - «Aceptar y aprobar» es una sola acción humana con dos efectos visibles.
+   - «Accept and approve» es una sola acción humana con dos efectos visibles.
 4. **Aprobar no crea versión.**
    - La vigente es la última aprobada.
    - Una versión nueva exige una nota de cambio y decidir cada criterio (mantener, modificar o descartar).
    - Un borrador anterior a una aprobada solo se puede descartar.
-5. **Readiness con sus motivos:** «Listo para construir» solo si no hay motivos. Si los hay, se muestran tal cual (están en lenguaje de producto).
+5. **Readiness con sus motivos:** «Ready to build» solo si no hay `reasons`. Si los hay, se muestran tal cual (están en lenguaje de producto).
 6. **Obsolescencia.**
    - Una propuesta o un paquete obsoleto se muestra como tal, con su motivo (qué registro cambió y de qué versión partía).
    - Un enlace pendiente de revisión pide mantener, cambiar u obsoleto.
-7. **Errores 409 y 422 con sus `motivos`,** que son accionables: nunca un «Error» genérico. Un 403 explica que la acción es de otra persona o que el agente no puede hacerla.
+7. **Errores 409 y 422 con sus `reasons`,** que son accionables: nunca un «Error» genérico. Un 403 explica que la acción es de otra persona o que el agente no puede hacerla.
 8. **Aviso de verificabilidad de un AC.** Nunca bloquea: se muestra al guardarlo y en la readiness.
 9. **Procedencia de una ejecución:**
    - context pack con su hash, reutilizado en el reintento;
@@ -429,3 +429,28 @@ Las etiquetas vienen de `/api/tablas`:
    - ejecutar la CI real (push a una rama de GitHub, cuando tú decidas).
 8. **Decidir las recomendaciones de la sección 6**, en especial la 4 (preguntas inferidas en la readiness) y la 12 (roles de Postgres).
 9. **Reclasificar al aprobar una taxonomía nueva** (m6) y **calibrar los umbrales de la cascada** con datos reales: con confianza ≥ 0,8 la referencia acertó el 69 % de los veredictos de la partición de prueba (ver `docs/ejecuciones-reales/s2-clasificador-2026-09-24.md`).
+
+## 11. Paso del código a inglés
+
+Tras cerrar H1 preparado, todo el código pasó a inglés. La documentación (`docs/`, `AGENTS.md`, `CLAUDE.md`), la prosa de `design/` y los commits siguen en español (regla nueva en `AGENTS.md`).
+
+**Qué cambió.**
+- **Código:** archivos y carpetas (`comandos/` → `commands/`, `motor/` → `engine/`…), identificadores, comentarios, títulos de las pruebas (los códigos AC se conservan), mensajes de error y de readiness, etiquetas de estado y salida de las CLI.
+- **API:** rutas (`/api/proyectos/:id/comandos/:comando` → `/api/projects/:projectId/commands/:command`, `/bandeja` → `/inbox`…), campos JSON (`entidad_id`/`datos` → `entity_id`/`data`, `motivos` → `reasons`…), tipos de error (`no_encontrado` → `not_found`…), herramientas MCP (`leer_bandeja` → `read_inbox`…).
+- **Operación:** variables de entorno (`DEMIURGO_AGENTE` → `DEMIURGO_AGENT`…, con valores `simulated`, `reference`, `none`), órdenes de las CLI (`crear-persona` → `create-person`, `exportar-diseno` → `export-design`, `canonizar` → `canonicalize`…) y scripts de pnpm (`gate:deriva` → `gate:drift`, `gate:invariantes` → `gate:invariants`, `gate:trazabilidad` → `gate:traceability`, `instancia:*` → `instance:*`).
+- **Formato de `design/`:** claves del frontmatter (`code`, `type`, `title`, `state`, `domain`, `increment`, `links`, `annexes`…), valores (`proposed`, `approved`), secciones de plantilla (Goal, Scope, Out of scope, Behavior…), «Acceptance criteria», viñetas `Verification`/`Check`/`Derived from`, y carpetas `decisions/`, `taxonomy/` y `data/`. La categoría obligatoria de cada eje pasa de `otra` a `other`.
+- **Base de datos:** las tablas y columnas ya estaban en inglés. Cambian los nombres de funciones y triggers, sus mensajes, los valores de las restricciones (`impact` y `epistemic`) y el canal de NOTIFY (`demiurgo_events`). Las migraciones se editaron en su sitio, así que **una base anterior no arranca**: la instancia se recreó en un volumen nuevo (sección 8.2).
+
+**Cómo se hizo.**
+1. Un glosario de unos 2.000 nombres, propuesto por subagentes y revisado a mano, se aplicó con un script determinista sobre el AST: el mismo nombre cambia en todas partes a la vez.
+2. Una comprobación semántica confirmó que cada identificador sigue apuntando a la misma declaración antes y después (0 diferencias), con 0 errores de tipos.
+3. Subagentes tradujeron por archivos los comentarios, los mensajes, los prompts y las pruebas, y ejecutaron cada uno sus pruebas.
+4. Seis revisores independientes buscaron cambios de comportamiento, traducciones con otro sentido y restos en español. Se corrigieron los hallazgos (nombres mal traducidos por el mapa mecánico, una regresión del cliente MCP al distinguir los 404 y pruebas que habían perdido precisión).
+
+**Decisiones tomadas en tu nombre.**
+1. **Los agentes responden en el idioma de la persona.** Los prompts están en inglés, pero no piden responder en inglés, así que el comportamiento con contenido en español no cambia. Lo mismo vale para la justificación del clasificador de referencia. Los prompts se editaron dentro de su versión 1, porque no quedaba ninguna ejecución registrada con la versión anterior.
+2. **El contenido escrito por personas sigue en español en las pruebas y en los datos de evaluación.** El clasificador simulado, la normalización de texto y la búsqueda de texto completo (configuración `spanish` de Postgres) dependen de esas palabras. La normalización y las pistas del clasificador simulado admiten ahora también inglés.
+3. **Los slugs de dominio son contenido** (`gobierno`, `plataforma`…). El dominio por defecto de una propuesta sin dominio sigue siendo `producto`.
+4. **Los identificadores de proceso cambian:** la versión de los flujos DBOS (`demiurgo-v2-workflows-1`), el identificador del clasificador de referencia (`claude-reference:<modelo>@1`) y las huellas de entrada de la caché. Con una base nueva no afecta a nada.
+5. **Registros anteriores:** las ejecuciones reales de `docs/ejecuciones-reales/` y el resultado de la evaluación del clasificador conservan sus nombres de entonces. Los README explican la equivalencia.
+6. **Historial:** los commits de la traducción se hicieron como puntos de control (`wip: …`). No se reescribieron porque otra sesión estaba haciendo commits en `v2` al mismo tiempo. La etiqueta local `pre-ingles` marca el estado anterior.

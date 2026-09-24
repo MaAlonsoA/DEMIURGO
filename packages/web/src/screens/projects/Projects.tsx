@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { projectsQuery } from '../../api/queries.ts';
 import { shortDate } from '../../lib/time.ts';
+import { buttonStyles } from '../../ui/Button.tsx';
 import { ChevronRight } from '../../ui/icons.tsx';
 import { EmptyState, Loading } from '../../ui/layout.tsx';
 
@@ -11,14 +12,19 @@ export function ProjectsScreen() {
   const projects = useQuery(projectsQuery);
   return (
     <main id="main" className="mx-auto flex min-h-screen w-[640px] flex-col gap-6 py-16">
-      <div className="flex flex-col gap-1">
-        <span className="text-[13px] font-bold tracking-[0.14em]">DEMIURGO</span>
-        <h1 className="text-[28px] font-semibold">Your projects</h1>
+      <div className="flex items-end justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <span className="text-[13px] font-bold tracking-[0.14em]">DEMIURGO</span>
+          <h1 className="text-[28px] font-semibold">Your projects</h1>
+        </div>
+        <Link to="/new" className={buttonStyles({ variant: 'ink', size: 'md' })}>
+          New project
+        </Link>
       </div>
       {projects.isPending ? (
         <Loading label="Loading projects" />
       ) : (projects.data ?? []).length === 0 ? (
-        <EmptyState>There are no projects yet.</EmptyState>
+        <EmptyState>There are no projects yet. Start one with New project.</EmptyState>
       ) : (
         <ul className="flex flex-col gap-2">
           {(projects.data ?? []).map((p) => (

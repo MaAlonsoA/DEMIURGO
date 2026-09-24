@@ -10,6 +10,11 @@ import { KnowledgeScreen } from './screens/knowledge/Knowledge.tsx';
 import { NeedsYouScreen } from './screens/needs-you/NeedsYou.tsx';
 import { NewVersionScreen } from './screens/new-version/NewVersion.tsx';
 import { NotFound } from './screens/not-found/NotFound.tsx';
+import { DayDoneScreen } from './screens/onboarding/DayDone.tsx';
+import { landingOf } from './screens/onboarding/landing.ts';
+import { NewProjectScreen } from './screens/onboarding/NewProject.tsx';
+import { QuestionsScreen } from './screens/onboarding/Questions.tsx';
+import { StartScreen } from './screens/onboarding/Start.tsx';
 import { OriginsScreen } from './screens/origins/Origins.tsx';
 import { OverviewScreen } from './screens/overview/Overview.tsx';
 import { ProjectsScreen } from './screens/projects/Projects.tsx';
@@ -50,19 +55,20 @@ const authedRoute = createRoute({
   },
 });
 
-// With a single project, the person goes straight into it (FDR-INT-001, behavior 1).
+// With a single project, the person goes straight into it (FDR-INT-001, behavior 1); with none, to
+// "What do you want to build?" (Day 1).
 const indexRoute = createRoute({
   getParentRoute: () => authedRoute,
   path: '/',
   beforeLoad: async ({ context }) => {
-    const projects = await context.queryClient.fetchQuery(projectsQuery);
-    const only = projects.length === 1 ? projects[0] : undefined;
-    if (only) throw redirect({ to: '/p/$projectId', params: { projectId: only.id } });
-    throw redirect({ to: '/projects' });
+    const landing = landingOf(await context.queryClient.fetchQuery(projectsQuery));
+    if (landing.to === '/p/$projectId') throw redirect({ to: landing.to, params: { projectId: landing.projectId } });
+    throw redirect({ to: landing.to });
   },
 });
 
 const projectsRoute = createRoute({ getParentRoute: () => authedRoute, path: '/projects', component: ProjectsScreen });
+const newProjectRoute = createRoute({ getParentRoute: () => authedRoute, path: '/new', component: NewProjectScreen });
 
 const projectRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -120,12 +126,28 @@ const knowledgeRoute = createRoute({
   component: KnowledgeScreen,
 });
 const sourcesRoute = createRoute({ getParentRoute: () => projectRoute, path: '/sources', component: SourcesScreen });
+const startRoute = createRoute({
+  getParentRoute: () => projectRoute,
+  path: '/start/$explorationId',
+  component: StartScreen,
+});
+const startQuestionsRoute = createRoute({
+  getParentRoute: () => projectRoute,
+  path: '/start/$explorationId/questions',
+  component: QuestionsScreen,
+});
+const startDoneRoute = createRoute({
+  getParentRoute: () => projectRoute,
+  path: '/start/$explorationId/done',
+  component: DayDoneScreen,
+});
 
 const routeTree = rootRoute.addChildren([
   signInRoute,
   authedRoute.addChildren([
     indexRoute,
     projectsRoute,
+    newProjectRoute,
     projectRoute.addChildren([
       overviewRoute,
       originsRoute,
@@ -139,6 +161,9 @@ const routeTree = rootRoute.addChildren([
       runRoute,
       knowledgeRoute,
       sourcesRoute,
+      startRoute,
+      startQuestionsRoute,
+      startDoneRoute,
     ]),
   ]),
 ]);

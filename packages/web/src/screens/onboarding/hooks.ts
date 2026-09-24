@@ -1,0 +1,52 @@
+// The data of a Day 1: its thread, the thread's runs, the project and where DEMIURGO's answer to
+// the person's last message stands; and sending a message that DEMIURGO answers.
+
+import { useQuery } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { useCommand } from '../../api/commands.ts';
+import { explorationQuery, projectsQuery, runsQuery } from '../../api/queries.ts';
+import { useNow } from '../run/hooks.ts';
+import { isActive } from '../thread/timeline.ts';
+import { personMessages, readingOf } from './day.ts';
+import { live } from './live.ts';
+
+export function useDay(projectId: string, explorationId: string) {
+  const thread = useQuery(explorationQuery(projectId, explorationId));
+  const [waiting, setWaiting] = useState(false);
+  // The stream brings the run; while DEMIURGO has not requested it yet, the list is also asked again
+  // now and then, in case its first event arrived before the stream was open.
+  const runs = useQuery({ ...runsQuery(projectId, { exploration: explorationId }), refetchInterval: waiting ? 2500 : false });
+  const project = useQuery(projectsQuery).data?.find((p) => p.id === projectId);
+  const people = thread.data ? personMessages(thread.data.messages) : [];
+  const idea = people[0];
+  const latest = people.at(-1);
+  const now = useNow(waiting || (runs.data ?? []).some(isActive));
+  const reading = readingOf(runs.data ?? [], latest, now, live.expects(latest?.id));
+  useEffect(() => setWaiting(reading.phase === 'waiting'), [reading.phase]);
+  return {
+    thread: thread.data,
+    runs: runs.data,
+    project,
+    idea,
+    latest,
+    reading,
+    now,
+    error: thread.error ?? runs.error,
+  };
+}
+
+/** Writes in the thread and asks DEMIURGO to answer (the durable response requests the run). */
+export function useSend(projectId: string, explorationId: string) {
+  const command = useCommand(projectId);
+  const send = (text: string, onSent?: () => void) =>
+    command.mutate(
+      { command: 'message.post', data: { exploration_id: explorationId, text, respond: true } },
+      {
+        onSuccess: (r) => {
+          live.sent(r.entity_id);
+          onSent?.();
+        },
+      },
+    );
+  return { send, pending: command.isPending, error: command.error, reset: command.reset };
+}

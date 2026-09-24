@@ -44,6 +44,9 @@ export function Header() {
               Switch
             </Link>
           )}
+          <Link to="/new" className="text-xs font-medium text-muted hover:text-ink">
+            New project
+          </Link>
         </span>
       </div>
       <nav aria-label="Main" className="flex items-center gap-1">

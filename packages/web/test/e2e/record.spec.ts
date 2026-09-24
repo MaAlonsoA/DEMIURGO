@@ -192,6 +192,10 @@ test('AC-INT-001-08 without reasons it says Ready to build with the first bar fu
   await expect(aside.getByRole('heading', { name: 'Before it can be built' })).toBeVisible();
   await expect(aside.locator('[data-readiness-reasons] li')).toHaveText(readiness.reasons);
   await expect(page.getByText('Ready to build', { exact: true })).toHaveCount(0);
+  // What it touches still names the version it was based on, now replaced by a newer one.
+  const touched = context.locator(`[data-link-target="${dec.code}"]`);
+  await expect(touched).toContainText('Activities are public');
+  await expect(touched).toContainText(`${dec.code} v1 · replaced by a newer version`);
 });
 
 test('AC-INT-001-04 a record an agent proposed stays Proposed after a person accepts it, until a person approves it', async ({

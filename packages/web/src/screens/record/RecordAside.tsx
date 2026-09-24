@@ -240,7 +240,11 @@ export function ContextPanel({
         ) : (
           <ul className="flex flex-col gap-1">
             {version.links.map((l) => {
-              const target = targets?.get(l.to_id);
+              // The link names its target when the API resolves it; the product index covers older data.
+              const target: VersionRef | undefined = l.to_code
+                ? { code: l.to_code, n: l.to_n ?? l.to_version ?? 1, title: l.to_title ?? l.to_code, type: '' }
+                : targets?.get(l.to_id);
+              const replaced = l.to_code != null && l.to_current === false && l.to_state === 'superseded';
               const w = stateWord('link', l.state);
               return (
                 <li key={l.id} data-link-target={target?.code ?? ''} className="flex items-start gap-2 text-[13px]">
@@ -259,13 +263,16 @@ export function ContextPanel({
                         >
                           {target.title}
                         </Link>
-                      ) : targets ? (
+                      ) : targets || l.to_code !== undefined ? (
                         <span className="text-ink-3">a version that is no longer shown</span>
                       ) : (
                         <Skeleton className="inline-block h-3 w-40 align-middle" />
                       )}
                     </span>
-                    <Code>{target ? `${target.code} v${target.n}` : `v${l.to_version ?? '?'}`}</Code>
+                    <Code>
+                      {target ? `${target.code} v${target.n}` : `v${l.to_version ?? '?'}`}
+                      {replaced && ' · replaced by a newer version'}
+                    </Code>
                   </span>
                 </li>
               );

@@ -3,6 +3,7 @@
 //   node packages/design/src/cli.ts canonizar [dir]
 //   node packages/design/src/cli.ts derivar --comprobar | --escribir
 //   node packages/design/src/cli.ts trazabilidad   (lee reports/junit-*.xml)
+//   node packages/design/src/cli.ts estado-ac      (tabla Markdown del estado de cada AC)
 
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -11,7 +12,7 @@ import { RUTA_MODULO_TABLAS, generarModuloTablas } from './deriva.ts';
 import { leerArbol } from './disco.ts';
 import { normalizarEspacios, parsearDocumento, renderizarDocumento } from './formato.ts';
 import { README_DISENO } from './readme.ts';
-import { casosDeJUnit, informeCompleto, mapaTrazabilidad } from './trazabilidad.ts';
+import { casosDeJUnit, codigosCitados, informeCompleto, mapaTrazabilidad } from './trazabilidad.ts';
 
 const [orden, ...args] = process.argv.slice(2);
 const DIR = args.find((a) => !a.startsWith('--')) ?? 'design';
@@ -131,10 +132,44 @@ async function trazabilidad(): Promise<number> {
   return codigo;
 }
 
-const ordenes: Record<string, () => Promise<number>> = { validar, canonizar, derivar, trazabilidad };
+/** Tabla Markdown con el estado de cada AC: verde, rojo, manual o no implementado. */
+async function estadoAc(): Promise<number> {
+  const informe = validarArbol(await leerArbol(DIR));
+  const casos = [...(await informesJUnit()).values()].flatMap(casosDeJUnit);
+  const raiz = JSON.parse(await readFile('package.json', 'utf8')) as { demiurgo?: { incrementosImplementados?: string[] } };
+  const implementados = raiz.demiurgo?.incrementosImplementados ?? [];
+  const porAc = new Map<string, { pasadas: number; fallidas: number }>();
+  for (const c of casos) {
+    for (const ac of codigosCitados(c.nombre)) {
+      const e = porAc.get(ac) ?? { pasadas: 0, fallidas: 0 };
+      if (c.resultado === 'pasada') e.pasadas++;
+      if (c.resultado === 'fallida') e.fallidas++;
+      porAc.set(ac, e);
+    }
+  }
+  const filas = ['| AC | Registro | Título | Verificación | Estado | Pruebas |', '|---|---|---|---|---|---|'];
+  for (const r of informe.registros) {
+    for (const c of r.criterios) {
+      const e = porAc.get(c.codigo) ?? { pasadas: 0, fallidas: 0 };
+      let estado: string;
+      if (c.verificacion === 'manual') estado = 'manual';
+      else if (!r.incremento || !implementados.includes(r.incremento)) estado = 'no implementado';
+      else if (e.fallidas > 0) estado = 'rojo';
+      else if (e.pasadas > 0) estado = 'verde';
+      else estado = 'rojo (sin prueba)';
+      filas.push(
+        `| ${c.codigo} | ${r.codigo} | ${c.titulo.replaceAll('|', '/')} | ${c.verificacion} | ${estado} | ${e.pasadas} pasadas${e.fallidas ? `, ${e.fallidas} fallidas` : ''} |`,
+      );
+    }
+  }
+  console.log(filas.join(String.fromCharCode(10)));
+  return 0;
+}
+
+const ordenes: Record<string, () => Promise<number>> = { validar, canonizar, derivar, trazabilidad, 'estado-ac': estadoAc };
 const accion = orden ? ordenes[orden] : undefined;
 if (!accion) {
-  console.error('Uso: cli.ts validar|canonizar|derivar|trazabilidad [dir] [--comprobar|--escribir]');
+  console.error('Uso: cli.ts validar|canonizar|derivar|trazabilidad|estado-ac [dir] [--comprobar|--escribir]');
   process.exitCode = 2;
 } else {
   process.exitCode = await accion();

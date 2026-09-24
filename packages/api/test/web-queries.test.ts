@@ -79,6 +79,16 @@ describe('API: queries of the web UI', () => {
     expect(graph.edges.some((e) => e.type === 'contains' && e.from === 'FDR-DIS-001@1')).toBe(true);
   });
 
+  it('AC-INT-001-17 each search result carries its relevance, most relevant first', async () => {
+    const { results } = await get<{ results: { ref: string; rank: number }[] }>(
+      `/knowledge/search?q=${encodeURIComponent('aceptación')}`,
+    );
+    expect(results.length).toBeGreaterThan(1);
+    for (const r of results) expect(r.rank).toBeGreaterThan(0);
+    const ranks = results.map((r) => r.rank);
+    expect(ranks).toEqual([...ranks].sort((a, b) => b - a));
+  });
+
   it('AC-INT-001-17 the taxonomies come with their state and their content', async () => {
     const taxonomies =
       await get<{ id: string; code: string; version: number; state: string; axes: unknown; sections: unknown }[]>('/taxonomies');

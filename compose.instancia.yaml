@@ -1,0 +1,21 @@
+# Instancia de la v2 (autoridad de diseño desde H1). Proyecto compose propio: demiurgo-v2.
+# Datos en un volumen con nombre (no en bind mount de NTFS). Nunca es demiurgo-stable ni el puerto 8000.
+# La API corre en el host (necesita la CLI de Claude con la suscripción): ver docs/informe-autonomo-v2-h1.md.
+services:
+  postgres:
+    image: postgres:18.6@sha256:86c951e05bf56c93d95d397747fb8820ac76cc3bedb78f43abd83eedbe3666ae
+    environment:
+      POSTGRES_USER: demiurgo
+      POSTGRES_PASSWORD: ${DEMIURGO_V2_CLAVE_BD:-demiurgo-v2-local}
+      POSTGRES_DB: demiurgo_v2
+    ports:
+      - "127.0.0.1:55433:5432"
+    volumes:
+      - datos:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demiurgo -d demiurgo_v2"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+volumes:
+  datos:

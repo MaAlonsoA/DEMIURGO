@@ -826,6 +826,33 @@ export const CAPABILITIES = {
         "human"
       ],
       "description": "Project agent tokens."
+    },
+    "query.providers": {
+      "allowed": [
+        "human"
+      ],
+      "description": "Providers, agents, assignments, stats and consumption."
+    }
+  },
+  "settings": {
+    "agent.assign": {
+      "allowed": [
+        "human"
+      ],
+      "description": "Assign a provider, model and effort to an agent, globally or for a project."
+    },
+    "agent.unassign": {
+      "allowed": [
+        "human"
+      ],
+      "description": "Remove an agent's assignment, globally or for a project."
+    },
+    "providers.refresh": {
+      "allowed": [
+        "human",
+        "system"
+      ],
+      "description": "Discover the providers' models and efforts again."
     }
   }
 } as const;

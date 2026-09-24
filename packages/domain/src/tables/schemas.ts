@@ -36,6 +36,11 @@ export const capabilitiesSchema = z
       z.string().regex(/^query\.[a-z_]+$/),
       z.object({ allowed: z.array(z.enum(ACTOR_TYPES)).min(1), description: z.string().min(1) }).strict(),
     ),
+    // Workspace settings (models and providers): not tied to a project, so outside the project bus.
+    settings: z.record(
+      z.string().regex(RE_COMMAND),
+      z.object({ allowed: z.array(z.enum(ACTOR_TYPES)).min(1), description: z.string().min(1) }).strict(),
+    ),
   })
   .strict();
 
@@ -94,7 +99,7 @@ export const ALLOWED_AGENT_COMMANDS: Readonly<Record<'agent_external' | 'agent_r
 };
 
 /** Queries an external agent can never use. */
-export const QUERIES_FORBIDDEN_TO_AGENTS: readonly string[] = ['query.projects', 'query.tokens'];
+export const QUERIES_FORBIDDEN_TO_AGENTS: readonly string[] = ['query.projects', 'query.tokens', 'query.providers'];
 
 /** Inconsistencies between the two tables and with the invariants fixed in code. Empty if everything checks out. */
 export function tableInconsistencies(cap: CapabilitiesTable, trans: TransitionsTable): string[] {
@@ -118,6 +123,11 @@ export function invariantInconsistencies(cap: CapabilitiesTable, trans: Transiti
   }
   for (const q of QUERIES_FORBIDDEN_TO_AGENTS) {
     if (cap.queries[q]?.allowed.includes('agent_external')) errors.push(`${q}: forbidden to external agents.`);
+  }
+  for (const [name, c] of Object.entries(cap.settings)) {
+    if (c.allowed.some((t) => t === 'agent_external' || t === 'agent_run')) {
+      errors.push(`${name}: only people and the system change workspace settings, never an agent.`);
+    }
   }
   return errors;
 }

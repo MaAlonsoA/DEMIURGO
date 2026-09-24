@@ -1,4 +1,4 @@
-// Pruebas de arquitectura sobre el código fuente.
+// Architecture tests over the source code.
 
 import { readFile, readdir } from 'node:fs/promises';
 import { join, sep } from 'node:path';
@@ -36,25 +36,25 @@ async function allSources(): Promise<Map<string, string>> {
   return m;
 }
 
-/** Módulos que pueden leer variables de entorno: la configuración y el entorno de procesos hijos. */
-// La sonda contiene el script que se ejecuta dentro del contenedor: allí lee el entorno del runner.
+/** Modules that may read environment variables: config and the environment of child processes. */
+// The probe holds the script that runs inside the container: there it reads the runner's environment.
 const ENV_READERS = new Set([
   'packages/core/src/config.ts',
   'packages/core/src/env.ts',
   'packages/core/src/runner/probe.ts',
-  // Arranque del servidor MCP: proceso aparte que solo lee su URL, su token y su proyecto.
+  // MCP server startup: a separate process that only reads its URL, its token and its project.
   'packages/mcp/src/main.ts',
 ]);
 
 describe('architecture', () => {
-  it('AC-ESQ-001-06 solo la configuración lee variables de entorno', async () => {
+  it('AC-ESQ-001-06 only config reads environment variables', async () => {
     const violators = [...(await allSources()).entries()]
       .filter(([path, text]) => !ENV_READERS.has(path) && /process\.env\b/.test(text))
       .map(([path]) => path);
     expect(violators).toEqual([]);
   });
 
-  it('AC-ESQ-001-06 las pruebas usan bases efímeras con prefijo dmg_t_', async () => {
+  it('AC-ESQ-001-06 tests use ephemeral databases with prefix dmg_t_', async () => {
     const base = await createEphemeralDatabase();
     try {
       expect(base.name).toMatch(/^dmg_t_\d+_[0-9a-f]{8}$/);
@@ -64,13 +64,13 @@ describe('architecture', () => {
     }
   });
 
-  it('AC-NUC-001-03 toda guarda declarada en las tablas tiene implementación registrada', () => {
+  it('AC-NUC-001-03 every guard declared in the tables has a registered implementation', () => {
     const notImplemented = allGuards().filter((g) => !GUARDS[g]);
     expect(notImplemented).toEqual([]);
   });
 
-  it('AC-DIS-001-04 las acciones de agente solo publican, plantean o infieren preguntas y envían lotes: nunca deciden (I2)', async () => {
-    // La salida de un agente se aplica aquí: mensajes, preguntas (el sistema las infiere) y lotes de propuestas.
+  it('AC-DIS-001-04 agent actions only post messages, raise or infer questions and submit batches: they never decide (I2)', async () => {
+    // An agent's output is applied here: messages, questions (the system infers them) and batches of proposals.
     const ALLOWED = new Set(['message.post', 'question.raise', 'question.infer', 'batch.submit']);
     const violations: string[] = [];
     for (const dir of ['packages/core/src/actions', 'packages/core/src/agents']) {
@@ -82,14 +82,14 @@ describe('architecture', () => {
         for (const t of text.matchAll(
           /(?:insertInto|updateTable|deleteFrom)\('([a-z_]+)'\)|insert into ([a-z_]+)|update ([a-z_]+) set/g,
         )) {
-          violations.push(`${path}: escribe en ${t[1] ?? t[2] ?? t[3] ?? ''}`);
+          violations.push(`${path}: writes to ${t[1] ?? t[2] ?? t[3] ?? ''}`);
         }
       }
     }
     expect(violations).toEqual([]);
   });
 
-  it('AC-CON-001-12 el actualizador y el clasificador solo emiten comandos de conocimiento derivado, clasificaciones y propuestas', async () => {
+  it('AC-CON-001-12 the updater and the classifier only emit derived-knowledge commands, classifications and proposals', async () => {
     const ALLOWED = new Set([
       'knowledge_update.classify',
       'knowledge_update.verify',
@@ -109,47 +109,45 @@ describe('architecture', () => {
       ...['update.ts', 'workflows.ts', 'rebuild.ts', 'derive.ts', 'graph-pg.ts', 'integration.ts', 'evaluate.ts'].map(
         (m) => `packages/core/src/knowledge/${m}`,
       ),
-      // Los adaptadores del clasificador no emiten comandos ni escriben en la base.
+      // The classifier adapters emit no commands and write nothing to the database.
       ...(await sources('packages/core/src/classifier')).keys(),
     ];
     const violations: string[] = [];
     for (const m of modules) {
       const text = await readFile(m, 'utf8');
-      // Todo literal que nombra un comando de la matriz debe estar en la lista permitida.
+      // Every literal naming a matrix command must be in the allowed list.
       for (const c of text.matchAll(/'([a-z_]+\.[a-z_]+)'/g)) {
         const name = c[1] ?? '';
         if (isCommand(name) && !ALLOWED.has(name)) violations.push(`${m}: ${name}`);
       }
-      // Ninguna escritura directa fuera de las tablas de caché y evaluaciones.
+      // No direct write outside the cache and evaluations tables.
       for (const t of text.matchAll(
         /(?:insertInto|updateTable|deleteFrom)\('([a-z_]+)'\)|insert into ([a-z_]+)|update ([a-z_]+) set/g,
       )) {
         const table = t[1] ?? t[2] ?? t[3] ?? '';
-        if (!ALLOWED_TABLES.has(table)) violations.push(`${m}: escribe en ${table}`);
+        if (!ALLOWED_TABLES.has(table)) violations.push(`${m}: writes to ${table}`);
       }
     }
     expect(violations).toEqual([]);
   });
 
-  it('AC-CON-001-12 el componente del conocimiento tiene una lista cerrada sin comandos decisivos ni estados de autoridad', () => {
-    // La lista la impone el bus en ejecución (aunque la matriz permita el comando a system): así
-    // tampoco vale construir el nombre del comando en tiempo de ejecución.
+  it('AC-CON-001-12 the knowledge component has a closed list with no decisive commands or authority states', () => {
+    // The bus enforces the list at runtime (even though the matrix allows the command for system): so
+    // building the command name at runtime doesn't work either.
     const violations: string[] = [];
     for (const c of COMMANDS_BY_COMPONENT.knowledge ?? []) {
       if (!isCommand(c)) {
-        violations.push(`${c}: no es un comando`);
+        violations.push(`${c}: is not a command`);
         continue;
       }
-      if (isDecisive(c)) violations.push(`${c}: es decisivo`);
+      if (isDecisive(c)) violations.push(`${c}: is decisive`);
       const def = entityDefinition(entityOf(c));
       for (const t of def.transitions.filter((x) => x.command === c)) {
-        if (def.authority.includes(t.to)) violations.push(`${c}: alcanza el estado de autoridad ${t.to}`);
+        if (def.authority.includes(t.to)) violations.push(`${c}: reaches authority state ${t.to}`);
       }
     }
     expect(violations).toEqual([]);
-    // Y sustituir una versión aprobada exige otra aprobada posterior (guarda en la tabla).
-    expect(findTransition('record_version', 'approved', 'record_version.supersede')?.guards).toContain(
-      'has_later_approved',
-    );
+    // And superseding an approved version requires a later approved one (guard in the table).
+    expect(findTransition('record_version', 'approved', 'record_version.supersede')?.guards).toContain('has_later_approved');
   });
 });

@@ -2,8 +2,8 @@ import { Client, Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { readMigrations, migrate } from '../src/db/migrator.ts';
 
-// Base vacía (sin plantilla) creada solo para esta prueba.
-const name = `dmg_t_${Math.floor(Date.now() / 1000)}_migraciones`;
+// Empty database (no template) created only for this test.
+const name = `dmg_t_${Math.floor(Date.now() / 1000)}_migrations`;
 let pool: Pool;
 
 async function admin<T>(f: (c: Client) => Promise<T>): Promise<T> {
@@ -28,7 +28,7 @@ afterAll(async () => {
 });
 
 describe('migrations', () => {
-  it('AC-ESQ-001-05 una base vacía queda en la última versión y aplicar de nuevo no cambia nada', async () => {
+  it('AC-ESQ-001-05 an empty database ends up on the latest version and applying again changes nothing', async () => {
     const all = await readMigrations();
     const applied = await migrate(pool, all);
     expect(applied).toEqual(all.map((m) => `${m.version}_${m.name}`));
@@ -44,9 +44,9 @@ describe('migrations', () => {
     expect(after.rows[0]?.n).toBe(tables.rows[0]?.n);
   });
 
-  it('AC-ESQ-001-05 una migración aplicada y modificada impide arrancar', async () => {
+  it('AC-ESQ-001-05 an applied migration that was modified prevents startup', async () => {
     const all = await readMigrations();
     const altered = all.map((m, i) => (i === 0 ? { ...m, checksum: 'another' } : m));
-    await expect(migrate(pool, altered)).rejects.toThrow(/ha cambiado/);
+    await expect(migrate(pool, altered)).rejects.toThrow(/has changed/);
   });
 });

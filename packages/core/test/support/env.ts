@@ -1,4 +1,4 @@
-// Entorno de pruebas del núcleo: base efímera + servicios con agente simulado.
+// Core test environment: ephemeral database + services with a simulated agent.
 
 import type { Classifier, AgentPort } from '@demiurgo/domain';
 import { afterAll, beforeAll } from 'vitest';
@@ -21,13 +21,13 @@ export type Environment = {
 };
 
 type Options = {
-  /** Lanza DBOS sobre la base efímera; si no, el motor es inerte. */
+  /** Starts DBOS on the ephemeral database; otherwise, the engine is inert. */
   durable?: boolean;
   agent?: () => AgentPort;
   classifier?: () => Classifier;
 };
 
-/** Registra, para el archivo de prueba, una base efímera y los servicios del núcleo. */
+/** Registers, for the test file, an ephemeral database and the core services. */
 export function useEnvironment(options: Options = {}): () => Environment {
   const base = useEphemeralDatabase();
   let environment: Environment | undefined;
@@ -46,7 +46,7 @@ export function useEnvironment(options: Options = {}): () => Environment {
       started = await startEngine(common, url);
       environment = { services: started.services, connection, url, engine: started.services.engine };
     } else {
-      // Sin DBOS: el conocimiento y las evaluaciones se procesan en el acto; las ejecuciones solo se anotan.
+      // Without DBOS: knowledge updates and assessments are processed in place; runs are only recorded.
       const services: Services = { ...common, engine: createInlineEngine(() => services) };
       environment = { services, connection, url, engine: services.engine };
     }
@@ -56,7 +56,7 @@ export function useEnvironment(options: Options = {}): () => Environment {
     await environment?.connection.close();
   });
   return () => {
-    if (!environment) throw new Error('El entorno aún no está listo.');
+    if (!environment) throw new Error('The environment is not ready yet.');
     return environment;
   };
 }

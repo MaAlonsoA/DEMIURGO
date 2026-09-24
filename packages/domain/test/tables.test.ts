@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-// El generador vive en el paquete design (depende de yaml); el dominio no puede importarlo.
+// The generator lives in the design package (it depends on yaml); the domain can't import it.
 import { TABLES_MODULE_PATH, generateTablesModule } from '../../design/src/derive.ts';
 import { CAPABILITIES, TRANSITIONS } from '../src/generated/tables.ts';
 import {
@@ -24,22 +24,22 @@ type Entity = TransitionsTable['entities'][string];
 
 function commandOf(cap: CapabilitiesTable, name: string): Command {
   const c = cap.commands[name];
-  if (!c) throw new Error(`No existe el comando ${name}.`);
+  if (!c) throw new Error(`Command ${name} does not exist.`);
   return c;
 }
 
 function entityOf(trans: TransitionsTable, name: string): Entity {
   const e = trans.entities[name];
-  if (!e) throw new Error(`No existe la entidad ${name}.`);
+  if (!e) throw new Error(`Entity ${name} does not exist.`);
   return e;
 }
 
-/** Tablas reales. AC-NUC-001-02 garantiza que el módulo generado es igual a design/datos/. */
+/** Real tables. AC-NUC-001-02 guarantees that the generated module equals design/data/. */
 function realTables(): { cap: CapabilitiesTable; trans: TransitionsTable } {
   return { cap: capabilitiesSchema.parse(CAPABILITIES), trans: transitionsSchema.parse(TRANSITIONS) };
 }
 
-/** Estados alcanzables desde «nuevo», calculado aquí aparte de `incoherenciasTablas`. */
+/** States reachable from "new", computed here separately from `tableInconsistencies`. */
 function reachable(def: Entity): Set<string> {
   const seen = new Set<string>(['new']);
   let change = true;
@@ -56,17 +56,17 @@ function reachable(def: Entity): Set<string> {
   return seen;
 }
 
-/** Tablas mínimas y coherentes: un documento que se crea y que solo una persona aprueba. */
+/** Minimal, consistent tables: a document that gets created and only a person approves. */
 function minimalTables(): { cap: CapabilitiesTable; trans: TransitionsTable } {
   return {
     cap: {
       code: 'DAT-CAP-001',
       version: 1,
       state: 'proposed',
-      actors: { human: 'Persona.', agent_external: 'Agente externo.', agent_run: 'Ejecución.', system: 'Sistema.' },
+      actors: { human: 'Person.', agent_external: 'External agent.', agent_run: 'Run.', system: 'System.' },
       commands: {
-        'doc.create': { entity: 'doc', allowed: ['human', 'agent_run'], decisive: false, description: 'Crear.' },
-        'doc.approve': { entity: 'doc', allowed: ['human'], decisive: true, description: 'Aprobar.' },
+        'doc.create': { entity: 'doc', allowed: ['human', 'agent_run'], decisive: false, description: 'Create.' },
+        'doc.approve': { entity: 'doc', allowed: ['human'], decisive: true, description: 'Approve.' },
       },
       queries: {},
     },
@@ -94,94 +94,94 @@ type Case = { sample: string; corrupt: (cap: CapabilitiesTable, trans: Transitio
 
 const INCONSISTENT: Case[] = [
   {
-    sample: 'un comando decisivo permitido a un agente',
+    sample: 'a decisive command allowed for an agent',
     corrupt: (cap) => {
       commandOf(cap, 'doc.approve').allowed = ['human', 'agent_run'];
     },
-    error: /^doc\.approve: un comando decisivo solo puede estar permitido a «human»\.$/,
+    error: /^doc\.approve: a decisive command can only be allowed for "human"\.$/,
   },
   {
-    sample: 'un estado de autoridad alcanzado con un comando no decisivo',
+    sample: 'an authority state reached with a non-decisive command',
     corrupt: (cap) => {
       commandOf(cap, 'doc.approve').decisive = false;
     },
-    error: /^doc\.approve: alcanza el estado de autoridad «approved» y debe ser decisivo\.$/,
+    error: /^doc\.approve: reaches authority state "approved" and must be decisive\.$/,
   },
   {
-    sample: 'un estado inalcanzable',
+    sample: 'an unreachable state',
     corrupt: (_cap, trans) => {
       entityOf(trans, 'doc').states.archived = 'Archived';
     },
-    error: /^doc: el estado «archived» no es alcanzable\.$/,
+    error: /^doc: state "archived" is not reachable\.$/,
   },
   {
-    sample: 'un comando que no aparece en ninguna transición',
+    sample: 'a command that does not appear in any transition',
     corrupt: (cap) => {
-      cap.commands['doc.archive'] = { entity: 'doc', allowed: ['human'], decisive: false, description: 'Archivar.' };
+      cap.commands['doc.archive'] = { entity: 'doc', allowed: ['human'], decisive: false, description: 'Archive.' };
     },
-    error: /^doc\.archive: el comando no aparece en ninguna transición\.$/,
+    error: /^doc\.archive: command does not appear in any transition\.$/,
   },
   {
-    sample: 'una transición con un comando que no está en la matriz',
+    sample: 'a transition with a command that is not in the matrix',
     corrupt: (_cap, trans) => {
       entityOf(trans, 'doc').transitions.push({ command: 'doc.reopen', from: ['approved'], to: 'draft' });
     },
-    error: /^doc: el comando «doc\.reopen» no está en la matriz de capacidades\.$/,
+    error: /^doc: command "doc\.reopen" is not in the capabilities matrix\.$/,
   },
   {
-    sample: 'un estado de autoridad que no existe',
+    sample: 'an authority state that does not exist',
     corrupt: (_cap, trans) => {
       entityOf(trans, 'doc').authority.push('published');
     },
-    error: /^doc: el estado de autoridad «published» no existe\.$/,
+    error: /^doc: authority state "published" does not exist\.$/,
   },
   {
-    sample: 'una transición hacia un estado que no existe',
+    sample: 'a transition to a state that does not exist',
     corrupt: (cap, trans) => {
-      cap.commands['doc.publish'] = { entity: 'doc', allowed: ['human'], decisive: false, description: 'Publicar.' };
+      cap.commands['doc.publish'] = { entity: 'doc', allowed: ['human'], decisive: false, description: 'Publish.' };
       entityOf(trans, 'doc').transitions.push({ command: 'doc.publish', from: ['draft'], to: 'published' });
     },
-    error: /^doc: «doc\.publish» lleva a un estado inexistente «published»\.$/,
+    error: /^doc: "doc\.publish" leads to a nonexistent state "published"\.$/,
   },
   {
-    sample: 'un comando decisivo que no alcanza ningún estado de autoridad',
+    sample: 'a decisive command that does not reach any authority state',
     corrupt: (cap) => {
       const c = commandOf(cap, 'doc.create');
       c.allowed = ['human'];
       c.decisive = true;
     },
-    error: /^doc\.create: es decisivo pero no alcanza ningún estado de autoridad\.$/,
+    error: /^doc\.create: is decisive but does not reach any authority state\.$/,
   },
   {
-    sample: 'una transición duplicada',
+    sample: 'a duplicated transition',
     corrupt: (_cap, trans) => {
       entityOf(trans, 'doc').transitions.push({ command: 'doc.approve', from: ['draft'], to: 'approved' });
     },
-    error: /^doc: la transición «doc\.approve» desde «draft» está duplicada\.$/,
+    error: /^doc: transition "doc\.approve" from "draft" is duplicated\.$/,
   },
   {
-    sample: 'un comando asignado a otra entidad',
+    sample: 'a command assigned to another entity',
     corrupt: (cap) => {
       commandOf(cap, 'doc.create').entity = 'note';
     },
-    error: /^doc\.create: la matriz lo asigna a «nota», no a «doc»\.$/,
+    error: /^doc\.create: the matrix assigns it to "note", not to "doc"\.$/,
   },
 ];
 
-describe('coherencia de las tablas', () => {
-  it('AC-NUC-001-01 las tablas reales son coherentes', () => {
+describe('consistency of the tables', () => {
+  it('AC-NUC-001-01 the real tables are consistent', () => {
     const { cap, trans } = realTables();
     expect(tableInconsistencies(cap, trans)).toEqual([]);
   });
 
-  it('AC-NUC-001-01 en las tablas reales un comando decisivo solo lo ejecuta una persona', () => {
+  it('AC-NUC-001-01 in the real tables a decisive command is only run by a person', () => {
     const { cap } = realTables();
     const decisiveCommands = Object.entries(cap.commands).filter(([, c]) => c.decisive);
     expect(decisiveCommands.length).toBeGreaterThan(0);
     expect(decisiveCommands.filter(([, c]) => c.allowed.join() !== 'human').map(([n]) => n)).toEqual([]);
   });
 
-  it('AC-NUC-001-01 en las tablas reales los estados de autoridad solo se alcanzan con comandos decisivos', () => {
+  it('AC-NUC-001-01 in the real tables authority states are only reached with decisive commands', () => {
     const { cap, trans } = realTables();
     const toAuthority = Object.values(trans.entities).flatMap((def) =>
       def.transitions.filter((t) => def.authority.includes(t.to)).map((t) => t.command),
@@ -190,7 +190,7 @@ describe('coherencia de las tablas', () => {
     expect(toAuthority.filter((c) => cap.commands[c]?.decisive !== true)).toEqual([]);
   });
 
-  it('AC-NUC-001-01 en las tablas reales todos los estados son alcanzables y todo comando tiene transición', () => {
+  it('AC-NUC-001-01 in the real tables every state is reachable and every command has a transition', () => {
     const { cap, trans } = realTables();
     const unreachable = Object.entries(trans.entities).flatMap(([name, def]) => {
       const seen = reachable(def);
@@ -203,7 +203,7 @@ describe('coherencia de las tablas', () => {
     expect(Object.keys(cap.commands).filter((c) => !used.has(c))).toEqual([]);
   });
 
-  it('AC-NUC-001-01 permitir un comando decisivo real a un actor no humano se detecta siempre', () => {
+  it('AC-NUC-001-01 allowing a real decisive command to a non-human actor is always detected', () => {
     const { cap, trans } = realTables();
     const decisiveCommands = Object.keys(cap.commands).filter((c) => cap.commands[c]?.decisive);
     fc.assert(
@@ -214,14 +214,14 @@ describe('coherencia de las tablas', () => {
           const broken = structuredClone(cap);
           commandOf(broken, command).allowed = ['human', ...other];
           expect(tableInconsistencies(broken, trans)).toContain(
-            `${command}: un comando decisivo solo puede estar permitido a «human».`,
+            `${command}: a decisive command can only be allowed for "human".`,
           );
         },
       ),
     );
   });
 
-  it('AC-NUC-001-01 alcanzar un estado de autoridad real con un comando no decisivo se detecta siempre', () => {
+  it('AC-NUC-001-01 reaching a real authority state with a non-decisive command is always detected', () => {
     const { cap, trans } = realTables();
     const toAuthority = Object.values(trans.entities).flatMap((def) =>
       def.transitions.filter((t) => def.authority.includes(t.to)).map((t) => ({ command: t.command, to: t.to })),
@@ -231,40 +231,40 @@ describe('coherencia de las tablas', () => {
         const broken = structuredClone(cap);
         commandOf(broken, command).decisive = false;
         expect(tableInconsistencies(broken, trans)).toContain(
-          `${command}: alcanza el estado de autoridad «${to}» y debe ser decisivo.`,
+          `${command}: reaches authority state "${to}" and must be decisive.`,
         );
       }),
     );
   });
 
-  it('AC-NUC-001-01 las tablas mínimas de referencia son coherentes', () => {
+  it('AC-NUC-001-01 the minimal reference tables are consistent', () => {
     const { cap, trans } = minimalTables();
     expect(structuralInconsistencies(cap, trans)).toEqual([]);
   });
 
-  it.each(INCONSISTENT)('AC-NUC-001-01 detecta $caso', ({ corrupt, error }) => {
+  it.each(INCONSISTENT)('AC-NUC-001-01 detects $sample', ({ corrupt, error }) => {
     const { cap, trans } = minimalTables();
     corrupt(cap, trans);
     expect(structuralInconsistencies(cap, trans)).toContainEqual(expect.stringMatching(error));
   });
 
-  it('AC-NUC-001-01 las invariantes en código no se pueden relajar editando los datos', () => {
+  it("AC-NUC-001-01 the invariants fixed in code can't be relaxed by editing the data", () => {
     const { cap, trans } = realTables();
     expect(invariantInconsistencies(cap, trans)).toEqual([]);
     const question = trans.entities.question;
-    if (!question) throw new Error('falta question');
+    if (!question) throw new Error('question is missing');
     question.authority = [];
     commandOf(cap, 'record.create').allowed = ['human', 'agent_external'];
     const queryName = cap.queries['query.tokens'];
     if (queryName) queryName.allowed = ['human', 'agent_external'];
     const errors = tableInconsistencies(cap, trans);
-    expect(errors).toContain('question: «confirmed» debe ser un estado de autoridad (I1).');
-    expect(errors).toContain('record.create: un agent_external solo puede conversar, registrar fuentes y proponer (I2).');
-    expect(errors).toContain('query.tokens: vedada a los agentes externos.');
+    expect(errors).toContain('question: "confirmed" must be an authority state (I1).');
+    expect(errors).toContain('record.create: a agent_external can only converse, register sources and propose (I2).');
+    expect(errors).toContain('query.tokens: forbidden to external agents.');
   });
 });
 
-describe('deriva entre design/data/ y el dominio', () => {
+describe('drift between design/data/ and the domain', () => {
   const sources = async () => {
     const [cap, trans, generated] = await Promise.all([
       read('design/data/capabilities.yaml'),
@@ -274,22 +274,22 @@ describe('deriva entre design/data/ y el dominio', () => {
     return { cap, trans, generated };
   };
 
-  it('AC-NUC-001-02 regenerar desde design/data/ da exactamente el módulo generado', async () => {
+  it('AC-NUC-001-02 regenerating from design/data/ gives exactly the generated module', async () => {
     const { cap, trans, generated } = await sources();
     expect(generateTablesModule(cap, trans)).toBe(generated);
   });
 
-  it('AC-NUC-001-02 un cambio en design/data/ sin regenerar se detecta como deriva', async () => {
+  it('AC-NUC-001-02 a change in design/data/ without regenerating is detected as drift', async () => {
     const { cap, trans, generated } = await sources();
     const changed = cap.replace(/^version: (\d+)$/m, (_, n: string) => `version: ${Number(n) + 1}`);
     expect(changed).not.toBe(cap);
     expect(generateTablesModule(changed, trans)).not.toBe(generated);
   });
 
-  it('AC-NUC-001-02 la generación rechaza tablas incoherentes', async () => {
+  it('AC-NUC-001-02 generation rejects inconsistent tables', async () => {
     const { cap, trans } = await sources();
-    const brokenText = cap.replace(/^(\s+[a-z_.]+: \{[^}\n]*permitido: \[)human(\], decisivo: true)/m, '$1human, agent_run$2');
+    const brokenText = cap.replace(/^(\s+[a-z_.]+: \{[^}\n]*allowed: \[)human(\], decisive: true)/m, '$1human, agent_run$2');
     expect(brokenText).not.toBe(cap);
-    expect(() => generateTablesModule(brokenText, trans)).toThrow(/Tablas incoherentes/);
+    expect(() => generateTablesModule(brokenText, trans)).toThrow(/Inconsistent tables/);
   });
 });

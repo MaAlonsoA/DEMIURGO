@@ -1,4 +1,4 @@
-// Reintento con el mismo context pack (I7) y procedencia de los lotes de una ejecución.
+// Retry with the same context pack (I7) and provenance of a run's batches.
 
 import { waitForRun } from '@demiurgo/core';
 import { createSimulatedAgent } from '../../core/src/agents/simulated.ts';
@@ -6,7 +6,7 @@ import { DEFAULT_SCRIPTS } from '../../core/src/agents/simulated.ts';
 import { describe, expect, it } from 'vitest';
 import { useApi } from './support/api.ts';
 
-// La primera invocación de cada pack devuelve una salida inválida; las siguientes, la normal.
+// The first invocation of each pack returns an invalid output; the following ones, the normal one.
 const seen = new Set<string>();
 const api = useApi({
   durable: true,
@@ -34,12 +34,12 @@ async function command(projectId: string, name: string, data: unknown, entityId?
 }
 
 describe('retry', () => {
-  it('AC-DIS-001-07 el context pack del reintento coincide con el del envío (mismo hash)', async () => {
+  it("AC-DIS-001-07 the retry's context pack matches the submission's (same hash)", async () => {
     const projectId = (await api().person.request('POST', '/api/projects', { name: 'Retry' })).json<{
       project_id: string;
     }>().project_id;
-    const e = await command(projectId, 'exploration.open', { purpose: 'Cuotas de socios' });
-    await command(projectId, 'message.post', { exploration_id: e.entity_id, text: 'Quiero cuotas anuales', respond: false });
+    const e = await command(projectId, 'exploration.open', { purpose: 'Membership dues' });
+    await command(projectId, 'message.post', { exploration_id: e.entity_id, text: 'I want annual dues', respond: false });
     const submission = await command(projectId, 'run.request', {
       action: 'exploration_chat',
       scope: { type: 'exploration', id: e.entity_id },
@@ -51,8 +51,8 @@ describe('retry', () => {
     }>();
     expect(failed.failure_kind).toBe('invalid_output');
 
-    // Entre medias cambia la conversación: el reintento no reconstruye el contexto.
-    await command(projectId, 'message.post', { exploration_id: e.entity_id, text: 'Mejor mensuales', respond: false });
+    // Meanwhile the conversation changes: the retry does not rebuild the context.
+    await command(projectId, 'message.post', { exploration_id: e.entity_id, text: 'Better monthly', respond: false });
     const retry = await command(projectId, 'run.retry', { run_id: submission.entity_id });
     expect(await waitForRun(retry.entity_id)).toBe('completed');
     const second = (await api().person.request('GET', `/api/projects/${projectId}/runs/${retry.entity_id}`)).json<{
@@ -62,7 +62,7 @@ describe('retry', () => {
     expect(second.retry_of).toBe(submission.entity_id);
     expect(second.context_pack.hash).toBe(failed.context_pack.hash);
 
-    // Procedencia: el lote de la ejecución guarda su run y su context pack.
+    // Provenance: the run's batch keeps its run and its context pack.
     const batches = await api()
       .environment.services.db.selectFrom('proposal_batches')
       .selectAll()
@@ -81,7 +81,7 @@ describe('retry', () => {
     });
   });
 
-  it('AC-DIS-001-20 cada lote de una ejecución guarda la ejecución y el context pack que lo produjeron', async () => {
+  it('AC-DIS-001-20 every batch from a run keeps the run and the context pack that produced it', async () => {
     const batches = await api()
       .environment.services.db.selectFrom('proposal_batches')
       .select(['run_id', 'context_pack_id', 'producer'])

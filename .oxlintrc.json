@@ -20,7 +20,7 @@
   },
   "ignorePatterns": [
     "**/node_modules/**",
-    "**/generado/**",
+    "**/generated/**",
     "app/**",
     "frontend/**",
     "migrations/**",

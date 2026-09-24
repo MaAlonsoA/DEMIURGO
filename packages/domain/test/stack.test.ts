@@ -15,7 +15,7 @@ type PackageJson = {
   optionalDependencies?: Dependencies;
 };
 
-/** package.json de la raíz y de cada paquete del monorepo, por ruta. */
+/** package.json of the root and of each package in the monorepo, by path. */
 async function packageJsons(): Promise<Map<string, PackageJson>> {
   const map = new Map<string, PackageJson>([['package.json', JSON.parse(await read('package.json')) as PackageJson]]);
   for (const e of await readdir(join(ROOT, 'packages'), { withFileTypes: true })) {
@@ -42,18 +42,18 @@ function nonExactVersions(pkg: PackageJson): string[] {
   );
 }
 
-/** Defensas de cadena de suministro que faltan o son débiles en un pnpm-workspace.yaml. */
+/** Supply-chain defenses that are missing or weak in a pnpm-workspace.yaml. */
 function defenseProblems(yaml: string): string[] {
   const value = (key: string) => new RegExp(`^${key}:[ \\t]*([^\\s#]+)[ \\t]*(?:#.*)?$`, 'm').exec(yaml)?.[1];
   const problems: string[] = [];
   const age = value('minimumReleaseAge');
   if (!(Number(age) >= 4320))
-    problems.push(`minimumReleaseAge debe ser de al menos 4320 minutos, 3 días (ahora: ${age ?? 'sin definir'}).`);
+    problems.push(`minimumReleaseAge must be at least 4320 minutes, 3 days (now: ${age ?? 'not set'}).`);
   for (const key of ['strictDepBuilds', 'blockExoticSubdeps']) {
-    if (value(key) !== 'true') problems.push(`${key} debe estar activo.`);
+    if (value(key) !== 'true') problems.push(`${key} must be turned on.`);
   }
-  if (value('trustPolicy') !== 'no-downgrade') problems.push('trustPolicy debe ser no-downgrade.');
-  if (value('saveExact') !== 'true') problems.push('saveExact debe estar activo.');
+  if (value('trustPolicy') !== 'no-downgrade') problems.push('trustPolicy must be no-downgrade.');
+  if (value('saveExact') !== 'true') problems.push('saveExact must be turned on.');
   return problems;
 }
 
@@ -65,7 +65,7 @@ function importsOf(source: string): string[] {
 
 const NODE_IO_MODULES = ['fs', 'fs/promises', 'net', 'child_process', 'http', 'https', 'http2', 'dgram', 'dns', 'tls'];
 
-/** Un import es de E/S si es un módulo de Node con red, ficheros o procesos, o un paquete de infraestructura. */
+/** An import is I/O if it's a Node module with network, files or processes, or an infrastructure package. */
 function isIoImport(specifier: string): boolean {
   if (NODE_IO_MODULES.includes(specifier.replace(/^node:/, ''))) return true;
   return /^(?:pg|pg-[a-z-]+|kysely|fastify)(?:\/|$)/.test(specifier) || /^@(?:dbos-inc|fastify)\//.test(specifier);
@@ -80,8 +80,8 @@ async function domainSources(): Promise<Map<string, string>> {
   return sources;
 }
 
-describe('tipos estrictos', () => {
-  it('AC-STK-001-01 tsconfig.json activa strict, noUncheckedIndexedAccess, erasableSyntaxOnly y verbatimModuleSyntax', async () => {
+describe('strict types', () => {
+  it('AC-STK-001-01 tsconfig.json turns on strict, noUncheckedIndexedAccess, erasableSyntaxOnly and verbatimModuleSyntax', async () => {
     const tsconfig = JSON.parse(await read('tsconfig.json')) as { compilerOptions: Record<string, unknown>; include: string[] };
     expect(tsconfig.compilerOptions).toMatchObject({
       strict: true,
@@ -92,27 +92,27 @@ describe('tipos estrictos', () => {
     expect(tsconfig.include).toEqual(expect.arrayContaining(['packages/*/src/**/*.ts', 'packages/*/test/**/*.ts']));
   });
 
-  it('AC-STK-001-01 gate:types comprueba los tipos sin emitir y forma parte de gate:all', async () => {
+  it('AC-STK-001-01 gate:types checks types without emitting and is part of gate:all', async () => {
     const root = JSON.parse(await read('package.json')) as PackageJson;
     expect(root.scripts?.['gate:types']).toMatch(/^tsc\b.*--noEmit\b/);
     expect(root.scripts?.['gate:all']).toContain('pnpm gate:types');
   });
 });
 
-describe('versiones exactas', () => {
-  it('AC-STK-001-02 toda dependencia directa de cada package.json está fijada a una versión exacta', async () => {
+describe('exact versions', () => {
+  it('AC-STK-001-02 every direct dependency of each package.json is pinned to an exact version', async () => {
     const packages = await packageJsons();
     expect(packages.size).toBeGreaterThan(1);
     const notExact = [...packages].flatMap(([path, pkg]) => nonExactVersions(pkg).map((v) => `${path}: ${v}`));
     expect(notExact).toEqual([]);
   });
 
-  it('AC-STK-001-02 packageManager fija pnpm con su hash', async () => {
+  it('AC-STK-001-02 packageManager pins pnpm with its hash', async () => {
     const root = JSON.parse(await read('package.json')) as PackageJson;
     expect(root.packageManager).toMatch(/^pnpm@\d+\.\d+\.\d+\+sha(?:224|256|384|512)\.[0-9a-f]{56,128}$/);
   });
 
-  it('AC-STK-001-02 la comprobación distingue versiones exactas de rangos', () => {
+  it('AC-STK-001-02 the check tells exact versions apart from ranges', () => {
     const exact = ['1.2.3', '0.29.6', '5.0.0-beta.1', '7.0.2002', 'workspace:*'];
     expect(exact.filter((v) => !isExactVersion(v))).toEqual([]);
     const ranges = [
@@ -136,12 +136,12 @@ describe('versiones exactas', () => {
   });
 });
 
-describe('defensas de pnpm', () => {
-  it('AC-STK-001-03 pnpm-workspace.yaml activa minimumReleaseAge de 3 días, strictDepBuilds, blockExoticSubdeps, trustPolicy y saveExact', async () => {
+describe('pnpm defenses', () => {
+  it('AC-STK-001-03 pnpm-workspace.yaml turns on a 3-day minimumReleaseAge, strictDepBuilds, blockExoticSubdeps, trustPolicy and saveExact', async () => {
     expect(defenseProblems(await read('pnpm-workspace.yaml'))).toEqual([]);
   });
 
-  it('AC-STK-001-03 la comprobación detecta defensas ausentes, débiles o comentadas', () => {
+  it('AC-STK-001-03 the check detects defenses that are missing, weak or commented out', () => {
     const weak = [
       'minimumReleaseAge: 1440',
       'strictDepBuilds: false',
@@ -150,21 +150,21 @@ describe('defensas de pnpm', () => {
       'saveExact: false',
     ].join('\n');
     expect(defenseProblems(weak)).toEqual([
-      'minimumReleaseAge debe ser de al menos 4320 minutos, 3 días (ahora: 1440).',
-      'strictDepBuilds debe estar activo.',
-      'blockExoticSubdeps debe estar activo.',
-      'trustPolicy debe ser no-downgrade.',
-      'saveExact debe estar activo.',
+      'minimumReleaseAge must be at least 4320 minutes, 3 days (now: 1440).',
+      'strictDepBuilds must be turned on.',
+      'blockExoticSubdeps must be turned on.',
+      'trustPolicy must be no-downgrade.',
+      'saveExact must be turned on.',
     ]);
     expect(defenseProblems('')).toHaveLength(5);
     expect(
       defenseProblems('minimumReleaseAge: 4320\nstrictDepBuilds: true\nblockExoticSubdeps: true\ntrustPolicy: no-downgrade'),
-    ).toEqual(['saveExact debe estar activo.']);
+    ).toEqual(['saveExact must be turned on.']);
   });
 });
 
-describe('dominio puro', () => {
-  it('AC-STK-001-05 packages/domain/src no importa módulos de E/S', async () => {
+describe('pure domain', () => {
+  it('AC-STK-001-05 packages/domain/src imports no I/O modules', async () => {
     const sources = await domainSources();
     expect([...sources.keys()]).toContain('tables.ts');
     expect([...sources.values()].flatMap(importsOf)).toContain('zod');
@@ -176,17 +176,17 @@ describe('dominio puro', () => {
     expect(violations).toEqual([]);
   });
 
-  it('AC-STK-001-05 la comprobación detecta imports de E/S', () => {
+  it('AC-STK-001-05 the check detects I/O imports', () => {
     const source = [
       "import { Pool } from 'pg';",
       "import type { Kysely } from 'kysely';",
       'export { readFile } from "node:fs/promises";',
-      "const hijo = await import('node:child_process');",
+      "const child = await import('node:child_process');",
       "import '@dbos-inc/dbos-sdk';",
       "import { createServer } from 'http';",
       "import { createHash } from 'node:crypto';",
       "import { z } from 'zod';",
-      "import { huella } from './huella.ts';",
+      "import { fingerprint } from './fingerprint.ts';",
     ].join('\n');
     expect(importsOf(source).filter(isIoImport)).toEqual([
       'pg',

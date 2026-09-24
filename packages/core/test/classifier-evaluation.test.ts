@@ -9,8 +9,8 @@ import { useEnvironment } from './support/env.ts';
 
 const environment = useEnvironment();
 
-describe('evaluación del clasificador', () => {
-  it('AC-CON-001-11 registra precisión y cobertura por veredicto y por hallazgo en un archivo y en la tabla', async () => {
+describe('classifier evaluation', () => {
+  it('AC-CON-001-11 records precision and recall by verdict and by finding in a file and in the table', async () => {
     const output = await mkdtemp(join(tmpdir(), 'dmg-eval-'));
     try {
       const report = await evaluateClassifier({
@@ -30,7 +30,7 @@ describe('evaluación del clasificador', () => {
       const rows = await environment()
         .services.db.selectFrom('classifier_evaluations')
         .selectAll()
-        .where('classifier', '=', 'simulado@1')
+        .where('classifier', '=', 'simulated@1')
         .execute();
       expect(rows.map((f) => f.task).sort()).toEqual(['ideas', 'verdicts']);
     } finally {
@@ -38,7 +38,7 @@ describe('evaluación del clasificador', () => {
     }
   });
 
-  it('AC-CLA-001-02 el simulador da la misma respuesta para la misma entrada', async () => {
+  it('AC-CLA-001-02 the simulator gives the same response for the same input', async () => {
     const a = await evaluateClassifier({ classifier: createSimulatedClassifier(), partition: 'dev' });
     const b = await evaluateClassifier({ classifier: createSimulatedClassifier(), partition: 'dev' });
     expect(b.responses).toEqual(a.responses);

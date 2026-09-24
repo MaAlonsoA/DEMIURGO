@@ -1,4 +1,4 @@
-// AC de S1 sobre el núcleo (sin HTTP): versiones, criterios, preguntas, readiness y lotes.
+// S1 ACs on the core (no HTTP): versions, criteria, questions, readiness and batches.
 
 import { type Actor, DomainError, externalAgent, human, system } from '@demiurgo/domain';
 import { sql } from 'kysely';
@@ -16,7 +16,7 @@ let projectId = '';
 
 beforeAll(async () => {
   s = environment().services;
-  projectId = (await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Diseño' } })).projectId;
+  projectId = (await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Design' } })).projectId;
 });
 
 const cmd = (command: Parameters<typeof executeCommand>[1]['command'], data: unknown, entityId?: string, actor: Actor = ana) =>
@@ -25,7 +25,7 @@ const cmd = (command: Parameters<typeof executeCommand>[1]['command'], data: unk
 const FDR_SECTIONS = [
   { title: 'Goal', content: 'Que los socios se den de alta.' },
   { title: 'Scope', content: 'Alta con nombre y correo.' },
-  { title: 'Fuera de alcance', content: 'Pagos.' },
+  { title: 'Out of scope', content: 'Pagos.' },
   { title: 'Behavior', content: 'La persona rellena el formulario y ve la confirmación.' },
 ];
 const AC = (title: string) => ({
@@ -36,10 +36,7 @@ const AC = (title: string) => ({
   check: 'Prueba de extremo a extremo del formulario.',
 });
 
-async function fdrOn(
-  decision: { code: string },
-  options: { criteria?: unknown[]; approve?: boolean; origin?: unknown } = {},
-) {
+async function fdrOn(decision: { code: string }, options: { criteria?: unknown[]; approve?: boolean; origin?: unknown } = {}) {
   const r = await cmd('record.create', {
     type: 'fdr',
     domain: 'socios',
@@ -56,11 +53,11 @@ async function fdrOn(
 
 const DECISION_SECTIONS = [
   { title: 'Context', content: 'c2' },
-  { title: 'Decisión', content: 'd2' },
+  { title: 'Decision', content: 'd2' },
   { title: 'Consequences', content: 'k2' },
 ];
 
-/** Crea (y por defecto aprueba) una versión nueva de una decisión. */
+/** Creates (and by default approves) a new version of a decision. */
 async function newDecisionVersion(recordId: string, approve = true, pid = projectId): Promise<string> {
   const v = await executeCommand(s, {
     command: 'record_version.create',
@@ -95,8 +92,8 @@ async function versions(recordId: string) {
   return s.db.selectFrom('record_versions').select(['id', 'n', 'state']).where('record_id', '=', recordId).orderBy('n').execute();
 }
 
-describe('versiones y criterios', () => {
-  it('AC-DIS-001-08 aprobar no crea versión: la vigente es la última aprobada y la anterior queda sustituida', async () => {
+describe('versions and criteria', () => {
+  it('AC-DIS-001-08 approving does not create a version: the current one is the latest approved and the previous one is superseded', async () => {
     const d = await newDecision(s, projectId, true);
     expect(await versions(d.recordId)).toMatchObject([{ n: 1, state: 'approved' }]);
     const v2 = await cmd('record_version.create', {
@@ -104,7 +101,7 @@ describe('versiones y criterios', () => {
       title: 'Decisión revisada',
       sections: [
         { title: 'Context', content: 'c2' },
-        { title: 'Decisión', content: 'd2' },
+        { title: 'Decision', content: 'd2' },
         { title: 'Consequences', content: 'k2' },
       ],
       change_note: 'Se precisa la decisión.',
@@ -124,20 +121,20 @@ describe('versiones y criterios', () => {
       .where('command', '=', 'record_version.supersede')
       .where('entity_id', '=', (await versions(d.recordId))[0]?.id ?? '')
       .executeTakeFirstOrThrow();
-    expect(supersede.actor).toBe('system:versiones@1');
+    expect(supersede.actor).toBe('system:versions@1');
   });
 
-  it('AC-DIS-001-08 no se aprueba un borrador anterior a una versión ya aprobada: se descarta', async () => {
+  it('AC-DIS-001-08 an earlier draft than an already approved version is not approved: it is discarded', async () => {
     const d = await newDecision(s, projectId, true);
     const v2 = await newDecisionVersion(d.recordId, false);
     const v3 = await newDecisionVersion(d.recordId, false);
     await cmd('record_version.approve', {}, v3);
     await expect(cmd('record_version.approve', {}, v2)).rejects.toMatchObject({
       type: 'guard',
-      reasons: ['Ya hay una versión aprobada posterior (v3): descarta este borrador o crea una versión nueva.'],
+      reasons: ['There is already a later approved version (v3): discard this draft or create a new version.'],
     });
     expect((await versionReadiness(s.db, projectId, v2)).reasons).toContain(
-      'La versión 2 es un borrador anterior a la vigente (v3): solo se puede descartar.',
+      'Version 2 is a draft earlier than the current one (v3): it can only be discarded.',
     );
     expect((await inbox(s.db, projectId)).versions_to_approve.find((v) => v.id === v2)).toMatchObject({ approvable: false });
     await cmd('record_version.discard', { reason: 'La sustituye la v3.' }, v2);
@@ -148,10 +145,10 @@ describe('versiones y criterios', () => {
     ]);
   });
 
-  it('AC-DIS-001-09 los criterios y los enlaces solo nacen con su versión, y la base lo impone', async () => {
+  it('AC-DIS-001-09 criteria and links are only born with their version, and the database enforces it', async () => {
     const d = await newDecision(s, projectId, true);
     const f = await fdrOn(d, { approve: true });
-    const onlyWithOwnVersion = 'Los criterios y los enlaces se crean con su versión: crea una versión nueva del registro.';
+    const onlyWithOwnVersion = 'Criteria and links are created with their version: create a new version of the record.';
     const criterion = {
       version_id: f.versionId,
       code: `AC-${f.code.slice(4)}-07`,
@@ -167,7 +164,7 @@ describe('versiones y criterios', () => {
       type: 'guard',
       reasons: expect.arrayContaining([onlyWithOwnVersion]),
     });
-    // Ni siquiera en un borrador: el contenido de la versión se fija al crearla.
+    // Not even in a draft: a version's content is fixed when it is created.
     const draft = await fdrOn(d);
     await expect(cmd('criterion.record', { ...criterion, version_id: draft.versionId })).rejects.toMatchObject({
       type: 'guard',
@@ -180,22 +177,22 @@ describe('versiones y criterios', () => {
         to: { type: 'record_version', id: d.versionId },
       }),
     ).rejects.toMatchObject({ type: 'guard', reasons: [onlyWithOwnVersion] });
-    // La base lo impide aunque falle una guarda.
+    // The database blocks it even if a guard fails.
     await expect(
       sql`insert into criteria (project_id, record_version_id, code, title, statement, verification, check_text, carry, position, state)
           values (${projectId}::uuid, ${f.versionId}::uuid, ${criterion.code}, 't', 's', 'automatic', 'c', 'new', 9, 'recorded')`.execute(
         s.db,
       ),
-    ).rejects.toThrow(/borrador/);
+    ).rejects.toThrow(/draft/);
     await expect(
       sql`insert into links (project_id, type, from_type, from_id, from_version, to_type, to_id, to_version, state, created_by)
           values (${projectId}::uuid, 'based_on', 'record_version', ${f.versionId}::uuid, 1, 'record_version', ${d.versionId}::uuid, 1, 'current', 'human:ana')`.execute(
         s.db,
       ),
-    ).rejects.toThrow(/borrador/);
+    ).rejects.toThrow(/draft/);
   });
 
-  it('AC-DIS-001-09 un criterio nuevo nunca reutiliza el código de uno descartado y una versión nueva exige nota de cambio', async () => {
+  it('AC-DIS-001-09 a new criterion never reuses the code of a discarded one, and a new version requires a change note', async () => {
     const d = await newDecision(s, projectId);
     const f = await fdrOn(d);
     const [c1, c2] = (
@@ -204,7 +201,7 @@ describe('versiones y criterios', () => {
     const base = { record_id: f.recordId, title: 'v2', sections: FDR_SECTIONS };
     await expect(
       cmd('record_version.create', { ...base, criteria: [{ carry: 'kept', code: c1 }], discarded: [c2] }),
-    ).rejects.toMatchObject({ type: 'guard', reasons: ['Una versión nueva exige una nota de cambio.'] });
+    ).rejects.toMatchObject({ type: 'guard', reasons: ['A new version requires a change note.'] });
     await cmd('record_version.create', {
       ...base,
       criteria: [{ carry: 'kept', code: c1 }],
@@ -220,7 +217,7 @@ describe('versiones y criterios', () => {
           { ...AC('another'), code: c2 },
         ],
       }),
-    ).rejects.toMatchObject({ type: 'validation', message: expect.stringContaining(`${c2} ya se usó`) });
+    ).rejects.toMatchObject({ type: 'validation', message: expect.stringContaining(`${c2} was already used`) });
     const r = await cmd('record_version.create', { ...v3, criteria: [{ carry: 'kept', code: c1 }, AC('another')] });
     const codes = (
       await s.db.selectFrom('criteria').select('code').where('record_version_id', '=', r.entityId).orderBy('position').execute()
@@ -228,7 +225,7 @@ describe('versiones y criterios', () => {
     expect(codes).toEqual([c1, expect.stringMatching(/-03$/)]);
   });
 
-  it('AC-DIS-001-08 crear un registro con una versión explícita (importación) devuelve esa versión', async () => {
+  it('AC-DIS-001-08 creating a record with an explicit version (import) returns that version', async () => {
     const r = await cmd('record.create', {
       type: 'decision',
       domain: 'socios',
@@ -240,24 +237,24 @@ describe('versiones y criterios', () => {
     expect(r.result).toMatchObject({ version: 2 });
   });
 
-  it('AC-DIS-001-09 la base rechaza modificar una versión o sus criterios', async () => {
+  it('AC-DIS-001-09 the database rejects modifying a version or its criteria', async () => {
     const d = await newDecision(s, projectId);
     const f = await fdrOn(d);
     await expect(sql`update record_versions set title = 'otro' where id = ${f.versionId}::uuid`.execute(s.db)).rejects.toThrow(
-      /inmutable/,
+      /immutable/,
     );
     await expect(sql`update record_versions set sections = '[]' where id = ${f.versionId}::uuid`.execute(s.db)).rejects.toThrow(
-      /inmutable/,
+      /immutable/,
     );
     await expect(
       sql`update criteria set statement = 'otro' where record_version_id = ${f.versionId}::uuid`.execute(s.db),
-    ).rejects.toThrow(/no admite cambios/);
+    ).rejects.toThrow(/does not admit changes/);
     await expect(sql`delete from criteria where record_version_id = ${f.versionId}::uuid`.execute(s.db)).rejects.toThrow(
-      /no admite DELETE/,
+      /does not admit DELETE/,
     );
   });
 
-  it('AC-DIS-001-09 una versión nueva exige mantener, modificar o descartar cada criterio', async () => {
+  it('AC-DIS-001-09 a new version requires keeping, modifying or discarding each criterion', async () => {
     const d = await newDecision(s, projectId);
     const f = await fdrOn(d);
     const codes = (
@@ -270,19 +267,15 @@ describe('versiones y criterios', () => {
       sections: FDR_SECTIONS,
       change_note: 'Cambia un criterio.',
     };
-    // Sin decir qué pasa con el segundo criterio: se rechaza con el motivo.
+    // Without saying what happens to the second criterion: rejected with the reason.
     const withoutCarryOver = cmd('record_version.create', { ...base, criteria: [{ carry: 'kept', code: codes[0] }] });
     await expect(withoutCarryOver).rejects.toMatchObject({
       type: 'guard',
-      reasons: [expect.stringContaining(`${codes[1]}: mantener, modificar o descartar`)],
+      reasons: [expect.stringContaining(`${codes[1]}: keep, modify or discard`)],
     });
     const r = await cmd('record_version.create', {
       ...base,
-      criteria: [
-        { carry: 'kept', code: codes[0] },
-        { ...AC('modified'), carry: 'modified', derived_from: codes[1] },
-        AC('new'),
-      ],
+      criteria: [{ carry: 'kept', code: codes[0] }, { ...AC('modified'), carry: 'modified', derived_from: codes[1] }, AC('new')],
     });
     const created = await s.db
       .selectFrom('criteria')
@@ -296,7 +289,7 @@ describe('versiones y criterios', () => {
       [expect.stringMatching(/-03$/), 'new'],
     ]);
     expect(created[0]?.derived_from).not.toBeNull();
-    // Descartar también es explícito.
+    // Discarding is explicit too.
     const v3 = await cmd('record_version.create', {
       ...base,
       title: 'v3',
@@ -306,7 +299,7 @@ describe('versiones y criterios', () => {
     expect(v3.state).toBe('draft');
   });
 
-  it('AC-DIS-001-18 crear o aprobar un registro que no cumple su plantilla se rechaza con lo que falta', async () => {
+  it('AC-DIS-001-18 creating or approving a record that does not meet its template is rejected with what is missing', async () => {
     const bug = cmd('record.create', {
       type: 'bug',
       domain: 'socios',
@@ -316,21 +309,21 @@ describe('versiones y criterios', () => {
         { title: 'Observed', content: 'o' },
       ],
     });
-    await expect(bug).rejects.toMatchObject({ type: 'guard', reasons: [expect.stringContaining('Reproducción')] });
+    await expect(bug).rejects.toMatchObject({ type: 'guard', reasons: [expect.stringContaining('Reproduction')] });
     const empty = cmd('record.create', {
       type: 'decision',
       domain: 'socios',
       title: 'x',
       sections: [
         { title: 'Context', content: '' },
-        { title: 'Decisión', content: 'd' },
+        { title: 'Decision', content: 'd' },
         { title: 'Consequences', content: 'k' },
       ],
     });
-    await expect(empty).rejects.toMatchObject({ type: 'guard', reasons: [expect.stringContaining('está vacía')] });
+    await expect(empty).rejects.toMatchObject({ type: 'guard', reasons: [expect.stringContaining('is empty')] });
   });
 
-  it('AC-DIS-001-18 una FDR o un ADR sin una sección de su plantilla se rechaza, y también al aprobar', async () => {
+  it('AC-DIS-001-18 an FDR or an ADR missing a template section is rejected, and also when approving', async () => {
     const fdr = cmd('record.create', {
       type: 'fdr',
       domain: 'socios',
@@ -345,17 +338,17 @@ describe('versiones y criterios', () => {
       title: 'Sin opciones',
       sections: [
         { title: 'Context', content: 'c' },
-        { title: 'Decisión', content: 'd' },
+        { title: 'Decision', content: 'd' },
         { title: 'Consequences', content: 'k' },
       ],
       criteria: [AC('alta')],
     });
     await expect(adr).rejects.toMatchObject({ type: 'guard', reasons: [expect.stringContaining('Options')] });
-    // Al aprobar se vuelve a comprobar: una versión que no la cumple (insertada sin pasar por la guarda de creación).
+    // It is checked again on approval: a version that does not meet it (inserted without going through the creation guard).
     const d = await newDecision(s, projectId);
     const sections = JSON.stringify([
       { title: 'Context', content: 'c' },
-      { title: 'Decisión', content: 'd' },
+      { title: 'Decision', content: 'd' },
     ]);
     const { rows } = await sql<{ id: string }>`
       insert into record_versions (project_id, record_id, n, title, sections, author, content_hash, state)
@@ -374,15 +367,15 @@ describe('questions', () => {
     return (await cmd('question.raise', { exploration_id: e, question: '¿Quién paga la cuota?' })).entityId;
   }
 
-  it('AC-DIS-001-10 confirmar exige conclusión; posponer y descartar exigen motivo; reabrir conserva el historial', async () => {
+  it('AC-DIS-001-10 confirming requires a conclusion; postponing and discarding require a reason; reopening keeps the history', async () => {
     const q = await question();
     await expect(cmd('question.confirm', {}, q)).rejects.toMatchObject({
       type: 'guard',
-      reasons: ['Hace falta una conclusión.'],
+      reasons: ['A conclusion is required.'],
     });
     await expect(cmd('question.postpone', { reason: '  ' }, q)).rejects.toMatchObject({
       type: 'guard',
-      reasons: ['Hace falta un motivo.'],
+      reasons: ['A reason is required.'],
     });
     await cmd('question.confirm', { conclusion: 'La paga cada socio.' }, q);
     await cmd('question.reopen', { reason: 'Cambia el reglamento.' }, q);
@@ -396,17 +389,17 @@ describe('questions', () => {
       .execute();
     expect(history.map((e) => e.command)).toEqual(['question.raise', 'question.confirm', 'question.reopen']);
     expect(history[1]?.after).toEqual({ conclusion: 'La paga cada socio.' });
-    // Reabierta, vuelve sin conclusión: confirmarla otra vez exige una nueva.
+    // Once reopened, it comes back without a conclusion: confirming it again requires a new one.
     expect(row.conclusion).toBeNull();
     await expect(cmd('question.confirm', {}, q)).rejects.toMatchObject({
       type: 'guard',
-      reasons: ['Hace falta una conclusión.'],
+      reasons: ['A conclusion is required.'],
     });
     await expect(cmd('question.discard', {}, q)).rejects.toMatchObject({ type: 'guard' });
     await cmd('question.discard', { reason: 'Ya no aplica.' }, q);
   });
 
-  it('AC-DIS-001-19 una pregunta solo pasa a inferida por el sistema; un agente no puede inferirla ni confirmarla', async () => {
+  it('AC-DIS-001-19 a question only becomes inferred by the system; an agent cannot infer or confirm it', async () => {
     const q = await question();
     for (const actor of [
       externalAgent('bot', 's'),
@@ -418,33 +411,33 @@ describe('questions', () => {
     await cmd('question.infer', { conclusion: 'Cada socio.', reasoning: 'Lo dijo la persona.' }, q, system('exploration'));
     const row = await s.db.selectFrom('questions').select(['state', 'conclusion']).where('id', '=', q).executeTakeFirstOrThrow();
     expect(row).toEqual({ state: 'inferred', conclusion: 'Cada socio.' });
-    // La persona la confirma con la conclusión inferida.
+    // The person confirms it with the inferred conclusion.
     await cmd('question.confirm', {}, q);
   });
 });
 
 describe('readiness', () => {
-  it('AC-DIS-001-06 readiness falsa por cada motivo, en lenguaje de producto', async () => {
+  it('AC-DIS-001-06 readiness false for each reason, in product language', async () => {
     const decision = await newDecision(s, projectId, true);
     const list = await fdrOn(decision, { approve: true });
     expect(await versionReadiness(s.db, projectId, list.versionId)).toEqual({ ready: true, reasons: [], warnings: [] });
 
-    // Versión no aprobada.
+    // Unapproved version.
     const draft = await fdrOn(decision);
-    expect((await versionReadiness(s.db, projectId, draft.versionId)).reasons).toContain('La versión 1 no está aprobada.');
+    expect((await versionReadiness(s.db, projectId, draft.versionId)).reasons).toContain('Version 1 is not approved.');
 
-    // Sin criterios.
+    // No criteria.
     const withoutAc = await fdrOn(decision, { criteria: [], approve: true });
-    expect((await versionReadiness(s.db, projectId, withoutAc.versionId)).reasons).toContain('No tiene criterios de aceptación.');
+    expect((await versionReadiness(s.db, projectId, withoutAc.versionId)).reasons).toContain('It has no acceptance criteria.');
 
-    // Sin decisión aprobada.
+    // No approved decision.
     const withoutDecision = await newDecision(s, projectId, false);
     const fWithoutDecision = await fdrOn(withoutDecision, { approve: true });
     expect((await versionReadiness(s.db, projectId, fWithoutDecision.versionId)).reasons).toContain(
-      `La decisión ${withoutDecision.code} en la que se basa no está aprobada.`,
+      `Decision ${withoutDecision.code} it is based on is not approved.`,
     );
 
-    // No vigente: aprobar una v2 de la FDR deja la v1 sustituida.
+    // Not current: approving a v2 of the FDR leaves v1 superseded.
     const f = await fdrOn(decision, { approve: true });
     const v2 = await cmd('record_version.create', {
       record_id: f.recordId,
@@ -458,10 +451,10 @@ describe('readiness', () => {
     });
     await cmd('record_version.approve', {}, v2.entityId);
     expect((await versionReadiness(s.db, projectId, f.versionId)).reasons).toContain(
-      'La versión 1 está sustituida: la vigente es la 2.',
+      'Version 1 is superseded: the current one is 2.',
     );
 
-    // Decisión no vigente y enlace pendiente de revisión: se aprueba una v2 de la decisión.
+    // Decision not current and link pending review: a v2 of the decision is approved.
     const d2 = await newDecision(s, projectId, true);
     const fd2 = await fdrOn(d2, { approve: true });
     const incoming = await cmd('record_version.create', {
@@ -469,27 +462,27 @@ describe('readiness', () => {
       title: 'Decisión v2',
       sections: [
         { title: 'Context', content: 'c' },
-        { title: 'Decisión', content: 'other' },
+        { title: 'Decision', content: 'other' },
         { title: 'Consequences', content: 'k' },
       ],
       change_note: 'Cambia la decisión.',
     });
     await cmd('record_version.approve', {}, incoming.entityId);
     const reasons = (await versionReadiness(s.db, projectId, fd2.versionId)).reasons;
-    expect(reasons).toContain(`Se basa en ${d2.code} v1, pero la vigente es la v2.`);
-    expect(reasons).toContain(`El enlace con ${d2.code} está pendiente de revisión.`);
+    expect(reasons).toContain(`It is based on ${d2.code} v1, but the current one is v2.`);
+    expect(reasons).toContain(`The link with ${d2.code} is pending review.`);
 
-    // Preguntas pendientes o pospuestas en la exploración de origen.
+    // Pending or postponed questions in the origin exploration.
     const e = await newExploration(s, projectId);
     await cmd('question.raise', { exploration_id: e, question: '¿Hay invitados?' });
     const q2 = (await cmd('question.raise', { exploration_id: e, question: '¿Cuotas reducidas?' })).entityId;
     await cmd('question.postpone', { reason: 'Luego.' }, q2);
     const withQuestions = await fdrOn(decision, { approve: true, origin: { type: 'exploration', id: e } });
     const mp = (await versionReadiness(s.db, projectId, withQuestions.versionId)).reasons;
-    expect(mp).toContain('Hay 1 pregunta(s) pendiente(s) en la exploración de origen.');
-    expect(mp).toContain('Hay 1 pregunta(s) pospuesta(s) en la exploración de origen.');
+    expect(mp).toContain('There are 1 pending question(s) in the origin exploration.');
+    expect(mp).toContain('There are 1 postponed question(s) in the origin exploration.');
 
-    // Propuestas pendientes que la afectan.
+    // Pending proposals affecting it.
     const affected = await fdrOn(decision, { approve: true });
     await cmd(
       'batch.submit',
@@ -506,11 +499,11 @@ describe('readiness', () => {
       system('test'),
     );
     expect((await versionReadiness(s.db, projectId, affected.versionId)).reasons).toContain(
-      'Hay 1 propuesta(s) pendiente(s) que la afectan.',
+      'There are 1 pending proposal(s) affecting it.',
     );
   });
 
-  it('AC-DIS-001-06 las preguntas abiertas se buscan en la exploración de origen: propuesta → lote → ejecución → alcance', async () => {
+  it('AC-DIS-001-06 open questions are looked up in the origin exploration: proposal → batch → run → scope', async () => {
     const decision = await newDecision(s, projectId, true);
     const e = await newExploration(s, projectId);
     await cmd('question.raise', { exploration_id: e, question: '¿Hay cuota familiar?' });
@@ -547,38 +540,38 @@ describe('readiness', () => {
     const [proposal] = (batch.result as { proposals: string[] }).proposals;
     const effect = (await cmd('proposal.accept', { approve: true }, proposal)).result as { versionId: string };
     expect((await versionReadiness(s.db, projectId, effect.versionId)).reasons).toEqual([
-      'Hay 1 pregunta(s) pendiente(s) en la exploración de origen.',
+      'There are 1 pending question(s) in the origin exploration.',
     ]);
   });
 
-  it('AC-DIS-001-14 un criterio no observable recibe un aviso, nunca un bloqueo', async () => {
+  it('AC-DIS-001-14 a non-observable criterion gets a warning, never a block', async () => {
     const decision = await newDecision(s, projectId, true);
     const f = (await fdrOn(decision, {
       approve: true,
       criteria: [{ ...AC('x'), title: 'Rápido', statement: 'El alta es rápida e intuitiva.' }, AC('good')],
     })) as unknown as { versionId: string; code: string; warnings: string[] };
-    // El aviso llega al registrar el AC; el que cumple la regla no recibe ninguno.
+    // The warning arrives when the AC is recorded; the one that follows the rule gets none.
     const prefix = `AC-${f.code.slice(4)}`;
-    expect(f.warnings.join(' ')).toMatch(new RegExp(`${prefix}-01: el enunciado no describe un resultado observable`));
-    expect(f.warnings.join(' ')).toMatch(new RegExp(`${prefix}-01: «rápida» es vago`));
+    expect(f.warnings.join(' ')).toMatch(new RegExp(`${prefix}-01: the statement doesn't describe an observable result`));
+    expect(f.warnings.join(' ')).toMatch(new RegExp(`${prefix}-01: "rápida" is vague`));
     expect(f.warnings.filter((a) => a.startsWith(`${prefix}-02`))).toEqual([]);
     const r = await versionReadiness(s.db, projectId, f.versionId);
     expect(r.ready).toBe(true);
-    expect(r.warnings.join(' ')).toMatch(/no describe un resultado observable/);
-    expect(r.warnings.join(' ')).toMatch(/«rápida» es vago|es vago/);
+    expect(r.warnings.join(' ')).toMatch(/doesn't describe an observable result/);
+    expect(r.warnings.join(' ')).toMatch(/"rápida" is vague|is vague/);
   });
 });
 
-describe('lotes y propuestas', () => {
-  it('AC-DIS-001-11 un agente externo propone como máximo 10 elementos, por elementos y con su productor visible', async () => {
-    const bot = externalAgent('bot', 'sesion-x');
+describe('batches and proposals', () => {
+  it('AC-DIS-001-11 an external agent proposes at most 10 items, item by item and with its producer visible', async () => {
+    const bot = externalAgent('bot', 'session-x');
     const payload = { purpose: 'Explorar invitados' };
     const once = Array.from({ length: 11 }, () => ({ type: 'exploration', payload }));
     await expect(cmd('batch.submit', { proposals: once }, undefined, bot)).rejects.toMatchObject({
       type: 'guard',
-      reasons: [expect.stringContaining('como máximo 10')],
+      reasons: [expect.stringContaining('at most 10')],
     });
-    // Aunque pida paquete, el canal lo fija por elementos.
+    // Even if it asks for a package, the channel fixes it by item.
     const r = await cmd(
       'batch.submit',
       { resolution: 'package', batch_type: 'system_package', proposals: once.slice(0, 10) },
@@ -586,38 +579,38 @@ describe('lotes y propuestas', () => {
       bot,
     );
     const batch = await s.db.selectFrom('proposal_batches').selectAll().where('id', '=', r.entityId).executeTakeFirstOrThrow();
-    expect(batch).toMatchObject({ kind: 'agent', resolution_mode: 'item', producer: 'agent:bot:sesion-x' });
+    expect(batch).toMatchObject({ kind: 'agent', resolution_mode: 'item', producer: 'agent:bot:session-x' });
     const proposals = await s.db.selectFrom('proposals').select('id').where('batch_id', '=', batch.id).execute();
     expect(proposals).toHaveLength(10);
-    // No se acepta el lote entero: se resuelve elemento a elemento.
+    // The whole batch is not accepted: it is resolved item by item.
     await expect(cmd('batch.accept_package', {}, batch.id)).rejects.toMatchObject({
       type: 'guard',
-      reasons: ['Este lote se resuelve elemento a elemento.'],
+      reasons: ['This batch is resolved item by item.'],
     });
     await cmd('proposal.accept', {}, proposals[0]?.id);
     await cmd('proposal.reject', { reason: 'No ahora.' }, proposals[1]?.id);
   });
 
-  it('AC-DIS-001-11 una propuesta de un paquete no se acepta ni se rechaza suelta', async () => {
+  it('AC-DIS-001-11 a proposal from a package is not accepted or rejected on its own', async () => {
     const { proposals } = await newBatch(s, projectId, true);
-    const reason = 'Esta propuesta forma parte de un paquete: se acepta o se rechaza el paquete completo.';
+    const reason = 'This proposal is part of a package: the whole package is accepted or rejected together.';
     await expect(cmd('proposal.accept', {}, proposals[0])).rejects.toMatchObject({ type: 'guard', reasons: [reason] });
     await expect(cmd('proposal.reject', {}, proposals[0])).rejects.toMatchObject({ type: 'guard', reasons: [reason] });
   });
 
-  it('AC-DIS-001-05 un agente externo solo propone decisiones, exploraciones y FDR, sin tipo de observación ni procedencia', async () => {
-    const bot = externalAgent('bot', 'sesion-z');
+  it('AC-DIS-001-05 an external agent only proposes decisions, explorations and FDRs, with no observation type or provenance', async () => {
+    const bot = externalAgent('bot', 'session-z');
     for (const type of ['review', 'imported_record', 'imported_taxonomy']) {
       await expect(cmd('batch.submit', { proposals: [{ type, payload: {} }] }, undefined, bot)).rejects.toMatchObject({
         type: 'guard',
-        reasons: expect.arrayContaining([`Un agente externo no puede proponer «${type}».`]),
+        reasons: expect.arrayContaining([`An external agent cannot propose "${type}".`]),
       });
     }
     const e = await newExploration(s, projectId);
     await expect(
       cmd('message.post', { exploration_id: e, text: 'Es seguro que sí.', type: 'claim', respond: false }, undefined, bot),
-    ).rejects.toMatchObject({ type: 'validation', message: 'Solo la salida de un agente lleva tipo de observación.' });
-    // No puede atribuir su lote a una ejecución ni a un context pack: el canal lo anula.
+    ).rejects.toMatchObject({ type: 'validation', message: 'Only agent output carries an observation type.' });
+    // It cannot attribute its batch to a run or a context pack: the channel nulls it out.
     const r = await cmd(
       'batch.submit',
       {
@@ -633,12 +626,12 @@ describe('lotes y propuestas', () => {
       .select(['run_id', 'context_pack_id', 'producer'])
       .where('id', '=', r.entityId)
       .executeTakeFirstOrThrow();
-    expect(batch).toEqual({ run_id: null, context_pack_id: null, producer: 'agent:bot:sesion-z' });
+    expect(batch).toEqual({ run_id: null, context_pack_id: null, producer: 'agent:bot:session-z' });
   });
 
-  it('AC-DIS-001-11 un agente no puede añadir propuestas a un lote ajeno ni fuera de un envío', async () => {
+  it('AC-DIS-001-11 an agent cannot add proposals to a batch it does not own or outside a submission', async () => {
     const { batchId } = await newBatch(s, projectId, true);
-    const bot = externalAgent('bot', 'sesion-y');
+    const bot = externalAgent('bot', 'session-y');
     const attempt = cmd(
       'proposal.create',
       { batch_id: batchId, position: 9, type: 'exploration', payload: { purpose: 'sneak' } },
@@ -647,11 +640,11 @@ describe('lotes y propuestas', () => {
     );
     await expect(attempt).rejects.toMatchObject({
       type: 'guard',
-      reasons: ['Las propuestas se envían dentro de un lote (batch.submit).'],
+      reasons: ['Proposals are submitted within a batch (batch.submit).'],
     });
   });
 
-  it('AC-DIS-001-16 una propuesta que depende de una versión que cambió queda obsoleta y no se acepta', async () => {
+  it('AC-DIS-001-16 a proposal that depends on a version that changed becomes obsolete and is not accepted', async () => {
     const d = await newDecision(s, projectId, true);
     const dep = { type: 'record', id: d.recordId, code: d.code, version: 1 };
     const r = await cmd(
@@ -661,13 +654,13 @@ describe('lotes y propuestas', () => {
       system('test'),
     );
     const [proposal] = (r.result as { proposals: string[] }).proposals;
-    // Un cambio humano posterior: se aprueba la v2 de la decisión.
+    // A later human change: v2 of the decision is approved.
     const v2 = await cmd('record_version.create', {
       record_id: d.recordId,
       title: 'v2',
       sections: [
         { title: 'Context', content: 'c' },
-        { title: 'Decisión', content: 'd' },
+        { title: 'Decision', content: 'd' },
         { title: 'Consequences', content: 'k' },
       ],
       change_note: 'Change.',
@@ -679,14 +672,14 @@ describe('lotes y propuestas', () => {
       .where('id', '=', proposal ?? '')
       .executeTakeFirstOrThrow();
     expect(row.state).toBe('superseded');
-    expect(JSON.stringify(row.resolution)).toMatch(/ha cambiado \(vigente: v2; la propuesta partía de v1\)/);
+    expect(JSON.stringify(row.resolution)).toMatch(/has changed \(current: v2; the proposal was based on v1\)/);
     await expect(cmd('proposal.accept', {}, proposal)).rejects.toMatchObject({ type: 'invalid_transition' });
   });
 
-  it('AC-DIS-001-16 una propuesta que nace con una dependencia que no es la vigente queda obsoleta desde el envío', async () => {
+  it('AC-DIS-001-16 a proposal born with a dependency that is not the current one is obsolete from submission', async () => {
     const d = await newDecision(s, projectId, true);
     await newDecisionVersion(d.recordId);
-    // La dependencia declara la v1, pero la vigente ya es la v2.
+    // The dependency declares v1, but the current one is already v2.
     const r = await cmd(
       'batch.submit',
       { proposals: [{ type: 'exploration', payload: { purpose: 'x' }, dependencies: [dependency(d)] }] },
@@ -700,14 +693,14 @@ describe('lotes y propuestas', () => {
       .where('id', '=', proposal ?? '')
       .executeTakeFirstOrThrow();
     expect(row.state).toBe('superseded');
-    expect(JSON.stringify(row.resolution)).toMatch(/La propuesta está obsoleta: .* \(vigente: v2; la propuesta partía de v1\)/);
+    expect(JSON.stringify(row.resolution)).toMatch(/The proposal is obsolete: .* \(current: v2; the proposal was based on v1\)/);
     await expect(cmd('proposal.accept', {}, proposal)).rejects.toMatchObject({
       type: 'invalid_transition',
       message: expect.stringContaining('Obsolete'),
     });
   });
 
-  it('AC-DIS-001-16 depender de un borrador sin versión aprobada no hace obsoleta la propuesta; descartarlo sí', async () => {
+  it('AC-DIS-001-16 depending on a draft with no approved version does not make the proposal obsolete; discarding it does', async () => {
     const d = await newDecision(s, projectId, false);
     const r = await cmd(
       'batch.submit',
@@ -716,7 +709,7 @@ describe('lotes y propuestas', () => {
       system('test'),
     );
     const [proposal] = (r.result as { proposals: string[] }).proposals;
-    // Las revisiones del conocimiento sobre borradores (p. ej. lo importado de design/) llegan a la bandeja.
+    // Knowledge reviews about drafts (e.g. what is imported from design/) reach the inbox.
     expect(await stateOf('proposals', proposal ?? '')).toBe('pending');
     await cmd('record_version.discard', { reason: 'No sigue.' }, d.versionId);
     const row = await s.db
@@ -725,10 +718,10 @@ describe('lotes y propuestas', () => {
       .where('id', '=', proposal ?? '')
       .executeTakeFirstOrThrow();
     expect(row.state).toBe('superseded');
-    expect(JSON.stringify(row.resolution)).toMatch(/la versión 1 de .* se ha descartado/);
+    expect(JSON.stringify(row.resolution)).toMatch(/version 1 of .* was discarded/);
   });
 
-  it('AC-DIS-001-16 una FDR basada en una versión y que declara otra del mismo registro nace obsoleta', async () => {
+  it('AC-DIS-001-16 an FDR based on one version but declaring another of the same record is born obsolete', async () => {
     const d = await newDecision(s, projectId, true);
     await newDecisionVersion(d.recordId);
     const r = await cmd(
@@ -758,21 +751,21 @@ describe('lotes y propuestas', () => {
         ],
       },
       undefined,
-      externalAgent('bot', 'sesion-dos'),
+      externalAgent('bot', 'session-two'),
     );
     const [proposal] = (r.result as { proposals: string[] }).proposals;
     expect(await stateOf('proposals', proposal ?? '')).toBe('superseded');
   });
 
-  it('AC-DIS-001-16 una propuesta de un paquete no queda obsoleta suelta: queda obsoleto el paquete', async () => {
+  it('AC-DIS-001-16 a proposal from a package does not go obsolete on its own: the whole package does', async () => {
     const { proposals } = await newBatch(s, projectId, true);
     await expect(cmd('proposal.supersede', { reason: 'x' }, proposals[0], system('test'))).rejects.toMatchObject({
       type: 'guard',
-      reasons: ['Esta propuesta forma parte de un paquete: queda obsoleto el paquete completo.'],
+      reasons: ['This proposal is part of a package: the whole package becomes obsolete.'],
     });
   });
 
-  it('AC-DIS-001-06 un paquete cuyo lote depende de la FDR la afecta, y descartar la versión enlazada deja el enlace en revisión', async () => {
+  it('AC-DIS-001-06 a package whose batch depends on the FDR affects it, and discarding the linked version leaves the link in review', async () => {
     const decision = await newDecision(s, projectId, true);
     const f = await fdrOn(decision, { approve: true });
     await cmd(
@@ -787,9 +780,9 @@ describe('lotes y propuestas', () => {
       system('test'),
     );
     expect((await versionReadiness(s.db, projectId, f.versionId)).reasons).toContain(
-      'Hay 1 propuesta(s) pendiente(s) que la afectan.',
+      'There are 1 pending proposal(s) affecting it.',
     );
-    // Un borrador enlazado que se descarta: el enlace queda pendiente de revisión.
+    // A linked draft that gets discarded: the link is left pending review.
     const draft = await newDecision(s, projectId, false);
     const g = await fdrOn(draft);
     await cmd('record_version.discard', {}, draft.versionId);
@@ -797,7 +790,7 @@ describe('lotes y propuestas', () => {
     expect(link.state).toBe('needs_review');
   });
 
-  it('AC-DIS-001-16 un paquete cuyo lote depende de una versión que cambió queda obsoleto entero', async () => {
+  it('AC-DIS-001-16 a package whose batch depends on a version that changed becomes entirely obsolete', async () => {
     const d = await newDecision(s, projectId, true);
     const r = await cmd(
       'batch.submit',
@@ -820,7 +813,7 @@ describe('lotes y propuestas', () => {
     await expect(cmd('batch.accept_package', {}, r.entityId)).rejects.toMatchObject({ type: 'invalid_transition' });
   });
 
-  it('AC-DIS-001-16 si una propuesta de un paquete queda obsoleta, queda obsoleto el paquete: nunca se acepta a medias', async () => {
+  it('AC-DIS-001-16 if one proposal in a package goes obsolete, the whole package does: it is never partly accepted', async () => {
     const d = await newDecision(s, projectId, true);
     const r = await cmd(
       'batch.submit',
@@ -841,9 +834,9 @@ describe('lotes y propuestas', () => {
     expect(states.map((e) => e.state)).toEqual(['superseded', 'superseded']);
   });
 
-  it('AC-DIS-001-16 una FDR propuesta sobre una decisión depende de ella aunque el agente no lo declare', async () => {
+  it('AC-DIS-001-16 an FDR proposed on top of a decision depends on it even when the agent does not declare it', async () => {
     const d = await newDecision(s, projectId, true);
-    const bot = externalAgent('bot', 'sesion-fdr');
+    const bot = externalAgent('bot', 'session-fdr');
     const r = await cmd(
       'batch.submit',
       {
@@ -883,7 +876,7 @@ describe('lotes y propuestas', () => {
     expect(await stateOf('proposals', proposal ?? '')).toBe('superseded');
   });
 
-  it('AC-NUC-001-05 «aceptar y aprobar» se descompone en comandos de la tabla con su actor y la misma correlación', async () => {
+  it('AC-NUC-001-05 "accept and approve" breaks down into table commands with their actor and the same correlation', async () => {
     const { proposals } = await newBatch(s, projectId, false);
     const r = await cmd('proposal.accept', { approve: true }, proposals[0]);
     const acceptance = await s.db
@@ -903,8 +896,8 @@ describe('lotes y propuestas', () => {
     const commands = new Set(sameCorrelationEvents.map((e) => e.command));
     const expected = ['proposal.accept', 'record.create', 'record_version.create', 'record_version.approve', 'batch.close'];
     expect(expected.filter((c) => !commands.has(c))).toEqual([]);
-    // Lo decisivo y lo que crea autoridad lo hace la persona; el cierre del lote y el encolado
-    // de «Actualizar conocimiento», el sistema.
+    // The decisive part and what creates authority is done by the person; closing the batch and
+    // enqueuing "Update knowledge" is done by the system.
     for (const e of sameCorrelationEvents) {
       const fromSystem = ['batch.close', 'knowledge_update.enqueue'].includes(e.command);
       expect({ command: e.command, ofItsActor: e.actor.startsWith(fromSystem ? 'system:' : 'human:') }).toEqual({
@@ -915,14 +908,14 @@ describe('lotes y propuestas', () => {
     expect(r.state).toBe('accepted');
   });
 
-  it('un error de dominio lleva el tipo para la API', () => {
+  it('a domain error carries its type for the API', () => {
     expect(new DomainError('guard', 'x').httpStatus).toBe(409);
   });
 });
 
-describe('estado epistémico', () => {
-  it('AC-DIS-001-12 cada fila de la tabla de correspondencias lleva su estado epistémico en la bandeja, el estado del producto o su detalle', async () => {
-    const pid = (await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Epistémico' } })).projectId;
+describe('epistemic status', () => {
+  it('AC-DIS-001-12 every row of the correspondence table carries its epistemic status in the inbox, the product state or its detail', async () => {
+    const pid = (await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Epistemic' } })).projectId;
     const linkRef = (
       command: Parameters<typeof executeCommand>[1]['command'],
       data: unknown,
@@ -930,14 +923,14 @@ describe('estado epistémico', () => {
       actor: Actor = ana,
     ) => executeCommand(s, { command, actor, projectId: pid, data, ...(entityId ? { entityId } : {}) });
 
-    // Versión aprobada y versión en borrador.
+    // Approved version and draft version.
     const approved = await newDecision(s, pid, true);
     const draft = await newDecision(s, pid, false);
-    // Propuesta pendiente y propuesta aceptada.
+    // Pending proposal and accepted proposal.
     const isPending = await newBatch(s, pid, false);
     const accepted = await newBatch(s, pid, false);
     await linkRef('proposal.accept', {}, accepted.proposals[0]);
-    // Preguntas confirmada, inferida, pendiente y pospuesta.
+    // Confirmed, inferred, pending and postponed questions.
     const e = await newExploration(s, pid);
     const question = async (text: string) => (await linkRef('question.raise', { exploration_id: e, question: text })).entityId;
     const qConfirmed = await question('¿Confirmada?');
@@ -947,13 +940,13 @@ describe('estado epistémico', () => {
     const qPending = await question('¿Pendiente?');
     const qPostponed = await question('¿Pospuesta?');
     await linkRef('question.postpone', { reason: 'Luego.' }, qPostponed);
-    // Observaciones de un agente: la salida de una ejecución.
+    // An agent's observations: a run's output.
     const run = await linkRef('run.request', { action: 'exploration_chat', scope: { type: 'exploration', id: e } });
     const agent: Actor = { type: 'agent_run', run: run.entityId };
     for (const type of ['claim', 'hypothesis', 'unknown']) {
       await linkRef('message.post', { exploration_id: e, text: `Observación ${type}`, type, respond: false }, undefined, agent);
     }
-    // Enlace pendiente de revisión: cambia la decisión en la que se basa una FDR.
+    // Link pending review: the decision an FDR is based on changes.
     const base = await newDecision(s, pid, true);
     const fdr = await linkRef('record.create', {
       type: 'fdr',
@@ -973,45 +966,45 @@ describe('estado epistémico', () => {
     const epistemicOf = (id: string) => exploration.questions.find((q) => q.id === id)?.epistemic_status;
     const observation = (type: string) => exploration.messages.find((m) => m.kind === type)?.epistemic_status;
     const rows = {
-      'Versión aprobada': state.decisions.find((d) => d.code === approved.code)?.epistemic_status,
-      'Versión en borrador (estado)': state.decisions.find((d) => d.code === draft.code)?.epistemic_status,
-      'Versión en borrador (bandeja)': b.versions_to_approve.find((v) => v.code === draft.code)?.epistemic_status,
-      'Propuesta pendiente': b.batches.find((l) => l.id === isPending.batchId)?.proposals[0]?.epistemic_status,
-      'Propuesta aceptada': acceptedDetail.proposals[0]?.epistemic_status,
-      'Pregunta confirmada': epistemicOf(qConfirmed),
-      'Pregunta inferida': b.questions_to_confirm.find((q) => q.id === qInferred)?.epistemic_status,
-      'Pregunta pendiente': b.open_questions.find((q) => q.id === qPending)?.epistemic_status,
-      'Pregunta pospuesta': b.open_questions.find((q) => q.id === qPostponed)?.epistemic_status,
-      'Observación claim': observation('claim'),
-      'Observación hypothesis': observation('hypothesis'),
-      'Observación unknown': observation('unknown'),
-      'Enlace pendiente de revisión': b.links_under_review[0]?.epistemic_status,
+      'Approved version': state.decisions.find((d) => d.code === approved.code)?.epistemic_status,
+      'Draft version (state)': state.decisions.find((d) => d.code === draft.code)?.epistemic_status,
+      'Draft version (inbox)': b.versions_to_approve.find((v) => v.code === draft.code)?.epistemic_status,
+      'Pending proposal': b.batches.find((l) => l.id === isPending.batchId)?.proposals[0]?.epistemic_status,
+      'Accepted proposal': acceptedDetail.proposals[0]?.epistemic_status,
+      'Confirmed question': epistemicOf(qConfirmed),
+      'Inferred question': b.questions_to_confirm.find((q) => q.id === qInferred)?.epistemic_status,
+      'Pending question': b.open_questions.find((q) => q.id === qPending)?.epistemic_status,
+      'Postponed question': b.open_questions.find((q) => q.id === qPostponed)?.epistemic_status,
+      'Claim observation': observation('claim'),
+      'Hypothesis observation': observation('hypothesis'),
+      'Unknown observation': observation('unknown'),
+      'Link pending review': b.links_under_review[0]?.epistemic_status,
     };
     expect(rows).toEqual({
-      'Versión aprobada': 'confirmed',
-      'Versión en borrador (estado)': 'proposed',
-      'Versión en borrador (bandeja)': 'proposed',
-      'Propuesta pendiente': 'proposed',
-      'Propuesta aceptada': 'confirmed',
-      'Pregunta confirmada': 'confirmed',
-      'Pregunta inferida': 'proposed',
-      'Pregunta pendiente': 'pending',
-      'Pregunta pospuesta': 'pending',
-      'Observación claim': 'proposed',
-      'Observación hypothesis': 'proposed',
-      'Observación unknown': 'unknown',
-      'Enlace pendiente de revisión': 'pending',
+      'Approved version': 'confirmed',
+      'Draft version (state)': 'proposed',
+      'Draft version (inbox)': 'proposed',
+      'Pending proposal': 'proposed',
+      'Accepted proposal': 'confirmed',
+      'Confirmed question': 'confirmed',
+      'Inferred question': 'proposed',
+      'Pending question': 'pending',
+      'Postponed question': 'pending',
+      'Claim observation': 'proposed',
+      'Hypothesis observation': 'proposed',
+      'Unknown observation': 'unknown',
+      'Link pending review': 'pending',
     });
-    // La bandeja cuenta todo lo que espera a la persona, también lo que no viene de un agente.
+    // The inbox counts everything waiting on the person, including what does not come from an agent.
     expect(b.open_questions).toHaveLength(2);
-    // El borrador y la decisión que creó aceptar la propuesta sin aprobarla.
+    // The draft and the decision that accepting the proposal without approving it created.
     expect(b.versions_to_approve).toHaveLength(2);
     expect(state.inbox.total).toBe(b.total);
   });
 });
 
-describe('proyecto en todas las entidades', () => {
-  it('AC-ESQ-001-17 nada se escribe en otro proyecto: ni versiones, ni dependencias, ni siquiera saltándose las guardas', async () => {
+describe('project across every entity', () => {
+  it('AC-ESQ-001-17 nothing is written to another project: not versions, not dependencies, not even by skipping the guards', async () => {
     const another = (await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Other' } })).projectId;
     const foreign = await newDecision(s, another, true);
     await expect(
@@ -1021,7 +1014,7 @@ describe('proyecto en todas las entidades', () => {
         sections: DECISION_SECTIONS,
         change_note: 'x',
       }),
-    ).rejects.toMatchObject({ type: 'guard', reasons: expect.arrayContaining(['El registro no existe en este proyecto.']) });
+    ).rejects.toMatchObject({ type: 'guard', reasons: expect.arrayContaining(['The record does not exist in this project.']) });
     await expect(
       cmd(
         'batch.submit',
@@ -1029,26 +1022,26 @@ describe('proyecto en todas las entidades', () => {
         undefined,
         externalAgent('bot', 'probe'),
       ),
-    ).rejects.toMatchObject({ type: 'guard', reasons: [`La dependencia ${foreign.code} v1 no existe en este proyecto.`] });
+    ).rejects.toMatchObject({ type: 'guard', reasons: [`The dependency ${foreign.code} v1 does not exist in this project.`] });
     await expect(
       sql`insert into record_versions (project_id, record_id, n, title, sections, author, content_hash, state)
           values (${projectId}::uuid, ${foreign.recordId}::uuid, 9, 't', '[]', 'human:ana', 'h', 'draft')`.execute(s.db),
-    ).rejects.toThrow(/proyectos distintos/);
+    ).rejects.toThrow(/different projects/);
     expect(await versions(foreign.recordId)).toMatchObject([{ n: 1, state: 'approved' }]);
   });
 
-  it('AC-ESQ-001-17 toda tabla de dominio lleva project_id y las de autoridad y el diario rechazan DELETE', async () => {
+  it('AC-ESQ-001-17 every domain table carries project_id, and the authority tables and the event log reject DELETE', async () => {
     const withoutProject = await sql<{ table_name: string }>`
       select t.table_name from information_schema.tables t
       where t.table_schema = 'public' and t.table_type = 'BASE TABLE'
-        -- Infraestructura sin proyecto: identidad, motor, migraciones, caché por input_hash y evaluaciones del clasificador.
+        -- Infrastructure without a project: identity, engine, migrations, cache by input_hash and classifier evaluations.
         and t.table_name not in ('projects', 'humans', 'sessions', 'step_completions', 'schema_migrations', 'verdict_cache', 'classifier_evaluations')
         and not exists (select 1 from information_schema.columns c
                         where c.table_schema = 'public' and c.table_name = t.table_name and c.column_name = 'project_id')`.execute(
       s.db,
     );
     expect(withoutProject.rows).toEqual([]);
-    // Datos propios: la prueba no depende del orden de las demás.
+    // Its own data: the test does not depend on the order of the others.
     const e = await newExploration(s, projectId);
     await cmd('message.post', { exploration_id: e, text: 'Hello', respond: false });
     await cmd('question.raise', { exploration_id: e, question: '¿Algo?' });
@@ -1069,7 +1062,7 @@ describe('proyecto en todas las entidades', () => {
     ]) {
       const { rows } = await sql<{ n: number }>`select count(*)::int as n from ${sql.table(table)}`.execute(s.db);
       expect({ table, withRows: (rows[0]?.n ?? 0) > 0 }).toEqual({ table, withRows: true });
-      await expect(sql`delete from ${sql.table(table)}`.execute(s.db)).rejects.toThrow(/DELETE|solo admite INSERT/);
+      await expect(sql`delete from ${sql.table(table)}`.execute(s.db)).rejects.toThrow(/DELETE|only admits INSERT/);
     }
   });
 });

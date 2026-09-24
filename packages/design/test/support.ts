@@ -1,4 +1,4 @@
-// Constructores de documentos y árboles de `design/` para las pruebas del formato.
+// Builders of `design/` documents and trees for the format tests.
 
 import { renderDocument } from '../src/format.ts';
 import { README_DESIGN } from '../src/readme.ts';
@@ -17,28 +17,28 @@ import {
 export function criterion(code: string, partial: Partial<Criterion> = {}): Criterion {
   return {
     code,
-    title: 'Criterio de prueba',
-    verification: 'automática',
-    check: 'Se comprueba con una prueba.',
-    statement: 'Dado algo, cuando pasa, entonces se observa.',
+    title: 'Test criterion',
+    verification: 'automatic',
+    check: 'Checked with a test.',
+    statement: 'Given something, when it happens, then it is observed.',
     ...partial,
   };
 }
 
-/** Registro válido del tipo dado: secciones de su plantilla y, si las exige, un criterio. */
+/** A valid record of the given type: its template's sections and, if it requires one, a criterion. */
 export function record(type: RecordType, code: string, partial: Partial<RecordDocument> = {}): RecordDocument {
   const template = TEMPLATES[type];
   return {
     kind: 'record',
     type,
     code,
-    title: `Registro ${code}`,
+    title: `Record ${code}`,
     version: 1,
     state: 'proposed',
     domain: 'tests',
     links: [],
     annexes: [],
-    sections: template.sections.map((title) => ({ title, content: `Texto de ${title.toLowerCase()}.` })),
+    sections: template.sections.map((title) => ({ title, content: `Text for ${title.toLowerCase()}.` })),
     criteria: template.requiresCriteria ? [criterion(`AC-${code.slice(4)}-01`)] : [],
     ...partial,
   };
@@ -48,20 +48,20 @@ export function taxonomy(code: string, partial: Partial<TaxonomyDocument> = {}):
   return {
     kind: 'taxonomy',
     code,
-    title: 'Taxonomía de prueba',
+    title: 'Test taxonomy',
     version: 1,
     state: 'proposed',
     axes: [
       {
         code: 'area',
-        name: 'Área',
+        name: 'Area',
         categories: [
-          { code: 'core', name: 'Núcleo', description: 'El núcleo del sistema.' },
-          { code: 'other', name: 'Other', description: 'Ninguna encaja sin forzarla.' },
+          { code: 'core', name: 'Core', description: 'The core of the system.' },
+          { code: 'other', name: 'Other', description: 'None fits without forcing it.' },
         ],
       },
     ],
-    sections: [{ title: 'Propósito', content: 'Organizar el conocimiento.' }],
+    sections: [{ title: 'Purpose', content: 'Organize the knowledge.' }],
     ...partial,
   };
 }
@@ -70,7 +70,7 @@ export function pathOf(doc: Document): string {
   return `${FOLDERS[doc.kind === 'taxonomy' ? 'taxonomy' : doc.type]}/${doc.code}.md`;
 }
 
-/** Árbol con el README fijo, los documentos renderizados en su ruta y archivos extra. */
+/** A tree with the fixed README, the documents rendered at their path and extra files. */
 export function treeWith(docs: readonly Document[], extra: Readonly<Record<string, string>> = {}): Map<string, string> {
   const tree = new Map<string, string>([['README.md', README_DESIGN]]);
   for (const d of docs) tree.set(pathOf(d), renderDocument(d));
@@ -79,13 +79,13 @@ export function treeWith(docs: readonly Document[], extra: Readonly<Record<strin
 }
 
 export function value<T>(r: Result<T>): T {
-  if (!r.ok) throw new Error(`Se esperaba un resultado válido: ${JSON.stringify(r.problems)}`);
+  if (!r.ok) throw new Error(`Expected a valid result: ${JSON.stringify(r.problems)}`);
   return r.value;
 }
 
-/** Mensajes de un resultado fallido; si el resultado es válido, la prueba falla. */
+/** Messages of a failed result; the test fails if the result is valid. */
 export function failures(r: Result<unknown>): string[] {
-  if (r.ok) throw new Error('Se esperaba un resultado con problemas.');
+  if (r.ok) throw new Error('Expected a result with problems.');
   return r.problems.map((p) => p.message);
 }
 

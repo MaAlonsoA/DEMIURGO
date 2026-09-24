@@ -1,8 +1,8 @@
-// Proceso hijo para las pruebas de durabilidad (AC-ESQ-001-07).
-//   node proceso-motor.ts <url> iniciar <proyectoId> <runId>              → corta durante la llamada al agente
-//   node proceso-motor.ts <url> cortar-tras-aplicar <proyectoId> <runId>  → corta justo tras confirmar «aplicar»
-//   node proceso-motor.ts <url> recuperar <runId>                         → DBOS reanuda el flujo pendiente
-//   node proceso-motor.ts <url> conciliar                                 → arranca, concilia y espera a que no quede nada vivo
+// Child process for the durability tests (AC-ESQ-001-07).
+//   node engine-process.ts <url> start <projectId> <runId>               → cuts off during the agent call
+//   node engine-process.ts <url> cortar-tras-aplicar <projectId> <runId> → cuts off right after confirming "apply"
+//   node engine-process.ts <url> recover <runId>                        → DBOS resumes the pending workflow
+//   node engine-process.ts <url> reconcile                              → starts up, reconciles and waits until nothing is left running
 
 import { createSimulatedAgent } from '../../src/agents/simulated.ts';
 import { createSimulatedClassifier } from '../../src/classifier/simulated.ts';

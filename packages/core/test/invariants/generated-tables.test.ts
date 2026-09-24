@@ -1,5 +1,5 @@
-// Pruebas generadas desde las tablas de design/datos/: 403 por la matriz de capacidades,
-// 409 por las tablas de transiciones y la propiedad «decisivo solo humano» (I1).
+// Tests generated from the design/data/ tables: 403 from the capability matrix,
+// 409 from the transition tables, and the "decisive only human" property (I1).
 
 import { randomUUID } from 'node:crypto';
 import {
@@ -49,8 +49,8 @@ const cases403 = COMMAND_NAMES.flatMap((command) => {
   return actors.map((actor) => ({ command, actor }));
 });
 
-describe('AC-ESQ-001-02 403 generado desde la matriz de capacidades', () => {
-  it.each(cases403)('AC-ESQ-001-02 $comando con $actor.tipo se rechaza sin efectos', async ({ command, actor }) => {
+describe('AC-ESQ-001-02 403 generated from the capability matrix', () => {
+  it.each(cases403)('AC-ESQ-001-02 $command with $actor.type is rejected with no effects', async ({ command, actor }) => {
     const before = await numberOfEvents();
     const p = executeCommand(environment().services, { command, actor, projectId, entityId: randomUUID(), data: {} });
     await expect(p).rejects.toMatchObject({ type: 'forbidden' });
@@ -69,15 +69,15 @@ const cases409 = ENTITY_NAMES.filter((e) => implementedIn(e, increment)).flatMap
   );
 });
 
-describe('AC-ESQ-001-03 409 generado desde las tablas de transiciones', () => {
-  it('AC-ESQ-001-03 hay recetas para todas las entidades implementadas', () => {
+describe('AC-ESQ-001-03 409 generated from the transition tables', () => {
+  it('AC-ESQ-001-03 there are recipes for every implemented entity', () => {
     const withoutRecipe = ENTITY_NAMES.filter((e) => implementedIn(e, increment) && !RECIPES[e]);
     expect(withoutRecipe).toEqual([]);
     expect(cases409.length).toBeGreaterThan(0);
   });
 
   it.each(cases409)(
-    'AC-ESQ-001-03 $comando sobre $entidad en «$estado» se rechaza sin efectos',
+    'AC-ESQ-001-03 $command on $entity in "$state" is rejected with no effects',
     async ({ entity, state, command }) => {
       const s = environment().services;
       const id = await moveTo(s, projectId, entity, state);
@@ -92,15 +92,15 @@ describe('AC-ESQ-001-03 409 generado desde las tablas de transiciones', () => {
   );
 });
 
-describe('AC-DIS-001-04 propiedad: todo comando decisivo con actor no humano se rechaza sin efectos', () => {
+describe('AC-DIS-001-04 property: every decisive command with a non-human actor is rejected with no effects', () => {
   const decisiveCommands = COMMAND_NAMES.filter(isDecisive);
   const nonHuman: Actor[] = [ACTOR_BY_TYPE.agent_external, ACTOR_BY_TYPE.agent_run, ACTOR_BY_TYPE.system, { type: 'unknown' }];
 
-  it('AC-DIS-001-04 hay comandos decisivos y todos alcanzan un estado de autoridad', () => {
+  it('AC-DIS-001-04 there are decisive commands and all of them reach an authority state', () => {
     expect(decisiveCommands.length).toBeGreaterThanOrEqual(8);
   });
 
-  it('AC-DIS-001-04 para cualquier comando decisivo, actor no humano y datos arbitrarios', async () => {
+  it('AC-DIS-001-04 for any decisive command, non-human actor and arbitrary data', async () => {
     await fc.assert(
       fc.asyncProperty(
         fc.constantFrom(...decisiveCommands),

@@ -1,14 +1,7 @@
-// H1 preparado: importar el design/ real como lote pendiente, ratificarlo en un paso (solo una
-// persona) y exportarlo sin diff. También AC-CON-001-10 (importador idempotente).
+// H1 ready: import the real design/ tree as a pending batch, ratify it in one step (only a
+// person can) and export it back with no diff. Also AC-CON-001-10 (idempotent importer).
 
-import {
-  type Document,
-  type RecordDocument,
-  readTree,
-  parseDocument,
-  renderDocument,
-  validateTree,
-} from '@demiurgo/design';
+import { type Document, type RecordDocument, readTree, parseDocument, renderDocument, validateTree } from '@demiurgo/design';
 import { type Actor, externalAgent, agentRun, human, system } from '@demiurgo/domain';
 import { sql } from 'kysely';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -70,10 +63,10 @@ async function dbCounts(projectId: string) {
   };
 }
 
-/** Copia del árbol con un documento cambiado. */
+/** Copy of the tree with one document changed. */
 function edit(base: Map<string, string>, path: string, change: (d: Document) => Document): Map<string, string> {
   const r = parseDocument(base.get(path) ?? '', path);
-  if (!r.ok) throw new Error(`${path} no es válido`);
+  if (!r.ok) throw new Error(`${path} is not valid`);
   const m = new Map(base);
   m.set(path, renderDocument(change(r.value)));
   return m;
@@ -83,24 +76,24 @@ const asRecord = (d: Document) => d as RecordDocument;
 const approve = (d: Document) => ({ ...d, state: 'approved' as const });
 const withVersion = (version: number, note: string) => (d: Document) => ({ ...asRecord(d), version, changeNote: note });
 
-describe('importación de design/ (H1)', () => {
-  it('AC-AUT-001-01 la importación crea un lote pendiente con los mismos recuentos que el origen y nada aprobado', async () => {
-    const p = await project('H1 recuentos');
+describe('design/ import (H1)', () => {
+  it('AC-AUT-001-01 the import creates a pending batch with the same counts as the source and nothing approved', async () => {
+    const p = await project('H1 counts');
     const r = await runImport(p);
     const report = validateTree(tree);
     const expected = treeCounts(report.records, report.taxonomies);
     expect(r.result).toMatchObject({ counts: expected, proposals: report.records.length + report.taxonomies.length });
     const batch = await s.db.selectFrom('proposal_batches').selectAll().where('id', '=', r.entityId).executeTakeFirstOrThrow();
-    expect(batch).toMatchObject({ kind: 'import', resolution_mode: 'package', state: 'pending', producer: 'system:importador@1' });
-    // Nada existe todavía como autoridad.
+    expect(batch).toMatchObject({ kind: 'import', resolution_mode: 'package', state: 'pending', producer: 'system:importer@1' });
+    // Nothing exists yet as authority.
     expect(await s.db.selectFrom('records').select('id').where('project_id', '=', p).execute()).toHaveLength(0);
     expect(
       await s.db.selectFrom('record_versions').select('id').where('project_id', '=', p).where('state', '=', 'approved').execute(),
     ).toHaveLength(0);
   });
 
-  it('AC-CON-001-10 importar dos veces design/ no duplica', async () => {
-    const p = await project('H1 idempotente');
+  it('AC-CON-001-10 importing design/ twice does not duplicate', async () => {
+    const p = await project('H1 idempotent');
     const a = await runImport(p);
     const b = await runImport(p);
     expect(b.entityId).toBe(a.entityId);
@@ -111,8 +104,8 @@ describe('importación de design/ (H1)', () => {
     expect(proposals).toHaveLength(validateTree(tree).records.length + validateTree(tree).taxonomies.length);
   });
 
-  it('AC-AUT-001-02 ratificar con un actor no humano da 403 sin efectos', async () => {
-    const p = await project('H1 solo persona');
+  it('AC-AUT-001-02 ratifying with a non-human actor gives 403 with no effects', async () => {
+    const p = await project('H1 person only');
     const r = await runImport(p);
     const events = async () => (await s.db.selectFrom('events').select('id').where('project_id', '=', p).execute()).length;
     const before = await events();
@@ -127,13 +120,13 @@ describe('importación de design/ (H1)', () => {
     expect(await s.db.selectFrom('records').select('id').where('project_id', '=', p).execute()).toHaveLength(0);
   });
 
-  it('AC-AUT-001-03 ratificar en un paso crea todo con los estados del origen y la persona como actor', async () => {
-    const p = await project('H1 ratificar');
+  it("AC-AUT-001-03 ratifying in one step creates everything with the source's states and the person as actor", async () => {
+    const p = await project('H1 ratify');
     const r = await runImport(p);
     await ratify(p, r.entityId);
     const report = validateTree(tree);
     expect(await dbCounts(p)).toEqual(treeCounts(report.records, report.taxonomies));
-    // Todo el design/ de D0 está «propuesto»: las versiones quedan en borrador.
+    // All of D0's design/ is "proposed": the versions stay in draft.
     const states = await s.db.selectFrom('record_versions').select('state').where('project_id', '=', p).execute();
     expect(new Set(states.map((e) => e.state))).toEqual(new Set(['draft']));
     const actors = await s.db
@@ -160,21 +153,21 @@ describe('importación de design/ (H1)', () => {
     expect(batch.state).toBe('accepted');
   });
 
-  it('AC-AUT-001-04 tras ratificar, la exportación coincide byte a byte con design/', async () => {
-    const p = await project('H1 exportar');
+  it('AC-AUT-001-04 after ratifying, the export matches design/ byte for byte', async () => {
+    const p = await project('H1 export');
     await ratify(p, (await runImport(p)).entityId);
     expect(await compareExport(s.db, p, tree)).toEqual([]);
     const exported = await exportDesign(s.db, p);
     expect([...exported.keys()].sort()).toEqual([...tree.keys()].sort());
   });
 
-  it('AC-AUT-001-04 con documentos aprobados en el origen, se aprueban al ratificar y la exportación sigue sin diff', async () => {
-    const p = await project('H1 aprobados');
-    // Simula el merge de la persona: aprueba la decisión y la taxonomía editando su estado.
+  it('AC-AUT-001-04 with approved documents in the source, they get approved on ratifying and the export still has no diff', async () => {
+    const p = await project('H1 approved');
+    // Simulates the person's merge: approves the decision and the taxonomy by editing their state.
     const approved = new Map(tree);
     for (const path of ['decisions/DEC-PLN-001.md', 'taxonomy/TAX-001.md']) {
       const doc = parseDocument(tree.get(path) ?? '', path);
-      if (!doc.ok) throw new Error('documento inválido');
+      if (!doc.ok) throw new Error('invalid document');
       approved.set(path, renderDocument({ ...doc.value, state: 'approved' }));
     }
     await ratify(p, (await runImport(p, approved)).entityId);
@@ -195,8 +188,8 @@ describe('importación de design/ (H1)', () => {
     expect(await compareExport(s.db, p, approved)).toEqual([]);
   });
 
-  it('AC-AUT-001-05 importar de nuevo tras ratificar no crea nada', async () => {
-    const p = await project('H1 reimportar');
+  it('AC-AUT-001-05 importing again after ratifying creates nothing', async () => {
+    const p = await project('H1 re-import');
     const r = await runImport(p);
     await ratify(p, r.entityId);
     const before = await dbCounts(p);
@@ -210,13 +203,13 @@ describe('importación de design/ (H1)', () => {
   });
 });
 
-describe('reimportación y diseño en la v2 (revisión de H1)', () => {
+describe('re-import and design in the v2 (H1 review)', () => {
   const FDR = 'fdr/FDR-AUT-001.md';
 
-  it('AC-AUT-001-05 un cambio sin subir la versión se rechaza nombrando el documento; subiéndola se propone solo ese', async () => {
-    const p = await project('H1 cambio sin versión');
+  it('AC-AUT-001-05 a change without bumping the version is rejected naming the document; bumping it proposes only that one', async () => {
+    const p = await project('H1 change without version');
     await ratify(p, (await runImport(p)).entityId);
-    // Un enlace nuevo en la misma versión: la huella del contenido no bastaba para verlo.
+    // A new link in the same version: the content fingerprint alone was not enough to see it.
     const withLink = (d: Document) => {
       const r = asRecord(d);
       return {
@@ -226,17 +219,17 @@ describe('reimportación y diseño en la v2 (revisión de H1)', () => {
     };
     await expect(runImport(p, edit(tree, FDR, withLink))).rejects.toMatchObject({
       type: 'guard',
-      reasons: [`${FDR}: la versión 1 ya está en la v2 con otro contenido; sube la versión y añade nota_de_cambio.`],
+      reasons: [`${FDR}: version 1 is already in the v2 with different content; bump the version and add a change_note.`],
     });
-    const v2 = edit(tree, FDR, (d) => ({ ...withLink(d), version: 2, changeNote: 'Enlaza con el formato.' }));
+    const v2 = edit(tree, FDR, (d) => ({ ...withLink(d), version: 2, changeNote: 'Links to the format.' }));
     const r = await runImport(p, v2);
     expect(r.result).toMatchObject({ proposals: 1 });
     await ratify(p, r.entityId);
     expect(await compareExport(s.db, p, v2)).toEqual([]);
   });
 
-  it('AC-AUT-001-05 un cambio solo de estado, también de la taxonomía, se ratifica y la exportación coincide', async () => {
-    const p = await project('H1 solo estado');
+  it('AC-AUT-001-05 a change only in state, also in the taxonomy, gets ratified and the export matches', async () => {
+    const p = await project('H1 state only');
     await ratify(p, (await runImport(p)).entityId);
     let approved = tree;
     for (const path of ['decisions/DEC-PLN-001.md', 'taxonomy/TAX-001.md']) {
@@ -250,8 +243,8 @@ describe('reimportación y diseño en la v2 (revisión de H1)', () => {
     expect(await compareExport(s.db, p, approved)).toEqual([]);
   });
 
-  it('AC-AUT-001-04 una versión nueva aprobada en la v2 deja una exportación válida que, reimportada, no propone nada', async () => {
-    const p = await project('H1 versión en la v2');
+  it('AC-AUT-001-04 a new version approved in the v2 leaves a valid export that, reimported, proposes nothing', async () => {
+    const p = await project('H1 version in the v2');
     await ratify(p, (await runImport(p)).entityId);
     const dec = await s.db
       .selectFrom('records')
@@ -260,7 +253,7 @@ describe('reimportación y diseño en la v2 (revisión de H1)', () => {
       .where('code', '=', 'DEC-PLN-001')
       .executeTakeFirstOrThrow();
     const original = parseDocument(tree.get('decisions/DEC-PLN-001.md') ?? '', 'dec');
-    if (!original.ok) throw new Error('DEC-PLN-001 no es válido');
+    if (!original.ok) throw new Error('DEC-PLN-001 is not valid');
     const incoming = await executeCommand(s, {
       command: 'record_version.create',
       actor: ana,
@@ -269,7 +262,7 @@ describe('reimportación y diseño en la v2 (revisión de H1)', () => {
         record_id: dec.id,
         title: original.value.title,
         sections: original.value.sections,
-        change_note: 'Se revisa el plan.',
+        change_note: 'The plan is reviewed.',
       },
     });
     await executeCommand(s, {
@@ -281,56 +274,56 @@ describe('reimportación y diseño en la v2 (revisión de H1)', () => {
     });
     const exported = await exportDesign(s.db, p);
     expect(validateTree(exported).problems).toEqual([]);
-    // Los documentos que se basan en DEC-PLN-001 siguen en su versión 1 hasta que la persona revise el enlace.
-    expect(exported.get(FDR)).toContain('destino: DEC-PLN-001@1');
+    // Documents based on DEC-PLN-001 stay on their version 1 until the person reviews the link.
+    expect(exported.get(FDR)).toContain('target: DEC-PLN-001@1');
     await expect(runImport(p, exported)).rejects.toMatchObject({ type: 'conflict' });
   });
 
-  it('AC-AUT-001-04 un registro creado en la v2 no comparte DOM-NNN con otro tipo: la exportación sigue siendo válida', async () => {
-    const p = await project('H1 códigos');
+  it('AC-AUT-001-04 a record created in the v2 does not share DOM-NNN with another type: the export stays valid', async () => {
+    const p = await project('H1 codes');
     await ratify(p, (await runImport(p)).entityId);
     const fdr = {
       type: 'fdr',
-      domain: 'core',
-      title: 'El núcleo del Pilar 2',
+      domain: 'nucleo',
+      title: 'The core of Pillar 2',
       sections: [
         { title: 'Goal', content: 'o' },
         { title: 'Scope', content: 'a' },
-        { title: 'Fuera de alcance', content: 'f' },
+        { title: 'Out of scope', content: 'f' },
         { title: 'Behavior', content: 'c' },
       ],
       criteria: [
         {
           carry: 'new',
           title: 'Tasks',
-          statement: 'Cuando se crea una tarea, entonces cubre un AC.',
+          statement: 'When a task is created, then it covers an AC.',
           verification: 'automatic',
           check: 'Test.',
         },
       ],
     };
     const r = await executeCommand(s, { command: 'record.create', actor: ana, projectId: p, data: fdr });
-    // ADR-NUC-001 ya existe: la FDR del mismo dominio recibe el siguiente número de NUC.
+    // ADR-NUC-001 already exists: the FDR in the same domain gets the next NUC number.
     expect((r.result as { code: string }).code).toBe('FDR-NUC-002');
     await expect(
       executeCommand(s, { command: 'record.create', actor: ana, projectId: p, data: { ...fdr, code: 'FDR-NUC-001' } }),
     ).rejects.toMatchObject({
       type: 'guard',
-      reasons: ['FDR-NUC-001 comparte NUC-001 con ADR-NUC-001: la parte DOM-NNN de un código es única entre tipos.'],
+      reasons: ['FDR-NUC-001 shares NUC-001 with ADR-NUC-001: the DOM-NNN part of a code is unique across types.'],
     });
     expect(validateTree(await exportDesign(s.db, p)).problems).toEqual([]);
   });
 
-  it('AC-AUT-001-04 un criterio con «Deriva de» sobrevive a la ida y vuelta', async () => {
-    const p = await project('H1 deriva de');
+  it('AC-AUT-001-04 a criterion with "Derived from" survives the round trip', async () => {
+    const p = await project('H1 derived from');
     const withDerived = edit(tree, FDR, (d) => {
       const r = asRecord(d);
       const fresh = {
         code: 'AC-AUT-001-09',
-        title: 'Reimportación sin efectos',
-        verification: 'automática' as const,
-        check: 'Se reimporta tras ratificar.',
-        statement: 'Dado design/ ratificado, cuando se importa otra vez, entonces no se crea nada.',
+        title: 'Re-import with no effects',
+        verification: 'automatic' as const,
+        check: 'It is reimported after ratifying.',
+        statement: 'Given design/ ratified, when it is imported again, then nothing is created.',
         derivedFrom: 'AC-CON-001-10',
       };
       return { ...r, criteria: [...r.criteria, fresh] };
@@ -340,8 +333,8 @@ describe('reimportación y diseño en la v2 (revisión de H1)', () => {
     expect(await compareExport(s.db, p, withDerived)).toEqual([]);
   });
 
-  it('AC-AUT-001-01 una importación nueva deja obsoleta la que seguía pendiente', async () => {
-    const p = await project('H1 dos importaciones');
+  it('AC-AUT-001-01 a new import makes the one that was still pending obsolete', async () => {
+    const p = await project('H1 two imports');
     const first = await runImport(p);
     const second = await runImport(
       p,
@@ -354,8 +347,8 @@ describe('reimportación y diseño en la v2 (revisión de H1)', () => {
     await ratify(p, second.entityId);
   });
 
-  it('AC-AUT-001-01 una persona puede importar: el importador produce el lote y ella queda en el evento', async () => {
-    const p = await project('H1 importa una persona');
+  it('AC-AUT-001-01 a person can import: the importer produces the batch and she is recorded in the event', async () => {
+    const p = await project('H1 a person imports');
     const r = await executeCommand(s, {
       command: 'design.import',
       actor: ana,
@@ -367,7 +360,7 @@ describe('reimportación y diseño en la v2 (revisión de H1)', () => {
       .select('producer')
       .where('id', '=', r.entityId)
       .executeTakeFirstOrThrow();
-    expect(batch.producer).toBe('system:importador@1');
+    expect(batch.producer).toBe('system:importer@1');
     const event = await s.db
       .selectFrom('events')
       .select('actor')
@@ -377,8 +370,8 @@ describe('reimportación y diseño en la v2 (revisión de H1)', () => {
     expect(event.actor).toBe('human:ana');
   });
 
-  it('AC-AUT-001-02 solo la importación propone documentos importados', async () => {
-    const p = await project('H1 tipos importados');
+  it('AC-AUT-001-02 only the import proposes imported documents', async () => {
+    const p = await project('H1 imported types');
     const report = validateTree(tree);
     const document = { ...report.records[0], annexesContent: [] };
     for (const actor of [system('test'), system('knowledge')]) {
@@ -391,13 +384,13 @@ describe('reimportación y diseño en la v2 (revisión de H1)', () => {
         }),
       ).rejects.toMatchObject({
         type: 'guard',
-        reasons: expect.arrayContaining(['Solo la importación de design/ propone «registro_importado».']),
+        reasons: expect.arrayContaining(['Only the design/ importer proposes "imported_record".']),
       });
     }
   });
 
-  it('AC-AUT-001-05 aprobar desde design/ una versión anterior a la aprobada en la v2 se rechaza al importar, también en la taxonomía', async () => {
-    const p = await project('H1 aprobada posterior');
+  it('AC-AUT-001-05 approving from design/ a version earlier than the one approved in the v2 is rejected on import, also for the taxonomy', async () => {
+    const p = await project('H1 later approved');
     await ratify(p, (await runImport(p)).entityId);
     const dec = await s.db
       .selectFrom('records')
@@ -406,7 +399,7 @@ describe('reimportación y diseño en la v2 (revisión de H1)', () => {
       .where('code', '=', 'DEC-PLN-001')
       .executeTakeFirstOrThrow();
     const original = parseDocument(tree.get('decisions/DEC-PLN-001.md') ?? '', 'dec');
-    if (!original.ok) throw new Error('DEC-PLN-001 no es válido');
+    if (!original.ok) throw new Error('DEC-PLN-001 is not valid');
     const v2 = await executeCommand(s, {
       command: 'record_version.create',
       actor: ana,
@@ -415,7 +408,7 @@ describe('reimportación y diseño en la v2 (revisión de H1)', () => {
         record_id: dec.id,
         title: original.value.title,
         sections: original.value.sections,
-        change_note: 'Revisión.',
+        change_note: 'Revision.',
       },
     });
     await executeCommand(s, {
@@ -425,7 +418,7 @@ describe('reimportación y diseño en la v2 (revisión de H1)', () => {
       entityId: v2.entityId,
       data: {},
     });
-    // La taxonomía: una v2 aprobada en la v2.
+    // The taxonomy: a v2 approved in the v2.
     const tax = await s.db.selectFrom('taxonomies').selectAll().where('project_id', '=', p).executeTakeFirstOrThrow();
     const taxV2 = await executeCommand(s, {
       command: 'taxonomy.propose',
@@ -436,87 +429,89 @@ describe('reimportación y diseño en la v2 (revisión de H1)', () => {
     await executeCommand(s, { command: 'taxonomy.approve', actor: ana, projectId: p, entityId: taxV2.entityId, data: {} });
     await expect(
       executeCommand(s, { command: 'taxonomy.approve', actor: ana, projectId: p, entityId: tax.id, data: {} }),
-    ).rejects.toMatchObject({ type: 'guard', reasons: ['Ya hay una versión aprobada posterior (v2) de esta taxonomía.'] });
+    ).rejects.toMatchObject({ type: 'guard', reasons: ['A later approved version (v2) of this taxonomy already exists.'] });
     const old = edit(edit(tree, 'decisions/DEC-PLN-001.md', approve), 'taxonomy/TAX-001.md', approve);
     await expect(runImport(p, old)).rejects.toMatchObject({
       type: 'guard',
       reasons: [
-        'decisions/DEC-PLN-001.md: la v2 ya tiene aprobada la versión 2; la 1 solo se puede descartar.',
-        'taxonomy/TAX-001.md: la v2 ya tiene aprobada la versión 2; la 1 no se puede aprobar.',
+        'decisions/DEC-PLN-001.md: the v2 already has version 2 approved; 1 can only be discarded.',
+        'taxonomy/TAX-001.md: the v2 already has version 2 approved; 1 cannot be approved.',
       ],
     });
   });
 
-  it('AC-AUT-001-05 lo que no se podría ratificar se rechaza al importar: estado hacia atrás, versión anterior, anexo cambiado, enlace a una versión que no está', async () => {
-    const p = await project('H1 problemas al importar');
+  it('AC-AUT-001-05 what could not be ratified is rejected on import: state going backwards, earlier version, changed annex, link to a version that is not there', async () => {
+    const p = await project('H1 problems on import');
     const approved = edit(tree, 'decisions/DEC-PLN-001.md', approve);
     await ratify(p, (await runImport(p, approved)).entityId);
-    // Volver a «propuesto» una versión aprobada.
+    // Moving an approved version back to "proposed".
     await expect(runImport(p, tree)).rejects.toMatchObject({
-      reasons: ['decisions/DEC-PLN-001.md: la versión 1 está aprobada en la v2 y no puede pasar a «propuesto».'],
+      reasons: ['decisions/DEC-PLN-001.md: version 1 is approved in the v2 and cannot move to "proposed".'],
     });
-    // Un anexo cambiado sin subir la versión de su registro.
+    // A changed annex without bumping its record's version.
     const annex = new Map(approved);
-    annex.set('data/capabilities.yaml', `${approved.get('data/capabilities.yaml') ?? ''}# Comentario nuevo.\n`);
+    annex.set('data/capabilities.yaml', `${approved.get('data/capabilities.yaml') ?? ''}# New comment.\n`);
     await expect(runImport(p, annex)).rejects.toMatchObject({
-      reasons: ['adr/ADR-NUC-001.md: la versión 1 ya está en la v2 con otro contenido; sube la versión y añade nota_de_cambio.'],
+      reasons: [
+        'adr/ADR-NUC-001.md: version 1 is already in the v2 with different content; bump the version and add a change_note.',
+      ],
     });
-    // Una versión anterior a la última de la v2.
-    const v3 = edit(approved, 'decisions/DEC-PLN-001.md', withVersion(3, 'Tercera.'));
+    // A version earlier than the latest in the v2.
+    const v3 = edit(approved, 'decisions/DEC-PLN-001.md', withVersion(3, 'Third.'));
     await ratify(p, (await runImport(p, v3)).entityId);
-    await expect(runImport(p, edit(approved, 'decisions/DEC-PLN-001.md', withVersion(2, 'Segunda.')))).rejects.toMatchObject({
-      reasons: ['decisions/DEC-PLN-001.md: la versión 2 es anterior a la última de la v2 (3).'],
+    await expect(runImport(p, edit(approved, 'decisions/DEC-PLN-001.md', withVersion(2, 'Second.')))).rejects.toMatchObject({
+      reasons: ['decisions/DEC-PLN-001.md: version 2 is older than the latest in the v2 (3).'],
     });
-    // Un enlace a una versión anterior que la v2 no tiene (proyecto nuevo).
-    const q = await project('H1 enlace anterior');
+    // A link to an earlier version that the v2 does not have (new project).
+    const q = await project('H1 earlier link');
     await expect(runImport(q, v3)).rejects.toMatchObject({
       reasons: expect.arrayContaining([
-        `${FDR}: el enlace a DEC-PLN-001@1 apunta a una versión que no está en design/ ni en la v2.`,
+        `${FDR}: the link to DEC-PLN-001@1 points to a version that is not in design/ or the v2.`,
       ]),
     });
   });
 
-  it('AC-AUT-001-05 un código de AC descartado no vuelve, un código nuevo no comparte DOM-NNN con la v2 y «Deriva de» se conserva entre versiones', async () => {
-    const p = await project('H1 criterios entre versiones');
+  it('AC-AUT-001-05 a discarded AC code does not come back, a new code does not share DOM-NNN with the v2, and "Derived from" is kept across versions', async () => {
+    const p = await project('H1 criteria across versions');
     const fresh = {
       code: 'AC-AUT-001-09',
-      title: 'Reimportación sin efectos',
-      verification: 'automática' as const,
-      check: 'Se reimporta tras ratificar.',
-      statement: 'Dado design/ ratificado, cuando se importa otra vez, entonces no se crea nada.',
+      title: 'Re-import with no effects',
+      verification: 'automatic' as const,
+      check: 'It is reimported after ratifying.',
+      statement: 'Given design/ ratified, when it is imported again, then nothing is created.',
       derivedFrom: 'AC-CON-001-10',
     };
     const v1 = edit(tree, FDR, (d) => ({ ...asRecord(d), criteria: [...asRecord(d).criteria, fresh] }));
     await ratify(p, (await runImport(p, v1)).entityId);
-    // v2 conserva el criterio derivado y descarta AC-AUT-001-08: la exportación coincide.
+    // v2 keeps the derived criterion and discards AC-AUT-001-08: the export matches.
     const v2 = edit(v1, FDR, (d) => {
       const r = asRecord(d);
       return {
         ...r,
         version: 2,
-        changeNote: 'Sin AC-AUT-001-08.',
+        changeNote: 'Without AC-AUT-001-08.',
         criteria: r.criteria.filter((c) => c.code !== 'AC-AUT-001-08'),
       };
     });
     await ratify(p, (await runImport(p, v2)).entityId);
     expect(await compareExport(s.db, p, v2)).toEqual([]);
-    // v3 no puede recuperar AC-AUT-001-08 ni cambiar la derivación de AC-AUT-001-09.
+    // v3 cannot bring back AC-AUT-001-08 or change AC-AUT-001-09's derivation.
     const v3 = edit(v1, FDR, (d) => {
       const r = asRecord(d);
       return {
         ...r,
         version: 3,
-        changeNote: 'Vuelve AC-AUT-001-08.',
+        changeNote: 'Brings back AC-AUT-001-08.',
         criteria: r.criteria.map((c) => (c.code === 'AC-AUT-001-09' ? { ...c, derivedFrom: 'AC-CON-001-01' } : c)),
       };
     });
     await expect(runImport(p, v3)).rejects.toMatchObject({
       reasons: [
-        `${FDR}: AC-AUT-001-08 ya se usó en una versión anterior; un criterio nuevo lleva un código nuevo.`,
-        `${FDR}: AC-AUT-001-09 cambia su «Deriva de»; un criterio que se mantiene o se modifica conserva su derivación.`,
+        `${FDR}: AC-AUT-001-08 was already used in a previous version; a new criterion needs a new code.`,
+        `${FDR}: AC-AUT-001-09 changes its "Derived from"; a criterion that is kept or modified keeps its derivation.`,
       ],
     });
-    // Un registro nuevo de design/ que comparte DOM-NNN con uno creado en la v2.
+    // A new record from design/ that shares DOM-NNN with one created in the v2.
     await executeCommand(s, {
       command: 'record.create',
       actor: ana,
@@ -525,18 +520,18 @@ describe('reimportación y diseño en la v2 (revisión de H1)', () => {
         type: 'adr',
         code: 'ADR-ZET-001',
         domain: 'zeta',
-        title: 'Solo en la v2',
+        title: 'Only in the v2',
         sections: [
           { title: 'Context', content: 'c' },
           { title: 'Options', content: 'o' },
-          { title: 'Decisión', content: 'd' },
+          { title: 'Decision', content: 'd' },
           { title: 'Consequences', content: 'k' },
         ],
         criteria: [
           {
             carry: 'new',
             title: 'T',
-            statement: 'Cuando pasa, entonces se ve.',
+            statement: 'When it happens, then it is seen.',
             verification: 'automatic',
             check: 'P.',
           },
@@ -545,21 +540,21 @@ describe('reimportación y diseño en la v2 (revisión de H1)', () => {
     });
     const withZet = new Map(v2);
     const dec = parseDocument(tree.get('decisions/DEC-PLN-001.md') ?? '', 'dec');
-    if (!dec.ok) throw new Error('DEC-PLN-001 no es válido');
+    if (!dec.ok) throw new Error('DEC-PLN-001 is not valid');
     withZet.set(
       'decisions/DEC-ZET-001.md',
       renderDocument({ ...asRecord(dec.value), code: 'DEC-ZET-001', domain: 'zeta', links: [] }),
     );
     await expect(runImport(p, withZet)).rejects.toMatchObject({
-      reasons: ['decisions/DEC-ZET-001.md: DEC-ZET-001 comparte ZET-001 con ADR-ZET-001, que ya está en la v2.'],
+      reasons: ['decisions/DEC-ZET-001.md: DEC-ZET-001 shares ZET-001 with ADR-ZET-001, which is already in the v2.'],
     });
   });
 
-  it('AC-AUT-001-05 si la versión cambia en la v2 entre importar y ratificar, ratificar se rechaza sin efectos', async () => {
-    const p = await project('H1 cambio antes de ratificar');
+  it('AC-AUT-001-05 if the version changes in the v2 between importing and ratifying, ratifying is rejected with no effects', async () => {
+    const p = await project('H1 change before ratifying');
     await ratify(p, (await runImport(p)).entityId);
     const batch = await runImport(p, edit(tree, 'decisions/DEC-PLN-001.md', approve));
-    // Simula un cambio fuera de la importación: un enlace nuevo en el borrador de DEC-PLN-001.
+    // Simulates a change outside the import: a new link in DEC-PLN-001's draft.
     const v = await s.db
       .selectFrom('record_versions')
       .innerJoin('records', 'records.id', 'record_versions.record_id')

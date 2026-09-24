@@ -17,12 +17,12 @@ afterAll(async () => {
   await pool.end();
 });
 
-describe('diario de eventos', () => {
-  it('AC-ESQ-001-04 rechaza UPDATE, DELETE y TRUNCATE y el diario queda igual', async () => {
+describe('event log', () => {
+  it('AC-ESQ-001-04 rejects UPDATE, DELETE and TRUNCATE and the log stays the same', async () => {
     const before = await pool.query('select * from events order by id');
-    await expect(pool.query("update events set actor = 'human:otro'")).rejects.toThrow(/solo admite INSERT/);
-    await expect(pool.query('delete from events')).rejects.toThrow(/solo admite INSERT/);
-    await expect(pool.query('truncate events cascade')).rejects.toThrow(/solo admite INSERT/);
+    await expect(pool.query("update events set actor = 'human:other'")).rejects.toThrow(/only admits INSERT/);
+    await expect(pool.query('delete from events')).rejects.toThrow(/only admits INSERT/);
+    await expect(pool.query('truncate events cascade')).rejects.toThrow(/only admits INSERT/);
     const after = await pool.query('select * from events order by id');
     expect(after.rows).toEqual(before.rows);
   });

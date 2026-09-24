@@ -1,6 +1,6 @@
-// AC de S2 sobre el motor de conocimiento: actualización verificada, invalidar en lugar de
-// borrar, reconstrucción con la misma huella, frescura, evaluación de ideas, context packs,
-// taxonomía y confianza.
+// S2 ACs on the knowledge engine: verified update, invalidate instead of deleting,
+// rebuild with the same fingerprint, freshness, idea assessment, context packs,
+// taxonomy and confidence.
 
 import { randomUUID } from 'node:crypto';
 import {
@@ -57,7 +57,7 @@ async function decision(projectId: string, title: string, text: string, approve 
     title,
     sections: [
       { title: 'Context', content: `Contexto de ${title}.` },
-      { title: 'Decisión', content: text },
+      { title: 'Decision', content: text },
       { title: 'Consequences', content: 'Hay que diseñarlo.' },
     ],
   });
@@ -72,7 +72,7 @@ async function newVersion(projectId: string, recordId: string, text: string) {
     title: 'Versión revisada',
     sections: [
       { title: 'Context', content: 'Revisión.' },
-      { title: 'Decisión', content: text },
+      { title: 'Decision', content: text },
       { title: 'Consequences', content: 'Hay que rediseñarlo.' },
     ],
     change_note: 'Cambia la decisión.',
@@ -89,11 +89,10 @@ const updates = (projectId: string) =>
     .orderBy('trigger_seq')
     .orderBy('id')
     .execute();
-const nodes = (projectId: string) =>
-  s.db.selectFrom('knowledge_nodes').selectAll().where('project_id', '=', projectId).execute();
+const nodes = (projectId: string) => s.db.selectFrom('knowledge_nodes').selectAll().where('project_id', '=', projectId).execute();
 const unique = () => randomUUID().slice(0, 8);
 
-/** Lote de un agente externo con propuestas de un tipo. */
+/** Batch from an external agent with proposals of one type. */
 async function agentBatch(projectId: string, payloads: Record<string, unknown>[], type = 'decision') {
   const r = await cmd(
     projectId,
@@ -107,7 +106,7 @@ async function agentBatch(projectId: string, payloads: Record<string, unknown>[]
 
 const decisionPayload = (title: string, text: string) => ({ title, context: 'c', decision: text, consequences: 'k' });
 
-/** Taxonomía de un eje con una categoría propia y «otra». */
+/** Taxonomy with one axis, one of its own categories and "other". */
 const axesWith = (cat: string) => [
   {
     code: 'area',
@@ -119,7 +118,7 @@ const axesWith = (cat: string) => [
   },
 ];
 
-/** Clasificador que responde siempre lo mismo, con la confianza de cada posición. */
+/** Classifier that always answers the same thing, with each position's confidence. */
 const fixed = (id: string, choice: string, confidences: number[]): Classifier => ({
   id,
   choice: async (items) => items.map((i, k) => response(i.id, choice, confidences[k] ?? 0.5)),
@@ -127,7 +126,7 @@ const fixed = (id: string, choice: string, confidences: number[]): Classifier =>
   noul: async () => [],
 });
 
-/** Nodo con autoridad para las pruebas puras del plan. */
+/** Node with authority, for the plan's pure tests. */
 const testNode = (ref: string) => ({
   ref,
   type: 'decision',
@@ -141,15 +140,15 @@ const testNode = (ref: string) => ({
   until: null,
 });
 
-/** Nodos vigentes de un proyecto como «ref|estado epistémico». */
+/** A project's current nodes as "ref|epistemic status". */
 const current = async (projectId: string) =>
   (await nodes(projectId))
     .filter((n) => n.valid_to === null)
     .map((n) => `${n.ref}|${n.epistemic}`)
     .sort();
 
-describe('Actualizar conocimiento', () => {
-  it('AC-CON-001-01 aprobar una versión dispara la actualización y sube la versión del grafo', async () => {
+describe('Update knowledge', () => {
+  it('AC-CON-001-01 approving a version triggers the update and bumps the graph version', async () => {
     const p = await newProject('Trigger');
     expect(await readGraphVersion(s.db, p)).toBe(0);
     const d = await decision(p, `Alta de socios ${unique()}`, 'Cada socio se da de alta con su correo.');
@@ -165,11 +164,11 @@ describe('Actualizar conocimiento', () => {
       .where('command', '=', 'knowledge_update.apply')
       .where('entity_id', '=', us[0]?.id ?? '')
       .executeTakeFirstOrThrow();
-    expect(event.actor).toBe('system:conocimiento@1');
+    expect(event.actor).toBe('system:knowledge@1');
   });
 
-  it('AC-CON-001-02 un conjunto de veredictos que no cubre un candidato deja el update rejected sin efectos', async () => {
-    const p = await newProject('Sin veredicto');
+  it('AC-CON-001-02 a set of verdicts that does not cover a candidate leaves the update rejected with no effects', async () => {
+    const p = await newProject('No verdict');
     const t = unique();
     await decision(p, `Cuotas anuales ${t}`, `Los socios pagan una cuota anual ${t}.`);
     const before = { version: await readGraphVersion(s.db, p), nodes: (await nodes(p)).length };
@@ -177,13 +176,13 @@ describe('Actualizar conocimiento', () => {
     await decision(p, `Cuotas anuales revisadas ${t}`, `Los socios pagan una cuota anual ${t} en enero.`);
     const us = await updates(p);
     expect(us.at(-1)).toMatchObject({ state: 'rejected' });
-    expect(us.at(-1)?.failure).toMatch(/no tiene veredicto/);
+    expect(us.at(-1)?.failure).toMatch(/has no verdict/);
     expect({ version: await readGraphVersion(s.db, p), nodes: (await nodes(p)).length }).toEqual(before);
     expect((await inbox(s.db, p)).rejected_updates).toHaveLength(1);
   });
 
-  it('AC-CON-001-03 un veredicto que cita un nodo inexistente deja el update rejected sin efectos', async () => {
-    const p = await newProject('Nodo inexistente');
+  it('AC-CON-001-03 a verdict that cites a nonexistent node leaves the update rejected with no effects', async () => {
+    const p = await newProject('Nonexistent node');
     const t = unique();
     await decision(p, `Invitados ${t}`, `Cada socio puede traer invitados ${t}.`);
     const before = { version: await readGraphVersion(s.db, p), nodes: (await nodes(p)).length };
@@ -191,53 +190,49 @@ describe('Actualizar conocimiento', () => {
     await decision(p, `Invitados limitados ${t}`, `Cada socio puede traer dos invitados ${t}.`);
     const u = (await updates(p)).at(-1);
     expect(u).toMatchObject({ state: 'rejected' });
-    expect(u?.failure).toMatch(/nodo inexistente: DEC-XXX-999@1/);
+    expect(u?.failure).toMatch(/does not exist: DEC-XXX-999@1/);
     expect({ version: await readGraphVersion(s.db, p), nodes: (await nodes(p)).length }).toEqual(before);
   });
 
-  it('AC-CON-001-04 un veredicto que invalida una decisión aprobada produce una propuesta en la bandeja, nunca un cambio directo', async () => {
-    const p = await newProject('Invalidar autoridad');
+  it('AC-CON-001-04 a verdict that invalidates an approved decision produces a proposal in the inbox, never a direct change', async () => {
+    const p = await newProject('Invalidate authority');
     const t = unique();
     const old = await decision(p, `Pago en efectivo ${t}`, `Las cuotas se pagan en efectivo ${t}.`);
     script.scripts.verdict = (items) =>
       items.map((i) => response(i.id, 'invalidate', 0.95, 'El pago por transferencia sustituye al efectivo.'));
     await decision(p, `Pago por transferencia ${t}`, `Las cuotas se pagan por transferencia ${t}.`);
-    // La decisión vieja sigue aprobada y su nodo sigue vigente.
-    const v = await s.db
-      .selectFrom('record_versions')
-      .select('state')
-      .where('id', '=', old.versionId)
-      .executeTakeFirstOrThrow();
+    // The old decision stays approved and its node stays current.
+    const v = await s.db.selectFrom('record_versions').select('state').where('id', '=', old.versionId).executeTakeFirstOrThrow();
     expect(v.state).toBe('approved');
     const oldNode = (await nodes(p)).find((n) => n.ref === `${old.code}@1`);
     expect(oldNode?.valid_to).toBeNull();
-    // Y en la bandeja hay una propuesta de revisión del conocimiento, que resuelve la persona.
+    // And the inbox has a knowledge review proposal, which the person resolves.
     const b = await inbox(s.db, p);
     const batch = b.batches.find((l) => l.type === 'knowledge');
-    expect(batch?.producer).toBe('system:conocimiento@1');
+    expect(batch?.producer).toBe('system:knowledge@1');
     expect(batch?.proposals[0]).toMatchObject({
       type: 'review',
       payload: { record: { code: old.code, version: 1 }, verdict: 'invalidate' },
     });
   });
 
-  it('AC-CON-001-04 si una revisión no puede proponerse, la actualización se rechaza en lugar de perderla', async () => {
-    const p = await newProject('Revisión sin origen');
+  it('AC-CON-001-04 if a review cannot be proposed, the update is rejected instead of being lost', async () => {
+    const p = await newProject('Review without origin');
     const t = unique();
     await decision(p, `Base ${t}`, `Algo de base ${t}.`);
-    // Un nodo con autoridad cuyo origen no es una versión de este proyecto (p. ej. un grafo alterado).
+    // A node with authority whose origin isn't a version of this project (e.g. an altered graph).
     await sql`insert into knowledge_nodes (project_id, ref, kind, source_type, source_id, source_version, label, body, epistemic, valid_from, state)
       values (${p}::uuid, 'DEC-ZZZ-009@1', 'decision', 'record_version', ${randomUUID()}::uuid, 1,
-              ${`Pago en efectivo ${t}`}, ${`Las cuotas se pagan en efectivo ${t}.`}, 'confirmado', 1, 'current')`.execute(s.db);
+              ${`Pago en efectivo ${t}`}, ${`Las cuotas se pagan en efectivo ${t}.`}, 'confirmed', 1, 'current')`.execute(s.db);
     script.scripts.verdict = (items) => items.map((i) => response(i.id, 'invalidate', 0.95, 'Superseded.'));
     await decision(p, `Pago por transferencia ${t}`, `Las cuotas se pagan por transferencia ${t}.`);
     const u = (await updates(p)).at(-1);
     expect(u?.state).toBe('rejected');
-    expect(u?.failure).toMatch(/No se puede proponer la revisión de DEC-ZZZ-009@1/);
+    expect(u?.failure).toMatch(/Can't propose the review of DEC-ZZZ-009@1/);
   });
 
-  it('AC-CON-001-04 un registro con un dominio con dígitos se rechaza al crearlo: su código no podría citarse', async () => {
-    const p = await newProject('Dominio con dígitos');
+  it('AC-CON-001-04 a record with a domain that has digits is rejected on creation: its code could not be cited', async () => {
+    const p = await newProject('Domain with digits');
     await expect(
       cmd(p, 'record.create', {
         type: 'decision',
@@ -245,14 +240,14 @@ describe('Actualizar conocimiento', () => {
         title: 'Payment',
         sections: [
           { title: 'Context', content: 'c' },
-          { title: 'Decisión', content: 'd' },
+          { title: 'Decision', content: 'd' },
           { title: 'Consequences', content: 'k' },
         ],
       }),
     ).rejects.toMatchObject({ type: 'validation' });
   });
 
-  it('AC-CON-001-05 lo sustituido queda con valid_to y nunca se borra', async () => {
+  it('AC-CON-001-05 what is superseded gets a valid_to and is never deleted', async () => {
     const p = await newProject('Invalidate');
     const d = await decision(p, `Horario ${unique()}`, 'La sede abre por la tarde.');
     await newVersion(p, d.recordId, 'La sede abre por la mañana.');
@@ -263,11 +258,11 @@ describe('Actualizar conocimiento', () => {
     expect(v2?.valid_to).toBeNull();
     await expect(sql`delete from knowledge_nodes where id = ${v1?.id ?? ''}::uuid`.execute(s.db)).rejects.toThrow(/DELETE/);
     await expect(sql`update knowledge_nodes set valid_to = null where id = ${v1?.id ?? ''}::uuid`.execute(s.db)).rejects.toThrow(
-      /solo se invalida/,
+      /can only be invalidated/,
     );
   });
 
-  it('AC-CON-001-06 reconstruir con las clasificaciones guardadas da la misma huella', async () => {
+  it('AC-CON-001-06 rebuilding with the saved classifications gives the same fingerprint', async () => {
     const p = await newProject('Rebuild');
     const t = unique();
     await cmd(p, 'taxonomy.propose', {
@@ -295,7 +290,7 @@ describe('Actualizar conocimiento', () => {
       sections: [
         { title: 'Goal', content: 'Alta de socios.' },
         { title: 'Scope', content: 'Formulario.' },
-        { title: 'Fuera de alcance', content: 'Pagos.' },
+        { title: 'Out of scope', content: 'Pagos.' },
         { title: 'Behavior', content: 'Se rellena y se confirma.' },
       ],
       criteria: [
@@ -313,29 +308,29 @@ describe('Actualizar conocimiento', () => {
     const comparison = await compareRebuild(s.db, p);
     expect(comparison.equal).toBe(true);
     expect(comparison.alive).toMatch(/^[0-9a-f]{64}$/);
-    // La reconstrucción no vuelve a llamar al clasificador: todo sale de lo guardado.
+    // The rebuild doesn't call the classifier again: everything comes from what's saved.
     expect(script.calls).toEqual(callsBefore);
     const g = await loadGraph(s.db, p);
     expect(g.nodes.some((n) => Object.keys(n.categories).length > 0)).toBe(true);
   });
 
-  it('AC-CON-001-06 la reconstrucción reproduce propuestas, descartes, enlaces, rechazos y reintentos, y detecta un grafo alterado', async () => {
-    const p = await newProject('Reconstruir todo');
+  it('AC-CON-001-06 the rebuild reproduces proposals, discards, links, rejections and retries, and detects an altered graph', async () => {
+    const p = await newProject('Rebuild everything');
     const t = unique();
     const a = await decision(p, `Horario de la sede ${t}`, `La sede abre por la tarde ${t}.`);
-    // Una propuesta aceptada sin aprobar se proyecta como propuesta; al descartar el borrador se retira.
+    // A proposal accepted without approving is projected as proposed; discarding the draft withdraws it.
     const discarded = await agentBatch(p, [decisionPayload(`Sede por la mañana ${t}`, `La sede abre por la mañana ${t}.`)]);
     const draft = (await cmd(p, 'proposal.accept', {}, discarded.proposals[0])).result as {
       versionId: string;
       code: string;
     };
-    expect(await current(p)).toContain(`${draft.code}@1|propuesto`);
+    expect(await current(p)).toContain(`${draft.code}@1|proposed`);
     await cmd(p, 'record_version.discard', { reason: 'No.' }, draft.versionId);
     expect((await current(p)).some((n) => n.startsWith(`${draft.code}@1`))).toBe(false);
-    // «Aceptar y aprobar».
+    // "Accept and approve".
     const approved = await agentBatch(p, [decisionPayload(`Sede en agosto ${t}`, `La sede cierra en agosto ${t}.`)]);
     await cmd(p, 'proposal.accept', { approve: true }, approved.proposals[0]);
-    // Una FDR con su enlace a una decisión.
+    // An FDR with its link to a decision.
     await cmd(p, 'record.create', {
       type: 'fdr',
       domain: 'socios',
@@ -343,7 +338,7 @@ describe('Actualizar conocimiento', () => {
       sections: [
         { title: 'Goal', content: 'Reservar la sede.' },
         { title: 'Scope', content: 'Formulario.' },
-        { title: 'Fuera de alcance', content: 'Pagos.' },
+        { title: 'Out of scope', content: 'Pagos.' },
         { title: 'Behavior', content: 'Se reserva y se confirma.' },
       ],
       criteria: [
@@ -357,7 +352,7 @@ describe('Actualizar conocimiento', () => {
       ],
       links: [{ type: 'based_on', target: { code: a.code, version: 1 } }],
     }).then((r) => cmd(p, 'record_version.approve', {}, (r.result as { versionId: string }).versionId));
-    // Una actualización rechazada, otra aplicada después y el reintento de la rechazada al final.
+    // A rejected update, another applied afterwards, and the rejected one's retry at the end.
     script.scripts.verdict = () => [];
     await decision(p, `Sede abierta los sábados ${t}`, `La sede abre por la tarde los sábados ${t}.`);
     script.restart();
@@ -372,21 +367,21 @@ describe('Actualizar conocimiento', () => {
     expect(await compareRebuild(s.db, p)).toMatchObject({ equal: true, derivation: null });
     expect(script.calls).toEqual(callsBefore);
 
-    // La reconstrucción parte de la autoridad, no del grafo vivo: un nodo colado a mano la hace divergir.
+    // The rebuild starts from authority, not the live graph: a hand-inserted node makes it diverge.
     await sql`insert into knowledge_nodes (project_id, ref, kind, source_type, label, body, epistemic, valid_from, state)
-      values (${p}::uuid, 'DEC-ZZZ-999@1', 'decision', 'manual', 'Colado', 'Colado', 'confirmado', 1, 'current')`.execute(s.db);
-    expect(await compareRebuild(s.db, p)).toMatchObject({ equal: false, derivation: expect.stringMatching(/no coincide/) });
+      values (${p}::uuid, 'DEC-ZZZ-999@1', 'decision', 'manual', 'Colado', 'Colado', 'confirmed', 1, 'current')`.execute(s.db);
+    expect(await compareRebuild(s.db, p)).toMatchObject({ equal: false, derivation: expect.stringMatching(/doesn't match/) });
   });
 
-  it('AC-CON-001-13 la misma entrada reutiliza los veredictos guardados por input_hash sin llamar al clasificador', async () => {
+  it('AC-CON-001-13 the same input reuses the verdicts saved by input_hash without calling the classifier', async () => {
     const t = unique();
     const text = `La junta aprueba las altas ${t}.`;
-    const p1 = await newProject('Caché 1');
+    const p1 = await newProject('Cache 1');
     await decision(p1, `Aprobación de altas ${t}`, text);
     await decision(p1, `Revisión de altas ${t}`, `${text} Y revisa las bajas.`);
     const calls = script.calls.verdict;
     expect(calls).toBeGreaterThan(0);
-    const p2 = await newProject('Caché 2');
+    const p2 = await newProject('Cache 2');
     await decision(p2, `Aprobación de altas ${t}`, text);
     await decision(p2, `Revisión de altas ${t}`, `${text} Y revisa las bajas.`);
     expect(script.calls.verdict).toBe(calls);
@@ -395,8 +390,8 @@ describe('Actualizar conocimiento', () => {
     expect(u2?.verdicts).toEqual(u1?.verdicts);
   });
 
-  it('AC-CON-001-13 una salida que no se verifica no entra en la caché: reintentar vuelve a preguntar y se aplica', async () => {
-    const p = await newProject('Caché sin veneno');
+  it('AC-CON-001-13 an unverified output does not enter the cache: retrying asks again and gets applied', async () => {
+    const p = await newProject('Cache without poison');
     const t = unique();
     await decision(p, `Invitados ${t}`, `Cada socio puede traer invitados ${t}.`);
     script.scripts.verdict = () => [];
@@ -415,45 +410,45 @@ describe('Actualizar conocimiento', () => {
     expect((await updates(p)).at(-1)?.state).toBe('applied');
   });
 
-  it('AC-CON-001-02 un veredicto que cita un nodo que no era candidato o dos veredictos para el mismo candidato dejan el update rejected', async () => {
-    const p = await newProject('Verificación estricta');
+  it('AC-CON-001-02 a verdict that cites a node that was not a candidate, or two verdicts for the same candidate, leave the update rejected', async () => {
+    const p = await newProject('Strict verification');
     const t = unique();
     const a = await decision(p, `Cuotas ${t}`, `Los socios pagan una cuota anual ${t}.`);
-    // Otra decisión del mismo tema: así hay candidatos y el clasificador responde.
+    // Another decision on the same topic: this way there are candidates and the classifier answers.
     await decision(p, `Recibos de las cuotas ${t}`, `Los socios pagan la cuota anual ${t} con recibo.`);
-    // La versión que se sustituye existe, pero nunca es candidata: la precedencia la decide el código.
+    // The version being superseded exists, but is never a candidate: precedence is decided by the code.
     script.scripts.verdict = (items, baseline) => [...baseline, response(`${a.code}@1`, 'relate', 0.9)];
     await newVersion(p, a.recordId, `Los socios pagan una cuota anual ${t} en enero.`);
     const u1 = (await updates(p)).at(-1);
     expect(u1?.state).toBe('rejected');
-    expect(u1?.failure).toMatch(/no era candidato/);
+    expect(u1?.failure).toMatch(/was not a candidate/);
     script.scripts.verdict = (items, baseline) => [...baseline, ...baseline];
     await decision(p, `Cuotas de enero ${t}`, `Los socios pagan una cuota anual ${t} cada enero.`);
     const u2 = (await updates(p)).at(-1);
     expect(u2?.state).toBe('rejected');
-    expect(u2?.failure).toMatch(/tiene 2 veredictos/);
+    expect(u2?.failure).toMatch(/has 2 verdicts/);
   });
 });
 
 describe('freshness', () => {
-  it('AC-CON-001-07 con un evento de autoridad sin proyectar, pedir una ejecución se rechaza por grafo desfasado', async () => {
+  it('AC-CON-001-07 with an unprojected authority event, requesting a run is rejected because the graph is stale', async () => {
     const p = await newProject('Freshness');
     const d = await decision(p, `Frescura ${unique()}`, 'Algo aprobado.');
-    // Un evento de autoridad cuya actualización aún no se ha aplicado (p. ej. tras un corte).
+    // An authority event whose update has not been applied yet (e.g. after a crash).
     await sql`insert into knowledge_updates (project_id, trigger, trigger_seq, state)
       values (${p}::uuid, ${JSON.stringify({ type: 'record_version', id: d.versionId, version: 1 })}::jsonb, 999, 'queued')`.execute(
       s.db,
     );
     const request = () =>
       cmd(p, 'run.request', { action: 'design_proposal', scope: { type: 'record_version', id: d.versionId } });
-    await expect(request()).rejects.toMatchObject({ type: 'guard', reasons: [expect.stringContaining('no está al día')] });
+    await expect(request()).rejects.toMatchObject({ type: 'guard', reasons: [expect.stringContaining('not up to date')] });
     await s.engine.startUpdate('', p);
     await expect(request()).resolves.toMatchObject({ state: 'queued' });
   });
 });
 
-describe('evaluación de ideas', () => {
-  it('AC-CON-001-08 una idea que duplica una decisión aprobada aparece en la bandeja marcada como duplicado con la cita', async () => {
+describe('idea assessment', () => {
+  it('AC-CON-001-08 an idea that duplicates an approved decision appears in the inbox marked as a duplicate with the citation', async () => {
     const p = await newProject('Ideas');
     const t = unique();
     const d = await decision(
@@ -488,9 +483,9 @@ describe('evaluación de ideas', () => {
   });
 });
 
-describe('evaluación de ideas: paquetes, citas y fallos', () => {
-  it('AC-CON-001-08 las ideas de un paquete de una ejecución se evalúan, con el estado epistémico de la cita y las respuestas inválidas registradas', async () => {
-    const p = await newProject('Ideas de paquetes');
+describe('idea assessment: packages, citations and failures', () => {
+  it("AC-CON-001-08 the ideas in a run's package are assessed, with the citation's epistemic status and invalid responses recorded", async () => {
+    const p = await newProject('Package ideas');
     const t = unique();
     const text = `Cada socio puede traer como máximo dos invitados a los eventos ${t}.`;
     const d = await decision(p, `Dos invitados por socio ${t}`, text);
@@ -532,29 +527,29 @@ describe('evaluación de ideas: paquetes, citas y fallos', () => {
     const assessment = b.batches.find((l) => l.id === batch.entityId)?.proposals[0]?.assessment;
     expect(assessment).toMatchObject({
       findings: [expect.objectContaining({ citation: `${d.code}@1`, epistemic_status: 'confirmed' })],
-      invalid: [expect.objectContaining({ citation: 'DEC-ZZZ-001@1', reason: 'No era candidata.' })],
+      invalid: [expect.objectContaining({ citation: 'DEC-ZZZ-001@1', reason: 'Not a candidate.' })],
       error: null,
     });
   });
 
-  it('AC-CON-001-08 si la evaluación de una idea falla, queda registrado el error en lugar de quedarse pendiente', async () => {
-    const p = await newProject('Ideas con fallo');
+  it('AC-CON-001-08 if assessing an idea fails, the error is recorded instead of it staying pending', async () => {
+    const p = await newProject('Ideas with failure');
     const t = unique();
     await decision(p, `Sede ${t}`, `La sede abre por la tarde ${t}.`);
     script.scripts.idea = () => {
-      throw new Error('proveedor caído');
+      throw new Error('provider down');
     };
     const batch = await agentBatch(p, [decisionPayload(`Sede por la tarde ${t}`, `La sede abre por la tarde ${t}.`)]);
     const b = await inbox(s.db, p);
     expect(b.batches.find((l) => l.id === batch.batchId)?.proposals[0]?.assessment).toMatchObject({
       findings: [],
-      error: expect.stringMatching(/proveedor caído/),
+      error: expect.stringMatching(/provider down/),
     });
   });
 });
 
 describe('context packs', () => {
-  it('AC-CON-001-09 el pack registra rol, presupuesto, nodos con motivo, versión del grafo, dependencias y hash', async () => {
+  it('AC-CON-001-09 the pack records role, budget, nodes with a reason, graph version, dependencies and hash', async () => {
     const p = await newProject('Packs');
     const t = unique();
     await decision(p, `Cuotas ${t}`, `Las cuotas de los socios se pagan cada año ${t}.`);
@@ -570,12 +565,12 @@ describe('context packs', () => {
     expect(pack?.budget).toMatchObject({ decision: 8000, knowledge: 4000 });
     const content = pack?.content as { knowledge: { ref: string; reason: string }[] };
     expect(content.knowledge.length).toBeGreaterThan(0);
-    for (const n of content.knowledge) expect(n.reason).toMatch(/relevancia/);
+    for (const n of content.knowledge) expect(n.reason).toMatch(/relevance/);
     expect(pack?.dependencies).toContainEqual({ type: 'knowledge_node', id: content.knowledge[0]?.ref, version: 2 });
     expect((r1.result as { contextPackHash: string }).contextPackHash).toBe(
       (r2.result as { contextPackHash: string }).contextPackHash,
     );
-    // Con el grafo cambiado, el pack del mismo alcance es otro.
+    // With the graph changed, the pack for the same scope is a different one.
     await decision(p, `Otra ${t}`, 'Algo distinto.');
     const r3 = await request();
     expect((r3.result as { contextPackHash: string }).contextPackHash).not.toBe(
@@ -584,15 +579,15 @@ describe('context packs', () => {
   });
 });
 
-describe('lo aprobado queda confirmado', () => {
-  it('AC-CON-001-09 lo aprobado con «Aceptar y aprobar» queda confirmado en el grafo y entra en el context pack', async () => {
-    const p = await newProject('Aceptar y aprobar');
+describe('what is approved is confirmed', () => {
+  it('AC-CON-001-09 what is approved with "Accept and approve" is confirmed in the graph and enters the context pack', async () => {
+    const p = await newProject('Accept and approve');
     const t = unique();
     const batch = await agentBatch(p, [
       decisionPayload(`Cuota de socios ${t}`, `Los socios pagan una cuota anual de treinta euros ${t}.`),
     ]);
     const accepted = (await cmd(p, 'proposal.accept', { approve: true }, batch.proposals[0])).result as { code: string };
-    expect((await current(p)).filter((n) => n.startsWith(accepted.code))).toEqual([`${accepted.code}@1|confirmado`]);
+    expect((await current(p)).filter((n) => n.startsWith(accepted.code))).toEqual([`${accepted.code}@1|confirmed`]);
     const d = await decision(p, `Recibo de la cuota ${t}`, `La cuota anual de los socios se cobra con recibo ${t}.`);
     const r = await cmd(p, 'run.request', { action: 'design_proposal', scope: { type: 'record_version', id: d.versionId } });
     const pack = await s.db
@@ -605,7 +600,7 @@ describe('lo aprobado queda confirmado', () => {
   });
 });
 
-describe('taxonomía y confianza', () => {
+describe('taxonomy and confidence', () => {
   const axes = [
     {
       code: 'area',
@@ -617,10 +612,10 @@ describe('taxonomía y confianza', () => {
     },
   ];
 
-  it('AC-CON-001-15 solo se clasifica con la taxonomía aprobada vigente', async () => {
-    const p = await newProject('Taxonomía');
+  it('AC-CON-001-15 classification only uses the current approved taxonomy', async () => {
+    const p = await newProject('Taxonomy');
     await decision(p, `Sin taxonomía ${unique()}`, 'Datos de los socios.');
-    const proposal = await cmd(p, 'taxonomy.propose', { code: 'TAX-001', title: 'Taxonomía', axes });
+    const proposal = await cmd(p, 'taxonomy.propose', { code: 'TAX-001', title: 'Taxonomy', axes });
     await decision(p, `Con borrador ${unique()}`, 'Datos de los socios.');
     expect(await s.db.selectFrom('classifications').select('id').where('project_id', '=', p).execute()).toHaveLength(0);
     await cmd(p, 'taxonomy.approve', {}, proposal.entityId);
@@ -630,9 +625,9 @@ describe('taxonomía y confianza', () => {
     expect(c[0]).toMatchObject({ taxonomy_id: proposal.entityId, axis: 'area', category: 'socios', state: 'applied' });
   });
 
-  it('AC-CON-001-15 una categoría o un eje fuera de la taxonomía aprobada rechazan la actualización sin efectos', async () => {
-    const p = await newProject('Taxonomía cerrada');
-    const tx = await cmd(p, 'taxonomy.propose', { code: 'TAX-001', title: 'Taxonomía', axes });
+  it('AC-CON-001-15 a category or an axis outside the approved taxonomy reject the update with no effects', async () => {
+    const p = await newProject('Closed taxonomy');
+    const tx = await cmd(p, 'taxonomy.propose', { code: 'TAX-001', title: 'Taxonomy', axes });
     await cmd(p, 'taxonomy.approve', {}, tx.entityId);
     script.scripts.category = (items) => [
       ...items.map((i) => response(i.id, 'invented', 0.95)),
@@ -641,11 +636,11 @@ describe('taxonomía y confianza', () => {
     const d = await decision(p, `Categorías ${unique()}`, 'Datos de los socios.');
     const u = (await updates(p)).at(-1);
     expect(u?.state).toBe('rejected');
-    expect(u?.failure).toMatch(/«inventada» no es una categoría del eje area/);
-    expect(u?.failure).toMatch(/eje que no está en la taxonomía: eje_fantasma/);
+    expect(u?.failure).toMatch(/"invented" is not a category of axis area/);
+    expect(u?.failure).toMatch(/is not in the taxonomy: ghost_axis/);
     expect(await s.db.selectFrom('classifications').select('id').where('project_id', '=', p).execute()).toEqual([]);
     expect((await nodes(p)).some((n) => n.ref === `${d.code}@1`)).toBe(false);
-    // El comando tampoco la admite aunque se llame directamente.
+    // The command doesn't admit it either, even when called directly.
     const data = {
       node_ref: `${d.code}@1`,
       taxonomy_id: tx.entityId,
@@ -653,22 +648,22 @@ describe('taxonomía y confianza', () => {
       category: 'invented',
       confidence: 0.9,
       justification: 'x',
-      classifier: 'prueba@1',
+      classifier: 'test@1',
       input_hash: 'h',
       update_id: null,
     };
     await expect(cmd(p, 'classification.record', data, undefined, UPDATER)).rejects.toMatchObject({
       type: 'guard',
-      reasons: ['«inventada» no es una categoría del eje area.'],
+      reasons: ['"invented" is not a category of axis area.'],
     });
   });
 
-  it('AC-CON-001-13 la caché de categorías distingue taxonomías con el mismo código y versión pero otro contenido', async () => {
+  it('AC-CON-001-13 the category cache distinguishes taxonomies with the same code and version but different content', async () => {
     const t = unique();
     const categories: string[][] = [];
     for (const cat of ['socios', 'dues']) {
-      const p = await newProject(`Caché de categorías ${cat}`);
-      const tx = await cmd(p, 'taxonomy.propose', { code: 'TAX-001', title: 'Taxonomía', axes: axesWith(cat) });
+      const p = await newProject(`Category cache ${cat}`);
+      const tx = await cmd(p, 'taxonomy.propose', { code: 'TAX-001', title: 'Taxonomy', axes: axesWith(cat) });
       await cmd(p, 'taxonomy.approve', {}, tx.entityId);
       await decision(p, `Alta ${t}`, `Alta de los socios ${t}.`);
       const c = await s.db.selectFrom('classifications').select('category').where('project_id', '=', p).execute();
@@ -678,9 +673,9 @@ describe('taxonomía y confianza', () => {
     expect(categories[1]?.every((c) => ['dues', 'other'].includes(c))).toBe(true);
   });
 
-  it('AC-CON-001-14 una clasificación de confianza baja queda pendiente y aparece en la bandeja', async () => {
+  it('AC-CON-001-14 a low-confidence classification stays pending and appears in the inbox', async () => {
     const p = await newProject('Confidence');
-    const tx = await cmd(p, 'taxonomy.propose', { code: 'TAX-001', title: 'Taxonomía', axes });
+    const tx = await cmd(p, 'taxonomy.propose', { code: 'TAX-001', title: 'Taxonomy', axes });
     await cmd(p, 'taxonomy.approve', {}, tx.entityId);
     script.scripts.category = (items) => items.map((i) => response(i.id, 'socios', 0.3, 'No estoy seguro.'));
     const d = await decision(p, `Dudosa ${unique()}`, 'Algo ambiguo.');
@@ -690,13 +685,13 @@ describe('taxonomía y confianza', () => {
     expect(node?.categories).toEqual({});
     const b = await inbox(s.db, p);
     expect(b.classifications_to_review).toEqual([expect.objectContaining({ node_ref: `${d.code}@1`, category: 'socios' })]);
-    // La persona la resuelve.
+    // The person resolves it.
     await cmd(p, 'classification.resolve', { category: 'socios' }, c.id);
     expect((await inbox(s.db, p)).classifications_to_review).toHaveLength(0);
   });
 
-  it('AC-CLA-001-04 sin revisor, una relación de confianza media no se aplica y queda anotada en la actualización', async () => {
-    const p = await newProject('Relación media');
+  it('AC-CLA-001-04 without a reviewer, a medium-confidence relation is not applied and is noted on the update', async () => {
+    const p = await newProject('Medium relation');
     const t = unique();
     const a = await decision(p, `Sede ${t}`, `La sede abre por la tarde ${t}.`);
     script.scripts.verdict = (items) => items.map((i) => response(i.id, 'relate', 0.6));
@@ -709,9 +704,9 @@ describe('taxonomía y confianza', () => {
     ]);
   });
 
-  it('AC-CLA-001-04 la cascada pasa la confianza media al revisor: si la sube, la relación se aplica', async () => {
-    const cascade = createCascadeClassifier(fixed('base@1', 'relate', [0.9, 0.6, 0.3]), fixed('revisor@1', 'relate', [0.95]));
-    expect(cascade.id).toBe('base@1>revisor@1');
+  it('AC-CLA-001-04 the cascade passes medium confidence to the reviewer: if it raises it, the relation is applied', async () => {
+    const cascade = createCascadeClassifier(fixed('base@1', 'relate', [0.9, 0.6, 0.3]), fixed('reviewer@1', 'relate', [0.95]));
+    expect(cascade.id).toBe('base@1>reviewer@1');
     const items = ['DEC-AAA-001@1', 'DEC-BBB-001@1', 'DEC-CCC-001@1'].map((id) => ({
       id,
       state: 'x',
@@ -721,10 +716,10 @@ describe('taxonomía y confianza', () => {
     const responses = await cascade.choice(items);
     expect(responses.map((r) => [r.id, r.confidence, r.reviewedBy ?? null])).toEqual([
       ['DEC-AAA-001@1', 0.9, null],
-      ['DEC-BBB-001@1', 0.95, 'revisor@1'],
+      ['DEC-BBB-001@1', 0.95, 'reviewer@1'],
       ['DEC-CCC-001@1', 0.3, null],
     ]);
-    // Con el grafo y el cambio, la media revisada al alza se aplica; la baja queda anotada sin aplicar.
+    // With the graph and the change, the medium reviewed upward is applied; the low one is noted without applying.
     const g: Graph = { version: 1, nodes: items.map((i) => testNode(i.id)), edges: [] };
     const { from: _d, until: _h, categories: _c, ...main } = testNode('DEC-NUE-001@1');
     const change: Change = { main, companions: [], edges: [], supersedes: [] };
@@ -733,7 +728,7 @@ describe('taxonomía y confianza', () => {
     expect(plan.notApplied.map((x) => [x.ref, x.path])).toEqual([['DEC-CCC-001@1', 'pending_person']]);
   });
 
-  it('AC-CLA-001-04 la cascada por umbrales envía la confianza alta a aplicar, la media a revisión y la baja a la persona', () => {
+  it('AC-CLA-001-04 the threshold cascade sends high confidence to apply, medium to review and low to the person', () => {
     expect(DEFAULT_THRESHOLDS).toEqual({ validFrom: 0.8, average: 0.55 });
     expect(routeByConfidence(0.95)).toBe('apply');
     expect(routeByConfidence(0.8)).toBe('apply');
@@ -742,8 +737,8 @@ describe('taxonomía y confianza', () => {
   });
 });
 
-describe('el clasificador no toca la autoridad', () => {
-  it('AC-CON-001-12 una actualización solo escribe conocimiento derivado, clasificaciones y propuestas', async () => {
+describe('the classifier does not touch authority', () => {
+  it('AC-CON-001-12 an update only writes derived knowledge, classifications and proposals', async () => {
     const p = await newProject('Frontier');
     const t = unique();
     await decision(p, `Sede ${t}`, `La sede abre de lunes a viernes ${t}.`);
@@ -759,10 +754,10 @@ describe('el clasificador no toca la autoridad', () => {
       );
       return rows.rows;
     };
-    // Una segunda decisión del mismo tema: al volver a proyectar la primera, la segunda es candidata.
+    // A second decision on the same topic: reprojecting the first one, the second is a candidate.
     await decision(p, `Sede en verano ${t}`, `La sede abre de lunes a viernes en verano ${t}.`);
     script.scripts.verdict = (items) => items.map((i) => response(i.id, 'invalidate', 0.99));
-    // Se encola una actualización a mano sobre la primera decisión y se procesa: la autoridad no cambia.
+    // An update on the first decision is enqueued by hand and processed: authority doesn't change.
     const before = await authority();
     const v = await s.db
       .selectFrom('record_versions')
@@ -779,20 +774,20 @@ describe('el clasificador no toca la autoridad', () => {
     expect(script.calls.verdict).toBeGreaterThan(0);
     expect((await updates(p)).at(-1)?.state).toBe('applied');
     expect(await authority()).toEqual(before);
-    // Lo que invalidaría la autoridad salió como propuesta de revisión.
+    // What would have invalidated authority went out as a review proposal instead.
     expect((await inbox(s.db, p)).batches.filter((l) => l.type === 'knowledge')).toHaveLength(1);
   });
 
-  it('AC-CON-001-12 el componente del conocimiento no ejecuta comandos de autoridad aunque la matriz los permita a system', async () => {
+  it('AC-CON-001-12 the knowledge component does not execute authority commands even if the matrix allows them for system', async () => {
     const p = await newProject('Component');
     const d = await decision(p, `Aprobada ${unique()}`, 'Algo aprobado.');
     const supersede = (actor: Actor) =>
       executeCommand(s, { command: 'record_version.supersede', actor, projectId: p, entityId: d.versionId, data: {} });
     await expect(supersede(UPDATER)).rejects.toMatchObject({ type: 'forbidden' });
-    // Y ningún componente sustituye una versión aprobada sin otra aprobada posterior.
+    // And no component supersedes an approved version without a later one approved.
     await expect(supersede(system('versions'))).rejects.toMatchObject({
       type: 'guard',
-      reasons: ['Una versión aprobada solo queda sustituida cuando se aprueba otra posterior.'],
+      reasons: ['An approved version is only superseded when a later one is approved.'],
     });
     const v = await s.db.selectFrom('record_versions').select('state').where('id', '=', d.versionId).executeTakeFirstOrThrow();
     expect(v.state).toBe('approved');

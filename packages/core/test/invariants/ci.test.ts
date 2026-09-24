@@ -1,4 +1,4 @@
-// El workflow de GitHub Actions reproduce `pnpm gate:all` en cuatro etapas encadenadas.
+// The GitHub Actions workflow reproduces `pnpm gate:all` across four chained stages.
 
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
@@ -17,11 +17,11 @@ async function load(): Promise<{ wf: Workflow; scripts: Record<string, string>; 
 
 const commands = (t: Job | undefined): string[] => (t?.steps ?? []).flatMap((p) => (p.run ? [p.run] : []));
 
-/** Posición del primer paso que cumple la condición (-1 si no hay ninguno). */
+/** Position of the first step matching the condition (-1 if none). */
 const position = (t: Job | undefined, matches: (p: Step) => boolean): number => (t?.steps ?? []).findIndex(matches);
 
 describe('CI', () => {
-  it('AC-ESQ-001-15 el workflow tiene las etapas tipos y lint, unitarias, integración con Postgres e invariantes', async () => {
+  it('AC-ESQ-001-15 the workflow has the types-and-lint, unit, integration-with-Postgres and invariants stages', async () => {
     const { wf } = await load();
     expect(Object.keys(wf.jobs)).toEqual(['types-and-lint', 'unit', 'integration', 'invariants']);
     expect(wf.jobs.unit?.needs).toBe('types-and-lint');
@@ -35,7 +35,7 @@ describe('CI', () => {
     }
   });
 
-  it('AC-FMT-001-06 las etapas de la CI ejecutan, entre todas, cada gate de pnpm gate:all, incluidos gate:design y gate:trazabilidad', async () => {
+  it('AC-FMT-001-06 the CI stages run, between them, every gate of pnpm gate:all, including gate:design and gate:traceability', async () => {
     const { wf, gateAll } = await load();
     const all = Object.values(wf.jobs).flatMap(commands).join('\n');
     expect(gateAll).toEqual(expect.arrayContaining(['gate:design', 'gate:test', 'gate:invariants', 'gate:traceability']));
@@ -47,7 +47,7 @@ describe('CI', () => {
     expect(missing).toEqual([]);
   });
 
-  it('AC-FMT-001-06 cada etapa de pruebas deja su informe JUnit y la de invariantes calcula la trazabilidad con todos', async () => {
+  it('AC-FMT-001-06 each test stage leaves its JUnit report and the invariants stage computes traceability with all of them', async () => {
     const { wf, scripts } = await load();
     expect(scripts['gate:test']).toContain('--outputFile.junit=reports/junit-tests.xml');
     expect(scripts['gate:invariants']).toContain('--outputFile.junit=reports/junit-invariants.xml');
@@ -59,8 +59,8 @@ describe('CI', () => {
       const t = wf.jobs[job];
       const test = position(t, (p) => p.run?.includes(`--reporter=junit --outputFile.junit=${report}`) ?? false);
       const upload = position(t, (p) => p.uses === 'actions/upload-artifact@v4' && p.with?.path === report);
-      expect(test, `${job} escribe ${report}`).toBeGreaterThanOrEqual(0);
-      expect(upload, `${job} sube ${report}`).toBeGreaterThan(test);
+      expect(test, `${job} writes ${report}`).toBeGreaterThanOrEqual(0);
+      expect(upload, `${job} uploads ${report}`).toBeGreaterThan(test);
     }
     const inv = wf.jobs.invariants;
     const invariants = position(inv, (p) => p.run === 'pnpm gate:invariants');

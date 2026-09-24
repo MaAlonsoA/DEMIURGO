@@ -1,4 +1,4 @@
-// Base de datos efímera por archivo de prueba, clonada de la plantilla migrada.
+// Ephemeral database per test file, cloned from the migrated template.
 
 import { randomBytes } from 'node:crypto';
 import { Client } from 'pg';
@@ -27,7 +27,7 @@ export async function createEphemeralDatabase(): Promise<EphemeralDatabase> {
     name,
     url: urlWith(name, urlAdmin),
     async drop() {
-      if (!name.startsWith('dmg_t_')) throw new Error('Solo se eliminan bases efímeras.');
+      if (!name.startsWith('dmg_t_')) throw new Error('Only ephemeral databases are dropped.');
       const c = new Client({ connectionString: urlAdmin });
       await c.connect();
       try {
@@ -39,7 +39,7 @@ export async function createEphemeralDatabase(): Promise<EphemeralDatabase> {
   };
 }
 
-/** Registra una base efímera para el archivo de prueba actual. */
+/** Registers an ephemeral database for the current test file. */
 export function useEphemeralDatabase(): () => EphemeralDatabase {
   let base: EphemeralDatabase | undefined;
   beforeAll(async () => {
@@ -49,7 +49,7 @@ export function useEphemeralDatabase(): () => EphemeralDatabase {
     await base?.drop();
   });
   return () => {
-    if (!base) throw new Error('La base efímera aún no existe.');
+    if (!base) throw new Error('The ephemeral database does not exist yet.');
     return base;
   };
 }

@@ -3,14 +3,14 @@ import { z } from 'zod';
 import { VERDICTS } from '../src/classifier.ts';
 import { loadJsonlCases, evaluateClassification, DEFAULT_CURVE_THRESHOLDS } from '../src/metrics.ts';
 
-// Todas las cifras esperadas están calculadas a mano en los comentarios de cada prueba.
+// All the expected figures are calculated by hand in each test's comments.
 
 describe('evaluateClassification', () => {
-  it('AC-CON-001-11 calcula exactitud, precisión, cobertura, F1, macro-promedios y matriz de confusión', () => {
-    // esperado → obtenido: a→a, a→a, a→b, b→b, b→a, c→a
-    // a: soporte 3, predichos 4, aciertos 2 → P = 1/2, C = 2/3, F1 = 4/7
-    // b: soporte 2, predichos 2, aciertos 1 → P = 1/2, C = 1/2, F1 = 1/2
-    // c: soporte 1, predichos 0 → P = 0 (sin predicciones), C = 0, F1 = 0
+  it('AC-CON-001-11 computes accuracy, precision, recall, F1, macro-averages and confusion matrix', () => {
+    // expected → actual: a→a, a→a, a→b, b→b, b→a, c→a
+    // a: support 3, predicted 4, hits 2 → P = 1/2, R = 2/3, F1 = 4/7
+    // b: support 2, predicted 2, hits 1 → P = 1/2, R = 1/2, F1 = 1/2
+    // c: support 1, predicted 0 → P = 0 (no predictions), R = 0, F1 = 0
     const r = evaluateClassification({
       classes: ['a', 'b', 'c'],
       cases: [
@@ -48,7 +48,7 @@ describe('evaluateClassification', () => {
       noSupport: false,
     });
 
-    // Macro sobre a, b y c: P = (1/2 + 1/2 + 0)/3 = 1/3; C = (2/3 + 1/2 + 0)/3 = 7/18; F1 = (4/7 + 1/2 + 0)/3 = 5/14
+    // Macro over a, b and c: P = (1/2 + 1/2 + 0)/3 = 1/3; R = (2/3 + 1/2 + 0)/3 = 7/18; F1 = (4/7 + 1/2 + 0)/3 = 5/14
     expect(r.macro.classes).toEqual(['a', 'b', 'c']);
     expect(r.macro.precision).toBeCloseTo(1 / 3, 12);
     expect(r.macro.recall).toBeCloseTo(7 / 18, 12);
@@ -62,9 +62,9 @@ describe('evaluateClassification', () => {
     expect(r.curve).toBeNull();
   });
 
-  it('AC-CON-001-11 deja fuera de los macro-promedios las clases que ni se esperan ni se predicen', () => {
-    // x→x, y→x. x: P = 1/2, C = 1, F1 = 2/3. y: sin predicciones, todo 0. z: no aparece.
-    // Macro sobre x e y: P = 1/4, C = 1/2, F1 = 1/3.
+  it('AC-CON-001-11 leaves out of the macro-averages the classes that are neither expected nor predicted', () => {
+    // x→x, y→x. x: P = 1/2, R = 1, F1 = 2/3. y: no predictions, everything 0. z: does not appear.
+    // Macro over x and y: P = 1/4, R = 1/2, F1 = 1/3.
     const r = evaluateClassification({
       classes: ['x', 'y', 'z'],
       cases: [
@@ -85,10 +85,10 @@ describe('evaluateClassification', () => {
     expect(r.macro.f1).toBeCloseTo(1 / 3, 12);
   });
 
-  it('AC-CON-001-11 cuenta en el macro una clase predicha sin soporte, con cobertura 0 por convenio', () => {
-    // p→q, p→p. p: soporte 2, predichos 1, aciertos 1 → P = 1, C = 1/2, F1 = 2/3.
-    // q: soporte 0, predichos 1 → P = 0, C = 0 (sin soporte), F1 = 0.
-    // Macro: P = 1/2, C = 1/4, F1 = 1/3.
+  it('AC-CON-001-11 counts in the macro a class predicted without support, with recall 0 by convention', () => {
+    // p→q, p→p. p: support 2, predicted 1, hits 1 → P = 1, R = 1/2, F1 = 2/3.
+    // q: support 0, predicted 1 → P = 0, R = 0 (no support), F1 = 0.
+    // Macro: P = 1/2, R = 1/4, F1 = 1/3.
     const r = evaluateClassification({
       classes: ['p', 'q'],
       cases: [
@@ -115,12 +115,12 @@ describe('evaluateClassification', () => {
     expect(r.matrix.p).toEqual({ p: 1, q: 1 });
   });
 
-  it('AC-CON-001-11 calcula la curva cobertura–precisión por umbral, ordenada y sin umbrales repetidos', () => {
-    // (esperado → obtenido, confianza): a→a 0,9 ✓ · a→b 0,4 ✗ · b→b 0,8 ✓ · b→a 0,95 ✗ · c→c 0,6 ✓
-    // ≥ 0    → 5 casos, 3 aciertos: proporción 1, exactitud 3/5
-    // ≥ 0,5  → 4 casos (0,9 0,8 0,95 0,6), 3 aciertos: proporción 4/5, exactitud 3/4
-    // ≥ 0,8  → 3 casos (0,9 0,8 0,95), 2 aciertos: proporción 3/5, exactitud 2/3 (el umbral exacto cuenta)
-    // ≥ 0,99 → ningún caso: proporción 0, exactitud null
+  it('AC-CON-001-11 computes the coverage-precision curve by threshold, sorted and without repeated thresholds', () => {
+    // (expected → actual, confidence): a→a 0.9 ✓ · a→b 0.4 ✗ · b→b 0.8 ✓ · b→a 0.95 ✗ · c→c 0.6 ✓
+    // ≥ 0    → 5 cases, 3 hits: proportion 1, accuracy 3/5
+    // ≥ 0.5  → 4 cases (0.9 0.8 0.95 0.6), 3 hits: proportion 4/5, accuracy 3/4
+    // ≥ 0.8  → 3 cases (0.9 0.8 0.95), 2 hits: proportion 3/5, accuracy 2/3 (the exact threshold counts)
+    // ≥ 0.99 → no cases: proportion 0, accuracy null
     const r = evaluateClassification({
       classes: ['a', 'b', 'c'],
       cases: [
@@ -152,7 +152,7 @@ describe('evaluateClassification', () => {
     expect(curve[3]).toEqual({ threshold: 0.99, cases: 0, proportion: 0, hits: 0, accuracy: null });
   });
 
-  it('AC-CON-001-11 usa los umbrales por defecto cuando no se indican', () => {
+  it('AC-CON-001-11 uses the default thresholds when none are given', () => {
     const r = evaluateClassification({
       classes: VERDICTS,
       cases: [
@@ -162,18 +162,20 @@ describe('evaluateClassification', () => {
     });
     expect(r.curve?.map((p) => p.threshold)).toEqual([...DEFAULT_CURVE_THRESHOLDS]);
     expect(r.matrix.invalidate.keep).toBe(1);
-    // Las clases que no aparecen quedan marcadas y fuera del macro.
+    // Classes that don't appear are flagged and left out of the macro.
     expect(r.byClass.other).toMatchObject({ noSupport: true, noPredictions: true });
     expect(r.macro.classes).toEqual(['keep', 'invalidate']);
   });
 
-  it('AC-CON-001-11 rechaza entradas que no permiten medir', () => {
+  it("AC-CON-001-11 rejects inputs that don't allow measuring", () => {
     const classes = ['a', 'b'] as const;
-    expect(() => evaluateClassification({ classes, cases: [] })).toThrow(/No hay casos/);
-    expect(() => evaluateClassification({ classes: [], cases: [] })).toThrow(/al menos una clase/);
-    expect(() => evaluateClassification({ classes: ['a', 'a'], cases: [{ expected: 'a', actual: 'a' }] })).toThrow(/repetirse/);
+    expect(() => evaluateClassification({ classes, cases: [] })).toThrow(/There are no cases/);
+    expect(() => evaluateClassification({ classes: [], cases: [] })).toThrow(/At least one class/);
+    expect(() => evaluateClassification({ classes: ['a', 'a'], cases: [{ expected: 'a', actual: 'a' }] })).toThrow(
+      /cannot repeat/,
+    );
     expect(() => evaluateClassification({ classes: ['a', 'b'] as string[], cases: [{ expected: 'a', actual: 'zeta' }] })).toThrow(
-      /caso 1.*«zeta»/,
+      /Case 1.*"zeta"/,
     );
     expect(() =>
       evaluateClassification({
@@ -183,20 +185,20 @@ describe('evaluateClassification', () => {
           { expected: 'b', actual: 'b' },
         ],
       }),
-    ).toThrow(/Faltan confianzas: 1 de 2/);
+    ).toThrow(/Missing confidence values: 1 of 2/);
     expect(() => evaluateClassification({ classes, cases: [{ expected: 'a', actual: 'a', confidence: 1.2 }] })).toThrow(
-      /confianza/,
+      /confidence/,
     );
     expect(() =>
       evaluateClassification({ classes, cases: [{ expected: 'a', actual: 'a', confidence: 0.5 }], thresholds: [Number.NaN] }),
-    ).toThrow(/umbral/);
+    ).toThrow(/Threshold/);
   });
 });
 
 describe('loadJsonlCases', () => {
   const schema = z.object({ id: z.string(), n: z.number() }).strict();
 
-  it('AC-CON-001-11 lee un caso por línea y salta las líneas en blanco', () => {
+  it('AC-CON-001-11 reads one case per line and skips blank lines', () => {
     const cases = loadJsonlCases('{"id":"A","n":1}\r\n\n  \n{"id":"B","n":2}\n', schema);
     expect(cases).toEqual([
       { id: 'A', n: 1 },
@@ -204,7 +206,7 @@ describe('loadJsonlCases', () => {
     ]);
   });
 
-  it('AC-CON-001-11 informa de todas las líneas que no cumplen el formato con su número', () => {
+  it("AC-CON-001-11 reports every line that doesn't match the format, with its line number", () => {
     const text = ['{"id":"A","n":1}', '{"id":"B"', '{"id":"C","n":"tres"}', '{"id":"D","n":4,"extra":true}'].join('\n');
     let message = '';
     try {
@@ -212,9 +214,9 @@ describe('loadJsonlCases', () => {
     } catch (e) {
       message = e instanceof Error ? e.message : String(e);
     }
-    expect(message).toMatch(/línea 2: JSON no válido/);
-    expect(message).toMatch(/línea 3: n:/);
-    expect(message).toMatch(/línea 4:/);
-    expect(message).not.toMatch(/línea 1:/);
+    expect(message).toMatch(/line 2: invalid JSON/);
+    expect(message).toMatch(/line 3: n:/);
+    expect(message).toMatch(/line 4:/);
+    expect(message).not.toMatch(/line 1:/);
   });
 });

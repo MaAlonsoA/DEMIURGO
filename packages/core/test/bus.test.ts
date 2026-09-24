@@ -10,10 +10,10 @@ async function events(projectId: string) {
   return environment().services.db.selectFrom('events').selectAll().where('project_id', '=', projectId).orderBy('seq').execute();
 }
 
-describe('bus de comandos', () => {
-  it('AC-ESQ-001-01 un comando permitido cambia el estado y deja exactamente un evento completo', async () => {
+describe('command bus', () => {
+  it('AC-ESQ-001-01 an allowed command changes the state and leaves exactly one complete event', async () => {
     const s = environment().services;
-    const created = await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Socios' } });
+    const created = await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Partners' } });
     expect(created.state).toBe('active');
     let ev = await events(created.projectId);
     expect(ev).toHaveLength(1);
@@ -43,9 +43,9 @@ describe('bus de comandos', () => {
     expect(p.state).toBe('archived');
   });
 
-  it('AC-ESQ-001-01 si falla algo en la transacción no queda ni el cambio ni el evento', async () => {
+  it('AC-ESQ-001-01 if something in the transaction fails, neither the change nor the event remains', async () => {
     const s = environment().services;
-    const created = await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Atómico' } });
+    const created = await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Atomic' } });
     const before = await events(created.projectId);
     await expect(
       inTransaction(s, async (execute) => {
@@ -56,7 +56,7 @@ describe('bus de comandos', () => {
           entityId: created.projectId,
           data: {},
         });
-        // Segundo comando inválido en la misma transacción: el primero también se deshace.
+        // Second, invalid command in the same transaction: the first one is also undone.
         await execute({ command: 'project.archive', actor: ana, projectId: created.projectId, entityId: created.projectId });
       }),
     ).rejects.toBeInstanceOf(DomainError);
@@ -65,14 +65,14 @@ describe('bus de comandos', () => {
     expect(p.state).toBe('active');
   });
 
-  it('valida los datos antes de tocar nada (422)', async () => {
+  it('validates the data before touching anything (422)', async () => {
     const s = environment().services;
     await expect(executeCommand(s, { command: 'project.create', actor: ana, data: { name: '' } })).rejects.toMatchObject({
       type: 'validation',
     });
   });
 
-  it('un proyecto archivado no admite cambios', async () => {
+  it('an archived project does not admit changes', async () => {
     const s = environment().services;
     const { projectId } = await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Old' } });
     await executeCommand(s, { command: 'project.archive', actor: ana, projectId, entityId: projectId, data: {} });
@@ -86,7 +86,7 @@ describe('bus de comandos', () => {
     ).rejects.toMatchObject({ type: 'invalid_transition' });
   });
 
-  it('run.request construye un context pack y el reintento reutiliza el mismo', async () => {
+  it('run.request builds a context pack and the retry reuses the same one', async () => {
     const s = environment().services;
     const { projectId } = await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Packs' } });
     const r = await executeCommand(s, {
@@ -96,7 +96,7 @@ describe('bus de comandos', () => {
       data: { action: 'echo', scope: { type: 'project' }, input: { text: 'hello' } },
     });
     const run = await s.db.selectFrom('ai_runs').selectAll().where('id', '=', r.entityId).executeTakeFirstOrThrow();
-    expect(run).toMatchObject({ state: 'queued', action: 'echo', method: 'eco@v1', requested_by: 'human:ana' });
+    expect(run).toMatchObject({ state: 'queued', action: 'echo', method: 'echo@v1', requested_by: 'human:ana' });
     await executeCommand(s, {
       command: 'run.fail',
       actor: system('engine'),

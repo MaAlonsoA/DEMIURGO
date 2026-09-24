@@ -1,6 +1,6 @@
-// Preparación global de las pruebas con base de datos: asegura el Postgres de desarrollo,
-// crea una base plantilla migrada (una por contenido de las migraciones) y limpia bases
-// efímeras antiguas. Nunca toca bases que no empiecen por dmg_t_ o dmg_plantilla_.
+// Global setup for the database tests: ensures the development Postgres, creates a migrated
+// template database (one per migration content) and cleans up old ephemeral databases. It never
+// touches a database that does not start with dmg_t_ or dmg_template_.
 
 import { execFileSync } from 'node:child_process';
 import { Client, Pool } from 'pg';
@@ -33,7 +33,7 @@ async function ensurePostgres(): Promise<Client> {
   try {
     return await connect();
   } catch {
-    if (process.env.CI) throw new Error(`No hay Postgres de pruebas en ${URL_ADMIN}.`);
+    if (process.env.CI) throw new Error(`No test Postgres at ${URL_ADMIN}.`);
     execFileSync('docker', ['compose', '-p', 'demiurgo-v2-dev', '-f', 'compose.dev.yaml', 'up', '-d', '--wait'], {
       stdio: 'inherit',
     });
@@ -45,15 +45,15 @@ export default async function prepare(project: TestProject): Promise<void> {
   const admin = await ensurePostgres();
   try {
     const migrations = await readMigrations();
-    const template = `dmg_plantilla_${sha256(migrations.map((m) => m.checksum).join(':')).slice(0, 12)}`;
+    const template = `dmg_template_${sha256(migrations.map((m) => m.checksum).join(':')).slice(0, 12)}`;
     const { rows } = await admin.query<{ datname: string }>(
-      "select datname from pg_database where datname like 'dmg_plantilla_%' or datname like 'dmg_t_%'",
+      "select datname from pg_database where datname like 'dmg_template_%' or datname like 'dmg_t_%'",
     );
     const now = Math.floor(Date.now() / 1000);
     for (const { datname } of rows) {
       const ts = /^dmg_t_(\d+)_/.exec(datname)?.[1];
       const old = ts !== undefined && now - Number(ts) > 7200;
-      // Solo se borran bases efímeras antiguas: otra ejecución concurrente puede estar usando su plantilla.
+      // Only old ephemeral databases get dropped: another concurrent run may be using its template.
       if (old) await admin.query(`drop database if exists "${datname}" with (force)`);
     }
     if (!rows.some((r) => r.datname === template)) {
@@ -69,7 +69,7 @@ export default async function prepare(project: TestProject): Promise<void> {
       try {
         await admin.query(`alter database "${tmp}" rename to "${template}"`);
       } catch {
-        // Otra ejecución concurrente ya creó la plantilla.
+        // Another concurrent run already created the template.
         await admin.query(`drop database if exists "${tmp}" with (force)`);
       }
     }

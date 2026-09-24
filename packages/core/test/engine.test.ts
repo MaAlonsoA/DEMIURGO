@@ -6,9 +6,9 @@ import { executeCommand } from '../src/bus/bus.ts';
 import { waitForRun } from '../src/engine/engine.ts';
 import { useEnvironment } from './support/env.ts';
 
-// Los guiones devuelven una salida fuera de esquema cuando el texto pide «invalida». En
-// exploration_chat el aplicador sí tiene efectos (mensajes, preguntas y lote): así se ve que
-// una salida inválida no produce ninguno.
+// The scripts return an out-of-schema output when the text asks for "invalid". In
+// exploration_chat the applier does have effects (messages, questions and batch): this way
+// we can see that an invalid output produces none of them.
 const receivedSchemas: Record<string, unknown>[] = [];
 const environment = useEnvironment({
   durable: true,
@@ -18,7 +18,7 @@ const environment = useEnvironment({
         echo: (p) => {
           receivedSchemas.push(p.outputSchema);
           const text = (p.context.content as { input: { text: string } }).input.text;
-          return text === 'invalid' ? { reply: 42, extra: true } : { reply: `Eco: ${text}` };
+          return text === 'invalid' ? { reply: 42, extra: true } : { reply: `Echo: ${text}` };
         },
         exploration_chat: (p) => {
           const c = p.context.content as { messages: { text: string }[] };
@@ -55,22 +55,22 @@ const chatRequest = (text: string): AgentRequest => ({
   outputSchema: jsonSchemaOf('exploration_chat'),
   context: {
     hash: `h-${text}`,
-    content: { purpose: 'Socios', messages: [{ author: 'human:ana', text }], questions: [] },
+    content: { purpose: 'Partners', messages: [{ author: 'human:ana', text }], questions: [] },
   },
   budget: { timeMs: 1000 },
 });
 
-describe('ejecuciones con el motor durable', () => {
-  it('AC-ESQ-001-08 una salida fuera de esquema deja la ejecución en failed/invalid_output sin efectos', async () => {
+describe('runs with the durable engine', () => {
+  it('AC-ESQ-001-08 an out-of-schema output leaves the run in failed/invalid_output with no effects', async () => {
     const s = environment().services;
     const ana = human('ana');
-    const { projectId } = await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Inválida' } });
+    const { projectId } = await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Invalid' } });
     const e = await executeCommand(s, { command: 'exploration.open', actor: ana, projectId, data: { purpose: 'Test' } });
     await executeCommand(s, {
       command: 'message.post',
       actor: ana,
       projectId,
-      data: { exploration_id: e.entityId, text: 'Quiero que sea invalida', respond: false },
+      data: { exploration_id: e.entityId, text: 'I want it to be invalid', respond: false },
     });
     const request = await executeCommand(s, {
       command: 'run.request',
@@ -107,13 +107,13 @@ describe('ejecuciones con el motor durable', () => {
     });
   });
 
-  it('AC-ESQ-001-08 la misma acción con salida válida sí produce sus efectos', async () => {
+  it('AC-ESQ-001-08 the same action with a valid output does produce its effects', async () => {
     const s = environment().services;
     const ana = human('ana');
     const { projectId } = await executeCommand(s, {
       command: 'project.create',
       actor: ana,
-      data: { name: 'Válida con efectos' },
+      data: { name: 'Valid with effects' },
     });
     const e = await executeCommand(s, { command: 'exploration.open', actor: ana, projectId, data: { purpose: 'Test' } });
     await executeCommand(s, {
@@ -134,21 +134,21 @@ describe('ejecuciones con el motor durable', () => {
     expect({ messages: runMessages.length, batches: batches.length }).toEqual({ messages: 2, batches: 1 });
   });
 
-  it('una salida válida completa la ejecución y guarda la salida validada', async () => {
+  it('a valid output completes the run and stores the validated output', async () => {
     const s = environment().services;
     const { projectId } = await executeCommand(s, {
       command: 'project.create',
       actor: human('ana'),
-      data: { name: 'Válida' },
+      data: { name: 'Valid' },
     });
     const { runId, state } = await requestEcho(projectId, 'hello');
     expect(state).toBe('completed');
     const run = await s.db.selectFrom('ai_runs').selectAll().where('id', '=', runId).executeTakeFirstOrThrow();
-    expect(run.output).toEqual({ reply: 'Eco: hola' });
+    expect(run.output).toEqual({ reply: 'Echo: hello' });
     expect(run.provider).toBe('simulated');
   });
 
-  it('AC-ESQ-001-09 el simulador da la misma salida para la misma acción y el mismo context pack', async () => {
+  it('AC-ESQ-001-09 the simulator gives the same output for the same action and the same context pack', async () => {
     const agent = createSimulatedAgent();
     const a = await agent.execute(chatRequest('Quiero gestionar las cuotas'));
     const b = await agent.execute(chatRequest('Quiero gestionar las cuotas'));
@@ -159,7 +159,7 @@ describe('ejecuciones con el motor durable', () => {
     expect(c.rawOutput).not.toEqual(a.rawOutput);
   });
 
-  it('AC-ESQ-001-09 dos ejecuciones con el mismo context pack dan la misma salida', async () => {
+  it('AC-ESQ-001-09 two runs with the same context pack give the same output', async () => {
     const s = environment().services;
     const { projectId } = await executeCommand(s, {
       command: 'project.create',
@@ -177,7 +177,7 @@ describe('ejecuciones con el motor durable', () => {
     expect(runs[0]?.output).toEqual(runs[1]?.output);
   });
 
-  it('AC-ESQ-001-10 el esquema que recibe el agente es el mismo con el que se valida su salida', async () => {
+  it('AC-ESQ-001-10 the schema the agent receives is the same one its output is validated against', async () => {
     const s = environment().services;
     const { projectId } = await executeCommand(s, {
       command: 'project.create',
@@ -191,13 +191,13 @@ describe('ejecuciones con el motor durable', () => {
     expect(receivedSchemas[0]).toMatchObject({ type: 'object', required: ['reply'], additionalProperties: false });
   });
 
-  it('AC-STK-001-04 dominio, diario, motor durable y grafo viven en el mismo PostgreSQL 18', async () => {
+  it('AC-STK-001-04 domain, event log, durable engine and graph all live in the same PostgreSQL 18', async () => {
     const { services: s } = environment();
     const { sql } = await import('kysely');
     const version = await sql<{ v: string }>`select current_setting('server_version_num') as v`.execute(s.db);
     expect(Number(version.rows[0]?.v)).toBeGreaterThanOrEqual(180000);
     const schemas = await sql<{ schema: string; table: string }>`
-      select table_schema as esquema, table_name as tabla from information_schema.tables
+      select table_schema as schema, table_name as "table" from information_schema.tables
       where (table_schema = 'public' and table_name in ('events', 'projects', 'record_versions'))
          or (table_schema = 'public' and table_name in ('knowledge_nodes', 'knowledge_edges'))
         or (table_schema = 'dbos' and table_name = 'workflow_status')`.execute(s.db);

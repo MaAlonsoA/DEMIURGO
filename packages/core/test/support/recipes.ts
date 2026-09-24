@@ -1,5 +1,5 @@
-// Recetas de la fábrica para las entidades de S1: cómo crear cada una y, cuando una guarda lo
-// exige, cómo llegar a ciertos estados.
+// Factory recipes for the S1 entities: how to create each one and, when a guard requires it,
+// how to reach certain states.
 
 import { randomUUID } from 'node:crypto';
 import { human, system } from '@demiurgo/domain';
@@ -23,7 +23,7 @@ export async function newExploration(s: Services, projectId: string): Promise<st
 
 const decisionSections = [
   { title: 'Context', content: 'Contexto de prueba.' },
-  { title: 'Decisión', content: 'Decisión de prueba.' },
+  { title: 'Decision', content: 'Decisión de prueba.' },
   { title: 'Consequences', content: 'Consecuencias de prueba.' },
 ];
 
@@ -36,7 +36,7 @@ export async function newDecision(
     command: 'record.create',
     actor: ana,
     projectId,
-    data: { type: 'decision', domain: 'test', title: unique('Decisión'), sections: decisionSections },
+    data: { type: 'decision', domain: 'test', title: unique('Decision'), sections: decisionSections },
   });
   const res = r.result as { recordId: string; versionId: string; code: string };
   if (approve)
@@ -132,14 +132,14 @@ registerRecipe('record_version', {
     return (await newDecision(s, projectId)).versionId;
   },
   states: {
-    // Una versión solo queda sustituida cuando se aprueba otra posterior del mismo registro.
+    // A version only becomes superseded once another, later one of the same record is approved.
     async superseded(s, projectId) {
       const d = await newDecision(s, projectId, true);
       const v2 = await executeCommand(s, {
         command: 'record_version.create',
         actor: ana,
         projectId,
-        data: { record_id: d.recordId, title: unique('Decisión'), sections: decisionSections, change_note: 'Change.' },
+        data: { record_id: d.recordId, title: unique('Decision'), sections: decisionSections, change_note: 'Change.' },
       });
       await executeCommand(s, { command: 'record_version.approve', actor: ana, projectId, entityId: v2.entityId, data: {} });
       return d.versionId;
@@ -160,7 +160,7 @@ registerRecipe('criterion', {
         sections: [
           { title: 'Goal', content: 'o' },
           { title: 'Scope', content: 'a' },
-          { title: 'Fuera de alcance', content: 'f' },
+          { title: 'Out of scope', content: 'f' },
           { title: 'Behavior', content: 'c' },
         ],
         criteria: [
@@ -182,7 +182,7 @@ registerRecipe('criterion', {
 
 registerRecipe('link', {
   async create(s, projectId) {
-    // Un enlace nace con su versión: una decisión que deriva de otra.
+    // A link is born with its version: a decision that is derived from another one.
     const b = await newDecision(s, projectId);
     const r = await executeCommand(s, {
       command: 'record.create',
@@ -191,7 +191,7 @@ registerRecipe('link', {
       data: {
         type: 'decision',
         domain: 'test',
-        title: unique('Decisión'),
+        title: unique('Decision'),
         sections: decisionSections,
         links: [{ type: 'derived_from', target: { code: b.code, version: 1 } }],
       },
@@ -203,13 +203,13 @@ registerRecipe('link', {
 });
 
 registerRecipe('batch', {
-  // Por defecto, un paquete: así «aceptar el paquete» y «rechazarlo» tienen camino legal.
+  // A package by default: this way "accepting the package" and "rejecting it" both have a legal path.
   async create(s, projectId) {
     return (await newBatch(s, projectId, true)).batchId;
   },
   data: { 'batch.supersede': () => ({ reason: 'Obsolete.' }) },
   states: {
-    // «resolved» exige un lote por elementos con todo resuelto: se rechaza su única propuesta.
+    // "resolved" requires an item batch that is fully resolved: its one proposal is rejected.
     async resolved(s, projectId) {
       const { batchId, proposals } = await newBatch(s, projectId, false);
       await executeCommand(s, { command: 'proposal.reject', actor: ana, projectId, entityId: proposals[0] ?? '', data: {} });
@@ -253,10 +253,9 @@ async function newTaxonomy(s: Services, projectId: string, approve: boolean): Pr
     command: 'taxonomy.propose',
     actor: ana,
     projectId,
-    data: { code: 'TAX-009', title: unique('Taxonomía'), axes: testAxes, version: (prior?.version ?? 0) + 1 },
+    data: { code: 'TAX-009', title: unique('Taxonomy'), axes: testAxes, version: (prior?.version ?? 0) + 1 },
   });
-  if (approve)
-    await executeCommand(s, { command: 'taxonomy.approve', actor: ana, projectId, entityId: r.entityId, data: {} });
+  if (approve) await executeCommand(s, { command: 'taxonomy.approve', actor: ana, projectId, entityId: r.entityId, data: {} });
   return r.entityId;
 }
 
@@ -271,7 +270,7 @@ const classificationData = (taxonomyId: string) => ({
   category: 'socios',
   confidence: 0.3,
   justification: 'test',
-  classifier: 'prueba@1',
+  classifier: 'test@1',
   input_hash: unique('h'),
   update_id: null,
 });
@@ -309,7 +308,7 @@ registerRecipe('classification', {
   },
 });
 
-// Una actualización en cola se crea directamente (sin que el motor en línea la procese al instante).
+// A queued update is created directly (without the inline engine processing it right away).
 registerRecipe('knowledge_update', {
   async create(s, projectId) {
     const { rows } = await sql<{ id: string }>`
@@ -324,7 +323,7 @@ registerRecipe('knowledge_update', {
       change: null,
       candidates: [],
       input_hash: 'x',
-      classifier: 'prueba@1',
+      classifier: 'test@1',
       verdicts: [],
     }),
     'knowledge_update.apply': () => ({ operations: {}, version_before: 0, version_after: 0 }),
@@ -346,8 +345,7 @@ const nodeData = () => ({
 
 registerRecipe('knowledge_node', {
   async create(s, projectId) {
-    return (await executeCommand(s, { command: 'knowledge_node.project', actor: sys, projectId, data: nodeData() }))
-      .entityId;
+    return (await executeCommand(s, { command: 'knowledge_node.project', actor: sys, projectId, data: nodeData() })).entityId;
   },
   data: { 'knowledge_node.invalidate': () => ({ until: 2 }) },
 });
@@ -380,7 +378,7 @@ registerRecipe('idea_assessment', {
         proposal_id: proposals[0] ?? '',
         findings: [],
         graph_version: 0,
-        classifier: 'prueba@1',
+        classifier: 'test@1',
         input_hash: unique('h'),
       },
     });

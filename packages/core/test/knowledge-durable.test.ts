@@ -1,5 +1,5 @@
-// «Actualizar conocimiento» con el motor durable (DBOS): el reintento de una actualización
-// rechazada arranca un flujo nuevo y un fallo al clasificar nunca deja una actualización en curso.
+// "Update knowledge" with the durable engine (DBOS): retrying a rejected update starts a new
+// workflow, and a classification failure never leaves an update in progress.
 
 import { randomUUID } from 'node:crypto';
 import { type Actor, human } from '@demiurgo/domain';
@@ -41,7 +41,7 @@ async function decision(p: string, title: string, text: string) {
     title,
     sections: [
       { title: 'Context', content: `Contexto de ${title}.` },
-      { title: 'Decisión', content: text },
+      { title: 'Decision', content: text },
       { title: 'Consequences', content: 'Hay que diseñarlo.' },
     ],
   });
@@ -62,10 +62,10 @@ const states = async (p: string) =>
       .execute()
   ).map((u) => u.state);
 
-describe('conocimiento con el motor durable', () => {
-  it('AC-CON-001-07 reintentar una actualización rechazada arranca un flujo nuevo y desbloquea la frescura', async () => {
+describe('knowledge with the durable engine', () => {
+  it('AC-CON-001-07 retrying a rejected update starts a new workflow and unblocks freshness', async () => {
     script.restart();
-    const p = await newProject('Reintento durable');
+    const p = await newProject('Durable retry');
     const t = unique();
     await decision(p, `Invitados ${t}`, `Cada socio puede traer invitados ${t}.`);
     script.scripts.verdict = () => [];
@@ -83,21 +83,21 @@ describe('conocimiento con el motor durable', () => {
     await cmd(p, 'knowledge_update.retry', {}, rejected);
     await waitForKnowledge(s, p, 10_000);
     expect(await states(p)).toEqual(['applied', 'applied']);
-    // Con todo aplicado, pedir una ejecución ya no choca con el gate de frescura.
+    // With everything applied, requesting a run no longer collides with the freshness gate.
     await expect(
       cmd(p, 'run.request', { action: 'design_proposal', scope: { type: 'record_version', id: d2.versionId } }),
     ).resolves.toMatchObject({ state: 'queued' });
     expect(await compareRebuild(s.db, p)).toMatchObject({ equal: true });
   });
 
-  it('AC-CON-001-07 un fallo persistente al clasificar deja la actualización rechazada, nunca en curso', async () => {
+  it('AC-CON-001-07 a persistent classification failure leaves the update rejected, never in progress', async () => {
     script.restart();
-    const p = await newProject('Fallo al clasificar');
+    const p = await newProject('Classification failure');
     const t = unique();
-    await decision(p, `Uno ${t}`, `Uno ${t}.`);
-    // Un disparo que hace fallar la derivación en cada intento (como un fallo persistente de la base).
+    await decision(p, `One ${t}`, `One ${t}.`);
+    // A trigger that makes derivation fail on every attempt (like a persistent database failure).
     const { rows } = await sql<{ id: string }>`insert into knowledge_updates (project_id, trigger, trigger_seq, state)
-      values (${p}::uuid, ${JSON.stringify({ type: 'record_version', id: 'no-es-uuid', version: 1 })}::jsonb, 1000, 'queued') returning id`.execute(
+      values (${p}::uuid, ${JSON.stringify({ type: 'record_version', id: 'not-a-uuid', version: 1 })}::jsonb, 1000, 'queued') returning id`.execute(
       s.db,
     );
     await s.engine.startUpdate(rows[0]?.id ?? '', p);
@@ -108,10 +108,10 @@ describe('conocimiento con el motor durable', () => {
       .select('failure')
       .where('id', '=', rows[0]?.id ?? '')
       .executeTakeFirstOrThrow();
-    expect(u.failure).toMatch(/No se pudo clasificar el cambio/);
-    // La cola sigue: el siguiente evento de autoridad se aplica.
-    await decision(p, `Dos ${t}`, `Dos ${t}.`);
-    // (El disparo inyectado lleva trigger_seq 1000: se ordena el último.)
+    expect(u.failure).toMatch(/Could not classify the change/);
+    // The queue continues: the next authority event gets applied.
+    await decision(p, `Two ${t}`, `Two ${t}.`);
+    // (The injected trigger carries trigger_seq 1000: it sorts last.)
     expect(await states(p)).toEqual(['applied', 'applied', 'rejected']);
   });
 });

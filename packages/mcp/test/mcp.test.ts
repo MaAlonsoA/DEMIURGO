@@ -1,6 +1,6 @@
-// Canal de agentes por MCP (AC-DIS-001-03): un cliente MCP del SDK llama a las herramientas
-// del servidor MCP, que habla con la API real por HTTP con un token de agente. La persona
-// resuelve con su sesión (cookie + CSRF) por la API.
+// Agent channel over MCP (AC-DIS-001-03): an MCP client of the SDK calls the tools
+// of the MCP server, which talks to the real API over HTTP with an agent token. The person
+// resolves things with their session (cookie + CSRF) through the API.
 
 import { execFile } from 'node:child_process';
 import type { AddressInfo } from 'node:net';
@@ -21,10 +21,10 @@ let token = '';
 let tokenId = '';
 const clients: Client[] = [];
 
-/** Comando de la persona por la API, con su cookie y su token CSRF. */
+/** Person's command through the API, with their cookie and CSRF token. */
 async function personCommand(command: string, body: Record<string, unknown>) {
   const r = await api().person.request('POST', `/api/projects/${projectId}/commands/${command}`, body);
-  if (r.statusCode !== 200) throw new Error(`«${command}» falló con ${r.statusCode}: ${r.body}`);
+  if (r.statusCode !== 200) throw new Error(`"${command}" failed with ${r.statusCode}: ${r.body}`);
   return r.json<{ entity_id: string; result: Record<string, unknown> | null }>();
 }
 
@@ -42,7 +42,7 @@ async function connect(agentToken: string, substituteFetch?: typeof globalThis.f
   });
   const [clientEndpoint, serverEndpoint] = InMemoryTransport.createLinkedPair();
   await server.connect(serverEndpoint);
-  const client = new Client({ name: 'cliente-de-prueba', version: '1.0.0' });
+  const client = new Client({ name: 'test-client', version: '1.0.0' });
   await client.connect(clientEndpoint);
   clients.push(client);
   return client;
@@ -56,9 +56,9 @@ function textOf(r: CallToolResult): string {
   return r.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
 }
 
-/** Contenido estructurado de un resultado correcto; si la herramienta falló, su texto. */
+/** Structured content of a successful result; if the tool failed, its text. */
 function data(r: CallToolResult): unknown {
-  if (r.isError) throw new Error(`La herramienta devolvió un error: ${textOf(r)}`);
+  if (r.isError) throw new Error(`The tool returned an error: ${textOf(r)}`);
   return r.structuredContent;
 }
 
@@ -70,24 +70,23 @@ function urlOf(input: string | URL | Request): string {
 const decision = (n: number) => ({
   type: 'decision',
   payload: {
-    title: `Decisión propuesta por MCP ${n}`,
-    context: 'El agente externo ha leído la visión y propone fijar el alcance.',
-    decision: 'El MVP cubre los dos pilares con aceptación humana.',
-    consequences: 'Todo lo que proponga un agente pasa por la bandeja.',
+    title: `Decision proposed by MCP ${n}`,
+    context: 'The external agent has read the vision and proposes fixing the scope.',
+    decision: 'The MVP covers both pillars with human acceptance.',
+    consequences: 'Everything an agent proposes goes through the inbox.',
   },
 });
 
 beforeAll(async () => {
   const { app, person } = api();
-  // Servidor real en un puerto libre: el servidor MCP llama a la API por HTTP. Lo cierra el
-  // `afterAll` de `usarApi` junto con la aplicación.
+  // Real server on a free port: the MCP server calls the API over HTTP. Closed by
+  // `useApi`'s `afterAll` along with the app.
   await app.listen({ host: '127.0.0.1', port: 0 });
   urlApi = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
-  const p = await person.request('POST', '/api/projects', { name: 'Canal MCP' });
-  if (p.statusCode !== 200) throw new Error(`No se pudo crear el proyecto: ${p.body}`);
+  const p = await person.request('POST', '/api/projects', { name: 'MCP channel' });
+  if (p.statusCode !== 200) throw new Error(`Could not create the project: ${p.body}`);
   projectId = p.json<{ project_id: string }>().project_id;
-  explorationId = (await personCommand('exploration.open', { data: { purpose: 'Probar el canal de agentes por MCP' } }))
-    .entity_id;
+  explorationId = (await personCommand('exploration.open', { data: { purpose: 'Test the MCP agent channel' } })).entity_id;
   ({ token, id: tokenId } = await issueToken('claude-code'));
 });
 
@@ -95,8 +94,8 @@ afterAll(async () => {
   for (const c of clients) await c.close();
 });
 
-describe('servidor MCP del canal de agentes', () => {
-  it('AC-DIS-001-03 expone exactamente las herramientas del canal y ninguna aprueba, acepta, confirma ni rechaza', async () => {
+describe('MCP server for the agent channel', () => {
+  it('AC-DIS-001-03 exposes exactly the channel tools and none of them approves, accepts, confirms or rejects', async () => {
     const client = await connect(token);
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
@@ -116,7 +115,7 @@ describe('servidor MCP del canal de agentes', () => {
         'register_source',
       ].sort(),
     );
-    const forbidden = /aprob|aprueb|acept|confirm|rechaz|approv|accept|reject|resolve_|ejecutar_comando/i;
+    const forbidden = /approv|accept(?!ance)|confirm|reject|resolve_|execute_command/i;
     const texts = tools.map((t) => `${t.name} ${t.title ?? ''} ${t.description ?? ''}`);
     expect(texts.filter((t) => forbidden.test(t))).toEqual([]);
     expect(tools.filter((t) => !t.description).map((t) => t.name)).toEqual([]);
@@ -125,10 +124,10 @@ describe('servidor MCP del canal de agentes', () => {
     expect(readOnly.sort()).toEqual(names.filter((n) => n.startsWith('read_') || n === 'search_knowledge'));
   });
 
-  it('AC-DIS-001-03 conversar publica un mensaje con el agente como autor', async () => {
+  it('AC-DIS-001-03 converse posts a message with the agent as its author', async () => {
     const client = await connect(token);
     const r = data(
-      await call(client, 'converse', { exploration_id: explorationId, text: 'Hola: soy un agente externo por MCP.' }),
+      await call(client, 'converse', { exploration_id: explorationId, text: 'Hello: I am an external agent over MCP.' }),
     ) as { entity: string; entity_id: string };
     expect(r.entity).toBe('message');
     const author = `agent:claude-code:${tokenId}`;
@@ -137,7 +136,7 @@ describe('servidor MCP del canal de agentes', () => {
       .select(['author', 'body'])
       .where('id', '=', r.entity_id)
       .executeTakeFirstOrThrow();
-    expect(row).toEqual({ author: author, body: 'Hola: soy un agente externo por MCP.' });
+    expect(row).toEqual({ author: author, body: 'Hello: I am an external agent over MCP.' });
 
     const exploration = data(await call(client, 'read_exploration', { exploration_id: explorationId })) as {
       messages: { id: string; author: string }[];
@@ -147,19 +146,19 @@ describe('servidor MCP del canal de agentes', () => {
     expect(list.explorations.map((e) => e.id)).toContain(explorationId);
   });
 
-  it('AC-DIS-001-03 registrar_fuente y proponer dejan la fuente y un lote pendiente que solo la persona resuelve', async () => {
+  it('AC-DIS-001-03 register_source and propose leave the source and a pending batch that only the person can resolve', async () => {
     const client = await connect(token);
     const author = `agent:claude-code:${tokenId}`;
 
     const source = data(
-      await call(client, 'register_source', { name: 'VISION.md', content: '# Visión\n\nDiseñar y construir con IA.' }),
+      await call(client, 'register_source', { name: 'VISION.md', content: '# Vision\n\nDesign and build with AI.' }),
     ) as { entity_id: string };
     const sources = data(await call(client, 'read_sources')) as {
       sources: { id: string; name: string; registered_by: string }[];
     };
     expect(sources.sources.find((f) => f.id === source.entity_id)).toMatchObject({ name: 'VISION.md', registered_by: author });
 
-    const batch = data(await call(client, 'propose', { summary: 'Alcance del MVP', proposals: [decision(1)] })) as {
+    const batch = data(await call(client, 'propose', { summary: 'MVP scope', proposals: [decision(1)] })) as {
       entity: string;
       entity_id: string;
       state: string;
@@ -178,7 +177,7 @@ describe('servidor MCP del canal de agentes', () => {
     const detail = data(await call(client, 'read_batch', { batch_id: batch.entity_id }));
     expect(detail).toMatchObject({ state: 'pending', producer: author, resolution_mode: 'item' });
 
-    // La persona resuelve con su sesión por la API.
+    // The person resolves it with their session through the API.
     const accepted = await personCommand('proposal.accept', { entity_id: proposalId, data: {} });
     const { recordId, code } = accepted.result as { recordId: string; code: string };
     const creation = await api()
@@ -194,7 +193,7 @@ describe('servidor MCP del canal de agentes', () => {
     expect(state.decisions.map((d) => d.code)).toContain(code);
   });
 
-  it('AC-DIS-001-03 proponer con 11 propuestas devuelve el motivo (máximo 10) y no crea nada', async () => {
+  it('AC-DIS-001-03 propose with 11 proposals returns the reason (maximum 10) and creates nothing', async () => {
     const client = await connect(token);
     const count = async () =>
       (
@@ -207,47 +206,47 @@ describe('servidor MCP del canal de agentes', () => {
     const before = await count();
     const r = await call(client, 'propose', { proposals: Array.from({ length: 11 }, (_, i) => decision(i + 1)) });
     expect(r.isError).toBe(true);
-    expect(textOf(r)).toMatch(/como máximo 10/);
+    expect(textOf(r)).toMatch(/at most 10/);
     expect((r.structuredContent as { reasons: string[] }).reasons.join(' ')).toMatch(
-      /como máximo 10 elementos por lote \(hay 11\)/,
+      /can propose at most 10 items per batch \(there are 11\)/,
     );
     expect(await count()).toBe(before);
   });
 
-  it('AC-DIS-001-03 un token revocado hace que las herramientas devuelvan un error de autenticación', async () => {
-    const another = await issueToken('agente-revocado');
+  it('AC-DIS-001-03 a revoked token makes the tools return an authentication error', async () => {
+    const another = await issueToken('revoked-agent');
     const client = await connect(another.token);
     expect(data(await call(client, 'read_product_state'))).toHaveProperty('project.id', projectId);
-    await personCommand('agent_token.revoke', { entity_id: another.id, data: { reason: 'Fin de la prueba' } });
+    await personCommand('agent_token.revoke', { entity_id: another.id, data: { reason: 'End of test' } });
     const calls: [string, Record<string, unknown>][] = [
       ['read_product_state', {}],
-      ['converse', { exploration_id: explorationId, text: 'No debería publicarse.' }],
+      ['converse', { exploration_id: explorationId, text: 'This should not be posted.' }],
       ['propose', { proposals: [decision(99)] }],
     ];
     const results = await Promise.all(calls.map(([name, args]) => call(client, name, args)));
     for (const r of results) {
       expect(r.isError).toBe(true);
       expect(r.structuredContent).toMatchObject({ error: 'unauthenticated', http_status: 401 });
-      expect(textOf(r)).toMatch(/^Error de autenticación \(HTTP 401\): Token de agente no válido o revocado/);
+      expect(textOf(r)).toMatch(/^Authentication error \(HTTP 401\): Invalid or revoked agent token/);
     }
   });
 
-  it('los argumentos no válidos se rechazan en español sin llamar a la API', async () => {
+  it('invalid arguments are rejected without calling the API', async () => {
     let calls = 0;
     const client = await connect(token, async (input, init) => {
       calls++;
       return fetch(input, init);
     });
-    const r = await call(client, 'read_exploration', { exploration_id: 'no-es-un-uuid' });
+    const r = await call(client, 'read_exploration', { exploration_id: 'not-a-uuid' });
     expect(r.isError).toBe(true);
-    expect(textOf(r)).toMatch(/^Argumentos no válidos: La herramienta «leer_exploracion» recibió argumentos no válidos/);
-    expect(textOf(r)).toMatch(/exploracion_id: .*UUID/);
+    expect(textOf(r)).toMatch(/^Invalid arguments: Tool "read_exploration" received invalid arguments/);
+    expect(textOf(r)).toMatch(/exploration_id: .*UUID/);
     const p = await call(client, 'propose', { proposals: [{ type: 'another', payload: {} }] });
     expect(p.isError).toBe(true);
     expect(calls).toBe(0);
   });
 
-  it('buscar_conocimiento avisa en español mientras la búsqueda no existe en la API', async () => {
+  it('search_knowledge warns while the search does not exist yet in the API', async () => {
     const requested: string[] = [];
     const client = await connect(token, async (input, init) => {
       const url = urlOf(input);
@@ -260,18 +259,18 @@ describe('servidor MCP del canal de agentes', () => {
       }
       return fetch(input, init);
     });
-    const r = await call(client, 'search_knowledge', { queryName: 'aceptación humana' });
+    const r = await call(client, 'search_knowledge', { queryName: 'human acceptance' });
     expect(r.isError).toBe(true);
-    expect(textOf(r)).toMatch(/^No disponible \(HTTP 404\): La búsqueda de conocimiento aún no está disponible\./);
+    expect(textOf(r)).toMatch(/^Not available \(HTTP 404\): Knowledge search is not available yet\./);
     expect(requested[0]).toContain(`/api/projects/${projectId}/knowledge/search`);
-    expect(new URL(requested[0] ?? '').searchParams.get('q')).toBe('aceptación humana');
+    expect(new URL(requested[0] ?? '').searchParams.get('q')).toBe('human acceptance');
 
-    // Contra la API real: o la ruta ya existe y responde, o el aviso es el mismo.
-    const real = await call(await connect(token), 'search_knowledge', { queryName: 'aceptación humana' });
-    expect(!real.isError || textOf(real).includes('La búsqueda de conocimiento aún no está disponible')).toBe(true);
+    // Against the real API: either the route already exists and responds, or the warning is the same.
+    const real = await call(await connect(token), 'search_knowledge', { queryName: 'human acceptance' });
+    expect(!real.isError || textOf(real).includes('Knowledge search is not available yet')).toBe(true);
   });
 
-  it('main.ts sirve las herramientas por stdio con la configuración del entorno', async () => {
+  it('main.ts serves the tools over stdio with the environment configuration', async () => {
     const transport = new StdioClientTransport({
       command: process.execPath,
       args: [MAIN],
@@ -283,7 +282,7 @@ describe('servidor MCP del canal de agentes', () => {
       },
       stderr: 'pipe',
     });
-    const client = new Client({ name: 'cliente-stdio', version: '1.0.0' });
+    const client = new Client({ name: 'stdio-client', version: '1.0.0' });
     await client.connect(transport);
     clients.push(client);
     const { tools } = await client.listTools();
@@ -291,13 +290,13 @@ describe('servidor MCP del canal de agentes', () => {
     expect(data(await call(client, 'read_product_state'))).toHaveProperty('project.id', projectId);
   });
 
-  it('main.ts se niega a arrancar sin configuración y lo dice en español', async () => {
+  it('main.ts refuses to start without configuration and says why', async () => {
     const r = await new Promise<{ code: number | string | null | undefined; stderr: string }>((resolve) => {
       execFile(process.execPath, [MAIN], { env: getDefaultEnvironment() }, (error, _stdout, stderr) =>
         resolve({ code: error ? error.code : 0, stderr }),
       );
     });
     expect(r.code).toBe(2);
-    expect(r.stderr).toMatch(/falta la variable de entorno DEMIURGO_API_URL/);
+    expect(r.stderr).toMatch(/missing environment variable DEMIURGO_API_URL/);
   });
 });

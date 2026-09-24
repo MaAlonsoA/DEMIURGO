@@ -54,7 +54,9 @@ export type NewSession = { token: string; csrf: string; expires: Date; person: s
 
 export async function openSession(db: Db, username: string, password: string, hours: number): Promise<NewSession> {
   const person = await db.selectFrom('humans').selectAll().where('username', '=', username).executeTakeFirst();
-  const ok = person ? await verifyPassword(password, person.password_hash) : await verifyPassword(password, 'scrypt$16384$8$1$AAAA$AAAA');
+  const ok = person
+    ? await verifyPassword(password, person.password_hash)
+    : await verifyPassword(password, 'scrypt$16384$8$1$AAAA$AAAA');
   if (!person || !ok) throw new DomainError('unauthenticated', 'Incorrect username or password.');
   const token = newSecret();
   const csrf = newSecret();

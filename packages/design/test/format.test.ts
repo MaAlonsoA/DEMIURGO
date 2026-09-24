@@ -12,7 +12,7 @@ import {
 } from '../src/types.ts';
 import { criterion, failures, record, taxonomy, value } from './support.ts';
 
-// Texto generado con palabras sueltas: sin marcas de Markdown que cambien la estructura.
+// Text generated from loose words: no Markdown marks that would change the structure.
 const word = fc.constantFrom(
   'dado',
   'cuando',
@@ -52,7 +52,7 @@ const arbitraryRecord: fc.Arbitrary<RecordDocument> = fc
       }),
       { maxLength: 3, selector: (e) => `${e.type} ${e.target.code}` },
     ),
-    annexes: fc.uniqueArray(fc.constantFrom('data/uno.yaml', 'data/dos-tres.yaml'), { maxLength: 2 }),
+    annexes: fc.uniqueArray(fc.constantFrom('data/one.yaml', 'data/two-three.yaml'), { maxLength: 2 }),
     contents: fc.array(content, { minLength: 4, maxLength: 4 }),
     extra: fc.option(fc.record({ title: fc.constantFrom('Spike', 'Notes'), content }), { nil: undefined }),
     criteria: fc.array(
@@ -92,16 +92,16 @@ const arbitraryRecord: fc.Arbitrary<RecordDocument> = fc
     return doc;
   });
 
-// ADR de referencia en forma canónica; los casos de error parten de su texto.
+// Reference ADR in canonical form; the error cases start from its text.
 const BASE = renderDocument(record('adr', 'ADR-TST-001'));
 const read = (text: string) => parseDocument(text, 'adr/ADR-TST-001.md');
 
-describe('forma canónica de un documento', () => {
-  it('AC-FMT-001-01 un documento canónico se reescribe con los mismos bytes', () => {
+describe('canonical form of a document', () => {
+  it('AC-FMT-001-01 a canonical document is rewritten with the same bytes', () => {
     const doc = record('fdr', 'FDR-TST-001', {
       increment: 'S1',
       links: [{ type: 'based_on', target: { code: 'DEC-TST-001', version: 1 } }],
-      annexes: ['data/tabla.yaml'],
+      annexes: ['data/table.yaml'],
     });
     const text = renderDocument(doc);
     const parsed = value(parseDocument(text, 'fdr/FDR-TST-001.md'));
@@ -109,7 +109,7 @@ describe('forma canónica de un documento', () => {
     expect(renderDocument(parsed)).toBe(text);
   });
 
-  it('AC-FMT-001-01 parsear y renderizar son inversos para cualquier registro', () => {
+  it('AC-FMT-001-01 parsing and rendering are inverse for any record', () => {
     fc.assert(
       fc.property(arbitraryRecord, (doc) => {
         const text = renderDocument(doc);
@@ -120,106 +120,104 @@ describe('forma canónica de un documento', () => {
     );
   });
 
-  it('AC-FMT-001-01 una taxonomía canónica se reescribe con los mismos bytes', () => {
+  it('AC-FMT-001-01 a canonical taxonomy is rewritten with the same bytes', () => {
     const text = renderDocument(taxonomy('TAX-001'));
     expect(renderDocument(value(parseDocument(text, 'taxonomy/TAX-001.md')))).toBe(text);
   });
 
   const rejected = [
-    { sample: 'finales de línea CRLF', change: (t: string) => t.replaceAll('\n', '\r\n'), error: /CRLF/ },
+    { sample: 'CRLF line endings', change: (t: string) => t.replaceAll('\n', '\r\n'), error: /CRLF/ },
     {
-      sample: 'espacios al final de una línea',
-      change: (t: string) => t.replace('Texto de contexto.', 'Texto de contexto.  '),
-      error: /espacios/,
+      sample: 'trailing spaces on a line',
+      change: (t: string) => t.replace('Text for context.', 'Text for context.  '),
+      error: /ends with spaces/,
     },
     {
-      sample: 'una línea en blanco con espacios',
-      change: (t: string) => t.replace('\n\n## Opciones', '\n  \n## Opciones'),
-      error: /espacios/,
+      sample: 'a blank line with spaces',
+      change: (t: string) => t.replace('\n\n## Options', '\n  \n## Options'),
+      error: /ends with spaces/,
     },
-    { sample: 'una sección vacía', change: (t: string) => t.replace('Texto de opciones.', ''), error: /«Opciones» está vacía/ },
+    { sample: 'an empty section', change: (t: string) => t.replace('Text for options.', ''), error: /"Options" is empty/ },
     {
-      sample: 'espacios de más en el título',
+      sample: 'extra spaces in the title',
       change: (t: string) => t.replace('# ADR-TST-001 · ', '#  ADR-TST-001 · '),
-      error: /título del cuerpo/,
+      error: /body's title must be exactly/,
     },
     {
-      sample: 'texto entre el título y la primera sección',
-      change: (t: string) => t.replace('\n\n## Contexto', '\n\nIntroducción.\n\n## Contexto'),
-      error: /título del cuerpo/,
+      sample: 'text between the title and the first section',
+      change: (t: string) => t.replace('\n\n## Context', '\n\nIntroduction.\n\n## Context'),
+      error: /body's title must be exactly/,
     },
-    { sample: 'la falta de frontmatter', change: (t: string) => t.slice(4), error: /Falta el frontmatter/ },
+    { sample: 'missing frontmatter', change: (t: string) => t.slice(4), error: /Missing frontmatter/ },
     {
-      sample: 'un espacio duro (U+00A0) al final de una línea',
-      change: (t: string) => t.replace('Texto de contexto.', 'Texto de contexto. '),
-      error: /La línea \d+ termina con espacios/,
-    },
-    {
-      sample: 'un tabulador al final de una línea del frontmatter',
-      change: (t: string) => t.replace('dominio: pruebas', 'dominio: pruebas\t'),
-      error: /La línea 7 termina con espacios/,
+      sample: 'a hard space (U+00A0) at the end of a line',
+      change: (t: string) => t.replace('Text for context.', 'Text for context. '),
+      error: /Line \d+ ends with spaces/,
     },
     {
-      sample: 'dos líneas en blanco seguidas dentro de una sección',
-      change: (t: string) => t.replace('Texto de contexto.', 'Texto de contexto.\n\n\nMás contexto.'),
-      error: /La sección «Contexto» tiene más de una línea en blanco seguida/,
+      sample: 'a tab at the end of a frontmatter line',
+      change: (t: string) => t.replace('domain: tests', 'domain: tests\t'),
+      error: /Line 7 ends with spaces/,
     },
     {
-      sample: 'dos líneas en blanco seguidas dentro de un criterio',
-      change: (t: string) => t.replace('Dado algo, cuando pasa,', 'Dado algo,\n\n\ncuando pasa,'),
-      error: /La sección «Criterios de aceptación» tiene más de una línea en blanco seguida/,
+      sample: 'two blank lines in a row inside a section',
+      change: (t: string) => t.replace('Text for context.', 'Text for context.\n\n\nMore context.'),
+      error: /The section "Context" has more than one blank line in a row/,
     },
     {
-      sample: 'una sección repetida',
-      change: (t: string) => t.replace('## Opciones', '## Contexto\n\nOtra vez.\n\n## Opciones'),
-      error: /La sección «Contexto» está repetida/,
+      sample: 'two blank lines in a row inside a criterion',
+      change: (t: string) => t.replace('Given something, when it happens,', 'Given something,\n\n\nwhen it happens,'),
+      error: /The section "Acceptance criteria" has more than one blank line in a row/,
     },
     {
-      sample: 'un frontmatter que no es YAML válido',
-      change: (t: string) => t.replace('titulo: Registro ADR-TST-001', 'titulo: [roto'),
-      error: /^El frontmatter no es YAML válido: error de sintaxis en la línea \d+, columna \d+ \([A-Z_]+\)\.$/,
+      sample: 'a repeated section',
+      change: (t: string) => t.replace('## Options', '## Context\n\nAgain.\n\n## Options'),
+      error: /The section "Context" is repeated/,
+    },
+    {
+      sample: 'a frontmatter that is not valid YAML',
+      change: (t: string) => t.replace('title: Record ADR-TST-001', 'title: [broken'),
+      error: /^The frontmatter is not valid YAML: syntax error at line \d+, column \d+ \([A-Z_]+\)\.$/,
     },
   ];
 
-  it.each(rejected)('AC-FMT-001-01 rechaza $caso', ({ change, error }) => {
+  it.each(rejected)('AC-FMT-001-01 rejects $sample', ({ change, error }) => {
     const text = change(BASE);
     expect(text).not.toBe(BASE);
     expect(failures(read(text))).toContainEqual(expect.stringMatching(error));
   });
 
-  it('AC-FMT-001-01 canonizar arregla los espacios finales de cualquier tipo, el CRLF y las líneas en blanco de más', () => {
-    const broken = BASE.replace('Texto de contexto.', 'Texto de contexto.  \t\n\n\n \nMás contexto.')
-      .replace('\n\n## Opciones', '\n\n\n\n## Opciones')
+  it('AC-FMT-001-01 canonicalizing fixes trailing spaces of any kind, CRLF and extra blank lines', () => {
+    const broken = BASE.replace('Text for context.', 'Text for context.  \t\n\n\n \nMore context.')
+      .replace('\n\n## Options', '\n\n\n\n## Options')
       .replaceAll('\n', '\r\n');
     expect(read(broken).ok).toBe(false);
     const fixed = normalizeWhitespace(broken);
-    expect(renderDocument(value(read(fixed)))).toBe(
-      BASE.replace('Texto de contexto.', 'Texto de contexto.\n\nMás contexto.'),
-    );
+    expect(renderDocument(value(read(fixed)))).toBe(BASE.replace('Text for context.', 'Text for context.\n\nMore context.'));
   });
 
   const nonCanonical = [
     {
-      sample: 'una línea en blanco de más entre secciones',
-      change: (t: string) => t.replace('\n\n## Opciones', '\n\n\n## Opciones'),
+      sample: 'an extra blank line between sections',
+      change: (t: string) => t.replace('\n\n## Options', '\n\n\n## Options'),
     },
     {
-      sample: 'el frontmatter en otro orden',
-      change: (t: string) => t.replace('codigo: ADR-TST-001\ntipo: adr\n', 'tipo: adr\ncodigo: ADR-TST-001\n'),
+      sample: 'the frontmatter in another order',
+      change: (t: string) => t.replace('code: ADR-TST-001\ntype: adr\n', 'type: adr\ncode: ADR-TST-001\n'),
     },
-    { sample: 'espacios de más en el frontmatter', change: (t: string) => t.replace('version: 1', 'version:   1') },
+    { sample: 'extra spaces in the frontmatter', change: (t: string) => t.replace('version: 1', 'version:   1') },
     {
-      sample: 'comillas innecesarias en el frontmatter',
-      change: (t: string) => t.replace('dominio: pruebas', "dominio: 'pruebas'"),
+      sample: 'unnecessary quotes in the frontmatter',
+      change: (t: string) => t.replace('domain: tests', "domain: 'tests'"),
     },
-    { sample: 'la falta del salto de línea final', change: (t: string) => t.slice(0, -1) },
+    { sample: 'a missing final newline', change: (t: string) => t.slice(0, -1) },
     {
-      sample: 'un criterio sin la línea en blanco tras su cabecera',
-      change: (t: string) => t.replace('prueba\n\n- Verificación', 'prueba\n- Verificación'),
+      sample: 'a criterion missing the blank line after its header',
+      change: (t: string) => t.replace('criterion\n\n- Verification', 'criterion\n- Verification'),
     },
   ];
 
-  it.each(nonCanonical)('AC-FMT-001-01 detecta que no es canónico: $caso', ({ change }) => {
+  it.each(nonCanonical)('AC-FMT-001-01 detects that it is not canonical: $sample', ({ change }) => {
     const text = change(BASE);
     expect(text).not.toBe(BASE);
     const rewritten = renderDocument(value(read(text)));
@@ -228,72 +226,72 @@ describe('forma canónica de un documento', () => {
   });
 });
 
-describe('códigos de un documento', () => {
-  it('AC-FMT-001-02 el código de un registro corresponde a su tipo', () => {
-    expect(failures(read(BASE.replace('tipo: adr', 'tipo: fdr')))).toContainEqual(
-      expect.stringMatching(/ADR-TST-001 no corresponde al tipo «fdr»/),
+describe('codes of a document', () => {
+  it("AC-FMT-001-02 a record's code matches its type", () => {
+    expect(failures(read(BASE.replace('type: adr', 'type: fdr')))).toContainEqual(
+      expect.stringMatching(/ADR-TST-001 doesn't match type "fdr"/),
     );
   });
 
-  it('AC-FMT-001-02 los códigos y las referencias siguen su forma', () => {
-    expect(failures(read(BASE.replace('codigo: ADR-TST-001', 'codigo: ADR-TST-1')))).toContainEqual(
-      expect.stringMatching(/Frontmatter: codigo/),
+  it('AC-FMT-001-02 codes and references follow their form', () => {
+    expect(failures(read(BASE.replace('code: ADR-TST-001', 'code: ADR-TST-1')))).toContainEqual(
+      expect.stringMatching(/Frontmatter: code/),
     );
-    const withLink = BASE.replace('enlaces: []', 'enlaces:\n  - tipo: based_on\n    destino: DEC-TST-001');
-    expect(failures(read(withLink))).toContainEqual(expect.stringMatching(/Referencia CODIGO@version/));
+    const withLink = BASE.replace('links: []', 'links:\n  - type: based_on\n    target: DEC-TST-001');
+    expect(failures(read(withLink))).toContainEqual(expect.stringMatching(/Reference CODE@version/));
   });
 
   const withLinks = (...targets: [string, string][]) =>
     BASE.replace(
-      'enlaces: []',
-      `enlaces:\n${targets.map(([type, d]) => `  - tipo: ${type}\n    destino: ${d}\n`).join('')}`.trimEnd(),
+      'links: []',
+      `links:\n${targets.map(([type, d]) => `  - type: ${type}\n    target: ${d}\n`).join('')}`.trimEnd(),
     );
 
-  it.each(['DEC-TST-001@0', 'DEC-TST-001@01', 'TAX-001@1'])('AC-FMT-001-02 rechaza la referencia %s', (target) => {
-    expect(failures(read(withLinks(['based_on', target])))).toContainEqual(expect.stringMatching(/Referencia CODIGO@version/));
+  it.each(['DEC-TST-001@0', 'DEC-TST-001@01', 'TAX-001@1'])('AC-FMT-001-02 rejects the reference %s', (target) => {
+    expect(failures(read(withLinks(['based_on', target])))).toContainEqual(expect.stringMatching(/Reference CODE@version/));
   });
 
-  it('AC-FMT-001-02 rechaza un enlace repetido con el mismo tipo y destino', () => {
+  it('AC-FMT-001-02 rejects a repeated link with the same type and target', () => {
     expect(value(read(withLinks(['based_on', 'DEC-TST-001@1'], ['origin', 'DEC-TST-001@1'])))).toMatchObject({
       links: [{ type: 'based_on' }, { type: 'origin' }],
     });
     expect(failures(read(withLinks(['based_on', 'DEC-TST-001@1'], ['based_on', 'DEC-TST-001@1'])))).toEqual([
-      'Enlace repetido: based_on → DEC-TST-001.',
+      'Repeated link: based_on → DEC-TST-001.',
     ]);
     expect(failures(read(withLinks(['based_on', 'DEC-TST-001@1'], ['based_on', 'DEC-TST-001@2'])))).toEqual([
-      'Enlace repetido: based_on → DEC-TST-001.',
+      'Repeated link: based_on → DEC-TST-001.',
     ]);
   });
 });
 
-describe('encabezados con código de criterio', () => {
+describe('headings with a criterion code', () => {
   it.each([1, 2, 3, 4, 5, 6])(
-    'AC-FMT-001-03 rechaza un encabezado de nivel %i que empieza por un código de AC fuera de los criterios',
+    'AC-FMT-001-03 rejects a level-%i heading that starts with an AC code outside the criteria',
     (level) => {
       const text = BASE.replace(
-        'Texto de contexto.',
-        `Texto de contexto.\n\n${'#'.repeat(level)} AC-TST-001-09 · Parece un criterio`,
+        'Text for context.',
+        `Text for context.\n\n${'#'.repeat(level)} AC-TST-001-09 · Looks like a criterion`,
       );
       expect(failures(read(text))).toContainEqual(
-        `El encabezado «${'#'.repeat(level)} AC-TST-001-09 · Parece un criterio» empieza por un código de criterio fuera de «Criterios de aceptación».`,
+        `The heading "${'#'.repeat(level)} AC-TST-001-09 · Looks like a criterion" starts with a criterion code outside "Acceptance criteria".`,
       );
     },
   );
 
-  it('AC-FMT-001-03 admite un encabezado que cita un código de AC sin empezar por él', () => {
-    const text = BASE.replace('Texto de contexto.', 'Texto de contexto.\n\n### Nota sobre AC-TST-001-01');
-    expect(value(read(text)).sections[0]?.content).toBe('Texto de contexto.\n\n### Nota sobre AC-TST-001-01');
+  it('AC-FMT-001-03 allows a heading that cites an AC code without starting with it', () => {
+    const text = BASE.replace('Text for context.', 'Text for context.\n\n### Note about AC-TST-001-01');
+    expect(value(read(text)).sections[0]?.content).toBe('Text for context.\n\n### Note about AC-TST-001-01');
   });
 });
 
-describe('criterios de un documento', () => {
-  it('AC-FMT-001-03 lee un criterio con verificación, comprobación, derivación y enunciado', () => {
+describe('criteria of a document', () => {
+  it('AC-FMT-001-03 reads a criterion with verification, check, derivation and statement', () => {
     const c = criterion('AC-TST-001-02', {
-      title: 'Criterio manual',
+      title: 'Manual criterion',
       verification: 'manual',
-      check: 'La persona lo revisa.',
+      check: 'A person reviews it.',
       derivedFrom: 'AC-OTR-001-01',
-      statement: 'Dado algo,\ncuando pasa,\nentonces se ve.\n\nY se ve dos veces.',
+      statement: 'Given something,\nwhen it happens,\nthen it is seen.\n\nAnd it is seen twice.',
     });
     const doc = record('adr', 'ADR-TST-001', { criteria: [criterion('AC-TST-001-01'), c] });
     expect(value(parseDocument(renderDocument(doc), 'adr/ADR-TST-001.md'))).toEqual(doc);
@@ -301,53 +299,53 @@ describe('criterios de un documento', () => {
 
   const invalid = [
     {
-      sample: 'una verificación que no es automática ni manual',
-      change: (t: string) => t.replace('- Verificación: automática', '- Verificación: a veces'),
-      error: /la verificación debe ser «automática» o «manual»/,
+      sample: 'a verification that is neither automatic nor manual',
+      change: (t: string) => t.replace('- Verification: automatic', '- Verification: sometimes'),
+      error: /verification must be "automatic" or "manual"/,
     },
     {
-      sample: 'un criterio sin verificación',
-      change: (t: string) => t.replace('- Verificación: automática\n', ''),
-      error: /faltan «- Verificación:» y «- Comprobación:»/,
+      sample: 'a criterion without verification',
+      change: (t: string) => t.replace('- Verification: automatic\n', ''),
+      error: /missing "- Verification:" and "- Check:"/,
     },
     {
-      sample: 'un criterio sin comprobación',
-      change: (t: string) => t.replace('\n- Comprobación: Se comprueba con una prueba.', ''),
-      error: /faltan «- Verificación:» y «- Comprobación:»/,
+      sample: 'a criterion without a check',
+      change: (t: string) => t.replace('\n- Check: Checked with a test.', ''),
+      error: /missing "- Verification:" and "- Check:"/,
     },
     {
-      sample: 'un criterio sin enunciado',
-      change: (t: string) => t.replace('\n\nDado algo, cuando pasa, entonces se observa.', ''),
-      error: /falta el enunciado observable/,
+      sample: 'a criterion without a statement',
+      change: (t: string) => t.replace('\n\nGiven something, when it happens, then it is observed.', ''),
+      error: /missing the observable statement/,
     },
     {
-      sample: 'una cabecera sin un código de criterio válido',
+      sample: 'a header without a valid criterion code',
       change: (t: string) => t.replace('### AC-TST-001-01 · ', '### AC-TST-1 · '),
-      error: /Cabecera de criterio inválida/,
+      error: /Invalid criterion header/,
     },
     {
-      sample: 'una derivación que no es un código de criterio',
-      change: (t: string) => t.replace('una prueba.\n\nDado', 'una prueba.\n- Deriva de: nada\n\nDado'),
-      error: /«Deriva de» debe ser un código de criterio/,
+      sample: 'a derivation that is not a criterion code',
+      change: (t: string) => t.replace('a test.\n\nGiven', 'a test.\n- Derived from: nothing\n\nGiven'),
+      error: /"Derived from" must be a criterion code/,
     },
     {
-      sample: 'texto antes del primer criterio',
-      change: (t: string) => t.replace('## Criterios de aceptación\n\n', '## Criterios de aceptación\n\nIntroducción.\n\n'),
-      error: /antes del primer criterio/,
+      sample: 'text before the first criterion',
+      change: (t: string) => t.replace('## Acceptance criteria\n\n', '## Acceptance criteria\n\nIntroduction.\n\n'),
+      error: /before the first criterion/,
     },
     {
-      sample: 'una sección después de los criterios',
-      change: (t: string) => `${t}\n## Notas\n\nMás texto.\n`,
-      error: /debe ser la última sección/,
+      sample: 'a section after the criteria',
+      change: (t: string) => `${t}\n## Notes\n\nMore text.\n`,
+      error: /must be the last section/,
     },
     {
-      sample: 'criterios en una taxonomía',
-      change: () => `${renderDocument(taxonomy('TAX-001'))}\n## Criterios de aceptación\n\n### AC-TAX-001-01 · Nada\n`,
-      error: /Una taxonomía no lleva criterios/,
+      sample: 'criteria in a taxonomy',
+      change: () => `${renderDocument(taxonomy('TAX-001'))}\n## Acceptance criteria\n\n### AC-TAX-001-01 · Nothing\n`,
+      error: /A taxonomy has no acceptance criteria/,
     },
   ];
 
-  it.each(invalid)('AC-FMT-001-03 rechaza $caso', ({ change, error }) => {
+  it.each(invalid)('AC-FMT-001-03 rejects $sample', ({ change, error }) => {
     const text = change(BASE);
     expect(text).not.toBe(BASE);
     expect(failures(read(text))).toContainEqual(expect.stringMatching(error));

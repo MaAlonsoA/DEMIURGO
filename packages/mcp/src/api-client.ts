@@ -87,7 +87,9 @@ export function createApiClient(op: ApiClientOptions): ApiClient {
 function isDomainError(json: unknown): json is { error: string; message: string; reasons?: unknown } {
   if (typeof json !== 'object' || json === null) return false;
   const o = json as Record<string, unknown>;
-  return typeof o.error === 'string' && typeof o.message === 'string';
+  // Fastify's own 404 ("route not found") also has `error` and `message`; only the API's error
+  // format carries `reasons`.
+  return typeof o.error === 'string' && typeof o.message === 'string' && Array.isArray(o.reasons);
 }
 
 function responseError(state: number, json: unknown): ApiError {

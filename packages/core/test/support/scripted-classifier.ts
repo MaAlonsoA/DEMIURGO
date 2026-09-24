@@ -1,5 +1,5 @@
-// Clasificador guionizado para las pruebas: delega en el simulado y permite forzar respuestas
-// por tarea (veredictos, categorías o ideas) y contar las llamadas.
+// Scripted classifier for tests: delegates to the simulated one and lets a test force responses
+// per task (verdicts, categories or ideas) and count the calls.
 
 import type { Classifier, ItemChoice, ChoiceResponse } from '@demiurgo/domain';
 import { createSimulatedClassifier } from '../../src/classifier/simulated.ts';
@@ -21,7 +21,7 @@ const taskOf = (i: ItemChoice): Task | 'other' => {
 export function createScriptedClassifier(): ScriptedClassifier {
   const base = createSimulatedClassifier();
   const c: ScriptedClassifier = {
-    id: 'guionizado@1',
+    id: 'scripted@1',
     scripts: {},
     calls: { verdict: 0, category: 0, idea: 0, other: 0 },
     restart() {
@@ -41,12 +41,7 @@ export function createScriptedClassifier(): ScriptedClassifier {
   return c;
 }
 
-export const response = (
-  id: string,
-  choice: string,
-  confidence: number,
-  justification = 'guion de prueba',
-): ChoiceResponse => ({
+export const response = (id: string, choice: string, confidence: number, justification = 'test script'): ChoiceResponse => ({
   id,
   choice,
   distribution: { [choice]: confidence },

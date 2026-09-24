@@ -1,6 +1,6 @@
-// Runner aislado y sonda (invariante I9). Las pruebas de docker usan la imagen permitida
-// por digest; si no está descargada, la preparación la descarga una vez (el broker nunca
-// descarga: lanza con `--pull never`).
+// Isolated runner and probe (invariant I9). The docker tests use the image allowed
+// by digest; if it isn't downloaded yet, setup downloads it once (the broker never
+// pulls: it launches with `--pull never`).
 
 import { execFileSync, spawn } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -27,7 +27,7 @@ import {
 const IMAGE = ALLOWED_IMAGES[0] ?? '';
 const SPEC_BASE: JobSpecInput = { image: IMAGE, command: ['node', '-e', '0'], maxTimeMs: 10_000 };
 
-/** Flags de docker que el broker puede emitir: con valor y sin valor. */
+/** Docker flags the broker may emit: with a value and without one. */
 const FLAGS_WITH_VALUE = new Set([
   '--name',
   '--label',
@@ -45,7 +45,7 @@ const FLAGS_WITH_VALUE = new Set([
 ]);
 const FLAGS_WITHOUT_VALUE = new Set(['--rm', '--read-only', '-i']);
 
-/** Separa los argumentos de `docker run` en pares flag → valor hasta la imagen. */
+/** Splits `docker run` arguments into flag → value pairs up to the image. */
 function analyze(args: string[]): { flags: [string, string | true][]; image: string; command: string[] } {
   expect(args[0]).toBe('run');
   const flags: [string, string | true][] = [];
@@ -65,13 +65,13 @@ function analyze(args: string[]): { flags: [string, string | true][]; image: str
   return { flags, image: args[i] ?? '', command: args.slice(i + 1) };
 }
 
-/** Mensaje de rechazo de un spec, o `aceptado` si el esquema lo admite. */
+/** A spec's rejection message, or `accepted` if the schema allows it. */
 function rejectionOf(spec: unknown): string {
   try {
     validateJobSpec(spec);
     return 'accepted';
   } catch (e) {
-    return e instanceof InvalidJobSpec ? e.message : `error inesperado: ${String(e)}`;
+    return e instanceof InvalidJobSpec ? e.message : `unexpected error: ${String(e)}`;
   }
 }
 
@@ -97,33 +97,33 @@ function isPortOpen(host: string, port: number, ms = 2000): Promise<boolean> {
   });
 }
 
-describe('JobSpec cerrado y argumentos de docker', () => {
-  it('AC-ESQ-001-12 el esquema rechaza imagen sin digest, fuera de la lista, claves extra, entorno no permitido y tiempos fuera de rango', () => {
+describe('closed JobSpec and docker arguments', () => {
+  it('AC-ESQ-001-12 the schema rejects an image without a digest, outside the list, extra keys, disallowed environment and out-of-range times', () => {
     const rejections: [unknown, RegExp][] = [
-      [{ ...SPEC_BASE, image: 'node:24.21-alpine' }, /fijada por digest/],
-      [{ ...SPEC_BASE, image: 'node:latest' }, /fijada por digest/],
-      [{ ...SPEC_BASE, image: `node:24.21-alpine@sha256:${'0'.repeat(64)}` }, /no está en la lista de imágenes permitidas/],
-      [{ ...SPEC_BASE, image: `alpine:3.22@sha256:${'a'.repeat(64)}` }, /no está en la lista de imágenes permitidas/],
-      [{ ...SPEC_BASE, mounts: ['/:/host'] }, /Opciones no admitidas en el JobSpec: montajes/],
-      [{ ...SPEC_BASE, network: 'host' }, /Opciones no admitidas en el JobSpec: red/],
-      [{ ...SPEC_BASE, privileged: true }, /Opciones no admitidas en el JobSpec: privilegiado/],
-      [{ ...SPEC_BASE, username: 'root' }, /Opciones no admitidas en el JobSpec: usuario/],
-      [{ ...SPEC_BASE, limits: { cpus: 1, privileged: true } }, /Límites no admitidos: privilegiado/],
-      [{ ...SPEC_BASE, environment: { DATABASE_URL: 'postgres://x' } }, /Variables de entorno no permitidas: DATABASE_URL/],
-      [{ ...SPEC_BASE, environment: { LANG: 'C', ANTHROPIC_API_KEY: 'k' } }, /no permitidas: ANTHROPIC_API_KEY/],
-      [{ ...SPEC_BASE, environment: { PATH: '/tmp' } }, /no permitidas: PATH/],
-      [{ ...SPEC_BASE, maxTimeMs: 0 }, /tiempoMaxMs debe estar entre 1 y 600000/],
-      [{ ...SPEC_BASE, maxTimeMs: 600_001 }, /tiempoMaxMs debe estar entre 1 y 600000/],
-      [{ ...SPEC_BASE, maxTimeMs: 1.5 }, /entero/],
-      [{ ...SPEC_BASE, limits: { memoryMb: 1_000_000 } }, /memoriaMb debe estar entre/],
-      [{ ...SPEC_BASE, limits: { pids: 0 } }, /pids debe estar entre/],
-      [{ ...SPEC_BASE, command: [] }, /al menos un elemento/],
+      [{ ...SPEC_BASE, image: 'node:24.21-alpine' }, /pinned by digest/],
+      [{ ...SPEC_BASE, image: 'node:latest' }, /pinned by digest/],
+      [{ ...SPEC_BASE, image: `node:24.21-alpine@sha256:${'0'.repeat(64)}` }, /not in the runner's list of allowed images/],
+      [{ ...SPEC_BASE, image: `alpine:3.22@sha256:${'a'.repeat(64)}` }, /not in the runner's list of allowed images/],
+      [{ ...SPEC_BASE, mounts: ['/:/host'] }, /Unsupported JobSpec options: mounts/],
+      [{ ...SPEC_BASE, network: 'host' }, /Unsupported JobSpec options: network/],
+      [{ ...SPEC_BASE, privileged: true }, /Unsupported JobSpec options: privileged/],
+      [{ ...SPEC_BASE, username: 'root' }, /Unsupported JobSpec options: username/],
+      [{ ...SPEC_BASE, limits: { cpus: 1, privileged: true } }, /Unsupported limits: privileged/],
+      [{ ...SPEC_BASE, environment: { DATABASE_URL: 'postgres://x' } }, /Environment variables not allowed: DATABASE_URL/],
+      [{ ...SPEC_BASE, environment: { LANG: 'C', ANTHROPIC_API_KEY: 'k' } }, /not allowed: ANTHROPIC_API_KEY/],
+      [{ ...SPEC_BASE, environment: { PATH: '/tmp' } }, /not allowed: PATH/],
+      [{ ...SPEC_BASE, maxTimeMs: 0 }, /maxTimeMs must be between 1 and 600000/],
+      [{ ...SPEC_BASE, maxTimeMs: 600_001 }, /maxTimeMs must be between 1 and 600000/],
+      [{ ...SPEC_BASE, maxTimeMs: 1.5 }, /whole number/],
+      [{ ...SPEC_BASE, limits: { memoryMb: 1_000_000 } }, /memoryMb must be between/],
+      [{ ...SPEC_BASE, limits: { pids: 0 } }, /pids must be between/],
+      [{ ...SPEC_BASE, command: [] }, /at least one element/],
       [{ ...SPEC_BASE, command: ['node', 'a\0b'] }, /NUL/],
     ];
     for (const [spec, reason] of rejections) {
-      // El spec va en el objeto comparado para que un fallo diga qué caso no se rechazó.
+      // The spec goes into the compared object so a failure says which case wasn't rejected.
       expect({ spec, rejection: rejectionOf(spec) }).toEqual({ spec, rejection: expect.stringMatching(reason) });
-      expect(() => dockerArguments(spec as JobSpecInput, 'demiurgo-prueba')).toThrow(InvalidJobSpec);
+      expect(() => dockerArguments(spec as JobSpecInput, 'demiurgo-test')).toThrow(InvalidJobSpec);
     }
     expect(validateJobSpec(SPEC_BASE)).toEqual({
       ...SPEC_BASE,
@@ -132,10 +132,10 @@ describe('JobSpec cerrado y argumentos de docker', () => {
     });
   });
 
-  it('AC-ESQ-001-12 el runner rechaza un JobSpec no permitido sin intentar lanzar ningún contenedor', async () => {
-    // Con un ejecutable de docker inexistente, cualquier intento de lanzar daría `infra`;
-    // el rechazo llega antes, al validar el spec.
-    const options = { dockerBinary: 'docker-inexistente-demiurgo' };
+  it('AC-ESQ-001-12 the runner rejects a disallowed JobSpec without trying to launch any container', async () => {
+    // With a nonexistent docker executable, any launch attempt would give `infra`;
+    // the rejection arrives earlier, when validating the spec.
+    const options = { dockerBinary: 'docker-nonexistent-demiurgo' };
     const invalid = [
       { ...SPEC_BASE, image: 'node:24.21-alpine' },
       { ...SPEC_BASE, mounts: ['/:/host'] },
@@ -147,7 +147,7 @@ describe('JobSpec cerrado y argumentos de docker', () => {
     }
   });
 
-  it('AC-ESQ-001-12 argumentosDocker nunca contiene -v, --mount, --privileged ni --network host para ningún JobSpec válido', () => {
+  it('AC-ESQ-001-12 dockerArguments never contains -v, --mount, --privileged or --network host for any valid JobSpec', () => {
     const text = fc.string({ maxLength: 40 }).filter((s) => !s.includes('\0'));
     const dangerous = fc.constantFrom('-v', '--mount', '--privileged', '--network', 'host', '--volume=/:/host', '-u', '0');
     const spec = fc.record(
@@ -170,9 +170,9 @@ describe('JobSpec cerrado y argumentos de docker', () => {
     );
     fc.assert(
       fc.property(spec, (s) => {
-        const args = dockerArguments(s, 'demiurgo-prueba');
+        const args = dockerArguments(s, 'demiurgo-test');
         const { flags, image, command } = analyze(args);
-        // Todo lo anterior a la imagen son flags conocidos del broker; lo posterior es el comando tal cual.
+        // Everything before the image is a flag known to the broker; everything after is the command as-is.
         expect(image).toBe(IMAGE);
         expect(command).toEqual(s.command);
         const options = args.slice(0, args.indexOf(IMAGE));
@@ -190,15 +190,15 @@ describe('JobSpec cerrado y argumentos de docker', () => {
     );
   });
 
-  it('AC-RUN-001-01 argumentosDocker incluye usuario no root, cap-drop ALL, no-new-privileges, read-only, network none y los tres límites', () => {
+  it('AC-RUN-001-01 dockerArguments includes a non-root user, cap-drop ALL, no-new-privileges, read-only, network none and the three limits', () => {
     const args = dockerArguments(
       { ...SPEC_BASE, input: 'console.log(1)', limits: { cpus: 0.5, memoryMb: 256, pids: 64 }, environment: { LANG: 'C.UTF-8' } },
-      'demiurgo-prueba',
+      'demiurgo-test',
     );
     const { flags, image } = analyze(args);
     expect(image).toBe(IMAGE);
     expect(values(flags, '--rm')).toEqual([true]);
-    expect(values(flags, '--name')).toEqual(['demiurgo-prueba']);
+    expect(values(flags, '--name')).toEqual(['demiurgo-test']);
     expect(values(flags, '--label')).toEqual(['demiurgo.runner=1']);
     expect(values(flags, '--user')).toEqual(['1000:1000']);
     expect(values(flags, '--cap-drop')).toEqual(['ALL']);
@@ -213,16 +213,16 @@ describe('JobSpec cerrado y argumentos de docker', () => {
     expect(values(flags, '--cpus')).toEqual(['0.5']);
     expect(values(flags, '-i')).toEqual([true]);
     expect(values(flags, '--env')).toEqual(['LANG=C.UTF-8']);
-    // Sin entrada no se abre stdin; con los valores por defecto los límites siguen presentes.
-    const withoutInput = analyze(dockerArguments(SPEC_BASE, 'demiurgo-prueba')).flags;
+    // With no input, stdin isn't opened; with default values the limits are still present.
+    const withoutInput = analyze(dockerArguments(SPEC_BASE, 'demiurgo-test')).flags;
     expect(values(withoutInput, '-i')).toEqual([]);
     expect(values(withoutInput, '--pids-limit')).toEqual(['128']);
     expect(values(withoutInput, '--memory')).toEqual(['512m']);
     expect(values(withoutInput, '--cpus')).toEqual(['1']);
-    expect(() => dockerArguments(SPEC_BASE, '--privileged')).toThrow(/Nombre de contenedor no válido/);
+    expect(() => dockerArguments(SPEC_BASE, '--privileged')).toThrow(/Invalid container name/);
   });
 
-  it('AC-ESQ-001-11 el proceso docker solo hereda el entorno mínimo de la CLI', () => {
+  it('AC-ESQ-001-11 the docker process only inherits the minimal environment for the CLI', () => {
     const environment = dockerEnv({
       Path: 'C:\\Windows',
       SystemRoot: 'C:\\Windows',
@@ -244,7 +244,7 @@ describe('JobSpec cerrado y argumentos de docker', () => {
   });
 });
 
-describe('runner con docker', () => {
+describe('runner with docker', () => {
   beforeAll(() => {
     try {
       execFileSync('docker', ['image', 'inspect', IMAGE], { stdio: 'ignore' });
@@ -253,13 +253,13 @@ describe('runner con docker', () => {
     }
   });
 
-  it('AC-RUN-001-01 ejecuta un trabajo con entrada y distingue el fallo del trabajo del fallo del runner', async () => {
+  it("AC-RUN-001-01 runs a job with input and distinguishes the job's failure from the runner's failure", async () => {
     const ok = await runJob({
       ...SPEC_BASE,
       command: ['node', '-'],
-      input: 'console.log("hola " + process.getuid())',
+      input: 'console.log("hello " + process.getuid())',
     });
-    expect(ok).toMatchObject({ state: 'ok', exitCode: 0, stdout: 'hola 1000\n' });
+    expect(ok).toMatchObject({ state: 'ok', exitCode: 0, stdout: 'hello 1000\n' });
     expect(ok.failureKind).toBeUndefined();
     const failure = await runJob({ ...SPEC_BASE, command: ['node', '-e', 'process.exit(3)'] });
     expect(failure).toMatchObject({ state: 'failure', exitCode: 3 });
@@ -268,8 +268,8 @@ describe('runner con docker', () => {
     expect(containerExists(failure.container)).toBe(false);
   });
 
-  it('AC-RUN-001-02 un trabajo que supera tiempoMaxMs termina con timeout y el contenedor ya no existe', async () => {
-    const name = `demiurgo-prueba-timeout-${process.pid}-${Date.now()}`;
+  it('AC-RUN-001-02 a job that exceeds maxTimeMs ends in timeout and the container no longer exists', async () => {
+    const name = `demiurgo-test-timeout-${process.pid}-${Date.now()}`;
     const start = performance.now();
     const r = await runJob({ ...SPEC_BASE, command: ['sleep', '30'], maxTimeMs: 3000 }, { containerName: name });
     const ms = performance.now() - start;
@@ -279,8 +279,8 @@ describe('runner con docker', () => {
     expect(containerExists(name)).toBe(false);
   });
 
-  it('AC-RUN-001-02 un AbortSignal cancela el trabajo, mata el contenedor y devuelve cancelled', async () => {
-    const name = `demiurgo-prueba-cancelar-${process.pid}-${Date.now()}`;
+  it('AC-RUN-001-02 an AbortSignal cancels the job, kills the container and returns cancelled', async () => {
+    const name = `demiurgo-test-cancel-${process.pid}-${Date.now()}`;
     const control = new AbortController();
     setTimeout(() => control.abort(), 2000);
     const start = performance.now();
@@ -291,23 +291,23 @@ describe('runner con docker', () => {
     expect(r).toMatchObject({ state: 'failure', failureKind: 'cancelled' });
     expect(performance.now() - start).toBeLessThan(15_000);
     expect(containerExists(name)).toBe(false);
-    // Una señal ya cancelada no llega a lanzar nada.
+    // A signal that's already aborted never gets to launch anything.
     const prior = await runJob(SPEC_BASE, { signal: AbortSignal.abort() });
     expect(prior).toMatchObject({ state: 'failure', failureKind: 'cancelled', durationMs: 0 });
   });
 
-  it('AC-RUN-001-02 si docker no arranca el fallo es infra', async () => {
-    const r = await runJob(SPEC_BASE, { dockerBinary: 'docker-inexistente-demiurgo' });
+  it('AC-RUN-001-02 if docker fails to start the failure is infra', async () => {
+    const r = await runJob(SPEC_BASE, { dockerBinary: 'docker-nonexistent-demiurgo' });
     expect(r).toMatchObject({ state: 'failure', failureKind: 'infra', exitCode: null });
-    expect(r.stderr).toMatch(/No se pudo lanzar docker/);
+    expect(r.stderr).toMatch(/Could not launch docker/);
   });
 
   describe('probe', () => {
     const FAKE = {
       DATABASE_URL: 'postgres://demiurgo:demiurgo-dev@127.0.0.1:55432/postgres',
-      ANTHROPIC_API_KEY: 'sk-ant-falsa',
-      OPENAI_API_KEY: 'sk-falsa',
-      DEMIURGO_SECRET: 'secreto-falso',
+      ANTHROPIC_API_KEY: 'sk-ant-fake',
+      OPENAI_API_KEY: 'sk-fake',
+      DEMIURGO_SECRET: 'fake-secret',
       PGPASSWORD: 'demiurgo-dev',
     };
     const priors: Record<string, string | undefined> = {};
@@ -318,7 +318,7 @@ describe('runner con docker', () => {
         priors[k] = process.env[k];
         process.env[k] = v;
       }
-      controlDir = mkdtempSync(join(tmpdir(), 'demiurgo-sonda-'));
+      controlDir = mkdtempSync(join(tmpdir(), 'demiurgo-probe-'));
     });
     afterAll(() => {
       for (const k of Object.keys(FAKE)) {
@@ -329,8 +329,8 @@ describe('runner con docker', () => {
       rmSync(controlDir, { recursive: true, force: true });
     });
 
-    it('AC-ESQ-001-11 la sonda en el runner no ve credenciales ni ficheros sensibles, no abre conexiones, no escribe fuera de /tmp y no es root', async () => {
-      // Precondición: el Postgres de desarrollo sí escucha en el host.
+    it('AC-ESQ-001-11 the probe inside the runner sees no credentials or sensitive files, opens no connections, writes nothing outside /tmp and is not root', async () => {
+      // Precondition: the dev Postgres does listen on the host.
       expect(await isPortOpen('127.0.0.1', 55432)).toBe(true);
       const { report, violations, durationMs, result } = await runProbe();
       expect(violations).toEqual([]);
@@ -339,7 +339,7 @@ describe('runner con docker', () => {
       expect(report.sensitiveVariables).toEqual([]);
       for (const k of Object.keys(FAKE)) expect(report.visibleVariables).not.toContain(k);
       expect(report.visibleVariables).toContain('CI');
-      expect(result.stdout).not.toMatch(/demiurgo-dev|sk-ant-falsa|secreto-falso/);
+      expect(result.stdout).not.toMatch(/demiurgo-dev|sk-ant-fake|fake-secret/);
       expect(report.visibleFiles).toEqual([]);
       expect(report.paths.every((r) => r.state !== 'visible')).toBe(true);
       expect(report.connections.length).toBeGreaterThanOrEqual(7);
@@ -352,8 +352,8 @@ describe('runner con docker', () => {
       expect(durationMs).toBeLessThan(30_000);
     });
 
-    it('AC-ESQ-001-11 control: fuera del runner la misma sonda sí detecta credenciales, ficheros, conexiones y escrituras', async () => {
-      const file = join(controlDir, 'credenciales.json');
+    it('AC-ESQ-001-11 control: outside the runner the same probe does detect credentials, files, connections and writes', async () => {
+      const file = join(controlDir, 'credentials.json');
       writeFileSync(file, '{}');
       const script = generateProbeScript({
         sensitivePaths: [file, join(controlDir, 'no-existe')],
@@ -379,10 +379,10 @@ describe('runner con docker', () => {
       expect(report.connections.filter((c) => c.connected).map((c) => c.target)).toEqual(['127.0.0.1:55432', 'localhost']);
       expect(report.writeOutsideTmp.every((e) => e.written)).toBe(true);
       const violations = probeViolations(report);
-      expect(violations.join(' ')).toMatch(/Variables sensibles visibles: .*DATABASE_URL/);
-      expect(violations.join(' ')).toMatch(/Ficheros sensibles visibles/);
-      expect(violations.join(' ')).toMatch(/Conexión tcp abierta con 127\.0\.0\.1:55432/);
-      expect(violations.join(' ')).toMatch(/Escritura fuera de \/tmp/);
+      expect(violations.join(' ')).toMatch(/Sensitive variables visible: .*DATABASE_URL/);
+      expect(violations.join(' ')).toMatch(/Sensitive files visible/);
+      expect(violations.join(' ')).toMatch(/Open tcp connection to 127\.0\.0\.1:55432/);
+      expect(violations.join(' ')).toMatch(/Write outside \/tmp/);
     });
   });
 });

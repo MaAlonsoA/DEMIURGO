@@ -32,7 +32,7 @@ function launch(args: string[]): {
             resolve();
           } else if (Date.now() - t0 > ms || child.exitCode !== null) {
             clearInterval(tick);
-            reject(new Error(`No apareció «${marker}». Salida:\n${output}`));
+            reject(new Error(`"${marker}" never appeared. Output:\n${output}`));
           }
         }, 50);
       }),
@@ -41,8 +41,8 @@ function launch(args: string[]): {
 
 const childOutput = (h: ChildProcess) => new Promise<void>((r) => (h.exitCode !== null ? r() : h.once('exit', () => r())));
 
-describe('motor durable', () => {
-  it('AC-ESQ-001-07 al matar el proceso con una ejecución en curso se reanuda y su efecto ocurre una sola vez', async () => {
+describe('durable engine', () => {
+  it('AC-ESQ-001-07 killing the process during a run resumes it and its effect happens only once', async () => {
     const { services: s, url } = environment();
     const { projectId } = await executeCommand(s, {
       command: 'project.create',
@@ -71,7 +71,7 @@ describe('motor durable', () => {
 
     const final = await s.db.selectFrom('ai_runs').selectAll().where('id', '=', run.entityId).executeTakeFirstOrThrow();
     expect(final.state).toBe('completed');
-    expect(final.output).toEqual({ reply: 'Eco: sobrevive' });
+    expect(final.output).toEqual({ reply: 'Echo: survives' });
     const byCommand = await s.db
       .selectFrom('events')
       .select(['command', (eb) => eb.fn.countAll<string>().as('n')])
@@ -84,13 +84,13 @@ describe('motor durable', () => {
     expect(logs).toHaveLength(1);
   });
 
-  it('AC-ESQ-001-07 un corte justo después de confirmar «aplicar» no repite su efecto al reanudar', async () => {
+  it('AC-ESQ-001-07 a cut right after confirming "apply" does not repeat its effect on resume', async () => {
     const { services: s, url } = environment();
     const ana = human('ana');
     const { projectId } = await executeCommand(s, {
       command: 'project.create',
       actor: ana,
-      data: { name: 'Corte tras aplicar' },
+      data: { name: 'Cut after apply' },
     });
     const e = await executeCommand(s, { command: 'exploration.open', actor: ana, projectId, data: { purpose: 'Dues' } });
     await executeCommand(s, {
@@ -115,7 +115,7 @@ describe('motor durable', () => {
     await second.wait('RESULT', 90_000);
     await childOutput(second.child);
     expect(second.output()).toContain('RESULTADO completed');
-    // El agente no se vuelve a invocar y los efectos (mensajes y lote) existen una sola vez.
+    // The agent isn't invoked again, and the effects (messages and batch) exist only once.
     expect(second.output()).not.toContain('INVOKING_AGAIN');
     const messages = await s.db.selectFrom('messages').select('id').where('run_id', '=', run.entityId).execute();
     const batches = await s.db.selectFrom('proposal_batches').select('id').where('run_id', '=', run.entityId).execute();
@@ -132,7 +132,7 @@ describe('motor durable', () => {
     });
   });
 
-  it('AC-ESQ-001-07 al arrancar, una ejecución en curso sin flujo recuperable queda interrumpida y una encolada se ejecuta', async () => {
+  it('AC-ESQ-001-07 on startup, a run in progress with no recoverable workflow is left interrupted and a queued one runs', async () => {
     const { services: s, url } = environment();
     const ana = human('ana');
     const { projectId } = await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Reconcile' } });
@@ -143,8 +143,8 @@ describe('motor durable', () => {
         projectId,
         data: { action: 'echo', scope: { type: 'project' }, input: { text } },
       });
-    // Una ejecución quedó «en curso» sin flujo (p. ej. un corte con otra versión del código).
-    const orphan = await request('huérfana');
+    // A run was left "in progress" with no workflow (e.g. a cut with a different code version).
+    const orphan = await request('orphan');
     await executeCommand(s, {
       command: 'run.begin',
       actor: system('engine'),
@@ -152,7 +152,7 @@ describe('motor durable', () => {
       entityId: orphan.entityId,
       data: {},
     });
-    // Y otra quedó en cola sin que nadie arrancara su flujo.
+    // And another was left queued without anyone starting its workflow.
     const queued = await request('queued');
     const child = launch([url, 'reconcile']);
     await child.wait('RECONCILED', 90_000);
@@ -165,7 +165,7 @@ describe('motor durable', () => {
     const byId = Object.fromEntries(states.map((r) => [r.id, r]));
     expect(byId[orphan.entityId]).toMatchObject({ state: 'interrupted', failure_kind: 'infra' });
     expect(byId[queued.entityId]).toMatchObject({ state: 'completed' });
-    // La interrumpida se reintenta con el mismo context pack.
+    // The interrupted one is retried with the same context pack.
     const r = await executeCommand(s, { command: 'run.retry', actor: ana, projectId, data: { run_id: orphan.entityId } });
     expect(r.state).toBe('queued');
   });

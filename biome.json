@@ -7,7 +7,7 @@
       "*.ts",
       "*.json",
       "!**/node_modules",
-      "!**/generado",
+      "!**/generated",
       "!reports",
       "!evals/**/resultados",
       "!packages/core/test/fixtures/claude-cli",

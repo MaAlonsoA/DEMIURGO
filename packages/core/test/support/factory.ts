@@ -1,5 +1,5 @@
-// Fábrica genérica para las pruebas generadas desde las tablas: crea una entidad y la lleva a
-// cualquier estado siguiendo transiciones legales de design/datos/transiciones.yaml.
+// Generic factory for the tests generated from the tables: creates an entity and moves it to any
+// state by following legal transitions from design/data/transitions.yaml.
 
 import { readFileSync } from 'node:fs';
 import {
@@ -19,7 +19,7 @@ import type { Services } from '../../src/services.ts';
 
 export const ACTOR_BY_TYPE: Record<ActorType, Actor> = {
   human: human('ana'),
-  agent_external: externalAgent('bot-prueba', 'sesion-1'),
+  agent_external: externalAgent('bot-test', 'session-1'),
   agent_run: agentRun('00000000-0000-7000-8000-00000000abcd'),
   system: system('test'),
 };
@@ -29,7 +29,7 @@ export function allowedActor(command: CommandName): Actor {
   return ACTOR_BY_TYPE[type];
 }
 
-/** Último incremento implementado según package.json. */
+/** Last implemented increment, per package.json. */
 export function currentIncrement(): string {
   const root = JSON.parse(readFileSync('package.json', 'utf8')) as { demiurgo: { implementedIncrements: string[] } };
   const s = root.demiurgo.implementedIncrements.filter((i) => i.startsWith('S'));
@@ -39,11 +39,11 @@ export function currentIncrement(): string {
 export type Context = { s: Services; projectId: string; entityId: string };
 
 export type Recipe = {
-  /** Crea la entidad en su estado inicial y devuelve su id. */
+  /** Creates the entity in its initial state and returns its id. */
   create(s: Services, projectId: string): Promise<string>;
-  /** Datos válidos para cada comando no creador. Por defecto `{}`. */
+  /** Valid data for each non-creating command. Defaults to `{}`. */
   data?: Partial<Record<CommandName, (c: Context) => unknown>>;
-  /** Caminos a medida para estados cuyas guardas exigen preparación. */
+  /** Custom paths for states whose guards require preparation. */
   states?: Partial<Record<string, (s: Services, projectId: string) => Promise<string>>>;
 };
 
@@ -90,7 +90,7 @@ export function registerRecipe(entity: EntityName, recipe: Recipe): void {
   RECIPES[entity] = recipe;
 }
 
-/** Camino de comandos (sin creación) desde el estado inicial hasta `destino`, por BFS. */
+/** Path of commands (excluding creation) from the initial state to `target`, by BFS. */
 export function commandPath(entity: EntityName, initial: string, target: string): CommandName[] | null {
   const def = entityDefinition(entity);
   const queue: [string, CommandName[]][] = [[initial, []]];
@@ -109,14 +109,14 @@ export function commandPath(entity: EntityName, initial: string, target: string)
 
 export async function moveTo(s: Services, projectId: string, entity: EntityName, target: string): Promise<string> {
   const recipe = RECIPES[entity];
-  if (!recipe) throw new Error(`No hay receta para «${entity}».`);
+  if (!recipe) throw new Error(`No recipe for "${entity}".`);
   const custom = recipe.states?.[target];
   if (custom) return custom(s, projectId);
   const id = entity === 'project' ? await recipe.create(s, projectId) : await recipe.create(s, projectId);
   const pid = entity === 'project' ? id : projectId;
   const row = await currentState(s, entity, id);
   const path = commandPath(entity, row, target);
-  if (!path) throw new Error(`«${entity}» no llega a «${target}» desde «${row}».`);
+  if (!path) throw new Error(`"${entity}" cannot reach "${target}" from "${row}".`);
   for (const command of path) {
     const data: unknown = await Promise.resolve(recipe.data?.[command]?.({ s, projectId: pid, entityId: id }) ?? {});
     await executeCommand(s, { command, actor: allowedActor(command), projectId: pid, entityId: id, data });
@@ -128,7 +128,7 @@ const TABLE: Partial<Record<EntityName, string>> = {};
 export async function currentState(s: Services, entity: EntityName, id: string): Promise<string> {
   const { TABLES } = await import('../../src/bus/bus.ts');
   const table = TABLE[entity] ?? TABLES[entity];
-  if (!table) throw new Error(`Sin tabla para ${entity}`);
+  if (!table) throw new Error(`No table for ${entity}`);
   const { sql } = await import('kysely');
   const { rows } = await sql<{ state: string }>`select state from ${sql.table(table)} where id = ${id}::uuid`.execute(s.db);
   return rows[0]?.state ?? '';

@@ -1,5 +1,5 @@
-// Soporte de pruebas de la API: servidor sobre una base efímera, una persona con sesión y
-// clientes con cookie + CSRF o con token de agente.
+// API test support: a server on an ephemeral database, a person with a session and
+// clients with a cookie + CSRF or with an agent token.
 
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll } from 'vitest';
@@ -7,7 +7,7 @@ import { type Environment, useEnvironment } from '../../../core/test/support/env
 import { CSRF_HEADER, COOKIE_SESSION, createPerson } from '../../src/credentials.ts';
 import { createServer } from '../../src/server.ts';
 
-export const PASSWORD = 'clave-de-prueba-larga';
+export const PASSWORD = 'long-test-password';
 
 export type Client = {
   request(
@@ -39,7 +39,7 @@ export function useApi(options: Parameters<typeof useEnvironment>[0] = {}): () =
     });
     await createPerson(e.services.db, 'ana', PASSWORD);
     const login = await app.inject({ method: 'POST', url: '/api/session', payload: { username: 'ana', password: PASSWORD } });
-    if (login.statusCode !== 200) throw new Error(`No se pudo iniciar sesión: ${login.body}`);
+    if (login.statusCode !== 200) throw new Error(`Could not log in: ${login.body}`);
     const cookie = login.cookies.find((c) => c.name === COOKIE_SESSION);
     const csrf = login.json<{ csrf: string }>().csrf;
     const client = (baseHeaders: Record<string, string>, cookies: Record<string, string>): Client => ({
@@ -68,7 +68,7 @@ export function useApi(options: Parameters<typeof useEnvironment>[0] = {}): () =
     await api?.app.close();
   });
   return () => {
-    if (!api) throw new Error('La API aún no está lista.');
+    if (!api) throw new Error('The API is not ready yet.');
     return api;
   };
 }

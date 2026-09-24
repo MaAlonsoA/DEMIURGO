@@ -1,8 +1,8 @@
-// Arranque del servidor MCP del canal de agentes por stdio.
-//   DEMIURGO_API_URL=http://127.0.0.1:8100 DEMIURGO_AGENT_TOKEN=dmg_agente_… DEMIURGO_PROYECTO=<uuid> \
+// Startup for the agent channel's MCP server over stdio.
+//   DEMIURGO_API_URL=http://127.0.0.1:8100 DEMIURGO_AGENT_TOKEN=dmg_agent_… DEMIURGO_PROJECT=<uuid> \
 //     node packages/mcp/src/main.ts
-// Es el único módulo de packages/mcp/src que lee variables de entorno; el resto recibe la
-// configuración como argumentos. stdout es el canal del protocolo: los avisos van a stderr.
+// The only module in packages/mcp/src that reads environment variables; the rest receive the
+// configuration as arguments. stdout is the protocol channel: warnings go to stderr.
 
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { type McpServerOptions, checkMcpOptions, createMcpServer } from './server.ts';
@@ -14,7 +14,7 @@ function exitWithError(message: string): never {
 
 function variable(name: string): string {
   const value = process.env[name]?.trim();
-  if (!value) exitWithError(`falta la variable de entorno ${name}.`);
+  if (!value) exitWithError(`missing environment variable ${name}.`);
   return value;
 }
 

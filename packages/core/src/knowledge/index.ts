@@ -1,4 +1,4 @@
-// Motor de conocimiento: comandos, flujos durables e integración con el resto del núcleo.
+// Knowledge engine: commands, durable workflows and integration with the rest of the core.
 import './commands.ts';
 import './workflows.ts';
 import './integration.ts';

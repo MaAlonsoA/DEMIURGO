@@ -1,5 +1,5 @@
-// Ejecuciones de agentes. Una ejecución siempre tiene un context pack de su constructor
-// declarado; el reintento reutiliza el mismo pack (I7).
+// Agent runs. A run always has a context pack from its declared builder;
+// a retry reuses the same pack (I7).
 
 import { AGENT_ACTIONS, FAILURE_KINDS, formatActor, system, type AgentAction } from '@demiurgo/domain';
 import { z } from 'zod';
@@ -24,9 +24,9 @@ registerGuards({
   async original_run_finished({ ctx, data }) {
     const id = string(field(data, 'run_id'));
     const original = await ctx.trx.selectFrom('ai_runs').select(['state', 'project_id']).where('id', '=', id).executeTakeFirst();
-    if (!original || original.project_id !== ctx.projectId) return 'La ejecución que se quiere reintentar no existe.';
+    if (!original || original.project_id !== ctx.projectId) return 'The run you want to retry does not exist.';
     if (!['failed', 'interrupted', 'cancelled'].includes(original.state)) {
-      return 'Solo se reintenta una ejecución fallida, interrumpida o cancelada.';
+      return 'Only a failed, interrupted or cancelled run can be retried.';
     }
     return null;
   },
@@ -169,7 +169,7 @@ registerHandlers({
       const id = e?.id ?? '';
       await ctx.trx
         .updateTable('ai_runs')
-        .set({ failure_kind: 'cancelled', error: data.reason ?? 'Cancelada por la persona.', finished_at: now() })
+        .set({ failure_kind: 'cancelled', error: data.reason ?? 'Cancelled by the person.', finished_at: now() })
         .where('id', '=', id)
         .execute();
       ctx.afterConfirm(() => ctx.services.engine.cancelRun(id));
@@ -196,6 +196,6 @@ registerGuards({
     const f = await graphUpToDate(ctx.trx, ctx.projectId);
     return f.upToDate
       ? null
-      : `El conocimiento del proyecto no está al día: faltan ${f.pending} actualización(es) por aplicar. Vuelve a intentarlo cuando termine.`;
+      : `The project's knowledge is not up to date: ${f.pending} update(s) are still pending. Try again once it finishes.`;
   },
 });

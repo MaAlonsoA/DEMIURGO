@@ -1,4 +1,4 @@
-// Dependencias inyectadas del núcleo. Nada de estado global fuera de aquí.
+// Injected dependencies of the core. No global state outside here.
 
 import type { Classifier, AgentPort } from '@demiurgo/domain';
 import type { Db } from './db/connection.ts';
@@ -32,7 +32,7 @@ export const consoleLogger: Logger = {
   error: (m, d) => console.error(JSON.stringify({ level: 'error', m, ...d })),
 };
 
-/** Motor que no ejecuta nada: para pruebas del bus sin flujos durables. */
+/** Engine that runs nothing: for bus tests without durable workflows. */
 export function inertEngine(): WorkflowEngine & {
   runs: string[];
   updates: string[];

@@ -1,6 +1,6 @@
-// Registro de flujos y conciliaciones que aportan otros módulos al motor. Es un módulo hoja
-// (sin dependencias del bus ni del motor) para que registrar al importar no dependa del orden
-// de evaluación de los módulos.
+// Registry of workflows and reconcilers that other modules contribute to the engine. It is a
+// leaf module (no dependency on the bus or the engine) so that registering on import doesn't
+// depend on module evaluation order.
 
 import type { Services } from '../services.ts';
 
@@ -26,7 +26,7 @@ export function registerReconciler(c: Reconciler): void {
   reconcilers.push(c);
 }
 
-// Servicios del motor en marcha, para los flujos registrados por otros módulos.
+// Services of the running engine, for the workflows registered by other modules.
 let current: Services | null = null;
 
 export function setEngineServices(s: Services | null): void {
@@ -34,6 +34,6 @@ export function setEngineServices(s: Services | null): void {
 }
 
 export function engineServices(): Services {
-  if (!current) throw new Error('El motor no está iniciado.');
+  if (!current) throw new Error('The engine has not started.');
   return current;
 }

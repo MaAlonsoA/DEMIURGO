@@ -1,14 +1,14 @@
-// Tipos del formato fijo de `design/`. El formato está descrito en `design/README.md`,
-// que se genera desde `readme.ts`.
+// Types for the fixed `design/` format. The format is described in `design/README.md`,
+// which is generated from `readme.ts`.
 
 export const RECORD_TYPES = ['decision', 'adr', 'fdr', 'bug'] as const;
 export type RecordType = (typeof RECORD_TYPES)[number];
 
-// design/ guarda la versión en curso de cada registro: en borrador (propuesto) o aprobada.
+// design/ keeps the current version of each record: in draft (proposed) or approved.
 export const DOCUMENT_STATUSES = ['proposed', 'approved'] as const;
 export type DocumentStatus = (typeof DOCUMENT_STATUSES)[number];
 
-export const VERIFICATIONS = ['automática', 'manual'] as const;
+export const VERIFICATIONS = ['automatic', 'manual'] as const;
 export type Verification = (typeof VERIFICATIONS)[number];
 
 export const LINK_TYPES = ['based_on', 'design_of', 'covers', 'origin', 'conflicts_with', 'derived_from'] as const;
@@ -64,15 +64,15 @@ export type Problem = { path: string; message: string };
 
 export type Result<T> = { ok: true; value: T } | { ok: false; problems: Problem[] };
 
-/** Plantilla por tipo: secciones obligatorias, en orden, antes de «Criterios de aceptación». */
+/** Template per type: mandatory sections, in order, before "Acceptance criteria". */
 export const TEMPLATES: Record<RecordType, { sections: readonly string[]; requiresCriteria: boolean }> = {
-  decision: { sections: ['Context', 'Decisión', 'Consequences'], requiresCriteria: false },
-  adr: { sections: ['Context', 'Options', 'Decisión', 'Consequences'], requiresCriteria: true },
-  fdr: { sections: ['Goal', 'Scope', 'Fuera de alcance', 'Behavior'], requiresCriteria: true },
-  bug: { sections: ['Reproducción', 'Expected', 'Observed'], requiresCriteria: true },
+  decision: { sections: ['Context', 'Decision', 'Consequences'], requiresCriteria: false },
+  adr: { sections: ['Context', 'Options', 'Decision', 'Consequences'], requiresCriteria: true },
+  fdr: { sections: ['Goal', 'Scope', 'Out of scope', 'Behavior'], requiresCriteria: true },
+  bug: { sections: ['Reproduction', 'Expected', 'Observed'], requiresCriteria: true },
 };
 
-export const CRITERIA_SECTION = 'Criterios de aceptación';
+export const CRITERIA_SECTION = 'Acceptance criteria';
 
 export const PREFIXES: Record<RecordType | 'taxonomy', string> = {
   decision: 'DEC',

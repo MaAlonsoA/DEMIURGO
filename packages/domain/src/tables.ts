@@ -1,4 +1,4 @@
-// Acceso tipado a las tablas generadas desde design/datos/.
+// Typed access to the tables generated from design/data/.
 
 import type { ActorTypeWithUnknown } from './actors.ts';
 import { CAPABILITIES, TRANSITIONS } from './generated/tables.ts';
@@ -48,10 +48,10 @@ export function allowedForCommand(c: CommandName, type: ActorTypeWithUnknown): b
 }
 
 /**
- * Invariante en código (I10): el componente de sistema del conocimiento solo escribe
- * conocimiento derivado, clasificaciones, evaluaciones de ideas y propuestas. Aunque la matriz
- * permita un comando a `system`, este componente no puede ejecutar otro (no se relaja editando
- * los datos).
+ * Invariant fixed in code (I10): the knowledge system component only writes derived
+ * knowledge, classifications, idea assessments and proposals. Even if the matrix
+ * allows `system` a command, this component cannot run any other one (it is not
+ * relaxed by editing the data).
  */
 export const COMMANDS_BY_COMPONENT: Readonly<Record<string, readonly string[]>> = {
   knowledge: [
@@ -72,7 +72,7 @@ export const COMMANDS_BY_COMPONENT: Readonly<Record<string, readonly string[]>> 
   ],
 };
 
-/** Si el actor es un componente de sistema con lista cerrada, ¿puede ejecutar el comando? */
+/** If the actor is a system component with a closed list, can it run the command? */
 export function allowedForComponent(c: CommandName, actor: { type: string; component?: string }): boolean {
   if (actor.type !== 'system' || !actor.component) return true;
   const list = COMMANDS_BY_COMPONENT[actor.component];
@@ -94,7 +94,7 @@ export function isCreation(c: CommandName): boolean {
 
 export type Transition = { to: string; guards: readonly string[] };
 
-/** Busca la transición (entidad, estado, comando). `estado` null significa «nuevo». */
+/** Looks up the transition (entity, state, command). `state` null means "new". */
 export function findTransition(entity: EntityName, state: string | null, command: CommandName): Transition | null {
   for (const t of entityDefinition(entity).transitions) {
     if (t.command !== command) continue;
@@ -116,7 +116,7 @@ export function isAuthorityState(entity: EntityName, state: string): boolean {
   return entityDefinition(entity).authority.includes(state);
 }
 
-/** Incrementos en orden, para saber qué entidades están implementadas. */
+/** Increments in order, to know which entities are implemented. */
 const INCREMENT_ORDER = ['S0', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'];
 
 export function implementedIn(entity: EntityName, currentIncrement: string): boolean {

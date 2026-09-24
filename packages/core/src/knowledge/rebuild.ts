@@ -1,8 +1,8 @@
-// Reconstrucción del grafo desde la autoridad con las clasificaciones guardadas (I10,
-// AC-CON-001-06). Reproduce las actualizaciones aplicadas en el orden en que se aplicaron (su
-// evento `knowledge_update.apply` en el diario), con las mismas funciones puras que la
-// actualización incremental; los veredictos salen de la caché por input_hash, sin volver a
-// llamar al clasificador. Las rechazadas no tuvieron efectos y no cuentan.
+// Rebuilds the graph from authority with the saved classifications (I10,
+// AC-CON-001-06). Replays the applied updates in the order they were applied (their
+// `knowledge_update.apply` event in the event log), with the same pure functions as the
+// incremental update; verdicts come from the cache by input_hash, without calling the
+// classifier again. Rejected updates had no effects and don't count.
 
 import {
   type Classifier,
@@ -21,9 +21,9 @@ import { DISCARD_TRIGGER, type AuthorityObject, deriveChange, deriveRetirement }
 import { loadGraph } from './graph-pg.ts';
 
 const withoutSavedVerdict = (): Promise<never> =>
-  Promise.reject(new Error('La reconstrucción no tiene veredictos guardados para una entrada: el grafo ha derivado.'));
+  Promise.reject(new Error('Rebuilding has no saved verdicts for an input: the graph has drifted.'));
 
-/** Clasificador que solo responde desde la caché: si falta algo, la reconstrucción falla. */
+/** A classifier that only answers from the cache: if something's missing, the rebuild fails. */
 const cacheOnly = (id: string): Classifier => ({
   id,
   choice: withoutSavedVerdict,
@@ -64,11 +64,11 @@ export async function rebuildGraph(db: Db, projectId: string): Promise<Graph> {
       }
       const d = await classifyChange(db, cacheOnly(u.classifier), g, change, taxonomy);
       if (d.verdictsHash !== u.input_hash) {
-        throw new Error(`La reconstrucción diverge en la actualización ${u.id}: los candidatos no coinciden.`);
+        throw new Error(`Rebuild diverges at update ${u.id}: the candidates don't match.`);
       }
       const reasons = verificationReasons(g, d);
       if (reasons.length > 0) {
-        throw new Error(`La reconstrucción diverge en la actualización ${u.id}: ${reasons.join(' ')}`);
+        throw new Error(`Rebuild diverges at update ${u.id}: ${reasons.join(' ')}`);
       }
       plan = buildPlan(g, change, applicableCategories(d.categories), d.verdicts, g.version + 1);
     }
@@ -81,7 +81,7 @@ export type RebuildComparison = {
   alive: string;
   rebuilt: string | null;
   equal: boolean;
-  /** Por qué no coinciden (vacío si coinciden). Nunca lanza: informa de la deriva. */
+  /** Why they don't match (empty if they do). Never throws: it reports the drift. */
   derivation: string | null;
 };
 
@@ -94,7 +94,7 @@ export async function compareRebuild(db: Db, projectId: string): Promise<Rebuild
       alive,
       rebuilt,
       equal,
-      derivation: equal ? null : 'La huella del grafo reconstruido no coincide con la del grafo vivo.',
+      derivation: equal ? null : "The rebuilt graph's fingerprint doesn't match the live graph's.",
     };
   } catch (e) {
     return { alive, rebuilt: null, equal: false, derivation: e instanceof Error ? e.message : String(e) };

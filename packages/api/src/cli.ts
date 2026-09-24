@@ -1,11 +1,11 @@
-// CLI de operación de DEMIURGO v2 (usa DEMIURGO_DATABASE_URL y el resto de la configuración).
-//   node packages/api/src/cli.ts migrar
-//   node packages/api/src/cli.ts crear-persona <usuario>          (la clave se lee de la entrada estándar)
-//   node packages/api/src/cli.ts crear-proyecto <nombre>
-//   node packages/api/src/cli.ts ejecucion-real <proyectoId> <accion> <json-alcance> [json-entrada]
-//   node packages/api/src/cli.ts evaluar-clasificador [prueba|desarrollo|todas]   (usa DEMIURGO_CLASIFICADOR)
-//   node packages/api/src/cli.ts importar-diseno <proyectoId> [dir]                (crea el lote pendiente de H1)
-//   node packages/api/src/cli.ts exportar-diseno <proyectoId> [--comprobar dir | --salida dir | dir]
+// Operations CLI for DEMIURGO v2 (uses DEMIURGO_DATABASE_URL and the rest of the configuration).
+//   node packages/api/src/cli.ts migrate
+//   node packages/api/src/cli.ts create-person <username>          (the password is read from stdin)
+//   node packages/api/src/cli.ts create-project <name>
+//   node packages/api/src/cli.ts real-run <projectId> <action> <json-scope> [json-input]
+//   node packages/api/src/cli.ts evaluate-classifier [test|dev|all]   (uses DEMIURGO_CLASSIFIER)
+//   node packages/api/src/cli.ts import-design <projectId> [dir]                (creates the H1 pending batch)
+//   node packages/api/src/cli.ts export-design <projectId> [--check dir | --out dir | dir]
 
 import {
   type Partition,
@@ -58,17 +58,17 @@ const commands: Record<string, () => Promise<void>> = {
 
   async 'create-person'() {
     const username = args[0];
-    if (!username) throw new Error('Uso: crear-persona <usuario> (clave por la entrada estándar)');
-    const key = await readInput();
+    if (!username) throw new Error('Usage: create-person <username> (password read from stdin)');
+    const password = await readInput();
     await withBase(async (c) => {
-      const id = await createPerson(c.db, username, key);
+      const id = await createPerson(c.db, username, password);
       console.log(JSON.stringify({ person: username, id }));
     });
   },
 
   async 'create-project'() {
     const name = args[0];
-    if (!name) throw new Error('Uso: crear-proyecto <nombre>');
+    if (!name) throw new Error('Usage: create-project <name>');
     const core = await startCore(config, consoleLogger);
     try {
       const r = await executeCommand(core.services, { command: 'project.create', actor: system('cli'), data: { name } });
@@ -80,8 +80,7 @@ const commands: Record<string, () => Promise<void>> = {
 
   async 'real-run'() {
     const [projectId, action, scope, input] = args;
-    if (!projectId || !action || !scope)
-      throw new Error('Uso: ejecucion-real <proyectoId> <accion> <json-alcance> [json-entrada]');
+    if (!projectId || !action || !scope) throw new Error('Usage: real-run <projectId> <action> <json-scope> [json-input]');
     const core = await startCore(config, consoleLogger);
     try {
       const r = await executeCommand(core.services, {
@@ -91,11 +90,7 @@ const commands: Record<string, () => Promise<void>> = {
         data: { action, scope: JSON.parse(scope) as unknown, input: input ? (JSON.parse(input) as unknown) : {} },
       });
       const state = await waitForRun(r.entityId);
-      const run = await core.services.db
-        .selectFrom('ai_runs')
-        .selectAll()
-        .where('id', '=', r.entityId)
-        .executeTakeFirstOrThrow();
+      const run = await core.services.db.selectFrom('ai_runs').selectAll().where('id', '=', r.entityId).executeTakeFirstOrThrow();
       console.log(JSON.stringify({ state, run }, null, 2));
     } finally {
       await core.stop();
@@ -114,13 +109,13 @@ commands['evaluate-classifier'] = async () => {
       output: 'evals/classifier/results',
     });
     console.log(evaluationSummary(report));
-    console.log(`Resultado guardado en ${report.file ?? '(sin archivo)'}`);
+    console.log(`Result saved to ${report.file ?? '(no file)'}`);
   });
 };
 
 commands['import-design'] = async () => {
   const [projectId, dir = 'design'] = args;
-  if (!projectId) throw new Error('Uso: importar-diseno <proyectoId> [dir]');
+  if (!projectId) throw new Error('Usage: import-design <projectId> [dir]');
   const core = await startCore(config, consoleLogger);
   try {
     const tree = await readTree(dir);
@@ -138,7 +133,7 @@ commands['import-design'] = async () => {
 
 commands['export-design'] = async () => {
   const [projectId, option, dir] = args;
-  if (!projectId) throw new Error('Uso: exportar-diseno <proyectoId> [--comprobar dir | --salida dir | dir]');
+  if (!projectId) throw new Error('Usage: export-design <projectId> [--check dir | --out dir | dir]');
   await withBase(async (c) => {
     if (option === '--check') {
       const diffs = await compareExport(c.db, projectId, await readTree(dir ?? 'design'));
@@ -147,29 +142,29 @@ commands['export-design'] = async () => {
         process.exitCode = 1;
         return;
       }
-      console.log(`✓ La exportación coincide byte a byte con ${dir ?? 'design'}/.`);
+      console.log(`✓ The export matches ${dir ?? 'design'}/ byte for byte.`);
       return;
     }
-    // Sin bandera, el segundo argumento es el directorio de salida.
+    // With no flag, the second argument is the output directory.
     const target = (option === '--out' ? dir : option) ?? 'design-exported';
-    if (target.startsWith('--')) throw new Error(`Opción desconocida: ${target}.`);
+    if (target.startsWith('--')) throw new Error(`Unknown option: ${target}.`);
     const tree = await exportDesign(c.db, projectId);
     const removed = await replaceTree(target, tree);
-    console.log(`Exportados ${tree.size} archivo(s) en ${target}/.`);
-    for (const r of removed) console.log(`  borrado ${r}: ya no está en la v2.`);
+    console.log(`Exported ${tree.size} file(s) to ${target}/.`);
+    for (const r of removed) console.log(`  removed ${r}: no longer in v2.`);
   });
 };
 
 const action = command ? commands[command] : undefined;
 if (!action) {
-  console.error(`Órdenes: ${Object.keys(commands).join(', ')}`);
+  console.error(`Commands: ${Object.keys(commands).join(', ')}`);
   process.exitCode = 2;
 } else {
   try {
     await action();
   } catch (e) {
     console.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
-    // Los motivos de una guarda dicen qué falta, documento a documento.
+    // A guard's reasons say what is missing, document by document.
     const reasons = (e as { reasons?: unknown }).reasons;
     if (Array.isArray(reasons)) for (const m of reasons) console.error(`  - ${String(m)}`);
     process.exitCode = 1;

@@ -1,11 +1,12 @@
-// Difusor de eventos: una sola conexión LISTEN a Postgres reparte los avisos del diario a las
-// conexiones SSE abiertas. El contenido se lee siempre del diario, nunca del aviso.
+// Event broadcaster: a single LISTEN connection to Postgres fans the event log's warnings out
+// to the open SSE connections. The content is always read from the event log, never from the
+// warning.
 
 import { EventEmitter } from 'node:events';
 import { Client } from 'pg';
 
 export type Broadcaster = {
-  /** Resuelve cuando el LISTEN está activo: después se puede leer el atraso sin perder avisos. */
+  /** Resolves once LISTEN is active: after that, the backlog can be read without missing warnings. */
   subscribe(projectId: string, f: () => void): Promise<() => void>;
   close(): Promise<void>;
 };
@@ -27,7 +28,7 @@ export function createBroadcaster(url: string): Broadcaster {
           const warning = JSON.parse(n.payload ?? '{}') as { project?: string };
           if (warning.project) emitter.emit(warning.project);
         } catch {
-          // Aviso ilegible: se ignora; el cliente volverá a leer el diario en el siguiente.
+          // Unreadable warning: ignored; the client will re-read the event log on the next one.
         }
       });
       await c.query('listen demiurgo_events');

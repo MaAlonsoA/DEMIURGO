@@ -1,10 +1,10 @@
-// JSON canónico y huellas. Mismo contenido → misma huella, sin depender del orden de las claves.
+// Canonical JSON and fingerprints. Same content → same fingerprint, regardless of key order.
 
 import { createHash } from 'node:crypto';
 
 export function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== 'object') {
-    if (typeof value === 'number' && !Number.isFinite(value)) throw new Error('Número no finito en JSON canónico.');
+    if (typeof value === 'number' && !Number.isFinite(value)) throw new Error('Non-finite number in canonical JSON.');
     return JSON.stringify(value) ?? 'null';
   }
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;

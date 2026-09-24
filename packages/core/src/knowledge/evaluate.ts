@@ -1,6 +1,6 @@
-// Evaluación del clasificador con el conjunto propio (§7.9, AC-CON-001-11): precisión y
-// cobertura por veredicto y por hallazgo, matriz de confusión y curva por umbral. El resultado
-// se registra en un archivo y en la tabla classifier_evaluations.
+// Classifier evaluation with its own dataset (§7.9, AC-CON-001-11): precision and
+// recall by verdict and by finding, confusion matrix and threshold curve. The result
+// is recorded in a file and in the classifier_evaluations table.
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -26,7 +26,7 @@ export type EvaluationReport = {
   classifier: string;
   date: string;
   dataset: string;
-  /** Huella sha256 de cada fichero del conjunto: con qué versión exacta se midió. */
+  /** sha256 fingerprint of each dataset file: which exact version was measured. */
   fingerprints: { verdicts: string; ideas: string };
   partition: Partition;
   durationMs: number;
@@ -37,9 +37,9 @@ export type EvaluationReport = {
 };
 
 const VERDICT_QUESTION =
-  'Con este cambio aprobado, ¿qué le pasa al candidato: sigue igual, se relaciona, hay que actualizarlo, queda invalidado, hay que añadirle algo u otra cosa?';
+  'With this change approved, what happens to the candidate: does it stay the same, relate to it, need updating, become invalid, need something added, or something else?';
 const IDEA_QUESTION =
-  '¿Qué relación tiene la idea con este conocimiento: la duplica, lo contradice, es incoherente, se relaciona o ninguna?';
+  'How does the idea relate to this knowledge: does it duplicate it, conflict with it, is it inconsistent, does it relate, or none of these?';
 
 function verdictItems(cases: readonly VerdictCase[]): ItemChoice[] {
   return cases.map((c) => ({
@@ -69,7 +69,7 @@ export async function evaluateClassifier(options: {
   classifier: Classifier;
   dir?: string;
   partition?: Partition;
-  /** Ítems por llamada al clasificador (la referencia por CLI agrupa cada tanda en una llamada). */
+  /** Items per classifier call (the CLI reference classifier groups each batch into one call). */
   chunkSize?: number;
   db?: Db;
   output?: string;
@@ -85,8 +85,8 @@ export async function evaluateClassifier(options: {
   const ideas = filter(loadJsonlCases(ideasText, ideaCaseSchema));
   const start = Date.now();
   const chunkSize = options.chunkSize ?? 50;
-  const revision = await respondInChunks(options.classifier, verdictItems(verdicts), chunkSize);
-  const ri = await respondInChunks(options.classifier, ideaItems(ideas), chunkSize);
+  const verdictResponses = await respondInChunks(options.classifier, verdictItems(verdicts), chunkSize);
+  const ideaResponses = await respondInChunks(options.classifier, ideaItems(ideas), chunkSize);
   const durationMs = Date.now() - start;
   const responses: EvaluationReport['responses'] = [];
   const cases = <C extends string>(
@@ -97,7 +97,7 @@ export async function evaluateClassifier(options: {
   ) =>
     list.map((c) => {
       const r = map.get(c.id);
-      // Una respuesta que falta o fuera de las clases cuenta como fallo (se registra como «other»/«none»).
+      // A missing response, or one outside the classes, counts as a miss (recorded as "other"/"none").
       const actual = (r && (classes as readonly string[]).includes(r.choice) ? r.choice : classes[classes.length - 1]) as C;
       responses.push({
         id: c.id,
@@ -105,7 +105,7 @@ export async function evaluateClassifier(options: {
         expected: c.expected,
         actual,
         confidence: r?.confidence ?? 0,
-        justification: r?.justification ?? 'sin respuesta',
+        justification: r?.justification ?? 'no response',
       });
       return { expected: c.expected, actual, confidence: r?.confidence ?? 0 };
     });
@@ -116,8 +116,8 @@ export async function evaluateClassifier(options: {
     fingerprints,
     partition,
     durationMs,
-    verdicts: evaluateClassification({ classes: VERDICTS, cases: cases(verdicts, revision, 'verdict', VERDICTS) }),
-    ideas: evaluateClassification({ classes: IDEA_FINDINGS, cases: cases(ideas, ri, 'idea', IDEA_FINDINGS) }),
+    verdicts: evaluateClassification({ classes: VERDICTS, cases: cases(verdicts, verdictResponses, 'verdict', VERDICTS) }),
+    ideas: evaluateClassification({ classes: IDEA_FINDINGS, cases: cases(ideas, ideaResponses, 'idea', IDEA_FINDINGS) }),
     responses,
   };
   if (options.output) {
@@ -149,15 +149,15 @@ export async function evaluateClassifier(options: {
 
 function table(title: string, r: EvaluationResult<string>): string {
   return [
-    `${title}: exactitud ${(r.accuracy * 100).toFixed(1)} % (${r.hits}/${r.total})`,
+    `${title}: accuracy ${(r.accuracy * 100).toFixed(1)} % (${r.hits}/${r.total})`,
     ...Object.entries(r.byClass).map(
       ([c, m]) =>
-        `  ${c.padEnd(12)} precisión ${(m.precision * 100).toFixed(0).padStart(3)} %  cobertura ${(m.recall * 100).toFixed(0).padStart(3)} %  (${m.hits}/${m.support})`,
+        `  ${c.padEnd(12)} precision ${(m.precision * 100).toFixed(0).padStart(3)} %  recall ${(m.recall * 100).toFixed(0).padStart(3)} %  (${m.hits}/${m.support})`,
     ),
   ].join('\n');
 }
 
-/** Resumen legible: precisión y cobertura por clase. */
+/** Human-readable summary: precision and recall by class. */
 export function evaluationSummary(i: EvaluationReport): string {
   return `${i.classifier} · ${i.partition} · ${i.durationMs} ms\n${table('Verdicts', i.verdicts)}\n${table('Ideas', i.ideas)}`;
 }

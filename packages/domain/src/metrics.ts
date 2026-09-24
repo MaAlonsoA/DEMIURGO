@@ -1,46 +1,46 @@
-// Métricas del conjunto de evaluación del clasificador (§7.9 del plan y §8 de la investigación de
-// stack) y formato de sus casos. Todo es puro: recibe casos ya clasificados (o el texto de un JSONL)
-// y devuelve números. Quién llama al clasificador y dónde se registran los resultados queda fuera.
+// Metrics for the classifier's evaluation set (§7.9 of the plan and §8 of the stack
+// research) and the format of its cases. Everything is pure: it takes already-classified cases
+// (or the text of a JSONL) and returns numbers. Who calls the classifier and where results are recorded stays out of scope.
 
 import { z } from 'zod';
 import { IDEA_FINDINGS, VERDICTS } from './classifier.ts';
 
-// ─── Métricas ────────────────────────────────────────────────────────────────────────────────────
+// ─── Metrics ────────────────────────────────────────────────────────────────────────────────────
 
 export type ClassifiedCase<C extends string> = {
   expected: C;
   actual: C;
-  /** Confianza que el clasificador da a `obtenido`, en [0, 1]. */
+  /** Confidence the classifier assigns to `actual`, in [0, 1]. */
   confidence?: number;
 };
 
 export type ClassMetrics = {
-  /** Casos cuya clase esperada es esta. */
+  /** Cases whose expected class is this one. */
   support: number;
-  /** Casos en los que el clasificador eligió esta clase. */
+  /** Cases where the classifier chose this class. */
   predicted: number;
-  /** Casos de esta clase que el clasificador acertó. */
+  /** Cases of this class the classifier got right. */
   hits: number;
-  /** aciertos / predichos; 0 si nadie eligió la clase (ver `sinPredicciones`). */
+  /** hits / predicted; 0 if nobody chose the class (see `noPredictions`). */
   precision: number;
-  /** Recall: aciertos / soporte; 0 si no hay casos de la clase (ver `sinSoporte`). */
+  /** Recall: hits / support; 0 if there are no cases of the class (see `noSupport`). */
   recall: number;
-  /** Media armónica de precisión y cobertura; 0 si las dos son 0. */
+  /** Harmonic mean of precision and recall; 0 if both are 0. */
   f1: number;
-  /** Nadie eligió la clase: la precisión vale 0 por convenio, no porque se equivocara. */
+  /** Nobody chose the class: precision is 0 by convention, not because it got it wrong. */
   noPredictions: boolean;
-  /** No hay casos esperados de la clase: la cobertura vale 0 por convenio. */
+  /** There are no expected cases of the class: recall is 0 by convention. */
   noSupport: boolean;
 };
 
 export type CurvePoint = {
   threshold: number;
-  /** Casos con confianza ≥ umbral: los que la cascada aplicaría sin revisión. */
+  /** Cases with confidence ≥ threshold: the ones the cascade would apply without review. */
   cases: number;
-  /** Cobertura de la curva: casos / total. */
+  /** Curve coverage: cases / total. */
   proportion: number;
   hits: number;
-  /** Exactitud sobre esos casos; null si no queda ninguno. */
+  /** Accuracy over those cases; null if none remain. */
   accuracy: number | null;
 };
 
@@ -50,17 +50,17 @@ export type EvaluationResult<C extends string> = {
   accuracy: number;
   byClass: Record<C, ClassMetrics>;
   /**
-   * Media sin ponderar sobre las clases que aparecen como esperadas u obtenidas. Una clase que
-   * ni se espera ni se predice no dice nada del clasificador y se deja fuera.
+   * Unweighted mean over the classes that appear as expected or actual. A class that
+   * is neither expected nor predicted says nothing about the classifier and is left out.
    */
   macro: { classes: C[]; precision: number; recall: number; f1: number };
-  /** `matriz[esperado][obtenido]` = número de casos. */
+  /** `matrix[expected][actual]` = number of cases. */
   matrix: Record<C, Record<C, number>>;
-  /** Curva cobertura–precisión por umbral de confianza; null si los casos no traen confianza. */
+  /** Coverage–precision curve by confidence threshold; null if the cases don't carry confidence. */
   curve: CurvePoint[] | null;
 };
 
-/** Incluye los umbrales de `UMBRALES_POR_DEFECTO` (0,55 y 0,8) para ver cómo rinde la cascada actual. */
+/** Includes the `DEFAULT_THRESHOLDS` thresholds (0.55 and 0.8) to see how the current cascade performs. */
 export const DEFAULT_CURVE_THRESHOLDS: readonly number[] = [0, 0.5, 0.55, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95];
 
 function quotient(a: number, b: number): number {
@@ -81,37 +81,37 @@ function isProbability(x: number): boolean {
 export function evaluateClassification<C extends string>(input: {
   classes: readonly C[];
   cases: readonly ClassifiedCase<C>[];
-  /** Umbrales de la curva; se ordenan y se quitan repetidos. Por defecto, `UMBRALES_CURVA_POR_DEFECTO`. */
+  /** Curve thresholds; sorted and de-duplicated. Defaults to `DEFAULT_CURVE_THRESHOLDS`. */
   thresholds?: readonly number[];
 }): EvaluationResult<C> {
   const { classes, cases } = input;
-  if (classes.length === 0) throw new Error('Hace falta al menos una clase.');
-  if (new Set(classes).size !== classes.length) throw new Error('Las clases no pueden repetirse.');
-  if (cases.length === 0) throw new Error('No hay casos que evaluar.');
+  if (classes.length === 0) throw new Error('At least one class is required.');
+  if (new Set(classes).size !== classes.length) throw new Error('Classes cannot repeat.');
+  if (cases.length === 0) throw new Error('There are no cases to evaluate.');
 
   const thresholds = [...new Set(input.thresholds ?? DEFAULT_CURVE_THRESHOLDS)].toSorted((a, b) => a - b);
   for (const u of thresholds) {
-    if (!isProbability(u)) throw new Error(`El umbral ${u} no está entre 0 y 1.`);
+    if (!isProbability(u)) throw new Error(`Threshold ${u} is not between 0 and 1.`);
   }
 
-  // Matriz de conteos por posición de clase: cuenta[esperado][obtenido].
+  // Count matrix by class position: counts[expected][actual].
   const position = new Map<string, number>(classes.map((c, i) => [c, i]));
   const counts = classes.map(() => classes.map(() => 0));
   let withConfidence = 0;
   for (const [i, sample] of cases.entries()) {
     const e = position.get(sample.expected);
     const o = position.get(sample.actual);
-    if (e === undefined) throw new Error(`El caso ${i + 1} usa una clase desconocida: «${sample.expected}».`);
-    if (o === undefined) throw new Error(`El caso ${i + 1} usa una clase desconocida: «${sample.actual}».`);
+    if (e === undefined) throw new Error(`Case ${i + 1} uses an unknown class: "${sample.expected}".`);
+    if (o === undefined) throw new Error(`Case ${i + 1} uses an unknown class: "${sample.actual}".`);
     if (sample.confidence !== undefined) {
-      if (!isProbability(sample.confidence)) throw new Error(`La confianza del caso ${i + 1} no está entre 0 y 1.`);
+      if (!isProbability(sample.confidence)) throw new Error(`Case ${i + 1}'s confidence is not between 0 and 1.`);
       withConfidence += 1;
     }
     const row = counts[e];
     if (row) row[o] = (row[o] ?? 0) + 1;
   }
   if (withConfidence > 0 && withConfidence < cases.length) {
-    throw new Error(`Faltan confianzas: ${cases.length - withConfidence} de ${cases.length} casos no la traen.`);
+    throw new Error(`Missing confidence values: ${cases.length - withConfidence} of ${cases.length} cases don't have one.`);
   }
 
   const cell = (e: number, o: number): number => counts[e]?.[o] ?? 0;
@@ -164,11 +164,11 @@ export function evaluateClassification<C extends string>(input: {
   return { total: cases.length, hits, accuracy: hits / cases.length, byClass, macro, matrix, curve };
 }
 
-// ─── Casos en JSONL ──────────────────────────────────────────────────────────────────────────────
+// ─── Cases in JSONL ──────────────────────────────────────────────────────────────────────────────
 
 /**
- * Lee un JSONL (un caso por línea; las líneas en blanco se ignoran) y valida cada caso con `esquema`.
- * Si alguna línea falla, lanza un único error con todas las líneas y sus motivos.
+ * Reads a JSONL (one case per line; blank lines are ignored) and validates each case with `schema`.
+ * If any line fails, throws a single error with all the lines and their reasons.
  */
 export function loadJsonlCases<E extends z.ZodType>(text: string, schema: E): z.output<E>[] {
   const cases: z.output<E>[] = [];
@@ -179,48 +179,42 @@ export function loadJsonlCases<E extends z.ZodType>(text: string, schema: E): z.
     try {
       value = JSON.parse(line);
     } catch (e) {
-      errors.push(`línea ${i + 1}: JSON no válido (${e instanceof Error ? e.message : String(e)})`);
+      errors.push(`line ${i + 1}: invalid JSON (${e instanceof Error ? e.message : String(e)})`);
       continue;
     }
     const r = schema.safeParse(value);
     if (r.success) cases.push(r.data);
     else {
       for (const p of r.error.issues) {
-        errors.push(`línea ${i + 1}: ${p.path.map(String).join('.') || '(raíz)'}: ${p.message}`);
+        errors.push(`line ${i + 1}: ${p.path.map(String).join('.') || '(root)'}: ${p.message}`);
       }
     }
   }
-  if (errors.length > 0) throw new Error(`El JSONL no cumple el formato:\n${errors.join('\n')}`);
+  if (errors.length > 0) throw new Error(`The JSONL doesn't match the format:\n${errors.join('\n')}`);
   return cases;
 }
 
-// ─── Formato de los conjuntos de evaluación del clasificador (evals/clasificador/v1) ─────────────
+// ─── Format of the classifier's evaluation sets (evals/classifier/v1) ─────────────
 
 export const EVAL_PARTITIONS = ['dev', 'test'] as const;
 export type EvalPartition = (typeof EVAL_PARTITIONS)[number];
 
-/** Tipos de artefacto con autoridad que disparan «Actualizar conocimiento». */
+/** Artifact types with authority that trigger "Update knowledge". */
 export const EVAL_CHANGE_TYPES = ['decision', 'fdr', 'adr', 'criterion'] as const;
-/** Tipos de nodo del conocimiento que pueden ser candidatos. */
+/** Knowledge node types that can be candidates. */
 export const EVAL_NODE_TYPES = ['decision', 'fdr', 'adr', 'criterion', 'idea', 'source'] as const;
 
-/** Marcas opcionales de dificultad, para medir por separado los casos difíciles (ablaciones). */
-export const EVAL_CASE_LABELS = [
-  'injection',
-  'shared_words',
-  'implicit_supersession',
-  'negation',
-  'synonyms',
-] as const;
+/** Optional difficulty labels, to measure hard cases separately (ablations). */
+export const EVAL_CASE_LABELS = ['injection', 'shared_words', 'implicit_supersession', 'negation', 'synonyms'] as const;
 
-/** `CODIGO@version`, por ejemplo `DEC-USU-002@2` o `AC-CUO-002-01@1`. */
+/** `CODE@version`, e.g. `DEC-USU-002@2` or `AC-CUO-002-01@1`. */
 const RE_REF = /^[A-Z]+(?:-[A-Z0-9]+)+@[1-9][0-9]*$/;
-const nonEmptyText = z.string().regex(/\S/, 'No puede estar vacío.');
+const nonEmptyText = z.string().regex(/\S/, 'Cannot be empty.');
 
 function artifactSchema<const T extends readonly [string, ...string[]]>(types: T) {
   return z
     .object({
-      ref: z.string().regex(RE_REF, 'Debe tener la forma CODIGO@version.'),
+      ref: z.string().regex(RE_REF, 'Must have the form CODE@version.'),
       type: z.enum(types),
       title: nonEmptyText,
       text: nonEmptyText,
@@ -234,7 +228,7 @@ const common = {
   labels: z.array(z.enum(EVAL_CASE_LABELS)).min(1).optional(),
 };
 
-/** Caso de `veredictos.jsonl`: veredicto esperado para el par (cambio, candidato). */
+/** Case from `verdicts.jsonl`: expected verdict for the (change, candidate) pair. */
 export const verdictCaseSchema = z
   .object({
     id: z.string().regex(/^V[0-9]{3,}$/),
@@ -248,7 +242,7 @@ export const verdictCaseSchema = z
   .strict();
 export type VerdictCase = z.infer<typeof verdictCaseSchema>;
 
-/** Caso de `ideas.jsonl`: hallazgo esperado para el par (idea, nodo). */
+/** Case from `ideas.jsonl`: expected finding for the (idea, node) pair. */
 export const ideaCaseSchema = z
   .object({
     id: z.string().regex(/^I[0-9]{3,}$/),

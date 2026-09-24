@@ -1,6 +1,6 @@
-// Exportación de design/ desde la v2 (H1): la última versión no descartada de cada registro y
-// de cada taxonomía, en el formato canónico, más sus anexos y el README fijo. Justo después de
-// ratificar una importación, coincide byte a byte con el árbol importado.
+// design/ export from the v2 (H1): the latest non-discarded version of each record and each
+// taxonomy, in the canonical format, plus their annexes and the fixed README. Right after
+// ratifying an import, it matches the imported tree byte for byte.
 
 import {
   FOLDERS,
@@ -16,14 +16,15 @@ import type { Selectable } from 'kysely';
 import type { Db } from '../db/connection.ts';
 import type { DB } from '../db/schema.ts';
 
-// design/ guarda la versión en curso de cada registro, que está en borrador o aprobada.
+// design/ keeps the version in progress of each record, which is either draft or approved.
 const DOCUMENT_STATUS: Record<string, DocumentStatus> = { draft: 'proposed', approved: 'approved' };
 
 type Row<T extends keyof DB> = Selectable<DB[T]>;
 
 /**
- * «Deriva de» de un criterio: el de su origen, siguiendo el arrastre (mantener o modificar deriva del
- * mismo código en la versión anterior) hasta el criterio que nació; null si nació sin derivar.
+ * A criterion's "Derived from": its origin's, following the carry-over (kept or modified derives
+ * from the same code in the previous version) up to the criterion that was born; null if it was
+ * born without deriving.
  */
 export async function derivationOf(db: Db, criterionId: string): Promise<string | null> {
   let cursor: string | null = criterionId;
@@ -42,7 +43,7 @@ export async function derivationOf(db: Db, criterionId: string): Promise<string 
   return null;
 }
 
-/** Documento de design/ de una versión concreta de un registro, tal como se exporta. */
+/** The design/ document of a specific version of a record, as it is exported. */
 export async function versionDocument(
   db: Db,
   r: Row<'records'>,
@@ -85,7 +86,7 @@ export async function versionDocument(
     criteria: criteria.map((c) => ({
       code: c.code,
       title: c.title,
-      verification: c.verification === 'automatic' ? 'automática' : 'manual',
+      verification: c.verification === 'automatic' ? 'automatic' : 'manual',
       check: c.check_text,
       statement: c.statement,
       ...(derivedFrom.has(c.id) ? { derivedFrom: derivedFrom.get(c.id) } : {}),
@@ -96,7 +97,7 @@ export async function versionDocument(
   return { doc, annexes };
 }
 
-/** Documento de design/ de una versión concreta de una taxonomía. */
+/** The design/ document of a specific version of a taxonomy. */
 export function taxonomyDocument(t: Row<'taxonomies'>): TaxonomyDocument {
   return {
     kind: 'taxonomy',
@@ -142,7 +143,7 @@ export async function exportDesign(db: Db, projectId: string): Promise<Map<strin
   return tree;
 }
 
-/** Diferencias entre la exportación y un árbol (vacío si coinciden byte a byte). */
+/** Differences between the export and a tree (empty if they match byte for byte). */
 export async function compareExport(db: Db, projectId: string, tree: ReadonlyMap<string, string>): Promise<string[]> {
   return differences(tree, await exportDesign(db, projectId));
 }

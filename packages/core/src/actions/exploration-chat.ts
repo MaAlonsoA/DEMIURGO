@@ -1,6 +1,6 @@
-// Acción exploration_chat: conversación de exploración. El constructor recopila de forma
-// determinista lo declarado; el aplicador convierte la salida validada en mensajes, preguntas,
-// inferencias y un lote de propuestas. Nada de esto toca la autoridad.
+// exploration_chat action: an exploration conversation. The builder deterministically gathers
+// what's on record; the applier turns the validated output into messages, questions,
+// inferences and a batch of proposals. None of this touches authority.
 
 import { DomainError, system } from '@demiurgo/domain';
 import { registerBuilder } from '../context/build.ts';
@@ -28,8 +28,8 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
     .where('id', '=', scope.id ?? '')
     .where('project_id', '=', projectId)
     .executeTakeFirst();
-  if (!exploration) throw new DomainError('not_found', 'La exploración no existe.');
-  // Mensajes más recientes primero para el presupuesto; en el pack van en orden cronológico.
+  if (!exploration) throw new DomainError('not_found', 'The exploration does not exist.');
+  // Most recent messages first for the budget; they go in chronological order in the pack.
   const messages = await trx
     .selectFrom('messages')
     .select(['id', 'author', 'kind', 'body', 'question_id'])
@@ -63,7 +63,7 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
         code: d.code,
         version: d.n,
         title: d.title,
-        decision: sections.find((s) => s.title === 'Decisión')?.content.slice(0, 400) ?? '',
+        decision: sections.find((s) => s.title === 'Decision')?.content.slice(0, 400) ?? '',
       };
     }),
     (d) => d.title.length + d.decision.length,
@@ -157,7 +157,7 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
       data: { exploration_id: scope.id, question: q.question, reason: q.reason, impact: q.impact },
     });
   }
-  // Solo se infieren preguntas pendientes que estaban en el context pack de esta ejecución.
+  // Only pending questions that were in this run's context pack get inferred.
   const pending = new Set(content.questions.filter((q) => q.state === 'pending').map((q) => q.id));
   for (const inference of output.inferences) {
     if (!pending.has(inference.question_id)) continue;
@@ -177,7 +177,7 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
       command: 'batch.submit',
       actor,
       data: {
-        summary: `Propuestas de la conversación de exploración (${output.proposals.length}).`,
+        summary: `Proposals from the exploration conversation (${output.proposals.length}).`,
         batch_type: 'agent',
         resolution: 'item',
         run_id: run.id,

@@ -1,5 +1,5 @@
-// Arranque del núcleo a partir de la configuración: base migrada, agente y clasificador
-// según la configuración y motor durable en marcha.
+// Core startup from the configuration: migrated database, agent and classifier per the
+// configuration, and durable engine running.
 
 import type { Classifier, AgentPort } from '@demiurgo/domain';
 import { createClaudeCliAgent } from './agents/claude-cli.ts';
@@ -24,7 +24,7 @@ function baseClassifier(config: Config): Classifier {
   return createSimulatedClassifier();
 }
 
-/** Clasificador configurado; con revisor, en cascada: la confianza media la revisa otro modelo. */
+/** Configured classifier; with a reviewer, cascaded: medium confidence is reviewed by another model. */
 export function createClassifier(config: Config): Classifier {
   const base = baseClassifier(config);
   if (config.reviewer === 'none') return base;
@@ -36,7 +36,7 @@ export type Core = StartedEngine & { connection: Connection };
 export async function startCore(config: Config, record: Logger = consoleLogger): Promise<Core> {
   const connection = connect(config.baseUrl);
   const applied = await migrate(connection.pool);
-  if (applied.length) record.info('Migraciones aplicadas', { applied });
+  if (applied.length) record.info('Migrations applied', { applied });
   const engine = await startEngine(
     { db: connection.db, clock: () => new Date(), agent: createAgent(config), classifier: createClassifier(config), record },
     config.baseUrl,

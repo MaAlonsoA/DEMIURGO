@@ -1,4 +1,4 @@
-// Runner aislado: JobSpec cerrado, broker (único módulo que invoca docker) y sonda de aislamiento.
+// Isolated runner: closed JobSpec, broker (the only module that invokes docker) and isolation probe.
 
 export {
   ALLOWED_ENV,

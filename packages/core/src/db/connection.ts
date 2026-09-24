@@ -1,10 +1,10 @@
-// Conexión a Postgres con Kysely. Una única base para dominio, diario, motor y grafo.
+// Postgres connection with Kysely. A single database for domain, event log, engine and graph.
 
 import { Kysely, PostgresDialect, type Transaction } from 'kysely';
 import { Pool, types } from 'pg';
 import type { DB } from './schema.ts';
 
-// bigint (int8) llega como texto para no perder precisión; los contadores se convierten al leer.
+// bigint (int8) arrives as text to avoid losing precision; counters are converted on read.
 types.setTypeParser(20, (v) => v);
 
 export type Db = Kysely<DB>;

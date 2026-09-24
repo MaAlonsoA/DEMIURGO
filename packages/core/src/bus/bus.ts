@@ -1,10 +1,10 @@
-// Bus de comandos. Orden fijo para cada comando:
-//   1. capacidad (matriz)       → 403 sin efectos
-//   2. validación de los datos  → 422 sin efectos
-//   3. carga de la entidad      → 404 sin efectos
-//   4. transición (tabla)       → 409 sin efectos
-//   5. guardas                  → 409 con motivos, sin efectos
-//   6. aplicar + estado + evento en la misma transacción.
+// Command bus. Fixed order for every command:
+//   1. capability (matrix)      → 403, no effects
+//   2. data validation          → 422, no effects
+//   3. entity load              → 404, no effects
+//   4. transition (table)       → 409, no effects
+//   5. guards                   → 409 with reasons, no effects
+//   6. apply + state + event in the same transaction.
 
 import { randomUUID } from 'node:crypto';
 import {
@@ -26,7 +26,7 @@ import { GUARDS } from './guards.ts';
 import { HANDLERS } from './handlers.ts';
 import type { Cause, CommandContext, LoadedEntity, Request, Result, Tx } from './types.ts';
 
-/** Tabla de cada entidad implementada. */
+/** Table for each implemented entity. */
 export const TABLES: Partial<Record<EntityName, string>> = {
   project: 'projects',
   agent_token: 'agent_tokens',
@@ -52,18 +52,16 @@ export const TABLES: Partial<Record<EntityName, string>> = {
 
 type Pending = () => Promise<void> | void;
 
-/** Ejecuta un comando en su propia transacción y, tras confirmar, el trabajo diferido. */
+/** Runs a command in its own transaction and, after commit, its deferred work. */
 export async function executeCommand(services: Services, request: Request): Promise<Result> {
   checkCapability(request);
   const pending: Pending[] = [];
-  const result = await services.db
-    .transaction()
-    .execute((trx) => executeInTransaction(services, trx, request, pending));
+  const result = await services.db.transaction().execute((trx) => executeInTransaction(services, trx, request, pending));
   await executePending(services, pending);
   return result;
 }
 
-/** Ejecuta varios comandos dependientes en una sola transacción. */
+/** Runs several dependent commands in a single transaction. */
 export async function inTransaction<T>(
   services: Services,
   job: (execute: (p: Request) => Promise<Result>, trx: Tx) => Promise<T>,
@@ -84,57 +82,52 @@ async function executePending(services: Services, pending: Pending[]): Promise<v
     try {
       await f();
     } catch (e) {
-      services.record.error('Fallo en trabajo diferido tras confirmar', { error: String(e) });
+      services.record.error('Deferred job failed after commit', { error: String(e) });
     }
   }
 }
 
 function checkCapability(p: Request): void {
   if (!allowedForCommand(p.command, p.actor.type)) {
-    throw new DomainError('forbidden', `${formatActor(p.actor)} no puede ejecutar «${p.command}».`, [
-      `La matriz de capacidades no permite «${p.command}» a ${p.actor.type}.`,
+    throw new DomainError('forbidden', `${formatActor(p.actor)} cannot execute "${p.command}".`, [
+      `The capability matrix does not allow "${p.command}" for ${p.actor.type}.`,
     ]);
   }
   if (!allowedForComponent(p.command, p.actor)) {
-    throw new DomainError('forbidden', `${formatActor(p.actor)} no puede ejecutar «${p.command}».`, [
-      `El componente ${formatActor(p.actor)} solo escribe conocimiento derivado, clasificaciones y propuestas.`,
+    throw new DomainError('forbidden', `${formatActor(p.actor)} cannot execute "${p.command}".`, [
+      `The component ${formatActor(p.actor)} only writes derived knowledge, classifications and proposals.`,
     ]);
   }
 }
 
 async function loadEntity(trx: Tx, entity: EntityName, id: string, projectId: string): Promise<LoadedEntity> {
   const table = TABLES[entity];
-  if (!table) throw new DomainError('not_implemented', `La entidad «${entity}» aún no está implementada.`);
+  if (!table) throw new DomainError('not_implemented', `The "${entity}" entity is not implemented yet.`);
   const isProject = entity === 'project';
   const { rows } = await sql<Record<string, unknown>>`
     select * from ${sql.table(table)} where id = ${id}::uuid for update`.execute(trx);
   const row = rows[0];
   const projectRow = isProject ? row?.id : row?.project_id;
   if (!row || projectRow !== projectId) {
-    throw new DomainError('not_found', `No existe ${entityLabel(entity).toLowerCase()} ${id} en este proyecto.`);
+    throw new DomainError('not_found', `There is no ${entityLabel(entity).toLowerCase()} ${id} in this project.`);
   }
   return { id, projectId, state: String(row.state), row };
 }
 
 const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function executeInTransaction(
-  services: Services,
-  trx: Tx,
-  request: Request,
-  pending: Pending[],
-): Promise<Result> {
+export async function executeInTransaction(services: Services, trx: Tx, request: Request, pending: Pending[]): Promise<Result> {
   checkCapability(request);
   const { command, actor } = request;
   const entity = entityOf(command);
   const handler = HANDLERS[command];
-  if (!handler) throw new DomainError('not_implemented', `El comando «${command}» aún no está implementado.`);
+  if (!handler) throw new DomainError('not_implemented', `The "${command}" command is not implemented yet.`);
 
   const validation = handler.data.safeParse(request.data ?? {});
   if (!validation.success) {
     throw new DomainError(
       'validation',
-      `Los datos de «${command}» no son válidos.`,
+      `The data for "${command}" is invalid.`,
       validation.error.issues.map((i) => `${i.path.join('.') || 'data'}: ${i.message}`),
     );
   }
@@ -142,21 +135,21 @@ export async function executeInTransaction(
   const creation = isCreation(command);
   let projectId = request.projectId ?? '';
   if (command !== 'project.create') {
-    if (!RE_UUID.test(projectId)) throw new DomainError('not_found', 'Falta el proyecto.');
+    if (!RE_UUID.test(projectId)) throw new DomainError('not_found', 'The project is missing.');
     const project = await sql<{ state: string }>`select state from projects where id = ${projectId}::uuid for update`.execute(
       trx,
     );
     const projectState = project.rows[0]?.state;
-    if (!projectState) throw new DomainError('not_found', 'El proyecto no existe.');
+    if (!projectState) throw new DomainError('not_found', 'The project does not exist.');
     if (projectState === 'archived' && entity !== 'project') {
-      throw new DomainError('invalid_transition', 'El proyecto está archivado: no admite cambios.');
+      throw new DomainError('invalid_transition', 'The project is archived: it does not accept changes.');
     }
   }
 
   let loaded: LoadedEntity | null = null;
   if (!creation) {
     const id = request.entityId ?? '';
-    if (!RE_UUID.test(id)) throw new DomainError('not_found', `Falta la entidad sobre la que actúa «${command}».`);
+    if (!RE_UUID.test(id)) throw new DomainError('not_found', `The entity that "${command}" acts on is missing.`);
     loaded = await loadEntity(trx, entity, id, projectId);
   }
 
@@ -165,7 +158,7 @@ export async function executeInTransaction(
     const state = loaded ? stateLabel(entity, loaded.state) : 'new';
     throw new DomainError(
       'invalid_transition',
-      `No se puede aplicar «${command}» a ${entityLabel(entity).toLowerCase()} en estado «${state}».`,
+      `Cannot apply "${command}" to ${entityLabel(entity).toLowerCase()} in state "${state}".`,
     );
   }
 
@@ -192,15 +185,15 @@ export async function executeInTransaction(
   const reasons: string[] = [];
   for (const name of transition.guards) {
     const guard = GUARDS[name];
-    if (!guard) throw new Error(`La guarda «${name}» no tiene implementación.`);
+    if (!guard) throw new Error(`The "${name}" guard has no implementation.`);
     const reason = await guard({ ctx, data: validation.data, entity: loaded });
     if (reason) reasons.push(reason);
   }
   if (reasons.length > 0) {
-    throw new DomainError('guard', `No se cumplen las condiciones de «${command}».`, reasons);
+    throw new DomainError('guard', `The conditions for "${command}" are not met.`, reasons);
   }
 
-  // El estado cambia antes de aplicar: los comandos anidados ya ven la entidad en su estado nuevo.
+  // The state changes before applying: nested commands already see the entity in its new state.
   if (loaded) {
     const table = TABLES[entity] as string;
     await sql`update ${sql.table(table)} set state = ${transition.to} where id = ${loaded.id}::uuid`.execute(trx);
@@ -252,7 +245,7 @@ type NewEvent = {
 
 const toJson = (v: unknown): string | null => (v === undefined ? null : JSON.stringify(v));
 
-/** Añade un evento al diario con el siguiente número de secuencia del proyecto. */
+/** Appends an event to the log with the project's next sequence number. */
 export async function registerEvent(trx: Tx, e: NewEvent): Promise<number> {
   const { event_seq } = await trx
     .updateTable('projects')

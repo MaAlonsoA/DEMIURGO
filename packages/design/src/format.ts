@@ -1,6 +1,6 @@
-// Lectura y escritura del formato fijo de `design/`.
-// Regla central: un documento es válido solo si `renderizar(parsear(texto)) === texto`.
-// Así la exportación desde la v2 reproduce `design/` byte a byte.
+// Reading and writing of the fixed `design/` format.
+// Core rule: a document is valid only if `render(parse(text)) === text`.
+// This way the export from the v2 reproduces `design/` byte for byte.
 
 import { parse as parseYaml, stringify as serializeYaml } from 'yaml';
 import { z } from 'zod';
@@ -24,18 +24,18 @@ import {
 
 const RE_RECORD_CODE = /^(DEC|ADR|FDR|BUG)-[A-Z]{3}-\d{3}$/;
 const RE_TAXONOMY_CODE = /^TAX-\d{3}$/;
-// Un enlace apunta a un registro (no a una taxonomía) y a una versión que empieza en 1.
+// A link points to a record (not a taxonomy) and to a version starting at 1.
 const RE_REFERENCE = /^((?:DEC|ADR|FDR|BUG)-[A-Z]{3}-\d{3})@([1-9]\d*)$/;
 const RE_AC_CODE = /^AC-[A-Z]{3}-\d{3}-\d{2}$/;
-// Encabezado de Markdown (de `#` a `######`) cuyo texto empieza por un código de AC.
+// A Markdown heading (from `#` to `######`) whose text starts with an AC code.
 const RE_AC_HEADING = /^ {0,3}#{1,6}[ \t]+AC-[A-Z]{3}-\d{3}-\d{2}(?![\w-])/;
-// Espacio en blanco de cualquier tipo al final de una línea (incluido el espacio duro U+00A0).
+// Whitespace of any kind at the end of a line (including the hard space U+00A0).
 const RE_TRAILING_SPACE = /[^\S\n]$/;
 const SEPARATOR = ' · ';
 
 const recordFrontSchema = z
   .object({
-    code: z.string().regex(RE_RECORD_CODE, 'El código debe tener la forma TIP-DOM-NNN'),
+    code: z.string().regex(RE_RECORD_CODE, 'The code must have the form TYPE-DOM-NNN'),
     type: z.enum(RECORD_TYPES),
     title: z.string().min(3),
     version: z.number().int().positive(),
@@ -50,17 +50,17 @@ const recordFrontSchema = z
       z
         .object({
           type: z.enum(LINK_TYPES),
-          target: z.string().regex(RE_REFERENCE, 'Referencia CODIGO@version a un registro, con la versión desde 1'),
+          target: z.string().regex(RE_REFERENCE, 'Reference CODE@version to a record, with the version starting at 1'),
         })
         .strict(),
     ),
-    annexes: z.array(z.string().regex(/^datos\/[a-z0-9-]+\.yaml$/)),
+    annexes: z.array(z.string().regex(/^data\/[a-z0-9-]+\.yaml$/)),
   })
   .strict();
 
 const taxonomyFrontSchema = z
   .object({
-    code: z.string().regex(RE_TAXONOMY_CODE, 'El código debe tener la forma TAX-NNN'),
+    code: z.string().regex(RE_TAXONOMY_CODE, 'The code must have the form TAX-NNN'),
     type: z.literal('taxonomy'),
     title: z.string().min(3),
     version: z.number().int().positive(),
@@ -100,9 +100,9 @@ export function formatReference(ref: Reference): string {
 }
 
 /**
- * Arregla lo que el formato no admite y la regla canónica no corrige sola: CRLF, espacios en
- * blanco de cualquier tipo al final de línea y varias líneas en blanco seguidas. `canonizar`
- * lo aplica antes de leer cada documento.
+ * Fixes what the format doesn't allow and the canonical rule doesn't correct on its own: CRLF,
+ * whitespace of any kind at the end of a line, and several blank lines in a row. `canonicalize`
+ * applies it before reading each document.
  */
 export function normalizeWhitespace(text: string): string {
   return text
@@ -112,38 +112,38 @@ export function normalizeWhitespace(text: string): string {
 }
 
 /**
- * CRLF y espacios finales en un archivo de texto de `design/` (documento o anexo). Sobreviven
- * a parsear y renderizar, así que la regla canónica no los detecta: se rechazan aquí.
+ * CRLF and trailing whitespace in a `design/` text file (document or annex). They survive
+ * parsing and rendering, so the canonical rule doesn't detect them: they are rejected here.
  */
 export function whitespaceProblems(text: string, path: string): Problem[] {
-  if (text.includes('\r')) return [{ path, message: 'El archivo usa finales de línea CRLF; el formato exige LF.' }];
+  if (text.includes('\r')) return [{ path, message: 'The file uses CRLF line endings; the format requires LF.' }];
   const withSpaces = text.split('\n').findIndex((l) => RE_TRAILING_SPACE.test(l));
   if (withSpaces >= 0) {
-    return [{ path, message: `La línea ${withSpaces + 1} termina con espacios; el formato no los admite.` }];
+    return [{ path, message: `Line ${withSpaces + 1} ends with spaces; the format doesn't allow them.` }];
   }
   return [];
 }
 
-/** Lee YAML; un error de sintaxis se devuelve como problema en español, sin traza de pila. */
+/** Reads YAML; a syntax error is returned as a plain problem, without a stack trace. */
 export function readYaml(text: string, path: string, what: string): Result<unknown> {
   try {
     return { ok: true, value: parseYaml(text) as unknown };
   } catch (e) {
     const { code, linePos } = e as { code?: unknown; linePos?: readonly { line: number; col: number }[] };
     const pos = linePos?.[0];
-    const where = pos ? ` en la línea ${pos.line}, columna ${pos.col}` : '';
+    const where = pos ? ` at line ${pos.line}, column ${pos.col}` : '';
     const codeSuffix = typeof code === 'string' ? ` (${code})` : '';
-    return failure(path, `${what} no es YAML válido: error de sintaxis${where}${codeSuffix}.`);
+    return failure(path, `${what} is not valid YAML: syntax error${where}${codeSuffix}.`);
   }
 }
 
 function splitFrontMatter(text: string, path: string): Result<{ front: unknown; body: string }> {
   const spaces = whitespaceProblems(text, path);
   if (spaces.length > 0) return { ok: false, problems: spaces };
-  if (!text.startsWith('---\n')) return failure(path, 'Falta el frontmatter: el archivo debe empezar por «---».');
+  if (!text.startsWith('---\n')) return failure(path, 'Missing frontmatter: the file must start with "---".');
   const end = text.indexOf('\n---\n', 3);
-  if (end < 0) return failure(path, 'El frontmatter no está cerrado con «---».');
-  const front = readYaml(text.slice(4, end + 1), path, 'El frontmatter');
+  if (end < 0) return failure(path, 'The frontmatter is not closed with "---".');
+  const front = readYaml(text.slice(4, end + 1), path, 'The frontmatter');
   if (!front.ok) return front;
   return { ok: true, value: { front: front.value, body: text.slice(end + 5) } };
 }
@@ -153,12 +153,12 @@ function failure<T>(path: string, message: string): Result<T> {
 }
 
 function zodProblems(path: string, error: z.ZodError): Problem[] {
-  return error.issues.map((i) => ({ path, message: `Frontmatter: ${i.path.join('.') || '(raíz)'}: ${i.message}` }));
+  return error.issues.map((i) => ({ path, message: `Frontmatter: ${i.path.join('.') || '(root)'}: ${i.message}` }));
 }
 
 type Block = { title: string; lines: string[] };
 
-/** Divide un cuerpo en bloques por encabezados con el prefijo dado («## » o «### »). */
+/** Splits a body into blocks by headings with the given prefix ("## " or "### "). */
 function split(lines: string[], prefix: string): { before: string[]; blocks: Block[] } {
   const before: string[] = [];
   const blocks: Block[] = [];
@@ -193,7 +193,7 @@ function parseBody(
   const header = trim(before);
   const expected = `# ${code}${SEPARATOR}${title}`;
   if (header !== expected) {
-    return failure(path, `El título del cuerpo debe ser exactamente «${expected}».`);
+    return failure(path, `The body's title must be exactly "${expected}".`);
   }
   const sections: Section[] = [];
   let criteriaText: string | null = null;
@@ -201,28 +201,28 @@ function parseBody(
   const visited = new Set<string>();
   for (const [i, b] of blocks.entries()) {
     const content = trim(b.lines);
-    if (visited.has(b.title)) problems.push({ path, message: `La sección «${b.title}» está repetida.` });
+    if (visited.has(b.title)) problems.push({ path, message: `The section "${b.title}" is repeated.` });
     visited.add(b.title);
     if (content.includes('\n\n\n')) {
-      problems.push({ path, message: `La sección «${b.title}» tiene más de una línea en blanco seguida.` });
+      problems.push({ path, message: `The section "${b.title}" has more than one blank line in a row.` });
     }
     if (b.title !== CRITERIA_SECTION) {
-      // Un criterio solo existe dentro de «Criterios de aceptación»: en otra sección, un
-      // encabezado con su código parecería un criterio sin serlo.
+      // A criterion only exists inside "Acceptance criteria": in another section, a
+      // heading with its code would look like a criterion without being one.
       const withAc = [`## ${b.title}`, ...b.lines].find((l) => RE_AC_HEADING.test(l));
       if (withAc !== undefined) {
         problems.push({
           path,
-          message: `El encabezado «${withAc.trim()}» empieza por un código de criterio fuera de «${CRITERIA_SECTION}».`,
+          message: `The heading "${withAc.trim()}" starts with a criterion code outside "${CRITERIA_SECTION}".`,
         });
       }
     }
     if (b.title === CRITERIA_SECTION) {
-      if (i !== blocks.length - 1) problems.push({ path, message: `«${CRITERIA_SECTION}» debe ser la última sección.` });
+      if (i !== blocks.length - 1) problems.push({ path, message: `"${CRITERIA_SECTION}" must be the last section.` });
       criteriaText = content;
       continue;
     }
-    if (content === '') problems.push({ path, message: `La sección «${b.title}» está vacía.` });
+    if (content === '') problems.push({ path, message: `The section "${b.title}" is empty.` });
     sections.push({ title: b.title, content });
   }
   if (problems.length > 0) return { ok: false, problems };
@@ -233,41 +233,40 @@ const RE_AC_HEADER = /^(AC-[A-Z]{3}-\d{3}-\d{2}) · (.+)$/;
 
 function parseCriteria(text: string, path: string): Result<Criterion[]> {
   const { before, blocks } = split(text.split('\n'), '### ');
-  if (trim(before) !== '') return failure(path, `Hay texto en «${CRITERIA_SECTION}» antes del primer criterio.`);
+  if (trim(before) !== '') return failure(path, `There is text in "${CRITERIA_SECTION}" before the first criterion.`);
   const criteria: Criterion[] = [];
   const problems: Problem[] = [];
   for (const b of blocks) {
     const m = RE_AC_HEADER.exec(b.title);
     if (!m?.[1] || !m[2]) {
-      problems.push({ path, message: `Cabecera de criterio inválida: «### ${b.title}». Forma: «### AC-DOM-NNN-NN · Título».` });
+      problems.push({ path, message: `Invalid criterion header: "### ${b.title}". Form: "### AC-DOM-NNN-NN · Title".` });
       continue;
     }
     const code = m[1];
     const lines = b.lines;
     let k = 0;
     while (k < lines.length && lines[k]?.trim() === '') k++;
-    const verif = /^- Verificación: (.+)$/.exec(lines[k] ?? '');
-    const check = /^- Comprobación: (.+)$/.exec(lines[k + 1] ?? '');
+    const verif = /^- Verification: (.+)$/.exec(lines[k] ?? '');
+    const check = /^- Check: (.+)$/.exec(lines[k + 1] ?? '');
     if (!verif?.[1] || !check?.[1]) {
-      problems.push({ path, message: `${code}: faltan «- Verificación:» y «- Comprobación:» justo después de la cabecera.` });
+      problems.push({ path, message: `${code}: missing "- Verification:" and "- Check:" right after the header.` });
       continue;
     }
     if (!(VERIFICATIONS as readonly string[]).includes(verif[1])) {
-      problems.push({ path, message: `${code}: la verificación debe ser «automática» o «manual».` });
+      problems.push({ path, message: `${code}: verification must be "automatic" or "manual".` });
       continue;
     }
     k += 2;
     let derivedFrom: string | undefined;
-    const derivation = /^- Deriva de: (.+)$/.exec(lines[k] ?? '');
+    const derivation = /^- Derived from: (.+)$/.exec(lines[k] ?? '');
     if (derivation?.[1]) {
       derivedFrom = derivation[1];
       k++;
-      if (!RE_AC_CODE.test(derivedFrom))
-        problems.push({ path, message: `${code}: «Deriva de» debe ser un código de criterio.` });
+      if (!RE_AC_CODE.test(derivedFrom)) problems.push({ path, message: `${code}: "Derived from" must be a criterion code.` });
     }
     const statement = trim(lines.slice(k));
     if (statement === '') {
-      problems.push({ path, message: `${code}: falta el enunciado observable.` });
+      problems.push({ path, message: `${code}: missing the observable statement.` });
       continue;
     }
     const criterion: Criterion = {
@@ -294,7 +293,7 @@ export function parseDocument(text: string, path: string): Result<Document> {
     if (!r.success) return { ok: false, problems: zodProblems(path, r.error) };
     const c = parseBody(body, path, r.data.code, r.data.title);
     if (!c.ok) return c;
-    if (c.value.criteriaText !== null) return failure(path, 'Una taxonomía no lleva criterios de aceptación.');
+    if (c.value.criteriaText !== null) return failure(path, 'A taxonomy has no acceptance criteria.');
     const doc: TaxonomyDocument = {
       kind: 'taxonomy',
       code: r.data.code,
@@ -310,7 +309,7 @@ export function parseDocument(text: string, path: string): Result<Document> {
   if (!r.success) return { ok: false, problems: zodProblems(path, r.error) };
   const f = r.data;
   if (!f.code.startsWith(`${PREFIXES[f.type]}-`)) {
-    return failure(path, `El código ${f.code} no corresponde al tipo «${f.type}» (prefijo ${PREFIXES[f.type]}).`);
+    return failure(path, `The code ${f.code} doesn't match type "${f.type}" (prefix ${PREFIXES[f.type]}).`);
   }
   const c = parseBody(body, path, f.code, f.title);
   if (!c.ok) return c;
@@ -327,7 +326,7 @@ export function parseDocument(text: string, path: string): Result<Document> {
   const seen = new Set<string>();
   for (const e of links) {
     const key = `${e.type} → ${e.target.code}`;
-    if (seen.has(key)) return failure(path, `Enlace repetido: ${key}.`);
+    if (seen.has(key)) return failure(path, `Repeated link: ${key}.`);
     seen.add(key);
   }
   const doc: RecordDocument = {
@@ -353,13 +352,8 @@ function toYaml(object: Record<string, unknown>): string {
 }
 
 function renderCriterion(c: Criterion): string {
-  const lines = [
-    `### ${c.code}${SEPARATOR}${c.title}`,
-    '',
-    `- Verificación: ${c.verification}`,
-    `- Comprobación: ${c.check}`,
-  ];
-  if (c.derivedFrom) lines.push(`- Deriva de: ${c.derivedFrom}`);
+  const lines = [`### ${c.code}${SEPARATOR}${c.title}`, '', `- Verification: ${c.verification}`, `- Check: ${c.check}`];
+  if (c.derivedFrom) lines.push(`- Derived from: ${c.derivedFrom}`);
   lines.push('', c.statement);
   return lines.join('\n');
 }

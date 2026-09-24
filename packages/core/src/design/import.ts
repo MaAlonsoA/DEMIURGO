@@ -1,8 +1,8 @@
-// Importación de design/ (H1, AC-CON-001-10): el árbol entero entra como un lote pendiente de
-// resolución en paquete, idempotente por la huella del árbol. Nada queda aprobado hasta que una
-// persona ratifica el paquete; al ratificar, cada documento se crea con el estado de su archivo.
-// Cada documento se compara con lo que ya hay en la v2 renderizándolo igual que la exportación:
-// «no hay nada que importar» equivale a «la exportación no tiene diff».
+// design/ import (H1, AC-CON-001-10): the whole tree comes in as a batch pending package
+// resolution, idempotent by the tree's fingerprint. Nothing is approved until a person ratifies
+// the package; on ratification, each document is created with the state from its file.
+// Each document is compared with what is already in the v2 by rendering it the same way as the
+// export: "nothing to import" is the same as "the export has no diff".
 
 import {
   FOLDERS,
@@ -25,7 +25,7 @@ export const IMPORTER = system('importer');
 
 const VERSION_STATE: Record<string, string> = { proposed: 'draft', approved: 'approved' };
 const READABLE_STATE: Record<string, string> = {
-  draft: 'en borrador',
+  draft: 'draft',
   approved: 'approved',
   superseded: 'superseded',
   discarded: 'discarded',
@@ -33,12 +33,12 @@ const READABLE_STATE: Record<string, string> = {
 
 export type ImportedDocument = RecordDocument & { annexesContent: { path: string; content: string }[] };
 
-/** Orden topológico: los destinos de los enlaces y de «Deriva de» antes que quienes los citan. */
+/** Topological order: link targets and "Derived from" targets come before whoever cites them. */
 function sort(records: RecordDocument[]): RecordDocument[] {
   const byCode = new Map(records.map((r) => [r.code, r]));
   const acOwner = new Map(records.flatMap((r) => r.criteria.map((c) => [c.code, r] as const)));
   const done = new Set<string>();
-  const command: RecordDocument[] = [];
+  const ordered: RecordDocument[] = [];
   const visit = (r: RecordDocument, stack: Set<string>) => {
     if (done.has(r.code) || stack.has(r.code)) return;
     stack.add(r.code);
@@ -51,10 +51,10 @@ function sort(records: RecordDocument[]): RecordDocument[] {
       if (d && d !== r) visit(d, stack);
     }
     done.add(r.code);
-    command.push(r);
+    ordered.push(r);
   };
   for (const r of [...records].sort((a, b) => (a.code < b.code ? -1 : 1))) visit(r, new Set());
-  return command;
+  return ordered;
 }
 
 export type Counts = Record<
@@ -68,7 +68,7 @@ export function treeCounts(records: RecordDocument[], taxonomies: TaxonomyDocume
     adr: records.filter((r) => r.type === 'adr').length,
     fdr: records.filter((r) => r.type === 'fdr').length,
     bug: records.filter((r) => r.type === 'bug').length,
-    // design/ guarda una versión por registro: la que está en curso.
+    // design/ keeps one version per record: the one in progress.
     versions: records.length,
     criteria: records.reduce((n, r) => n + r.criteria.length, 0),
     links: records.reduce((n, r) => n + r.links.length, 0),
@@ -80,17 +80,17 @@ export function treeCounts(records: RecordDocument[], taxonomies: TaxonomyDocume
 registerGuards({
   valid_design: ({ data }) => {
     const tree = field(data, 'tree') as Record<string, string> | undefined;
-    if (!tree || typeof tree !== 'object') return 'Falta el árbol de design/.';
+    if (!tree || typeof tree !== 'object') return 'The design/ tree is missing.';
     const report = validateTree(new Map(Object.entries(tree)));
     if (report.problems.length === 0) return null;
-    return `design/ no es válido: ${report.problems
+    return `design/ is not valid: ${report.problems
       .slice(0, 10)
       .map((p) => `${p.path}: ${p.message}`)
       .join(' · ')}`;
   },
 });
 
-/** El texto de una versión de la v2 con otro estado: sirve para comparar solo el contenido. */
+/** The text of a v2 version with a different state: used to compare content only. */
 const contentOf = (doc: RecordDocument | TaxonomyDocument) => renderDocument({ ...doc, state: 'proposed' });
 
 async function recordOf(trx: Tx, projectId: string, code: string) {
@@ -107,7 +107,7 @@ async function latestVersion(trx: Tx, recordId: string): Promise<number> {
   return v?.n ?? 0;
 }
 
-/** Versión aprobada (o ya sustituida) posterior a `n`: aprobar la `n` haría retroceder la vigente. */
+/** An approved (or already superseded) version after `n`: approving `n` would move the current version backwards. */
 async function laterApproved(trx: Tx, recordId: string, n: number): Promise<number | null> {
   const v = await trx
     .selectFrom('record_versions')
@@ -121,8 +121,9 @@ async function laterApproved(trx: Tx, recordId: string, n: number): Promise<numb
 }
 
 /**
- * Problemas de los criterios de una versión nueva de un registro que ya está en la v2: un código
- * que ya se usó y ya no está (nunca se reutiliza) o un «Deriva de» distinto del que tenía el criterio.
+ * Problems with the criteria of a new version of a record already in the v2: a code that was
+ * already used and is no longer there (never reused), or a "Derived from" different from the
+ * one the criterion had.
  */
 async function criteriaProblems(trx: Tx, recordId: string, r: RecordDocument, path: string): Promise<string[]> {
   const problems: string[] = [];
@@ -150,13 +151,11 @@ async function criteriaProblems(trx: Tx, recordId: string, r: RecordDocument, pa
     const existing = priors.find((p) => p.code === c.code);
     if (!existing) {
       if (used.has(c.code))
-        problems.push(`${path}: ${c.code} ya se usó en una versión anterior; un criterio nuevo lleva un código nuevo.`);
+        problems.push(`${path}: ${c.code} was already used in a previous version; a new criterion needs a new code.`);
       continue;
     }
     if ((await derivationOf(trx, existing.id)) !== (c.derivedFrom ?? null)) {
-      problems.push(
-        `${path}: ${c.code} cambia su «Deriva de»; un criterio que se mantiene o se modifica conserva su derivación.`,
-      );
+      problems.push(`${path}: ${c.code} changes its "Derived from"; a criterion that is kept or modified keeps its derivation.`);
     }
   }
   return problems;
@@ -165,16 +164,17 @@ async function criteriaProblems(trx: Tx, recordId: string, r: RecordDocument, pa
 type Plan = { proposals: { type: string; payload: Record<string, unknown> }[]; problems: string[] };
 
 /**
- * Qué proponer de cada documento según lo que ya hay en la v2: nada si coincide (contenido y
- * estado), la aprobación si solo cambia el estado de propuesto a aprobado, o una versión nueva.
- * Una versión que ya existe con otro contenido, o anterior a la última, es un problema.
+ * What to propose for each document based on what is already in the v2: nothing if it matches
+ * (content and state), approval if only the state changes from proposed to approved, or a new
+ * version. A version that already exists with different content, or is older than the latest, is
+ * a problem.
  */
 async function buildPlan(ctx: CommandContext, tree: Map<string, string>, report: ValidationReport): Promise<Plan> {
   const plan: Plan = { proposals: [], problems: [] };
   const versionInDesign = new Map(report.records.map((r) => [r.code, r.version]));
   for (const r of sort(report.records)) {
     const path = `${FOLDERS[r.type]}/${r.code}.md`;
-    // Un enlace a una versión anterior de su destino exige que esa versión ya esté en la v2.
+    // A link to an earlier version of its target requires that version to already be in the v2.
     for (const e of r.links) {
       if (e.target.version >= (versionInDesign.get(e.target.code) ?? 0)) continue;
       const target = await recordOf(ctx.trx, ctx.projectId, e.target.code);
@@ -188,7 +188,7 @@ async function buildPlan(ctx: CommandContext, tree: Map<string, string>, report:
           .executeTakeFirst());
       if (!exists) {
         plan.problems.push(
-          `${path}: el enlace a ${e.target.code}@${e.target.version} apunta a una versión que no está en design/ ni en la v2.`,
+          `${path}: the link to ${e.target.code}@${e.target.version} points to a version that is not in design/ or the v2.`,
         );
       }
     }
@@ -209,28 +209,26 @@ async function buildPlan(ctx: CommandContext, tree: Map<string, string>, report:
         const annexesEqual = JSON.stringify(inV2.annexes) === JSON.stringify(document.annexesContent);
         if (contentOf(inV2.doc) !== contentOf(r) || !annexesEqual) {
           plan.problems.push(
-            `${path}: la versión ${r.version} ya está en la v2 con otro contenido; sube la versión y añade nota_de_cambio.`,
+            `${path}: version ${r.version} is already in the v2 with different content; bump the version and add a change_note.`,
           );
           continue;
         }
         if (v.state === VERSION_STATE[r.state]) continue;
         if (!(v.state === 'draft' && r.state === 'approved')) {
           plan.problems.push(
-            `${path}: la versión ${r.version} está ${READABLE_STATE[v.state] ?? v.state} en la v2 y no puede pasar a «${r.state}».`,
+            `${path}: version ${r.version} is ${READABLE_STATE[v.state] ?? v.state} in the v2 and cannot move to "${r.state}".`,
           );
           continue;
         }
         const later = await laterApproved(ctx.trx, record.id, r.version);
         if (later !== null) {
-          plan.problems.push(
-            `${path}: la v2 ya tiene aprobada la versión ${later}; la ${r.version} solo se puede descartar.`,
-          );
+          plan.problems.push(`${path}: the v2 already has version ${later} approved; ${r.version} can only be discarded.`);
           continue;
         }
       } else {
         const latest = await latestVersion(ctx.trx, record.id);
         if (r.version < latest) {
-          plan.problems.push(`${path}: la versión ${r.version} es anterior a la última de la v2 (${latest}).`);
+          plan.problems.push(`${path}: version ${r.version} is older than the latest in the v2 (${latest}).`);
           continue;
         }
         const ofCriteria = await criteriaProblems(ctx.trx, record.id, r, path);
@@ -240,7 +238,7 @@ async function buildPlan(ctx: CommandContext, tree: Map<string, string>, report:
         }
       }
     } else {
-      // Un registro nuevo no comparte DOM-NNN con otro que ya esté en la v2 (sus AC se llamarían igual).
+      // A new record does not share DOM-NNN with another one already in the v2 (their ACs would be named the same).
       const clash = await ctx.trx
         .selectFrom('records')
         .select('code')
@@ -248,7 +246,7 @@ async function buildPlan(ctx: CommandContext, tree: Map<string, string>, report:
         .where('code', 'like', `___-${r.code.slice(4)}`)
         .executeTakeFirst();
       if (clash) {
-        plan.problems.push(`${path}: ${r.code} comparte ${r.code.slice(4)} con ${clash.code}, que ya está en la v2.`);
+        plan.problems.push(`${path}: ${r.code} shares ${r.code.slice(4)} with ${clash.code}, which is already in the v2.`);
         continue;
       }
     }
@@ -265,13 +263,13 @@ async function buildPlan(ctx: CommandContext, tree: Map<string, string>, report:
       .executeTakeFirst();
     if (existing) {
       if (contentOf(taxonomyDocument(existing)) !== contentOf(t)) {
-        plan.problems.push(`${path}: la versión ${t.version} ya está en la v2 con otro contenido; sube la versión.`);
+        plan.problems.push(`${path}: version ${t.version} is already in the v2 with different content; bump the version.`);
         continue;
       }
       if (existing.state === VERSION_STATE[t.state]) continue;
       if (!(existing.state === 'draft' && t.state === 'approved')) {
         plan.problems.push(
-          `${path}: la versión ${t.version} está ${READABLE_STATE[existing.state] ?? existing.state} en la v2 y no puede pasar a «${t.state}».`,
+          `${path}: version ${t.version} is ${READABLE_STATE[existing.state] ?? existing.state} in the v2 and cannot move to "${t.state}".`,
         );
         continue;
       }
@@ -284,9 +282,7 @@ async function buildPlan(ctx: CommandContext, tree: Map<string, string>, report:
         .where('version', '>', t.version)
         .executeTakeFirst();
       if (later) {
-        plan.problems.push(
-          `${path}: la v2 ya tiene aprobada la versión ${later.version}; la ${t.version} no se puede aprobar.`,
-        );
+        plan.problems.push(`${path}: the v2 already has version ${later.version} approved; ${t.version} cannot be approved.`);
         continue;
       }
     } else {
@@ -298,7 +294,7 @@ async function buildPlan(ctx: CommandContext, tree: Map<string, string>, report:
         .orderBy('version', 'desc')
         .executeTakeFirst();
       if (latest && t.version < latest.version) {
-        plan.problems.push(`${path}: la versión ${t.version} es anterior a la última de la v2 (${latest.version}).`);
+        plan.problems.push(`${path}: version ${t.version} is older than the latest in the v2 (${latest.version}).`);
         continue;
       }
     }
@@ -327,12 +323,12 @@ registerHandlers({
       const counts = treeCounts(report.records, report.taxonomies);
       const { proposals, problems } = await buildPlan(ctx, tree, report);
       if (problems.length > 0) {
-        throw new DomainError('guard', 'design/ no se puede importar sobre lo que ya hay en la v2.', problems);
+        throw new DomainError('guard', 'design/ cannot be imported over what is already in the v2.', problems);
       }
       if (proposals.length === 0) {
-        throw new DomainError('conflict', 'design/ ya está importado: no hay nada nuevo que proponer.');
+        throw new DomainError('conflict', 'design/ is already imported: there is nothing new to propose.');
       }
-      // Una importación nueva deja obsoleta la que siguiera pendiente: solo se ratifica la última.
+      // A new import makes any still-pending one obsolete: only the latest gets ratified.
       const pending = await ctx.trx
         .selectFrom('proposal_batches')
         .select('id')
@@ -345,10 +341,10 @@ registerHandlers({
           command: 'batch.supersede',
           actor: IMPORTER,
           entityId: p.id,
-          data: { reason: 'Hay una importación más reciente de design/.' },
+          data: { reason: 'There is a more recent import of design/.' },
         });
       }
-      // El importador produce las propuestas; quien importa (persona o CLI) queda en el evento de la importación.
+      // The importer produces the proposals; whoever imports (person or CLI) is recorded in the import event.
       const { id } = await ctx.trx
         .insertInto('proposal_batches')
         .values({
@@ -359,7 +355,7 @@ registerHandlers({
           context_pack_id: null,
           resolution_mode: 'package',
           dependencies: JSON.stringify([]),
-          summary: `Importación de design/${data.origin ? ` (${data.origin})` : ''}: ${JSON.stringify(counts)}`,
+          summary: `Import of design/${data.origin ? ` (${data.origin})` : ''}: ${JSON.stringify(counts)}`,
           tree_hash: treeHash,
           state: to,
         })
@@ -382,10 +378,10 @@ registerHandlers({
 });
 
 function noChangesSinceImport(code: string, version: number): DomainError {
-  return new DomainError('conflict', `${code} v${version} cambió en la v2 después de importar: vuelve a importar design/.`);
+  return new DomainError('conflict', `${code} v${version} changed in the v2 after importing: import design/ again.`);
 }
 
-// Ratificar: cada documento se crea (o se versiona) con la persona como actor y el estado de su archivo.
+// Ratifying: each document is created (or versioned) with the person as actor and the state from its file.
 registerApplication('imported_record', async (ctx, { proposalId, payload }) => {
   const d = PAYLOADS.imported_record.parse(payload).document as unknown as ImportedDocument;
   const content = {
@@ -403,7 +399,7 @@ registerApplication('imported_record', async (ctx, { proposalId, payload }) => {
     code: c.code,
     title: c.title,
     statement: c.statement,
-    verification: c.verification === 'automática' ? 'automatic' : 'manual',
+    verification: c.verification === 'automatic' ? 'automatic' : 'manual',
     check: c.check,
     ...(c.derivedFrom ? { derived_from: c.derivedFrom } : {}),
   }));
@@ -418,7 +414,7 @@ registerApplication('imported_record', async (ctx, { proposalId, payload }) => {
     : undefined;
   let versionId: string;
   if (record && existing) {
-    // Solo cambia el estado: se comprueba que el contenido sigue siendo el importado.
+    // Only the state changes: check that the content still matches what was imported.
     if (contentOf((await versionDocument(ctx.trx, record, existing)).doc) !== contentOf(d)) {
       throw noChangesSinceImport(d.code, d.version);
     }
@@ -432,7 +428,7 @@ registerApplication('imported_record', async (ctx, { proposalId, payload }) => {
     versionId = (r.result as { versionId: string }).versionId;
     record = await recordOf(ctx.trx, ctx.projectId, d.code);
   } else {
-    // Versión nueva: los criterios que siguen se mantienen o modifican por su código; el resto se descarta.
+    // New version: criteria that continue are kept or modified by their code; the rest are discarded.
     const base = await ctx.trx
       .selectFrom('record_versions')
       .select('id')
@@ -446,10 +442,7 @@ registerApplication('imported_record', async (ctx, { proposalId, payload }) => {
       const p = byCode.get(c.code);
       if (!p) return c;
       const equal =
-        p.title === c.title &&
-        p.statement === c.statement &&
-        p.verification === c.verification &&
-        p.check_text === c.check;
+        p.title === c.title && p.statement === c.statement && p.verification === c.verification && p.check_text === c.check;
       return equal
         ? { carry: 'kept' as const, code: c.code }
         : {
@@ -470,7 +463,7 @@ registerApplication('imported_record', async (ctx, { proposalId, payload }) => {
         criteria,
         discarded: priors.map((p) => p.code).filter((c) => !codes.has(c)),
         ...content,
-        change_note: d.changeNote ?? 'Importado de design/.',
+        change_note: d.changeNote ?? 'Imported from design/.',
       },
     });
     versionId = r.entityId;
@@ -499,7 +492,7 @@ registerApplication('imported_taxonomy', async (ctx, { payload }) => {
   let id: string;
   let state: string;
   if (existing) {
-    // Solo cambia el estado (propuesto → aprobado): se aprueba la versión que ya está.
+    // Only the state changes (proposed → approved): the existing version gets approved.
     if (contentOf(taxonomyDocument(existing)) !== contentOf(t)) throw noChangesSinceImport(t.code, t.version);
     id = existing.id;
     state = existing.state;

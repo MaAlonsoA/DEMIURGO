@@ -1,5 +1,5 @@
-// Puerto KnowledgeGraph sobre tablas de Postgres (§7.6): nodos y aristas con validez por
-// versión del grafo. Cambiar de motor (Memgraph, AGE) es reconstruir desde la autoridad.
+// KnowledgeGraph port over Postgres tables (§7.6): nodes and edges with validity by
+// graph version. Switching engines (Memgraph, AGE) means rebuilding from authority.
 
 import type { Edge, EpistemicStatus, Graph, Node } from '@demiurgo/domain';
 import { sql } from 'kysely';
@@ -8,15 +8,11 @@ import type { Db } from '../db/connection.ts';
 const TYPES_WITH_AUTHORITY = new Set(['decision', 'fdr', 'adr', 'bug', 'criterion']);
 
 export async function readGraphVersion(db: Db, projectId: string): Promise<number> {
-  const e = await db
-    .selectFrom('knowledge_graph_state')
-    .select('version')
-    .where('project_id', '=', projectId)
-    .executeTakeFirst();
+  const e = await db.selectFrom('knowledge_graph_state').select('version').where('project_id', '=', projectId).executeTakeFirst();
   return Number(e?.version ?? 0);
 }
 
-/** Carga el grafo completo del proyecto (vigente e histórico) para operar en memoria. */
+/** Loads the project's full graph (current and historical) to operate on in memory. */
 export async function loadGraph(db: Db, projectId: string): Promise<Graph> {
   const nodes = await db.selectFrom('knowledge_nodes').selectAll().where('project_id', '=', projectId).orderBy('id').execute();
   const byId = new Map(nodes.map((n) => [n.id, n.ref]));
@@ -49,13 +45,13 @@ export async function loadGraph(db: Db, projectId: string): Promise<Graph> {
   };
 }
 
-/** Búsqueda de texto (FTS «spanish») sobre el conocimiento vigente. */
+/** Text search (FTS "spanish") over current knowledge. */
 export async function searchKnowledge(db: Db, projectId: string, queryName: string, limit = 10) {
   const { rows } = await sql<{ ref: string; kind: string; label: string; body: string; epistemic: string; range: number }>`
-    select ref, kind, label, left(body, 600) as body, epistemic, ts_rank(search, q) as rango
+    select ref, kind, label, left(body, 600) as body, epistemic, ts_rank(search, q) as range
     from knowledge_nodes, websearch_to_tsquery('spanish', ${queryName}) q
     where project_id = ${projectId}::uuid and valid_to is null and search @@ q
-    order by rango desc, ref
+    order by range desc, ref
     limit ${limit}`.execute(db);
   return rows.map((r) => ({
     ref: r.ref,
@@ -67,23 +63,23 @@ export async function searchKnowledge(db: Db, projectId: string, queryName: stri
   }));
 }
 
-/** Vecinos de un nodo vigente hasta una distancia (CTE recursiva). */
+/** Neighbors of a current node up to a distance (recursive CTE). */
 export async function neighbors(db: Db, projectId: string, ref: string, distance = 2) {
   const { rows } = await sql<{ ref: string; kind: string; label: string; distance: number }>`
-    with recursive inicio as (
+    with recursive start as (
       select id from knowledge_nodes where project_id = ${projectId}::uuid and ref = ${ref} and valid_to is null
-    ), recorrido(id, distancia) as (
-      select id, 0 from inicio
+    ), walk(id, distance) as (
+      select id, 0 from start
       union
-      select case when e.from_node = r.id then e.to_node else e.from_node end, r.distancia + 1
-      from recorrido r
+      select case when e.from_node = r.id then e.to_node else e.from_node end, r.distance + 1
+      from walk r
       join knowledge_edges e on (e.from_node = r.id or e.to_node = r.id) and e.valid_to is null
-      where r.distancia < ${distance}
+      where r.distance < ${distance}
     )
-    select n.ref, n.kind, n.label, min(r.distancia)::int as distancia
-    from recorrido r join knowledge_nodes n on n.id = r.id
+    select n.ref, n.kind, n.label, min(r.distance)::int as distance
+    from walk r join knowledge_nodes n on n.id = r.id
     where n.ref <> ${ref}
     group by n.ref, n.kind, n.label
-    order by distancia, n.ref`.execute(db);
+    order by distance, n.ref`.execute(db);
   return rows;
 }

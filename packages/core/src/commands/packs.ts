@@ -1,5 +1,5 @@
-// Context packs: inmutables e identificados por su hash (I7). Construir dos veces el mismo
-// pack devuelve el existente sin crear otro.
+// Context packs: immutable and identified by their hash (I7). Building the same pack
+// twice returns the existing one instead of creating another.
 
 import { fingerprint } from '@demiurgo/domain';
 import { z } from 'zod';

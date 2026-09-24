@@ -1,8 +1,8 @@
-// Recorrido real de S1 contra un servidor en marcha (con el agente que tenga configurado):
-//   node packages/api/src/herramientas/recorrido-s1.ts <url> <usuario> "<intención>" "<mensaje>" ["<mensaje>"…]
-// Envía los mensajes de uno en uno hasta que el agente propone una decisión.
-// La clave de la persona se lee de la entrada estándar. Actúa como la persona: acepta y
-// aprueba explícitamente, igual que haría desde la UI.
+// Real S1 walkthrough against a running server (with whatever agent is configured):
+//   node packages/api/src/tools/walkthrough-s1.ts <url> <username> "<intent>" "<message>" ["<message>"…]
+// Sends the messages one by one until the agent proposes a decision.
+// The person's password is read from stdin. Acts as the person: accepts and
+// approves explicitly, just as it would from the UI.
 
 const [url = 'http://127.0.0.1:8100', username = '', intent = '', ...messages] = process.argv.slice(2);
 
@@ -43,24 +43,24 @@ async function waitForRun(projectId: string, id: string): Promise<Run> {
     if (!['queued', 'running'].includes(r.state)) return r;
     await wait(1000);
   }
-  throw new Error(`La ejecución ${id} no terminó.`);
+  throw new Error(`Run ${id} did not finish.`);
 }
 
 async function main(): Promise<void> {
-  const key = await readPassword();
+  const password = await readPassword();
   const login = await fetch(`${url}/api/session`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ username, key }),
+    body: JSON.stringify({ username, password }),
   });
-  if (!login.ok) throw new Error(`Inicio de sesión: ${login.status} ${await login.text()}`);
+  if (!login.ok) throw new Error(`Login: ${login.status} ${await login.text()}`);
   cookie = (login.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
   csrf = ((await login.json()) as { csrf: string }).csrf;
   const date = new Date().toISOString();
   const report: Record<string, unknown> = { date };
 
   const { project_id: p } = await request<{ project_id: string }>('POST', '/api/projects', {
-    name: `Recorrido real S1 ${date}`,
+    name: `Real S1 walkthrough ${date}`,
   });
   type Response<T> = { entity_id: string; result: T };
   const cmd = <T = unknown>(name: string, data: unknown, entity?: string): Promise<Response<T>> =>
@@ -112,7 +112,7 @@ async function main(): Promise<void> {
   }
   report.turns = turns;
   if (!decision) {
-    report.result = 'El agente no propuso ninguna decisión: el recorrido se detiene aquí.';
+    report.result = 'The agent did not propose a decision: the walkthrough stops here.';
     console.log(JSON.stringify(report, null, 2));
     return;
   }
@@ -127,15 +127,19 @@ async function main(): Promise<void> {
     `/api/projects/${p}/inbox`,
   );
   const packageBatch = b2.batches.find((l) => l.type === 'system_package');
-  if (!packageBatch) throw new Error('No llegó el paquete de diseño.');
+  if (!packageBatch) throw new Error('The design package never arrived.');
   report.fdr_proposed = packageBatch.proposals[0]?.payload;
-  const acceptedPackage = await cmd<{ effects: { code: string; versionId: string }[] }>('batch.accept_package', {}, packageBatch.id);
+  const acceptedPackage = await cmd<{ effects: { code: string; versionId: string }[] }>(
+    'batch.accept_package',
+    {},
+    packageBatch.id,
+  );
   const fdr = acceptedPackage.result.effects[0];
   await cmd('record_version.approve', {}, fdr?.versionId);
   report.readiness_after_approval = await request('GET', `/api/projects/${p}/versions/${fdr?.versionId}/readiness`);
-  // Cierre explícito de la persona: las preguntas abiertas quedan resueltas por la decisión y
-  // las propuestas sobrantes se rechazan con su motivo. Nada de esto lo hace un agente.
-  const reason = `Resuelta por la decisión ${accepted.result.code}.`;
+  // Explicit closing by the person: open questions are resolved by the decision and
+  // the remaining proposals are rejected with their reason. None of this is done by an agent.
+  const reason = `Resolved by decision ${accepted.result.code}.`;
   const finalExploration = await request<{ questions: { id: string; state: string }[] }>(
     'GET',
     `/api/projects/${p}/explorations/${e.entity_id}`,
@@ -145,7 +149,7 @@ async function main(): Promise<void> {
   }
   const remaining = await request<{ batches: { proposals: { id: string }[] }[] }>('GET', `/api/projects/${p}/inbox`);
   for (const x of remaining.batches.flatMap((l) => l.proposals)) {
-    await cmd('proposal.reject', { reason: 'Fuera del alcance de este diseño.' }, x.id);
+    await cmd('proposal.reject', { reason: 'Out of scope for this design.' }, x.id);
   }
   report.closing = {
     discarded_questions: finalExploration.questions.length,

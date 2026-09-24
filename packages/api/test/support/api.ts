@@ -7,7 +7,7 @@ import { type Environment, useEnvironment } from '../../../core/test/support/env
 import { CSRF_HEADER, COOKIE_SESSION, createPerson } from '../../src/credentials.ts';
 import { createServer } from '../../src/server.ts';
 
-export const KEY = 'clave-de-prueba-larga';
+export const PASSWORD = 'clave-de-prueba-larga';
 
 export type Client = {
   request(
@@ -37,8 +37,8 @@ export function useApi(options: Parameters<typeof useEnvironment>[0] = {}): () =
       sessionHours: 1,
       allowedOrigins: ['http://127.0.0.1:8100'],
     });
-    await createPerson(e.services.db, 'ana', KEY);
-    const login = await app.inject({ method: 'POST', url: '/api/session', payload: { username: 'ana', key: KEY } });
+    await createPerson(e.services.db, 'ana', PASSWORD);
+    const login = await app.inject({ method: 'POST', url: '/api/session', payload: { username: 'ana', password: PASSWORD } });
     if (login.statusCode !== 200) throw new Error(`No se pudo iniciar sesión: ${login.body}`);
     const cookie = login.cookies.find((c) => c.name === COOKIE_SESSION);
     const csrf = login.json<{ csrf: string }>().csrf;

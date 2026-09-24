@@ -106,7 +106,7 @@ describe('architecture', () => {
     ]);
     const ALLOWED_TABLES = new Set(['verdict_cache', 'classifier_evaluations']);
     const modules = [
-      ...['actualizar.ts', 'flujos.ts', 'reconstruir.ts', 'derive.ts', 'grafo-pg.ts', 'integration.ts', 'assess.ts'].map(
+      ...['update.ts', 'workflows.ts', 'rebuild.ts', 'derive.ts', 'graph-pg.ts', 'integration.ts', 'evaluate.ts'].map(
         (m) => `packages/core/src/knowledge/${m}`,
       ),
       // Los adaptadores del clasificador no emiten comandos ni escriben en la base.

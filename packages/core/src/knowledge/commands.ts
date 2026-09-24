@@ -1,6 +1,6 @@
-// Comandos del motor de conocimiento. El clasificador y el actualizador (actor system) solo
-// escriben conocimiento derivado, clasificaciones y propuestas; nunca un estado de autoridad
-// (I10). La taxonomía sí es autoridad: la propone y la aprueba una persona.
+// Commands for the knowledge engine. The classifier and the updater (actor system) only write
+// derived knowledge, classifications and proposals; never an authority state (I10). The
+// taxonomy is authority, though: a person proposes it and approves it.
 
 import { DomainError, formatActor, fingerprint, system } from '@demiurgo/domain';
 import { sql } from 'kysely';
@@ -49,7 +49,7 @@ const nodeSchema = z
   .strict();
 
 registerGuards({
-  // Como en las versiones de registro: aprobar un borrador anterior a una versión ya aprobada haría retroceder la vigente.
+  // As with record versions: approving a draft older than an already-approved version would roll back the current one.
   async taxonomy_without_later_approved({ ctx, entity }) {
     const later = await ctx.trx
       .selectFrom('taxonomies')
@@ -60,22 +60,22 @@ registerGuards({
       .where('version', '>', Number(entity?.row.version ?? 0))
       .orderBy('version', 'desc')
       .executeTakeFirst();
-    return later ? `Ya hay una versión aprobada posterior (v${later.version}) de esta taxonomía.` : null;
+    return later ? `A later approved version (v${later.version}) of this taxonomy already exists.` : null;
   },
   valid_taxonomy: ({ data }) => {
     const r = axesSchema.safeParse(field(data, 'axes'));
-    if (!r.success) return 'Los ejes de la taxonomía no son válidos.';
+    if (!r.success) return 'The taxonomy axes are not valid.';
     const reasons: string[] = [];
     for (const axis of r.data) {
       const codes = axis.categories.map((c) => c.code);
-      if (!codes.includes('other')) reasons.push(`El eje ${axis.code} no tiene la categoría «otra».`);
-      if (new Set(codes).size !== codes.length) reasons.push(`El eje ${axis.code} repite categorías.`);
+      if (!codes.includes('other')) reasons.push(`Axis ${axis.code} has no "other" category.`);
+      if (new Set(codes).size !== codes.length) reasons.push(`Axis ${axis.code} has duplicate categories.`);
     }
     return reasons.length ? reasons.join(' ') : null;
   },
 
-  // La taxonomía es un conjunto cerrado: solo se clasifica con la aprobada del proyecto, en uno
-  // de sus ejes y con una de sus categorías.
+  // The taxonomy is a closed set: classification only ever uses the project's approved
+  // taxonomy, one of its axes and one of its categories.
   valid_classification: async ({ ctx, data }) => {
     const t = await ctx.trx
       .selectFrom('taxonomies')
@@ -83,16 +83,14 @@ registerGuards({
       .where('id', '=', string(field(data, 'taxonomy_id')))
       .where('project_id', '=', ctx.projectId)
       .executeTakeFirst();
-    if (!t) return 'La taxonomía no existe en este proyecto.';
-    if (t.state !== 'approved') return 'Solo se clasifica con la taxonomía aprobada.';
+    if (!t) return 'The taxonomy does not exist in this project.';
+    if (t.state !== 'approved') return 'Classification only uses the approved taxonomy.';
     const axis = (t.axes as { code: string; categories: { code: string }[] }[]).find(
       (e) => e.code === string(field(data, 'axis')),
     );
-    if (!axis) return `«${string(field(data, 'axis'))}» no es un eje de la taxonomía.`;
+    if (!axis) return `"${string(field(data, 'axis'))}" is not an axis of the taxonomy.`;
     const category = string(field(data, 'category'));
-    return axis.categories.some((c) => c.code === category)
-      ? null
-      : `«${category}» no es una categoría del eje ${axis.code}.`;
+    return axis.categories.some((c) => c.code === category) ? null : `"${category}" is not a category of axis ${axis.code}.`;
   },
 
   taxonomy_categories: async ({ ctx, data, entity }) => {
@@ -107,7 +105,7 @@ registerGuards({
     const category = string(field(data, 'category'));
     return axis?.categories.some((c) => c.code === category)
       ? null
-      : `«${category}» no es una categoría del eje en la taxonomía.`;
+      : `"${category}" is not a category of the axis in the taxonomy.`;
   },
 });
 
@@ -119,7 +117,7 @@ async function currentNode(ctx: CommandContext, ref: string): Promise<string> {
     .where('ref', '=', ref)
     .where('valid_to', 'is', null)
     .executeTakeFirst();
-  if (!n) throw new DomainError('not_found', `No hay un nodo vigente ${ref}.`);
+  if (!n) throw new DomainError('not_found', `There is no current node ${ref}.`);
   return n.id;
 }
 
@@ -131,7 +129,7 @@ registerHandlers({
         title: z.string().trim().min(3).max(200),
         axes: z.unknown(),
         sections: z.array(z.object({ title: z.string().min(1), content: z.string() }).strict()).default([]),
-        // Versión explícita: solo para importar design/ respetando la versión del origen.
+        // Explicit version: only for importing design/ while keeping the source's version.
         version: z.number().int().positive().optional(),
       })
       .strict(),
@@ -145,7 +143,7 @@ registerHandlers({
         .orderBy('version', 'desc')
         .executeTakeFirst();
       if (data.version !== undefined && data.version <= (prior?.version ?? 0)) {
-        throw new DomainError('validation', `La versión ${data.version} de ${data.code} no es posterior a la última.`);
+        throw new DomainError('validation', `Version ${data.version} of ${data.code} is not later than the last one.`);
       }
       const version = data.version ?? (prior?.version ?? 0) + 1;
       const { id } = await ctx.trx
@@ -406,7 +404,7 @@ registerHandlers({
       .object({
         proposal_id: z.string().uuid(),
         findings: z.array(z.unknown()),
-        // Respuestas del clasificador que no se verificaron y, si la evaluación falló, el motivo.
+        // Classifier responses that were not verified and, if the assessment failed, the reason.
         invalid: z.array(z.unknown()).default([]),
         error: z.string().max(2000).optional(),
         graph_version: z.number().int().nonnegative(),
@@ -489,14 +487,14 @@ async function insertClassification(
   return { entityId: id, after: { node: d.node_ref, axis: d.axis, category: d.category, confidence: d.confidence } };
 }
 
-// Cada evento de autoridad (aprobar una versión, aceptar una propuesta) y el descarte de un
-// borrador encolan «Actualizar conocimiento» en la misma transacción (§7.3 paso 1).
+// Every authority event (approving a version, accepting a proposal) and discarding a draft
+// enqueue "Update knowledge" in the same transaction (§7.3 step 1).
 registerAuthorityReaction(async (ctx, object) => {
   if (!['record_version', 'proposal', DISCARD_TRIGGER].includes(object.type)) return;
   if (object.type === 'proposal') {
-    // Solo las propuestas cuyo efecto es una versión de registro cambian el conocimiento, y no
-    // si esa versión ya se aprobó en el mismo paso («Aceptar y aprobar», ratificar): la
-    // aprobación ya encoló la suya y la propuesta la rebajaría a propuesto.
+    // Only proposals whose effect is a record version change the knowledge, and not if that
+    // version was already approved in the same step ("Accept and approve", ratify): the
+    // approval already enqueued its own update and the proposal would demote it back to proposed.
     const p = await ctx.trx.selectFrom('proposals').select('resolution').where('id', '=', object.id).executeTakeFirst();
     const versionId = (p?.resolution as { effect?: { versionId?: string } } | null)?.effect?.versionId;
     if (!versionId) return;

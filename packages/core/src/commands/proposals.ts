@@ -1,5 +1,5 @@
-// Lotes y propuestas: el canal por el que la IA (y la importación) proponen y la persona
-// decide. Nada llega a `accepted` sin un evento de actor human (I1).
+// Batches and proposals: the channel through which the AI (and the importer) propose and the
+// person decides. Nothing reaches `accepted` without an event from actor human (I1).
 
 import {
   PAYLOADS,
@@ -28,8 +28,8 @@ const proposalEntrySchema = z
 type Dependency = z.infer<typeof dependencySchema>;
 
 /**
- * Motivos de obsolescencia. Una dependencia caduca si su versión se descartó o si la vigente del
- * registro es otra; depender de un borrador sin ninguna versión aprobada no caduca mientras exista.
+ * Reasons for obsolescence. A dependency goes stale if its version was discarded or if the record's
+ * current version is different; depending on a draft with no approved version does not go stale while it exists.
  */
 export async function staleDependencies(trx: Db, deps: readonly Dependency[]): Promise<string[]> {
   const reasons: string[] = [];
@@ -48,10 +48,10 @@ export async function staleDependencies(trx: Db, deps: readonly Dependency[]): P
       .orderBy('n', 'desc')
       .executeTakeFirst();
     if (!version || version.state === 'discarded') {
-      reasons.push(`La propuesta está obsoleta: la versión ${d.version} de ${d.code} se ha descartado.`);
+      reasons.push(`The proposal is obsolete: version ${d.version} of ${d.code} was discarded.`);
     } else if (current && current.n !== d.version) {
       reasons.push(
-        `La propuesta está obsoleta: ${d.code} ha cambiado (vigente: v${current.n}; la propuesta partía de v${d.version}).`,
+        `The proposal is obsolete: ${d.code} has changed (current: v${current.n}; the proposal was based on v${d.version}).`,
       );
     }
   }
@@ -64,11 +64,11 @@ async function batchOf(trx: Tx, entity: LoadedEntity | null) {
 }
 
 registerGuards({
-  // Una propuesta solo nace dentro del envío de su lote (o de la importación), en un lote
-  // pendiente del mismo productor: nadie añade propuestas a un lote ajeno o ya resuelto.
+  // A proposal is only born within its batch's submission (or the importer), in a pending
+  // batch of the same producer: nobody adds proposals to someone else's batch or one already resolved.
   own_open_batch: async ({ ctx, data }) => {
     if (!['batch.submit', 'design.import'].includes(ctx.cause.sourceCommand ?? '')) {
-      return 'Las propuestas se envían dentro de un lote (batch.submit).';
+      return 'Proposals are submitted within a batch (batch.submit).';
     }
     const batch = await ctx.trx
       .selectFrom('proposal_batches')
@@ -76,61 +76,57 @@ registerGuards({
       .where('id', '=', string(field(data, 'batch_id')))
       .where('project_id', '=', ctx.projectId)
       .executeTakeFirst();
-    if (!batch) return 'El lote no existe.';
-    if (batch.state !== 'pending') return 'El lote ya está resuelto.';
-    return batch.producer === formatActor(ctx.actor) ? null : 'Solo el productor del lote puede añadirle propuestas.';
+    if (!batch) return 'The batch does not exist.';
+    if (batch.state !== 'pending') return 'The batch is already resolved.';
+    return batch.producer === formatActor(ctx.actor) ? null : 'Only the batch producer can add proposals to it.';
   },
 
   external_agent_batch_max_10: ({ ctx, data }) => {
     const n = (field(data, 'proposals') as unknown[] | undefined)?.length ?? 0;
     if (ctx.actor.type === 'agent_external' && n > MAX_EXTERNAL_AGENT_PROPOSALS) {
-      return `Un agente externo propone como máximo ${MAX_EXTERNAL_AGENT_PROPOSALS} elementos por lote (hay ${n}).`;
+      return `An external agent can propose at most ${MAX_EXTERNAL_AGENT_PROPOSALS} items per batch (there are ${n}).`;
     }
     return null;
   },
 
   valid_payload: ({ ctx, data }) => {
     const type = string(field(data, 'type'));
-    if (!isProposalType(type)) return `Tipo de propuesta desconocido: «${type}».`;
+    if (!isProposalType(type)) return `Unknown proposal type: "${type}".`;
     if (ctx.actor.type === 'agent_external' && !['decision', 'exploration', 'fdr'].includes(type)) {
-      return `Un agente externo no puede proponer «${type}».`;
+      return `An external agent cannot propose "${type}".`;
     }
-    // Lo importado de design/ solo lo propone la importación: aceptarlo crea autoridad con el estado del archivo.
+    // Only the importer proposes what comes from design/: accepting it creates authority with the file's state.
     if (['imported_record', 'imported_taxonomy'].includes(type) && ctx.cause.sourceCommand !== 'design.import') {
-      return `Solo la importación de design/ propone «${type}».`;
+      return `Only the design/ importer proposes "${type}".`;
     }
     const r = PAYLOADS[type].safeParse(field(data, 'payload'));
     return r.success
       ? null
-      : `La propuesta no es válida: ${r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`;
+      : `The proposal is invalid: ${r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`;
   },
 
   valid_edit: async ({ ctx, data, entity }) => {
     const type = string(entity?.row.type) as ProposalType;
-    if (!isProposalType(type)) return 'Tipo de propuesta desconocido.';
+    if (!isProposalType(type)) return 'Unknown proposal type.';
     const r = PAYLOADS[type].safeParse(field(data, 'edit'));
     void ctx;
-    return r.success
-      ? null
-      : `La edición no es válida: ${r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`;
+    return r.success ? null : `The edit is invalid: ${r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`;
   },
 
   per_element_resolution: async ({ ctx, entity }) => {
     const batch = await batchOf(ctx.trx, entity);
-    const byPackage = ['batch.accept_package', 'batch.reject_package', 'batch.supersede'].includes(
-      ctx.cause.sourceCommand ?? '',
-    );
+    const byPackage = ['batch.accept_package', 'batch.reject_package', 'batch.supersede'].includes(ctx.cause.sourceCommand ?? '');
     if (batch.resolution_mode === 'package' && !byPackage) {
       return ctx.command === 'proposal.supersede'
-        ? 'Esta propuesta forma parte de un paquete: queda obsoleto el paquete completo.'
-        : 'Esta propuesta forma parte de un paquete: se acepta o se rechaza el paquete completo.';
+        ? 'This proposal is part of a package: the whole package becomes obsolete.'
+        : 'This proposal is part of a package: the whole package is accepted or rejected together.';
     }
     return null;
   },
 
   package_resolution: async ({ ctx, entity }) => {
     const batch = await batchOf(ctx.trx, entity);
-    return batch.resolution_mode === 'package' ? null : 'Este lote se resuelve elemento a elemento.';
+    return batch.resolution_mode === 'package' ? null : 'This batch is resolved item by item.';
   },
 
   current_dependencies: async ({ ctx, entity }) => {
@@ -153,13 +149,11 @@ registerGuards({
     return reasons.length ? [...new Set(reasons)].join(' ') : null;
   },
 
-  // Una dependencia declarada apunta a una versión que existe de un registro de este proyecto.
+  // A declared dependency points to a version that exists of a record in this project.
   project_dependencies: async ({ ctx, data }) => {
     const deps = [
       ...((field(data, 'dependencies') as Dependency[] | undefined) ?? []),
-      ...((field(data, 'proposals') as { dependencies?: Dependency[] }[] | undefined) ?? []).flatMap(
-        (p) => p.dependencies ?? [],
-      ),
+      ...((field(data, 'proposals') as { dependencies?: Dependency[] }[] | undefined) ?? []).flatMap((p) => p.dependencies ?? []),
     ];
     const reasons = new Set<string>();
     for (const d of deps) {
@@ -171,7 +165,7 @@ registerGuards({
         .where('records.project_id', '=', ctx.projectId)
         .where('record_versions.n', '=', d.version)
         .executeTakeFirst();
-      if (v?.code !== d.code) reasons.add(`La dependencia ${d.code} v${d.version} no existe en este proyecto.`);
+      if (v?.code !== d.code) reasons.add(`The dependency ${d.code} v${d.version} does not exist in this project.`);
     }
     return reasons.size ? [...reasons].join(' ') : null;
   },
@@ -183,25 +177,25 @@ registerGuards({
       .where('batch_id', '=', entity?.id ?? '')
       .where('state', '=', 'pending')
       .execute();
-    return pending.length === 0 ? null : `Quedan ${pending.length} propuesta(s) pendiente(s) en el lote.`;
+    return pending.length === 0 ? null : `${pending.length} proposal(s) still pending in the batch.`;
   },
 });
 
 /**
- * Deja obsoleto lo pendiente cuyas dependencias declaradas ya no son la versión vigente: el lote
- * entero si la dependencia es del lote o si se resuelve en paquete (no se acepta medio paquete) y,
- * si no, cada propuesta afectada. Se revisa al aprobar una versión y al enviar un lote.
+ * Marks as obsolete anything pending whose declared dependencies are no longer the current version:
+ * the whole batch if the dependency belongs to the batch or if it resolves as a package (no accepting
+ * half a package), and otherwise each affected proposal. Reviewed on approving a version and on
+ * submitting a batch.
  */
 export async function reviewObsolescence(ctx: CommandContext, filter: { record?: string; batch?: string }): Promise<void> {
-  const affected = (deps: unknown) =>
-    ((deps ?? []) as Dependency[]).filter((d) => !filter.record || d.id === filter.record);
-  let queryName = ctx.trx
+  const affected = (deps: unknown) => ((deps ?? []) as Dependency[]).filter((d) => !filter.record || d.id === filter.record);
+  let query = ctx.trx
     .selectFrom('proposal_batches')
     .select(['id', 'dependencies', 'resolution_mode'])
     .where('project_id', '=', ctx.projectId)
     .where('state', '=', 'pending');
-  if (filter.batch) queryName = queryName.where('id', '=', filter.batch);
-  for (const l of await queryName.execute()) {
+  if (filter.batch) query = query.where('id', '=', filter.batch);
+  for (const l of await query.execute()) {
     const ofBatch = await staleDependencies(ctx.trx, affected(l.dependencies));
     const proposals = await ctx.trx
       .selectFrom('proposals')
@@ -231,7 +225,7 @@ export async function reviewObsolescence(ctx: CommandContext, filter: { record?:
   }
 }
 
-/** Referencias a registros dentro de la carga que son dependencias aunque nadie las declare. */
+/** References to records inside the payload that count as dependencies even if nobody declares them. */
 async function payloadDependencies(ctx: CommandContext, payload: Record<string, unknown>): Promise<Dependency[]> {
   const ref = payload.based_on as { code?: unknown; version?: unknown } | undefined;
   if (typeof ref?.code !== 'string' || typeof ref.version !== 'number') return [];
@@ -244,10 +238,10 @@ async function payloadDependencies(ctx: CommandContext, payload: Record<string, 
   return r ? [{ type: 'record', id: r.id, code: ref.code, version: ref.version }] : [];
 }
 
-/** Cierra un lote por elementos cuando ya no le quedan propuestas pendientes. */
-/** `resolviendo` es la propuesta que se está resolviendo ahora: su estado cambia al terminar el comando. */
+/** Closes an item-by-item batch once it has no pending proposals left. */
+/** `resolving` is the proposal being resolved right now: its state changes when the command finishes. */
 async function closeIfResolved(ctx: CommandContext, batchId: string, resolving: string): Promise<void> {
-  // Si la resolución viene del propio lote (paquete u obsolescencia), el lote cambia de estado él mismo.
+  // If the resolution comes from the batch itself (package or obsolescence), the batch changes its own state.
   if (['batch.accept_package', 'batch.reject_package', 'batch.supersede'].includes(ctx.cause.sourceCommand ?? '')) return;
   const batch = await ctx.trx
     .selectFrom('proposal_batches')
@@ -262,8 +256,7 @@ async function closeIfResolved(ctx: CommandContext, batchId: string, resolving: 
     .where('state', '=', 'pending')
     .where('id', '<>', resolving)
     .execute();
-  if (pending.length === 0)
-    await ctx.execute({ command: 'batch.close', actor: system('inbox'), entityId: batchId, data: {} });
+  if (pending.length === 0) await ctx.execute({ command: 'batch.close', actor: system('inbox'), entityId: batchId, data: {} });
 }
 
 async function applyProposal(
@@ -274,8 +267,8 @@ async function applyProposal(
 ): Promise<Effect> {
   const type = string(e.row.type) as ProposalType;
   const apply = APPLICATIONS[type];
-  if (!apply) throw new DomainError('not_implemented', `Aceptar propuestas de tipo «${type}» aún no está implementado.`);
-  // Los comandos que crea la propuesta llevan en su causa la propuesta que los originó.
+  if (!apply) throw new DomainError('not_implemented', `Accepting proposals of type "${type}" is not implemented yet.`);
+  // Commands created by the proposal carry the proposal that originated them in their cause.
   const withCause: CommandContext = { ...ctx, execute: (p) => ctx.execute({ ...p, cause: { proposal: e.id, ...p.cause } }) };
   return apply(withCause, { proposalId: e.id, payload, approve: options.approve });
 }
@@ -294,14 +287,14 @@ registerHandlers({
       })
       .strict(),
     async apply(ctx, data, _e, to) {
-      // El canal fija el tipo de lote: un agente externo siempre propone por elementos.
+      // The channel fixes the batch type: an external agent always proposes item by item.
       const external = ctx.actor.type === 'agent_external';
       const batchType = external ? 'agent' : (data.batch_type ?? 'agent');
       const resolution = external ? 'item' : (data.resolution ?? 'item');
       if (batchType === 'agent' && resolution === 'package') {
-        throw new DomainError('validation', 'Un lote de agente se resuelve elemento a elemento.');
+        throw new DomainError('validation', 'An agent batch is resolved item by item.');
       }
-      // La procedencia la fija el canal: un agente externo no puede atribuir su lote a una ejecución.
+      // The channel fixes the provenance: an external agent cannot attribute its batch to a run.
       const runId = ctx.actor.type === 'agent_run' ? ctx.actor.run : external ? null : (data.run_id ?? null);
       const packId = external ? null : (data.context_pack_id ?? null);
       const { id } = await ctx.trx
@@ -329,10 +322,10 @@ registerHandlers({
         });
         ids.push(r.entityId);
       }
-      // Lo que nace con una dependencia que ya no es la vigente queda obsoleto desde el principio.
+      // Anything created with a dependency that is no longer current becomes obsolete from the start.
       await reviewObsolescence(ctx, { batch: id });
-      // Cada idea de un agente (externo o de una ejecución, también los paquetes de diseño) se
-      // evalúa contra el conocimiento (§7.7), fuera de la transacción.
+      // Every idea from an agent (external or from a run, including design packages) is
+      // assessed against the knowledge base (§7.7), outside the transaction.
       if (batchType === 'agent' || runId !== null) {
         const { services, projectId } = ctx;
         ctx.afterConfirm(() => services.engine.startEvaluation(id, projectId));
@@ -358,7 +351,7 @@ registerHandlers({
     async apply(ctx, data, _e, to) {
       const dependencies = [...data.dependencies];
       for (const d of await payloadDependencies(ctx, data.payload)) {
-        // Una referencia a otra versión del mismo registro también cuenta: si no coinciden, la propuesta nace obsoleta.
+        // A reference to another version of the same record also counts: if they don't match, the proposal is born obsolete.
         if (!dependencies.some((x) => x.id === d.id && x.version === d.version)) dependencies.push(d);
       }
       const { id } = await ctx.trx

@@ -1,5 +1,5 @@
-// Credenciales: claves de personas (scrypt), sesiones con cookie httpOnly + CSRF y tokens de
-// agentes externos. En la base solo se guardan huellas, nunca los secretos.
+// Credentials: person passwords (scrypt), sessions with an httpOnly cookie + CSRF, and external
+// agent tokens. The database stores only fingerprints, never the secrets.
 
 import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
@@ -19,17 +19,17 @@ export const AGENT_TOKEN_PREFIX = 'dmg_agent_';
 
 const PARAMS = { N: 16_384, r: 8, p: 1 };
 
-export async function hashPassword(key: string): Promise<string> {
+export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16);
-  const h = await scrypt(key, salt, 32, PARAMS);
+  const h = await scrypt(password, salt, 32, PARAMS);
   return `scrypt$${PARAMS.N}$${PARAMS.r}$${PARAMS.p}$${salt.toString('base64url')}$${h.toString('base64url')}`;
 }
 
-export async function verifyPassword(key: string, saved: string): Promise<boolean> {
+export async function verifyPassword(password: string, saved: string): Promise<boolean> {
   const [alg, n, r, p, salt, h] = saved.split('$');
   if (alg !== 'scrypt' || !salt || !h) return false;
   const expected = Buffer.from(h, 'base64url');
-  const computed = await scrypt(key, Buffer.from(salt, 'base64url'), expected.length, {
+  const computed = await scrypt(password, Buffer.from(salt, 'base64url'), expected.length, {
     N: Number(n),
     r: Number(r),
     p: Number(p),
@@ -40,11 +40,11 @@ export async function verifyPassword(key: string, saved: string): Promise<boolea
 export const secretFingerprint = (s: string): string => createHash('sha256').update(s, 'utf8').digest('hex');
 export const newSecret = (prefix = ''): string => `${prefix}${randomBytes(32).toString('base64url')}`;
 
-export async function createPerson(db: Db, username: string, key: string): Promise<string> {
-  if (key.length < 12) throw new DomainError('validation', 'La clave debe tener al menos 12 caracteres.');
+export async function createPerson(db: Db, username: string, password: string): Promise<string> {
+  if (password.length < 12) throw new DomainError('validation', 'The password must be at least 12 characters.');
   const { id } = await db
     .insertInto('humans')
-    .values({ username: username, password_hash: await hashPassword(key) })
+    .values({ username: username, password_hash: await hashPassword(password) })
     .returning('id')
     .executeTakeFirstOrThrow();
   return id;
@@ -52,18 +52,21 @@ export async function createPerson(db: Db, username: string, key: string): Promi
 
 export type NewSession = { token: string; csrf: string; expires: Date; person: string };
 
-export async function openSession(db: Db, username: string, key: string, hours: number): Promise<NewSession> {
+export async function openSession(db: Db, username: string, password: string, hours: number): Promise<NewSession> {
   const person = await db.selectFrom('humans').selectAll().where('username', '=', username).executeTakeFirst();
-  const ok = person
-    ? await verifyPassword(key, person.password_hash)
-    : await verifyPassword(key, 'scrypt$16384$8$1$AAAA$AAAA');
-  if (!person || !ok) throw new DomainError('unauthenticated', 'Usuario o clave incorrectos.');
+  const ok = person ? await verifyPassword(password, person.password_hash) : await verifyPassword(password, 'scrypt$16384$8$1$AAAA$AAAA');
+  if (!person || !ok) throw new DomainError('unauthenticated', 'Incorrect username or password.');
   const token = newSecret();
   const csrf = newSecret();
   const expires = new Date(Date.now() + hours * 3_600_000);
   await db
     .insertInto('sessions')
-    .values({ human_id: person.id, token_hash: secretFingerprint(token), csrf_hash: secretFingerprint(csrf), expires_at: expires })
+    .values({
+      human_id: person.id,
+      token_hash: secretFingerprint(token),
+      csrf_hash: secretFingerprint(csrf),
+      expires_at: expires,
+    })
     .execute();
   return { token, csrf, expires, person: person.username };
 }

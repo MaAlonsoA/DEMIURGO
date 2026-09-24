@@ -1,5 +1,5 @@
-// Migraciones SQL planas, revisadas por una persona, aplicadas en orden y en transacción.
-// Una migración ya aplicada cuyo contenido cambia impide arrancar.
+// Plain SQL migrations, reviewed by a person, applied in order and in a transaction.
+// An already-applied migration whose content changes prevents startup.
 
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -31,19 +31,17 @@ export async function migrate(pool: Pool, migrations?: Migration[]): Promise<str
     await client.query('select pg_advisory_lock($1)', [MIGRATIONS_LOCK]);
     await client.query(`create table if not exists schema_migrations (
       version text primary key, name text not null, checksum text not null, applied_at timestamptz not null default now())`);
-    const { rows } = await client.query<{ version: string; checksum: string }>(
-      'select version, checksum from schema_migrations',
-    );
+    const { rows } = await client.query<{ version: string; checksum: string }>('select version, checksum from schema_migrations');
     const priors = new Map(rows.map((r) => [r.version, r.checksum]));
     const onDisk = new Set(list.map((m) => m.version));
-    const perdidas = [...priors.keys()].filter((v) => !onDisk.has(v));
-    if (perdidas.length)
-      throw new Error(`Faltan en disco migraciones ya aplicadas (${perdidas.join(', ')}); no se puede arrancar.`);
+    const missing = [...priors.keys()].filter((v) => !onDisk.has(v));
+    if (missing.length)
+      throw new Error(`Migrations already applied are missing from disk (${missing.join(', ')}); cannot start.`);
     for (const m of list) {
       const prior = priors.get(m.version);
       if (prior !== undefined) {
         if (prior !== m.checksum) {
-          throw new Error(`La migración ${m.version}_${m.name} ya aplicada ha cambiado; no se puede arrancar.`);
+          throw new Error(`Migration ${m.version}_${m.name}, already applied, has changed; cannot start.`);
         }
         continue;
       }

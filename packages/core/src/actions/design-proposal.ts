@@ -1,6 +1,6 @@
-// Acción design_proposal: a partir de una decisión aprobada, propone una FDR con sus AC como
-// un paquete coherente que la persona acepta en un paso. El paquete depende de la versión
-// vigente de la decisión: si cambia, queda obsoleto.
+// design_proposal action: from an approved decision, proposes an FDR with its ACs as a single
+// coherent package that the person accepts in one step. The package depends on the decision's
+// current version: if it changes, the package becomes obsolete.
 
 import { DomainError } from '@demiurgo/domain';
 import { registerBuilder } from '../context/build.ts';
@@ -26,9 +26,9 @@ registerBuilder('design_proposal', async ({ trx, projectId, scope, graphVersion 
     .where('record_versions.id', '=', scope.id ?? '')
     .where('records.project_id', '=', projectId)
     .executeTakeFirst();
-  if (!v) throw new DomainError('not_found', 'La versión de la decisión no existe.');
+  if (!v) throw new DomainError('not_found', 'The decision version does not exist.');
   if (v.type !== 'decision' || v.state !== 'approved') {
-    throw new DomainError('validation', 'Solo se propone un diseño a partir de una decisión aprobada.');
+    throw new DomainError('validation', 'A design can only be proposed from an approved decision.');
   }
   const sections = v.sections as { title: string; content: string }[];
   const text = (t: string) => sections.find((s) => s.title === t)?.content ?? '';
@@ -42,12 +42,7 @@ registerBuilder('design_proposal', async ({ trx, projectId, scope, graphVersion 
     .orderBy('records.code')
     .limit(40)
     .execute();
-  const knowledge = await knowledgeForContext(
-    trx,
-    projectId,
-    `${v.title} ${text('Decisión')}`,
-    BUDGET.knowledge,
-  );
+  const knowledge = await knowledgeForContext(trx, projectId, `${v.title} ${text('Decision')}`, BUDGET.knowledge);
   return {
     role: 'design',
     constructor: 'design_proposal@1',
@@ -61,7 +56,7 @@ registerBuilder('design_proposal', async ({ trx, projectId, scope, graphVersion 
         domain: v.domain,
         title: v.title,
         context: text('Context').slice(0, 3000),
-        decision: text('Decisión').slice(0, 3000),
+        decision: text('Decision').slice(0, 3000),
         consequences: text('Consequences').slice(0, 2000),
       },
       approved_records: related.map((r) => ({ code: r.code, type: r.type, version: r.n, title: r.title })),
@@ -89,15 +84,13 @@ registerApplier('design_proposal', async ({ trx, execute, run, output }) => {
     command: 'batch.submit',
     actor: { type: 'agent_run', run: run.id },
     data: {
-      summary: `Diseño propuesto a partir de ${d.code} v${d.version}: FDR con ${output.fdr.criteria.length} criterios.`,
+      summary: `Design proposed from ${d.code} v${d.version}: FDR with ${output.fdr.criteria.length} criteria.`,
       batch_type: 'system_package',
       resolution: 'package',
       run_id: run.id,
       context_pack_id: run.context_pack_id ?? undefined,
       dependencies: [dependency],
-      proposals: [
-        { type: 'fdr', payload: { ...output.fdr, based_on: { code: d.code, version: d.version }, domain: d.domain } },
-      ],
+      proposals: [{ type: 'fdr', payload: { ...output.fdr, based_on: { code: d.code, version: d.version }, domain: d.domain } }],
     },
   });
 });

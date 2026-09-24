@@ -1,5 +1,5 @@
-// Integración del conocimiento con el resto del núcleo: selección para los context packs,
-// evaluación de ideas tras cada lote de un agente y la parte de la bandeja que le toca.
+// Integrates knowledge with the rest of the core: selection for context packs, idea
+// assessment after each agent batch, and its share of the inbox.
 
 import { selectForContext } from '@demiurgo/domain';
 import { registerInboxExtension } from '../queries/read.ts';
@@ -29,7 +29,7 @@ registerInboxExtension({
       .where('proposal_id', '=', proposalId)
       .executeTakeFirst();
     if (!e) return { isPending: true };
-    // Las evaluaciones guardan sus hallazgos, las respuestas que no se verificaron y el error, si lo hubo.
+    // Assessments store their findings, the responses that weren't verified, and the error, if there was one.
     const f = (Array.isArray(e.findings) ? { findings: e.findings } : e.findings) as {
       findings?: unknown[];
       invalid?: unknown[];

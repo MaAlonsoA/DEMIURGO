@@ -1,18 +1,18 @@
-// Mapa AC → prueba a partir de los informes JUnit de Vitest: cada criterio automático de un
-// incremento implementado tiene al menos una prueba que pasó y cuyo título empieza por su
-// código. Se basa en lo que se ejecutó, no en el texto de las pruebas: un comentario, una
-// cadena, un `describe` o una prueba saltada o fallida no cuentan. Es la versión provisional
-// del mapa AC → comprobación → prueba del Pilar 2 (§6 del plan).
+// AC → test map built from Vitest's JUnit reports: every automatic criterion of an
+// implemented increment has at least one test that passed and whose title starts with
+// its code. It's based on what actually ran, not on test text: a comment, a
+// string, a `describe`, or a skipped or failed test don't count. This is the provisional
+// version of the AC → check → test map from Pillar 2 (plan §6).
 
 import type { RecordDocument } from './types.ts';
 
 export type CaseResult = 'passed' | 'failed' | 'skipped';
 
-/** Un `testcase` de un informe JUnit: archivo (classname), nombre completo y resultado. */
+/** A JUnit report's `testcase`: file (classname), full name and result. */
 export type JUnitCase = { file: string; name: string; result: CaseResult };
 
 export type TraceabilityMap = {
-  /** Código de AC → pruebas que pasaron y lo citan, como «archivo > nombre». */
+  /** AC code → passed tests that cite it, as "file > name". */
   testsByAc: Map<string, Set<string>>;
   withoutTest: { record: string; ac: string }[];
   unknown: { file: string; test: string; ac: string }[];
@@ -20,7 +20,7 @@ export type TraceabilityMap = {
 
 const ENTITIES: Readonly<Record<string, string>> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
 
-/** Decodifica las entidades de XML en una sola pasada (así «&amp;lt;» queda «&lt;»). */
+/** Decodes XML entities in a single pass (so "&amp;lt;" becomes "&lt;"). */
 export function decodeEntities(text: string): string {
   return text.replace(/&(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);/g, (match, name: string) => {
     if (name.startsWith('#x')) return String.fromCodePoint(Number.parseInt(name.slice(2), 16));
@@ -39,14 +39,14 @@ function attributes(text: string): Map<string, string> {
 }
 
 /**
- * Un informe está completo si cierra `<testsuites>`: Vitest abre el archivo al empezar y solo
- * escribe el informe al terminar, así que una ejecución cortada deja un archivo vacío.
+ * A report is complete if it closes `<testsuites>`: Vitest opens the file at the start and only
+ * writes the report when it finishes, so an interrupted run leaves an empty file.
  */
 export function completeReport(xml: string): boolean {
   return /<testsuites\b[\s\S]*<\/testsuites>\s*$/.test(xml);
 }
 
-/** Lee los `testcase` de un informe JUnit como el que escribe Vitest (XML simple, sin CDATA). */
+/** Reads the `testcase` entries of a JUnit report as Vitest writes them (simple XML, no CDATA). */
 export function casesFromJUnit(xml: string): JUnitCase[] {
   const cases: JUnitCase[] = [];
   for (const m of xml.matchAll(RE_TESTCASE)) {
@@ -60,7 +60,7 @@ export function casesFromJUnit(xml: string): JUnitCase[] {
   return cases;
 }
 
-/** Título propio de una prueba: Vitest antepone los `describe` separados por « > ». */
+/** A test's own title: Vitest prefixes the `describe` blocks separated by " > ". */
 export function ownTitle(name: string): string {
   const i = name.lastIndexOf(' > ');
   return i < 0 ? name : name.slice(i + 3);
@@ -68,7 +68,7 @@ export function ownTitle(name: string): string {
 
 const RE_INITIAL_CODES = /^AC-[A-Z]{3}-\d{3}-\d{2}(?:\s+AC-[A-Z]{3}-\d{3}-\d{2})*(?=\s|$)/;
 
-/** Códigos de AC con los que empieza el título propio de una prueba (uno o varios seguidos). */
+/** AC codes that a test's own title starts with (one or several in a row). */
 export function citedCodes(name: string): string[] {
   const m = RE_INITIAL_CODES.exec(ownTitle(name).trimStart());
   return m ? m[0].split(/\s+/) : [];
@@ -98,7 +98,7 @@ export function traceabilityMap(
   for (const r of records) {
     if (!r.increment || !implementedIncrements.includes(r.increment)) continue;
     for (const c of r.criteria) {
-      if (c.verification === 'automática' && !testsByAc.has(c.code)) withoutTest.push({ record: r.code, ac: c.code });
+      if (c.verification === 'automatic' && !testsByAc.has(c.code)) withoutTest.push({ record: r.code, ac: c.code });
     }
   }
   return { testsByAc, withoutTest, unknown };

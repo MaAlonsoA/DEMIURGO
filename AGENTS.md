@@ -6,9 +6,9 @@ DEMIURGO guía el desarrollo con IA de principio a fin con dos pilares: diseñar
 
 - **El modelo propone, el sistema dispone y la persona decide.** Ninguna salida de IA cambia un estado de autoridad. Nunca aceptes automáticamente una propuesta de IA ni conviertas una hipótesis en algo aprobado.
 - **El actor lo fija el servidor** según la credencial o el canal: `human:<persona>` (cookie de sesión), `agent:<nombre>:<sesión>` (token de agente), `agent:run:<id>` (ejecuciones) y `system:<componente>@<versión>`. El cliente nunca declara su actor.
-- **Todo cambio de estado sale de las tablas de datos** (`design/datos/`): lo que no está en la matriz de capacidades da 403 y lo que no está en la tabla de transiciones da 409, en ambos casos sin efectos.
+- **Todo cambio de estado sale de las tablas de datos** (`design/data/`): lo que no está en la matriz de capacidades da 403 y lo que no está en la tabla de transiciones da 409, en ambos casos sin efectos.
 - **El diario (`events`) solo admite INSERT.** Cada mutación deja su evento en la misma transacción.
-- Textos de producto, mensajes de error, documentación y commits **en español**.
+- **Idioma.** El código va **en inglés**: identificadores, comentarios, pruebas, API, textos de producto, mensajes de error y prompts de los agentes. La documentación (`docs/`, `AGENTS.md`, `CLAUDE.md`), la prosa de los documentos de `design/`, los commits y la conversación van **en español**.
 
 ## Entorno
 
@@ -19,6 +19,6 @@ DEMIURGO guía el desarrollo con IA de principio a fin con dos pilares: diseñar
 
 ## Cómo trabajar
 
-- TDD: cada AC automático de `design/` tiene al menos una prueba que pasa y cuyo título empieza por su código (`AC-ESQ-001-01 …`). `pnpm gate:trazabilidad` lo comprueba con los informes JUnit.
+- TDD: cada AC automático de `design/` tiene al menos una prueba que pasa y cuyo título empieza por su código (`AC-ESQ-001-01 …`). `pnpm gate:traceability` lo comprueba con los informes JUnit.
 - Cierra cada cambio con `pnpm gate:all` en verde.
 - Commits pequeños con la skill `commit`. No hagas push ni merge en `main`.

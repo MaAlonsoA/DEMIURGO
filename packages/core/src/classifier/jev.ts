@@ -1,30 +1,29 @@
-// Adaptador de Jev (TypeSafe AI, System One) detrás del puerto `Clasificador`. Está vacío a
-// propósito: no hay acceso al early access y enviar contenido del proyecto a TypeSafe (API
-// alojada en EE. UU.) necesita antes un ADR (§7.5 del plan). Mientras tanto se usa el
-// clasificador de referencia.
+// Jev adapter (TypeSafe AI, System One) behind the `Classifier` port. It's deliberately empty:
+// there's no early access yet, and sending project content to TypeSafe (a US-hosted API) needs
+// an ADR first (plan §7.5). The reference classifier is used in the meantime.
 //
-// Cómo encajará `@typesafe-ai/sdk` 0.6 (MIT) cuando se instale, sin cambiar el puerto:
-// - Una petición por llamada a `choice`, `score` o `noul`, con todos los ítems como preguntas
-//   independientes de la misma petición (Jev las resuelve en paralelo). Nada multi-salto.
-// - `state`: el `estado` de cada ítem (texto o JSON), pequeño y delimitado como dato no
-//   confiable. Contexto de 64k tokens, 32k para `state` más la pregunta.
-// - Choice: `pregunta` y `opciones` (hasta 255). La respuesta trae la opción elegida y su
-//   distribución de probabilidad, que pasa tal cual a `RespuestaChoice.distribucion`.
-// - Score: `pregunta` y `niveles` ordenados (de 2 a 10). `nivel` es el índice elegido y
-//   `distribucion`, la probabilidad por nivel.
-// - Noul: `enunciado`; `probabilidad` es P(verdadero). No se combinan dos Noul para una misma
-//   decisión: P(sí) + P(no) puede no sumar 1 (mejor un Choice).
-// - `confidence` de Jev → `confianza`, que enruta la cascada (`enrutarPorConfianza`). Está
-//   calibrada por grupo, no por respuesta, y los umbrales se ajustan con datos propios.
-// - El id pasará a ser `jev@<versión del modelo>` (p. ej. `jev@jev-1.13.0`), y forma parte del
-//   `input_hash` de cada clasificación.
+// How `@typesafe-ai/sdk` 0.6 (MIT) will fit in once installed, without changing the port:
+// - One request per call to `choice`, `score` or `noul`, with all items as independent
+//   questions in the same request (Jev solves them in parallel). Nothing multi-hop.
+// - `state`: each item's `state` (text or JSON), small and delimited as untrusted data.
+//   64k-token context, 32k for `state` plus the question.
+// - Choice: `question` and `options` (up to 255). The response carries the chosen option and
+//   its probability distribution, which passes through as-is to `ChoiceResponse.distribution`.
+// - Score: `question` and ordered `levels` (2 to 10). `level` is the chosen index and
+//   `distribution`, the probability per level.
+// - Noul: `statement`; `probability` is P(true). Two Nouls aren't combined for a single
+//   decision: P(yes) + P(no) may not add up to 1 (a Choice is better for that).
+// - Jev's `confidence` routes the cascade (`routeByConfidence`). It's calibrated per group,
+//   not per response, and the thresholds are tuned with our own data.
+// - The id will become `jev@<model version>` (e.g. `jev@jev-1.13.0`), and is part of each
+//   classification's `input_hash`.
 
 import type { Classifier } from '@demiurgo/domain';
 
-export const JEV_CLASSIFIER_ID = 'jev@no-disponible';
+export const JEV_CLASSIFIER_ID = 'jev@unavailable';
 
 export const JEV_UNAVAILABLE_MESSAGE =
-  'Jev no está disponible: el adaptador está vacío hasta tener acceso y un ADR sobre el envío de datos a TypeSafe.';
+  'Jev is not available: the adapter is empty until we have access and an ADR about sending data to TypeSafe.';
 
 export function createJevClassifier(): Classifier {
   const notAvailable = async (): Promise<never> => {

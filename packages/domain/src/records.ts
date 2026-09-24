@@ -1,5 +1,5 @@
-// Registros con versiones (decisión, FDR, ADR, bug): plantillas, readiness, estado
-// epistémico y aviso de verificabilidad. Todo puro.
+// Versioned records (decision, FDR, ADR, bug): templates, readiness, epistemic
+// status and verifiability warning. All pure.
 
 export const RECORD_TYPES = ['decision', 'fdr', 'adr', 'bug'] as const;
 export type RecordType = (typeof RECORD_TYPES)[number];
@@ -7,15 +7,15 @@ export type RecordType = (typeof RECORD_TYPES)[number];
 export const RECORD_PREFIX: Record<RecordType, string> = { decision: 'DEC', fdr: 'FDR', adr: 'ADR', bug: 'BUG' };
 
 export const RECORD_TEMPLATES: Record<RecordType, { sections: readonly string[]; requiresCriteria: boolean }> = {
-  decision: { sections: ['Context', 'Decisión', 'Consequences'], requiresCriteria: false },
-  adr: { sections: ['Context', 'Options', 'Decisión', 'Consequences'], requiresCriteria: true },
-  fdr: { sections: ['Goal', 'Scope', 'Fuera de alcance', 'Behavior'], requiresCriteria: true },
-  bug: { sections: ['Reproducción', 'Expected', 'Observed'], requiresCriteria: true },
+  decision: { sections: ['Context', 'Decision', 'Consequences'], requiresCriteria: false },
+  adr: { sections: ['Context', 'Options', 'Decision', 'Consequences'], requiresCriteria: true },
+  fdr: { sections: ['Goal', 'Scope', 'Out of scope', 'Behavior'], requiresCriteria: true },
+  bug: { sections: ['Reproduction', 'Expected', 'Observed'], requiresCriteria: true },
 };
 
 export type Section = { title: string; content: string };
 
-/** Límites del contenido de una versión: los comparten la validación de los comandos y el validador de design/. */
+/** Limits on a version's content: shared by command validation and the design/ validator. */
 export const VERSION_LIMITS = {
   title: 200,
   sectionTitle: 120,
@@ -29,21 +29,20 @@ export const VERSION_LIMITS = {
   check: 1000,
 } as const;
 
-/** Motivos por los que unas secciones no cumplen la plantilla de su tipo (vacío si la cumplen). */
+/** Reasons why some sections don't meet their type's template (empty if they do). */
 export function templateGaps(type: RecordType, sections: readonly Section[]): string[] {
   const gaps: string[] = [];
   const template = RECORD_TEMPLATES[type];
   let i = 0;
   for (const s of sections) if (s.title === template.sections[i]) i++;
-  if (i < template.sections.length)
-    gaps.push(`Faltan secciones de la plantilla: ${template.sections.slice(i).join(', ')}.`);
-  for (const s of sections) if (s.content.trim() === '') gaps.push(`La sección «${s.title}» está vacía.`);
+  if (i < template.sections.length) gaps.push(`Missing template sections: ${template.sections.slice(i).join(', ')}.`);
+  for (const s of sections) if (s.content.trim() === '') gaps.push(`Section "${s.title}" is empty.`);
   const titles = sections.map((s) => s.title);
-  if (new Set(titles).size !== titles.length) gaps.push('Hay secciones repetidas.');
+  if (new Set(titles).size !== titles.length) gaps.push('There are repeated sections.');
   return gaps;
 }
 
-// Estado epistémico (visión original): confirmado, propuesto, pendiente o desconocido.
+// Epistemic status (original vision): confirmed, proposed, pending or unknown.
 export type EpistemicStatus = 'confirmed' | 'proposed' | 'pending' | 'unknown';
 
 export function epistemicOfVersion(state: string): EpistemicStatus {
@@ -72,7 +71,7 @@ export function epistemicOfObservation(type: string | null): EpistemicStatus {
   return 'proposed';
 }
 
-// Readiness: «Listo para construir». Devuelve lo que falta en lenguaje de producto.
+// Readiness: "Ready to build". Returns what's missing in product language.
 
 export type VersionSummary = { n: number; state: string };
 
@@ -80,16 +79,16 @@ export type ReadinessInput = {
   code: string;
   type: RecordType;
   version: VersionSummary;
-  /** Última versión aprobada del registro (la vigente), si existe. */
+  /** Last approved version of the record (the current one), if any. */
   current: number | null;
   criteria: { code: string; verification: string; check: string; statement: string }[];
-  /** Enlaces «based_on» a decisiones: versión enlazada, vigente de esa decisión y estado del enlace. */
+  /** "based_on" links to decisions: linked version, that decision's current version, and link status. */
   basedOn: { code: string; version: number; versionState: string; current: number | null; linkState: string }[];
-  /** Otros enlaces de esta versión que están pendientes de revisión. */
+  /** Other links of this version that are pending review. */
   linksUnderReview: string[];
-  /** Preguntas pendientes o pospuestas en la exploración de origen. */
+  /** Pending or postponed questions in the origin exploration. */
   openQuestions: { question: string; state: string }[];
-  /** Propuestas pendientes que dependen de este registro. */
+  /** Pending proposals that depend on this record. */
   pendingProposals: number;
 };
 
@@ -98,52 +97,53 @@ export type Readiness = { ready: boolean; reasons: string[]; warnings: string[] 
 export function readiness(e: ReadinessInput): Readiness {
   const reasons: string[] = [];
   if (e.version.state === 'superseded') {
-    reasons.push(`La versión ${e.version.n} está sustituida: la vigente es la ${e.current ?? '—'}.`);
+    reasons.push(`Version ${e.version.n} is superseded: the current one is ${e.current ?? '—'}.`);
   } else if (e.version.state === 'draft' && e.current !== null && e.current > e.version.n) {
-    reasons.push(`La versión ${e.version.n} es un borrador anterior a la vigente (v${e.current}): solo se puede descartar.`);
-  } else if (e.version.state !== 'approved') reasons.push(`La versión ${e.version.n} no está aprobada.`);
-  else if (e.current !== e.version.n) reasons.push(`No es la versión vigente: la vigente es la ${e.current ?? '—'}.`);
-  if (RECORD_TEMPLATES[e.type].requiresCriteria && e.criteria.length === 0) reasons.push('No tiene criterios de aceptación.');
+    reasons.push(`Version ${e.version.n} is a draft earlier than the current one (v${e.current}): it can only be discarded.`);
+  } else if (e.version.state !== 'approved') reasons.push(`Version ${e.version.n} is not approved.`);
+  else if (e.current !== e.version.n) reasons.push(`It's not the current version: the current one is ${e.current ?? '—'}.`);
+  if (RECORD_TEMPLATES[e.type].requiresCriteria && e.criteria.length === 0) reasons.push('It has no acceptance criteria.');
   for (const c of e.criteria) {
     if (!['automatic', 'manual'].includes(c.verification) || c.check.trim() === '') {
-      reasons.push(`El criterio ${c.code} no indica cómo se comprueba.`);
+      reasons.push(`Criterion ${c.code} doesn't say how it's checked.`);
     }
   }
   if (e.type === 'fdr' || e.type === 'adr') {
     const decisions = e.basedOn;
-    if (decisions.length === 0) reasons.push('No se basa en ninguna decisión.');
+    if (decisions.length === 0) reasons.push('It is not based on any decision.');
     for (const d of decisions) {
       if (d.current === null) {
-        reasons.push(`La decisión ${d.code} en la que se basa no está aprobada.`);
+        reasons.push(`Decision ${d.code} it is based on is not approved.`);
       } else if (d.current !== d.version) {
-        reasons.push(`Se basa en ${d.code} v${d.version}, pero la vigente es la v${d.current}.`);
+        reasons.push(`It is based on ${d.code} v${d.version}, but the current one is v${d.current}.`);
       }
-      if (d.linkState === 'needs_review') reasons.push(`El enlace con ${d.code} está pendiente de revisión.`);
+      if (d.linkState === 'needs_review') reasons.push(`The link with ${d.code} is pending review.`);
     }
   }
-  for (const linkRef of e.linksUnderReview) reasons.push(`El enlace con ${linkRef} está pendiente de revisión.`);
+  for (const linkRef of e.linksUnderReview) reasons.push(`The link with ${linkRef} is pending review.`);
   const pending = e.openQuestions.filter((p) => p.state === 'pending').length;
   const postponed = e.openQuestions.filter((p) => p.state === 'postponed').length;
-  if (pending > 0) reasons.push(`Hay ${pending} pregunta(s) pendiente(s) en la exploración de origen.`);
-  if (postponed > 0) reasons.push(`Hay ${postponed} pregunta(s) pospuesta(s) en la exploración de origen.`);
-  if (e.pendingProposals > 0) reasons.push(`Hay ${e.pendingProposals} propuesta(s) pendiente(s) que la afectan.`);
+  if (pending > 0) reasons.push(`There are ${pending} pending question(s) in the origin exploration.`);
+  if (postponed > 0) reasons.push(`There are ${postponed} postponed question(s) in the origin exploration.`);
+  if (e.pendingProposals > 0) reasons.push(`There are ${e.pendingProposals} pending proposal(s) affecting it.`);
   const warnings = e.criteria.flatMap((c) => verifiabilityWarnings(c.code, c.statement));
   return { ready: reasons.length === 0, reasons, warnings };
 }
 
 const VAGUE =
-  /\b(r[aá]pid[oa]s?|f[aá]cil(es|mente)?|intuitiv[oa]s?|adecuad[oa]s?|correctamente|bien|amigable|robust[oa]s?|eficiente(s|mente)?|mejor(es)?|user[- ]friendly)\b/i;
-const OBSERVABLE = /\b(cuando|entonces|ve|recibe|muestra|devuelve|aparece|queda|rechaza|falla|contiene|guarda|responde)\b/i;
+  /\b(r[aá]pid[oa]s?|fast|quick(?:ly)?|f[aá]cil(es|mente)?|easy|easily|intuitiv[oa]s?|intuitive(?:ly)?|adecuad[oa]s?|adequate|suitable|correctamente|correctly|bien|well|amigable|friendly|robust[oa]s?|robust(?:ly)?|eficiente(?:s|mente)?|efficient(?:ly)?|mejor(?:es)?|better|best|user[- ]friendly)\b/i;
+const OBSERVABLE =
+  /\b(cuando|entonces|ve|recibe|muestra|devuelve|aparece|queda|rechaza|falla|contiene|guarda|responde|when|then|sees?|receives?|shows?|returns?|appears?|remains?|rejects?|fails?|contains?|saves?|responds?)\b/i;
 
 /**
- * Chequeo de verificabilidad determinista (el Noul de §7.5 lo sustituirá): solo avisa, nunca
- * bloquea (AC-DIS-001-14).
+ * Deterministic verifiability check (§7.5's Noul will replace it): only warns, never
+ * blocks (AC-DIS-001-14).
  */
 export function verifiabilityWarnings(code: string, statement: string): string[] {
   const warnings: string[] = [];
   if (!OBSERVABLE.test(statement))
-    warnings.push(`${code}: el enunciado no describe un resultado observable (Dado…, cuando…, entonces…).`);
+    warnings.push(`${code}: the statement doesn't describe an observable result (Given…, when…, then…).`);
   const vague = VAGUE.exec(statement);
-  if (vague) warnings.push(`${code}: «${vague[0]}» es vago; indica una medida o un resultado comprobable.`);
+  if (vague) warnings.push(`${code}: "${vague[0]}" is vague; state a measure or a checkable result.`);
   return warnings;
 }

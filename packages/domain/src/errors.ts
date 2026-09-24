@@ -1,4 +1,4 @@
-// Errores de dominio. Los mensajes van en español y en lenguaje de producto.
+// Domain errors. Messages are in English, in product language.
 
 export const HTTP_STATUS = {
   unauthenticated: 401,

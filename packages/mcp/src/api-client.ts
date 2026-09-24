@@ -1,14 +1,14 @@
-// Cliente HTTP mínimo de la API de DEMIURGO con un token de agente. El servidor MCP no abre
-// la base ni importa el núcleo: todo pasa por la API, que fija el actor a partir del token
-// (`agent:<nombre>:<sesión>`). Así una herramienta MCP nunca puede hacer más que el token.
+// Minimal HTTP client for the DEMIURGO API with an agent token. The MCP server never opens
+// the database or imports the core: everything goes through the API, which fixes the actor
+// from the token (`agent:<name>:<session>`). This way an MCP tool can never do more than the token.
 
-/** Comandos que el canal de agentes puede pedir: conversar, registrar fuentes y proponer. */
+/** Commands the agent channel can request: converse, register sources and propose. */
 export const AGENT_COMMANDS = ['message.post', 'source.register', 'batch.submit'] as const;
 export type AgentCommand = (typeof AGENT_COMMANDS)[number];
 
 export type ApiError = {
   ok: false;
-  /** Código HTTP; 0 si no hubo respuesta. */
+  /** HTTP status code; 0 if there was no response. */
   state: number;
   error: string;
   message: string;
@@ -18,9 +18,9 @@ export type ApiError = {
 export type ApiResponse = { ok: true; state: number; data: unknown } | ApiError;
 
 export type ApiClient = {
-  /** GET sobre una ruta del proyecto (por ejemplo `/bandeja`). */
+  /** GET on a project route (e.g. `/inbox`). */
   read(path: string, queryName?: Record<string, string>): Promise<ApiResponse>;
-  /** POST de uno de los comandos permitidos al agente; el cuerpo nunca lleva actor. */
+  /** POST of one of the commands allowed to the agent; the body never carries an actor. */
   command(command: AgentCommand, data: Record<string, unknown>): Promise<ApiResponse>;
 };
 
@@ -47,7 +47,7 @@ export function createApiClient(op: ApiClientOptions): ApiClient {
       response = await doFetch(`${base}${path}`, {
         method: method,
         headers: headers,
-        // Una redirección podría llevar el token a otro destino: se trata como error.
+        // A redirect could send the token to another destination: treat it as an error.
         redirect: 'error',
         signal: AbortSignal.timeout(time),
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -57,7 +57,7 @@ export function createApiClient(op: ApiClientOptions): ApiClient {
         ok: false,
         state: 0,
         error: 'disconnected',
-        message: `No se pudo contactar con la API de DEMIURGO en ${op.urlApi}: ${e instanceof Error ? e.message : String(e)}`,
+        message: `Could not reach the DEMIURGO API at ${op.urlApi}: ${e instanceof Error ? e.message : String(e)}`,
         reasons: [],
       };
     }
@@ -83,7 +83,7 @@ export function createApiClient(op: ApiClientOptions): ApiClient {
   };
 }
 
-/** ¿Es el cuerpo un error de dominio de la API (`{ error, mensaje, motivos }`)? */
+/** Is the body an API domain error (`{ error, message, reasons }`)? */
 function isDomainError(json: unknown): json is { error: string; message: string; reasons?: unknown } {
   if (typeof json !== 'object' || json === null) return false;
   const o = json as Record<string, unknown>;
@@ -95,12 +95,12 @@ function responseError(state: number, json: unknown): ApiError {
     const reasons = Array.isArray(json.reasons) ? json.reasons.filter((m): m is string => typeof m === 'string') : [];
     return { ok: false, state, error: json.error, message: json.message, reasons };
   }
-  // Respuesta sin el formato de error de la API (por ejemplo, una ruta que no existe).
+  // Response that does not match the API's error format (e.g. a route that does not exist).
   return {
     ok: false,
     state,
     error: state === 404 ? 'nonexistent_path' : 'unexpected_response',
-    message: `La API de DEMIURGO respondió ${state} sin un error reconocible.`,
+    message: `The DEMIURGO API responded ${state} with no recognizable error.`,
     reasons: [],
   };
 }

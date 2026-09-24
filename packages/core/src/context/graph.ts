@@ -1,4 +1,4 @@
-// Versión del grafo de conocimiento de un proyecto. Hasta S2 no hay grafo: versión 0.
+// Knowledge graph version of a project. Until S2 there is no graph: version 0.
 
 import { sql } from 'kysely';
 import type { Tx } from '../db/connection.ts';
@@ -12,10 +12,10 @@ export async function graphVersion(trx: Tx, projectId: string): Promise<number> 
 }
 
 /**
- * Frescura para las acciones del Pilar 1: no hay ninguna actualización de conocimiento en
- * curso (en cola, clasificando o verificando). Una actualización rechazada no bloquea las
- * conversaciones: queda en la bandeja para que la persona la reintente. El gate estricto
- * (también las rechazadas de su alcance) es el de un Change Set al pasar a in_progress (S3).
+ * Freshness for Pillar 1 actions: no knowledge update is currently in progress
+ * (queued, classifying or verifying). A rejected update does not block conversations:
+ * it stays in the inbox for the person to retry. The strict gate (which also covers
+ * rejected updates within its scope) is the one for a Change Set moving to in_progress (S3).
  */
 export async function graphUpToDate(trx: Tx, projectId: string): Promise<{ upToDate: boolean; pending: number }> {
   const exists = await sql<{ t: string | null }>`select to_regclass('public.knowledge_updates')::text as t`.execute(trx);

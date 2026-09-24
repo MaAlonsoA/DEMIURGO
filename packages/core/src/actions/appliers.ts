@@ -1,5 +1,5 @@
-// Efectos de la salida validada de cada acción. Solo se ejecutan con salida válida y dentro
-// de la misma transacción que completa la ejecución: o todo o nada, una sola vez.
+// Effects of each action's validated output. They only run with valid output and inside
+// the same transaction that completes the run: all or nothing, exactly once.
 
 import type { AgentAction, ActionOutput } from '@demiurgo/domain';
 import type { Request, Result } from '../bus/types.ts';
@@ -16,7 +16,7 @@ export type ApplierInput<A extends AgentAction> = {
 type Applier<A extends AgentAction> = (e: ApplierInput<A>) => Promise<void>;
 
 export const APPLIERS: { [A in AgentAction]?: Applier<A> } = {
-  // eco no tiene efectos: la salida queda en la propia ejecución.
+  // echo has no effects: its output stays in the run itself.
   echo: async () => undefined,
 };
 

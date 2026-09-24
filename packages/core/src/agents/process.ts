@@ -1,17 +1,17 @@
-// Lanzamiento de procesos de agente: la única pieza que llama a `spawn`. Los adaptadores
-// reciben un `Lanzador` inyectable para que las pruebas no lancen binarios reales.
+// Launching agent processes: the only piece that calls `spawn`. Adapters
+// receive an injectable `Launcher` so tests don't launch real binaries.
 
 import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
 import { join } from 'node:path';
 
 export type LaunchCommand = {
-  /** Ruta del ejecutable. Nunca se interpreta con una shell. */
+  /** Path to the executable. Never interpreted through a shell. */
   executable: string;
   args: readonly string[];
   cwd: string;
-  /** Entorno completo del hijo (ya filtrado): no hereda nada más. */
+  /** Full environment of the child (already filtered): it inherits nothing else. */
   env: Readonly<Record<string, string>>;
-  /** Texto que se escribe en stdin antes de cerrarlo. */
+  /** Text written to stdin before closing it. */
   input: string;
 };
 
@@ -19,15 +19,15 @@ export type ProcessEnd = { code: number | null; signal: string | null; stdout: s
 
 export type LaunchedProcess = {
   readonly pid: number | undefined;
-  /** Se resuelve al cerrarse el proceso y se rechaza si no se pudo lanzar (p. ej. `ENOENT`). */
+  /** Resolves when the process closes, and rejects if it couldn't be launched (e.g. `ENOENT`). */
   readonly end: Promise<ProcessEnd>;
-  /** Mata el proceso y todo su árbol. Es idempotente. */
+  /** Kills the process and its whole tree. Idempotent. */
   terminate(): void;
 };
 
 export type Launcher = (command: LaunchCommand) => LaunchedProcess;
 
-/** Busca una variable sin distinguir mayúsculas (en Windows `Path` y `PATH` son la misma). */
+/** Looks up a variable case-insensitively (on Windows `Path` and `PATH` are the same). */
 export function readVariable(env: Readonly<Record<string, string | undefined>>, name: string): string | undefined {
   const target = name.toUpperCase();
   for (const [key, value] of Object.entries(env)) {
@@ -36,7 +36,7 @@ export function readVariable(env: Readonly<Record<string, string | undefined>>, 
   return undefined;
 }
 
-/** Error de lanzamiento por ejecutable inexistente. */
+/** Launch error for a missing executable. */
 export function isExecutableNotFound(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT';
 }
@@ -45,8 +45,8 @@ function terminateTree(child: ChildProcessWithoutNullStreams, env: LaunchCommand
   const pid = child.pid;
   if (pid === undefined || child.exitCode !== null || child.signalCode !== null) return;
   if (process.platform === 'win32') {
-    // `taskkill /T` mata también los procesos que haya lanzado la CLI. Ruta absoluta para no
-    // depender del PATH del hijo.
+    // `taskkill /T` also kills any processes the CLI launched. Absolute path so it doesn't
+    // depend on the child's PATH.
     const root = readVariable(env, 'SystemRoot') ?? 'C:\\Windows';
     const killer = spawn(join(root, 'System32', 'taskkill.exe'), ['/pid', String(pid), '/T', '/F'], {
       windowsHide: true,
@@ -56,14 +56,14 @@ function terminateTree(child: ChildProcessWithoutNullStreams, env: LaunchCommand
     return;
   }
   try {
-    // El hijo se lanzó como líder de su propio grupo: se mata el grupo entero.
+    // The child was launched as the leader of its own group: kill the whole group.
     process.kill(-pid, 'SIGKILL');
   } catch {
     child.kill('SIGKILL');
   }
 }
 
-/** Lanzador real sobre `child_process.spawn`, sin shell y con stdout y stderr completos. */
+/** Real launcher over `child_process.spawn`, without a shell and with full stdout and stderr. */
 export const nodeLauncher: Launcher = (command) => {
   const child = spawn(command.executable, [...command.args], {
     cwd: command.cwd,
@@ -77,7 +77,7 @@ export const nodeLauncher: Launcher = (command) => {
   const errors: Buffer[] = [];
   child.stdout.on('data', (chunk: Buffer) => output.push(chunk));
   child.stderr.on('data', (chunk: Buffer) => errors.push(chunk));
-  // Si el proceso muere antes de leer stdin, la escritura falla con EPIPE: no es un error propio.
+  // If the process dies before reading stdin, the write fails with EPIPE: not an error of our own.
   child.stdin.on('error', () => undefined);
   const end = new Promise<ProcessEnd>((resolve, reject) => {
     child.once('error', reject);

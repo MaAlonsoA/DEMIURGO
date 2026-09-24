@@ -1,4 +1,4 @@
-// Comandos de proyecto.
+// Project commands.
 
 import { z } from 'zod';
 import { handler, registerHandlers } from '../bus/handlers.ts';

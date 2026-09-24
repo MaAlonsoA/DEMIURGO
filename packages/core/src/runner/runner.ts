@@ -1,18 +1,18 @@
-// Broker del runner aislado (perfil de trabajo sin datos, credenciales, root ni red).
+// Isolated runner broker (job profile with no data, credentials, root or network).
 //
-// Este módulo es el ÚNICO de DEMIURGO que invoca la CLI de docker. Recibe un JobSpec
-// cerrado (jobspec.ts), fija él mismo todos los flags de seguridad y lanza el contenedor
-// con `spawn` sin shell. Nadie más debe llamar a docker: cualquier ejecución aislada pasa
-// por `ejecutarTrabajo`.
+// This is the ONLY module in DEMIURGO that invokes the docker CLI. It receives a closed
+// JobSpec (jobspec.ts), sets all the security flags itself and launches the container
+// with `spawn` and no shell. Nothing else should call docker: any isolated run goes
+// through `runJob`.
 //
-// Garantías del contenedor (docs/investigacion-stack-2026-09-24.md §6, invariante I9):
-// sin red (`--network none`), rootfs de solo lectura, /tmp en tmpfs noexec, sin
-// capacidades, `no-new-privileges`, usuario 1000:1000, límites de CPU, memoria y PIDs,
-// sin montajes ni volúmenes y sin variables de entorno fuera de la lista permitida.
-// El proceso docker hereda solo el entorno mínimo para que la CLI funcione.
+// Container guarantees (docs/investigacion-stack-2026-09-24.md §6, invariant I9):
+// no network (`--network none`), read-only rootfs, /tmp on a noexec tmpfs, no
+// capabilities, `no-new-privileges`, user 1000:1000, CPU/memory/PID limits, no mounts
+// or volumes, and no environment variables outside the allowed list. The docker process
+// inherits only the minimal environment needed for the CLI to work.
 //
-// Limitación conocida del MVP: con Docker Desktop todos los contenedores comparten la VM
-// Linux, así que T0 y T1 comparten kernel. Queda documentado en el ADR del runner.
+// Known MVP limitation: with Docker Desktop all containers share the Linux VM, so T0
+// and T1 share a kernel. This is documented in the runner's ADR.
 
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -23,10 +23,11 @@ import { processEnv } from '../env.ts';
 export type RunnerFailure = Extract<FailureKind, 'timeout' | 'infra' | 'cancelled'>;
 
 /**
- * Resultado de un trabajo. `estado` es `ok` solo si el proceso del contenedor terminó con
- * código 0. Un código distinto de 0 del propio trabajo es `fallo` sin `failureKind`: lo
- * interpreta quien lo encargó. `failureKind` solo aparece cuando el fallo es del runner:
- * tiempo agotado, cancelación o infraestructura (docker no arranca o rechaza el trabajo).
+ * Result of a job. `state` is `ok` only if the container process exited with code 0. A
+ * nonzero exit code from the job itself is `failure` with no `failureKind`: it's up to
+ * the caller to interpret it. `failureKind` only appears when the failure is the
+ * runner's own: timeout, cancellation or infrastructure (docker fails to start or
+ * rejects the job).
  */
 export type JobResult = {
   state: 'ok' | 'failure';
@@ -39,17 +40,17 @@ export type JobResult = {
 };
 
 export type JobOptions = {
-  /** Cancela el trabajo: se mata el contenedor y el resultado es `cancelled`. */
+  /** Cancels the job: the container is killed and the result is `cancelled`. */
   signal?: AbortSignal;
-  /** Nombre del contenedor; por defecto `demiurgo-run-<uuid>`. */
+  /** Container name; defaults to `demiurgo-run-<uuid>`. */
   containerName?: string;
-  /** Ejecutable de docker. Solo para pruebas de fallo de infraestructura. */
+  /** Docker executable. Only for infrastructure-failure tests. */
   dockerBinary?: string;
-  /** Tope de bytes que se guardan de stdout y de stderr (por defecto 1 MiB cada uno). */
+  /** Byte cap kept for stdout and stderr (defaults to 1 MiB each). */
   outputLimitBytes?: number;
 };
 
-/** Etiqueta con la que se marcan todos los contenedores del runner. */
+/** Label used to mark every container the runner creates. */
 export const RUNNER_LABEL = 'demiurgo.runner=1';
 export const RUNNER_USER = '1000:1000';
 export const TMPFS_RUNNER = '/tmp:rw,noexec,nosuid,size=64m';
@@ -61,9 +62,9 @@ const STOP_RETRIES = 10;
 const RETRY_PAUSE_MS = 1000;
 
 /**
- * Variables del entorno del host que se pasan a la CLI de docker: solo lo imprescindible
- * para encontrar el ejecutable, su configuración y el daemon en Windows y en Linux.
- * Nunca DEMIURGO_*, DATABASE_URL, PG* ni claves de proveedores.
+ * Host environment variables passed to the docker CLI: only what's needed to find the
+ * executable, its configuration and the daemon on Windows and Linux. Never DEMIURGO_*,
+ * DATABASE_URL, PG* or provider keys.
  */
 export const DOCKER_CLI_ENV: readonly string[] = Object.freeze([
   'PATH',
@@ -90,11 +91,9 @@ export const DOCKER_CLI_ENV: readonly string[] = Object.freeze([
   'DOCKER_TLS_VERIFY',
 ]);
 
-/** Entorno mínimo del proceso docker a partir del entorno del host (función pura). */
-export function dockerEnv(
-  origin: Readonly<Record<string, string | undefined>> = processEnv(),
-): Record<string, string> {
-  // En Windows los nombres no distinguen mayúsculas (Path, PATH): se buscan sin distinguirlas.
+/** Minimal docker process environment derived from the host environment (pure function). */
+export function dockerEnv(origin: Readonly<Record<string, string | undefined>> = processEnv()): Record<string, string> {
+  // On Windows names are case-insensitive (Path, PATH): looked up case-insensitively.
   const byName = new Map<string, string>();
   for (const [key, value] of Object.entries(origin)) {
     if (value !== undefined) byName.set(key.toUpperCase(), value);
@@ -108,14 +107,14 @@ export function dockerEnv(
 }
 
 /**
- * Argumentos de `docker run` para un JobSpec (función pura). Valida el spec otra vez: los
- * flags de seguridad son fijos y ningún campo del spec puede añadir montajes, red,
- * privilegios ni cambiar el usuario.
+ * `docker run` arguments for a JobSpec (pure function). Validates the spec again: the
+ * security flags are fixed and no field in the spec can add mounts, network access,
+ * privileges or change the user.
  */
 export function dockerArguments(input: JobSpecInput, containerName: string): string[] {
   const spec: JobSpec = validateJobSpec(input);
   if (!NAME_PATTERN.test(containerName)) {
-    throw new Error(`Nombre de contenedor no válido: ${JSON.stringify(containerName)}.`);
+    throw new Error(`Invalid container name: ${JSON.stringify(containerName)}.`);
   }
   const { cpus, memoryMb, pids } = spec.limits;
   const args = [
@@ -155,7 +154,7 @@ export function dockerArguments(input: JobSpecInput, containerName: string): str
   return args;
 }
 
-/** Acumula la salida de un flujo sin pasar del tope indicado. */
+/** Accumulates a stream's output without exceeding the given cap. */
 function collector(limit: number): { add(chunk: Buffer): void; text(): string } {
   const chunks: Buffer[] = [];
   let bytes = 0;
@@ -173,12 +172,12 @@ function collector(limit: number): { add(chunk: Buffer): void; text(): string } 
     },
     text() {
       const t = Buffer.concat(chunks).toString('utf8');
-      return truncated ? `${t}\n[salida truncada por el runner]` : t;
+      return truncated ? `${t}\n[output truncated by the runner]` : t;
     },
   };
 }
 
-/** Lanza una orden auxiliar de docker (kill, rm) sin shell y con tiempo máximo. */
+/** Runs an auxiliary docker command (kill, rm) with no shell and a maximum time. */
 function runDockerCommand(binary: string, args: string[], environment: Record<string, string>): Promise<number | null> {
   return new Promise((resolve) => {
     let child: ReturnType<typeof spawn>;
@@ -201,12 +200,12 @@ function runDockerCommand(binary: string, args: string[], environment: Record<st
 
 const pause = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-/** Errores de la CLI que indican que el daemon no está disponible. */
+/** CLI errors that indicate the daemon isn't available. */
 const DEAD_DAEMON_PATTERN = /error during connect|Cannot connect to the Docker daemon|docker daemon is not running/i;
 
 /**
- * Ejecuta un trabajo en un contenedor efímero y endurecido. Lanza `JobSpecInvalido` si el
- * spec no cumple el esquema cerrado; cualquier otro problema se devuelve como resultado.
+ * Runs a job in an ephemeral, hardened container. Throws `InvalidJobSpec` if the spec
+ * doesn't satisfy the closed schema; any other problem is returned as a result.
  */
 export async function runJob(input: JobSpecInput, options: JobOptions = {}): Promise<JobResult> {
   const spec = validateJobSpec(input);
@@ -246,8 +245,8 @@ export async function runJob(input: JobSpecInput, options: JobOptions = {}): Pro
       resolve(c);
     };
 
-    // Para el contenedor: `docker kill` y, si aún no existe o no responde, `docker rm -f`
-    // hasta que el proceso `docker run` termine. Como último recurso se mata la CLI.
+    // Stops the container: `docker kill` and, if it doesn't exist yet or doesn't respond,
+    // `docker rm -f` until the `docker run` process ends. As a last resort, kill the CLI.
     const stop = async (reason: 'timeout' | 'cancelled') => {
       if (stopReason !== undefined || finished) return;
       stopReason = reason;
@@ -281,22 +280,22 @@ export async function runJob(input: JobSpecInput, options: JobOptions = {}): Pro
     child.stdout?.on('data', (t: Buffer) => output.add(t));
     child.stderr?.on('data', (t: Buffer) => errors.add(t));
     child.on('error', (e) => {
-      // Solo es fallo de arranque si el proceso no llegó a existir; si ya corre (p. ej. un
-      // `kill` fallido), el resultado lo decide su evento `close`.
+      // Only a startup failure if the process never came to exist; if it's already running
+      // (e.g. a failed `kill`), its `close` event decides the result.
       if (child.pid !== undefined) return;
       startupError = e;
       terminate(null);
     });
     child.once('close', (c) => terminate(c));
     if (spec.input !== undefined && child.stdin) {
-      // Si el contenedor cierra stdin antes de leerlo todo, el EPIPE no es un fallo del runner.
+      // If the container closes stdin before reading all of it, the EPIPE isn't a runner failure.
       child.stdin.on('error', () => {});
       child.stdin.end(spec.input);
     }
   });
 
   if (stopReason !== undefined || startupError !== undefined) {
-    // Garantía de limpieza: el contenedor no debe sobrevivir a un trabajo parado.
+    // Cleanup guarantee: the container must not outlive a stopped job.
     await runDockerCommand(binary, ['rm', '-f', name], environment);
   }
 
@@ -304,7 +303,7 @@ export async function runJob(input: JobSpecInput, options: JobOptions = {}): Pro
   const base = {
     exitCode: code,
     stdout: output.text(),
-    stderr: startupError ? `${stderr}No se pudo lanzar docker: ${startupError.message}` : stderr,
+    stderr: startupError ? `${stderr}Could not launch docker: ${startupError.message}` : stderr,
     durationMs: Math.round(performance.now() - start),
     container: name,
   };

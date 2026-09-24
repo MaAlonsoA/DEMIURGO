@@ -1,7 +1,7 @@
-// Paso «Actualizar conocimiento» (§7.3): candidatos deterministas → clasificador → verificación
-// determinista → aplicación en una transacción con su evento. Los veredictos verificados se
-// guardan por input_hash y se reutilizan: la misma entrada da el mismo resultado aplicado. Lo
-// que no se verifica no entra en la caché, así que reintentar vuelve a preguntar.
+// The "Update knowledge" step (§7.3): deterministic candidates → classifier → deterministic
+// verification → apply in a transaction together with its event. Verified verdicts are saved
+// by input_hash and reused: the same input gives the same applied result. What isn't verified
+// never enters the cache, so a retry asks again.
 
 import {
   type Candidate,
@@ -34,7 +34,7 @@ import { DISCARD_TRIGGER, type AuthorityObject, deriveChange, deriveRetirement }
 import { loadGraph } from './graph-pg.ts';
 
 export type Axis = { code: string; name: string; categories: { code: string; name: string; description: string }[] };
-/** Taxonomía aprobada vigente; `contenido` es su huella, parte del input_hash de las categorías. */
+/** Current approved taxonomy; `content` is its fingerprint, part of the categories' input_hash. */
 export type CurrentTaxonomy = { id: string; code: string; version: number; content: string; axes: Axis[] };
 
 export async function currentTaxonomy(db: Db, projectId: string): Promise<CurrentTaxonomy | null> {
@@ -49,14 +49,14 @@ export async function currentTaxonomy(db: Db, projectId: string): Promise<Curren
   return t ? { id: t.id, code: t.code, version: t.version, content: t.content_hash, axes: t.axes as Axis[] } : null;
 }
 
-/** Clave de la taxonomía en el input_hash: el mismo código y versión con otro contenido es otra entrada. */
+/** The taxonomy's key in the input_hash: the same code and version with different content is a different entry. */
 export const taxonomyKey = (t: { code: string; version: number; content: string }): string =>
   `${t.code}@${t.version}#${t.content}`;
 
-/** Respuesta de un clasificador pendiente de guardar: solo entra en la caché si se verifica. */
+/** A classifier response pending to be saved: it only enters the cache if it's verified. */
 export type ToSave = { hash: string; classifier: string; responses: ChoiceResponse[] };
 
-/** Lee de la caché o pregunta al clasificador. No guarda: eso se hace tras verificar. */
+/** Reads from the cache or asks the classifier. Doesn't save: that happens after verification. */
 export async function respondWithCache(
   db: Db,
   classifier: Classifier,
@@ -69,7 +69,7 @@ export async function respondWithCache(
   return { responses, fromCache: false, toSave: { hash, classifier: classifier.id, responses } };
 }
 
-/** Guarda respuestas verificadas (inmutables: la primera que llega se queda). */
+/** Saves verified responses (immutable: the first one to arrive stays). */
 export async function saveToCache(db: Db, inputs: readonly (ToSave | null)[]): Promise<void> {
   for (const e of inputs) {
     if (!e) continue;
@@ -87,7 +87,7 @@ export function itemsForCategories(change: Change, taxonomy: { axes: readonly Ax
       categories: axis.categories,
       artifact: { title: change.main.label, text: change.main.text },
     },
-    question: `¿A qué categoría de «${axis.name}» pertenece este artefacto?`,
+    question: `Which category under "${axis.name}" does this artifact belong to?`,
     options: axis.categories.map((c) => c.code),
   }));
 }
@@ -106,16 +106,14 @@ export function itemsForVerdicts(change: Change, candidates: readonly Candidate[
       candidate: { ref: c.ref, type: c.type, title: c.label, text: c.text },
     },
     question:
-      'Con este cambio aprobado, ¿qué le pasa al candidato: sigue igual, se relaciona, hay que actualizarlo, queda invalidado, hay que añadirle algo u otra cosa?',
+      'With this change approved, what happens to the candidate: does it stay the same, is it related, does it need updating, is it invalidated, does something need to be added, or something else?',
     options: VERDICTS,
   }));
 }
 
-/** Categorías que se aplican al nodo: solo las de confianza alta. */
+/** Categories applied to the node: only the high-confidence ones. */
 export function applicableCategories(responses: readonly ChoiceResponse[]): Record<string, string> {
-  return Object.fromEntries(
-    responses.filter((r) => routeByConfidence(r.confidence) === 'apply').map((r) => [r.id, r.choice]),
-  );
+  return Object.fromEntries(responses.filter((r) => routeByConfidence(r.confidence) === 'apply').map((r) => [r.id, r.choice]));
 }
 
 export type Classified = {
@@ -127,11 +125,11 @@ export type Classified = {
   candidates: Candidate[];
   verdictsHash: string;
   verdicts: ChoiceResponse[];
-  /** Respuestas nuevas del clasificador: se guardan en la caché solo si se verifican. */
+  /** New classifier responses: saved to the cache only if they're verified. */
   toSave: ToSave[];
 };
 
-/** Recorre el cálculo completo de un cambio sobre un grafo dado (incremental y reconstrucción). */
+/** Runs the full computation for a change over a given graph (incremental and rebuild). */
 export async function classifyChange(
   db: Db,
   classifier: Classifier,
@@ -148,7 +146,7 @@ export async function classifyChange(
     categories = r.responses;
     if (r.toSave) toSave.push(r.toSave);
   }
-  // Solo las categorías válidas orientan la búsqueda de candidatos; las inválidas rechazan después.
+  // Only valid categories steer the candidate search; invalid ones cause rejection later.
   const valid = taxonomy && verifyCategories(taxonomy.axes, categories).ok ? categories : [];
   const candidates = selectCandidates(graph, change, applicableCategories(valid));
   const verdictsHash = hashVerdictsInput(classifier.id, change, candidates);
@@ -156,9 +154,7 @@ export async function classifyChange(
   if (r.toSave) toSave.push(r.toSave);
   return {
     change,
-    taxonomy: taxonomy
-      ? { id: taxonomy.id, code: taxonomy.code, version: taxonomy.version, content: taxonomy.content }
-      : null,
+    taxonomy: taxonomy ? { id: taxonomy.id, code: taxonomy.code, version: taxonomy.version, content: taxonomy.content } : null,
     axes: taxonomy?.axes ?? [],
     categoriesHash,
     categories,
@@ -169,7 +165,7 @@ export async function classifyChange(
   };
 }
 
-/** Motivos por los que la salida del clasificador no se verifica (vacío si se verifica). */
+/** Reasons the classifier's output fails verification (empty if it's verified). */
 export function verificationReasons(graph: Graph, d: Classified): string[] {
   const reasons: string[] = [];
   const v = verifyVerdicts(graph, d.candidates, d.verdicts);
@@ -204,7 +200,7 @@ export async function classifyStep(s: Services, updateId: string, projectId: str
       data: {},
     });
   }
-  // Cualquier fallo al derivar o clasificar rechaza la actualización: nunca se queda en curso.
+  // Any failure while deriving or classifying rejects the update: it never stays in progress.
   try {
     const trigger = u.trigger as AuthorityObject;
     if (trigger.type === DISCARD_TRIGGER) return { type: 'withdrawal', refs: await deriveRetirement(s.db, trigger) };
@@ -214,11 +210,11 @@ export async function classifyStep(s: Services, updateId: string, projectId: str
     const data = await classifyChange(s.db, s.classifier, graph, change, await currentTaxonomy(s.db, projectId));
     return { type: 'classified', data };
   } catch (e) {
-    return { type: 'error', reason: `No se pudo clasificar el cambio: ${String(e).slice(0, 1500)}` };
+    return { type: 'error', reason: `Could not classify the change: ${String(e).slice(0, 1500)}` };
   }
 }
 
-/** Ejecutor del actualizador: el actor por defecto es el propio actualizador (system). */
+/** The updater's executor: the default actor is the updater itself (system). */
 type Execute = (p: Omit<Request, 'actor'> & { actor?: Request['actor'] }) => Promise<Result>;
 
 async function currentNodeId(trx: Tx, projectId: string, ref: string): Promise<string | null> {
@@ -232,7 +228,7 @@ async function currentNodeId(trx: Tx, projectId: string, ref: string): Promise<s
   return n?.id ?? null;
 }
 
-/** Aplica al grafo de la base las operaciones de un plan, con sus comandos y eventos. */
+/** Applies a plan's operations to the graph in the database, with their commands and events. */
 async function applyOperations(
   execute: Execute,
   trx: Tx,
@@ -241,7 +237,7 @@ async function applyOperations(
   version: number,
   updateId: string,
 ): Promise<void> {
-  // Primero se localizan las aristas a cerrar (con sus nodos aún vigentes) y luego se invalida.
+  // First the edges to close are found (with their nodes still current), then they're invalidated.
   const edgesToClose: string[] = [];
   for (const a of plan.invalidatedEdges) {
     const from = await currentNodeId(trx, projectId, a.from);
@@ -258,8 +254,7 @@ async function applyOperations(
       .execute();
     edgesToClose.push(...edges.map((e) => e.id));
   }
-  for (const id of edgesToClose)
-    await execute({ command: 'knowledge_edge.invalidate', entityId: id, data: { until: version } });
+  for (const id of edgesToClose) await execute({ command: 'knowledge_edge.invalidate', entityId: id, data: { until: version } });
   for (const ref of plan.invalidate) {
     const id = await currentNodeId(trx, projectId, ref);
     if (id) await execute({ command: 'knowledge_node.invalidate', entityId: id, data: { until: version } });
@@ -297,13 +292,8 @@ const operationsOf = (plan: Plan) => ({
   not_applied: plan.notApplied,
 });
 
-/** Verifica y aplica (o rechaza) en una sola transacción; idempotente ante un corte. */
-export async function applyStep(
-  s: Services,
-  updateId: string,
-  projectId: string,
-  r: ClassifyStepResult,
-): Promise<string> {
+/** Verifies and applies (or rejects) in a single transaction; idempotent if interrupted. */
+export async function applyStep(s: Services, updateId: string, projectId: string, r: ClassifyStepResult): Promise<string> {
   return inTransaction(s, async (executeBase, trx) => {
     await sql`select 1 from projects where id = ${projectId}::uuid for update`.execute(trx);
     const u = await trx
@@ -321,7 +311,7 @@ export async function applyStep(
     if (r.type === 'finished') return u.state;
     if (r.type === 'error') return reject([r.reason]);
     const graph = await loadGraph(trx, projectId);
-    // Aplica el plan; `despues` añade clasificaciones y propuestas antes del evento final.
+    // Applies the plan; `after` adds classifications and proposals before the final event.
     const apply = async (plan: Plan, after?: () => Promise<void>) => {
       const version = isEmptyPlan(plan) ? graph.version : graph.version + 1;
       await applyOperations(execute, trx, projectId, plan, version, updateId);
@@ -368,8 +358,8 @@ export async function applyStep(
     const reasons = verificationReasons(graph, d);
     if (reasons.length > 0) return reject(reasons);
     const plan = buildPlan(graph, d.change, applicableCategories(d.categories), d.verdicts, graph.version + 1);
-    // Lo que toca la autoridad sale como propuesta: si una revisión no puede proponerse, la
-    // actualización se rechaza en lugar de perderla.
+    // Whatever touches authority goes out as a proposal: if a review can't be proposed, the
+    // update is rejected instead of being lost.
     const reviews = await prepareReviews(trx, projectId, graph, d, plan.reviews);
     if (reviews.reasons.length > 0) return reject(reviews.reasons);
     await saveToCache(trx, d.toSave);
@@ -395,7 +385,7 @@ export async function applyStep(
         await execute({
           command: 'batch.submit',
           data: {
-            summary: `El conocimiento sugiere revisar ${reviews.proposals.length} registro(s) tras ${d.change.main.ref}.`,
+            summary: `Knowledge suggests reviewing ${reviews.proposals.length} record(s) after ${d.change.main.ref}.`,
             batch_type: 'knowledge',
             resolution: 'item',
             proposals: reviews.proposals,
@@ -407,8 +397,8 @@ export async function applyStep(
 }
 
 /**
- * Si procesar una actualización falla por un error del sistema (tras sus reintentos), queda
- * rechazada con el motivo: nunca se queda en curso bloqueando la frescura.
+ * If processing an update fails with a system error (after its retries), it's rejected
+ * with the reason: it never stays in progress blocking freshness.
  */
 export async function rejectOnError(s: Services, updateId: string, projectId: string, e: unknown): Promise<void> {
   const u = await s.db.selectFrom('knowledge_updates').select('state').where('id', '=', updateId).executeTakeFirstOrThrow();
@@ -418,7 +408,7 @@ export async function rejectOnError(s: Services, updateId: string, projectId: st
   await executeCommand(s, {
     ...base,
     command: 'knowledge_update.reject',
-    data: { reasons: [`Error del sistema al procesar la actualización: ${String(e).slice(0, 1500)}`] },
+    data: { reasons: [`System error while processing the update: ${String(e).slice(0, 1500)}`] },
   });
 }
 
@@ -429,8 +419,8 @@ type ReviewProposal = {
 };
 
 /**
- * Propuestas de revisión para la persona. El registro se localiza por el origen del nodo (la
- * versión que proyectó), nunca interpretando su ref.
+ * Review proposals for the person. The record is located via the node's origin (the
+ * version that projected it), never by parsing its ref.
  */
 async function prepareReviews(
   trx: Tx,
@@ -455,9 +445,7 @@ async function prepareReviews(
             .executeTakeFirst()
         : undefined;
     if (!v) {
-      reasons.push(
-        `No se puede proponer la revisión de ${revision.ref}: su nodo no procede de una versión de registro de este proyecto.`,
-      );
+      reasons.push(`Can't propose the review of ${revision.ref}: its node doesn't come from a record version in this project.`);
       continue;
     }
     proposals.push({
@@ -465,7 +453,7 @@ async function prepareReviews(
       payload: {
         record: { code: v.code, version: v.n },
         verdict: revision.verdict,
-        reason: (revision.reason || `El cambio ${d.change.main.ref} podría afectar a ${revision.ref}.`).slice(0, 2000),
+        reason: (revision.reason || `Change ${d.change.main.ref} might affect ${revision.ref}.`).slice(0, 2000),
         change: {
           type: d.change.main.origin.type,
           id: d.change.main.origin.id ?? '',

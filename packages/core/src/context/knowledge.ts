@@ -1,4 +1,4 @@
-// Conocimiento derivado para los context packs. Hasta S2 no hay grafo: no aporta nodos.
+// Derived knowledge for context packs. Until S2 there is no graph: it contributes no nodes.
 
 import type { Tx } from '../db/connection.ts';
 
@@ -16,11 +16,6 @@ export function registerKnowledgeSelector(s: Selector): void {
   selector = s;
 }
 
-export function knowledgeForContext(
-  trx: Tx,
-  projectId: string,
-  queryName: string,
-  budget: number,
-): Promise<ContextKnowledge> {
+export function knowledgeForContext(trx: Tx, projectId: string, queryName: string, budget: number): Promise<ContextKnowledge> {
   return selector(trx, projectId, queryName, budget);
 }

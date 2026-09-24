@@ -1,4 +1,4 @@
-// Importa todos los módulos de comandos para que registren sus manejadores y guardas.
+// Imports every command module so they register their handlers and guards.
 import './projects.ts';
 import './packs.ts';
 import './runs.ts';

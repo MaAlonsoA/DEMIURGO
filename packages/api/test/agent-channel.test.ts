@@ -110,7 +110,7 @@ describe('canal de agentes por la API', () => {
   });
 
   it('AC-DIS-001-15 un token de agente no obtiene una sesión humana', async () => {
-    const r = await api().agent(token).request('POST', '/api/session', { username: 'ana', key: 'clave-de-prueba-larga' });
+    const r = await api().agent(token).request('POST', '/api/session', { username: 'ana', password: 'clave-de-prueba-larga' });
     expect(r.statusCode).toBe(403);
     expect(r.cookies).toHaveLength(0);
   });

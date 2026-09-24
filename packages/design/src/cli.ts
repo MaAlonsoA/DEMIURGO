@@ -1,9 +1,9 @@
-// CLI del formato de diseño.
-//   node packages/design/src/cli.ts validar [dir]
-//   node packages/design/src/cli.ts canonizar [dir]
-//   node packages/design/src/cli.ts derivar --comprobar | --escribir
-//   node packages/design/src/cli.ts trazabilidad   (lee reports/junit-*.xml)
-//   node packages/design/src/cli.ts estado-ac      (tabla Markdown del estado de cada AC)
+// Design format CLI.
+//   node packages/design/src/cli.ts validate [dir]
+//   node packages/design/src/cli.ts canonicalize [dir]
+//   node packages/design/src/cli.ts derive --check | --write
+//   node packages/design/src/cli.ts traceability   (reads reports/junit-*.xml)
+//   node packages/design/src/cli.ts ac-status      (Markdown table of each AC's status)
 
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -21,12 +21,12 @@ async function validate(): Promise<number> {
   const report = validateTree(await readTree(DIR));
   if (report.problems.length > 0) {
     for (const p of report.problems) console.error(`✗ ${p.path}: ${p.message}`);
-    console.error(`\n${report.problems.length} problema(s) en ${DIR}/.`);
+    console.error(`\n${report.problems.length} problem(s) in ${DIR}/.`);
     return 1;
   }
   const acs = report.records.reduce((n, r) => n + r.criteria.length, 0);
   console.log(
-    `✓ ${DIR}/ válido: ${report.records.length} registros, ${acs} criterios, ${report.taxonomies.length} taxonomía(s), ${report.annexes.size} anexo(s).`,
+    `✓ ${DIR}/ is valid: ${report.records.length} records, ${acs} criteria, ${report.taxonomies.length} taxonomies, ${report.annexes.size} annexes.`,
   );
   return 0;
 }
@@ -38,7 +38,7 @@ async function canonicalize(): Promise<number> {
   for (const [path, text] of tree) {
     let canonical: string;
     if (path.endsWith('.yaml')) {
-      // En un anexo solo se arreglan los finales de línea y los espacios finales.
+      // In an annex, only fix line endings and trailing whitespace.
       canonical = text.replaceAll('\r\n', '\n').replace(/[^\S\n]+$/gm, '');
     } else if (path.endsWith('.md') && path !== 'README.md') {
       const r = parseDocument(normalizeWhitespace(text), path);
@@ -57,7 +57,7 @@ async function canonicalize(): Promise<number> {
     }
   }
   await writeFile(join(DIR, 'README.md'), README_DESIGN, 'utf8');
-  console.log(`Reescritos ${n} archivo(s) y README.md.`);
+  console.log(`Rewrote ${n} file(s) and README.md.`);
   return code;
 }
 
@@ -67,21 +67,21 @@ async function derive(): Promise<number> {
   const generated = generateTablesModule(cap, trans);
   if (args.includes('--write')) {
     await writeFile(TABLES_MODULE_PATH, generated, 'utf8');
-    console.log(`Escrito ${TABLES_MODULE_PATH}.`);
+    console.log(`Wrote ${TABLES_MODULE_PATH}.`);
     return 0;
   }
   const cursor = await readFile(TABLES_MODULE_PATH, 'utf8').catch(() => '');
   if (cursor !== generated) {
-    console.error(`✗ ${TABLES_MODULE_PATH} no coincide con design/data/. Ejecuta «pnpm gen».`);
+    console.error(`✗ ${TABLES_MODULE_PATH} doesn't match design/data/. Run "pnpm gen".`);
     return 1;
   }
-  console.log('✓ Las tablas del dominio coinciden con design/data/.');
+  console.log('✓ Domain tables match design/data/.');
   return 0;
 }
 
 const REPORTS_DIR = 'reports';
 
-/** Lee todos los `reports/junit-*.xml`: cada etapa de pruebas escribe el suyo. */
+/** Reads all `reports/junit-*.xml` files: each test stage writes its own. */
 async function junitReports(): Promise<Map<string, string>> {
   const reports = new Map<string, string>();
   const names = await readdir(REPORTS_DIR).catch(() => [] as string[]);
@@ -94,19 +94,19 @@ async function junitReports(): Promise<Map<string, string>> {
 async function traceability(): Promise<number> {
   const report = validateTree(await readTree(DIR));
   if (report.problems.length > 0) {
-    console.error(`✗ ${DIR}/ no es válido: ejecuta antes «pnpm gate:design».`);
+    console.error(`✗ ${DIR}/ is not valid: run "pnpm gate:design" first.`);
     return 1;
   }
   const reports = await junitReports();
   if (reports.size === 0) {
     console.error(
-      `✗ No hay informes JUnit en ${REPORTS_DIR}/ (junit-*.xml): ejecuta antes pnpm gate:test y pnpm gate:invariantes.`,
+      `✗ No JUnit reports found in ${REPORTS_DIR}/ (junit-*.xml): run pnpm gate:test and pnpm gate:invariants first.`,
     );
     return 1;
   }
   const incomplete = [...reports].filter(([, xml]) => !completeReport(xml)).map(([path]) => path);
   if (incomplete.length > 0) {
-    for (const path of incomplete) console.error(`✗ ${path} está vacío o incompleto: vuelve a ejecutar sus pruebas.`);
+    for (const path of incomplete) console.error(`✗ ${path} is empty or incomplete: re-run its tests.`);
     return 1;
   }
   const cases = [...reports.values()].flatMap(casesFromJUnit);
@@ -114,25 +114,25 @@ async function traceability(): Promise<number> {
   const implemented = root.demiurgo?.implementedIncrements ?? [];
   const map = traceabilityMap(report.records, cases, implemented);
   const passed = cases.filter((c) => c.result === 'passed').length;
-  console.log(`Informes leídos: ${[...reports.keys()].join(', ')} (${cases.length} pruebas, ${passed} pasadas).`);
+  console.log(`Reports read: ${[...reports.keys()].join(', ')} (${cases.length} tests, ${passed} passed).`);
   let code = 0;
   for (const d of map.unknown) {
-    console.error(`✗ ${d.file}: la prueba «${d.test}» cita ${d.ac}, que no existe en ${DIR}/.`);
+    console.error(`✗ ${d.file}: test "${d.test}" cites ${d.ac}, which doesn't exist in ${DIR}/.`);
     code = 1;
   }
   for (const s of map.withoutTest) {
-    console.error(`✗ ${s.ac} (${s.record}): criterio automático sin ninguna prueba pasada que empiece por su código.`);
+    console.error(`✗ ${s.ac} (${s.record}): automatic criterion with no passed test whose title starts with its code.`);
     code = 1;
   }
   if (code === 0) {
     console.log(
-      `✓ Trazabilidad AC → prueba completa para ${implemented.join(', ') || '(ningún incremento)'}: ${map.testsByAc.size} criterios con prueba pasada.`,
+      `✓ AC → test traceability complete for ${implemented.join(', ') || '(no increments)'}: ${map.testsByAc.size} criteria with a passed test.`,
     );
   }
   return code;
 }
 
-/** Tabla Markdown con el estado de cada AC: verde, rojo, manual o no implementado. */
+/** Markdown table with each AC's status: green, red, manual or not implemented. */
 async function acStatus(): Promise<number> {
   const report = validateTree(await readTree(DIR));
   const cases = [...(await junitReports()).values()].flatMap(casesFromJUnit);
@@ -147,18 +147,18 @@ async function acStatus(): Promise<number> {
       byAc.set(ac, e);
     }
   }
-  const rows = ['| AC | Registro | Título | Verificación | Estado | Pruebas |', '|---|---|---|---|---|---|'];
+  const rows = ['| AC | Record | Title | Verification | Status | Tests |', '|---|---|---|---|---|---|'];
   for (const r of report.records) {
     for (const c of r.criteria) {
       const e = byAc.get(c.code) ?? { passed: 0, failed: 0 };
       let state: string;
       if (c.verification === 'manual') state = 'manual';
-      else if (!r.increment || !implemented.includes(r.increment)) state = 'no implementado';
+      else if (!r.increment || !implemented.includes(r.increment)) state = 'not implemented';
       else if (e.failed > 0) state = 'red';
       else if (e.passed > 0) state = 'green';
-      else state = 'rojo (sin prueba)';
+      else state = 'red (no test)';
       rows.push(
-        `| ${c.code} | ${r.code} | ${c.title.replaceAll('|', '/')} | ${c.verification} | ${state} | ${e.passed} pasadas${e.failed ? `, ${e.failed} fallidas` : ''} |`,
+        `| ${c.code} | ${r.code} | ${c.title.replaceAll('|', '/')} | ${c.verification} | ${state} | ${e.passed} passed${e.failed ? `, ${e.failed} failed` : ''} |`,
       );
     }
   }
@@ -169,7 +169,7 @@ async function acStatus(): Promise<number> {
 const commands: Record<string, () => Promise<number>> = { validate, canonicalize, derive, traceability, 'ac-status': acStatus };
 const action = command ? commands[command] : undefined;
 if (!action) {
-  console.error('Uso: cli.ts validar|canonizar|derivar|trazabilidad|estado-ac [dir] [--comprobar|--escribir]');
+  console.error('Usage: cli.ts validate|canonicalize|derive|traceability|ac-status [dir] [--check|--write]');
   process.exitCode = 2;
 } else {
   process.exitCode = await action();

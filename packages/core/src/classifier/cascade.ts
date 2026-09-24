@@ -1,8 +1,8 @@
-// Cascada por confianza (§7.5 del plan): el clasificador base responde y lo que queda con
-// confianza media lo revisa otro clasificador (normalmente un LLM mayor). Lo que siga sin
-// confianza alta no se aplica solo: las categorías van a la persona y las relaciones quedan
-// anotadas en la actualización. El id combina los dos, así que la caché por input_hash
-// distingue la cascada del clasificador base y la reconstrucción la reproduce desde la caché.
+// Confidence-based cascade (plan §7.5): the base classifier answers, and whatever comes back
+// with medium confidence is reviewed by another classifier (usually a bigger LLM). Whatever is
+// still not high-confidence isn't applied on its own: categories go to the person and relations
+// are annotated in the update. The id combines both, so the input_hash cache tells the cascade
+// apart from the base classifier, and the rebuild reproduces it from the cache.
 
 import { type Classifier, DEFAULT_THRESHOLDS, type Thresholds, routeByConfidence } from '@demiurgo/domain';
 

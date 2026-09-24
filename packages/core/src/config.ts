@@ -1,5 +1,5 @@
-// Configuración inyectada. Es, junto con `entorno.ts`, el único módulo que lee variables de
-// entorno (AC-ESQ-001-06): el resto del núcleo recibe la configuración como parámetro.
+// Injected configuration. Along with `env.ts`, it is the only module that reads environment
+// variables (AC-ESQ-001-06): the rest of the core receives the configuration as a parameter.
 
 import { z } from 'zod';
 
@@ -11,7 +11,7 @@ const schema = z.object({
   DEMIURGO_AGENT_MODEL: z.string().default('haiku'),
   DEMIURGO_CLASSIFIER: z.enum(['simulated', 'reference', 'jev']).default('simulated'),
   DEMIURGO_CLASSIFIER_MODEL: z.string().default('haiku'),
-  // Revisor de la cascada (§7.5): revisa lo que el clasificador devuelve con confianza media.
+  // Cascade reviewer (§7.5): reviews what the classifier returns with medium confidence.
   DEMIURGO_REVIEWER: z.enum(['none', 'reference']).default('none'),
   DEMIURGO_REVIEWER_MODEL: z.string().default('sonnet'),
   DEMIURGO_SESSION_HOURS: z.coerce.number().int().min(1).max(720).default(12),
@@ -32,13 +32,13 @@ export type Config = {
   allowedOrigins: string[];
 };
 
-/** Puertos reservados a la v1: la v2 nunca los usa. */
+/** Ports reserved for v1: v2 never uses them. */
 export const FORBIDDEN_PORTS = [8000];
 
 export function readConfig(environment: Readonly<Record<string, string | undefined>> = process.env): Config {
   const e = schema.parse(environment);
   if (FORBIDDEN_PORTS.includes(e.DEMIURGO_PORT)) {
-    throw new Error(`El puerto ${e.DEMIURGO_PORT} es de la v1 y la v2 no puede usarlo.`);
+    throw new Error(`Port ${e.DEMIURGO_PORT} belongs to v1 and v2 cannot use it.`);
   }
   return {
     baseUrl: e.DEMIURGO_DATABASE_URL,

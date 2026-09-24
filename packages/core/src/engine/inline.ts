@@ -1,6 +1,6 @@
-// Motor en línea para pruebas sin DBOS: procesa el conocimiento y la evaluación de ideas en el
-// acto, tras confirmar, con las mismas funciones que los flujos durables. Las ejecuciones de
-// agentes y las respuestas solo se anotan (esas pruebas usan el motor durable).
+// Inline engine for tests without DBOS: processes knowledge and idea assessment on the spot,
+// right after committing, with the same functions as the durable workflows. Agent runs and
+// responses are only recorded (those tests use the durable engine).
 
 import { applyStep, classifyStep, rejectOnError } from '../knowledge/update.ts';
 import { calculateEvaluations, pendingFor, registerEvaluations, registerEvaluationFailure } from '../knowledge/workflows.ts';

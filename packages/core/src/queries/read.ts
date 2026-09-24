@@ -1,5 +1,5 @@
-// Modelos de lectura del Pilar 1: estado del producto, bandeja, exploraciones, registros con
-// su readiness y lotes. Son funciones derivadas: no se almacenan (§4 del plan).
+// Read models for Pillar 1: product state, inbox, explorations, records with
+// their readiness, and batches. These are derived functions: nothing is stored (§4 of the plan).
 
 import {
   type Dependency,
@@ -29,7 +29,7 @@ async function currentOf(db: Db, recordId: string): Promise<number | null> {
   return v?.n ?? null;
 }
 
-/** Exploración de origen de una versión: se sigue su origen (propuesta → lote → ejecución → alcance). */
+/** Origin exploration of a version: follows its origin (proposal → batch → run → scope). */
 export async function originExploration(db: Db, versionId: string, hops = 6): Promise<string | null> {
   let cursor: { type: string; id: string } | null = { type: 'record_version', id: versionId };
   for (let i = 0; i < hops && cursor; i++) {
@@ -63,7 +63,7 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
     .where('record_versions.id', '=', versionId)
     .where('records.project_id', '=', projectId)
     .executeTakeFirst();
-  if (!v) throw new DomainError('not_found', 'La versión no existe.');
+  if (!v) throw new DomainError('not_found', 'The version does not exist.');
   const criteria = await db
     .selectFrom('criteria')
     .select(['code', 'verification', 'check_text', 'statement'])
@@ -109,7 +109,7 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
         .where('state', 'in', ['pending', 'postponed'])
         .execute()
     : [];
-  // Una propuesta la afecta si depende del registro, por sí misma o por su lote.
+  // A proposal affects it if it depends on the record, either by itself or through its batch.
   const pending = await db
     .selectFrom('proposals')
     .innerJoin('proposal_batches', 'proposal_batches.id', 'proposals.batch_id')
@@ -187,7 +187,7 @@ export async function inbox(db: Db, projectId: string) {
     .where('state', '=', 'inferred')
     .orderBy('created_at')
     .execute();
-  // Lo que espera a la persona aunque no venga de un agente: preguntas abiertas y borradores sin aprobar.
+  // What is waiting for the person even when it doesn't come from an agent: open questions and unapproved drafts.
   const open = await db
     .selectFrom('questions')
     .select(['id', 'exploration_id', 'question', 'state', 'state_reason', 'raised_by'])
@@ -233,7 +233,7 @@ export async function inbox(db: Db, projectId: string) {
     open_questions: open.map((q) => ({ ...q, epistemic_status: epistemicOfQuestion(q.state) })),
     versions_to_approve: await Promise.all(
       drafts.map(async (v) => {
-        // Un borrador anterior a la vigente ya no se puede aprobar: solo descartar.
+        // A draft older than the current version can no longer be approved: only discarded.
         const current = await currentOf(db, v.record_id);
         return {
           id: v.id,
@@ -251,7 +251,7 @@ export async function inbox(db: Db, projectId: string) {
   };
 }
 
-// S2 amplía la bandeja con la evaluación de ideas y los pendientes del conocimiento.
+// S2 extends the inbox with idea assessment and pending knowledge items.
 export type KnowledgeSections = {
   classifications_to_review: Record<string, unknown>[];
   rejected_updates: Record<string, unknown>[];
@@ -277,7 +277,7 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
     .where('project_id', '=', projectId)
     .where('code', '=', code)
     .executeTakeFirst();
-  if (!r) throw new DomainError('not_found', `No existe el registro ${code}.`);
+  if (!r) throw new DomainError('not_found', `Record ${code} does not exist.`);
   const versions = await db.selectFrom('record_versions').selectAll().where('record_id', '=', r.id).orderBy('n').execute();
   const current = await currentOf(db, r.id);
   const detail = [];
@@ -321,18 +321,14 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
     type: r.type,
     domain: r.domain,
     current,
-    implementation: 'sin implementar',
+    implementation: 'not implemented',
     versions: detail,
   };
 }
 
 export async function productState(db: Db, projectId: string) {
-  const project = await db
-    .selectFrom('projects')
-    .select(['id', 'name', 'state'])
-    .where('id', '=', projectId)
-    .executeTakeFirst();
-  if (!project) throw new DomainError('not_found', 'El proyecto no existe.');
+  const project = await db.selectFrom('projects').select(['id', 'name', 'state']).where('id', '=', projectId).executeTakeFirst();
+  if (!project) throw new DomainError('not_found', 'The project does not exist.');
   const records = await db.selectFrom('records').selectAll().where('project_id', '=', projectId).orderBy('code').execute();
   const rows = [];
   for (const r of records) {
@@ -363,7 +359,7 @@ export async function productState(db: Db, projectId: string) {
       latest: { n: latest.n, state: latest.state },
       epistemic_status: current !== null ? 'confirmed' : epistemicOfVersion(latest.state),
       readiness: r.type === 'decision' ? null : await versionReadiness(db, projectId, currentId ?? latest.id),
-      implementation: 'sin implementar',
+      implementation: 'not implemented',
     });
   }
   const explorations = await db
@@ -400,7 +396,7 @@ export async function explorationDetail(db: Db, projectId: string, id: string) {
     .where('project_id', '=', projectId)
     .where('id', '=', id)
     .executeTakeFirst();
-  if (!e) throw new DomainError('not_found', 'La exploración no existe.');
+  if (!e) throw new DomainError('not_found', 'The exploration does not exist.');
   const messages = await db
     .selectFrom('messages')
     .selectAll()
@@ -428,7 +424,7 @@ export async function batchDetail(db: Db, projectId: string, id: string) {
     .where('project_id', '=', projectId)
     .where('id', '=', id)
     .executeTakeFirst();
-  if (!l) throw new DomainError('not_found', 'El lote no existe.');
+  if (!l) throw new DomainError('not_found', 'The batch does not exist.');
   const proposals = await db.selectFrom('proposals').selectAll().where('batch_id', '=', id).orderBy('position').execute();
   return { ...l, proposals: proposals.map((p) => ({ ...p, epistemic_status: epistemicOfProposal(p.state) })) };
 }

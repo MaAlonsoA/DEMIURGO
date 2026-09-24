@@ -1,11 +1,11 @@
-// Tipos del bus de comandos: comando → capacidad → tabla → evento.
+// Command bus types: command → capability → table → event.
 
 import type { Actor, CommandName, EntityName } from '@demiurgo/domain';
 import type { z } from 'zod';
 import type { Db, Tx } from '../db/connection.ts';
 import type { Services } from '../services.ts';
 
-/** Causa de un evento: agrupa los eventos de una misma petición y enlaza con su origen. */
+/** Event cause: groups the events from a single request and links to its origin. */
 export type Cause = {
   correlation: string;
   sourceCommand?: string;
@@ -13,16 +13,16 @@ export type Cause = {
   proposal?: string;
   batch?: string;
   event?: string;
-  /** Versión que se está creando: sus criterios y enlaces solo nacen dentro de su creación. */
+  /** Version being created: its criteria and links are only born within its creation. */
   versionBeingCreated?: string;
 };
 
 export type Request = {
   command: CommandName;
   actor: Actor;
-  /** Obligatorio salvo en `project.create`. */
+  /** Required except in `project.create`. */
   projectId?: string;
-  /** Obligatorio salvo en los comandos que crean la entidad. */
+  /** Required except in commands that create the entity. */
   entityId?: string;
   data?: unknown;
   cause?: Partial<Cause>;
@@ -51,21 +51,21 @@ export type CommandContext = {
   command: CommandName;
   cause: Cause;
   services: Services;
-  /** Ejecuta otro comando dentro de la misma transacción (con su propio actor y evento). */
+  /** Executes another command within the same transaction (with its own actor and event). */
   execute(p: Request): Promise<Result>;
-  /** Registra trabajo para después de confirmar (arrancar flujos, avisar). */
+  /** Registers work for after commit (starting workflows, notifying). */
   afterConfirm(f: () => Promise<void> | void): void;
 };
 
 export type Applied = {
   entityId: string;
-  /** Solo en project.create: el proyecto recién creado. */
+  /** Only in project.create: the newly created project. */
   projectId?: string;
   version?: number | null;
   before?: unknown;
   after?: unknown;
   result?: unknown;
-  /** Creación idempotente que ya existía: sin evento ni cambio. */
+  /** Idempotent creation that already existed: no event, no change. */
   noChanges?: boolean;
 };
 
@@ -80,7 +80,7 @@ export type GuardContext = {
   entity: LoadedEntity | null;
 };
 
-/** Devuelve null si la guarda se cumple o el motivo en lenguaje de producto si no. */
+/** Returns null when the guard holds, or the reason in product language otherwise. */
 export type Guard = (g: GuardContext) => Promise<string | null> | string | null;
 
 export type { Db, Tx };

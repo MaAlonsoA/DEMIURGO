@@ -1,5 +1,5 @@
--- S1: exploraciones, conversación, preguntas, registros con versiones inmutables, criterios,
--- enlaces, lotes de propuestas, fuentes y tokens de agentes externos.
+-- S1: explorations, conversation, questions, records with immutable versions, criteria,
+-- links, proposal batches, sources and external agent tokens.
 
 create table agent_tokens (
   id uuid primary key default uuidv7(),
@@ -32,7 +32,7 @@ create table questions (
   exploration_id uuid not null references explorations (id),
   question text not null,
   reason text,
-  impact text check (impact in ('alto', 'medio', 'bajo')),
+  impact text check (impact in ('high', 'medium', 'low')),
   conclusion text,
   reasoning text,
   state text not null,
@@ -76,7 +76,7 @@ create table records (
   unique (project_id, code)
 );
 
--- El contenido de una versión es inmutable: solo cambian su estado y la aprobación (I4).
+-- A version's content is immutable: only its state and approval can change (I4).
 create table record_versions (
   id uuid primary key default uuidv7(),
   project_id uuid not null references projects (id),
@@ -97,21 +97,21 @@ create table record_versions (
   unique (record_id, n)
 );
 
-create function record_versions_contenido_inmutable() returns trigger language plpgsql as $$
+create function record_versions_content_immutable() returns trigger language plpgsql as $$
 begin
   if (new.project_id, new.record_id, new.n, new.title, new.sections, new.annexes, new.increment, new.change_note,
       new.origin, new.author, new.content_hash, new.created_at)
      is distinct from
      (old.project_id, old.record_id, old.n, old.title, old.sections, old.annexes, old.increment, old.change_note,
       old.origin, old.author, old.content_hash, old.created_at) then
-    raise exception 'El contenido de una versión es inmutable; crea una versión nueva' using errcode = 'P0001';
+    raise exception 'A version''s content is immutable; create a new version' using errcode = 'P0001';
   end if;
   return new;
 end
 $$;
 
-create trigger record_versions_inmutables before update on record_versions
-  for each row execute function record_versions_contenido_inmutable();
+create trigger record_versions_immutable before update on record_versions
+  for each row execute function record_versions_content_immutable();
 
 create table criteria (
   id uuid primary key default uuidv7(),
@@ -130,13 +130,13 @@ create table criteria (
   unique (record_version_id, code)
 );
 
-create function fila_inmutable() returns trigger language plpgsql as $$
+create function row_immutable() returns trigger language plpgsql as $$
 begin
-  raise exception 'La tabla % no admite cambios en sus filas', tg_table_name using errcode = 'P0001';
+  raise exception 'Table % does not admit changes to its rows', tg_table_name using errcode = 'P0001';
 end
 $$;
 
-create trigger criteria_inmutables before update on criteria for each row execute function fila_inmutable();
+create trigger criteria_immutable before update on criteria for each row execute function row_immutable();
 
 create table links (
   id uuid primary key default uuidv7(),
@@ -153,8 +153,8 @@ create table links (
   created_at timestamptz not null default now()
 );
 
-create index links_desde on links (project_id, from_id);
-create index links_hacia on links (project_id, to_id);
+create index links_from on links (project_id, from_id);
+create index links_to on links (project_id, to_id);
 
 create table proposal_batches (
   id uuid primary key default uuidv7(),
@@ -188,25 +188,25 @@ create table proposals (
   created_at timestamptz not null default now()
 );
 
-create index proposals_lote on proposals (batch_id, position);
+create index proposals_batch on proposals (batch_id, position);
 
--- Nada se borra: se archiva, se descarta o se deja obsoleto (I9).
-create function sin_borrado() returns trigger language plpgsql as $$
+-- Nothing is deleted: it is archived, discarded or made obsolete (I9).
+create function no_delete() returns trigger language plpgsql as $$
 begin
-  raise exception 'La tabla % no admite DELETE: se archiva o se descarta', tg_table_name using errcode = 'P0001';
+  raise exception 'Table % does not admit DELETE: archive it or discard it instead', tg_table_name using errcode = 'P0001';
 end
 $$;
 
-create trigger projects_sin_borrado before delete on projects for each row execute function sin_borrado();
-create trigger explorations_sin_borrado before delete on explorations for each row execute function sin_borrado();
-create trigger questions_sin_borrado before delete on questions for each row execute function sin_borrado();
-create trigger messages_sin_borrado before delete on messages for each row execute function sin_borrado();
-create trigger records_sin_borrado before delete on records for each row execute function sin_borrado();
-create trigger record_versions_sin_borrado before delete on record_versions for each row execute function sin_borrado();
-create trigger criteria_sin_borrado before delete on criteria for each row execute function sin_borrado();
-create trigger links_sin_borrado before delete on links for each row execute function sin_borrado();
-create trigger proposal_batches_sin_borrado before delete on proposal_batches for each row execute function sin_borrado();
-create trigger proposals_sin_borrado before delete on proposals for each row execute function sin_borrado();
-create trigger ai_runs_sin_borrado before delete on ai_runs for each row execute function sin_borrado();
-create trigger context_packs_sin_borrado before delete on context_packs for each row execute function sin_borrado();
-create trigger context_packs_inmutables before update on context_packs for each row execute function fila_inmutable();
+create trigger projects_no_delete before delete on projects for each row execute function no_delete();
+create trigger explorations_no_delete before delete on explorations for each row execute function no_delete();
+create trigger questions_no_delete before delete on questions for each row execute function no_delete();
+create trigger messages_no_delete before delete on messages for each row execute function no_delete();
+create trigger records_no_delete before delete on records for each row execute function no_delete();
+create trigger record_versions_no_delete before delete on record_versions for each row execute function no_delete();
+create trigger criteria_no_delete before delete on criteria for each row execute function no_delete();
+create trigger links_no_delete before delete on links for each row execute function no_delete();
+create trigger proposal_batches_no_delete before delete on proposal_batches for each row execute function no_delete();
+create trigger proposals_no_delete before delete on proposals for each row execute function no_delete();
+create trigger ai_runs_no_delete before delete on ai_runs for each row execute function no_delete();
+create trigger context_packs_no_delete before delete on context_packs for each row execute function no_delete();
+create trigger context_packs_immutable before update on context_packs for each row execute function row_immutable();

@@ -1,7 +1,7 @@
-// Derivación determinista de un cambio de autoridad a nodos y aristas (sin clasificador).
-// La autoridad es inmutable por versión (contenido, criterios y enlaces nacen con ella), así que
-// derivar el mismo disparo da el mismo cambio ahora y en una reconstrucción: nunca se mira el
-// estado actual de la versión.
+// Deterministic derivation of an authority change into nodes and edges (no classifier).
+// Authority is immutable per version (content, criteria and links are born with it), so
+// deriving the same trigger gives the same change now and during a rebuild: the version's
+// current state is never looked at.
 
 import type { Change } from '@demiurgo/domain';
 import type { Db } from '../db/connection.ts';
@@ -10,7 +10,7 @@ export type AuthorityObject = { type: string; id: string; version: number | null
 
 export { DISCARD_TRIGGER } from '../commands/reactions.ts';
 
-/** Refs que retira el descarte de una versión (el nodo del borrador; sus criterios van con él). */
+/** Refs withdrawn by discarding a version (the draft's node; its criteria go with it). */
 export async function deriveRetirement(db: Db, object: AuthorityObject): Promise<string[]> {
   const v = await db
     .selectFrom('record_versions')
@@ -47,8 +47,8 @@ export async function deriveChange(db: Db, object: AuthorityObject): Promise<Cha
     .where('record_versions.id', '=', versionId)
     .executeTakeFirst();
   if (!v) return null;
-  // Independiente del momento en que se derive: una aprobación proyecta la versión aprobada y
-  // una propuesta aceptada, la versión que creó tal como nació (en borrador).
+  // Independent of when it's derived: an approval projects the approved version, and an
+  // accepted proposal, the version it created as it was born (as a draft).
   const approved = object.type === 'record_version';
   const sections = v.sections as { title: string; content: string }[];
   const ref = `${v.code}@${v.n}`;
@@ -95,7 +95,7 @@ export async function deriveChange(db: Db, object: AuthorityObject): Promise<Cha
       ref: `${c.code}@${v.n}`,
       type: 'criterion',
       label: c.title,
-      text: `${c.statement}\nComprobación: ${c.check_text}`.slice(0, MAX_TEXT),
+      text: `${c.statement}\nCheck: ${c.check_text}`.slice(0, MAX_TEXT),
       epistemic,
       authority: true,
       origin: { type: 'record_version', id: v.id, version: v.n },

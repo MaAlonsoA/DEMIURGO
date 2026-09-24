@@ -1,5 +1,5 @@
-// Actores. El servidor los fija a partir de la credencial o del canal; el cliente nunca
-// declara su actor (principio 2 del plan).
+// Actors. The server sets them from the credential or the channel; the client never
+// declares its own actor (plan principle 2).
 
 import type { ActorType } from './tables/schemas.ts';
 

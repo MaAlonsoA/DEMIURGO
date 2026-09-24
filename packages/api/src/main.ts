@@ -1,6 +1,6 @@
-// Arranque del servidor de DEMIURGO v2.
+// DEMIURGO v2 server startup.
 //   DEMIURGO_DATABASE_URL=postgres://… node packages/api/src/main.ts
-// Nunca en el puerto 8000 (v1): la configuración lo rechaza.
+// Never on port 8000 (v1): the config rejects it.
 
 import { startCore, readConfig, consoleLogger } from '@demiurgo/core';
 import { createServer } from './server.ts';
@@ -15,7 +15,7 @@ const app = await createServer({
   allowedHosts: [`${config.host}:${config.port}`, `localhost:${config.port}`, `127.0.0.1:${config.port}`],
 });
 await app.listen({ host: config.host, port: config.port });
-consoleLogger.info('DEMIURGO v2 escuchando', {
+consoleLogger.info('DEMIURGO v2 listening', {
   url: `http://${config.host}:${config.port}`,
   agent: config.agent,
   classifier: config.classifier,

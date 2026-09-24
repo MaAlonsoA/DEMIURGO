@@ -1,4 +1,4 @@
-// Tokens de agentes, exploraciones, conversación, fuentes y preguntas (Pilar 1).
+// Agent tokens, explorations, conversation, sources and questions (Pillar 1).
 
 import { DomainError, VALID_AGENT_NAME, formatActor, fingerprint } from '@demiurgo/domain';
 import { sql } from 'kysely';
@@ -28,11 +28,11 @@ const originSchema = z
 registerGuards({
   valid_agent_name: ({ data }) => {
     const name = string(field(data, 'name'));
-    // «run» está reservado: agent:run:<id> es el actor de las ejecuciones de DEMIURGO.
-    if (name === 'run') return 'El nombre «run» está reservado a las ejecuciones de DEMIURGO.';
+    // "run" is reserved: agent:run:<id> is the actor for DEMIURGO's runs.
+    if (name === 'run') return 'The name "run" is reserved for DEMIURGO runs.';
     return VALID_AGENT_NAME.test(name)
       ? null
-      : 'El nombre del agente solo admite minúsculas, números y guiones (2 a 40 caracteres).';
+      : 'The agent name only allows lowercase letters, numbers and hyphens (2 to 40 characters).';
   },
 
   async existing_origin({ ctx, data }) {
@@ -45,14 +45,14 @@ registerGuards({
         .where('id', '=', parent)
         .where('project_id', '=', ctx.projectId)
         .executeTakeFirst();
-      if (!p) return 'La exploración padre no existe.';
+      if (!p) return 'The parent exploration does not exist.';
     }
     if (!origin) return null;
     const { rows } = await sql<{ id: string }>`
       select id from ${sql.table(ORIGINS[origin.type])} where id = ${origin.id}::uuid and project_id = ${ctx.projectId}::uuid`.execute(
       ctx.trx,
     );
-    return rows.length > 0 ? null : 'El origen indicado no existe en este proyecto.';
+    return rows.length > 0 ? null : 'The given origin does not exist in this project.';
   },
 
   async exploration_active({ ctx, data }) {
@@ -63,14 +63,14 @@ registerGuards({
       .where('id', '=', id)
       .where('project_id', '=', ctx.projectId)
       .executeTakeFirst();
-    if (!e) return 'La exploración no existe.';
-    return e.state === 'active' ? null : 'La exploración no está activa: retómala antes de continuar.';
+    if (!e) return 'The exploration does not exist.';
+    return e.state === 'active' ? null : 'The exploration is not active: resume it before continuing.';
   },
 
   conclusion_present: ({ data, entity }) => {
     const incoming = string(field(data, 'conclusion'));
     const prior = string(entity?.row.conclusion);
-    return incoming || prior ? null : 'Hace falta una conclusión.';
+    return incoming || prior ? null : 'A conclusion is required.';
   },
 });
 
@@ -90,7 +90,7 @@ registerHandlers({
         })
         .returning('id')
         .executeTakeFirstOrThrow();
-      // El token solo aparece en la respuesta; el evento lleva el nombre, nunca el secreto.
+      // The token only appears in the response; the event carries the name, never the secret.
       return { entityId: id, after: { name: data.name }, result: { token, actor: `agent:${data.name}:${id}` } };
     },
   }),
@@ -185,10 +185,10 @@ registerHandlers({
           .where('id', '=', data.question_id)
           .executeTakeFirst();
         if (q?.exploration_id !== data.exploration_id)
-          throw new DomainError('validation', 'La pregunta no pertenece a esa exploración.');
+          throw new DomainError('validation', 'The question does not belong to that exploration.');
       }
       const isRun = ctx.actor.type === 'agent_run';
-      if (data.type && !isRun) throw new DomainError('validation', 'Solo la salida de un agente lleva tipo de observación.');
+      if (data.type && !isRun) throw new DomainError('validation', 'Only agent output carries an observation type.');
       const { id } = await ctx.trx
         .insertInto('messages')
         .values({
@@ -204,7 +204,7 @@ registerHandlers({
         .returning('id')
         .executeTakeFirstOrThrow();
       if (ctx.actor.type === 'human' && data.respond) {
-        // La respuesta es un flujo durable: espera a que el conocimiento esté al día y pide la ejecución.
+        // The response is a durable workflow: it waits for the knowledge base to be up to date and requests the run.
         const { services, projectId } = ctx;
         ctx.afterConfirm(() => services.engine.startResponse(id, projectId, data.exploration_id, data.question_id));
       }
@@ -319,8 +319,8 @@ registerHandlers({
   'question.reopen': handler({
     data: z.object({ reason: z.string().trim().max(1000).optional() }).strict(),
     async apply(ctx, data, e) {
-      // El historial (conclusión y motivos anteriores) queda en el diario; la pregunta vuelve a pendiente
-      // sin conclusión: confirmarla otra vez exige una nueva.
+      // The history (prior conclusion and reasons) stays in the event log; the question goes back to
+      // pending with no conclusion: confirming it again requires a new one.
       await ctx.trx
         .updateTable('questions')
         .set({ state_reason: data.reason ?? null, conclusion: null })

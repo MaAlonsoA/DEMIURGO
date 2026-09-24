@@ -1,5 +1,5 @@
--- S0: proyectos, diario de eventos protegido, identidad humana, ejecuciones de agentes,
--- context packs e idempotencia de pasos del motor durable.
+-- S0: projects, protected event log, human identity, agent runs,
+-- context packs and durable engine step idempotency.
 
 create table projects (
   id uuid primary key default uuidv7(),
@@ -9,7 +9,7 @@ create table projects (
   created_at timestamptz not null default now()
 );
 
--- Diario: una fila por mutación, en la misma transacción. Solo admite INSERT (I3).
+-- Event log: one row per mutation, in the same transaction. INSERT only (I3).
 create table events (
   id bigint generated always as identity primary key,
   project_id uuid not null references projects (id),
@@ -30,29 +30,29 @@ create table events (
 
 create index events_project_entity on events (project_id, entity_type, entity_id);
 
-create function events_solo_insert() returns trigger language plpgsql as $$
+create function events_insert_only() returns trigger language plpgsql as $$
 begin
-  raise exception 'El diario de eventos solo admite INSERT (% rechazado)', tg_op using errcode = 'P0001';
+  raise exception 'The event log only admits INSERT (% rejected)', tg_op using errcode = 'P0001';
 end
 $$;
 
-create trigger events_sin_update_ni_delete before update or delete on events
-  for each row execute function events_solo_insert();
-create trigger events_sin_truncate before truncate on events
-  for each statement execute function events_solo_insert();
+create trigger events_no_update_or_delete before update or delete on events
+  for each row execute function events_insert_only();
+create trigger events_no_truncate before truncate on events
+  for each statement execute function events_insert_only();
 
--- Aviso tras confirmar, para el flujo SSE incremental (Last-Event-ID).
-create function events_notificar() returns trigger language plpgsql as $$
+-- Notification after commit, for the incremental SSE stream (Last-Event-ID).
+create function events_notify() returns trigger language plpgsql as $$
 begin
   perform pg_notify('demiurgo_events', json_build_object('project', new.project_id, 'id', new.id)::text);
   return null;
 end
 $$;
 
-create trigger events_notificar after insert on events
-  for each row execute function events_notificar();
+create trigger events_notify after insert on events
+  for each row execute function events_notify();
 
--- Identidad humana (infraestructura de acceso, fuera del dominio de un proyecto).
+-- Human identity (access infrastructure, outside a project's domain).
 create table humans (
   id uuid primary key default uuidv7(),
   username text not null unique check (username ~ '^[a-z][a-z0-9_-]{1,39}$'),
@@ -70,7 +70,7 @@ create table sessions (
   revoked_at timestamptz
 );
 
--- Context packs: inmutables, identificados por su hash dentro del proyecto (I7).
+-- Context packs: immutable, identified by their hash within the project (I7).
 create table context_packs (
   id uuid primary key default uuidv7(),
   project_id uuid not null references projects (id),
@@ -108,7 +108,7 @@ create table ai_runs (
   finished_at timestamptz
 );
 
--- Eventos crudos del agente: un blob comprimido por intento, nunca una fila por evento.
+-- Raw agent events: one compressed blob per attempt, never one row per event.
 create table ai_run_logs (
   id uuid primary key default uuidv7(),
   project_id uuid not null references projects (id),
@@ -118,8 +118,8 @@ create table ai_run_logs (
   created_at timestamptz not null default now()
 );
 
--- Idempotencia de los pasos transaccionales del motor: el efecto y la marca de completado
--- se confirman en la misma transacción, así un paso repetido tras un corte no repite su efecto.
+-- Idempotency of the engine's transactional steps: the effect and the completion mark
+-- are committed in the same transaction, so a step repeated after a crash does not repeat its effect.
 create table step_completions (
   workflow_id text not null,
   step text not null,

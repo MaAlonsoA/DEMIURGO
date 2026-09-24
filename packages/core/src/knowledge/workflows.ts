@@ -1,5 +1,5 @@
-// Flujos durables del conocimiento: «Actualizar conocimiento» en una cola en serie (una
-// actualización tras otra, en orden) y la evaluación de ideas de cada lote de un agente.
+// Durable knowledge workflows: "Update knowledge" runs as a serial queue (one update after
+// another, in order), plus the idea assessment for each agent batch.
 
 import { DBOS, WorkflowQueue } from '@dbos-inc/dbos-sdk';
 import {
@@ -12,20 +12,15 @@ import {
 } from '@demiurgo/domain';
 import { executeCommand } from '../bus/bus.ts';
 import type { Services } from '../services.ts';
-import {
-  registerUpdateStarter,
-  registerAssessmentStarter,
-  registerReconciler,
-  engineServices,
-} from '../engine/registry.ts';
+import { registerUpdateStarter, registerAssessmentStarter, registerReconciler, engineServices } from '../engine/registry.ts';
 import { UPDATER } from './commands.ts';
 import { type ToSave, saveToCache, applyStep, classifyStep, rejectOnError, respondWithCache } from './update.ts';
 import { loadGraph } from './graph-pg.ts';
 
 const RETRIES = { retriesAllowed: true, maxAttempts: 3, intervalSeconds: 1 } as const;
 
-// Una sola actualización a la vez: el grafo avanza en el orden de los eventos de autoridad.
-const queue = new WorkflowQueue('demiurgo-conocimiento', { globalConcurrency: 1, minPollingIntervalMs: 100 });
+// One update at a time: the graph advances in the order of authority events.
+const queue = new WorkflowQueue('demiurgo-knowledge', { globalConcurrency: 1, minPollingIntervalMs: 100 });
 
 export async function pendingFor(s: Services, projectId: string): Promise<string[]> {
   const rows = await s.db
@@ -45,8 +40,8 @@ async function drainWorkflow(projectId: string): Promise<number> {
     const pending = await DBOS.runStep(() => pendingFor(engineServices(), projectId), { name: 'pending' });
     if (pending.length === 0) break;
     for (const id of pending) {
-      // Si clasificar o aplicar fallan tras sus reintentos, la actualización queda rechazada:
-      // nunca se queda en curso bloqueando la frescura.
+      // If classify or apply fail after their retries, the update is rejected: it never stays
+      // in progress blocking freshness.
       try {
         const r = await DBOS.runStep(() => classifyStep(engineServices(), id, projectId), {
           name: 'classify',
@@ -65,8 +60,8 @@ async function drainWorkflow(projectId: string): Promise<number> {
 const registeredDrain = DBOS.registerWorkflow(drainWorkflow, { name: 'demiurgo.knowledge' });
 
 /**
- * Intento de una actualización: cuántas veces ha empezado a clasificarse. Da el id de su flujo,
- * así que un reintento (que la devuelve a la cola) arranca un flujo nuevo.
+ * Attempt number for an update: how many times it has started classifying. It drives the
+ * workflow id, so a retry (which sends the update back to the queue) starts a new workflow.
  */
 async function attemptOf(s: Services, updateId: string): Promise<number> {
   const r = await s.db
@@ -78,25 +73,23 @@ async function attemptOf(s: Services, updateId: string): Promise<number> {
   return Number(r?.n ?? 0);
 }
 
-// Un flujo por intento: el mismo id no arranca dos veces (DBOS) y un reintento tiene id propio.
+// One workflow per attempt: the same id never starts twice (DBOS) and a retry has its own id.
 registerUpdateStarter(async (updateId, projectId) => {
   const attempt = await attemptOf(engineServices(), updateId);
-  await DBOS.startWorkflow(registeredDrain, { workflowID: `conocimiento:${updateId}:${attempt}`, queueName: queue.name })(
-    projectId,
-  );
+  await DBOS.startWorkflow(registeredDrain, { workflowID: `knowledge:${updateId}:${attempt}`, queueName: queue.name })(projectId);
 });
 
-/** Espera a que el conocimiento de un proyecto esté al día (pruebas y CLI). */
+/** Waits for a project's knowledge to be up to date (tests and CLI). */
 export async function waitForKnowledge(s: Services, projectId: string, maxMs = 30_000): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < maxMs) {
     if ((await pendingFor(s, projectId)).length === 0) return;
     await new Promise((r) => setTimeout(r, 100));
   }
-  throw new Error('El conocimiento no se puso al día a tiempo.');
+  throw new Error('Knowledge did not become up to date in time.');
 }
 
-// Evaluación de ideas (§7.7): cada propuesta de un agente se compara con el conocimiento.
+// Idea assessment (§7.7): each agent proposal is compared against the knowledge.
 
 type Finding = { finding: string; citation: string; epistemic_status: string; confidence: number; justification: string };
 type InvalidResponse = { citation: string; choice: string; reason: string };
@@ -117,7 +110,7 @@ function itemsForIdea(idea: string, candidates: readonly Candidate[]): ItemChoic
     id: c.ref,
     state: { task: 'idea', idea: { text: idea }, node: { ref: c.ref, type: c.type, title: c.label, text: c.text } },
     question:
-      '¿Qué relación tiene la idea con este conocimiento: la duplica, lo contradice, es incoherente, se relaciona o ninguna?',
+      'What relation does the idea have to this knowledge: does it duplicate it, contradict it, is it incoherent, is it related, or none?',
     options: IDEA_FINDINGS,
   }));
 }
@@ -128,7 +121,7 @@ type CalculatedAssessment = {
   invalid: InvalidResponse[];
   version: number;
   hash: string;
-  /** Solo si todas las respuestas se verificaron: lo inválido no entra en la caché. */
+  /** Only if every response was verified: invalid ones do not enter the cache. */
   toSave: ToSave | null;
 };
 
@@ -151,8 +144,8 @@ export async function calculateEvaluations(s: Services, batchId: string, project
       candidates: candidates.map((c) => ({ ref: c.ref, text: c.text })),
     });
     const r = await respondWithCache(s.db, s.classifier, hash, itemsForIdea(idea, candidates));
-    // Verificación determinista: una respuesta por candidato y con una opción válida. Lo que no
-    // se verifica se registra (nunca se filtra en silencio) y no se guarda en la caché.
+    // Deterministic verification: one response per candidate, with a valid option. Whatever
+    // fails verification is recorded (never silently dropped) and is not saved to the cache.
     const invalid = reasonsForIdea(candidates, r.responses);
     const faulty = new Set(invalid.map((i) => i.citation));
     const epistemic = new Map(graph.nodes.filter((n) => n.until === null).map((n) => [n.ref, n.epistemic]));
@@ -177,30 +170,25 @@ export async function calculateEvaluations(s: Services, batchId: string, project
   return result;
 }
 
-/** Respuestas que no se verifican: cita que no era candidata, opción desconocida, repetidas o ausentes. */
+/** Responses that fail verification: a citation that was not a candidate, an unknown option, or duplicate or missing responses. */
 function reasonsForIdea(candidates: readonly Candidate[], responses: readonly ChoiceResponse[]): InvalidResponse[] {
   const invalid: InvalidResponse[] = [];
   const visited = new Map<string, number>();
   for (const r of responses) {
     visited.set(r.id, (visited.get(r.id) ?? 0) + 1);
-    if (!candidates.some((c) => c.ref === r.id))
-      invalid.push({ citation: r.id, choice: r.choice, reason: 'No era candidata.' });
+    if (!candidates.some((c) => c.ref === r.id)) invalid.push({ citation: r.id, choice: r.choice, reason: 'Not a candidate.' });
     else if (!(IDEA_FINDINGS as readonly string[]).includes(r.choice))
-      invalid.push({ citation: r.id, choice: r.choice, reason: 'Opción desconocida.' });
+      invalid.push({ citation: r.id, choice: r.choice, reason: 'Unknown option.' });
   }
   for (const c of candidates) {
     const n = visited.get(c.ref) ?? 0;
-    if (n === 0) invalid.push({ citation: c.ref, choice: '', reason: 'Sin respuesta.' });
-    if (n > 1) invalid.push({ citation: c.ref, choice: '', reason: `${n} respuestas.` });
+    if (n === 0) invalid.push({ citation: c.ref, choice: '', reason: 'No response.' });
+    if (n > 1) invalid.push({ citation: c.ref, choice: '', reason: `${n} responses.` });
   }
   return invalid;
 }
 
-export async function registerEvaluations(
-  s: Services,
-  projectId: string,
-  assessments: CalculatedAssessment[],
-): Promise<void> {
+export async function registerEvaluations(s: Services, projectId: string, assessments: CalculatedAssessment[]): Promise<void> {
   await saveToCache(
     s.db,
     assessments.map((e) => e.toSave),
@@ -222,7 +210,7 @@ export async function registerEvaluations(
   }
 }
 
-/** Si la evaluación falla tras sus reintentos, cada idea sin evaluar queda con el error registrado. */
+/** If the assessment fails after its retries, each unassessed idea is left with the error recorded. */
 export async function registerEvaluationFailure(s: Services, batchId: string, projectId: string, e: unknown): Promise<void> {
   const unevaluated = await s.db
     .selectFrom('proposals')
@@ -240,7 +228,7 @@ export async function registerEvaluationFailure(s: Services, batchId: string, pr
       data: {
         proposal_id: p.id,
         findings: [],
-        error: `No se pudo evaluar la idea: ${String(e).slice(0, 1000)}`,
+        error: `Could not assess the idea: ${String(e).slice(0, 1000)}`,
         graph_version: 0,
         classifier: s.classifier.id,
         input_hash: '',
@@ -261,9 +249,9 @@ async function assessWorkflow(batchId: string, projectId: string): Promise<numbe
     });
     return assessments.length;
   } catch (e) {
-    // Una evaluación fallida no se queda pendiente para siempre: queda registrado el error.
+    // A failed assessment does not stay pending forever: the error gets recorded.
     await DBOS.runStep(() => registerEvaluationFailure(engineServices(), batchId, projectId, e), {
-      name: 'registrar-fallo',
+      name: 'register-failure',
       ...RETRIES,
     });
     return 0;
@@ -276,7 +264,7 @@ registerAssessmentStarter(async (batchId, projectId) => {
   await DBOS.startWorkflow(assessRegistered, { workflowID: `ideas:${batchId}` })(batchId, projectId);
 });
 
-// Al arrancar: actualizaciones sin flujo y lotes de agentes sin evaluar (corte entre confirmar y arrancar).
+// On startup: updates without a workflow and agent batches without an assessment (the gap between confirm and start).
 registerReconciler(async (s) => {
   const pending = await s.db
     .selectFrom('knowledge_updates')
@@ -289,7 +277,7 @@ registerReconciler(async (s) => {
     .innerJoin('proposal_batches', 'proposal_batches.id', 'proposals.batch_id')
     .leftJoin('idea_assessments', 'idea_assessments.proposal_id', 'proposals.id')
     .select(['proposal_batches.id as batchId', 'proposal_batches.project_id as projectId'])
-    // Lotes de agentes externos y de ejecuciones (también los paquetes de design_proposal).
+    // Batches from external agents and from runs (also design_proposal packages).
     .where((eb) => eb.or([eb('proposal_batches.kind', '=', 'agent'), eb('proposal_batches.run_id', 'is not', null)]))
     .where('proposals.type', 'in', ['decision', 'exploration', 'fdr'])
     .where('idea_assessments.id', 'is', null)
@@ -298,7 +286,7 @@ registerReconciler(async (s) => {
   for (const l of unevaluated) await s.engine.startEvaluation(l.batchId, l.projectId);
 });
 
-/** Espera la evaluación de las ideas de un lote (pruebas). */
+/** Waits for a batch's idea assessment (tests). */
 export async function waitForEvaluation(batchId: string): Promise<void> {
   await DBOS.retrieveWorkflow(`ideas:${batchId}`).getResult();
 }

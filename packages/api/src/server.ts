@@ -1,6 +1,6 @@
-// Servidor HTTP de DEMIURGO v2 (Fastify). El actor lo fija el servidor según la credencial:
-// cookie de sesión → human; token Bearer de agente → agent:<nombre>:<sesión>. El cuerpo de
-// una petición nunca declara actor.
+// DEMIURGO v2 HTTP server (Fastify). The actor is set by the server based on the credential:
+// session cookie → human; agent Bearer token → agent:<name>:<session>. The request body never
+// declares an actor.
 
 import cookie from '@fastify/cookie';
 import {
@@ -34,7 +34,7 @@ export type ServerOptions = {
   baseUrl: string;
   sessionHours: number;
   allowedOrigins: readonly string[];
-  /** Si se indica, las peticiones con otro Host se rechazan (defensa frente a DNS rebinding). */
+  /** If set, requests with another Host are rejected (defense against DNS rebinding). */
   allowedHosts?: readonly string[];
   secureCookie?: boolean;
 };
@@ -49,15 +49,15 @@ const MUTATOR_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 function actorOf(req: FastifyRequest): Actor {
   const c = req.credential;
-  if (c.type === 'none') throw new DomainError('unauthenticated', 'Hace falta iniciar sesión o un token de agente.');
+  if (c.type === 'none') throw new DomainError('unauthenticated', 'A session or an agent token is required.');
   return c.actor;
 }
 
-/** Comprueba la consulta en la matriz y el alcance del token de agente. */
+/** Checks the query against the capability matrix and the agent token's scope. */
 export function requireQuery(req: FastifyRequest, queryName: QueryName, projectId?: string): Actor {
   const actor = actorOf(req);
   if (!allowedForQuery(queryName, actor.type)) {
-    throw new DomainError('forbidden', `Este actor no puede usar la consulta «${queryName}».`);
+    throw new DomainError('forbidden', `This actor cannot use the "${queryName}" query.`);
   }
   checkAgentScope(req, projectId);
   return actor;
@@ -66,7 +66,7 @@ export function requireQuery(req: FastifyRequest, queryName: QueryName, projectI
 function checkAgentScope(req: FastifyRequest, projectId?: string): void {
   const c = req.credential;
   if (c.type === 'agent' && projectId !== undefined && c.projectId !== projectId) {
-    throw new DomainError('forbidden', 'El token de este agente no da acceso a ese proyecto.');
+    throw new DomainError('forbidden', 'This agent token does not grant access to that project.');
   }
 }
 
@@ -84,13 +84,13 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
 
   app.addHook('onRequest', async (req) => {
     if (op.allowedHosts && !op.allowedHosts.includes(req.headers.host ?? '')) {
-      throw new DomainError('forbidden', 'Host no permitido.');
+      throw new DomainError('forbidden', 'Host not allowed.');
     }
     const auth = req.headers.authorization;
     if (auth) {
       const token = /^Bearer (.+)$/.exec(auth)?.[1] ?? '';
       req.credential = await resolveAgentToken(services.db, token);
-      if (req.credential.type === 'none') throw new DomainError('unauthenticated', 'Token de agente no válido o revocado.');
+      if (req.credential.type === 'none') throw new DomainError('unauthenticated', 'Invalid or revoked agent token.');
       return;
     }
     const session = req.cookies[COOKIE_SESSION];
@@ -98,10 +98,10 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
     if (req.credential.type === 'person' && MUTATOR_METHODS.has(req.method) && req.url !== '/api/session') {
       const csrf = req.headers[CSRF_HEADER];
       if (typeof csrf !== 'string' || secretFingerprint(csrf) !== req.credential.csrfHash) {
-        throw new DomainError('forbidden', 'Falta el token CSRF de la sesión o no es válido.');
+        throw new DomainError('forbidden', 'The session CSRF token is missing or invalid.');
       }
       const origin = req.headers.origin;
-      if (origin && !op.allowedOrigins.includes(origin)) throw new DomainError('forbidden', 'Origen no permitido.');
+      if (origin && !op.allowedOrigins.includes(origin)) throw new DomainError('forbidden', 'Origin not allowed.');
     }
   });
 
@@ -111,19 +111,19 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
     }
     const e = error as { statusCode?: number; message?: string };
     if (e.statusCode && e.statusCode < 500) {
-      return reply.status(e.statusCode).send({ error: 'request', message: e.message ?? 'Petición no válida.', reasons: [] });
+      return reply.status(e.statusCode).send({ error: 'request', message: e.message ?? 'Invalid request.', reasons: [] });
     }
-    services.record.error('Error interno', { error: String(error) });
-    return reply.status(500).send({ error: 'internal', message: 'Error interno del servidor.', reasons: [] });
+    services.record.error('Internal error', { error: String(error) });
+    return reply.status(500).send({ error: 'internal', message: 'Internal server error.', reasons: [] });
   });
 
   app.get('/api/health', async () => ({ ok: true }));
 
-  // Sesión humana. Un agente con token no puede abrir una sesión humana.
+  // Human session. An agent with a token cannot open a human session.
   app.post('/api/session', async (req, reply) => {
-    if (req.headers.authorization) throw new DomainError('forbidden', 'Un agente no puede abrir una sesión humana.');
-    const body = z.object({ username: z.string().min(1), key: z.string().min(1) }).parse(req.body);
-    const s = await openSession(services.db, body.username, body.key, op.sessionHours);
+    if (req.headers.authorization) throw new DomainError('forbidden', 'An agent cannot open a human session.');
+    const body = z.object({ username: z.string().min(1), password: z.string().min(1) }).parse(req.body);
+    const s = await openSession(services.db, body.username, body.password, op.sessionHours);
     reply.setCookie(COOKIE_SESSION, s.token, {
       httpOnly: true,
       sameSite: 'strict',
@@ -136,7 +136,7 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
 
   app.get('/api/session', async (req) => {
     const c = req.credential;
-    if (c.type === 'none') throw new DomainError('unauthenticated', 'No hay sesión.');
+    if (c.type === 'none') throw new DomainError('unauthenticated', 'No session.');
     return { actor: c.actor, type: c.type };
   });
 
@@ -160,9 +160,9 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
   app.post('/api/projects/:projectId/commands/:command', async (req) => {
     const actor = actorOf(req);
     const { projectId, command } = req.params as { projectId: string; command: string };
-    if (!isCommand(command)) throw new DomainError('not_found', `No existe el comando «${command}».`);
+    if (!isCommand(command)) throw new DomainError('not_found', `The command "${command}" does not exist.`);
     checkAgentScope(req, projectId);
-    // Cualquier otro campo del cuerpo (por ejemplo «actor») se ignora: el actor sale de la credencial.
+    // Any other field in the body (e.g. "actor") is ignored: the actor comes from the credential.
     const body = commandBody.parse(req.body ?? {});
     const r = await executeCommand(services, {
       command,
@@ -179,8 +179,8 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
     return { capabilities: CAPABILITIES, transitions: TRANSITIONS };
   });
 
-  // Contrato de cada comando para los clientes (frontend y agentes): quién puede ejecutarlo, si es
-  // decisivo y el JSON Schema de sus datos, generado desde el mismo esquema Zod que los valida.
+  // Contract of each command for clients (frontend and agents): who can run it, whether it is
+  // decisive, and the JSON Schema of its data, generated from the same Zod schema that validates it.
   app.get('/api/commands', async (req) => {
     requireQuery(req, 'query.tables');
     return Object.fromEntries(
@@ -192,7 +192,7 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
     );
   });
 
-  // Flujo SSE incremental del diario: con Last-Event-ID solo llegan los eventos posteriores.
+  // Incremental SSE stream of the event log: with Last-Event-ID only later events arrive.
   app.get('/api/projects/:projectId/events/stream', async (req, reply: FastifyReply) => {
     const { projectId } = req.params as { projectId: string };
     requireQuery(req, 'query.events', projectId);
@@ -234,13 +234,13 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
         sending = false;
       }
     };
-    const validTo = await broadcaster.subscribe(projectId, () => {
+    const unsubscribe = await broadcaster.subscribe(projectId, () => {
       void send().catch(() => undefined);
     });
-    const heartbeat = setInterval(() => raw.write(': latido\n\n'), 15_000);
+    const heartbeat = setInterval(() => raw.write(': heartbeat\n\n'), 15_000);
     req.raw.on('close', () => {
       clearInterval(heartbeat);
-      validTo();
+      unsubscribe();
     });
     await send();
   });

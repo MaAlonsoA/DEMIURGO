@@ -5,10 +5,10 @@ export const CAPABILITIES = {
   "version": 1,
   "state": "proposed",
   "actors": {
-    "human": "Persona con sesión (cookie httpOnly). Actor human:<persona>.",
-    "agent_external": "Agente externo con token. Actor agent:<nombre>:<sesión>.",
-    "agent_run": "Ejecución de un agente lanzada por DEMIURGO. Actor agent:run:<id>.",
-    "system": "Componente del sistema. Actor system:<componente>@<versión>."
+    "human": "Person with a session (httpOnly cookie). Actor human:<person>.",
+    "agent_external": "External agent with a token. Actor agent:<name>:<session>.",
+    "agent_run": "Agent run launched by DEMIURGO. Actor agent:run:<id>.",
+    "system": "System component. Actor system:<component>@<version>."
   },
   "commands": {
     "project.create": {
@@ -18,7 +18,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Crear un proyecto."
+      "description": "Create a project."
     },
     "project.archive": {
       "entity": "project",
@@ -26,7 +26,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Archivar un proyecto en lugar de borrarlo."
+      "description": "Archive a project instead of deleting it."
     },
     "agent_token.issue": {
       "entity": "agent_token",
@@ -34,7 +34,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Emitir un token para un agente externo con su nombre."
+      "description": "Issue a token for an external agent with its name."
     },
     "agent_token.revoke": {
       "entity": "agent_token",
@@ -42,7 +42,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Revocar el token de un agente externo."
+      "description": "Revoke an external agent's token."
     },
     "exploration.open": {
       "entity": "exploration",
@@ -50,7 +50,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Abrir una exploración con su propósito y su origen."
+      "description": "Open an exploration with its purpose and its origin."
     },
     "exploration.conclude": {
       "entity": "exploration",
@@ -58,7 +58,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Dar por concluida una exploración."
+      "description": "Conclude an exploration."
     },
     "exploration.set_aside": {
       "entity": "exploration",
@@ -66,7 +66,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Apartar una exploración con un motivo."
+      "description": "Set aside an exploration with a reason."
     },
     "exploration.resume": {
       "entity": "exploration",
@@ -74,7 +74,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Retomar una exploración concluida o apartada."
+      "description": "Resume a concluded or set-aside exploration."
     },
     "message.post": {
       "entity": "message",
@@ -84,7 +84,7 @@ export const CAPABILITIES = {
         "agent_run"
       ],
       "decisive": false,
-      "description": "Publicar un mensaje en un hilo con el actor como autor."
+      "description": "Post a message in a thread with the actor as author."
     },
     "source.register": {
       "entity": "source",
@@ -93,7 +93,7 @@ export const CAPABILITIES = {
         "agent_external"
       ],
       "decisive": false,
-      "description": "Registrar una fuente como entrada no confiable."
+      "description": "Register a source as untrusted input."
     },
     "question.raise": {
       "entity": "question",
@@ -102,7 +102,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Plantear una pregunta en una exploración (las del agente las plantea el sistema desde su salida validada)."
+      "description": "Raise a question in an exploration (the agent's are raised by the system from its validated output)."
     },
     "question.infer": {
       "entity": "question",
@@ -110,7 +110,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Marcar una pregunta como inferida a partir de la salida de un agente."
+      "description": "Mark a question as inferred from an agent's output."
     },
     "question.confirm": {
       "entity": "question",
@@ -118,7 +118,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": true,
-      "description": "Confirmar una pregunta con su conclusión."
+      "description": "Confirm a question with its conclusion."
     },
     "question.postpone": {
       "entity": "question",
@@ -126,7 +126,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Posponer una pregunta con un motivo."
+      "description": "Postpone a question with a reason."
     },
     "question.discard": {
       "entity": "question",
@@ -134,7 +134,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Descartar una pregunta con un motivo."
+      "description": "Discard a question with a reason."
     },
     "question.reopen": {
       "entity": "question",
@@ -142,7 +142,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Reabrir una pregunta conservando su historial."
+      "description": "Reopen a question keeping its history."
     },
     "record.create": {
       "entity": "record",
@@ -150,7 +150,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Crear un registro (decisión, FDR, ADR o bug) con su versión 1 en borrador."
+      "description": "Create a record (decision, FDR, ADR or bug) with its version 1 in draft."
     },
     "record_version.create": {
       "entity": "record_version",
@@ -158,7 +158,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Crear una versión nueva con arrastre explícito de sus criterios."
+      "description": "Create a new version with explicit carry-over of its criteria."
     },
     "record_version.approve": {
       "entity": "record_version",
@@ -166,7 +166,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": true,
-      "description": "Aprobar una versión sin crear otra."
+      "description": "Approve a version without creating another one."
     },
     "record_version.supersede": {
       "entity": "record_version",
@@ -174,7 +174,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Marcar como sustituida la versión aprobada anterior."
+      "description": "Mark the previous approved version as superseded."
     },
     "record_version.discard": {
       "entity": "record_version",
@@ -182,7 +182,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Descartar una versión en borrador."
+      "description": "Discard a draft version."
     },
     "criterion.record": {
       "entity": "criterion",
@@ -190,7 +190,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Registrar un criterio de aceptación dentro de una versión."
+      "description": "Record an acceptance criterion within a version."
     },
     "link.create": {
       "entity": "link",
@@ -198,7 +198,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Crear un enlace tipado entre versiones."
+      "description": "Create a typed link between versions."
     },
     "link.flag_review": {
       "entity": "link",
@@ -206,7 +206,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Marcar un enlace como pendiente de revisión."
+      "description": "Flag a link as pending review."
     },
     "link.keep": {
       "entity": "link",
@@ -214,7 +214,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Mantener un enlace revisado."
+      "description": "Keep a reviewed link."
     },
     "link.change": {
       "entity": "link",
@@ -222,7 +222,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Dar por cambiado un enlace revisado."
+      "description": "Mark a reviewed link as changed."
     },
     "link.obsolete": {
       "entity": "link",
@@ -230,7 +230,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Dar por obsoleto un enlace revisado."
+      "description": "Mark a reviewed link as obsolete."
     },
     "batch.submit": {
       "entity": "batch",
@@ -240,7 +240,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Enviar un lote de propuestas."
+      "description": "Submit a batch of proposals."
     },
     "design.import": {
       "entity": "batch",
@@ -249,7 +249,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Importar design/ como lote pendiente."
+      "description": "Import design/ as a pending batch."
     },
     "batch.accept_package": {
       "entity": "batch",
@@ -257,7 +257,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": true,
-      "description": "Aceptar en un paso un paquete coherente del sistema."
+      "description": "Accept a coherent system package in one step."
     },
     "batch.reject_package": {
       "entity": "batch",
@@ -265,7 +265,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Rechazar un paquete completo."
+      "description": "Reject a whole package."
     },
     "batch.close": {
       "entity": "batch",
@@ -273,7 +273,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Cerrar un lote cuando todos sus elementos están resueltos."
+      "description": "Close a batch when all its elements are resolved."
     },
     "batch.supersede": {
       "entity": "batch",
@@ -281,7 +281,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Dejar obsoleto un lote pendiente."
+      "description": "Make a pending batch obsolete."
     },
     "proposal.create": {
       "entity": "proposal",
@@ -291,7 +291,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Crear una propuesta dentro de un lote."
+      "description": "Create a proposal within a batch."
     },
     "proposal.accept": {
       "entity": "proposal",
@@ -299,7 +299,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": true,
-      "description": "Aceptar una propuesta."
+      "description": "Accept a proposal."
     },
     "proposal.accept_edited": {
       "entity": "proposal",
@@ -307,7 +307,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": true,
-      "description": "Aceptar una propuesta con cambios de la persona."
+      "description": "Accept a proposal with the person's edits."
     },
     "proposal.reject": {
       "entity": "proposal",
@@ -315,7 +315,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Rechazar una propuesta con un motivo opcional."
+      "description": "Reject a proposal with an optional reason."
     },
     "proposal.supersede": {
       "entity": "proposal",
@@ -323,7 +323,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Dejar obsoleta una propuesta pendiente."
+      "description": "Make a pending proposal obsolete."
     },
     "run.request": {
       "entity": "ai_run",
@@ -332,7 +332,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Solicitar una ejecución de un agente."
+      "description": "Request an agent run."
     },
     "run.retry": {
       "entity": "ai_run",
@@ -340,7 +340,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Reintentar una ejecución terminada con el mismo context pack."
+      "description": "Retry a finished run with the same context pack."
     },
     "run.begin": {
       "entity": "ai_run",
@@ -348,7 +348,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Empezar una ejecución encolada."
+      "description": "Begin a queued run."
     },
     "run.complete": {
       "entity": "ai_run",
@@ -356,7 +356,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Completar una ejecución con salida válida."
+      "description": "Complete a run with valid output."
     },
     "run.fail": {
       "entity": "ai_run",
@@ -364,7 +364,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Dar por fallida una ejecución con su failure_kind."
+      "description": "Mark a run as failed with its failure_kind."
     },
     "run.cancel": {
       "entity": "ai_run",
@@ -372,7 +372,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Cancelar una ejecución encolada o en curso."
+      "description": "Cancel a queued or running run."
     },
     "run.interrupt": {
       "entity": "ai_run",
@@ -380,7 +380,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Marcar como interrumpida una ejecución irrecuperable."
+      "description": "Mark an unrecoverable run as interrupted."
     },
     "context_pack.build": {
       "entity": "context_pack",
@@ -388,7 +388,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Construir y guardar un context pack inmutable."
+      "description": "Build and save an immutable context pack."
     },
     "taxonomy.propose": {
       "entity": "taxonomy",
@@ -396,7 +396,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Proponer una versión de la taxonomía."
+      "description": "Propose a version of the taxonomy."
     },
     "taxonomy.approve": {
       "entity": "taxonomy",
@@ -404,7 +404,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": true,
-      "description": "Aprobar una versión de la taxonomía."
+      "description": "Approve a version of the taxonomy."
     },
     "taxonomy.supersede": {
       "entity": "taxonomy",
@@ -412,7 +412,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Marcar como sustituida la taxonomía aprobada anterior."
+      "description": "Mark the previous approved taxonomy as superseded."
     },
     "classification.record": {
       "entity": "classification",
@@ -420,7 +420,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Guardar una clasificación con confianza suficiente."
+      "description": "Save a classification with sufficient confidence."
     },
     "classification.hold": {
       "entity": "classification",
@@ -428,7 +428,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Guardar una clasificación de confianza baja pendiente de la persona."
+      "description": "Save a low-confidence classification pending the person."
     },
     "classification.resolve": {
       "entity": "classification",
@@ -436,7 +436,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Resolver una clasificación pendiente."
+      "description": "Resolve a pending classification."
     },
     "knowledge_update.enqueue": {
       "entity": "knowledge_update",
@@ -444,7 +444,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Encolar «Actualizar conocimiento» tras un evento de autoridad."
+      "description": "Enqueue \"Update knowledge\" after an authority event."
     },
     "knowledge_update.classify": {
       "entity": "knowledge_update",
@@ -452,7 +452,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Pasar a clasificar los candidatos."
+      "description": "Move on to classifying the candidates."
     },
     "knowledge_update.verify": {
       "entity": "knowledge_update",
@@ -460,7 +460,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Pasar a verificar los veredictos."
+      "description": "Move on to verifying the verdicts."
     },
     "knowledge_update.apply": {
       "entity": "knowledge_update",
@@ -468,7 +468,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Aplicar al grafo un update verificado."
+      "description": "Apply a verified update to the graph."
     },
     "knowledge_update.reject": {
       "entity": "knowledge_update",
@@ -476,7 +476,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Rechazar un update sin efectos."
+      "description": "Reject an update with no effects."
     },
     "knowledge_update.retry": {
       "entity": "knowledge_update",
@@ -484,7 +484,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Volver a encolar un update rechazado."
+      "description": "Re-enqueue a rejected update."
     },
     "knowledge_node.project": {
       "entity": "knowledge_node",
@@ -492,7 +492,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Proyectar un nodo de conocimiento derivado, dentro de un update verificado."
+      "description": "Project a derived knowledge node, within a verified update."
     },
     "knowledge_node.invalidate": {
       "entity": "knowledge_node",
@@ -500,7 +500,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Invalidar un nodo derivado (valid_to), nunca borrarlo."
+      "description": "Invalidate a derived node (valid_to), never delete it."
     },
     "knowledge_edge.project": {
       "entity": "knowledge_edge",
@@ -508,7 +508,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Proyectar una arista de conocimiento derivado, dentro de un update verificado."
+      "description": "Project a derived knowledge edge, within a verified update."
     },
     "knowledge_edge.invalidate": {
       "entity": "knowledge_edge",
@@ -516,7 +516,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Invalidar una arista derivada (valid_to), nunca borrarla."
+      "description": "Invalidate a derived edge (valid_to), never delete it."
     },
     "idea_assessment.record": {
       "entity": "idea_assessment",
@@ -524,7 +524,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Guardar la evaluación de una idea frente al conocimiento."
+      "description": "Save the assessment of an idea against the knowledge."
     },
     "change_set.propose": {
       "entity": "change_set",
@@ -532,7 +532,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Proponer un Change Set desde una FDR lista."
+      "description": "Propose a Change Set from a ready FDR."
     },
     "change_set.accept_scope": {
       "entity": "change_set",
@@ -540,7 +540,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": true,
-      "description": "Aceptar el alcance de un Change Set."
+      "description": "Accept the scope of a Change Set."
     },
     "change_set.start": {
       "entity": "change_set",
@@ -548,7 +548,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Empezar la implementación."
+      "description": "Start the implementation."
     },
     "change_set.submit_review": {
       "entity": "change_set",
@@ -556,7 +556,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Pasar a revisión con los gates en verde."
+      "description": "Move to review with the gates green."
     },
     "change_set.accept": {
       "entity": "change_set",
@@ -564,7 +564,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": true,
-      "description": "Aceptar el resultado."
+      "description": "Accept the result."
     },
     "change_set.request_changes": {
       "entity": "change_set",
@@ -572,7 +572,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Pedir cambios desde la revisión."
+      "description": "Request changes from the review."
     },
     "change_set.block": {
       "entity": "change_set",
@@ -580,7 +580,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Bloquear el Change Set."
+      "description": "Block the Change Set."
     },
     "change_set.unblock": {
       "entity": "change_set",
@@ -588,7 +588,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Desbloquear el Change Set."
+      "description": "Unblock the Change Set."
     },
     "change_set.pause": {
       "entity": "change_set",
@@ -596,7 +596,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Pausar porque cambió una versión del alcance."
+      "description": "Pause because a scope version changed."
     },
     "change_set.resume_scope": {
       "entity": "change_set",
@@ -604,7 +604,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": true,
-      "description": "Volver a aceptar el alcance tras una pausa."
+      "description": "Re-accept the scope after a pause."
     },
     "change_set.cancel": {
       "entity": "change_set",
@@ -612,7 +612,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Cancelar el Change Set."
+      "description": "Cancel the Change Set."
     },
     "task.create": {
       "entity": "task",
@@ -620,7 +620,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Crear una tarea que cubre al menos un AC."
+      "description": "Create a task that covers at least one AC."
     },
     "task.advance": {
       "entity": "task",
@@ -628,7 +628,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Avanzar la tarea al siguiente paso del ciclo."
+      "description": "Advance the task to the next step of the cycle."
     },
     "task.pass": {
       "entity": "task",
@@ -636,7 +636,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Dar la tarea por superada con los gates en verde."
+      "description": "Mark the task as passed with the gates green."
     },
     "task.return": {
       "entity": "task",
@@ -644,7 +644,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Devolver la tarea al implementador con la evidencia del KO."
+      "description": "Return the task to the implementer with the KO's evidence."
     },
     "task.block": {
       "entity": "task",
@@ -652,7 +652,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Bloquear la tarea tras agotar los intentos."
+      "description": "Block the task after exhausting the attempts."
     },
     "task.retry": {
       "entity": "task",
@@ -660,7 +660,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Reintentar una tarea bloqueada."
+      "description": "Retry a blocked task."
     },
     "task.clarify": {
       "entity": "task",
@@ -668,7 +668,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Aclarar una tarea bloqueada y reintentarla."
+      "description": "Clarify a blocked task and retry it."
     },
     "acceptance_map.accept": {
       "entity": "acceptance_check",
@@ -676,7 +676,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": true,
-      "description": "Aceptar el mapa AC → comprobación → prueba."
+      "description": "Accept the AC → check → test map."
     },
     "acceptance_check.propose": {
       "entity": "acceptance_check",
@@ -684,7 +684,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Proponer la prueba de un AC."
+      "description": "Propose the test for an AC."
     },
     "acceptance_check.freeze": {
       "entity": "acceptance_check",
@@ -692,7 +692,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Congelar una prueba por hash."
+      "description": "Freeze a test by hash."
     },
     "work_step.enqueue": {
       "entity": "work_step",
@@ -700,7 +700,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Encolar un paso de trabajo con su clave de idempotencia."
+      "description": "Enqueue a work step with its idempotency key."
     },
     "work_step.begin": {
       "entity": "work_step",
@@ -708,7 +708,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Empezar un paso de trabajo."
+      "description": "Begin a work step."
     },
     "work_step.succeed": {
       "entity": "work_step",
@@ -716,7 +716,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Dar por terminado un paso de trabajo."
+      "description": "Mark a work step as finished."
     },
     "work_step.fail": {
       "entity": "work_step",
@@ -724,7 +724,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Dar por fallido un paso de trabajo con su failure_kind."
+      "description": "Mark a work step as failed with its failure_kind."
     },
     "work_step.cancel": {
       "entity": "work_step",
@@ -732,7 +732,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Cancelar un paso de trabajo."
+      "description": "Cancel a work step."
     },
     "evidence.record": {
       "entity": "evidence",
@@ -740,7 +740,7 @@ export const CAPABILITIES = {
         "system"
       ],
       "decisive": false,
-      "description": "Registrar evidencia de un gate del sistema."
+      "description": "Record evidence for a system gate."
     },
     "evidence.record_manual": {
       "entity": "evidence",
@@ -748,7 +748,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Registrar evidencia humana de un AC manual."
+      "description": "Record human evidence for a manual AC."
     }
   },
   "queries": {
@@ -756,76 +756,76 @@ export const CAPABILITIES = {
       "allowed": [
         "human"
       ],
-      "description": "Listar proyectos."
+      "description": "List projects."
     },
     "query.state": {
       "allowed": [
         "human",
         "agent_external"
       ],
-      "description": "Estado del producto."
+      "description": "Product state."
     },
     "query.inbox": {
       "allowed": [
         "human",
         "agent_external"
       ],
-      "description": "Bandeja de propuestas y pendientes."
+      "description": "Inbox of proposals and pending items."
     },
     "query.explorations": {
       "allowed": [
         "human",
         "agent_external"
       ],
-      "description": "Exploraciones, hilos y preguntas."
+      "description": "Explorations, threads and questions."
     },
     "query.records": {
       "allowed": [
         "human",
         "agent_external"
       ],
-      "description": "Registros, versiones, criterios, enlaces y readiness."
+      "description": "Records, versions, criteria, links and readiness."
     },
     "query.batches": {
       "allowed": [
         "human",
         "agent_external"
       ],
-      "description": "Lotes y propuestas."
+      "description": "Batches and proposals."
     },
     "query.runs": {
       "allowed": [
         "human",
         "agent_external"
       ],
-      "description": "Ejecuciones y sus context packs."
+      "description": "Runs and their context packs."
     },
     "query.knowledge": {
       "allowed": [
         "human",
         "agent_external"
       ],
-      "description": "Conocimiento derivado, frescura y búsqueda."
+      "description": "Derived knowledge, freshness and search."
     },
     "query.events": {
       "allowed": [
         "human",
         "agent_external"
       ],
-      "description": "Diario de eventos y flujo SSE."
+      "description": "Event log and SSE stream."
     },
     "query.tables": {
       "allowed": [
         "human",
         "agent_external"
       ],
-      "description": "Tablas de capacidades y transiciones."
+      "description": "Capability and transition tables."
     },
     "query.tokens": {
       "allowed": [
         "human"
       ],
-      "description": "Tokens de agentes del proyecto."
+      "description": "Project agent tokens."
     }
   }
 } as const;
@@ -836,11 +836,11 @@ export const TRANSITIONS = {
   "state": "proposed",
   "entities": {
     "project": {
-      "label": "Proyecto",
+      "label": "Project",
       "implemented_in": "S0",
       "states": {
-        "active": "Activo",
-        "archived": "Archivado"
+        "active": "Active",
+        "archived": "Archived"
       },
       "authority": [],
       "transitions": [
@@ -859,11 +859,11 @@ export const TRANSITIONS = {
       ]
     },
     "agent_token": {
-      "label": "Token de agente",
+      "label": "Agent token",
       "implemented_in": "S1",
       "states": {
-        "active": "Activo",
-        "revoked": "Revocado"
+        "active": "Active",
+        "revoked": "Revoked"
       },
       "authority": [],
       "transitions": [
@@ -885,12 +885,12 @@ export const TRANSITIONS = {
       ]
     },
     "exploration": {
-      "label": "Exploración",
+      "label": "Exploration",
       "implemented_in": "S1",
       "states": {
-        "active": "Activa",
-        "concluded": "Concluida",
-        "set_aside": "Apartada"
+        "active": "Active",
+        "concluded": "Concluded",
+        "set_aside": "Set aside"
       },
       "authority": [],
       "transitions": [
@@ -930,10 +930,10 @@ export const TRANSITIONS = {
       ]
     },
     "message": {
-      "label": "Mensaje",
+      "label": "Message",
       "implemented_in": "S1",
       "states": {
-        "recorded": "Registrado"
+        "recorded": "Recorded"
       },
       "authority": [],
       "transitions": [
@@ -948,10 +948,10 @@ export const TRANSITIONS = {
       ]
     },
     "source": {
-      "label": "Fuente",
+      "label": "Source",
       "implemented_in": "S1",
       "states": {
-        "registered": "Registrada"
+        "registered": "Registered"
       },
       "authority": [],
       "transitions": [
@@ -963,14 +963,14 @@ export const TRANSITIONS = {
       ]
     },
     "question": {
-      "label": "Pregunta",
+      "label": "Question",
       "implemented_in": "S1",
       "states": {
-        "pending": "Pendiente",
-        "inferred": "Inferida",
-        "confirmed": "Confirmada",
-        "postponed": "Pospuesta",
-        "discarded": "Descartada"
+        "pending": "Pending",
+        "inferred": "Inferred",
+        "confirmed": "Confirmed",
+        "postponed": "Postponed",
+        "discarded": "Discarded"
       },
       "authority": [
         "confirmed"
@@ -1040,10 +1040,10 @@ export const TRANSITIONS = {
       ]
     },
     "record": {
-      "label": "Registro",
+      "label": "Record",
       "implemented_in": "S1",
       "states": {
-        "registered": "Registrado"
+        "registered": "Registered"
       },
       "authority": [],
       "transitions": [
@@ -1059,13 +1059,13 @@ export const TRANSITIONS = {
       ]
     },
     "record_version": {
-      "label": "Versión de registro",
+      "label": "Record version",
       "implemented_in": "S1",
       "states": {
-        "draft": "Borrador",
-        "approved": "Aprobada",
-        "superseded": "Sustituida",
-        "discarded": "Descartada"
+        "draft": "Draft",
+        "approved": "Approved",
+        "superseded": "Superseded",
+        "discarded": "Discarded"
       },
       "authority": [
         "approved"
@@ -1112,10 +1112,10 @@ export const TRANSITIONS = {
       ]
     },
     "criterion": {
-      "label": "Criterio de aceptación",
+      "label": "Acceptance criterion",
       "implemented_in": "S1",
       "states": {
-        "recorded": "Registrado"
+        "recorded": "Recorded"
       },
       "authority": [],
       "transitions": [
@@ -1131,14 +1131,14 @@ export const TRANSITIONS = {
       ]
     },
     "link": {
-      "label": "Enlace",
+      "label": "Link",
       "implemented_in": "S1",
       "states": {
-        "current": "Vigente",
-        "needs_review": "Pendiente de revisión",
-        "kept": "Mantenido",
-        "changed": "Cambiado",
-        "obsolete": "Obsoleto"
+        "current": "Current",
+        "needs_review": "Pending review",
+        "kept": "Kept",
+        "changed": "Changed",
+        "obsolete": "Obsolete"
       },
       "authority": [],
       "transitions": [
@@ -1184,14 +1184,14 @@ export const TRANSITIONS = {
       ]
     },
     "batch": {
-      "label": "Lote de propuestas",
+      "label": "Proposal batch",
       "implemented_in": "S1",
       "states": {
-        "pending": "Pendiente",
-        "accepted": "Aceptado",
-        "rejected": "Rechazado",
-        "resolved": "Resuelto",
-        "superseded": "Obsoleto"
+        "pending": "Pending",
+        "accepted": "Accepted",
+        "rejected": "Rejected",
+        "resolved": "Resolved",
+        "superseded": "Obsolete"
       },
       "authority": [
         "accepted"
@@ -1255,14 +1255,14 @@ export const TRANSITIONS = {
       ]
     },
     "proposal": {
-      "label": "Propuesta",
+      "label": "Proposal",
       "implemented_in": "S1",
       "states": {
-        "pending": "Pendiente",
-        "accepted": "Aceptada",
-        "accepted_edited": "Aceptada con cambios",
-        "rejected": "Rechazada",
-        "superseded": "Obsoleta"
+        "pending": "Pending",
+        "accepted": "Accepted",
+        "accepted_edited": "Accepted with edits",
+        "rejected": "Rejected",
+        "superseded": "Obsolete"
       },
       "authority": [
         "accepted",
@@ -1325,15 +1325,15 @@ export const TRANSITIONS = {
       ]
     },
     "ai_run": {
-      "label": "Ejecución de agente",
+      "label": "Agent run",
       "implemented_in": "S0",
       "states": {
-        "queued": "En cola",
-        "running": "En curso",
-        "completed": "Completada",
-        "failed": "Fallida",
-        "cancelled": "Cancelada",
-        "interrupted": "Interrumpida"
+        "queued": "Queued",
+        "running": "Running",
+        "completed": "Completed",
+        "failed": "Failed",
+        "cancelled": "Cancelled",
+        "interrupted": "Interrupted"
       },
       "authority": [],
       "transitions": [
@@ -1396,7 +1396,7 @@ export const TRANSITIONS = {
       "label": "Context pack",
       "implemented_in": "S0",
       "states": {
-        "recorded": "Registrado"
+        "recorded": "Recorded"
       },
       "authority": [],
       "transitions": [
@@ -1408,12 +1408,12 @@ export const TRANSITIONS = {
       ]
     },
     "taxonomy": {
-      "label": "Taxonomía",
+      "label": "Taxonomy",
       "implemented_in": "S2",
       "states": {
-        "draft": "Borrador",
-        "approved": "Aprobada",
-        "superseded": "Sustituida"
+        "draft": "Draft",
+        "approved": "Approved",
+        "superseded": "Superseded"
       },
       "authority": [
         "approved"
@@ -1447,12 +1447,12 @@ export const TRANSITIONS = {
       ]
     },
     "classification": {
-      "label": "Clasificación",
+      "label": "Classification",
       "implemented_in": "S2",
       "states": {
-        "applied": "Aplicada",
-        "pending_review": "Pendiente de revisión",
-        "resolved": "Resuelta"
+        "applied": "Applied",
+        "pending_review": "Pending review",
+        "resolved": "Resolved"
       },
       "authority": [],
       "transitions": [
@@ -1485,14 +1485,14 @@ export const TRANSITIONS = {
       ]
     },
     "knowledge_update": {
-      "label": "Actualización de conocimiento",
+      "label": "Knowledge update",
       "implemented_in": "S2",
       "states": {
-        "queued": "En cola",
-        "classifying": "Clasificando",
-        "verifying": "Verificando",
-        "applied": "Aplicada",
-        "rejected": "Rechazada"
+        "queued": "Queued",
+        "classifying": "Classifying",
+        "verifying": "Verifying",
+        "applied": "Applied",
+        "rejected": "Rejected"
       },
       "authority": [],
       "transitions": [
@@ -1540,11 +1540,11 @@ export const TRANSITIONS = {
       ]
     },
     "knowledge_node": {
-      "label": "Nodo de conocimiento",
+      "label": "Knowledge node",
       "implemented_in": "S2",
       "states": {
-        "current": "Vigente",
-        "invalidated": "Invalidado"
+        "current": "Current",
+        "invalidated": "Invalidated"
       },
       "authority": [],
       "transitions": [
@@ -1563,11 +1563,11 @@ export const TRANSITIONS = {
       ]
     },
     "knowledge_edge": {
-      "label": "Arista de conocimiento",
+      "label": "Knowledge edge",
       "implemented_in": "S2",
       "states": {
-        "current": "Vigente",
-        "invalidated": "Invalidada"
+        "current": "Current",
+        "invalidated": "Invalidated"
       },
       "authority": [],
       "transitions": [
@@ -1586,10 +1586,10 @@ export const TRANSITIONS = {
       ]
     },
     "idea_assessment": {
-      "label": "Evaluación de idea",
+      "label": "Idea assessment",
       "implemented_in": "S2",
       "states": {
-        "recorded": "Registrada"
+        "recorded": "Recorded"
       },
       "authority": [],
       "transitions": [
@@ -1604,14 +1604,14 @@ export const TRANSITIONS = {
       "label": "Change Set",
       "implemented_in": "S3",
       "states": {
-        "proposed": "Propuesto",
-        "scope_accepted": "Alcance aceptado",
-        "in_progress": "En curso",
-        "in_review": "En revisión",
-        "accepted": "Aceptado",
-        "blocked": "Bloqueado",
-        "paused": "Pausado",
-        "cancelled": "Cancelado"
+        "proposed": "Proposed",
+        "scope_accepted": "Scope accepted",
+        "in_progress": "In progress",
+        "in_review": "In review",
+        "accepted": "Accepted",
+        "blocked": "Blocked",
+        "paused": "Paused",
+        "cancelled": "Cancelled"
       },
       "authority": [
         "scope_accepted",
@@ -1727,16 +1727,16 @@ export const TRANSITIONS = {
       ]
     },
     "task": {
-      "label": "Tarea",
+      "label": "Task",
       "implemented_in": "S3",
       "states": {
-        "open": "Abierta",
-        "tests_written": "Pruebas escritas",
-        "tests_frozen": "Pruebas congeladas",
-        "implementing": "Implementando",
-        "checking": "Comprobando",
-        "passed": "Superada",
-        "blocked": "Bloqueada"
+        "open": "Open",
+        "tests_written": "Tests written",
+        "tests_frozen": "Tests frozen",
+        "implementing": "Implementing",
+        "checking": "Checking",
+        "passed": "Passed",
+        "blocked": "Blocked"
       },
       "authority": [],
       "transitions": [
@@ -1830,12 +1830,12 @@ export const TRANSITIONS = {
       ]
     },
     "acceptance_check": {
-      "label": "Prueba de aceptación",
+      "label": "Acceptance test",
       "implemented_in": "S3",
       "states": {
-        "proposed": "Propuesta",
-        "mapped": "Mapa aceptado",
-        "frozen": "Congelada"
+        "proposed": "Proposed",
+        "mapped": "Map accepted",
+        "frozen": "Frozen"
       },
       "authority": [
         "mapped"
@@ -1866,14 +1866,14 @@ export const TRANSITIONS = {
       ]
     },
     "work_step": {
-      "label": "Paso de trabajo",
+      "label": "Work step",
       "implemented_in": "S3",
       "states": {
-        "queued": "En cola",
-        "running": "En curso",
-        "succeeded": "Terminado",
-        "failed": "Fallido",
-        "cancelled": "Cancelado"
+        "queued": "Queued",
+        "running": "Running",
+        "succeeded": "Succeeded",
+        "failed": "Failed",
+        "cancelled": "Cancelled"
       },
       "authority": [],
       "transitions": [
@@ -1915,10 +1915,10 @@ export const TRANSITIONS = {
       ]
     },
     "evidence": {
-      "label": "Evidencia",
+      "label": "Evidence",
       "implemented_in": "S4",
       "states": {
-        "recorded": "Registrada"
+        "recorded": "Recorded"
       },
       "authority": [],
       "transitions": [

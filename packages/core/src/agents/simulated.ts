@@ -1,6 +1,6 @@
-// Agente simulado determinista: la misma acción con el mismo context pack da la misma salida
-// (AC-ESQ-001-09). Se usa en la CI y en las pruebas; los guiones permiten forzar salidas
-// inválidas, errores o demoras.
+// Deterministic simulated agent: the same action with the same context pack gives the same
+// output (AC-ESQ-001-09). Used in CI and in tests; scripts let you force invalid outputs,
+// errors or delays.
 
 import type { AgentAction, AgentRequest, AgentPort, AgentResult } from '@demiurgo/domain';
 
@@ -9,9 +9,9 @@ export type Script = (p: AgentRequest) => unknown;
 export type SimulatedOptions = {
   scripts?: Partial<Record<AgentAction, Script>>;
   delayMs?: number;
-  /** Se llama justo al empezar cada invocación (p. ej. para señalar a una prueba). */
+  /** Called right when each invocation starts (e.g. to signal a test). */
   onInvoke?: (p: AgentRequest) => void;
-  /** Error forzado del agente, sin salida. */
+  /** Forced agent error, with no output. */
   failure?: { failureKind: 'agent_error' | 'infra' | 'timeout'; message: string };
 };
 
@@ -28,7 +28,7 @@ function trim(t: string, n: number): string {
 export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
   echo(p) {
     const text = txt(obj(obj(p.context.content).input).text);
-    return { reply: text ? `Eco: ${trim(text, 1900)}` : 'Eco: (vacío)' };
+    return { reply: text ? `Echo: ${trim(text, 1900)}` : 'Echo: (empty)' };
   },
 
   exploration_chat(p) {
@@ -39,10 +39,13 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
     const pending = list(c.questions)
       .map(obj)
       .filter((q) => q.state === 'pending');
-    const wantsToDecide = /\b(decid|elegimos|elijo|quiero|vamos a|usaremos)/i.test(text);
+    const wantsToDecide =
+      /\b(decid|elegimos|elijo|quiero|vamos a|usaremos|decide|chosen|choose|i want|we'll use|let's go with|going with)/i.test(
+        text,
+      );
     const output: AnyObject = {
-      reply: `Entendido: «${trim(text, 300)}». ${wantsToDecide ? 'Propongo registrarlo como decisión.' : 'Necesito concretar algo más.'}`,
-      observations: [{ type: 'hypothesis', text: `La intención principal es: ${trim(text, 200)}` }],
+      reply: `Got it: "${trim(text, 300)}". ${wantsToDecide ? 'I suggest recording it as a decision.' : 'I need to pin down something more.'}`,
+      observations: [{ type: 'hypothesis', text: `The main intent is: ${trim(text, 200)}` }],
       questions: [],
       inferences: [],
       proposals: [],
@@ -51,22 +54,22 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
       (output.proposals as unknown[]).push({
         type: 'decision',
         title: trim(text, 120),
-        context: trim(`Exploración: ${txt(c.purpose)}`, 2900),
+        context: trim(`Exploration: ${txt(c.purpose)}`, 2900),
         decision: trim(text, 2900),
-        consequences: 'Hay que diseñar la funcionalidad con criterios de aceptación verificables.',
+        consequences: 'The feature needs to be designed with verifiable acceptance criteria.',
       });
       const first = pending[0];
       if (first && typeof first.id === 'string') {
         (output.inferences as unknown[]).push({
           question_id: first.id,
           conclusion: trim(text, 1400),
-          reasoning: 'La persona lo ha expresado en su último mensaje.',
+          reasoning: 'The person expressed it in their last message.',
         });
       }
     } else if (pending.length === 0) {
       (output.questions as unknown[]).push({
-        question: '¿Quién usará primero el producto y qué necesita hacer?',
-        reason: 'Define el alcance del primer diseño.',
+        question: 'Who will use the product first, and what do they need to do?',
+        reason: 'Defines the scope of the first design.',
         impact: 'high',
       });
     }
@@ -79,24 +82,24 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
     const title = trim(txt(d.title, 'Feature'), 140);
     return {
       fdr: {
-        title: `Diseño: ${title}`,
-        goal: trim(`Llevar a producto la decisión ${txt(d.code)}: ${txt(d.decision, title)}`, 2900),
-        scope: 'El recorrido principal de la decisión, de principio a fin, para una persona.',
-        out_of_scope: 'Integraciones externas y varios usuarios a la vez.',
-        behavior: `La persona realiza el recorrido principal de «${title}» y ve el resultado confirmado.`,
+        title: `Design: ${title}`,
+        goal: trim(`Bring decision ${txt(d.code)} to production: ${txt(d.decision, title)}`, 2900),
+        scope: "The decision's main walkthrough, start to finish, for a single person.",
+        out_of_scope: 'External integrations and multiple concurrent users.',
+        behavior: `The person completes the main walkthrough of "${title}" and sees the result confirmed.`,
         criteria: [
           {
-            title: 'Recorrido principal',
-            statement: `Dado un proyecto vacío, cuando la persona completa el recorrido de «${title}», entonces ve el resultado guardado.`,
+            title: 'Main walkthrough',
+            statement: `Given an empty project, when the person completes the "${title}" walkthrough, then they see the result saved.`,
             verification: 'automatic',
-            check: 'Una prueba de extremo a extremo recorre el flujo y comprueba el resultado.',
+            check: 'An end-to-end test runs through the flow and checks the result.',
           },
           {
-            title: 'Error comprensible',
+            title: 'Understandable error',
             statement:
-              'Dado un dato inválido, cuando la persona lo envía, entonces ve un mensaje en español que explica qué corregir.',
+              'Given an invalid input, when the person submits it, then they see a message in English that explains what to fix.',
             verification: 'automatic',
-            check: 'Una prueba envía un dato inválido y comprueba el mensaje.',
+            check: 'A test submits an invalid input and checks the message.',
           },
         ],
       },

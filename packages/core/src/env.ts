@@ -1,8 +1,8 @@
-// Entorno de los procesos hijos (agentes por CLI): lista permitida, nunca herencia. Junto con
-// `config.ts`, es el único módulo que lee variables de entorno (AC-ESQ-001-06), y solo para
-// filtrarlas.
+// Environment for child processes (CLI agents): allow-list, never inheritance. Along with
+// `config.ts`, it is the only module that reads environment variables (AC-ESQ-001-06), and only
+// to filter them.
 
-/** Variables que la CLI necesita para arrancar en Windows y encontrar la suscripción. */
+/** Variables the CLI needs to start on Windows and find the subscription. */
 export const ALLOWED_VARIABLES = [
   'PATH',
   'SystemRoot',
@@ -18,17 +18,17 @@ export const ALLOWED_VARIABLES = [
   'TEMP',
   'TMP',
   'LANG',
-  // Si la configuración de Claude Code no está en `~/.claude`, las credenciales de la
-  // suscripción están donde diga esta variable.
+  // If the Claude Code configuration is not in `~/.claude`, the subscription credentials
+  // are wherever this variable points.
   'CLAUDE_CONFIG_DIR',
 ] as const;
 
-/** Variables fijas que se añaden: sin telemetría, informes de error ni autoactualización. */
+/** Fixed variables that get added: no telemetry, error reports or auto-update. */
 export const FIXED_VARIABLES: Readonly<Record<string, string>> = {
   CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
 };
 
-/** Nunca llegan a un agente, aunque se pidan como extra: credenciales de BD, de modelo o de DEMIURGO. */
+/** Never reach an agent, even if requested as extra: DB, model or DEMIURGO credentials. */
 export function isForbiddenVariable(name: string): boolean {
   const n = name.toUpperCase();
   return (
@@ -40,14 +40,14 @@ export function isForbiddenVariable(name: string): boolean {
   );
 }
 
-/** El entorno del proceso de DEMIURGO, solo como origen del filtro. */
+/** The DEMIURGO process's environment, only as the filter's source. */
 export function processEnv(): Readonly<Record<string, string | undefined>> {
   return process.env;
 }
 
 /**
- * Construye el entorno del hijo con la lista permitida (sin distinguir mayúsculas, como en
- * Windows) más las variables fijas. `extra` amplía la lista, pero nunca con las prohibidas.
+ * Builds the child's environment with the allow-list (case-insensitive, as on Windows) plus
+ * the fixed variables. `extra` widens the list, but never with the forbidden ones.
  */
 export function allowedEnv(
   origin: Readonly<Record<string, string | undefined>> = processEnv(),

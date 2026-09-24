@@ -1,5 +1,5 @@
-// Cargas de las propuestas por tipo: el esquema con el que se validan al crearlas y al
-// aceptarlas con cambios. Un agente solo propone; aceptar es siempre de una persona.
+// Proposal payloads by type: the schema used to validate them on creation and on
+// accepting with changes. An agent only proposes; accepting is always a person's job.
 
 import { z } from 'zod';
 import { proposedCriterion } from './agents.ts';
@@ -41,7 +41,7 @@ export const fdrPayload = z
   })
   .strict();
 
-/** Propuesta del sistema de conocimiento: revisar un registro con autoridad (nunca un cambio directo). */
+/** Proposal from the knowledge system: review a record with authority (never a direct change). */
 export const revisionPayload = z
   .object({
     record: recordReference,
@@ -54,7 +54,7 @@ export const revisionPayload = z
 
 export const AGENT_PROPOSAL_TYPES = ['decision', 'exploration', 'fdr'] as const;
 
-/** Tipos de propuesta. `registro_importado` y `taxonomia_importada` solo los crea la importación de design/. */
+/** Proposal types. `imported_record` and `imported_taxonomy` are only created by the design/ import. */
 export const PAYLOADS = {
   decision: decisionPayload,
   exploration: explorationPayload,
@@ -71,7 +71,7 @@ export function isProposalType(t: string): t is ProposalType {
   return Object.hasOwn(PAYLOADS, t);
 }
 
-/** Dependencia declarada: el registro sigue con la misma versión vigente. */
+/** Declared dependency: the record is still on the same current version. */
 export const dependencySchema = z
   .object({ type: z.literal('record'), id: z.string().uuid(), code: z.string(), version: z.number().int().positive() })
   .strict();

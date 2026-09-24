@@ -1,6 +1,6 @@
-// Registros (decisión, FDR, ADR, bug), versiones inmutables, criterios y enlaces.
-// Identidad, versión, aprobación y realización son cuatro cosas distintas: aprobar no crea
-// versión (I4) y una versión nueva exige arrastrar cada criterio de forma explícita.
+// Records (decision, FDR, ADR, bug), immutable versions, criteria and links.
+// Identity, version, approval and fulfillment are four different things: approving doesn't
+// create a version (I4), and a new version requires explicitly carrying over every criterion.
 
 import {
   DomainError,
@@ -43,7 +43,7 @@ export const criterionInputSchema = z.discriminatedUnion('carry', [
         .string()
         .regex(/^AC-[A-Z]{3}-\d{3}-\d{2}$/)
         .optional(),
-      // Un criterio nuevo puede derivar de otro del proyecto con otro código.
+      // A new criterion may derive from another one in the project with a different code.
       derived_from: z
         .string()
         .regex(/^AC-[A-Z]{3}-\d{3}-\d{2}$/)
@@ -71,9 +71,9 @@ const versionContentSchema = {
   criteria: z.array(criterionInputSchema).max(L.criteria).default([]),
   discarded: z.array(z.string()).default([]),
   links: z.array(linkInputSchema).max(L.links).default([]),
-  // Anexos en orden (tablas como datos): se guardan y se exportan tal cual.
-  annexes: z.array(z.object({ path: z.string().regex(/^datos\/[a-z0-9-]+\.yaml$/), content: z.string() }).strict()).default([]),
-  // Número de versión explícito: solo para importar design/ respetando la versión del origen.
+  // Annexes in order (tables as data): stored and exported as-is.
+  annexes: z.array(z.object({ path: z.string().regex(/^data\/[a-z0-9-]+\.yaml$/), content: z.string() }).strict()).default([]),
+  // Explicit version number: only for importing design/ while respecting the origin's version.
   number: z.number().int().positive().optional(),
   increment: z
     .string()
@@ -87,15 +87,15 @@ export const newRecordSchema = z
   .object({
     type: z.enum(RECORD_TYPES),
     code: z.string().regex(RE_CODE).optional(),
-    // Solo letras: el dominio da nombre al código (DEC-DOM-NNN) y un código lleva letras (ADR-FMT-001).
-    domain: z.string().regex(/^[a-z][a-z_]*$/, 'El dominio solo lleva letras minúsculas y guiones bajos.'),
+    // Letters only: the domain names the code (DEC-DOM-NNN), and a code is letters (ADR-FMT-001).
+    domain: z.string().regex(/^[a-z][a-z_]*$/, 'The domain can only contain lowercase letters and underscores.'),
     ...versionContentSchema,
   })
   .strict();
 
 const newVersionSchema = z.object({ record_id: uuid, ...versionContentSchema }).strict();
 
-/** Última versión no descartada de un registro: la base del arrastre de criterios. */
+/** Last non-discarded version of a record: the basis for carrying over criteria. */
 async function baseVersion(trx: Tx, recordId: string) {
   return trx
     .selectFrom('record_versions')
@@ -127,7 +127,7 @@ export async function resolveReference(trx: Tx, projectId: string, code: string,
     .executeTakeFirst();
 }
 
-// La parte DOM-NNN de un código es única entre tipos: sus criterios se llaman AC-DOM-NNN-NN.
+// The DOM-NNN part of a code is unique across types: its criteria are named AC-DOM-NNN-NN.
 async function nextCode(trx: Tx, projectId: string, type: RecordType, domain: string): Promise<string> {
   const dom = domain.replaceAll('_', '').slice(0, 3).toUpperCase().padEnd(3, 'X');
   const rows = await trx
@@ -152,8 +152,8 @@ registerGuards({
       .executeTakeFirst();
     if (!existing) return null;
     return existing.code === code
-      ? `El código ${code} ya existe en este proyecto.`
-      : `${code} comparte ${code.slice(4)} con ${existing.code}: la parte DOM-NNN de un código es única entre tipos.`;
+      ? `Code ${code} already exists in this project.`
+      : `${code} shares ${code.slice(4)} with ${existing.code}: the DOM-NNN part of a code is unique across types.`;
   },
 
   async valid_template({ ctx, data, entity }) {
@@ -176,11 +176,8 @@ registerGuards({
         .executeTakeFirst();
       type = r?.type as RecordType | undefined;
     }
-    if (!type) return 'El registro no existe.';
-    const gaps = templateGaps(
-      type,
-      (field(data, 'sections') as { title: string; content: string }[] | undefined) ?? [],
-    );
+    if (!type) return 'The record does not exist.';
+    const gaps = templateGaps(type, (field(data, 'sections') as { title: string; content: string }[] | undefined) ?? []);
     return gaps.length ? gaps.join(' ') : null;
   },
 
@@ -198,10 +195,10 @@ registerGuards({
     const priors = await ctx.trx.selectFrom('criteria').select('code').where('record_version_id', '=', base.id).execute();
     const missing = priors.map((p) => p.code).filter((c) => !covered.has(c));
     const reasons: string[] = [];
-    if (missing.length) reasons.push(`Falta decidir qué hacer con ${missing.join(', ')}: mantener, modificar o descartar.`);
-    if (!string(field(data, 'change_note'))) reasons.push('Una versión nueva exige una nota de cambio.');
+    if (missing.length) reasons.push(`Still need to decide what to do with ${missing.join(', ')}: keep, modify or discard.`);
+    if (!string(field(data, 'change_note'))) reasons.push('A new version requires a change note.');
     const unknown = [...covered].filter((c) => !priors.some((p) => p.code === c));
-    if (unknown.length) reasons.push(`${unknown.join(', ')} no está en la versión ${base.n}.`);
+    if (unknown.length) reasons.push(`${unknown.join(', ')} is not in version ${base.n}.`);
     return reasons.length ? reasons.join(' ') : null;
   },
 
@@ -212,10 +209,10 @@ registerGuards({
       .where('id', '=', string(field(data, 'record_id')))
       .where('project_id', '=', ctx.projectId)
       .executeTakeFirst();
-    return r ? null : 'El registro no existe en este proyecto.';
+    return r ? null : 'The record does not exist in this project.';
   },
 
-  // Una versión aprobada más reciente es la vigente: aprobar una anterior la dejaría con dos aprobadas.
+  // The most recent approved version is the current one: approving an earlier one would leave two approved.
   async without_later_approved({ ctx, entity }) {
     const v = entity?.row as { record_id: string; n: number } | undefined;
     const later = await ctx.trx
@@ -226,17 +223,15 @@ registerGuards({
       .where('n', '>', v?.n ?? 0)
       .orderBy('n', 'desc')
       .executeTakeFirst();
-    return later
-      ? `Ya hay una versión aprobada posterior (v${later.n}): descarta este borrador o crea una versión nueva.`
-      : null;
+    return later ? `There is already a later approved version (v${later.n}): discard this draft or create a new version.` : null;
   },
 
-  // Los criterios y los enlaces de una versión solo nacen al crearla: después su contenido no cambia (I4).
+  // A version's criteria and links are only created together with it: afterwards its content doesn't change (I4).
   within_its_version({ ctx, data }) {
     const versionId = string(field(data, 'version_id')) || string(field(field(data, 'from'), 'id'));
     return ctx.cause.versionBeingCreated === versionId
       ? null
-      : 'Los criterios y los enlaces se crean con su versión: crea una versión nueva del registro.';
+      : 'Criteria and links are created with their version: create a new version of the record.';
   },
 
   async version_in_draft({ ctx, data }) {
@@ -246,10 +241,10 @@ registerGuards({
       .where('id', '=', string(field(data, 'version_id')))
       .where('project_id', '=', ctx.projectId)
       .executeTakeFirst();
-    return v?.state === 'draft' ? null : 'Solo se añaden criterios a una versión en borrador.';
+    return v?.state === 'draft' ? null : 'Criteria can only be added to a draft version.';
   },
 
-  // Solo se sustituye una versión aprobada cuando hay otra aprobada posterior del mismo registro.
+  // An approved version is only superseded when there is another later approved version of the same record.
   async has_later_approved({ ctx, entity }) {
     const v = entity?.row as { record_id: string; n: number } | undefined;
     const later = await ctx.trx
@@ -259,7 +254,7 @@ registerGuards({
       .where('state', '=', 'approved')
       .where('n', '>', v?.n ?? 0)
       .executeTakeFirst();
-    return later ? null : 'Una versión aprobada solo queda sustituida cuando se aprueba otra posterior.';
+    return later ? null : 'An approved version is only superseded when a later one is approved.';
   },
 
   async endpoints_exist({ ctx, data }) {
@@ -271,13 +266,13 @@ registerGuards({
         .where('id', '=', id)
         .where('project_id', '=', ctx.projectId)
         .executeTakeFirst();
-      if (!v) return `El extremo «${endpoint}» del enlace no existe.`;
+      if (!v) return `The "${endpoint}" endpoint of the link does not exist.`;
     }
     return null;
   },
 });
 
-/** Crea la versión y sus criterios y enlaces con comandos anidados del mismo actor. */
+/** Creates the version along with its criteria and links via nested commands from the same actor. */
 async function createVersion(
   ctx: CommandContext,
   recordId: string,
@@ -296,7 +291,7 @@ async function createVersion(
         .executeTakeFirst()
     )?.n ?? 0;
   if (data.number !== undefined && data.number <= n) {
-    throw new DomainError('validation', `La versión ${data.number} no es posterior a la última (${n}).`);
+    throw new DomainError('validation', `Version ${data.number} is not later than the last one (${n}).`);
   }
   const number = data.number ?? n + 1;
   const priors = base
@@ -304,7 +299,7 @@ async function createVersion(
     : [];
   const byCode = new Map(priors.map((p) => [p.code, p]));
   const acPrefix = `AC-${record.code.slice(4)}-`;
-  // Un código de AC no se reutiliza nunca, ni el de un criterio descartado en una versión anterior.
+  // An AC code is never reused, not even one from a criterion discarded in an earlier version.
   const used = new Set(
     (
       await ctx.trx
@@ -316,7 +311,7 @@ async function createVersion(
     ).map((c) => c.code),
   );
   let next = [...used].reduce((m, c) => Math.max(m, Number(c.slice(-2))), 0);
-  // Criterios nuevos que derivan de otro: el de ese código en la última versión que lo contiene.
+  // New criteria that derive from another: the one with that code in the latest version that contains it.
   const derived = new Map<string, string>();
   for (const c of data.criteria) {
     if (c.carry !== 'new' || !c.derived_from) continue;
@@ -328,13 +323,13 @@ async function createVersion(
       .where('criteria.code', '=', c.derived_from)
       .orderBy('record_versions.n', 'desc')
       .executeTakeFirst();
-    if (!origin) throw new DomainError('validation', `${c.derived_from}, del que deriva un criterio nuevo, no existe.`);
+    if (!origin) throw new DomainError('validation', `${c.derived_from}, which a new criterion derives from, does not exist.`);
     derived.set(c.derived_from, origin.id);
   }
   const criteria = data.criteria.map((c) => {
     if (c.carry === 'kept') {
       const p = byCode.get(c.code);
-      if (!p) throw new DomainError('validation', `${c.code} no está en la versión anterior.`);
+      if (!p) throw new DomainError('validation', `${c.code} is not in the previous version.`);
       return {
         code: p.code,
         title: p.title,
@@ -347,7 +342,7 @@ async function createVersion(
     }
     if (c.carry === 'modified') {
       const p = byCode.get(c.derived_from);
-      if (!p) throw new DomainError('validation', `${c.derived_from} no está en la versión anterior.`);
+      if (!p) throw new DomainError('validation', `${c.derived_from} is not in the previous version.`);
       return {
         code: p.code,
         title: c.title,
@@ -359,11 +354,11 @@ async function createVersion(
       };
     }
     const code = c.code ?? `${acPrefix}${String(++next).padStart(2, '0')}`;
-    if (!code.startsWith(acPrefix)) throw new DomainError('validation', `El código ${code} debe empezar por ${acPrefix}.`);
+    if (!code.startsWith(acPrefix)) throw new DomainError('validation', `Code ${code} must start with ${acPrefix}.`);
     if (used.has(code)) {
       throw new DomainError(
         'validation',
-        `El código ${code} ya se usó en una versión anterior: un criterio nuevo lleva un código nuevo.`,
+        `Code ${code} was already used in a previous version: a new criterion needs a new code.`,
       );
     }
     return {
@@ -377,7 +372,7 @@ async function createVersion(
     };
   });
   const codes = criteria.map((c) => c.code);
-  if (new Set(codes).size !== codes.length) throw new DomainError('validation', 'Hay criterios con el mismo código.');
+  if (new Set(codes).size !== codes.length) throw new DomainError('validation', 'There are criteria with the same code.');
   const content = {
     title: data.title,
     sections: data.sections,
@@ -430,7 +425,7 @@ async function createVersion(
   for (const e of data.links) {
     const target = await resolveReference(ctx.trx, ctx.projectId, e.target.code, e.target.version);
     if (!target)
-      throw new DomainError('validation', `El enlace apunta a ${e.target.code}@${e.target.version}, que no existe.`);
+      throw new DomainError('validation', `The link points to ${e.target.code}@${e.target.version}, which does not exist.`);
     await ctx.execute({
       command: 'link.create',
       actor: ctx.actor,
@@ -438,7 +433,7 @@ async function createVersion(
       cause: { versionBeingCreated: id },
     });
   }
-  // El chequeo de verificabilidad nunca bloquea: el aviso vuelve con la versión creada (AC-DIS-001-14).
+  // The verifiability check never blocks: the warning comes back with the created version (AC-DIS-001-14).
   const warnings = criteria.flatMap((c) => verifiabilityWarnings(c.code, c.statement));
   return { id, n: number, code: record.code, warnings };
 }
@@ -449,7 +444,7 @@ registerHandlers({
     async apply(ctx, data, _e, to) {
       const code = data.code ?? (await nextCode(ctx.trx, ctx.projectId, data.type, data.domain));
       if (!code.startsWith(`${RECORD_PREFIX[data.type]}-`)) {
-        throw new DomainError('validation', `El código ${code} no corresponde a un registro de tipo «${data.type}».`);
+        throw new DomainError('validation', `Code ${code} does not match a record of type "${data.type}".`);
       }
       const { id } = await ctx.trx
         .insertInto('records')
@@ -513,7 +508,7 @@ registerHandlers({
           entityId: previous.id,
           data: {},
         });
-        // Lo que se basaba en la versión anterior queda pendiente de revisión (nunca se cambia solo).
+        // Anything based on the previous version is left pending review (it's never changed on its own).
         const links = await ctx.trx
           .selectFrom('links')
           .select('id')
@@ -525,7 +520,7 @@ registerHandlers({
             command: 'link.flag_review',
             actor: system('versions'),
             entityId: l.id,
-            data: { reason: `Hay una versión nueva (v${v.n}) del registro enlazado.` },
+            data: { reason: `There is a new version (v${v.n}) of the linked record.` },
           });
         }
       }
@@ -546,7 +541,7 @@ registerHandlers({
     data: z.object({ reason: z.string().trim().max(1000).optional() }).strict(),
     async apply(ctx, data, e) {
       const n = Number(e?.row.n ?? 0);
-      // Lo que enlazaba este borrador queda pendiente de revisión, y lo que dependía de él, obsoleto.
+      // Anything that linked to this draft is left pending review, and anything that depended on it becomes obsolete.
       const links = await ctx.trx
         .selectFrom('links')
         .select('id')
@@ -558,11 +553,11 @@ registerHandlers({
           command: 'link.flag_review',
           actor: system('versions'),
           entityId: l.id,
-          data: { reason: `La versión enlazada (v${n}) se ha descartado.` },
+          data: { reason: `The linked version (v${n}) has been discarded.` },
         });
       }
       await reviewObsolescence(ctx, { record: string(e?.row.record_id) });
-      // Lo que el borrador proyectó en el conocimiento (si venía de una propuesta aceptada) se retira.
+      // Anything the draft projected into the knowledge graph (if it came from an accepted proposal) is withdrawn.
       await onAuthorityEvent(ctx, { type: DISCARD_TRIGGER, id: e?.id ?? '', version: n });
       return { entityId: e?.id ?? '', version: n, after: { reason: data.reason ?? null } };
     },
@@ -587,7 +582,7 @@ registerHandlers({
         .where('record_versions.id', '=', d.version_id)
         .executeTakeFirstOrThrow();
       if (!d.code.startsWith(`AC-${record.code.slice(4)}-`)) {
-        throw new DomainError('validation', `El código ${d.code} no corresponde a ${record.code}.`);
+        throw new DomainError('validation', `Code ${d.code} does not match ${record.code}.`);
       }
       const { id } = await ctx.trx
         .insertInto('criteria')

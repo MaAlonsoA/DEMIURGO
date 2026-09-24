@@ -1,4 +1,4 @@
-// Métodos (prompts) versionados como archivos: `packages/core/metodos/<acción>/<versión>.md`.
+// Methods (prompts) versioned as files: `packages/core/methods/<action>/<version>.md`.
 
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -19,7 +19,7 @@ export async function loadMethod(action: AgentAction, version = METHOD_VERSION[a
   return { id: `${action}@${version}`, version, text: text.replaceAll('\r\n', '\n') };
 }
 
-/** Versión del esquema de salida: huella corta del JSON Schema generado desde Zod. */
+/** Output schema version: short fingerprint of the JSON Schema generated from Zod. */
 export function schemaVersion(action: AgentAction): string {
   return fingerprint(jsonSchemaOf(action)).slice(0, 16);
 }

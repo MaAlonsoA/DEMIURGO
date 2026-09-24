@@ -1,34 +1,34 @@
-// Registro de guardas por nombre. Cada guarda declarada en design/datos/transiciones.yaml
-// tiene aquí su implementación (AC-NUC-001-03). Una guarda devuelve null si se cumple o el
-// motivo, en lenguaje de producto, si no.
+// Guard registry by name. Each guard declared in design/data/transitions.yaml
+// has its implementation here (AC-NUC-001-03). A guard returns null when it holds, or the
+// reason, in product language, when it doesn't.
 
 import type { Guard } from './types.ts';
 
 export const GUARDS: Record<string, Guard> = {};
 
-/** Registra guardas; se llama desde cada módulo de comandos. */
+/** Registers guards; called from each command module. */
 export function registerGuards(guards: Record<string, Guard>): void {
   for (const [name, g] of Object.entries(guards)) {
-    if (GUARDS[name]) throw new Error(`La guarda «${name}» ya está registrada.`);
+    if (GUARDS[name]) throw new Error(`The "${name}" guard is already registered.`);
     GUARDS[name] = g;
   }
 }
 
-/** Guardas de incrementos posteriores: bloquean siempre hasta que se implementen. */
+/** Guards for later increments: they always block until implemented. */
 export function pendingGuard(increment: string): Guard {
-  return () => `Esta condición se implementa en ${increment}.`;
+  return () => `This condition is implemented in ${increment}.`;
 }
 
-/** Texto de un valor desconocido: la cadena recortada o vacío. */
+/** Text of an unknown value: the trimmed string, or empty. */
 export const string = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 
-/** Lee un campo de los datos del comando sin suponer su forma. */
+/** Reads a field from the command data without assuming its shape. */
 export function field(data: unknown, name: string): unknown {
   return typeof data === 'object' && data !== null ? (data as Record<string, unknown>)[name] : undefined;
 }
 
 registerGuards({
-  reason_present: ({ data }) => (string(field(data, 'reason')) ? null : 'Hace falta un motivo.'),
+  reason_present: ({ data }) => (string(field(data, 'reason')) ? null : 'A reason is required.'),
   fdr_ready_to_build: pendingGuard('S3'),
   full_coverage: pendingGuard('S3'),
   gates_green: pendingGuard('S4'),

@@ -1,34 +1,34 @@
-# Tablas de transiciones de DEMIURGO v2.
-# Toda transición sale de aquí: lo que no está devuelve 409 sin efectos. Anexo de ADR-NUC-001.
-# desde: nuevo  -> el comando crea la entidad en el estado «hacia».
-# autoridad     -> estados que solo alcanza un evento de actor human (I1).
+# DEMIURGO v2 transition tables.
+# Every transition comes from here: what isn't here returns 409 with no effects. Annex of ADR-NUC-001.
+# from: new  -> the command creates the entity in the "to" state.
+# authority     -> states only reached by an event from a human actor (I1).
 code: DAT-TRA-001
 version: 1
 state: proposed
 
 entities:
   project:
-    label: Proyecto
+    label: Project
     implemented_in: S0
-    states: { active: Activo, archived: Archivado }
+    states: { active: Active, archived: Archived }
     authority: []
     transitions:
       - { command: project.create, from: new, to: active }
       - { command: project.archive, from: [active], to: archived }
 
   agent_token:
-    label: Token de agente
+    label: Agent token
     implemented_in: S1
-    states: { active: Activo, revoked: Revocado }
+    states: { active: Active, revoked: Revoked }
     authority: []
     transitions:
       - { command: agent_token.issue, from: new, to: active, guards: [valid_agent_name] }
       - { command: agent_token.revoke, from: [active], to: revoked }
 
   exploration:
-    label: Exploración
+    label: Exploration
     implemented_in: S1
-    states: { active: Activa, concluded: Concluida, set_aside: Apartada }
+    states: { active: Active, concluded: Concluded, set_aside: Set aside }
     authority: []
     transitions:
       - { command: exploration.open, from: new, to: active, guards: [existing_origin] }
@@ -37,25 +37,25 @@ entities:
       - { command: exploration.resume, from: [concluded, set_aside], to: active }
 
   message:
-    label: Mensaje
+    label: Message
     implemented_in: S1
-    states: { recorded: Registrado }
+    states: { recorded: Recorded }
     authority: []
     transitions:
       - { command: message.post, from: new, to: recorded, guards: [exploration_active] }
 
   source:
-    label: Fuente
+    label: Source
     implemented_in: S1
-    states: { registered: Registrada }
+    states: { registered: Registered }
     authority: []
     transitions:
       - { command: source.register, from: new, to: registered }
 
   question:
-    label: Pregunta
+    label: Question
     implemented_in: S1
-    states: { pending: Pendiente, inferred: Inferida, confirmed: Confirmada, postponed: Pospuesta, discarded: Descartada }
+    states: { pending: Pending, inferred: Inferred, confirmed: Confirmed, postponed: Postponed, discarded: Discarded }
     authority: [confirmed]
     transitions:
       - { command: question.raise, from: new, to: pending, guards: [exploration_active] }
@@ -66,17 +66,17 @@ entities:
       - { command: question.reopen, from: [confirmed, postponed, discarded], to: pending }
 
   record:
-    label: Registro
+    label: Record
     implemented_in: S1
-    states: { registered: Registrado }
+    states: { registered: Registered }
     authority: []
     transitions:
       - { command: record.create, from: new, to: registered, guards: [free_code, valid_template] }
 
   record_version:
-    label: Versión de registro
+    label: Record version
     implemented_in: S1
-    states: { draft: Borrador, approved: Aprobada, superseded: Sustituida, discarded: Descartada }
+    states: { draft: Draft, approved: Approved, superseded: Superseded, discarded: Discarded }
     authority: [approved]
     transitions:
       - { command: record_version.create, from: new, to: draft, guards: [record_of_project, valid_template, criteria_carry_complete] }
@@ -85,17 +85,17 @@ entities:
       - { command: record_version.discard, from: [draft], to: discarded }
 
   criterion:
-    label: Criterio de aceptación
+    label: Acceptance criterion
     implemented_in: S1
-    states: { recorded: Registrado }
+    states: { recorded: Recorded }
     authority: []
     transitions:
       - { command: criterion.record, from: new, to: recorded, guards: [within_its_version, version_in_draft] }
 
   link:
-    label: Enlace
+    label: Link
     implemented_in: S1
-    states: { current: Vigente, needs_review: Pendiente de revisión, kept: Mantenido, changed: Cambiado, obsolete: Obsoleto }
+    states: { current: Current, needs_review: Pending review, kept: Kept, changed: Changed, obsolete: Obsolete }
     authority: []
     transitions:
       - { command: link.create, from: new, to: current, guards: [within_its_version, endpoints_exist] }
@@ -105,9 +105,9 @@ entities:
       - { command: link.obsolete, from: [needs_review], to: obsolete }
 
   batch:
-    label: Lote de propuestas
+    label: Proposal batch
     implemented_in: S1
-    states: { pending: Pendiente, accepted: Aceptado, rejected: Rechazado, resolved: Resuelto, superseded: Obsoleto }
+    states: { pending: Pending, accepted: Accepted, rejected: Rejected, resolved: Resolved, superseded: Obsolete }
     authority: [accepted]
     transitions:
       - { command: batch.submit, from: new, to: pending, guards: [external_agent_batch_max_10, project_dependencies] }
@@ -118,9 +118,9 @@ entities:
       - { command: batch.supersede, from: [pending], to: superseded }
 
   proposal:
-    label: Propuesta
+    label: Proposal
     implemented_in: S1
-    states: { pending: Pendiente, accepted: Aceptada, accepted_edited: Aceptada con cambios, rejected: Rechazada, superseded: Obsoleta }
+    states: { pending: Pending, accepted: Accepted, accepted_edited: Accepted with edits, rejected: Rejected, superseded: Obsolete }
     authority: [accepted, accepted_edited]
     transitions:
       - { command: proposal.create, from: new, to: pending, guards: [own_open_batch, valid_payload, project_dependencies] }
@@ -130,9 +130,9 @@ entities:
       - { command: proposal.supersede, from: [pending], to: superseded, guards: [per_element_resolution] }
 
   ai_run:
-    label: Ejecución de agente
+    label: Agent run
     implemented_in: S0
-    states: { queued: En cola, running: En curso, completed: Completada, failed: Fallida, cancelled: Cancelada, interrupted: Interrumpida }
+    states: { queued: Queued, running: Running, completed: Completed, failed: Failed, cancelled: Cancelled, interrupted: Interrupted }
     authority: []
     transitions:
       - { command: run.request, from: new, to: queued, guards: [graph_up_to_date] }
@@ -146,15 +146,15 @@ entities:
   context_pack:
     label: Context pack
     implemented_in: S0
-    states: { recorded: Registrado }
+    states: { recorded: Recorded }
     authority: []
     transitions:
       - { command: context_pack.build, from: new, to: recorded }
 
   taxonomy:
-    label: Taxonomía
+    label: Taxonomy
     implemented_in: S2
-    states: { draft: Borrador, approved: Aprobada, superseded: Sustituida }
+    states: { draft: Draft, approved: Approved, superseded: Superseded }
     authority: [approved]
     transitions:
       - { command: taxonomy.propose, from: new, to: draft, guards: [valid_taxonomy] }
@@ -162,9 +162,9 @@ entities:
       - { command: taxonomy.supersede, from: [approved], to: superseded }
 
   classification:
-    label: Clasificación
+    label: Classification
     implemented_in: S2
-    states: { applied: Aplicada, pending_review: Pendiente de revisión, resolved: Resuelta }
+    states: { applied: Applied, pending_review: Pending review, resolved: Resolved }
     authority: []
     transitions:
       - { command: classification.record, from: new, to: applied, guards: [valid_classification] }
@@ -172,9 +172,9 @@ entities:
       - { command: classification.resolve, from: [pending_review], to: resolved, guards: [taxonomy_categories] }
 
   knowledge_update:
-    label: Actualización de conocimiento
+    label: Knowledge update
     implemented_in: S2
-    states: { queued: En cola, classifying: Clasificando, verifying: Verificando, applied: Aplicada, rejected: Rechazada }
+    states: { queued: Queued, classifying: Classifying, verifying: Verifying, applied: Applied, rejected: Rejected }
     authority: []
     transitions:
       - { command: knowledge_update.enqueue, from: new, to: queued }
@@ -185,27 +185,27 @@ entities:
       - { command: knowledge_update.retry, from: [rejected], to: queued }
 
   knowledge_node:
-    label: Nodo de conocimiento
+    label: Knowledge node
     implemented_in: S2
-    states: { current: Vigente, invalidated: Invalidado }
+    states: { current: Current, invalidated: Invalidated }
     authority: []
     transitions:
       - { command: knowledge_node.project, from: new, to: current }
       - { command: knowledge_node.invalidate, from: [current], to: invalidated }
 
   knowledge_edge:
-    label: Arista de conocimiento
+    label: Knowledge edge
     implemented_in: S2
-    states: { current: Vigente, invalidated: Invalidada }
+    states: { current: Current, invalidated: Invalidated }
     authority: []
     transitions:
       - { command: knowledge_edge.project, from: new, to: current }
       - { command: knowledge_edge.invalidate, from: [current], to: invalidated }
 
   idea_assessment:
-    label: Evaluación de idea
+    label: Idea assessment
     implemented_in: S2
-    states: { recorded: Registrada }
+    states: { recorded: Recorded }
     authority: []
     transitions:
       - { command: idea_assessment.record, from: new, to: recorded }
@@ -214,14 +214,14 @@ entities:
     label: Change Set
     implemented_in: S3
     states:
-      proposed: Propuesto
-      scope_accepted: Alcance aceptado
-      in_progress: En curso
-      in_review: En revisión
-      accepted: Aceptado
-      blocked: Bloqueado
-      paused: Pausado
-      cancelled: Cancelado
+      proposed: Proposed
+      scope_accepted: Scope accepted
+      in_progress: In progress
+      in_review: In review
+      accepted: Accepted
+      blocked: Blocked
+      paused: Paused
+      cancelled: Cancelled
     authority: [scope_accepted, accepted]
     transitions:
       - { command: change_set.propose, from: new, to: proposed, guards: [fdr_ready_to_build] }
@@ -237,16 +237,16 @@ entities:
       - { command: change_set.cancel, from: [proposed, scope_accepted, in_progress, in_review, blocked, paused], to: cancelled, guards: [reason_present] }
 
   task:
-    label: Tarea
+    label: Task
     implemented_in: S3
     states:
-      open: Abierta
-      tests_written: Pruebas escritas
-      tests_frozen: Pruebas congeladas
-      implementing: Implementando
-      checking: Comprobando
-      passed: Superada
-      blocked: Bloqueada
+      open: Open
+      tests_written: Tests written
+      tests_frozen: Tests frozen
+      implementing: Implementing
+      checking: Checking
+      passed: Passed
+      blocked: Blocked
     authority: []
     transitions:
       - { command: task.create, from: new, to: open, guards: [covers_at_least_one_approved_ac] }
@@ -261,9 +261,9 @@ entities:
       - { command: task.clarify, from: [blocked], to: implementing, guards: [clarification_present] }
 
   acceptance_check:
-    label: Prueba de aceptación
+    label: Acceptance test
     implemented_in: S3
-    states: { proposed: Propuesta, mapped: Mapa aceptado, frozen: Congelada }
+    states: { proposed: Proposed, mapped: Map accepted, frozen: Frozen }
     authority: [mapped]
     transitions:
       - { command: acceptance_check.propose, from: new, to: proposed }
@@ -271,9 +271,9 @@ entities:
       - { command: acceptance_check.freeze, from: [mapped], to: frozen, guards: [red_test_on_base] }
 
   work_step:
-    label: Paso de trabajo
+    label: Work step
     implemented_in: S3
-    states: { queued: En cola, running: En curso, succeeded: Terminado, failed: Fallido, cancelled: Cancelado }
+    states: { queued: Queued, running: Running, succeeded: Succeeded, failed: Failed, cancelled: Cancelled }
     authority: []
     transitions:
       - { command: work_step.enqueue, from: new, to: queued }
@@ -283,9 +283,9 @@ entities:
       - { command: work_step.cancel, from: [queued, running], to: cancelled }
 
   evidence:
-    label: Evidencia
+    label: Evidence
     implemented_in: S4
-    states: { recorded: Registrada }
+    states: { recorded: Recorded }
     authority: []
     transitions:
       - { command: evidence.record, from: new, to: recorded }

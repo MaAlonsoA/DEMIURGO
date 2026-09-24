@@ -1,5 +1,5 @@
-// Tipos de Kysely de las tablas. Escritos a mano junto a las migraciones SQL; la prueba de
-// esquema comprueba que las columnas coinciden con la base migrada.
+// Kysely types for the tables. Written by hand alongside the SQL migrations; the schema
+// test checks that the columns match the migrated database.
 
 import type { ColumnType, Generated, Insertable, Selectable } from 'kysely';
 

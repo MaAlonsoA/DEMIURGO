@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net';
 import { describe, expect, it } from 'vitest';
 import { COOKIE_SESSION } from '../src/credentials.ts';
 import { createServer } from '../src/server.ts';
-import { KEY, useApi } from './support/api.ts';
+import { PASSWORD, useApi } from './support/api.ts';
 
 const api = useApi();
 
@@ -44,7 +44,7 @@ describe('API: actor, sesión y errores', () => {
   });
 
   it('AC-DIS-001-15 la cookie es httpOnly y SameSite=Strict y las mutaciones exigen el token CSRF', async () => {
-    const login = await api().app.inject({ method: 'POST', url: '/api/session', payload: { username: 'ana', key: KEY } });
+    const login = await api().app.inject({ method: 'POST', url: '/api/session', payload: { username: 'ana', password: PASSWORD } });
     const cookie = login.cookies.find((c) => c.name === COOKIE_SESSION);
     expect(cookie).toMatchObject({ httpOnly: true, sameSite: 'Strict', path: '/' });
     const withoutCsrf = await api().app.inject({

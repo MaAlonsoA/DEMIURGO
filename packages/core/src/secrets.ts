@@ -1,4 +1,4 @@
-// Secretos: se generan aquí y en la base solo se guarda su huella.
+// Secrets: generated here, and only their fingerprint is stored in the database.
 
 import { createHash, randomBytes } from 'node:crypto';
 

@@ -1,7 +1,7 @@
-// Motor de pasos durable sobre DBOS Transact, en el mismo Postgres que el dominio.
-// Flujo de una ejecución: preparar (tx) → invocar (agente, al menos una vez) → aplicar (tx).
-// «aplicar» es idempotente: la marca en step_completions se confirma en la misma transacción
-// que sus efectos, así que un corte y la reanudación no repiten el efecto (AC-ESQ-001-07).
+// Durable step engine on top of DBOS Transact, in the same Postgres as the domain.
+// Flow of a run: prepare (tx) → invoke (agent, at least once) → apply (tx).
+// "apply" is idempotent: the mark in step_completions is committed in the same transaction
+// as its effects, so a crash and resume never repeat the effect (AC-ESQ-001-07).
 
 import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
@@ -28,20 +28,20 @@ const ENGINE = system('engine');
 const AGENT_TIME_MS = 180_000;
 
 /**
- * Versión fija de la aplicación para DBOS: sin ella, DBOS la deriva del código y un cambio
- * entre un corte y el rearranque impediría recuperar los flujos pendientes. Se sube a mano
- * solo si cambia la forma de un flujo de manera incompatible.
+ * Fixed application version for DBOS: without it, DBOS derives it from the code, and a
+ * change between a crash and restart would prevent recovering pending workflows. Bump it
+ * by hand only when a workflow's shape changes incompatibly.
  */
-export const WORKFLOWS_VERSION = 'demiurgo-v2-flujos-1';
+export const WORKFLOWS_VERSION = 'demiurgo-v2-workflows-1';
 
-/** Reintentos de los pasos transaccionales ante fallos transitorios (corte de conexión, bloqueo). */
+/** Retries for transactional steps on transient failures (connection drop, lock). */
 const RETRIES = { retriesAllowed: true, maxAttempts: 3, intervalSeconds: 1 } as const;
 
 const controllers = new Map<string, AbortController>();
 
-// DBOS no permite arrancar un flujo desde dentro de un paso. Los arranques pedidos dentro de un
-// flujo (p. ej. tras confirmar un paso) se difieren a un temporizador creado al lanzar el motor,
-// fuera de cualquier contexto de DBOS. Si el proceso cae antes, la conciliación al arrancar los recupera.
+// DBOS does not allow starting a workflow from inside a step. Starts requested inside a
+// workflow (e.g. after committing a step) are deferred to a timer created when the engine
+// launches, outside any DBOS context. If the process crashes first, startup reconciliation recovers them.
 const deferred: (() => Promise<void>)[] = [];
 let dispatcher: NodeJS.Timeout | undefined;
 
@@ -57,7 +57,7 @@ async function dispatchDeferred(): Promise<void> {
     try {
       await next?.();
     } catch (e) {
-      console.error(JSON.stringify({ level: 'error', m: 'No se pudo arrancar un flujo diferido', error: String(e) }));
+      console.error(JSON.stringify({ level: 'error', m: 'Could not start a deferred workflow', error: String(e) }));
     }
   }
 }
@@ -106,7 +106,7 @@ async function invoke(runId: string): Promise<AgentResult> {
     return {
       state: 'error',
       failureKind: 'infra',
-      message: `El adaptador falló: ${String(e)}`,
+      message: `The adapter failed: ${String(e)}`,
       rawEvents: '',
       provider: s.agent.provider,
       model: 'unknown',
@@ -126,7 +126,7 @@ function summarizeErrors(issues: readonly { path: readonly PropertyKey[]; messag
 async function apply(runId: string, projectId: string, r: AgentResult, workflow: string): Promise<string> {
   const s = require();
   const final = await inTransaction(s, async (execute, trx) => {
-    // Mismo orden de bloqueos que el bus (proyecto y después la entidad): sin interbloqueos.
+    // Same lock order as the bus (project, then entity): no deadlocks.
     await sql`select 1 from projects where id = ${projectId}::uuid for update`.execute(trx);
     const done = await trx
       .selectFrom('step_completions')
@@ -162,13 +162,13 @@ async function apply(runId: string, projectId: string, r: AgentResult, workflow:
         });
         state = 'failed';
       } else if (schemaVersion(action) !== run.schema_version) {
-        // El esquema se fija por ejecución (I7): si el código cambió desde que se pidió, no se valida con otro.
+        // The schema is fixed per run (I7): if the code changed since it was requested, it isn't validated against a different one.
         await execute({
           ...base,
           command: 'run.fail',
           data: {
             failure_kind: 'infra',
-            error: 'El esquema de salida de la acción cambió desde que se pidió la ejecución.',
+            error: "The action's output schema changed since the run was requested.",
             usage: r.usage,
             model: r.model,
           },
@@ -177,7 +177,7 @@ async function apply(runId: string, projectId: string, r: AgentResult, workflow:
       } else {
         const v = OUTPUT_SCHEMAS[action].safeParse(r.rawOutput);
         if (!v.success) {
-          // Salida fuera de esquema: ningún efecto salvo el propio fallo de la ejecución (I7).
+          // Output outside the schema: no effect besides the run's own failure (I7).
           await execute({
             ...base,
             command: 'run.fail',
@@ -188,7 +188,7 @@ async function apply(runId: string, projectId: string, r: AgentResult, workflow:
           const applier = APPLIERS[action] as
             | ((e: { trx: typeof trx; execute: typeof execute; run: typeof run; output: unknown }) => Promise<void>)
             | undefined;
-          if (!applier) throw new Error(`No hay aplicador para «${action}».`);
+          if (!applier) throw new Error(`There is no applier for "${action}".`);
           await applier({ trx, execute: (p) => execute({ cause: { run: runId }, ...p }), run, output: v.data });
           await execute({ ...base, command: 'run.complete', data: { output: v.data, usage: r.usage, model: r.model } });
           state = 'completed';
@@ -218,7 +218,7 @@ async function runWorkflow(runId: string, projectId: string): Promise<string> {
   }
 }
 
-/** Un error del propio sistema al aplicar deja la ejecución fallida (infra), nunca colgada. */
+/** A system error while applying leaves the run failed (infra), never stuck. */
 async function failForInfrastructure(runId: string, projectId: string, e: unknown): Promise<void> {
   const s = require();
   const run = await s.db.selectFrom('ai_runs').select('state').where('id', '=', runId).executeTakeFirstOrThrow();
@@ -228,14 +228,14 @@ async function failForInfrastructure(runId: string, projectId: string, e: unknow
     actor: ENGINE,
     projectId,
     entityId: runId,
-    data: { failure_kind: 'infra', error: `Error al aplicar la salida: ${String(e).slice(0, 3000)}` },
+    data: { failure_kind: 'infra', error: `Error applying the output: ${String(e).slice(0, 3000)}` },
   });
 }
 
 const runWorkflowRegistered = DBOS.registerWorkflow(runWorkflow, { name: 'demiurgo.run' });
 
-// Respuesta durable a un mensaje de la persona: espera a que el conocimiento esté al día y
-// pide la ejecución de exploration_chat una sola vez (marca en step_completions).
+// Durable response to a person's message: waits for knowledge to be up to date and
+// requests the exploration_chat run exactly once (marked in step_completions).
 async function requestResponse(
   workflow: string,
   projectId: string,
@@ -273,7 +273,7 @@ async function requestResponse(
 }
 
 async function respondWorkflow(projectId: string, explorationId: string, questionId: string | null): Promise<void> {
-  const workflow = DBOS.workflowID ?? `respuesta:${explorationId}`;
+  const workflow = DBOS.workflowID ?? `response:${explorationId}`;
   for (let i = 0; i < 120; i++) {
     const upToDate = await DBOS.runStep(
       () =>
@@ -294,7 +294,7 @@ const respondWorkflowRegistered = DBOS.registerWorkflow(respondWorkflow, { name:
 
 export const dbosEngine: WorkflowEngine = {
   async startRun(runId, projectId) {
-    // Con el mismo workflowID, DBOS no repite el flujo: devuelve el existente.
+    // With the same workflowID, DBOS doesn't repeat the workflow: it returns the existing one.
     await startOutsideWorkflow(async () => {
       await DBOS.startWorkflow(runWorkflowRegistered, { workflowID: workflowRunId(runId) })(runId, projectId);
     });
@@ -311,7 +311,7 @@ export const dbosEngine: WorkflowEngine = {
   },
   async startResponse(messageId, projectId, explorationId, questionId) {
     await startOutsideWorkflow(async () => {
-      await DBOS.startWorkflow(respondWorkflowRegistered, { workflowID: `respuesta:${messageId}` })(
+      await DBOS.startWorkflow(respondWorkflowRegistered, { workflowID: `response:${messageId}` })(
         projectId,
         explorationId,
         questionId ?? null,
@@ -321,16 +321,16 @@ export const dbosEngine: WorkflowEngine = {
 };
 
 export type EngineOptions = {
-  /** Solo para pruebas de durabilidad: se llama justo después de confirmar un paso. */
+  /** Only for durability tests: called right after a step is committed. */
   onStepComplete?: (step: string, id: string) => void;
 };
 
 export type StartedEngine = { services: Services; stop(): Promise<void> };
 
 /**
- * Concilia al arrancar: una ejecución encolada sin flujo se arranca; una en curso cuyo flujo
- * ya no se puede reanudar (fallido, cancelado o inexistente) queda interrumpida para que la
- * persona la reintente con el mismo context pack. Nunca queda colgada.
+ * Reconciles at startup: a queued run with no workflow gets started; a running one whose
+ * workflow can no longer be resumed (failed, cancelled or missing) is left interrupted so
+ * the person can retry it with the same context pack. Never left stuck.
  */
 async function reconcileRuns(s: Services): Promise<void> {
   const liveRuns = await s.db
@@ -347,8 +347,8 @@ async function reconcileRuns(s: Services): Promise<void> {
       continue;
     }
     const reason = workflow
-      ? `El flujo de la ejecución terminó en ${workflow.status} sin completarla; reinténtala.`
-      : 'El proceso se cortó sin un flujo que reanudar; reinténtala con el mismo context pack.';
+      ? `The run's workflow ended in ${workflow.status} without completing it; retry it.`
+      : 'The process was interrupted with no workflow to resume; retry it with the same context pack.';
     await executeCommand(s, {
       command: r.state === 'running' ? 'run.interrupt' : 'run.fail',
       actor: ENGINE,
@@ -360,8 +360,8 @@ async function reconcileRuns(s: Services): Promise<void> {
 }
 
 /**
- * Configura y lanza DBOS sobre la base de la aplicación (esquema `dbos`). Al lanzar, DBOS
- * reanuda los flujos pendientes; después se concilian las ejecuciones y las actualizaciones.
+ * Configures and launches DBOS on the application's database (`dbos` schema). On launch, DBOS
+ * resumes pending workflows; runs and updates are then reconciled.
  */
 export async function startEngine(
   base: Omit<Services, 'engine'>,
@@ -397,15 +397,15 @@ export async function startEngine(
   };
 }
 
-/** Espera el resultado del flujo de una ejecución (pruebas y CLI). */
+/** Waits for a run's workflow result (tests and CLI). */
 export async function waitForRun(runId: string): Promise<string | null> {
   return DBOS.retrieveWorkflow<string>(workflowRunId(runId)).getResult();
 }
 
-/** Espera la respuesta durable a un mensaje (pruebas). */
+/** Waits for the durable response to a message (tests). */
 export async function waitForResponse(messageId: string): Promise<void> {
-  await DBOS.retrieveWorkflow<void>(`respuesta:${messageId}`).getResult();
+  await DBOS.retrieveWorkflow<void>(`response:${messageId}`).getResult();
 }
 
-/** Marca de actor para los efectos de una ejecución. */
+/** Actor mark for a run's effects. */
 export const actorOfRun = agentRun;

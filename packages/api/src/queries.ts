@@ -1,4 +1,4 @@
-// Rutas de consulta (lectura). Cada una declara su consulta de la matriz de capacidades.
+// Query routes (read-only). Each one declares its query from the capability matrix.
 
 import { DomainError, type QueryName, graphFingerprint } from '@demiurgo/domain';
 import {
@@ -31,7 +31,7 @@ export type QueryRoute = {
 
 const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function uuid(v: string | undefined, what: string): string {
-  if (!v || !RE_UUID.test(v)) throw new DomainError('not_found', `No existe ${what}.`);
+  if (!v || !RE_UUID.test(v)) throw new DomainError('not_found', `The ${what} does not exist.`);
   return v;
 }
 
@@ -47,7 +47,7 @@ export const QUERIES: QueryRoute[] = [
     path: '/api/projects/:projectId/events',
     queryName: 'query.events',
     async respond({ services, params, query }) {
-      const projectId = uuid(params.projectId, 'el proyecto');
+      const projectId = uuid(params.projectId, 'project');
       const from = /^\d+$/.test(query.from ?? '') ? String(query.from) : '0';
       return services.db
         .selectFrom('events')
@@ -63,14 +63,14 @@ export const QUERIES: QueryRoute[] = [
     path: '/api/projects/:projectId/runs/:runId',
     queryName: 'query.runs',
     async respond({ services, params }) {
-      const projectId = uuid(params.projectId, 'el proyecto');
+      const projectId = uuid(params.projectId, 'project');
       const run = await services.db
         .selectFrom('ai_runs')
         .selectAll()
         .where('project_id', '=', projectId)
-        .where('id', '=', uuid(params.runId, 'la ejecución'))
+        .where('id', '=', uuid(params.runId, 'run'))
         .executeTakeFirst();
-      if (!run) throw new DomainError('not_found', 'No existe la ejecución.');
+      if (!run) throw new DomainError('not_found', 'The run does not exist.');
       const pack = run.context_pack_id
         ? await services.db
             .selectFrom('context_packs')
@@ -91,12 +91,12 @@ registerQueries([
   {
     path: '/api/projects/:projectId/state',
     queryName: 'query.state',
-    respond: ({ services, params }) => productState(services.db, uuid(params.projectId, 'el proyecto')),
+    respond: ({ services, params }) => productState(services.db, uuid(params.projectId, 'project')),
   },
   {
     path: '/api/projects/:projectId/inbox',
     queryName: 'query.inbox',
-    respond: ({ services, params }) => inbox(services.db, uuid(params.projectId, 'el proyecto')),
+    respond: ({ services, params }) => inbox(services.db, uuid(params.projectId, 'project')),
   },
   {
     path: '/api/projects/:projectId/explorations',
@@ -105,7 +105,7 @@ registerQueries([
       services.db
         .selectFrom('explorations')
         .selectAll()
-        .where('project_id', '=', uuid(params.projectId, 'el proyecto'))
+        .where('project_id', '=', uuid(params.projectId, 'project'))
         .orderBy('created_at')
         .execute(),
   },
@@ -113,7 +113,7 @@ registerQueries([
     path: '/api/projects/:projectId/explorations/:explorationId',
     queryName: 'query.explorations',
     respond: ({ services, params }) =>
-      explorationDetail(services.db, uuid(params.projectId, 'el proyecto'), uuid(params.explorationId, 'la exploración')),
+      explorationDetail(services.db, uuid(params.projectId, 'project'), uuid(params.explorationId, 'exploration')),
   },
   {
     path: '/api/projects/:projectId/sources',
@@ -122,27 +122,25 @@ registerQueries([
       services.db
         .selectFrom('sources')
         .select(['id', 'name', 'content_hash', 'registered_by', 'created_at'])
-        .where('project_id', '=', uuid(params.projectId, 'el proyecto'))
+        .where('project_id', '=', uuid(params.projectId, 'project'))
         .orderBy('created_at')
         .execute(),
   },
   {
     path: '/api/projects/:projectId/records/:code',
     queryName: 'query.records',
-    respond: ({ services, params }) =>
-      recordDetail(services.db, uuid(params.projectId, 'el proyecto'), params.code ?? ''),
+    respond: ({ services, params }) => recordDetail(services.db, uuid(params.projectId, 'project'), params.code ?? ''),
   },
   {
     path: '/api/projects/:projectId/versions/:versionId/readiness',
     queryName: 'query.records',
     respond: ({ services, params }) =>
-      versionReadiness(services.db, uuid(params.projectId, 'el proyecto'), uuid(params.versionId, 'la versión')),
+      versionReadiness(services.db, uuid(params.projectId, 'project'), uuid(params.versionId, 'version')),
   },
   {
     path: '/api/projects/:projectId/batches/:batchId',
     queryName: 'query.batches',
-    respond: ({ services, params }) =>
-      batchDetail(services.db, uuid(params.projectId, 'el proyecto'), uuid(params.batchId, 'el lote')),
+    respond: ({ services, params }) => batchDetail(services.db, uuid(params.projectId, 'project'), uuid(params.batchId, 'batch')),
   },
   {
     path: '/api/projects/:projectId/tokens',
@@ -151,7 +149,7 @@ registerQueries([
       services.db
         .selectFrom('agent_tokens')
         .select(['id', 'name', 'state', 'issued_by', 'created_at', 'revoked_at'])
-        .where('project_id', '=', uuid(params.projectId, 'el proyecto'))
+        .where('project_id', '=', uuid(params.projectId, 'project'))
         .orderBy('created_at')
         .execute(),
   },
@@ -162,7 +160,7 @@ registerQueries([
     path: '/api/projects/:projectId/knowledge',
     queryName: 'query.knowledge',
     async respond({ services, params }) {
-      const projectId = uuid(params.projectId, 'el proyecto');
+      const projectId = uuid(params.projectId, 'project');
       const freshness = await services.db.transaction().execute((trx) => graphUpToDate(trx, projectId));
       const g = await loadGraph(services.db, projectId);
       const updates = await services.db
@@ -188,13 +186,13 @@ registerQueries([
     queryName: 'query.knowledge',
     async respond({ services, params, query }) {
       const queryName = (query.q ?? '').trim();
-      if (!queryName) throw new DomainError('validation', 'Falta el texto de búsqueda (q).');
-      return { results: await searchKnowledge(services.db, uuid(params.projectId, 'el proyecto'), queryName, 10) };
+      if (!queryName) throw new DomainError('validation', 'The search text (q) is missing.');
+      return { results: await searchKnowledge(services.db, uuid(params.projectId, 'project'), queryName, 10) };
     },
   },
   {
     path: '/api/projects/:projectId/knowledge/rebuild',
     queryName: 'query.knowledge',
-    respond: ({ services, params }) => compareRebuild(services.db, uuid(params.projectId, 'el proyecto')),
+    respond: ({ services, params }) => compareRebuild(services.db, uuid(params.projectId, 'project')),
   },
 ]);

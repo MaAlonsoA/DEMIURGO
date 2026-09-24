@@ -1,13 +1,13 @@
-// Puerto de agentes (System Two). Un agente solo produce una salida cruda; el sistema la
-// valida con el esquema común y, si no cumple, la ejecución acaba en `invalid_output`
-// sin ningún efecto (I7).
+// Agent port (System Two). An agent only produces a raw output; the system validates it
+// against the common schema and, if it fails, the run ends in `invalid_output`
+// with no effect at all (I7).
 
 import { z } from 'zod';
 
 export const AGENT_ACTIONS = ['echo', 'exploration_chat', 'design_proposal'] as const;
 export type AgentAction = (typeof AGENT_ACTIONS)[number];
 
-/** Tipos de fallo cerrados (docs/investigacion-stack-2026-09-24.md §8). */
+/** Closed failure kinds (docs/investigacion-stack-2026-09-24.md §8). */
 export const FAILURE_KINDS = ['infra', 'timeout', 'invalid_output', 'agent_error', 'cancelled', 'stale_knowledge'] as const;
 export type FailureKind = (typeof FAILURE_KINDS)[number];
 
@@ -22,7 +22,7 @@ export type AgentRequest = {
   runId: string;
   action: AgentAction;
   method: { version: string; text: string };
-  /** JSON Schema generado desde el esquema Zod de la acción. */
+  /** JSON Schema generated from the action's Zod schema. */
   outputSchema: Record<string, unknown>;
   context: { hash: string; content: unknown };
   budget: { timeMs: number; maxUsd?: number };
@@ -47,7 +47,7 @@ export interface AgentPort {
   execute(request: AgentRequest): Promise<AgentResult>;
 }
 
-// Esquemas de salida por acción: la única fuente del contrato (Zod → JSON Schema).
+// Output schemas by action: the single source of truth for the contract (Zod → JSON Schema).
 
 const text = (max: number) => z.string().trim().min(1).max(max);
 
@@ -115,6 +115,6 @@ export const OUTPUT_SCHEMAS = {
 export type ActionOutput<A extends AgentAction> = z.infer<(typeof OUTPUT_SCHEMAS)[A]>;
 
 export function jsonSchemaOf(action: AgentAction): Record<string, unknown> {
-  // draft-07: es el borrador que valida la CLI de Claude (2.1.281); así el esquema viaja tal cual.
+  // draft-07: the draft the Claude CLI (2.1.281) validates; this way the schema travels as is.
   return z.toJSONSchema(OUTPUT_SCHEMAS[action], { target: 'draft-7' });
 }

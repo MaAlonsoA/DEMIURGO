@@ -1,6 +1,6 @@
-// Clasificador simulado determinista (AC-CLA-001-02): reglas léxicas sobre el estado de cada
-// ítem. Es la línea base de las pruebas y de la evaluación; no pretende ser bueno, sino
-// reproducible. Cada ítem declara su tarea en `estado.tarea`.
+// Deterministic simulated classifier (AC-CLA-001-02): lexical rules over each item's state.
+// It's the baseline for tests and evaluation; it doesn't aim to be good, just reproducible.
+// Each item declares its task in `state.task`.
 
 import {
   type Classifier,
@@ -19,10 +19,13 @@ const obj = (v: unknown): Obj => (typeof v === 'object' && v !== null ? (v as Ob
 const txt = (v: unknown): string => (typeof v === 'string' ? v : '');
 const textOf = (n: Obj): string => `${txt(n.title)}. ${txt(n.text)}`;
 
+// Spanish cues, plus their English equivalents so both languages work.
 const SUPERSEDES =
-  /\b(sustitu\w*|reemplaz\w*|deja(n)? obsolet\w*|anula\w*|revoca\w*|en lugar de|ya no|deja(n)? de|elimina\w*|suprim\w*|desaparece\w*)\b/;
-const DENIES = /\b(no|nunca|sin|ningun\w*|prohib\w*|impide\w*)\b/;
-const ADDS = /\b(anad\w*|nuev[oa]s?|ademas|tambien|incluye\w*|amplia\w*|agrega\w*)\b/;
+  /\b(sustitu\w*|reemplaz\w*|deja(n)? obsolet\w*|anula\w*|revoca\w*|en lugar de|ya no|deja(n)? de|elimina\w*|suprim\w*|desaparece\w*|supersed\w*|replac\w*|deprecat\w*|revok\w*|instead of|no longer|discontinu\w*|remov\w*|eliminat\w*)\b/;
+const DENIES =
+  /\b(no|nunca|sin|ningun\w*|prohib\w*|impide\w*|not|never|without|none|forbid\w*|prohibit\w*|prevent\w*|disallow\w*)\b/;
+const ADDS =
+  /\b(anad\w*|nuev[oa]s?|ademas|tambien|incluye\w*|amplia\w*|agrega\w*|add\w*|new|also|includ\w*|expand\w*|extend\w*)\b/;
 
 function normalize(t: string): string {
   return withoutAccents(t.toLowerCase());
@@ -45,15 +48,16 @@ function verdict(item: ItemChoice): ChoiceResponse {
   const refCand = txt(candidate.ref).split('@')[0] ?? '';
   const candidateCited = refCand !== '' && changeText.includes(normalize(refCand));
   if (candidateCited && SUPERSEDES.test(changeText))
-    return choose(item, 'invalidate', 0.9, `El cambio sustituye explícitamente a ${refCand}.`);
-  if (sim >= 0.3 && SUPERSEDES.test(changeText)) return choose(item, 'invalidate', 0.7, 'Mismo tema y el cambio sustituye lo anterior.');
+    return choose(item, 'invalidate', 0.9, `The change explicitly supersedes ${refCand}.`);
+  if (sim >= 0.3 && SUPERSEDES.test(changeText))
+    return choose(item, 'invalidate', 0.7, 'Same topic and the change supersedes the previous one.');
   if (sim >= 0.3 && DENIES.test(changeText) !== DENIES.test(normalize(textOf(candidate)))) {
-    return choose(item, 'update', 0.6, 'Mismo tema con una condición distinta.');
+    return choose(item, 'update', 0.6, 'Same topic with a different condition.');
   }
-  if (sim >= 0.2 && ADDS.test(changeText)) return choose(item, 'add', 0.6, 'El cambio añade algo al mismo tema.');
-  if (sim >= 0.2 || candidateCited) return choose(item, 'relate', 0.8, 'Comparten tema.');
-  if (sim >= 0.1) return choose(item, 'relate', 0.6, 'Relación débil por vocabulario compartido.');
-  return choose(item, 'keep', 0.85, 'Sin relación apreciable.');
+  if (sim >= 0.2 && ADDS.test(changeText)) return choose(item, 'add', 0.6, 'The change adds something to the same topic.');
+  if (sim >= 0.2 || candidateCited) return choose(item, 'relate', 0.8, 'They share a topic.');
+  if (sim >= 0.1) return choose(item, 'relate', 0.6, 'Weak relation from shared vocabulary.');
+  return choose(item, 'keep', 0.85, 'No appreciable relation.');
 }
 
 function ideaFinding(item: ItemChoice): ChoiceResponse {
@@ -62,12 +66,12 @@ function ideaFinding(item: ItemChoice): ChoiceResponse {
   const node = textOf(obj(e.node));
   const sim = similarity(idea, node);
   const recall = Math.min(overlap(idea, node), overlap(node, idea));
-  if (sim >= 0.45 || recall >= 0.6) return choose(item, 'duplicates', 0.85, 'La idea dice lo mismo que el nodo.');
+  if (sim >= 0.45 || recall >= 0.6) return choose(item, 'duplicates', 0.85, 'The idea says the same thing as the node.');
   const ideaDenies = DENIES.test(normalize(idea));
   const nodeDenies = DENIES.test(normalize(node));
-  if (sim >= 0.2 && ideaDenies !== nodeDenies) return choose(item, 'conflicts', 0.65, 'Mismo tema con sentido contrario.');
-  if (sim >= 0.12) return choose(item, 'relates', 0.7, 'Comparten tema.');
-  return choose(item, 'none', 0.8, 'Sin relación apreciable.');
+  if (sim >= 0.2 && ideaDenies !== nodeDenies) return choose(item, 'conflicts', 0.65, 'Same topic with an opposite meaning.');
+  if (sim >= 0.12) return choose(item, 'relates', 0.7, 'They share a topic.');
+  return choose(item, 'none', 0.8, 'No appreciable relation.');
 }
 
 function category(item: ItemChoice): ChoiceResponse {
@@ -81,21 +85,21 @@ function category(item: ItemChoice): ChoiceResponse {
     const value = overlap(`${txt(c.name)} ${txt(c.description)} ${code}`, artifact);
     if (value > best.value) best = { code, value };
   }
-  if (best.value === 0) return choose(item, 'other', 0.5, 'Ninguna categoría encaja.');
+  if (best.value === 0) return choose(item, 'other', 0.5, 'No category fits.');
   const confidence = Math.min(0.95, 0.55 + best.value);
-  return choose(item, best.code, confidence, `Coincide con la descripción de «${best.code}».`);
+  return choose(item, best.code, confidence, `Matches the description of "${best.code}".`);
 }
 
 export function createSimulatedClassifier(): Classifier {
   return {
-    id: 'simulado@1',
+    id: 'simulated@1',
     async choice(items) {
       return items.map((item) => {
         const task = obj(item.state).task;
         if (task === 'verdict') return verdict(item);
         if (task === 'idea') return ideaFinding(item);
         if (task === 'category') return category(item);
-        return choose(item, item.options[0] ?? 'other', 0.3, 'Tarea desconocida para el simulador.');
+        return choose(item, item.options[0] ?? 'other', 0.3, 'Unknown task for the simulator.');
       });
     },
     async score(items: readonly ItemScore[]) {

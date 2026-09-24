@@ -63,7 +63,7 @@ export const RECIPES: Partial<Record<EntityName, Recipe>> = {
         command: 'context_pack.build',
         actor: system('test'),
         projectId,
-        data: { role: 'echo', constructor: 'eco@1', budget: {}, graph_version: 0, dependencies: [], content: unique('c') },
+        data: { role: 'echo', constructor: 'echo@1', budget: {}, graph_version: 0, dependencies: [], content: unique('c') },
       });
       return r.entityId;
     },

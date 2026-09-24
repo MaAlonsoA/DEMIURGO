@@ -4,6 +4,9 @@
 import type { ContextoComando } from '../bus/tipos.ts';
 
 export type ObjetoDeAutoridad = { tipo: string; id: string; version: number | null };
+
+/** Descartar un borrador: retira del conocimiento lo que había proyectado (no es autoridad, pero la cambia). */
+export const DISPARO_DESCARTE = 'record_version_discard';
 export type Reaccion = (ctx: ContextoComando, objeto: ObjetoDeAutoridad) => Promise<void>;
 
 const REACCIONES: Reaccion[] = [];

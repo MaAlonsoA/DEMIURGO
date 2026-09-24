@@ -131,6 +131,20 @@ registrarReceta('record_version', {
   async crear(s, proyectoId) {
     return (await nuevaDecision(s, proyectoId)).versionId;
   },
+  estados: {
+    // Una versión solo queda sustituida cuando se aprueba otra posterior del mismo registro.
+    async superseded(s, proyectoId) {
+      const d = await nuevaDecision(s, proyectoId, true);
+      const v2 = await ejecutarComando(s, {
+        comando: 'record_version.create',
+        actor: ana,
+        proyectoId,
+        datos: { record_id: d.recordId, titulo: unico('Decisión'), secciones: seccionesDecision, nota_de_cambio: 'Cambio.' },
+      });
+      await ejecutarComando(s, { comando: 'record_version.approve', actor: ana, proyectoId, entidadId: v2.entidadId, datos: {} });
+      return d.versionId;
+    },
+  },
 });
 
 registrarReceta('criterion', {

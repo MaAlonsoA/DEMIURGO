@@ -81,7 +81,7 @@ entidades:
     transiciones:
       - { comando: record_version.create, desde: nuevo, hacia: draft, guardas: [registro_del_proyecto, plantilla_valida, arrastre_de_criterios_completo] }
       - { comando: record_version.approve, desde: [draft], hacia: approved, guardas: [plantilla_valida, sin_aprobada_posterior] }
-      - { comando: record_version.supersede, desde: [approved], hacia: superseded }
+      - { comando: record_version.supersede, desde: [approved], hacia: superseded, guardas: [hay_aprobada_posterior] }
       - { comando: record_version.discard, desde: [draft], hacia: discarded }
 
   criterion:
@@ -167,8 +167,8 @@ entidades:
     estados: { applied: Aplicada, pending_review: Pendiente de revisión, resolved: Resuelta }
     autoridad: []
     transiciones:
-      - { comando: classification.record, desde: nuevo, hacia: applied }
-      - { comando: classification.hold, desde: nuevo, hacia: pending_review }
+      - { comando: classification.record, desde: nuevo, hacia: applied, guardas: [clasificacion_valida] }
+      - { comando: classification.hold, desde: nuevo, hacia: pending_review, guardas: [clasificacion_valida] }
       - { comando: classification.resolve, desde: [pending_review], hacia: resolved, guardas: [categorias_de_la_taxonomia] }
 
   knowledge_update:

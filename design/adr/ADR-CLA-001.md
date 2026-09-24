@@ -38,7 +38,8 @@ Jev aún no está disponible. Además, está en early access, alojado en EE. UU.
   - un simulador determinista para las pruebas;
   - una referencia sobre `claude -p` con `--json-schema` y un modelo pequeño (Haiku, alias `haiku`, por defecto y configurable), con la frontera de ADR-RUN-001;
   - un adaptador de Jev vacío, que falla con «Jev no está disponible» sin efectos.
-- Cascada por confianza: alta (desde 0,8) se aplica al conocimiento derivado; media (desde 0,55) la revisa un LLM; baja queda pendiente de la persona. Los umbrales se ajustan con datos propios.
+- Cascada por confianza: alta (desde 0,8) se aplica al conocimiento derivado; media (desde 0,55) la revisa un LLM; baja queda pendiente de la persona. Los umbrales se ajustan con datos propios. El revisor es opcional (`DEMIURGO_REVISOR=referencia`, con su modelo): la cascada combina los dos clasificadores bajo un id propio (`base>revisor`), así que la caché y la reconstrucción la distinguen. Sin revisor, lo que queda con confianza media no se aplica solo.
+- El id del adaptador de referencia lleva su modelo (`referencia-claude:haiku@1`): otro modelo es otra entrada para la caché.
 - El clasificador solo escribe conocimiento derivado, clasificaciones y propuestas. Nunca cambia un estado de autoridad (I10).
 - Ningún clasificador se adopta sin un conjunto de evaluación propio, separado en desarrollo y prueba, con precisión y cobertura por veredicto.
 - Enviar contenido del proyecto a TypeSafe exige un ADR aparte antes de conectar Jev.

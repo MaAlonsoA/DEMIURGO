@@ -11,6 +11,9 @@ const esquema = z.object({
   DEMIURGO_MODELO_AGENTE: z.string().default('haiku'),
   DEMIURGO_CLASIFICADOR: z.enum(['simulado', 'referencia', 'jev']).default('simulado'),
   DEMIURGO_MODELO_CLASIFICADOR: z.string().default('haiku'),
+  // Revisor de la cascada (§7.5): revisa lo que el clasificador devuelve con confianza media.
+  DEMIURGO_REVISOR: z.enum(['ninguno', 'referencia']).default('ninguno'),
+  DEMIURGO_MODELO_REVISOR: z.string().default('sonnet'),
   DEMIURGO_HORAS_SESION: z.coerce.number().int().min(1).max(720).default(12),
   DEMIURGO_ORIGENES: z.string().default('http://127.0.0.1:8100,http://localhost:8100'),
 });
@@ -23,6 +26,8 @@ export type Configuracion = {
   modeloAgente: string;
   clasificador: 'simulado' | 'referencia' | 'jev';
   modeloClasificador: string;
+  revisor: 'ninguno' | 'referencia';
+  modeloRevisor: string;
   horasSesion: number;
   origenesPermitidos: string[];
 };
@@ -43,6 +48,8 @@ export function leerConfiguracion(entorno: Readonly<Record<string, string | unde
     modeloAgente: e.DEMIURGO_MODELO_AGENTE,
     clasificador: e.DEMIURGO_CLASIFICADOR,
     modeloClasificador: e.DEMIURGO_MODELO_CLASIFICADOR,
+    revisor: e.DEMIURGO_REVISOR,
+    modeloRevisor: e.DEMIURGO_MODELO_REVISOR,
     horasSesion: e.DEMIURGO_HORAS_SESION,
     origenesPermitidos: e.DEMIURGO_ORIGENES.split(',').map((o) => o.trim()),
   };

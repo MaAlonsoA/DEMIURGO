@@ -16,6 +16,7 @@ import {
   esquemaCasoIdea,
   esquemaCasoVeredicto,
   evaluarClasificacion,
+  sha256,
 } from '@demiurgo/domain';
 import type { Bd } from '../db/conexion.ts';
 
@@ -25,6 +26,8 @@ export type InformeEvaluacion = {
   clasificador: string;
   fecha: string;
   dataset: string;
+  /** Huella sha256 de cada fichero del conjunto: con qué versión exacta se midió. */
+  huellas: { veredictos: string; ideas: string };
   particion: Particion;
   duracionMs: number;
   veredictos: ResultadoEvaluacion<string>;
@@ -75,8 +78,11 @@ export async function evaluarClasificador(opciones: {
   const particion = opciones.particion ?? 'prueba';
   const filtrar = <T extends { particion: string }>(casos: T[]) =>
     particion === 'todas' ? casos : casos.filter((c) => c.particion === particion);
-  const veredictos = filtrar(cargarCasosJsonl(await readFile(join(dir, 'veredictos.jsonl'), 'utf8'), esquemaCasoVeredicto));
-  const ideas = filtrar(cargarCasosJsonl(await readFile(join(dir, 'ideas.jsonl'), 'utf8'), esquemaCasoIdea));
+  const textoVeredictos = await readFile(join(dir, 'veredictos.jsonl'), 'utf8');
+  const textoIdeas = await readFile(join(dir, 'ideas.jsonl'), 'utf8');
+  const huellas = { veredictos: sha256(textoVeredictos), ideas: sha256(textoIdeas) };
+  const veredictos = filtrar(cargarCasosJsonl(textoVeredictos, esquemaCasoVeredicto));
+  const ideas = filtrar(cargarCasosJsonl(textoIdeas, esquemaCasoIdea));
   const inicio = Date.now();
   const tanda = opciones.tanda ?? 50;
   const rv = await responderPorTandas(opciones.clasificador, itemsVeredicto(veredictos), tanda);
@@ -107,6 +113,7 @@ export async function evaluarClasificador(opciones: {
     clasificador: opciones.clasificador.id,
     fecha: new Date().toISOString(),
     dataset: dir,
+    huellas,
     particion,
     duracionMs,
     veredictos: evaluarClasificacion({ clases: VEREDICTOS, casos: casos(veredictos, rv, 'veredicto', VEREDICTOS) }),
@@ -128,7 +135,7 @@ export async function evaluarClasificador(opciones: {
         .insertInto('classifier_evaluations')
         .values({
           classifier: informe.clasificador,
-          dataset: dir,
+          dataset: `${dir}@sha256:${huellas[tarea]}`,
           partition: particion,
           task: tarea,
           metrics: JSON.stringify(metricas),

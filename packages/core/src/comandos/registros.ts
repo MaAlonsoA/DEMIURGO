@@ -19,7 +19,7 @@ import { manejador, registrarManejadores } from '../bus/manejadores.ts';
 import type { ContextoComando } from '../bus/tipos.ts';
 import type { Tx } from '../db/conexion.ts';
 import { revisarObsolescencia } from './propuestas.ts';
-import { alEventoDeAutoridad } from './reacciones.ts';
+import { DISPARO_DESCARTE, alEventoDeAutoridad } from './reacciones.ts';
 
 const texto = (max: number) => z.string().trim().min(1).max(max);
 const uuid = z.string().uuid();
@@ -85,7 +85,8 @@ export const esquemaNuevoRegistro = z
   .object({
     tipo: z.enum(TIPOS_REGISTRO),
     codigo: z.string().regex(RE_CODIGO).optional(),
-    dominio: z.string().regex(/^[a-z][a-z0-9_]*$/),
+    // Solo letras: el dominio da nombre al código (DEC-DOM-NNN) y un código lleva letras (ADR-FMT-001).
+    dominio: z.string().regex(/^[a-z][a-z_]*$/, 'El dominio solo lleva letras minúsculas y guiones bajos.'),
     ...esquemaContenidoVersion,
   })
   .strict();
@@ -244,6 +245,19 @@ registrarGuardas({
       .where('project_id', '=', ctx.proyectoId)
       .executeTakeFirst();
     return v?.state === 'draft' ? null : 'Solo se añaden criterios a una versión en borrador.';
+  },
+
+  // Solo se sustituye una versión aprobada cuando hay otra aprobada posterior del mismo registro.
+  async hay_aprobada_posterior({ ctx, entidad }) {
+    const v = entidad?.fila as { record_id: string; n: number } | undefined;
+    const posterior = await ctx.trx
+      .selectFrom('record_versions')
+      .select('id')
+      .where('record_id', '=', v?.record_id ?? '')
+      .where('state', '=', 'approved')
+      .where('n', '>', v?.n ?? 0)
+      .executeTakeFirst();
+    return posterior ? null : 'Una versión aprobada solo queda sustituida cuando se aprueba otra posterior.';
   },
 
   async extremos_existentes({ ctx, datos }) {
@@ -528,8 +542,11 @@ registrarManejadores({
 
   'record_version.discard': manejador({
     datos: z.object({ motivo: z.string().trim().max(1000).optional() }).strict(),
-    async aplicar(_ctx, datos, e) {
-      return { entidadId: e?.id ?? '', version: Number(e?.fila.n ?? 0), despues: { motivo: datos.motivo ?? null } };
+    async aplicar(ctx, datos, e) {
+      const n = Number(e?.fila.n ?? 0);
+      // Lo que el borrador proyectó en el conocimiento (si venía de una propuesta aceptada) se retira.
+      await alEventoDeAutoridad(ctx, { tipo: DISPARO_DESCARTE, id: e?.id ?? '', version: n });
+      return { entidadId: e?.id ?? '', version: n, despues: { motivo: datos.motivo ?? null } };
     },
   }),
 

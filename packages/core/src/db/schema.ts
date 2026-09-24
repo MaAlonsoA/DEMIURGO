@@ -99,7 +99,7 @@ export type RunsTable = {
 export type ProviderCatalogsTable = {
   id: Generated<string>;
   provider: string;
-  discovered_at: Generated<Timestamp>;
+  discovered_at: Timestamp;
   discovered_by: string;
   label: string;
   installed: boolean;
@@ -119,7 +119,7 @@ export type AgentAssignmentsTable = {
   model: string | null;
   effort: string | null;
   assigned_by: string;
-  assigned_at: Generated<Timestamp>;
+  assigned_at: Timestamp;
 };
 
 export type AgentSessionsTable = {
@@ -128,7 +128,7 @@ export type AgentSessionsTable = {
   provider: string;
   provider_session_id: string;
   last_run_id: string;
-  updated_at: Generated<Timestamp>;
+  updated_at: Timestamp;
 };
 
 export type AgentCallsTable = {
@@ -148,7 +148,7 @@ export type AgentCallsTable = {
   failure_kind: string | null;
   error: string | null;
   usage: NullableJson;
-  started_at: Generated<Timestamp>;
+  started_at: Timestamp;
   finished_at: NullableTimestamp;
 };
 
@@ -157,7 +157,7 @@ export type AgentCallEventsTable = {
   project_id: string | null;
   call_id: string;
   seq: number;
-  received_at: Generated<Timestamp>;
+  received_at: Timestamp;
   kind: string;
   tokens: number | null;
   raw: string;

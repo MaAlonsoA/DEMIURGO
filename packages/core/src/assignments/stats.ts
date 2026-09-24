@@ -30,6 +30,9 @@ export type Consumption = {
   week: { byProvider: ConsumptionRow[]; byAgent: ConsumptionRow[] };
 };
 
+const keyOf = (r: { agent: string; provider: string; model: string; effort: string | null }): string =>
+  `${r.agent}|${r.provider}|${r.model}|${r.effort ?? ''}`;
+
 const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
 
 /** Per agent, provider, model and effort: calls, failures by kind, and averages. */
@@ -58,8 +61,6 @@ export async function providerStats(db: Db): Promise<StatsRow[]> {
     select agent, provider, requested_model as model, effort, failure_kind as kind, count(*) as n
     from agent_calls where state = 'error'
     group by agent, provider, requested_model, effort, failure_kind`.execute(db);
-  const keyOf = (r: { agent: string; provider: string; model: string; effort: string | null }) =>
-    `${r.agent}|${r.provider}|${r.model}|${r.effort ?? ''}`;
   const failed = new Map<string, Record<string, number>>();
   for (const f of failures.rows) {
     const k = keyOf(f);
@@ -160,9 +161,9 @@ export async function runProgress(db: Db, runId: string) {
     call_id: call.id,
     provider: call.provider,
     model: call.requested_model,
-    started_at: (call.started_at as unknown as Date).toISOString(),
+    started_at: call.started_at.toISOString(),
     events: Number(summary.events),
-    tokens: summary.tokens === null ? null : Number(summary.tokens),
+    tokens: summary.tokens ?? null,
     last_kind: last?.kind ?? null,
   };
 }

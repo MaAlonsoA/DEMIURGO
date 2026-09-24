@@ -28,7 +28,7 @@ export function createBroadcaster(url: string): Broadcaster {
       await c.connect();
       c.on('notification', (n) => {
         try {
-          const notification = JSON.parse(n.payload ?? '{}') as { project?: string; id?: string; progress?: string };
+          const notification = JSON.parse(n.payload ?? '{}') as { project?: string; id?: string | number; progress?: string };
           if (notification.project) {
             emitter.emit(notification.project, {
               ...(notification.id === undefined ? {} : { id: String(notification.id) }),

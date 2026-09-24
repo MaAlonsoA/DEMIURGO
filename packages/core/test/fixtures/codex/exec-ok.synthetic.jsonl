@@ -1,0 +1,5 @@
+{"type":"thread.started","thread_id":"0199a213-81c0-7800-8aa1-bbab2a035a53"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"reasoning","text":"**Echoing the text**"}}
+{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"{\"reply\":\"Hola, DEMIURGO: esto es una prueba de eco grabada como fixture.\"}"}}
+{"type":"turn.completed","usage":{"input_tokens":2451,"cached_input_tokens":1920,"output_tokens":84,"reasoning_output_tokens":40}}

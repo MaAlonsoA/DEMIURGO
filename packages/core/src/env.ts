@@ -21,6 +21,8 @@ export const ALLOWED_VARIABLES = [
   // If the Claude Code configuration is not in `~/.claude`, the subscription credentials
   // are wherever this variable points.
   'CLAUDE_CONFIG_DIR',
+  // Where Codex keeps its ChatGPT sign-in (defaults to `~/.codex`).
+  'CODEX_HOME',
 ] as const;
 
 /** Fixed variables that get added: no telemetry, error reports or auto-update. */
@@ -28,7 +30,10 @@ export const FIXED_VARIABLES: Readonly<Record<string, string>> = {
   CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
 };
 
-/** Never reach an agent, even if requested as extra: DB, model or DEMIURGO credentials. */
+/**
+ * Never reach an agent, even if requested as extra: DB, model or DEMIURGO credentials. API keys
+ * are excluded so every CLI uses the person's subscription.
+ */
 export function isForbiddenVariable(name: string): boolean {
   const n = name.toUpperCase();
   return (
@@ -36,7 +41,9 @@ export function isForbiddenVariable(name: string): boolean {
     n === 'DATABASE_URL' ||
     n.startsWith('PG') ||
     n === 'ANTHROPIC_API_KEY' ||
-    n === 'ANTHROPIC_AUTH_TOKEN'
+    n === 'ANTHROPIC_AUTH_TOKEN' ||
+    n.startsWith('OPENAI_') ||
+    n === 'CODEX_API_KEY'
   );
 }
 

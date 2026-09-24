@@ -17,13 +17,7 @@ import {
 import { z } from 'zod';
 import { processEnv, allowedEnv } from '../env.ts';
 import { TERMINATION_WAIT_MS, waitForOutcome } from '../providers/stream.ts';
-import {
-  isExecutableNotFound,
-  type ProcessEnd,
-  type Launcher,
-  nodeLauncher,
-  readVariable,
-} from './process.ts';
+import { isExecutableNotFound, type ProcessEnd, type Launcher, nodeLauncher, readVariable } from './process.ts';
 
 export const CLAUDE_CLI_PROVIDER = 'claude-cli';
 export const DEFAULT_CLAUDE_MODEL = 'haiku';
@@ -146,20 +140,29 @@ export function npmShimTarget(content: string, shimDir: string): ClaudeExecutabl
 }
 
 /** Looks up `claude` on the PATH: on Windows, `claude.exe` or the target of `claude.cmd`. */
-export async function resolveClaudeExecutable(
+export function resolveClaudeExecutable(
+  environment: Readonly<Record<string, string | undefined>>,
+  platform: NodeJS.Platform = process.platform,
+): Promise<ClaudeExecutable | undefined> {
+  return resolveExecutable('claude', environment, platform);
+}
+
+/** Looks up a CLI on the PATH: on Windows, `<name>.exe` or the target of `<name>.cmd`. */
+export async function resolveExecutable(
+  name: string,
   environment: Readonly<Record<string, string | undefined>>,
   platform: NodeJS.Platform = process.platform,
 ): Promise<ClaudeExecutable | undefined> {
   const windows = platform === 'win32';
   const directories = (readVariable(environment, 'PATH') ?? '').split(windows ? ';' : ':');
-  const names = windows ? ['claude.exe', 'claude.cmd'] : ['claude'];
+  const names = windows ? [`${name}.exe`, `${name}.cmd`] : [name];
   for (const raw of directories) {
     const dir = raw.trim().replace(/^"(.*)"$/, '$1');
     if (!dir) continue;
-    for (const name of names) {
-      const path = join(dir, name);
+    for (const file of names) {
+      const path = join(dir, file);
       if (!(await isFile(path))) continue;
-      if (!name.endsWith('.cmd')) return { executable: path, previousArgs: [] };
+      if (!file.endsWith('.cmd')) return { executable: path, previousArgs: [] };
       const target = npmShimTarget(await readFile(path, 'utf8'), dirname(path));
       if (target && (await isFile(target.previousArgs[0] ?? target.executable))) return target;
     }
@@ -183,6 +186,8 @@ const cliResultSchema = z.looseObject({
   result: z.string().optional(),
   duration_ms: amount,
   total_cost_usd: amount,
+  num_turns: amount,
+  session_id: z.string().optional(),
   api_error_status: z.number().nullable().optional(),
   usage: z
     .looseObject({
@@ -190,6 +195,7 @@ const cliResultSchema = z.looseObject({
       output_tokens: amount,
       cache_creation_input_tokens: amount,
       cache_read_input_tokens: amount,
+      output_tokens_details: z.looseObject({ thinking_tokens: amount }).optional(),
     })
     .optional(),
   modelUsage: z.record(z.string(), z.looseObject({ inputTokens: amount, outputTokens: amount })).optional(),
@@ -218,14 +224,33 @@ function locateResult(value: unknown): { result: Record<string, unknown>; initia
   return initialModel === undefined ? { result } : { result, initialModel };
 }
 
-function usageOf(r: CliResult, measuredDurationMs: number): Usage {
+const reported = (value: unknown, field: string): string => (value === undefined ? 'not_reported' : `claude:${field}`);
+
+function usageOf(r: CliResult, measuredDurationMs: number, detailed: boolean): Usage {
   const u = r.usage ?? {};
-  return {
+  const basic: Usage = {
     // Includes input tokens read from or written to the cache.
     inputTokens: (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0),
     outputTokens: u.output_tokens ?? 0,
     durationMs: r.duration_ms ?? measuredDurationMs,
     ...(r.total_cost_usd === undefined ? {} : { declaredCostUsd: r.total_cost_usd }),
+  };
+  if (!detailed) return basic;
+  const thinking = u.output_tokens_details?.thinking_tokens;
+  return {
+    ...basic,
+    ...(u.cache_read_input_tokens === undefined ? {} : { cachedInputTokens: u.cache_read_input_tokens }),
+    ...(thinking === undefined ? {} : { reasoningTokens: thinking }),
+    ...(r.num_turns === undefined ? {} : { turns: r.num_turns }),
+    provenance: {
+      inputTokens: reported(u.input_tokens, 'result.usage.input_tokens+cache_*'),
+      cachedInputTokens: reported(u.cache_read_input_tokens, 'result.usage.cache_read_input_tokens'),
+      outputTokens: reported(u.output_tokens, 'result.usage.output_tokens'),
+      reasoningTokens: reported(thinking, 'result.usage.output_tokens_details.thinking_tokens'),
+      turns: reported(r.num_turns, 'result.num_turns'),
+      durationMs: r.duration_ms === undefined ? 'demiurgo:measured' : 'claude:result.duration_ms',
+      declaredCostUsd: reported(r.total_cost_usd, 'result.total_cost_usd'),
+    },
   };
 }
 
@@ -254,8 +279,13 @@ function describeEnd(end: ProcessEnd): string {
 }
 
 /** Converts what the CLI printed into an `AgentResult`. Doesn't validate the structured output. */
-export function normalizeClaudeOutput(end: ProcessEnd, requestedModel: string, measuredDurationMs: number): AgentResult {
-  const common = { rawEvents: end.stdout, provider: CLAUDE_CLI_PROVIDER };
+export function normalizeClaudeOutput(
+  end: ProcessEnd,
+  requestedModel: string,
+  measuredDurationMs: number,
+  options: { provider?: string; detailed?: boolean; rawEvents?: string } = {},
+): AgentResult {
+  const common = { rawEvents: options.rawEvents ?? end.stdout, provider: options.provider ?? CLAUDE_CLI_PROVIDER };
   const json = parseJson(end.stdout.trim());
   const located = json.ok ? locateResult(json.value) : undefined;
   const parsed = located ? cliResultSchema.safeParse(located.result) : undefined;
@@ -270,7 +300,7 @@ export function normalizeClaudeOutput(end: ProcessEnd, requestedModel: string, m
     };
   }
   const r = parsed.data;
-  const usage = usageOf(r, measuredDurationMs);
+  const usage = usageOf(r, measuredDurationMs, options.detailed ?? false);
   const model = observedModel(r, located.initialModel) ?? requestedModel;
   if (r.is_error === true || end.code !== 0) {
     const apiState = typeof r.api_error_status === 'number' ? ` (HTTP ${r.api_error_status})` : '';

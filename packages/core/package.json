@@ -1,0 +1,20 @@
+{
+  "name": "@demiurgo/core",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@dbos-inc/dbos-sdk": "4.27.6",
+    "@demiurgo/design": "workspace:*",
+    "@demiurgo/domain": "workspace:*",
+    "kysely": "0.29.6",
+    "pg": "8.23.0",
+    "yaml": "2.9.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1"
+  }
+}

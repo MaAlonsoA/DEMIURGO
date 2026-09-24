@@ -1,0 +1,37 @@
+{
+  "name": "demiurgo",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.21.0"
+  },
+  "scripts": {
+    "gate:types": "tsc -p tsconfig.json --noEmit",
+    "gate:lint": "oxlint --type-aware --deny-warnings",
+    "gate:format": "biome format .",
+    "gate:design": "node packages/design/src/cli.ts validar",
+    "gate:deriva": "node tools/deriva.ts --comprobar",
+    "gate:test": "vitest run --project unitarias --project integracion",
+    "gate:invariantes": "vitest run --project invariantes",
+    "gate:all": "pnpm gate:types && pnpm gate:lint && pnpm gate:format && pnpm gate:design && pnpm gate:deriva && pnpm gate:test && pnpm gate:invariantes",
+    "format": "biome format --write .",
+    "gen": "node tools/deriva.ts --escribir",
+    "db:up": "docker compose -p demiurgo-v2-dev -f compose.dev.yaml up -d --wait",
+    "db:down": "docker compose -p demiurgo-v2-dev -f compose.dev.yaml down"
+  },
+  "packageManager": "pnpm@11.27.1+sha512.a81d4c21b9b09a4b0aebf90ef5e527d4262bdda322d26082978cb549023ac6d9cafc98b19fffaa5c71db438a65f70224edb78d7311187861ff96480d1cdca23c",
+  "devDependencies": {
+    "@biomejs/biome": "2.5.14",
+    "@types/node": "24.13.6",
+    "fast-check": "4.10.2",
+    "oxlint": "1.83.0",
+    "oxlint-tsgolint": "7.0.2002",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11"
+  },
+  "demiurgo": {
+    "incrementosImplementados": [
+      "D0"
+    ]
+  }
+}

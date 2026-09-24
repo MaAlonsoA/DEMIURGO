@@ -1,0 +1,9 @@
+packages:
+  - packages/*
+
+# Defensas de cadena de suministro (docs/investigacion-stack-2026-09-24.md §2)
+minimumReleaseAge: 4320
+strictDepBuilds: true
+blockExoticSubdeps: true
+trustPolicy: no-downgrade
+saveExact: true

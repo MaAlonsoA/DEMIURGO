@@ -34,4 +34,12 @@ describe('the last visit in this browser', () => {
     expect(projectOfPath('/p/0198-abc/records/FDR-DIS-001')).toBe('0198-abc');
     expect(projectOfPath('/sign-in')).toBeNull();
   });
+
+  it('forgets every visit and stops remembering, so leaving the page cannot write an old event back', () => {
+    const storage = memory({ p1: { event: '100', at: 'x' } });
+    const visits = createVisits(storage, () => 'later');
+    visits.forget();
+    visits.remember('p1', '120');
+    expect(JSON.parse(storage.data.get(VISITS_KEY) ?? 'null')).toEqual({});
+  });
 });

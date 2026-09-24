@@ -1,5 +1,5 @@
-// Root of the app: tooltips, the legend and what happens on a 401 anywhere (back to "Sign in",
-// keeping the route).
+// Root of the app: tooltips, the legend, the dev tools (only with DEMIURGO_DEV_TOOLS=1) and what
+// happens on a 401 anywhere (back to "Sign in", keeping the route).
 
 import { useQueryClient } from '@tanstack/react-query';
 import { Outlet, useRouter } from '@tanstack/react-router';
@@ -9,6 +9,7 @@ import { keys } from '../../api/queries.ts';
 import { Legend } from '../../ui/Legend.tsx';
 import { LegendContext, createLegendStore } from '../../ui/legend-store.ts';
 import { TipProvider } from '../../ui/Tip.tsx';
+import { DevTools } from '../dev/DevTools.tsx';
 
 export function AppRoot() {
   const router = useRouter();
@@ -36,6 +37,7 @@ export function AppRoot() {
         </a>
         <Outlet />
         <Legend />
+        <DevTools />
       </LegendContext.Provider>
     </TipProvider>
   );

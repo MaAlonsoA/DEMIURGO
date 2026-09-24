@@ -38,6 +38,8 @@ export function SignInScreen() {
       setCsrf(r.csrf);
       const session: Session = { actor: { type: 'human', person: r.person }, type: 'person', csrf: r.csrf };
       client.setQueryData(keys.session, session);
+      // The server's own view of the session may say more (the dev tools): fetched in the background.
+      void client.invalidateQueries({ queryKey: keys.session });
       await client.invalidateQueries({ queryKey: keys.projects });
       router.history.push(safeNext(next));
     } catch (err) {

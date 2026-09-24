@@ -25,6 +25,7 @@ function read(storage: StorageLike | null): Record<string, Visit> {
 
 export function createVisits(storage: StorageLike | null, now: () => string = () => new Date().toISOString()) {
   const baseline = read(storage);
+  let forgotten = false;
   return {
     /** The visit before this app started, or null on the first one. */
     baseline(projectId: string): Visit | null {
@@ -32,7 +33,7 @@ export function createVisits(storage: StorageLike | null, now: () => string = ()
     },
     /** Remembers that the person has seen the project up to this event. */
     remember(projectId: string, eventId: string): void {
-      if (!/^\d+$/.test(eventId)) return;
+      if (forgotten || !/^\d+$/.test(eventId)) return;
       const all = read(storage);
       const known = all[projectId];
       if (known && BigInt(known.event) > BigInt(eventId)) return;
@@ -41,6 +42,18 @@ export function createVisits(storage: StorageLike | null, now: () => string = ()
         storage?.setItem(VISITS_KEY, JSON.stringify(all));
       } catch {
         // Without storage the lens simply has nothing to compare with next time.
+      }
+    },
+    /**
+     * Forgets every visit and stops remembering until the page reloads: after the dev tools
+     * restore an earlier database, the stored events would be ahead of the log.
+     */
+    forget(): void {
+      forgotten = true;
+      try {
+        storage?.setItem(VISITS_KEY, '{}');
+      } catch {
+        // Nothing stored, nothing to forget.
       }
     },
   };

@@ -21,6 +21,8 @@ export function connect(url: string, maximum = 10): Connection {
     db,
     async close() {
       await db.destroy();
+      // Kysely only ends the pool if it ever used it: a pool used directly (migrate) is ended here.
+      if (!pool.ended) await pool.end();
     },
   };
 }

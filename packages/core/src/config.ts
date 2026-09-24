@@ -16,6 +16,8 @@ const schema = z.object({
   DEMIURGO_REVIEWER_MODEL: z.string().default('sonnet'),
   DEMIURGO_SESSION_HOURS: z.coerce.number().int().min(1).max(720).default(12),
   DEMIURGO_ORIGINS: z.string().default('http://127.0.0.1:8100,http://localhost:8100'),
+  // Development tools (snapshots, reset). Never on for the real instance.
+  DEMIURGO_DEV_TOOLS: z.enum(['0', '1']).default('0'),
 });
 
 export type Config = {
@@ -30,6 +32,7 @@ export type Config = {
   reviewerModel: string;
   sessionHours: number;
   allowedOrigins: string[];
+  devTools: boolean;
 };
 
 /** Ports reserved for v1: v2 never uses them. */
@@ -70,5 +73,6 @@ export function readConfig(environment: Readonly<Record<string, string | undefin
     reviewerModel: e.DEMIURGO_REVIEWER_MODEL,
     sessionHours: e.DEMIURGO_SESSION_HOURS,
     allowedOrigins: e.DEMIURGO_ORIGINS.split(',').map((o) => o.trim()),
+    devTools: e.DEMIURGO_DEV_TOOLS === '1',
   };
 }

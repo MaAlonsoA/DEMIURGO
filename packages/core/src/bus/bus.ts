@@ -15,6 +15,7 @@ import {
   etiquetaEntidad,
   etiquetaEstado,
   formatearActor,
+  permitidoAlComponente,
   permitidoComando,
   type NombreEntidad,
 } from '@demiurgo/domain';
@@ -92,6 +93,11 @@ function comprobarCapacidad(p: Peticion): void {
   if (!permitidoComando(p.comando, p.actor.tipo)) {
     throw new ErrorDominio('prohibido', `${formatearActor(p.actor)} no puede ejecutar «${p.comando}».`, [
       `La matriz de capacidades no permite «${p.comando}» a ${p.actor.tipo}.`,
+    ]);
+  }
+  if (!permitidoAlComponente(p.comando, p.actor)) {
+    throw new ErrorDominio('prohibido', `${formatearActor(p.actor)} no puede ejecutar «${p.comando}».`, [
+      `El componente ${formatearActor(p.actor)} solo escribe conocimiento derivado, clasificaciones y propuestas.`,
     ]);
   }
 }

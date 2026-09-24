@@ -28,9 +28,20 @@ registrarExtensionBandeja({
       .select(['findings', 'graph_version', 'classifier'])
       .where('proposal_id', '=', propuestaId)
       .executeTakeFirst();
-    return e
-      ? { hallazgos: e.findings, version_grafo: Number(e.graph_version), clasificador: e.classifier }
-      : { pendiente: true };
+    if (!e) return { pendiente: true };
+    // Las evaluaciones guardan sus hallazgos, las respuestas que no se verificaron y el error, si lo hubo.
+    const f = (Array.isArray(e.findings) ? { hallazgos: e.findings } : e.findings) as {
+      hallazgos?: unknown[];
+      invalidas?: unknown[];
+      error?: string | null;
+    };
+    return {
+      hallazgos: f.hallazgos ?? [],
+      invalidas: f.invalidas ?? [],
+      error: f.error ?? null,
+      version_grafo: Number(e.graph_version),
+      clasificador: e.classifier,
+    };
   },
   async pendientes(db, proyectoId) {
     const clasificaciones = await db

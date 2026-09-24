@@ -47,6 +47,38 @@ export function permitidoComando(c: NombreComando, tipo: TipoActorConDesconocido
   return tipo !== 'unknown' && definicionComando(c).permitido.includes(tipo);
 }
 
+/**
+ * Invariante en código (I10): el componente de sistema del conocimiento solo escribe
+ * conocimiento derivado, clasificaciones, evaluaciones de ideas y propuestas. Aunque la matriz
+ * permita un comando a `system`, este componente no puede ejecutar otro (no se relaja editando
+ * los datos).
+ */
+export const COMANDOS_POR_COMPONENTE: Readonly<Record<string, readonly string[]>> = {
+  conocimiento: [
+    'knowledge_update.enqueue',
+    'knowledge_update.classify',
+    'knowledge_update.verify',
+    'knowledge_update.apply',
+    'knowledge_update.reject',
+    'knowledge_node.project',
+    'knowledge_node.invalidate',
+    'knowledge_edge.project',
+    'knowledge_edge.invalidate',
+    'classification.record',
+    'classification.hold',
+    'idea_assessment.record',
+    'batch.submit',
+    'proposal.create',
+  ],
+};
+
+/** Si el actor es un componente de sistema con lista cerrada, ¿puede ejecutar el comando? */
+export function permitidoAlComponente(c: NombreComando, actor: { tipo: string; componente?: string }): boolean {
+  if (actor.tipo !== 'system' || !actor.componente) return true;
+  const lista = COMANDOS_POR_COMPONENTE[actor.componente];
+  return !lista || lista.includes(c);
+}
+
 export function permitidoConsulta(q: NombreConsulta, tipo: TipoActorConDesconocido): boolean {
   return tipo !== 'unknown' && (consultas[q]?.permitido.includes(tipo) ?? false);
 }

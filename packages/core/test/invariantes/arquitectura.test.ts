@@ -2,7 +2,15 @@
 
 import { readFile, readdir } from 'node:fs/promises';
 import { join, sep } from 'node:path';
-import { esComando, todasLasGuardas } from '@demiurgo/domain';
+import {
+  COMANDOS_POR_COMPONENTE,
+  buscarTransicion,
+  definicionEntidad,
+  entidadDe,
+  esComando,
+  esDecisivo,
+  todasLasGuardas,
+} from '@demiurgo/domain';
 import { describe, expect, it } from 'vitest';
 import '../../src/bus/bus.ts';
 import { GUARDAS } from '../../src/bus/guardas.ts';
@@ -97,10 +105,16 @@ describe('arquitectura', () => {
       'batch.submit',
     ]);
     const TABLAS_PERMITIDAS = new Set(['verdict_cache', 'classifier_evaluations']);
-    const modulos = ['actualizar.ts', 'flujos.ts', 'reconstruir.ts', 'derivar.ts', 'grafo-pg.ts', 'integracion.ts', 'evaluar.ts'];
+    const modulos = [
+      ...['actualizar.ts', 'flujos.ts', 'reconstruir.ts', 'derivar.ts', 'grafo-pg.ts', 'integracion.ts', 'evaluar.ts'].map(
+        (m) => `packages/core/src/conocimiento/${m}`,
+      ),
+      // Los adaptadores del clasificador no emiten comandos ni escriben en la base.
+      ...(await fuentes('packages/core/src/clasificador')).keys(),
+    ];
     const infracciones: string[] = [];
     for (const m of modulos) {
-      const texto = await readFile(`packages/core/src/conocimiento/${m}`, 'utf8');
+      const texto = await readFile(m, 'utf8');
       // Todo literal que nombra un comando de la matriz debe estar en la lista permitida.
       for (const c of texto.matchAll(/'([a-z_]+\.[a-z_]+)'/g)) {
         const nombre = c[1] ?? '';
@@ -115,5 +129,27 @@ describe('arquitectura', () => {
       }
     }
     expect(infracciones).toEqual([]);
+  });
+
+  it('AC-CON-001-12 el componente del conocimiento tiene una lista cerrada sin comandos decisivos ni estados de autoridad', () => {
+    // La lista la impone el bus en ejecución (aunque la matriz permita el comando a system): así
+    // tampoco vale construir el nombre del comando en tiempo de ejecución.
+    const infracciones: string[] = [];
+    for (const c of COMANDOS_POR_COMPONENTE.conocimiento ?? []) {
+      if (!esComando(c)) {
+        infracciones.push(`${c}: no es un comando`);
+        continue;
+      }
+      if (esDecisivo(c)) infracciones.push(`${c}: es decisivo`);
+      const def = definicionEntidad(entidadDe(c));
+      for (const t of def.transiciones.filter((x) => x.comando === c)) {
+        if (def.autoridad.includes(t.hacia)) infracciones.push(`${c}: alcanza el estado de autoridad ${t.hacia}`);
+      }
+    }
+    expect(infracciones).toEqual([]);
+    // Y sustituir una versión aprobada exige otra aprobada posterior (guarda en la tabla).
+    expect(buscarTransicion('record_version', 'approved', 'record_version.supersede')?.guardas).toContain(
+      'hay_aprobada_posterior',
+    );
   });
 });

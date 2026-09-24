@@ -3,7 +3,7 @@
 // agentes y las respuestas solo se anotan (esas pruebas usan el motor durable).
 
 import { pasoAplicar, pasoClasificar, rechazarPorError } from '../conocimiento/actualizar.ts';
-import { calcularEvaluaciones, pendientesDe, registrarEvaluaciones } from '../conocimiento/flujos.ts';
+import { calcularEvaluaciones, pendientesDe, registrarEvaluaciones, registrarFalloDeEvaluacion } from '../conocimiento/flujos.ts';
 import type { MotorFlujos, Servicios } from '../servicios.ts';
 
 export type MotorEnLinea = MotorFlujos & { runs: string[]; respuestas: string[] };
@@ -37,7 +37,11 @@ export function crearMotorEnLinea(servicios: () => Servicios): MotorEnLinea {
     },
     async iniciarEvaluacion(loteId, proyectoId) {
       const s = servicios();
-      await registrarEvaluaciones(s, proyectoId, await calcularEvaluaciones(s, loteId, proyectoId));
+      try {
+        await registrarEvaluaciones(s, proyectoId, await calcularEvaluaciones(s, loteId, proyectoId));
+      } catch (e) {
+        await registrarFalloDeEvaluacion(s, loteId, proyectoId, e);
+      }
     },
   };
 }

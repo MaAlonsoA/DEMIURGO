@@ -312,8 +312,9 @@ registrarManejadores({
       }
       // Lo que nace con una dependencia que ya no es la vigente queda obsoleto desde el principio.
       await revisarObsolescencia(ctx, { lote: id });
-      // Cada idea de un agente se evalúa contra el conocimiento (§7.7), fuera de la transacción.
-      if (tipoLote === 'agent') {
+      // Cada idea de un agente (externo o de una ejecución, también los paquetes de diseño) se
+      // evalúa contra el conocimiento (§7.7), fuera de la transacción.
+      if (tipoLote === 'agent' || runId !== null) {
         const { servicios, proyectoId } = ctx;
         ctx.despuesDeConfirmar(() => servicios.motor.iniciarEvaluacion(id, proyectoId));
       }

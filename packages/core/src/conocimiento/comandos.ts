@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { cadena, campo, registrarGuardas } from '../bus/guardas.ts';
 import { manejador, registrarManejadores } from '../bus/manejadores.ts';
 import type { ContextoComando } from '../bus/tipos.ts';
-import { registrarReaccionDeAutoridad } from '../comandos/reacciones.ts';
+import { DISPARO_DESCARTE, registrarReaccionDeAutoridad } from '../comandos/reacciones.ts';
 
 export const ACTUALIZADOR = sistema('conocimiento');
 
@@ -59,6 +59,27 @@ registrarGuardas({
       if (new Set(codigos).size !== codigos.length) motivos.push(`El eje ${eje.codigo} repite categorías.`);
     }
     return motivos.length ? motivos.join(' ') : null;
+  },
+
+  // La taxonomía es un conjunto cerrado: solo se clasifica con la aprobada del proyecto, en uno
+  // de sus ejes y con una de sus categorías.
+  clasificacion_valida: async ({ ctx, datos }) => {
+    const t = await ctx.trx
+      .selectFrom('taxonomies')
+      .select(['axes', 'state'])
+      .where('id', '=', cadena(campo(datos, 'taxonomia_id')))
+      .where('project_id', '=', ctx.proyectoId)
+      .executeTakeFirst();
+    if (!t) return 'La taxonomía no existe en este proyecto.';
+    if (t.state !== 'approved') return 'Solo se clasifica con la taxonomía aprobada.';
+    const eje = (t.axes as { codigo: string; categorias: { codigo: string }[] }[]).find(
+      (e) => e.codigo === cadena(campo(datos, 'eje')),
+    );
+    if (!eje) return `«${cadena(campo(datos, 'eje'))}» no es un eje de la taxonomía.`;
+    const categoria = cadena(campo(datos, 'categoria'));
+    return eje.categorias.some((c) => c.codigo === categoria)
+      ? null
+      : `«${categoria}» no es una categoría del eje ${eje.codigo}.`;
   },
 
   categorias_de_la_taxonomia: async ({ ctx, datos, entidad }) => {
@@ -372,6 +393,9 @@ registrarManejadores({
       .object({
         propuesta_id: z.string().uuid(),
         hallazgos: z.array(z.unknown()),
+        // Respuestas del clasificador que no se verificaron y, si la evaluación falló, el motivo.
+        invalidas: z.array(z.unknown()).default([]),
+        error: z.string().max(2000).optional(),
         version_grafo: z.number().int().nonnegative(),
         clasificador: z.string(),
         input_hash: z.string(),
@@ -389,7 +413,7 @@ registrarManejadores({
         .values({
           project_id: ctx.proyectoId,
           proposal_id: d.propuesta_id,
-          findings: JSON.stringify(d.hallazgos),
+          findings: JSON.stringify({ hallazgos: d.hallazgos, invalidas: d.invalidas, error: d.error ?? null }),
           graph_version: d.version_grafo,
           classifier: d.clasificador,
           input_hash: d.input_hash,
@@ -397,7 +421,15 @@ registrarManejadores({
         })
         .returning('id')
         .executeTakeFirstOrThrow();
-      return { entidadId: id, despues: { propuesta: d.propuesta_id, hallazgos: d.hallazgos.length } };
+      return {
+        entidadId: id,
+        despues: {
+          propuesta: d.propuesta_id,
+          hallazgos: d.hallazgos.length,
+          invalidas: d.invalidas.length,
+          error: d.error ?? null,
+        },
+      };
     },
   }),
 });
@@ -444,14 +476,19 @@ async function insertarClasificacion(
   return { entidadId: id, despues: { nodo: d.nodo_ref, eje: d.eje, categoria: d.categoria, confianza: d.confianza } };
 }
 
-// Cada evento de autoridad (aprobar una versión, aceptar una propuesta) encola «Actualizar
-// conocimiento» en la misma transacción (§7.3 paso 1).
+// Cada evento de autoridad (aprobar una versión, aceptar una propuesta) y el descarte de un
+// borrador encolan «Actualizar conocimiento» en la misma transacción (§7.3 paso 1).
 registrarReaccionDeAutoridad(async (ctx, objeto) => {
-  if (!['record_version', 'proposal'].includes(objeto.tipo)) return;
+  if (!['record_version', 'proposal', DISPARO_DESCARTE].includes(objeto.tipo)) return;
   if (objeto.tipo === 'proposal') {
-    // Solo las propuestas cuyo efecto es una versión de registro cambian el conocimiento.
+    // Solo las propuestas cuyo efecto es una versión de registro cambian el conocimiento, y no
+    // si esa versión ya se aprobó en el mismo paso («Aceptar y aprobar», ratificar): la
+    // aprobación ya encoló la suya y la propuesta la rebajaría a propuesto.
     const p = await ctx.trx.selectFrom('proposals').select('resolution').where('id', '=', objeto.id).executeTakeFirst();
-    if (!(p?.resolution as { efecto?: { versionId?: string } } | null)?.efecto?.versionId) return;
+    const versionId = (p?.resolution as { efecto?: { versionId?: string } } | null)?.efecto?.versionId;
+    if (!versionId) return;
+    const v = await ctx.trx.selectFrom('record_versions').select('state').where('id', '=', versionId).executeTakeFirst();
+    if (v?.state !== 'draft') return;
   }
   await ctx.ejecutar({ comando: 'knowledge_update.enqueue', actor: ACTUALIZADOR, datos: { objeto } });
 });

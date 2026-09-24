@@ -1,11 +1,25 @@
 // Derivación determinista de un cambio de autoridad a nodos y aristas (sin clasificador).
-// La autoridad es inmutable por versión, así que derivar el mismo objeto da el mismo cambio
-// ahora y en una reconstrucción.
+// La autoridad es inmutable por versión (contenido, criterios y enlaces nacen con ella), así que
+// derivar el mismo disparo da el mismo cambio ahora y en una reconstrucción: nunca se mira el
+// estado actual de la versión.
 
 import type { Cambio } from '@demiurgo/domain';
 import type { Bd } from '../db/conexion.ts';
 
 export type ObjetoAutoridad = { tipo: string; id: string; version: number | null };
+
+export { DISPARO_DESCARTE } from '../comandos/reacciones.ts';
+
+/** Refs que retira el descarte de una versión (el nodo del borrador; sus criterios van con él). */
+export async function derivarRetirada(db: Bd, objeto: ObjetoAutoridad): Promise<string[]> {
+  const v = await db
+    .selectFrom('record_versions')
+    .innerJoin('records', 'records.id', 'record_versions.record_id')
+    .select(['record_versions.n', 'records.code'])
+    .where('record_versions.id', '=', objeto.id)
+    .executeTakeFirst();
+  return v ? [`${v.code}@${v.n}`] : [];
+}
 
 const TEXTO_MAX = 4000;
 
@@ -26,14 +40,13 @@ export async function derivarCambio(db: Bd, objeto: ObjetoAutoridad): Promise<Ca
       'record_versions.n',
       'record_versions.title',
       'record_versions.sections',
-      'record_versions.state',
       'records.id as recordId',
       'records.code',
       'records.type',
     ])
     .where('record_versions.id', '=', versionId)
     .executeTakeFirst();
-  if (!v || v.state === 'discarded') return null;
+  if (!v) return null;
   // Independiente del momento en que se derive: una aprobación proyecta la versión aprobada y
   // una propuesta aceptada, la versión que creó tal como nació (en borrador).
   const aprobada = objeto.tipo === 'record_version';

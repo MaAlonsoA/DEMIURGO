@@ -1097,7 +1097,10 @@ export const TRANSICIONES = {
           "desde": [
             "approved"
           ],
-          "hacia": "superseded"
+          "hacia": "superseded",
+          "guardas": [
+            "hay_aprobada_posterior"
+          ]
         },
         {
           "comando": "record_version.discard",
@@ -1450,12 +1453,18 @@ export const TRANSICIONES = {
         {
           "comando": "classification.record",
           "desde": "nuevo",
-          "hacia": "applied"
+          "hacia": "applied",
+          "guardas": [
+            "clasificacion_valida"
+          ]
         },
         {
           "comando": "classification.hold",
           "desde": "nuevo",
-          "hacia": "pending_review"
+          "hacia": "pending_review",
+          "guardas": [
+            "clasificacion_valida"
+          ]
         },
         {
           "comando": "classification.resolve",

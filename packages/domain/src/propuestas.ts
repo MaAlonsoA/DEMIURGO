@@ -18,7 +18,7 @@ export const cargaDecision = z
     consecuencias: texto(5000),
     dominio: z
       .string()
-      .regex(/^[a-z][a-z0-9_]*$/)
+      .regex(/^[a-z][a-z_]*$/)
       .optional(),
   })
   .strict();
@@ -36,7 +36,7 @@ export const cargaFdr = z
     basado_en: referenciaRegistro.optional(),
     dominio: z
       .string()
-      .regex(/^[a-z][a-z0-9_]*$/)
+      .regex(/^[a-z][a-z_]*$/)
       .optional(),
   })
   .strict();

@@ -121,6 +121,28 @@ export function hashEntradaCategorias(clasificador: string, taxonomia: string, c
   });
 }
 
+/**
+ * Verificación de las categorías (§7.4): la taxonomía es un conjunto cerrado. Cada respuesta
+ * nombra un eje de la taxonomía y una categoría de ese eje, una por eje y con confianza válida.
+ */
+export function verificarCategorias(
+  ejes: readonly { codigo: string; categorias: readonly { codigo: string }[] }[],
+  respuestas: readonly RespuestaChoice[],
+): { ok: true } | { ok: false; motivos: string[] } {
+  const motivos: string[] = [];
+  const porEje = new Map(ejes.map((e) => [e.codigo, new Set(e.categorias.map((c) => c.codigo))]));
+  const vistos = new Map<string, number>();
+  for (const r of respuestas) {
+    vistos.set(r.id, (vistos.get(r.id) ?? 0) + 1);
+    const categorias = porEje.get(r.id);
+    if (!categorias) motivos.push(`La clasificación cita un eje que no está en la taxonomía: ${r.id}.`);
+    else if (!categorias.has(r.eleccion)) motivos.push(`«${r.eleccion}» no es una categoría del eje ${r.id}.`);
+    if (!(r.confianza >= 0 && r.confianza <= 1)) motivos.push(`Confianza fuera de rango para el eje ${r.id}.`);
+  }
+  for (const [eje, n] of vistos) if (n > 1) motivos.push(`El eje ${eje} tiene ${n} clasificaciones.`);
+  return motivos.length === 0 ? { ok: true } : { ok: false, motivos };
+}
+
 /** Verificación determinista (§7.3 paso 4): un veredicto por candidato y todas las referencias existen. */
 export function verificarVeredictos(
   g: Grafo,
@@ -149,13 +171,26 @@ export function verificarVeredictos(
 
 export type PropuestaDeRevision = { ref: string; veredicto: Veredicto; confianza: number; motivo: string };
 
+/** Veredicto que no se aplica por falta de confianza: queda anotado en la actualización. */
+export type VeredictoSinAplicar = { ref: string; veredicto: Veredicto; confianza: number; ruta: string };
+
 export type Plan = {
   proyectar: Nodo[];
   invalidar: string[];
   aristasNuevas: Arista[];
   aristasInvalidadas: { tipo: string; desde: string; hacia: string }[];
   revisiones: PropuestaDeRevision[];
+  sinAplicar: VeredictoSinAplicar[];
 };
+
+export const planSinCambios = (): Plan => ({
+  proyectar: [],
+  invalidar: [],
+  aristasNuevas: [],
+  aristasInvalidadas: [],
+  revisiones: [],
+  sinAplicar: [],
+});
 
 /**
  * Plan de operaciones de una actualización verificada (§7.3 paso 5). Lo que toca la autoridad
@@ -170,7 +205,12 @@ export function planificar(
   umbrales: Umbrales = UMBRALES_POR_DEFECTO,
 ): Plan {
   const vigentes = new Map(nodosVigentes(g).map((n) => [n.ref, n]));
-  const plan: Plan = { proyectar: [], invalidar: [], aristasNuevas: [], aristasInvalidadas: [], revisiones: [] };
+  // Lo confirmado no vuelve a propuesto: si la versión ya se aprobó (p. ej. «Aceptar y aprobar»),
+  // el disparo de la propuesta que la creó no la rebaja.
+  if (vigentes.get(cambio.principal.ref)?.epistemico === 'confirmado' && cambio.principal.epistemico !== 'confirmado') {
+    return planSinCambios();
+  }
+  const plan = planSinCambios();
   const invalidar = new Set<string>();
   // Precedencia de versiones, en código: lo sustituido se invalida con sus criterios.
   for (const ref of cambio.sustituye) {
@@ -187,6 +227,8 @@ export function planificar(
     const veredicto = r.eleccion as Veredicto;
     if (veredicto === 'keep') continue;
     if (veredicto === 'relate') {
+      // Una relación es conocimiento derivado: con confianza alta se aplica; si no, queda anotada
+      // (la cascada ya pasó la confianza media por el revisor, si lo hay) y no se aplica.
       if (aplicable(r.confianza))
         plan.aristasNuevas.push({
           tipo: 'relacionado',
@@ -195,6 +237,8 @@ export function planificar(
           alta: nuevaVersion,
           baja: null,
         });
+      else
+        plan.sinAplicar.push({ ref: r.id, veredicto, confianza: r.confianza, ruta: enrutarPorConfianza(r.confianza, umbrales) });
       continue;
     }
     if (veredicto === 'invalidate' && !nodo.autoridad && aplicable(r.confianza)) {
@@ -214,6 +258,28 @@ export function planificar(
     if (quedan.has(a.desde) && quedan.has(a.hacia)) plan.aristasNuevas.push({ ...a, alta: nuevaVersion, baja: null });
   }
   // Las aristas vigentes que tocan un nodo invalidado se invalidan con él.
+  for (const a of aristasVigentes(g)) {
+    if (invalidar.has(a.desde) || invalidar.has(a.hacia))
+      plan.aristasInvalidadas.push({ tipo: a.tipo, desde: a.desde, hacia: a.hacia });
+  }
+  return plan;
+}
+
+/**
+ * Retirada de lo que proyectó una versión en borrador que se descarta (§7.3): su nodo, sus
+ * criterios y las aristas que los tocan quedan invalidados. Nunca retira algo confirmado.
+ */
+export function planRetirada(g: Grafo, refs: readonly string[]): Plan {
+  const plan = planSinCambios();
+  const vigentes = new Map(nodosVigentes(g).map((n) => [n.ref, n]));
+  const invalidar = new Set<string>();
+  for (const ref of refs) {
+    const n = vigentes.get(ref);
+    if (!n || n.epistemico === 'confirmado') continue;
+    invalidar.add(ref);
+    for (const a of aristasVigentes(g)) if (a.desde === ref && a.tipo === 'contiene') invalidar.add(a.hacia);
+  }
+  plan.invalidar = [...invalidar].sort();
   for (const a of aristasVigentes(g)) {
     if (invalidar.has(a.desde) || invalidar.has(a.hacia))
       plan.aristasInvalidadas.push({ tipo: a.tipo, desde: a.desde, hacia: a.hacia });

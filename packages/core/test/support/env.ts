@@ -25,6 +25,8 @@ type Options = {
   durable?: boolean;
   agent?: () => AgentPort;
   classifier?: () => Classifier;
+  /** Assigns every agent to the simulated provider (true by default). */
+  seedAssignments?: boolean;
 };
 
 /** Registers, for the test file, an ephemeral database and the core services. */

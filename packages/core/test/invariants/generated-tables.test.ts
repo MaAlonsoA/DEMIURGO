@@ -14,10 +14,15 @@ import {
   isDecisive,
   human,
   implementedIn,
+  SETTING_NAMES,
+  CAPABILITIES,
 } from '@demiurgo/domain';
 import fc from 'fast-check';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { executeCommand } from '../../src/bus/bus.ts';
+import { SETTINGS } from '../../src/assignments/settings.ts';
+import { createSimulatedProvider } from '../../src/agents/simulated.ts';
+import { createProviderRegistry } from '../../src/providers/registry.ts';
 import { useEnvironment } from '../support/env.ts';
 import { ACTOR_BY_TYPE, RECIPES, allowedActor, currentIncrement, moveTo } from '../support/factory.ts';
 import '../support/recipes.ts';
@@ -116,5 +121,35 @@ describe('AC-DIS-001-04 property: every decisive command with a non-human actor 
       ),
       { numRuns: 200 },
     );
+  });
+});
+
+const settingCases = SETTING_NAMES.flatMap((setting) => {
+  const allowed: readonly string[] = CAPABILITIES.settings[setting].allowed;
+  const actors: Actor[] = ACTOR_TYPES.filter((t) => !allowed.includes(t)).map((t) => ACTOR_BY_TYPE[t]);
+  actors.push({ type: 'unknown' });
+  return actors.map((actor) => ({ setting, actor }));
+});
+
+async function settingRows(): Promise<number> {
+  const db = environment().services.db;
+  const a = await db
+    .selectFrom('agent_assignments')
+    .select((eb) => eb.fn.countAll<string>().as('n'))
+    .executeTakeFirstOrThrow();
+  const c = await db
+    .selectFrom('provider_catalogs')
+    .select((eb) => eb.fn.countAll<string>().as('n'))
+    .executeTakeFirstOrThrow();
+  return Number(a.n) + Number(c.n);
+}
+
+describe('AC-AGE-002-02 403 generated from the workspace settings of the matrix', () => {
+  it.each(settingCases)('AC-AGE-002-02 $setting with $actor.type is rejected with no effects', async ({ setting, actor }) => {
+    const deps = { db: environment().services.db, providers: createProviderRegistry([createSimulatedProvider()]) };
+    const before = await settingRows();
+    const data = { agent: 'echo', scope: 'global', provider: 'simulated', model: 'simulated', effort: null };
+    await expect(SETTINGS[setting](deps, actor, data)).rejects.toMatchObject({ type: 'forbidden' });
+    expect(await settingRows()).toBe(before);
   });
 });

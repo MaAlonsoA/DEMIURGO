@@ -87,6 +87,79 @@ export type RunsTable = {
   created_at: Generated<Timestamp>;
   started_at: NullableTimestamp;
   finished_at: NullableTimestamp;
+  agent: string | null;
+  prompt_hash: string | null;
+  requested_model: string | null;
+  effort: string | null;
+  session_mode: string | null;
+  provider_session_id: string | null;
+  delta_hash: string | null;
+};
+
+export type ProviderCatalogsTable = {
+  id: Generated<string>;
+  provider: string;
+  discovered_at: Generated<Timestamp>;
+  discovered_by: string;
+  label: string;
+  installed: boolean;
+  version: string | null;
+  ready: boolean;
+  message: string | null;
+  sessions: boolean;
+  models: Json;
+};
+
+export type AgentAssignmentsTable = {
+  id: Generated<string>;
+  scope: string;
+  project_id: string | null;
+  agent: string;
+  provider: string | null;
+  model: string | null;
+  effort: string | null;
+  assigned_by: string;
+  assigned_at: Generated<Timestamp>;
+};
+
+export type AgentSessionsTable = {
+  key: string;
+  project_id: string;
+  provider: string;
+  provider_session_id: string;
+  last_run_id: string;
+  updated_at: Generated<Timestamp>;
+};
+
+export type AgentCallsTable = {
+  id: Generated<string>;
+  project_id: string | null;
+  run_id: string | null;
+  agent: string;
+  agent_version: string;
+  provider: string;
+  requested_model: string;
+  observed_model: string | null;
+  effort: string | null;
+  session_mode: string;
+  provider_session_id: string | null;
+  prompt_hash: string;
+  state: string;
+  failure_kind: string | null;
+  error: string | null;
+  usage: NullableJson;
+  started_at: Generated<Timestamp>;
+  finished_at: NullableTimestamp;
+};
+
+export type AgentCallEventsTable = {
+  id: GeneratedIdentity;
+  call_id: string;
+  seq: number;
+  received_at: Generated<Timestamp>;
+  kind: string;
+  tokens: number | null;
+  raw: string;
 };
 
 export type RunLogsTable = {
@@ -392,6 +465,11 @@ export type DB = {
   context_packs: ContextPacksTable;
   ai_runs: RunsTable;
   ai_run_logs: RunLogsTable;
+  provider_catalogs: ProviderCatalogsTable;
+  agent_assignments: AgentAssignmentsTable;
+  agent_sessions: AgentSessionsTable;
+  agent_calls: AgentCallsTable;
+  agent_call_events: AgentCallEventsTable;
   step_completions: StepCompletionsTable;
   agent_tokens: AgentTokensTable;
   explorations: ExplorationsTable;

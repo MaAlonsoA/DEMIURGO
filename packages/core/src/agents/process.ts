@@ -13,6 +13,8 @@ export type LaunchCommand = {
   env: Readonly<Record<string, string>>;
   /** Text written to stdin before closing it. */
   input: string;
+  /** Called with each stdout chunk as it arrives (the whole output still comes in `end`). */
+  onStdout?: (chunk: string) => void;
 };
 
 export type ProcessEnd = { code: number | null; signal: string | null; stdout: string; stderr: string };
@@ -75,7 +77,12 @@ export const nodeLauncher: Launcher = (command) => {
   });
   const output: Buffer[] = [];
   const errors: Buffer[] = [];
-  child.stdout.on('data', (chunk: Buffer) => output.push(chunk));
+  const decoder = new TextDecoder('utf-8');
+  child.stdout.on('data', (chunk: Buffer) => {
+    output.push(chunk);
+    // A multi-byte character may be split across chunks: the decoder keeps the partial bytes.
+    if (command.onStdout) command.onStdout(decoder.decode(chunk, { stream: true }));
+  });
   child.stderr.on('data', (chunk: Buffer) => errors.push(chunk));
   // If the process dies before reading stdin, the write fails with EPIPE: not an error of our own.
   child.stdin.on('error', () => undefined);

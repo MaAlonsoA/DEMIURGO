@@ -16,7 +16,7 @@ const environment = useEnvironment({
     createSimulatedAgent({
       scripts: {
         echo: (p) => {
-          receivedSchemas.push(p.outputSchema);
+          receivedSchemas.push(p.schema ?? {});
           const text = (p.context.content as { input: { text: string } }).input.text;
           return text === 'invalid' ? { reply: 42, extra: true } : { reply: `Echo: ${text}` };
         },

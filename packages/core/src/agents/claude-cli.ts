@@ -6,7 +6,6 @@
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { setTimeout as sleep } from 'node:timers/promises';
 import {
   type FailureKind,
   type AgentRequest,
@@ -17,20 +16,18 @@ import {
 } from '@demiurgo/domain';
 import { z } from 'zod';
 import { processEnv, allowedEnv } from '../env.ts';
+import { TERMINATION_WAIT_MS, waitForOutcome } from '../providers/stream.ts';
 import {
   isExecutableNotFound,
   type ProcessEnd,
   type Launcher,
   nodeLauncher,
-  type LaunchedProcess,
   readVariable,
 } from './process.ts';
 
 export const CLAUDE_CLI_PROVIDER = 'claude-cli';
 export const DEFAULT_CLAUDE_MODEL = 'haiku';
 
-/** Maximum wait, after ordering termination, to collect the process's partial output. */
-const TERMINATION_WAIT_MS = 5000;
 /** CreateProcess allows 32,767 characters; margin is left for the quotes Node adds. */
 const WINDOWS_LINE_LIMIT = 32_000;
 
@@ -292,49 +289,6 @@ export function normalizeClaudeOutput(end: ProcessEnd, requestedModel: string, m
 }
 
 // --- Invocation -----------------------------------------------------------------------------
-
-type Cutoff = Extract<FailureKind, 'timeout' | 'cancelled'>;
-
-type Outcome =
-  | { type: 'end'; end: ProcessEnd }
-  | { type: 'failure'; error: unknown }
-  | { type: 'cutoff'; reason: Cutoff; end: ProcessEnd | undefined };
-
-/** Waits for the process, or kills it when the time runs out or the signal aborts. */
-async function waitForOutcome(
-  proc: LaunchedProcess,
-  timeMs: number,
-  signal: AbortSignal | undefined,
-  terminationWaitMs: number,
-): Promise<Outcome> {
-  const natural: Promise<Outcome> = proc.end.then(
-    (end) => ({ type: 'end', end }),
-    (error: unknown) => ({ type: 'failure', error }),
-  );
-  const state: { reason?: Cutoff } = {};
-  const cutoff = Promise.withResolvers<null>();
-  const cutOff = (reason: Cutoff) => {
-    if (state.reason) return;
-    state.reason = reason;
-    proc.terminate();
-    cutoff.resolve(null);
-  };
-  const timer = setTimeout(() => cutOff('timeout'), timeMs);
-  const onAbort = () => cutOff('cancelled');
-  signal?.addEventListener('abort', onAbort, { once: true });
-  if (signal?.aborted) onAbort();
-  try {
-    const first = await Promise.race([natural, cutoff.promise]);
-    const reason = state.reason;
-    if (reason === undefined && first) return first;
-    // After ordering termination, a margin is given to collect the partial output.
-    const after = await Promise.race([natural, sleep(terminationWaitMs, null, { ref: false })]);
-    return { type: 'cutoff', reason: reason ?? 'cancelled', end: after?.type === 'end' ? after.end : undefined };
-  } finally {
-    clearTimeout(timer);
-    signal?.removeEventListener('abort', onAbort);
-  }
-}
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

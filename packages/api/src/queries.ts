@@ -18,6 +18,7 @@ import {
   knowledgeGraph,
   ideaAssessments,
   taxonomiesList,
+  changesSince,
 } from '@demiurgo/core';
 import type { Credential } from './credentials.ts';
 
@@ -218,6 +219,12 @@ registerQueries([
     path: '/api/projects/:projectId/knowledge/idea-assessments',
     queryName: 'query.knowledge',
     respond: ({ services, params }) => ideaAssessments(services.db, uuid(params.projectId, 'project')),
+  },
+  {
+    path: '/api/projects/:projectId/changes',
+    queryName: 'query.events',
+    respond: ({ services, params, query }) =>
+      changesSince(services.db, uuid(params.projectId, 'project'), /^\d+$/.test(query.since ?? '') ? String(query.since) : '0'),
   },
   {
     path: '/api/projects/:projectId/taxonomies',

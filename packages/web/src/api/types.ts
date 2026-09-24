@@ -494,3 +494,16 @@ export type Taxonomy = {
   approved_at: string | null;
   approved_by: string | null;
 };
+
+/** "What changed" since an event id (GET …/changes?since=): the events grouped by the thing they touch. */
+export type ChangedThing = {
+  kind: 'record' | 'exploration' | 'batch' | 'knowledge' | 'project';
+  /** Record code, exploration id, batch id, "knowledge" or the project id. */
+  key: string;
+  title: string | null;
+  /** The record's type, or the batch's kind. */
+  record_type?: string;
+  events: Omit<EventRow, 'project_id' | 'seq' | 'before' | 'after' | 'cause'>[];
+};
+
+export type Changes = { latest: string; things: ChangedThing[] };

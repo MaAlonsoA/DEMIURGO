@@ -5,6 +5,7 @@ import { queryOptions } from '@tanstack/react-query';
 import { ApiError, get, setCsrf } from './client.ts';
 import type {
   BatchDetail,
+  Changes,
   CommandCatalog,
   EventRow,
   Exploration,
@@ -156,3 +157,10 @@ export const rebuildQuery = (p: string) =>
 
 export const taxonomiesQuery = (p: string) =>
   queryOptions({ queryKey: [...keys.knowledge(p), 'taxonomies'] as const, queryFn: () => get<Taxonomy[]>(`${P(p)}/taxonomies`) });
+
+export const changesQuery = (p: string, since: string) =>
+  queryOptions({
+    queryKey: ['p', p, 'changes', since] as const,
+    queryFn: () => get<Changes>(`${P(p)}/changes?since=${since}`),
+    staleTime: Infinity,
+  });

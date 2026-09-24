@@ -237,3 +237,148 @@ export async function taxonomiesList(db: Db, projectId: string) {
     .orderBy('version', 'desc')
     .execute();
 }
+
+type Subject = {
+  kind: 'record' | 'exploration' | 'batch' | 'knowledge' | 'project';
+  key: string;
+  title: string | null;
+  record_type?: string;
+};
+
+const KNOWLEDGE_ENTITIES = new Set([
+  'knowledge_update',
+  'knowledge_node',
+  'knowledge_edge',
+  'classification',
+  'idea_assessment',
+  'taxonomy',
+  'context_pack',
+]);
+
+/**
+ * "What changed" since an event id: the events after it grouped by the thing they touch (a record,
+ * a thread, a batch, the knowledge or the project), in order of first appearance, and the latest
+ * id, which the UI remembers as the person's last visit.
+ */
+export async function changesSince(db: Db, projectId: string, since: string) {
+  const events = await db
+    .selectFrom('events')
+    .select([
+      'id',
+      'at',
+      'actor',
+      'command',
+      'entity_type',
+      'entity_id',
+      'entity_version',
+      'state_before',
+      'state_after',
+      'after',
+    ])
+    .where('project_id', '=', projectId)
+    .where('id', '>', since)
+    .orderBy('id')
+    .limit(5000)
+    .execute();
+  const records = new Map<string, Subject>();
+  const recordSubject = async (recordId: string): Promise<Subject> => {
+    const known = records.get(recordId);
+    if (known) return known;
+    const r = await db.selectFrom('records').select(['code', 'type']).where('id', '=', recordId).executeTakeFirst();
+    const latest = await db
+      .selectFrom('record_versions')
+      .select('title')
+      .where('record_id', '=', recordId)
+      .orderBy('n', 'desc')
+      .executeTakeFirst();
+    const s: Subject = {
+      kind: 'record',
+      key: r?.code ?? recordId,
+      title: latest?.title ?? null,
+      record_type: r?.type ?? 'unknown',
+    };
+    records.set(recordId, s);
+    return s;
+  };
+  const versionRecord = async (versionId: string) =>
+    (await db.selectFrom('record_versions').select('record_id').where('id', '=', versionId).executeTakeFirst())?.record_id ??
+    null;
+  const explorations = new Map<string, Subject>();
+  const explorationSubject = async (id: string): Promise<Subject> => {
+    const known = explorations.get(id);
+    if (known) return known;
+    const e = await db.selectFrom('explorations').select('purpose').where('id', '=', id).executeTakeFirst();
+    const s: Subject = { kind: 'exploration', key: id, title: e?.purpose ?? null };
+    explorations.set(id, s);
+    return s;
+  };
+  const project: Subject = { kind: 'project', key: projectId, title: null };
+  const knowledge: Subject = { kind: 'knowledge', key: 'knowledge', title: null };
+
+  const subjectOf = async (e: (typeof events)[number]): Promise<Subject> => {
+    const id = e.entity_id;
+    switch (e.entity_type) {
+      case 'record':
+        return recordSubject(id);
+      case 'record_version': {
+        const r = await versionRecord(id);
+        return r ? recordSubject(r) : project;
+      }
+      case 'criterion': {
+        const c = await db.selectFrom('criteria').select('record_version_id').where('id', '=', id).executeTakeFirst();
+        const r = c ? await versionRecord(c.record_version_id) : null;
+        return r ? recordSubject(r) : project;
+      }
+      case 'link': {
+        const l = await db.selectFrom('links').select('from_id').where('id', '=', id).executeTakeFirst();
+        const r = l ? await versionRecord(l.from_id) : null;
+        return r ? recordSubject(r) : project;
+      }
+      case 'exploration':
+        return explorationSubject(id);
+      case 'question':
+      case 'message': {
+        const table = e.entity_type === 'question' ? 'questions' : 'messages';
+        const row = await db.selectFrom(table).select('exploration_id').where('id', '=', id).executeTakeFirst();
+        return row ? explorationSubject(row.exploration_id) : project;
+      }
+      case 'ai_run': {
+        const run = await db.selectFrom('ai_runs').select('scope').where('id', '=', id).executeTakeFirst();
+        const scope = run?.scope as { type: string; id?: string } | undefined;
+        if (scope?.type === 'exploration' && scope.id) return explorationSubject(scope.id);
+        if (scope?.type === 'record_version' && scope.id) {
+          const origin = await originExploration(db, scope.id);
+          if (origin) return explorationSubject(origin);
+        }
+        return project;
+      }
+      case 'batch':
+      case 'proposal': {
+        const batchId =
+          e.entity_type === 'batch'
+            ? id
+            : (await db.selectFrom('proposals').select('batch_id').where('id', '=', id).executeTakeFirst())?.batch_id;
+        if (!batchId) return project;
+        const b = await db
+          .selectFrom('proposal_batches')
+          .select(['summary', 'kind'])
+          .where('id', '=', batchId)
+          .executeTakeFirst();
+        return { kind: 'batch', key: batchId, title: b?.summary ?? null, record_type: b?.kind ?? 'unknown' };
+      }
+      default:
+        return KNOWLEDGE_ENTITIES.has(e.entity_type) ? knowledge : project;
+    }
+  };
+
+  const things = new Map<string, Subject & { events: Omit<(typeof events)[number], 'after'>[] }>();
+  for (const e of events) {
+    const s = await subjectOf(e);
+    const k = `${s.kind}:${s.key}`;
+    const { after: _after, ...row } = e;
+    const thing = things.get(k) ?? { ...s, events: [] };
+    thing.events.push(row);
+    things.set(k, thing);
+  }
+  return { latest: events.at(-1)?.id ?? since, things: [...things.values()] };
+}

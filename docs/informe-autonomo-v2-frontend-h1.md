@@ -55,3 +55,34 @@ Se entra en http://127.0.0.1:5173 con `dev` / `demiurgo-dev-password`. Esta base
 - **Tiempo real** (adelantado del corte 6): un `EventSource` por proyecto que invalida las consultas de cada entidad según la tabla de §8 del spec, y la banda ámbar «Can't reach DEMIURGO. Retrying…».
 - **E2E:** `packages/web/test/e2e/support/server.ts` arranca la API sobre una base efímera con el motor durable, el agente y el clasificador simulados, una persona de prueba y el build servido desde la API. El agente simulado obedece marcas en su contexto para provocar cada estado de una ejecución: `[slow]` (sigue trabajando hasta que se cancela), `[fail-once]` (falla la primera vez con ese context pack) e `[invalid]` (salida fuera del esquema).
 - **Pruebas:** AC-INT-001-02 (sesión), la base de AC-WEB-001-03 (axe y teclado), AC-WEB-001-02 (acciones desde las tablas, prueba de componentes), el diccionario completo y `Reasons`.
+
+## 3. Cambios en el back
+
+Todos en inglés, de solo lectura salvo el CSRF, y con sus pruebas en `packages/api/test/web.test.ts`, `web-queries.test.ts` y `changes.test.ts`. No se ha tocado ningún comando, tabla, guarda, regla de autoridad ni el esquema de la base. `design/data/` no cambia: las consultas nuevas reutilizan los nombres de consulta de la matriz.
+
+### Dentro de la sección 4 del brief
+
+| Cambio | Dónde | Consulta de la matriz |
+|---|---|---|
+| La API sirve `packages/web/dist` con `@fastify/static`; toda ruta GET fuera de `/api` devuelve `index.html`; una ruta `/api` desconocida es un 404 en JSON | `server.ts` (`webRoot`), `main.ts` | — |
+| `GET …/knowledge/graph`: nodos (vigentes y el último invalidado de cada referencia) y aristas vigentes, con tipo, referencia, estado epistémico, área de la taxonomía (`areas`: eje → categoría) y el registro de origen | `core/src/queries/web.ts` | `query.knowledge` |
+| `GET …/knowledge/idea-assessments`: evaluaciones de ideas con su veredicto, el nodo citado y su registro, y la propuesta evaluada | ídem | `query.knowledge` |
+| `GET …/taxonomies`: taxonomías con su estado y su contenido | ídem | `query.knowledge` |
+| `GET …/runs`: ejecuciones con estado, acción, hilo, modelo, de cuál es reintento, fechas, hash del context pack y lote producido; filtros `?exploration=` y `?state=` | ídem | `query.runs` |
+| Detalle de un lote de importación: `import_counts` con los recuentos del origen (del evento `design.import`) y los del paquete (de sus propuestas) | `core/src/queries/read.ts` | `query.batches` |
+
+### Ampliación autorizada por la persona («si hay que terminar algo del back, hazlo también»)
+
+| Cambio | Por qué |
+|---|---|
+| `GET /api/session` devuelve el `csrf` de la sesión, derivado del token de la cookie (`sha256("demiurgo-csrf:" + token)`); la base sigue guardando solo huellas | Sin él, una página recargada pierde el CSRF, que vive solo en memoria, y no puede escribir. Solo se entrega en el mismo origen y con la cookie httpOnly |
+| El flujo SSE admite `?from=latest`: empieza en el último evento y lo anuncia con un evento `ready` cuyo `id` el navegador reenvía al reconectar | Sin él, cada carga de página reenviaba el diario entero del proyecto |
+| `GET …/changes?since=<eventId>`: los eventos desde la última visita agrupados por cosa (registro, hilo, lote, conocimiento o proyecto) | La lente «What changed» y «While you were away»: los eventos de una versión no llevan el código de su registro |
+| Filas del estado del producto con `summary`, `checks`, `latest_id`, `current_id`, `updated_at`, `updated_by` y `origin_exploration` | La plantilla de tarjeta (título y una línea, quién y cuándo, señales) y «qué desbloquea» |
+| Versiones del detalle de un registro con `created_at`, `approved_at`, `origin_exploration` e `inferred_questions` | Las preguntas inferidas sin confirmar del hilo de origen se muestran como aviso ◐ en la readiness |
+| Hilos (`GET …/explorations`) con `open_questions` y `last_activity` | La lista de hilos |
+| Bandeja: enlaces por revisar con los códigos, versiones y títulos que unen; lotes y propuestas con sus dependencias | Decir qué hay que revisar y calcular qué desbloquea cada cosa |
+
+### Arnés E2E (no es código de producción)
+
+`packages/web/test/e2e/support/server.ts` envuelve el agente y el clasificador simulados con marcas para provocar cada estado desde las pruebas: `[slow]`, `[fail-once]`, `[invalid]` y `[classifier-fails]` (el clasificador falla sus tres intentos y la actualización queda rechazada; el reintento de la persona funciona).

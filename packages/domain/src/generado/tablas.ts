@@ -1310,7 +1310,7 @@ export const TRANSICIONES = {
     },
     "context_pack": {
       "etiqueta": "Context pack",
-      "implementado_en": "S1",
+      "implementado_en": "S0",
       "estados": {
         "recorded": "Registrado"
       },

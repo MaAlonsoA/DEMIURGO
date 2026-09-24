@@ -41,6 +41,17 @@ create trigger events_sin_update_ni_delete before update or delete on events
 create trigger events_sin_truncate before truncate on events
   for each statement execute function events_solo_insert();
 
+-- Aviso tras confirmar, para el flujo SSE incremental (Last-Event-ID).
+create function events_notificar() returns trigger language plpgsql as $$
+begin
+  perform pg_notify('demiurgo_eventos', json_build_object('proyecto', new.project_id, 'id', new.id)::text);
+  return null;
+end
+$$;
+
+create trigger events_notificar after insert on events
+  for each row execute function events_notificar();
+
 -- Identidad humana (infraestructura de acceso, fuera del dominio de un proyecto).
 create table humans (
   id uuid primary key default uuidv7(),

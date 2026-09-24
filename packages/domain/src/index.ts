@@ -6,3 +6,5 @@ export * from './huella.ts';
 export * from './metricas.ts';
 export * from './tablas.ts';
 export * from './tablas/esquemas.ts';
+export * from './propuestas.ts';
+export * from './registros.ts';

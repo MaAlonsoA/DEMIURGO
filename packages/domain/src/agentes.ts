@@ -115,5 +115,6 @@ export const ESQUEMAS_SALIDA = {
 export type SalidaAccion<A extends AccionAgente> = z.infer<(typeof ESQUEMAS_SALIDA)[A]>;
 
 export function esquemaJsonDe(accion: AccionAgente): Record<string, unknown> {
-  return z.toJSONSchema(ESQUEMAS_SALIDA[accion], { target: 'draft-2020-12' });
+  // draft-07: es el borrador que valida la CLI de Claude (2.1.281); así el esquema viaja tal cual.
+  return z.toJSONSchema(ESQUEMAS_SALIDA[accion], { target: 'draft-7' });
 }

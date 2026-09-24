@@ -1,6 +1,8 @@
 // Shapes of the API responses the UI reads. They mirror packages/core/src/queries/read.ts and
 // packages/api/src/queries.ts: when both disagree, the code of the API rules.
 
+import type { RunUsage } from './models.ts';
+
 export type Epistemic = 'confirmed' | 'proposed' | 'pending' | 'unknown';
 
 export type Actor =
@@ -381,11 +383,19 @@ export type Run = {
   failure_kind: string | null;
   error: string | null;
   output: unknown;
-  usage: { inputTokens: number; outputTokens: number; durationMs: number } | null;
+  usage: RunUsage | null;
   requested_by: string;
   created_at: string;
   started_at: string | null;
   finished_at: string | null;
+  /** The DEMIURGO agent that ran it and how (FDR-AGE-002); null on runs from before the agents. */
+  agent?: string | null;
+  requested_model?: string | null;
+  effort?: string | null;
+  prompt_hash?: string | null;
+  session_mode?: 'none' | 'fresh' | 'resumed' | null;
+  provider_session_id?: string | null;
+  delta_hash?: string | null;
 };
 
 export type RunDetail = Run & { context_pack: ContextPack | null };
@@ -440,6 +450,10 @@ export type RunListItem = {
   scope: { type: string; id?: string; version?: number };
   provider: string;
   model: string | null;
+  agent?: string | null;
+  requested_model?: string | null;
+  effort?: string | null;
+  session_mode?: string | null;
   retry_of: string | null;
   failure_kind: string | null;
   error: string | null;

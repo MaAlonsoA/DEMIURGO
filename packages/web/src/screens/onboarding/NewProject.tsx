@@ -80,7 +80,8 @@ export function NewProjectScreen() {
       }
       const posted = await runCommand(projectId, {
         command: 'message.post',
-        data: { exploration_id: explorationId, text: idea.trim(), respond: true },
+        // Day 1: the onboarding agent reads the idea (FDR-AGE-002).
+        data: { exploration_id: explorationId, text: idea.trim(), respond: true, agent: 'onboarding' },
       });
       live.start(explorationId);
       live.sent(posted.entity_id);

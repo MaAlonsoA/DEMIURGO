@@ -73,12 +73,12 @@ test('AC-INT-001-10 a failed run shows its reason in product words and Retry run
   await expect(failed).not.toContainText(/^Error$/);
   await expectAccessible(page, 'a thread with a failed run');
 
-  await failed.getByRole('button', { name: 'Retry' }).click();
+  await failed.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(page.locator('[data-message-by="demiurgo"]').first()).toBeVisible({ timeout: 30_000 });
   // The failed run stays in the thread as retried, without its Retry.
   const retried = page.locator('[data-run-card="retried"]');
   await expect(retried).toBeVisible();
-  await expect(retried.getByRole('button', { name: 'Retry' })).toHaveCount(0);
+  await expect(retried.getByRole('button', { name: 'Retry', exact: true })).toHaveCount(0);
 
   const runs = await runsOf(person, projectId, id, (r) => r.length === 2 && r.every(finished));
   const original = runs.find((r) => !r.retry_of);
@@ -194,7 +194,7 @@ test('AC-INT-001-10 Activity lists the runs with their state and filters them; a
   await expect(content).toHaveAttribute('open');
   await expect(page.locator('[data-run-events] li')).not.toHaveCount(0);
   await expect(page.locator('[data-run-events]')).toContainText('Requested');
-  await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Retry', exact: true })).toBeVisible();
   await expectAccessible(page, 'a failed run');
 
   // A run in progress is cancelled from its page.
@@ -206,7 +206,7 @@ test('AC-INT-001-10 Activity lists the runs with their state and filters them; a
   await page.getByRole('button', { name: 'Cancel' }).click();
   await expect(page.locator('[data-run-header]')).toContainText('Cancelled');
   await expect(page.locator('[data-run-status]')).toContainText('Nothing was changed.');
-  await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Retry', exact: true })).toBeVisible();
 });
 
 test('screens of cut 7: Activity and the page of a run', async ({ page, person }) => {

@@ -23,6 +23,7 @@ import { RunScreen } from './screens/run/Run.tsx';
 import { AppRoot } from './screens/shell/AppRoot.tsx';
 import { ProjectShell } from './screens/shell/ProjectShell.tsx';
 import { SignInScreen } from './screens/sign-in/SignIn.tsx';
+import { ModelsScreen } from './screens/models/ModelsAndProviders.tsx';
 import { SourcesScreen } from './screens/sources/Sources.tsx';
 import { ThreadScreen } from './screens/thread/Thread.tsx';
 import { ThreadsScreen } from './screens/threads/Threads.tsx';
@@ -126,6 +127,7 @@ const knowledgeRoute = createRoute({
   component: KnowledgeScreen,
 });
 const sourcesRoute = createRoute({ getParentRoute: () => projectRoute, path: '/sources', component: SourcesScreen });
+const modelsRoute = createRoute({ getParentRoute: () => projectRoute, path: '/models', component: ModelsScreen });
 const startRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: '/start/$explorationId',
@@ -161,6 +163,7 @@ const routeTree = rootRoute.addChildren([
       runRoute,
       knowledgeRoute,
       sourcesRoute,
+      modelsRoute,
       startRoute,
       startQuestionsRoute,
       startDoneRoute,

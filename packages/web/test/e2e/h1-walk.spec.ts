@@ -68,7 +68,7 @@ async function settleNeedsYou(page: Page, person: PersonApi, projectId: string):
         await item.getByRole('button', { name: 'Keep', exact: true }).click();
         break;
       case 'update':
-        await item.getByRole('button', { name: 'Retry' }).click();
+        await item.getByRole('button', { name: 'Retry', exact: true }).click();
         break;
       case 'question': {
         const confirm = item.getByRole('button', { name: 'Confirm', exact: true });
@@ -85,7 +85,8 @@ async function settleNeedsYou(page: Page, person: PersonApi, projectId: string):
       default:
         throw new Error(`Needs you shows something the H1 walk did not expect: ${kind} (${key})`);
     }
-    await expect(page.locator(`[data-need="${key}"]`)).toHaveCount(0);
+    // Under load (three workers share one serial knowledge queue) an approval can wait for the project lock.
+    await expect(page.locator(`[data-need="${key}"]`)).toHaveCount(0, { timeout: 45_000 });
     done.push(kind);
   }
   throw new Error('Needs you never emptied.');

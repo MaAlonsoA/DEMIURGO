@@ -8,6 +8,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import { useCommand } from '../../api/commands.ts';
+import { useRunProgress } from '../../api/progress.ts';
+import { LiveProgress } from '../run/Engine.tsx';
 import { batchQuery } from '../../api/queries.ts';
 import { canCreate } from '../../api/tables.ts';
 import type { Message, Question, RunListItem } from '../../api/types.ts';
@@ -162,6 +164,7 @@ function ReadingCard({
           <h2 className="text-[17px] font-semibold">{headline}</h2>
         </span>
         <span className="flex items-center gap-3">
+          {working && run && <RunProgressLine runId={run.id} now={now} />}
           {working && run && (
             <span data-run-timer className="text-[13px] font-semibold text-working-text tabular-nums">
               {runDuration(run, now)}
@@ -361,7 +364,7 @@ function StoppedCard({
               onClick={() =>
                 command.mutate({
                   command: 'run.request',
-                  data: { action: 'exploration_chat', scope: { type: 'exploration', id: explorationId } },
+                  data: { action: 'exploration_chat', agent: 'onboarding', scope: { type: 'exploration', id: explorationId } },
                 })
               }
             >
@@ -409,6 +412,7 @@ export function ReadingStatus({
       </p>
       {working && run && (
         <>
+          <RunProgressLine runId={run.id} now={now} />
           <span data-run-timer className="text-[13px] font-semibold text-working-text tabular-nums">
             {runDuration(run, now)}
           </span>
@@ -417,4 +421,14 @@ export function ReadingStatus({
       )}
     </div>
   );
+}
+
+/** What the engine is doing right now («Thinking… 1,240 tokens · 0:12»), from the live stream. */
+function RunProgressLine({ runId, now }: { runId: string; now: number }) {
+  const progress = useRunProgress(runId);
+  return progress ? (
+    <span className="text-[13px] text-working-text">
+      <LiveProgress progress={progress} now={now} />
+    </span>
+  ) : null;
 }

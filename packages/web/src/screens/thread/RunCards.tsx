@@ -5,6 +5,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useCommand } from '../../api/commands.ts';
+import { useRunProgress } from '../../api/progress.ts';
+import { RetryWith } from '../models/RetryWith.tsx';
+import { LiveProgress } from '../run/Engine.tsx';
 import { batchQuery } from '../../api/queries.ts';
 import { canCreate } from '../../api/tables.ts';
 import type { RunListItem } from '../../api/types.ts';
@@ -66,6 +69,7 @@ const action = (run: RunListItem) => ACTION_WORDS[run.action] ?? run.action;
 /** DEMIURGO is working: amber, with its model when known, the time ticking and Cancel. */
 function WorkingCard({ projectId, run, now }: { projectId: string; run: RunListItem; now: number }) {
   const command = useCommand(projectId);
+  const progress = useRunProgress(run.id);
   return (
     <div
       data-run-card="working"
@@ -84,6 +88,7 @@ function WorkingCard({ projectId, run, now }: { projectId: string; run: RunListI
             {run.state === 'queued' ? ' · Queued' : ''}
             {run.model ? ` · ${run.model}` : ''}
           </span>
+          <LiveProgress progress={progress} now={now} />
         </p>
         <span data-run-timer className="text-[13px] font-semibold text-working-text tabular-nums">
           {runDuration(run, now)}
@@ -134,6 +139,7 @@ function FailedCard({ projectId, run }: { projectId: string; run: RunListItem })
             run={run}
             className="inline-flex items-center gap-0.5 text-[13px] font-semibold text-problem hover:underline"
           />
+          {canRetry && <RetryWith projectId={projectId} run={run} size="sm" />}
           {canRetry && (
             <Button
               size="sm"

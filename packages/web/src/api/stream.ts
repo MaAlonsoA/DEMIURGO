@@ -5,6 +5,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createElement, useEffect, useState, useSyncExternalStore } from 'react';
 import { PRODUCT_WORDS } from '../words.ts';
+import { type RunProgress, recordProgress } from './progress.ts';
 import { tablesQuery } from './queries.ts';
 import type { EventRow } from './types.ts';
 
@@ -113,10 +114,15 @@ export function useProjectStream(projectId: string): void {
       if (!timer) timer = setTimeout(flush, 60);
       for (const l of listeners) l(row);
     };
+    const onProgress = (e: Event) => {
+      recordProgress(JSON.parse((e as MessageEvent<string>).data) as RunProgress);
+    };
+    source.addEventListener('run.progress', onProgress);
     const commands = Object.keys(tables.capabilities.commands);
     for (const c of commands) source.addEventListener(c, onEvent);
     return () => {
       if (timer) clearTimeout(timer);
+      source.removeEventListener('run.progress', onProgress);
       for (const c of commands) source.removeEventListener(c, onEvent);
       source.close();
       setConnection('connecting');

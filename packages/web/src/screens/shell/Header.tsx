@@ -1,6 +1,6 @@
 // Header, always visible (spec §3): DEMIURGO and the project, the tabs with the blue count of
-// "Needs you", the freshness of the knowledge and the person's menu with "Sign out" (and, with the
-// dev tools on, "Snapshots…").
+// "Needs you", the freshness of the knowledge and the person's menu with "Models & providers",
+// "Sign out" (and, with the dev tools on, "Snapshots…").
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
@@ -119,6 +119,7 @@ function Freshness({ projectId }: { projectId: string }) {
 
 function PersonMenu() {
   const person = usePerson();
+  const projectId = useProjectId();
   const devTools = hasDevTools(useQuery(sessionQuery).data);
   const client = useQueryClient();
   const navigate = useNavigate();
@@ -148,6 +149,12 @@ function PersonMenu() {
           className="z-50 min-w-48 animate-fade-in rounded-[var(--radius-control)] border border-line bg-surface p-1 shadow-[0_12px_32px_rgba(29,28,26,0.12)]"
         >
           <DropdownMenu.Label className="px-2.5 py-1.5 text-xs text-muted">Signed in as {person}</DropdownMenu.Label>
+          <DropdownMenu.Item
+            onSelect={() => void navigate({ to: '/p/$projectId/models', params: { projectId } })}
+            className="cursor-pointer rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none data-[highlighted]:bg-line-soft"
+          >
+            Models &amp; providers
+          </DropdownMenu.Item>
           {devTools ? (
             <DropdownMenu.Item
               // Once the menu has closed and given the focus back: then the dialog takes it.

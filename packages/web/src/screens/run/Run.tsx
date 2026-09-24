@@ -1,5 +1,6 @@
-// A run (spec §4.9): its state and why it failed in product words, Cancel and Retry from the
-// tables, what it retries and its retries, its context (role, builder, budget, graph version,
+// A run (spec §4.9): its state and why it failed in product words, Cancel, Retry and Retry with…,
+// what it retries and its retries, the agent and engine that ran it with its metrics and live
+// progress (FDR-AGE-002), what the engine did, its context (role, builder, budget, graph version,
 // dependencies and hash, with the content folded) and its events.
 
 import { useQuery } from '@tanstack/react-query';
@@ -23,6 +24,9 @@ import { WhoMark } from '../../ui/signals.tsx';
 import { ACTION_WORDS, failureWord } from '../../words.ts';
 import { NotFound } from '../not-found/NotFound.tsx';
 import { isActive } from '../thread/timeline.ts';
+import { useRunProgress } from '../../api/progress.ts';
+import { RetryWith } from '../models/RetryWith.tsx';
+import { CallsSection, EngineFacts, LiveProgress, UsageFacts } from './Engine.tsx';
 import { runEventsQuery, useNow } from './hooks.ts';
 import { EVENT_WORDS, requestedBy, retriesOf, runDuration } from './runs.ts';
 
@@ -54,6 +58,7 @@ export function RunScreen() {
       <div className="flex max-w-[860px] flex-col gap-6">
         <RunHeader projectId={projectId} run={r} item={item} />
         <Status projectId={projectId} run={r} item={item} now={now} />
+        <CallsSection projectId={projectId} runId={r.id} active={isActive(r)} />
         {r.context_pack ? (
           <ContextSection projectId={projectId} pack={r.context_pack} />
         ) : (
@@ -134,9 +139,16 @@ function RunHeader({ projectId, run: r, item }: { projectId: string; run: RunDet
           }}
         >
           {canRetry && (
-            <Button variant="ink" data-command="run.retry" disabled={command.isPending} onClick={retry}>
-              {command.isPending ? 'Retrying…' : 'Retry'}
-            </Button>
+            <>
+              <RetryWith
+                projectId={projectId}
+                run={r}
+                onRetried={(runId) => void navigate({ to: '/p/$projectId/runs/$runId', params: { projectId, runId } })}
+              />
+              <Button variant="ink" data-command="run.retry" disabled={command.isPending} onClick={retry}>
+                {command.isPending ? 'Retrying…' : 'Retry'}
+              </Button>
+            </>
           )}
         </ActionBar>
       </div>
@@ -193,13 +205,17 @@ function Status({
   now: number;
 }) {
   const box = 'flex items-start gap-3 rounded-[12px] border px-4 py-3.5';
+  const progress = useRunProgress(r.id);
   if (isActive(r)) {
     return (
       <div data-run-status className={cn(box, 'items-center border-working/45 bg-working-bg text-working-text')}>
         <span className="flex w-4 justify-center">
           <Mark kind="working" label={r.state === 'queued' ? 'Queued' : 'Working'} />
         </span>
-        <p className="flex-1 text-[14px] font-semibold">{r.state === 'queued' ? 'Waiting to start…' : 'DEMIURGO is working…'}</p>
+        <p className="flex flex-1 flex-col text-[14px] font-semibold">
+          {r.state === 'queued' ? 'Waiting to start…' : 'DEMIURGO is working…'}
+          <LiveProgress progress={progress} now={now} />
+        </p>
         <span data-run-timer className="text-[13px] font-semibold tabular-nums">
           {runDuration(r, now)}
         </span>
@@ -384,24 +400,14 @@ function RunAside({ projectId, run: r, runs, now }: { projectId: string; run: Ru
           <span id="run-facts">Details</span>
         </SectionTitle>
         <dl className="grid grid-cols-[108px_1fr] items-baseline gap-x-3 gap-y-2 text-[13px]">
-          <Fact term="Model">{r.model ?? <span className="text-muted">Not known yet</span>}</Fact>
-          <Fact term="Provider">{r.provider}</Fact>
-          <Fact term="Method">
-            <span className="font-mono text-[12px]">{r.method}</span>
-          </Fact>
+          <EngineFacts run={r} Fact={Fact} />
           <Fact term="Requested">{dayTime(r.created_at)}</Fact>
           {r.started_at && <Fact term="Started">{dayTime(r.started_at)}</Fact>}
           {r.finished_at && <Fact term="Finished">{dayTime(r.finished_at)}</Fact>}
           <Fact term="Duration">
             <span className="tabular-nums">{runDuration(r, now) || '—'}</span>
           </Fact>
-          {usage && (
-            <Fact term="Tokens">
-              <span className="tabular-nums">
-                {usage.inputTokens.toLocaleString('en-GB')} in · {usage.outputTokens.toLocaleString('en-GB')} out
-              </span>
-            </Fact>
-          )}
+          {usage && <UsageFacts usage={usage} Fact={Fact} />}
         </dl>
       </section>
 

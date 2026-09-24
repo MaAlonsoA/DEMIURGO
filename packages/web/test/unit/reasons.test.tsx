@@ -4,6 +4,18 @@ import { ApiError } from '../../src/api/client.ts';
 import { Reasons, explain } from '../../src/ui/Reasons.tsx';
 
 describe('reasons of a rejected action', () => {
+  it('AC-AGE-002-03 a missing engine names the agent and links to Models & providers', () => {
+    const error = new ApiError(409, 'guard', 'The conditions for "run.request" are not met.', [
+      'Choose a model for onboarding in Settings → Models & providers.',
+    ]);
+    const html = renderToStaticMarkup(<Reasons error={error} modelsHref="/p/p1/models" />);
+    expect(html).toContain('Choose a model for onboarding');
+    expect(html).toContain('href="/p/p1/models"');
+    expect(
+      renderToStaticMarkup(<Reasons error={new ApiError(409, 'guard', 'x', ['Other.'])} modelsHref="/p/p1/models" />),
+    ).not.toContain('href=');
+  });
+
   it('AC-INT-001-14 a 409 shows the server reasons as they come, never a generic "Error"', () => {
     const e = explain(
       new ApiError(409, 'guard', 'The command cannot be run.', ['Version 2 is not approved.', 'It has no acceptance criteria.']),

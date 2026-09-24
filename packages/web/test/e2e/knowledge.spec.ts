@@ -40,7 +40,7 @@ test('AC-INT-001-17 the header and the page show the graph version and its fresh
   const conflict = page.getByRole('article', { name: `Idea check: ${ideas.contradiction}` });
   await expect(conflict.getByText('Conflict', { exact: true })).toBeVisible();
   await expect(conflict.getByText('Contradicts', { exact: true })).toBeVisible();
-  await expect(conflict.getByRole('link', { name: /ADR-AGE-001@1/ })).toBeVisible();
+  await expect(conflict.getByRole('link', { name: /ADR-AGE-001@\d+/ })).toBeVisible();
   await expectAccessible(page, 'Knowledge · Idea checks');
   await citation.click();
   await expect(page).toHaveURL(new RegExp(`/records/${finding.record.code}\\?v=${finding.record.version}$`));
@@ -231,7 +231,7 @@ test('AC-INT-001-17 an update that failed puts the header behind, says why, and 
   await expect(failed).toContainText('failed on purpose');
   await expectAccessible(page, 'Knowledge · a failed update');
   for (let retry = 1; retry <= 3; retry++) {
-    await failed.getByRole('button', { name: 'Retry' }).click();
+    await failed.getByRole('button', { name: 'Retry', exact: true }).click();
     // The update goes back to the queue and is processed again: rejected once more, or applied.
     const events = await person.until<EventRow[]>(
       api(projectId, '/events?from=0'),

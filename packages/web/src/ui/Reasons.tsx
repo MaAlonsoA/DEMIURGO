@@ -45,7 +45,17 @@ export function explain(error: unknown): Explained {
   }
 }
 
-export function Reasons({ error, className }: { error: unknown; className?: string }) {
+/** A reason that asks the person to choose an engine (FDR-AGE-002): it links to Models & providers. */
+const ENGINE_REASON = /Choose (a|another) model for /;
+
+/** Models & providers of the open project, taken from the address (Reasons lives outside the router). */
+function modelsOfCurrentProject(): string | undefined {
+  if (typeof window === 'undefined') return undefined;
+  const m = /^\/p\/([^/]+)/.exec(window.location.pathname);
+  return m ? `/p/${m[1]}/models` : undefined;
+}
+
+export function Reasons({ error, className, modelsHref }: { error: unknown; className?: string; modelsHref?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (error) ref.current?.focus();
@@ -69,9 +79,22 @@ export function Reasons({ error, className }: { error: unknown; className?: stri
       </p>
       {e.reasons.length > 0 && (
         <ul className="mt-1 list-disc space-y-0.5 pl-6">
-          {e.reasons.map((r) => (
-            <li key={r}>{r}</li>
-          ))}
+          {e.reasons.map((r) => {
+            const href = ENGINE_REASON.test(r) ? (modelsHref ?? modelsOfCurrentProject()) : undefined;
+            return (
+              <li key={r}>
+                {r}
+                {href && (
+                  <>
+                    {' '}
+                    <a href={href} className="font-semibold underline underline-offset-2">
+                      Open Models &amp; providers
+                    </a>
+                  </>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

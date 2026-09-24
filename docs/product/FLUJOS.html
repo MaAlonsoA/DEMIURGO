@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DEMIURGO — Flujos y artefactos del modelo · ejemplo «Huerto»</title>
+<style>
+/* ============================================================
+   DEMIURGO · FLUJOS — representación visual del modelo
+   Un único archivo. Sin dependencias externas.
+   El sistema visual ES el lenguaje epistémico del documento:
+   sólido = confirmado · contorno = propuesta · discontinuo =
+   pendiente · tachado = descartado/sustituido (nunca eliminado).
+   ============================================================ */
+:root{
+  --papel:#EEF1F4;
+  --papel2:#E3E8EE;
+  --tinta:#16202B;
+  --tinta2:#5A6675;
+  --linea:#C7D0D9;
+  --ultramar:#2B49C6;
+  --ultramar-suave:#E4E9F8;
+  --verde:#1F7A4D;
+  --verde-tx:#14523A;
+  --verde-suave:#E1EFE7;
+  --ambar:#B07C1F;
+  --ambar-tx:#7A5510;
+  --ambar-suave:#F4EBD9;
+  --rojo:#B3402F;
+  --rojo-tx:#8C2F21;
+  --rojo-suave:#F5E4E0;
+  --gris:#8A94A3;
+  --gris-suave:#EDF0F3;
+  --blanco:#FFFFFF;
+  --serif:Georgia,'Times New Roman','Noto Serif',serif;
+  --sans:'Segoe UI',system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif;
+  --mono:'Cascadia Code',Consolas,'SF Mono',Menlo,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--papel);color:var(--tinta);font:400 15px/1.55 var(--sans);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding:0 28px}
+h2{font:700 29px/1.2 var(--serif);margin:0 0 8px;letter-spacing:-.01em}
+h3{font:700 18px/1.3 var(--serif);margin:0}
+.num{display:inline-grid;place-items:center;width:31px;height:31px;border:1.5px solid var(--tinta);border-radius:8px;font:600 14px var(--mono);margin-right:12px;vertical-align:-5px}
+.lead{color:var(--tinta2);max-width:860px;margin:0 0 28px;font-size:15px}
+strong{font-weight:600}
+a{color:var(--ultramar)}
+
+/* ---------- cabecera ---------- */
+.cabecera{padding:54px 0 30px;border-bottom:1px solid var(--linea)}
+.cabecera h1{font:700 34px/1.15 var(--serif);margin:0 0 14px;letter-spacing:-.015em}
+.cabecera .sub{max-width:860px;color:var(--tinta2);margin:0;font-size:15px}
+.nav{display:flex;flex-wrap:wrap;gap:6px 20px;margin-top:24px;padding-top:16px;border-top:1px dashed var(--linea)}
+.nav a{color:var(--tinta2);text-decoration:none;font-size:13.5px;padding:4px 1px;border-bottom:2px solid transparent}
+.nav a:hover{color:var(--tinta);border-color:var(--ultramar)}
+.nav a:focus-visible{outline:2px solid var(--ultramar);outline-offset:3px;border-radius:2px}
+
+/* ---------- frames ---------- */
+.frame{padding:56px 0}
+.frame + .frame{border-top:1px solid var(--linea)}
+
+/* ---------- insignias de estado del modelo ---------- */
+.badge{display:inline-block;font:600 10.5px var(--sans);padding:2px 10px;border-radius:999px;border:1.2px solid var(--linea);margin-left:10px;vertical-align:3px;white-space:nowrap}
+.badge.acordado{color:var(--verde-tx);border-color:var(--verde);background:var(--verde-suave)}
+.badge.propuesto{color:var(--ambar-tx);border-color:var(--ambar);background:var(--ambar-suave)}
+.badge.pendiente{color:var(--tinta2);border-color:var(--gris);border-style:dashed;background:var(--blanco)}
+.badge.conflicto{color:var(--rojo-tx);border-color:var(--rojo);background:var(--rojo-suave)}
+
+/* ---------- chips de leyenda ---------- */
+.leyenda{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 18px;padding:0;list-style:none}
+.chip{display:inline-flex;align-items:center;gap:8px;border:1.2px solid var(--linea);background:var(--blanco);border-radius:999px;padding:6px 13px;font-size:12.5px;color:var(--tinta)}
+.chip .dot{width:9px;height:9px;border-radius:50%;background:var(--tinta);flex:none}
+.chip.conf{border-color:var(--verde);background:var(--verde-suave)}
+.chip.conf .dot{background:var(--verde)}
+.chip.inferida{border-color:var(--ambar);background:var(--ambar-suave);color:var(--ambar-tx)}
+.chip.inferida .dot{background:var(--ambar)}
+.chip.pendiente{border-style:dashed;color:var(--tinta2)}
+.chip.pendiente .dot{background:var(--gris)}
+.chip.pospuesta{border-style:dashed;color:var(--tinta2)}
+.chip.pospuesta .dot{background:var(--blanco);border:1.6px solid var(--gris)}
+.chip.descartada{border-style:dashed;color:var(--gris)}
+.chip.descartada .dot{background:var(--blanco);border:1.6px solid var(--gris)}
+.chip.descartada .tx{text-decoration:line-through}
+.chip.conflicto{border-color:var(--rojo);background:var(--rojo-suave);color:var(--rojo-tx)}
+.chip.conflicto .dot{background:var(--rojo)}
+.chip.propuesta{border-color:var(--ambar);color:var(--ambar-tx)}
+.chip.propuesta .dot{background:var(--ambar)}
+.chip.acordado{border-color:var(--verde);color:var(--verde-tx)}
+.chip.acordado .dot{background:var(--verde)}
+.chip.abierto{border-style:dashed;border-color:var(--gris);color:var(--tinta2)}
+.chip.abierto .dot{background:var(--blanco);border:1.6px dashed var(--gris)}
+
+/* ---------- viaje general ---------- */
+.viaje{list-style:none;display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:0;margin:20px 0 10px}
+.viaje li{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.viaje li > span{border:1.3px solid var(--tinta);background:var(--blanco);border-radius:10px;padding:9px 15px;font-size:13.5px;font-weight:600}
+.viaje li + li::before{content:"";width:24px;height:1.5px;background:var(--tinta2)}
+.viaje .marca{font:600 10px var(--sans);color:var(--ultramar);border:1px dashed var(--ultramar);border-radius:999px;padding:3px 9px}
+li.hasta > span{background:var(--ultramar-suave);border-color:var(--ultramar)}
+
+/* ---------- tarjetas de máquina de estado ---------- */
+.maquinas-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));gap:18px}
+.maquina{background:var(--blanco);border:1px solid var(--linea);border-radius:12px;padding:18px 20px}
+.maquina.ancho{grid-column:1/-1}
+.maquina h3{margin:0 0 2px}
+.maquina .nota{font-size:12.5px;color:var(--tinta2);margin:8px 0 0}
+.maquina svg{width:100%;height:auto;display:block;margin-top:14px}
+
+/* diagramas: pastillas y flechas */
+.pill rect{fill:var(--blanco);stroke:var(--tinta);stroke-width:1.4}
+.pill text{fill:var(--tinta);font-family:var(--sans);font-size:11.5px;font-weight:600;text-anchor:middle}
+.pill.atenuada rect{stroke:var(--gris);fill:var(--gris-suave)}
+.pill.atenuada text{fill:var(--tinta2);text-decoration:line-through}
+.pill.puerta rect{stroke-width:2.6}
+.pill.gris rect{stroke:var(--gris);fill:var(--blanco);stroke-dasharray:5 4}
+.pill.gris text{fill:var(--tinta2)}
+.fl{stroke:var(--tinta2);stroke-width:1.5;fill:none;marker-end:url(#m-gris)}
+.fl.dash{stroke-dasharray:5 4}
+.let{font-family:var(--sans);font-size:10px;fill:var(--tinta2)}
+.let.roja{fill:var(--rojo-tx)}
+.svg-note{font-family:var(--sans);font-size:9.5px;fill:var(--tinta2)}
+
+/* ---------- mapa grande ---------- */
+.mapa-leg{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px;padding:0;list-style:none}
+.mapa-view{position:relative;background:var(--blanco);border:1px solid var(--linea);border-radius:14px;overflow:hidden;height:780px;touch-action:none}
+.mapa-view svg{display:block;width:100%;height:100%;cursor:grab;user-select:none}
+.mapa-view svg:active{cursor:grabbing}
+.zoom{position:absolute;top:12px;right:12px;display:flex;gap:6px}
+.zoom button{width:36px;height:36px;border:1px solid var(--linea);background:var(--blanco);border-radius:9px;font:600 15px var(--sans);color:var(--tinta);cursor:pointer}
+.zoom button:hover{border-color:var(--tinta)}
+.zoom button:focus-visible{outline:2px solid var(--ultramar);outline-offset:2px}
+.leer{font-size:12.5px;color:var(--tinta2);margin:12px 0 0;max-width:900px}
+
+/* estilos del mapa (SVG) */
+#mapaG text{font-family:var(--sans);fill:var(--tinta)}
+.etiq{font-size:11px;font-weight:700;fill:var(--tinta2)}
+.tit{font-family:var(--serif);font-weight:700;font-size:19px}
+.tit.sm{font-size:15.5px}
+.mono{font-family:var(--mono);font-size:10px;fill:var(--tinta2)}
+.l1{font-size:12.5px}
+.l2{font-size:11px}
+.l3{font-size:10px;fill:var(--tinta2)}
+.mini{font-size:10px;fill:var(--tinta2)}
+.nodo rect{fill:var(--blanco);stroke:var(--tinta);stroke-width:1.4}
+.qc rect{stroke:var(--verde);stroke-width:1.5;fill:var(--verde-suave)}
+.qi rect{stroke:var(--ambar);stroke-width:1.5;fill:var(--ambar-suave)}
+.qp rect{stroke:var(--gris);stroke-dasharray:5 4;fill:var(--blanco)}
+.qd rect{stroke:var(--gris);stroke-dasharray:5 4;fill:var(--blanco);opacity:.62}
+.qd text{fill:var(--tinta2)}
+.tex-conf{fill:var(--verde-tx);font-weight:600}
+.tex-inf{fill:var(--ambar-tx);font-weight:600}
+.tex-rosca{fill:var(--rojo-tx);font-weight:600}
+.ln{text-decoration:line-through}
+.conf rect{stroke:var(--rojo);stroke-width:1.6;fill:var(--rojo-suave)}
+.integrado rect{fill:var(--papel2);stroke:none}
+.ac rect{fill:var(--blanco);stroke:var(--tinta2);stroke-width:1.2}
+.ac.rev rect{stroke:var(--rojo);stroke-dasharray:5 4}
+.tarea rect{fill:var(--blanco);stroke:var(--tinta2);stroke-width:1.2}
+.tarea.prop rect{stroke:var(--ambar);stroke-dasharray:5 4}
+.cs rect{fill:#FBFCFE;stroke:var(--tinta);stroke-width:1.6}
+.cs.draft rect{stroke:var(--gris);stroke-dasharray:7 5;fill:var(--blanco)}
+.pm-rect{fill:var(--verde-suave);stroke:var(--verde);stroke-width:1.3}
+.pm-rect.draft{fill:var(--gris-suave);stroke:var(--gris)}
+.pm-text{font-size:10.5px;font-weight:700;text-anchor:middle;fill:var(--verde-tx)}
+.pm-text.draft{fill:var(--tinta2)}
+.mip-rect{fill:var(--rojo-suave);stroke:var(--rojo);stroke-width:1.1}
+.mip-rect.ambar{fill:var(--ambar-suave);stroke:var(--ambar)}
+.mip-text{font-size:9.5px;font-weight:700;fill:var(--rojo-tx);text-anchor:middle}
+.mip-text.ambar{fill:var(--ambar-tx)}
+.acr{font-size:10.5px}
+.tagc{font-size:9px;font-weight:700;fill:var(--verde-tx);text-anchor:end}
+.taga{font-size:9px;font-weight:700;fill:var(--ambar-tx);text-anchor:end}
+.tagr{font-size:9px;font-weight:700;fill:var(--rojo-tx);text-anchor:end}
+.arista{stroke:var(--tinta2);stroke-width:1.4;fill:none;marker-end:url(#m-gris)}
+.arista.dash{stroke-dasharray:5 4}
+.arista.ambar{stroke:var(--ambar);stroke-dasharray:5 4;marker-end:url(#m-ambar)}
+.arista.roja{stroke:var(--rojo);stroke-dasharray:5 4;stroke-width:1.3;marker-end:url(#m-rojo)}
+.band rect{fill:var(--papel2)}
+.band .b1{font-size:12px;fill:var(--tinta2)}
+.band .b2{font-size:10px;fill:var(--tinta2)}
+.fade text{fill:var(--gris)}
+.fade rect{fill:none;stroke:var(--gris);stroke-dasharray:4 3}
+.col{font-size:11px;font-weight:700;fill:var(--tinta2)}
+
+/* ---------- registros (cuadro 4) ---------- */
+.reg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:18px}
+.registro{background:var(--blanco);border:1px solid var(--linea);border-radius:12px;padding:20px 22px}
+.registro.wide{grid-column:1/-1}
+.registro h3{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.cod{font:600 10.5px var(--mono);color:var(--tinta2);border:1px solid var(--linea);border-radius:6px;padding:2px 7px;background:var(--papel)}
+.registro .desc{color:var(--tinta2);font-size:12.5px;margin:8px 0 12px}
+.campo{display:grid;grid-template-columns:175px 1fr;gap:8px 14px;font-size:13px;margin:0}
+.campo dt{color:var(--tinta2);font-size:12px;margin-top:1px}
+.campo dd{margin:0}
+.campo dd .sub{color:var(--tinta2);font-size:12.5px}
+table.tabla{width:100%;border-collapse:collapse;font-size:12.5px;background:var(--blanco)}
+.tabla th{font-size:12px;font-weight:600;color:var(--tinta2);text-align:left;padding:7px 10px;border-bottom:1.5px solid var(--tinta)}
+.tabla td{padding:8px 10px;border-bottom:1px solid var(--linea);vertical-align:top}
+.tabla tr:last-child td{border-bottom:none}
+.tabla .id{font-family:var(--mono);font-size:11px;white-space:nowrap}
+.tabla-wrap{border:1px solid var(--linea);border-radius:12px;overflow:auto;background:var(--blanco)}
+
+/* ---------- paso a paso ---------- */
+.pasos{counter-reset:paso;list-style:none;padding:0;margin:20px 0 0;max-width:880px}
+.pasos li{position:relative;padding:0 0 16px 46px;counter-increment:paso;font-size:14px;max-width:840px}
+.pasos li::before{content:counter(paso);position:absolute;left:0;top:0;width:29px;height:29px;border:1.4px solid var(--tinta);border-radius:8px;display:grid;place-items:center;font:600 12px var(--mono)}
+.pasos li + li::after{content:"";position:absolute;left:14px;top:33px;bottom:2px;width:1.4px;background:var(--linea)}
+
+/* ---------- matriz (cuadro 5) ---------- */
+.matrixa{width:100%;border-collapse:collapse;font-size:13px;background:var(--blanco);border:1px solid var(--linea);border-radius:12px;overflow:hidden}
+.matrixa th{font-size:12px;font-weight:600;color:var(--tinta2);text-align:left;padding:9px 14px;border-bottom:1.5px solid var(--tinta);background:var(--papel2)}
+.matrixa td{padding:9px 14px;border-bottom:1px solid var(--linea);vertical-align:top}
+.matrixa tr:last-child td{border-bottom:none}
+
+/* ---------- pie ---------- */
+footer{border-top:1px solid var(--linea);padding:26px 0 48px;color:var(--tinta2);font-size:12.5px}
+footer p{margin:4px 0;max-width:880px}
+
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+@media (max-width:720px){
+  .cabecera h1{font-size:27px}
+  .mapa-view{height:640px}
+  .campo{grid-template-columns:1fr}
+  .campo dt{margin-top:8px}
+}
+@media print{
+  .nav,.zoom{display:none!important}
+  body{background:var(--blanco)}
+  .mapa-view{height:auto;overflow:visible;border:none}
+  .frame{padding:24px 0}
+  .registro,.maquina,.maquina,.tabla-wrap{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+
+<!-- marcadores de flecha compartidos por todos los SVG del documento -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <marker id="m-gris" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#5A6675"/></marker>
+    <marker id="m-rojo" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#B3402F"/></marker>
+    <marker id="m-ambar" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#B07C1F"/></marker>
+  </defs>
+</svg>
+
+<header class="cabecera">
+  <div class="wrap">
+    <h1>Flujos y artefactos del modelo</h1>
+    <p class="sub">Representación visual de los flujos y registros que define <strong>VISION.md</strong> (versión del 23 de septiembre de 2026), recorridos con un ejemplo inventado: <strong>«Huerto»</strong>, una aplicación para gestionar parcelas y riegos de un huerto vecinal. Es un ejemplo propio para validar el modelo, distinto de la simulación de asociación que incluye el documento; ningún dato es un requisito de DEMIURGO. El Markdown sigue siendo la fuente de verdad; esta vista no modifica VISION.md ni VISION.html.</p>
+    <nav class="nav" aria-label="Secciones del documento">
+      <a href="#leyenda">Leyenda y viaje general</a>
+      <a href="#maquinas">Máquinas de estado</a>
+      <a href="#mapa">Mapa del ejemplo</a>
+      <a href="#registros">Artefactos y paso a paso</a>
+      <a href="#estado">Estado del modelo</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+<!-- ================= CUADRO 1 · LEYENDA ================= -->
+<section id="leyenda" class="frame">
+  <div class="wrap">
+    <h2><span class="num">1</span>Leyenda y viaje general</h2>
+    <p class="lead">El documento exige distinguir siempre lo confirmado, lo propuesto, lo pendiente y lo desconocido, y que las interpretaciones de la IA se identifiquen como tales. Esa exigencia epistémica <em>es</em> el sistema visual de esta página: cada color y cada trazo indica un grado de confirmación o un estado, no un adorno. Lo descartado, pospuesto o sustituido nunca se elimina del mapa: se conserva y se muestra atenuado, porque la trazabilidad es parte del diseño.</p>
+
+    <h3>Grados de confirmación y estados</h3>
+    <ul class="leyenda">
+      <li><span class="chip conf"><span class="dot"></span>Confirmada (humana)</span></li>
+      <li><span class="chip inferida"><span class="dot"></span>Resuelta inferida (DEMIURGO, sin confirmar)</span></li>
+      <li><span class="chip pendiente"><span class="dot"></span>Pendiente</span></li>
+      <li><span class="chip pospuesta"><span class="dot"></span>Pospuesta (sigue pendiente)</span></li>
+      <li><span class="chip descartada"><span class="dot"></span><span class="tx">Descartada o sustituida (conservada)</span></span></li>
+      <li><span class="chip conflicto"><span class="dot"></span>Conflicto o impacto: a revisar</span></li>
+    </ul>
+
+    <h3>Estados del modelo (máquinas, campos, reglas)</h3>
+    <ul class="leyenda">
+      <li><span class="chip acordado"><span class="dot"></span>Acordado</span></li>
+      <li><span class="chip propuesta"><span class="dot"></span>Propuesto / definición de trabajo</span></li>
+      <li><span class="chip abierto"><span class="dot"></span>Pendiente / abierto</span></li>
+    </ul>
+
+    <h3>El viaje general del producto</h3>
+    <p class="lead" style="margin-bottom:0">El recorrido completo expresa el alcance; el catálogo exacto de etapas, sus transiciones y sus condiciones de finalización está pendiente de diseño (VISION.md, «Un método estable para ambas partes»). Los flujos de este visual llegan hasta «organizar el trabajo», que es donde termina el Change Set; a partir de ahí la cadena continúa con capacidades posteriores.</p>
+    <ol class="viaje" aria-label="Etapas del viaje general">
+      <li><span>Explorar y comprender</span></li>
+      <li><span>Diseñar y decidir</span></li>
+      <li class="hasta"><span>Organizar el trabajo</span><i class="marca">modelado en este visual</i></li>
+      <li><span>Construir y comprobar</span></li>
+      <li><span>Entregar</span></li>
+      <li><span>Observar y aprender</span></li>
+    </ol>
+  </div>
+</section>
+
+<!-- ================= CUADRO 2 · MÁQUINAS DE ESTADO ================= -->
+<section id="maquinas" class="frame">
+  <div class="wrap">
+    <h2><span class="num">2</span>Máquinas de estado</h2>
+    <p class="lead">Cada diagrama muestra los estados y las transiciones de un flujo del modelo, con la insignia que indica su grado de acuerdo según el documento. El nombre de la persona se lee primero; los códigos (EXP, Q, DEC…) solo aparecen como referencia consultable.</p>
+
+    <div class="maquinas-grid">
+
+      <div class="maquina">
+        <h3>Tarjeta de pregunta <span class="badge acordado">acordado</span></h3>
+        <svg viewBox="0 0 620 258" role="img" aria-label="Máquina de estados de la tarjeta: pendiente, resuelta inferida, confirmada, pospuesta, descartada, con reapertura">
+          <path class="fl dash" d="M481 84 C 481 42, 68 42, 68 80"/>
+          <text class="let" x="275" y="38" text-anchor="middle">reabrir: conserva el resultado anterior y señala las conclusiones relacionadas</text>
+          <text class="let" x="158" y="74" text-anchor="middle">DEMIURGO cierra: información suficiente</text>
+          <text class="let" x="379" y="74" text-anchor="middle">la persona confirma o corrige</text>
+          <path class="fl" d="M120 102 L190 102"/>
+          <path class="fl" d="M346 102 L410 102"/>
+          <path class="fl" d="M76 120 C 96 158, 160 168, 190 168"/>
+          <path class="fl" d="M96 120 C 130 222, 400 226, 460 206"/>
+          <text class="let" x="300" y="234" text-anchor="middle">descartar (no corresponde) · se conserva el motivo si se conoce, sin inventarlo</text>
+          <g class="pill"><rect x="16" y="84" width="104" height="36" rx="18"/><text x="68" y="107">pendiente</text></g>
+          <g class="pill"><rect x="196" y="84" width="150" height="36" rx="18"/><text x="271" y="107">resuelta inferida</text></g>
+          <g class="pill"><rect x="416" y="84" width="130" height="36" rx="18"/><text x="481" y="107">confirmada</text></g>
+          <g class="pill gris"><rect x="196" y="168" width="128" height="36" rx="18"/><text x="260" y="191">pospuesta</text></g>
+          <g class="pill gris"><rect x="416" y="168" width="128" height="36" rx="18"/><text x="480" y="191">descartada</text></g>
+          <text class="svg-note" x="310" y="248" text-anchor="middle">El cierre no convierte una conclusión inferida en una decisión confirmada: origen y grado de confirmación permanecen visibles.</text>
+        </svg>
+        <p class="nota">Cinco estados, acciones trazables. Posponer no resuelve ni autoriza ejecución.</p>
+      </div>
+
+      <div class="maquina">
+        <h3>Ronda e integración <span class="badge acordado">acordado</span></h3>
+        <svg viewBox="0 0 620 172" role="img" aria-label="Flujo de la ronda: tarjetas resueltas, pospuestas o descartadas conducen a la integración">
+          <path class="fl" d="M166 70 L220 70"/>
+          <path class="fl" d="M436 70 L490 70"/>
+          <path class="fl dash" d="M552 88 C 552 142, 91 142, 91 88"/>
+          <text class="let" x="194" y="40" text-anchor="middle">todas resueltas, pospuestas o descartadas</text>
+          <text class="let" x="464" y="40" text-anchor="middle">y nuevas tarjetas</text>
+          <g class="pill"><rect x="16" y="52" width="150" height="36" rx="18"/><text x="91" y="75">tarjetas de la ronda</text></g>
+          <g class="pill"><rect x="226" y="52" width="210" height="36" rx="18"/><text x="331" y="75">integrar: síntesis con enlaces</text></g>
+          <g class="pill"><rect x="496" y="52" width="112" height="36" rx="18"/><text x="552" y="75">sigue el bucle</text></g>
+          <text class="svg-note" x="310" y="160" text-anchor="middle">La síntesis vive en la conversación de origen y enlaza tarjetas, conclusiones, razones y estados. Integrar no resuelve lo pospuesto ni autoriza la construcción.</text>
+        </svg>
+        <p class="nota">La regla está acordada; su representación concreta sigue abierta.</p>
+      </div>
+
+      <div class="maquina">
+        <h3>Rama de exploración y conflicto <span class="badge acordado">concepto acordado</span></h3>
+        <svg viewBox="0 0 620 238" role="img" aria-label="Flujo de rama y conflicto: una rama conserva su origen, sus resultados vuelven; si su conclusión choca con una decisión vigente, se abre una pregunta de conflicto">
+          <path class="fl" d="M126 53 L180 53"/>
+          <path class="fl" d="M356 53 L410 53"/>
+          <path class="fl" d="M271 70 L271 110"/>
+          <path class="fl" d="M216 136 L260 136"/>
+          <path class="fl" d="M416 136 L460 136"/>
+          <text class="let" x="154" y="26" text-anchor="middle">nueva idea, funcionalidad o divagación</text>
+          <text class="let" x="279" y="96">si su conclusión choca</text>
+          <text class="let" x="536" y="182" text-anchor="middle">mientras se aclara</text>
+          <g class="pill"><rect x="16" y="36" width="110" height="34" rx="17"/><text x="71" y="57">exploración</text></g>
+          <g class="pill"><rect x="186" y="36" width="170" height="34" rx="17"/><text x="271" y="57">rama (conserva origen)</text></g>
+          <g class="pill"><rect x="416" y="36" width="190" height="34" rx="17"/><text x="511" y="57">vuelven al origen y al mapa</text></g>
+          <g class="pill"><rect x="16" y="114" width="200" height="44" rx="14"/>
+            <text x="116" y="134">conclusión incompatible</text><text x="116" y="149">con una decisión vigente</text></g>
+          <g class="pill"><rect x="266" y="114" width="150" height="44" rx="14"/><text x="341" y="140">pregunta de conflicto</text></g>
+          <g class="pill"><rect x="466" y="114" width="140" height="44" rx="14"/>
+            <text x="536" y="134">la decisión</text><text x="536" y="149">sigue vigente</text></g>
+          <text class="svg-note" x="310" y="222" text-anchor="middle">La pregunta explica el conflicto y propone cómo resolverlo. Una integración no puede presentar la contradicción como acuerdo resuelto.</text>
+        </svg>
+        <p class="nota">Las ramas pueden generar otras ramas; sus resultados regresan al contexto de origen y al mapa de conocimiento.</p>
+      </div>
+
+      <div class="maquina">
+        <h3>Decisión de producto <span class="badge acordado">acordado</span></h3>
+        <svg viewBox="0 0 620 224" role="img" aria-label="Máquina de la decisión: identidad estable, versión vigente y versiones anteriores; una cuestión nueva genera otra decisión relacionada">
+          <path class="fl" d="M166 66 L210 66"/>
+          <path class="fl" d="M331 88 C 331 132, 240 162, 210 162"/>
+          <text class="let" x="189" y="36" text-anchor="middle">cambia la respuesta a la misma cuestión</text>
+          <text class="let" x="300" y="126">cuestión con sentido propio</text>
+          <g class="pill atenuada"><rect x="16" y="44" width="150" height="44" rx="14"/>
+            <text x="91" y="64">v1 · sustituida</text><text x="91" y="79">(conservada)</text></g>
+          <g class="pill"><rect x="216" y="44" width="230" height="44" rx="14"/><text x="331" y="70">v2 · vigente · misma identidad</text></g>
+          <g class="pill"><rect x="16" y="140" width="190" height="44" rx="14"/><text x="111" y="166">otra decisión relacionada</text></g>
+          <text class="svg-note" x="310" y="202" text-anchor="middle">El historial recoge qué cambió, cuándo, por qué y desde qué conversación o tarjeta,</text>
+          <text class="svg-note" x="310" y="216" text-anchor="middle">distinguendo las conclusiones de DEMIURGO de las confirmaciones humanas.</text>
+        </svg>
+        <p class="nota">El contenido anterior se conserva además del historial resumido; se consulta primero lo vigente.</p>
+      </div>
+
+      <div class="maquina">
+        <h3>FDR y ADR: dos ejes por versión <span class="badge propuesto">propuesto</span></h3>
+        <svg viewBox="0 0 620 204" role="img" aria-label="Estados de diseño (borrador, aprobado, sustituido) y de realización (sin implementar, en curso, verificado), dos ejes ortogonales por versión">
+          <text class="let" x="16" y="30" style="font-weight:700">Estado de diseño</text>
+          <text class="let" x="16" y="102" style="font-weight:700">Estado de realización (por versión)</text>
+          <path class="fl" d="M112 61 L150 61"/>
+          <path class="fl" d="M266 61 L300 61"/>
+          <path class="fl" d="M136 133 L170 133"/>
+          <path class="fl" d="M272 133 L306 133"/>
+          <g class="pill"><rect x="16" y="44" width="96" height="34" rx="17"/><text x="64" y="65">borrador</text></g>
+          <g class="pill"><rect x="156" y="44" width="110" height="34" rx="17"/><text x="211" y="65">aprobado</text></g>
+          <g class="pill atenuada"><rect x="306" y="44" width="110" height="34" rx="17"/><text x="361" y="65">sustituido</text></g>
+          <g class="pill gris"><rect x="16" y="116" width="120" height="34" rx="17"/><text x="76" y="137">sin implementar</text></g>
+          <g class="pill"><rect x="176" y="116" width="96" height="34" rx="17"/><text x="224" y="137">en curso</text></g>
+          <g class="pill"><rect x="312" y="116" width="110" height="34" rx="17"/><text x="367" y="137">verificado</text></g>
+          <text class="svg-note" x="16" y="176">Dos ejes ortogonales por versión · el cierre verificado exige evidencias del resultado evaluable exacto.</text>
+          <text class="svg-note" x="16" y="192">Las transiciones y quién puede aprobarlas siguen pendientes.</text>
+        </svg>
+        <p class="nota">El estado de implementación/verificación se conserva aparte del de aprobación del diseño.</p>
+      </div>
+
+      <div class="maquina">
+        <h3>«Comprometido»: de la propuesta al trabajo prometido <span class="badge propuesto">definición de trabajo</span></h3>
+        <svg viewBox="0 0 620 172" role="img" aria-label="Un AC y la versión de FDR o ADR que lo contiene entran en el alcance aceptado de un Change Set y pasan a ser trabajo comprometido">
+          <path class="fl" d="M186 68 L220 68"/>
+          <path class="fl" d="M416 68 L450 68"/>
+          <g class="pill"><rect x="16" y="48" width="170" height="40" rx="14"/><text x="101" y="72">AC + versión de FDR/ADR</text></g>
+          <g class="pill"><rect x="226" y="48" width="190" height="40" rx="14"/>
+            <text x="321" y="66">entra en el alcance aceptado</text><text x="321" y="80">de un Change Set</text></g>
+          <g class="pill"><rect x="456" y="48" width="150" height="40" rx="14"/><text x="531" y="72">trabajo comprometido</text></g>
+          <text class="svg-note" x="310" y="116" text-anchor="middle">Antes son propuestas revisables · aprobar el alcance no equivale a aprobar cada tarjeta, registro o tarea por separado.</text>
+          <text class="svg-note" x="310" y="136" text-anchor="middle">Cada tarea justifica al menos un AC y cada AC de alcance comprometido tiene trabajo asociado.</text>
+        </svg>
+        <p class="nota">Cada versión comprometida de FDR o ADR mantiene sus AC propios; no se exige generar trabajo para un registro que sigue en exploración.</p>
+      </div>
+
+      <div class="maquina ancho">
+        <h3>Change Set <span class="badge propuesto">propuesta · catálogo no cerrado</span></h3>
+        <svg viewBox="0 0 640 152" role="img" aria-label="Ciclo de vida propuesto del Change Set: Draft, Proposed, Approved, In progress, In review, Accepted">
+          <path class="fl" d="M92 62 L104 62"/>
+          <path class="fl" d="M202 62 L214 62"/>
+          <path class="fl" d="M312 62 L324 62"/>
+          <path class="fl" d="M426 62 L438 62"/>
+          <path class="fl" d="M530 62 L542 62"/>
+          <g class="pill"><rect x="16" y="44" width="76" height="36" rx="18"/><text x="54" y="67">Draft</text></g>
+          <g class="pill"><rect x="110" y="44" width="92" height="36" rx="18"/><text x="156" y="67">Proposed</text></g>
+          <g class="pill puerta"><rect x="220" y="44" width="92" height="36" rx="18"/><text x="266" y="67">Approved</text></g>
+          <g class="pill"><rect x="330" y="44" width="96" height="36" rx="18"/><text x="378" y="67">In progress</text></g>
+          <g class="pill"><rect x="444" y="44" width="86" height="36" rx="18"/><text x="487" y="67">In review</text></g>
+          <g class="pill puerta"><rect x="548" y="44" width="76" height="36" rx="18"/><text x="586" y="67">Accepted</text></g>
+          <text class="svg-note" x="16" y="110">Aprobación del alcance antes de implementar ≠ aceptación del resultado verificado después · los trazos gruesos marcan los dos umbrales.</text>
+          <text class="svg-note" x="16" y="128">Ajustes, pausas, descartes y cambios de alcance tras la aprobación: por concretar. El nombre es un nombre de trabajo; el catálogo de estados y sus transiciones no está cerrado.</text>
+        </svg>
+        <p class="nota">Cada conjunto muestra primero el resultado esperado, qué incluye y excluye, por qué se propone y cómo se comprobará; las tareas y orígenes se consultan como detalle.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ================= CUADRO 3 · MAPA DEL EJEMPLO ================= -->
+<section id="mapa" class="frame">
+  <div class="wrap">
+    <h2><span class="num">3</span>Mapa del ejemplo «Huerto»</h2>
+    <p class="lead">Todo el recorrido de trazabilidad —exploración → decisión/requisito → FDR ↔ ADR → AC ↔ tareas → comprobaciones → evidencias— con el ejemplo inventado. La cadena termina aquí en el Change Set: de ahí en adelante (construcción, comprobación, evidencia, resultado evaluable) pertenece a capacidades posteriores del producto. Arrastra para desplazar; usa la rueda o los botones para acercar.</p>
+
+    <ul class="mapa-leg" aria-label="Leyenda del mapa">
+      <li><span class="chip conf"><span class="dot"></span>confirmada (humana)</span></li>
+      <li><span class="chip inferida"><span class="dot"></span>inferida (IA)</span></li>
+      <li><span class="chip"><span class="dot"></span>registro vigente</span></li>
+      <li><span class="chip pendiente"><span class="dot"></span>pendiente / propuesta</span></li>
+      <li><span class="chip descartada"><span class="dot"></span><span class="tx">descartada / sustituida</span></span></li>
+      <li><span class="chip conflicto"><span class="dot"></span>conflicto / impacto</span></li>
+      <li><span class="chip"><span class="dot" style="background:var(--ambar)"></span>línea ámbar discontinua = condicional («si se acepta el ADR»)</span></li>
+    </ul>
+
+    <div class="mapa-view" id="mapa-view">
+      <div class="zoom" role="group" aria-label="Controles de zoom del mapa">
+        <button id="zoom-in" type="button" aria-label="Acercar">+</button>
+        <button id="zoom-out" type="button" aria-label="Alejar">−</button>
+        <button id="zoom-reset" type="button" aria-label="Restablecer zoom">⟲</button>
+      </div>
+      <svg id="mapa-svg" viewBox="0 0 1680 1000" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Mapa de conocimiento del ejemplo Huerto: exploraciones, tarjetas, decisiones, registros de diseño, criterios de aceptación, tareas y Change Sets">
+        <g id="mapa-g">
+
+          <!-- ===== etiquetas de columnas ===== -->
+          <text class="col" x="24" y="44">Exploraciones y tarjetas</text>
+          <text class="col" x="420" y="44">Decisiones y diseño</text>
+          <text class="col" x="716" y="44">Criterios de aceptación (AC)</text>
+          <text class="col" x="1020" y="44">Tareas · propuestas, listas pero no autorizadas</text>
+          <text class="col" x="1320" y="44">Change Sets</text>
+
+          <!-- ===== aristas ===== -->
+          <!-- EXP-001 -> ronda -->
+          <path class="arista" d="M188 148 L188 180"/>
+          <!-- rama EXP-001 -> EXP-002 (margen izquierdo) -->
+          <path class="arista dash" d="M24 474 L16 474 L16 602 L20 602"/>
+          <text class="mini" transform="rotate(-90 10 540)" x="10" y="540" text-anchor="middle">rama (conserva origen)</text>
+          <!-- Q-001 -> DEC v1 -->
+          <path class="arista" d="M352 211 C 390 211, 390 112, 420 112"/>
+          <text class="mini" x="380" y="165" text-anchor="middle" transform="rotate(-90 380 165)">genera v1</text>
+          <!-- Q-003 -> FDR-RIE -->
+          <path class="arista" d="M352 343 C 394 343, 394 640, 416 640"/>
+          <text class="mini" x="386" y="520" text-anchor="middle" transform="rotate(-90 386 520)">origen (inferida)</text>
+          <!-- conflicto -> DEC v2 -->
+          <path class="arista roja" d="M352 766 L682 766 L682 150 L652 150"/>
+          <text class="mini" x="690" y="142">resuelve: v2</text>
+          <!-- impacto v2 -> FDR-PAR (a revisar) -->
+          <path class="arista roja" d="M648 200 L664 200 L664 300 L652 300"/>
+          <text class="mini" x="672" y="258">revisar</text>
+          <!-- DEC -> FDR-PAR -->
+          <path class="arista" d="M534 234 L534 266"/>
+          <text class="mini" x="542" y="254">decisión relacionada</text>
+          <!-- FDR-PAR <-> ADR -->
+          <path class="arista" d="M534 400 L534 432"/>
+          <text class="mini" x="542" y="422">FDR ↔ ADR</text>
+          <!-- FDR-PAR -> ACs -->
+          <path class="arista" d="M648 300 L712 270"/>
+          <path class="arista" d="M648 335 L712 320"/>
+          <path class="arista" d="M648 370 L712 370"/>
+          <!-- ADR -> AC-ADR-01 (condicional) -->
+          <path class="arista ambar" d="M648 501 L712 501"/>
+          <text class="mini" x="690" y="492" style="fill:var(--ambar-tx)">si se acepta</text>
+          <!-- FDR-RIE -> ACs -->
+          <path class="arista" d="M648 640 L712 647"/>
+          <path class="arista" d="M648 690 L712 697"/>
+          <!-- ACs -> tareas -->
+          <path class="arista" d="M964 270 L1016 278"/>
+          <path class="arista" d="M964 320 L1016 346"/>
+          <path class="arista" d="M964 370 L1016 278"/>
+          <path class="arista" d="M964 370 L1016 414"/>
+          <path class="arista ambar" d="M964 501 L1016 414"/>
+          <path class="arista" d="M964 647 L1016 482"/>
+          <path class="arista" d="M964 697 L1016 482"/>
+          <!-- tareas -> CS-001 -->
+          <path class="arista" d="M1256 278 L1316 180"/>
+          <path class="arista" d="M1256 346 L1316 230"/>
+          <path class="arista" d="M1256 414 L1316 280"/>
+          <path class="arista" d="M1256 482 L1316 330"/>
+          <!-- T-005 -> CS-002 -->
+          <path class="arista dash" d="M1256 550 L1316 560"/>
+          <!-- CS-002 -> banda inferior -->
+          <path class="arista dash" d="M1488 710 L1488 872"/>
+
+          <!-- ===== columna 1: exploraciones ===== -->
+          <g class="nodo" transform="translate(24 64)">
+            <rect width="328" height="84" rx="12"/>
+            <text class="tit" x="16" y="30">Huerto</text>
+            <text class="mono" x="16" y="50">EXP-001 · conversación inicial</text>
+            <text class="l3" x="16" y="68">Gestionar parcelas y riegos del huerto vecinal</text>
+          </g>
+
+          <text class="mini" x="24" y="176">Ronda 1 · 4 tarjetas</text>
+
+          <g class="qc" transform="translate(24 184)">
+            <rect width="328" height="54" rx="10"/>
+            <text class="l1" x="16" y="22">Q-001 · ¿Quién puede reservar una parcela?</text>
+            <text class="l2 tex-conf" x="16" y="42">✓ confirmada (humana) · solo vecinos de la lista</text>
+          </g>
+          <g class="qp" transform="translate(24 250)">
+            <rect width="328" height="54" rx="10"/>
+            <text class="l1" x="16" y="22">Q-002 · ¿Ceder la reserva de una parcela?</text>
+            <text class="l2" x="16" y="42">pospuesta · se espera a ver cuántas parcelas hay</text>
+          </g>
+          <g class="qi" transform="translate(24 316)">
+            <rect width="328" height="54" rx="10"/>
+            <text class="l1" x="16" y="22">Q-003 · ¿Cómo se siguen los riegos?</text>
+            <text class="l2 tex-inf" x="16" y="42">∴ resuelta inferida · rotación semanal, un toque</text>
+          </g>
+          <g class="qd" transform="translate(24 382)">
+            <rect width="328" height="54" rx="10"/>
+            <text class="l1 ln" x="16" y="22">Q-004 · ¿Cobrar cuotas en la app?</text>
+            <text class="l2" x="16" y="42">descartada · las cuotas se cobran en persona</text>
+          </g>
+
+          <g class="integrado" transform="translate(24 454)">
+            <rect width="328" height="40" rx="10"/>
+            <text class="l2" x="16" y="25">Ronda 1 integrada · síntesis con enlaces</text>
+          </g>
+
+          <g class="nodo" transform="translate(24 560)">
+            <rect width="328" height="84" rx="12"/>
+            <text class="tit" x="16" y="30">Abrir la lista</text>
+            <text class="mono" x="16" y="50">EXP-002 · rama de EXP-001</text>
+            <text class="l3" x="16" y="68">Nuevos vecinos pueden reservar también</text>
+          </g>
+
+          <g transform="translate(24 662)">
+            <rect class="qc" width="328" height="54" rx="10" fill="none"/>
+            <text class="l1" x="16" y="22">Q-005 · ¿Reservan quienes no están inscritos?</text>
+            <text class="l2 tex-conf" x="16" y="42">✓ confirmada (humana) · si se dan de alta primero</text>
+          </g>
+
+          <g class="conf" transform="translate(24 734)">
+            <rect width="328" height="64" rx="10"/>
+            <text class="l1" x="16" y="22">Conflicto · Q-005 vs. DEC-HUE-001 v1</text>
+            <text class="l2" x="16" y="40">DEMIURGO abre una pregunta · v1 sigue vigente</text>
+            <text class="l2 tex-rosca" x="16" y="56">resuelve: nueva versión (v2) de la decisión</text>
+          </g>
+
+          <!-- ===== columna 2: decisiones y diseño ===== -->
+          <g class="nodo" transform="translate(420 64)">
+            <rect width="228" height="170" rx="12"/>
+            <text class="tit sm" x="14" y="26">Participación de temporada</text>
+            <text class="mono" x="14" y="44">DEC-HUE-001 · dominio: usuarios</text>
+            <rect x="14" y="54" width="200" height="58" rx="8" fill="#E1EFE7" stroke="#1F7A4D" stroke-width="1.4"/>
+            <text class="mono" x="24" y="72">v2 · vigente</text>
+            <text class="l2" x="24" y="89" font-weight="600">lista + vecinos inscritos</text>
+            <text class="l3" x="24" y="105">la lista se abre dos semanas</text>
+            <rect x="14" y="120" width="200" height="36" rx="8" fill="#EDF0F3" stroke="#8A94A3" opacity="0.75"/>
+            <text class="l2 ln" x="24" y="137" fill="#5A6675">v1 — solo la lista fija</text>
+            <text class="mini" x="24" y="151" fill="#8A94A3">sustituida · conservada</text>
+            <text class="l3" x="14" y="166">origen v1: Q-001 · origen v2: Q-005</text>
+          </g>
+
+          <g class="nodo" transform="translate(420 270)">
+            <rect width="228" height="130" rx="12"/>
+            <text class="tit sm" x="14" y="26">Reservar una parcela</text>
+            <text class="mono" x="14" y="44">FDR-PAR-001 v1 · parcelas</text>
+            <rect class="mip-rect" x="14" y="52" width="74" height="20" rx="10"/>
+            <text class="mip-text" x="51" y="66">a revisar</text>
+            <text class="l2" x="14" y="92">3 AC · pregunta abierta: ¿cesión?</text>
+            <text class="l3" x="14" y="110">diseño: aprobado (alcance CS-001)</text>
+            <text class="l3" x="14" y="124">realización: en curso</text>
+          </g>
+
+          <g class="nodo" transform="translate(420 436)">
+            <rect width="228" height="130" rx="12"/>
+            <text class="tit sm" x="14" y="26">Integridad de reservas</text>
+            <text class="mono" x="14" y="44">ADR-001 v1</text>
+            <rect class="mip-rect ambar" x="14" y="52" width="80" height="20" rx="10"/>
+            <text class="mip-text ambar" x="54" y="66">propuesta</text>
+            <text class="l2" x="14" y="92">1 AC · unicidad por temporada</text>
+            <text class="l3" x="14" y="110">diseño: borrador · por confirmar</text>
+            <text class="l3" x="14" y="124">realización: sin implementar</text>
+          </g>
+
+          <g class="nodo" transform="translate(420 602)">
+            <rect width="228" height="130" rx="12"/>
+            <text class="tit sm" x="14" y="26">Registrar riegos</text>
+            <text class="mono" x="14" y="44">FDR-RIE-001 v1 · riegos</text>
+            <text class="l2" x="14" y="76">2 AC · origen: Q-003 (inferida)</text>
+            <text class="l3" x="14" y="100">diseño: aprobado (alcance CS-001)</text>
+            <text class="l3" x="14" y="116">realización: en curso</text>
+          </g>
+
+          <!-- ===== columna 3: AC ===== -->
+          <g class="ac" transform="translate(716 250)">
+            <rect width="248" height="40" rx="10"/>
+            <text class="mono" x="14" y="17">AC-PAR-01</text>
+            <text class="tagc" x="234" y="17">comprometido</text>
+            <text class="acr" x="14" y="33">Vecino de la lista reserva parcela libre</text>
+          </g>
+          <g class="ac rev" transform="translate(716 300)">
+            <rect width="248" height="40" rx="10"/>
+            <text class="mono" x="14" y="17">AC-PAR-02</text>
+            <text class="tagr" x="234" y="17">comprometido · a revisar</text>
+            <text class="acr" x="14" y="33">No reserva quien no está en la lista</text>
+          </g>
+          <g class="ac" transform="translate(716 350)">
+            <rect width="248" height="40" rx="10"/>
+            <text class="mono" x="14" y="17">AC-PAR-03</text>
+            <text class="tagc" x="234" y="17">comprometido</text>
+            <text class="acr" x="14" y="33">Una parcela no se duplica por temporada</text>
+          </g>
+          <g class="ac" transform="translate(716 481)">
+            <rect width="248" height="40" rx="10"/>
+            <text class="mono" x="14" y="17">AC-ADR-01</text>
+            <text class="taga" x="234" y="17">pendiente del ADR</text>
+            <text class="acr" x="14" y="33">No hay doble reserva ante simultaneidad</text>
+          </g>
+          <g class="ac" transform="translate(716 627)">
+            <rect width="248" height="40" rx="10"/>
+            <text class="mono" x="14" y="17">AC-RIE-01</text>
+            <text class="tagc" x="234" y="17">comprometido</text>
+            <text class="acr" x="14" y="33">El vecino reserva registra el riego</text>
+          </g>
+          <g class="ac" transform="translate(716 677)">
+            <rect width="248" height="40" rx="10"/>
+            <text class="mono" x="14" y="17">AC-RIE-02</text>
+            <text class="tagc" x="234" y="17">comprometido</text>
+            <text class="acr" x="14" y="33">El coordinador ve los riegos por parcela</text>
+          </g>
+          <text class="mini" x="716" y="752">5 AC comprometidos en CS-001 (FDR-PAR v1, FDR-RIE v1) · AC-ADR-01 queda pendiente de confirmar el ADR-001.</text>
+
+          <!-- ===== columna 4: tareas ===== -->
+          <g class="tarea" transform="translate(1020 250)">
+            <rect width="236" height="56" rx="10"/>
+            <text class="l1" x="14" y="20">T-001 · Habilitar reservas</text>
+            <text class="l3" x="14" y="37">backend + BBDD · parcelas</text>
+            <text class="mono" x="14" y="51">AC-PAR-01 · AC-PAR-03</text>
+          </g>
+          <g class="tarea" transform="translate(1020 318)">
+            <rect width="236" height="56" rx="10"/>
+            <text class="l1" x="14" y="20">T-002 · Catálogo con estados</text>
+            <text class="l3" x="14" y="37">frontend · parcelas</text>
+            <text class="mono" x="14" y="51">AC-PAR-02</text>
+          </g>
+          <g class="tarea" transform="translate(1020 386)">
+            <rect width="236" height="56" rx="10"/>
+            <text class="l1" x="14" y="20">T-003 · Proteger la integridad</text>
+            <text class="l3" x="14" y="37">backend + BBDD · parcelas</text>
+            <text class="mono" x="14" y="51">AC-PAR-03 · AC-ADR-01 (si ADR)</text>
+          </g>
+          <g class="tarea" transform="translate(1020 454)">
+            <rect width="236" height="56" rx="10"/>
+            <text class="l1" x="14" y="20">T-004 · Registrar y ver riegos</text>
+            <text class="l3" x="14" y="37">frontend + backend · riegos</text>
+            <text class="mono" x="14" y="51">AC-RIE-01 · AC-RIE-02</text>
+          </g>
+          <g class="tarea prop" transform="translate(1020 522)">
+            <rect width="236" height="56" rx="10"/>
+            <text class="l1" x="14" y="20">T-005 · Alta en la lista</text>
+            <text class="l3" x="14" y="37">frontend + backend · usuarios</text>
+            <text class="mono" x="14" y="51">AC por definir (FDR v2)</text>
+          </g>
+          <text class="mini" x="1020" y="604">Está lista ≠ autorizada a ejecutar (el mecanismo es pendiente).</text>
+
+          <!-- ===== columna 5: change sets ===== -->
+          <g class="cs" transform="translate(1320 64)">
+            <rect width="336" height="380" rx="14"/>
+            <text class="tit sm" x="18" y="30">Reservar parcelas y riegos</text>
+            <text class="mono" x="18" y="48">CS-001</text>
+            <rect class="pm-rect" x="18" y="58" width="168" height="24" rx="12"/>
+            <text class="pm-text" x="102" y="74">Aprobado · alcance aceptado</text>
+            <text class="l2" x="18" y="106">Resultado: un vecino reserva una parcela y</text>
+            <text class="l2" x="18" y="122">registra el riego; el coordinador ve reservas</text>
+            <text class="l2" x="18" y="138">y registros.</text>
+            <text class="l3" x="18" y="164">Trabajo: T-001 · T-002 · T-003 · T-004</text>
+            <text class="l3" x="18" y="184">Alcance: FDR-PAR-001 v1 y FDR-RIE-001 v1 (aprobados);</text>
+            <text class="l3" x="18" y="200">ADR-001 v1 permanece como propuesta por confirmar.</text>
+            <text class="l2 tex-conf" x="18" y="226">Comprometidos: 5 AC del alcance aprobado.</text>
+            <text class="l3" x="18" y="248">Excluido: cesión de parcelas (Q-002 pospuesta); altas</text>
+            <text class="l3" x="18" y="264">nuevas (CS-002); cuotas (Q-004 descartada).</text>
+            <text class="l2" x="18" y="292">Comprobación de conjunto: reservar → registrar.</text>
+            <text class="l3" x="18" y="312">Sin evidencia todavía: nada implementado ni verificado.</text>
+            <text class="l3" x="18" y="334">Origen: EXP-001 (ronda 1).</text>
+            <text class="mini" x="18" y="356">Aprobado no implica aceptación del resultado.</text>
+          </g>
+
+          <g class="cs draft" transform="translate(1320 480)">
+            <rect width="336" height="230" rx="14"/>
+            <text class="tit sm" x="18" y="30">Abrir la lista a nuevos vecinos</text>
+            <text class="mono" x="18" y="48">CS-002</text>
+            <rect class="pm-rect draft" x="18" y="58" width="96" height="24" rx="12"/>
+            <text class="pm-text draft" x="66" y="74">Draft</text>
+            <text class="l2" x="18" y="106">Resultado: un vecino nuevo se da de alta, entra</text>
+            <text class="l2" x="18" y="122">en la lista y puede reservar una parcela.</text>
+            <text class="l3" x="18" y="148">Origen: EXP-002 · DEC-HUE-001 v2.</text>
+            <text class="l3" x="18" y="168">Pendiente: FDR-PAR-001 v2 (revisión) · nuevos AC.</text>
+            <text class="l3" x="18" y="188">T-005 (propuesta).</text>
+            <text class="mini" x="18" y="214">Una pregunta pospuesta sigue afectando al trabajo.</text>
+          </g>
+
+          <!-- ===== banda inferior: más allá de este visual ===== -->
+          <g class="band" transform="translate(24 880)">
+            <rect width="1632" height="84" rx="12"/>
+            <text class="b1" x="20" y="34">Más allá de este visual: construir, comprobar y entregar son capacidades posteriores del producto; el resultado evaluable (build, entorno, despliegue) ya forma parte del modelo.</text>
+            <text class="b2" x="20" y="60">La evidencia respalda el AC para el build y entorno comprobados; no acredita automáticamente otro despliegue.</text>
+            <g class="fade">
+              <rect x="1120" y="20" width="92" height="30" rx="15"/>
+              <text x="1166" y="39" text-anchor="middle" font-size="10.5">construir</text>
+              <rect x="1236" y="20" width="92" height="30" rx="15"/>
+              <text x="1282" y="39" text-anchor="middle" font-size="10.5">comprobar</text>
+              <rect x="1352" y="20" width="86" height="30" rx="15"/>
+              <text x="1395" y="39" text-anchor="middle" font-size="10.5">evidencia</text>
+              <rect x="1462" y="20" width="150" height="30" rx="15"/>
+              <text x="1537" y="39" text-anchor="middle" font-size="10.5">resultado evaluable</text>
+              <path d="M1212 35 L1232 35" stroke="#8A94A3" stroke-width="1.2" fill="none"/>
+              <path d="M1328 35 L1348 35" stroke="#8A94A3" stroke-width="1.2" fill="none"/>
+              <path d="M1438 35 L1458 35" stroke="#8A94A3" stroke-width="1.2" fill="none"/>
+            </g>
+          </g>
+
+        </g>
+      </svg>
+    </div>
+    <p class="leer">Cómo leer el mapa: los trazos son relaciones tipadas (origen, decisión relacionada, cubre, agrupa). El color de cada nodo indica el grado de confirmación, no el tipo de relación; los nombres humanos van primero y los códigos quedan como referencia. Las líneas rojas marcan el conflicto y su impacto de revisión; las líneas ámbar, lo condicional al ADR.</p>
+  </div>
+</section>
+
+<!-- ================= CUADRO 4 · ARTIFACTOS ================= -->
+<section id="registros" class="frame">
+  <div class="wrap">
+    <h2><span class="num">4</span>Artefactos como registros, paso a paso</h2>
+    <p class="lead">Los registros del ejemplo con las plantillas de trabajo del documento, completadas. Los registros son conectados, no documentos que se crean en cadena: cada uno referencia a su fuente por identificador y versión, sin copiar reglas de manera independiente.</p>
+
+    <div class="reg-grid">
+
+      <div class="registro">
+        <h3>Huerto <span class="cod">EXP-001</span></h3>
+        <p class="desc">Exploración · conversación inicial</p>
+        <dl class="campo">
+          <dt>Intención / origen</dt>
+          <dd>«Gestionar las parcelas y los riegos del huerto vecinal sin hojas de cálculo.»</dd>
+          <dt>Ronda 1</dt>
+          <dd>Q-001, Q-002, Q-003, Q-004.</dd>
+          <dt>Integración</dt>
+          <dd>Integrada: síntesis en la conversación de origen con enlaces a las tarjetas, sus conclusiones, razones y estados. No resuelve lo pospuesto y no autoriza la construcción.</dd>
+        </dl>
+      </div>
+
+      <div class="registro">
+        <h3>Abrir la lista <span class="cod">EXP-002</span></h3>
+        <p class="desc">Exploración · rama de EXP-001</p>
+        <dl class="campo">
+          <dt>Origen</dt>
+          <dd>EXP-001 (la rama conserva su origen y puede generar otras ramas).</dd>
+          <dt>Intención</dt>
+          <dd>El huerto quiere crecer: que también puedan reservar vecinos que aún no están en la lista.</dd>
+          <dt>Tarjeta</dt>
+          <dd>Q-005 (confirmada).</dd>
+          <dt>Conflicto</dt>
+          <dd>Sí: la conclusión de Q-005 choca con DEC-HUE-001 v1. DEMIURGO abre una pregunta de conflicto; v1 permanece vigente mientras se aclara. Se resuelve con v2.</dd>
+        </dl>
+      </div>
+
+      <div class="registro wide">
+        <h3>Tarjetas de pregunta <span class="cod">Q-001…Q-005</span></h3>
+        <p class="desc">Cada tarjeta lleva su pregunta, el motivo por el que aparece, su estado y su conversación propia. El origen y el grado de confirmación permanecen visibles.</p>
+        <div class="tabla-wrap" style="border:none">
+          <table class="tabla">
+            <thead><tr><th>ID</th><th>Pregunta</th><th>Motivo</th><th>Estado</th><th>Conclusión</th><th>Grado de confirmación</th></tr></thead>
+            <tbody>
+              <tr><td class="id">Q-001</td><td>¿Quién puede reservar una parcela?</td><td>Define el alcance de la participación.</td><td><strong style="color:var(--verde-tx)">Confirmada</strong></td><td>«Solo los vecinos de la lista de esta temporada.» → DEC-HUE-001 v1.</td><td>Humana.</td></tr>
+              <tr><td class="id">Q-002</td><td>¿Se puede ceder la reserva de una parcela?</td><td>Afecta al alcance del FDR de reservas.</td><td><strong style="color:var(--tinta2)">Pospuesta</strong></td><td>— (se espera a ver cuántas parcelas hay de verdad). Queda registrada y sigue pendiente; sigue afectando al trabajo.</td><td>—</td></tr>
+              <tr><td class="id">Q-003</td><td>¿Cómo se siguen los riegos?</td><td>El huerto necesita saber quién riega y cuándo.</td><td><strong style="color:var(--ambar-tx)">Resuelta inferida</strong></td><td>«Rotación semanal; el vecino que tiene la parcela registra el riego con un toque.»</td><td>DEMIURGO (sin confirmar).</td></tr>
+              <tr><td class="id">Q-004</td><td>¿Se cobran las cuotas en la app?</td><td>Planteada al hablar del huerto.</td><td><strong style="color:var(--gris)">Descartada</strong></td><td>— (las cuotas se cobran en persona; no corresponde a la app).</td><td>—</td></tr>
+              <tr><td class="id">Q-005</td><td>¿Pueden reservar quienes no están en la lista?</td><td>La rama EXP-002 quiere ampliar la participación.</td><td><strong style="color:var(--verde-tx)">Confirmada</strong></td><td>«Sí, si se dan de alta primero en la lista.»</td><td>Humana.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="registro wide">
+        <h3>Participación de temporada <span class="cod">DEC-HUE-001</span></h3>
+        <p class="desc">Decisión de producto · dominio Usuarios · identidad estable, versión vigente y versiones anteriores</p>
+        <dl class="campo">
+          <dt>Cuestión</dt>
+          <dd>¿Quién puede reservar una parcela en esta temporada?</dd>
+          <dt>Versión vigente (v2)</dt>
+          <dd>«Pueden reservar los vecinos de la lista y los vecinos que se dan de alta; la lista se abre dos semanas.» <span class="sub">Origen: Q-005 (EXP-002). Confirmada por la persona.</span></dd>
+          <dt>Versión anterior (v1)</dt>
+          <dd><span class="sub" style="text-decoration:line-through">«Solo los vecinos de la lista fija pueden reservar.»</span> Sustituida, conservada. Origen: Q-001 (EXP-001). Confirmada por la persona.</dd>
+          <dt>Alternativas</dt>
+          <dd>Lista fija (v1) · acceso abierto sin registro.</dd>
+          <dt>Razones</dt>
+          <dd>El huerto quiere crecer sin perder el control de quién usa las parcelas.</dd>
+          <dt>Cambio respecto a v1</dt>
+          <dd>Qué cambió: la participación se amplía de la lista fija a lista + altas. Por qué: el huerto quiere crecer. Desde dónde: Q-005 (EXP-002). Cuándo: tras la pregunta de conflicto.</dd>
+          <dt>Impacto señalado</dt>
+          <dd>FDR-PAR-001 v1 a revisar (incluido AC-PAR-02) · nuevo trabajo agrupado en CS-002. DEMIURGO propone para cada elemento mantenerlo, revisarlo o añadir trabajo, con el motivo.</dd>
+        </dl>
+      </div>
+
+      <div class="registro">
+        <h3>Reservar una parcela <span class="cod">FDR-PAR-001 v1</span></h3>
+        <p class="desc">Registro de diseño funcional · dominio Parcelas</p>
+        <dl class="campo">
+          <dt>Capacidad y resultado</dt>
+          <dd>Un vecino de la lista reserva una parcela libre para la temporada.</dd>
+          <dt>Actores y permisos</dt>
+          <dd>Vecino inscrito (reservar) · coordinador (gestiona lista y parcelas).</dd>
+          <dt>Disparador y recorrido</dt>
+          <dd>Catálogo → elige parcela disponible → confirma → estado «reservada».</dd>
+          <dt>Reglas y restricciones</dt>
+          <dd>Una parcela por vecino y temporada · solo si está libre · DEC-HUE-001 decide quién participa.</dd>
+          <dt>Experiencia</dt>
+          <dd>Estados «disponible» / «reservada»; tras el éxito, estado «reservada»; ante fallo, mensaje recuperable que conserva el contexto.</dd>
+          <dt>Errores y límites</dt>
+          <dd>Peticiones simultáneas → mensaje y reintento (véase ADR-001).</dd>
+          <dt>AC canónicos</dt>
+          <dd>AC-PAR-01 · AC-PAR-02 · AC-PAR-03.</dd>
+          <dt>Relaciones</dt>
+          <dd>DEC-HUE-001 (v1 al diseñarse; v2 en revisión) · ADR-001 v1.</dd>
+          <dt>Cuestiones abiertas</dt>
+          <dd>«¿Se puede ceder la reserva?» (Q-002, pospuesta).</dd>
+          <dt>Estados</dt>
+          <dd>Diseño: aprobado (en el alcance de CS-001) · a revisar por DEC v2. Realización: en curso.</dd>
+        </dl>
+      </div>
+
+      <div class="registro">
+        <h3>Registrar riegos <span class="cod">FDR-RIE-001 v1</span></h3>
+        <p class="desc">Registro de diseño funcional · dominio Riegos</p>
+        <dl class="campo">
+          <dt>Capacidad y resultado</dt>
+          <dd>El vecino que tiene la parcela reservada registra el riego de la semana.</dd>
+          <dt>Actores y permisos</dt>
+          <dd>Vecino con parcela reservada (registrar) · coordinador (consultar registros).</dd>
+          <dt>Reglas y restricciones</dt>
+          <dd>Rotación semanal · un registro por parcela y semana · solo lo registra el vecino que la tiene reservada.</dd>
+          <dt>Experiencia</dt>
+          <dd>Marca «regado» sobre la parcela; ante fallo conserva el contexto y permite reintentar.</dd>
+          <dt>AC canónicos</dt>
+          <dd>AC-RIE-01 · AC-RIE-02.</dd>
+          <dt>Origen</dt>
+          <dd>Q-003, resuelta inferida — el grado de confirmación (DEMIURGO, sin confirmar) permanece visible.</dd>
+          <dt>Estados</dt>
+          <dd>Diseño: aprobado (en el alcance de CS-001). Realización: en curso.</dd>
+        </dl>
+      </div>
+
+      <div class="registro">
+        <h3>Integridad de reservas <span class="cod">ADR-001 v1</span></h3>
+        <p class="desc">Registro de decisión de arquitectura · propuesta de la simulación, pendiente de confirmar</p>
+        <dl class="campo">
+          <dt>Contexto</dt>
+          <dd>Las reservas necesitarán persistencia; la misma parcela no debe duplicarse en una temporada, ni siquiera con peticiones simultáneas.</dd>
+          <dt>Alternativas</dt>
+          <dd>A) Relación parcela–vecino–temporada con control de unicidad (elegida). B) Lista libre sin esa garantía.</dd>
+          <dt>Decisión y razón</dt>
+          <dd>A: permitir reservas fiables. La elección concreta de motor queda abierta; no se deduce del FDR.</dd>
+          <dt>Consecuencias y límites</dt>
+          <dd>Escribe controlada; no decide la persistencia general de la aplicación.</dd>
+          <dt>Origen</dt>
+          <dd>FDR-PAR-001 v1.</dd>
+          <dt>AC</dt>
+          <dd>AC-ADR-01.</dd>
+          <dt>Estado</dt>
+          <dd>Diseño: borrador (propuesta por confirmar) · Realización: sin implementar. Si no se acepta, la integridad debe resolverse por otra decisión de diseño y T-003 debe revisarse antes de comprometer el Change Set.</dd>
+        </dl>
+      </div>
+
+      <div class="registro wide">
+        <h3>Criterios de aceptación <span class="cod">AC</span></h3>
+        <p class="desc">ID canónico; se referencia por ID, no se mantienen copias que diverjan. Cada AC conserva su origen exacto (registro y versión) y su cobertura.</p>
+        <div class="tabla-wrap" style="border:none">
+          <table class="tabla">
+            <thead><tr><th>ID</th><th>Regla (términos observables)</th><th>Origen (registro + versión)</th><th>Cobertura (tareas)</th><th>Estado</th></tr></thead>
+            <tbody>
+              <tr><td class="id">AC-PAR-01</td><td>Un vecino de la lista puede reservar una parcela libre.</td><td>FDR-PAR-001 v1</td><td>T-001</td><td><strong style="color:var(--verde-tx)">Comprometido</strong></td></tr>
+              <tr><td class="id">AC-PAR-02</td><td>Quien no está en la lista no puede reservar.</td><td>FDR-PAR-001 v1</td><td>T-002</td><td><strong style="color:var(--verde-tx)">Comprometido</strong> · <strong style="color:var(--rojo-tx)">a revisar</strong> (DEC v2)</td></tr>
+              <tr><td class="id">AC-PAR-03</td><td>La misma parcela no se duplica en la misma temporada.</td><td>FDR-PAR-001 v1</td><td>T-001, T-003</td><td><strong style="color:var(--verde-tx)">Comprometido</strong></td></tr>
+              <tr><td class="id">AC-ADR-01</td><td>Incluso con peticiones simultáneas, no quedan dos reservas de la misma parcela.</td><td>ADR-001 v1</td><td>T-003 (si se acepta el ADR)</td><td><strong style="color:var(--ambar-tx)">Pendiente</strong> de confirmar el ADR</td></tr>
+              <tr><td class="id">AC-RIE-01</td><td>El vecino con la parcela reservada registra el riego de la semana.</td><td>FDR-RIE-001 v1</td><td>T-004</td><td><strong style="color:var(--verde-tx)">Comprometido</strong></td></tr>
+              <tr><td class="id">AC-RIE-02</td><td>El coordinador ve el registro semanal de cada parcela.</td><td>FDR-RIE-001 v1</td><td>T-004</td><td><strong style="color:var(--verde-tx)">Comprometido</strong></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="registro wide">
+        <h3>Tareas <span class="cod">T-001…T-005</span></h3>
+        <p class="desc">Trabajo concreto, categorizado en dos dimensiones (área técnica y dominio funcional), con los AC que justifica. Estar lista o aprobada no implica autorizar su ejecución.</p>
+        <div class="tabla-wrap" style="border:none">
+          <table class="tabla">
+            <thead><tr><th>ID</th><th>Resultado de trabajo</th><th>Área técnica</th><th>Dominio funcional</th><th>AC que justifica</th><th>Estado</th></tr></thead>
+            <tbody>
+              <tr><td class="id">T-001</td><td>Habilitar la reserva de parcelas.</td><td>Backend + BBDD</td><td>Parcelas</td><td>AC-PAR-01, AC-PAR-03</td><td>Listo (no autorizado)</td></tr>
+              <tr><td class="id">T-002</td><td>Mostrar el catálogo de parcelas con estado.</td><td>Frontend</td><td>Parcelas</td><td>AC-PAR-02</td><td>Listo (no autorizado)</td></tr>
+              <tr><td class="id">T-003</td><td>Proteger la integridad de las reservas.</td><td>Backend + BBDD</td><td>Parcelas</td><td>AC-PAR-03 · AC-ADR-01 (si se acepta el ADR)</td><td>Listo (no autorizado)</td></tr>
+              <tr><td class="id">T-004</td><td>Registrar y mostrar los riegos.</td><td>Frontend + Backend</td><td>Riegos</td><td>AC-RIE-01, AC-RIE-02</td><td>Listo (no autorizado)</td></tr>
+              <tr><td class="id">T-005</td><td>Registrar y aprobar a un vecino en la lista.</td><td>Frontend + Backend</td><td>Usuarios</td><td>Por definir (FDR-PAR-001 v2)</td><td>Propuesta (CS-002)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="registro">
+        <h3>Reservar parcelas y riegos <span class="cod">CS-001</span> <span class="badge acordado" style="margin-left:auto">Aprobado</span></h3>
+        <p class="desc">Change Set · identidad y nombre estables</p>
+        <dl class="campo">
+          <dt>Resultado esperado</dt>
+          <dd>Un vecino de la lista reserva una parcela y registra el riego; el coordinador ve reservas y registros.</dd>
+          <dt>Incluye</dt>
+          <dd>T-001…T-004 · FDR-PAR-001 v1 · FDR-RIE-001 v1 (5 AC comprometidos) · ADR-001 v1 como propuesta por confirmar.</dd>
+          <dt>Excluye</dt>
+          <dd>Cesión de parcelas (Q-002 pospuesta) · altas nuevas (CS-002) · cuotas (Q-004 descartada).</dd>
+          <dt>Motivo y origen</dt>
+          <dd>EXP-001 (ronda 1).</dd>
+          <dt>Comprobación de conjunto</dt>
+          <dd>«Un vecino reserva una parcela y registra un riego.» Recorrido de punta a punta; todavía sin evidencia.</dd>
+          <dt>Estado</dt>
+          <dd>Aprobado: el alcance se aceptó antes de implementar. No implica aceptación del resultado verificado; nada está implementado ni verificado.</dd>
+        </dl>
+      </div>
+
+      <div class="registro">
+        <h3>Abrir la lista a nuevos vecinos <span class="cod">CS-002</span> <span class="badge pendiente" style="margin-left:auto">Draft</span></h3>
+        <p class="desc">Change Set · nace del impacto de DEC-HUE-001 v2</p>
+        <dl class="campo">
+          <dt>Resultado esperado</dt>
+          <dd>Un vecino nuevo se da de alta, entra en la lista y puede reservar una parcela.</dd>
+          <dt>Origen</dt>
+          <dd>EXP-002 · DEC-HUE-001 v2. Agrupa trabajo de la rama sin fusionar su origen con el de EXP-001.</dd>
+          <dt>Pendiente</dt>
+          <dd>FDR-PAR-001 v2 (a revisar por el conflicto) · nuevos AC · T-005 (propuesta). Ningún AC está comprometido todavía: no hay alcance aceptado.</dd>
+          <dt>Estado</dt>
+          <dd>Draft: la pregunta pospuesta y el impacto siguen afectando al trabajo, y eso es visible.</dd>
+        </dl>
+      </div>
+
+    </div>
+
+    <h3 style="margin-top:34px">El bucle, paso a paso</h3>
+    <ol class="pasos">
+      <li>La persona plantea la idea en una conversación inicial: <strong>EXP-001 «Huerto»</strong>, gestionar parcelas y riegos sin hojas de cálculo.</li>
+      <li>DEMIURGO pregunta lo esencial mediante tarjetas —<strong>Q-001…Q-004</strong>—, cada una con su pregunta y el motivo por el que aparece.</li>
+      <li>La persona responde Q-001; DEMIURGO registra la decisión <strong>«Participación de temporada» v1</strong> con su origen. Cierra Q-003 como resuelta inferida (visible y sin confirmar), pospone Q-002 y descarta Q-004 por no corresponder.</li>
+      <li>Con la ronda completa, DEMIURGO <strong>integra la síntesis</strong> en la conversación de origen, con enlaces a tarjetas, conclusiones, razones y estados. No resuelve lo pospuesto ni autoriza construir.</li>
+      <li>DEMIURGO propone el diseño funcional: <strong>FDR-PAR-001 «Reservar una parcela»</strong> y <strong>FDR-RIE-001 «Registrar riegos»</strong> (nacida de Q-003, con su grado de confirmación visible), y la propuesta de arquitectura <strong>ADR-001 «Integridad de reservas»</strong>.</li>
+      <li>Cada registro trae sus AC canónicos; las tareas <strong>T-001…T-004</strong> nacen como propuestas, cada una justificando los AC que cubre y clasificada por área técnica y dominio funcional.</li>
+      <li>DEMIURGO propone el <strong>Change Set CS-001</strong> mostrando resultado esperado, alcance incluido y excluido y comprobación de conjunto. La persona acepta el alcance: las versiones de FDR y 5 AC pasan a ser <strong>trabajo comprometido</strong>; ADR-001 sigue siendo propuesta.</li>
+      <li>Surge una idea nueva sin abandonar el asunto activo: <strong>EXP-002 «Abrir la lista»</strong> se crea como rama, conservando su origen.</li>
+      <li>Q-005 se confirma y su conclusión <strong>choca con la decisión v1 vigente</strong>. DEMIURGO abre la pregunta de conflicto: explica el conflicto, propone cómo resolverlo y v1 permanece vigente mientras se aclara.</li>
+      <li>La respuesta nueva registra <strong>DEC-HUE-001 v2</strong> sobre la misma identidad, con su nota de cambio. Por las relaciones, FDR-PAR-001 v1 se señala <strong>a revisar</strong> (incluido AC-PAR-02) y nace el trabajo <strong>CS-002</strong> en Draft, con T-005 como propuesta.</li>
+    </ol>
+  </div>
+</section>
+
+<!-- ================= CUADRO 5 · ESTADO DEL MODELO ================= -->
+<section id="estado" class="frame">
+  <div class="wrap">
+    <h2><span class="num">5</span>Estado del modelo</h2>
+    <p class="lead">Qué está acordado, qué es propuesta y qué sigue abierto, según la versión del 23 de septiembre de 2026. El documento distingue expresamente los acuerdos de las hipótesis y propuestas; esta matriz es la lectura rápida de esa distinción (glosario vivo y secciones citadas).</p>
+    <table class="matrixa">
+      <thead><tr><th style="width:34%">Elemento</th><th style="width:30%">Estado</th><th>Base en VISION.md</th></tr></thead>
+      <tbody>
+        <tr><td>Exploración y ramas (conservar el origen, devolver los resultados)</td><td>Concepto acordado</td><td>«Conversaciones, tarjetas y ramas de exploración»; glosario.</td></tr>
+        <tr><td>Tarjeta de pregunta: 5 estados (pendiente, resuelta inferida, confirmada, pospuesta, descartada) y reapertura</td><td>Concepto acordado</td><td>Ibídem; plantilla «Exploración y tarjeta».</td></tr>
+        <tr><td>Ronda e integración (síntesis con enlaces; no resuelve lo pospuesto; no autoriza construir)</td><td>Regla acordada · representación concreta pendiente</td><td>Ibídem; glosario «Mapa de conocimiento».</td></tr>
+        <tr><td>Decisión de producto: identidad estable, versión vigente, versiones anteriores, historial que distingue IA de confirmación humana</td><td>Concepto acordado</td><td>«Decisiones con historia y trabajo trazable»; glosario «Decisión», «Versión de decisión».</td></tr>
+        <tr><td>FDR: familia, agrupación por capacidad coherente dentro de un dominio, absorbe UX y detalle técnico local (no hay DDR)</td><td>Familia y agrupación acordadas · campos iniciales propuestos</td><td>«Modelo de artefactos»; «Mínimo necesario»; glosario «FDR».</td></tr>
+        <tr><td>ADR: familia y criterio de creación (solo con alternativas y consecuencias relevantes; una regla técnica nueva no se decide implícitamente)</td><td>Familia acordada · fronteras por validar</td><td>Ibídem; glosario «ADR».</td></tr>
+        <tr><td>Estados de FDR/ADR por versión: diseño (borrador, aprobado, sustituido) × realización (sin implementar, en curso, verificado)</td><td>Propuesto · transiciones y aprobadores pendientes</td><td>«Definición de trabajo de «comprometido»».</td></tr>
+        <tr><td>«Comprometido»: AC + versión de FDR/ADR dentro del alcance aceptado de un Change Set</td><td>Definición de trabajo propuesta</td><td>Ibídem.</td></tr>
+        <tr><td>AC canónicos: obligatorios y trazables (origen exacto, sin copias divergentes); cada tarea justifica un AC y cada AC comprometido tiene trabajo</td><td>Obligatorio y trazable · formato y controles pendientes</td><td>Plantilla «AC»; «Trazabilidad por versión»; glosario.</td></tr>
+        <tr><td>Cierre por versión: cobertura de AC, trabajo necesario completado y evidencia satisfactoria; lo sin cobertura se muestra explícitamente</td><td>Acuerdo de trabajo</td><td>«Cierre de diseño e implementación por versión».</td></tr>
+        <tr><td>Tareas: concepto, clasificación en dos dimensiones (área técnica, dominio funcional) y criterios de aceptación; «estar lista no autoriza ejecutar»</td><td>Concepto, clasificación y criterios acordados · ciclo de vida y taxonomía pendientes</td><td>«Clasificación y aceptación de tareas»; glosario «Tarea».</td></tr>
+        <tr><td>Change Set: agrupación coherente con identidad estable entre estados; puede reunir varias exploraciones sin fusionar orígenes</td><td>Concepto acordado · nombre y 6 estados propuestos (catálogo no cerrado)</td><td>«Agrupaciones coherentes para implementar»; glosario «Change Set».</td></tr>
+        <tr><td>Resultado evaluable (build, entorno, despliegue) y comprobación/evidencia (un enlace aislado no demuestra cumplimiento)</td><td>Parte del modelo propuesto · criterio de vínculo y hosting pendientes</td><td>Plantillas «Resultado evaluable», «Comprobación y evidencia»; §5.</td></tr>
+        <tr><td>Recorrido general en siete etapas (explorar y comprender → observar y aprender)</td><td>Alcance expresado · catálogo de etapas y transiciones pendiente</td><td>«Un método estable para ambas partes».</td></tr>
+        <tr><td>Mínimo necesario: no proliferar artefactos ni exigir cadena documental antes de código</td><td>Propuesta</td><td>«Mínimo necesario antes de implementar».</td></tr>
+        <tr><td>Autonomía: tres intervenciones humanas (decisiones con consecuencias, aprobación del alcance, valoración del resultado) y escalación solo ante bloqueos</td><td>Propuesta pendiente de regla explícita</td><td>§5 «Soluciones propuestas».</td></tr>
+        <tr><td>Referencias de método: ISO/IEC/IEEE 12207:2026 (principal), 29148:2018, 29119-2:2021 y guías de trazabilidad de la NASA</td><td>Marco acordado · adaptación al producto abierta</td><td>«Un método estable para ambas partes».</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Representación generada a partir de <strong>VISION.md</strong> (versión del 23 de septiembre de 2026, 331 líneas). El ejemplo «Huerto» es inventado para validar el modelo; ningún dato es un requisito de DEMIURGO ni una decisión real de un huerto.</p>
+    <p>VISION.md no ha sido modificado por este documento, y VISION.html queda congelado según su propia política. Documento autocontenido: se abre con doble clic, sin instalación ni conexión.</p>
+  </div>
+</footer>
+
+<script>
+/* Zoom y pan del mapa grande. Nada más: el documento no es una aplicación. */
+(function(){
+  var view=document.getElementById('mapa-view');
+  var svg=document.getElementById('mapa-svg');
+  var g=document.getElementById('mapa-g');
+  var s=1,tx=0,ty=0,MIN=0.5,MAX=3;
+  function apply(){g.setAttribute('transform','translate('+tx+' '+ty+') scale('+s+')');}
+  function zoomAt(f,clientX,clientY){
+    var ns=Math.min(MAX,Math.max(MIN,s*f));
+    var pt=svg.createSVGPoint();pt.x=clientX;pt.y=clientY;
+    var p=pt.matrixTransform(svg.getScreenCTM().inverse());
+    tx+=(s-ns)*p.x;ty+=(s-ns)*p.y;s=ns;apply();
+  }
+  view.addEventListener('wheel',function(e){
+    e.preventDefault();
+    zoomAt(e.deltaY<0?1.12:1/1.12,e.clientX,e.clientY);
+  },{passive:false});
+  var drag=null;
+  view.addEventListener('pointerdown',function(e){
+    if(e.target.closest('.zoom'))return;
+    drag={x:e.clientX,y:e.clientY,tx:tx,ty:ty};
+    view.setPointerCapture(e.pointerId);
+  });
+  view.addEventListener('pointermove',function(e){
+    if(!drag)return;
+    var ctm=svg.getScreenCTM();
+    tx=drag.tx+(e.clientX-drag.x)/ctm.a;
+    ty=drag.ty+(e.clientY-drag.y)/ctm.d;
+    apply();
+  });
+  view.addEventListener('pointerup',function(){drag=null;});
+  view.addEventListener('pointercancel',function(){drag=null;});
+  function centerZoom(f){
+    var r=view.getBoundingClientRect();
+    zoomAt(f,r.left+r.width/2,r.top+r.height/2);
+  }
+  document.getElementById('zoom-in').addEventListener('click',function(){centerZoom(1.25);});
+  document.getElementById('zoom-out').addEventListener('click',function(){centerZoom(1/1.25);});
+  document.getElementById('zoom-reset').addEventListener('click',function(){s=1;tx=0;ty=0;apply();});
+})();
+</script>
+</body>
+</html>

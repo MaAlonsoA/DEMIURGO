@@ -1,0 +1,932 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>DEMIURGO — visión del producto</title>
+  <style>
+    :root {
+      --paper: #f5f8fc;
+      --white: #ffffff;
+      --ink: #14294b;
+      --muted: #526782;
+      --line: #d6e0ed;
+      --blue: #2c629e;
+      --violet: #695ab5;
+      --cyan: #168b91;
+      --soft-blue: #e8f1fb;
+      --soft-violet: #efedfa;
+      --soft-cyan: #e4f3f2;
+      --amber: #94621b;
+      --soft-amber: #fbf1dc;
+      --display: "Bahnschrift", "Segoe UI", sans-serif;
+      --body: "Segoe UI", Tahoma, sans-serif;
+      --measure: 72rem;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 5.5rem; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.65 var(--body); }
+    a { color: var(--blue); text-underline-offset: .2em; }
+    a:hover { color: var(--violet); }
+    :focus-visible { outline: 3px solid var(--cyan); outline-offset: 4px; border-radius: 3px; }
+    .skip { position: absolute; left: -9999px; top: 1rem; z-index: 10; background: white; padding: .7rem 1rem; }
+    .skip:focus { left: 1rem; }
+    .mast { border-bottom: 1px solid var(--line); background: rgba(255,255,255,.88); }
+    .mast-inner { max-width: var(--measure); margin: auto; padding: .7rem 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+    .wordmark { font: 700 .9rem var(--display); letter-spacing: .08em; }
+    .mast-note { color: var(--muted); font-size: .8rem; }
+    .layout { max-width: var(--measure); margin: auto; padding: 1.5rem; display: grid; grid-template-columns: 12rem minmax(0,1fr); gap: 3.25rem; align-items: start; }
+    .rail { position: sticky; top: 1.25rem; padding-top: 1.4rem; }
+    .rail-title { margin: 0 0 .8rem; color: var(--muted); font: 600 .78rem var(--display); }
+    .rail nav { display: grid; gap: .2rem; }
+    .rail a { padding: .35rem .55rem; border-left: 2px solid transparent; text-decoration: none; color: var(--muted); font-size: .88rem; }
+    .rail a:hover, .rail a:focus-visible { border-color: var(--violet); color: var(--ink); background: white; }
+    main { min-width: 0; }
+    section { scroll-margin-top: 2rem; }
+    .opening { padding: 3rem 0 3.4rem; border-bottom: 1px solid var(--line); }
+    .date { color: var(--muted); font-size: .84rem; margin: 0 0 .8rem; }
+    h1,h2,h3,h4 { font-family: var(--display); letter-spacing: -.035em; line-height: 1.13; }
+    h1 { max-width: 15ch; margin: 0; font-size: clamp(2.7rem, 6vw, 5rem); font-weight: 650; }
+    .opening-lede { max-width: 60ch; margin: 1.1rem 0 1.4rem; color: #344e70; font-size: clamp(1.08rem, 2vw, 1.35rem); line-height: 1.55; }
+    .reading-note { display: inline-block; max-width: 65ch; padding: .55rem .8rem; border-left: 3px solid var(--violet); background: var(--soft-violet); color: #3b3763; font-size: .9rem; }
+    .opening-figure { margin: 2.6rem 0 0; }
+    .opening-figure svg { display: block; width: 100%; height: auto; overflow: visible; }
+    .diagram-mobile { display: none; }
+    .opening-figure figcaption { color: var(--muted); font-size: .82rem; margin-top: .45rem; }
+    .section-head { padding: 3.4rem 0 1.5rem; }
+    .section-kicker { margin: 0 0 .6rem; color: var(--blue); font-size: .88rem; font-weight: 650; }
+    h2 { margin: 0; font-size: clamp(2rem, 4vw, 3rem); }
+    .section-intro { max-width: 64ch; color: var(--muted); margin: .7rem 0 0; }
+    h3 { font-size: 1.35rem; margin: 0 0 .55rem; }
+    h4 { font-size: 1.05rem; margin: 1.1rem 0 .35rem; }
+    p { margin: .55rem 0 1rem; }
+    .split-story { margin: 1.4rem 0; display: grid; grid-template-columns: 1fr 1fr; gap: 2.2rem; }
+    .story-side { padding: 1rem 0 1.15rem; border-top: 2px solid var(--line); }
+    .story-side.after { border-color: var(--cyan); }
+    .side-label { color: var(--muted); font-size: .82rem; font-weight: 650; }
+    .story-side.after .side-label { color: var(--cyan); }
+    .pain-map { border-top: 1px solid var(--line); }
+    .pain-row { display: grid; grid-template-columns: minmax(10rem, .9fr) 2fr; border-bottom: 1px solid var(--line); }
+    .pain-row > div { padding: .8rem .9rem .8rem 0; }
+    .pain-row .intent { color: var(--muted); padding-left: .9rem; border-left: 1px solid var(--line); }
+    .pain-row strong { font-weight: 650; }
+    .hypothesis { margin-top: 2rem; padding: 1.2rem 1.3rem; background: var(--soft-amber); border-left: 3px solid #c18b39; }
+    .hypothesis h3 { color: #604516; }
+    .hypothesis ul { margin: .6rem 0 0; padding-left: 1.2rem; }
+    .hypothesis li { margin: .4rem 0; }
+    .attention-rule { display: grid; grid-template-columns: 7rem 1fr; gap: 1.25rem; margin: 1rem 0 2rem; padding: 1rem 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .attention-rule .glyph { color: var(--violet); font: 600 2.7rem/1 var(--display); }
+    .attention-rule p { margin: 0; max-width: 60ch; font-size: 1.15rem; }
+    .focus-path { display: grid; grid-template-columns: repeat(4,1fr); margin: 1.8rem 0 2.4rem; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .focus-path div { padding: .9rem .75rem .95rem 0; }
+    .focus-path div + div { padding-left: .8rem; border-left: 1px solid var(--line); }
+    .focus-path b { display: block; font-family: var(--display); font-size: 1.04rem; }
+    .focus-path span { display: block; color: var(--muted); font-size: .85rem; }
+    .areas { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .area { padding: 1.4rem 1.4rem 1.5rem 0; }
+    .area + .area { padding-left: 1.4rem; border-left: 1px solid var(--line); }
+    .area h3 { color: var(--blue); }
+    .area:last-child h3 { color: var(--violet); }
+    .area p { color: var(--muted); }
+    .cycle { margin: 2rem 0 1.2rem; padding: 1.25rem 0 1.35rem; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .cycle svg { display: block; width: 100%; height: auto; }
+    .cycle-mobile { display: none; }
+    .cycle-note { color: var(--muted); font-size: .9rem; max-width: 65ch; margin: .7rem 0 0; }
+    .phase-tools { margin-top: 1.6rem; }
+    .phase-tabs { display: flex; flex-wrap: wrap; gap: .45rem; margin-bottom: .7rem; }
+    .phase-tabs button, .principle-tabs button { appearance: none; border: 1px solid #bdcce0; border-radius: 999px; color: var(--ink); background: white; padding: .48rem .8rem; font: 600 .9rem var(--body); cursor: pointer; }
+    .phase-tabs button[aria-selected="true"], .principle-tabs button[aria-selected="true"] { color: white; border-color: var(--ink); background: var(--ink); }
+    .explanation { min-height: 7rem; max-width: 67ch; padding: 1rem 1.1rem; background: var(--soft-blue); border-left: 3px solid var(--blue); }
+    .explanation h3 { font-size: 1.12rem; margin: 0 0 .35rem; }
+    .explanation p { margin: 0; }
+    .transversal { margin: 1.6rem 0; padding: 1rem 1.2rem; border-left: 3px solid var(--violet); background: var(--soft-violet); }
+    .transversal strong { color: #483d86; }
+    .transversal p { max-width: 70ch; margin: .25rem 0 0; }
+    .knowledge { margin: 1.6rem 0 1rem; }
+    .knowledge svg { display: block; width: 100%; height: auto; }
+    .knowledge-mobile { display: none; }
+    .knowledge-caption { display: flex; justify-content: space-between; gap: 1rem; color: var(--muted); font-size: .84rem; margin-top: .5rem; }
+    .graph-legend { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1.1rem; color: var(--muted); font-size: .86rem; }
+    .dot { display: inline-block; width: .65rem; height: .65rem; border-radius: 50%; margin-right: .35rem; vertical-align: .02rem; }
+    .state-map { display: grid; grid-template-columns: repeat(4,1fr); gap: 1rem; margin: 1.5rem 0; }
+    .state { padding-top: .7rem; border-top: 2px solid var(--line); }
+    .state.proposed { border-color: var(--violet); }
+    .state.pending { border-color: #c18b39; }
+    .state.unknown { border-color: #708198; }
+    .state b { display: block; font-family: var(--display); }
+    .state span { color: var(--muted); font-size: .86rem; }
+    .decision-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 2.4rem; margin: 1.5rem 0 0; }
+    .decision-column { padding-top: .8rem; border-top: 2px solid var(--cyan); }
+    .decision-column.open { border-color: #c18b39; }
+    .decision-column h3 { display: flex; align-items: center; gap: .55rem; }
+    .status-word { font: 600 .72rem var(--body); border-radius: 999px; background: var(--soft-cyan); color: #176b6e; padding: .18rem .52rem; letter-spacing: 0; }
+    .open .status-word { background: var(--soft-amber); color: #745018; }
+    .decision-column ul { padding-left: 1.15rem; }
+    .decision-column li { margin: .65rem 0; }
+    .decision-column p { color: var(--muted); }
+    .compact-decisions { margin-top: .7rem; }
+    .compact-decisions details { border-top: 1px solid var(--line); }
+    .compact-decisions summary { cursor: pointer; padding: .55rem .1rem; font-weight: 600; line-height: 1.4; }
+    .compact-decisions summary:hover { color: var(--blue); }
+    .compact-decisions p { margin: 0; padding: 0 .5rem .8rem .1rem; font-size: .92rem; }
+    .proposal-list { display: grid; grid-template-columns: 1fr 1fr; column-gap: 2rem; row-gap: .35rem; padding-left: 1.2rem; }
+    .proposal-list li { padding-left: .15rem; }
+    .principles { margin: 2.2rem 0; padding: 1.2rem 1.25rem; background: white; border: 1px solid var(--line); }
+    .principles h3 { margin-bottom: .85rem; }
+    .principle-tabs { display: flex; flex-wrap: wrap; gap: .45rem; }
+    .principle-copy { margin-top: .9rem; max-width: 68ch; }
+    .principle-copy p { margin: 0; }
+    .source { margin: 3rem 0 4rem; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .source summary { cursor: pointer; padding: 1rem 0; font-weight: 650; color: var(--blue); }
+    .source summary:hover { color: var(--violet); }
+    .source-content { padding: 0 0 1.2rem; }
+    .source-content pre { margin: 0; padding: 1rem; white-space: pre-wrap; overflow-wrap: anywhere; color: #344b68; background: white; border: 1px solid var(--line); font: .78rem/1.65 var(--body); }
+    footer { max-width: var(--measure); margin: auto; padding: 0 1.5rem 2rem; color: var(--muted); font-size: .82rem; }
+    @media (max-width: 760px) {
+      .layout { display: block; padding: 0 1.1rem; }
+      .rail { position: static; padding: .5rem 0; margin: 0 -1.1rem; border-bottom: 1px solid var(--line); background: var(--paper); }
+      .rail-title { display: none; }
+      .rail nav { display: flex; overflow-x: auto; padding: .35rem 1.1rem; gap: .2rem; }
+      .rail a { white-space: nowrap; border-left: 0; border-bottom: 2px solid transparent; padding: .35rem .5rem; }
+      .rail a:hover, .rail a:focus-visible { border-color: var(--violet); }
+      .opening { padding: 2.2rem 0 2.5rem; }
+      .split-story, .areas, .decision-columns { grid-template-columns: 1fr; gap: .4rem; }
+      .area { padding: 1.1rem 0; }
+      .area + .area { padding: 1.1rem 0; border-left: 0; border-top: 1px solid var(--line); }
+      .pain-row { grid-template-columns: 1fr; padding: .6rem 0; }
+      .pain-row > div { padding: .15rem 0; }
+      .pain-row .intent { padding-left: 0; border-left: 0; }
+      .focus-path { grid-template-columns: 1fr 1fr; }
+      .focus-path div:nth-child(3) { padding-left: 0; border-left: 0; border-top: 1px solid var(--line); }
+      .focus-path div:nth-child(4) { border-top: 1px solid var(--line); }
+      .state-map { grid-template-columns: 1fr 1fr; }
+      .attention-rule { grid-template-columns: 3rem 1fr; }
+      .attention-rule .glyph { font-size: 2rem; }
+      .section-head { padding-top: 2.7rem; }
+      .knowledge-caption { display: block; }
+      .proposal-list { grid-template-columns: 1fr; }
+      .opening-figure > svg, .cycle > svg, .knowledge > svg { display: none; }
+      .diagram-mobile { display: grid; }
+      .hero-mobile { margin: .6rem auto 0; max-width: 24rem; grid-template-columns: 1fr; text-align: center; }
+      .hero-mobile .node { padding: .65rem .8rem; border-radius: .45rem; font-weight: 650; }
+      .hero-mobile .person { background: var(--soft-blue); }
+      .hero-mobile .system { background: var(--soft-violet); }
+      .hero-mobile .app { background: var(--soft-cyan); }
+      .hero-mobile .flow { padding: .22rem 0; color: var(--muted); font-size: .85rem; }
+      .hero-mobile .flow b { color: var(--blue); }
+      .cycle-mobile { display: grid; list-style: none; margin: .2rem 0 0; padding: 0 0 0 .9rem; border-left: 2px solid #a9b9d0; }
+      .cycle-mobile li { position: relative; padding: .2rem 0 .7rem .8rem; }
+      .cycle-mobile li::before { content: ""; position: absolute; left: -1.32rem; top: .65rem; width: .65rem; height: .65rem; background: var(--soft-blue); border: 2px solid var(--blue); border-radius: 50%; }
+      .cycle-mobile b, .knowledge-mobile b { display: block; font-family: var(--display); }
+      .cycle-mobile span, .knowledge-mobile span { color: var(--muted); font-size: .9rem; }
+      .knowledge-mobile { display: grid; grid-template-columns: 1fr; gap: .3rem; max-width: 24rem; margin: .4rem auto; text-align: center; }
+      .knowledge-mobile > div { padding: .55rem .8rem; border-radius: .4rem; }
+      .knowledge-mobile > div:nth-child(1), .knowledge-mobile > div:nth-child(5) { background: var(--soft-blue); }
+      .knowledge-mobile > div:nth-child(2), .knowledge-mobile > div:nth-child(3) { background: var(--soft-violet); }
+      .knowledge-mobile > div:nth-child(4) { background: var(--soft-cyan); }
+    }
+    @media (max-width: 760px) {
+      .knowledge-mobile .link { padding: 0; background: transparent; color: var(--muted); font-size: .8rem; }
+    }
+    .conversation-loop { margin: 2rem 0; padding: 1.3rem 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .loop-origin, .loop-return { padding: .85rem 1rem; background: var(--soft-blue); border-left: 3px solid var(--blue); }
+    .loop-origin strong, .loop-return strong { display: block; font-family: var(--display); }
+    .loop-origin span, .loop-return span { color: var(--muted); font-size: .9rem; }
+    .loop-connector { padding: .25rem 0 .4rem 1.4rem; color: var(--muted); font-size: .84rem; }
+    .question-round { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: .75rem; }
+    .question-card { min-width: 0; border: 1px solid var(--line); border-top: 2px solid var(--violet); background: white; }
+    .question-card:first-child { grid-column: 1 / -1; border-top-color: var(--blue); }
+    .question-card summary { cursor: pointer; list-style: none; padding: .75rem .8rem; font-weight: 650; line-height: 1.4; }
+    .question-card summary::-webkit-details-marker { display: none; }
+    .question-card summary::after { content: "+"; float: right; color: var(--violet); margin-left: .3rem; }
+    .question-card[open] summary::after { content: "−"; }
+    .question-card .card-copy { padding: 0 .8rem .8rem; font-size: .88rem; }
+    .question-card .card-copy p { margin: .35rem 0; }
+    .branch-tag { display: block; color: var(--violet); font-size: .76rem; font-weight: 600; margin-bottom: .25rem; }
+    .round-flow { display: grid; grid-template-columns: repeat(3,1fr); gap: 1rem; margin: 1.25rem 0; }
+    .round-step { padding-top: .65rem; border-top: 2px solid var(--line); }
+    .round-step.inferred { border-color: var(--violet); }
+    .round-step.human { border-color: var(--cyan); }
+    .round-step b { display: block; font-family: var(--display); }
+    .round-step p { color: var(--muted); font-size: .88rem; margin: .2rem 0; }
+    .action-chips { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .4rem; }
+    .action-chips span { padding: .12rem .48rem; border: 1px solid var(--line); border-radius: 999px; font-size: .77rem; }
+    .loop-return { background: var(--soft-cyan); border-color: var(--cyan); }
+    .loop-guard { margin-top: .8rem; border-top: 1px solid var(--line); }
+    .loop-guard summary { cursor: pointer; padding: .7rem 0; color: var(--blue); font-weight: 600; }
+    .loop-guard p { max-width: 72ch; margin: 0 0 .85rem; color: var(--muted); }
+    .map-status { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .4rem 1rem; margin: .9rem 0; padding: .7rem .85rem; background: var(--soft-cyan); border-left: 3px solid var(--cyan); }
+    .map-status b { font-family: var(--display); }
+    .map-status span { color: var(--muted); font-size: .88rem; }
+    .decision-example { margin: 1.5rem 0 2rem; padding: 1rem 1.1rem; border: 1px solid var(--line); background: white; }
+    .example-heading { display: flex; justify-content: space-between; align-items: baseline; gap: .8rem; }
+    .example-heading h3 { margin: 0; }
+    .example-heading span { color: var(--muted); font-size: .8rem; }
+    .version-track { display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch; gap: .8rem; margin: .9rem 0; }
+    .version-node { padding: .75rem .85rem; background: var(--soft-blue); }
+    .version-node.current { background: var(--soft-violet); }
+    .version-node b { display: block; font-family: var(--display); }
+    .version-node p { margin: .25rem 0 0; font-size: .9rem; }
+    .version-arrow { align-self: center; color: var(--violet); font-size: 1.3rem; }
+    .decision-example details { border-top: 1px solid var(--line); }
+    .decision-example summary { cursor: pointer; padding: .65rem 0; font-weight: 600; }
+    .decision-example details p { margin: 0 0 .75rem; color: var(--muted); font-size: .9rem; }
+    .work-links { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; margin-top: .8rem; }
+    .work-links div { padding: .7rem .8rem; border-left: 2px solid var(--blue); background: #f7f9fc; font-size: .88rem; }
+    .work-links div:last-child { border-color: #c18b39; }
+    .change-set { margin: 1.4rem 0 2rem; padding: 1.1rem 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .change-set-head { max-width: 66ch; }
+    .change-set-head h3 { margin: .25rem 0; }
+    .change-set-head p { margin: .25rem 0 .9rem; color: var(--muted); font-size: .9rem; }
+    .state-proposal { display: inline-block; color: #745018; background: var(--soft-amber); padding: .12rem .5rem; border-radius: 999px; font-size: .77rem; font-weight: 650; }
+    .change-sources { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .source-thread { padding: .8rem; background: white; border: 1px solid var(--line); border-left: 3px solid var(--blue); }
+    .source-thread:nth-child(2) { border-left-color: var(--violet); }
+    .source-thread > b { font-family: var(--display); }
+    .source-thread p { margin: .2rem 0 .55rem; color: var(--muted); font-size: .84rem; }
+    .source-tasks { padding: .5rem .6rem; background: var(--soft-blue); font-size: .84rem; }
+    .source-thread:nth-child(2) .source-tasks { background: var(--soft-violet); }
+    .merge-note { padding: .65rem .2rem; text-align: center; color: var(--muted); font-size: .83rem; }
+    .merge-note::before { content: "↓   "; color: var(--violet); }
+    .merge-note::after { content: "   ↓"; color: var(--violet); }
+    .change-set-core { padding: .8rem 1rem; background: var(--soft-cyan); border-left: 3px solid var(--cyan); }
+    .change-set-core b { display: block; font-family: var(--display); }
+    .change-set-core span { color: var(--muted); font-size: .86rem; }
+    .proposed-states { display: flex; align-items: center; flex-wrap: wrap; gap: .38rem; margin: .9rem 0 .55rem; }
+    .proposed-states span { padding: .22rem .48rem; border: 1px solid #c9bfeb; border-radius: 999px; background: var(--soft-violet); font-size: .8rem; }
+    .proposed-states i { color: var(--muted); font-style: normal; font-size: .8rem; }
+    .state-meanings { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+    .state-meanings p { margin: .25rem 0; color: var(--muted); font-size: .85rem; }
+    .glossary { margin: 2.5rem 0; scroll-margin-top: 2rem; }
+    .glossary-list { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1.6rem; border-top: 1px solid var(--line); }
+    .glossary-entry { border-bottom: 1px solid var(--line); }
+    .glossary-entry summary { cursor: pointer; padding: .58rem .1rem; font-weight: 600; }
+    .glossary-entry summary:hover { color: var(--blue); }
+    .glossary-entry summary span { color: var(--muted); font-size: .75rem; font-weight: 500; }
+    .glossary-entry p { margin: 0; padding: 0 .3rem .7rem; color: var(--muted); font-size: .88rem; }
+    .glossary-note { margin: .8rem 0; color: var(--muted); font-size: .84rem; }
+    .artifact-intro { max-width: 70ch; }
+    .artifact-network { display: flex; align-items: stretch; gap: .45rem; margin: 1.35rem 0 .7rem; }
+    .artifact-node { min-width: 0; padding: .65rem .65rem .7rem; background: white; border-top: 2px solid var(--blue); }
+    .artifact-node { flex: 1 1 0; }
+    .artifact-node:nth-of-type(3), .artifact-node:nth-of-type(4) { border-color: var(--violet); }
+    .artifact-node:last-child { border-color: var(--cyan); }
+    .artifact-node b { display: block; font: 650 1rem/1.25 var(--display); }
+    .artifact-node span { display: block; margin-top: .3rem; color: var(--muted); font-size: .79rem; line-height: 1.45; }
+    .artifact-arrow { align-self: center; flex: 0 0 auto; color: var(--violet); font-size: .95rem; }
+    .artifact-set { max-width: 41rem; margin: .2rem auto 1rem; padding: .65rem .85rem; border: 1px dashed #9d92d5; background: var(--soft-violet); text-align: center; }
+    .artifact-set b { font-family: var(--display); }
+    .artifact-set span { display: block; color: var(--muted); font-size: .82rem; }
+    .artifact-note { color: var(--muted); font-size: .87rem; }
+    .artifact-details { margin: .85rem 0; border-top: 1px solid var(--line); }
+    .artifact-details > summary { cursor: pointer; padding: .7rem 0; color: var(--blue); font-weight: 650; }
+    .artifact-entry { padding: .5rem .65rem; background: white; border-left: 2px solid var(--line); }
+    .artifact-entry b { display: block; font: 650 .96rem/1.3 var(--display); }
+    .artifact-entry span { display: block; color: var(--muted); font-size: .83rem; }
+    .artifact-catalogue { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem 1.3rem; padding-bottom: .9rem; }
+    .adr-note { padding: .65rem .8rem; background: var(--soft-amber); border-left: 3px solid #c18b39; font-size: .88rem; }
+    .classification { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1.2rem 0; }
+    .classification article { padding: .75rem .85rem; border-top: 2px solid var(--blue); background: white; }
+    .classification article:last-child { border-color: var(--violet); }
+    .classification h4 { margin: 0 0 .35rem; }
+    .classification p { margin: 0 0 .45rem; color: var(--muted); font-size: .85rem; }
+    .tag-list { display: flex; flex-wrap: wrap; gap: .35rem; }
+    .tag-list span { padding: .14rem .48rem; border-radius: 999px; background: var(--soft-blue); font-size: .78rem; }
+    .classification article:last-child .tag-list span { background: var(--soft-violet); }
+    .task-example { margin: 1.2rem 0; padding: 1rem 1.05rem; background: white; border: 1px solid var(--line); }
+    .task-example > header { display: flex; justify-content: space-between; gap: .8rem; align-items: baseline; }
+    .task-example h3 { margin: 0; }
+    .task-example header span { color: var(--muted); font-size: .78rem; }
+    .task-foundation { margin: .65rem 0; color: var(--muted); font-size: .87rem; }
+    .acceptance-list { display: grid; gap: .35rem; list-style: none; margin: .7rem 0; padding: 0; counter-reset: accept; }
+    .acceptance-list li { counter-increment: accept; display: grid; grid-template-columns: 1.6rem 1fr; gap: .5rem; align-items: start; padding: .5rem .6rem; background: #f6f9fc; font-size: .89rem; }
+    .acceptance-list li::before { content: counter(accept); width: 1.35rem; height: 1.35rem; border-radius: 50%; background: var(--soft-cyan); color: #176b6e; text-align: center; font: 650 .78rem/1.35rem var(--display); }
+    .task-example .small-note { color: var(--muted); font-size: .84rem; margin: .35rem 0 0; }
+    .impact-example { margin: 1.2rem 0; padding: .9rem 1rem; border-left: 3px solid #c18b39; background: var(--soft-amber); }
+    .impact-example summary { cursor: pointer; font-weight: 650; }
+    .impact-example p { margin: .55rem 0 .2rem; font-size: .89rem; }
+    @media (max-width: 1000px) {
+      .artifact-network { display: grid; grid-template-columns: 1fr; gap: .3rem; }
+      .artifact-node { padding: .55rem .7rem; border-top: 0; border-left: 2px solid var(--blue); }
+      .artifact-node:nth-of-type(3), .artifact-node:nth-of-type(4), .artifact-node:last-child { border-left-color: var(--violet); }
+      .artifact-arrow { justify-self: center; transform: rotate(90deg); line-height: 1; }
+    }
+    @media (max-width: 760px) {
+      .state-map { gap: .8rem; }
+      .decision-columns { gap: 1.6rem; }
+      .question-round { grid-template-columns: 1fr; }
+      .round-flow { grid-template-columns: 1fr; gap: .45rem; }
+      .round-step { padding: .6rem 0 .1rem; }
+      .version-track { grid-template-columns: 1fr; gap: .35rem; }
+      .version-arrow { justify-self: center; transform: rotate(90deg); line-height: 1; }
+      .work-links { grid-template-columns: 1fr; }
+      .example-heading { display: block; }
+      .change-sources, .state-meanings, .glossary-list { grid-template-columns: 1fr; }
+      .proposed-states { align-items: flex-start; }
+      .artifact-catalogue, .classification { grid-template-columns: 1fr; }
+      .task-example > header { display: block; }
+    }
+    @media (max-width: 400px) {
+      body { font-size: 15px; }
+      .mast-inner { padding-inline: 1rem; }
+      .mast-note { max-width: 12rem; text-align: right; }
+      .focus-path { font-size: .9rem; }
+      .phase-tabs button, .principle-tabs button { font-size: .84rem; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+    @media print {
+      body { background: white; }
+      .rail { display: none; }
+      .layout { display: block; }
+      .source-content { display: block; }
+      details:not([open]) > .source-content { display: block; }
+      .phase-tabs, .principle-tabs { display: none; }
+      .opening, .section-head, .areas, .cycle { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Fuente: VISION.md ? SHA-256: E6E89D18D47276D9DCFF4D281660ED56192A9146DBD2077947E931D3335648B2 -->
+  <a class="skip" href="#contenido">Saltar al contenido</a>
+  <header class="mast">
+    <div class="mast-inner"><span class="wordmark">DEMIURGO</span><span class="mast-note">Documento de visión · 23 de septiembre de 2026</span></div>
+  </header>
+  <div class="layout">
+    <aside class="rail" aria-label="Navegación del documento">
+      <p class="rail-title">Ir a una sección</p>
+      <nav>
+        <a href="#vision">Visión</a><a href="#dolores">Dolores</a><a href="#experiencia">Experiencia</a><a href="#artefactos">Artefactos</a><a href="#recorrido">Recorrido</a><a href="#conocimiento">Conocimiento</a><a href="#decisiones">Decisiones</a><a href="#glosario">Glosario</a>
+      </nav>
+    </aside>
+    <main id="contenido">
+      <section class="opening" id="vision" aria-labelledby="title">
+        <p class="date">La intención de una persona, convertida en trabajo comprobable</p>
+        <h1 id="title">De una idea a una aplicación.</h1>
+        <p class="opening-lede">DEMIURGO permite a una persona o equipo transformar una idea en una aplicación con calidad de producción mediante una experiencia web visual, intuitiva y guiada, sin exigir conocimientos de programación.</p>
+        <p class="reading-note">Documento de visión · Las representaciones ilustran acuerdos y propuestas; no fijan las pantallas del producto.</p>
+        <figure class="opening-figure">
+          <svg viewBox="0 0 900 260" role="img" aria-labelledby="heroTitle heroDesc">
+            <title id="heroTitle">La persona dirige y DEMIURGO convierte intención en aplicación</title>
+            <desc id="heroDesc">La persona define intención y preferencias, revisa y decide. DEMIURGO aporta método, realiza trabajo técnico y reúne comprobaciones, convirtiendo una idea en una aplicación.</desc>
+            <defs><marker id="arrowBlue" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="none" stroke="#2c629e" stroke-width="1.4"/></marker></defs>
+            <path d="M216 130 H386" fill="none" stroke="#2c629e" stroke-width="2" marker-end="url(#arrowBlue)"/>
+            <path d="M514 130 H679" fill="none" stroke="#168b91" stroke-width="2" marker-end="url(#arrowBlue)"/>
+            <circle cx="140" cy="130" r="76" fill="#e8f1fb" stroke="#7b9dc5" stroke-width="1.5"/>
+            <circle cx="450" cy="130" r="58" fill="#efedfa" stroke="#9d92d5" stroke-width="1.5"/>
+            <circle cx="755" cy="130" r="76" fill="#e4f3f2" stroke="#6bb1af" stroke-width="1.5"/>
+            <text x="140" y="119" text-anchor="middle" fill="#14294b" font-family="Segoe UI, sans-serif" font-size="19" font-weight="700">Persona / equipo</text>
+            <text x="140" y="146" text-anchor="middle" fill="#526782" font-family="Segoe UI, sans-serif" font-size="14">intención · preferencias</text>
+            <text x="450" y="124" text-anchor="middle" fill="#423c79" font-family="Segoe UI, sans-serif" font-size="18" font-weight="700">DEMIURGO</text>
+            <text x="450" y="148" text-anchor="middle" fill="#526782" font-family="Segoe UI, sans-serif" font-size="13">método y coordinación</text>
+            <text x="755" y="119" text-anchor="middle" fill="#14294b" font-family="Segoe UI, sans-serif" font-size="19" font-weight="700">Aplicación</text>
+            <text x="755" y="146" text-anchor="middle" fill="#526782" font-family="Segoe UI, sans-serif" font-size="14">resultado y evidencias</text>
+            <text x="300" y="112" text-anchor="middle" fill="#526782" font-family="Segoe UI, sans-serif" font-size="12">dirige · revisa</text>
+            <text x="596" y="112" text-anchor="middle" fill="#526782" font-family="Segoe UI, sans-serif" font-size="12">trabajo · comprobación</text>
+            <text x="450" y="244" text-anchor="middle" fill="#526782" font-family="Segoe UI, sans-serif" font-size="13">la persona decide · DEMIURGO propone y ejecuta</text>
+          </svg>
+          <div class="diagram-mobile hero-mobile" aria-label="Flujo entre la persona, DEMIURGO y la aplicación">
+            <div class="node person">Persona o equipo<br><span>define intención · decide · revisa</span></div>
+            <div class="flow"><b>intención y decisiones ↓</b></div>
+            <div class="node system">DEMIURGO<br><span>aporta método · propone · coordina trabajo y comprobaciones</span></div>
+            <div class="flow"><b>trabajo comprobado ↓</b></div>
+            <div class="node app">Aplicación<br><span>resultado que se puede revisar</span></div>
+            <div class="flow">evidencias y revisión vuelven a la persona <b>↑</b></div>
+          </div>
+          <figcaption>La persona aporta intención y conserva las decisiones de producto. DEMIURGO conduce el método, hace el trabajo técnico y prepara evidencias para revisar el resultado.</figcaption>
+        </figure>
+      </section>
+
+      <section id="dolores" aria-labelledby="dolores-title">
+        <header class="section-head"><p class="section-kicker">Problemas que orientan el producto</p><h2 id="dolores-title">Que el usuario no tenga que ser la memoria del proceso.</h2><p class="section-intro">Los dolores identificados describen la experiencia expresada; no son mediciones de frecuencia ni causas demostradas para todas las personas.</p></header>
+        <div class="split-story" aria-label="Cambio de experiencia que se busca explorar">
+          <div class="story-side"><span class="side-label">Hoy, según la experiencia expresada</span><h3>La intención queda repartida.</h3><p>Conversaciones largas, decisiones dispersas, contexto repetido y comprobaciones técnicas trasladan la coordinación a quien solo quería crear una aplicación.</p></div>
+          <div class="story-side after"><span class="side-label">Dirección de diseño, aún por demostrar</span><h3>El sistema sostiene el hilo.</h3><p>Una visión conectada retiene el porqué; el método convierte las decisiones en trabajo, y las evidencias hacen revisable lo construido.</p></div>
+        </div>
+        <div class="pain-map" aria-label="Dolores y necesidad de producto asociada">
+          <div class="pain-row"><div><strong>Ideas enterradas en conversaciones</strong></div><div class="intent">Poder capturarlas, relacionarlas y retomarlas sin perder el asunto activo.</div></div>
+          <div class="pain-row"><div><strong>Pérdida de contexto y desviación del propósito (drift)</strong></div><div class="intent">Mantener intención y decisiones visibles al orientar el trabajo y revisar cambios.</div></div>
+          <div class="pain-row"><div><strong>Documentación extensa y referencias dispersas</strong></div><div class="intent">Comprender una parte del producto sin recorrer una cadena de documentos.</div></div>
+          <div class="pain-row"><div><strong>Supervisión constante y herramientas separadas</strong></div><div class="intent">Que el proceso avance desde DEMIURGO y reserve atención humana para decisiones relevantes.</div></div>
+          <div class="pain-row"><div><strong>Resultados sin evidencia suficiente</strong></div><div class="intent">Poder evaluar coherencia, accesibilidad, funcionamiento, seguridad y mantenimiento con comprobaciones adecuadas.</div></div>
+          <div class="pain-row"><div><strong>Correcciones sin aprendizaje</strong></div><div class="intent">Reconocer errores recurrentes y proponer mejoras, separando causas comprobadas de hipótesis.</div></div>
+        </div>
+        <aside class="hypothesis"><h3>Hipótesis por validar</h3><p>Son posibilidades que orientan investigación y diseño; todavía no son conclusiones.</p><ul>
+          <li>Una persona puede aprobar propuestas que no comprende si no ve consecuencias tangibles.</li>
+          <li>Un proceso guiado podría agotar si pide demasiadas respuestas o aprobaciones.</li>
+          <li>Un equipo podría necesitar una visión compartida para reducir decisiones incompatibles y dudas de responsabilidad.</li>
+          <li>Tras la entrega, quizá cueste interpretar una incidencia y decidir qué hacer desde su impacto en el producto.</li>
+        </ul></aside>
+      </section>
+
+      <section id="experiencia" aria-labelledby="experiencia-title">
+        <header class="section-head"><p class="section-kicker">Relación con la persona</p><h2 id="experiencia-title">Proteger la atención mientras se conserva el rumbo.</h2><p class="section-intro">DEMIURGO no es un nuevo IDE. La experiencia se organiza alrededor del producto y debe permitir completar el recorrido desde la aplicación.</p></header>
+        <div class="attention-rule"><div class="glyph" aria-hidden="true">↗</div><p>La experiencia del usuario es un pilar del producto. Cada pantalla, pregunta y notificación debe justificar la atención que pide.</p></div>
+        <div class="focus-path" aria-label="Preguntas que la experiencia debe resolver">
+          <div><b>Qué</b><span>¿Qué estoy resolviendo ahora?</span></div><div><b>Por qué</b><span>¿Por qué importa?</span></div><div><b>Estado</b><span>¿Qué está decidido o pendiente?</span></div><div><b>Siguiente</b><span>¿Cuál es el paso siguiente?</span></div>
+        </div>
+        <div class="areas">
+          <article class="area"><h3>Decisiones que se pueden entender</h3><p>Presentar alternativas concretas, consecuencias comprensibles y una recomendación fundamentada cuando corresponda. Traducir lo técnico a efectos en el producto, limitaciones, coste o funcionamiento. Investigar y comprobar lo que el sistema pueda; reservar a la persona la intención, las preferencias, las decisiones relevantes y la revisión.</p></article>
+          <article class="area"><h3>Explorar sin perder el rumbo</h3><p>Capturar una idea nueva sin interrumpir ni aceptar automáticamente el asunto activo. Revisar propuestas con pantallas, recorridos, prototipos y comportamientos tangibles. Volver sobre una decisión debe mostrar consecuencias y guiar la revisión del trabajo afectado, conservando avances válidos.</p></article>
+          <article class="area"><h3>Conocimiento dentro de DEMIURGO</h3><p>Ideas, dolores, necesidades, diseños, decisiones, tareas, resultados y comprobaciones permanecen accesibles y conectados. La conversación ayuda a expresar intención, pero no es el único lugar donde existe la información. Mostrar documentos como tarjetas no basta.</p></article>
+          <article class="area"><h3>Un recorrido completo</h3><p>Preparar el proyecto, seguir el trabajo, revisar, entregar e investigar problemas debe poder hacerse sin volver a la terminal. Ante un fallo: explicar qué ocurre y sus consecuencias, presentar opciones, permitir ejecutar una solución y comprobar el resultado; mostrar solo registros técnicos deja el recorrido incompleto.</p></article>
+        </div>
+        <h3>Explorar en conversación sin perder las preguntas</h3>
+        <p>Este esquema ilustra cómo podría funcionar la exploración inicial y continua. Las tarjetas muestran conversaciones propias y ramas; desplegarlas permite ver un ejemplo.</p>
+        <div class="conversation-loop" aria-label="Bucle conceptual de exploración en DEMIURGO">
+          <div class="loop-origin" id="origen-exploracion"><strong>Conversación de origen · aplicación para una asociación</strong><span>“Queremos organizar actividades y que las personas puedan enterarse a tiempo.”</span></div>
+          <div class="loop-connector">DEMIURGO detecta preguntas y abre una ronda. El objetivo y las demás preguntas permanecen a la vista. Ideas, funcionalidades y divagaciones pueden abrir ramas, que a su vez pueden generar otras ramas.</div>
+        <div class="question-round">
+            <details class="question-card" id="pregunta-problema">
+              <summary><span class="branch-tag">Pregunta de origen · resuelta por inferencia</span>¿Qué problema resolvemos?</summary>
+              <div class="card-copy"><p><b>Conversación propia</b></p><p>Persona: “Organizamos actividades, pero la gente se entera tarde.”</p><p>DEMIURGO: “¿Qué cuesta más: apuntarse o conocer los cambios?”</p><p>Persona: “Conocer horarios y cambios.”</p><p><b>Cierre inferido, revisable:</b> comunicar actividades y cambios a tiempo. Aún no es una decisión confirmada por la persona.</p></div>
+            </details>
+            <details class="question-card" id="rama-invitados">
+              <summary><span class="branch-tag">Rama · idea detectada</span>¿Podrían participar invitados?</summary>
+              <div class="card-copy"><p><b>Conversación propia · nace de explorar actividades abiertas.</b></p><p>La rama conserva el enlace a la idea de origen y puede generar nuevas preguntas. Sirve para iniciar el producto o para evolucionarlo.</p></div>
+            </details>
+            <details class="question-card" id="rama-avisos">
+              <summary><span class="branch-tag">Rama · posible funcionalidad / divagación</span>¿Y si cambia un horario?</summary>
+              <div class="card-copy"><p><b>Conversación propia · posible funcionalidad.</b></p><p>Explorar avisos de cambios puede volver al origen como contexto; todavía no decide canal, comportamiento ni implementación.</p></div>
+            </details>
+          </div>
+          <div class="round-flow" aria-label="Cierre, gestión y síntesis de una ronda">
+            <div class="round-step inferred"><b>Cierre automático inferido</b><p>Al reunir información suficiente, DEMIURGO propone una conclusión y explica su motivo. La persona puede corregir o reabrirla.</p><div class="action-chips"><span>Revisable</span><span>Reabrir</span></div></div>
+            <div class="round-step human"><b>Estado que conserva control</b><p>La decisión humana se distingue de una inferencia. Posponer deja la pregunta pendiente; descartar registra que no corresponde.</p><div class="action-chips"><span>Posponer</span><span>Descartar</span><span>Confirmar por persona</span></div></div>
+            <div class="round-step"><b>Integración revisable</b><p>Cuando todas quedan resueltas, pospuestas o descartadas, una síntesis enlazada vuelve al origen con conclusiones, motivos y estados.</p><div class="action-chips"><span>Enlaces a tarjetas</span><span>Sin aprobar interpretación</span></div></div>
+          </div>
+          <div class="loop-return"><strong>Mapa de conocimiento · contexto para la siguiente iteración</strong><span>La función de conectar preguntas, decisiones, trabajo y evidencias está acordada. La forma concreta del mapa se sigue explorando.</span><br><a href="#origen-exploracion">Volver a explorar desde el origen ↩</a></div>
+          <details class="loop-guard"><summary>¿Qué ocurre si una rama choca con una decisión vigente?</summary><p>DEMIURGO abre una pregunta y explica el conflicto; la decisión vigente se conserva hasta resolverlo. Integrar una ronda no resuelve las preguntas pospuestas ni autoriza ejecutar trabajo. Reabrir una tarjeta conserva el cierre previo y señala conclusiones relacionadas que revisar.</p></details>
+        </div>
+      </section>
+
+      <section id="artefactos" aria-labelledby="artefactos-title">
+        <header class="section-head"><p class="section-kicker">Del conocimiento al trabajo verificable</p><h2 id="artefactos-title">Artefactos y relaciones</h2><p class="section-intro"><b>Acuerdo:</b> cada tarea tendrá categorías y criterios de aceptación. El catálogo y las relaciones de abajo son una propuesta de diseño, no un proceso cerrado.</p></header>
+        <figure aria-labelledby="artifact-network-title">
+          <h3 id="artifact-network-title">Una red de origen, fundamento y verificación</h3>
+          <div class="artifact-network" role="list" aria-label="Recorrido conceptual de artefactos relacionados">
+            <div class="artifact-node" role="listitem"><b>Exploración</b><span>preguntas · tarjetas · origen</span></div><span class="artifact-arrow" aria-hidden="true">→</span>
+            <div class="artifact-node" role="listitem"><b>Requisito y decisión</b><span>necesidad · elección · motivo · versión</span></div><span class="artifact-arrow" aria-hidden="true">→</span>
+            <div class="artifact-node" role="listitem"><b>Especificación y diseño</b><span>reglas · experiencia · técnica si aplica</span></div><span class="artifact-arrow" aria-hidden="true">→</span>
+            <div class="artifact-node" role="listitem"><b>Tarea</b><span>alcance · categorías · criterios</span></div><span class="artifact-arrow" aria-hidden="true">→</span>
+            <div class="artifact-node" role="listitem"><b>Evidencia</b><span>comprobación · versión verificada</span></div>
+          </div>
+          <div class="artifact-set"><b>Change Set agrupa tareas</b><span>No sustituye a la especificación. Las relaciones forman una red: varias decisiones pueden afectar a distintas especificaciones, y una tarea puede implementar partes de varios artefactos.</span></div>
+          <figcaption class="artifact-note">Cada regla conserva una fuente identificable; otros artefactos la referencian y concretan, evitando copias independientes que puedan contradecirse. Se reutilizan los artefactos vigentes que apliquen; no hace falta un ADR para cada tarea.</figcaption>
+        </figure>
+
+        <details class="artifact-details">
+          <summary>Consultar el catálogo conceptual propuesto · 9 unidades</summary>
+          <div class="artifact-catalogue">
+            <div class="artifact-entry"><b>Exploración y tarjetas</b><span>Conversaciones, preguntas, alternativas y conclusiones; pueden producir conocimiento sin crear tareas.</span></div>
+            <div class="artifact-entry"><b>Requisito</b><span>Resultado o restricción que debe satisfacer el producto, con su motivo y origen.</span></div>
+            <div class="artifact-entry"><b>Registro de decisión</b><span>Cuestión, alternativas, elección, razones y consecuencias; conserva identidad e historial de versiones.</span></div>
+            <div class="artifact-entry"><b>Especificación funcional</b><span>Reglas, actores, permisos, casos normales, errores y límites que vuelven verificable un comportamiento.</span></div>
+            <div class="artifact-entry"><b>Diseño de experiencia</b><span>Recorridos, pantallas, estados y prototipos; puede no hacer falta si el cambio no afecta a la interfaz.</span></div>
+            <div class="artifact-entry"><b>Diseño técnico</b><span>Cuando se necesita: modelo de datos, relaciones, contratos y restricciones conforme a la especificación y decisiones técnicas. No elige tecnología para DEMIURGO.</span></div>
+            <div class="artifact-entry"><b>Tarea</b><span>Trabajo concreto, categorizado, con criterios de aceptación, dependencias y referencias a versiones de los artefactos.</span></div>
+            <div class="artifact-entry"><b>Change Set</b><span>Agrupa funcionalidades y tareas de varias exploraciones para un resultado coherente; referencia su fundamento sin copiarlo.</span></div>
+            <div class="artifact-entry"><b>Evidencia</b><span>Resultado de una comprobación vinculado al criterio de aceptación y a la versión del trabajo evaluado.</span></div>
+          </div>
+          <p class="adr-note"><b>ADR, uso propuesto:</b> categoría del registro común para decisiones de arquitectura. «Quién puede inscribirse» es decisión de producto; cómo se soporta técnicamente puede requerir un ADR. DDR y FDR siguen abiertos.</p>
+        </details>
+
+        <h3>Una tarea, dos dimensiones de categoría</h3>
+        <p class="artifact-note">El acuerdo exige categorizar cada tarea. Las etiquetas concretas y quién confirma su clasificación siguen por definir.</p>
+        <div class="classification">
+          <article><h4>Área técnica · dónde se trabaja</h4><p>Dimensión propuesta; puede llevar varias etiquetas.</p><div class="tag-list"><span>Frontend</span><span>Backend</span><span>BBDD</span></div></article>
+          <article><h4>Dominio funcional · qué parte afecta</h4><p>Dimensión propuesta; no excluye otras áreas.</p><div class="tag-list"><span>Usuarios</span><span>Actividades</span><span>Inscripciones</span></div></article>
+        </div>
+        <article class="task-example">
+          <header><h3>Ejemplo · «Solicitar inscripción como invitado»</h3><span>Ilustrativo; no requisito de DEMIURGO</span></header>
+          <p class="task-foundation">Backend + BBDD · Usuarios + Actividades. Se basa en las versiones de «Usuarios» y en la especificación de inscripciones que requieren aprobación.</p>
+          <p><b>Criterios de aceptación propuestos</b> · condiciones observables, no pasos de implementación:</p>
+          <ol class="acceptance-list">
+            <li>Una solicitud válida de un invitado queda pendiente de aprobación.</li>
+            <li>Mientras siga pendiente, el invitado no obtiene acceso reservado a participantes admitidos.</li>
+            <li>Repetir la solicitud no crea otra inscripción para la misma persona y actividad.</li>
+          </ol>
+          <p class="small-note">Una tarea de frontend mostraría el estado pendiente; la comprobación del recorrido completo conectaría ambas. La evidencia se vincula a cada criterio y a la versión probada.</p>
+        </article>
+        <details class="impact-example">
+          <summary>Ver el impacto posible: «Los invitados necesitan aprobación»</summary>
+          <p>Tras Usuarios v1 (solo miembros) y v2 (miembros e invitados), una nueva exploración propone Usuarios v3: los invitados necesitan aprobación. La relación señala para revisar el requisito y la especificación de inscripciones, los estados de experiencia, tareas y criterios, y el Change Set relacionado.</p>
+          <p>El trabajo y la evidencia de v2 conservan su historia: no se reescriben ni demuestran automáticamente v3. DEMIURGO puede proponer mantener, revisar o añadir trabajo; el vínculo indica impacto posible, no cambios automáticos. La aprobación adicional y la pausa del Change Set si su alcance cambia siguen abiertas.</p>
+        </details>
+      </section>
+
+      <section id="recorrido" aria-labelledby="recorrido-title">
+        <header class="section-head"><p class="section-kicker">Alcance conceptual</p><h2 id="recorrido-title">Dos áreas. Un método estable de principio a fin.</h2><p class="section-intro">El mapa expresa el alcance de la visión. El catálogo exacto de etapas, transiciones y condiciones de finalización aún está pendiente de diseño.</p></header>
+        <div class="areas">
+          <article class="area"><h3>Diseño completo</h3><p>Explorar la idea, entender usuarios y dolores, decidir qué resolver, diseñar necesidades, recorridos, pantallas, estados y decisiones técnicas, y convertir lo acordado en trabajo organizado. DEMIURGO propone agrupaciones coherentes de funcionalidades y tareas, incluso de varias exploraciones, para que el usuario valide el conjunto. No implica duración fija ni cadencia temporal.</p></article>
+          <article class="area"><h3>Implementación mediante orquestación agéntica</h3><p>El orquestador guía agentes según el diseño y reglas definidas. Los motores de contexto acercan decisiones, restricciones, trabajo previo y evidencias pertinentes. Construir, comprobar, corregir, revisar y entregar mantienen relación comprensible con lo esperado.</p></article>
+        </div>
+        <figure class="cycle">
+          <svg viewBox="0 0 960 165" role="img" aria-labelledby="cycleTitle cycleDesc">
+            <title id="cycleTitle">Recorrido general de DEMIURGO</title><desc id="cycleDesc">Explorar y comprender, diseñar y decidir, organizar trabajo, construir y comprobar, entregar, observar y aprender. El aprendizaje informa una nueva iteración.</desc>
+            <defs><marker id="cycleArrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="none" stroke="#695ab5" stroke-width="1.4"/></marker></defs>
+            <path d="M90 74 H850" fill="none" stroke="#a9b9d0" stroke-width="2" marker-end="url(#cycleArrow)"/>
+            <path d="M858 94 C760 153, 205 153, 94 96" fill="none" stroke="#9d92d5" stroke-width="1.6" stroke-dasharray="5 5" marker-end="url(#cycleArrow)"/>
+            <g font-family="Segoe UI, sans-serif" text-anchor="middle">
+              <g><circle cx="90" cy="74" r="13" fill="#e8f1fb" stroke="#2c629e"/><text x="90" y="42" fill="#14294b" font-size="14" font-weight="600">Explorar</text><text x="90" y="116" fill="#526782" font-size="12">y comprender</text></g>
+              <g><circle cx="245" cy="74" r="13" fill="#e8f1fb" stroke="#2c629e"/><text x="245" y="42" fill="#14294b" font-size="14" font-weight="600">Diseñar</text><text x="245" y="116" fill="#526782" font-size="12">y decidir</text></g>
+              <g><circle cx="400" cy="74" r="13" fill="#efedfa" stroke="#695ab5"/><text x="400" y="42" fill="#14294b" font-size="14" font-weight="600">Organizar</text><text x="400" y="116" fill="#526782" font-size="12">el trabajo</text></g>
+              <g><circle cx="555" cy="74" r="13" fill="#efedfa" stroke="#695ab5"/><text x="555" y="42" fill="#14294b" font-size="14" font-weight="600">Construir</text><text x="555" y="116" fill="#526782" font-size="12">y comprobar</text></g>
+              <g><circle cx="710" cy="74" r="13" fill="#e4f3f2" stroke="#168b91"/><text x="710" y="42" fill="#14294b" font-size="14" font-weight="600">Entregar</text></g>
+              <g><circle cx="865" cy="74" r="13" fill="#e4f3f2" stroke="#168b91"/><text x="865" y="42" fill="#14294b" font-size="14" font-weight="600">Observar</text><text x="865" y="116" fill="#526782" font-size="12">y aprender</text></g>
+              <text x="480" y="151" fill="#695ab5" font-size="12">lo aprendido orienta la siguiente iteración</text>
+            </g>
+          </svg>
+          <ol class="cycle-mobile" aria-label="Recorrido general">
+            <li><b>Explorar y comprender</b><span>Idea, usuarios, dolores y contexto.</span></li>
+            <li><b>Diseñar y decidir</b><span>Necesidades, experiencia y acuerdos.</span></li>
+            <li><b>Organizar el trabajo</b><span>Tareas conectadas a objetivos y resultados.</span></li>
+            <li><b>Construir y comprobar</b><span>Implementar, revisar, corregir y reunir evidencias.</span></li>
+            <li><b>Entregar</b><span>Comprobar el resultado en su uso.</span></li>
+            <li><b>Observar y aprender</b><span>Mirar la IA y la aplicación; orientar la siguiente iteración.</span></li>
+          </ol>
+          <figcaption class="cycle-note">La observación contempla tanto el trabajo de la IA como la aplicación resultante. Aprender permite proponer mejoras; las causas se distinguen de las hipótesis.</figcaption>
+        </figure>
+        <div class="transversal"><strong>El mismo método gobierna diseño e implementación.</strong><p>Etapas estables, condiciones explícitas para avanzar, comprobaciones y reglas de recuperación. Las respuestas de los modelos son variables; el determinismo corresponde al proceso que las utiliza y verifica. Se permiten iteraciones y regresos conocidos, con profundidad ajustada al proyecto.</p></div>
+        <div class="phase-tools">
+          <h3>Explora el recorrido</h3>
+          <div class="phase-tabs" role="tablist" aria-label="Etapas conceptuales">
+            <button type="button" role="tab" aria-selected="true" aria-controls="phase-copy" data-phase="0">Explorar</button><button type="button" role="tab" aria-selected="false" aria-controls="phase-copy" data-phase="1">Diseñar</button><button type="button" role="tab" aria-selected="false" aria-controls="phase-copy" data-phase="2">Organizar</button><button type="button" role="tab" aria-selected="false" aria-controls="phase-copy" data-phase="3">Construir</button><button type="button" role="tab" aria-selected="false" aria-controls="phase-copy" data-phase="4">Entregar</button><button type="button" role="tab" aria-selected="false" aria-controls="phase-copy" data-phase="5">Observar</button>
+          </div>
+          <div class="explanation" id="phase-copy" role="tabpanel" aria-live="polite"><h3>Explorar y comprender</h3><p>Capturar intención, comprender usuarios y dolores, y relacionar nuevas ideas con lo conocido. La etapa exacta y sus condiciones aún están por definir.</p></div>
+        </div>
+      </section>
+
+      <section id="conocimiento" aria-labelledby="conocimiento-title">
+        <header class="section-head"><p class="section-kicker">Continuidad del producto</p><h2 id="conocimiento-title">Que cada resultado conserve su porqué.</h2><p class="section-intro">La información importante no se queda en mensajes aislados: se conecta, se puede consultar y se revisa cuando cambia una decisión.</p></header>
+        <figure class="knowledge">
+          <svg viewBox="0 0 920 340" role="img" aria-labelledby="knowledgeTitle knowledgeDesc">
+            <title id="knowledgeTitle">Cadena de preguntas a evidencias, con versiones de decisiones</title><desc id="knowledgeDesc">Las preguntas originan decisiones con versiones. Las versiones justifican trabajo, que se comprueba con evidencias; el mapa conecta todo para aportar contexto.</desc>
+            <defs><marker id="knowledgeArrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="none" stroke="#7188a8" stroke-width="1.4"/></marker></defs>
+            <path d="M150 116 C210 75 270 74 330 116 M150 126 C210 184 270 185 330 135 M390 116 H515 M575 116 C630 74 685 74 745 116 M575 135 C630 184 685 183 745 135" fill="none" stroke="#9aaec8" stroke-width="2" marker-end="url(#knowledgeArrow)"/>
+            <path d="M745 160 C660 285 235 285 150 165" fill="none" stroke="#9d92d5" stroke-width="1.5" stroke-dasharray="6 6" marker-end="url(#knowledgeArrow)"/>
+            <g font-family="Segoe UI, sans-serif" text-anchor="middle">
+              <g><rect x="30" y="88" width="132" height="74" rx="6" fill="#e8f1fb" stroke="#7b9dc5"/><text x="96" y="119" fill="#14294b" font-size="16" font-weight="650">Preguntas</text><text x="96" y="141" fill="#526782" font-size="12">origen · ramas</text></g>
+              <g><rect x="270" y="88" width="132" height="74" rx="6" fill="#efedfa" stroke="#9d92d5"/><text x="336" y="119" fill="#14294b" font-size="15" font-weight="650">Decisiones</text><text x="336" y="141" fill="#526782" font-size="12">motivos · versiones</text></g>
+              <g><rect x="510" y="88" width="132" height="74" rx="6" fill="#efedfa" stroke="#9d92d5"/><text x="576" y="119" fill="#14294b" font-size="16" font-weight="650">Trabajo</text><text x="576" y="141" fill="#526782" font-size="12">ligado a versión</text></g>
+              <g><rect x="750" y="88" width="132" height="74" rx="6" fill="#e4f3f2" stroke="#6bb1af"/><text x="816" y="119" fill="#14294b" font-size="16" font-weight="650">Evidencias</text><text x="816" y="141" fill="#526782" font-size="12">resultado · revisión</text></g>
+              <text x="460" y="250" fill="#695ab5" font-size="13">un cambio señala qué trabajo revisar, sin borrar su historia</text>
+              <text x="460" y="316" fill="#526782" font-size="12">mapa: conecta el conocimiento y aporta contexto a la siguiente iteración</text>
+            </g>
+          </svg>
+          <div class="knowledge-mobile" aria-label="Preguntas enlazadas con versiones de decisiones, trabajo y evidencias">
+            <div><b>Preguntas</b><span>origen · ramas</span></div><div class="link">dan contexto a ↓</div>
+            <div><b>Decisiones y versiones</b><span>motivos · historial</span></div><div class="link">justifican ↓</div>
+            <div><b>Trabajo</b><span>ligado a una versión</span></div><div class="link">se comprueba con ↓</div>
+            <div><b>Evidencias</b><span>resultado · revisión</span></div><div class="link">el mapa conecta para la siguiente iteración ↑</div>
+          </div>
+          <figcaption class="knowledge-caption"><span>Función acordada: conectar preguntas, decisiones, trabajo y evidencias, y aportar contexto.</span><span>Forma concreta del mapa: propuesta abierta.</span></figcaption>
+        </figure>
+        <div class="state-map" aria-label="Estados de conocimiento que deben distinguirse">
+          <div class="state"><b>Confirmado</b><span>Acordado por la persona o el equipo.</span></div><div class="state proposed"><b>Propuesto</b><span>Interpretación o alternativa que aún no se acepta.</span></div><div class="state pending"><b>Pendiente</b><span>Requiere exploración o decisión.</span></div><div class="state unknown"><b>Desconocido</b><span>Lo que todavía no se sabe; no se presenta como hecho.</span></div>
+        </div>
+        <div class="map-status"><b>Función del mapa · acordada</b><span>Conectar preguntas, decisiones y versiones, trabajo y evidencias; aportar contexto a la siguiente iteración.</span></div>
+        <p>Las decisiones conservan sus razones. Cuando cambian, debe entenderse qué cambió y qué trabajo necesita revisión.</p>
+        <article class="decision-example" aria-labelledby="usuarios-title">
+          <div class="example-heading"><h3 id="usuarios-title">Ejemplo ilustrativo · decisión «Usuarios»</h3><span>Misma decisión, dos versiones</span></div>
+          <div class="version-track" aria-label="Cambio de decisión entre dos versiones">
+            <div class="version-node"><b>Versión 1 · solo miembros</b><p>Las actividades se consideran internas para la asociación.</p></div>
+            <span class="version-arrow" aria-hidden="true">→</span>
+            <div class="version-node current"><b>Versión 2 · miembros e invitados</b><p>Una exploración sobre actividades abiertas origina el cambio.</p></div>
+          </div>
+        <details><summary>Ver porqué, origen e historial</summary><p>Se conserva la decisión anterior y el motivo —actividades internas—. La tarjeta o conversación sobre actividades abiertas queda enlazada como origen de la nueva versión. El historial deja consultar qué cambió, cuándo y por qué; el cambio no borra ni reescribe el fundamento anterior.</p></details>
+        <div class="work-links"><div><b>Trabajo existente</b><br>Permanece ligado a la versión 1.</div><div><b>Trabajo pendiente</b><br>Hacer efectiva la versión 2 y admitir invitados; el acuerdo y la implementación son estados distintos.</div></div>
+        </article>
+        <figure class="change-set" aria-labelledby="change-set-title">
+          <div class="change-set-head"><span class="state-proposal">Nombre de trabajo · estados propuestos</span><h3 id="change-set-title">Change Set · «Abrir actividades a invitados»</h3><p>Ejemplo ilustrativo de una entidad que conserva el mismo nombre e identidad a través de varios estados.</p></div>
+          <div class="change-sources">
+            <div class="source-thread"><b>Exploración · Usuarios</b><p>Origen y decisiones sobre quién participa.</p><div class="source-tasks">Tareas propuestas · enlazadas a esta exploración y sus decisiones.</div></div>
+            <div class="source-thread"><b>Exploración · Inscripciones</b><p>Origen y decisiones sobre cómo apuntarse.</p><div class="source-tasks">Tareas propuestas · enlazadas a esta exploración y sus decisiones.</div></div>
+          </div>
+          <div class="merge-note">Las tareas de ambas exploraciones convergen en una agrupación validable</div>
+          <div class="change-set-core"><b>Una entidad · «Abrir actividades a invitados»</b><span>El origen de cada tarea y las versiones de decisión se conservan; agrupar no fusiona conversaciones ni pierde trazabilidad.</span></div>
+          <div class="proposed-states" aria-label="Estados del Change Set propuestos, aún no acordados"><span>Draft</span><i>→</i><span>Proposed</span><i>→</i><span>Approved</span><i>→</i><span>In progress</span><i>→</i><span>In review</span><i>→</i><span>Accepted</span></div>
+          <figcaption class="state-meanings">
+            <p><span class="state-proposal">Significado propuesto</span><br><b>Approved</b> validaría el alcance antes de implementar.</p>
+            <p><span class="state-proposal">Significado propuesto</span><br><b>Accepted</b> aceptaría el resultado después de comprobarlo.</p>
+          </figcaption>
+          <p class="glossary-note">Change Set es el nombre de trabajo; cerrar nombres no es el foco ahora. Los estados siguen propuestos. El conjunto no representa una duración ni una cadencia temporal.</p>
+        </figure>
+        <h3>Propuestas candidatas de diseño</h3>
+        <p>La función del mapa está acordada; estos detalles de representación y trabajo siguen abiertos.</p>
+        <ul class="proposal-list">
+          <li>Representación y navegación concretas del mapa de conocimiento.</li>
+          <li>Comparación de alternativas mediante vistas o prototipos.</li>
+          <li>Detección de desviaciones entre lo acordado, construido y comprobado.</li>
+          <li>Comprobación de soluciones reutilizables antes de crear código nuevo.</li>
+          <li>Indicadores de calidad, tiempo, coste, reintentos y regresiones.</li>
+          <li>Generar y actualizar tareas como propuestas antes de comprometer su ejecución.</li>
+          <li>Concretar estados, transiciones y cómo revisar resultado, alcance, motivos y comprobaciones del conjunto.</li>
+        </ul>
+      </section>
+
+      <section id="decisiones" aria-labelledby="decisiones-title">
+        <header class="section-head"><p class="section-kicker">Estado de la visión</p><h2 id="decisiones-title">Qué guía el diseño y qué falta decidir.</h2><p class="section-intro">Calidad de producción es una meta que necesita evidencias. Una valoración favorable de la IA no basta. Los criterios y estándares concretos siguen pendientes.</p></header>
+        <div class="decision-columns">
+          <div class="decision-column"><h3>Acuerdos <span class="status-word">vigentes</span></h3><div class="compact-decisions">
+            <details><summary>Visión y destinatarios</summary><p>Crear y evolucionar aplicaciones desde una experiencia web visual, intuitiva y guiada, sin exigir programación. Está pensada especialmente para vibecoding, también para desarrolladores y equipos. La persona aporta intención y decide; DEMIURGO dirige el método y hace el trabajo técnico con evidencias.</p></details>
+            <details><summary>Una experiencia alrededor del producto</summary><p>DEMIURGO no es un nuevo IDE. Aspira a ser la única herramienta que una persona o equipo necesite para crear y evolucionar una aplicación; puede apoyarse en servicios externos, pero el recorrido debe completarse desde DEMIURGO.</p></details>
+            <details><summary>Alcance conceptual de principio a fin</summary><p>Explorar la idea, entender usuarios y dolores, diseñar la aplicación completa, crear y organizar tareas, implementar, verificar, entregar, observar y mejorar. La observabilidad mira tanto el trabajo de la IA como la aplicación. No se fija el alcance de una primera versión.</p></details>
+            <details><summary>Agrupación coherente de funcionalidades y tareas</summary><p>DEMIURGO propone conjuntos de trabajo que el usuario puede validar. Pueden reunir tareas de varias exploraciones; el conjunto mantiene una misma identidad y un solo nombre entre estados. No representa una duración fija ni una cadencia temporal.</p></details>
+            <details><summary>Un método estable que se puede comprobar</summary><p>El mismo método explícito gobierna diseño e implementación: etapas, avance, comprobaciones y recuperación. El determinismo pertenece al proceso; las respuestas del modelo son variables.</p></details>
+            <details><summary>Exploración con ramas y cierre revisable</summary><p>Preguntas con conversación propia pueden originar ramas. DEMIURGO puede inferir un cierre revisable, pero se distingue de la confirmación humana. Posponer deja pendiente y descartar significa que no corresponde. Un conflicto abre una pregunta y conserva la decisión vigente; integrar la síntesis no resuelve lo pospuesto ni autoriza ejecutar trabajo.</p></details>
+            <details><summary>Decisiones con versiones e historial</summary><p>Una decisión conserva identidad, versión vigente y contenido anterior. El historial permite reconstruir qué cambió, cuándo, por qué y desde qué conversación o tarjeta; el trabajo queda ligado a la versión que lo justificó. Decisión vigente e implementación siguen siendo estados distintos.</p></details>
+            <details><summary>Cada tarea lleva categorías y criterios de aceptación</summary><p>Es un acuerdo categorizarlas y definir condiciones explícitas y observables para aceptarlas. La separación entre área técnica y dominio funcional es una propuesta; las etiquetas, correspondencia con reglas y evidencia, y quién confirma la categoría siguen pendientes.</p></details>
+            <details><summary>Conocimiento conectado y atención protegida</summary><p>El mapa conecta preguntas, decisiones, versiones, trabajo y evidencias, y aporta contexto a la siguiente iteración. Su representación concreta permanece abierta. La información diferencia estados confirmados, propuestos, pendientes y desconocidos; cada pantalla o pregunta justifica la atención que pide.</p></details>
+            <details><summary>Calidad de producción como objetivo con evidencia</summary><p>La utilidad, coherencia de experiencia, accesibilidad, funcionamiento, seguridad, mantenibilidad y operación orientan diseño e implementación. Los criterios están pendientes; una valoración favorable de la IA no demuestra calidad por sí sola.</p></details>
+          </div></div>
+          <div class="decision-column open"><h3>Por resolver <span class="status-word">abierto</span></h3><div class="compact-decisions">
+            <details><summary>Etapas, resultados y estándares</summary><p>Definir el catálogo de etapas, transiciones, condiciones de avance y prácticas de industria que sustentan el método.</p></details>
+            <details><summary>Comprensión y atención</summary><p>Decidir cómo explorar, decidir y revisar sin agotar la atención, y comprobar la comprensión con personas sin conocimientos técnicos.</p></details>
+            <details><summary>Artefactos, relaciones y versiones</summary><p>Decidir qué unidades de diseño se necesitan en cada situación, qué contenido y estados conservan, y cómo se revisan sus dependencias e impacto antes de generar tareas. Una regla mantiene fuente identificable y los demás artefactos la referencian y concretan.</p></details>
+            <details><summary>Representación de conversaciones y mapa</summary><p>Definir cómo navegar tarjetas y ramas y cuál será la representación concreta del mapa; su función de conectar conocimiento y aportar contexto ya está acordada.</p></details>
+            <details><summary>Autonomía y colaboración</summary><p>Precisar qué resuelve el sistema más allá del cierre revisable de tarjetas, cuándo requiere intervención humana y cómo se comparten responsabilidad y decisiones en equipos.</p></details>
+            <details><summary>Criterios y ciclo de la agrupación</summary><p>Change Set es un nombre de trabajo, no una prioridad de nomenclatura. Concretar cómo seleccionar, priorizar y revisar alcance, tareas, estados y transiciones; no se define cadencia temporal. Se propone generar y actualizar tareas como trabajo pendiente de autorización; el mecanismo de aprobación y el inicio de ejecución siguen abiertos. Una pregunta pospuesta puede seguir afectando al trabajo.</p></details>
+            <details><summary>Categorías de decisión y clasificación</summary><p>ADR se propone como categoría de decisión de arquitectura dentro del registro común; no se requiere un ADR por tarea. DDR y FDR siguen abiertos. La taxonomía completa y el modelo que clasifique tarjetas aún no están definidos; no se fija proveedor ni modelo.</p></details>
+            <details><summary>Evidencias de calidad</summary><p>Determinar qué demuestra calidad en diseño e implementación y cómo presentarlo sin trasladar la verificación técnica al usuario.</p></details>
+            <details><summary>Observabilidad y recuperación</summary><p>Concretar cómo observar el trabajo de IA y la aplicación entregada, y actuar ante incidencias desde la experiencia del producto.</p></details>
+            <details><summary>Primera experiencia que demuestre valor</summary><p>Elegir una primera experiencia completa y cómo medir pérdida de contexto, esfuerzo de supervisión y calidad del resultado.</p></details>
+            <details><summary>Alcance inicial y capacidades</summary><p>Definir proyectos de la primera versión, incorporación de aplicaciones existentes, ejecución simultánea, proveedores y modelos.</p></details>
+          </div></div>
+        </div>
+        <aside class="principles">
+          <h3>Principios de diseño</h3>
+          <div class="principle-tabs" role="tablist" aria-label="Principios de DEMIURGO">
+            <button type="button" role="tab" aria-selected="true" aria-controls="principle-copy" data-principle="0">La intención guía</button><button type="button" role="tab" aria-selected="false" aria-controls="principle-copy" data-principle="1">La atención se protege</button><button type="button" role="tab" aria-selected="false" aria-controls="principle-copy" data-principle="2">El proceso se comprueba</button><button type="button" role="tab" aria-selected="false" aria-controls="principle-copy" data-principle="3">El conocimiento conserva el porqué</button>
+          </div>
+          <div class="principle-copy" id="principle-copy" role="tabpanel" aria-live="polite"><p>La persona expresa necesidades y decide el producto. La IA interpreta y propone; su interpretación queda identificada y no se convierte sola en acuerdo.</p></div>
+        </aside>
+        <p>La visión no fija el alcance de una primera versión, una arquitectura técnica ni pantallas. Las restricciones anteriores sobre MVP, concurrencia y proveedores se revisan y no siguen como decisiones vigentes. Las propuestas se mantienen como candidatas de diseño, sin presentarse como funciones comprometidas.</p>
+      </section>
+
+      <section class="glossary" id="glosario" aria-labelledby="glosario-title">
+        <header class="section-head"><p class="section-kicker">Términos compartidos</p><h2 id="glosario-title">Glosario vivo</h2><p class="section-intro">Los conceptos y sus estados ayudan a conversar sin fijar nombres propuestos como definitivos.</p></header>
+        <div class="glossary-list">
+          <details class="glossary-entry"><summary>Exploración <span>concepto acordado</span></summary><p>Desarrollar una idea, necesidad o cambio mediante conversaciones y preguntas; puede producir conocimiento, decisiones y trabajo.</p></details>
+          <details class="glossary-entry"><summary>Rama de exploración <span>concepto acordado</span></summary><p>Exploración derivada de otra que conserva su origen y devuelve conclusiones al contexto de partida.</p></details>
+          <details class="glossary-entry"><summary>Tarjeta de pregunta <span>concepto acordado</span></summary><p>Pregunta etiquetada con motivo, estado y conversación propia. El cierre es revisable y no equivale a confirmación humana.</p></details>
+          <details class="glossary-entry"><summary>Decisión <span>concepto acordado</span></summary><p>Registro de una respuesta acordada o propuesta, con identidad estable, razones y grado de confirmación visible.</p></details>
+          <details class="glossary-entry"><summary>Artefacto <span>modelo común propuesto</span></summary><p>Unidad de conocimiento identificable, versionada y relacionada; no requiere ser un documento separado.</p></details>
+          <details class="glossary-entry"><summary>Requisito <span>artefacto propuesto</span></summary><p>Necesidad, resultado o restricción que debe satisfacer el producto, con su motivo y origen.</p></details>
+          <details class="glossary-entry"><summary>Especificación funcional <span>artefacto propuesto</span></summary><p>Reglas y comportamientos verificables que concretan requisitos y decisiones.</p></details>
+          <details class="glossary-entry"><summary>Diseño de experiencia / técnico <span>artefactos propuestos</span></summary><p>Recorridos, pantallas, estados y prototipos; cuando haga falta, modelo de datos, contratos y restricciones alineados con la especificación y decisiones técnicas.</p></details>
+          <details class="glossary-entry"><summary>ADR <span>categoría técnica propuesta</span></summary><p>Decisión de arquitectura dentro del registro común. La taxonomía no está cerrada; DDR y FDR siguen abiertos.</p></details>
+          <details class="glossary-entry"><summary>Versión de decisión <span>concepto acordado</span></summary><p>Contenido de una decisión en un momento determinado que conserva y permite reconstruir el fundamento del trabajo.</p></details>
+          <details class="glossary-entry"><summary>Mapa de conocimiento <span>función acordada · forma pendiente</span></summary><p>Relaciones entre ideas, preguntas, decisiones, trabajo y evidencias que conservan la historia y aportan contexto.</p></details>
+          <details class="glossary-entry"><summary>Funcionalidad <span>definición de trabajo</span></summary><p>Capacidad o comportamiento que aporta utilidad. Su organización propia sigue pendiente.</p></details>
+          <details class="glossary-entry"><summary>Tarea <span>categorías y aceptación acordadas</span></summary><p>Trabajo concreto, recuperable y revisable, vinculado a su origen, resultado esperado y versiones de los artefactos que implementa. Ciclo de vida pendiente.</p></details>
+          <details class="glossary-entry"><summary>Criterio de aceptación <span>obligatorio · formato propuesto</span></summary><p>Condición observable para aceptar una tarea; se propone vincularla a la regla de origen y su evidencia.</p></details>
+          <details class="glossary-entry"><summary>Área técnica / dominio funcional <span>dimensiones de clasificación propuestas</span></summary><p>Dónde se trabaja (front, back, BBDD) y qué parte del producto afecta (usuarios, actividades), con varias etiquetas si corresponde.</p></details>
+          <details class="glossary-entry"><summary>Change Set <span>concepto acordado · nombre de trabajo · estados propuestos</span></summary><p>Agrupación coherente de funcionalidades y tareas propuesta por DEMIURGO para validación; puede reunir varias exploraciones y conserva su identidad entre estados.</p></details>
+          <details class="glossary-entry"><summary>Evidencia <span>concepto acordado · criterios pendientes</span></summary><p>Resultado de una comprobación que ayuda a evaluar si lo construido cumple lo esperado.</p></details>
+        </div>
+        <p class="glossary-note">«Sprint» fue el término inicial, sin implicar duración. «Propuesta de implementación» y «entrega» no nombran entidades distintas. ADR es una categoría de decisión técnica propuesta; DDR y FDR siguen pendientes. Los nombres no son el foco de esta iteración.</p>
+      </section>
+
+      <details class="source" id="fuente">
+        <summary>Leer el detalle completo de VISION.md</summary>
+        <div class="source-content"><pre># DEMIURGO: visión y diseño del producto
+
+Documento vivo de trabajo · 23 de septiembre de 2026
+
+Este es el único documento de diseño de DEMIURGO. Lo ampliaremos y corregiremos juntos, manteniendo una lectura coherente sin cadenas de documentos ni registros de decisiones separados. Recoge los acuerdos actuales; las hipótesis, propuestas y cuestiones pendientes se identifican expresamente.
+
+### Cómo trabajamos esta visión
+
+Este Markdown es la fuente de verdad. Su representación para lectura y revisión será `VISION.html`: un único documento visual autocontenido, que se pueda abrir sin instalación ni conexión. Son dos representaciones del mismo documento de diseño, no dos especificaciones independientes.
+
+El usuario leerá el HTML y propondrá cambios sobre sus representaciones visuales. Cada cambio acordado se incorporará a este Markdown y se reflejará en el HTML en la misma revisión. Los diagramas, recorridos y comparaciones explicarán las decisiones; el texto extenso quedará como detalle opcional. Lo acordado, las hipótesis, las propuestas y las cuestiones abiertas se distinguirán también en la presentación visual.
+
+El trabajo se limita a la visión del producto. Las representaciones ilustran conceptos y consecuencias; no fijan por sí mismas las pantallas, la arquitectura ni el alcance de la primera versión. La implementación y actualización del HTML se delegará en subagentes de un modelo económico, como Luna.
+
+## 1. Visión y destinatarios
+
+**DEMIURGO permite a una persona o equipo transformar una idea en una aplicación con calidad de producción mediante una experiencia web visual, intuitiva y guiada, sin exigir conocimientos de programación. Conserva y conecta todo el conocimiento del producto y gobierna su diseño e implementación mediante etapas definidas y resultados verificables.**
+
+Está especialmente pensado para el vibecoding: crear software expresando intenciones, explorando propuestas y dirigiendo el trabajo de la IA. Su usuario central puede no haber trabajado nunca con código. También debe servir a desarrolladores y equipos, sin convertir sus conocimientos técnicos en un requisito de uso.
+
+El usuario dirige y revisa: aporta intención, necesidades y preferencias, toma decisiones de producto y evalúa resultados. DEMIURGO aporta el método, prepara propuestas, realiza el trabajo técnico y reúne las evidencias necesarias para comprobarlo. La persona no tiene que aprender a coordinar agentes ni asumir la detección de fallos técnicos que el sistema debe comprobar.
+
+DEMIURGO no es un nuevo IDE. Su experiencia se organiza alrededor del producto que se quiere crear. La ambición es que sea la única herramienta que una persona o equipo necesite utilizar para crear y evolucionar una aplicación. Puede apoyarse en servicios externos, pero el recorrido debe poder completarse desde DEMIURGO.
+
+El alcance comprende explorar una idea, entender usuarios y dolores, diseñar la aplicación completa, crear y organizar tareas, implementar, verificar, entregar, observar el funcionamiento y gestionar mejoras. DEMIURGO propone agrupaciones coherentes de funcionalidades y tareas que el usuario puede validar, incluso procedentes de varias exploraciones. La observabilidad incluye tanto el trabajo de la IA como la aplicación resultante. Esta visión no fija todavía el alcance de una primera versión.
+
+La calidad de producción es un objetivo de diseño e implementación que exige evidencias: utilidad, coherencia de la experiencia, accesibilidad, funcionamiento, seguridad, mantenibilidad y capacidad de operar el resultado. Los criterios concretos están pendientes; una valoración favorable de la IA no constituye por sí sola una comprobación suficiente.
+
+## 2. Dolores que resolvemos
+
+### Dolores identificados
+
+El vibecoder acaba actuando como memoria y coordinador de un proceso que exige demasiada atención. Debe recordar qué pidió, reconstruir decisiones, aportar contexto repetidamente, detectar desviaciones y comprobar resultados que pueden superar sus conocimientos técnicos.
+
+| Dolor | Consecuencia para el usuario |
+| --- | --- |
+| Ideas enterradas en conversaciones interminables | Se pierden posibilidades y cuesta retomarlas. |
+| Pérdida de contexto y desviación progresiva del propósito, o drift | Lo construido se aleja de la intención y contradice decisiones anteriores. |
+| Documentación extensa, ADR difíciles de leer y referencias de un documento a otro | Comprender el proyecto se convierte en una tarea que termina abandonándose. |
+| Decisiones y razones dispersas | No se entiende qué está acordado, qué sigue abierto ni por qué existe una solución. |
+| Supervisión constante de la IA | El avance depende de la energía del usuario para reconducir el trabajo. |
+| Dependencia de la terminal y de herramientas separadas | Se interrumpe el recorrido y aparecen barreras para personas no técnicas. |
+| Resultados sin evidencias suficientes de calidad | Es difícil saber si la aplicación es coherente, segura y mantenible. |
+| Correcciones que no se convierten en aprendizaje | Se repiten errores, se rehace trabajo y se consumen recursos sin mejorar el proceso. |
+
+Estos dolores recogen la experiencia expresada, no mediciones de su frecuencia ni causas demostradas para todos los casos.
+
+### Nuevos dolores por validar
+
+Son hipótesis de diseño, todavía no conclusiones:
+
+- Una persona sin conocimientos técnicos puede aprobar una propuesta que no comprende porque no ve sus consecuencias ni puede evaluarla de forma tangible.
+- Un proceso guiado puede volverse agotador si exige demasiadas preguntas, aprobaciones o pasos que el sistema podría resolver.
+- En un equipo, la falta de una visión compartida puede producir decisiones incompatibles o dudas sobre quién debe intervenir.
+- Tras entregar una aplicación, el usuario puede no saber interpretar una incidencia ni decidir cómo resolverla desde su impacto en el producto.
+
+## 3. Experiencia del usuario
+
+**La experiencia del usuario es un pilar del producto y su atención es un recurso que debemos proteger.** DEMIURGO debe ser visual, bonito, intuitivo y centrado en lo fundamental. Cada pantalla, pregunta y notificación debe justificar la atención que pide.
+
+### Foco y decisiones manejables
+
+El usuario debe entender qué está resolviendo ahora, por qué importa, qué está decidido, qué falta y cuál es el siguiente paso. La información necesaria aparece primero; el detalle y las evidencias se pueden consultar sin que su lectura sea obligatoria para orientarse.
+
+Las decisiones se presentan con propuestas concretas, consecuencias comprensibles y una recomendación fundamentada cuando corresponda. Las cuestiones técnicas que necesiten intervención humana se traducen a efectos sobre el producto, sus limitaciones, costes o funcionamiento.
+
+DEMIURGO investiga, prepara y comprueba lo que pueda. Reserva la atención humana para intención, preferencias, decisiones relevantes y revisión de resultados. El método debe sostener el trabajo sin convertirse en un formulario interminable.
+
+### Todo el conocimiento vive en DEMIURGO
+
+Ideas, dolores, necesidades, diseños, decisiones, tareas, resultados y comprobaciones permanecen accesibles y conectados dentro de la aplicación. El usuario debe poder entender el porqué de una parte del producto sin recorrer una cadena de documentos.
+
+La conversación sirve para explorar y expresar intención, pero la información relevante no puede existir únicamente en mensajes. El mapa de conocimiento del proyecto conecta ideas, preguntas, decisiones, sus motivos, diseños, tareas y evidencias. Se alimenta durante la exploración y aporta el contexto pertinente para futuras iteraciones. Debe poder consultarse, revisarse y modificarse mediante una experiencia web interactiva; su representación visual concreta sigue abierta. Presentar documentos como tarjetas no resuelve por sí solo este problema.
+
+Debe distinguirse lo confirmado, lo propuesto, lo pendiente y lo desconocido. Las interpretaciones de la IA se identifican como tales. Las decisiones conservan sus razones y, cuando cambian, debe poder entenderse qué cambió y qué necesita revisarse.
+
+### Explorar y revisar sin perder el rumbo
+
+Una idea nueva se puede capturar y retomar sin abandonar el asunto activo ni darla por aceptada. Sus relaciones con lo conocido deben ayudar a reconocer duplicidades, contradicciones y oportunidades.
+
+La revisión se apoya en resultados tangibles: pantallas, recorridos, prototipos y comportamientos que se puedan explorar, además de explicaciones. El usuario comprueba si la propuesta responde a sus necesidades y pide cambios con su propio lenguaje.
+
+Volver sobre una decisión forma parte del proceso. DEMIURGO debe mostrar sus consecuencias y guiar la revisión del trabajo afectado, conservando el contexto y los avances válidos.
+
+### Conversaciones, tarjetas y ramas de exploración
+
+La persona plantea la aplicación en una conversación inicial. DEMIURGO orquesta el diseño: pregunta lo esencial mediante tarjetas etiquetadas, cada una con su pregunta, el motivo por el que aparece, su estado y una conversación propia. La persona puede profundizar en una tarjeta sin perder la orientación sobre la conversación de origen ni las demás preguntas. Las tarjetas son unidades de exploración, no decisiones aceptadas por el mero hecho de existir.
+
+DEMIURGO cierra automáticamente una tarjeta cuando considera que tiene información suficiente y muestra su conclusión y razonamiento. El usuario puede corregirla o reabrirla. El cierre es revisable y no convierte una conclusión inferida en una decisión confirmada por la persona: el origen y el grado de confirmación permanecen visibles.
+
+El usuario también puede posponer una pregunta, dejando constancia de que sigue pendiente, o descartarla por no corresponder. Son acciones distintas y trazables; se conserva el motivo cuando se conoce, sin inventarlo. Cuando las preguntas de una ronda quedan resueltas, pospuestas o descartadas, DEMIURGO integra una síntesis en la conversación de origen, con enlaces a las tarjetas, sus conclusiones, razones y estados. Integrar una ronda no equivale a haber resuelto sus preguntas pospuestas ni autoriza por sí mismo la construcción.
+
+La exploración continúa como un bucle. Nuevas ideas, funcionalidades o divagaciones pueden generar ramas propias detectadas por DEMIURGO, con sus preguntas y conversaciones. Las ramas conservan su origen y pueden generar otras ramas. Sus resultados vuelven al contexto de origen y al mapa de conocimiento, que se utiliza para orientar la siguiente exploración. Este funcionamiento sirve tanto al inicio de una aplicación como durante su evolución.
+
+Si una rama produce una conclusión incompatible con una decisión vigente y no existe una instrucción explícita de cambiarla, DEMIURGO abre una pregunta: explica el conflicto y propone cómo resolverlo. La decisión anterior permanece vigente mientras se aclara; una integración no puede presentar esa contradicción como un acuerdo resuelto. Reabrir una tarjeta ya integrada conserva el resultado anterior y señala las conclusiones relacionadas que necesitan revisión.
+
+### Decisiones con historia y trabajo trazable
+
+Cada decisión conserva una identidad estable, una versión vigente y las versiones anteriores. Si cambia la respuesta a la misma cuestión, se actualiza ese registro; una cuestión con sentido propio puede dar lugar a otra decisión relacionada. El historial de cambios recoge qué cambió, cuándo, por qué y qué conversación o tarjeta lo originó, distinguiendo las conclusiones de DEMIURGO de las confirmaciones humanas.
+
+Se conserva el contenido anterior además del historial resumido. La trazabilidad debe permitir reconstruir en cualquier momento la toma de decisiones: preguntas de origen, alternativas consideradas, motivos, relaciones con otras decisiones y cambios posteriores. El usuario consulta primero lo vigente y puede profundizar en su historia sin recorrer documentos separados.
+
+Las tareas y los resultados se vinculan a las versiones de las decisiones que los justificaron. Un cambio permite identificar trabajo afectado y correcciones necesarias sin reescribir el fundamento histórico de lo ya realizado. Decisión vigente y comportamiento implementado son estados distintos: puede haberse acordado un cambio que todavía esté pendiente de aplicar.
+
+Ejemplo ilustrativo, no requisito de DEMIURGO: el registro «Usuarios» de una aplicación para una asociación empieza permitiendo solo miembros, porque sus actividades son internas. Una exploración posterior sobre actividades abiertas modifica el mismo registro para admitir miembros e invitados. Se conserva la versión anterior, la razón del cambio y su conversación de origen; el trabajo existente sigue ligado a la versión inicial y se hace visible lo pendiente para admitir invitados.
+
+### Agrupaciones coherentes para implementar
+
+DEMIURGO propone conjuntos de funcionalidades y tareas que tienen sentido implementar juntos y que el usuario puede validar. Cada conjunto mantiene una identidad y un único nombre a lo largo de sus estados; no cambia de concepto al pasar de propuesta a trabajo aprobado. No implica una duración fija ni una cadencia de sprint.
+
+Una agrupación puede reunir trabajo procedente de varias exploraciones. Cada tarea conserva sus orígenes y las versiones de las decisiones que la justifican: agrupar trabajo no fusiona las conversaciones ni borra su trazabilidad. La exploración organiza las preguntas y el conocimiento; esta agrupación organiza el trabajo que se propone implementar conjuntamente.
+
+Nombre propuesto, pendiente de confirmar: **Change Set**. Ejemplo ilustrativo: «Abrir actividades a invitados» reúne tareas procedentes de una exploración sobre usuarios y otra sobre inscripciones. Ambas contribuyen a un resultado común que el usuario puede revisar.
+
+Como propuesta de ciclo de vida: **Draft → Proposed → Approved → In progress → In review → Accepted**. El catálogo de estados y sus transiciones no está cerrado. Se propone distinguir la aprobación del alcance antes de implementar de la aceptación del resultado después de probarlo. También quedan por concretar los ajustes, pausas, descartes y cambios de alcance tras la aprobación.
+
+Se propone que cada conjunto muestre primero el resultado esperado, qué incluye y excluye, por qué se propone y cómo se comprobará. Las tareas, sus exploraciones de origen y las decisiones relacionadas se consultan como detalle. El mecanismo de aprobación y las condiciones para iniciar la ejecución siguen pendientes.
+
+### Un recorrido completo dentro de la aplicación
+
+No necesitar volver a la terminal es un criterio verificable de diseño. La preparación del proyecto, el seguimiento del trabajo, las revisiones, la entrega y la investigación de problemas deben poder realizarse desde DEMIURGO.
+
+Ante un fallo, la aplicación explica qué ocurre, qué consecuencias tiene y qué opciones existen para recuperarse. Debe permitir ejecutar la solución y comprobar el resultado. Mostrar únicamente un registro técnico y trasladar la resolución al usuario deja incompleto el recorrido.
+
+## 4. Dos partes fundamentales
+
+### Gestión completa del diseño
+
+DEMIURGO acompaña desde la idea inicial hasta una definición suficientemente clara para construir y evaluar el producto. Incluye comprender usuarios y dolores, explorar posibilidades, decidir qué resolver, diseñar la experiencia y el comportamiento, y convertir lo acordado en trabajo organizado.
+
+El diseño completo abarca necesidades, recorridos, pantallas, estados y decisiones técnicas necesarias. El usuario participa mediante experiencias comprensibles y revisables. Las conversaciones y decisiones deben traducirse en trabajo concreto que se pueda recuperar, ampliar y corregir; cada exploración puede también concluir con conocimiento o una idea apartada, sin exigir una tarea de implementación. Las tareas conservan su conexión con los problemas que resuelven, los resultados esperados y las versiones de las decisiones que las justifican. DEMIURGO propone agruparlas de forma coherente, pudiendo reunir varias exploraciones, para que el usuario valide el conjunto. Los criterios de selección y el momento de comprometer su ejecución siguen abiertos.
+
+Esta parte también está gobernada por un método determinista: etapas estables, condiciones explícitas para avanzar y reglas para revisar decisiones. Explorar no debe provocar la pérdida del estado del proyecto ni convertir una sugerencia en una decisión aceptada.
+
+### Implementación mediante orquestación agéntica
+
+El orquestador conduce el trabajo de los agentes conforme al diseño acordado y a reglas definidas. Los motores de contexto aportan el conocimiento pertinente para cada actividad, incluyendo decisiones, restricciones, trabajo previo y evidencias, evitando reconstrucciones innecesarias.
+
+La implementación comprende construir, comprobar, corregir, revisar y entregar. Mantiene una relación comprensible entre intención, trabajo realizado y resultado verificado. Lo esperado y la manera de comprobarlo se concretan antes de implementar.
+
+Los fallos deben poder investigarse y corregirse conservando su contexto. La observabilidad ayuda a entender el estado del trabajo, los bloqueos, los resultados y el consumo de recursos. La experiencia acumulada sirve para reconocer errores recurrentes y proponer mejoras, distinguiendo causas comprobadas de hipótesis.
+
+### Un método estable para ambas partes
+
+Las etapas de diseño y desarrollo están definidas por el producto; la IA no las improvisa en cada conversación. También son explícitas las condiciones de avance, las comprobaciones y las reglas de recuperación. Las respuestas de los modelos siguen siendo variables: el determinismo corresponde al proceso que las utiliza y verifica.
+
+El recorrido general comprende explorar y comprender, diseñar y decidir, organizar el trabajo, construir y comprobar, entregar, observar y aprender. Expresa el alcance; el catálogo exacto de etapas, sus transiciones y sus condiciones de finalización está pendiente de diseño.
+
+El método permite iteraciones y regreso a decisiones anteriores mediante reglas conocidas. La profundidad del trabajo se ajusta a las necesidades del proyecto, manteniendo etapas y criterios explícitos.
+
+Tomaremos estándares y buenas prácticas de la industria y los traduciremos a una experiencia accesible para personas no técnicas. Su selección concreta está pendiente. DEMIURGO debe aportar el rigor del método sin exigir que el usuario conozca su terminología o gestione sus documentos.
+
+## 5. Propuestas y cuestiones abiertas
+
+### Soluciones propuestas pendientes de concretar
+
+Estas son candidatas de diseño, no funcionalidades ni interfaces cerradas:
+
+- La representación y navegación concretas del mapa de conocimiento. Su función de conectar el conocimiento y aportar contexto ya está acordada.
+- Comparaciones de alternativas mediante vistas o prototipos que ayuden a evaluar consecuencias antes de decidir.
+- Detección automática de desviaciones entre lo acordado, lo construido y lo comprobado, con revisión guiada de su impacto.
+- Comprobación de soluciones reutilizables antes de producir código nuevo.
+- Indicadores de calidad, tiempo, coste, reintentos y regresiones para evaluar el proceso y sus mejoras.
+- El nombre Change Set, sus estados y la presentación de resultado esperado, alcance, motivos y comprobaciones. La agrupación coherente de trabajo de varias exploraciones bajo una identidad estable ya está acordada; no requiere una cadencia de sprints.
+- Generar y actualizar automáticamente tareas como propuestas antes de comprometer su ejecución. El paso de conocimiento a trabajo autorizado aún no está definido.
+
+### Decisiones que abordaremos después
+
+- Qué etapas concretas forman el método, qué resultados exige cada una y qué estándares y prácticas lo sustentan.
+- Cómo representar y navegar conversaciones, tarjetas, ramas y mapa de conocimiento manteniendo la atención, y cómo comprobar su comprensión con personas sin conocimientos técnicos.
+- Qué puede resolver el sistema de forma autónoma más allá del cierre revisable de tarjetas, y qué requiere intervención humana, incluida la colaboración y responsabilidad dentro de los equipos.
+- Cómo seleccionar y priorizar el trabajo de cada agrupación, cuándo está suficientemente definido, cómo se revisa su alcance y qué autoriza su ejecución; una pregunta pospuesta puede seguir afectando al trabajo. Confirmar el nombre y concretar estados, transiciones y aceptación del resultado.
+- Qué etiquetas y categorías de decisiones convienen, incluido el significado y uso de ADR, DDR y FDR, y qué modelo ayudará a clasificar las tarjetas. No se fija todavía un proveedor o modelo.
+- Qué evidencias demuestran calidad de producción en diseño e implementación, y cómo se presentan sin trasladar la verificación técnica al usuario.
+- Cómo se concreta la observabilidad del proceso y de la aplicación entregada, y cómo se actúa ante incidencias.
+- Qué primera experiencia completa demostrará el valor de DEMIURGO y cómo mediremos pérdida de contexto, esfuerzo de supervisión y calidad del resultado.
+- Qué proyectos atenderá la primera versión, cómo se incorporarán aplicaciones existentes y qué capacidades de ejecución simultánea, proveedores y modelos serán necesarias.
+
+Las restricciones anteriores sobre MVP, concurrencia y proveedores quedan sujetas a revisión; no se consideran decisiones vigentes de esta nueva definición. Tampoco se fija aquí una arquitectura técnica ni un diseño de pantallas.
+
+## 6. Glosario vivo
+
+Este glosario fija el significado compartido de los conceptos y se actualiza con las decisiones. Un nombre propuesto no se considera definitivo. Los términos ingleses pendientes no obligan a que la interfaz se presente en inglés.
+
+| Término | Significado en DEMIURGO | Estado |
+| --- | --- | --- |
+| Exploración | Proceso de desarrollar una idea, necesidad o cambio mediante conversaciones y preguntas; puede producir conocimiento, decisiones y trabajo. | Concepto acordado. |
+| Rama de exploración | Exploración derivada de otra que conserva su origen y devuelve sus conclusiones al contexto de partida. | Concepto acordado. |
+| Tarjeta de pregunta | Pregunta etiquetada con motivo, estado y conversación propia; su cierre es revisable y no equivale a confirmación humana. | Concepto acordado. |
+| Decisión | Registro de una respuesta acordada o propuesta a una cuestión, con identidad estable, razones y grado de confirmación visible. | Concepto acordado. |
+| Versión de decisión | Contenido de una decisión en un momento determinado; permite conservar y reconstruir el fundamento del trabajo. | Concepto acordado. |
+| Mapa de conocimiento | Conjunto de relaciones entre ideas, preguntas, decisiones, trabajo y evidencias que conserva la historia y aporta contexto. | Función acordada; representación pendiente. |
+| Funcionalidad | Capacidad o comportamiento del producto que aporta utilidad al usuario. | Definición de trabajo; su organización propia está pendiente. |
+| Tarea | Trabajo concreto, recuperable y revisable, vinculado a su origen, resultado esperado y decisiones que lo justifican. | Concepto acordado; ciclo de vida pendiente. |
+| Change Set | Agrupación coherente de funcionalidades y tareas propuesta por DEMIURGO para validación del usuario; puede reunir varias exploraciones y mantiene su identidad entre estados. | Concepto acordado; nombre y estados propuestos. |
+| Evidencia | Resultado de una comprobación que ayuda a evaluar si lo construido cumple lo esperado. | Concepto acordado; criterios pendientes. |
+
+«Sprint» fue el término inicial para esta agrupación coherente, sin implicar un periodo de tiempo. «Propuesta de implementación» y «entrega» no designan dos entidades distintas de ese conjunto. ADR, DDR y FDR siguen pendientes de definición y no se fijan como categorías en este glosario.
+
+Este documento seguirá creciendo con las decisiones del producto. Las preguntas se resolverán en su apartado correspondiente, sustituyendo lo que haya dejado de ser válido y conservando solo el contexto necesario para comprender la visión actual.</pre></div>
+      </details>
+    </main>
+  </div>
+  <footer>La visión seguirá creciendo a partir de decisiones explícitas. Las representaciones ayudan a discutir consecuencias; la fuente de verdad permanece en VISION.md.</footer>
+  <script>
+    (() => {
+      const phases = [
+        ["Explorar y comprender", "Capturar intención, comprender usuarios y dolores, y relacionar nuevas ideas con lo conocido. La etapa exacta y sus condiciones aún están por definir."],
+        ["Diseñar y decidir", "Explorar posibilidades y definir necesidades, recorridos, pantallas, estados y decisiones técnicas. Las propuestas se revisan con consecuencias comprensibles; no se aceptan automáticamente."],
+        ["Organizar el trabajo", "DEMIURGO propone una agrupación coherente de funcionalidades y tareas, incluso de varias exploraciones, para que el usuario valide un único conjunto con identidad y nombre persistentes, sin cadencia temporal. Change Set es un nombre de trabajo y no se prioriza cerrar la nomenclatura. Los estados, los criterios de selección y la autorización de ejecución siguen pendientes."],
+        ["Construir y comprobar", "Orquestar la implementación conforme al diseño y al método. Construir, revisar, probar y corregir, reuniendo evidencias que relacionen intención, trabajo y resultado."],
+        ["Entregar", "Poner el resultado en manos de quien lo necesita y comprobar su funcionamiento. La calidad de producción es un objetivo sujeto a evidencia y criterios aún por definir."],
+        ["Observar y aprender", "Observar tanto el trabajo de la IA como la aplicación. Investigar incidencias, entender consumo y bloqueos, reconocer recurrencias y proponer mejoras diferenciando hechos de hipótesis."]
+      ];
+      document.querySelectorAll("[data-phase]").forEach(button => button.addEventListener("click", () => {
+        const [title, text] = phases[Number(button.dataset.phase)];
+        document.querySelectorAll("[data-phase]").forEach(item => item.setAttribute("aria-selected", String(item === button)));
+        document.querySelector("#phase-copy").innerHTML = `<h3>${title}</h3><p>${text}</p>`;
+      }));
+      const principles = [
+        "La persona expresa necesidades y decide el producto. La IA interpreta y propone; su interpretación queda identificada y no se convierte sola en acuerdo.",
+        "La experiencia es un pilar: presentar primero lo necesario, mantener el detalle disponible y pedir intervención humana cuando aporte valor.",
+        "El método fija etapas, avances, comprobaciones y recuperación. Las salidas de modelos variables deben verificarse; la calidad requiere evidencia.",
+        "Ideas, decisiones, razones, trabajo y resultados permanecen accesibles y relacionados. Si cambia una decisión, se entiende qué trabajo revisar."
+      ];
+      document.querySelectorAll("[data-principle]").forEach(button => button.addEventListener("click", () => {
+        document.querySelectorAll("[data-principle]").forEach(item => item.setAttribute("aria-selected", String(item === button)));
+        document.querySelector("#principle-copy").innerHTML = `<p>${principles[Number(button.dataset.principle)]}</p>`;
+      }));
+      document.querySelectorAll('[role="tablist"]').forEach(list => list.addEventListener("keydown", event => {
+        if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(event.key)) return;
+        const tabs = [...list.querySelectorAll('[role="tab"]')];
+        const current = tabs.indexOf(document.activeElement);
+        let next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (current + (event.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length;
+        event.preventDefault(); tabs[next].focus(); tabs[next].click();
+      }));
+    })();
+  </script>
+</body>
+</html>

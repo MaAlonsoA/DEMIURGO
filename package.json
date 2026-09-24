@@ -31,7 +31,8 @@
   },
   "demiurgo": {
     "incrementosImplementados": [
-      "D0"
+      "D0",
+      "S0"
     ]
   }
 }

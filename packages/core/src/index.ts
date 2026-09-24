@@ -18,3 +18,4 @@ export * from './agentes/index.ts';
 export * from './clasificador/index.ts';
 export * from './entorno.ts';
 export * from './secretos.ts';
+export * from './arranque.ts';

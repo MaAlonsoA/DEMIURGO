@@ -122,15 +122,14 @@ describe('adaptador de agentes claude-cli', () => {
     expect(r.estado === 'ok' && salidaEco.safeParse(r.salidaCruda).success).toBe(true);
   });
 
-  it('AC-ESQ-001-10 envía como --json-schema el esquema de la acción, sin la declaración 2020-12 que la CLI rechaza', async () => {
+  it('AC-ESQ-001-10 envía como --json-schema exactamente el esquema de la acción generado desde Zod (draft-07)', async () => {
     for (const accion of ['eco', 'exploration_chat', 'design_proposal'] as const) {
       const { lanzador, llamadas } = lanzadorFalso({ stdout: fixture('eco-exito.json') });
       await crearAgenteClaudeCli({ lanzador, ejecutable: 'claude' }).ejecutar(
         peticion({ accion, esquemaSalida: esquemaJsonDe(accion) }),
       );
-      const { $schema, ...resto } = esquemaJsonDe(accion);
-      expect($schema).toBe('https://json-schema.org/draft/2020-12/schema');
-      expect(valorDe(primera(llamadas).orden.args, '--json-schema')).toBe(JSON.stringify(resto));
+      expect(esquemaJsonDe(accion).$schema).toBe('http://json-schema.org/draft-07/schema#');
+      expect(valorDe(primera(llamadas).orden.args, '--json-schema')).toBe(JSON.stringify(esquemaJsonDe(accion)));
     }
   });
 

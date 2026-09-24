@@ -7,6 +7,7 @@ import {
   PREFIJO_REGISTRO,
   TIPOS_REGISTRO,
   type TipoRegistro,
+  avisosDeVerificabilidad,
   faltasDePlantilla,
   formatearActor,
   huella,
@@ -17,6 +18,7 @@ import { cadena, campo, registrarGuardas } from '../bus/guardas.ts';
 import { manejador, registrarManejadores } from '../bus/manejadores.ts';
 import type { ContextoComando } from '../bus/tipos.ts';
 import type { Tx } from '../db/conexion.ts';
+import { revisarObsolescencia } from './propuestas.ts';
 import { alEventoDeAutoridad } from './reacciones.ts';
 
 const texto = (max: number) => z.string().trim().min(1).max(max);
@@ -191,11 +193,46 @@ registrarGuardas({
     return motivos.length ? motivos.join(' ') : null;
   },
 
+  async registro_del_proyecto({ ctx, datos }) {
+    const r = await ctx.trx
+      .selectFrom('records')
+      .select('id')
+      .where('id', '=', cadena(campo(datos, 'record_id')))
+      .where('project_id', '=', ctx.proyectoId)
+      .executeTakeFirst();
+    return r ? null : 'El registro no existe en este proyecto.';
+  },
+
+  // Una versión aprobada más reciente es la vigente: aprobar una anterior la dejaría con dos aprobadas.
+  async sin_aprobada_posterior({ ctx, entidad }) {
+    const v = entidad?.fila as { record_id: string; n: number } | undefined;
+    const posterior = await ctx.trx
+      .selectFrom('record_versions')
+      .select('n')
+      .where('record_id', '=', v?.record_id ?? '')
+      .where('state', 'in', ['approved', 'superseded'])
+      .where('n', '>', v?.n ?? 0)
+      .orderBy('n', 'desc')
+      .executeTakeFirst();
+    return posterior
+      ? `Ya hay una versión aprobada posterior (v${posterior.n}): descarta este borrador o crea una versión nueva.`
+      : null;
+  },
+
+  // Los criterios y los enlaces de una versión solo nacen al crearla: después su contenido no cambia (I4).
+  dentro_de_su_version({ ctx, datos }) {
+    const versionId = cadena(campo(datos, 'version_id')) || cadena(campo(campo(datos, 'desde'), 'id'));
+    return ctx.causa.versionEnCreacion === versionId
+      ? null
+      : 'Los criterios y los enlaces se crean con su versión: crea una versión nueva del registro.';
+  },
+
   async version_en_borrador({ ctx, datos }) {
     const v = await ctx.trx
       .selectFrom('record_versions')
       .select('state')
       .where('id', '=', cadena(campo(datos, 'version_id')))
+      .where('project_id', '=', ctx.proyectoId)
       .executeTakeFirst();
     return v?.state === 'draft' ? null : 'Solo se añaden criterios a una versión en borrador.';
   },
@@ -221,7 +258,7 @@ async function crearVersion(
   recordId: string,
   datos: z.infer<typeof esquemaNuevaVersion>,
   hacia: string,
-): Promise<{ id: string; n: number; codigo: string }> {
+): Promise<{ id: string; n: number; codigo: string; avisos: string[] }> {
   const registro = await ctx.trx.selectFrom('records').selectAll().where('id', '=', recordId).executeTakeFirstOrThrow();
   const base = await versionBase(ctx.trx, recordId);
   const n =
@@ -242,7 +279,18 @@ async function crearVersion(
     : [];
   const porCodigo = new Map(previos.map((p) => [p.code, p]));
   const prefijoAc = `AC-${registro.code.slice(4)}-`;
-  let siguiente = previos.reduce((m, p) => Math.max(m, Number(p.code.slice(-2))), 0);
+  // Un código de AC no se reutiliza nunca, ni el de un criterio descartado en una versión anterior.
+  const usados = new Set(
+    (
+      await ctx.trx
+        .selectFrom('criteria')
+        .innerJoin('record_versions', 'record_versions.id', 'criteria.record_version_id')
+        .select('criteria.code')
+        .where('record_versions.record_id', '=', recordId)
+        .execute()
+    ).map((c) => c.code),
+  );
+  let siguiente = [...usados].reduce((m, c) => Math.max(m, Number(c.slice(-2))), 0);
   const criterios = datos.criterios.map((c) => {
     if (c.arrastre === 'kept') {
       const p = porCodigo.get(c.codigo);
@@ -272,6 +320,12 @@ async function crearVersion(
     }
     const codigo = c.codigo ?? `${prefijoAc}${String(++siguiente).padStart(2, '0')}`;
     if (!codigo.startsWith(prefijoAc)) throw new ErrorDominio('validacion', `El código ${codigo} debe empezar por ${prefijoAc}.`);
+    if (usados.has(codigo)) {
+      throw new ErrorDominio(
+        'validacion',
+        `El código ${codigo} ya se usó en una versión anterior: un criterio nuevo lleva un código nuevo.`,
+      );
+    }
     return {
       codigo,
       titulo: c.titulo,
@@ -330,6 +384,7 @@ async function crearVersion(
         deriva_de_id: c.deriva,
         posicion: i + 1,
       },
+      causa: { versionEnCreacion: id },
     });
   }
   for (const e of datos.enlaces) {
@@ -340,9 +395,12 @@ async function crearVersion(
       comando: 'link.create',
       actor: ctx.actor,
       datos: { tipo: e.tipo, desde: { tipo: 'record_version', id }, hacia: { tipo: 'record_version', id: destino.versionId } },
+      causa: { versionEnCreacion: id },
     });
   }
-  return { id, n: numero, codigo: registro.code };
+  // El chequeo de verificabilidad nunca bloquea: el aviso vuelve con la versión creada (AC-DIS-001-14).
+  const avisos = criterios.flatMap((c) => avisosDeVerificabilidad(c.codigo, c.enunciado));
+  return { id, n: numero, codigo: registro.code, avisos };
 }
 
 registrarManejadores({
@@ -367,7 +425,13 @@ registrarManejadores({
       return {
         entidadId: id,
         despues: { codigo, tipo: datos.tipo, dominio: datos.dominio },
-        resultado: { recordId: id, codigo, versionId: v.entidadId, version: 1 },
+        resultado: {
+          recordId: id,
+          codigo,
+          versionId: v.entidadId,
+          version: 1,
+          avisos: (v.resultado as { avisos: string[] }).avisos,
+        },
       };
     },
   }),
@@ -380,7 +444,7 @@ registrarManejadores({
         entidadId: v.id,
         version: v.n,
         despues: { codigo: v.codigo, n: v.n, titulo: datos.titulo, nota_de_cambio: datos.nota_de_cambio ?? null },
-        resultado: { versionId: v.id, version: v.n, codigo: v.codigo },
+        resultado: { versionId: v.id, version: v.n, codigo: v.codigo, avisos: v.avisos },
       };
     },
   }),
@@ -425,7 +489,7 @@ registrarManejadores({
           });
         }
       }
-      await supersederPropuestasObsoletas(ctx, v.record_id, v.n);
+      await revisarObsolescencia(ctx, { registro: v.record_id });
       await alEventoDeAutoridad(ctx, { tipo: 'record_version', id: v.id, version: v.n });
       return { entidadId: v.id, version: v.n, despues: { nota: datos.nota ?? null, sustituye: anterior?.n ?? null } };
     },
@@ -457,6 +521,15 @@ registrarManejadores({
       })
       .strict(),
     async aplicar(ctx, d, _e, hacia) {
+      const registro = await ctx.trx
+        .selectFrom('record_versions')
+        .innerJoin('records', 'records.id', 'record_versions.record_id')
+        .select('records.code')
+        .where('record_versions.id', '=', d.version_id)
+        .executeTakeFirstOrThrow();
+      if (!d.codigo.startsWith(`AC-${registro.code.slice(4)}-`)) {
+        throw new ErrorDominio('validacion', `El código ${d.codigo} no corresponde a ${registro.code}.`);
+      }
       const { id } = await ctx.trx
         .insertInto('criteria')
         .values({
@@ -534,25 +607,3 @@ registrarManejadores({
     },
   }),
 });
-
-/** Una propuesta pendiente que dependía de una versión anterior del registro queda obsoleta. */
-async function supersederPropuestasObsoletas(ctx: ContextoComando, recordId: string, nueva: number): Promise<void> {
-  const pendientes = await ctx.trx
-    .selectFrom('proposals')
-    .select(['id', 'dependencies'])
-    .where('project_id', '=', ctx.proyectoId)
-    .where('state', '=', 'pending')
-    .execute();
-  for (const p of pendientes) {
-    const deps = (p.dependencies ?? []) as { tipo: string; id: string; version: number }[];
-    const obsoleta = deps.some((d) => d.tipo === 'record' && d.id === recordId && d.version !== nueva);
-    if (obsoleta) {
-      await ctx.ejecutar({
-        comando: 'proposal.supersede',
-        actor: sistema('versiones'),
-        entidadId: p.id,
-        datos: { motivo: `Un registro del que dependía tiene una versión vigente nueva (v${nueva}).` },
-      });
-    }
-  }
-}

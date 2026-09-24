@@ -13,6 +13,8 @@ export type Causa = {
   propuesta?: string;
   lote?: string;
   evento?: string;
+  /** Versión que se está creando: sus criterios y enlaces solo nacen dentro de su creación. */
+  versionEnCreacion?: string;
 };
 
 export type Peticion = {

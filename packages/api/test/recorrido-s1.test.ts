@@ -50,7 +50,7 @@ type Bandeja = {
 };
 
 describe('recorrido S1', () => {
-  it('AC-DIS-001-01 intención → decisión aceptada y aprobada → FDR con 2 AC → «Listo para construir» y bandeja vacía', async () => {
+  it('AC-DIS-001-01 AC-DIS-001-20 intención → decisión aceptada y aprobada → FDR con 2 AC → «Listo para construir» y bandeja vacía', async () => {
     const { persona, entorno } = api();
     const p = await persona.pedir('POST', '/api/proyectos', { nombre: 'Asociación' });
     const proyectoId = p.json<{ proyecto_id: string }>().proyecto_id;
@@ -87,6 +87,23 @@ describe('recorrido S1', () => {
     const paquete = bandeja.lotes.find((l) => l.tipo === 'system_package');
     expect(paquete).toMatchObject({ resolucion: 'package' });
     expect(paquete?.propuestas).toHaveLength(1);
+    // Procedencia: el paquete guarda la ejecución y el context pack que lo produjeron.
+    const [runDiseno] = await entorno.servicios.db
+      .selectFrom('ai_runs')
+      .select(['id', 'context_pack_id'])
+      .where('project_id', '=', proyectoId)
+      .where('action', '=', 'design_proposal')
+      .execute();
+    const procedencia = await entorno.servicios.db
+      .selectFrom('proposal_batches')
+      .select(['run_id', 'context_pack_id', 'producer'])
+      .where('id', '=', paquete?.id ?? '')
+      .executeTakeFirstOrThrow();
+    expect(procedencia).toEqual({
+      run_id: runDiseno?.id,
+      context_pack_id: runDiseno?.context_pack_id,
+      producer: `agent:run:${runDiseno?.id}`,
+    });
 
     // 5. La persona acepta el paquete en un paso y aprueba la FDR.
     const aceptacion = await comando(proyectoId, 'batch.accept_package', {}, paquete?.id);
@@ -139,6 +156,8 @@ describe('recorrido S1', () => {
       decisiones: { codigo: string; vigente: number | null; ultima: { estado: string }; estado_epistemico: string }[];
       bandeja: { total: number };
     }>(`/api/proyectos/${proyectoId}/estado`);
+    // El borrador espera a la persona: cuenta en la bandeja hasta que se aprueba.
+    expect(estado.bandeja.total).toBe(1);
     expect(estado.decisiones).toEqual([
       expect.objectContaining({
         codigo: (d.resultado as { codigo: string }).codigo,
@@ -148,10 +167,41 @@ describe('recorrido S1', () => {
       }),
     ]);
     await comando(proyectoId, 'record_version.approve', {}, (d.resultado as { versionId: string }).versionId);
-    const despues = await leer<{ decisiones: { vigente: number | null; estado_epistemico: string }[] }>(
-      `/api/proyectos/${proyectoId}/estado`,
-    );
+    const despues = await leer<{
+      decisiones: { vigente: number | null; estado_epistemico: string }[];
+      bandeja: { total: number };
+    }>(`/api/proyectos/${proyectoId}/estado`);
     expect(despues.decisiones[0]).toMatchObject({ vigente: 1, estado_epistemico: 'confirmado' });
-    expect(estado.bandeja.total).toBe(0);
+    expect(despues.bandeja.total).toBe(0);
+  });
+
+  it('AC-DIS-001-19 el sistema infiere una pregunta pendiente a partir de la salida validada de una ejecución', async () => {
+    const { persona, entorno } = api();
+    const p = await persona.pedir('POST', '/api/proyectos', { nombre: 'Inferencia' });
+    const proyectoId = p.json<{ proyecto_id: string }>().proyecto_id;
+    const exploracion = await comando(proyectoId, 'exploration.open', { proposito: 'Altas de socios' });
+    const pregunta = await comando(proyectoId, 'question.raise', {
+      exploracion_id: exploracion.entidad_id,
+      pregunta: '¿Quién puede darse de alta?',
+    });
+    await comando(proyectoId, 'message.post', {
+      exploracion_id: exploracion.entidad_id,
+      texto: 'Quiero que cualquier vecino pueda darse de alta',
+    });
+    const [run] = await esperarEjecuciones(proyectoId, 1);
+    const fila = await entorno.servicios.db
+      .selectFrom('questions')
+      .select(['state', 'conclusion'])
+      .where('id', '=', pregunta.entidad_id)
+      .executeTakeFirstOrThrow();
+    expect(fila).toEqual({ state: 'inferred', conclusion: 'Quiero que cualquier vecino pueda darse de alta' });
+    const inferencia = await entorno.servicios.db
+      .selectFrom('events')
+      .select(['actor', 'cause'])
+      .where('command', '=', 'question.infer')
+      .where('entity_id', '=', pregunta.entidad_id)
+      .executeTakeFirstOrThrow();
+    expect(inferencia.actor).toBe('system:exploracion@1');
+    expect((inferencia.cause as { run?: string }).run).toBe(run);
   });
 });

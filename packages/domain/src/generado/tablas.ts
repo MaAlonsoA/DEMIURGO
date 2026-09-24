@@ -1076,6 +1076,7 @@ export const TRANSICIONES = {
           "desde": "nuevo",
           "hacia": "draft",
           "guardas": [
+            "registro_del_proyecto",
             "plantilla_valida",
             "arrastre_de_criterios_completo"
           ]
@@ -1087,7 +1088,8 @@ export const TRANSICIONES = {
           ],
           "hacia": "approved",
           "guardas": [
-            "plantilla_valida"
+            "plantilla_valida",
+            "sin_aprobada_posterior"
           ]
         },
         {
@@ -1119,6 +1121,7 @@ export const TRANSICIONES = {
           "desde": "nuevo",
           "hacia": "recorded",
           "guardas": [
+            "dentro_de_su_version",
             "version_en_borrador"
           ]
         }
@@ -1141,6 +1144,7 @@ export const TRANSICIONES = {
           "desde": "nuevo",
           "hacia": "current",
           "guardas": [
+            "dentro_de_su_version",
             "extremos_existentes"
           ]
         },
@@ -1195,7 +1199,8 @@ export const TRANSICIONES = {
           "desde": "nuevo",
           "hacia": "pending",
           "guardas": [
-            "lote_de_agente_externo_max_10"
+            "lote_de_agente_externo_max_10",
+            "dependencias_del_proyecto"
           ]
         },
         {
@@ -1267,7 +1272,8 @@ export const TRANSICIONES = {
           "hacia": "pending",
           "guardas": [
             "lote_propio_abierto",
-            "carga_valida"
+            "carga_valida",
+            "dependencias_del_proyecto"
           ]
         },
         {

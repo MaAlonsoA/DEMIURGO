@@ -83,7 +83,9 @@ export type Readiness = { listo: boolean; motivos: string[]; avisos: string[] };
 
 export function readiness(e: EntradaReadiness): Readiness {
   const motivos: string[] = [];
-  if (e.version.estado !== 'approved') motivos.push(`La versión ${e.version.n} no está aprobada.`);
+  if (e.version.estado === 'superseded') {
+    motivos.push(`La versión ${e.version.n} está sustituida: la vigente es la ${e.vigente ?? '—'}.`);
+  } else if (e.version.estado !== 'approved') motivos.push(`La versión ${e.version.n} no está aprobada.`);
   else if (e.vigente !== e.version.n) motivos.push(`No es la versión vigente: la vigente es la ${e.vigente ?? '—'}.`);
   if (PLANTILLAS_REGISTRO[e.tipo].exigeCriterios && e.criterios.length === 0) motivos.push('No tiene criterios de aceptación.');
   for (const c of e.criterios) {

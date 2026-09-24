@@ -168,19 +168,22 @@ registrarReceta('criterion', {
 
 registrarReceta('link', {
   async crear(s, proyectoId) {
-    const a = await nuevaDecision(s, proyectoId);
+    // Un enlace nace con su versión: una decisión que deriva de otra.
     const b = await nuevaDecision(s, proyectoId);
     const r = await ejecutarComando(s, {
-      comando: 'link.create',
+      comando: 'record.create',
       actor: ana,
       proyectoId,
       datos: {
-        tipo: 'derived_from',
-        desde: { tipo: 'record_version', id: a.versionId },
-        hacia: { tipo: 'record_version', id: b.versionId },
+        tipo: 'decision',
+        dominio: 'prueba',
+        titulo: unico('Decisión'),
+        secciones: seccionesDecision,
+        enlaces: [{ tipo: 'derived_from', destino: { codigo: b.codigo, version: 1 } }],
       },
     });
-    return r.entidadId;
+    const versionId = (r.resultado as { versionId: string }).versionId;
+    return (await s.db.selectFrom('links').select('id').where('from_id', '=', versionId).executeTakeFirstOrThrow()).id;
   },
   datos: { 'link.flag_review': () => ({ motivo: 'Cambió el destino.' }) },
 });

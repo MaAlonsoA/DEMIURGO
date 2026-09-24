@@ -319,10 +319,11 @@ registrarManejadores({
   'question.reopen': manejador({
     datos: z.object({ motivo: z.string().trim().max(1000).optional() }).strict(),
     async aplicar(ctx, datos, e) {
-      // El historial (conclusión y motivos anteriores) queda en el diario; la pregunta vuelve a pendiente.
+      // El historial (conclusión y motivos anteriores) queda en el diario; la pregunta vuelve a pendiente
+      // sin conclusión: confirmarla otra vez exige una nueva.
       await ctx.trx
         .updateTable('questions')
-        .set({ state_reason: datos.motivo ?? null })
+        .set({ state_reason: datos.motivo ?? null, conclusion: null })
         .where('id', '=', e?.id ?? '')
         .execute();
       return {

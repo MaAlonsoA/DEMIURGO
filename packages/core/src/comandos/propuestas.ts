@@ -134,6 +134,29 @@ registrarGuardas({
     return motivos.length ? [...new Set(motivos)].join(' ') : null;
   },
 
+  // Una dependencia declarada apunta a una versión que existe de un registro de este proyecto.
+  dependencias_del_proyecto: async ({ ctx, datos }) => {
+    const deps = [
+      ...((campo(datos, 'dependencias') as Dependencia[] | undefined) ?? []),
+      ...((campo(datos, 'propuestas') as { dependencias?: Dependencia[] }[] | undefined) ?? []).flatMap(
+        (p) => p.dependencias ?? [],
+      ),
+    ];
+    const motivos = new Set<string>();
+    for (const d of deps) {
+      const v = await ctx.trx
+        .selectFrom('record_versions')
+        .innerJoin('records', 'records.id', 'record_versions.record_id')
+        .select('records.code')
+        .where('records.id', '=', d.id)
+        .where('records.project_id', '=', ctx.proyectoId)
+        .where('record_versions.n', '=', d.version)
+        .executeTakeFirst();
+      if (v?.code !== d.codigo) motivos.add(`La dependencia ${d.codigo} v${d.version} no existe en este proyecto.`);
+    }
+    return motivos.size ? [...motivos].join(' ') : null;
+  },
+
   todas_las_propuestas_resueltas: async ({ ctx, entidad }) => {
     const pendientes = await ctx.trx
       .selectFrom('proposals')
@@ -144,6 +167,63 @@ registrarGuardas({
     return pendientes.length === 0 ? null : `Quedan ${pendientes.length} propuesta(s) pendiente(s) en el lote.`;
   },
 });
+
+/**
+ * Deja obsoleto lo pendiente cuyas dependencias declaradas ya no son la versión vigente: el lote
+ * entero si la dependencia es del lote o si se resuelve en paquete (no se acepta medio paquete) y,
+ * si no, cada propuesta afectada. Se revisa al aprobar una versión y al enviar un lote.
+ */
+export async function revisarObsolescencia(ctx: ContextoComando, filtro: { registro?: string; lote?: string }): Promise<void> {
+  const afectadas = (deps: unknown) =>
+    ((deps ?? []) as Dependencia[]).filter((d) => !filtro.registro || d.id === filtro.registro);
+  let consulta = ctx.trx
+    .selectFrom('proposal_batches')
+    .select(['id', 'dependencies', 'resolution_mode'])
+    .where('project_id', '=', ctx.proyectoId)
+    .where('state', '=', 'pending');
+  if (filtro.lote) consulta = consulta.where('id', '=', filtro.lote);
+  for (const l of await consulta.execute()) {
+    const delLote = await dependenciasCaducadas(ctx.trx, afectadas(l.dependencies));
+    const propuestas = await ctx.trx
+      .selectFrom('proposals')
+      .select(['id', 'dependencies'])
+      .where('batch_id', '=', l.id)
+      .where('state', '=', 'pending')
+      .orderBy('position')
+      .execute();
+    const obsoletas: { id: string; motivo: string }[] = [];
+    for (const p of propuestas) {
+      const motivos = await dependenciasCaducadas(ctx.trx, afectadas(p.dependencies));
+      if (motivos.length) obsoletas.push({ id: p.id, motivo: [...new Set(motivos)].join(' ').slice(0, 2000) });
+    }
+    if (delLote.length || (l.resolution_mode === 'package' && obsoletas.length)) {
+      const motivo = [...new Set([...delLote, ...obsoletas.map((o) => o.motivo)])].join(' ').slice(0, 2000);
+      await ctx.ejecutar({ comando: 'batch.supersede', actor: sistema('versiones'), entidadId: l.id, datos: { motivo } });
+      continue;
+    }
+    for (const o of obsoletas) {
+      await ctx.ejecutar({
+        comando: 'proposal.supersede',
+        actor: sistema('versiones'),
+        entidadId: o.id,
+        datos: { motivo: o.motivo },
+      });
+    }
+  }
+}
+
+/** Referencias a registros dentro de la carga que son dependencias aunque nadie las declare. */
+async function dependenciasDeLaCarga(ctx: ContextoComando, carga: Record<string, unknown>): Promise<Dependencia[]> {
+  const ref = carga.basado_en as { codigo?: unknown; version?: unknown } | undefined;
+  if (typeof ref?.codigo !== 'string' || typeof ref.version !== 'number') return [];
+  const r = await ctx.trx
+    .selectFrom('records')
+    .select('id')
+    .where('project_id', '=', ctx.proyectoId)
+    .where('code', '=', ref.codigo)
+    .executeTakeFirst();
+  return r ? [{ tipo: 'record', id: r.id, codigo: ref.codigo, version: ref.version }] : [];
+}
 
 /** Cierra un lote por elementos cuando ya no le quedan propuestas pendientes. */
 /** `resolviendo` es la propuesta que se está resolviendo ahora: su estado cambia al terminar el comando. */
@@ -230,6 +310,8 @@ registrarManejadores({
         });
         ids.push(r.entidadId);
       }
+      // Lo que nace con una dependencia que ya no es la vigente queda obsoleto desde el principio.
+      await revisarObsolescencia(ctx, { lote: id });
       // Cada idea de un agente se evalúa contra el conocimiento (§7.7), fuera de la transacción.
       if (tipoLote === 'agent') {
         const { servicios, proyectoId } = ctx;
@@ -254,6 +336,10 @@ registrarManejadores({
       })
       .strict(),
     async aplicar(ctx, datos, _e, hacia) {
+      const dependencias = [...datos.dependencias];
+      for (const d of await dependenciasDeLaCarga(ctx, datos.carga)) {
+        if (!dependencias.some((x) => x.id === d.id)) dependencias.push(d);
+      }
       const { id } = await ctx.trx
         .insertInto('proposals')
         .values({
@@ -262,12 +348,12 @@ registrarManejadores({
           position: datos.posicion,
           type: datos.tipo,
           payload: JSON.stringify(datos.carga),
-          dependencies: JSON.stringify(datos.dependencias),
+          dependencies: JSON.stringify(dependencias),
           state: hacia,
         })
         .returning('id')
         .executeTakeFirstOrThrow();
-      return { entidadId: id, despues: { lote: datos.lote_id, tipo: datos.tipo } };
+      return { entidadId: id, despues: { lote: datos.lote_id, tipo: datos.tipo, dependencias } };
     },
   }),
 

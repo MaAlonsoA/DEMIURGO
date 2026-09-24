@@ -61,6 +61,26 @@ describe('arquitectura', () => {
     expect(sinImplementar).toEqual([]);
   });
 
+  it('AC-DIS-001-04 las acciones de agente solo publican, plantean o infieren preguntas y envían lotes: nunca deciden (I2)', async () => {
+    // La salida de un agente se aplica aquí: mensajes, preguntas (el sistema las infiere) y lotes de propuestas.
+    const PERMITIDOS = new Set(['message.post', 'question.raise', 'question.infer', 'batch.submit']);
+    const infracciones: string[] = [];
+    for (const dir of ['packages/core/src/acciones', 'packages/core/src/agentes']) {
+      for (const [ruta, texto] of await fuentes(dir)) {
+        for (const c of texto.matchAll(/'([a-z_]+\.[a-z_]+)'/g)) {
+          const nombre = c[1] ?? '';
+          if (esComando(nombre) && !PERMITIDOS.has(nombre)) infracciones.push(`${ruta}: ${nombre}`);
+        }
+        for (const t of texto.matchAll(
+          /(?:insertInto|updateTable|deleteFrom)\('([a-z_]+)'\)|insert into ([a-z_]+)|update ([a-z_]+) set/g,
+        )) {
+          infracciones.push(`${ruta}: escribe en ${t[1] ?? t[2] ?? t[3] ?? ''}`);
+        }
+      }
+    }
+    expect(infracciones).toEqual([]);
+  });
+
   it('AC-CON-001-12 el actualizador y el clasificador solo emiten comandos de conocimiento derivado, clasificaciones y propuestas', async () => {
     const PERMITIDOS = new Set([
       'knowledge_update.classify',

@@ -4,7 +4,7 @@ import { type Actor, ErrorDominio, agenteExterno, humano, sistema } from '@demiu
 import { sql } from 'kysely';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { ejecutarComando } from '../src/bus/bus.ts';
-import { readinessDeVersion } from '../src/consultas/lectura.ts';
+import { bandeja, detalleExploracion, detalleLote, estadoProducto, readinessDeVersion } from '../src/consultas/lectura.ts';
 import type { Servicios } from '../src/servicios.ts';
 import { usarEntorno } from './soporte/entorno.ts';
 import { nuevaDecision, nuevaExploracion, nuevoLote } from './soporte/recetas.ts';
@@ -54,6 +54,43 @@ async function fdrSobre(
   return res;
 }
 
+const SECCIONES_DECISION = [
+  { titulo: 'Contexto', contenido: 'c2' },
+  { titulo: 'Decisión', contenido: 'd2' },
+  { titulo: 'Consecuencias', contenido: 'k2' },
+];
+
+/** Crea (y por defecto aprueba) una versión nueva de una decisión. */
+async function nuevaVersionDecision(recordId: string, aprobar = true, pid = proyectoId): Promise<string> {
+  const v = await ejecutarComando(s, {
+    comando: 'record_version.create',
+    actor: ana,
+    proyectoId: pid,
+    datos: { record_id: recordId, titulo: 'Decisión revisada', secciones: SECCIONES_DECISION, nota_de_cambio: 'Cambio.' },
+  });
+  if (aprobar) {
+    await ejecutarComando(s, {
+      comando: 'record_version.approve',
+      actor: ana,
+      proyectoId: pid,
+      entidadId: v.entidadId,
+      datos: {},
+    });
+  }
+  return v.entidadId;
+}
+
+const dependencia = (r: { recordId: string; codigo: string }, version = 1) => ({
+  tipo: 'record',
+  id: r.recordId,
+  codigo: r.codigo,
+  version,
+});
+
+async function estadoDe(tabla: 'proposals' | 'proposal_batches', id: string) {
+  return (await s.db.selectFrom(tabla).select('state').where('id', '=', id).executeTakeFirstOrThrow()).state;
+}
+
 async function versiones(recordId: string) {
   return s.db.selectFrom('record_versions').select(['id', 'n', 'state']).where('record_id', '=', recordId).orderBy('n').execute();
 }
@@ -88,6 +125,103 @@ describe('versiones y criterios', () => {
       .where('entity_id', '=', (await versiones(d.recordId))[0]?.id ?? '')
       .executeTakeFirstOrThrow();
     expect(supersede.actor).toBe('system:versiones@1');
+  });
+
+  it('AC-DIS-001-08 no se aprueba un borrador anterior a una versión ya aprobada: se descarta', async () => {
+    const d = await nuevaDecision(s, proyectoId, true);
+    const v2 = await nuevaVersionDecision(d.recordId, false);
+    const v3 = await nuevaVersionDecision(d.recordId, false);
+    await cmd('record_version.approve', {}, v3);
+    await expect(cmd('record_version.approve', {}, v2)).rejects.toMatchObject({
+      tipo: 'guarda',
+      motivos: ['Ya hay una versión aprobada posterior (v3): descarta este borrador o crea una versión nueva.'],
+    });
+    await cmd('record_version.discard', { motivo: 'La sustituye la v3.' }, v2);
+    expect(await versiones(d.recordId)).toMatchObject([
+      { n: 1, state: 'superseded' },
+      { n: 2, state: 'discarded' },
+      { n: 3, state: 'approved' },
+    ]);
+  });
+
+  it('AC-DIS-001-09 los criterios y los enlaces solo nacen con su versión, y la base lo impone', async () => {
+    const d = await nuevaDecision(s, proyectoId, true);
+    const f = await fdrSobre(d, { aprobar: true });
+    const soloConSuVersion = 'Los criterios y los enlaces se crean con su versión: crea una versión nueva del registro.';
+    const criterio = {
+      version_id: f.versionId,
+      codigo: `AC-${f.codigo.slice(4)}-07`,
+      titulo: 'Colado',
+      enunciado: 'Cuando se añade, entonces cambia la versión.',
+      verificacion: 'automatic',
+      comprobacion: 'Prueba.',
+      arrastre: 'kept',
+      deriva_de_id: null,
+      posicion: 9,
+    };
+    await expect(cmd('criterion.record', criterio)).rejects.toMatchObject({
+      tipo: 'guarda',
+      motivos: expect.arrayContaining([soloConSuVersion]),
+    });
+    // Ni siquiera en un borrador: el contenido de la versión se fija al crearla.
+    const borrador = await fdrSobre(d);
+    await expect(cmd('criterion.record', { ...criterio, version_id: borrador.versionId })).rejects.toMatchObject({
+      tipo: 'guarda',
+      motivos: [soloConSuVersion],
+    });
+    await expect(
+      cmd('link.create', {
+        tipo: 'based_on',
+        desde: { tipo: 'record_version', id: f.versionId },
+        hacia: { tipo: 'record_version', id: d.versionId },
+      }),
+    ).rejects.toMatchObject({ tipo: 'guarda', motivos: [soloConSuVersion] });
+    // La base lo impide aunque falle una guarda.
+    await expect(
+      sql`insert into criteria (project_id, record_version_id, code, title, statement, verification, check_text, carry, position, state)
+          values (${proyectoId}::uuid, ${f.versionId}::uuid, ${criterio.codigo}, 't', 's', 'automatic', 'c', 'new', 9, 'recorded')`.execute(
+        s.db,
+      ),
+    ).rejects.toThrow(/borrador/);
+    await expect(
+      sql`insert into links (project_id, type, from_type, from_id, from_version, to_type, to_id, to_version, state, created_by)
+          values (${proyectoId}::uuid, 'based_on', 'record_version', ${f.versionId}::uuid, 1, 'record_version', ${d.versionId}::uuid, 1, 'current', 'human:ana')`.execute(
+        s.db,
+      ),
+    ).rejects.toThrow(/borrador/);
+  });
+
+  it('AC-DIS-001-09 un criterio nuevo nunca reutiliza el código de uno descartado y una versión nueva exige nota de cambio', async () => {
+    const d = await nuevaDecision(s, proyectoId);
+    const f = await fdrSobre(d);
+    const [c1, c2] = (
+      await s.db.selectFrom('criteria').select('code').where('record_version_id', '=', f.versionId).orderBy('position').execute()
+    ).map((c) => c.code);
+    const base = { record_id: f.recordId, titulo: 'v2', secciones: SECCIONES_FDR };
+    await expect(
+      cmd('record_version.create', { ...base, criterios: [{ arrastre: 'kept', codigo: c1 }], descartados: [c2] }),
+    ).rejects.toMatchObject({ tipo: 'guarda', motivos: ['Una versión nueva exige una nota de cambio.'] });
+    await cmd('record_version.create', {
+      ...base,
+      criterios: [{ arrastre: 'kept', codigo: c1 }],
+      descartados: [c2],
+      nota_de_cambio: 'Se descarta un criterio.',
+    });
+    const v3 = { ...base, titulo: 'v3', nota_de_cambio: 'Vuelve un criterio.' };
+    await expect(
+      cmd('record_version.create', {
+        ...v3,
+        criterios: [
+          { arrastre: 'kept', codigo: c1 },
+          { ...AC('otro'), codigo: c2 },
+        ],
+      }),
+    ).rejects.toMatchObject({ tipo: 'validacion', message: expect.stringContaining(`${c2} ya se usó`) });
+    const r = await cmd('record_version.create', { ...v3, criterios: [{ arrastre: 'kept', codigo: c1 }, AC('otro')] });
+    const codigos = (
+      await s.db.selectFrom('criteria').select('code').where('record_version_id', '=', r.entidadId).orderBy('position').execute()
+    ).map((c) => c.code);
+    expect(codigos).toEqual([c1, expect.stringMatching(/-03$/)]);
   });
 
   it('AC-DIS-001-09 la base rechaza modificar una versión o sus criterios', async () => {
@@ -179,6 +313,43 @@ describe('versiones y criterios', () => {
     });
     await expect(vacia).rejects.toMatchObject({ tipo: 'guarda', motivos: [expect.stringContaining('está vacía')] });
   });
+
+  it('AC-DIS-001-18 una FDR o un ADR sin una sección de su plantilla se rechaza, y también al aprobar', async () => {
+    const fdr = cmd('record.create', {
+      tipo: 'fdr',
+      dominio: 'socios',
+      titulo: 'Sin alcance',
+      secciones: SECCIONES_FDR.filter((x) => x.titulo !== 'Alcance'),
+      criterios: [AC('alta')],
+    });
+    await expect(fdr).rejects.toMatchObject({ tipo: 'guarda', motivos: [expect.stringContaining('Alcance')] });
+    const adr = cmd('record.create', {
+      tipo: 'adr',
+      dominio: 'socios',
+      titulo: 'Sin opciones',
+      secciones: [
+        { titulo: 'Contexto', contenido: 'c' },
+        { titulo: 'Decisión', contenido: 'd' },
+        { titulo: 'Consecuencias', contenido: 'k' },
+      ],
+      criterios: [AC('alta')],
+    });
+    await expect(adr).rejects.toMatchObject({ tipo: 'guarda', motivos: [expect.stringContaining('Opciones')] });
+    // Al aprobar se vuelve a comprobar: una versión que no la cumple (insertada sin pasar por la guarda de creación).
+    const d = await nuevaDecision(s, proyectoId);
+    const secciones = JSON.stringify([
+      { titulo: 'Contexto', contenido: 'c' },
+      { titulo: 'Decisión', contenido: 'd' },
+    ]);
+    const { rows } = await sql<{ id: string }>`
+      insert into record_versions (project_id, record_id, n, title, sections, author, content_hash, state)
+      values (${proyectoId}::uuid, ${d.recordId}::uuid, 2, 'Sin consecuencias', ${secciones}::jsonb, 'human:ana', 'h', 'draft')
+      returning id`.execute(s.db);
+    await expect(cmd('record_version.approve', {}, rows[0]?.id)).rejects.toMatchObject({
+      tipo: 'guarda',
+      motivos: [expect.stringContaining('Consecuencias')],
+    });
+  });
 });
 
 describe('preguntas', () => {
@@ -209,6 +380,12 @@ describe('preguntas', () => {
       .execute();
     expect(historial.map((e) => e.command)).toEqual(['question.raise', 'question.confirm', 'question.reopen']);
     expect(historial[1]?.after).toEqual({ conclusion: 'La paga cada socio.' });
+    // Reabierta, vuelve sin conclusión: confirmarla otra vez exige una nueva.
+    expect(fila.conclusion).toBeNull();
+    await expect(cmd('question.confirm', {}, q)).rejects.toMatchObject({
+      tipo: 'guarda',
+      motivos: ['Hace falta una conclusión.'],
+    });
     await expect(cmd('question.discard', {}, q)).rejects.toMatchObject({ tipo: 'guarda' });
     await cmd('question.discard', { motivo: 'Ya no aplica.' }, q);
   });
@@ -264,7 +441,9 @@ describe('readiness', () => {
       nota_de_cambio: 'Revisión.',
     });
     await cmd('record_version.approve', {}, v2.entidadId);
-    expect((await readinessDeVersion(s.db, proyectoId, f.versionId)).motivos).toContain('La versión 1 no está aprobada.');
+    expect((await readinessDeVersion(s.db, proyectoId, f.versionId)).motivos).toContain(
+      'La versión 1 está sustituida: la vigente es la 2.',
+    );
 
     // Decisión no vigente y enlace pendiente de revisión: se aprueba una v2 de la decisión.
     const d2 = await nuevaDecision(s, proyectoId, true);
@@ -315,12 +494,58 @@ describe('readiness', () => {
     );
   });
 
+  it('AC-DIS-001-06 las preguntas abiertas se buscan en la exploración de origen: propuesta → lote → ejecución → alcance', async () => {
+    const decision = await nuevaDecision(s, proyectoId, true);
+    const e = await nuevaExploracion(s, proyectoId);
+    await cmd('question.raise', { exploracion_id: e, pregunta: '¿Hay cuota familiar?' });
+    const run = await cmd('run.request', { accion: 'exploration_chat', alcance: { tipo: 'exploration', id: e } });
+    const lote = await cmd(
+      'batch.submit',
+      {
+        run_id: run.entidadId,
+        propuestas: [
+          {
+            tipo: 'fdr',
+            carga: {
+              titulo: 'Alta de socios',
+              objetivo: 'o',
+              alcance: 'a',
+              fuera_de_alcance: 'f',
+              comportamiento: 'c',
+              criterios: [
+                {
+                  titulo: 'Alta',
+                  enunciado: 'Cuando envía, entonces ve la confirmación.',
+                  verificacion: 'automatic',
+                  comprobacion: 'E2E.',
+                },
+              ],
+              basado_en: { codigo: decision.codigo, version: 1 },
+            },
+          },
+        ],
+      },
+      undefined,
+      sistema('prueba'),
+    );
+    const [propuesta] = (lote.resultado as { propuestas: string[] }).propuestas;
+    const efecto = (await cmd('proposal.accept', { aprobar: true }, propuesta)).resultado as { versionId: string };
+    expect((await readinessDeVersion(s.db, proyectoId, efecto.versionId)).motivos).toEqual([
+      'Hay 1 pregunta(s) pendiente(s) en la exploración de origen.',
+    ]);
+  });
+
   it('AC-DIS-001-14 un criterio no observable recibe un aviso, nunca un bloqueo', async () => {
     const decision = await nuevaDecision(s, proyectoId, true);
-    const f = await fdrSobre(decision, {
+    const f = (await fdrSobre(decision, {
       aprobar: true,
-      criterios: [{ ...AC('x'), titulo: 'Rápido', enunciado: 'El alta es rápida e intuitiva.' }],
-    });
+      criterios: [{ ...AC('x'), titulo: 'Rápido', enunciado: 'El alta es rápida e intuitiva.' }, AC('bueno')],
+    })) as unknown as { versionId: string; codigo: string; avisos: string[] };
+    // El aviso llega al registrar el AC; el que cumple la regla no recibe ninguno.
+    const prefijo = `AC-${f.codigo.slice(4)}`;
+    expect(f.avisos.join(' ')).toMatch(new RegExp(`${prefijo}-01: el enunciado no describe un resultado observable`));
+    expect(f.avisos.join(' ')).toMatch(new RegExp(`${prefijo}-01: «rápida» es vago`));
+    expect(f.avisos.filter((a) => a.startsWith(`${prefijo}-02`))).toEqual([]);
     const r = await readinessDeVersion(s.db, proyectoId, f.versionId);
     expect(r.listo).toBe(true);
     expect(r.avisos.join(' ')).toMatch(/no describe un resultado observable/);
@@ -355,6 +580,44 @@ describe('lotes y propuestas', () => {
     });
     await cmd('proposal.accept', {}, propuestas[0]?.id);
     await cmd('proposal.reject', { motivo: 'No ahora.' }, propuestas[1]?.id);
+  });
+
+  it('AC-DIS-001-11 una propuesta de un paquete no se acepta ni se rechaza suelta', async () => {
+    const { propuestas } = await nuevoLote(s, proyectoId, true);
+    const motivo = 'Esta propuesta forma parte de un paquete: se acepta o se rechaza el paquete completo.';
+    await expect(cmd('proposal.accept', {}, propuestas[0])).rejects.toMatchObject({ tipo: 'guarda', motivos: [motivo] });
+    await expect(cmd('proposal.reject', {}, propuestas[0])).rejects.toMatchObject({ tipo: 'guarda', motivos: [motivo] });
+  });
+
+  it('AC-DIS-001-05 un agente externo solo propone decisiones, exploraciones y FDR, sin tipo de observación ni procedencia', async () => {
+    const bot = agenteExterno('bot', 'sesion-z');
+    for (const tipo of ['revision', 'registro_importado', 'taxonomia_importada']) {
+      await expect(cmd('batch.submit', { propuestas: [{ tipo, carga: {} }] }, undefined, bot)).rejects.toMatchObject({
+        tipo: 'guarda',
+        motivos: expect.arrayContaining([`Un agente externo no puede proponer «${tipo}».`]),
+      });
+    }
+    const e = await nuevaExploracion(s, proyectoId);
+    await expect(
+      cmd('message.post', { exploracion_id: e, texto: 'Es seguro que sí.', tipo: 'claim', responder: false }, undefined, bot),
+    ).rejects.toMatchObject({ tipo: 'validacion', message: 'Solo la salida de un agente lleva tipo de observación.' });
+    // No puede atribuir su lote a una ejecución ni a un context pack: el canal lo anula.
+    const r = await cmd(
+      'batch.submit',
+      {
+        run_id: '00000000-0000-7000-8000-00000000000a',
+        context_pack_id: '00000000-0000-7000-8000-00000000000b',
+        propuestas: [{ tipo: 'exploracion', carga: { proposito: 'x' } }],
+      },
+      undefined,
+      bot,
+    );
+    const lote = await s.db
+      .selectFrom('proposal_batches')
+      .select(['run_id', 'context_pack_id', 'producer'])
+      .where('id', '=', r.entidadId)
+      .executeTakeFirstOrThrow();
+    expect(lote).toEqual({ run_id: null, context_pack_id: null, producer: 'agent:bot:sesion-z' });
   });
 
   it('AC-DIS-001-11 un agente no puede añadir propuestas a un lote ajeno ni fuera de un envío', async () => {
@@ -400,32 +663,119 @@ describe('lotes y propuestas', () => {
       .where('id', '=', propuesta ?? '')
       .executeTakeFirstOrThrow();
     expect(fila.state).toBe('superseded');
-    expect(JSON.stringify(fila.resolution)).toMatch(/versión vigente nueva \(v2\)/);
+    expect(JSON.stringify(fila.resolution)).toMatch(/ha cambiado \(vigente: v2; la propuesta partía de v1\)/);
     await expect(cmd('proposal.accept', {}, propuesta)).rejects.toMatchObject({ tipo: 'transicion_invalida' });
   });
 
-  it('AC-DIS-001-16 la guarda de dependencias rechaza aceptar con aviso de obsolescencia', async () => {
+  it('AC-DIS-001-16 una propuesta que nace con una dependencia que no es la vigente queda obsoleta desde el envío', async () => {
     const d = await nuevaDecision(s, proyectoId, false);
-    // La dependencia declara la v1 vigente, pero la decisión no está aprobada: está obsoleta desde el principio.
+    // La dependencia declara la v1, pero la decisión no está aprobada: no hay vigente.
+    const r = await cmd(
+      'batch.submit',
+      { propuestas: [{ tipo: 'exploracion', carga: { proposito: 'x' }, dependencias: [dependencia(d)] }] },
+      undefined,
+      sistema('prueba'),
+    );
+    const [propuesta] = (r.resultado as { propuestas: string[] }).propuestas;
+    const fila = await s.db
+      .selectFrom('proposals')
+      .select(['state', 'resolution'])
+      .where('id', '=', propuesta ?? '')
+      .executeTakeFirstOrThrow();
+    expect(fila.state).toBe('superseded');
+    expect(JSON.stringify(fila.resolution)).toMatch(
+      /La propuesta está obsoleta: .* \(vigente: ninguna; la propuesta partía de v1\)/,
+    );
+    await expect(cmd('proposal.accept', {}, propuesta)).rejects.toMatchObject({
+      tipo: 'transicion_invalida',
+      message: expect.stringContaining('Obsoleta'),
+    });
+  });
+
+  it('AC-DIS-001-16 un paquete cuyo lote depende de una versión que cambió queda obsoleto entero', async () => {
+    const d = await nuevaDecision(s, proyectoId, true);
     const r = await cmd(
       'batch.submit',
       {
+        tipo_lote: 'system_package',
+        resolucion: 'package',
+        dependencias: [dependencia(d)],
         propuestas: [
-          {
-            tipo: 'exploracion',
-            carga: { proposito: 'x' },
-            dependencias: [{ tipo: 'record', id: d.recordId, codigo: d.codigo, version: 1 }],
-          },
+          { tipo: 'exploracion', carga: { proposito: 'a' } },
+          { tipo: 'exploracion', carga: { proposito: 'b' } },
         ],
       },
       undefined,
       sistema('prueba'),
     );
+    const { propuestas } = r.resultado as { propuestas: string[] };
+    await nuevaVersionDecision(d.recordId);
+    expect(await estadoDe('proposal_batches', r.entidadId)).toBe('superseded');
+    for (const p of propuestas) expect(await estadoDe('proposals', p)).toBe('superseded');
+    await expect(cmd('batch.accept_package', {}, r.entidadId)).rejects.toMatchObject({ tipo: 'transicion_invalida' });
+  });
+
+  it('AC-DIS-001-16 si una propuesta de un paquete queda obsoleta, queda obsoleto el paquete: nunca se acepta a medias', async () => {
+    const d = await nuevaDecision(s, proyectoId, true);
+    const r = await cmd(
+      'batch.submit',
+      {
+        tipo_lote: 'system_package',
+        resolucion: 'package',
+        propuestas: [
+          { tipo: 'exploracion', carga: { proposito: 'a' }, dependencias: [dependencia(d)] },
+          { tipo: 'exploracion', carga: { proposito: 'b' } },
+        ],
+      },
+      undefined,
+      sistema('prueba'),
+    );
+    await nuevaVersionDecision(d.recordId);
+    expect(await estadoDe('proposal_batches', r.entidadId)).toBe('superseded');
+    const estados = await s.db.selectFrom('proposals').select('state').where('batch_id', '=', r.entidadId).execute();
+    expect(estados.map((e) => e.state)).toEqual(['superseded', 'superseded']);
+  });
+
+  it('AC-DIS-001-16 una FDR propuesta sobre una decisión depende de ella aunque el agente no lo declare', async () => {
+    const d = await nuevaDecision(s, proyectoId, true);
+    const bot = agenteExterno('bot', 'sesion-fdr');
+    const r = await cmd(
+      'batch.submit',
+      {
+        propuestas: [
+          {
+            tipo: 'fdr',
+            carga: {
+              titulo: 'Alta de socios',
+              objetivo: 'o',
+              alcance: 'a',
+              fuera_de_alcance: 'f',
+              comportamiento: 'c',
+              criterios: [
+                {
+                  titulo: 'Alta',
+                  enunciado: 'Cuando envía, entonces ve la confirmación.',
+                  verificacion: 'automatic',
+                  comprobacion: 'E2E.',
+                },
+              ],
+              basado_en: { codigo: d.codigo, version: 1 },
+            },
+          },
+        ],
+      },
+      undefined,
+      bot,
+    );
     const [propuesta] = (r.resultado as { propuestas: string[] }).propuestas;
-    await expect(cmd('proposal.accept', {}, propuesta)).rejects.toMatchObject({
-      tipo: 'guarda',
-      motivos: [expect.stringContaining('La propuesta está obsoleta')],
-    });
+    const fila = await s.db
+      .selectFrom('proposals')
+      .select('dependencies')
+      .where('id', '=', propuesta ?? '')
+      .executeTakeFirstOrThrow();
+    expect(fila.dependencies).toEqual([dependencia(d)]);
+    await nuevaVersionDecision(d.recordId);
+    expect(await estadoDe('proposals', propuesta ?? '')).toBe('superseded');
   });
 
   it('AC-NUC-001-05 «aceptar y aprobar» se descompone en comandos de la tabla con su actor y la misma correlación', async () => {
@@ -465,7 +815,123 @@ describe('lotes y propuestas', () => {
   });
 });
 
+describe('estado epistémico', () => {
+  it('AC-DIS-001-12 cada fila de la tabla de correspondencias lleva su estado epistémico en la bandeja, el estado del producto o su detalle', async () => {
+    const pid = (await ejecutarComando(s, { comando: 'project.create', actor: ana, datos: { nombre: 'Epistémico' } })).proyectoId;
+    const en = (
+      comando: Parameters<typeof ejecutarComando>[1]['comando'],
+      datos: unknown,
+      entidadId?: string,
+      actor: Actor = ana,
+    ) => ejecutarComando(s, { comando, actor, proyectoId: pid, datos, ...(entidadId ? { entidadId } : {}) });
+
+    // Versión aprobada y versión en borrador.
+    const aprobada = await nuevaDecision(s, pid, true);
+    const borrador = await nuevaDecision(s, pid, false);
+    // Propuesta pendiente y propuesta aceptada.
+    const pendiente = await nuevoLote(s, pid, false);
+    const aceptada = await nuevoLote(s, pid, false);
+    await en('proposal.accept', {}, aceptada.propuestas[0]);
+    // Preguntas confirmada, inferida, pendiente y pospuesta.
+    const e = await nuevaExploracion(s, pid);
+    const pregunta = async (texto: string) => (await en('question.raise', { exploracion_id: e, pregunta: texto })).entidadId;
+    const qConfirmada = await pregunta('¿Confirmada?');
+    await en('question.confirm', { conclusion: 'Sí.' }, qConfirmada);
+    const qInferida = await pregunta('¿Inferida?');
+    await en('question.infer', { conclusion: 'Sí.', razonamiento: 'Lo dijo.' }, qInferida, sistema('exploracion'));
+    const qPendiente = await pregunta('¿Pendiente?');
+    const qPospuesta = await pregunta('¿Pospuesta?');
+    await en('question.postpone', { motivo: 'Luego.' }, qPospuesta);
+    // Observaciones de un agente: la salida de una ejecución.
+    const run = await en('run.request', { accion: 'exploration_chat', alcance: { tipo: 'exploration', id: e } });
+    const agente: Actor = { tipo: 'agent_run', run: run.entidadId };
+    for (const tipo of ['claim', 'hypothesis', 'unknown']) {
+      await en('message.post', { exploracion_id: e, texto: `Observación ${tipo}`, tipo, responder: false }, undefined, agente);
+    }
+    // Enlace pendiente de revisión: cambia la decisión en la que se basa una FDR.
+    const base = await nuevaDecision(s, pid, true);
+    const fdr = await en('record.create', {
+      tipo: 'fdr',
+      dominio: 'socios',
+      titulo: 'Alta',
+      secciones: SECCIONES_FDR,
+      criterios: [AC('alta')],
+      enlaces: [{ tipo: 'based_on', destino: { codigo: base.codigo, version: 1 } }],
+    });
+    await en('record_version.approve', {}, (fdr.resultado as { versionId: string }).versionId);
+    await nuevaVersionDecision(base.recordId, true, pid);
+
+    const b = await bandeja(s.db, pid);
+    const estado = await estadoProducto(s.db, pid);
+    const exploracion = await detalleExploracion(s.db, pid, e);
+    const detalleAceptada = await detalleLote(s.db, pid, aceptada.loteId);
+    const epistemicoDe = (id: string) => exploracion.preguntas.find((q) => q.id === id)?.estado_epistemico;
+    const observacion = (tipo: string) => exploracion.mensajes.find((m) => m.kind === tipo)?.estado_epistemico;
+    const filas = {
+      'Versión aprobada': estado.decisiones.find((d) => d.codigo === aprobada.codigo)?.estado_epistemico,
+      'Versión en borrador (estado)': estado.decisiones.find((d) => d.codigo === borrador.codigo)?.estado_epistemico,
+      'Versión en borrador (bandeja)': b.versiones_por_aprobar.find((v) => v.codigo === borrador.codigo)?.estado_epistemico,
+      'Propuesta pendiente': b.lotes.find((l) => l.id === pendiente.loteId)?.propuestas[0]?.estado_epistemico,
+      'Propuesta aceptada': detalleAceptada.propuestas[0]?.estado_epistemico,
+      'Pregunta confirmada': epistemicoDe(qConfirmada),
+      'Pregunta inferida': b.preguntas_por_confirmar.find((q) => q.id === qInferida)?.estado_epistemico,
+      'Pregunta pendiente': b.preguntas_abiertas.find((q) => q.id === qPendiente)?.estado_epistemico,
+      'Pregunta pospuesta': b.preguntas_abiertas.find((q) => q.id === qPospuesta)?.estado_epistemico,
+      'Observación claim': observacion('claim'),
+      'Observación hypothesis': observacion('hypothesis'),
+      'Observación unknown': observacion('unknown'),
+      'Enlace pendiente de revisión': b.enlaces_en_revision[0]?.estado_epistemico,
+    };
+    expect(filas).toEqual({
+      'Versión aprobada': 'confirmado',
+      'Versión en borrador (estado)': 'propuesto',
+      'Versión en borrador (bandeja)': 'propuesto',
+      'Propuesta pendiente': 'propuesto',
+      'Propuesta aceptada': 'confirmado',
+      'Pregunta confirmada': 'confirmado',
+      'Pregunta inferida': 'propuesto',
+      'Pregunta pendiente': 'pendiente',
+      'Pregunta pospuesta': 'pendiente',
+      'Observación claim': 'propuesto',
+      'Observación hypothesis': 'propuesto',
+      'Observación unknown': 'desconocido',
+      'Enlace pendiente de revisión': 'pendiente',
+    });
+    // La bandeja cuenta todo lo que espera a la persona, también lo que no viene de un agente.
+    expect(b.preguntas_abiertas).toHaveLength(2);
+    // El borrador y la decisión que creó aceptar la propuesta sin aprobarla.
+    expect(b.versiones_por_aprobar).toHaveLength(2);
+    expect(estado.bandeja.total).toBe(b.total);
+  });
+});
+
 describe('proyecto en todas las entidades', () => {
+  it('AC-ESQ-001-17 nada se escribe en otro proyecto: ni versiones, ni dependencias, ni siquiera saltándose las guardas', async () => {
+    const otro = (await ejecutarComando(s, { comando: 'project.create', actor: ana, datos: { nombre: 'Otro' } })).proyectoId;
+    const ajena = await nuevaDecision(s, otro, true);
+    await expect(
+      cmd('record_version.create', {
+        record_id: ajena.recordId,
+        titulo: 'x',
+        secciones: SECCIONES_DECISION,
+        nota_de_cambio: 'x',
+      }),
+    ).rejects.toMatchObject({ tipo: 'guarda', motivos: expect.arrayContaining(['El registro no existe en este proyecto.']) });
+    await expect(
+      cmd(
+        'batch.submit',
+        { propuestas: [{ tipo: 'exploracion', carga: { proposito: 'x' }, dependencias: [dependencia(ajena)] }] },
+        undefined,
+        agenteExterno('bot', 'sonda'),
+      ),
+    ).rejects.toMatchObject({ tipo: 'guarda', motivos: [`La dependencia ${ajena.codigo} v1 no existe en este proyecto.`] });
+    await expect(
+      sql`insert into record_versions (project_id, record_id, n, title, sections, author, content_hash, state)
+          values (${proyectoId}::uuid, ${ajena.recordId}::uuid, 9, 't', '[]', 'human:ana', 'h', 'draft')`.execute(s.db),
+    ).rejects.toThrow(/proyectos distintos/);
+    expect(await versiones(ajena.recordId)).toMatchObject([{ n: 1, state: 'approved' }]);
+  });
+
   it('AC-ESQ-001-17 toda tabla de dominio lleva project_id y las de autoridad y el diario rechazan DELETE', async () => {
     const sinProyecto = await sql<{ table_name: string }>`
       select t.table_name from information_schema.tables t

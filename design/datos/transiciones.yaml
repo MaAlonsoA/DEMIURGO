@@ -79,8 +79,8 @@ entidades:
     estados: { draft: Borrador, approved: Aprobada, superseded: Sustituida, discarded: Descartada }
     autoridad: [approved]
     transiciones:
-      - { comando: record_version.create, desde: nuevo, hacia: draft, guardas: [plantilla_valida, arrastre_de_criterios_completo] }
-      - { comando: record_version.approve, desde: [draft], hacia: approved, guardas: [plantilla_valida] }
+      - { comando: record_version.create, desde: nuevo, hacia: draft, guardas: [registro_del_proyecto, plantilla_valida, arrastre_de_criterios_completo] }
+      - { comando: record_version.approve, desde: [draft], hacia: approved, guardas: [plantilla_valida, sin_aprobada_posterior] }
       - { comando: record_version.supersede, desde: [approved], hacia: superseded }
       - { comando: record_version.discard, desde: [draft], hacia: discarded }
 
@@ -90,7 +90,7 @@ entidades:
     estados: { recorded: Registrado }
     autoridad: []
     transiciones:
-      - { comando: criterion.record, desde: nuevo, hacia: recorded, guardas: [version_en_borrador] }
+      - { comando: criterion.record, desde: nuevo, hacia: recorded, guardas: [dentro_de_su_version, version_en_borrador] }
 
   link:
     etiqueta: Enlace
@@ -98,7 +98,7 @@ entidades:
     estados: { current: Vigente, needs_review: Pendiente de revisión, kept: Mantenido, changed: Cambiado, obsolete: Obsoleto }
     autoridad: []
     transiciones:
-      - { comando: link.create, desde: nuevo, hacia: current, guardas: [extremos_existentes] }
+      - { comando: link.create, desde: nuevo, hacia: current, guardas: [dentro_de_su_version, extremos_existentes] }
       - { comando: link.flag_review, desde: [current, kept, changed], hacia: needs_review }
       - { comando: link.keep, desde: [needs_review], hacia: kept }
       - { comando: link.change, desde: [needs_review], hacia: changed }
@@ -110,7 +110,7 @@ entidades:
     estados: { pending: Pendiente, accepted: Aceptado, rejected: Rechazado, resolved: Resuelto, superseded: Obsoleto }
     autoridad: [accepted]
     transiciones:
-      - { comando: batch.submit, desde: nuevo, hacia: pending, guardas: [lote_de_agente_externo_max_10] }
+      - { comando: batch.submit, desde: nuevo, hacia: pending, guardas: [lote_de_agente_externo_max_10, dependencias_del_proyecto] }
       - { comando: design.import, desde: nuevo, hacia: pending, guardas: [diseno_valido] }
       - { comando: batch.accept_package, desde: [pending], hacia: accepted, guardas: [resolucion_en_paquete, dependencias_vigentes] }
       - { comando: batch.reject_package, desde: [pending], hacia: rejected, guardas: [resolucion_en_paquete] }
@@ -123,7 +123,7 @@ entidades:
     estados: { pending: Pendiente, accepted: Aceptada, accepted_edited: Aceptada con cambios, rejected: Rechazada, superseded: Obsoleta }
     autoridad: [accepted, accepted_edited]
     transiciones:
-      - { comando: proposal.create, desde: nuevo, hacia: pending, guardas: [lote_propio_abierto, carga_valida] }
+      - { comando: proposal.create, desde: nuevo, hacia: pending, guardas: [lote_propio_abierto, carga_valida, dependencias_del_proyecto] }
       - { comando: proposal.accept, desde: [pending], hacia: accepted, guardas: [resolucion_por_elemento, dependencias_vigentes] }
       - { comando: proposal.accept_edited, desde: [pending], hacia: accepted_edited, guardas: [resolucion_por_elemento, dependencias_vigentes, edicion_valida] }
       - { comando: proposal.reject, desde: [pending], hacia: rejected, guardas: [resolucion_por_elemento] }

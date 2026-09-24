@@ -109,14 +109,16 @@ export async function readinessDeVersion(db: Bd, proyectoId: string, versionId: 
         .where('state', 'in', ['pending', 'postponed'])
         .execute()
     : [];
+  // Una propuesta la afecta si depende del registro, por sí misma o por su lote.
   const pendientes = await db
     .selectFrom('proposals')
-    .select('dependencies')
-    .where('project_id', '=', proyectoId)
-    .where('state', '=', 'pending')
+    .innerJoin('proposal_batches', 'proposal_batches.id', 'proposals.batch_id')
+    .select(['proposals.dependencies', 'proposal_batches.dependencies as depsLote'])
+    .where('proposals.project_id', '=', proyectoId)
+    .where('proposals.state', '=', 'pending')
     .execute();
   const propuestasPendientes = pendientes.filter((p) =>
-    ((p.dependencies ?? []) as Dep[]).some((d) => d.id === v.recordId),
+    [...((p.dependencies ?? []) as Dep[]), ...((p.depsLote ?? []) as Dep[])].some((d) => d.id === v.recordId),
   ).length;
   return readiness({
     codigo: v.code,
@@ -185,6 +187,30 @@ export async function bandeja(db: Bd, proyectoId: string) {
     .where('state', '=', 'inferred')
     .orderBy('created_at')
     .execute();
+  // Lo que espera a la persona aunque no venga de un agente: preguntas abiertas y borradores sin aprobar.
+  const abiertas = await db
+    .selectFrom('questions')
+    .select(['id', 'exploration_id', 'question', 'state', 'state_reason', 'raised_by'])
+    .where('project_id', '=', proyectoId)
+    .where('state', 'in', ['pending', 'postponed'])
+    .orderBy('created_at')
+    .execute();
+  const borradores = await db
+    .selectFrom('record_versions')
+    .innerJoin('records', 'records.id', 'record_versions.record_id')
+    .select([
+      'record_versions.id',
+      'records.code',
+      'records.type',
+      'record_versions.n',
+      'record_versions.title',
+      'record_versions.state',
+    ])
+    .where('record_versions.project_id', '=', proyectoId)
+    .where('record_versions.state', '=', 'draft')
+    .orderBy('records.code')
+    .orderBy('record_versions.n')
+    .execute();
   const enlaces = await db
     .selectFrom('links')
     .selectAll()
@@ -192,11 +218,26 @@ export async function bandeja(db: Bd, proyectoId: string) {
     .where('state', '=', 'needs_review')
     .execute();
   const extra = await pendientesDeConocimiento(db, proyectoId);
-  const total = itemsLotes.reduce((n, l) => n + l.propuestas.length, 0) + preguntas.length + enlaces.length + extra.total;
+  const total =
+    itemsLotes.reduce((n, l) => n + l.propuestas.length, 0) +
+    preguntas.length +
+    abiertas.length +
+    borradores.length +
+    enlaces.length +
+    extra.total;
   return {
     total,
     lotes: itemsLotes,
     preguntas_por_confirmar: preguntas.map((q) => ({ ...q, estado_epistemico: epistemicoDePregunta(q.state) })),
+    preguntas_abiertas: abiertas.map((q) => ({ ...q, estado_epistemico: epistemicoDePregunta(q.state) })),
+    versiones_por_aprobar: borradores.map((v) => ({
+      id: v.id,
+      codigo: v.code,
+      tipo: v.type,
+      n: v.n,
+      titulo: v.title,
+      estado_epistemico: epistemicoDeVersion(v.state),
+    })),
     enlaces_en_revision: enlaces.map((e) => ({ ...e, estado_epistemico: 'pendiente' as const })),
     ...extra.secciones,
   };

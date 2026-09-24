@@ -54,10 +54,10 @@ La franja más fina del Pilar 1, usable por una persona o por un agente: partir 
 5. Si la readiness es falsa, devuelve cada motivo en lenguaje de producto. Si es verdadera, la FDR aparece como «Listo para construir».
 6. Un agente externo, con su token, puede leer, conversar con su nombre, registrar fuentes y proponer, por la API o por MCP. Todo lo demás devuelve 403.
 7. Los lotes de un agente externo llevan como máximo 10 propuestas y se resuelven elemento a elemento, con el productor visible.
-8. Aprobar no crea versión. La vigente es la última aprobada y la aprobada anterior pasa a sustituida. Una versión nueva arrastra cada criterio de forma explícita: mantener, modificar o descartar.
-9. Si una dependencia declarada de una propuesta cambió, aceptarla se rechaza con aviso de obsolescencia y la propuesta queda obsoleta.
+8. Aprobar no crea versión. La vigente es la última aprobada y la aprobada anterior pasa a sustituida; un borrador anterior a una versión ya aprobada no se aprueba, se descarta. Una versión nueva arrastra cada criterio de forma explícita: mantener, modificar o descartar. Los criterios y los enlaces solo nacen con su versión y un criterio nuevo nunca reutiliza un código ya usado.
+9. Si una dependencia declarada de una propuesta cambió, aceptarla se rechaza con aviso de obsolescencia y la propuesta queda obsoleta. Queda obsoleta en cuanto se aprueba la versión nueva, o al enviarla si ya nace obsoleta; en un paquete, o si la dependencia es del lote, queda obsoleto el lote entero. La referencia `basado_en` de una FDR propuesta cuenta como dependencia declarada.
 10. El reintento de una ejecución usa el mismo context pack que el envío.
-11. Cada elemento de la bandeja y del estado del producto lleva su estado epistémico: confirmado, propuesto, pendiente o desconocido, según la tabla de correspondencias de abajo.
+11. Cada elemento de la bandeja, del estado del producto y del detalle de una exploración o de un lote lleva su estado epistémico: confirmado, propuesto, pendiente o desconocido, según la tabla de correspondencias de abajo. La bandeja reúne todo lo que espera a la persona: propuestas pendientes, preguntas inferidas, pendientes y pospuestas, versiones en borrador y enlaces pendientes de revisión.
 12. El chequeo de verificabilidad de S1 es una regla determinista, que el Noul del clasificador sustituirá. Nunca bloquea: el AC se guarda igualmente. Un AC recibe un aviso si su enunciado:
     - no contiene un resultado observable, es decir, ninguna palabra como cuando, entonces, ve, recibe, muestra, devuelve, aparece, queda, rechaza, falla, contiene, guarda o responde;
     - o contiene un término vago: rápido, fácil, intuitivo, adecuado, correctamente, bien, amigable, robusto, eficiente o mejor.
@@ -162,9 +162,9 @@ Dado un agente externo, cuando envía un lote de más de 10 propuestas, entonces
 ### AC-DIS-001-12 · Estado epistémico visible
 
 - Verificación: automática
-- Comprobación: Se consultan la bandeja y el estado del producto con un elemento de cada fila de la tabla de correspondencias y se compara el estado epistémico de cada uno con la tabla.
+- Comprobación: Se consultan la bandeja, el estado del producto y los detalles de exploración y de lote con un elemento de cada fila de la tabla de correspondencias y se compara el estado epistémico de cada uno con la tabla.
 
-Dada la bandeja y el estado del producto, cuando se consultan, entonces cada elemento lleva el estado epistémico que le asigna la tabla de correspondencias de Comportamiento: confirmado, propuesto, pendiente o desconocido.
+Dada la bandeja, el estado del producto y los detalles de exploración y de lote, cuando se consultan, entonces cada elemento lleva el estado epistémico que le asigna la tabla de correspondencias de Comportamiento: confirmado, propuesto, pendiente o desconocido.
 
 ### AC-DIS-001-13 · Estado del producto mínimo
 

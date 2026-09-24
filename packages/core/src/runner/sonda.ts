@@ -42,6 +42,8 @@ export const CONFIGURACION_SONDA: ConfiguracionSonda = Object.freeze({
     { host: 'host.docker.internal', puerto: 8000 },
     { host: '192.168.65.254', puerto: 55432 },
     { host: '172.17.0.1', puerto: 5432 },
+    // Pasarela del puente de Docker con el puerto publicado del Postgres de desarrollo y de la CI.
+    { host: '172.17.0.1', puerto: 55432 },
     { host: '10.0.2.2', puerto: 55432 },
     { host: '127.0.0.1', puerto: 5432 },
     { host: '1.1.1.1', puerto: 443 },

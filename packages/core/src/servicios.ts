@@ -7,6 +7,8 @@ export type MotorFlujos = {
   iniciarRun(runId: string, proyectoId: string): Promise<void>;
   cancelarRun(runId: string): Promise<void>;
   iniciarActualizacion(updateId: string, proyectoId: string): Promise<void>;
+  iniciarEvaluacion(loteId: string, proyectoId: string): Promise<void>;
+  iniciarRespuesta(mensajeId: string, proyectoId: string, exploracionId: string, preguntaId?: string): Promise<void>;
 };
 
 export type Registro = {
@@ -31,12 +33,27 @@ export const registroConsola: Registro = {
 };
 
 /** Motor que no ejecuta nada: para pruebas del bus sin flujos durables. */
-export function motorInerte(): MotorFlujos & { runs: string[]; actualizaciones: string[] } {
+export function motorInerte(): MotorFlujos & {
+  runs: string[];
+  actualizaciones: string[];
+  evaluaciones: string[];
+  respuestas: string[];
+} {
   const runs: string[] = [];
   const actualizaciones: string[] = [];
+  const evaluaciones: string[] = [];
+  const respuestas: string[] = [];
   return {
     runs,
     actualizaciones,
+    evaluaciones,
+    respuestas,
+    iniciarRespuesta: async (id) => {
+      respuestas.push(id);
+    },
+    iniciarEvaluacion: async (id) => {
+      evaluaciones.push(id);
+    },
     iniciarRun: async (id) => {
       runs.push(id);
     },

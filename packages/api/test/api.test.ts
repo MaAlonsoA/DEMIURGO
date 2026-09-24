@@ -160,6 +160,14 @@ describe('API: flujo SSE incremental', () => {
       });
       expect(recibidos.slice(0, posteriores.length)).toEqual(posteriores);
       expect(recibidos.every((id) => BigInt(id) > BigInt(corte))).toBe(true);
+      // Sin fugas entre proyectos: todos los eventos recibidos son de este proyecto.
+      const deOtros = await entorno.servicios.db
+        .selectFrom('events')
+        .select('id')
+        .where('id', 'in', recibidos)
+        .where('project_id', '<>', proyectoId)
+        .execute();
+      expect(deOtros).toEqual([]);
     } finally {
       await app.close();
     }

@@ -1,12 +1,14 @@
 import { ESQUEMAS_SALIDA, type PeticionAgente, esquemaJsonDe, humano } from '@demiurgo/domain';
 import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
-import { crearAgenteSimulado } from '../src/agentes/simulado.ts';
+import { GUIONES_POR_DEFECTO, crearAgenteSimulado } from '../src/agentes/simulado.ts';
 import { ejecutarComando } from '../src/bus/bus.ts';
 import { esperarRun } from '../src/motor/motor.ts';
 import { usarEntorno } from './soporte/entorno.ts';
 
-// El guion de «eco» devuelve una salida fuera de esquema cuando el texto pide «invalida».
+// Los guiones devuelven una salida fuera de esquema cuando el texto pide «invalida». En
+// exploration_chat el aplicador sí tiene efectos (mensajes, preguntas y lote): así se ve que
+// una salida inválida no produce ninguno.
 const esquemasRecibidos: Record<string, unknown>[] = [];
 const entorno = usarEntorno({
   durable: true,
@@ -17,6 +19,20 @@ const entorno = usarEntorno({
           esquemasRecibidos.push(p.esquemaSalida);
           const texto = (p.contexto.contenido as { entrada: { texto: string } }).entrada.texto;
           return texto === 'invalida' ? { reply: 42, extra: true } : { reply: `Eco: ${texto}` };
+        },
+        exploration_chat: (p) => {
+          const c = p.contexto.contenido as { mensajes: { texto: string }[] };
+          if (c.mensajes.some((m) => m.texto.includes('invalida'))) {
+            return {
+              reply: 'Respuesta',
+              observaciones: [],
+              preguntas: [{ pregunta: '¿?' }],
+              inferencias: [],
+              propuestas: [],
+              sobra: 1,
+            };
+          }
+          return GUIONES_POR_DEFECTO.exploration_chat(p);
         },
       },
     }),
@@ -47,17 +63,25 @@ const peticionChat = (texto: string): PeticionAgente => ({
 describe('ejecuciones con el motor durable', () => {
   it('AC-ESQ-001-08 una salida fuera de esquema deja la ejecución en failed/invalid_output sin efectos', async () => {
     const s = entorno().servicios;
-    const { proyectoId } = await ejecutarComando(s, {
-      comando: 'project.create',
-      actor: humano('ana'),
-      datos: { nombre: 'Inválida' },
+    const ana = humano('ana');
+    const { proyectoId } = await ejecutarComando(s, { comando: 'project.create', actor: ana, datos: { nombre: 'Inválida' } });
+    const e = await ejecutarComando(s, { comando: 'exploration.open', actor: ana, proyectoId, datos: { proposito: 'Probar' } });
+    await ejecutarComando(s, {
+      comando: 'message.post',
+      actor: ana,
+      proyectoId,
+      datos: { exploracion_id: e.entidadId, texto: 'Quiero que sea invalida', responder: false },
     });
-    const { runId, estado } = await pedirEco(proyectoId, 'invalida');
-    expect(estado).toBe('failed');
-    const run = await s.db.selectFrom('ai_runs').selectAll().where('id', '=', runId).executeTakeFirstOrThrow();
+    const pedido = await ejecutarComando(s, {
+      comando: 'run.request',
+      actor: ana,
+      proyectoId,
+      datos: { accion: 'exploration_chat', alcance: { tipo: 'exploration', id: e.entidadId } },
+    });
+    expect(await esperarRun(pedido.entidadId)).toBe('failed');
+    const run = await s.db.selectFrom('ai_runs').selectAll().where('id', '=', pedido.entidadId).executeTakeFirstOrThrow();
     expect(run.failure_kind).toBe('invalid_output');
     expect(run.output).toBeNull();
-    expect(run.error).toMatch(/reply/);
     const comandos = await s.db
       .selectFrom('events')
       .select('command')
@@ -66,15 +90,48 @@ describe('ejecuciones con el motor durable', () => {
       .execute();
     expect(comandos.map((c) => c.command)).toEqual([
       'project.create',
+      'exploration.open',
+      'message.post',
       'context_pack.build',
       'run.request',
       'run.begin',
       'run.fail',
     ]);
-    for (const tabla of ['messages', 'questions', 'proposal_batches', 'proposals'] as const) {
-      const filas = await s.db.selectFrom(tabla).select('id').where('project_id', '=', proyectoId).execute();
-      expect({ tabla, n: filas.length }).toEqual({ tabla, n: 0 });
-    }
+    const mensajesDelRun = await s.db.selectFrom('messages').select('id').where('run_id', '=', pedido.entidadId).execute();
+    const preguntas = await s.db.selectFrom('questions').select('id').where('project_id', '=', proyectoId).execute();
+    const lotes = await s.db.selectFrom('proposal_batches').select('id').where('project_id', '=', proyectoId).execute();
+    expect({ mensajes: mensajesDelRun.length, preguntas: preguntas.length, lotes: lotes.length }).toEqual({
+      mensajes: 0,
+      preguntas: 0,
+      lotes: 0,
+    });
+  });
+
+  it('AC-ESQ-001-08 la misma acción con salida válida sí produce sus efectos', async () => {
+    const s = entorno().servicios;
+    const ana = humano('ana');
+    const { proyectoId } = await ejecutarComando(s, {
+      comando: 'project.create',
+      actor: ana,
+      datos: { nombre: 'Válida con efectos' },
+    });
+    const e = await ejecutarComando(s, { comando: 'exploration.open', actor: ana, proyectoId, datos: { proposito: 'Probar' } });
+    await ejecutarComando(s, {
+      comando: 'message.post',
+      actor: ana,
+      proyectoId,
+      datos: { exploracion_id: e.entidadId, texto: 'Quiero cuotas anuales', responder: false },
+    });
+    const pedido = await ejecutarComando(s, {
+      comando: 'run.request',
+      actor: ana,
+      proyectoId,
+      datos: { accion: 'exploration_chat', alcance: { tipo: 'exploration', id: e.entidadId } },
+    });
+    expect(await esperarRun(pedido.entidadId)).toBe('completed');
+    const mensajesDelRun = await s.db.selectFrom('messages').select('id').where('run_id', '=', pedido.entidadId).execute();
+    const lotes = await s.db.selectFrom('proposal_batches').select('id').where('run_id', '=', pedido.entidadId).execute();
+    expect({ mensajes: mensajesDelRun.length, lotes: lotes.length }).toEqual({ mensajes: 2, lotes: 1 });
   });
 
   it('una salida válida completa la ejecución y guarda la salida validada', async () => {

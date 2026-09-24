@@ -176,7 +176,9 @@ async function aplicarPropuesta(
   const tipo = cadena(e.fila.type) as TipoPropuesta;
   const aplicar = APLICACIONES[tipo];
   if (!aplicar) throw new ErrorDominio('no_implementado', `Aceptar propuestas de tipo «${tipo}» aún no está implementado.`);
-  return aplicar(ctx, { propuestaId: e.id, carga, aprobar: opciones.aprobar });
+  // Los comandos que crea la propuesta llevan en su causa la propuesta que los originó.
+  const conCausa: ContextoComando = { ...ctx, ejecutar: (p) => ctx.ejecutar({ ...p, causa: { propuesta: e.id, ...p.causa } }) };
+  return aplicar(conCausa, { propuestaId: e.id, carga, aprobar: opciones.aprobar });
 }
 
 registrarManejadores({
@@ -200,7 +202,9 @@ registrarManejadores({
       if (tipoLote === 'agent' && resolucion === 'package') {
         throw new ErrorDominio('validacion', 'Un lote de agente se resuelve elemento a elemento.');
       }
-      const runId = ctx.actor.tipo === 'agent_run' ? ctx.actor.run : (datos.run_id ?? null);
+      // La procedencia la fija el canal: un agente externo no puede atribuir su lote a una ejecución.
+      const runId = ctx.actor.tipo === 'agent_run' ? ctx.actor.run : externo ? null : (datos.run_id ?? null);
+      const packId = externo ? null : (datos.context_pack_id ?? null);
       const { id } = await ctx.trx
         .insertInto('proposal_batches')
         .values({
@@ -208,7 +212,7 @@ registrarManejadores({
           kind: tipoLote,
           producer: formatearActor(ctx.actor),
           run_id: runId,
-          context_pack_id: datos.context_pack_id ?? null,
+          context_pack_id: packId,
           resolution_mode: resolucion,
           dependencies: JSON.stringify(datos.dependencias),
           summary: datos.resumen ?? null,

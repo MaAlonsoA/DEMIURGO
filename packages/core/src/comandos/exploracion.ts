@@ -1,14 +1,11 @@
 // Tokens de agentes, exploraciones, conversación, fuentes y preguntas (Pilar 1).
 
-import { ErrorDominio, NOMBRE_AGENTE_VALIDO, formatearActor, huella, sistema } from '@demiurgo/domain';
+import { ErrorDominio, NOMBRE_AGENTE_VALIDO, formatearActor, huella } from '@demiurgo/domain';
 import { sql } from 'kysely';
 import { z } from 'zod';
 import { cadena, campo, registrarGuardas } from '../bus/guardas.ts';
 import { manejador, registrarManejadores } from '../bus/manejadores.ts';
-import { ejecutarComando } from '../bus/bus.ts';
-import { grafoAlDia } from '../contexto/grafo.ts';
 import { PREFIJO_TOKEN_AGENTE, huellaSecreto, nuevoSecreto } from '../secretos.ts';
-import type { Servicios } from '../servicios.ts';
 
 const texto = (max: number) => z.string().trim().min(1).max(max);
 const uuid = z.string().uuid();
@@ -29,10 +26,14 @@ const esquemaOrigen = z
   .strict();
 
 registrarGuardas({
-  nombre_de_agente_valido: ({ datos }) =>
-    NOMBRE_AGENTE_VALIDO.test(cadena(campo(datos, 'nombre')))
+  nombre_de_agente_valido: ({ datos }) => {
+    const nombre = cadena(campo(datos, 'nombre'));
+    // «run» está reservado: agent:run:<id> es el actor de las ejecuciones de DEMIURGO.
+    if (nombre === 'run') return 'El nombre «run» está reservado a las ejecuciones de DEMIURGO.';
+    return NOMBRE_AGENTE_VALIDO.test(nombre)
       ? null
-      : 'El nombre del agente solo admite minúsculas, números y guiones (2 a 40 caracteres).',
+      : 'El nombre del agente solo admite minúsculas, números y guiones (2 a 40 caracteres).';
+  },
 
   async origen_existente({ ctx, datos }) {
     const origen = campo(datos, 'origen') as { tipo: keyof typeof ORIGENES; id: string } | undefined;
@@ -72,30 +73,6 @@ registrarGuardas({
     return nueva || previa ? null : 'Hace falta una conclusión.';
   },
 });
-
-/** Pide al agente de exploración que responda, cuando el conocimiento esté al día. */
-export async function solicitarRespuesta(
-  s: Servicios,
-  proyectoId: string,
-  exploracionId: string,
-  preguntaId?: string,
-): Promise<void> {
-  for (let intento = 0; intento < 60; intento++) {
-    const f = await s.db.transaction().execute((trx) => grafoAlDia(trx, proyectoId));
-    if (f.alDia) break;
-    await new Promise((r) => setTimeout(r, 500));
-  }
-  await ejecutarComando(s, {
-    comando: 'run.request',
-    actor: sistema('conversacion'),
-    proyectoId,
-    datos: {
-      accion: 'exploration_chat',
-      alcance: { tipo: 'exploration', id: exploracionId },
-      entrada: preguntaId ? { pregunta_id: preguntaId } : {},
-    },
-  });
-}
 
 registrarManejadores({
   'agent_token.issue': manejador({
@@ -227,8 +204,9 @@ registrarManejadores({
         .returning('id')
         .executeTakeFirstOrThrow();
       if (ctx.actor.tipo === 'human' && datos.responder) {
+        // La respuesta es un flujo durable: espera a que el conocimiento esté al día y pide la ejecución.
         const { servicios, proyectoId } = ctx;
-        ctx.despuesDeConfirmar(() => solicitarRespuesta(servicios, proyectoId, datos.exploracion_id, datos.pregunta_id));
+        ctx.despuesDeConfirmar(() => servicios.motor.iniciarRespuesta(id, proyectoId, datos.exploracion_id, datos.pregunta_id));
       }
       return {
         entidadId: id,

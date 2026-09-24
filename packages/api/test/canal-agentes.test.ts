@@ -121,4 +121,41 @@ describe('canal de agentes por la API', () => {
     const r = await api().agente(String(t.resultado.token)).pedir('GET', `/api/proyectos/${proyectoId}/estado`);
     expect(r.statusCode).toBe(401);
   });
+
+  it('AC-ESQ-001-13 con token de agente, una cabecera de actor o una cookie de persona no cambian el actor', async () => {
+    const agente = api().agente(token);
+    const r = await agente.pedir(
+      'POST',
+      `/api/proyectos/${proyectoId}/comandos/message.post`,
+      { actor: 'human:ana', datos: { exploracion_id: exploracionId, texto: 'Mensaje con cabeceras falsas' } },
+      { 'x-actor': 'human:ana', cookie: `demiurgo_sesion=${api().persona.cookie}`, 'x-demiurgo-csrf': api().persona.csrf },
+    );
+    expect(r.statusCode).toBe(200);
+    const ultimo = await api()
+      .entorno.servicios.db.selectFrom('events')
+      .select('actor')
+      .where('project_id', '=', proyectoId)
+      .orderBy('seq', 'desc')
+      .executeTakeFirstOrThrow();
+    expect(ultimo.actor).toBe(`agent:claude-code:${tokenId}`);
+    // Y con token de agente no se ejecuta un comando de persona aunque vaya la cookie.
+    const decisivo = await agente.pedir(
+      'POST',
+      `/api/proyectos/${proyectoId}/comandos/exploration.open`,
+      { datos: { proposito: 'x' } },
+      {
+        cookie: `demiurgo_sesion=${api().persona.cookie}`,
+        'x-demiurgo-csrf': api().persona.csrf,
+      },
+    );
+    expect(decisivo.statusCode).toBe(403);
+  });
+
+  it('el nombre «run» está reservado para los tokens de agente', async () => {
+    const r = await api().persona.pedir('POST', `/api/proyectos/${proyectoId}/comandos/agent_token.issue`, {
+      datos: { nombre: 'run' },
+    });
+    expect(r.statusCode).toBe(409);
+    expect(r.json<{ motivos: string[] }>().motivos.join(' ')).toMatch(/reservado/);
+  });
 });

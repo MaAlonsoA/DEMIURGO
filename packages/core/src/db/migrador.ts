@@ -35,6 +35,10 @@ export async function migrar(pool: Pool, migraciones?: Migracion[]): Promise<str
       'select version, checksum from schema_migrations',
     );
     const previas = new Map(rows.map((r) => [r.version, r.checksum]));
+    const enDisco = new Set(lista.map((m) => m.version));
+    const perdidas = [...previas.keys()].filter((v) => !enDisco.has(v));
+    if (perdidas.length)
+      throw new Error(`Faltan en disco migraciones ya aplicadas (${perdidas.join(', ')}); no se puede arrancar.`);
     for (const m of lista) {
       const previa = previas.get(m.version);
       if (previa !== undefined) {

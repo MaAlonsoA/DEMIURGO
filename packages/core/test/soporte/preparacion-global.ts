@@ -53,8 +53,8 @@ export default async function preparar(proyecto: TestProject): Promise<void> {
     for (const { datname } of rows) {
       const ts = /^dmg_t_(\d+)_/.exec(datname)?.[1];
       const antigua = ts !== undefined && ahora - Number(ts) > 7200;
-      const plantillaVieja = datname.startsWith('dmg_plantilla_') && datname !== plantilla && !datname.endsWith('_tmp');
-      if (antigua || plantillaVieja) await admin.query(`drop database if exists "${datname}" with (force)`);
+      // Solo se borran bases efímeras antiguas: otra ejecución concurrente puede estar usando su plantilla.
+      if (antigua) await admin.query(`drop database if exists "${datname}" with (force)`);
     }
     if (!rows.some((r) => r.datname === plantilla)) {
       const tmp = `${plantilla}_${process.pid}_tmp`;

@@ -107,7 +107,7 @@ describe('closed JobSpec and docker arguments', () => {
       [{ ...SPEC_BASE, mounts: ['/:/host'] }, /Unsupported JobSpec options: mounts/],
       [{ ...SPEC_BASE, network: 'host' }, /Unsupported JobSpec options: network/],
       [{ ...SPEC_BASE, privileged: true }, /Unsupported JobSpec options: privileged/],
-      [{ ...SPEC_BASE, username: 'root' }, /Unsupported JobSpec options: username/],
+      [{ ...SPEC_BASE, user: 'root' }, /Unsupported JobSpec options: user/],
       [{ ...SPEC_BASE, limits: { cpus: 1, privileged: true } }, /Unsupported limits: privileged/],
       [{ ...SPEC_BASE, environment: { DATABASE_URL: 'postgres://x' } }, /Environment variables not allowed: DATABASE_URL/],
       [{ ...SPEC_BASE, environment: { LANG: 'C', ANTHROPIC_API_KEY: 'k' } }, /not allowed: ANTHROPIC_API_KEY/],
@@ -345,7 +345,7 @@ describe('runner with docker', () => {
       expect(report.connections.length).toBeGreaterThanOrEqual(7);
       expect(report.connections.filter((c) => c.connected)).toEqual([]);
       expect(report.connections.map((c) => c.target)).toContain('host.docker.internal:55432');
-      expect(report.writeOutsideTmp.map((e) => e.goal)).toEqual(expect.arrayContaining(['/', '.']));
+      expect(report.writeOutsideTmp.map((e) => e.target)).toEqual(expect.arrayContaining(['/', '.']));
       expect(report.writeOutsideTmp.filter((e) => e.written)).toEqual([]);
       expect(report.writeInTmp.written).toBe(true);
       expect(report.proc).toMatchObject({ capEff: '0000000000000000', noNewPrivs: '1' });

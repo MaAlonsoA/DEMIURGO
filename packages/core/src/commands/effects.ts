@@ -23,7 +23,7 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
       ctx,
       {
         type: 'decision',
-        domain: c.domain ?? 'product',
+        domain: c.domain ?? 'producto',
         title: c.title,
         sections: [
           { title: 'Context', content: c.context },
@@ -52,7 +52,7 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
       ctx,
       {
         type: 'fdr',
-        domain: c.domain ?? 'product',
+        domain: c.domain ?? 'producto',
         title: c.title,
         sections: [
           { title: 'Goal', content: c.goal },

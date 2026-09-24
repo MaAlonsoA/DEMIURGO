@@ -339,10 +339,10 @@ export function ideaCandidates(g: Graph, idea: string, limit = 8): Candidate[] {
 }
 
 /** Knowledge selection for a context pack: lexical relevance, with reason and budget. */
-export function selectForContext(g: Graph, queryName: string, budget: number): { node: Node; reason: string }[] {
+export function selectForContext(g: Graph, queryText: string, budget: number): { node: Node; reason: string }[] {
   const scored = currentNodes(g)
     .filter((n) => n.epistemic === 'confirmed' && n.type !== 'criterion')
-    .map((n) => ({ node: n, sim: similarity(queryName, `${n.label}. ${n.text}`) }))
+    .map((n) => ({ node: n, sim: similarity(queryText, `${n.label}. ${n.text}`) }))
     .filter(({ sim }) => sim > 0)
     .sort((a, b) => b.sim - a.sim || (a.node.ref < b.node.ref ? -1 : 1));
   const chosen: { node: Node; reason: string }[] = [];

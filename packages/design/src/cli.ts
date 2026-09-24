@@ -17,6 +17,8 @@ import { casesFromJUnit, citedCodes, completeReport, traceabilityMap } from './t
 const [command, ...args] = process.argv.slice(2);
 const DIR = args.find((a) => !a.startsWith('--')) ?? 'design';
 
+const count = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
+
 async function validate(): Promise<number> {
   const report = validateTree(await readTree(DIR));
   if (report.problems.length > 0) {
@@ -26,7 +28,7 @@ async function validate(): Promise<number> {
   }
   const acs = report.records.reduce((n, r) => n + r.criteria.length, 0);
   console.log(
-    `✓ ${DIR}/ is valid: ${report.records.length} records, ${acs} criteria, ${report.taxonomies.length} taxonomies, ${report.annexes.size} annexes.`,
+    `✓ ${DIR}/ is valid: ${count(report.records.length, 'record', 'records')}, ${count(acs, 'criterion', 'criteria')}, ${count(report.taxonomies.length, 'taxonomy', 'taxonomies')}, ${count(report.annexes.size, 'annex', 'annexes')}.`,
   );
   return 0;
 }
@@ -70,8 +72,8 @@ async function derive(): Promise<number> {
     console.log(`Wrote ${TABLES_MODULE_PATH}.`);
     return 0;
   }
-  const cursor = await readFile(TABLES_MODULE_PATH, 'utf8').catch(() => '');
-  if (cursor !== generated) {
+  const current = await readFile(TABLES_MODULE_PATH, 'utf8').catch(() => '');
+  if (current !== generated) {
     console.error(`✗ ${TABLES_MODULE_PATH} doesn't match design/data/. Run "pnpm gen".`);
     return 1;
   }

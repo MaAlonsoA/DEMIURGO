@@ -5,7 +5,7 @@ import './integration.ts';
 
 export * from './update.ts';
 export * from './derive.ts';
-export { waitForKnowledge, waitForEvaluation } from './workflows.ts';
+export { waitForKnowledge, waitForAssessment } from './workflows.ts';
 export * from './graph-pg.ts';
 export * from './rebuild.ts';
 export * from './evaluate.ts';

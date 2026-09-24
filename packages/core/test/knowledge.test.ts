@@ -36,7 +36,7 @@ let s: Services;
 beforeAll(() => {
   s = environment().services;
 });
-beforeEach(() => script.restart());
+beforeEach(() => script.reset());
 
 async function newProject(name: string): Promise<string> {
   return (await executeCommand(s, { command: 'project.create', actor: ana, data: { name } })).projectId;
@@ -307,7 +307,7 @@ describe('Update knowledge', () => {
     const callsBefore = { ...script.calls };
     const comparison = await compareRebuild(s.db, p);
     expect(comparison.equal).toBe(true);
-    expect(comparison.alive).toMatch(/^[0-9a-f]{64}$/);
+    expect(comparison.live).toMatch(/^[0-9a-f]{64}$/);
     // The rebuild doesn't call the classifier again: everything comes from what's saved.
     expect(script.calls).toEqual(callsBefore);
     const g = await loadGraph(s.db, p);
@@ -355,7 +355,7 @@ describe('Update knowledge', () => {
     // A rejected update, another applied afterwards, and the rejected one's retry at the end.
     script.scripts.verdict = () => [];
     await decision(p, `Sede abierta los sábados ${t}`, `La sede abre por la tarde los sábados ${t}.`);
-    script.restart();
+    script.reset();
     await decision(p, `Llaves de la sede ${t}`, `Cada socio de la junta tiene llave de la sede ${t}.`);
     const rejected = (await updates(p)).find((u) => u.state === 'rejected');
     expect(rejected).toBeDefined();
@@ -364,13 +364,13 @@ describe('Update knowledge', () => {
     await newVersion(p, a.recordId, `La sede abre por la tarde y los domingos ${t}.`);
 
     const callsBefore = { ...script.calls };
-    expect(await compareRebuild(s.db, p)).toMatchObject({ equal: true, derivation: null });
+    expect(await compareRebuild(s.db, p)).toMatchObject({ equal: true, drift: null });
     expect(script.calls).toEqual(callsBefore);
 
     // The rebuild starts from authority, not the live graph: a hand-inserted node makes it diverge.
     await sql`insert into knowledge_nodes (project_id, ref, kind, source_type, label, body, epistemic, valid_from, state)
       values (${p}::uuid, 'DEC-ZZZ-999@1', 'decision', 'manual', 'Colado', 'Colado', 'confirmed', 1, 'current')`.execute(s.db);
-    expect(await compareRebuild(s.db, p)).toMatchObject({ equal: false, derivation: expect.stringMatching(/doesn't match/) });
+    expect(await compareRebuild(s.db, p)).toMatchObject({ equal: false, drift: expect.stringMatching(/doesn't match/) });
   });
 
   it('AC-CON-001-13 the same input reuses the verdicts saved by input_hash without calling the classifier', async () => {
@@ -404,7 +404,7 @@ describe('Update knowledge', () => {
       .where('input_hash', '=', rejected?.input_hash ?? '')
       .executeTakeFirst();
     expect(saved).toBeUndefined();
-    script.restart();
+    script.reset();
     await cmd(p, 'knowledge_update.retry', {}, rejected?.id);
     expect(script.calls.verdict).toBe(1);
     expect((await updates(p)).at(-1)?.state).toBe('applied');
@@ -729,7 +729,7 @@ describe('taxonomy and confidence', () => {
   });
 
   it('AC-CLA-001-04 the threshold cascade sends high confidence to apply, medium to review and low to the person', () => {
-    expect(DEFAULT_THRESHOLDS).toEqual({ validFrom: 0.8, average: 0.55 });
+    expect(DEFAULT_THRESHOLDS).toEqual({ high: 0.8, medium: 0.55 });
     expect(routeByConfidence(0.95)).toBe('apply');
     expect(routeByConfidence(0.8)).toBe('apply');
     expect(routeByConfidence(0.6)).toBe('review_llm');

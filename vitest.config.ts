@@ -1,8 +1,8 @@
 import { defineConfig } from 'vitest/config';
 
-// Tres proyectos: unitarias (sin E/S), integración (Postgres efímero y Docker) e invariantes.
-// El informe JUnit lo pide cada script con su propio archivo (`reports/junit-*.xml`), que lee
-// `pnpm gate:trazabilidad`.
+// Three projects: unit (no I/O), integration (ephemeral Postgres and Docker) and invariants.
+// Each script asks for its own JUnit report (`reports/junit-*.xml`), which
+// `pnpm gate:traceability` reads.
 export default defineConfig({
   test: {
     reporters: ['default'],

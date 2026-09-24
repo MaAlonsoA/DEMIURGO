@@ -17,7 +17,7 @@ import {
 } from '@demiurgo/domain';
 import type { Db } from '../db/connection.ts';
 import { type Axis, applicableCategories, classifyChange, verificationReasons } from './update.ts';
-import { DISCARD_TRIGGER, type AuthorityObject, deriveChange, deriveRetirement } from './derive.ts';
+import { DISCARD_TRIGGER, type AuthorityObject, deriveChange, deriveRemoval } from './derive.ts';
 import { loadGraph } from './graph-pg.ts';
 
 const withoutSavedVerdict = (): Promise<never> =>
@@ -48,7 +48,7 @@ export async function rebuildGraph(db: Db, projectId: string): Promise<Graph> {
     const trigger = u.trigger as AuthorityObject;
     let plan: Plan;
     if (trigger.type === DISCARD_TRIGGER) {
-      plan = removalPlan(g, await deriveRetirement(db, trigger));
+      plan = removalPlan(g, await deriveRemoval(db, trigger));
     } else {
       const change = await deriveChange(db, trigger);
       if (!change || !u.classifier) continue;
@@ -78,25 +78,25 @@ export async function rebuildGraph(db: Db, projectId: string): Promise<Graph> {
 }
 
 export type RebuildComparison = {
-  alive: string;
+  live: string;
   rebuilt: string | null;
   equal: boolean;
   /** Why they don't match (empty if they do). Never throws: it reports the drift. */
-  derivation: string | null;
+  drift: string | null;
 };
 
 export async function compareRebuild(db: Db, projectId: string): Promise<RebuildComparison> {
-  const alive = graphFingerprint(await loadGraph(db, projectId));
+  const live = graphFingerprint(await loadGraph(db, projectId));
   try {
     const rebuilt = graphFingerprint(await rebuildGraph(db, projectId));
-    const equal = alive === rebuilt;
+    const equal = live === rebuilt;
     return {
-      alive,
+      live: live,
       rebuilt,
       equal,
-      derivation: equal ? null : "The rebuilt graph's fingerprint doesn't match the live graph's.",
+      drift: equal ? null : "The rebuilt graph's fingerprint doesn't match the live graph's.",
     };
   } catch (e) {
-    return { alive, rebuilt: null, equal: false, derivation: e instanceof Error ? e.message : String(e) };
+    return { live: live, rebuilt: null, equal: false, drift: e instanceof Error ? e.message : String(e) };
   }
 }

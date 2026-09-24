@@ -3,6 +3,7 @@
 
 import { DBOS, WorkflowQueue } from '@dbos-inc/dbos-sdk';
 import {
+  IDEA_QUESTION,
   type Candidate,
   IDEA_FINDINGS,
   type ItemChoice,
@@ -109,8 +110,7 @@ function itemsForIdea(idea: string, candidates: readonly Candidate[]): ItemChoic
   return candidates.map((c) => ({
     id: c.ref,
     state: { task: 'idea', idea: { text: idea }, node: { ref: c.ref, type: c.type, title: c.label, text: c.text } },
-    question:
-      'What relation does the idea have to this knowledge: does it duplicate it, contradict it, is it incoherent, is it related, or none?',
+    question: IDEA_QUESTION,
     options: IDEA_FINDINGS,
   }));
 }
@@ -125,7 +125,7 @@ type CalculatedAssessment = {
   toSave: ToSave | null;
 };
 
-export async function calculateEvaluations(s: Services, batchId: string, projectId: string): Promise<CalculatedAssessment[]> {
+export async function calculateAssessments(s: Services, batchId: string, projectId: string): Promise<CalculatedAssessment[]> {
   const proposals = await s.db
     .selectFrom('proposals')
     .select(['id', 'type', 'payload'])
@@ -188,7 +188,7 @@ function reasonsForIdea(candidates: readonly Candidate[], responses: readonly Ch
   return invalid;
 }
 
-export async function registerEvaluations(s: Services, projectId: string, assessments: CalculatedAssessment[]): Promise<void> {
+export async function recordAssessments(s: Services, projectId: string, assessments: CalculatedAssessment[]): Promise<void> {
   await saveToCache(
     s.db,
     assessments.map((e) => e.toSave),
@@ -211,8 +211,8 @@ export async function registerEvaluations(s: Services, projectId: string, assess
 }
 
 /** If the assessment fails after its retries, each unassessed idea is left with the error recorded. */
-export async function registerEvaluationFailure(s: Services, batchId: string, projectId: string, e: unknown): Promise<void> {
-  const unevaluated = await s.db
+export async function recordAssessmentFailure(s: Services, batchId: string, projectId: string, e: unknown): Promise<void> {
+  const unassessed = await s.db
     .selectFrom('proposals')
     .leftJoin('idea_assessments', 'idea_assessments.proposal_id', 'proposals.id')
     .select('proposals.id')
@@ -220,7 +220,7 @@ export async function registerEvaluationFailure(s: Services, batchId: string, pr
     .where('proposals.type', 'in', ['decision', 'exploration', 'fdr'])
     .where('idea_assessments.id', 'is', null)
     .execute();
-  for (const p of unevaluated) {
+  for (const p of unassessed) {
     await executeCommand(s, {
       command: 'idea_assessment.record',
       actor: UPDATER,
@@ -239,18 +239,18 @@ export async function registerEvaluationFailure(s: Services, batchId: string, pr
 
 async function assessWorkflow(batchId: string, projectId: string): Promise<number> {
   try {
-    const assessments = await DBOS.runStep(() => calculateEvaluations(engineServices(), batchId, projectId), {
+    const assessments = await DBOS.runStep(() => calculateAssessments(engineServices(), batchId, projectId), {
       name: 'assess',
       ...RETRIES,
     });
-    await DBOS.runStep(() => registerEvaluations(engineServices(), projectId, assessments), {
+    await DBOS.runStep(() => recordAssessments(engineServices(), projectId, assessments), {
       name: 'register',
       ...RETRIES,
     });
     return assessments.length;
   } catch (e) {
     // A failed assessment does not stay pending forever: the error gets recorded.
-    await DBOS.runStep(() => registerEvaluationFailure(engineServices(), batchId, projectId, e), {
+    await DBOS.runStep(() => recordAssessmentFailure(engineServices(), batchId, projectId, e), {
       name: 'register-failure',
       ...RETRIES,
     });
@@ -272,7 +272,7 @@ registerReconciler(async (s) => {
     .where('state', 'in', ['queued', 'classifying', 'verifying'])
     .execute();
   for (const u of pending) await s.engine.startUpdate(u.id, u.project_id);
-  const unevaluated = await s.db
+  const unassessed = await s.db
     .selectFrom('proposals')
     .innerJoin('proposal_batches', 'proposal_batches.id', 'proposals.batch_id')
     .leftJoin('idea_assessments', 'idea_assessments.proposal_id', 'proposals.id')
@@ -283,10 +283,10 @@ registerReconciler(async (s) => {
     .where('idea_assessments.id', 'is', null)
     .groupBy(['proposal_batches.id', 'proposal_batches.project_id'])
     .execute();
-  for (const l of unevaluated) await s.engine.startEvaluation(l.batchId, l.projectId);
+  for (const l of unassessed) await s.engine.startAssessment(l.batchId, l.projectId);
 });
 
 /** Waits for a batch's idea assessment (tests). */
-export async function waitForEvaluation(batchId: string): Promise<void> {
+export async function waitForAssessment(batchId: string): Promise<void> {
   await DBOS.retrieveWorkflow(`ideas:${batchId}`).getResult();
 }

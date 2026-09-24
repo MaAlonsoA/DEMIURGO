@@ -113,7 +113,7 @@ export function readiness(e: ReadinessInput): Readiness {
     if (decisions.length === 0) reasons.push('It is not based on any decision.');
     for (const d of decisions) {
       if (d.current === null) {
-        reasons.push(`Decision ${d.code} it is based on is not approved.`);
+        reasons.push(`The decision it is based on, ${d.code}, is not approved.`);
       } else if (d.current !== d.version) {
         reasons.push(`It is based on ${d.code} v${d.version}, but the current one is v${d.current}.`);
       }

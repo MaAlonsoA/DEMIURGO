@@ -5,12 +5,12 @@ import type { Classifier, ItemChoice, ChoiceResponse } from '@demiurgo/domain';
 import { createSimulatedClassifier } from '../../src/classifier/simulated.ts';
 
 type Task = 'verdict' | 'category' | 'idea';
-type Script = (items: readonly ItemChoice[], normalize: ChoiceResponse[]) => ChoiceResponse[];
+type Script = (items: readonly ItemChoice[], baseline: ChoiceResponse[]) => ChoiceResponse[];
 
 export type ScriptedClassifier = Classifier & {
   scripts: Partial<Record<Task, Script>>;
   calls: Record<Task | 'other', number>;
-  restart(): void;
+  reset(): void;
 };
 
 const taskOf = (i: ItemChoice): Task | 'other' => {
@@ -24,7 +24,7 @@ export function createScriptedClassifier(): ScriptedClassifier {
     id: 'scripted@1',
     scripts: {},
     calls: { verdict: 0, category: 0, idea: 0, other: 0 },
-    restart() {
+    reset() {
       c.scripts = {};
       c.calls = { verdict: 0, category: 0, idea: 0, other: 0 };
     },

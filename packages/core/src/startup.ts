@@ -33,13 +33,19 @@ export function createClassifier(config: Config): Classifier {
 
 export type Core = StartedEngine & { connection: Connection };
 
-export async function startCore(config: Config, record: Logger = consoleLogger): Promise<Core> {
-  const connection = connect(config.baseUrl);
+export async function startCore(config: Config, logger: Logger = consoleLogger): Promise<Core> {
+  const connection = connect(config.databaseUrl);
   const applied = await migrate(connection.pool);
-  if (applied.length) record.info('Migrations applied', { applied });
+  if (applied.length) logger.info('Migrations applied', { applied });
   const engine = await startEngine(
-    { db: connection.db, clock: () => new Date(), agent: createAgent(config), classifier: createClassifier(config), record },
-    config.baseUrl,
+    {
+      db: connection.db,
+      clock: () => new Date(),
+      agent: createAgent(config),
+      classifier: createClassifier(config),
+      logger: logger,
+    },
+    config.databaseUrl,
   );
   return {
     ...engine,

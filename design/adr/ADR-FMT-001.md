@@ -33,18 +33,18 @@ Riesgos que cubre: que el diseño en Markdown se quede corto antes de que exista
 
 ## Decision
 
-- Markdown con frontmatter YAML. Un archivo por registro (`<código>.md`) en una carpeta por tipo. Las tablas como datos viven en `datos/`, cada una anexa a un solo registro.
+- Markdown con frontmatter YAML. Un archivo por registro (`<código>.md`) en una carpeta por tipo. Las tablas como datos viven en `data/`, cada una anexa a un solo registro.
 - Frontmatter en orden fijo, cuerpo con la plantilla de su tipo y `## Criterios de aceptación` siempre al final, con formato fijo por criterio. El formato completo está en `design/README.md`, que se genera desde `packages/design/src/readme.ts`.
 - **Regla canónica:** un documento es válido solo si `renderizar(parsear(x)) = x`. No hay variantes de estilo y la exportación de H1 sale sin diff.
-- El validador es `pnpm gate:design`. Las etapas de la CI ejecutan, entre todas, cada gate de `pnpm gate:all`, incluidos `gate:design` y `gate:trazabilidad`. `node packages/design/src/cli.ts canonizar` reescribe los archivos en forma canónica.
-- **Trazabilidad AC → prueba por código:** cada criterio automático de un incremento implementado tiene al menos una prueba que pasa y cuyo título empieza por su código. `pnpm gate:trazabilidad` lo calcula con los informes JUnit de Vitest (`reports/junit-*.xml`), así que solo cuenta lo que se ejecutó y pasó: un comentario, una cadena, un `describe` o una prueba saltada o fallida no cuentan. Los incrementos implementados se declaran en `package.json`, en `demiurgo.incrementosImplementados`.
+- El validador es `pnpm gate:design`. Las etapas de la CI ejecutan, entre todas, cada gate de `pnpm gate:all`, incluidos `gate:design` y `gate:traceability`. `node packages/design/src/cli.ts canonicalize` reescribe los archivos en forma canónica.
+- **Trazabilidad AC → prueba por código:** cada criterio automático de un incremento implementado tiene al menos una prueba que pasa y cuyo título empieza por su código. `pnpm gate:traceability` lo calcula con los informes JUnit de Vitest (`reports/junit-*.xml`), así que solo cuenta lo que se ejecutó y pasó: un comentario, una cadena, un `describe` o una prueba saltada o fallida no cuentan. Los incrementos implementados se declaran en `package.json`, en `demiurgo.implementedIncrements`.
 - Todos los documentos entran en estado «propuesto»: la persona los aprueba con el merge.
 
 ## Consequences
 
 - El formato es estrecho a propósito: lo que no cabe en la plantilla no se escribe.
 - El importador y el exportador de H1 comparten el parser y el renderizador de `packages/design`.
-- Una prueba pasada que cita un código inexistente, o un AC automático sin prueba pasada, hace fallar `gate:trazabilidad`.
+- Una prueba pasada que cita un código inexistente, o un AC automático sin prueba pasada, hace fallar `gate:traceability`.
 - La trazabilidad por nombre es provisional. En S3 la sustituye el mapa AC → comprobación → prueba que acepta la persona.
 - Desde H1, `design/` es una exportación y la CI fallará si alguien lo edita a mano.
 
@@ -76,7 +76,7 @@ Dado un criterio de aceptación, cuando se valida, entonces tiene verificación 
 - Verification: automatic
 - Check: El validador revisa los ejes de cada taxonomía.
 
-Dada una taxonomía, cuando se valida, entonces cada eje tiene la categoría `otra`; un eje sin ella se rechaza.
+Dada una taxonomía, cuando se valida, entonces cada eje tiene la categoría `other`; un eje sin ella se rechaza.
 
 ### AC-FMT-001-05 · Trazabilidad
 
@@ -90,7 +90,7 @@ Dado un incremento implementado, cuando se calcula el mapa AC → prueba con los
 - Verification: automatic
 - Check: Se revisan el workflow de GitHub Actions y el script `gate:all`.
 
-Dado el workflow de la CI, cuando se ejecuta, entonces sus etapas ejecutan, entre todas, cada gate de `pnpm gate:all`, incluidos `gate:design` y `gate:trazabilidad`.
+Dado el workflow de la CI, cuando se ejecuta, entonces sus etapas ejecutan, entre todas, cada gate de `pnpm gate:all`, incluidos `gate:design` y `gate:traceability`.
 
 ### AC-FMT-001-07 · Aceptación humana
 

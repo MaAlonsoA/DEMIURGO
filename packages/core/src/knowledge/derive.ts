@@ -11,7 +11,7 @@ export type AuthorityObject = { type: string; id: string; version: number | null
 export { DISCARD_TRIGGER } from '../commands/reactions.ts';
 
 /** Refs withdrawn by discarding a version (the draft's node; its criteria go with it). */
-export async function deriveRetirement(db: Db, object: AuthorityObject): Promise<string[]> {
+export async function deriveRemoval(db: Db, object: AuthorityObject): Promise<string[]> {
   const v = await db
     .selectFrom('record_versions')
     .innerJoin('records', 'records.id', 'record_versions.record_id')

@@ -1,6 +1,6 @@
 // Child process for the durability tests (AC-ESQ-001-07).
 //   node engine-process.ts <url> start <projectId> <runId>               → cuts off during the agent call
-//   node engine-process.ts <url> cortar-tras-aplicar <projectId> <runId> → cuts off right after confirming "apply"
+//   node engine-process.ts <url> cut-after-apply <projectId> <runId> → crashes right after the "apply" step commits
 //   node engine-process.ts <url> recover <runId>                        → DBOS resumes the pending workflow
 //   node engine-process.ts <url> reconcile                              → starts up, reconciles and waits until nothing is left running
 
@@ -17,9 +17,9 @@ const agent =
     ? createSimulatedAgent({ delayMs: 60_000, onInvoke: () => console.log('INVOKING') })
     : createSimulatedAgent({ onInvoke: () => console.log('INVOKING_AGAIN') });
 const engine = await startEngine(
-  { db: connection.db, clock: () => new Date(), agent, classifier: createSimulatedClassifier(), record: silentLogger },
+  { db: connection.db, clock: () => new Date(), agent, classifier: createSimulatedClassifier(), logger: silentLogger },
   url,
-  mode === 'cortar-tras-aplicar'
+  mode === 'cut-after-apply'
     ? {
         onStepComplete: (step) => {
           if (step !== 'apply') return;
@@ -29,12 +29,12 @@ const engine = await startEngine(
       }
     : {},
 );
-if (mode === 'start' || mode === 'cortar-tras-aplicar') {
+if (mode === 'start' || mode === 'cut-after-apply') {
   await engine.services.engine.startRun(b, a);
   await new Promise((r) => setTimeout(r, 120_000));
 } else if (mode === 'recover') {
   const state = await waitForRun(a);
-  console.log(`RESULTADO ${state}`);
+  console.log(`RESULT ${state}`);
   await engine.stop();
   await connection.close();
 } else {

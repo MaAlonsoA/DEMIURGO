@@ -39,10 +39,10 @@ Que la v2 pase a ser la autoridad de diseño. La v2 importa `design/` como lote 
 3. Ratificar con un actor que no es humano da 403, sin efectos.
 4. La persona ratifica el lote en un paso. Se crean los registros, las versiones, los criterios, los enlaces, los anexos y las taxonomías con los estados del origen, y la persona queda como actor de cada evento.
 5. La importación conserva el estado declarado en cada archivo:
-   - `propuesto` queda como versión en borrador;
-   - `aprobado` queda como versión aprobada, con la persona que ratifica como actor de la aprobación.
+   - `proposed` queda como versión en borrador;
+   - `approved` queda como versión aprobada, con la persona que ratifica como actor de la aprobación.
 6. La persona aprueba un documento de una de estas dos formas:
-   - antes de importar, editando `estado: aprobado` en los documentos que acepta, dentro de su merge;
+   - antes de importar, editando `state: approved` en los documentos que acepta, dentro de su merge;
    - después de ratificar, aprobándolo en la v2 y regenerando `design/` con la exportación (desde H1, `design/` es generado).
 7. Como la importación conserva los estados, justo después de ratificar la exportación coincide sin diff con `design/`.
 8. Importar de nuevo tras ratificar no crea nada.
@@ -69,7 +69,7 @@ Dado el lote de importación pendiente, cuando lo ratifica un actor que no es hu
 - Verification: automatic
 - Check: La persona ratifica el lote y se revisan los elementos creados y los actores de sus eventos.
 
-Dado el lote de importación pendiente, cuando la persona lo ratifica, entonces en un solo paso se crean registros, versiones, criterios, enlaces, anexos y taxonomías con los estados declarados en el origen (`propuesto` → borrador, `aprobado` → aprobada) y la persona como actor.
+Dado el lote de importación pendiente, cuando la persona lo ratifica, entonces en un solo paso se crean registros, versiones, criterios, enlaces, anexos y taxonomías con los estados declarados en el origen (`proposed` → borrador, `approved` → aprobada) y la persona como actor.
 
 ### AC-AUT-001-04 · Exportación sin diff
 

@@ -29,7 +29,7 @@ Jev aún no está disponible. Además, está en early access, alojado en EE. UU.
 
 ## Decision
 
-- Puerto `Classifier` (en el código, `Clasificador`) en `packages/domain/src/clasificador.ts` con las tres primitivas de §7.5:
+- Puerto `Classifier` (en el código, `Classifier`) en `packages/domain/src/classifier.ts` con las tres primitivas de §7.5:
   - `choice`: una opción de un conjunto cerrado, con su distribución;
   - `score`: un nivel de una rúbrica ordenada;
   - `noul`: la probabilidad de que un enunciado sea verdadero.
@@ -38,8 +38,8 @@ Jev aún no está disponible. Además, está en early access, alojado en EE. UU.
   - un simulador determinista para las pruebas;
   - una referencia sobre `claude -p` con `--json-schema` y un modelo pequeño (Haiku, alias `haiku`, por defecto y configurable), con la frontera de ADR-RUN-001;
   - un adaptador de Jev vacío, que falla con «Jev no está disponible» sin efectos.
-- Cascada por confianza: alta (desde 0,8) se aplica al conocimiento derivado; media (desde 0,55) la revisa un LLM; baja queda pendiente de la persona. Los umbrales se ajustan con datos propios. El revisor es opcional (`DEMIURGO_REVISOR=referencia`, con su modelo): la cascada combina los dos clasificadores bajo un id propio (`base>revisor`), así que la caché y la reconstrucción la distinguen. Sin revisor, lo que queda con confianza media no se aplica solo.
-- El id del adaptador de referencia lleva su modelo (`referencia-claude:haiku@1`): otro modelo es otra entrada para la caché.
+- Cascada por confianza: alta (desde 0,8) se aplica al conocimiento derivado; media (desde 0,55) la revisa un LLM; baja queda pendiente de la persona. Los umbrales se ajustan con datos propios. El revisor es opcional (`DEMIURGO_REVIEWER=reference`, con su modelo): la cascada combina los dos clasificadores bajo un id propio (`base>reviewer`), así que la caché y la reconstrucción la distinguen. Sin revisor, lo que queda con confianza media no se aplica solo.
+- El id del adaptador de referencia lleva su modelo (`claude-reference:haiku@1`): otro modelo es otra entrada para la caché.
 - El clasificador solo escribe conocimiento derivado, clasificaciones y propuestas. Nunca cambia un estado de autoridad (I10).
 - Ningún clasificador se adopta sin un conjunto de evaluación propio, separado en desarrollo y prueba, con precisión y cobertura por veredicto.
 - Enviar contenido del proyecto a TypeSafe exige un ADR aparte antes de conectar Jev.
@@ -58,7 +58,7 @@ Jev aún no está disponible. Además, está en early access, alojado en EE. UU.
 - Verification: automatic
 - Check: Se revisa el puerto y se llama al adaptador de Jev.
 
-Dado el puerto `Clasificador`, cuando se revisa, entonces expone `choice`, `score` y `noul`; y cuando se llama al adaptador de Jev, falla con «Jev no está disponible» sin efectos.
+Dado el puerto `Classifier`, cuando se revisa, entonces expone `choice`, `score` y `noul`; y cuando se llama al adaptador de Jev, falla con «Jev no está disponible» sin efectos.
 
 ### AC-CLA-001-02 · Simulador determinista
 

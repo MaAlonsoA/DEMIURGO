@@ -20,7 +20,7 @@ import { type ApiClient, type ApiError, type ApiResponse, createApiClient } from
 
 export type McpServerOptions = {
   /** Base URL of the DEMIURGO HTTP API, e.g. `http://127.0.0.1:8100`. */
-  urlApi: string;
+  apiUrl: string;
   /** Agent token (`dmg_agent_…`); the API uses it to fix the actor `agent:<name>:<session>`. */
   token: string;
   /** Project the token grants access to. */
@@ -65,7 +65,7 @@ const readRecordInput = z
   .strict();
 const readBatchInput = z.object({ batch_id: uuid.describe('Id of the proposal batch.') }).strict();
 const searchInput = z
-  .object({ queryName: z.string().trim().min(1).max(500).describe('Text to search for in the project knowledge.') })
+  .object({ query: z.string().trim().min(1).max(500).describe('Text to search for in the project knowledge.') })
   .strict();
 
 const chatInput = z
@@ -135,17 +135,17 @@ const CATEGORIES: Record<string, string> = {
   not_implemented: 'Not implemented yet',
   not_available: 'Not available',
   disconnected: 'No connection to the API',
-  argList: 'Invalid arguments',
+  invalid_arguments: 'Invalid arguments',
 };
 
 function toolError(e: Omit<ApiError, 'ok'>): CallToolResult {
   const category = CATEGORIES[e.error] ?? 'API error';
-  const http = e.state > 0 ? ` (HTTP ${e.state})` : '';
+  const http = e.status > 0 ? ` (HTTP ${e.status})` : '';
   const lines = [`${category}${http}: ${e.message}`];
   if (e.reasons.length > 0) lines.push('Reasons:', ...e.reasons.map((m) => `- ${m}`));
   return {
     content: [{ type: 'text', text: lines.join('\n') }],
-    structuredContent: { error: e.error, message: e.message, reasons: e.reasons, http_status: e.state },
+    structuredContent: { error: e.error, message: e.message, reasons: e.reasons, http_status: e.status },
     isError: true,
   };
 }
@@ -181,8 +181,8 @@ function register<E extends z.ZodType>(server: McpServer, api: ApiClient, name: 
       const r = d.input.safeParse(args ?? {}, { error: errorInEnglish });
       if (!r.success) {
         return toolError({
-          state: 0,
-          error: 'argList',
+          status: 0,
+          error: 'invalid_arguments',
           message: `Tool "${name}" received invalid arguments.`,
           reasons: r.error.issues.map((i) => (i.path.length > 0 ? `${i.path.join('.')}: ${i.message}` : i.message)),
         });
@@ -201,12 +201,12 @@ function respond(r: ApiResponse, key = 'data'): CallToolResult {
 export function checkMcpOptions(op: McpServerOptions): void {
   let url: URL;
   try {
-    url = new URL(op.urlApi);
+    url = new URL(op.apiUrl);
   } catch {
-    throw new Error(`The DEMIURGO API URL is not valid: "${op.urlApi}".`);
+    throw new Error(`The DEMIURGO API URL is not valid: "${op.apiUrl}".`);
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error(`The DEMIURGO API URL must be http or https: "${op.urlApi}".`);
+    throw new Error(`The DEMIURGO API URL must be http or https: "${op.apiUrl}".`);
   }
   if (!op.token.startsWith(AGENT_TOKEN_PREFIX)) {
     throw new Error(`The agent token must start with "${AGENT_TOKEN_PREFIX}".`);
@@ -291,10 +291,10 @@ export function createMcpServer(op: McpServerOptions): McpServer {
     input: searchInput,
     readOnly: true,
     async execute(a, c) {
-      const r = await c.read('/knowledge/search', { q: a.queryName });
+      const r = await c.read('/knowledge/search', { q: a.query });
       if (!r.ok && r.error === 'nonexistent_path') {
         return toolError({
-          state: r.state,
+          status: r.status,
           error: 'not_available',
           message: 'Knowledge search is not available yet.',
           reasons: [],

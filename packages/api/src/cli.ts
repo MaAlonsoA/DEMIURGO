@@ -36,8 +36,8 @@ async function readInput(): Promise<string> {
   return Buffer.concat(chunks).toString('utf8').trim();
 }
 
-async function withBase<T>(f: (c: ReturnType<typeof connect>) => Promise<T>): Promise<T> {
-  const c = connect(config.baseUrl);
+async function withDatabase<T>(f: (c: ReturnType<typeof connect>) => Promise<T>): Promise<T> {
+  const c = connect(config.databaseUrl);
   try {
     await migrate(c.pool);
     return await f(c);
@@ -48,7 +48,7 @@ async function withBase<T>(f: (c: ReturnType<typeof connect>) => Promise<T>): Pr
 
 const commands: Record<string, () => Promise<void>> = {
   async migrate() {
-    const c = connect(config.baseUrl);
+    const c = connect(config.databaseUrl);
     try {
       console.log(JSON.stringify({ applied: await migrate(c.pool) }));
     } finally {
@@ -60,7 +60,7 @@ const commands: Record<string, () => Promise<void>> = {
     const username = args[0];
     if (!username) throw new Error('Usage: create-person <username> (password read from stdin)');
     const password = await readInput();
-    await withBase(async (c) => {
+    await withDatabase(async (c) => {
       const id = await createPerson(c.db, username, password);
       console.log(JSON.stringify({ person: username, id }));
     });
@@ -100,7 +100,7 @@ const commands: Record<string, () => Promise<void>> = {
 
 commands['evaluate-classifier'] = async () => {
   const partition = (args[0] ?? 'test') as Partition;
-  await withBase(async (c) => {
+  await withDatabase(async (c) => {
     const report = await evaluateClassifier({
       classifier: createClassifier(config),
       partition,
@@ -134,7 +134,7 @@ commands['import-design'] = async () => {
 commands['export-design'] = async () => {
   const [projectId, option, dir] = args;
   if (!projectId) throw new Error('Usage: export-design <projectId> [--check dir | --out dir | dir]');
-  await withBase(async (c) => {
+  await withDatabase(async (c) => {
     if (option === '--check') {
       const diffs = await compareExport(c.db, projectId, await readTree(dir ?? 'design'));
       if (diffs.length > 0) {

@@ -1,5 +1,5 @@
 // Records (decision, FDR, ADR, bug), immutable versions, criteria and links.
-// Identity, version, approval and fulfillment are four different things: approving doesn't
+// Identity, version, approval and implementation are four different things: approving doesn't
 // create a version (I4), and a new version requires explicitly carrying over every criterion.
 
 import {
@@ -15,7 +15,7 @@ import {
   system,
 } from '@demiurgo/domain';
 import { z } from 'zod';
-import { string, field, registerGuards } from '../bus/guards.ts';
+import { trimmed, field, registerGuards } from '../bus/guards.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
 import type { CommandContext } from '../bus/types.ts';
 import type { Tx } from '../db/connection.ts';
@@ -54,7 +54,7 @@ export const criterionInputSchema = z.discriminatedUnion('carry', [
   z.object({ carry: z.literal('kept'), code: z.string() }).strict(),
   z.object({ carry: z.literal('modified'), derived_from: z.string(), ...criterionContent }).strict(),
 ]);
-export type InputCriterion = z.infer<typeof criterionInputSchema>;
+export type CriterionInput = z.infer<typeof criterionInputSchema>;
 
 export const linkInputSchema = z
   .object({
@@ -142,7 +142,7 @@ async function nextCode(trx: Tx, projectId: string, type: RecordType, domain: st
 
 registerGuards({
   async free_code({ ctx, data }) {
-    const code = string(field(data, 'code'));
+    const code = trimmed(field(data, 'code'));
     if (!code) return null;
     const existing = await ctx.trx
       .selectFrom('records')
@@ -172,7 +172,7 @@ registerGuards({
       const r = await ctx.trx
         .selectFrom('records')
         .select('type')
-        .where('id', '=', string(field(data, 'record_id')))
+        .where('id', '=', trimmed(field(data, 'record_id')))
         .executeTakeFirst();
       type = r?.type as RecordType | undefined;
     }
@@ -182,10 +182,10 @@ registerGuards({
   },
 
   async criteria_carry_complete({ ctx, data }) {
-    const recordId = string(field(data, 'record_id'));
+    const recordId = trimmed(field(data, 'record_id'));
     const base = await baseVersion(ctx.trx, recordId);
     if (!base) return null;
-    const criteria = (field(data, 'criteria') as InputCriterion[] | undefined) ?? [];
+    const criteria = (field(data, 'criteria') as CriterionInput[] | undefined) ?? [];
     const discarded = new Set((field(data, 'discarded') as string[] | undefined) ?? []);
     const covered = new Set<string>(discarded);
     for (const c of criteria) {
@@ -196,7 +196,7 @@ registerGuards({
     const missing = priors.map((p) => p.code).filter((c) => !covered.has(c));
     const reasons: string[] = [];
     if (missing.length) reasons.push(`Still need to decide what to do with ${missing.join(', ')}: keep, modify or discard.`);
-    if (!string(field(data, 'change_note'))) reasons.push('A new version requires a change note.');
+    if (!trimmed(field(data, 'change_note'))) reasons.push('A new version requires a change note.');
     const unknown = [...covered].filter((c) => !priors.some((p) => p.code === c));
     if (unknown.length) reasons.push(`${unknown.join(', ')} is not in version ${base.n}.`);
     return reasons.length ? reasons.join(' ') : null;
@@ -206,7 +206,7 @@ registerGuards({
     const r = await ctx.trx
       .selectFrom('records')
       .select('id')
-      .where('id', '=', string(field(data, 'record_id')))
+      .where('id', '=', trimmed(field(data, 'record_id')))
       .where('project_id', '=', ctx.projectId)
       .executeTakeFirst();
     return r ? null : 'The record does not exist in this project.';
@@ -228,7 +228,7 @@ registerGuards({
 
   // A version's criteria and links are only created together with it: afterwards its content doesn't change (I4).
   within_its_version({ ctx, data }) {
-    const versionId = string(field(data, 'version_id')) || string(field(field(data, 'from'), 'id'));
+    const versionId = trimmed(field(data, 'version_id')) || trimmed(field(field(data, 'from'), 'id'));
     return ctx.cause.versionBeingCreated === versionId
       ? null
       : 'Criteria and links are created with their version: create a new version of the record.';
@@ -238,7 +238,7 @@ registerGuards({
     const v = await ctx.trx
       .selectFrom('record_versions')
       .select('state')
-      .where('id', '=', string(field(data, 'version_id')))
+      .where('id', '=', trimmed(field(data, 'version_id')))
       .where('project_id', '=', ctx.projectId)
       .executeTakeFirst();
     return v?.state === 'draft' ? null : 'Criteria can only be added to a draft version.';
@@ -259,7 +259,7 @@ registerGuards({
 
   async endpoints_exist({ ctx, data }) {
     for (const endpoint of ['from', 'to']) {
-      const id = string(field(field(data, endpoint), 'id'));
+      const id = trimmed(field(field(data, endpoint), 'id'));
       const v = await ctx.trx
         .selectFrom('record_versions')
         .select('id')
@@ -556,7 +556,7 @@ registerHandlers({
           data: { reason: `The linked version (v${n}) has been discarded.` },
         });
       }
-      await reviewObsolescence(ctx, { record: string(e?.row.record_id) });
+      await reviewObsolescence(ctx, { record: trimmed(e?.row.record_id) });
       // Anything the draft projected into the knowledge graph (if it came from an accepted proposal) is withdrawn.
       await onAuthorityEvent(ctx, { type: DISCARD_TRIGGER, id: e?.id ?? '', version: n });
       return { entityId: e?.id ?? '', version: n, after: { reason: data.reason ?? null } };

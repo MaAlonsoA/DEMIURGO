@@ -82,7 +82,7 @@ async function executePending(services: Services, pending: Pending[]): Promise<v
     try {
       await f();
     } catch (e) {
-      services.record.error('Deferred job failed after commit', { error: String(e) });
+      services.logger.error('Deferred job failed after commit', { error: String(e) });
     }
   }
 }
@@ -177,7 +177,7 @@ export async function executeInTransaction(services: Services, trx: Tx, request:
         { projectId, ...p, cause: { ...cause, sourceCommand: cause.sourceCommand ?? command, ...p.cause } },
         pending,
       ),
-    afterConfirm: (f) => {
+    afterCommit: (f) => {
       pending.push(f);
     },
   };

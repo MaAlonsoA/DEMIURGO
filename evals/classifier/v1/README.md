@@ -131,3 +131,7 @@ En la matriz hay que mirar sobre todo `matrix.keep.invalidate`, el error caro de
 - **Es pequeño.** Con 6 a 15 casos por clase (de 3 a 8 por partición), las métricas por clase tienen mucha varianza. Sirve para detectar fallos gruesos y regresiones, no para afinar umbrales con precisión.
 - **Mide pares aislados.** No mide si la preselección de candidatos trae todo lo afectado (los falsos negativos de §7.9), ni el efecto de dar más contexto o distractores en el `state`.
 - **Solo está en español.** La ablación español frente a inglés necesita una traducción revisada de los mismos casos.
+
+## Resultados registrados
+
+`evals/classifier/results/` guarda un archivo por evaluación. El de `referencia-claude_1-prueba-2026-09-24-14-08-56.json` es anterior al paso del código a inglés: conserva su nombre y sus claves en español (`clasificador`, `particion`, `veredictos`…). Los nuevos usan el formato actual (`classifier`, `partition`, `verdicts`…) y el identificador `claude-reference`.

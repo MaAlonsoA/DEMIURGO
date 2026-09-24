@@ -112,7 +112,7 @@ export function invariantInconsistencies(cap: CapabilitiesTable, trans: Transiti
   for (const [name, c] of Object.entries(cap.commands)) {
     for (const type of ['agent_external', 'agent_run'] as const) {
       if (c.allowed.includes(type) && !ALLOWED_AGENT_COMMANDS[type].includes(name)) {
-        errors.push(`${name}: a ${type} can only converse, register sources and propose (I2).`);
+        errors.push(`${name}: an actor of type ${type} can only converse, register sources and propose (I2).`);
       }
     }
   }

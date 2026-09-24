@@ -246,7 +246,7 @@ function outputFromText(text: string | undefined): unknown {
   return json.ok ? json.value : text;
 }
 
-function trim(text: string, max = 1500): string {
+function truncate(text: string, max = 1500): string {
   const clean = text.trim();
   return clean.length > max ? `${clean.slice(0, max)}…` : clean;
 }
@@ -262,7 +262,7 @@ export function normalizeClaudeOutput(end: ProcessEnd, requestedModel: string, m
   const located = json.ok ? locateResult(json.value) : undefined;
   const parsed = located ? cliResultSchema.safeParse(located.result) : undefined;
   if (!located || !parsed?.success) {
-    const stderr = end.stderr.trim() ? ` Error output: ${trim(end.stderr)}` : '';
+    const stderr = end.stderr.trim() ? ` Error output: ${truncate(end.stderr)}` : '';
     return {
       state: 'error',
       failureKind: 'agent_error',
@@ -280,7 +280,7 @@ export function normalizeClaudeOutput(end: ProcessEnd, requestedModel: string, m
     return {
       state: 'error',
       failureKind: 'agent_error',
-      message: `The Claude CLI returned an error ${describeEnd(end)}${apiState}: ${trim(detail)}`,
+      message: `The Claude CLI returned an error ${describeEnd(end)}${apiState}: ${truncate(detail)}`,
       usage,
       model,
       ...common,
@@ -413,7 +413,7 @@ export function createClaudeCliInvoker(options: ClaudeCliOptions = {}): ClaudeIn
 // --- Agent adapter -------------------------------------------------------------------
 
 /** System prompt: the action's method plus the boundary rules. */
-export function systemAgent(request: AgentRequest): string {
+export function agentSystemPrompt(request: AgentRequest): string {
   return [
     request.method.text.trim(),
     '',
@@ -445,7 +445,7 @@ export function createClaudeCliAgent(options: ClaudeCliOptions = {}): AgentPort 
       let system: string;
       let input: string;
       try {
-        system = systemAgent(request);
+        system = agentSystemPrompt(request);
         input = agentInput(request);
       } catch (e) {
         return {

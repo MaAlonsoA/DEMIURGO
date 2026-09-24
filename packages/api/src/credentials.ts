@@ -13,7 +13,7 @@ const scrypt = promisify(scryptCb) as (
   op: { N: number; r: number; p: number },
 ) => Promise<Buffer>;
 
-export const COOKIE_SESSION = 'demiurgo_session';
+export const SESSION_COOKIE = 'demiurgo_session';
 export const CSRF_HEADER = 'x-demiurgo-csrf';
 export const AGENT_TOKEN_PREFIX = 'dmg_agent_';
 

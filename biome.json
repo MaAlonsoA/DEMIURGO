@@ -9,7 +9,7 @@
       "!**/node_modules",
       "!**/generated",
       "!reports",
-      "!evals/**/resultados",
+      "!evals/**/results",
       "!packages/core/test/fixtures/claude-cli",
       "!!.claude"
     ]

@@ -434,7 +434,7 @@ describe('readiness', () => {
     const withoutDecision = await newDecision(s, projectId, false);
     const fWithoutDecision = await fdrOn(withoutDecision, { approve: true });
     expect((await versionReadiness(s.db, projectId, fWithoutDecision.versionId)).reasons).toContain(
-      `Decision ${withoutDecision.code} it is based on is not approved.`,
+      `The decision it is based on, ${withoutDecision.code}, is not approved.`,
     );
 
     // Not current: approving a v2 of the FDR leaves v1 superseded.
@@ -916,7 +916,7 @@ describe('batches and proposals', () => {
 describe('epistemic status', () => {
   it('AC-DIS-001-12 every row of the correspondence table carries its epistemic status in the inbox, the product state or its detail', async () => {
     const pid = (await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Epistemic' } })).projectId;
-    const linkRef = (
+    const inProject = (
       command: Parameters<typeof executeCommand>[1]['command'],
       data: unknown,
       entityId?: string,
@@ -927,28 +927,28 @@ describe('epistemic status', () => {
     const approved = await newDecision(s, pid, true);
     const draft = await newDecision(s, pid, false);
     // Pending proposal and accepted proposal.
-    const isPending = await newBatch(s, pid, false);
+    const pendingBatch = await newBatch(s, pid, false);
     const accepted = await newBatch(s, pid, false);
-    await linkRef('proposal.accept', {}, accepted.proposals[0]);
+    await inProject('proposal.accept', {}, accepted.proposals[0]);
     // Confirmed, inferred, pending and postponed questions.
     const e = await newExploration(s, pid);
-    const question = async (text: string) => (await linkRef('question.raise', { exploration_id: e, question: text })).entityId;
+    const question = async (text: string) => (await inProject('question.raise', { exploration_id: e, question: text })).entityId;
     const qConfirmed = await question('¿Confirmada?');
-    await linkRef('question.confirm', { conclusion: 'Sí.' }, qConfirmed);
+    await inProject('question.confirm', { conclusion: 'Sí.' }, qConfirmed);
     const qInferred = await question('¿Inferida?');
-    await linkRef('question.infer', { conclusion: 'Sí.', reasoning: 'Lo dijo.' }, qInferred, system('exploration'));
+    await inProject('question.infer', { conclusion: 'Sí.', reasoning: 'Lo dijo.' }, qInferred, system('exploration'));
     const qPending = await question('¿Pendiente?');
     const qPostponed = await question('¿Pospuesta?');
-    await linkRef('question.postpone', { reason: 'Luego.' }, qPostponed);
+    await inProject('question.postpone', { reason: 'Luego.' }, qPostponed);
     // An agent's observations: a run's output.
-    const run = await linkRef('run.request', { action: 'exploration_chat', scope: { type: 'exploration', id: e } });
+    const run = await inProject('run.request', { action: 'exploration_chat', scope: { type: 'exploration', id: e } });
     const agent: Actor = { type: 'agent_run', run: run.entityId };
     for (const type of ['claim', 'hypothesis', 'unknown']) {
-      await linkRef('message.post', { exploration_id: e, text: `Observación ${type}`, type, respond: false }, undefined, agent);
+      await inProject('message.post', { exploration_id: e, text: `Observación ${type}`, type, respond: false }, undefined, agent);
     }
     // Link pending review: the decision an FDR is based on changes.
     const base = await newDecision(s, pid, true);
-    const fdr = await linkRef('record.create', {
+    const fdr = await inProject('record.create', {
       type: 'fdr',
       domain: 'socios',
       title: 'Alta',
@@ -956,7 +956,7 @@ describe('epistemic status', () => {
       criteria: [AC('alta')],
       links: [{ type: 'based_on', target: { code: base.code, version: 1 } }],
     });
-    await linkRef('record_version.approve', {}, (fdr.result as { versionId: string }).versionId);
+    await inProject('record_version.approve', {}, (fdr.result as { versionId: string }).versionId);
     await newDecisionVersion(base.recordId, true, pid);
 
     const b = await inbox(s.db, pid);
@@ -969,7 +969,7 @@ describe('epistemic status', () => {
       'Approved version': state.decisions.find((d) => d.code === approved.code)?.epistemic_status,
       'Draft version (state)': state.decisions.find((d) => d.code === draft.code)?.epistemic_status,
       'Draft version (inbox)': b.versions_to_approve.find((v) => v.code === draft.code)?.epistemic_status,
-      'Pending proposal': b.batches.find((l) => l.id === isPending.batchId)?.proposals[0]?.epistemic_status,
+      'Pending proposal': b.batches.find((l) => l.id === pendingBatch.batchId)?.proposals[0]?.epistemic_status,
       'Accepted proposal': acceptedDetail.proposals[0]?.epistemic_status,
       'Confirmed question': epistemicOf(qConfirmed),
       'Inferred question': b.questions_to_confirm.find((q) => q.id === qInferred)?.epistemic_status,

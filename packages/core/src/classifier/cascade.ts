@@ -15,13 +15,15 @@ export function createCascadeClassifier(
     id: `${base.id}>${reviewer.id}`,
     async choice(items) {
       const responses = await base.choice(items);
-      const averages = new Set(
+      const mediumConfidence = new Set(
         responses.filter((r) => routeByConfidence(r.confidence, thresholds) === 'review_llm').map((r) => r.id),
       );
-      if (averages.size === 0) return responses;
-      const reviewedById = new Map((await reviewer.choice(items.filter((i) => averages.has(i.id)))).map((r) => [r.id, r]));
+      if (mediumConfidence.size === 0) return responses;
+      const reviewedById = new Map(
+        (await reviewer.choice(items.filter((i) => mediumConfidence.has(i.id)))).map((r) => [r.id, r]),
+      );
       return responses.map((r) => {
-        const reviewed = averages.has(r.id) ? reviewedById.get(r.id) : undefined;
+        const reviewed = mediumConfidence.has(r.id) ? reviewedById.get(r.id) : undefined;
         return reviewed ? { ...reviewed, reviewedBy: reviewer.id } : r;
       });
     },

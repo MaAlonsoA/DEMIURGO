@@ -18,7 +18,7 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import { z } from 'zod';
 import {
   CSRF_HEADER,
-  COOKIE_SESSION,
+  SESSION_COOKIE,
   type Credential,
   openSession,
   closeSession,
@@ -31,7 +31,7 @@ import { QUERIES, type QueryRoute } from './queries.ts';
 
 export type ServerOptions = {
   services: Services;
-  baseUrl: string;
+  databaseUrl: string;
   sessionHours: number;
   allowedOrigins: readonly string[];
   /** If set, requests with another Host are rejected (defense against DNS rebinding). */
@@ -75,7 +75,7 @@ const commandBody = z.object({ entity_id: z.string().uuid().optional(), data: z.
 export async function createServer(op: ServerOptions): Promise<FastifyInstance> {
   const app = Fastify({ logger: false, bodyLimit: 4 * 1024 * 1024 });
   const { services } = op;
-  const broadcaster: Broadcaster = createBroadcaster(op.baseUrl);
+  const broadcaster: Broadcaster = createBroadcaster(op.databaseUrl);
   app.addHook('onClose', async () => {
     await broadcaster.close();
   });
@@ -93,7 +93,7 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
       if (req.credential.type === 'none') throw new DomainError('unauthenticated', 'Invalid or revoked agent token.');
       return;
     }
-    const session = req.cookies[COOKIE_SESSION];
+    const session = req.cookies[SESSION_COOKIE];
     req.credential = session ? await resolveSession(services.db, session) : { type: 'none' };
     if (req.credential.type === 'person' && MUTATOR_METHODS.has(req.method) && req.url !== '/api/session') {
       const csrf = req.headers[CSRF_HEADER];
@@ -113,7 +113,7 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
     if (e.statusCode && e.statusCode < 500) {
       return reply.status(e.statusCode).send({ error: 'request', message: e.message ?? 'Invalid request.', reasons: [] });
     }
-    services.record.error('Internal error', { error: String(error) });
+    services.logger.error('Internal error', { error: String(error) });
     return reply.status(500).send({ error: 'internal', message: 'Internal server error.', reasons: [] });
   });
 
@@ -124,7 +124,7 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
     if (req.headers.authorization) throw new DomainError('forbidden', 'An agent cannot open a human session.');
     const body = z.object({ username: z.string().min(1), password: z.string().min(1) }).parse(req.body);
     const s = await openSession(services.db, body.username, body.password, op.sessionHours);
-    reply.setCookie(COOKIE_SESSION, s.token, {
+    reply.setCookie(SESSION_COOKIE, s.token, {
       httpOnly: true,
       sameSite: 'strict',
       path: '/',
@@ -141,9 +141,9 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
   });
 
   app.delete('/api/session', async (req, reply) => {
-    const token = req.cookies[COOKIE_SESSION];
+    const token = req.cookies[SESSION_COOKIE];
     if (token) await closeSession(services.db, token);
-    reply.clearCookie(COOKIE_SESSION, { path: '/' });
+    reply.clearCookie(SESSION_COOKIE, { path: '/' });
     return { ok: true };
   });
 

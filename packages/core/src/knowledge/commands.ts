@@ -5,7 +5,7 @@
 import { DomainError, formatActor, fingerprint, system } from '@demiurgo/domain';
 import { sql } from 'kysely';
 import { z } from 'zod';
-import { string, field, registerGuards } from '../bus/guards.ts';
+import { trimmed, field, registerGuards } from '../bus/guards.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
 import type { CommandContext } from '../bus/types.ts';
 import { DISCARD_TRIGGER, registerAuthorityReaction } from '../commands/reactions.ts';
@@ -55,7 +55,7 @@ registerGuards({
       .selectFrom('taxonomies')
       .select('version')
       .where('project_id', '=', ctx.projectId)
-      .where('code', '=', string(entity?.row.code))
+      .where('code', '=', trimmed(entity?.row.code))
       .where('state', 'in', ['approved', 'superseded'])
       .where('version', '>', Number(entity?.row.version ?? 0))
       .orderBy('version', 'desc')
@@ -80,16 +80,16 @@ registerGuards({
     const t = await ctx.trx
       .selectFrom('taxonomies')
       .select(['axes', 'state'])
-      .where('id', '=', string(field(data, 'taxonomy_id')))
+      .where('id', '=', trimmed(field(data, 'taxonomy_id')))
       .where('project_id', '=', ctx.projectId)
       .executeTakeFirst();
     if (!t) return 'The taxonomy does not exist in this project.';
     if (t.state !== 'approved') return 'Classification only uses the approved taxonomy.';
     const axis = (t.axes as { code: string; categories: { code: string }[] }[]).find(
-      (e) => e.code === string(field(data, 'axis')),
+      (e) => e.code === trimmed(field(data, 'axis')),
     );
-    if (!axis) return `"${string(field(data, 'axis'))}" is not an axis of the taxonomy.`;
-    const category = string(field(data, 'category'));
+    if (!axis) return `"${trimmed(field(data, 'axis'))}" is not an axis of the taxonomy.`;
+    const category = trimmed(field(data, 'category'));
     return axis.categories.some((c) => c.code === category) ? null : `"${category}" is not a category of axis ${axis.code}.`;
   },
 
@@ -97,12 +97,12 @@ registerGuards({
     const t = await ctx.trx
       .selectFrom('taxonomies')
       .select('axes')
-      .where('id', '=', string(entity?.row.taxonomy_id))
+      .where('id', '=', trimmed(entity?.row.taxonomy_id))
       .executeTakeFirst();
     const axis = ((t?.axes ?? []) as { code: string; categories: { code: string }[] }[]).find(
-      (e) => e.code === string(entity?.row.axis),
+      (e) => e.code === trimmed(entity?.row.axis),
     );
-    const category = string(field(data, 'category'));
+    const category = trimmed(field(data, 'category'));
     return axis?.categories.some((c) => c.code === category)
       ? null
       : `"${category}" is not a category of the axis in the taxonomy.`;
@@ -178,7 +178,7 @@ registerHandlers({
         .selectFrom('taxonomies')
         .select('id')
         .where('project_id', '=', ctx.projectId)
-        .where('code', '=', string(e?.row.code))
+        .where('code', '=', trimmed(e?.row.code))
         .where('state', '=', 'approved')
         .where('id', '<>', id)
         .execute();
@@ -216,7 +216,7 @@ registerHandlers({
         .returning('id')
         .executeTakeFirstOrThrow();
       const { services, projectId } = ctx;
-      ctx.afterConfirm(() => services.engine.startUpdate(id, projectId));
+      ctx.afterCommit(() => services.engine.startUpdate(id, projectId));
       return { entityId: id, after: { object: data.object } };
     },
   }),
@@ -303,7 +303,7 @@ registerHandlers({
       const id = e?.id ?? '';
       await ctx.trx.updateTable('knowledge_updates').set({ failure: null, finished_at: null }).where('id', '=', id).execute();
       const { services, projectId } = ctx;
-      ctx.afterConfirm(() => services.engine.startUpdate(id, projectId));
+      ctx.afterCommit(() => services.engine.startUpdate(id, projectId));
       return { entityId: id };
     },
   }),
@@ -349,7 +349,7 @@ registerHandlers({
         type: z.string(),
         from: z.string(),
         to: z.string(),
-        validFrom: z.number().int().nonnegative(),
+        valid_from: z.number().int().nonnegative(),
         update_id: z.string().uuid().nullable(),
       })
       .strict(),
@@ -361,13 +361,13 @@ registerHandlers({
           kind: d.type,
           from_node: await currentNode(ctx, d.from),
           to_node: await currentNode(ctx, d.to),
-          valid_from: d.validFrom,
+          valid_from: d.valid_from,
           created_by_update: d.update_id,
           state: to,
         })
         .returning('id')
         .executeTakeFirstOrThrow();
-      return { entityId: id, after: { type: d.type, from: d.from, to: d.to, validFrom: d.validFrom } };
+      return { entityId: id, after: { type: d.type, from: d.from, to: d.to, valid_from: d.valid_from } };
     },
   }),
 

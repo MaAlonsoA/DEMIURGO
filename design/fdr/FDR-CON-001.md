@@ -22,7 +22,7 @@ Que el conocimiento del proyecto se mantenga al día solo, con un paso verificad
 
 - Grafo de conocimiento en Postgres detrás del puerto `KnowledgeGraph`, como proyección reconstruible de la autoridad.
 - Taxonomía con versiones, aprobada por la persona (TAX-001).
-- Clasificador detrás del puerto `Clasificador` (ADR-CLA-001), con salida validada y veredictos guardados por `input_hash`.
+- Clasificador detrás del puerto `Classifier` (ADR-CLA-001), con salida validada y veredictos guardados por `input_hash`.
 - Paso «Actualizar conocimiento», disparado por cada evento de autoridad y verificado de forma determinista.
 - Invalidar en lugar de borrar, con versión del grafo.
 - Gate de frescura.

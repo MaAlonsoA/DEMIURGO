@@ -8,7 +8,7 @@ export type ContextKnowledge = {
   dependencies: { type: string; id: string; version: number | null }[];
 };
 
-type Selector = (trx: Tx, projectId: string, queryName: string, budget: number) => Promise<ContextKnowledge>;
+type Selector = (trx: Tx, projectId: string, queryText: string, budget: number) => Promise<ContextKnowledge>;
 
 let selector: Selector = async () => ({ nodes: [], dependencies: [] });
 
@@ -16,6 +16,6 @@ export function registerKnowledgeSelector(s: Selector): void {
   selector = s;
 }
 
-export function knowledgeForContext(trx: Tx, projectId: string, queryName: string, budget: number): Promise<ContextKnowledge> {
-  return selector(trx, projectId, queryName, budget);
+export function knowledgeForContext(trx: Tx, projectId: string, queryText: string, budget: number): Promise<ContextKnowledge> {
+  return selector(trx, projectId, queryText, budget);
 }

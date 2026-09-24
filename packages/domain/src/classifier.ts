@@ -36,16 +36,16 @@ export interface Classifier {
   noul(items: readonly ItemNoul[]): Promise<NoulResponse[]>;
 }
 
-export type Thresholds = { validFrom: number; average: number };
+export type Thresholds = { high: number; medium: number };
 
-export const DEFAULT_THRESHOLDS: Thresholds = { validFrom: 0.8, average: 0.55 };
+export const DEFAULT_THRESHOLDS: Thresholds = { high: 0.8, medium: 0.55 };
 
 export type Path = 'apply' | 'review_llm' | 'pending_person';
 
 /** Confidence cascade: high → applied; medium → reviewed by an LLM; low → a person. */
 export function routeByConfidence(confidence: number, thresholds: Thresholds = DEFAULT_THRESHOLDS): Path {
-  if (confidence >= thresholds.validFrom) return 'apply';
-  if (confidence >= thresholds.average) return 'review_llm';
+  if (confidence >= thresholds.high) return 'apply';
+  if (confidence >= thresholds.medium) return 'review_llm';
   return 'pending_person';
 }
 
@@ -57,3 +57,11 @@ export const IDEA_FINDINGS = ['relates', 'conflicts', 'inconsistent', 'duplicate
 export type IdeaFinding = (typeof IDEA_FINDINGS)[number];
 
 export const RELEVANCE_LEVELS = ['irrelevant', 'somewhat relevant', 'relevant', 'very relevant'] as const;
+
+/** Question of each verdict item: the same text in production and in the classifier evaluation. */
+export const VERDICT_QUESTION =
+  'With this change approved, what happens to the candidate: does it stay the same, is it related, does it need updating, is it invalidated, does something need to be added, or something else?';
+
+/** Question of each idea item: the same text in production and in the classifier evaluation. */
+export const IDEA_QUESTION =
+  'What relation does the idea have to this knowledge: does it duplicate it, contradict it, is it incoherent, is it related, or none?';

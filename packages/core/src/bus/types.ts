@@ -54,7 +54,7 @@ export type CommandContext = {
   /** Executes another command within the same transaction (with its own actor and event). */
   execute(p: Request): Promise<Result>;
   /** Registers work for after commit (starting workflows, notifying). */
-  afterConfirm(f: () => Promise<void> | void): void;
+  afterCommit(f: () => Promise<void> | void): void;
 };
 
 export type Applied = {

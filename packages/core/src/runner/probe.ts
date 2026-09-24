@@ -106,15 +106,15 @@ function probeDns(name) {
   }));
 }
 
-function tryWrite(goal) {
-  const resolved = path.resolve(goal);
+function tryWrite(target) {
+  const resolved = path.resolve(target);
   const file = path.join(resolved, '.probe-demiurgo-' + process.pid + '-' + Date.now());
   try {
     fs.writeFileSync(file, 'probe');
     try { fs.unlinkSync(file); } catch {}
-    return { goal, path: resolved, written: true, detail: 'WRITTEN' };
+    return { target, path: resolved, written: true, detail: 'WRITTEN' };
   } catch (e) {
-    return { goal, path: resolved, written: false, detail: errorDetail(e) };
+    return { target, path: resolved, written: false, detail: errorDetail(e) };
   }
 }
 
@@ -167,7 +167,7 @@ main().catch((e) => { process.stderr.write('Probe failure: ' + errorDetail(e)); 
 
 export const PROBE_SCRIPT = generateProbeScript();
 
-const attempt = z.object({ goal: z.string(), path: z.string(), written: z.boolean(), detail: z.string() });
+const attempt = z.object({ target: z.string(), path: z.string(), written: z.boolean(), detail: z.string() });
 
 export const probeReportSchema = z.object({
   uid: z.number().int(),

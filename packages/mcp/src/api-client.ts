@@ -9,7 +9,7 @@ export type AgentCommand = (typeof AGENT_COMMANDS)[number];
 export type ApiError = {
   ok: false;
   /** HTTP status code; 0 if there was no response. */
-  state: number;
+  status: number;
   error: string;
   message: string;
   reasons: string[];
@@ -19,13 +19,13 @@ export type ApiResponse = { ok: true; state: number; data: unknown } | ApiError;
 
 export type ApiClient = {
   /** GET on a project route (e.g. `/inbox`). */
-  read(path: string, queryName?: Record<string, string>): Promise<ApiResponse>;
+  read(path: string, params?: Record<string, string>): Promise<ApiResponse>;
   /** POST of one of the commands allowed to the agent; the body never carries an actor. */
   command(command: AgentCommand, data: Record<string, unknown>): Promise<ApiResponse>;
 };
 
 export type ApiClientOptions = {
-  urlApi: string;
+  apiUrl: string;
   token: string;
   projectId: string;
   fetch?: typeof globalThis.fetch;
@@ -36,7 +36,7 @@ const MAXIMUM_TIME_MS = 30_000;
 
 export function createApiClient(op: ApiClientOptions): ApiClient {
   const doFetch = op.fetch ?? globalThis.fetch;
-  const base = `${op.urlApi.replace(/\/+$/, '')}/api/projects/${encodeURIComponent(op.projectId)}`;
+  const base = `${op.apiUrl.replace(/\/+$/, '')}/api/projects/${encodeURIComponent(op.projectId)}`;
   const time = op.maximumTimeMs ?? MAXIMUM_TIME_MS;
 
   async function request(method: 'GET' | 'POST', path: string, body?: unknown): Promise<ApiResponse> {
@@ -55,9 +55,9 @@ export function createApiClient(op: ApiClientOptions): ApiClient {
     } catch (e) {
       return {
         ok: false,
-        state: 0,
+        status: 0,
         error: 'disconnected',
-        message: `Could not reach the DEMIURGO API at ${op.urlApi}: ${e instanceof Error ? e.message : String(e)}`,
+        message: `Could not reach the DEMIURGO API at ${op.apiUrl}: ${e instanceof Error ? e.message : String(e)}`,
         reasons: [],
       };
     }
@@ -73,8 +73,8 @@ export function createApiClient(op: ApiClientOptions): ApiClient {
   }
 
   return {
-    read(path, queryName) {
-      const qs = queryName && Object.keys(queryName).length > 0 ? `?${new URLSearchParams(queryName).toString()}` : '';
+    read(path, params) {
+      const qs = params && Object.keys(params).length > 0 ? `?${new URLSearchParams(params).toString()}` : '';
       return request('GET', `${path}${qs}`);
     },
     command(command, data) {
@@ -95,12 +95,12 @@ function isDomainError(json: unknown): json is { error: string; message: string;
 function responseError(state: number, json: unknown): ApiError {
   if (isDomainError(json)) {
     const reasons = Array.isArray(json.reasons) ? json.reasons.filter((m): m is string => typeof m === 'string') : [];
-    return { ok: false, state, error: json.error, message: json.message, reasons };
+    return { ok: false, status: state, error: json.error, message: json.message, reasons };
   }
   // Response that does not match the API's error format (e.g. a route that does not exist).
   return {
     ok: false,
-    state,
+    status: state,
     error: state === 404 ? 'nonexistent_path' : 'unexpected_response',
     message: `The DEMIURGO API responded ${state} with no recognizable error.`,
     reasons: [],

@@ -12,7 +12,7 @@ import {
   system,
 } from '@demiurgo/domain';
 import { z } from 'zod';
-import { string, field, registerGuards } from '../bus/guards.ts';
+import { trimmed, field, registerGuards } from '../bus/guards.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
 import type { CommandContext, LoadedEntity } from '../bus/types.ts';
 import type { Db, Tx } from '../db/connection.ts';
@@ -21,7 +21,7 @@ import { onAuthorityEvent } from './reactions.ts';
 
 const uuid = z.string().uuid();
 
-const proposalEntrySchema = z
+const proposalInputSchema = z
   .object({ type: z.string(), payload: z.record(z.string(), z.unknown()), dependencies: z.array(dependencySchema).default([]) })
   .strict();
 
@@ -59,7 +59,7 @@ export async function staleDependencies(trx: Db, deps: readonly Dependency[]): P
 }
 
 async function batchOf(trx: Tx, entity: LoadedEntity | null) {
-  const batchId = string(entity?.row.batch_id) || (entity?.id ?? '');
+  const batchId = trimmed(entity?.row.batch_id) || (entity?.id ?? '');
   return trx.selectFrom('proposal_batches').selectAll().where('id', '=', batchId).executeTakeFirstOrThrow();
 }
 
@@ -73,7 +73,7 @@ registerGuards({
     const batch = await ctx.trx
       .selectFrom('proposal_batches')
       .select(['producer', 'state'])
-      .where('id', '=', string(field(data, 'batch_id')))
+      .where('id', '=', trimmed(field(data, 'batch_id')))
       .where('project_id', '=', ctx.projectId)
       .executeTakeFirst();
     if (!batch) return 'The batch does not exist.';
@@ -90,7 +90,7 @@ registerGuards({
   },
 
   valid_payload: ({ ctx, data }) => {
-    const type = string(field(data, 'type'));
+    const type = trimmed(field(data, 'type'));
     if (!isProposalType(type)) return `Unknown proposal type: "${type}".`;
     if (ctx.actor.type === 'agent_external' && !['decision', 'exploration', 'fdr'].includes(type)) {
       return `An external agent cannot propose "${type}".`;
@@ -106,7 +106,7 @@ registerGuards({
   },
 
   valid_edit: async ({ ctx, data, entity }) => {
-    const type = string(entity?.row.type) as ProposalType;
+    const type = trimmed(entity?.row.type) as ProposalType;
     if (!isProposalType(type)) return 'Unknown proposal type.';
     const r = PAYLOADS[type].safeParse(field(data, 'edit'));
     void ctx;
@@ -265,7 +265,7 @@ async function applyProposal(
   payload: unknown,
   options: { approve: boolean },
 ): Promise<Effect> {
-  const type = string(e.row.type) as ProposalType;
+  const type = trimmed(e.row.type) as ProposalType;
   const apply = APPLICATIONS[type];
   if (!apply) throw new DomainError('not_implemented', `Accepting proposals of type "${type}" is not implemented yet.`);
   // Commands created by the proposal carry the proposal that originated them in their cause.
@@ -283,7 +283,7 @@ registerHandlers({
         run_id: uuid.optional(),
         context_pack_id: uuid.optional(),
         dependencies: z.array(dependencySchema).default([]),
-        proposals: z.array(proposalEntrySchema).min(1).max(50),
+        proposals: z.array(proposalInputSchema).min(1).max(50),
       })
       .strict(),
     async apply(ctx, data, _e, to) {
@@ -328,7 +328,7 @@ registerHandlers({
       // assessed against the knowledge base (§7.7), outside the transaction.
       if (batchType === 'agent' || runId !== null) {
         const { services, projectId } = ctx;
-        ctx.afterConfirm(() => services.engine.startEvaluation(id, projectId));
+        ctx.afterCommit(() => services.engine.startAssessment(id, projectId));
       }
       return {
         entityId: id,
@@ -382,7 +382,7 @@ registerHandlers({
         .where('id', '=', entity.id)
         .execute();
       await onAuthorityEvent(ctx, { type: 'proposal', id: entity.id, version: null });
-      await closeIfResolved(ctx, string(entity.row.batch_id), entity.id);
+      await closeIfResolved(ctx, trimmed(entity.row.batch_id), entity.id);
       return { entityId: entity.id, after: { effect, approve: data.approve }, result: effect };
     },
   }),
@@ -402,7 +402,7 @@ registerHandlers({
         .where('id', '=', entity.id)
         .execute();
       await onAuthorityEvent(ctx, { type: 'proposal', id: entity.id, version: null });
-      await closeIfResolved(ctx, string(entity.row.batch_id), entity.id);
+      await closeIfResolved(ctx, trimmed(entity.row.batch_id), entity.id);
       return {
         entityId: entity.id,
         before: { payload: entity.row.payload },
@@ -425,7 +425,7 @@ registerHandlers({
         })
         .where('id', '=', entity.id)
         .execute();
-      await closeIfResolved(ctx, string(entity.row.batch_id), entity.id);
+      await closeIfResolved(ctx, trimmed(entity.row.batch_id), entity.id);
       return { entityId: entity.id, after: { reason: data.reason ?? null } };
     },
   }),
@@ -443,7 +443,7 @@ registerHandlers({
         })
         .where('id', '=', entity.id)
         .execute();
-      await closeIfResolved(ctx, string(entity.row.batch_id), entity.id);
+      await closeIfResolved(ctx, trimmed(entity.row.batch_id), entity.id);
       return { entityId: entity.id, after: { reason: data.reason } };
     },
   }),

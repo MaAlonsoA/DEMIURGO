@@ -19,7 +19,7 @@ function variable(name: string): string {
 }
 
 const options: McpServerOptions = {
-  urlApi: variable('DEMIURGO_API_URL'),
+  apiUrl: variable('DEMIURGO_API_URL'),
   token: variable('DEMIURGO_AGENT_TOKEN'),
   projectId: variable('DEMIURGO_PROJECT'),
 };

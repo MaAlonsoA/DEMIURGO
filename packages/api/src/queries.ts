@@ -185,9 +185,9 @@ registerQueries([
     path: '/api/projects/:projectId/knowledge/search',
     queryName: 'query.knowledge',
     async respond({ services, params, query }) {
-      const queryName = (query.q ?? '').trim();
-      if (!queryName) throw new DomainError('validation', 'The search text (q) is missing.');
-      return { results: await searchKnowledge(services.db, uuid(params.projectId, 'project'), queryName, 10) };
+      const text = (query.q ?? '').trim();
+      if (!text) throw new DomainError('validation', 'The search text (q) is missing.');
+      return { results: await searchKnowledge(services.db, uuid(params.projectId, 'project'), text, 10) };
     },
   },
   {

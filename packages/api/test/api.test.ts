@@ -1,7 +1,7 @@
 import { request } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { describe, expect, it } from 'vitest';
-import { COOKIE_SESSION } from '../src/credentials.ts';
+import { SESSION_COOKIE } from '../src/credentials.ts';
 import { createServer } from '../src/server.ts';
 import { PASSWORD, useApi } from './support/api.ts';
 
@@ -49,12 +49,12 @@ describe('API: actor, session and errors', () => {
       url: '/api/session',
       payload: { username: 'ana', password: PASSWORD },
     });
-    const cookie = login.cookies.find((c) => c.name === COOKIE_SESSION);
+    const cookie = login.cookies.find((c) => c.name === SESSION_COOKIE);
     expect(cookie).toMatchObject({ httpOnly: true, sameSite: 'Strict', path: '/' });
     const withoutCsrf = await api().app.inject({
       method: 'POST',
       url: '/api/projects',
-      cookies: { [COOKIE_SESSION]: cookie?.value ?? '' },
+      cookies: { [SESSION_COOKIE]: cookie?.value ?? '' },
       payload: { name: 'Without CSRF' },
     });
     expect(withoutCsrf.statusCode).toBe(403);
@@ -80,7 +80,7 @@ describe('API: actor, session and errors', () => {
     expect((await archive()).statusCode).toBe(200);
     const r = await archive();
     expect(r.statusCode).toBe(409);
-    expect(r.json<{ message: string }>().message).toMatch(/archived/i);
+    expect(r.json<{ message: string }>().message).toMatch(/in state "Archived"/);
   });
 
   it('an unknown command gives 404 and invalid data gives 422', async () => {
@@ -135,7 +135,7 @@ describe('API: incremental SSE stream', () => {
     // Real server listening on a free port: inject doesn't work for open streams.
     const app = await createServer({
       services: environment.services,
-      baseUrl: environment.url,
+      databaseUrl: environment.url,
       sessionHours: 1,
       allowedOrigins: [],
     });
@@ -149,7 +149,7 @@ describe('API: incremental SSE stream', () => {
             host: '127.0.0.1',
             port,
             path: `/api/projects/${projectId}/events/stream`,
-            headers: { cookie: `${COOKIE_SESSION}=${person.cookie}`, 'last-event-id': cutoff },
+            headers: { cookie: `${SESSION_COOKIE}=${person.cookie}`, 'last-event-id': cutoff },
           },
           (res) => {
             let buffer = '';

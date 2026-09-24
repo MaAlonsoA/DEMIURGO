@@ -39,7 +39,7 @@ function launch(args: string[]): {
   };
 }
 
-const childOutput = (h: ChildProcess) => new Promise<void>((r) => (h.exitCode !== null ? r() : h.once('exit', () => r())));
+const waitForExit = (h: ChildProcess) => new Promise<void>((r) => (h.exitCode !== null ? r() : h.once('exit', () => r())));
 
 describe('durable engine', () => {
   it('AC-ESQ-001-07 killing the process during a run resumes it and its effect happens only once', async () => {
@@ -59,15 +59,15 @@ describe('durable engine', () => {
     const first = launch([url, 'start', projectId, run.entityId]);
     await first.wait('INVOKING', 60_000);
     first.child.kill('SIGKILL');
-    await childOutput(first.child);
+    await waitForExit(first.child);
     const partial = await s.db.selectFrom('ai_runs').select('state').where('id', '=', run.entityId).executeTakeFirstOrThrow();
     expect(partial.state).toBe('running');
 
     const second = launch([url, 'recover', run.entityId]);
     await second.wait('RESULT', 90_000);
-    await childOutput(second.child);
+    await waitForExit(second.child);
     expect(second.output()).toContain('INVOKING_AGAIN');
-    expect(second.output()).toContain('RESULTADO completed');
+    expect(second.output()).toContain('RESULT completed');
 
     const final = await s.db.selectFrom('ai_runs').selectAll().where('id', '=', run.entityId).executeTakeFirstOrThrow();
     expect(final.state).toBe('completed');
@@ -84,7 +84,7 @@ describe('durable engine', () => {
     expect(logs).toHaveLength(1);
   });
 
-  it('AC-ESQ-001-07 a cut right after confirming "apply" does not repeat its effect on resume', async () => {
+  it('AC-ESQ-001-07 a crash right after the "apply" step commits does not repeat its effect on resume', async () => {
     const { services: s, url } = environment();
     const ana = human('ana');
     const { projectId } = await executeCommand(s, {
@@ -105,16 +105,16 @@ describe('durable engine', () => {
       projectId,
       data: { action: 'exploration_chat', scope: { type: 'exploration', id: e.entityId } },
     });
-    const first = launch([url, 'cortar-tras-aplicar', projectId, run.entityId]);
+    const first = launch([url, 'cut-after-apply', projectId, run.entityId]);
     await first.wait('APPLIED', 60_000);
-    await childOutput(first.child);
+    await waitForExit(first.child);
     const after = await s.db.selectFrom('ai_runs').select('state').where('id', '=', run.entityId).executeTakeFirstOrThrow();
     expect(after.state).toBe('completed');
 
     const second = launch([url, 'recover', run.entityId]);
     await second.wait('RESULT', 90_000);
-    await childOutput(second.child);
-    expect(second.output()).toContain('RESULTADO completed');
+    await waitForExit(second.child);
+    expect(second.output()).toContain('RESULT completed');
     // The agent isn't invoked again, and the effects (messages and batch) exist only once.
     expect(second.output()).not.toContain('INVOKING_AGAIN');
     const messages = await s.db.selectFrom('messages').select('id').where('run_id', '=', run.entityId).execute();
@@ -143,7 +143,7 @@ describe('durable engine', () => {
         projectId,
         data: { action: 'echo', scope: { type: 'project' }, input: { text } },
       });
-    // A run was left "in progress" with no workflow (e.g. a cut with a different code version).
+    // A run was left "in progress" with no workflow (e.g. a crash with a different code version).
     const orphan = await request('orphan');
     await executeCommand(s, {
       command: 'run.begin',
@@ -156,7 +156,7 @@ describe('durable engine', () => {
     const queued = await request('queued');
     const child = launch([url, 'reconcile']);
     await child.wait('RECONCILED', 90_000);
-    await childOutput(child.child);
+    await waitForExit(child.child);
     const states = await s.db
       .selectFrom('ai_runs')
       .select(['id', 'state', 'failure_kind'])

@@ -17,7 +17,7 @@ import { z } from 'zod';
 import { createClaudeCliInvoker, delimitedJson, DEFAULT_CLAUDE_MODEL, type ClaudeCliOptions } from '../agents/claude-cli.ts';
 
 /** Reference classifier id: includes the model, because a different model is a different cache entry. */
-export const referenceClassifierId = (model: string): string => `reference-claude:${model}@1`;
+export const referenceClassifierId = (model: string): string => `claude-reference:${model}@1`;
 
 /** Limits of Jev's primitives, so the substitute accepts the same. */
 export const MAX_CHOICE_OPTIONS = 255;
@@ -140,7 +140,7 @@ const COMMON_RULES = [
 const RULES: Record<Primitive, string[]> = {
   choice: [
     "- `choice` must be literally one of the item's `options`.",
-    `- \`justification\`: a short sentence in English (at most ${MAX_JUSTIFICATION} characters), even when the item is about content written in Spanish.`,
+    `- \`justification\`: a short sentence (at most ${MAX_JUSTIFICATION} characters) in the language of the item.`,
   ],
   score: ["- `level` must be literally one of the item's `levels`, which are ordered from lowest to highest."],
   noul: ["- `probability` is the probability, from 0 to 1, that the item's `statement` is true given its state."],

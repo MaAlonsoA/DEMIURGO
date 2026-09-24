@@ -7,7 +7,7 @@ export type WorkflowEngine = {
   startRun(runId: string, projectId: string): Promise<void>;
   cancelRun(runId: string): Promise<void>;
   startUpdate(updateId: string, projectId: string): Promise<void>;
-  startEvaluation(batchId: string, projectId: string): Promise<void>;
+  startAssessment(batchId: string, projectId: string): Promise<void>;
   startResponse(messageId: string, projectId: string, explorationId: string, questionId?: string): Promise<void>;
 };
 
@@ -22,7 +22,7 @@ export type Services = {
   agent: AgentPort;
   classifier: Classifier;
   engine: WorkflowEngine;
-  record: Logger;
+  logger: Logger;
 };
 
 export const silentLogger: Logger = { info: () => undefined, error: () => undefined };
@@ -51,7 +51,7 @@ export function inertEngine(): WorkflowEngine & {
     startResponse: async (id) => {
       responses.push(id);
     },
-    startEvaluation: async (id) => {
+    startAssessment: async (id) => {
       assessments.push(id);
     },
     startRun: async (id) => {

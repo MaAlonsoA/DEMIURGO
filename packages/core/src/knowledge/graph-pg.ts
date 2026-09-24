@@ -46,10 +46,10 @@ export async function loadGraph(db: Db, projectId: string): Promise<Graph> {
 }
 
 /** Text search (FTS "spanish") over current knowledge. */
-export async function searchKnowledge(db: Db, projectId: string, queryName: string, limit = 10) {
-  const { rows } = await sql<{ ref: string; kind: string; label: string; body: string; epistemic: string; range: number }>`
+export async function searchKnowledge(db: Db, projectId: string, queryText: string, limit = 10) {
+  const { rows } = await sql<{ ref: string; kind: string; label: string; body: string; epistemic: string; rank: number }>`
     select ref, kind, label, left(body, 600) as body, epistemic, ts_rank(search, q) as range
-    from knowledge_nodes, websearch_to_tsquery('spanish', ${queryName}) q
+    from knowledge_nodes, websearch_to_tsquery('spanish', ${queryText}) q
     where project_id = ${projectId}::uuid and valid_to is null and search @@ q
     order by range desc, ref
     limit ${limit}`.execute(db);
@@ -59,7 +59,7 @@ export async function searchKnowledge(db: Db, projectId: string, queryName: stri
     title: r.label,
     excerpt: r.body,
     epistemic_status: r.epistemic,
-    range: r.range,
+    range: r.rank,
   }));
 }
 

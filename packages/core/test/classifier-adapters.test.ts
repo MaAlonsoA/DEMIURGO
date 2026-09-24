@@ -13,7 +13,10 @@ import { createClaudeReferenceClassifier } from '../src/classifier/claude-refere
 const DIR_FIXTURES = fileURLToPath(new URL('./fixtures/claude-cli/', import.meta.url));
 const fixture = (name: string): string => readFileSync(join(DIR_FIXTURES, name), 'utf8');
 
-/** The same items `classifier-choice.json` was recorded with. */
+/**
+ * The items behind `classifier-choice.json`. The fixture was recorded with the Spanish versions of
+ * these items and prompt; its keys were later renamed to the current English schema.
+ */
 const ITEMS: ItemChoice[] = [
   {
     id: 'par-1',
@@ -86,7 +89,7 @@ describe('reference classifier over claude -p', () => {
   it('AC-CLA-001-03 groups the items into a single claude -p call with --json-schema and a small model, and normalizes the fixture', async () => {
     const { launcher, commands } = fakeLauncher(fixture('classifier-choice.json'));
     const classifier = createClaudeReferenceClassifier({ launcher, executable: 'claude' });
-    expect(classifier.id).toBe('reference-claude:haiku@1');
+    expect(classifier.id).toBe('claude-reference:haiku@1');
     const responses = await classifier.choice(ITEMS);
 
     expect(commands).toHaveLength(1);

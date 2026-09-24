@@ -29,8 +29,8 @@ En la v1, los prompts iban incrustados en el código y cada función validaba la
 
 ## Decision
 
-- Puerto estrecho `PuertoAgente` en `packages/domain/src/agentes.ts`. La petición lleva acción, método versionado, JSON Schema de salida, context pack con hash, presupuesto y señal de cancelación. El resultado lleva la salida cruda, el uso, los eventos crudos y, si falla, el `failure_kind`.
-- Adaptador real de Claude: `claude -p --output-format json --json-schema <esquema>`. El esquema se genera desde el esquema Zod de la acción, el mismo con el que se valida la salida. El adaptador elimina `ANTHROPIC_API_KEY` del entorno para usar siempre la suscripción. Se ejecuta con la frontera de ADR-RUN-001.
+- Puerto estrecho `AgentPort` en `packages/domain/src/agents.ts`. La petición lleva acción, método versionado, JSON Schema de salida, context pack con hash, presupuesto y señal de cancelación. El resultado lleva la salida cruda, el uso, los eventos crudos y, si falla, el `failure_kind`.
+- Adaptador real de Claude: `claude -p --output-format json --json-schema <schema>`. El esquema se genera desde el esquema Zod de la acción, el mismo con el que se valida la salida. El adaptador elimina `ANTHROPIC_API_KEY` del entorno para usar siempre la suscripción. Se ejecuta con la frontera de ADR-RUN-001.
 - Codex (`codex exec --json --output-schema`) solo si es imprescindible. No se implementa en H1.
 - Validación común con Zod para todas las salidas: una salida fuera del esquema deja la ejecución en `failed` con `invalid_output`, sin efectos (I7).
 - Simulador determinista detrás del mismo puerto para la CI y las pruebas: la misma acción con el mismo context pack da la misma salida.
@@ -58,7 +58,7 @@ Dada una petición al adaptador de Claude, cuando lanza la CLI, entonces usa `-p
 - Verification: automatic
 - Check: Se normalizan salidas JSON grabadas de la CLI, de éxito y de error.
 
-Dada una salida JSON grabada de la CLI, cuando el adaptador la normaliza, entonces devuelve el `ResultadoAgente` del puerto con su uso y, si es un error, con su `failure_kind`.
+Dada una salida JSON grabada de la CLI, cuando el adaptador la normaliza, entonces devuelve el `AgentResult` del puerto con su uso y, si es un error, con su `failure_kind`.
 
 ### AC-AGE-001-03 · Tiempo y cancelación
 

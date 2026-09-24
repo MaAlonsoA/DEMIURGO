@@ -20,7 +20,7 @@ export function pendingGuard(increment: string): Guard {
 }
 
 /** Text of an unknown value: the trimmed string, or empty. */
-export const string = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
+export const trimmed = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 
 /** Reads a field from the command data without assuming its shape. */
 export function field(data: unknown, name: string): unknown {
@@ -28,7 +28,7 @@ export function field(data: unknown, name: string): unknown {
 }
 
 registerGuards({
-  reason_present: ({ data }) => (string(field(data, 'reason')) ? null : 'A reason is required.'),
+  reason_present: ({ data }) => (trimmed(field(data, 'reason')) ? null : 'A reason is required.'),
   fdr_ready_to_build: pendingGuard('S3'),
   full_coverage: pendingGuard('S3'),
   gates_green: pendingGuard('S4'),

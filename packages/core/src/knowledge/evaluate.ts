@@ -9,6 +9,8 @@ import {
   type VerdictCase,
   type Classifier,
   IDEA_FINDINGS,
+  IDEA_QUESTION,
+  VERDICT_QUESTION,
   type ItemChoice,
   type EvaluationResult,
   VERDICTS,
@@ -35,11 +37,6 @@ export type EvaluationReport = {
   responses: { id: string; task: string; expected: string; actual: string; confidence: number; justification: string }[];
   file?: string;
 };
-
-const VERDICT_QUESTION =
-  'With this change approved, what happens to the candidate: does it stay the same, relate to it, need updating, become invalid, need something added, or something else?';
-const IDEA_QUESTION =
-  'How does the idea relate to this knowledge: does it duplicate it, conflict with it, is it inconsistent, does it relate, or none of these?';
 
 function verdictItems(cases: readonly VerdictCase[]): ItemChoice[] {
   return cases.map((c) => ({

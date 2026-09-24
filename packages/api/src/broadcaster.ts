@@ -1,12 +1,12 @@
-// Event broadcaster: a single LISTEN connection to Postgres fans the event log's warnings out
+// Event broadcaster: a single LISTEN connection to Postgres fans the event log's notifications out
 // to the open SSE connections. The content is always read from the event log, never from the
-// warning.
+// notification.
 
 import { EventEmitter } from 'node:events';
 import { Client } from 'pg';
 
 export type Broadcaster = {
-  /** Resolves once LISTEN is active: after that, the backlog can be read without missing warnings. */
+  /** Resolves once LISTEN is active: after that, the backlog can be read without missing notifications. */
   subscribe(projectId: string, f: () => void): Promise<() => void>;
   close(): Promise<void>;
 };
@@ -25,10 +25,10 @@ export function createBroadcaster(url: string): Broadcaster {
       await c.connect();
       c.on('notification', (n) => {
         try {
-          const warning = JSON.parse(n.payload ?? '{}') as { project?: string };
-          if (warning.project) emitter.emit(warning.project);
+          const notification = JSON.parse(n.payload ?? '{}') as { project?: string };
+          if (notification.project) emitter.emit(notification.project);
         } catch {
-          // Unreadable warning: ignored; the client will re-read the event log on the next one.
+          // Unreadable notification: ignored; the client will re-read the event log on the next one.
         }
       });
       await c.query('listen demiurgo_events');

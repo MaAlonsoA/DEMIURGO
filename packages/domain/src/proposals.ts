@@ -42,7 +42,7 @@ export const fdrPayload = z
   .strict();
 
 /** Proposal from the knowledge system: review a record with authority (never a direct change). */
-export const revisionPayload = z
+export const reviewPayload = z
   .object({
     record: recordReference,
     verdict: z.enum(['invalidate', 'update', 'add', 'other']),
@@ -59,7 +59,7 @@ export const PAYLOADS = {
   decision: decisionPayload,
   exploration: explorationPayload,
   fdr: fdrPayload,
-  review: revisionPayload,
+  review: reviewPayload,
   imported_record: z.object({ document: z.record(z.string(), z.unknown()), path: z.string() }).strict(),
   imported_taxonomy: z.object({ document: z.record(z.string(), z.unknown()), path: z.string() }).strict(),
 } as const;

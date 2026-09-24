@@ -3,7 +3,7 @@
 import { DomainError, VALID_AGENT_NAME, formatActor, fingerprint } from '@demiurgo/domain';
 import { sql } from 'kysely';
 import { z } from 'zod';
-import { string, field, registerGuards } from '../bus/guards.ts';
+import { trimmed, field, registerGuards } from '../bus/guards.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
 import { AGENT_TOKEN_PREFIX, secretFingerprint, newSecret } from '../secrets.ts';
 
@@ -27,7 +27,7 @@ const originSchema = z
 
 registerGuards({
   valid_agent_name: ({ data }) => {
-    const name = string(field(data, 'name'));
+    const name = trimmed(field(data, 'name'));
     // "run" is reserved: agent:run:<id> is the actor for DEMIURGO's runs.
     if (name === 'run') return 'The name "run" is reserved for DEMIURGO runs.';
     return VALID_AGENT_NAME.test(name)
@@ -56,7 +56,7 @@ registerGuards({
   },
 
   async exploration_active({ ctx, data }) {
-    const id = string(field(data, 'exploration_id'));
+    const id = trimmed(field(data, 'exploration_id'));
     const e = await ctx.trx
       .selectFrom('explorations')
       .select('state')
@@ -68,8 +68,8 @@ registerGuards({
   },
 
   conclusion_present: ({ data, entity }) => {
-    const incoming = string(field(data, 'conclusion'));
-    const prior = string(entity?.row.conclusion);
+    const incoming = trimmed(field(data, 'conclusion'));
+    const prior = trimmed(entity?.row.conclusion);
     return incoming || prior ? null : 'A conclusion is required.';
   },
 });
@@ -206,7 +206,7 @@ registerHandlers({
       if (ctx.actor.type === 'human' && data.respond) {
         // The response is a durable workflow: it waits for the knowledge base to be up to date and requests the run.
         const { services, projectId } = ctx;
-        ctx.afterConfirm(() => services.engine.startResponse(id, projectId, data.exploration_id, data.question_id));
+        ctx.afterCommit(() => services.engine.startResponse(id, projectId, data.exploration_id, data.question_id));
       }
       return {
         entityId: id,
@@ -282,7 +282,7 @@ registerHandlers({
   'question.confirm': handler({
     data: z.object({ conclusion: z.string().trim().max(3000).optional() }).strict(),
     async apply(ctx, data, e) {
-      const conclusion = data.conclusion || string(e?.row.conclusion);
+      const conclusion = data.conclusion || trimmed(e?.row.conclusion);
       await ctx.trx
         .updateTable('questions')
         .set({ conclusion, state_reason: null })

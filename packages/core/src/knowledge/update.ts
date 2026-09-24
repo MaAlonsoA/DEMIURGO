@@ -4,6 +4,7 @@
 // never enters the cache, so a retry asks again.
 
 import {
+  VERDICT_QUESTION,
   type Candidate,
   type Change,
   type Classifier,
@@ -30,7 +31,7 @@ import type { Request, Result } from '../bus/types.ts';
 import type { Db, Tx } from '../db/connection.ts';
 import type { Services } from '../services.ts';
 import { UPDATER } from './commands.ts';
-import { DISCARD_TRIGGER, type AuthorityObject, deriveChange, deriveRetirement } from './derive.ts';
+import { DISCARD_TRIGGER, type AuthorityObject, deriveChange, deriveRemoval } from './derive.ts';
 import { loadGraph } from './graph-pg.ts';
 
 export type Axis = { code: string; name: string; categories: { code: string; name: string; description: string }[] };
@@ -105,8 +106,7 @@ export function itemsForVerdicts(change: Change, candidates: readonly Candidate[
       },
       candidate: { ref: c.ref, type: c.type, title: c.label, text: c.text },
     },
-    question:
-      'With this change approved, what happens to the candidate: does it stay the same, is it related, does it need updating, is it invalidated, does something need to be added, or something else?',
+    question: VERDICT_QUESTION,
     options: VERDICTS,
   }));
 }
@@ -181,7 +181,7 @@ export type ClassifyStepResult =
   | { type: 'finished' }
   | { type: 'no_change' }
   | { type: 'error'; reason: string }
-  | { type: 'withdrawal'; refs: string[] }
+  | { type: 'removal'; refs: string[] }
   | { type: 'classified'; data: Classified };
 
 export async function classifyStep(s: Services, updateId: string, projectId: string): Promise<ClassifyStepResult> {
@@ -203,7 +203,7 @@ export async function classifyStep(s: Services, updateId: string, projectId: str
   // Any failure while deriving or classifying rejects the update: it never stays in progress.
   try {
     const trigger = u.trigger as AuthorityObject;
-    if (trigger.type === DISCARD_TRIGGER) return { type: 'withdrawal', refs: await deriveRetirement(s.db, trigger) };
+    if (trigger.type === DISCARD_TRIGGER) return { type: 'removal', refs: await deriveRemoval(s.db, trigger) };
     const change = await deriveChange(s.db, trigger);
     if (!change) return { type: 'no_change' };
     const graph = await loadGraph(s.db, projectId);
@@ -278,7 +278,7 @@ async function applyOperations(
   for (const a of plan.newEdges) {
     await execute({
       command: 'knowledge_edge.project',
-      data: { type: a.type, from: a.from, to: a.to, validFrom: version, update_id: updateId },
+      data: { type: a.type, from: a.from, to: a.to, valid_from: version, update_id: updateId },
     });
   }
 }
@@ -323,12 +323,12 @@ export async function applyStep(s: Services, updateId: string, projectId: string
       });
       return 'applied';
     };
-    if (r.type === 'no_change' || r.type === 'withdrawal') {
+    if (r.type === 'no_change' || r.type === 'removal') {
       await execute({
         entityId: updateId,
         command: 'knowledge_update.verify',
         data: {
-          change: r.type === 'withdrawal' ? { withdrawal: r.refs } : null,
+          change: r.type === 'removal' ? { removal: r.refs } : null,
           candidates: [],
           input_hash: '',
           classifier: s.classifier.id,
@@ -432,8 +432,8 @@ async function prepareReviews(
   const current = new Map(currentNodes(graph).map((n) => [n.ref, n]));
   const proposals: ReviewProposal[] = [];
   const reasons: string[] = [];
-  for (const revision of reviews) {
-    const origin = current.get(revision.ref)?.origin;
+  for (const review of reviews) {
+    const origin = current.get(review.ref)?.origin;
     const v =
       origin?.type === 'record_version' && origin.id
         ? await trx
@@ -445,21 +445,21 @@ async function prepareReviews(
             .executeTakeFirst()
         : undefined;
     if (!v) {
-      reasons.push(`Can't propose the review of ${revision.ref}: its node doesn't come from a record version in this project.`);
+      reasons.push(`Can't propose the review of ${review.ref}: its node doesn't come from a record version in this project.`);
       continue;
     }
     proposals.push({
       type: 'review',
       payload: {
         record: { code: v.code, version: v.n },
-        verdict: revision.verdict,
-        reason: (revision.reason || `Change ${d.change.main.ref} might affect ${revision.ref}.`).slice(0, 2000),
+        verdict: review.verdict,
+        reason: (review.reason || `Change ${d.change.main.ref} might affect ${review.ref}.`).slice(0, 2000),
         change: {
           type: d.change.main.origin.type,
           id: d.change.main.origin.id ?? '',
           version: d.change.main.origin.version,
         },
-        confidence: revision.confidence,
+        confidence: review.confidence,
       },
       dependencies: [{ type: 'record', id: v.recordId, code: v.code, version: v.n }],
     });

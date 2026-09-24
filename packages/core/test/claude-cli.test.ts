@@ -283,13 +283,13 @@ describe('claude-cli agent adapter', () => {
     const stdout = fixture('error-unknown-model.json');
     const { launcher } = fakeLauncher({ stdout, code: 1 });
     const r = await createClaudeCliAgent({ launcher, executable: 'claude' }).execute(
-      request({ model: 'claude-nonexistent-demiurgo-model' }),
+      request({ model: 'claude-modelo-inexistente-demiurgo' }),
     );
     expect(r).toMatchObject({
       state: 'error',
       failureKind: 'agent_error',
       usage: { inputTokens: 0, outputTokens: 0, durationMs: 669, declaredCostUsd: 0 },
-      model: 'claude-nonexistent-demiurgo-model',
+      model: 'claude-modelo-inexistente-demiurgo',
       rawEvents: stdout,
       provider: 'claude-cli',
     });

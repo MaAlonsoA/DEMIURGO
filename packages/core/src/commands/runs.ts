@@ -3,7 +3,7 @@
 
 import { AGENT_ACTIONS, FAILURE_KINDS, formatActor, system, type AgentAction } from '@demiurgo/domain';
 import { z } from 'zod';
-import { string, field, registerGuards } from '../bus/guards.ts';
+import { trimmed, field, registerGuards } from '../bus/guards.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
 import { schemaVersion, METHOD_VERSION } from '../agents/methods.ts';
 import { buildContext } from '../context/build.ts';
@@ -22,7 +22,7 @@ const now = (): string => new Date().toISOString();
 
 registerGuards({
   async original_run_finished({ ctx, data }) {
-    const id = string(field(data, 'run_id'));
+    const id = trimmed(field(data, 'run_id'));
     const original = await ctx.trx.selectFrom('ai_runs').select(['state', 'project_id']).where('id', '=', id).executeTakeFirst();
     if (!original || original.project_id !== ctx.projectId) return 'The run you want to retry does not exist.';
     if (!['failed', 'interrupted', 'cancelled'].includes(original.state)) {
@@ -73,7 +73,7 @@ registerHandlers({
         .returning('id')
         .executeTakeFirstOrThrow();
       const projectId = ctx.projectId;
-      ctx.afterConfirm(() => ctx.services.engine.startRun(id, projectId));
+      ctx.afterCommit(() => ctx.services.engine.startRun(id, projectId));
       const hash = (created.result as { hash: string }).hash;
       return {
         entityId: id,
@@ -105,7 +105,7 @@ registerHandlers({
         .returning('id')
         .executeTakeFirstOrThrow();
       const projectId = ctx.projectId;
-      ctx.afterConfirm(() => ctx.services.engine.startRun(id, projectId));
+      ctx.afterCommit(() => ctx.services.engine.startRun(id, projectId));
       return { entityId: id, after: { retry_of: o.id }, result: { runId: id, contextPackId: o.context_pack_id } };
     },
   }),
@@ -172,7 +172,7 @@ registerHandlers({
         .set({ failure_kind: 'cancelled', error: data.reason ?? 'Cancelled by the person.', finished_at: now() })
         .where('id', '=', id)
         .execute();
-      ctx.afterConfirm(() => ctx.services.engine.cancelRun(id));
+      ctx.afterCommit(() => ctx.services.engine.cancelRun(id));
       return { entityId: id, after: { reason: data.reason ?? null } };
     },
   }),

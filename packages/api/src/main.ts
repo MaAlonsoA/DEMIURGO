@@ -9,7 +9,7 @@ const config = readConfig();
 const core = await startCore(config, consoleLogger);
 const app = await createServer({
   services: core.services,
-  baseUrl: config.baseUrl,
+  databaseUrl: config.databaseUrl,
   sessionHours: config.sessionHours,
   allowedOrigins: config.allowedOrigins,
   allowedHosts: [`${config.host}:${config.port}`, `localhost:${config.port}`, `127.0.0.1:${config.port}`],

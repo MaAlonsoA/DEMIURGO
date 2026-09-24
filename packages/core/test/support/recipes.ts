@@ -360,7 +360,7 @@ registerRecipe('knowledge_edge', {
       command: 'knowledge_edge.project',
       actor: sys,
       projectId,
-      data: { type: 'related', from: a.ref, to: b.ref, validFrom: 1, update_id: null },
+      data: { type: 'related', from: a.ref, to: b.ref, valid_from: 1, update_id: null },
     });
     return r.entityId;
   },

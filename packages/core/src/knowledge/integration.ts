@@ -28,7 +28,7 @@ registerInboxExtension({
       .select(['findings', 'graph_version', 'classifier'])
       .where('proposal_id', '=', proposalId)
       .executeTakeFirst();
-    if (!e) return { isPending: true };
+    if (!e) return { pending: true };
     // Assessments store their findings, the responses that weren't verified, and the error, if there was one.
     const f = (Array.isArray(e.findings) ? { findings: e.findings } : e.findings) as {
       findings?: unknown[];

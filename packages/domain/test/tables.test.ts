@@ -255,11 +255,13 @@ describe('consistency of the tables', () => {
     if (!question) throw new Error('question is missing');
     question.authority = [];
     commandOf(cap, 'record.create').allowed = ['human', 'agent_external'];
-    const queryName = cap.queries['query.tokens'];
-    if (queryName) queryName.allowed = ['human', 'agent_external'];
+    const queryDef = cap.queries['query.tokens'];
+    if (queryDef) queryDef.allowed = ['human', 'agent_external'];
     const errors = tableInconsistencies(cap, trans);
     expect(errors).toContain('question: "confirmed" must be an authority state (I1).');
-    expect(errors).toContain('record.create: a agent_external can only converse, register sources and propose (I2).');
+    expect(errors).toContain(
+      'record.create: an actor of type agent_external can only converse, register sources and propose (I2).',
+    );
     expect(errors).toContain('query.tokens: forbidden to external agents.');
   });
 });

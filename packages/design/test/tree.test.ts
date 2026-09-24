@@ -170,7 +170,7 @@ describe('codes, links and annexes', () => {
     },
     {
       sample: 'a final hard space',
-      text: 'code: DAT-TST-001\nrows: [] \n',
+      text: 'code: DAT-TST-001\nrows: [] \n',
       message: "Line 2 ends with spaces; the format doesn't allow them.",
     },
   ])('AC-FMT-001-01 an annex with $sample is rejected', ({ text, message }) => {

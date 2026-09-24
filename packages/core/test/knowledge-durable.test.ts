@@ -64,14 +64,14 @@ const states = async (p: string) =>
 
 describe('knowledge with the durable engine', () => {
   it('AC-CON-001-07 retrying a rejected update starts a new workflow and unblocks freshness', async () => {
-    script.restart();
+    script.reset();
     const p = await newProject('Durable retry');
     const t = unique();
     await decision(p, `Invitados ${t}`, `Cada socio puede traer invitados ${t}.`);
     script.scripts.verdict = () => [];
     const d2 = await decision(p, `Invitados limitados ${t}`, `Cada socio puede traer dos invitados ${t}.`);
     expect(await states(p)).toEqual(['applied', 'rejected']);
-    script.restart();
+    script.reset();
     const rejected = (
       await s.db
         .selectFrom('knowledge_updates')
@@ -91,7 +91,7 @@ describe('knowledge with the durable engine', () => {
   });
 
   it('AC-CON-001-07 a persistent classification failure leaves the update rejected, never in progress', async () => {
-    script.restart();
+    script.reset();
     const p = await newProject('Classification failure');
     const t = unique();
     await decision(p, `One ${t}`, `One ${t}.`);

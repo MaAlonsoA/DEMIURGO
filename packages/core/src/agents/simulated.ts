@@ -20,7 +20,7 @@ const obj = (v: unknown): AnyObject => (typeof v === 'object' && v !== null ? (v
 const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const txt = (v: unknown, def = ''): string => (typeof v === 'string' ? v : def);
 
-function trim(t: string, n: number): string {
+function truncate(t: string, n: number): string {
   const clean = t.replace(/\s+/g, ' ').trim();
   return clean.length > n ? `${clean.slice(0, n - 1)}…` : clean;
 }
@@ -28,7 +28,7 @@ function trim(t: string, n: number): string {
 export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
   echo(p) {
     const text = txt(obj(obj(p.context.content).input).text);
-    return { reply: text ? `Echo: ${trim(text, 1900)}` : 'Echo: (empty)' };
+    return { reply: text ? `Echo: ${truncate(text, 1900)}` : 'Echo: (empty)' };
   },
 
   exploration_chat(p) {
@@ -44,8 +44,8 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
         text,
       );
     const output: AnyObject = {
-      reply: `Got it: "${trim(text, 300)}". ${wantsToDecide ? 'I suggest recording it as a decision.' : 'I need to pin down something more.'}`,
-      observations: [{ type: 'hypothesis', text: `The main intent is: ${trim(text, 200)}` }],
+      reply: `Got it: "${truncate(text, 300)}". ${wantsToDecide ? 'I suggest recording it as a decision.' : 'I need to pin down something more.'}`,
+      observations: [{ type: 'hypothesis', text: `The main intent is: ${truncate(text, 200)}` }],
       questions: [],
       inferences: [],
       proposals: [],
@@ -53,16 +53,16 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
     if (wantsToDecide) {
       (output.proposals as unknown[]).push({
         type: 'decision',
-        title: trim(text, 120),
-        context: trim(`Exploration: ${txt(c.purpose)}`, 2900),
-        decision: trim(text, 2900),
+        title: truncate(text, 120),
+        context: truncate(`Exploration: ${txt(c.purpose)}`, 2900),
+        decision: truncate(text, 2900),
         consequences: 'The feature needs to be designed with verifiable acceptance criteria.',
       });
       const first = pending[0];
       if (first && typeof first.id === 'string') {
         (output.inferences as unknown[]).push({
           question_id: first.id,
-          conclusion: trim(text, 1400),
+          conclusion: truncate(text, 1400),
           reasoning: 'The person expressed it in their last message.',
         });
       }
@@ -79,11 +79,11 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
   design_proposal(p) {
     const c = obj(p.context.content);
     const d = obj(c.decision);
-    const title = trim(txt(d.title, 'Feature'), 140);
+    const title = truncate(txt(d.title, 'Feature'), 140);
     return {
       fdr: {
         title: `Design: ${title}`,
-        goal: trim(`Bring decision ${txt(d.code)} to production: ${txt(d.decision, title)}`, 2900),
+        goal: truncate(`Turn decision ${txt(d.code)} into product: ${txt(d.decision, title)}`, 2900),
         scope: "The decision's main walkthrough, start to finish, for a single person.",
         out_of_scope: 'External integrations and multiple concurrent users.',
         behavior: `The person completes the main walkthrough of "${title}" and sees the result confirmed.`,
@@ -96,8 +96,7 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
           },
           {
             title: 'Understandable error',
-            statement:
-              'Given an invalid input, when the person submits it, then they see a message in English that explains what to fix.',
+            statement: 'Given an invalid input, when the person submits it, then they see a message that explains what to fix.',
             verification: 'automatic',
             check: 'A test submits an invalid input and checks the message.',
           },

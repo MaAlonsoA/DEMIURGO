@@ -63,14 +63,14 @@ async function dispatchDeferred(): Promise<void> {
 }
 let onStepComplete: ((step: string, id: string) => void) | undefined;
 
-function require(): Services {
+function requireServices(): Services {
   return engineServices();
 }
 
 export const workflowRunId = (runId: string): string => `run:${runId}`;
 
 async function prepare(runId: string, projectId: string): Promise<string> {
-  const s = require();
+  const s = requireServices();
   const run = await s.db.selectFrom('ai_runs').select('state').where('id', '=', runId).executeTakeFirstOrThrow();
   if (run.state === 'queued') {
     await executeCommand(s, { command: 'run.begin', actor: ENGINE, projectId, entityId: runId, data: {} });
@@ -80,7 +80,7 @@ async function prepare(runId: string, projectId: string): Promise<string> {
 }
 
 async function invoke(runId: string): Promise<AgentResult> {
-  const s = require();
+  const s = requireServices();
   const run = await s.db.selectFrom('ai_runs').selectAll().where('id', '=', runId).executeTakeFirstOrThrow();
   const pack = await s.db
     .selectFrom('context_packs')
@@ -124,7 +124,7 @@ function summarizeErrors(issues: readonly { path: readonly PropertyKey[]; messag
 }
 
 async function apply(runId: string, projectId: string, r: AgentResult, workflow: string): Promise<string> {
-  const s = require();
+  const s = requireServices();
   const final = await inTransaction(s, async (execute, trx) => {
     // Same lock order as the bus (project, then entity): no deadlocks.
     await sql`select 1 from projects where id = ${projectId}::uuid for update`.execute(trx);
@@ -220,7 +220,7 @@ async function runWorkflow(runId: string, projectId: string): Promise<string> {
 
 /** A system error while applying leaves the run failed (infra), never stuck. */
 async function failForInfrastructure(runId: string, projectId: string, e: unknown): Promise<void> {
-  const s = require();
+  const s = requireServices();
   const run = await s.db.selectFrom('ai_runs').select('state').where('id', '=', runId).executeTakeFirstOrThrow();
   if (run.state !== 'running') return;
   await executeCommand(s, {
@@ -242,7 +242,7 @@ async function requestResponse(
   explorationId: string,
   questionId: string | null,
 ): Promise<void> {
-  const s = require();
+  const s = requireServices();
   await inTransaction(s, async (execute, trx) => {
     await sql`select 1 from projects where id = ${projectId}::uuid for update`.execute(trx);
     const done = await trx
@@ -277,7 +277,7 @@ async function respondWorkflow(projectId: string, explorationId: string, questio
   for (let i = 0; i < 120; i++) {
     const upToDate = await DBOS.runStep(
       () =>
-        require()
+        requireServices()
           .db.transaction()
           .execute((trx) => graphUpToDate(trx, projectId)),
       {
@@ -306,7 +306,7 @@ export const dbosEngine: WorkflowEngine = {
   async startUpdate(id, projectId) {
     await startOutsideWorkflow(() => starters.update(id, projectId));
   },
-  async startEvaluation(batchId, projectId) {
+  async startAssessment(batchId, projectId) {
     await startOutsideWorkflow(() => starters.assessment(batchId, projectId));
   },
   async startResponse(messageId, projectId, explorationId, questionId) {

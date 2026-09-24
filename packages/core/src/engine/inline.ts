@@ -3,7 +3,7 @@
 // responses are only recorded (those tests use the durable engine).
 
 import { applyStep, classifyStep, rejectOnError } from '../knowledge/update.ts';
-import { calculateEvaluations, pendingFor, registerEvaluations, registerEvaluationFailure } from '../knowledge/workflows.ts';
+import { calculateAssessments, pendingFor, recordAssessments, recordAssessmentFailure } from '../knowledge/workflows.ts';
 import type { WorkflowEngine, Services } from '../services.ts';
 
 export type InlineEngine = WorkflowEngine & { runs: string[]; responses: string[] };
@@ -35,12 +35,12 @@ export function createInlineEngine(services: () => Services): InlineEngine {
         }
       }
     },
-    async startEvaluation(batchId, projectId) {
+    async startAssessment(batchId, projectId) {
       const s = services();
       try {
-        await registerEvaluations(s, projectId, await calculateEvaluations(s, batchId, projectId));
+        await recordAssessments(s, projectId, await calculateAssessments(s, batchId, projectId));
       } catch (e) {
-        await registerEvaluationFailure(s, batchId, projectId, e);
+        await recordAssessmentFailure(s, batchId, projectId, e);
       }
     },
   };

@@ -14,7 +14,7 @@ import { TOOL_NAMES, createMcpServer } from '../src/index.ts';
 const api = useApi();
 const MAIN = fileURLToPath(new URL('../src/main.ts', import.meta.url));
 
-let urlApi = '';
+let apiUrl = '';
 let projectId = '';
 let explorationId = '';
 let token = '';
@@ -35,7 +35,7 @@ async function issueToken(name: string): Promise<{ token: string; id: string }> 
 
 async function connect(agentToken: string, substituteFetch?: typeof globalThis.fetch): Promise<Client> {
   const server = createMcpServer({
-    urlApi,
+    apiUrl,
     token: agentToken,
     projectId,
     ...(substituteFetch ? { fetch: substituteFetch } : {}),
@@ -82,7 +82,7 @@ beforeAll(async () => {
   // Real server on a free port: the MCP server calls the API over HTTP. Closed by
   // `useApi`'s `afterAll` along with the app.
   await app.listen({ host: '127.0.0.1', port: 0 });
-  urlApi = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
+  apiUrl = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
   const p = await person.request('POST', '/api/projects', { name: 'MCP channel' });
   if (p.statusCode !== 200) throw new Error(`Could not create the project: ${p.body}`);
   projectId = p.json<{ project_id: string }>().project_id;
@@ -259,14 +259,14 @@ describe('MCP server for the agent channel', () => {
       }
       return fetch(input, init);
     });
-    const r = await call(client, 'search_knowledge', { queryName: 'human acceptance' });
+    const r = await call(client, 'search_knowledge', { query: 'human acceptance' });
     expect(r.isError).toBe(true);
     expect(textOf(r)).toMatch(/^Not available \(HTTP 404\): Knowledge search is not available yet\./);
     expect(requested[0]).toContain(`/api/projects/${projectId}/knowledge/search`);
     expect(new URL(requested[0] ?? '').searchParams.get('q')).toBe('human acceptance');
 
     // Against the real API: either the route already exists and responds, or the warning is the same.
-    const real = await call(await connect(token), 'search_knowledge', { queryName: 'human acceptance' });
+    const real = await call(await connect(token), 'search_knowledge', { query: 'human acceptance' });
     expect(!real.isError || textOf(real).includes('Knowledge search is not available yet')).toBe(true);
   });
 
@@ -276,7 +276,7 @@ describe('MCP server for the agent channel', () => {
       args: [MAIN],
       env: {
         ...getDefaultEnvironment(),
-        DEMIURGO_API_URL: urlApi,
+        DEMIURGO_API_URL: apiUrl,
         DEMIURGO_AGENT_TOKEN: token,
         DEMIURGO_PROJECT: projectId,
       },

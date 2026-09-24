@@ -10,3 +10,17 @@ Cada incremento termina con al menos una ejecución real de un agente, con Claud
 | S0 (sonda) | 2026-09-24 | Sonda del runner aislado (sin modelo) | docker · node:24.21-alpine | 0 violaciones | 5,4 s | — | — | [sonda-runner-2026-09-24.md](sonda-runner-2026-09-24.md) |
 | S1 | 2026-09-24 | Recorrido completo por la API: dos turnos de `exploration_chat`, «Aceptar y aprobar», `design_proposal`, aceptación del paquete, aprobación y cierre de la persona | claude-cli · claude-haiku-4-5-20251001 | «Listo para construir» (FDR-PRO-001 con 6 AC) y bandeja vacía | 59,5 s de agente | 8462 / 6216 | 0,0395 USD | [s1-recorrido-2026-09-24.md](s1-recorrido-2026-09-24.md) |
 | S2 | 2026-09-24 | Evaluación del clasificador de referencia sobre la partición de prueba (35 veredictos y 22 ideas) | claude-cli · haiku | Veredictos 62,9 % de exactitud; ideas 81,8 % (línea base simulada: 31,4 % y 50 %) | 186 s (2 llamadas) | no registrado | no registrado | [s2-clasificador-2026-09-24.md](s2-clasificador-2026-09-24.md) |
+
+## Órdenes anteriores al paso del código a inglés
+
+Estas ejecuciones se registraron antes de pasar el código a inglés, así que sus archivos usan los nombres de entonces. Los equivalentes actuales son:
+
+| Antes | Ahora |
+|---|---|
+| `DEMIURGO_AGENTE=claude`, `DEMIURGO_MODELO_AGENTE` | `DEMIURGO_AGENT=claude`, `DEMIURGO_AGENT_MODEL` |
+| `DEMIURGO_CLASIFICADOR=referencia`, `DEMIURGO_MODELO_CLASIFICADOR` | `DEMIURGO_CLASSIFIER=reference`, `DEMIURGO_CLASSIFIER_MODEL` |
+| `cli.ts crear-proyecto`, `crear-persona`, `ejecucion-real`, `evaluar-clasificador prueba` | `cli.ts create-project`, `create-person`, `real-run`, `evaluate-classifier test` |
+| acción `eco` con `{"tipo":"proyecto"}` y `{"texto":…}` | acción `echo` con `{"type":"project"}` y `{"text":…}` |
+| `packages/api/src/herramientas/recorrido-s1.ts` | `packages/api/src/tools/walkthrough-s1.ts` |
+
+Con los nombres viejos, la configuración ahora se niega a arrancar y dice el nombre nuevo de cada variable.

@@ -40,7 +40,7 @@ export function useEnvironment(options: Options = {}): () => Environment {
       clock: () => new Date(),
       agent: (options.agent ?? (() => createSimulatedAgent()))(),
       classifier: (options.classifier ?? (() => createSimulatedClassifier()))(),
-      record: silentLogger,
+      logger: silentLogger,
     };
     if (options.durable) {
       started = await startEngine(common, url);

@@ -5,6 +5,7 @@ title: Agentes y proveedores
 version: 1
 state: proposed
 domain: plataforma
+increment: H1
 links:
   - type: based_on
     target: ADR-AGE-001@2

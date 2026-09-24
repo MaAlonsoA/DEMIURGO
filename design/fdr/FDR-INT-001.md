@@ -5,6 +5,7 @@ title: Diseñar dentro de la v2 desde el navegador
 version: 1
 state: proposed
 domain: interfaz
+increment: H1
 links:
   - type: based_on
     target: DEC-PLN-001@1

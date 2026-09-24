@@ -210,6 +210,12 @@ export type Criterion = {
 
 export type Link = {
   id: string;
+  /** What it points to: its record, version, title and state (null if the target is not a version). */
+  to_code?: string | null;
+  to_n?: number | null;
+  to_title?: string | null;
+  to_state?: string | null;
+  to_current?: boolean;
   type: string;
   from_type: string;
   from_id: string;

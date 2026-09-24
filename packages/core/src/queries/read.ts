@@ -303,7 +303,19 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
       .where('record_version_id', '=', v.id)
       .orderBy('position')
       .execute();
-    const links = await db.selectFrom('links').selectAll().where('from_id', '=', v.id).execute();
+    // Each link says which record, version, title and state it points to.
+    const rawLinks = await db
+      .selectFrom('links')
+      .leftJoin('record_versions as t', 't.id', 'links.to_id')
+      .leftJoin('records as tr', 'tr.id', 't.record_id')
+      .selectAll('links')
+      .select(['tr.id as to_record', 'tr.code as to_code', 't.n as to_n', 't.title as to_title', 't.state as to_state'])
+      .where('links.from_id', '=', v.id)
+      .execute();
+    const links = [];
+    for (const { to_record, ...l } of rawLinks) {
+      links.push({ ...l, to_current: to_record !== null && l.to_n !== null && (await currentOf(db, to_record)) === l.to_n });
+    }
     const origin = await originExploration(db, v.id);
     // Inferred questions of the origin thread: the UI shows them as a readiness warning (◐).
     const inferred = origin

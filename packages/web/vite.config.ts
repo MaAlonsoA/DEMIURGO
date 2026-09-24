@@ -17,5 +17,22 @@ export default defineConfig({
       '/api': { target: api, changeOrigin: true },
     },
   },
-  build: { outDir: 'dist', emptyOutDir: true, sourcemap: true },
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+    sourcemap: true,
+    // The libraries change less than the app: they go in their own chunks, cached apart.
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            { name: 'markdown', test: /node_modules[\\/].*(markdown|remark|micromark|mdast|unified|unist|hast|vfile)/ },
+            { name: 'react', test: /node_modules[\\/].*(react|react-dom|scheduler)[\\/]/ },
+            { name: 'radix', test: /node_modules[\\/].*@radix-ui[\\/]/ },
+            { name: 'tanstack', test: /node_modules[\\/].*@tanstack[\\/]/ },
+          ],
+        },
+      },
+    },
+  },
 });

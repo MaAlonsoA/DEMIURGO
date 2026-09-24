@@ -220,4 +220,15 @@ describe('API: queries of the web UI', () => {
     const state = await get<{ designs: { code: string; origin_exploration: string | null }[] }>('/state');
     expect(state.designs.every((d) => d.origin_exploration === null)).toBe(true);
   });
+
+  it('AC-INT-001-04 each link of a version says which record, version, title and state it points to', async () => {
+    const record = await get<{
+      versions: {
+        links: { type: string; to_code: string; to_n: number; to_title: string; to_state: string; to_current: boolean }[];
+      }[];
+    }>('/records/FDR-DIS-001');
+    const basedOn = record.versions[0]?.links.find((l) => l.type === 'based_on');
+    expect(basedOn).toMatchObject({ to_code: 'DEC-PLN-001', to_n: 1, to_state: 'superseded', to_current: false });
+    expect(basedOn?.to_title.length).toBeGreaterThan(0);
+  });
 });

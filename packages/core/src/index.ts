@@ -18,6 +18,7 @@ export * from './agents/index.ts';
 export * from './classifier/index.ts';
 export * from './assignments/index.ts';
 export * from './assignments/classifiers.ts';
+export * from './assignments/stats.ts';
 export * from './providers/registry.ts';
 export * from './providers/claude.ts';
 export * from './providers/codex.ts';

@@ -14,7 +14,7 @@ import {
   isDomainError,
   allowedForQuery,
 } from '@demiurgo/domain';
-import { HANDLERS, type Services, executeCommand } from '@demiurgo/core';
+import { HANDLERS, type Services, executeCommand, runProgress } from '@demiurgo/core';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
@@ -30,6 +30,7 @@ import {
 } from './credentials.ts';
 import { type Broadcaster, createBroadcaster } from './broadcaster.ts';
 import { type DevTools, registerDevRoutes } from './dev-tools.ts';
+import { registerModelRoutes } from './models.ts';
 import { QUERIES, type QueryRoute } from './queries.ts';
 
 export type ServerOptions = {
@@ -261,8 +262,14 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
         sending = false;
       }
     };
-    const unsubscribe = await broadcaster.subscribe(projectId, () => {
-      void send().catch(() => undefined);
+    // Progress of a run: a summary of its current call, without an id (it is not an event of the log).
+    const progress = async (runId: string): Promise<void> => {
+      const p = await runProgress(services.db, runId);
+      if (p) raw.write(`event: run.progress\ndata: ${JSON.stringify(p)}\n\n`);
+    };
+    const unsubscribe = await broadcaster.subscribe(projectId, (n) => {
+      if (n.progress) void progress(n.progress).catch(() => undefined);
+      else void send().catch(() => undefined);
     });
     const heartbeat = setInterval(() => raw.write(': heartbeat\n\n'), 15_000);
     req.raw.on('close', () => {
@@ -273,6 +280,7 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
   });
 
   for (const c of QUERIES) registerQuery(app, services, c);
+  registerModelRoutes(app, { services, actorOf, requireQuery });
   if (op.devTools) registerDevRoutes(app, op.devTools);
   if (op.webRoot) await serveWeb(app, op.webRoot);
   app.setNotFoundHandler((req, reply) => {

@@ -95,6 +95,21 @@ describe('API: actor, sesión y errores', () => {
   });
 });
 
+describe('API: contrato de los comandos', () => {
+  it('AC-ESQ-001-01 cada comando publica su capacidad y el JSON Schema de sus datos', async () => {
+    const r = await api().persona.pedir('GET', '/api/comandos');
+    expect(r.statusCode).toBe(200);
+    const comandos = r.json<Record<string, { permitido: string[]; decisivo: boolean; implementado: boolean; datos: unknown }>>();
+    expect(comandos['proposal.accept']).toMatchObject({
+      permitido: ['human'],
+      decisivo: true,
+      implementado: true,
+      datos: { type: 'object', properties: { aprobar: { type: 'boolean' } } },
+    });
+    expect(comandos['message.post']?.datos).toMatchObject({ required: expect.arrayContaining(['exploracion_id', 'texto']) });
+  });
+});
+
 describe('API: flujo SSE incremental', () => {
   it('AC-ESQ-001-14 con Last-Event-ID llegan solo los eventos posteriores', async () => {
     const { entorno, persona } = api();

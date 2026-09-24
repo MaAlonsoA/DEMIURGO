@@ -13,7 +13,7 @@ import {
   esErrorDominio,
   permitidoConsulta,
 } from '@demiurgo/domain';
-import { type Servicios, ejecutarComando } from '@demiurgo/core';
+import { MANEJADORES, type Servicios, ejecutarComando } from '@demiurgo/core';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
@@ -177,6 +177,19 @@ export async function crearServidor(op: OpcionesServidor): Promise<FastifyInstan
   app.get('/api/tablas', async (req) => {
     requerirConsulta(req, 'query.tables');
     return { capacidades: CAPACIDADES, transiciones: TRANSICIONES };
+  });
+
+  // Contrato de cada comando para los clientes (frontend y agentes): quién puede ejecutarlo, si es
+  // decisivo y el JSON Schema de sus datos, generado desde el mismo esquema Zod que los valida.
+  app.get('/api/comandos', async (req) => {
+    requerirConsulta(req, 'query.tables');
+    return Object.fromEntries(
+      Object.entries(CAPACIDADES.comandos).map(([nombre, c]) => {
+        const m = MANEJADORES[nombre as keyof typeof MANEJADORES];
+        const esquema = m ? z.toJSONSchema(m.datos, { io: 'input', unrepresentable: 'any' }) : null;
+        return [nombre, { ...c, implementado: Boolean(m), datos: esquema }];
+      }),
+    );
   });
 
   // Flujo SSE incremental del diario: con Last-Event-ID solo llegan los eventos posteriores.

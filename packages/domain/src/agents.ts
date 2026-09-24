@@ -16,6 +16,13 @@ export type Usage = {
   outputTokens: number;
   durationMs: number;
   declaredCostUsd?: number;
+  /** Input tokens read from the provider's cache (part of `inputTokens`). */
+  cachedInputTokens?: number;
+  /** Output tokens spent reasoning (part of `outputTokens`). */
+  reasoningTokens?: number;
+  turns?: number;
+  /** Where each figure comes from in the provider's output, or `not_reported`. */
+  provenance?: Readonly<Record<string, string>>;
 };
 
 export type AgentRequest = {
@@ -30,8 +37,9 @@ export type AgentRequest = {
   signal?: AbortSignal;
 };
 
+/** `sessionId`: the provider's conversation id, when it ran with a session. */
 export type AgentResult =
-  | { state: 'ok'; rawOutput: unknown; usage: Usage; rawEvents: string; provider: string; model: string }
+  | { state: 'ok'; rawOutput: unknown; usage: Usage; rawEvents: string; provider: string; model: string; sessionId?: string }
   | {
       state: 'error';
       failureKind: Exclude<FailureKind, 'invalid_output'>;
@@ -40,11 +48,76 @@ export type AgentResult =
       rawEvents: string;
       provider: string;
       model: string;
+      sessionId?: string;
     };
 
 export interface AgentPort {
   readonly provider: string;
   execute(request: AgentRequest): Promise<AgentResult>;
+}
+
+// Provider port (ADR-AGE-001 v2): each engine (Claude, Codex, OpenCode, simulated) behind the same
+// interface. A DEMIURGO agent (AGENT.md + skills) runs on whichever provider the person assigned.
+
+export const PROVIDER_IDS = ['claude', 'codex', 'opencode', 'simulated'] as const;
+export type ProviderId = (typeof PROVIDER_IDS)[number];
+
+/** Normalized kinds of the events a provider streams while it works. */
+export const PROVIDER_EVENT_KINDS = ['started', 'thinking', 'message', 'usage', 'result', 'error'] as const;
+export type ProviderEventKind = (typeof PROVIDER_EVENT_KINDS)[number];
+
+/** One event of the provider's stream: its normalized kind and the raw line it came from. */
+export type ProviderEvent = { kind: ProviderEventKind; raw: string; tokens?: number };
+
+/** Conversation with the provider: none, a new one, or one resumed by its id (in its stable folder). */
+export type SessionRequest =
+  | { mode: 'none' }
+  | { mode: 'fresh'; directory: string }
+  | { mode: 'resumed'; directory: string; id: string };
+
+export type ProviderInvocation = {
+  system: string;
+  input: string;
+  /** JSON Schema generated from the action's Zod schema. */
+  schema: Record<string, unknown>;
+  model: string;
+  effort: string | null;
+  session: SessionRequest;
+  timeMs: number;
+  signal?: AbortSignal;
+  onEvent?: (event: ProviderEvent) => void;
+  /** Only the simulated provider reads it: the task it simulates. */
+  task?: { action: string; context: { hash: string; content: unknown } };
+};
+
+export type ProviderModel = {
+  id: string;
+  label: string;
+  /** Empty when the model has no reasoning levels to choose from. */
+  efforts: readonly string[];
+  defaultEffort: string | null;
+};
+
+/** What discovery finds, without spending quota. */
+export type ProviderCatalog = {
+  provider: ProviderId;
+  label: string;
+  installed: boolean;
+  version: string | null;
+  /** Signed in, or the local endpoint answers. */
+  ready: boolean;
+  message: string | null;
+  /** Whether it can resume a conversation. */
+  sessions: boolean;
+  models: readonly ProviderModel[];
+};
+
+export interface Provider {
+  readonly id: ProviderId;
+  readonly label: string;
+  readonly sessions: boolean;
+  discover(): Promise<ProviderCatalog>;
+  run(invocation: ProviderInvocation): Promise<AgentResult>;
 }
 
 // Output schemas by action: the single source of truth for the contract (Zod → JSON Schema).

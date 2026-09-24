@@ -108,7 +108,13 @@ export function normalizeClaudeEvent(line: string): ProviderEvent {
   const tokens = typeof usage.output_tokens === 'number' ? { tokens: usage.output_tokens } : {};
   switch (e.type) {
     case 'system':
+      // While it thinks, the CLI estimates the thinking tokens so far (2.1.282): that is the live progress.
+      if (e.subtype === 'thinking_tokens' && typeof e.estimated_tokens === 'number') {
+        return { kind: 'thinking', raw: line, tokens: e.estimated_tokens };
+      }
       return { kind: 'started', raw: line };
+    case 'rate_limit_event':
+      return { kind: 'usage', raw: line };
     case 'assistant': {
       const content = Array.isArray(message.content) ? message.content : [];
       const thinking = content.some((c) => isObject(c) && (c.type === 'thinking' || c.type === 'redacted_thinking'));

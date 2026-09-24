@@ -109,6 +109,26 @@ describe('Claude provider', () => {
     expect(JSON.parse(events[0]?.raw ?? '{}')).toMatchObject({ type: 'system', subtype: 'init' });
   });
 
+  it('AC-AGE-001-02 AC-AGE-002-10 the recorded real stream (haiku, 2.1.282) normalizes to ok, with thinking tokens live', async () => {
+    const events: ProviderEvent[] = [];
+    const { launcher } = scriptedLauncher(() => ({ stdout: fixture('claude/fresh.recorded.jsonl') }));
+    const r = await provider(launcher).run(invocation({ onEvent: (e) => events.push(e) }));
+    expect(r).toMatchObject({
+      state: 'ok',
+      rawOutput: { reply: 'Hola, DEMIURGO: primera llamada real del spike.' },
+      model: 'claude-haiku-4-5-20251001',
+      usage: { inputTokens: 1461, outputTokens: 286, reasoningTokens: 214, turns: 2 },
+    });
+    const thinking = events.filter((e) => e.kind === 'thinking');
+    expect(thinking.map((e) => e.tokens)).toEqual([50, 100, 275, 3]);
+    expect(events.at(-1)?.kind).toBe('result');
+    const resumed = scriptedLauncher(() => ({ stdout: fixture('claude/resumed.recorded.jsonl') }));
+    expect(await provider(resumed.launcher).run(invocation())).toMatchObject({
+      state: 'ok',
+      rawOutput: { reply: 'Segunda llamada: continúa la sesión.' },
+    });
+  });
+
   it('AC-AGE-001-02 the error stream gives agent_error with its message', async () => {
     const { launcher } = scriptedLauncher(() => ({ stdout: fixture('claude/stream-error.synthetic.jsonl'), code: 1 }));
     const r = await provider(launcher).run(invocation({ model: 'claude-modelo-inexistente-demiurgo' }));

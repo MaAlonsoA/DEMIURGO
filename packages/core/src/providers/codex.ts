@@ -266,7 +266,8 @@ export function createCodexProvider(options: CliProviderOptions = {}): Provider 
       const version = await quick(executable, ['--version']);
       const login = await quick(executable, ['login', 'status']);
       const models = await quick(executable, ['debug', 'models']);
-      const signedIn = login?.code === 0 && /^\s*logged in/i.test(login.stdout);
+      // It says so on stderr (0.156.1); stdout is read too in case that changes.
+      const signedIn = login?.code === 0 && /^\s*logged in/im.test(`${login.stdout}\n${login.stderr}`);
       return {
         ...base,
         installed: version !== null,

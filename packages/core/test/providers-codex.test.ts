@@ -152,6 +152,26 @@ describe('Codex provider', () => {
     expect(events.at(-1)?.tokens).toBe(84);
   });
 
+  it('AC-AGE-001-02 the recorded real stream (gpt-6-luna, 0.156.1) normalizes to ok, fresh and resumed', async () => {
+    const fresh = scriptedLauncher(() => ({ stdout: fixture('codex/fresh.recorded.jsonl') }));
+    const r = await provider(fresh.launcher).run(invocation({ session: { mode: 'fresh', directory: folder() } }));
+    expect(r).toMatchObject({
+      state: 'ok',
+      rawOutput: { reply: 'Hola, DEMIURGO: primera llamada real del spike.' },
+      sessionId: '01a0d5cf-6a58-7b02-b809-c7935ef0571b',
+      usage: { inputTokens: 8884, outputTokens: 27, turns: 1 },
+    });
+    const resumed = scriptedLauncher(() => ({ stdout: fixture('codex/resumed.recorded.jsonl') }));
+    const r2 = await provider(resumed.launcher).run(
+      invocation({ session: { mode: 'resumed', directory: folder(), id: '01a0d5cf-6a58-7b02-b809-c7935ef0571b' } }),
+    );
+    expect(r2).toMatchObject({
+      state: 'ok',
+      usage: { cachedInputTokens: 7936 },
+      sessionId: '01a0d5cf-6a58-7b02-b809-c7935ef0571b',
+    });
+  });
+
   it('AC-AGE-001-02 a failed turn gives agent_error with its message', async () => {
     const { answer } = codexAnswer('codex/exec-failed.synthetic.jsonl', null, 1);
     const { launcher } = scriptedLauncher(answer);
@@ -185,7 +205,8 @@ describe('Codex provider', () => {
   it('AC-AGE-002-01 discovery lists the models Codex offers with their efforts, without calling a model', async () => {
     const { launcher, calls } = scriptedLauncher((c) => {
       if (c.args.includes('--version')) return { stdout: fixture('codex/version.txt') };
-      if (c.args.includes('login')) return { stdout: fixture('codex/login-status.txt') };
+      // Recorded: codex login status writes to stderr, not stdout.
+      if (c.args.includes('login')) return { stderr: fixture('codex/login-status.txt') };
       return { stdout: fixture('codex/models.json') };
     });
     const catalog = await provider(launcher).discover();

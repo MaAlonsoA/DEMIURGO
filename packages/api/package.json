@@ -7,6 +7,7 @@
   },
   "dependencies": {
     "@demiurgo/core": "workspace:*",
+    "@demiurgo/design": "workspace:*",
     "@demiurgo/domain": "workspace:*",
     "@fastify/cookie": "11.1.2",
     "fastify": "5.12.5",

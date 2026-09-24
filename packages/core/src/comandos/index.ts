@@ -7,4 +7,4 @@ import './registros.ts';
 import './propuestas.ts';
 import '../acciones/index.ts';
 import '../conocimiento/index.ts';
-import './pendientes.ts';
+import '../diseno/importar.ts';

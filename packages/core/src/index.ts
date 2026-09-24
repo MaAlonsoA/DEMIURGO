@@ -23,3 +23,5 @@ export * from './consultas/lectura.ts';
 export * from './contexto/conocimiento.ts';
 export * from './conocimiento/index.ts';
 export * from './motor/en-linea.ts';
+export * from './diseno/exportar.ts';
+export * from './diseno/importar.ts';

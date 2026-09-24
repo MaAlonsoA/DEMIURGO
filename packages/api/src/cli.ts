@@ -3,9 +3,19 @@
 //   node packages/api/src/cli.ts crear-persona <usuario>          (la clave se lee de la entrada estándar)
 //   node packages/api/src/cli.ts crear-proyecto <nombre>
 //   node packages/api/src/cli.ts ejecucion-real <proyectoId> <accion> <json-alcance> [json-entrada]
+//   node packages/api/src/cli.ts evaluar-clasificador [prueba|desarrollo|todas]   (usa DEMIURGO_CLASIFICADOR)
+//   node packages/api/src/cli.ts importar-diseno <proyectoId> [dir]                (crea el lote pendiente de H1)
+//   node packages/api/src/cli.ts exportar-diseno <proyectoId> [--comprobar dir | --salida dir]
 
 import {
+  type Particion,
+  IMPORTADOR,
   arrancarNucleo,
+  compararExportacion,
+  exportarDiseno,
+  crearClasificador,
+  evaluarClasificador,
+  resumenEvaluacion,
   conectar,
   ejecutarComando,
   esperarRun,
@@ -13,6 +23,7 @@ import {
   migrar,
   registroConsola,
 } from '@demiurgo/core';
+import { escribirArbol, leerArbol } from '@demiurgo/design';
 import { sistema } from '@demiurgo/domain';
 import { crearPersona } from './credenciales.ts';
 
@@ -90,6 +101,59 @@ const ordenes: Record<string, () => Promise<void>> = {
       await nucleo.detener();
     }
   },
+};
+
+ordenes['evaluar-clasificador'] = async () => {
+  const particion = (args[0] ?? 'prueba') as Particion;
+  await conBase(async (c) => {
+    const informe = await evaluarClasificador({
+      clasificador: crearClasificador(config),
+      particion,
+      tanda: 40,
+      db: c.db,
+      salida: 'evals/clasificador/resultados',
+    });
+    console.log(resumenEvaluacion(informe));
+    console.log(`Resultado guardado en ${informe.archivo ?? '(sin archivo)'}`);
+  });
+};
+
+ordenes['importar-diseno'] = async () => {
+  const [proyectoId, dir = 'design'] = args;
+  if (!proyectoId) throw new Error('Uso: importar-diseno <proyectoId> [dir]');
+  const nucleo = await arrancarNucleo(config, registroConsola);
+  try {
+    const arbol = await leerArbol(dir);
+    const r = await ejecutarComando(nucleo.servicios, {
+      comando: 'design.import',
+      actor: IMPORTADOR,
+      proyectoId,
+      datos: { arbol: Object.fromEntries(arbol), origen: dir },
+    });
+    console.log(JSON.stringify({ lote_id: r.entidadId, estado: r.estado, ...(r.resultado as object) }, null, 2));
+  } finally {
+    await nucleo.detener();
+  }
+};
+
+ordenes['exportar-diseno'] = async () => {
+  const [proyectoId, opcion, dir] = args;
+  if (!proyectoId) throw new Error('Uso: exportar-diseno <proyectoId> [--comprobar dir | --salida dir]');
+  await conBase(async (c) => {
+    if (opcion === '--comprobar') {
+      const difs = await compararExportacion(c.db, proyectoId, await leerArbol(dir ?? 'design'));
+      if (difs.length > 0) {
+        for (const d of difs) console.error(`✗ ${d}`);
+        process.exitCode = 1;
+        return;
+      }
+      console.log(`✓ La exportación coincide byte a byte con ${dir ?? 'design'}/.`);
+      return;
+    }
+    const arbol = await exportarDiseno(c.db, proyectoId);
+    await escribirArbol(dir ?? 'design-exportado', arbol);
+    console.log(`Exportados ${arbol.size} archivo(s) en ${dir ?? 'design-exportado'}/.`);
+  });
 };
 
 const accion = orden ? ordenes[orden] : undefined;

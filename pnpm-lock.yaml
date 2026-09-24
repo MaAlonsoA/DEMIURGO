@@ -35,6 +35,9 @@ importers:
       '@demiurgo/core':
         specifier: workspace:*
         version: link:../core
+      '@demiurgo/design':
+        specifier: workspace:*
+        version: link:../design
       '@demiurgo/domain':
         specifier: workspace:*
         version: link:../domain

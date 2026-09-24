@@ -1,6 +1,7 @@
 // Validación de un árbol `design/` completo, expresado como un mapa ruta → texto.
 // Es puro: la lectura del disco está en `disco.ts`.
 
+import { LIMITES_VERSION } from '@demiurgo/domain';
 import { incoherenciasTablas, esquemaCapacidades, esquemaTransiciones } from '@demiurgo/domain/tablas/esquemas';
 import { leerYaml, parsearDocumento, problemasDeEspacios, renderizarDocumento } from './formato.ts';
 import { README_DISENO } from './readme.ts';
@@ -121,6 +122,31 @@ function comprobarRegistros(registros: DocumentoRegistro[], anexos: Map<string, 
         problemas.push({ ruta, mensaje: `${campo} empieza o acaba con espacios en blanco.` });
       }
     }
+    // Los mismos límites que la v2 aplica al crear la versión: si no, el lote no se podría ratificar.
+    const L = LIMITES_VERSION;
+    const largos: [string, string | undefined, number][] = [
+      ['El título', r.titulo, L.titulo],
+      ['La nota de cambio', r.notaDeCambio, L.notaDeCambio],
+      ...r.secciones.flatMap((s): [string, string, number][] => [
+        [`El título de la sección «${s.titulo.slice(0, 40)}»`, s.titulo, L.tituloSeccion],
+        [`La sección «${s.titulo.slice(0, 40)}»`, s.contenido, L.seccion],
+      ]),
+      ...r.criterios.flatMap((c): [string, string, number][] => [
+        [`${c.codigo}: el título`, c.titulo, L.tituloCriterio],
+        [`${c.codigo}: el enunciado`, c.enunciado, L.enunciado],
+        [`${c.codigo}: la comprobación`, c.comprobacion, L.comprobacion],
+      ]),
+    ];
+    for (const [campo, valor, max] of largos) {
+      if (valor !== undefined && valor.length > max) problemas.push({ ruta, mensaje: `${campo} supera los ${max} caracteres.` });
+    }
+    for (const [que, n, max] of [
+      ['secciones', r.secciones.length, L.secciones],
+      ['criterios', r.criterios.length, L.criterios],
+      ['enlaces', r.enlaces.length, L.enlaces],
+    ] as const) {
+      if (n > max) problemas.push({ ruta, mensaje: `Tiene ${n} ${que}; el máximo es ${max}.` });
+    }
     for (const c of r.criterios) {
       if (!c.codigo.startsWith(`AC-${base}-`)) {
         problemas.push({ ruta, mensaje: `${c.codigo}: el código de un criterio de ${r.codigo} empieza por AC-${base}-.` });
@@ -168,6 +194,8 @@ function comprobarTaxonomias(taxonomias: DocumentoTaxonomia[]): Problema[] {
     const ruta = rutaDe(t);
     if (codigos.has(t.codigo)) problemas.push({ ruta, mensaje: `Código de taxonomía duplicado: ${t.codigo}.` });
     if (t.titulo !== t.titulo.trim()) problemas.push({ ruta, mensaje: 'El título empieza o acaba con espacios en blanco.' });
+    if (t.titulo.length < 3 || t.titulo.length > 200)
+      problemas.push({ ruta, mensaje: 'El título tiene entre 3 y 200 caracteres.' });
     codigos.add(t.codigo);
     const ejes = new Set<string>();
     for (const eje of t.ejes) {

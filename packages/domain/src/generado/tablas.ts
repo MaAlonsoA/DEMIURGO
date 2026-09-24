@@ -1317,7 +1317,10 @@ export const TRANSICIONES = {
           "desde": [
             "pending"
           ],
-          "hacia": "superseded"
+          "hacia": "superseded",
+          "guardas": [
+            "resolucion_por_elemento"
+          ]
         }
       ]
     },
@@ -1429,7 +1432,10 @@ export const TRANSICIONES = {
           "desde": [
             "draft"
           ],
-          "hacia": "approved"
+          "hacia": "approved",
+          "guardas": [
+            "taxonomia_sin_aprobada_posterior"
+          ]
         },
         {
           "comando": "taxonomy.supersede",

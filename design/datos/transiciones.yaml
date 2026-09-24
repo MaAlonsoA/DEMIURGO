@@ -127,7 +127,7 @@ entidades:
       - { comando: proposal.accept, desde: [pending], hacia: accepted, guardas: [resolucion_por_elemento, dependencias_vigentes] }
       - { comando: proposal.accept_edited, desde: [pending], hacia: accepted_edited, guardas: [resolucion_por_elemento, dependencias_vigentes, edicion_valida] }
       - { comando: proposal.reject, desde: [pending], hacia: rejected, guardas: [resolucion_por_elemento] }
-      - { comando: proposal.supersede, desde: [pending], hacia: superseded }
+      - { comando: proposal.supersede, desde: [pending], hacia: superseded, guardas: [resolucion_por_elemento] }
 
   ai_run:
     etiqueta: Ejecución de agente
@@ -158,7 +158,7 @@ entidades:
     autoridad: [approved]
     transiciones:
       - { comando: taxonomy.propose, desde: nuevo, hacia: draft, guardas: [taxonomia_valida] }
-      - { comando: taxonomy.approve, desde: [draft], hacia: approved }
+      - { comando: taxonomy.approve, desde: [draft], hacia: approved, guardas: [taxonomia_sin_aprobada_posterior] }
       - { comando: taxonomy.supersede, desde: [approved], hacia: superseded }
 
   classification:

@@ -136,6 +136,10 @@ describe('versiones y criterios', () => {
       tipo: 'guarda',
       motivos: ['Ya hay una versión aprobada posterior (v3): descarta este borrador o crea una versión nueva.'],
     });
+    expect((await readinessDeVersion(s.db, proyectoId, v2)).motivos).toContain(
+      'La versión 2 es un borrador anterior a la vigente (v3): solo se puede descartar.',
+    );
+    expect((await bandeja(s.db, proyectoId)).versiones_por_aprobar.find((v) => v.id === v2)).toMatchObject({ aprobable: false });
     await cmd('record_version.discard', { motivo: 'La sustituye la v3.' }, v2);
     expect(await versiones(d.recordId)).toMatchObject([
       { n: 1, state: 'superseded' },
@@ -222,6 +226,18 @@ describe('versiones y criterios', () => {
       await s.db.selectFrom('criteria').select('code').where('record_version_id', '=', r.entidadId).orderBy('position').execute()
     ).map((c) => c.code);
     expect(codigos).toEqual([c1, expect.stringMatching(/-03$/)]);
+  });
+
+  it('AC-DIS-001-08 crear un registro con una versión explícita (importación) devuelve esa versión', async () => {
+    const r = await cmd('record.create', {
+      tipo: 'decision',
+      dominio: 'socios',
+      titulo: 'Importada en su versión 2',
+      secciones: SECCIONES_DECISION,
+      numero: 2,
+      nota_de_cambio: 'Viene de design/.',
+    });
+    expect(r.resultado).toMatchObject({ version: 2 });
   });
 
   it('AC-DIS-001-09 la base rechaza modificar una versión o sus criterios', async () => {
@@ -668,8 +684,9 @@ describe('lotes y propuestas', () => {
   });
 
   it('AC-DIS-001-16 una propuesta que nace con una dependencia que no es la vigente queda obsoleta desde el envío', async () => {
-    const d = await nuevaDecision(s, proyectoId, false);
-    // La dependencia declara la v1, pero la decisión no está aprobada: no hay vigente.
+    const d = await nuevaDecision(s, proyectoId, true);
+    await nuevaVersionDecision(d.recordId);
+    // La dependencia declara la v1, pero la vigente ya es la v2.
     const r = await cmd(
       'batch.submit',
       { propuestas: [{ tipo: 'exploracion', carga: { proposito: 'x' }, dependencias: [dependencia(d)] }] },
@@ -683,13 +700,101 @@ describe('lotes y propuestas', () => {
       .where('id', '=', propuesta ?? '')
       .executeTakeFirstOrThrow();
     expect(fila.state).toBe('superseded');
-    expect(JSON.stringify(fila.resolution)).toMatch(
-      /La propuesta está obsoleta: .* \(vigente: ninguna; la propuesta partía de v1\)/,
-    );
+    expect(JSON.stringify(fila.resolution)).toMatch(/La propuesta está obsoleta: .* \(vigente: v2; la propuesta partía de v1\)/);
     await expect(cmd('proposal.accept', {}, propuesta)).rejects.toMatchObject({
       tipo: 'transicion_invalida',
       message: expect.stringContaining('Obsoleta'),
     });
+  });
+
+  it('AC-DIS-001-16 depender de un borrador sin versión aprobada no hace obsoleta la propuesta; descartarlo sí', async () => {
+    const d = await nuevaDecision(s, proyectoId, false);
+    const r = await cmd(
+      'batch.submit',
+      { propuestas: [{ tipo: 'exploracion', carga: { proposito: 'Revisar el borrador' }, dependencias: [dependencia(d)] }] },
+      undefined,
+      sistema('prueba'),
+    );
+    const [propuesta] = (r.resultado as { propuestas: string[] }).propuestas;
+    // Las revisiones del conocimiento sobre borradores (p. ej. lo importado de design/) llegan a la bandeja.
+    expect(await estadoDe('proposals', propuesta ?? '')).toBe('pending');
+    await cmd('record_version.discard', { motivo: 'No sigue.' }, d.versionId);
+    const fila = await s.db
+      .selectFrom('proposals')
+      .select(['state', 'resolution'])
+      .where('id', '=', propuesta ?? '')
+      .executeTakeFirstOrThrow();
+    expect(fila.state).toBe('superseded');
+    expect(JSON.stringify(fila.resolution)).toMatch(/la versión 1 de .* se ha descartado/);
+  });
+
+  it('AC-DIS-001-16 una FDR basada en una versión y que declara otra del mismo registro nace obsoleta', async () => {
+    const d = await nuevaDecision(s, proyectoId, true);
+    await nuevaVersionDecision(d.recordId);
+    const r = await cmd(
+      'batch.submit',
+      {
+        propuestas: [
+          {
+            tipo: 'fdr',
+            carga: {
+              titulo: 'Alta de socios',
+              objetivo: 'o',
+              alcance: 'a',
+              fuera_de_alcance: 'f',
+              comportamiento: 'c',
+              criterios: [
+                {
+                  titulo: 'Alta',
+                  enunciado: 'Cuando envía, entonces ve la confirmación.',
+                  verificacion: 'automatic',
+                  comprobacion: 'E2E.',
+                },
+              ],
+              basado_en: { codigo: d.codigo, version: 1 },
+            },
+            dependencias: [dependencia(d, 2)],
+          },
+        ],
+      },
+      undefined,
+      agenteExterno('bot', 'sesion-dos'),
+    );
+    const [propuesta] = (r.resultado as { propuestas: string[] }).propuestas;
+    expect(await estadoDe('proposals', propuesta ?? '')).toBe('superseded');
+  });
+
+  it('AC-DIS-001-16 una propuesta de un paquete no queda obsoleta suelta: queda obsoleto el paquete', async () => {
+    const { propuestas } = await nuevoLote(s, proyectoId, true);
+    await expect(cmd('proposal.supersede', { motivo: 'x' }, propuestas[0], sistema('prueba'))).rejects.toMatchObject({
+      tipo: 'guarda',
+      motivos: ['Esta propuesta forma parte de un paquete: queda obsoleto el paquete completo.'],
+    });
+  });
+
+  it('AC-DIS-001-06 un paquete cuyo lote depende de la FDR la afecta, y descartar la versión enlazada deja el enlace en revisión', async () => {
+    const decision = await nuevaDecision(s, proyectoId, true);
+    const f = await fdrSobre(decision, { aprobar: true });
+    await cmd(
+      'batch.submit',
+      {
+        tipo_lote: 'system_package',
+        resolucion: 'package',
+        dependencias: [dependencia(f)],
+        propuestas: [{ tipo: 'exploracion', carga: { proposito: 'Revisar la FDR' } }],
+      },
+      undefined,
+      sistema('prueba'),
+    );
+    expect((await readinessDeVersion(s.db, proyectoId, f.versionId)).motivos).toContain(
+      'Hay 1 propuesta(s) pendiente(s) que la afectan.',
+    );
+    // Un borrador enlazado que se descarta: el enlace queda pendiente de revisión.
+    const borrador = await nuevaDecision(s, proyectoId, false);
+    const g = await fdrSobre(borrador);
+    await cmd('record_version.discard', {}, borrador.versionId);
+    const enlace = await s.db.selectFrom('links').select('state').where('from_id', '=', g.versionId).executeTakeFirstOrThrow();
+    expect(enlace.state).toBe('needs_review');
   });
 
   it('AC-DIS-001-16 un paquete cuyo lote depende de una versión que cambió queda obsoleto entero', async () => {

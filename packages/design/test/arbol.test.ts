@@ -107,6 +107,19 @@ describe('códigos, enlaces y anexos', () => {
     expect(problemas(arbol).join(' ')).toMatch(/estado/);
   });
 
+  it('AC-FMT-001-01 los textos respetan los mismos límites de longitud que la v2 y el título de una taxonomía no lleva espacios de más', () => {
+    const adr = registro('adr', 'ADR-TST-001', {
+      titulo: 'T'.repeat(201),
+      criterios: [criterio('AC-TST-001-01', { enunciado: `Cuando pasa, entonces ${'x'.repeat(3000)}` })],
+    });
+    expect(problemas(arbolCon([DECISION, adr]))).toEqual([
+      'El título supera los 200 caracteres.',
+      'AC-TST-001-01: el enunciado supera los 3000 caracteres.',
+    ]);
+    const tax = taxonomia('TAX-001', { titulo: ' Taxonomía' });
+    expect(problemas(arbolCon([DECISION, tax]))).toContain('El título empieza o acaba con espacios en blanco.');
+  });
+
   it('AC-FMT-001-01 los títulos, la nota de cambio y los textos de un criterio no empiezan ni acaban con espacios', () => {
     const adr = registro('adr', 'ADR-TST-001', {
       criterios: [criterio('AC-TST-001-01', { enunciado: '    Bloque indentado: cuando pasa, entonces se observa.' })],

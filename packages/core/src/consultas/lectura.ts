@@ -205,6 +205,7 @@ export async function bandeja(db: Bd, proyectoId: string) {
       'record_versions.n',
       'record_versions.title',
       'record_versions.state',
+      'record_versions.record_id',
     ])
     .where('record_versions.project_id', '=', proyectoId)
     .where('record_versions.state', '=', 'draft')
@@ -230,14 +231,21 @@ export async function bandeja(db: Bd, proyectoId: string) {
     lotes: itemsLotes,
     preguntas_por_confirmar: preguntas.map((q) => ({ ...q, estado_epistemico: epistemicoDePregunta(q.state) })),
     preguntas_abiertas: abiertas.map((q) => ({ ...q, estado_epistemico: epistemicoDePregunta(q.state) })),
-    versiones_por_aprobar: borradores.map((v) => ({
-      id: v.id,
-      codigo: v.code,
-      tipo: v.type,
-      n: v.n,
-      titulo: v.title,
-      estado_epistemico: epistemicoDeVersion(v.state),
-    })),
+    versiones_por_aprobar: await Promise.all(
+      borradores.map(async (v) => {
+        // Un borrador anterior a la vigente ya no se puede aprobar: solo descartar.
+        const vigente = await vigenteDe(db, v.record_id);
+        return {
+          id: v.id,
+          codigo: v.code,
+          tipo: v.type,
+          n: v.n,
+          titulo: v.title,
+          aprobable: vigente === null || vigente < v.n,
+          estado_epistemico: epistemicoDeVersion(v.state),
+        };
+      }),
+    ),
     enlaces_en_revision: enlaces.map((e) => ({ ...e, estado_epistemico: 'pendiente' as const })),
     ...extra.secciones,
   };

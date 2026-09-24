@@ -49,6 +49,19 @@ const esquemaNodo = z
   .strict();
 
 registrarGuardas({
+  // Como en las versiones de registro: aprobar un borrador anterior a una versión ya aprobada haría retroceder la vigente.
+  async taxonomia_sin_aprobada_posterior({ ctx, entidad }) {
+    const posterior = await ctx.trx
+      .selectFrom('taxonomies')
+      .select('version')
+      .where('project_id', '=', ctx.proyectoId)
+      .where('code', '=', cadena(entidad?.fila.code))
+      .where('state', 'in', ['approved', 'superseded'])
+      .where('version', '>', Number(entidad?.fila.version ?? 0))
+      .orderBy('version', 'desc')
+      .executeTakeFirst();
+    return posterior ? `Ya hay una versión aprobada posterior (v${posterior.version}) de esta taxonomía.` : null;
+  },
   taxonomia_valida: ({ datos }) => {
     const r = esquemaEjes.safeParse(campo(datos, 'ejes'));
     if (!r.success) return 'Los ejes de la taxonomía no son válidos.';

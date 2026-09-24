@@ -10,6 +10,7 @@ import {
   validarArbol,
 } from '@demiurgo/design';
 import { type Actor, agenteExterno, agenteRun, humano, sistema } from '@demiurgo/domain';
+import { sql } from 'kysely';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { ejecutarComando } from '../src/bus/bus.ts';
 import { compararExportacion, exportarDiseno } from '../src/diseno/exportar.ts';
@@ -79,6 +80,8 @@ function editar(base: Map<string, string>, ruta: string, cambio: (d: Documento) 
 }
 
 const comoRegistro = (d: Documento) => d as DocumentoRegistro;
+const aprobar = (d: Documento) => ({ ...d, estado: 'aprobado' as const });
+const conVersion = (version: number, nota: string) => (d: Documento) => ({ ...comoRegistro(d), version, notaDeCambio: nota });
 
 describe('importación de design/ (H1)', () => {
   it('AC-AUT-001-01 la importación crea un lote pendiente con los mismos recuentos que el origen y nada aprobado', async () => {
@@ -391,5 +394,190 @@ describe('reimportación y diseño en la v2 (revisión de H1)', () => {
         motivos: expect.arrayContaining(['Solo la importación de design/ propone «registro_importado».']),
       });
     }
+  });
+
+  it('AC-AUT-001-05 aprobar desde design/ una versión anterior a la aprobada en la v2 se rechaza al importar, también en la taxonomía', async () => {
+    const p = await proyecto('H1 aprobada posterior');
+    await ratificar(p, (await importar(p)).entidadId);
+    const dec = await s.db
+      .selectFrom('records')
+      .select('id')
+      .where('project_id', '=', p)
+      .where('code', '=', 'DEC-PLN-001')
+      .executeTakeFirstOrThrow();
+    const original = parsearDocumento(arbol.get('decisiones/DEC-PLN-001.md') ?? '', 'dec');
+    if (!original.ok) throw new Error('DEC-PLN-001 no es válido');
+    const v2 = await ejecutarComando(s, {
+      comando: 'record_version.create',
+      actor: ana,
+      proyectoId: p,
+      datos: {
+        record_id: dec.id,
+        titulo: original.valor.titulo,
+        secciones: original.valor.secciones,
+        nota_de_cambio: 'Revisión.',
+      },
+    });
+    await ejecutarComando(s, {
+      comando: 'record_version.approve',
+      actor: ana,
+      proyectoId: p,
+      entidadId: v2.entidadId,
+      datos: {},
+    });
+    // La taxonomía: una v2 aprobada en la v2.
+    const tax = await s.db.selectFrom('taxonomies').selectAll().where('project_id', '=', p).executeTakeFirstOrThrow();
+    const taxV2 = await ejecutarComando(s, {
+      comando: 'taxonomy.propose',
+      actor: ana,
+      proyectoId: p,
+      datos: { codigo: tax.code, titulo: tax.title, ejes: tax.axes, secciones: tax.sections, version: 2 },
+    });
+    await ejecutarComando(s, { comando: 'taxonomy.approve', actor: ana, proyectoId: p, entidadId: taxV2.entidadId, datos: {} });
+    await expect(
+      ejecutarComando(s, { comando: 'taxonomy.approve', actor: ana, proyectoId: p, entidadId: tax.id, datos: {} }),
+    ).rejects.toMatchObject({ tipo: 'guarda', motivos: ['Ya hay una versión aprobada posterior (v2) de esta taxonomía.'] });
+    const viejo = editar(editar(arbol, 'decisiones/DEC-PLN-001.md', aprobar), 'taxonomia/TAX-001.md', aprobar);
+    await expect(importar(p, viejo)).rejects.toMatchObject({
+      tipo: 'guarda',
+      motivos: [
+        'decisiones/DEC-PLN-001.md: la v2 ya tiene aprobada la versión 2; la 1 solo se puede descartar.',
+        'taxonomia/TAX-001.md: la v2 ya tiene aprobada la versión 2; la 1 no se puede aprobar.',
+      ],
+    });
+  });
+
+  it('AC-AUT-001-05 lo que no se podría ratificar se rechaza al importar: estado hacia atrás, versión anterior, anexo cambiado, enlace a una versión que no está', async () => {
+    const p = await proyecto('H1 problemas al importar');
+    const aprobada = editar(arbol, 'decisiones/DEC-PLN-001.md', aprobar);
+    await ratificar(p, (await importar(p, aprobada)).entidadId);
+    // Volver a «propuesto» una versión aprobada.
+    await expect(importar(p, arbol)).rejects.toMatchObject({
+      motivos: ['decisiones/DEC-PLN-001.md: la versión 1 está aprobada en la v2 y no puede pasar a «propuesto».'],
+    });
+    // Un anexo cambiado sin subir la versión de su registro.
+    const anexo = new Map(aprobada);
+    anexo.set('datos/capacidades.yaml', `${aprobada.get('datos/capacidades.yaml') ?? ''}# Comentario nuevo.\n`);
+    await expect(importar(p, anexo)).rejects.toMatchObject({
+      motivos: ['adr/ADR-NUC-001.md: la versión 1 ya está en la v2 con otro contenido; sube la versión y añade nota_de_cambio.'],
+    });
+    // Una versión anterior a la última de la v2.
+    const v3 = editar(aprobada, 'decisiones/DEC-PLN-001.md', conVersion(3, 'Tercera.'));
+    await ratificar(p, (await importar(p, v3)).entidadId);
+    await expect(importar(p, editar(aprobada, 'decisiones/DEC-PLN-001.md', conVersion(2, 'Segunda.')))).rejects.toMatchObject({
+      motivos: ['decisiones/DEC-PLN-001.md: la versión 2 es anterior a la última de la v2 (3).'],
+    });
+    // Un enlace a una versión anterior que la v2 no tiene (proyecto nuevo).
+    const q = await proyecto('H1 enlace anterior');
+    await expect(importar(q, v3)).rejects.toMatchObject({
+      motivos: expect.arrayContaining([
+        `${FDR}: el enlace a DEC-PLN-001@1 apunta a una versión que no está en design/ ni en la v2.`,
+      ]),
+    });
+  });
+
+  it('AC-AUT-001-05 un código de AC descartado no vuelve, un código nuevo no comparte DOM-NNN con la v2 y «Deriva de» se conserva entre versiones', async () => {
+    const p = await proyecto('H1 criterios entre versiones');
+    const nuevo = {
+      codigo: 'AC-AUT-001-09',
+      titulo: 'Reimportación sin efectos',
+      verificacion: 'automática' as const,
+      comprobacion: 'Se reimporta tras ratificar.',
+      enunciado: 'Dado design/ ratificado, cuando se importa otra vez, entonces no se crea nada.',
+      derivaDe: 'AC-CON-001-10',
+    };
+    const v1 = editar(arbol, FDR, (d) => ({ ...comoRegistro(d), criterios: [...comoRegistro(d).criterios, nuevo] }));
+    await ratificar(p, (await importar(p, v1)).entidadId);
+    // v2 conserva el criterio derivado y descarta AC-AUT-001-08: la exportación coincide.
+    const v2 = editar(v1, FDR, (d) => {
+      const r = comoRegistro(d);
+      return {
+        ...r,
+        version: 2,
+        notaDeCambio: 'Sin AC-AUT-001-08.',
+        criterios: r.criterios.filter((c) => c.codigo !== 'AC-AUT-001-08'),
+      };
+    });
+    await ratificar(p, (await importar(p, v2)).entidadId);
+    expect(await compararExportacion(s.db, p, v2)).toEqual([]);
+    // v3 no puede recuperar AC-AUT-001-08 ni cambiar la derivación de AC-AUT-001-09.
+    const v3 = editar(v1, FDR, (d) => {
+      const r = comoRegistro(d);
+      return {
+        ...r,
+        version: 3,
+        notaDeCambio: 'Vuelve AC-AUT-001-08.',
+        criterios: r.criterios.map((c) => (c.codigo === 'AC-AUT-001-09' ? { ...c, derivaDe: 'AC-CON-001-01' } : c)),
+      };
+    });
+    await expect(importar(p, v3)).rejects.toMatchObject({
+      motivos: [
+        `${FDR}: AC-AUT-001-08 ya se usó en una versión anterior; un criterio nuevo lleva un código nuevo.`,
+        `${FDR}: AC-AUT-001-09 cambia su «Deriva de»; un criterio que se mantiene o se modifica conserva su derivación.`,
+      ],
+    });
+    // Un registro nuevo de design/ que comparte DOM-NNN con uno creado en la v2.
+    await ejecutarComando(s, {
+      comando: 'record.create',
+      actor: ana,
+      proyectoId: p,
+      datos: {
+        tipo: 'adr',
+        codigo: 'ADR-ZET-001',
+        dominio: 'zeta',
+        titulo: 'Solo en la v2',
+        secciones: [
+          { titulo: 'Contexto', contenido: 'c' },
+          { titulo: 'Opciones', contenido: 'o' },
+          { titulo: 'Decisión', contenido: 'd' },
+          { titulo: 'Consecuencias', contenido: 'k' },
+        ],
+        criterios: [
+          {
+            arrastre: 'new',
+            titulo: 'T',
+            enunciado: 'Cuando pasa, entonces se ve.',
+            verificacion: 'automatic',
+            comprobacion: 'P.',
+          },
+        ],
+      },
+    });
+    const conZet = new Map(v2);
+    const dec = parsearDocumento(arbol.get('decisiones/DEC-PLN-001.md') ?? '', 'dec');
+    if (!dec.ok) throw new Error('DEC-PLN-001 no es válido');
+    conZet.set(
+      'decisiones/DEC-ZET-001.md',
+      renderizarDocumento({ ...comoRegistro(dec.valor), codigo: 'DEC-ZET-001', dominio: 'zeta', enlaces: [] }),
+    );
+    await expect(importar(p, conZet)).rejects.toMatchObject({
+      motivos: ['decisiones/DEC-ZET-001.md: DEC-ZET-001 comparte ZET-001 con ADR-ZET-001, que ya está en la v2.'],
+    });
+  });
+
+  it('AC-AUT-001-05 si la versión cambia en la v2 entre importar y ratificar, ratificar se rechaza sin efectos', async () => {
+    const p = await proyecto('H1 cambio antes de ratificar');
+    await ratificar(p, (await importar(p)).entidadId);
+    const lote = await importar(p, editar(arbol, 'decisiones/DEC-PLN-001.md', aprobar));
+    // Simula un cambio fuera de la importación: un enlace nuevo en el borrador de DEC-PLN-001.
+    const v = await s.db
+      .selectFrom('record_versions')
+      .innerJoin('records', 'records.id', 'record_versions.record_id')
+      .select(['record_versions.id'])
+      .where('records.project_id', '=', p)
+      .where('records.code', 'in', ['DEC-PLN-001', 'ADR-FMT-001'])
+      .orderBy('records.code', 'desc')
+      .execute();
+    await sql`insert into links (project_id, type, from_type, from_id, from_version, to_type, to_id, to_version, state, created_by)
+      values (${p}::uuid, 'conflicts_with', 'record_version', ${v[0]?.id ?? ''}::uuid, 1, 'record_version', ${v[1]?.id ?? ''}::uuid, 1, 'current', 'human:ana')`.execute(
+      s.db,
+    );
+    await expect(ratificar(p, lote.entidadId)).rejects.toMatchObject({ tipo: 'conflicto' });
+    const estado = await s.db
+      .selectFrom('proposal_batches')
+      .select('state')
+      .where('id', '=', lote.entidadId)
+      .executeTakeFirstOrThrow();
+    expect(estado.state).toBe('pending');
   });
 });

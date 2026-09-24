@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -15,6 +15,7 @@ describe('exportar a un directorio', () => {
         new Map([
           ['README.md', README_DISENO],
           ['fdr/FDR-OLD-001.md', 'viejo'],
+          ['notas.txt', 'mías'],
         ]),
       );
       const arbol = new Map([
@@ -22,7 +23,9 @@ describe('exportar a un directorio', () => {
         ['adr/ADR-NUE-001.md', 'nuevo'],
       ]);
       expect(await reemplazarArbol(dir, arbol)).toEqual(['fdr/FDR-OLD-001.md']);
-      expect(await leerArbol(dir)).toEqual(arbol);
+      // Solo borra archivos de design/ y las carpetas que quedan vacías.
+      expect(await leerArbol(dir)).toEqual(new Map([...arbol, ['notas.txt', 'mías']]));
+      expect(await readdir(dir)).not.toContain('fdr');
       await writeFile(join(ajeno, 'notas.txt'), 'mías', 'utf8');
       await expect(reemplazarArbol(ajeno, arbol)).rejects.toThrow(/no está vacío ni es un design/);
       expect([...(await leerArbol(ajeno)).keys()]).toEqual(['notas.txt']);

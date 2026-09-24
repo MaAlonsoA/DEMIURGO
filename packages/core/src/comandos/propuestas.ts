@@ -27,10 +27,19 @@ const esquemaPropuestaEntrada = z
 
 type Dependencia = z.infer<typeof esquemaDependencia>;
 
-/** Motivos de obsolescencia: dependencias cuyo registro ya no tiene esa versión vigente. */
+/**
+ * Motivos de obsolescencia. Una dependencia caduca si su versión se descartó o si la vigente del
+ * registro es otra; depender de un borrador sin ninguna versión aprobada no caduca mientras exista.
+ */
 export async function dependenciasCaducadas(trx: Bd, deps: readonly Dependencia[]): Promise<string[]> {
   const motivos: string[] = [];
   for (const d of deps) {
+    const version = await trx
+      .selectFrom('record_versions')
+      .select('state')
+      .where('record_id', '=', d.id)
+      .where('n', '=', d.version)
+      .executeTakeFirst();
     const vigente = await trx
       .selectFrom('record_versions')
       .select('n')
@@ -38,9 +47,11 @@ export async function dependenciasCaducadas(trx: Bd, deps: readonly Dependencia[
       .where('state', '=', 'approved')
       .orderBy('n', 'desc')
       .executeTakeFirst();
-    if (vigente?.n !== d.version) {
+    if (!version || version.state === 'discarded') {
+      motivos.push(`La propuesta está obsoleta: la versión ${d.version} de ${d.codigo} se ha descartado.`);
+    } else if (vigente && vigente.n !== d.version) {
       motivos.push(
-        `La propuesta está obsoleta: ${d.codigo} ha cambiado (vigente: ${vigente ? `v${vigente.n}` : 'ninguna'}; la propuesta partía de v${d.version}).`,
+        `La propuesta está obsoleta: ${d.codigo} ha cambiado (vigente: v${vigente.n}; la propuesta partía de v${d.version}).`,
       );
     }
   }
@@ -106,9 +117,13 @@ registrarGuardas({
 
   resolucion_por_elemento: async ({ ctx, entidad }) => {
     const lote = await loteDe(ctx.trx, entidad);
-    const porPaquete = ['batch.accept_package', 'batch.reject_package'].includes(ctx.causa.comandoOrigen ?? '');
+    const porPaquete = ['batch.accept_package', 'batch.reject_package', 'batch.supersede'].includes(
+      ctx.causa.comandoOrigen ?? '',
+    );
     if (lote.resolution_mode === 'package' && !porPaquete) {
-      return 'Esta propuesta forma parte de un paquete: se acepta o se rechaza el paquete completo.';
+      return ctx.comando === 'proposal.supersede'
+        ? 'Esta propuesta forma parte de un paquete: queda obsoleto el paquete completo.'
+        : 'Esta propuesta forma parte de un paquete: se acepta o se rechaza el paquete completo.';
     }
     return null;
   },
@@ -343,7 +358,8 @@ registrarManejadores({
     async aplicar(ctx, datos, _e, hacia) {
       const dependencias = [...datos.dependencias];
       for (const d of await dependenciasDeLaCarga(ctx, datos.carga)) {
-        if (!dependencias.some((x) => x.id === d.id)) dependencias.push(d);
+        // Una referencia a otra versión del mismo registro también cuenta: si no coinciden, la propuesta nace obsoleta.
+        if (!dependencias.some((x) => x.id === d.id && x.version === d.version)) dependencias.push(d);
       }
       const { id } = await ctx.trx
         .insertInto('proposals')
@@ -521,7 +537,13 @@ registrarManejadores({
         .where('state', '=', 'pending')
         .execute();
       for (const p of pendientes) {
-        await ctx.ejecutar({ comando: 'proposal.supersede', actor: ctx.actor, entidadId: p.id, datos: { motivo: datos.motivo } });
+        await ctx.ejecutar({
+          comando: 'proposal.supersede',
+          actor: ctx.actor,
+          entidadId: p.id,
+          datos: { motivo: datos.motivo },
+          causa: { comandoOrigen: 'batch.supersede', lote: lote.id },
+        });
       }
       return { entidadId: lote.id, despues: { motivo: datos.motivo } };
     },

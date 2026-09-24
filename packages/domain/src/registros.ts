@@ -15,6 +15,20 @@ export const PLANTILLAS_REGISTRO: Record<TipoRegistro, { secciones: readonly str
 
 export type Seccion = { titulo: string; contenido: string };
 
+/** Límites del contenido de una versión: los comparten la validación de los comandos y el validador de design/. */
+export const LIMITES_VERSION = {
+  titulo: 200,
+  tituloSeccion: 120,
+  seccion: 50_000,
+  secciones: 40,
+  criterios: 60,
+  enlaces: 40,
+  notaDeCambio: 2000,
+  tituloCriterio: 200,
+  enunciado: 3000,
+  comprobacion: 1000,
+} as const;
+
 /** Motivos por los que unas secciones no cumplen la plantilla de su tipo (vacío si la cumplen). */
 export function faltasDePlantilla(tipo: TipoRegistro, secciones: readonly Seccion[]): string[] {
   const faltas: string[] = [];
@@ -85,6 +99,8 @@ export function readiness(e: EntradaReadiness): Readiness {
   const motivos: string[] = [];
   if (e.version.estado === 'superseded') {
     motivos.push(`La versión ${e.version.n} está sustituida: la vigente es la ${e.vigente ?? '—'}.`);
+  } else if (e.version.estado === 'draft' && e.vigente !== null && e.vigente > e.version.n) {
+    motivos.push(`La versión ${e.version.n} es un borrador anterior a la vigente (v${e.vigente}): solo se puede descartar.`);
   } else if (e.version.estado !== 'approved') motivos.push(`La versión ${e.version.n} no está aprobada.`);
   else if (e.vigente !== e.version.n) motivos.push(`No es la versión vigente: la vigente es la ${e.vigente ?? '—'}.`);
   if (PLANTILLAS_REGISTRO[e.tipo].exigeCriterios && e.criterios.length === 0) motivos.push('No tiene criterios de aceptación.');

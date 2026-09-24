@@ -4,6 +4,7 @@
 
 import {
   ErrorDominio,
+  LIMITES_VERSION,
   PREFIJO_REGISTRO,
   TIPOS_REGISTRO,
   type TipoRegistro,
@@ -26,12 +27,13 @@ const uuid = z.string().uuid();
 const RE_CODIGO = /^(DEC|FDR|ADR|BUG)-[A-Z]{3}-\d{3}$/;
 const TIPOS_ENLACE = ['based_on', 'design_of', 'covers', 'origin', 'conflicts_with', 'derived_from'] as const;
 
-const esquemaSeccion = z.object({ titulo: texto(120), contenido: z.string().max(50_000) }).strict();
+const L = LIMITES_VERSION;
+const esquemaSeccion = z.object({ titulo: texto(L.tituloSeccion), contenido: z.string().max(L.seccion) }).strict();
 const contenidoCriterio = {
-  titulo: texto(200),
-  enunciado: texto(3000),
+  titulo: texto(L.tituloCriterio),
+  enunciado: texto(L.enunciado),
   verificacion: z.enum(['automatic', 'manual']),
-  comprobacion: texto(1000),
+  comprobacion: texto(L.comprobacion),
 };
 export const esquemaCriterioEntrada = z.discriminatedUnion('arrastre', [
   z
@@ -64,11 +66,11 @@ export const esquemaEnlaceEntrada = z
 const esquemaOrigen = z.object({ tipo: z.string(), id: z.string(), version: z.number().int().nullable().optional() }).strict();
 
 const esquemaContenidoVersion = {
-  titulo: texto(200),
-  secciones: z.array(esquemaSeccion).min(1).max(40),
-  criterios: z.array(esquemaCriterioEntrada).max(60).default([]),
+  titulo: texto(L.titulo),
+  secciones: z.array(esquemaSeccion).min(1).max(L.secciones),
+  criterios: z.array(esquemaCriterioEntrada).max(L.criterios).default([]),
   descartados: z.array(z.string()).default([]),
-  enlaces: z.array(esquemaEnlaceEntrada).max(40).default([]),
+  enlaces: z.array(esquemaEnlaceEntrada).max(L.enlaces).default([]),
   // Anexos en orden (tablas como datos): se guardan y se exportan tal cual.
   anexos: z.array(z.object({ ruta: z.string().regex(/^datos\/[a-z0-9-]+\.yaml$/), contenido: z.string() }).strict()).default([]),
   // Número de versión explícito: solo para importar design/ respetando la versión del origen.
@@ -77,7 +79,7 @@ const esquemaContenidoVersion = {
     .string()
     .regex(/^(D|S|H)\d+$/)
     .optional(),
-  nota_de_cambio: z.string().trim().max(2000).optional(),
+  nota_de_cambio: z.string().trim().max(L.notaDeCambio).optional(),
   origen: esquemaOrigen.optional(),
 };
 
@@ -544,6 +546,22 @@ registrarManejadores({
     datos: z.object({ motivo: z.string().trim().max(1000).optional() }).strict(),
     async aplicar(ctx, datos, e) {
       const n = Number(e?.fila.n ?? 0);
+      // Lo que enlazaba este borrador queda pendiente de revisión, y lo que dependía de él, obsoleto.
+      const enlaces = await ctx.trx
+        .selectFrom('links')
+        .select('id')
+        .where('to_id', '=', e?.id ?? '')
+        .where('state', 'in', ['current', 'kept', 'changed'])
+        .execute();
+      for (const l of enlaces) {
+        await ctx.ejecutar({
+          comando: 'link.flag_review',
+          actor: sistema('versiones'),
+          entidadId: l.id,
+          datos: { motivo: `La versión enlazada (v${n}) se ha descartado.` },
+        });
+      }
+      await revisarObsolescencia(ctx, { registro: cadena(e?.fila.record_id) });
       // Lo que el borrador proyectó en el conocimiento (si venía de una propuesta aceptada) se retira.
       await alEventoDeAutoridad(ctx, { tipo: DISPARO_DESCARTE, id: e?.id ?? '', version: n });
       return { entidadId: e?.id ?? '', version: n, despues: { motivo: datos.motivo ?? null } };

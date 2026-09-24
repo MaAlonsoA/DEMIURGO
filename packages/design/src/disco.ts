@@ -1,8 +1,13 @@
 // Lectura y escritura de un árbol `design/` en disco.
 
-import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, sep } from 'node:path';
 import { README_DISENO } from './readme.ts';
+import { CARPETAS } from './tipos.ts';
+
+/** Rutas con la forma de un archivo de design/: solo esas se borran al reemplazar el árbol. */
+const CARPETAS_MD = Object.values(CARPETAS).join('|');
+const RUTA_DE_DISENO = new RegExp(String.raw`^(README\.md|(${CARPETAS_MD})/[^/]+\.md|datos/[^/]+\.yaml)$`);
 
 export async function leerArbol(dir: string): Promise<Map<string, string>> {
   const arbol = new Map<string, string>();
@@ -25,16 +30,20 @@ export async function escribirArbol(dir: string, arbol: ReadonlyMap<string, stri
 }
 
 /**
- * Deja en `dir` exactamente el árbol dado: escribe sus archivos y borra los que sobran. Solo actúa
- * sobre un directorio vacío o que ya es un design/ (su README es el fijo); devuelve lo borrado.
+ * Deja en `dir` el árbol dado: escribe sus archivos y borra los de design/ que sobran (nunca otros
+ * archivos) y las carpetas que queden vacías. Solo actúa sobre un directorio vacío o que ya es un
+ * design/ (su README es el fijo); devuelve lo borrado.
  */
 export async function reemplazarArbol(dir: string, arbol: ReadonlyMap<string, string>): Promise<string[]> {
   const previo = await leerArbol(dir).catch(() => new Map<string, string>());
   if (previo.size > 0 && previo.get('README.md') !== README_DISENO) {
     throw new Error(`${dir}/ no está vacío ni es un design/: elige otro directorio.`);
   }
-  const sobran = [...previo.keys()].filter((r) => !arbol.has(r)).sort();
+  const sobran = [...previo.keys()].filter((r) => !arbol.has(r) && RUTA_DE_DISENO.test(r)).sort();
   for (const r of sobran) await rm(join(dir, ...r.split('/')));
+  for (const carpeta of new Set(sobran.map((r) => r.split('/')[0] ?? '').filter((c) => c && !c.endsWith('.md')))) {
+    await rmdir(join(dir, carpeta)).catch(() => undefined);
+  }
   await escribirArbol(dir, arbol);
   return sobran;
 }

@@ -19,7 +19,7 @@ import { manejador, registrarManejadores } from '../bus/manejadores.ts';
 import type { ContextoComando } from '../bus/tipos.ts';
 import type { Tx } from '../db/conexion.ts';
 import { registrarAplicacion } from '../comandos/efectos.ts';
-import { documentoDeTaxonomia, documentoDeVersion } from './exportar.ts';
+import { derivacionDe, documentoDeTaxonomia, documentoDeVersion } from './exportar.ts';
 
 export const IMPORTADOR = sistema('importador');
 
@@ -107,6 +107,61 @@ async function ultimaVersion(trx: Tx, recordId: string): Promise<number> {
   return v?.n ?? 0;
 }
 
+/** Versión aprobada (o ya sustituida) posterior a `n`: aprobar la `n` haría retroceder la vigente. */
+async function aprobadaPosterior(trx: Tx, recordId: string, n: number): Promise<number | null> {
+  const v = await trx
+    .selectFrom('record_versions')
+    .select('n')
+    .where('record_id', '=', recordId)
+    .where('state', 'in', ['approved', 'superseded'])
+    .where('n', '>', n)
+    .orderBy('n', 'desc')
+    .executeTakeFirst();
+  return v?.n ?? null;
+}
+
+/**
+ * Problemas de los criterios de una versión nueva de un registro que ya está en la v2: un código
+ * que ya se usó y ya no está (nunca se reutiliza) o un «Deriva de» distinto del que tenía el criterio.
+ */
+async function problemasDeCriterios(trx: Tx, recordId: string, r: DocumentoRegistro, ruta: string): Promise<string[]> {
+  const problemas: string[] = [];
+  const base = await trx
+    .selectFrom('record_versions')
+    .select('id')
+    .where('record_id', '=', recordId)
+    .where('state', '<>', 'discarded')
+    .orderBy('n', 'desc')
+    .executeTakeFirst();
+  const previos = base
+    ? await trx.selectFrom('criteria').select(['id', 'code']).where('record_version_id', '=', base.id).execute()
+    : [];
+  const usados = new Set(
+    (
+      await trx
+        .selectFrom('criteria')
+        .innerJoin('record_versions', 'record_versions.id', 'criteria.record_version_id')
+        .select('criteria.code')
+        .where('record_versions.record_id', '=', recordId)
+        .execute()
+    ).map((c) => c.code),
+  );
+  for (const c of r.criterios) {
+    const previo = previos.find((p) => p.code === c.codigo);
+    if (!previo) {
+      if (usados.has(c.codigo))
+        problemas.push(`${ruta}: ${c.codigo} ya se usó en una versión anterior; un criterio nuevo lleva un código nuevo.`);
+      continue;
+    }
+    if ((await derivacionDe(trx, previo.id)) !== (c.derivaDe ?? null)) {
+      problemas.push(
+        `${ruta}: ${c.codigo} cambia su «Deriva de»; un criterio que se mantiene o se modifica conserva su derivación.`,
+      );
+    }
+  }
+  return problemas;
+}
+
 type Plan = { propuestas: { tipo: string; carga: Record<string, unknown> }[]; problemas: string[] };
 
 /**
@@ -165,12 +220,36 @@ async function planificar(ctx: ContextoComando, arbol: Map<string, string>, info
           );
           continue;
         }
+        const posterior = await aprobadaPosterior(ctx.trx, registro.id, r.version);
+        if (posterior !== null) {
+          plan.problemas.push(
+            `${ruta}: la v2 ya tiene aprobada la versión ${posterior}; la ${r.version} solo se puede descartar.`,
+          );
+          continue;
+        }
       } else {
         const ultima = await ultimaVersion(ctx.trx, registro.id);
         if (r.version < ultima) {
           plan.problemas.push(`${ruta}: la versión ${r.version} es anterior a la última de la v2 (${ultima}).`);
           continue;
         }
+        const deCriterios = await problemasDeCriterios(ctx.trx, registro.id, r, ruta);
+        if (deCriterios.length > 0) {
+          plan.problemas.push(...deCriterios);
+          continue;
+        }
+      }
+    } else {
+      // Un registro nuevo no comparte DOM-NNN con otro que ya esté en la v2 (sus AC se llamarían igual).
+      const choca = await ctx.trx
+        .selectFrom('records')
+        .select('code')
+        .where('project_id', '=', ctx.proyectoId)
+        .where('code', 'like', `___-${r.codigo.slice(4)}`)
+        .executeTakeFirst();
+      if (choca) {
+        plan.problemas.push(`${ruta}: ${r.codigo} comparte ${r.codigo.slice(4)} con ${choca.code}, que ya está en la v2.`);
+        continue;
       }
     }
     plan.propuestas.push({ tipo: 'registro_importado', carga: { documento, ruta } });
@@ -193,6 +272,20 @@ async function planificar(ctx: ContextoComando, arbol: Map<string, string>, info
       if (!(existente.state === 'draft' && t.estado === 'aprobado')) {
         plan.problemas.push(
           `${ruta}: la versión ${t.version} está ${ESTADO_LEGIBLE[existente.state] ?? existente.state} en la v2 y no puede pasar a «${t.estado}».`,
+        );
+        continue;
+      }
+      const posterior = await ctx.trx
+        .selectFrom('taxonomies')
+        .select('version')
+        .where('project_id', '=', ctx.proyectoId)
+        .where('code', '=', t.codigo)
+        .where('state', 'in', ['approved', 'superseded'])
+        .where('version', '>', t.version)
+        .executeTakeFirst();
+      if (posterior) {
+        plan.problemas.push(
+          `${ruta}: la v2 ya tiene aprobada la versión ${posterior.version}; la ${t.version} no se puede aprobar.`,
         );
         continue;
       }

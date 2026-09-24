@@ -21,6 +21,27 @@ const ESTADO_DOCUMENTO: Record<string, EstadoDocumento> = { draft: 'propuesto', 
 
 type Fila<T extends keyof BD> = Selectable<BD[T]>;
 
+/**
+ * «Deriva de» de un criterio: el de su origen, siguiendo el arrastre (mantener o modificar deriva del
+ * mismo código en la versión anterior) hasta el criterio que nació; null si nació sin derivar.
+ */
+export async function derivacionDe(db: Bd, criterioId: string): Promise<string | null> {
+  let actual: string | null = criterioId;
+  for (let i = 0; actual && i < 1000; i++) {
+    const c = await db
+      .selectFrom('criteria')
+      .select(['carry', 'derived_from'])
+      .where('id', '=', actual)
+      .executeTakeFirstOrThrow();
+    if (c.carry === 'new') {
+      if (!c.derived_from) return null;
+      return (await db.selectFrom('criteria').select('code').where('id', '=', c.derived_from).executeTakeFirstOrThrow()).code;
+    }
+    actual = c.derived_from;
+  }
+  return null;
+}
+
 /** Documento de design/ de una versión concreta de un registro, tal como se exporta. */
 export async function documentoDeVersion(
   db: Bd,
@@ -42,12 +63,10 @@ export async function documentoDeVersion(
     .orderBy('links.id')
     .execute();
   const anexos = (v.annexes ?? []) as { ruta: string; contenido: string }[];
-  // «Deriva de» solo se escribe en un criterio nuevo: al mantener o modificar deriva del mismo código.
   const derivaDe = new Map<string, string>();
   for (const c of criterios) {
-    if (c.carry !== 'new' || !c.derived_from) continue;
-    const origen = await db.selectFrom('criteria').select('code').where('id', '=', c.derived_from).executeTakeFirstOrThrow();
-    derivaDe.set(c.id, origen.code);
+    const origen = await derivacionDe(db, c.id);
+    if (origen) derivaDe.set(c.id, origen);
   }
   const doc: DocumentoRegistro = {
     clase: 'registro',

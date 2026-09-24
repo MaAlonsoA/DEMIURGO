@@ -1,6 +1,6 @@
-// Overview (spec §4.3, canvas B1): the product at a glance. Features as cards, decisions and tech
-// decisions as nodes, threads with open questions; on the right what needs the person and what is
-// ready to build.
+// Overview (spec §4.3, canvas B1 and S6A): the product at a glance. Features as cards, decisions
+// and tech decisions as nodes, threads with open questions; on the right what needs the person
+// and what is ready to build. Coming back, the "What changed" lens dims what did not change.
 
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
@@ -10,12 +10,16 @@ import type { ExplorationSummary, Inbox, ProductRow, ProductState } from '../../
 import { cn } from '../../lib/cn.ts';
 import { useProjectId } from '../../lib/hooks.ts';
 import { Node } from '../../ui/Card.tsx';
+import { EyeIcon } from '../../ui/icons.tsx';
 import { CardSkeleton, EmptyState, Page, PageTitle, Skeleton } from '../../ui/layout.tsx';
 import { Reasons } from '../../ui/Reasons.tsx';
 import { Mark } from '../../ui/marks.tsx';
+import { Button } from '../../ui/Button.tsx';
 import { TYPE_WORDS_PLURAL } from '../../words.ts';
 import { waitingFor } from '../record/logic.ts';
 import { ProductTabs } from '../shell/Header.tsx';
+import { useLens, type Lens } from './lens/useLens.ts';
+import { WhileAway } from './lens/WhileAway.tsx';
 import { NeedsColumn } from './NeedsColumn.tsx';
 import { FeatureCard, type LensMark, RecordNode, UNDIM } from './RecordCard.tsx';
 
@@ -31,7 +35,11 @@ function Section({ title, count, children }: { title: string; count: number; chi
   );
 }
 
-const NO_LENS: LensMark = { dimmed: false, changed: false, note: null, since: null };
+function lensOf(lens: Lens, changed: Map<string, string | null>, key: string): LensMark {
+  if (!lens.on) return { dimmed: false, changed: false, note: null, since: null };
+  const is = changed.has(key);
+  return { dimmed: !is, changed: is, note: changed.get(key) ?? null, since: lens.since };
+}
 
 function Summary({ state, inbox }: { state: ProductState; inbox: Inbox | undefined }) {
   const features = state.designs.filter((r) => r.type === 'fdr');
@@ -124,6 +132,7 @@ export function OverviewScreen() {
 function Overview({ projectId }: { projectId: string }) {
   const state = useQuery(stateQuery(projectId));
   const inbox = useQuery(inboxQuery(projectId));
+  const lens = useLens(projectId, state.data);
   const aside = <NeedsColumn projectId={projectId} state={state.data} inbox={inbox.data} />;
 
   if (!state.data) {
@@ -140,7 +149,7 @@ function Overview({ projectId }: { projectId: string }) {
     row,
     waiting: waitingFor(row.code, inbox.data, row.origin_exploration),
     thread: row.origin_exploration ? (threads.get(row.origin_exploration) ?? null) : null,
-    lens: NO_LENS,
+    lens: lensOf(lens, lens.records, row.code),
   });
   const empty = features.length + decisions.length + bugs.length === 0;
 
@@ -151,8 +160,17 @@ function Overview({ projectId }: { projectId: string }) {
         title={s.project.name}
         subtitle={empty ? undefined : <Summary state={s} inbox={inbox.data} />}
         className="mb-4"
+        actions={
+          lens.available && !lens.on ? (
+            <Button variant="outline" size="sm" className="rounded-full" onClick={() => lens.setOn(true)}>
+              <EyeIcon size={14} />
+              Show what changed · {lens.lines.length}
+            </Button>
+          ) : undefined
+        }
       />
       <ProductTabs active="overview" />
+      {lens.on && <WhileAway lens={lens} />}
 
       {empty && (
         <EmptyState className="mb-8">
@@ -207,7 +225,7 @@ function Overview({ projectId }: { projectId: string }) {
                         .length
                     : 0
                 }
-                lens={NO_LENS}
+                lens={lensOf(lens, lens.threads, t.id)}
               />
             ))}
           </div>

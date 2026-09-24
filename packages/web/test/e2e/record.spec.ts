@@ -193,3 +193,41 @@ test('AC-INT-001-08 without reasons it says Ready to build with the first bar fu
   await expect(aside.locator('[data-readiness-reasons] li')).toHaveText(readiness.reasons);
   await expect(page.getByText('Ready to build', { exact: true })).toHaveCount(0);
 });
+
+test('AC-INT-001-04 a record an agent proposed stays Proposed after a person accepts it, until a person approves it', async ({
+  page,
+  person,
+}) => {
+  const projectId = await person.createProject('Proposed by an agent');
+  const agent = await person.agent(projectId, 'claude-code');
+  const batch = await agent.command<{ batchId: string; proposals: string[] }>('batch.submit', {
+    summary: 'Guests',
+    proposals: [
+      {
+        type: 'decision',
+        payload: {
+          title: 'Two guests per member',
+          context: 'Members ask to bring friends.',
+          decision: 'Each member can bring two guests.',
+          consequences: 'Places are counted with the guests.',
+        },
+      },
+    ],
+  });
+  const accepted = await person.command<{ code: string }>(projectId, 'proposal.accept', {}, batch.result?.proposals[0]);
+  const code = accepted.result?.code ?? '';
+
+  await page.goto(`/p/${projectId}/records/${code}`);
+  const header = page.locator('[data-record-header]');
+  await expect(page.getByRole('heading', { level: 1, name: 'Two guests per member' })).toBeVisible();
+  await expect(header.locator('[data-status] [data-mark]')).toHaveAttribute('data-mark', 'proposed');
+  await expect(page.locator('[data-mark="confirmed"]')).toHaveCount(0);
+  const versions = page.getByRole('region', { name: 'Versions' });
+  await expect(versions.locator('[data-version="1"] [data-mark]').first()).toHaveAttribute('data-mark', 'proposed');
+
+  await page.getByRole('button', { name: 'Approve' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Approve' }).click();
+  await expect(header.locator('[data-status] [data-mark]')).toHaveAttribute('data-mark', 'confirmed');
+  await expect(versions.locator('[data-version="1"] [data-mark]').first()).toHaveAttribute('data-mark', 'confirmed');
+  await expect(header.locator('[data-who]').last()).toHaveAttribute('data-who', 'you');
+});

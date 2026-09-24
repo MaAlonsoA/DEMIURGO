@@ -8,8 +8,9 @@
 //   [fail-once]  the first run with a context pack fails; its retry (same pack) succeeds;
 //   [invalid]    the output does not match the schema (invalid_output, no effects).
 // And the simulated classifier obeys one marker in what it classifies:
-//   [classifier-fails]  the classifier fails the first three calls with that input, so the
-//                       knowledge update is rejected after its retries; the person's retry works.
+//   [classifier-fails]  the classifier fails the first three calls about the text that carries
+//                       the marker: each call is one attempt of its knowledge update, which is
+//                       rejected; the fourth attempt (the third retry) goes through.
 
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -93,10 +94,12 @@ function scriptedClassifier(): Classifier {
     id: base.id,
     async choice(items) {
       const text = JSON.stringify(items);
-      if (text.includes('[classifier-fails]')) {
-        const n = failures.get(text) ?? 0;
+      // Counted by the marked text itself: the rest of the input changes as the graph grows.
+      const marked = /"[^"]*\[classifier-fails\][^"]*"/.exec(text)?.[0];
+      if (marked) {
+        const n = failures.get(marked) ?? 0;
         if (n < 3) {
-          failures.set(text, n + 1);
+          failures.set(marked, n + 1);
           throw new Error('The simulated classifier failed on purpose.');
         }
       }

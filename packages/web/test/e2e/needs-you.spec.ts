@@ -119,9 +119,14 @@ test('AC-INT-001-11 every kind of thing in the inbox appears in Needs you and is
   });
   await expect(group(page, 'Knowledge updates that failed')).toHaveCount(0);
 
+  // The retried update is applied in the background and may bring something new to review
+  // (a classification): once the knowledge settles, the header shows exactly what the inbox has.
+  await knowledgeSettled(person, projectId);
   const after = await inboxOf(person, projectId);
-  expect(after.total).toBe(count);
   expect(after.rejected_updates).toHaveLength(0);
+  expect(after.total).toBeGreaterThanOrEqual(count);
+  if (after.total > 0) await expect(headerCount(page)).toHaveAttribute('data-needs', String(after.total));
+  else await expect(headerCount(page)).toHaveCount(0);
 });
 
 test('AC-INT-001-14 a 409, a 422 and a 403 show their reasons next to the action, keep what was written and never a bare Error', async ({

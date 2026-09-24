@@ -1,5 +1,5 @@
 // The clock of a run in progress (the timer ticks locally; the stream brings the rest) and the
-// events of a run, read page by page from the project's log.
+// events of a run.
 
 import { queryOptions } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -20,23 +20,19 @@ export function useNow(ticking: boolean): number {
   return now;
 }
 
-const PAGE = 1000;
-const MAX_PAGES = 50;
-
-/** Events of a run. The log has no filter by entity, so it is read in pages and filtered here. */
+/** Events of a run: its own and those it caused (GET …/events?entity=), and the building of its context pack. */
 export const runEventsQuery = (projectId: string, run: Pick<Run, 'id' | 'context_pack_id'>) =>
   queryOptions({
     queryKey: [...keys.run(projectId, run.id), 'events', run.context_pack_id] as const,
     queryFn: async () => {
-      const found: EventRow[] = [];
-      let from = '0';
-      for (let page = 0; page < MAX_PAGES; page++) {
-        const rows = await get<EventRow[]>(`/api/projects/${projectId}/events?from=${from}`);
-        found.push(...runEvents(rows, run));
-        const last = rows.at(-1);
-        if (rows.length < PAGE || !last) break;
-        from = last.id;
-      }
-      return found;
+      const own = await get<EventRow[]>(`/api/projects/${projectId}/events?entity=${run.id}`);
+      const pack = run.context_pack_id
+        ? await get<EventRow[]>(`/api/projects/${projectId}/events?entity=${run.context_pack_id}`)
+        : [];
+      const all = new Map([...own, ...pack].map((e) => [e.id, e]));
+      return runEvents(
+        [...all.values()].sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : 1)),
+        run,
+      );
     },
   });

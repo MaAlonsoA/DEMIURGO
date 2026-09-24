@@ -1,7 +1,9 @@
-// Runs in a thread (spec §4.7, cut 3): a run in progress in amber that can be cancelled, a failed
-// one with its reason and its retry on the same context pack, and Draft it.
+// Runs (spec §4.7 and §4.9, cuts 3 and 7): a run in progress in amber that can be cancelled, a
+// failed one with its reason and its retry on the same context pack, Draft it, Activity and the
+// page of a run.
 
-import { type PersonApi, expect, expectAccessible, test } from './support/fixtures.ts';
+import type { Page } from '@playwright/test';
+import { type PersonApi, expect, expectAccessible, screenshot, test } from './support/fixtures.ts';
 
 type Run = {
   id: string;
@@ -23,6 +25,10 @@ function runsOf(person: PersonApi, projectId: string, explorationId: string, don
 }
 
 const finished = (r: Run) => !['queued', 'running'].includes(r.state);
+
+async function legendFolded(page: Page) {
+  await page.addInitScript(() => localStorage.setItem('demiurgo:legend', JSON.stringify({ dismissed: true, seen: [] })));
+}
 
 test('AC-INT-001-10 a run in progress shows amber with its time and can be cancelled from the thread', async ({
   page,
@@ -81,8 +87,14 @@ test('AC-INT-001-10 a failed run shows its reason in product words and Retry run
   expect(retry?.state).toBe('completed');
   expect(retry?.context_pack_hash).toBe(original?.context_pack_hash);
 
+  // The run pages show the same hash, and link one to the other.
   await retried.getByRole('link', { name: /Details/ }).click();
   await expect(page).toHaveURL(new RegExp(`/runs/${original?.id}$`));
+  await expect(page.locator('[data-context-hash]')).toHaveText(original?.context_pack_hash ?? '');
+  await page.locator('[data-run-retries]').getByRole('link').first().click();
+  await expect(page).toHaveURL(new RegExp(`/runs/${retry?.id}$`));
+  await expect(page.locator('[data-context-hash]')).toHaveText(original?.context_pack_hash ?? '');
+  await expect(page.locator('[data-run-retry-of]').getByRole('link')).toBeVisible();
 });
 
 test('AC-INT-001-10 Draft it asks DEMIURGO for a design from the decision born in the thread, and the thread shows the draft ready', async ({
@@ -133,4 +145,100 @@ test('AC-INT-001-10 Draft it asks DEMIURGO for a design from the decision born i
   await expectAccessible(page, 'a thread with a draft ready');
   await ready.getByRole('link', { name: /Review/ }).click();
   await expect(page).toHaveURL(new RegExp(`/batches/${draft?.batch_id}$`));
+});
+
+test('AC-INT-001-10 Activity lists the runs with their state and filters them; a run page explains an invalid output and cancels a run', async ({
+  page,
+  person,
+}) => {
+  test.setTimeout(120_000);
+  const projectId = await person.createProject('Activity');
+  const talk = await openThread(person, projectId, 'Explore the release notes');
+  await person.command(projectId, 'message.post', { exploration_id: talk, text: 'Keep them short.', respond: true });
+  const invalid = await openThread(person, projectId, 'Explore the [invalid] output');
+  await person.command(projectId, 'message.post', { exploration_id: invalid, text: 'Answer anything.', respond: true });
+  await runsOf(person, projectId, talk, (r) => r.length === 1 && r.every(finished));
+  const [bad] = await runsOf(person, projectId, invalid, (r) => r.length === 1 && r.every(finished));
+  expect(bad?.failure_kind).toBe('invalid_output');
+
+  await page.goto(`/p/${projectId}/activity`);
+  await expect(page.getByRole('heading', { level: 1, name: 'Activity' })).toBeVisible();
+  const rows = page.locator('[data-run-row]');
+  await expect(rows).toHaveCount(2);
+  await expect(page.locator(`[data-run-row="${bad?.id}"]`)).toContainText('Failed');
+  await expect(page.locator(`[data-run-row="${bad?.id}"]`)).toContainText('Conversation');
+  await expect(
+    page.locator(`[data-run-row="${bad?.id}"]`).getByRole('link', { name: 'Explore the [invalid] output' }),
+  ).toBeVisible();
+  await expectAccessible(page, 'Activity');
+
+  // The filter by state.
+  await page.getByRole('navigation', { name: 'Filter by state' }).getByRole('link', { name: 'Failed' }).click();
+  await expect(page).toHaveURL(/\?state=failed$/);
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toHaveAttribute('data-run-row', bad?.id ?? '');
+  await page.getByRole('navigation', { name: 'Filter by state' }).getByRole('link', { name: 'Cancelled' }).click();
+  await expect(page.getByText('No cancelled runs.')).toBeVisible();
+
+  // The page of the failed run: its reason in words, its context and its events.
+  await page.getByRole('navigation', { name: 'Filter by state' }).getByRole('link', { name: 'All' }).click();
+  await page.locator(`[data-run-row="${bad?.id}"]`).getByRole('link', { name: 'Conversation' }).click();
+  await expect(page).toHaveURL(new RegExp(`/runs/${bad?.id}$`));
+  await expect(page.locator('[data-run-status]')).toContainText("It couldn't finish: the output didn't match the format.");
+  await expect(page.locator('[data-run-status]')).toContainText('Nothing was changed.');
+  await expect(page.locator('[data-context-hash]')).toHaveText(bad?.context_pack_hash ?? '');
+  await expect(page.locator('[data-context]')).toContainText('exploration_chat@1');
+  const content = page.locator('[data-context-content]');
+  await expect(content).not.toHaveAttribute('open');
+  await content.locator('summary').click();
+  await expect(content).toHaveAttribute('open');
+  await expect(page.locator('[data-run-events] li')).not.toHaveCount(0);
+  await expect(page.locator('[data-run-events]')).toContainText('Requested');
+  await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible();
+  await expectAccessible(page, 'a failed run');
+
+  // A run in progress is cancelled from its page.
+  const slow = await openThread(person, projectId, 'Explore the [slow] runner');
+  await person.command(projectId, 'message.post', { exploration_id: slow, text: 'Take your time.', respond: true });
+  const [running] = await runsOf(person, projectId, slow, (r) => r.length === 1);
+  await page.goto(`/p/${projectId}/runs/${running?.id}`);
+  await expect(page.locator('[data-run-header]')).toContainText(/Queued|Working/);
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.locator('[data-run-header]')).toContainText('Cancelled');
+  await expect(page.locator('[data-run-status]')).toContainText('Nothing was changed.');
+  await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible();
+});
+
+test('screens of cut 7: Activity and the page of a run', async ({ page, person }) => {
+  test.setTimeout(120_000);
+  await legendFolded(page);
+  const projectId = await person.createProject('DEMIURGO v2');
+  const talk = await openThread(person, projectId, 'Design S3: change set and frozen tests');
+  await person.command(projectId, 'message.post', {
+    exploration_id: talk,
+    text: 'Who accepts the map of checks?',
+    respond: true,
+  });
+  const failing = await openThread(person, projectId, 'Explore the evidence format');
+  await person.command(projectId, 'message.post', { exploration_id: failing, text: '[fail-once] Which fields?', respond: true });
+  const invalid = await openThread(person, projectId, 'Explore the [invalid] output');
+  await person.command(projectId, 'message.post', { exploration_id: invalid, text: 'Answer anything.', respond: true });
+  await runsOf(person, projectId, talk, (r) => r.length === 1 && r.every(finished));
+  const [failed] = await runsOf(person, projectId, failing, (r) => r.length === 1 && r.every(finished));
+  await person.command(projectId, 'run.retry', { run_id: failed?.id });
+  const retried = await runsOf(person, projectId, failing, (r) => r.length === 2 && r.every(finished));
+  await runsOf(person, projectId, invalid, (r) => r.length === 1 && r.every(finished));
+  const retry = retried.find((r) => r.retry_of === failed?.id);
+
+  await page.goto(`/p/${projectId}/activity`);
+  await expect(page.locator('[data-run-row]')).toHaveCount(4);
+  await screenshot(page, 7, '01-activity');
+  await page.goto(`/p/${projectId}/runs/${failed?.id}`);
+  await expect(page.locator('[data-context-hash]')).toBeVisible();
+  await expect(page.locator('[data-run-events] li')).not.toHaveCount(0);
+  await screenshot(page, 7, '02-run-failed');
+  await page.goto(`/p/${projectId}/runs/${retry?.id}`);
+  await expect(page.locator('[data-run-retry-of]')).toBeVisible();
+  await expect(page.locator('[data-run-events] li')).not.toHaveCount(0);
+  await screenshot(page, 7, '03-run-retry');
 });

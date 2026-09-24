@@ -1,6 +1,7 @@
 // Query routes (read-only). Each one declares its query from the capability matrix.
 
 import { DomainError, type QueryName, graphFingerprint } from '@demiurgo/domain';
+import { sql } from 'kysely';
 import {
   type Services,
   inbox,
@@ -55,14 +56,13 @@ export const QUERIES: QueryRoute[] = [
     async respond({ services, params, query }) {
       const projectId = uuid(params.projectId, 'project');
       const from = /^\d+$/.test(query.from ?? '') ? String(query.from) : '0';
-      return services.db
-        .selectFrom('events')
-        .selectAll()
-        .where('project_id', '=', projectId)
-        .where('id', '>', from)
-        .orderBy('id')
-        .limit(1000)
-        .execute();
+      // ?entity= keeps only the events of one entity (a run, a batch…) and those it caused.
+      let q = services.db.selectFrom('events').selectAll().where('project_id', '=', projectId).where('id', '>', from);
+      if (query.entity) {
+        const entity = uuid(query.entity, 'entity');
+        q = q.where((eb) => eb.or([eb('entity_id', '=', entity), eb(sql<string>`cause->>'run'`, '=', entity)]));
+      }
+      return q.orderBy('id').limit(1000).execute();
     },
   },
   {

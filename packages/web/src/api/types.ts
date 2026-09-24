@@ -423,7 +423,8 @@ export type Knowledge = {
   updates: KnowledgeUpdate[];
 };
 
-export type SearchResult = { ref?: string; label?: string; kind?: string; body?: string; [k: string]: unknown };
+/** A search result over the current knowledge (GET …/knowledge/search). */
+export type SearchResult = { ref: string; type: string; title: string; excerpt: string; epistemic_status: string; range: number };
 
 /** A run in the list (GET …/runs): its thread is its scope, or where its decision was born. */
 export type RunListItem = {

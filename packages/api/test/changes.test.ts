@@ -63,4 +63,22 @@ describe('API: changes since the last visit', () => {
     const none = await person.request('GET', `/api/projects/${projectId}/changes?since=${body.latest}`);
     expect(none.json<{ latest: string; things: Thing[] }>()).toEqual({ latest: body.latest, things: [] });
   });
+
+  it('AC-INT-001-10 the event log can be read for one entity, such as a run', async () => {
+    const { person } = api();
+    const created = await person.request('POST', '/api/projects', { name: 'Events of a run' });
+    const projectId = created.json<{ project_id: string }>().project_id;
+    const request = (text: string) =>
+      person.request('POST', `/api/projects/${projectId}/commands/run.request`, {
+        data: { action: 'echo', scope: { type: 'project' }, input: { text } },
+      });
+    const run = (await request('a')).json<{ entity_id: string }>().entity_id;
+    await request('b');
+    const r = await person.request('GET', `/api/projects/${projectId}/events?entity=${run}`);
+    expect(r.statusCode).toBe(200);
+    const events = r.json<{ entity_id: string; command: string }[]>();
+    expect(events.length).toBeGreaterThan(0);
+    expect(events.every((e) => e.entity_id === run)).toBe(true);
+    expect(events[0]?.command).toBe('run.request');
+  });
 });

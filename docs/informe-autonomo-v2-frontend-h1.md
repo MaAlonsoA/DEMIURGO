@@ -86,3 +86,19 @@ Todos en inglés, de solo lectura salvo el CSRF, y con sus pruebas en `packages/
 ### Arnés E2E (no es código de producción)
 
 `packages/web/test/e2e/support/server.ts` envuelve el agente y el clasificador simulados con marcas para provocar cada estado desde las pruebas: `[slow]`, `[fail-once]`, `[invalid]` y `[classifier-fails]` (el clasificador falla sus tres intentos y la actualización queda rechazada; el reintento de la persona funciona).
+
+## 4. Dependencias
+
+Versiones exactas, resueltas por pnpm respetando el `minimumReleaseAge` de 3 días (ninguna hubo que bajarla a mano). Vite es la 8.3.0, la misma que ya usaba Vitest.
+
+| Paquete | Versión | Dentro del stack de ADR-WEB-001 |
+|---|---|---|
+| `react`, `react-dom` | 19.3.0 | Sí |
+| `@tanstack/react-router` / `@tanstack/react-query` | 1.170.38 / 5.103.2 | Sí |
+| `vite`, `@vitejs/plugin-react` | 8.3.0 / 6.1.1 | Sí |
+| `tailwindcss`, `@tailwindcss/vite` | 4.3.3 | Sí |
+| `radix-ui` (primitivas de shadcn/ui), `class-variance-authority`, `clsx`, `tailwind-merge` | 1.6.7, 0.7.1, 2.1.1, 3.7.0 | Sí: son las dependencias de shadcn/ui; los componentes se escriben en el repo, reestilizados con los tokens |
+| `@playwright/test`, `@axe-core/playwright` | 1.63.0 / 4.13.0 | Sí |
+| `@fastify/static` (en la API) | 10.1.4 | Sí (sección 4 del brief) |
+| **`react-markdown`, `remark-gfm`** | 10.1.0 / 4.0.1 | **No.** Muestran las secciones de los registros en markdown, con tablas, sin HTML crudo |
+| **`@fontsource-variable/instrument-sans`, `@fontsource-variable/jetbrains-mono`** | 5.3.0 | **No.** Las dos tipografías del spec, servidas desde el propio build en lugar de Google Fonts: sin peticiones a terceros y con capturas estables |

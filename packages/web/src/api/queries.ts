@@ -164,3 +164,10 @@ export const changesQuery = (p: string, since: string) =>
     queryFn: () => get<Changes>(`${P(p)}/changes?since=${since}`),
     staleTime: Infinity,
   });
+
+/** The events of one entity (a run, a batch…), oldest first. */
+export const entityEventsQuery = (p: string, entityId: string) =>
+  queryOptions({
+    queryKey: ['p', p, 'events', 'entity', entityId] as const,
+    queryFn: () => get<EventRow[]>(`${P(p)}/events?entity=${entityId}`),
+  });

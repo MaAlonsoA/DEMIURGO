@@ -24,6 +24,8 @@ import { StateMark } from '../../ui/marks.tsx';
 import { Reasons } from '../../ui/Reasons.tsx';
 import { StageBars, WhoMark, whoLabel } from '../../ui/signals.tsx';
 import { TYPE_WORDS, whoOf } from '../../words.ts';
+import { BlueprintFrame } from '../blueprint/Rail.tsx';
+import { RecordSectionPanel, RecordSectionTabs, useRecordTab } from '../blueprint/Sections.tsx';
 import { NotFound } from '../not-found/NotFound.tsx';
 import { type NeedsItem, needsItems } from '../overview/needs.ts';
 import { Checks } from './Checks.tsx';
@@ -276,12 +278,18 @@ export function RecordScreen() {
   const version = r ? selectVersion(r, search.v) : undefined;
   if (!r || !version) {
     return (
-      <Page aside={<Skeleton className="h-40 w-full" />}>
-        {record.error ? <Reasons error={record.error} /> : <RecordSkeleton />}
-      </Page>
+      <BlueprintFrame projectId={projectId} code={code}>
+        <Page aside={<Skeleton className="h-40 w-full" />}>
+          {record.error ? <Reasons error={record.error} /> : <RecordSkeleton />}
+        </Page>
+      </BlueprintFrame>
     );
   }
-  return <RecordPage projectId={projectId} record={r} version={version} state={state.data} inbox={inbox.data} />;
+  return (
+    <BlueprintFrame projectId={projectId} code={code}>
+      <RecordPage projectId={projectId} record={r} version={version} state={state.data} inbox={inbox.data} />
+    </BlueprintFrame>
+  );
 }
 
 function RecordPage({
@@ -297,6 +305,7 @@ function RecordPage({
   state: Parameters<typeof versionIndex>[0];
   inbox: Parameters<typeof versionIndex>[1];
 }) {
+  const tab = useRecordTab();
   const readiness = useQuery({ ...readinessQuery(projectId, version.id), enabled: record.type !== 'decision' });
   const ready = record.type === 'decision' ? null : (readiness.data ?? version.readiness);
   const thread = version.origin_exploration
@@ -343,11 +352,27 @@ function RecordPage({
       }}
     />
   );
+  // The sections other than Overview (canvas B2): Questions carries its own "If you confirm" aside.
+  if (tab !== 'overview') {
+    return (
+      <Page
+        aside={tab === 'questions' ? undefined : aside}
+        asideFooter={tab === 'questions' ? undefined : askBar}
+        className="[&>*]:max-w-[1100px]"
+      >
+        <Breadcrumbs items={[{ label: 'Product', to: '/p/$projectId', params: { projectId } }, { label: version.title }]} />
+        <Header projectId={projectId} record={record} version={version} />
+        <RecordSectionTabs projectId={projectId} record={record} version={version} tab={tab} />
+        <RecordSectionPanel projectId={projectId} record={record} version={version} readiness={ready} tab={tab} />
+      </Page>
+    );
+  }
   return (
     <ReviewProvider review={review}>
       <Page aside={aside} asideFooter={askBar} className="[&>*]:max-w-[900px]">
         <Breadcrumbs items={[{ label: 'Product', to: '/p/$projectId', params: { projectId } }, { label: version.title }]} />
         <Header projectId={projectId} record={record} version={version} />
+        <RecordSectionTabs projectId={projectId} record={record} version={version} tab={tab} />
         {reviewable ? (
           <ReviewBand
             projectId={projectId}

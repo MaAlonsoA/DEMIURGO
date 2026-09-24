@@ -191,7 +191,11 @@ test('AC-INT-001-08 without reasons it says Ready to build with the first bar fu
   await expect(page.locator('[data-record-header] [data-stage]')).toHaveAttribute('data-stage', 'doubt');
   await expect(aside.getByRole('heading', { name: 'Before it can be built' })).toBeVisible();
   await expect(aside.locator('[data-readiness-reasons] li')).toHaveText(readiness.reasons);
-  await expect(page.getByText('Ready to build', { exact: true })).toHaveCount(0);
+  // Not on the record itself nor on its line of the blueprint rail, which also shows the project (named Ready to build).
+  await expect(page.getByRole('main').or(aside).getByText('Ready to build', { exact: true })).toHaveCount(0);
+  const inRail = page.getByRole('navigation', { name: 'Blueprint' }).locator(`[data-rail-record="${fdr.code}"]`);
+  await expect(inRail).toContainText('Needs you');
+  await expect(inRail).not.toContainText('Ready to build');
   // What it touches still names the version it was based on, now replaced by a newer one.
   const touched = context.locator(`[data-link-target="${dec.code}"]`);
   await expect(touched).toContainText('Activities are public');

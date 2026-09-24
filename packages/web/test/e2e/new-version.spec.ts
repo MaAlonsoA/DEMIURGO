@@ -17,7 +17,8 @@ test('AC-INT-001-06 a new version cannot be saved without a note or a choice per
 }) => {
   const { projectId, fdr } = await approvedFeature(person, 'New version');
   await page.goto(`/p/${projectId}/records/${fdr.code}`);
-  await page.getByRole('link', { name: 'New version' }).click();
+  // The project is called New version too: its link in the blueprint rail is not the one.
+  await page.locator('[data-record-actions]').getByRole('link', { name: 'New version' }).click();
   await expect(page).toHaveURL(`${BASE_URL}/p/${projectId}/records/${fdr.code}/new-version`);
   await expect(page.getByRole('heading', { level: 1, name: /New version of Activity catalog/ })).toBeVisible();
 

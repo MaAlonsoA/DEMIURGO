@@ -12,6 +12,7 @@ import { ChevronDown } from '../../ui/icons.tsx';
 import { NeedsBubble, WhoGlyph } from '../../ui/signals.tsx';
 import { Tip } from '../../ui/Tip.tsx';
 import { useLegendMark } from '../../ui/legend-store.ts';
+import { Search } from './Search.tsx';
 
 type Tab = { label: string; to: string; match: RegExp; needs?: boolean };
 
@@ -70,6 +71,7 @@ export function Header() {
         })}
       </nav>
       <div className="ml-auto flex items-center gap-5">
+        <Search projectId={projectId} />
         <Freshness projectId={projectId} />
         <PersonMenu />
       </div>

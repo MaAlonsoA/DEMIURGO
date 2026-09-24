@@ -1,4 +1,5 @@
-# DEMIURGO v2 CI: four chained stages that together run all of `pnpm gate:all`.
+# DEMIURGO v2 CI: four chained stages that together run all of `pnpm gate:all` (the web walks run
+# with the integration tests, which have Postgres).
 # Each test stage leaves its JUnit report as an artifact; the last one gathers them in `reports/`
 # and computes AC → test traceability (`pnpm gate:traceability`) from the tests that passed.
 name: CI
@@ -45,7 +46,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
       - run: corepack enable pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm vitest run --project unit --reporter=default --reporter=junit --outputFile.junit=reports/junit-unit.xml
+      - run: pnpm vitest run --project unit --project web --reporter=default --reporter=junit --outputFile.junit=reports/junit-unit.xml
       - uses: actions/upload-artifact@v4
         with:
           name: junit-unit
@@ -83,6 +84,16 @@ jobs:
         with:
           name: junit-integration
           path: reports/junit-integration.xml
+          if-no-files-found: error
+      # Web walks (ADR-WEB-001): build of packages/web and Playwright with axe against the API.
+      - run: pnpm --filter @demiurgo/web exec playwright install --with-deps chromium
+      - run: pnpm gate:e2e
+        env:
+          CI: 'true'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: junit-e2e
+          path: reports/junit-e2e.xml
           if-no-files-found: error
 
   invariants:

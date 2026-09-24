@@ -40,6 +40,14 @@ export async function verifyPassword(password: string, saved: string): Promise<b
 export const secretFingerprint = (s: string): string => createHash('sha256').update(s, 'utf8').digest('hex');
 export const newSecret = (prefix = ''): string => `${prefix}${randomBytes(32).toString('base64url')}`;
 
+/**
+ * CSRF token of a session, derived from its secret token: only whoever holds the httpOnly cookie
+ * can obtain it (from the same origin, with `GET /api/session`), so a reloaded page can still write.
+ * The database keeps only its fingerprint.
+ */
+export const sessionCsrf = (token: string): string =>
+  createHash('sha256').update(`demiurgo-csrf:${token}`, 'utf8').digest('base64url');
+
 export async function createPerson(db: Db, username: string, password: string): Promise<string> {
   if (password.length < 12) throw new DomainError('validation', 'The password must be at least 12 characters.');
   const { id } = await db
@@ -59,7 +67,7 @@ export async function openSession(db: Db, username: string, password: string, ho
     : await verifyPassword(password, 'scrypt$16384$8$1$AAAA$AAAA');
   if (!person || !ok) throw new DomainError('unauthenticated', 'Incorrect username or password.');
   const token = newSecret();
-  const csrf = newSecret();
+  const csrf = sessionCsrf(token);
   const expires = new Date(Date.now() + hours * 3_600_000);
   await db
     .insertInto('sessions')

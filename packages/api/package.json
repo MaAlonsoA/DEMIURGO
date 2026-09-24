@@ -10,6 +10,7 @@
     "@demiurgo/design": "workspace:*",
     "@demiurgo/domain": "workspace:*",
     "@fastify/cookie": "11.1.2",
+    "@fastify/static": "10.1.4",
     "fastify": "5.12.5",
     "pg": "8.23.0",
     "zod": "4.6.5"

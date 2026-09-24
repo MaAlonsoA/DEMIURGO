@@ -6,22 +6,25 @@
     "node": ">=24.21.0"
   },
   "scripts": {
-    "gate:types": "tsc -p tsconfig.json --noEmit",
+    "gate:types": "tsc -p tsconfig.json --noEmit && tsc -p packages/web/tsconfig.json --noEmit && tsc -p packages/web/tsconfig.node.json --noEmit",
     "gate:lint": "oxlint --type-aware --deny-warnings",
     "gate:format": "biome format .",
     "gate:design": "node packages/design/src/cli.ts validate",
     "gate:drift": "node packages/design/src/cli.ts derive --check",
-    "gate:test": "vitest run --project unit --project integration --reporter=default --reporter=junit --outputFile.junit=reports/junit-tests.xml",
+    "gate:test": "vitest run --project unit --project web --project integration --reporter=default --reporter=junit --outputFile.junit=reports/junit-tests.xml",
     "gate:invariants": "vitest run --project invariants --reporter=default --reporter=junit --outputFile.junit=reports/junit-invariants.xml",
+    "gate:e2e": "pnpm web:build && pnpm --filter @demiurgo/web exec playwright test",
     "gate:traceability": "node packages/design/src/cli.ts traceability",
-    "gate:all": "pnpm gate:types && pnpm gate:lint && pnpm gate:format && pnpm gate:design && pnpm gate:drift && pnpm gate:test && pnpm gate:invariants && pnpm gate:traceability",
+    "gate:all": "pnpm gate:types && pnpm gate:lint && pnpm gate:format && pnpm gate:design && pnpm gate:drift && pnpm gate:test && pnpm gate:invariants && pnpm gate:e2e && pnpm gate:traceability",
     "format": "biome format --write .",
     "gen": "node packages/design/src/cli.ts derive --write",
     "db:up": "docker compose -p demiurgo-v2-dev -f compose.dev.yaml up -d --wait",
     "db:down": "docker compose -p demiurgo-v2-dev -f compose.dev.yaml down",
     "instance:db": "docker compose -p demiurgo-v2 -f compose.instance.yaml up -d --wait",
     "instance:api": "node packages/api/src/main.ts",
-    "cli": "node packages/api/src/cli.ts"
+    "cli": "node packages/api/src/cli.ts",
+    "web:dev": "pnpm --filter @demiurgo/web dev",
+    "web:build": "pnpm --filter @demiurgo/web build"
   },
   "packageManager": "pnpm@11.27.1+sha512.a81d4c21b9b09a4b0aebf90ef5e527d4262bdda322d26082978cb549023ac6d9cafc98b19fffaa5c71db438a65f70224edb78d7311187861ff96480d1cdca23c",
   "devDependencies": {

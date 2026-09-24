@@ -3,6 +3,7 @@
 // declares an actor.
 
 import cookie from '@fastify/cookie';
+import fastifyStatic from '@fastify/static';
 import {
   type Actor,
   CAPABILITIES,
@@ -23,6 +24,7 @@ import {
   openSession,
   closeSession,
   secretFingerprint,
+  sessionCsrf,
   resolveSession,
   resolveAgentToken,
 } from './credentials.ts';
@@ -37,6 +39,8 @@ export type ServerOptions = {
   /** If set, requests with another Host are rejected (defense against DNS rebinding). */
   allowedHosts?: readonly string[];
   secureCookie?: boolean;
+  /** Folder with the web build (packages/web/dist): served from the same origin as the API. */
+  webRoot?: string;
 };
 
 declare module 'fastify' {
@@ -137,7 +141,10 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
   app.get('/api/session', async (req) => {
     const c = req.credential;
     if (c.type === 'none') throw new DomainError('unauthenticated', 'No session.');
-    return { actor: c.actor, type: c.type };
+    // The CSRF token is derived from the cookie's token: it is only returned if it is the one of this session.
+    const token = req.cookies[SESSION_COOKIE];
+    const csrf = c.type === 'person' && token && secretFingerprint(sessionCsrf(token)) === c.csrfHash ? sessionCsrf(token) : null;
+    return { actor: c.actor, type: c.type, csrf };
   });
 
   app.delete('/api/session', async (req, reply) => {
@@ -193,11 +200,23 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
   });
 
   // Incremental SSE stream of the event log: with Last-Event-ID only later events arrive.
+  // With ?from=latest (and no Last-Event-ID) it starts now: it announces the latest event with a
+  // "ready" event, whose id the browser sends back when it reconnects.
   app.get('/api/projects/:projectId/events/stream', async (req, reply: FastifyReply) => {
     const { projectId } = req.params as { projectId: string };
     requireQuery(req, 'query.events', projectId);
     const header = req.headers['last-event-id'];
+    const fromLatest = typeof header !== 'string' && (req.query as { from?: string }).from === 'latest';
     let last = Number(typeof header === 'string' && /^\d+$/.test(header) ? header : '0');
+    if (fromLatest) {
+      const newest = await services.db
+        .selectFrom('events')
+        .select('id')
+        .where('project_id', '=', projectId)
+        .orderBy('id', 'desc')
+        .executeTakeFirst();
+      last = Number(newest?.id ?? '0');
+    }
     reply.hijack();
     const raw = reply.raw;
     raw.writeHead(200, {
@@ -205,6 +224,7 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
       'cache-control': 'no-cache',
       connection: 'keep-alive',
     });
+    if (fromLatest) raw.write(`id: ${last}\nevent: ready\ndata: ${JSON.stringify({ latest: String(last) })}\n\n`);
     let sending = false;
     let again = false;
     const send = async (): Promise<void> => {
@@ -246,7 +266,26 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
   });
 
   for (const c of QUERIES) registerQuery(app, services, c);
+  if (op.webRoot) await serveWeb(app, op.webRoot);
+  app.setNotFoundHandler((req, reply) => {
+    // Outside /api, a GET is a route of the web app: it gets index.html and the app resolves it.
+    if (op.webRoot && req.method === 'GET' && !req.url.startsWith('/api')) {
+      return reply.header('cache-control', 'no-cache').sendFile('index.html');
+    }
+    return reply.status(404).send({ error: 'not_found', message: 'That route does not exist.', reasons: [] });
+  });
   return app;
+}
+
+async function serveWeb(app: FastifyInstance, root: string): Promise<void> {
+  await app.register(fastifyStatic, {
+    root,
+    cacheControl: false,
+    setHeaders(reply, path) {
+      // Vite fingerprints what goes in assets/: it can be cached forever. The rest is revalidated.
+      reply.header('cache-control', /[\\/]assets[\\/]/.test(path) ? 'public, max-age=31536000, immutable' : 'no-cache');
+    },
+  });
 }
 
 function registerQuery(app: FastifyInstance, services: Services, c: QueryRoute): void {

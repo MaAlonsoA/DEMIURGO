@@ -3,12 +3,14 @@
   "files": {
     "includes": [
       "packages/**/*.ts",
+      "packages/**/*.tsx",
       "packages/**/*.json",
       "*.ts",
       "*.json",
       "!**/node_modules",
       "!**/generated",
       "!reports",
+      "!**/dist",
       "!evals/**/results",
       "!packages/core/test/fixtures/claude-cli",
       "!!.claude"

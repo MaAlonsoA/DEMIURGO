@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitest/config';
 
-// Three projects: unit (no I/O), integration (ephemeral Postgres and Docker) and invariants.
+// Four projects: unit (no I/O), web (the UI's components and logic), integration (ephemeral
+// Postgres and Docker) and invariants.
 // Each script asks for its own JUnit report (`reports/junit-*.xml`), which
 // `pnpm gate:traceability` reads.
 export default defineConfig({
@@ -12,6 +13,13 @@ export default defineConfig({
           name: 'unit',
           include: ['packages/{domain,design}/test/**/*.test.ts'],
           exclude: ['**/invariants/**', '**/node_modules/**'],
+        },
+      },
+      {
+        // Web components and the UI's pure logic: rendered to markup, without a browser.
+        test: {
+          name: 'web',
+          include: ['packages/web/test/unit/**/*.test.{ts,tsx}'],
         },
       },
       {

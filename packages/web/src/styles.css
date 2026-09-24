@@ -1,0 +1,185 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/instrument-sans';
+@import '@fontsource-variable/jetbrains-mono';
+
+/* Design tokens (spec §5). The neutral look of the canvas is the first set of tokens: the visual
+   direction is decided later, so components only use these names, never raw colors. */
+@theme {
+  --color-*: initial;
+  --color-transparent: transparent;
+  --color-white: #ffffff;
+  --color-paper: #f5f4f0;
+  --color-surface: #ffffff;
+  --color-surface-2: #fbfaf7;
+  --color-ink: #1d1c1a;
+  --color-ink-2: #3e3b36;
+  --color-ink-3: #5b5850;
+  --color-muted: #6e6a62;
+  --color-line: #e3e0d8;
+  --color-line-soft: #efede7;
+  --color-line-strong: #d6d2c8;
+  --color-bar-empty: #bdb8ac;
+  --color-needs: #2b4acb;
+  --color-needs-hover: #1e3599;
+  --color-needs-ring: #dce3fb;
+  --color-needs-bg: #f4f6fe;
+  --color-working: #b7791f;
+  --color-working-bar: #d69a2d;
+  --color-working-text: #6b4608;
+  --color-working-bg: #f6edda;
+  --color-problem: #9a3412;
+  --color-problem-fill: #b4461b;
+  --color-problem-bg: #fbefe9;
+  --color-problem-line: #efc9b8;
+  --color-inactive: #8c877b;
+  --color-inactive-light: #c4bfb3;
+  --color-tooltip: #1d1c1a;
+
+  --font-sans: 'Instrument Sans Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', Consolas, monospace;
+
+  --radius-card: 12px;
+  --radius-panel: 14px;
+  --radius-control: 8px;
+
+  --animate-fade-in: fade-in 120ms ease-out;
+  --animate-pulse-soft: pulse-soft 1.6s ease-in-out infinite;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(2px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes pulse-soft {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.55;
+    }
+  }
+}
+
+@layer base {
+  html,
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    min-width: 1280px;
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-needs);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  button:not(:disabled),
+  [role='button'] {
+    cursor: pointer;
+  }
+  ::selection {
+    background: var(--color-needs-ring);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@layer components {
+  /* Record prose (sections): markdown as it was written. */
+  .prose-record {
+    color: var(--color-ink);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .prose-record > * + * {
+    margin-top: 0.6em;
+  }
+  .prose-record h1,
+  .prose-record h2,
+  .prose-record h3,
+  .prose-record h4 {
+    font-weight: 600;
+    margin-top: 1em;
+  }
+  .prose-record ul {
+    list-style: disc;
+    padding-left: 1.25em;
+  }
+  .prose-record ol {
+    list-style: decimal;
+    padding-left: 1.4em;
+  }
+  .prose-record li + li {
+    margin-top: 0.2em;
+  }
+  .prose-record li > ul,
+  .prose-record li > ol {
+    margin-top: 0.2em;
+  }
+  .prose-record code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-line-soft);
+    border-radius: 4px;
+    padding: 0 3px;
+  }
+  .prose-record pre {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-line);
+    border-radius: 8px;
+    padding: 10px 12px;
+    overflow-x: auto;
+  }
+  .prose-record pre code {
+    border: 0;
+    padding: 0;
+    background: transparent;
+  }
+  .prose-record table {
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .prose-record th,
+  .prose-record td {
+    border: 1px solid var(--color-line);
+    padding: 4px 8px;
+    text-align: left;
+    vertical-align: top;
+  }
+  .prose-record th {
+    background: var(--color-surface-2);
+    font-weight: 600;
+  }
+  .prose-record a {
+    color: var(--color-needs);
+    text-decoration: underline;
+  }
+  .prose-record strong {
+    font-weight: 600;
+  }
+  .prose-record blockquote {
+    border-left: 3px solid var(--color-line-strong);
+    padding-left: 10px;
+    color: var(--color-ink-2);
+  }
+}

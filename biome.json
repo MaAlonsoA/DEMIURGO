@@ -10,7 +10,8 @@
       "!**/generado",
       "!reports",
       "!evals/**/resultados",
-      "!packages/core/test/fixtures/claude-cli"
+      "!packages/core/test/fixtures/claude-cli",
+      "!!.claude"
     ]
   },
   "formatter": {

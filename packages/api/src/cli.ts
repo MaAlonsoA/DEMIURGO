@@ -5,7 +5,7 @@
 //   node packages/api/src/cli.ts ejecucion-real <proyectoId> <accion> <json-alcance> [json-entrada]
 //   node packages/api/src/cli.ts evaluar-clasificador [prueba|desarrollo|todas]   (usa DEMIURGO_CLASIFICADOR)
 //   node packages/api/src/cli.ts importar-diseno <proyectoId> [dir]                (crea el lote pendiente de H1)
-//   node packages/api/src/cli.ts exportar-diseno <proyectoId> [--comprobar dir | --salida dir]
+//   node packages/api/src/cli.ts exportar-diseno <proyectoId> [--comprobar dir | --salida dir | dir]
 
 import {
   type Particion,
@@ -23,7 +23,7 @@ import {
   migrar,
   registroConsola,
 } from '@demiurgo/core';
-import { escribirArbol, leerArbol } from '@demiurgo/design';
+import { leerArbol, reemplazarArbol } from '@demiurgo/design';
 import { sistema } from '@demiurgo/domain';
 import { crearPersona } from './credenciales.ts';
 
@@ -138,7 +138,7 @@ ordenes['importar-diseno'] = async () => {
 
 ordenes['exportar-diseno'] = async () => {
   const [proyectoId, opcion, dir] = args;
-  if (!proyectoId) throw new Error('Uso: exportar-diseno <proyectoId> [--comprobar dir | --salida dir]');
+  if (!proyectoId) throw new Error('Uso: exportar-diseno <proyectoId> [--comprobar dir | --salida dir | dir]');
   await conBase(async (c) => {
     if (opcion === '--comprobar') {
       const difs = await compararExportacion(c.db, proyectoId, await leerArbol(dir ?? 'design'));
@@ -150,9 +150,13 @@ ordenes['exportar-diseno'] = async () => {
       console.log(`✓ La exportación coincide byte a byte con ${dir ?? 'design'}/.`);
       return;
     }
+    // Sin bandera, el segundo argumento es el directorio de salida.
+    const destino = (opcion === '--salida' ? dir : opcion) ?? 'design-exportado';
+    if (destino.startsWith('--')) throw new Error(`Opción desconocida: ${destino}.`);
     const arbol = await exportarDiseno(c.db, proyectoId);
-    await escribirArbol(dir ?? 'design-exportado', arbol);
-    console.log(`Exportados ${arbol.size} archivo(s) en ${dir ?? 'design-exportado'}/.`);
+    const borrados = await reemplazarArbol(destino, arbol);
+    console.log(`Exportados ${arbol.size} archivo(s) en ${destino}/.`);
+    for (const r of borrados) console.log(`  borrado ${r}: ya no está en la v2.`);
   });
 };
 
@@ -165,6 +169,9 @@ if (!accion) {
     await accion();
   } catch (e) {
     console.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
+    // Los motivos de una guarda dicen qué falta, documento a documento.
+    const motivos = (e as { motivos?: unknown }).motivos;
+    if (Array.isArray(motivos)) for (const m of motivos) console.error(`  - ${String(m)}`);
     process.exitCode = 1;
   }
 }

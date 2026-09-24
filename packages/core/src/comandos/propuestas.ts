@@ -84,6 +84,10 @@ registrarGuardas({
     if (ctx.actor.tipo === 'agent_external' && !['decision', 'exploracion', 'fdr'].includes(tipo)) {
       return `Un agente externo no puede proponer «${tipo}».`;
     }
+    // Lo importado de design/ solo lo propone la importación: aceptarlo crea autoridad con el estado del archivo.
+    if (['registro_importado', 'taxonomia_importada'].includes(tipo) && ctx.causa.comandoOrigen !== 'design.import') {
+      return `Solo la importación de design/ propone «${tipo}».`;
+    }
     const r = CARGAS[tipo].safeParse(campo(datos, 'carga'));
     return r.success
       ? null

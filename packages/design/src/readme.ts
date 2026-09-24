@@ -15,11 +15,11 @@ Esta carpeta es la autoridad de diseño **hasta H1**: la persona aprueba los cam
 | \`taxonomia/\` | Taxonomías del conocimiento | \`TAX-NNN\` |
 | \`datos/\` | Tablas como datos, anexas a un registro | \`DAT-XXX-NNN\` |
 
-Cada archivo se llama \`<código>.md\` y contiene la versión vigente de su registro.
+Cada archivo se llama \`<código>.md\` y contiene la versión en curso de su registro: la última que no se ha descartado.
 
 ## Formato fijo
 
-1. **Frontmatter YAML** con, en este orden: \`codigo\`, \`tipo\`, \`titulo\`, \`version\` (desde 1), \`estado\` (\`propuesto\`, \`aprobado\`, \`sustituido\` o \`descartado\`), \`dominio\`, \`incremento\` (opcional), \`nota_de_cambio\` (opcional), \`enlaces\` (lista de \`tipo\` y \`destino: CODIGO@version\`, con la versión vigente del registro de destino) y \`anexos\`.
+1. **Frontmatter YAML** con, en este orden: \`codigo\`, \`tipo\`, \`titulo\`, \`version\` (desde 1), \`estado\` (\`propuesto\` o \`aprobado\`), \`dominio\`, \`incremento\` (opcional), \`nota_de_cambio\` (opcional), \`enlaces\` (lista de \`tipo\` y \`destino: CODIGO@version\`, con la versión de destino que está en \`design/\` o una anterior que ya esté en la v2) y \`anexos\`.
 2. **Título**: \`# <código> · <título>\`.
 3. **Secciones** \`## \` con la plantilla de su tipo, en orden:
    - decisión: Contexto, Decisión, Consecuencias;

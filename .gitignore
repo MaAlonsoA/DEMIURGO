@@ -29,3 +29,5 @@ __pycache__/
 /frontend/
 /migrations/
 /tests/
+# Worktrees locales de agentes.
+.claude/worktrees/

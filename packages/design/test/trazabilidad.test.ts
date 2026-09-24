@@ -138,12 +138,10 @@ describe('trazabilidad AC → prueba', () => {
     expect(mapa.sinPrueba).toEqual([]);
   });
 
-  it('AC-FMT-001-05 solo exige prueba a los criterios automáticos vigentes de incrementos implementados', () => {
+  it('AC-FMT-001-05 solo exige prueba a los criterios automáticos de incrementos implementados', () => {
     const registros = [
       ADR,
       registro('fdr', 'FDR-OTR-001', { incremento: 'S1' }),
-      registro('adr', 'ADR-TST-002', { incremento: 'D0', estado: 'descartado' }),
-      registro('adr', 'ADR-TST-003', { incremento: 'D0', estado: 'sustituido' }),
       registro('decision', 'DEC-TST-001', { criterios: [criterio('AC-TST-001-09')] }),
     ];
     const casos = casosDeJUnit(junit([{ nombre: 'AC-TST-001-01 AC-TST-001-02 cumple' }]));

@@ -41,6 +41,11 @@ export const esquemaCriterioEntrada = z.discriminatedUnion('arrastre', [
         .string()
         .regex(/^AC-[A-Z]{3}-\d{3}-\d{2}$/)
         .optional(),
+      // Un criterio nuevo puede derivar de otro del proyecto con otro código.
+      deriva_de: z
+        .string()
+        .regex(/^AC-[A-Z]{3}-\d{3}-\d{2}$/)
+        .optional(),
       ...contenidoCriterio,
     })
     .strict(),
@@ -119,16 +124,17 @@ export async function resolverReferencia(trx: Tx, proyectoId: string, codigo: st
     .executeTakeFirst();
 }
 
+// La parte DOM-NNN de un código es única entre tipos: sus criterios se llaman AC-DOM-NNN-NN.
 async function siguienteCodigo(trx: Tx, proyectoId: string, tipo: TipoRegistro, dominio: string): Promise<string> {
-  const base = `${PREFIJO_REGISTRO[tipo]}-${dominio.replaceAll('_', '').slice(0, 3).toUpperCase().padEnd(3, 'X')}`;
+  const dom = dominio.replaceAll('_', '').slice(0, 3).toUpperCase().padEnd(3, 'X');
   const filas = await trx
     .selectFrom('records')
     .select('code')
     .where('project_id', '=', proyectoId)
-    .where('code', 'like', `${base}-%`)
+    .where('code', 'like', `___-${dom}-___`)
     .execute();
   const max = filas.reduce((m, f) => Math.max(m, Number(f.code.slice(-3))), 0);
-  return `${base}-${String(max + 1).padStart(3, '0')}`;
+  return `${PREFIJO_REGISTRO[tipo]}-${dom}-${String(max + 1).padStart(3, '0')}`;
 }
 
 registrarGuardas({
@@ -137,11 +143,14 @@ registrarGuardas({
     if (!codigo) return null;
     const previo = await ctx.trx
       .selectFrom('records')
-      .select('id')
+      .select('code')
       .where('project_id', '=', ctx.proyectoId)
-      .where('code', '=', codigo)
+      .where('code', 'like', `___-${codigo.slice(4)}`)
       .executeTakeFirst();
-    return previo ? `El código ${codigo} ya existe en este proyecto.` : null;
+    if (!previo) return null;
+    return previo.code === codigo
+      ? `El código ${codigo} ya existe en este proyecto.`
+      : `${codigo} comparte ${codigo.slice(4)} con ${previo.code}: la parte DOM-NNN de un código es única entre tipos.`;
   },
 
   async plantilla_valida({ ctx, datos, entidad }) {
@@ -291,6 +300,21 @@ async function crearVersion(
     ).map((c) => c.code),
   );
   let siguiente = [...usados].reduce((m, c) => Math.max(m, Number(c.slice(-2))), 0);
+  // Criterios nuevos que derivan de otro: el de ese código en la última versión que lo contiene.
+  const derivados = new Map<string, string>();
+  for (const c of datos.criterios) {
+    if (c.arrastre !== 'new' || !c.deriva_de) continue;
+    const origen = await ctx.trx
+      .selectFrom('criteria')
+      .innerJoin('record_versions', 'record_versions.id', 'criteria.record_version_id')
+      .select('criteria.id')
+      .where('criteria.project_id', '=', ctx.proyectoId)
+      .where('criteria.code', '=', c.deriva_de)
+      .orderBy('record_versions.n', 'desc')
+      .executeTakeFirst();
+    if (!origen) throw new ErrorDominio('validacion', `${c.deriva_de}, del que deriva un criterio nuevo, no existe.`);
+    derivados.set(c.deriva_de, origen.id);
+  }
   const criterios = datos.criterios.map((c) => {
     if (c.arrastre === 'kept') {
       const p = porCodigo.get(c.codigo);
@@ -333,7 +357,7 @@ async function crearVersion(
       verificacion: c.verificacion,
       comprobacion: c.comprobacion,
       arrastre: 'new',
-      deriva: null,
+      deriva: c.deriva_de ? (derivados.get(c.deriva_de) ?? null) : null,
     };
   });
   const codigos = criterios.map((c) => c.codigo);
@@ -429,7 +453,7 @@ registrarManejadores({
           recordId: id,
           codigo,
           versionId: v.entidadId,
-          version: 1,
+          version: (v.resultado as { version: number }).version,
           avisos: (v.resultado as { avisos: string[] }).avisos,
         },
       };

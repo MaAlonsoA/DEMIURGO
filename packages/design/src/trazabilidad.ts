@@ -97,7 +97,6 @@ export function mapaTrazabilidad(
   const sinPrueba: MapaTrazabilidad['sinPrueba'] = [];
   for (const r of registros) {
     if (!r.incremento || !incrementosImplementados.includes(r.incremento)) continue;
-    if (r.estado === 'descartado' || r.estado === 'sustituido') continue;
     for (const c of r.criterios) {
       if (c.verificacion === 'automática' && !pruebasPorAc.has(c.codigo)) sinPrueba.push({ registro: r.codigo, ac: c.codigo });
     }

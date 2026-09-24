@@ -4,7 +4,8 @@
 export const TIPOS_REGISTRO = ['decision', 'adr', 'fdr', 'bug'] as const;
 export type TipoRegistro = (typeof TIPOS_REGISTRO)[number];
 
-export const ESTADOS_DOCUMENTO = ['propuesto', 'aprobado', 'sustituido', 'descartado'] as const;
+// design/ guarda la versión en curso de cada registro: en borrador (propuesto) o aprobada.
+export const ESTADOS_DOCUMENTO = ['propuesto', 'aprobado'] as const;
 export type EstadoDocumento = (typeof ESTADOS_DOCUMENTO)[number];
 
 export const VERIFICACIONES = ['automática', 'manual'] as const;

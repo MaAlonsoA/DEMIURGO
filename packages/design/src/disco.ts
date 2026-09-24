@@ -1,7 +1,8 @@
 // Lectura y escritura de un árbol `design/` en disco.
 
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, sep } from 'node:path';
+import { README_DISENO } from './readme.ts';
 
 export async function leerArbol(dir: string): Promise<Map<string, string>> {
   const arbol = new Map<string, string>();
@@ -21,6 +22,21 @@ export async function escribirArbol(dir: string, arbol: ReadonlyMap<string, stri
     await mkdir(dirname(destino), { recursive: true });
     await writeFile(destino, texto, 'utf8');
   }
+}
+
+/**
+ * Deja en `dir` exactamente el árbol dado: escribe sus archivos y borra los que sobran. Solo actúa
+ * sobre un directorio vacío o que ya es un design/ (su README es el fijo); devuelve lo borrado.
+ */
+export async function reemplazarArbol(dir: string, arbol: ReadonlyMap<string, string>): Promise<string[]> {
+  const previo = await leerArbol(dir).catch(() => new Map<string, string>());
+  if (previo.size > 0 && previo.get('README.md') !== README_DISENO) {
+    throw new Error(`${dir}/ no está vacío ni es un design/: elige otro directorio.`);
+  }
+  const sobran = [...previo.keys()].filter((r) => !arbol.has(r)).sort();
+  for (const r of sobran) await rm(join(dir, ...r.split('/')));
+  await escribirArbol(dir, arbol);
+  return sobran;
 }
 
 /** Compara dos árboles y devuelve las diferencias legibles (vacío si son idénticos). */

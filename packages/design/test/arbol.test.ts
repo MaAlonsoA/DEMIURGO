@@ -90,16 +90,28 @@ describe('códigos, enlaces y anexos', () => {
     expect(problemas(arbolCon([DECISION, adr]))).toEqual(['El enlace based_on apunta a DEC-NOE-001, que no existe.']);
   });
 
-  it('AC-FMT-001-02 un enlace apunta a la versión vigente de su destino, la de su archivo', () => {
+  it('AC-FMT-001-02 un enlace apunta a la versión de su destino en design/ o a una anterior, nunca a una posterior', () => {
     expect(problemas(arbolCon([DECISION, enlaceA(2)]))).toEqual([
-      'El enlace design_of apunta a DEC-BAS-001@2, pero la versión vigente es la 1: un enlace apunta a la versión vigente de su destino.',
+      'El enlace design_of apunta a DEC-BAS-001@2, posterior a la versión 1 de design/.',
     ]);
     const segunda = registro('decision', 'DEC-BAS-001', { version: 2, notaDeCambio: 'Aclara el contexto.' });
     expect(problemas(arbolCon([segunda, enlaceA(2)]))).toEqual([]);
-    // design/ no guarda la versión 1 de DEC-BAS-001: la importación no podría materializar el enlace.
-    expect(problemas(arbolCon([segunda, enlaceA(1)]))).toEqual([
-      'El enlace design_of apunta a DEC-BAS-001@1, pero la versión vigente es la 2: un enlace apunta a la versión vigente de su destino.',
-    ]);
+    // Un enlace mantenido tras revisarlo sigue en la versión 1: la importación comprueba que la v2 la tiene.
+    expect(problemas(arbolCon([segunda, enlaceA(1)]))).toEqual([]);
+  });
+
+  it('AC-FMT-001-01 un documento solo está propuesto o aprobado: design/ guarda la versión en curso', () => {
+    const texto = renderizarDocumento(DECISION).replace('estado: propuesto', 'estado: sustituido');
+    const arbol = new Map(arbolCon([DECISION]));
+    arbol.set(rutaDe(DECISION), texto);
+    expect(problemas(arbol).join(' ')).toMatch(/estado/);
+  });
+
+  it('AC-FMT-001-01 los títulos, la nota de cambio y los textos de un criterio no empiezan ni acaban con espacios', () => {
+    const adr = registro('adr', 'ADR-TST-001', {
+      criterios: [criterio('AC-TST-001-01', { enunciado: '    Bloque indentado: cuando pasa, entonces se observa.' })],
+    });
+    expect(problemas(arbolCon([DECISION, adr]))).toEqual(['AC-TST-001-01: el enunciado empieza o acaba con espacios en blanco.']);
   });
 
   it('AC-FMT-001-02 la parte DOM-NNN de un código es única entre tipos', () => {

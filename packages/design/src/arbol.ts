@@ -106,6 +106,21 @@ function comprobarRegistros(registros: DocumentoRegistro[], anexos: Map<string, 
       problemas.push({ ruta, mensaje: 'Este tipo de registro exige al menos un criterio de aceptación.' });
     }
     if (r.version > 1 && !r.notaDeCambio) problemas.push({ ruta, mensaje: 'Una versión posterior a la 1 exige nota_de_cambio.' });
+    // La v2 guarda estos textos sin espacios al principio ni al final: si los tuvieran, la exportación no coincidiría.
+    const textos: [string, string | undefined][] = [
+      ['El título', r.titulo],
+      ['La nota de cambio', r.notaDeCambio],
+      ...r.criterios.flatMap((c): [string, string][] => [
+        [`${c.codigo}: el título`, c.titulo],
+        [`${c.codigo}: el enunciado`, c.enunciado],
+        [`${c.codigo}: la comprobación`, c.comprobacion],
+      ]),
+    ];
+    for (const [campo, valor] of textos) {
+      if (valor !== undefined && valor !== valor.trim()) {
+        problemas.push({ ruta, mensaje: `${campo} empieza o acaba con espacios en blanco.` });
+      }
+    }
     for (const c of r.criterios) {
       if (!c.codigo.startsWith(`AC-${base}-`)) {
         problemas.push({ ruta, mensaje: `${c.codigo}: el código de un criterio de ${r.codigo} empieza por AC-${base}-.` });
@@ -123,12 +138,12 @@ function comprobarRegistros(registros: DocumentoRegistro[], anexos: Map<string, 
       const destino = porCodigo.get(e.destino.codigo);
       if (!destino) {
         problemas.push({ ruta: rutaDe(r), mensaje: `El enlace ${e.tipo} apunta a ${e.destino.codigo}, que no existe.` });
-      } else if (e.destino.version !== destino.version) {
-        // design/ solo guarda la versión vigente de cada registro: la importación no podría
-        // materializar un enlace a otra versión.
+      } else if (e.destino.version > destino.version) {
+        // Un enlace puede seguir en una versión anterior de su destino (mantenido tras revisarlo);
+        // la importación comprueba que esa versión ya está en la v2.
         problemas.push({
           ruta: rutaDe(r),
-          mensaje: `El enlace ${e.tipo} apunta a ${e.destino.codigo}@${e.destino.version}, pero la versión vigente es la ${destino.version}: un enlace apunta a la versión vigente de su destino.`,
+          mensaje: `El enlace ${e.tipo} apunta a ${e.destino.codigo}@${e.destino.version}, posterior a la versión ${destino.version} de design/.`,
         });
       }
       if (e.destino.codigo === r.codigo)
@@ -152,6 +167,7 @@ function comprobarTaxonomias(taxonomias: DocumentoTaxonomia[]): Problema[] {
   for (const t of taxonomias) {
     const ruta = rutaDe(t);
     if (codigos.has(t.codigo)) problemas.push({ ruta, mensaje: `Código de taxonomía duplicado: ${t.codigo}.` });
+    if (t.titulo !== t.titulo.trim()) problemas.push({ ruta, mensaje: 'El título empieza o acaba con espacios en blanco.' });
     codigos.add(t.codigo);
     const ejes = new Set<string>();
     for (const eje of t.ejes) {

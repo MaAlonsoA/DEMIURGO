@@ -18,5 +18,14 @@
     "import/no-unassigned-import": "off",
     "import/no-named-as-default-member": "off"
   },
-  "ignorePatterns": ["**/node_modules/**", "**/generado/**", "app/**", "frontend/**", "migrations/**", "tests/**", "reports/**"]
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/generado/**",
+    "app/**",
+    "frontend/**",
+    "migrations/**",
+    "tests/**",
+    "reports/**",
+    ".claude/**"
+  ]
 }

@@ -55,14 +55,14 @@ Riesgos que cubre: que el diseño en Markdown se quede corto antes de que exista
 - Verificación: automática
 - Comprobación: El validador reescribe cada documento desde su contenido y compara los bytes.
 
-Dado un documento de `design/`, cuando se reescribe desde su contenido, entonces produce exactamente los mismos bytes; un documento con CRLF, espacios finales de cualquier tipo, más de una línea en blanco seguida o una sección vacía o repetida se rechaza, y un anexo con CRLF o espacios finales también.
+Dado un documento de `design/`, cuando se reescribe desde su contenido, entonces produce exactamente los mismos bytes; un documento con CRLF, espacios finales de cualquier tipo, más de una línea en blanco seguida, una sección vacía o repetida, un estado distinto de propuesto o aprobado, o un título, una nota de cambio o un texto de criterio que empieza o acaba con espacios se rechaza, y un anexo con CRLF o espacios finales también.
 
 ### AC-FMT-001-02 · Códigos y enlaces
 
 - Verificación: automática
 - Comprobación: El validador revisa los códigos, los enlaces y los anexos de todo el árbol.
 
-Dado el árbol `design/`, cuando se valida, entonces los códigos de registros, taxonomías y criterios son únicos y la parte DOM-NNN de un registro no se repite entre tipos; cada enlace apunta a la versión vigente de un registro que existe y no se repite; y cada anexo existe, es YAML válido y pertenece a un solo registro.
+Dado el árbol `design/`, cuando se valida, entonces los códigos de registros, taxonomías y criterios son únicos y la parte DOM-NNN de un registro no se repite entre tipos; cada enlace apunta a un registro que existe, en la versión que está en `design/` o en una anterior, y no se repite; y cada anexo existe, es YAML válido y pertenece a un solo registro.
 
 ### AC-FMT-001-03 · Criterios verificables
 

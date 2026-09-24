@@ -1,0 +1,142 @@
+/* DEMIURGO design system: tokens and the class vocabulary of the visual language. */
+:root {
+  --paper: #f5f4f0; /* Page ground behind every screen. Cards and panels sit on it. */
+  --surface: #ffffff; /* Cards, panels, the header, popovers and secondary buttons. */
+  --surface-soft: #fbfaf7; /* Quiet fills inside a card, such as a stage example or a grouped row. */
+  --line: #e3e0d8; /* Card and panel borders, the header bottom rule. */
+  --line-soft: #efede7; /* Dividers inside a card, the active tab fill. */
+  --line-strong: #d6d2c8; /* Control borders: secondary buttons, the legend button, inputs, node outlines. */
+  --frame: #d2cdc2; /* Dashed outline of an area on the map. */
+  --ink: #1d1c1a; /* Titles and body text on paper and surface. Confirmed dot, filled ready bar, You and DEMIURGO marks. */
+  --ink-2: #3e3b36; /* Secondary text and subtitles on paper and surface; the Open dot outline. */
+  --ink-3: #5b5850; /* Descriptions and one-line explanations on paper and surface; inactive tabs. */
+  --muted: #6e6a62; /* Labels, metadata and times on paper and surface. */
+  --inactive: #8c877b; /* Inactive marks (Parked, Dropped, Out of date) and short grey words. 3.6:1 on surface: marks and short grey words only, never body text. */
+  --inactive-soft: #c4bfb3; /* The back circle of Replaced, separators between labels, faded outlines. */
+  --track: #bdb8ac; /* Empty stage bars and empty tracks. 2:1 on surface, below the 3:1 a meaningful mark needs; kept exact from the canvas and flagged for the visual direction. */
+  --needs: #2b4acb; /* Needs you only: the counter, the Proposed dot, the primary action, the selection outline. Text on surface and needs-soft. */
+  --needs-strong: #1e3599; /* Hover of needs, and blue words: Proposed, Recommended, links in text. On surface, needs-soft and needs-tag. */
+  --needs-soft: #f4f6fe; /* Ground of an item that needs you: queue items, the Needs you band. */
+  --needs-line: #d5dcf7; /* Border of a needs-soft band. */
+  --needs-tint: #e9edfb; /* Fill of a quiet blue button inside a peek or panel. */
+  --needs-tag: #e0e6fa; /* Fill of the Recommended tag. */
+  --needs-ring: #dce3fb; /* Outer ring of a selected card or node, around a 2px needs border. */
+  --on-needs: #ffffff; /* Text and icons on a needs fill: the primary button, the counter. */
+  --working: #b7791f; /* Someone is working on it now: the Working dot. */
+  --working-bar: #d69a2d; /* The second stage bar while it is being built. */
+  --working-soft: #f6edda; /* Halo around the Working dot. */
+  --working-text: #6b4608; /* Words next to the Working dot ("Drafting…", times) on paper and surface. */
+  --working-text-2: #8a5a0b; /* Working words inside a card footer. */
+  --problem: #9a3412; /* Problem words and icons: Conflict, Blocked, Re-check, clashing words. On surface, paper and problem-soft. */
+  --problem-fill: #b4461b; /* Problem fills: the stage bar in doubt. */
+  --problem-soft: #fbe9e1; /* Highlight behind words that clash in a conflict. */
+  --problem-tint: #f8e9e2; /* Ground of a problem signal inside a peek. */
+  --font-sans: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --space-1: 4px; /* Between a mark and its word; tab gap. */
+  --space-2: 8px; /* Between rows in a list; chip gaps. */
+  --space-3: 12px; /* Between blocks inside a card; header gaps. */
+  --space-4: 16px; /* Card and popover padding; gaps between cards. */
+  --space-5: 20px; /* Gaps between cards in a grid; section padding. */
+  --space-6: 24px; /* Header side padding; legend offset from the corner. */
+  --space-8: 32px; /* Between major regions. */
+  --space-10: 40px; /* Top padding of a reference page. */
+  --space-12: 48px; /* Side padding of a reference page. */
+  --radius-bar: 2px; /* Stage bars. */
+  --radius-tag: 4px; /* Small tags such as Recommended; conflict highlights. */
+  --radius-mark: 5px; /* The DEMIURGO mark. */
+  --radius-tab: 6px; /* Header tabs, the Agent mark, small list rows. */
+  --radius-sm: 8px; /* Quiet fills, peek buttons, story rows. */
+  --radius-control: 10px; /* Buttons, nodes, inputs. */
+  --radius-card-md: 12px; /* Cards on the map and overview, answer options, queue items. */
+  --radius-card: 14px; /* Sections, bands and popovers. */
+  --radius-panel: 16px; /* Detail panels and peeks. */
+  --radius-pill: 999px; /* The Needs you counter, chips, the legend button. */
+  --shadow-raised: 0 4px 14px rgba(29, 28, 26, 0.08); /* The legend button and a pinned card: lifted, not floating. */
+  --shadow-float: 0 12px 32px rgba(29, 28, 26, 0.14); /* Peeks and popovers that float over the page. */
+  --ring-focus: 0 0 0 2px #ffffff, 0 0 0 4px #1d1c1a; /* Keyboard focus and cross-highlighting between a legend entry and its mark. */
+  --ring-selected: 0 0 0 4px #dce3fb; /* Outer ring of a selected card, with a 2px needs border. */
+  --halo-working: 0 0 0 3px #f6edda; /* Halo around the Working dot. */
+  --artboard-width: 1440px; /* Desktop design width. Screens are designed at 1440 × 900. */
+  --header-height: 56px; /* The app header. */
+  --aside-width: 380px; /* The right column: Needs you, context, readiness. */
+  --legend-width: 312px; /* The open legend popover. */
+  --card-height: 146px; /* A feature card on the overview. */
+}
+
+body { margin: 0; font-family: var(--font-sans); font-size: 14px; line-height: 1.5; color: var(--ink); background: var(--paper); }
+
+/* Type styles */
+.dm-text-display { font-family: var(--font-sans); font-size: 30px; line-height: 1.2; font-weight: 600; } /* The title of a reference or overview page. */
+.dm-text-page-title { font-family: var(--font-sans); font-size: 24px; line-height: 1.2; font-weight: 600; } /* The title of the thing in focus: a question, a feature page, a conflict. */
+.dm-text-title { font-family: var(--font-sans); font-size: 22px; line-height: 1.25; font-weight: 600; } /* The title in a detail panel. */
+.dm-text-heading { font-family: var(--font-sans); font-size: 15px; line-height: 1.4; font-weight: 600; } /* Card titles and section headings. */
+.dm-text-body { font-family: var(--font-sans); font-size: 14px; line-height: 1.5; font-weight: 400; } /* Running text and form values. */
+.dm-text-small { font-family: var(--font-sans); font-size: 13px; line-height: 1.45; font-weight: 400; } /* One-line descriptions, list rows, chips. */
+.dm-text-caption { font-family: var(--font-sans); font-size: 12px; line-height: 1.4; font-weight: 400; } /* Metadata, times, card footers, legend descriptions. */
+.dm-label { font-family: var(--font-sans); font-size: 11px; line-height: 1.3; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); } /* Uppercase labels: the type on a card, section labels. In muted. */
+.dm-text-wordmark { font-family: var(--font-sans); font-size: 12px; line-height: 1; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; } /* The product name in the header, uppercase. */
+.dm-text-mark { font-family: var(--font-sans); font-size: 10px; line-height: 1; font-weight: 700; } /* The letter inside the DEMIURGO mark. */
+.dm-code { font-family: var(--font-mono); font-size: 12px; line-height: 1.4; font-weight: 400; color: var(--muted); } /* Record codes and versions, only in the detail. */
+
+/* Marks, signals, controls and cards */
+.dm-sep { color: var(--inactive-soft); }
+
+.dm-dot { display: inline-block; width: 12px; height: 12px; flex-shrink: 0; box-sizing: border-box; border-radius: 50%; }
+.dm-dot--sm { width: 10px; height: 10px; }
+.dm-dot--confirmed { background: var(--ink); }
+.dm-dot--assumed { border: 1.5px solid var(--ink); background: linear-gradient(90deg, var(--ink) 50%, transparent 50%); }
+.dm-dot--proposed { border: 2px solid var(--needs); }
+.dm-dot--open { border: 1.5px dashed var(--ink-2); }
+.dm-unknown { font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.dm-word-proposed { color: var(--needs-strong); }
+
+.dm-bars { display: inline-flex; gap: 3px; }
+.dm-bar { width: 10px; height: 6px; box-sizing: border-box; border-radius: var(--radius-bar); border: 1px solid var(--track); }
+.dm-bar--ink { background: var(--ink); border-color: var(--ink); }
+.dm-bar--build { background: var(--working-bar); border-color: var(--working-bar); }
+.dm-bar--doubt { background: var(--problem-fill); border-color: var(--problem-fill); }
+.dm-bar--later { border-style: dashed; }
+
+.dm-needs { min-width: 22px; height: 22px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radius-pill); background: var(--needs); color: var(--on-needs); font-size: 12px; font-weight: 700; padding: 0 6px; }
+.dm-working { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--working-text); }
+.dm-working-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--working); box-shadow: var(--halo-working); }
+
+.dm-who { flex-shrink: 0; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; }
+.dm-who--you { border-radius: 50%; background: var(--ink); color: var(--surface); }
+.dm-who--d { border-radius: var(--radius-mark); background: var(--ink); color: var(--surface); font-size: 10px; font-weight: 700; }
+.dm-who--agent { border-radius: var(--radius-tab); border: 1.5px solid var(--ink); background: var(--surface); color: var(--ink); }
+.dm-who--auto { border-radius: 50%; border: 1.5px solid var(--ink); color: var(--ink); }
+
+.dm-signal { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.dm-signal--problem { color: var(--problem); }
+.dm-signal--working { color: var(--working-text-2); }
+
+.dm-btn { font: inherit; font-weight: 600; border-radius: var(--radius-control); cursor: pointer; white-space: nowrap; text-decoration: none; }
+.dm-btn:focus-visible { outline: none; box-shadow: var(--ring-focus); }
+.dm-btn--primary { color: var(--on-needs); background: var(--needs); border: none; padding: 10px 18px; }
+.dm-btn--primary:hover { background: var(--needs-strong); }
+.dm-btn--secondary { color: var(--ink); background: var(--surface); border: 1px solid var(--line-strong); padding: 9px 16px; }
+.dm-btn--quiet { color: var(--needs-strong); background: var(--needs-tint); border: none; border-radius: var(--radius-sm); padding: 7px 12px; }
+.dm-btn--text { color: var(--ink-3); background: transparent; border: none; padding: 8px 6px; }
+
+.dm-chip { font: inherit; font-size: 13px; font-weight: 600; border-radius: var(--radius-pill); border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); padding: 5px 12px; cursor: pointer; }
+.dm-chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.dm-rec { font-size: 11px; font-weight: 700; color: var(--needs-strong); background: var(--needs-tag); border-radius: var(--radius-tag); padding: 1px 6px; }
+
+.dm-card { position: relative; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card-md); padding: 13px 14px; }
+.dm-card-type { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: var(--muted); }
+.dm-card-title { font-size: 15px; font-weight: 600; }
+.dm-card-line { font-size: 13px; line-height: 1.4; color: var(--ink-3); }
+.dm-card-foot { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 7px; border-top: 1px solid var(--line-soft); font-size: 12px; color: var(--muted); }
+.dm-card-needs { position: absolute; top: -9px; right: -9px; }
+.dm-node { box-sizing: border-box; display: flex; align-items: center; gap: 10px; height: 44px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-control); padding: 0 12px; }
+.dm-dashed { border-style: dashed; border-color: var(--inactive); }
+.dm-faded { background: rgba(255, 255, 255, 0.5); border: 1px dashed var(--inactive-soft); color: var(--ink-3); }
+.dm-selected { border: 2px solid var(--needs); box-shadow: var(--ring-selected); }
+.dm-panel { box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-panel); padding: 16px 18px; }
+.dm-float { box-shadow: var(--shadow-float); border-color: var(--line-strong); }
+
+/* Disabled controls */
+.dm-btn:disabled, .dm-chip:disabled { opacity: 0.45; cursor: not-allowed; }
+.dm-btn--primary:disabled:hover { background: var(--needs); }

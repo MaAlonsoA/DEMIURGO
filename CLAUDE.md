@@ -14,6 +14,7 @@ npx vitest run --project integration packages/core/test/bus.test.ts -t "AC-ESQ-0
 pnpm gen                          # regenera packages/domain/src/generated/tables.ts desde design/data/
 node packages/design/src/cli.ts canonicalize   # reescribe design/ en formato canónico
 pnpm cli <subcommand>             # CLI de operación (ver packages/api/src/cli.ts)
+pnpm snap list|save|restore|drop|reset   # instantáneas de la base de dev (DEMIURGO_DEV_TOOLS=1; docs/instantaneas-dev.md)
 ```
 
 - Node 24 ejecuta TypeScript directamente (type stripping): no hay paso de build. Imports relativos con extensión `.ts`; nada de enum, namespaces, parameter properties ni decoradores (`erasableSyntaxOnly`).

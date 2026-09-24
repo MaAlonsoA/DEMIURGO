@@ -3,7 +3,7 @@
 //   node packages/api/src/cli.ts create-person <username>          (the password is read from stdin)
 //   node packages/api/src/cli.ts create-project <name>
 //   node packages/api/src/cli.ts real-run <projectId> <action> <json-scope> [json-input]
-//   node packages/api/src/cli.ts evaluate-classifier [test|dev|all]   (uses DEMIURGO_CLASSIFIER)
+//   node packages/api/src/cli.ts evaluate-classifier <provider> <model> [effort|-] [test|dev|all]   (spends quota)
 //   node packages/api/src/cli.ts import-design <projectId> [dir]                (creates the H1 pending batch)
 //   node packages/api/src/cli.ts export-design <projectId> [--check dir | --out dir | dir]
 
@@ -13,8 +13,11 @@ import {
   startCore,
   compareExport,
   exportDesign,
-  createClassifier,
+  createAgentClassifier,
+  createProviders,
+  createSimulatedClassifier,
   evaluateClassifier,
+  loadAgentCatalog,
   evaluationSummary,
   connect,
   executeCommand,
@@ -24,7 +27,7 @@ import {
   consoleLogger,
 } from '@demiurgo/core';
 import { readTree, replaceTree } from '@demiurgo/design';
-import { system } from '@demiurgo/domain';
+import { composeSystem, system } from '@demiurgo/domain';
 import { createPerson } from './credentials.ts';
 
 const [command, ...args] = process.argv.slice(2);
@@ -99,10 +102,34 @@ const commands: Record<string, () => Promise<void>> = {
 };
 
 commands['evaluate-classifier'] = async () => {
-  const partition = (args[0] ?? 'test') as Partition;
+  const [providerId = '', model = '', effortArg = '-', partitionArg = 'test'] = args;
+  const partition = partitionArg as Partition;
+  const provider = createProviders({ ...config, devTools: true }).get(providerId);
+  const agent = (await loadAgentCatalog()).get('knowledge_classifier');
+  if (!provider || !model || !agent) {
+    throw new Error('Usage: evaluate-classifier <claude|codex|opencode|simulated> <model> [effort|-] [test|dev|all]');
+  }
+  const effort = effortArg === '-' ? null : effortArg;
+  const classifier =
+    provider.id === 'simulated'
+      ? createSimulatedClassifier()
+      : createAgentClassifier({
+          id: `agent:knowledge_classifier@${agent.version}/${provider.id}/${model}/${effort ?? 'default'}`,
+          system: (_primitive, rules) => composeSystem(agent, agent.skillDefinitions, rules).system,
+          invoke: (call) =>
+            provider.run({
+              system: call.system,
+              input: call.input,
+              schema: call.schema,
+              model,
+              effort,
+              session: { mode: 'none' },
+              timeMs: agent.timeLimitSeconds * 1000,
+            }),
+        });
   await withDatabase(async (c) => {
     const report = await evaluateClassifier({
-      classifier: createClassifier(config),
+      classifier,
       partition,
       chunkSize: 40,
       db: c.db,

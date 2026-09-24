@@ -1,15 +1,21 @@
-// Core test environment: ephemeral database + services with a simulated agent.
+// Core test environment: ephemeral database + services with the simulated provider, and every agent
+// assigned to it (as a person would leave Settings → Models & providers).
 
-import type { Classifier, AgentPort } from '@demiurgo/domain';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { Classifier, Provider } from '@demiurgo/domain';
 import { afterAll, beforeAll } from 'vitest';
-import { createSimulatedAgent } from '../../src/agents/simulated.ts';
+import { createSimulatedProvider } from '../../src/agents/simulated.ts';
 import { type Connection, connect } from '../../src/db/connection.ts';
 import { type StartedEngine, startEngine } from '../../src/engine/engine.ts';
 import { createSimulatedClassifier } from '../../src/classifier/simulated.ts';
 import { createInlineEngine } from '../../src/engine/inline.ts';
+import { createProviderRegistry } from '../../src/providers/registry.ts';
 import { type WorkflowEngine, type Services, silentLogger } from '../../src/services.ts';
 import { useEphemeralDatabase } from './ephemeral-db.ts';
 import { classifierNotConfigured } from './null-classifier.ts';
+import { seedSimulated } from './seed.ts';
 
 export { classifierNotConfigured };
 
@@ -23,7 +29,8 @@ export type Environment = {
 type Options = {
   /** Starts DBOS on the ephemeral database; otherwise, the engine is inert. */
   durable?: boolean;
-  agent?: () => AgentPort;
+  /** Providers this process runs (the simulated one by default). */
+  providers?: () => Provider[];
   classifier?: () => Classifier;
   /** Assigns every agent to the simulated provider (true by default). */
   seedAssignments?: boolean;
@@ -37,11 +44,14 @@ export function useEnvironment(options: Options = {}): () => Environment {
   beforeAll(async () => {
     const url = base().url;
     const connection = connect(url);
+    if (options.seedAssignments !== false) await seedSimulated(connection.db);
+    const classifier = (options.classifier ?? (() => createSimulatedClassifier()))();
     const common = {
       db: connection.db,
       clock: () => new Date(),
-      agent: (options.agent ?? (() => createSimulatedAgent()))(),
-      classifier: (options.classifier ?? (() => createSimulatedClassifier()))(),
+      providers: createProviderRegistry((options.providers ?? (() => [createSimulatedProvider()]))()),
+      classifierFor: async () => classifier,
+      agentSessionsDir: mkdtempSync(join(tmpdir(), 'dmg-sessions-')),
       logger: silentLogger,
     };
     if (options.durable) {

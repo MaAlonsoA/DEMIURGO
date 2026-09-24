@@ -1,9 +1,9 @@
 // E2E server: an ephemeral database (dmg_t_*, never one in use), the durable engine with the
-// simulated agent and classifier, a test person, and the web build served from the API on the
-// same origin. Run by Playwright's webServer:
+// simulated provider (every agent assigned to it) and classifier, a test person, and the web build
+// served from the API on the same origin. Run by Playwright's webServer:
 //   node packages/web/test/e2e/support/server.ts
 //
-// The simulated agent obeys markers in its context so the tests can provoke each run state:
+// The simulated provider obeys markers in its context so the tests can provoke each run state:
 //   [slow]       the run keeps working until it is cancelled;
 //   [fail-once]  the first run with a context pack fails; its retry (same pack) succeeds;
 //   [invalid]    the output does not match the schema (invalid_output, no effects).
@@ -14,10 +14,20 @@
 
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { createPerson, createServer } from '@demiurgo/api';
-import type { AgentPort, Classifier } from '@demiurgo/domain';
-import { connect, createSimulatedAgent, createSimulatedClassifier, migrate, silentLogger, startEngine } from '@demiurgo/core';
+import type { Classifier, Provider } from '@demiurgo/domain';
+import {
+  connect,
+  createProviderRegistry,
+  createSimulatedClassifier,
+  createSimulatedProvider,
+  migrate,
+  silentLogger,
+  startEngine,
+} from '@demiurgo/core';
+import { seedSimulated } from '../../../../core/test/support/seed.ts';
 
 const port = Number(process.env.E2E_PORT ?? 8310);
 const adminUrl = process.env.DEMIURGO_TEST_DB_URL ?? 'postgres://demiurgo:demiurgo-dev@127.0.0.1:55432/postgres';
@@ -40,6 +50,7 @@ await admin.close();
 const url = databaseUrl(name);
 const connection = connect(url);
 await migrate(connection.pool);
+await seedSimulated(connection.db);
 
 const error = (failureKind: 'agent_error' | 'cancelled', message: string) => ({
   state: 'error' as const,
@@ -50,13 +61,14 @@ const error = (failureKind: 'agent_error' | 'cancelled', message: string) => ({
   model: 'simulated',
 });
 
-function scriptedAgent(): AgentPort {
-  const base = createSimulatedAgent();
+function scriptedProvider(): Provider {
+  const base = createSimulatedProvider();
   const failedOnce = new Set<string>();
   return {
-    provider: 'simulated',
-    async execute(p) {
-      const text = JSON.stringify(p.context.content);
+    ...base,
+    async run(p) {
+      const context = p.task?.context ?? { hash: '', content: {} };
+      const text = JSON.stringify(context.content);
       if (text.includes('[slow]')) {
         await new Promise<void>((resolve) => {
           const t = setTimeout(resolve, 10 * 60_000);
@@ -67,8 +79,8 @@ function scriptedAgent(): AgentPort {
         });
         if (p.signal?.aborted) return error('cancelled', 'Cancelled.');
       }
-      if (text.includes('[fail-once]') && !failedOnce.has(p.context.hash)) {
-        failedOnce.add(p.context.hash);
+      if (text.includes('[fail-once]') && !failedOnce.has(context.hash)) {
+        failedOnce.add(context.hash);
         return error('agent_error', 'The simulated agent failed on purpose.');
       }
       if (text.includes('[invalid]')) {
@@ -81,7 +93,7 @@ function scriptedAgent(): AgentPort {
           model: 'simulated',
         };
       }
-      return base.execute(p);
+      return base.run(p);
     },
   };
 }
@@ -108,12 +120,14 @@ function scriptedClassifier(): Classifier {
   };
 }
 
+const classifier = scriptedClassifier();
 const engine = await startEngine(
   {
     db: connection.db,
     clock: () => new Date(),
-    agent: scriptedAgent(),
-    classifier: scriptedClassifier(),
+    providers: createProviderRegistry([scriptedProvider()]),
+    classifierFor: async () => classifier,
+    agentSessionsDir: tmpdir(),
     logger: silentLogger,
   },
   url,

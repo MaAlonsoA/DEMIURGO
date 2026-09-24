@@ -1,6 +1,6 @@
-// Agent port (System Two). An agent only produces a raw output; the system validates it
-// against the common schema and, if it fails, the run ends in `invalid_output`
-// with no effect at all (I7).
+// Agents and providers (System Two). A provider only produces a raw output; the system validates
+// it against the action's schema and, if it fails, the run ends in `invalid_output` with no effect
+// at all (I7).
 
 import { z } from 'zod';
 
@@ -25,18 +25,6 @@ export type Usage = {
   provenance?: Readonly<Record<string, string>>;
 };
 
-export type AgentRequest = {
-  runId: string;
-  action: AgentAction;
-  method: { version: string; text: string };
-  /** JSON Schema generated from the action's Zod schema. */
-  outputSchema: Record<string, unknown>;
-  context: { hash: string; content: unknown };
-  budget: { timeMs: number; maxUsd?: number };
-  model?: string;
-  signal?: AbortSignal;
-};
-
 /** `sessionId`: the provider's conversation id, when it ran with a session. */
 export type AgentResult =
   | { state: 'ok'; rawOutput: unknown; usage: Usage; rawEvents: string; provider: string; model: string; sessionId?: string }
@@ -50,11 +38,6 @@ export type AgentResult =
       model: string;
       sessionId?: string;
     };
-
-export interface AgentPort {
-  readonly provider: string;
-  execute(request: AgentRequest): Promise<AgentResult>;
-}
 
 // Provider port (ADR-AGE-001 v2): each engine (Claude, Codex, OpenCode, simulated) behind the same
 // interface. A DEMIURGO agent (AGENT.md + skills) runs on whichever provider the person assigned.

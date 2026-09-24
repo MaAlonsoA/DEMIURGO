@@ -117,6 +117,8 @@ export function applicableCategories(responses: readonly ChoiceResponse[]): Reco
 }
 
 export type Classified = {
+  /** The classifier that answered: it goes with the result to the verification step. */
+  classifierId: string;
   change: Change;
   taxonomy: { id: string; code: string; version: number; content: string } | null;
   axes: Axis[];
@@ -153,6 +155,7 @@ export async function classifyChange(
   const r = await respondWithCache(db, classifier, verdictsHash, itemsForVerdicts(change, candidates));
   if (r.toSave) toSave.push(r.toSave);
   return {
+    classifierId: classifier.id,
     change,
     taxonomy: taxonomy ? { id: taxonomy.id, code: taxonomy.code, version: taxonomy.version, content: taxonomy.content } : null,
     axes: taxonomy?.axes ?? [],
@@ -207,7 +210,8 @@ export async function classifyStep(s: Services, updateId: string, projectId: str
     const change = await deriveChange(s.db, trigger);
     if (!change) return { type: 'no_change' };
     const graph = await loadGraph(s.db, projectId);
-    const data = await classifyChange(s.db, s.classifier, graph, change, await currentTaxonomy(s.db, projectId));
+    const classifier = await s.classifierFor(projectId);
+    const data = await classifyChange(s.db, classifier, graph, change, await currentTaxonomy(s.db, projectId));
     return { type: 'classified', data };
   } catch (e) {
     return { type: 'error', reason: `Could not classify the change: ${String(e).slice(0, 1500)}` };
@@ -331,7 +335,7 @@ export async function applyStep(s: Services, updateId: string, projectId: string
           change: r.type === 'removal' ? { removal: r.refs } : null,
           candidates: [],
           input_hash: '',
-          classifier: s.classifier.id,
+          classifier: (await s.classifierFor(projectId)).id,
           verdicts: [],
         },
       });
@@ -346,7 +350,7 @@ export async function applyStep(s: Services, updateId: string, projectId: string
         change: d.change,
         candidates: d.candidates,
         input_hash: d.verdictsHash,
-        classifier: s.classifier.id,
+        classifier: d.classifierId,
         verdicts: {
           taxonomy: d.taxonomy,
           categories_hash: d.categoriesHash,
@@ -375,7 +379,7 @@ export async function applyStep(s: Services, updateId: string, projectId: string
             category: c.choice,
             confidence: c.confidence,
             justification: c.justification,
-            classifier: s.classifier.id,
+            classifier: d.classifierId,
             input_hash: d.categoriesHash ?? '',
             update_id: updateId,
           },

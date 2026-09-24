@@ -4,7 +4,9 @@ import { DomainError, VALID_AGENT_NAME, formatActor, fingerprint } from '@demiur
 import { sql } from 'kysely';
 import { z } from 'zod';
 import { trimmed, field, registerGuards } from '../bus/guards.ts';
+import { DEFAULT_AGENTS } from '../agents/catalog.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
+import { requireEngine } from './runs.ts';
 import { AGENT_TOKEN_PREFIX, secretFingerprint, newSecret } from '../secrets.ts';
 
 const text = (max: number) => z.string().trim().min(1).max(max);
@@ -175,9 +177,14 @@ registerHandlers({
         text: text(20_000),
         type: z.enum(['claim', 'hypothesis', 'unknown']).optional(),
         respond: z.boolean().default(true),
+        // The agent that answers (the web section's): onboarding on Day 1, explorer by default.
+        agent: z.string().min(1).optional(),
       })
       .strict(),
     async apply(ctx, data, _e, to) {
+      const answers = ctx.actor.type === 'human' && data.respond;
+      // Asking for an answer from an agent without an engine is a visible 409, before posting anything.
+      if (answers) await requireEngine(ctx, data.agent ?? DEFAULT_AGENTS.exploration_chat);
       if (data.question_id) {
         const q = await ctx.trx
           .selectFrom('questions')
@@ -203,10 +210,10 @@ registerHandlers({
         })
         .returning('id')
         .executeTakeFirstOrThrow();
-      if (ctx.actor.type === 'human' && data.respond) {
+      if (answers) {
         // The response is a durable workflow: it waits for the knowledge base to be up to date and requests the run.
         const { services, projectId } = ctx;
-        ctx.afterCommit(() => services.engine.startResponse(id, projectId, data.exploration_id, data.question_id));
+        ctx.afterCommit(() => services.engine.startResponse(id, projectId, data.exploration_id, data.question_id, data.agent));
       }
       return {
         entityId: id,

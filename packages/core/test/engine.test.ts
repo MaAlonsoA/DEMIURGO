@@ -1,7 +1,7 @@
-import { OUTPUT_SCHEMAS, type AgentRequest, jsonSchemaOf, human } from '@demiurgo/domain';
+import { OUTPUT_SCHEMAS, type ProviderInvocation, jsonSchemaOf, human } from '@demiurgo/domain';
 import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SCRIPTS, createSimulatedAgent } from '../src/agents/simulated.ts';
+import { DEFAULT_SCRIPTS, createSimulatedProvider } from '../src/agents/simulated.ts';
 import { executeCommand } from '../src/bus/bus.ts';
 import { waitForRun } from '../src/engine/engine.ts';
 import { useEnvironment } from './support/env.ts';
@@ -12,8 +12,8 @@ import { useEnvironment } from './support/env.ts';
 const receivedSchemas: Record<string, unknown>[] = [];
 const environment = useEnvironment({
   durable: true,
-  agent: () =>
-    createSimulatedAgent({
+  providers: () => [
+    createSimulatedProvider({
       scripts: {
         echo: (p) => {
           receivedSchemas.push(p.schema ?? {});
@@ -36,6 +36,7 @@ const environment = useEnvironment({
         },
       },
     }),
+  ],
 });
 
 async function requestEcho(projectId: string, text: string) {
@@ -48,16 +49,21 @@ async function requestEcho(projectId: string, text: string) {
   return { runId: r.entityId, state: await waitForRun(r.entityId) };
 }
 
-const chatRequest = (text: string): AgentRequest => ({
-  runId: 'r',
-  action: 'exploration_chat',
-  method: { version: 'exploration_chat@v1', text: 'm' },
-  outputSchema: jsonSchemaOf('exploration_chat'),
-  context: {
-    hash: `h-${text}`,
-    content: { purpose: 'Partners', messages: [{ author: 'human:ana', text }], questions: [] },
+const chatRequest = (text: string): ProviderInvocation => ({
+  system: 'm',
+  input: text,
+  schema: jsonSchemaOf('exploration_chat'),
+  model: 'simulated',
+  effort: null,
+  session: { mode: 'none' },
+  timeMs: 1000,
+  task: {
+    action: 'exploration_chat',
+    context: {
+      hash: `h-${text}`,
+      content: { purpose: 'Partners', messages: [{ author: 'human:ana', text }], questions: [] },
+    },
   },
-  budget: { timeMs: 1000 },
 });
 
 describe('runs with the durable engine', () => {
@@ -149,10 +155,10 @@ describe('runs with the durable engine', () => {
   });
 
   it('AC-ESQ-001-09 the simulator gives the same output for the same action and the same context pack', async () => {
-    const agent = createSimulatedAgent();
-    const a = await agent.execute(chatRequest('Quiero gestionar las cuotas'));
-    const b = await agent.execute(chatRequest('Quiero gestionar las cuotas'));
-    const c = await agent.execute(chatRequest('No sé por dónde empezar'));
+    const agent = createSimulatedProvider();
+    const a = await agent.run(chatRequest('Quiero gestionar las cuotas'));
+    const b = await agent.run(chatRequest('Quiero gestionar las cuotas'));
+    const c = await agent.run(chatRequest('No sé por dónde empezar'));
     expect(a.state).toBe('ok');
     if (a.state !== 'ok' || b.state !== 'ok' || c.state !== 'ok') throw new Error('unexpected');
     expect(b.rawOutput).toEqual(a.rawOutput);

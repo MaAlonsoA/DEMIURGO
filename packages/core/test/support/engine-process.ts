@@ -4,20 +4,29 @@
 //   node engine-process.ts <url> recover <runId>                        → DBOS resumes the pending workflow
 //   node engine-process.ts <url> reconcile                              → starts up, reconciles and waits until nothing is left running
 
-import { createSimulatedAgent } from '../../src/agents/simulated.ts';
+import { tmpdir } from 'node:os';
+import { createSimulatedProvider } from '../../src/agents/simulated.ts';
 import { createSimulatedClassifier } from '../../src/classifier/simulated.ts';
 import { connect } from '../../src/db/connection.ts';
 import { waitForRun, startEngine } from '../../src/engine/engine.ts';
+import { createProviderRegistry } from '../../src/providers/registry.ts';
 import { silentLogger } from '../../src/services.ts';
 
 const [url = '', mode = '', a = '', b = ''] = process.argv.slice(2);
 const connection = connect(url);
 const agent =
   mode === 'start'
-    ? createSimulatedAgent({ delayMs: 60_000, onInvoke: () => console.log('INVOKING') })
-    : createSimulatedAgent({ onInvoke: () => console.log('INVOKING_AGAIN') });
+    ? createSimulatedProvider({ delayMs: 60_000, onInvoke: () => console.log('INVOKING') })
+    : createSimulatedProvider({ onInvoke: () => console.log('INVOKING_AGAIN') });
 const engine = await startEngine(
-  { db: connection.db, clock: () => new Date(), agent, classifier: createSimulatedClassifier(), logger: silentLogger },
+  {
+    db: connection.db,
+    clock: () => new Date(),
+    providers: createProviderRegistry([agent]),
+    classifierFor: async () => createSimulatedClassifier(),
+    agentSessionsDir: tmpdir(),
+    logger: silentLogger,
+  },
   url,
   mode === 'cut-after-apply'
     ? {

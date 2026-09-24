@@ -1,11 +1,9 @@
-// Deterministic simulated agent: the same action with the same context pack gives the same
-// output (AC-ESQ-001-09). Used in CI and in tests; scripts let you force invalid outputs,
-// errors or delays.
+// Deterministic simulator: the same action with the same context pack gives the same output
+// (AC-ESQ-001-09). It is the simulated provider, used in CI and in tests (and offered only with the
+// dev tools); scripts let you force invalid outputs, errors or delays.
 
 import {
   type AgentAction,
-  type AgentPort,
-  type AgentRequest,
   type AgentResult,
   type Provider,
   type ProviderEvent,
@@ -22,6 +20,7 @@ export type SimulatedInvocation = SimulatedTask & {
   system?: string;
   input?: string;
   session?: SessionRequest;
+  timeMs?: number;
 };
 
 export type Script = (p: SimulatedInvocation) => unknown;
@@ -126,63 +125,6 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
   },
 };
 
-export function createSimulatedAgent(options: SimulatedOptions = {}): AgentPort {
-  return {
-    provider: 'simulated',
-    async execute(request: AgentRequest): Promise<AgentResult> {
-      const p = { ...request, schema: request.outputSchema };
-      options.onInvoke?.(p);
-      const start = Date.now();
-      if (options.delayMs) {
-        await new Promise<void>((resolve, reject) => {
-          const t = setTimeout(resolve, options.delayMs);
-          p.signal?.addEventListener('abort', () => {
-            clearTimeout(t);
-            reject(new Error('cancelled'));
-          });
-        }).catch(() => undefined);
-        if (p.signal?.aborted) {
-          return {
-            state: 'error',
-            failureKind: 'cancelled',
-            message: 'Cancelled.',
-            rawEvents: '',
-            provider: 'simulated',
-            model: 'simulated',
-          };
-        }
-      }
-      const usage = {
-        inputTokens: JSON.stringify(p.context.content).length,
-        outputTokens: 0,
-        durationMs: Date.now() - start,
-      };
-      if (options.failure) {
-        return {
-          state: 'error',
-          failureKind: options.failure.failureKind,
-          message: options.failure.message,
-          usage,
-          rawEvents: '',
-          provider: 'simulated',
-          model: 'simulated',
-        };
-      }
-      const script = scriptFor(options, p.action);
-      const output = script(p);
-      const raw = JSON.stringify(output);
-      return {
-        state: 'ok',
-        rawOutput: output,
-        usage: { ...usage, outputTokens: raw.length },
-        rawEvents: raw,
-        provider: 'simulated',
-        model: 'simulated',
-      };
-    },
-  };
-}
-
 function scriptFor(options: SimulatedOptions, action: string): Script {
   const known = action as AgentAction;
   const script = options.scripts?.[known] ?? DEFAULT_SCRIPTS[known];
@@ -232,7 +174,14 @@ export function createSimulatedProvider(options: SimulatedOptions = {}): Provide
     },
     async run(inv): Promise<AgentResult> {
       const task = inv.task ?? { action: 'echo', context: { hash: '', content: {} } };
-      const received = { ...task, schema: inv.schema, system: inv.system, input: inv.input, session: inv.session };
+      const received = {
+        ...task,
+        schema: inv.schema,
+        system: inv.system,
+        input: inv.input,
+        session: inv.session,
+        timeMs: inv.timeMs,
+      };
       options.onInvoke?.(received);
       const emit = (kind: ProviderEvent['kind'], raw: unknown) => inv.onEvent?.({ kind, raw: JSON.stringify(raw) });
       const start = Date.now();

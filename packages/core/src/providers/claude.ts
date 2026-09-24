@@ -242,7 +242,8 @@ export function createClaudeProvider(options: CliProviderOptions = {}): Provider
           }),
         });
         const outcome = await waitForOutcome(proc, inv.timeMs, inv.signal, options.terminationWaitMs);
-        const rawEvents = () => (outcome.type === 'end' ? outcome.end.stdout : lines.join('\n'));
+        // What the process printed (partial if it was cut off), or what arrived line by line.
+        const rawEvents = () => (outcome.type === 'failure' ? lines.join('\n') : (outcome.end?.stdout ?? lines.join('\n')));
         switch (outcome.type) {
           case 'cutoff':
             return error(

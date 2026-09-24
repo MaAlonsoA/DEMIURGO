@@ -2,6 +2,7 @@
 // included) while the database is swapped underneath, as the dev tools do.
 
 import {
+  connect,
   readConfig,
   restoreSnapshot,
   saveSnapshot,
@@ -14,6 +15,7 @@ import { human } from '@demiurgo/domain';
 import { Client, escapeIdentifier } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { useEphemeralDatabase } from '../../core/test/support/ephemeral-db.ts';
+import { seedSimulated } from '../../core/test/support/seed.ts';
 import { type Runtime, startRuntime } from '../src/runtime.ts';
 
 const PREFIX = `dmg_t_${Math.floor(Date.now() / 1000)}_rt_`;
@@ -21,7 +23,14 @@ const base = useEphemeralDatabase();
 let runtime: Runtime;
 
 beforeAll(async () => {
-  runtime = await startRuntime(readConfig({ DEMIURGO_DATABASE_URL: base().url }), silentLogger);
+  // Every agent on the simulated provider, which only exists with the dev tools on.
+  const seed = connect(base().url, 1);
+  await seedSimulated(seed.db);
+  await seed.close();
+  runtime = await startRuntime(
+    readConfig({ DEMIURGO_DATABASE_URL: base().url, DEMIURGO_DEV_TOOLS: '1', DEMIURGO_OPENCODE_CONFIG: 'missing-opencode.json' }),
+    silentLogger,
+  );
 });
 
 afterAll(async () => {

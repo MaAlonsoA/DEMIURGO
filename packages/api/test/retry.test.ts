@@ -1,8 +1,7 @@
 // Retry with the same context pack (I7) and provenance of a run's batches.
 
 import { waitForRun } from '@demiurgo/core';
-import { createSimulatedAgent } from '../../core/src/agents/simulated.ts';
-import { DEFAULT_SCRIPTS } from '../../core/src/agents/simulated.ts';
+import { DEFAULT_SCRIPTS, createSimulatedProvider } from '../../core/src/agents/simulated.ts';
 import { describe, expect, it } from 'vitest';
 import { useApi } from './support/api.ts';
 
@@ -10,8 +9,8 @@ import { useApi } from './support/api.ts';
 const seen = new Set<string>();
 const api = useApi({
   durable: true,
-  agent: () =>
-    createSimulatedAgent({
+  providers: () => [
+    createSimulatedProvider({
       scripts: {
         exploration_chat: (p) => {
           if (!seen.has(p.context.hash)) {
@@ -22,6 +21,7 @@ const api = useApi({
         },
       },
     }),
+  ],
 });
 
 async function command(projectId: string, name: string, data: unknown, entityId?: string) {

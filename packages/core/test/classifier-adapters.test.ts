@@ -1,14 +1,36 @@
-// Adapters for the `Classifier` port: Jev (empty) and the reference classifier over
-// `claude -p`. The fake launcher reproduces the recorded fixtures: the real CLI is never called.
+// Adapters for the `Classifier` port: Jev (empty) and the agent classifier, here over the Claude
+// provider (`claude -p`). The fake launcher reproduces the recorded fixtures: the real CLI is never called.
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { IDEA_FINDINGS, type ItemChoice, RELEVANCE_LEVELS, VERDICTS } from '@demiurgo/domain';
+import { type Classifier, IDEA_FINDINGS, type ItemChoice, RELEVANCE_LEVELS, VERDICTS } from '@demiurgo/domain';
 import { describe, expect, it } from 'vitest';
 import type { ProcessEnd, Launcher, LaunchCommand } from '../src/agents/process.ts';
 import { createJevClassifier } from '../src/classifier/jev.ts';
-import { createClaudeReferenceClassifier } from '../src/classifier/claude-reference.ts';
+import { createAgentClassifier } from '../src/classifier/agent-classifier.ts';
+import { createClaudeProvider } from '../src/providers/claude.ts';
+
+const CLASSIFIER_ID = 'agent:knowledge_classifier@test/claude/haiku/default';
+
+/** The agent classifier on the Claude provider, with a fake launcher. */
+function classifierOverClaude(launcher: Launcher, model = 'haiku'): Classifier {
+  const provider = createClaudeProvider({ launcher, executable: 'claude' });
+  return createAgentClassifier({
+    id: CLASSIFIER_ID,
+    system: (_primitive, rules) => ['You classify.', ...rules].join('\n'),
+    invoke: (call) =>
+      provider.run({
+        system: call.system,
+        input: call.input,
+        schema: call.schema,
+        model,
+        effort: null,
+        session: { mode: 'none' },
+        timeMs: 60_000,
+      }),
+  });
+}
 
 const DIR_FIXTURES = fileURLToPath(new URL('./fixtures/claude-cli/', import.meta.url));
 const fixture = (name: string): string => readFileSync(join(DIR_FIXTURES, name), 'utf8');
@@ -85,17 +107,17 @@ describe('Jev adapter', () => {
   });
 });
 
-describe('reference classifier over claude -p', () => {
+describe('agent classifier over claude -p', () => {
   it('AC-CLA-001-03 groups the items into a single claude -p call with --json-schema and a small model, and normalizes the fixture', async () => {
     const { launcher, commands } = fakeLauncher(fixture('classifier-choice.json'));
-    const classifier = createClaudeReferenceClassifier({ launcher, executable: 'claude' });
-    expect(classifier.id).toBe('claude-reference:haiku@1');
+    const classifier = classifierOverClaude(launcher);
+    expect(classifier.id).toBe(CLASSIFIER_ID);
     const responses = await classifier.choice(ITEMS);
 
     expect(commands).toHaveLength(1);
     const command = commands[0] as LaunchCommand;
     expect(command.args[0]).toBe('-p');
-    expect(valueOf(command.args, '--output-format')).toBe('json');
+    expect(valueOf(command.args, '--output-format')).toBe('stream-json');
     expect(valueOf(command.args, '--model')).toBe('haiku');
     expect(valueOf(command.args, '--tools')).toBe('');
     const schema = JSON.parse(valueOf(command.args, '--json-schema') ?? '{}') as {
@@ -128,15 +150,13 @@ describe('reference classifier over claude -p', () => {
 
   it('AC-CLA-001-03 rejects a response that is missing ids', async () => {
     const { launcher } = fakeLauncher(cliOutput({ responses: responsesFixture().slice(0, 2) }));
-    await expect(createClaudeReferenceClassifier({ launcher, executable: 'claude' }).choice(ITEMS)).rejects.toThrow(
-      /did not answer item "idea-2"/,
-    );
+    await expect(classifierOverClaude(launcher).choice(ITEMS)).rejects.toThrow(/did not answer item "idea-2"/);
   });
 
   it("AC-CLA-001-03 rejects choices outside the item's options", async () => {
     const responses = responsesFixture().map((r) => (r.id === 'idea-1' ? { ...r, choice: 'keep' } : r));
     const { launcher } = fakeLauncher(cliOutput({ responses }));
-    await expect(createClaudeReferenceClassifier({ launcher, executable: 'claude' }).choice(ITEMS)).rejects.toThrow(
+    await expect(classifierOverClaude(launcher).choice(ITEMS)).rejects.toThrow(
       /chose "keep" for item "idea-1", which isn't among its options/,
     );
   });
@@ -151,7 +171,7 @@ describe('reference classifier over claude -p', () => {
     ];
     for (const [output, error] of cases) {
       const { launcher } = fakeLauncher(cliOutput(output));
-      await expect(createClaudeReferenceClassifier({ launcher, executable: 'claude' }).choice(ITEMS)).rejects.toThrow(error);
+      await expect(classifierOverClaude(launcher).choice(ITEMS)).rejects.toThrow(error);
     }
   });
 
@@ -162,7 +182,7 @@ describe('reference classifier over claude -p', () => {
     }));
     const responses = items.map((item) => ({ id: item.id, choice: 'keep', confidence: 0.9, justification: 'No changes.' }));
     const { launcher, commands } = fakeLauncher(cliOutput({ responses }));
-    await expect(createClaudeReferenceClassifier({ launcher, executable: 'claude' }).choice(items)).rejects.toThrow(
+    await expect(classifierOverClaude(launcher).choice(items)).rejects.toThrow(
       /chose "keep" for item "par-1", which isn't among its options/,
     );
     const schema = JSON.parse(valueOf((commands[0] as LaunchCommand).args, '--json-schema') ?? '{}') as {
@@ -179,14 +199,14 @@ describe('reference classifier over claude -p', () => {
 
   it('AC-CLA-001-03 if the CLI fails, the classifier throws an error with the failure kind', async () => {
     const { launcher } = fakeLauncher(fixture('error-unknown-model.json'), 1);
-    await expect(createClaudeReferenceClassifier({ launcher, executable: 'claude' }).choice(ITEMS)).rejects.toThrow(
-      /the CLI call failed \(agent_error\).*HTTP 404/,
+    await expect(classifierOverClaude(launcher).choice(ITEMS)).rejects.toThrow(
+      /the engine call failed \(agent_error\).*HTTP 404/,
     );
   });
 
   it('AC-CLA-001-03 validates the inputs and does not call the CLI with no items', async () => {
     const { launcher, commands } = fakeLauncher(fixture('classifier-choice.json'));
-    const c = createClaudeReferenceClassifier({ launcher, executable: 'claude' });
+    const c = classifierOverClaude(launcher);
     expect(await c.choice([])).toEqual([]);
     expect(await c.score([])).toEqual([]);
     expect(await c.noul([])).toEqual([]);
@@ -210,7 +230,7 @@ describe('reference classifier over claude -p', () => {
         ],
       }),
     );
-    const r = await createClaudeReferenceClassifier({ launcher, executable: 'claude', model: 'claude-haiku-4-5' }).score([
+    const r = await classifierOverClaude(launcher, 'claude-haiku-4-5').score([
       { id: 'n1', state: { node: 'ADR-1' }, question: 'Relevance to the task?', levels },
       { id: 'n2', state: { node: 'FDR-9' }, question: 'Relevance to the task?', levels },
     ]);
@@ -238,7 +258,7 @@ describe('reference classifier over claude -p', () => {
 
   it('AC-CLA-001-03 noul returns probability and confidence per item', async () => {
     const { launcher } = fakeLauncher(cliOutput({ responses: [{ id: 'ac-1', probability: 0.2, confidence: 0.8 }] }));
-    const r = await createClaudeReferenceClassifier({ launcher, executable: 'claude' }).noul([
+    const r = await classifierOverClaude(launcher).noul([
       { id: 'ac-1', state: 'The system must be fast.', statement: 'The criterion is observable and checkable.' },
     ]);
     expect(r).toEqual([{ id: 'ac-1', probability: 0.2, confidence: 0.8 }]);

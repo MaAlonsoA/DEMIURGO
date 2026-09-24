@@ -4,8 +4,9 @@ import { human } from '@demiurgo/domain';
 import { Client, escapeIdentifier, escapeLiteral } from 'pg';
 import { afterAll, describe, expect, it } from 'vitest';
 import { executeCommand } from '../src/bus/bus.ts';
-import { createSimulatedAgent } from '../src/agents/simulated.ts';
+import { createSimulatedProvider } from '../src/agents/simulated.ts';
 import { createSimulatedClassifier } from '../src/classifier/simulated.ts';
+import { createProviderRegistry } from '../src/providers/registry.ts';
 import { connect } from '../src/db/connection.ts';
 import {
   type SnapshotTarget,
@@ -44,8 +45,9 @@ async function createProject(name: string): Promise<void> {
     const services = {
       db: c.db,
       clock: () => new Date(),
-      agent: createSimulatedAgent(),
-      classifier: createSimulatedClassifier(),
+      providers: createProviderRegistry([createSimulatedProvider()]),
+      classifierFor: async () => createSimulatedClassifier(),
+      agentSessionsDir: '',
       logger: silentLogger,
       engine: inertEngine(),
     };

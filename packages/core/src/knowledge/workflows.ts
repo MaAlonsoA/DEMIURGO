@@ -116,6 +116,8 @@ function itemsForIdea(idea: string, candidates: readonly Candidate[]): ItemChoic
 }
 
 type CalculatedAssessment = {
+  /** The classifier that answered. */
+  classifier: string;
   proposalId: string;
   findings: Finding[];
   invalid: InvalidResponse[];
@@ -134,16 +136,17 @@ export async function calculateAssessments(s: Services, batchId: string, project
     .orderBy('position')
     .execute();
   const graph = await loadGraph(s.db, projectId);
+  const classifier = await s.classifierFor(projectId);
   const result: CalculatedAssessment[] = [];
   for (const p of proposals) {
     const idea = textOfIdea(p.type, p.payload as Record<string, unknown>);
     const candidates = ideaCandidates(graph, idea);
     const hash = fingerprint({
-      classifier: s.classifier.id,
+      classifier: classifier.id,
       idea,
       candidates: candidates.map((c) => ({ ref: c.ref, text: c.text })),
     });
-    const r = await respondWithCache(s.db, s.classifier, hash, itemsForIdea(idea, candidates));
+    const r = await respondWithCache(s.db, classifier, hash, itemsForIdea(idea, candidates));
     // Deterministic verification: one response per candidate, with a valid option. Whatever
     // fails verification is recorded (never silently dropped) and is not saved to the cache.
     const invalid = reasonsForIdea(candidates, r.responses);
@@ -159,6 +162,7 @@ export async function calculateAssessments(s: Services, batchId: string, project
         justification: x.justification,
       }));
     result.push({
+      classifier: classifier.id,
       proposalId: p.id,
       findings,
       invalid,
@@ -203,7 +207,7 @@ export async function recordAssessments(s: Services, projectId: string, assessme
         findings: e.findings,
         invalid: e.invalid,
         graph_version: e.version,
-        classifier: s.classifier.id,
+        classifier: e.classifier,
         input_hash: e.hash,
       },
     });
@@ -230,7 +234,10 @@ export async function recordAssessmentFailure(s: Services, batchId: string, proj
         findings: [],
         error: `Could not assess the idea: ${String(e).slice(0, 1000)}`,
         graph_version: 0,
-        classifier: s.classifier.id,
+        classifier: await s.classifierFor(projectId).then(
+          (c) => c.id,
+          () => 'unavailable',
+        ),
         input_hash: '',
       },
     });

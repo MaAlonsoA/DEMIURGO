@@ -20,7 +20,12 @@ pnpm snap list|save|restore|drop|reset   # instantáneas de la base de dev (DEMI
 - Node 24 ejecuta TypeScript directamente (type stripping): no hay paso de build. Imports relativos con extensión `.ts`; nada de enum, namespaces, parameter properties ni decoradores (`erasableSyntaxOnly`).
 - La trazabilidad AC → prueba se construye desde `reports/junit-*.xml`: ejecuta `gate:test` y `gate:invariants` antes de `gate:traceability`. Cada AC automático necesita una prueba que pase y cuyo título empiece por su código.
 - Las pruebas que usan el motor durable arrancan DBOS sobre su base efímera; las demás usan el motor en línea (`packages/core/src/engine/inline.ts`), que procesa el conocimiento en el acto.
-- Ejecuciones reales de agentes: `DEMIURGO_AGENT=claude` / `DEMIURGO_CLASSIFIER=reference` usan `claude -p` con la suscripción. Consumen cuota: solo cuando se pida. Nunca en las pruebas.
+- **Motores de los agentes** (FDR-AGE-002):
+  - se eligen en la web, en *Settings → Models & providers*: Claude, Codex u OpenCode (modelos locales como Qwen), globalmente o por proyecto;
+  - sin motor asignado, la ejecución no se crea (409 «Choose a model for …»);
+  - el proveedor `simulated` solo existe con `DEMIURGO_DEV_TOOLS=1`;
+  - Claude y Codex consumen cuota de la suscripción: solo cuando se pida, y nunca en las pruebas, que usan el simulado y fixtures;
+  - las variables `DEMIURGO_AGENT*`, `DEMIURGO_CLASSIFIER*` y `DEMIURGO_REVIEWER*` ya no existen y son un error.
 
 ## Arquitectura
 
@@ -32,8 +37,14 @@ Monorepo con cinco paquetes:
   - `bus/`: `executeCommand` aplica capacidad (403), validación Zod (422), carga (404), transición (409), guardas y efecto + evento en la misma transacción. Los comandos anidados (`ctx.execute`) llevan su actor y la misma correlación. Guardas por nombre en `bus/guards.ts`; manejadores en `commands/*`.
   - `db/`: Kysely sobre `pg`, migraciones SQL planas en `packages/core/migrations/` (migrador propio con checksum). Diario `events` solo INSERT; contenido de versiones y criterios inmutable; nada se borra.
   - `engine/`: DBOS Transact 4.27 en el mismo Postgres (esquema `dbos`), versión de aplicación fija. Flujo de una ejecución: preparar → invocar (agente) → aplicar (idempotente con `step_completions`). Respuesta durable a mensajes, conciliación al arrancar, arranques diferidos fuera de los pasos.
-  - `agents/`: simulador determinista y adaptador `claude -p` (sin herramientas ni MCP, en un temporal vacío y con entorno filtrado). Los prompts versionados están en `packages/core/methods/`. `actions/`: constructores de context pack y aplicadores de `exploration_chat` y `design_proposal`.
-  - `knowledge/`: «Actualizar conocimiento» (cola DBOS en serie), grafo en Postgres, evaluación de ideas, reconstrucción con huella, evaluación del clasificador. `classifier/`: simulado, referencia por CLI y Jev vacío.
+  - `agents/`:
+    - el catálogo de agentes (`packages/core/agents/<id>/AGENT.md`) y skills (`packages/core/skills/<id>/SKILL.md`), cuya versión es la huella de su contenido;
+    - el simulador determinista;
+    - las piezas comunes de `claude -p`.
+  - `providers/`: los adaptadores Claude (`stream-json`), Codex (`exec --json`) y OpenCode (endpoint OpenAI-compatible con la herramienta `StructuredOutput`), sin herramientas y con el entorno filtrado.
+  - `assignments/`: catálogo descubierto, asignaciones, resolución del motor, sesiones con delta, registro de cada llamada con sus eventos, consumo y el clasificador por agentes.
+  - `actions/`: constructores de context pack y aplicadores de `exploration_chat` y `design_proposal`.
+  - `knowledge/`: «Actualizar conocimiento» (cola DBOS en serie), grafo en Postgres, evaluación de ideas, reconstrucción con huella, evaluación del clasificador. `classifier/`: simulado, por agentes (knowledge_classifier, con cascada a knowledge_reviewer) y Jev vacío.
   - `design/`: importación de `design/` como lote pendiente (H1) y exportación canónica.
   - `runner/`: broker de contenedores endurecidos con JobSpec cerrado y sonda.
 - `packages/api`: Fastify. Sesión humana con cookie httpOnly + CSRF, tokens de agente (`Bearer dmg_agent_…`), ruta genérica `POST /api/projects/:projectId/commands/:command`, consultas por la matriz (`query.*`) y SSE del diario. `main.ts` arranca el servidor (puerto 8100 por defecto) y `cli.ts` las órdenes de operación.

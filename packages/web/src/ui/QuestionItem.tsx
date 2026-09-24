@@ -1,6 +1,6 @@
 // A question with its mark and its actions in place (spec §4.7): Answer confirms with the
 // conclusion, Park and Drop ask for a reason, Reopen brings it back; an assumed (inferred) one
-// offers Confirm and Change. The buttons come from the tables.
+// offers Confirm (decisive, so it asks first) and Change. The buttons come from the tables.
 
 import { useState } from 'react';
 import { useCommand } from '../api/commands.ts';
@@ -8,7 +8,7 @@ import { cn } from '../lib/cn.ts';
 import { stateWord } from '../words.ts';
 import { type ActionHandler, ActionBar, useAllows } from './ActionBar.tsx';
 import { Button } from './Button.tsx';
-import { TextDialog } from './dialogs.tsx';
+import { ConfirmDialog, TextDialog } from './dialogs.tsx';
 import { Mark } from './marks.tsx';
 import { Reasons } from './Reasons.tsx';
 
@@ -23,7 +23,7 @@ export type QuestionLike = {
   state_reason?: string | null;
 };
 
-type Dialog = null | 'answer' | 'change' | 'park' | 'drop' | 'reopen';
+type Dialog = null | 'confirm' | 'answer' | 'change' | 'park' | 'drop' | 'reopen';
 
 export function QuestionItem({
   projectId,
@@ -63,7 +63,8 @@ export function QuestionItem({
   const assumed = q.state === 'inferred';
   const handlers: Record<string, ActionHandler> = assumed
     ? {
-        'question.confirm': { run: () => run('question.confirm', {}, false), label: 'Confirm', variant: 'needs' },
+        // Confirming is decisive: it asks before turning DEMIURGO's assumption into the person's answer.
+        'question.confirm': { run: () => open('confirm'), label: 'Confirm', variant: 'needs' },
         'question.postpone': { run: () => open('park'), label: 'Park', variant: 'ghost' },
         'question.discard': { run: () => open('drop'), label: 'Drop', variant: 'ghost' },
       }
@@ -106,6 +107,22 @@ export function QuestionItem({
         </div>
       </div>
 
+      <ConfirmDialog
+        open={dialog === 'confirm'}
+        onOpenChange={(o) => !o && setDialog(null)}
+        title="Confirm this answer?"
+        description={
+          <>
+            <p>{q.question}</p>
+            <p className="mt-2 font-semibold text-ink">{q.conclusion}</p>
+            <p className="mt-2">DEMIURGO assumed it. Confirming makes it your answer.</p>
+          </>
+        }
+        confirm="Confirm"
+        pending={command.isPending}
+        error={dialogError}
+        onConfirm={() => run('question.confirm', {}, true)}
+      />
       <TextDialog
         open={dialog === 'answer' || dialog === 'change'}
         onOpenChange={(o) => !o && setDialog(null)}

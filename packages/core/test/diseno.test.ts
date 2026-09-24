@@ -458,14 +458,19 @@ describe('proyecto en todas las entidades', () => {
     const sinProyecto = await sql<{ table_name: string }>`
       select t.table_name from information_schema.tables t
       where t.table_schema = 'public' and t.table_type = 'BASE TABLE'
-        and t.table_name not in ('projects', 'humans', 'sessions', 'step_completions', 'schema_migrations')
+        -- Infraestructura sin proyecto: identidad, motor, migraciones, caché por input_hash y evaluaciones del clasificador.
+        and t.table_name not in ('projects', 'humans', 'sessions', 'step_completions', 'schema_migrations', 'verdict_cache', 'classifier_evaluations')
         and not exists (select 1 from information_schema.columns c
                         where c.table_schema = 'public' and c.table_name = t.table_name and c.column_name = 'project_id')`.execute(
       s.db,
     );
     expect(sinProyecto.rows).toEqual([]);
+    // Datos propios: la prueba no depende del orden de las demás.
     const e = await nuevaExploracion(s, proyectoId);
     await cmd('message.post', { exploracion_id: e, texto: 'Hola', responder: false });
+    await cmd('question.raise', { exploracion_id: e, pregunta: '¿Algo?' });
+    await fdrSobre(await nuevaDecision(s, proyectoId, true));
+    await nuevoLote(s, proyectoId, false);
     for (const tabla of [
       'projects',
       'records',

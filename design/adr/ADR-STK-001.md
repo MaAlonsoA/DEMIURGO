@@ -67,13 +67,20 @@ Defensas de pnpm en `pnpm-workspace.yaml`: `minimumReleaseAge` de 3 días, `stri
 
 ## Spike
 
-Motor durable: DBOS Transact 4.27.6 sobre PostgreSQL 18.6.
+Motor durable: DBOS Transact 4.27.6 sobre PostgreSQL 18.6 (informe completo en `docs/ejecuciones-reales/spike-dbos-2026-09-24.md`).
 
 1. Se lanzó un workflow de 3 pasos y se mató el proceso durante el paso 2.
 2. Al relanzar el proceso, DBOS reanudó el workflow sin intervención.
 3. El paso 1 y el paso 3 se ejecutaron una vez; el paso 2, dos veces.
 
 Conclusión: los pasos no transaccionales se ejecutan al menos una vez. El efecto «exactamente una vez» se consigue con pasos transaccionales idempotentes: el efecto y su marca en `step_completions` se escriben en la misma transacción, y un paso ya marcado no repite el efecto.
+
+Alcance reducido (desviación): este spike solo comprueba que DBOS recupera un flujo tras matar el proceso. Respecto al plan (§6, etapa 1) y al stack (§1 y §4 de `docs/investigacion-stack-2026-09-24.md`), falta:
+
+- el slice vertical (máquina de estados, workflow DBOS, broker, gate-runner y evidencia) construido por Claude Code y por Codex, midiendo las iteraciones hasta pasar los gates, los tokens y los reintentos;
+- la comparación DBOS frente a Temporal con sus 8 criterios (§4 del stack). De ellos solo se ha probado, en parte, el primero: matar el proceso a mitad de un paso, con un paso simple y no de agente.
+
+Hacer lo que falta o aceptar la desviación queda como decisión pendiente antes de S4.
 
 ## Criterios de aceptación
 
@@ -96,7 +103,7 @@ Dado cualquier `package.json` del monorepo, cuando se leen sus dependencias dire
 - Verificación: automática
 - Comprobación: Se revisa `pnpm-workspace.yaml`.
 
-Dado `pnpm-workspace.yaml`, cuando se lee, entonces `minimumReleaseAge` es de al menos 1440 minutos y están activos `strictDepBuilds`, `blockExoticSubdeps` y `trustPolicy: no-downgrade`.
+Dado `pnpm-workspace.yaml`, cuando se lee, entonces `minimumReleaseAge` es de al menos 4320 minutos (3 días) y están activos `strictDepBuilds`, `blockExoticSubdeps`, `trustPolicy: no-downgrade` y `saveExact: true`.
 
 ### AC-STK-001-04 · Una sola base
 

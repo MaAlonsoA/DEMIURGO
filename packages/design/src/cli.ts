@@ -2,16 +2,16 @@
 //   node packages/design/src/cli.ts validar [dir]
 //   node packages/design/src/cli.ts canonizar [dir]
 //   node packages/design/src/cli.ts derivar --comprobar | --escribir
-//   node packages/design/src/cli.ts trazabilidad
+//   node packages/design/src/cli.ts trazabilidad   (lee reports/junit-*.xml)
 
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { validarArbol } from './arbol.ts';
 import { RUTA_MODULO_TABLAS, generarModuloTablas } from './deriva.ts';
 import { leerArbol } from './disco.ts';
-import { parsearDocumento, renderizarDocumento } from './formato.ts';
+import { normalizarEspacios, parsearDocumento, renderizarDocumento } from './formato.ts';
 import { README_DISENO } from './readme.ts';
-import { mapaTrazabilidad } from './trazabilidad.ts';
+import { casosDeJUnit, informeCompleto, mapaTrazabilidad } from './trazabilidad.ts';
 
 const [orden, ...args] = process.argv.slice(2);
 const DIR = args.find((a) => !a.startsWith('--')) ?? 'design';
@@ -33,22 +33,31 @@ async function validar(): Promise<number> {
 async function canonizar(): Promise<number> {
   const arbol = await leerArbol(DIR);
   let n = 0;
+  let codigo = 0;
   for (const [ruta, texto] of arbol) {
-    if (!ruta.endsWith('.md') || ruta === 'README.md') continue;
-    const r = parsearDocumento(texto.replaceAll('\r\n', '\n').replace(/[ \t]+$/gm, ''), ruta);
-    if (!r.ok) {
-      for (const p of r.problemas) console.error(`✗ ${p.ruta}: ${p.mensaje}`);
+    let canonico: string;
+    if (ruta.endsWith('.yaml')) {
+      // En un anexo solo se arreglan los finales de línea y los espacios finales.
+      canonico = texto.replaceAll('\r\n', '\n').replace(/[^\S\n]+$/gm, '');
+    } else if (ruta.endsWith('.md') && ruta !== 'README.md') {
+      const r = parsearDocumento(normalizarEspacios(texto), ruta);
+      if (!r.ok) {
+        for (const p of r.problemas) console.error(`✗ ${p.ruta}: ${p.mensaje}`);
+        codigo = 1;
+        continue;
+      }
+      canonico = renderizarDocumento(r.valor);
+    } else {
       continue;
     }
-    const canonico = renderizarDocumento(r.valor);
     if (canonico !== texto) {
       await writeFile(join(DIR, ...ruta.split('/')), canonico, 'utf8');
       n++;
     }
   }
   await writeFile(join(DIR, 'README.md'), README_DISENO, 'utf8');
-  console.log(`Reescritos ${n} documento(s) y README.md.`);
-  return 0;
+  console.log(`Reescritos ${n} archivo(s) y README.md.`);
+  return codigo;
 }
 
 async function derivar(): Promise<number> {
@@ -69,38 +78,54 @@ async function derivar(): Promise<number> {
   return 0;
 }
 
-async function archivosDePrueba(): Promise<Map<string, string>> {
-  const archivos = new Map<string, string>();
-  for (const paquete of await readdir('packages')) {
-    const dir = join('packages', paquete, 'test');
-    const entradas = await readdir(dir, { recursive: true, withFileTypes: true }).catch(() => []);
-    for (const e of entradas) {
-      if (e.isFile() && e.name.endsWith('.test.ts')) {
-        const ruta = join(e.parentPath, e.name);
-        archivos.set(ruta.replaceAll('\\', '/'), await readFile(ruta, 'utf8'));
-      }
-    }
+const DIR_INFORMES = 'reports';
+
+/** Lee todos los `reports/junit-*.xml`: cada etapa de pruebas escribe el suyo. */
+async function informesJUnit(): Promise<Map<string, string>> {
+  const informes = new Map<string, string>();
+  const nombres = await readdir(DIR_INFORMES).catch(() => [] as string[]);
+  for (const nombre of nombres.filter((n) => /^junit-.+\.xml$/.test(n)).sort()) {
+    informes.set(`${DIR_INFORMES}/${nombre}`, await readFile(join(DIR_INFORMES, nombre), 'utf8'));
   }
-  return archivos;
+  return informes;
 }
 
 async function trazabilidad(): Promise<number> {
   const informe = validarArbol(await leerArbol(DIR));
+  if (informe.problemas.length > 0) {
+    console.error(`✗ ${DIR}/ no es válido: ejecuta antes «pnpm gate:design».`);
+    return 1;
+  }
+  const informes = await informesJUnit();
+  if (informes.size === 0) {
+    console.error(
+      `✗ No hay informes JUnit en ${DIR_INFORMES}/ (junit-*.xml): ejecuta antes pnpm gate:test y pnpm gate:invariantes.`,
+    );
+    return 1;
+  }
+  const incompletos = [...informes].filter(([, xml]) => !informeCompleto(xml)).map(([ruta]) => ruta);
+  if (incompletos.length > 0) {
+    for (const ruta of incompletos) console.error(`✗ ${ruta} está vacío o incompleto: vuelve a ejecutar sus pruebas.`);
+    return 1;
+  }
+  const casos = [...informes.values()].flatMap(casosDeJUnit);
   const raiz = JSON.parse(await readFile('package.json', 'utf8')) as { demiurgo?: { incrementosImplementados?: string[] } };
   const implementados = raiz.demiurgo?.incrementosImplementados ?? [];
-  const mapa = mapaTrazabilidad(informe.registros, await archivosDePrueba(), implementados);
+  const mapa = mapaTrazabilidad(informe.registros, casos, implementados);
+  const pasadas = casos.filter((c) => c.resultado === 'pasada').length;
+  console.log(`Informes leídos: ${[...informes.keys()].join(', ')} (${casos.length} pruebas, ${pasadas} pasadas).`);
   let codigo = 0;
   for (const d of mapa.desconocidos) {
-    console.error(`✗ ${d.archivo}: la prueba cita ${d.ac}, que no existe en ${DIR}/.`);
+    console.error(`✗ ${d.archivo}: la prueba «${d.prueba}» cita ${d.ac}, que no existe en ${DIR}/.`);
     codigo = 1;
   }
   for (const s of mapa.sinPrueba) {
-    console.error(`✗ ${s.ac} (${s.registro}): criterio automático sin prueba.`);
+    console.error(`✗ ${s.ac} (${s.registro}): criterio automático sin ninguna prueba pasada que empiece por su código.`);
     codigo = 1;
   }
   if (codigo === 0) {
     console.log(
-      `✓ Trazabilidad AC → prueba completa para ${implementados.join(', ') || '(ningún incremento)'}: ${mapa.pruebasPorAc.size} criterios con prueba.`,
+      `✓ Trazabilidad AC → prueba completa para ${implementados.join(', ') || '(ningún incremento)'}: ${mapa.pruebasPorAc.size} criterios con prueba pasada.`,
     );
   }
   return codigo;

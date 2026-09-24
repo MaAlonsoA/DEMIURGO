@@ -47,12 +47,13 @@ function problemasDefensas(yaml: string): string[] {
   const valor = (clave: string) => new RegExp(`^${clave}:[ \\t]*([^\\s#]+)[ \\t]*(?:#.*)?$`, 'm').exec(yaml)?.[1];
   const problemas: string[] = [];
   const edad = valor('minimumReleaseAge');
-  if (!(Number(edad) >= 1440))
-    problemas.push(`minimumReleaseAge debe ser de al menos 1440 minutos (ahora: ${edad ?? 'sin definir'}).`);
+  if (!(Number(edad) >= 4320))
+    problemas.push(`minimumReleaseAge debe ser de al menos 4320 minutos, 3 días (ahora: ${edad ?? 'sin definir'}).`);
   for (const clave of ['strictDepBuilds', 'blockExoticSubdeps']) {
     if (valor(clave) !== 'true') problemas.push(`${clave} debe estar activo.`);
   }
   if (valor('trustPolicy') !== 'no-downgrade') problemas.push('trustPolicy debe ser no-downgrade.');
+  if (valor('saveExact') !== 'true') problemas.push('saveExact debe estar activo.');
   return problemas;
 }
 
@@ -136,21 +137,29 @@ describe('versiones exactas', () => {
 });
 
 describe('defensas de pnpm', () => {
-  it('AC-STK-001-03 pnpm-workspace.yaml activa minimumReleaseAge, strictDepBuilds, blockExoticSubdeps y trustPolicy', async () => {
+  it('AC-STK-001-03 pnpm-workspace.yaml activa minimumReleaseAge de 3 días, strictDepBuilds, blockExoticSubdeps, trustPolicy y saveExact', async () => {
     expect(problemasDefensas(await leer('pnpm-workspace.yaml'))).toEqual([]);
   });
 
   it('AC-STK-001-03 la comprobación detecta defensas ausentes, débiles o comentadas', () => {
-    const debil = ['minimumReleaseAge: 60', 'strictDepBuilds: false', '# blockExoticSubdeps: true', 'trustPolicy: off'].join(
-      '\n',
-    );
+    const debil = [
+      'minimumReleaseAge: 1440',
+      'strictDepBuilds: false',
+      '# blockExoticSubdeps: true',
+      'trustPolicy: off',
+      'saveExact: false',
+    ].join('\n');
     expect(problemasDefensas(debil)).toEqual([
-      'minimumReleaseAge debe ser de al menos 1440 minutos (ahora: 60).',
+      'minimumReleaseAge debe ser de al menos 4320 minutos, 3 días (ahora: 1440).',
       'strictDepBuilds debe estar activo.',
       'blockExoticSubdeps debe estar activo.',
       'trustPolicy debe ser no-downgrade.',
+      'saveExact debe estar activo.',
     ]);
-    expect(problemasDefensas('')).toHaveLength(4);
+    expect(problemasDefensas('')).toHaveLength(5);
+    expect(
+      problemasDefensas('minimumReleaseAge: 4320\nstrictDepBuilds: true\nblockExoticSubdeps: true\ntrustPolicy: no-downgrade'),
+    ).toEqual(['saveExact debe estar activo.']);
   });
 });
 

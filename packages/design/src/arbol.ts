@@ -2,8 +2,7 @@
 // Es puro: la lectura del disco está en `disco.ts`.
 
 import { incoherenciasTablas, esquemaCapacidades, esquemaTransiciones } from '@demiurgo/domain/tablas/esquemas';
-import { parse as parsearYaml } from 'yaml';
-import { parsearDocumento, renderizarDocumento } from './formato.ts';
+import { leerYaml, parsearDocumento, problemasDeEspacios, renderizarDocumento } from './formato.ts';
 import { README_DISENO } from './readme.ts';
 import { CARPETAS, PLANTILLAS, type Documento, type DocumentoRegistro, type DocumentoTaxonomia, type Problema } from './tipos.ts';
 
@@ -78,11 +77,22 @@ function rutaDe(doc: Documento): string {
 function comprobarRegistros(registros: DocumentoRegistro[], anexos: Map<string, string>): Problema[] {
   const problemas: Problema[] = [];
   const porCodigo = new Map<string, DocumentoRegistro>();
+  const porBase = new Map<string, string>();
   const codigosAc = new Map<string, string>();
   for (const r of registros) {
     const ruta = rutaDe(r);
     if (porCodigo.has(r.codigo)) problemas.push({ ruta, mensaje: `Código de registro duplicado: ${r.codigo}.` });
     porCodigo.set(r.codigo, r);
+    // La parte DOM-NNN da nombre a los criterios (AC-DOM-NNN-NN): es única entre tipos.
+    const base = r.codigo.slice(4);
+    const otro = porBase.get(base);
+    if (otro !== undefined && otro !== r.codigo) {
+      problemas.push({
+        ruta,
+        mensaje: `${r.codigo} comparte ${base} con ${otro}: la parte DOM-NNN de un código es única entre tipos, porque sus criterios compartirían AC-${base}-NN.`,
+      });
+    }
+    porBase.set(base, r.codigo);
     const plantilla = PLANTILLAS[r.tipo];
     let i = 0;
     for (const s of r.secciones) if (s.titulo === plantilla.secciones[i]) i++;
@@ -96,7 +106,6 @@ function comprobarRegistros(registros: DocumentoRegistro[], anexos: Map<string, 
       problemas.push({ ruta, mensaje: 'Este tipo de registro exige al menos un criterio de aceptación.' });
     }
     if (r.version > 1 && !r.notaDeCambio) problemas.push({ ruta, mensaje: 'Una versión posterior a la 1 exige nota_de_cambio.' });
-    const base = r.codigo.slice(4);
     for (const c of r.criterios) {
       if (!c.codigo.startsWith(`AC-${base}-`)) {
         problemas.push({ ruta, mensaje: `${c.codigo}: el código de un criterio de ${r.codigo} empieza por AC-${base}-.` });
@@ -114,14 +123,24 @@ function comprobarRegistros(registros: DocumentoRegistro[], anexos: Map<string, 
       const destino = porCodigo.get(e.destino.codigo);
       if (!destino) {
         problemas.push({ ruta: rutaDe(r), mensaje: `El enlace ${e.tipo} apunta a ${e.destino.codigo}, que no existe.` });
-      } else if (e.destino.version > destino.version) {
+      } else if (e.destino.version !== destino.version) {
+        // design/ solo guarda la versión vigente de cada registro: la importación no podría
+        // materializar un enlace a otra versión.
         problemas.push({
           ruta: rutaDe(r),
-          mensaje: `El enlace apunta a ${e.destino.codigo}@${e.destino.version}, que no existe.`,
+          mensaje: `El enlace ${e.tipo} apunta a ${e.destino.codigo}@${e.destino.version}, pero la versión vigente es la ${destino.version}: un enlace apunta a la versión vigente de su destino.`,
         });
       }
       if (e.destino.codigo === r.codigo)
         problemas.push({ ruta: rutaDe(r), mensaje: 'Un registro no puede enlazarse a sí mismo.' });
+    }
+    for (const c of r.criterios) {
+      if (c.derivaDe === undefined) continue;
+      if (c.derivaDe === c.codigo) {
+        problemas.push({ ruta: rutaDe(r), mensaje: `${c.codigo}: un criterio no puede derivar de sí mismo.` });
+      } else if (!codigosAc.has(c.derivaDe)) {
+        problemas.push({ ruta: rutaDe(r), mensaje: `${c.codigo}: deriva de ${c.derivaDe}, que no existe en design/.` });
+      }
     }
   }
   return problemas;
@@ -153,15 +172,20 @@ function comprobarAnexos(anexos: Map<string, string>, registros: DocumentoRegist
   const problemas: Problema[] = [];
   const referenciados = new Map<string, number>();
   for (const r of registros) for (const a of r.anexos) referenciados.set(a, (referenciados.get(a) ?? 0) + 1);
-  for (const ruta of anexos.keys()) {
+  const leidos = new Map<string, unknown>();
+  for (const [ruta, texto] of anexos) {
     const n = referenciados.get(ruta) ?? 0;
     if (n !== 1) problemas.push({ ruta, mensaje: `Un anexo debe pertenecer a exactamente un registro (ahora: ${n}).` });
+    problemas.push(...problemasDeEspacios(texto, ruta));
+    const yaml = leerYaml(texto, ruta, 'El anexo');
+    if (yaml.ok) leidos.set(ruta, yaml.valor);
+    else problemas.push(...yaml.problemas);
   }
-  const cap = anexos.get('datos/capacidades.yaml');
-  const tra = anexos.get('datos/transiciones.yaml');
+  const cap = leidos.get('datos/capacidades.yaml');
+  const tra = leidos.get('datos/transiciones.yaml');
   if (cap !== undefined && tra !== undefined) {
-    const rc = esquemaCapacidades.safeParse(parsearYaml(cap));
-    const rt = esquemaTransiciones.safeParse(parsearYaml(tra));
+    const rc = esquemaCapacidades.safeParse(cap);
+    const rt = esquemaTransiciones.safeParse(tra);
     if (!rc.success) {
       for (const i of rc.error.issues)
         problemas.push({ ruta: 'datos/capacidades.yaml', mensaje: `${i.path.join('.')}: ${i.message}` });

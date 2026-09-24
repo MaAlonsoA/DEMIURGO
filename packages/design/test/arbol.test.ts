@@ -4,17 +4,25 @@ import { renderizarDocumento } from '../src/formato.ts';
 import type { TipoRegistro } from '../src/tipos.ts';
 import { arbolCon, criterio, mensajesDe, registro, rutaDe, taxonomia } from './soporte.ts';
 
-const DECISION = registro('decision', 'DEC-TST-001');
-const ADR = registro('adr', 'ADR-TST-001', { enlaces: [{ tipo: 'based_on', destino: { codigo: 'DEC-TST-001', version: 1 } }] });
+const DECISION = registro('decision', 'DEC-BAS-001');
+const ADR = registro('adr', 'ADR-TST-001', { enlaces: [{ tipo: 'based_on', destino: { codigo: 'DEC-BAS-001', version: 1 } }] });
 const TABLA = 'codigo: DAT-TST-001\nfilas: []\n';
 
 const problemas = (arbol: ReadonlyMap<string, string>) => mensajesDe(validarArbol(arbol));
+
+/** ADR que enlaza con la versión dada de DEC-BAS-001. */
+const enlaceA = (version: number) =>
+  registro('adr', 'ADR-TST-001', { enlaces: [{ tipo: 'design_of', destino: { codigo: 'DEC-BAS-001', version } }] });
+
+/** ADR con un criterio que deriva del código dado. */
+const derivaDe = (codigo: string) =>
+  registro('adr', 'ADR-TST-001', { criterios: [criterio('AC-TST-001-01', { derivaDe: codigo })] });
 
 describe('forma canónica del árbol', () => {
   it('AC-FMT-001-01 un árbol canónico y coherente no tiene problemas', () => {
     const informe = validarArbol(arbolCon([DECISION, ADR, taxonomia('TAX-001')]));
     expect(mensajesDe(informe)).toEqual([]);
-    expect(informe.registros.map((r) => r.codigo)).toEqual(['ADR-TST-001', 'DEC-TST-001']);
+    expect(informe.registros.map((r) => r.codigo)).toEqual(['ADR-TST-001', 'DEC-BAS-001']);
     expect(informe.taxonomias.map((t) => t.codigo)).toEqual(['TAX-001']);
   });
 
@@ -82,13 +90,23 @@ describe('códigos, enlaces y anexos', () => {
     expect(problemas(arbolCon([DECISION, adr]))).toEqual(['El enlace based_on apunta a DEC-NOE-001, que no existe.']);
   });
 
-  it('AC-FMT-001-02 un enlace apunta a una versión existente', () => {
-    const adr = registro('adr', 'ADR-TST-001', {
-      enlaces: [{ tipo: 'design_of', destino: { codigo: 'DEC-TST-001', version: 2 } }],
-    });
-    expect(problemas(arbolCon([DECISION, adr]))).toEqual(['El enlace apunta a DEC-TST-001@2, que no existe.']);
-    const segunda = registro('decision', 'DEC-TST-001', { version: 2, notaDeCambio: 'Aclara el contexto.' });
-    expect(problemas(arbolCon([segunda, adr]))).toEqual([]);
+  it('AC-FMT-001-02 un enlace apunta a la versión vigente de su destino, la de su archivo', () => {
+    expect(problemas(arbolCon([DECISION, enlaceA(2)]))).toEqual([
+      'El enlace design_of apunta a DEC-BAS-001@2, pero la versión vigente es la 1: un enlace apunta a la versión vigente de su destino.',
+    ]);
+    const segunda = registro('decision', 'DEC-BAS-001', { version: 2, notaDeCambio: 'Aclara el contexto.' });
+    expect(problemas(arbolCon([segunda, enlaceA(2)]))).toEqual([]);
+    // design/ no guarda la versión 1 de DEC-BAS-001: la importación no podría materializar el enlace.
+    expect(problemas(arbolCon([segunda, enlaceA(1)]))).toEqual([
+      'El enlace design_of apunta a DEC-BAS-001@1, pero la versión vigente es la 2: un enlace apunta a la versión vigente de su destino.',
+    ]);
+  });
+
+  it('AC-FMT-001-02 la parte DOM-NNN de un código es única entre tipos', () => {
+    const arbol = arbolCon([registro('adr', 'ADR-STK-001'), registro('decision', 'DEC-STK-001')]);
+    expect(problemas(arbol)).toEqual([
+      'DEC-STK-001 comparte STK-001 con ADR-STK-001: la parte DOM-NNN de un código es única entre tipos, porque sus criterios compartirían AC-STK-001-NN.',
+    ]);
   });
 
   it('AC-FMT-001-02 un registro no se enlaza a sí mismo', () => {
@@ -111,6 +129,42 @@ describe('códigos, enlaces y anexos', () => {
       'Un anexo debe pertenecer a exactamente un registro (ahora: 0).',
     ]);
   });
+
+  const conAnexo = registro('adr', 'ADR-TST-001', { anexos: ['datos/tabla.yaml'] });
+
+  it.each([
+    {
+      caso: 'CRLF',
+      texto: TABLA.replaceAll('\n', '\r\n'),
+      mensaje: 'El archivo usa finales de línea CRLF; el formato exige LF.',
+    },
+    {
+      caso: 'espacios finales',
+      texto: 'codigo: DAT-TST-001 \nfilas: []\n',
+      mensaje: 'La línea 1 termina con espacios; el formato no los admite.',
+    },
+    {
+      caso: 'un espacio duro final',
+      texto: 'codigo: DAT-TST-001\nfilas: [] \n',
+      mensaje: 'La línea 2 termina con espacios; el formato no los admite.',
+    },
+  ])('AC-FMT-001-01 un anexo con $caso se rechaza', ({ texto, mensaje }) => {
+    expect(problemas(arbolCon([conAnexo], { 'datos/tabla.yaml': texto }))).toContain(mensaje);
+  });
+
+  it('AC-FMT-001-02 un anexo que no es YAML válido se informa en español y sin traza de pila', () => {
+    const informe = validarArbol(arbolCon([conAnexo], { 'datos/tabla.yaml': 'codigo: [DAT-TST-001\nfilas: []\n' }));
+    expect(informe.problemas).toEqual([
+      {
+        ruta: 'datos/tabla.yaml',
+        mensaje: 'El anexo no es YAML válido: error de sintaxis en la línea 2, columna 1 (BAD_INDENT).',
+      },
+    ]);
+    const duplicada = validarArbol(arbolCon([conAnexo], { 'datos/tabla.yaml': 'codigo: A\ncodigo: B\n' }));
+    expect(mensajesDe(duplicada)).toEqual([
+      'El anexo no es YAML válido: error de sintaxis en la línea 2, columna 1 (DUPLICATE_KEY).',
+    ]);
+  });
 });
 
 describe('criterios verificables', () => {
@@ -122,13 +176,24 @@ describe('criterios verificables', () => {
   });
 
   it('AC-FMT-001-03 una decisión puede no tener criterios', () => {
-    expect(problemas(arbolCon([registro('decision', 'DEC-TST-001', { criterios: [] })]))).toEqual([]);
+    expect(problemas(arbolCon([registro('decision', 'DEC-BAS-001', { criterios: [] })]))).toEqual([]);
   });
 
   it('AC-FMT-001-03 el código de un criterio empieza por el del registro', () => {
     const adr = registro('adr', 'ADR-TST-001', { criterios: [criterio('AC-OTR-001-01')] });
     expect(problemas(arbolCon([adr]))).toEqual([
       'AC-OTR-001-01: el código de un criterio de ADR-TST-001 empieza por AC-TST-001-.',
+    ]);
+  });
+
+  it('AC-FMT-001-03 «Deriva de» apunta a un criterio que existe en design/', () => {
+    const origen = registro('fdr', 'FDR-ORI-001');
+    expect(problemas(arbolCon([origen, derivaDe('AC-ORI-001-01')]))).toEqual([]);
+    expect(problemas(arbolCon([origen, derivaDe('AC-ORI-001-02')]))).toEqual([
+      'AC-TST-001-01: deriva de AC-ORI-001-02, que no existe en design/.',
+    ]);
+    expect(problemas(arbolCon([origen, derivaDe('AC-TST-001-01')]))).toEqual([
+      'AC-TST-001-01: un criterio no puede derivar de sí mismo.',
     ]);
   });
 
@@ -143,7 +208,7 @@ describe('criterios verificables', () => {
   });
 
   it('exige nota de cambio a partir de la versión 2', () => {
-    expect(problemas(arbolCon([registro('decision', 'DEC-TST-001', { version: 2 })]))).toEqual([
+    expect(problemas(arbolCon([registro('decision', 'DEC-BAS-001', { version: 2 })]))).toEqual([
       'Una versión posterior a la 1 exige nota_de_cambio.',
     ]);
   });

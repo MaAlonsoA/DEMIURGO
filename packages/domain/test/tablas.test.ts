@@ -9,6 +9,8 @@ import { CAPACIDADES, TRANSICIONES } from '../src/generado/tablas.ts';
 import {
   esquemaCapacidades,
   esquemaTransiciones,
+  incoherenciasDeInvariantes,
+  incoherenciasEstructurales,
   incoherenciasTablas,
   type TablaCapacidades,
   type TablaTransiciones,
@@ -237,13 +239,28 @@ describe('coherencia de las tablas', () => {
 
   it('AC-NUC-001-01 las tablas mínimas de referencia son coherentes', () => {
     const { cap, tra } = tablasMinimas();
-    expect(incoherenciasTablas(cap, tra)).toEqual([]);
+    expect(incoherenciasEstructurales(cap, tra)).toEqual([]);
   });
 
   it.each(INCOHERENTES)('AC-NUC-001-01 detecta $caso', ({ romper, error }) => {
     const { cap, tra } = tablasMinimas();
     romper(cap, tra);
-    expect(incoherenciasTablas(cap, tra)).toContainEqual(expect.stringMatching(error));
+    expect(incoherenciasEstructurales(cap, tra)).toContainEqual(expect.stringMatching(error));
+  });
+
+  it('AC-NUC-001-01 las invariantes en código no se pueden relajar editando los datos', () => {
+    const { cap, tra } = tablasReales();
+    expect(incoherenciasDeInvariantes(cap, tra)).toEqual([]);
+    const pregunta = tra.entidades.question;
+    if (!pregunta) throw new Error('falta question');
+    pregunta.autoridad = [];
+    comandoDe(cap, 'record.create').permitido = ['human', 'agent_external'];
+    const consulta = cap.consultas['query.tokens'];
+    if (consulta) consulta.permitido = ['human', 'agent_external'];
+    const errores = incoherenciasTablas(cap, tra);
+    expect(errores).toContain('question: «confirmed» debe ser un estado de autoridad (I1).');
+    expect(errores).toContain('record.create: un agent_external solo puede conversar, registrar fuentes y proponer (I2).');
+    expect(errores).toContain('query.tokens: vedada a los agentes externos.');
   });
 });
 

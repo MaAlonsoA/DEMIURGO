@@ -77,6 +77,8 @@ Control sin el runner: un `docker run` por defecto corre como root, se conecta a
 
 Hallazgo: el backend de Docker Desktop en esta máquina es **WSL2**, no Hyper-V como recomienda el §6 del stack. T0 y T1 comparten la VM, y esa VM es la misma de las distros WSL de la persona. Queda como decisión pendiente pasar a Hyper-V o a una microVM para el runner antes de S4.
 
+Alcance reducido (desviación): la sonda comprueba el aislamiento del runner, pero no es el spike que pide el plan (§6, etapa 1). Falta que un agente en un contenedor modifique un repo de ejemplo y que el runner, sin datos ni credenciales, ejecute sus pruebas. Hacerlo o aceptar la desviación queda como decisión pendiente antes de S4.
+
 ## Criterios de aceptación
 
 ### AC-RUN-001-01 · Contenedor endurecido

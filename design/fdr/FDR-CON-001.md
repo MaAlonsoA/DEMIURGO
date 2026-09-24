@@ -22,7 +22,7 @@ Que el conocimiento del proyecto se mantenga al día solo, con un paso verificad
 
 - Grafo de conocimiento en Postgres detrás del puerto `KnowledgeGraph`, como proyección reconstruible de la autoridad.
 - Taxonomía con versiones, aprobada por la persona (TAX-001).
-- Clasificador detrás del puerto `Classifier` (ADR-CLA-001), con salida validada y veredictos guardados por `input_hash`.
+- Clasificador detrás del puerto `Clasificador` (ADR-CLA-001), con salida validada y veredictos guardados por `input_hash`.
 - Paso «Actualizar conocimiento», disparado por cada evento de autoridad y verificado de forma determinista.
 - Invalidar en lugar de borrar, con versión del grafo.
 - Gate de frescura.
@@ -50,7 +50,7 @@ Que el conocimiento del proyecto se mantenga al día solo, con un paso verificad
 7. Cada idea o propuesta nueva se compara con el conocimiento. Los hallazgos (`relates`, `conflicts`, `inconsistent` y `duplicates`) citan nodo@versión y se ven en la bandeja.
 8. Un constructor puro por rol recorre el grafo desde el alcance de la acción, elige nodos dentro del presupuesto y registra el motivo de cada uno, la versión del grafo, las dependencias y el hash.
 9. El importador lee `design/` y crea o reconoce cada elemento sin duplicar.
-10. Reconstruir el grafo desde la autoridad con las clasificaciones guardadas da la misma huella.
+10. Reconstruir el grafo desde la autoridad con las clasificaciones guardadas da la misma huella. La huella es el sha256 del JSON canónico de todos los nodos y aristas del proyecto, con su referencia, sus categorías, su estado epistémico y las versiones del grafo en que nacen y en que se invalidan, sin ids ni fechas.
 
 ## Criterios de aceptación
 
@@ -94,7 +94,7 @@ Dado un nodo sustituido por un update, cuando se aplica, entonces el nodo queda 
 - Verificación: automática
 - Comprobación: Se reconstruye el grafo desde cero y se comparan las huellas.
 
-Dado un grafo mantenido de forma incremental, cuando se reconstruye desde la autoridad con las clasificaciones guardadas, entonces su huella es la misma.
+Dado un grafo mantenido de forma incremental, cuando se reconstruye desde la autoridad con las clasificaciones guardadas, entonces su huella es la misma. La huella es el sha256 del JSON canónico de todos los nodos y aristas del proyecto (referencia, categorías, estado epistémico, versión del grafo en que nacen y en que se invalidan), sin ids ni fechas.
 
 ### AC-CON-001-07 · Gate de frescura
 

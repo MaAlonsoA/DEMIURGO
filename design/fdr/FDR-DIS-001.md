@@ -57,7 +57,28 @@ La franja más fina del Pilar 1, usable por una persona o por un agente: partir 
 8. Aprobar no crea versión. La vigente es la última aprobada y la aprobada anterior pasa a sustituida. Una versión nueva arrastra cada criterio de forma explícita: mantener, modificar o descartar.
 9. Si una dependencia declarada de una propuesta cambió, aceptarla se rechaza con aviso de obsolescencia y la propuesta queda obsoleta.
 10. El reintento de una ejecución usa el mismo context pack que el envío.
-11. Cada elemento de la bandeja y del estado del producto lleva su estado epistémico: confirmado, propuesto, pendiente o desconocido.
+11. Cada elemento de la bandeja y del estado del producto lleva su estado epistémico: confirmado, propuesto, pendiente o desconocido, según la tabla de correspondencias de abajo.
+12. El chequeo de verificabilidad de S1 es una regla determinista, que el Noul del clasificador sustituirá. Nunca bloquea: el AC se guarda igualmente. Un AC recibe un aviso si su enunciado:
+    - no contiene un resultado observable, es decir, ninguna palabra como cuando, entonces, ve, recibe, muestra, devuelve, aparece, queda, rechaza, falla, contiene, guarda o responde;
+    - o contiene un término vago: rápido, fácil, intuitivo, adecuado, correctamente, bien, amigable, robusto, eficiente o mejor.
+13. Un registro se crea y se aprueba solo si sus secciones cumplen la plantilla de su tipo. Si no, se rechaza con lo que falta.
+14. Solo el sistema pasa una pregunta a inferida, a partir de la salida validada de un agente. Un agente no puede inferirla ni confirmarla.
+15. Cada lote de una ejecución guarda la ejecución y el context pack que lo produjeron.
+
+Correspondencia del estado epistémico (AC-DIS-001-12 se comprueba contra esta tabla):
+
+| Elemento | Estado epistémico |
+|---|---|
+| Versión aprobada | confirmado |
+| Versión en borrador | propuesto |
+| Propuesta pendiente | propuesto |
+| Propuesta aceptada | confirmado |
+| Pregunta confirmada | confirmado |
+| Pregunta inferida | propuesto |
+| Pregunta pendiente o pospuesta | pendiente |
+| Observación `claim` o `hypothesis` | propuesto |
+| Observación `unknown` | desconocido |
+| Enlace pendiente de revisión | pendiente |
 
 ## Criterios de aceptación
 
@@ -141,9 +162,9 @@ Dado un agente externo, cuando envía un lote de más de 10 propuestas, entonces
 ### AC-DIS-001-12 · Estado epistémico visible
 
 - Verificación: automática
-- Comprobación: Se consultan la bandeja y el estado del producto con elementos en cada estado.
+- Comprobación: Se consultan la bandeja y el estado del producto con un elemento de cada fila de la tabla de correspondencias y se compara el estado epistémico de cada uno con la tabla.
 
-Dada la bandeja y el estado del producto, cuando se consultan, entonces cada elemento lleva su estado epistémico: confirmado, propuesto, pendiente o desconocido.
+Dada la bandeja y el estado del producto, cuando se consultan, entonces cada elemento lleva el estado epistémico que le asigna la tabla de correspondencias de Comportamiento: confirmado, propuesto, pendiente o desconocido.
 
 ### AC-DIS-001-13 · Estado del producto mínimo
 
@@ -155,9 +176,9 @@ Dado un proyecto con decisiones y diseños, cuando se consulta su estado, entonc
 ### AC-DIS-001-14 · Chequeo de verificabilidad
 
 - Verificación: automática
-- Comprobación: Se registra un AC con un enunciado no observable.
+- Comprobación: Se registran un AC sin ninguna palabra de resultado observable, otro con un término vago y otro que cumple la regla.
 
-Dado un AC cuyo enunciado no es observable, cuando se registra, entonces recibe un aviso y se guarda igualmente: el chequeo nunca bloquea.
+Dado un AC cuyo enunciado no contiene ninguna palabra de resultado observable o contiene un término vago de la regla determinista de S1 (Comportamiento, punto 12), cuando se registra, entonces recibe un aviso y se guarda igualmente: el chequeo nunca bloquea. Un AC que cumple la regla no recibe aviso.
 
 ### AC-DIS-001-15 · Credencial humana protegida
 
@@ -179,3 +200,24 @@ Dada una propuesta con una dependencia declarada que cambió, cuando la persona 
 - Comprobación: La persona revisa la ejecución real registrada y su resultado.
 
 Dado S1 terminado, cuando se revisa el registro de ejecuciones, entonces hay al menos una ejecución real con Claude registrada con su resultado.
+
+### AC-DIS-001-18 · Plantilla obligatoria
+
+- Verificación: automática
+- Comprobación: Se crea y se aprueba un registro de cada tipo al que le falta una sección de su plantilla.
+
+Dado un registro cuyas secciones no cumplen la plantilla de su tipo (por ejemplo, un bug sin Reproducción), cuando se crea o se aprueba, entonces se rechaza con lo que falta.
+
+### AC-DIS-001-19 · Inferir es del sistema
+
+- Verificación: automática
+- Comprobación: Un agente intenta inferir y confirmar una pregunta, y el sistema la infiere a partir de la salida validada de una ejecución.
+
+Dada una pregunta pendiente, cuando un agente intenta inferirla o confirmarla, entonces se rechaza; y solo el sistema la pasa a inferida, a partir de la salida validada de un agente.
+
+### AC-DIS-001-20 · Procedencia del lote
+
+- Verificación: automática
+- Comprobación: Se completa una ejecución que produce un lote y se revisa lo que guarda el lote.
+
+Dada una ejecución que produce un lote de propuestas, cuando se guarda el lote, entonces guarda la ejecución y el context pack que lo produjeron.

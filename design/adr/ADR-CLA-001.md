@@ -1,7 +1,7 @@
 ---
 codigo: ADR-CLA-001
 tipo: adr
-titulo: Clasificador detrás del puerto Classifier
+titulo: Clasificador detrás de un puerto con varios adaptadores
 version: 1
 estado: propuesto
 dominio: conocimiento
@@ -12,7 +12,7 @@ enlaces:
 anexos: []
 ---
 
-# ADR-CLA-001 · Clasificador detrás del puerto Classifier
+# ADR-CLA-001 · Clasificador detrás de un puerto con varios adaptadores
 
 ## Contexto
 
@@ -29,14 +29,14 @@ Jev aún no está disponible. Además, está en early access, alojado en EE. UU.
 
 ## Decisión
 
-- Puerto `Clasificador` en `packages/domain/src/clasificador.ts` con las tres primitivas de §7.5:
+- Puerto `Classifier` (en el código, `Clasificador`) en `packages/domain/src/clasificador.ts` con las tres primitivas de §7.5:
   - `choice`: una opción de un conjunto cerrado, con su distribución;
   - `score`: un nivel de una rúbrica ordenada;
   - `noul`: la probabilidad de que un enunciado sea verdadero.
 - Cada respuesta lleva su confianza, y el clasificador se identifica como nombre@versión.
 - Tres adaptadores:
   - un simulador determinista para las pruebas;
-  - una referencia sobre `claude -p` con `--json-schema` y un modelo pequeño, con la frontera de ADR-RUN-001;
+  - una referencia sobre `claude -p` con `--json-schema` y un modelo pequeño (Haiku, alias `haiku`, por defecto y configurable), con la frontera de ADR-RUN-001;
   - un adaptador de Jev vacío, que falla con «Jev no está disponible» sin efectos.
 - Cascada por confianza: alta (desde 0,8) se aplica al conocimiento derivado; media (desde 0,55) la revisa un LLM; baja queda pendiente de la persona. Los umbrales se ajustan con datos propios.
 - El clasificador solo escribe conocimiento derivado, clasificaciones y propuestas. Nunca cambia un estado de autoridad (I10).
@@ -57,7 +57,7 @@ Jev aún no está disponible. Además, está en early access, alojado en EE. UU.
 - Verificación: automática
 - Comprobación: Se revisa el puerto y se llama al adaptador de Jev.
 
-Dado el puerto `Classifier`, cuando se revisa, entonces expone `choice`, `score` y `noul`; y cuando se llama al adaptador de Jev, falla con «Jev no está disponible» sin efectos.
+Dado el puerto `Clasificador`, cuando se revisa, entonces expone `choice`, `score` y `noul`; y cuando se llama al adaptador de Jev, falla con «Jev no está disponible» sin efectos.
 
 ### AC-CLA-001-02 · Simulador determinista
 
@@ -71,7 +71,7 @@ Dada la misma entrada, cuando se llama dos veces al simulador, entonces da la mi
 - Verificación: automática
 - Comprobación: Se revisa la orden con la que se lanza la CLI y se normaliza una respuesta grabada.
 
-Dada una pregunta al adaptador de referencia, cuando invoca la CLI, entonces usa `claude -p` con `--json-schema` y un modelo pequeño, y normaliza la respuesta grabada al formato del puerto.
+Dada una pregunta al adaptador de referencia, cuando invoca la CLI, entonces usa `claude -p` con `--json-schema` y el modelo Haiku (alias `haiku`) por defecto, o el configurado si se indica otro; y normaliza la respuesta grabada al formato del puerto.
 
 ### AC-CLA-001-04 · Cascada por umbrales
 

@@ -1,4 +1,6 @@
 # CI de DEMIURGO v2: cuatro etapas encadenadas. Juntas ejecutan todo `pnpm gate:all`.
+# Cada etapa de pruebas deja su informe JUnit como artefacto; la última los reúne en `reports/`
+# y calcula la trazabilidad AC → prueba (`pnpm gate:trazabilidad`) con las pruebas que pasaron.
 name: CI
 
 on:
@@ -43,7 +45,12 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
       - run: corepack enable pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm vitest run --project unitarias
+      - run: pnpm vitest run --project unitarias --reporter=default --reporter=junit --outputFile.junit=reports/junit-unitarias.xml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: junit-unitarias
+          path: reports/junit-unitarias.xml
+          if-no-files-found: error
 
   integracion:
     name: Pruebas de integración con Postgres
@@ -69,12 +76,17 @@ jobs:
       - run: corepack enable pnpm
       - run: pnpm install --frozen-lockfile
       - run: docker pull "$IMAGEN_RUNNER"
-      - run: pnpm vitest run --project integracion
+      - run: pnpm vitest run --project integracion --reporter=default --reporter=junit --outputFile.junit=reports/junit-integracion.xml
         env:
           CI: 'true'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: junit-integracion
+          path: reports/junit-integracion.xml
+          if-no-files-found: error
 
   invariantes:
-    name: Suite de invariantes
+    name: Suite de invariantes y trazabilidad
     needs: integracion
     runs-on: ubuntu-24.04
     services:
@@ -99,3 +111,9 @@ jobs:
       - run: pnpm gate:invariantes
         env:
           CI: 'true'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: junit-*
+          path: reports
+          merge-multiple: true
+      - run: pnpm gate:trazabilidad

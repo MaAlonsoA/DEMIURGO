@@ -39,6 +39,7 @@ Las invariantes que dependen de esta decisión son I1 (los estados de autoridad 
 - Las tablas viven en `design/datos/capacidades.yaml` (DAT-CAP-001) y `design/datos/transiciones.yaml` (DAT-TRA-001), anexas a este ADR. De ellas se genera `packages/domain/src/generado/tablas.ts`, y un gate de deriva falla si no coinciden.
 - Tipos de actor: `human`, `agent_external`, `agent_run` y `system`. Existe también `unknown`, solo para historia importada, y no puede ejecutar ningún comando. El servidor fija el actor según la credencial o el canal.
 - Un comando decisivo alcanza un estado de autoridad y solo lo puede ejecutar `human`.
+- Un comando compuesto, que cambia otras entidades (aceptar y aprobar, aceptar un paquete, ratificar una importación), se descompone en comandos de la tabla. Cada uno pasa por la matriz y la tabla de transiciones con su actor y deja su evento, y todos comparten la misma correlación.
 - Las pruebas 403 y 409 se generan desde las tablas: cada comando con cada actor no permitido, y cada estado con cada comando que no tiene transición desde él.
 - Las guardas se declaran por nombre en la tabla de transiciones y se implementan en el núcleo.
 - Las entidades del Pilar 2 (Change Set, tarea, prueba de aceptación y evidencia) están en las tablas desde S0, aunque se implementan desde S3. El campo `implementado_en` dice desde cuándo.
@@ -79,3 +80,10 @@ Dada cada guarda declarada en la tabla de transiciones, cuando se busca en el n�
 - Comprobación: La persona revisa el ADR y sus tablas y los fusiona en `main`.
 
 Dado este ADR y sus tablas en estado propuesto, cuando la persona los revisa, entonces los acepta con el merge.
+
+### AC-NUC-001-05 · Comandos compuestos
+
+- Verificación: automática
+- Comprobación: Se ejecutan los comandos compuestos implementados y se revisan los eventos que dejan.
+
+Dado un comando compuesto que cambia otras entidades (aceptar y aprobar, aceptar un paquete o ratificar una importación), cuando se ejecuta, entonces se descompone en comandos de la tabla, cada uno con su actor y su evento, y todos los eventos llevan la misma correlación.

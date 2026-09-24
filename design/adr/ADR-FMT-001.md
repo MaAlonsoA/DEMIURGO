@@ -36,15 +36,15 @@ Riesgos que cubre: que el diseño en Markdown se quede corto antes de que exista
 - Markdown con frontmatter YAML. Un archivo por registro (`<código>.md`) en una carpeta por tipo. Las tablas como datos viven en `datos/`, cada una anexa a un solo registro.
 - Frontmatter en orden fijo, cuerpo con la plantilla de su tipo y `## Criterios de aceptación` siempre al final, con formato fijo por criterio. El formato completo está en `design/README.md`, que se genera desde `packages/design/src/readme.ts`.
 - **Regla canónica:** un documento es válido solo si `renderizar(parsear(x)) = x`. No hay variantes de estilo y la exportación de H1 sale sin diff.
-- El validador (`pnpm gate:design`) se ejecuta en la CI dentro de `pnpm gate:all`. `node packages/design/src/cli.ts canonizar` reescribe los archivos en forma canónica.
-- **Trazabilidad AC → prueba por código:** cada criterio automático de un incremento implementado tiene al menos una prueba cuyo nombre empieza por su código. Los incrementos implementados se declaran en `package.json`, en `demiurgo.incrementosImplementados`.
+- El validador es `pnpm gate:design`. Las etapas de la CI ejecutan, entre todas, cada gate de `pnpm gate:all`, incluidos `gate:design` y `gate:trazabilidad`. `node packages/design/src/cli.ts canonizar` reescribe los archivos en forma canónica.
+- **Trazabilidad AC → prueba por código:** cada criterio automático de un incremento implementado tiene al menos una prueba que pasa y cuyo título empieza por su código. `pnpm gate:trazabilidad` lo calcula con los informes JUnit de Vitest (`reports/junit-*.xml`), así que solo cuenta lo que se ejecutó y pasó: un comentario, una cadena, un `describe` o una prueba saltada o fallida no cuentan. Los incrementos implementados se declaran en `package.json`, en `demiurgo.incrementosImplementados`.
 - Todos los documentos entran en estado «propuesto»: la persona los aprueba con el merge.
 
 ## Consecuencias
 
 - El formato es estrecho a propósito: lo que no cabe en la plantilla no se escribe.
 - El importador y el exportador de H1 comparten el parser y el renderizador de `packages/design`.
-- Una prueba que cita un código inexistente, o un AC automático sin prueba, hace fallar el gate.
+- Una prueba pasada que cita un código inexistente, o un AC automático sin prueba pasada, hace fallar `gate:trazabilidad`.
 - La trazabilidad por nombre es provisional. En S3 la sustituye el mapa AC → comprobación → prueba que acepta la persona.
 - Desde H1, `design/` es una exportación y la CI fallará si alguien lo edita a mano.
 
@@ -55,21 +55,21 @@ Riesgos que cubre: que el diseño en Markdown se quede corto antes de que exista
 - Verificación: automática
 - Comprobación: El validador reescribe cada documento desde su contenido y compara los bytes.
 
-Dado un documento de `design/`, cuando se reescribe desde su contenido, entonces produce exactamente los mismos bytes; un documento con CRLF, espacios de más o una sección vacía se rechaza.
+Dado un documento de `design/`, cuando se reescribe desde su contenido, entonces produce exactamente los mismos bytes; un documento con CRLF, espacios finales de cualquier tipo, más de una línea en blanco seguida o una sección vacía o repetida se rechaza, y un anexo con CRLF o espacios finales también.
 
 ### AC-FMT-001-02 · Códigos y enlaces
 
 - Verificación: automática
 - Comprobación: El validador revisa los códigos, los enlaces y los anexos de todo el árbol.
 
-Dado el árbol `design/`, cuando se valida, entonces los códigos de registros, taxonomías y criterios son únicos, cada enlace apunta a un registro y a una versión que existen, y cada anexo existe y pertenece a un solo registro.
+Dado el árbol `design/`, cuando se valida, entonces los códigos de registros, taxonomías y criterios son únicos y la parte DOM-NNN de un registro no se repite entre tipos; cada enlace apunta a la versión vigente de un registro que existe y no se repite; y cada anexo existe, es YAML válido y pertenece a un solo registro.
 
 ### AC-FMT-001-03 · Criterios verificables
 
 - Verificación: automática
 - Comprobación: El validador revisa cada criterio y el número de criterios de cada registro.
 
-Dado un criterio de aceptación, cuando se valida, entonces tiene verificación automática o manual, comprobación y enunciado, y su código empieza por el del registro; un ADR, una FDR o un bug sin criterios se rechaza.
+Dado un criterio de aceptación, cuando se valida, entonces tiene verificación automática o manual, comprobación y enunciado, su código empieza por el del registro y su «Deriva de», si lo tiene, apunta a un criterio que existe; un encabezado fuera de «Criterios de aceptación» que empieza por un código de criterio se rechaza, y también un ADR, una FDR o un bug sin criterios.
 
 ### AC-FMT-001-04 · Taxonomía con «otra»
 
@@ -81,13 +81,20 @@ Dada una taxonomía, cuando se valida, entonces cada eje tiene la categoría `ot
 ### AC-FMT-001-05 · Trazabilidad
 
 - Verificación: automática
-- Comprobación: Se calcula el mapa AC → prueba con los nombres de las pruebas del repositorio.
+- Comprobación: Se calcula el mapa AC → prueba con los informes JUnit de las pruebas ejecutadas.
 
-Dado un incremento implementado, cuando se calcula el mapa AC → prueba, entonces cada criterio automático tiene una prueba con su código en el nombre, y una prueba que cita un código inexistente hace fallar el gate.
+Dado un incremento implementado, cuando se calcula el mapa AC → prueba con los informes JUnit, entonces cada criterio automático tiene al menos una prueba que pasó y cuyo título empieza por su código; una prueba fallida o saltada, o un código en un `describe` o en medio del título, no cuenta; y una prueba pasada que cita un código inexistente hace fallar el gate.
 
-### AC-FMT-001-06 · Validador en la CI
+### AC-FMT-001-06 · Gates en la CI
 
 - Verificación: automática
-- Comprobación: Se revisa el workflow de GitHub Actions.
+- Comprobación: Se revisan el workflow de GitHub Actions y el script `gate:all`.
 
-Dado el workflow de la CI, cuando se ejecuta, entonces lanza `pnpm gate:all`, que incluye `gate:design`.
+Dado el workflow de la CI, cuando se ejecuta, entonces sus etapas ejecutan, entre todas, cada gate de `pnpm gate:all`, incluidos `gate:design` y `gate:trazabilidad`.
+
+### AC-FMT-001-07 · Aceptación humana
+
+- Verificación: manual
+- Comprobación: La persona revisa el ADR y lo fusiona en `main`.
+
+Dado este ADR en estado propuesto, cuando la persona lo revisa, entonces lo acepta con el merge.

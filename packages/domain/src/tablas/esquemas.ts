@@ -96,8 +96,13 @@ export const COMANDOS_PERMITIDOS_A_AGENTES: Readonly<Record<'agent_external' | '
 /** Consultas que un agente externo nunca puede usar. */
 export const CONSULTAS_VEDADAS_A_AGENTES: readonly string[] = ['query.projects', 'query.tokens'];
 
-/** Devuelve la lista de incoherencias entre ambas tablas, en español. Vacía si son coherentes. */
+/** Incoherencias entre ambas tablas y con las invariantes fijadas en código. Vacía si todo cuadra. */
 export function incoherenciasTablas(cap: TablaCapacidades, tra: TablaTransiciones): string[] {
+  return [...incoherenciasEstructurales(cap, tra), ...incoherenciasDeInvariantes(cap, tra)];
+}
+
+/** Invariantes fijadas en código (I1 e I2) que los datos no pueden relajar. */
+export function incoherenciasDeInvariantes(cap: TablaCapacidades, tra: TablaTransiciones): string[] {
   const errores: string[] = [];
   for (const [entidad, estados] of Object.entries(ESTADOS_DE_AUTORIDAD_MINIMOS)) {
     for (const e of estados) {
@@ -115,6 +120,12 @@ export function incoherenciasTablas(cap: TablaCapacidades, tra: TablaTransicione
   for (const q of CONSULTAS_VEDADAS_A_AGENTES) {
     if (cap.consultas[q]?.permitido.includes('agent_external')) errores.push(`${q}: vedada a los agentes externos.`);
   }
+  return errores;
+}
+
+/** Coherencia interna de los datos: comandos, estados, alcanzabilidad y decisivos. */
+export function incoherenciasEstructurales(cap: TablaCapacidades, tra: TablaTransiciones): string[] {
+  const errores: string[] = [];
   const usados = new Set<string>();
   for (const [entidad, def] of Object.entries(tra.entidades)) {
     const estados = new Set(Object.keys(def.estados));

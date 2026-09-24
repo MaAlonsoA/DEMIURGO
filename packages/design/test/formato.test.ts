@@ -1,6 +1,6 @@
 import * as fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { parsearDocumento, renderizarDocumento } from '../src/formato.ts';
+import { normalizarEspacios, parsearDocumento, renderizarDocumento } from '../src/formato.ts';
 import {
   ESTADOS_DOCUMENTO,
   PLANTILLAS,
@@ -42,12 +42,15 @@ const registroArbitrario: fc.Arbitrary<DocumentoRegistro> = fc
     dominio: fc.constantFrom('nucleo', 'diseno', 'canal_agentes'),
     incremento: fc.option(fc.constantFrom('D0', 'S1', 'H1'), { nil: undefined }),
     notaDeCambio: fc.option(frase, { nil: undefined }),
-    enlaces: fc.array(
+    enlaces: fc.uniqueArray(
       fc.record({
         tipo: fc.constantFrom(...TIPOS_ENLACE),
-        destino: fc.record({ codigo: fc.constantFrom('DEC-PLN-001', 'TAX-001'), version: fc.integer({ min: 1, max: 5 }) }),
+        destino: fc.record({
+          codigo: fc.constantFrom('DEC-PLN-001', 'ADR-OTR-001', 'FDR-OTR-002'),
+          version: fc.integer({ min: 1, max: 12 }),
+        }),
       }),
-      { maxLength: 3 },
+      { maxLength: 3, selector: (e) => `${e.tipo} ${e.destino.codigo}` },
     ),
     anexos: fc.uniqueArray(fc.constantFrom('datos/uno.yaml', 'datos/dos-tres.yaml'), { maxLength: 2 }),
     contenidos: fc.array(contenido, { minLength: 4, maxLength: 4 }),
@@ -146,12 +149,53 @@ describe('forma canónica de un documento', () => {
       error: /título del cuerpo/,
     },
     { caso: 'la falta de frontmatter', cambiar: (t: string) => t.slice(4), error: /Falta el frontmatter/ },
+    {
+      caso: 'un espacio duro (U+00A0) al final de una línea',
+      cambiar: (t: string) => t.replace('Texto de contexto.', 'Texto de contexto. '),
+      error: /La línea \d+ termina con espacios/,
+    },
+    {
+      caso: 'un tabulador al final de una línea del frontmatter',
+      cambiar: (t: string) => t.replace('dominio: pruebas', 'dominio: pruebas\t'),
+      error: /La línea 7 termina con espacios/,
+    },
+    {
+      caso: 'dos líneas en blanco seguidas dentro de una sección',
+      cambiar: (t: string) => t.replace('Texto de contexto.', 'Texto de contexto.\n\n\nMás contexto.'),
+      error: /La sección «Contexto» tiene más de una línea en blanco seguida/,
+    },
+    {
+      caso: 'dos líneas en blanco seguidas dentro de un criterio',
+      cambiar: (t: string) => t.replace('Dado algo, cuando pasa,', 'Dado algo,\n\n\ncuando pasa,'),
+      error: /La sección «Criterios de aceptación» tiene más de una línea en blanco seguida/,
+    },
+    {
+      caso: 'una sección repetida',
+      cambiar: (t: string) => t.replace('## Opciones', '## Contexto\n\nOtra vez.\n\n## Opciones'),
+      error: /La sección «Contexto» está repetida/,
+    },
+    {
+      caso: 'un frontmatter que no es YAML válido',
+      cambiar: (t: string) => t.replace('titulo: Registro ADR-TST-001', 'titulo: [roto'),
+      error: /^El frontmatter no es YAML válido: error de sintaxis en la línea \d+, columna \d+ \([A-Z_]+\)\.$/,
+    },
   ];
 
   it.each(rechazados)('AC-FMT-001-01 rechaza $caso', ({ cambiar, error }) => {
     const texto = cambiar(BASE);
     expect(texto).not.toBe(BASE);
     expect(fallos(leer(texto))).toContainEqual(expect.stringMatching(error));
+  });
+
+  it('AC-FMT-001-01 canonizar arregla los espacios finales de cualquier tipo, el CRLF y las líneas en blanco de más', () => {
+    const roto = BASE.replace('Texto de contexto.', 'Texto de contexto.  \t\n\n\n \nMás contexto.')
+      .replace('\n\n## Opciones', '\n\n\n\n## Opciones')
+      .replaceAll('\n', '\r\n');
+    expect(leer(roto).ok).toBe(false);
+    const arreglado = normalizarEspacios(roto);
+    expect(renderizarDocumento(valor(leer(arreglado)))).toBe(
+      BASE.replace('Texto de contexto.', 'Texto de contexto.\n\nMás contexto.'),
+    );
   });
 
   const noCanonicos = [
@@ -197,6 +241,48 @@ describe('códigos de un documento', () => {
     );
     const conEnlace = BASE.replace('enlaces: []', 'enlaces:\n  - tipo: based_on\n    destino: DEC-TST-001');
     expect(fallos(leer(conEnlace))).toContainEqual(expect.stringMatching(/Referencia CODIGO@version/));
+  });
+
+  const conEnlaces = (...destinos: [string, string][]) =>
+    BASE.replace(
+      'enlaces: []',
+      `enlaces:\n${destinos.map(([tipo, d]) => `  - tipo: ${tipo}\n    destino: ${d}\n`).join('')}`.trimEnd(),
+    );
+
+  it.each(['DEC-TST-001@0', 'DEC-TST-001@01', 'TAX-001@1'])('AC-FMT-001-02 rechaza la referencia %s', (destino) => {
+    expect(fallos(leer(conEnlaces(['based_on', destino])))).toContainEqual(expect.stringMatching(/Referencia CODIGO@version/));
+  });
+
+  it('AC-FMT-001-02 rechaza un enlace repetido con el mismo tipo y destino', () => {
+    expect(valor(leer(conEnlaces(['based_on', 'DEC-TST-001@1'], ['origin', 'DEC-TST-001@1'])))).toMatchObject({
+      enlaces: [{ tipo: 'based_on' }, { tipo: 'origin' }],
+    });
+    expect(fallos(leer(conEnlaces(['based_on', 'DEC-TST-001@1'], ['based_on', 'DEC-TST-001@1'])))).toEqual([
+      'Enlace repetido: based_on → DEC-TST-001.',
+    ]);
+    expect(fallos(leer(conEnlaces(['based_on', 'DEC-TST-001@1'], ['based_on', 'DEC-TST-001@2'])))).toEqual([
+      'Enlace repetido: based_on → DEC-TST-001.',
+    ]);
+  });
+});
+
+describe('encabezados con código de criterio', () => {
+  it.each([1, 2, 3, 4, 5, 6])(
+    'AC-FMT-001-03 rechaza un encabezado de nivel %i que empieza por un código de AC fuera de los criterios',
+    (nivel) => {
+      const texto = BASE.replace(
+        'Texto de contexto.',
+        `Texto de contexto.\n\n${'#'.repeat(nivel)} AC-TST-001-09 · Parece un criterio`,
+      );
+      expect(fallos(leer(texto))).toContainEqual(
+        `El encabezado «${'#'.repeat(nivel)} AC-TST-001-09 · Parece un criterio» empieza por un código de criterio fuera de «Criterios de aceptación».`,
+      );
+    },
+  );
+
+  it('AC-FMT-001-03 admite un encabezado que cita un código de AC sin empezar por él', () => {
+    const texto = BASE.replace('Texto de contexto.', 'Texto de contexto.\n\n### Nota sobre AC-TST-001-01');
+    expect(valor(leer(texto)).secciones[0]?.contenido).toBe('Texto de contexto.\n\n### Nota sobre AC-TST-001-01');
   });
 });
 

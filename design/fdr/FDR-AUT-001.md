@@ -38,9 +38,15 @@ Que la v2 pase a ser la autoridad de diseño. La v2 importa `design/` como lote 
 2. Los recuentos del lote (registros, versiones, criterios, enlaces, anexos y taxonomías) coinciden con los del origen.
 3. Ratificar con un actor que no es humano da 403, sin efectos.
 4. La persona ratifica el lote en un paso. Se crean los registros, las versiones, los criterios, los enlaces, los anexos y las taxonomías con los estados del origen, y la persona queda como actor de cada evento.
-5. Tras ratificar, la exportación genera `design/` byte a byte igual al origen.
-6. Importar de nuevo tras ratificar no crea nada.
-7. Desde aquí, el diseño nuevo nace en la v2. La primera prueba es la FDR de S3.
+5. La importación conserva el estado declarado en cada archivo:
+   - `propuesto` queda como versión en borrador;
+   - `aprobado` queda como versión aprobada, con la persona que ratifica como actor de la aprobación.
+6. La persona aprueba un documento de una de estas dos formas:
+   - antes de importar, editando `estado: aprobado` en los documentos que acepta, dentro de su merge;
+   - después de ratificar, aprobándolo en la v2 y regenerando `design/` con la exportación (desde H1, `design/` es generado).
+7. Como la importación conserva los estados, justo después de ratificar la exportación coincide sin diff con `design/`.
+8. Importar de nuevo tras ratificar no crea nada.
+9. Desde aquí, el diseño nuevo nace en la v2. La primera prueba es la FDR de S3.
 
 ## Criterios de aceptación
 
@@ -63,7 +69,7 @@ Dado el lote de importación pendiente, cuando lo ratifica un actor que no es hu
 - Verificación: automática
 - Comprobación: La persona ratifica el lote y se revisan los elementos creados y los actores de sus eventos.
 
-Dado el lote de importación pendiente, cuando la persona lo ratifica, entonces en un solo paso se crean registros, versiones, criterios, enlaces, anexos y taxonomías con los estados del origen y la persona como actor.
+Dado el lote de importación pendiente, cuando la persona lo ratifica, entonces en un solo paso se crean registros, versiones, criterios, enlaces, anexos y taxonomías con los estados declarados en el origen (`propuesto` → borrador, `aprobado` → aprobada) y la persona como actor.
 
 ### AC-AUT-001-04 · Exportación sin diff
 
@@ -92,3 +98,10 @@ Dada la instancia de la v2 con `design/` importado, cuando la persona revisa el 
 - Comprobación: La persona revisa en la v2 la FDR de S3 y su historia.
 
 Dada la v2 con el diseño ratificado, cuando se diseña S3, entonces su FDR se crea y se aprueba dentro de la v2, sin editar `design/` a mano.
+
+### AC-AUT-001-08 · Edición manual bloqueada tras H1
+
+- Verificación: manual
+- Comprobación: La persona propone un cambio manual en `design/` y comprueba que la CI falla.
+
+Dada la v2 como autoridad de diseño tras H1, cuando alguien edita `design/` a mano, entonces la CI falla porque `design/` difiere de la exportación de la v2. Queda fuera de H1 preparado: es un siguiente paso.

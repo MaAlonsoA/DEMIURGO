@@ -19,6 +19,6 @@ DEMIURGO guía el desarrollo con IA de principio a fin con dos pilares: diseñar
 
 ## Cómo trabajar
 
-- TDD: cada AC de `design/` tiene al menos una prueba cuyo nombre empieza por su código (`AC-ESQ-01 …`).
+- TDD: cada AC automático de `design/` tiene al menos una prueba que pasa y cuyo título empieza por su código (`AC-ESQ-001-01 …`). `pnpm gate:trazabilidad` lo comprueba con los informes JUnit.
 - Cierra cada cambio con `pnpm gate:all` en verde.
 - Commits pequeños con la skill `commit`. No hagas push ni merge en `main`.

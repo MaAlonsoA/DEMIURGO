@@ -24,8 +24,13 @@ import {
 
 const RE_CODIGO_REGISTRO = /^(DEC|ADR|FDR|BUG)-[A-Z]{3}-\d{3}$/;
 const RE_CODIGO_TAXONOMIA = /^TAX-\d{3}$/;
-const RE_REFERENCIA = /^((?:DEC|ADR|FDR|BUG)-[A-Z]{3}-\d{3}|TAX-\d{3})@(\d+)$/;
+// Un enlace apunta a un registro (no a una taxonomía) y a una versión que empieza en 1.
+const RE_REFERENCIA = /^((?:DEC|ADR|FDR|BUG)-[A-Z]{3}-\d{3})@([1-9]\d*)$/;
 const RE_CODIGO_AC = /^AC-[A-Z]{3}-\d{3}-\d{2}$/;
+// Encabezado de Markdown (de `#` a `######`) cuyo texto empieza por un código de AC.
+const RE_ENCABEZADO_AC = /^ {0,3}#{1,6}[ \t]+AC-[A-Z]{3}-\d{3}-\d{2}(?![\w-])/;
+// Espacio en blanco de cualquier tipo al final de una línea (incluido el espacio duro U+00A0).
+const RE_ESPACIO_FINAL = /[^\S\n]$/;
 const SEPARADOR = ' · ';
 
 const esquemaFrontRegistro = z
@@ -42,7 +47,12 @@ const esquemaFrontRegistro = z
       .optional(),
     nota_de_cambio: z.string().min(1).optional(),
     enlaces: z.array(
-      z.object({ tipo: z.enum(TIPOS_ENLACE), destino: z.string().regex(RE_REFERENCIA, 'Referencia CODIGO@version') }).strict(),
+      z
+        .object({
+          tipo: z.enum(TIPOS_ENLACE),
+          destino: z.string().regex(RE_REFERENCIA, 'Referencia CODIGO@version a un registro, con la versión desde 1'),
+        })
+        .strict(),
     ),
     anexos: z.array(z.string().regex(/^datos\/[a-z0-9-]+\.yaml$/)),
   })
@@ -89,25 +99,53 @@ export function formatearReferencia(ref: Referencia): string {
   return `${ref.codigo}@${ref.version}`;
 }
 
-function separarFrontmatter(texto: string, ruta: string): Resultado<{ front: unknown; cuerpo: string }> {
-  if (texto.includes('\r')) {
-    return fallo(ruta, 'El archivo usa finales de línea CRLF; el formato exige LF.');
-  }
-  // Los espacios finales sobreviven a parsear y renderizar, así que la regla canónica no
-  // los detecta: se rechazan aquí.
-  const conEspacios = texto.split('\n').findIndex((l) => /[ \t]$/.test(l));
+/**
+ * Arregla lo que el formato no admite y la regla canónica no corrige sola: CRLF, espacios en
+ * blanco de cualquier tipo al final de línea y varias líneas en blanco seguidas. `canonizar`
+ * lo aplica antes de leer cada documento.
+ */
+export function normalizarEspacios(texto: string): string {
+  return texto
+    .replaceAll('\r\n', '\n')
+    .replace(/[^\S\n]+$/gm, '')
+    .replace(/\n{3,}/g, '\n\n');
+}
+
+/**
+ * CRLF y espacios finales en un archivo de texto de `design/` (documento o anexo). Sobreviven
+ * a parsear y renderizar, así que la regla canónica no los detecta: se rechazan aquí.
+ */
+export function problemasDeEspacios(texto: string, ruta: string): Problema[] {
+  if (texto.includes('\r')) return [{ ruta, mensaje: 'El archivo usa finales de línea CRLF; el formato exige LF.' }];
+  const conEspacios = texto.split('\n').findIndex((l) => RE_ESPACIO_FINAL.test(l));
   if (conEspacios >= 0) {
-    return fallo(ruta, `La línea ${conEspacios + 1} termina con espacios; el formato no los admite.`);
+    return [{ ruta, mensaje: `La línea ${conEspacios + 1} termina con espacios; el formato no los admite.` }];
   }
+  return [];
+}
+
+/** Lee YAML; un error de sintaxis se devuelve como problema en español, sin traza de pila. */
+export function leerYaml(texto: string, ruta: string, que: string): Resultado<unknown> {
+  try {
+    return { ok: true, valor: parsearYaml(texto) as unknown };
+  } catch (e) {
+    const { code, linePos } = e as { code?: unknown; linePos?: readonly { line: number; col: number }[] };
+    const pos = linePos?.[0];
+    const donde = pos ? ` en la línea ${pos.line}, columna ${pos.col}` : '';
+    const codigo = typeof code === 'string' ? ` (${code})` : '';
+    return fallo(ruta, `${que} no es YAML válido: error de sintaxis${donde}${codigo}.`);
+  }
+}
+
+function separarFrontmatter(texto: string, ruta: string): Resultado<{ front: unknown; cuerpo: string }> {
+  const espacios = problemasDeEspacios(texto, ruta);
+  if (espacios.length > 0) return { ok: false, problemas: espacios };
   if (!texto.startsWith('---\n')) return fallo(ruta, 'Falta el frontmatter: el archivo debe empezar por «---».');
   const fin = texto.indexOf('\n---\n', 3);
   if (fin < 0) return fallo(ruta, 'El frontmatter no está cerrado con «---».');
-  const yaml = texto.slice(4, fin + 1);
-  try {
-    return { ok: true, valor: { front: parsearYaml(yaml) as unknown, cuerpo: texto.slice(fin + 5) } };
-  } catch (e) {
-    return fallo(ruta, `El frontmatter no es YAML válido: ${(e as Error).message}`);
-  }
+  const front = leerYaml(texto.slice(4, fin + 1), ruta, 'El frontmatter');
+  if (!front.ok) return front;
+  return { ok: true, valor: { front: front.valor, cuerpo: texto.slice(fin + 5) } };
 }
 
 function fallo<T>(ruta: string, mensaje: string): Resultado<T> {
@@ -160,8 +198,25 @@ function parsearCuerpo(
   const secciones: Seccion[] = [];
   let criteriosTexto: string | null = null;
   const problemas: Problema[] = [];
+  const vistas = new Set<string>();
   for (const [i, b] of bloques.entries()) {
     const contenido = recortar(b.lineas);
+    if (vistas.has(b.titulo)) problemas.push({ ruta, mensaje: `La sección «${b.titulo}» está repetida.` });
+    vistas.add(b.titulo);
+    if (contenido.includes('\n\n\n')) {
+      problemas.push({ ruta, mensaje: `La sección «${b.titulo}» tiene más de una línea en blanco seguida.` });
+    }
+    if (b.titulo !== SECCION_CRITERIOS) {
+      // Un criterio solo existe dentro de «Criterios de aceptación»: en otra sección, un
+      // encabezado con su código parecería un criterio sin serlo.
+      const conAc = [`## ${b.titulo}`, ...b.lineas].find((l) => RE_ENCABEZADO_AC.test(l));
+      if (conAc !== undefined) {
+        problemas.push({
+          ruta,
+          mensaje: `El encabezado «${conAc.trim()}» empieza por un código de criterio fuera de «${SECCION_CRITERIOS}».`,
+        });
+      }
+    }
     if (b.titulo === SECCION_CRITERIOS) {
       if (i !== bloques.length - 1) problemas.push({ ruta, mensaje: `«${SECCION_CRITERIOS}» debe ser la última sección.` });
       criteriosTexto = contenido;
@@ -269,6 +324,12 @@ export function parsearDocumento(texto: string, ruta: string): Resultado<Documen
     tipo: e.tipo,
     destino: parsearReferencia(e.destino) as Referencia,
   }));
+  const vistos = new Set<string>();
+  for (const e of enlaces) {
+    const clave = `${e.tipo} → ${e.destino.codigo}`;
+    if (vistos.has(clave)) return fallo(ruta, `Enlace repetido: ${clave}.`);
+    vistos.add(clave);
+  }
   const doc: DocumentoRegistro = {
     clase: 'registro',
     tipo: f.tipo,

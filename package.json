@@ -9,11 +9,12 @@
     "gate:types": "tsc -p tsconfig.json --noEmit",
     "gate:lint": "oxlint --type-aware --deny-warnings",
     "gate:format": "biome format .",
-    "gate:design": "node packages/design/src/cli.ts validar && node packages/design/src/cli.ts trazabilidad",
+    "gate:design": "node packages/design/src/cli.ts validar",
     "gate:deriva": "node packages/design/src/cli.ts derivar --comprobar",
-    "gate:test": "vitest run --project unitarias --project integracion",
-    "gate:invariantes": "vitest run --project invariantes",
-    "gate:all": "pnpm gate:types && pnpm gate:lint && pnpm gate:format && pnpm gate:design && pnpm gate:deriva && pnpm gate:test && pnpm gate:invariantes",
+    "gate:test": "vitest run --project unitarias --project integracion --reporter=default --reporter=junit --outputFile.junit=reports/junit-pruebas.xml",
+    "gate:invariantes": "vitest run --project invariantes --reporter=default --reporter=junit --outputFile.junit=reports/junit-invariantes.xml",
+    "gate:trazabilidad": "node packages/design/src/cli.ts trazabilidad",
+    "gate:all": "pnpm gate:types && pnpm gate:lint && pnpm gate:format && pnpm gate:design && pnpm gate:deriva && pnpm gate:test && pnpm gate:invariantes && pnpm gate:trazabilidad",
     "format": "biome format --write .",
     "gen": "node packages/design/src/cli.ts derivar --escribir",
     "db:up": "docker compose -p demiurgo-v2-dev -f compose.dev.yaml up -d --wait",
@@ -32,7 +33,8 @@
   "demiurgo": {
     "incrementosImplementados": [
       "D0",
-      "S0"
+      "S0",
+      "S1"
     ]
   }
 }

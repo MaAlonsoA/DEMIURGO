@@ -54,6 +54,7 @@ Pasar por todas las piezas del núcleo con contenido trivial y dejar probadas la
 6. El flujo SSE entrega los eventos del diario. Con `Last-Event-ID`, entrega solo los posteriores.
 7. Una ejecución de agente se pide con un comando, se encola y la procesa un workflow durable: construye el context pack, llama al puerto de agentes, valida la salida y registra el resultado. Si el proceso muere, el workflow se reanuda al arrancar.
 8. Una salida fuera del esquema termina la ejecución en `failed` con `failure_kind` `invalid_output`, sin mensajes, propuestas ni otros efectos.
+9. Toda entidad de dominio pertenece a un proyecto (`project_id`) y nada se borra: las tablas de autoridad y el diario rechazan DELETE. Lo que deja de valer se archiva, se descarta o queda obsoleto.
 
 ## Criterios de aceptación
 
@@ -168,3 +169,10 @@ Dado el workflow de la CI, cuando se lee, entonces tiene las etapas de tipos y l
 - Comprobación: La persona revisa la ejecución real registrada y su resultado.
 
 Dado el esqueleto terminado, cuando se revisa el registro de ejecuciones, entonces hay al menos una ejecución real con Claude registrada con su resultado.
+
+### AC-ESQ-001-17 · Proyecto en todas las entidades y sin borrado
+
+- Verificación: automática
+- Comprobación: Se revisan las columnas de las tablas de dominio en la base y se intenta un DELETE en cada tabla de autoridad y en el diario.
+
+Dada la base migrada, cuando se revisan sus tablas, entonces toda tabla de dominio lleva `project_id`; y cuando se intenta un DELETE sobre una tabla de autoridad o sobre el diario, la base lo rechaza: lo que deja de valer se archiva, se descarta o queda obsoleto.

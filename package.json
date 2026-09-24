@@ -23,6 +23,7 @@
     "instance:db": "docker compose -p demiurgo-v2 -f compose.instance.yaml up -d --wait",
     "instance:api": "node packages/api/src/main.ts",
     "cli": "node packages/api/src/cli.ts",
+    "snap": "node packages/api/src/snap.ts",
     "web:dev": "pnpm --filter @demiurgo/web dev",
     "web:build": "pnpm --filter @demiurgo/web build"
   },

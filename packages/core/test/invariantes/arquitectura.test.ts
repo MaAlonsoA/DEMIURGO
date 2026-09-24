@@ -2,7 +2,7 @@
 
 import { readFile, readdir } from 'node:fs/promises';
 import { join, sep } from 'node:path';
-import { todasLasGuardas } from '@demiurgo/domain';
+import { esComando, todasLasGuardas } from '@demiurgo/domain';
 import { describe, expect, it } from 'vitest';
 import '../../src/bus/bus.ts';
 import { GUARDAS } from '../../src/bus/guardas.ts';
@@ -59,5 +59,41 @@ describe('arquitectura', () => {
   it('AC-NUC-001-03 toda guarda declarada en las tablas tiene implementación registrada', () => {
     const sinImplementar = todasLasGuardas().filter((g) => !GUARDAS[g]);
     expect(sinImplementar).toEqual([]);
+  });
+
+  it('AC-CON-001-12 el actualizador y el clasificador solo emiten comandos de conocimiento derivado, clasificaciones y propuestas', async () => {
+    const PERMITIDOS = new Set([
+      'knowledge_update.classify',
+      'knowledge_update.verify',
+      'knowledge_update.apply',
+      'knowledge_update.reject',
+      'knowledge_node.project',
+      'knowledge_node.invalidate',
+      'knowledge_edge.project',
+      'knowledge_edge.invalidate',
+      'classification.record',
+      'classification.hold',
+      'idea_assessment.record',
+      'batch.submit',
+    ]);
+    const TABLAS_PERMITIDAS = new Set(['verdict_cache', 'classifier_evaluations']);
+    const modulos = ['actualizar.ts', 'flujos.ts', 'reconstruir.ts', 'derivar.ts', 'grafo-pg.ts', 'integracion.ts', 'evaluar.ts'];
+    const infracciones: string[] = [];
+    for (const m of modulos) {
+      const texto = await readFile(`packages/core/src/conocimiento/${m}`, 'utf8');
+      // Todo literal que nombra un comando de la matriz debe estar en la lista permitida.
+      for (const c of texto.matchAll(/'([a-z_]+\.[a-z_]+)'/g)) {
+        const nombre = c[1] ?? '';
+        if (esComando(nombre) && !PERMITIDOS.has(nombre)) infracciones.push(`${m}: ${nombre}`);
+      }
+      // Ninguna escritura directa fuera de las tablas de caché y evaluaciones.
+      for (const t of texto.matchAll(
+        /(?:insertInto|updateTable|deleteFrom)\('([a-z_]+)'\)|insert into ([a-z_]+)|update ([a-z_]+) set/g,
+      )) {
+        const tabla = t[1] ?? t[2] ?? t[3] ?? '';
+        if (!TABLAS_PERMITIDAS.has(tabla)) infracciones.push(`${m}: escribe en ${tabla}`);
+      }
+    }
+    expect(infracciones).toEqual([]);
   });
 });

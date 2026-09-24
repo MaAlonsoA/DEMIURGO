@@ -5,7 +5,9 @@ import { afterAll, beforeAll } from 'vitest';
 import { crearAgenteSimulado } from '../../src/agentes/simulado.ts';
 import { type Conexion, conectar } from '../../src/db/conexion.ts';
 import { type MotorIniciado, iniciarMotor } from '../../src/motor/motor.ts';
-import { type MotorFlujos, type Servicios, motorInerte, registroSilencioso } from '../../src/servicios.ts';
+import { crearClasificadorSimulado } from '../../src/clasificador/simulado.ts';
+import { crearMotorEnLinea } from '../../src/motor/en-linea.ts';
+import { type MotorFlujos, type Servicios, registroSilencioso } from '../../src/servicios.ts';
 import { usarBaseEfimera } from './base-efimera.ts';
 import { clasificadorNoConfigurado } from './clasificador-nulo.ts';
 
@@ -37,15 +39,16 @@ export function usarEntorno(opciones: Opciones = {}): () => Entorno {
       db: conexion.db,
       reloj: () => new Date(),
       agente: (opciones.agente ?? (() => crearAgenteSimulado()))(),
-      clasificador: (opciones.clasificador ?? (() => clasificadorNoConfigurado))(),
+      clasificador: (opciones.clasificador ?? (() => crearClasificadorSimulado()))(),
       registro: registroSilencioso,
     };
     if (opciones.durable) {
       iniciado = await iniciarMotor(comun, url);
       entorno = { servicios: iniciado.servicios, conexion, url, motor: iniciado.servicios.motor };
     } else {
-      const motor = motorInerte();
-      entorno = { servicios: { ...comun, motor }, conexion, url, motor };
+      // Sin DBOS: el conocimiento y las evaluaciones se procesan en el acto; las ejecuciones solo se anotan.
+      const servicios: Servicios = { ...comun, motor: crearMotorEnLinea(() => servicios) };
+      entorno = { servicios, conexion, url, motor: servicios.motor };
     }
   });
   afterAll(async () => {

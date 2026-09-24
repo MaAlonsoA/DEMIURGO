@@ -1,0 +1,832 @@
+{
+  "clasificador": "referencia-claude@1",
+  "fecha": "2026-09-24T14:08:56.540Z",
+  "dataset": "evals/clasificador/v1",
+  "particion": "prueba",
+  "duracionMs": 186125,
+  "veredictos": {
+    "total": 35,
+    "aciertos": 22,
+    "exactitud": 0.6285714285714286,
+    "porClase": {
+      "keep": {
+        "soporte": 7,
+        "predichos": 9,
+        "aciertos": 6,
+        "precision": 0.6666666666666666,
+        "cobertura": 0.8571428571428571,
+        "f1": 0.75,
+        "sinPredicciones": false,
+        "sinSoporte": false
+      },
+      "update": {
+        "soporte": 6,
+        "predichos": 6,
+        "aciertos": 3,
+        "precision": 0.5,
+        "cobertura": 0.5,
+        "f1": 0.5,
+        "sinPredicciones": false,
+        "sinSoporte": false
+      },
+      "invalidate": {
+        "soporte": 7,
+        "predichos": 9,
+        "aciertos": 7,
+        "precision": 0.7777777777777778,
+        "cobertura": 1,
+        "f1": 0.8750000000000001,
+        "sinPredicciones": false,
+        "sinSoporte": false
+      },
+      "add": {
+        "soporte": 5,
+        "predichos": 3,
+        "aciertos": 2,
+        "precision": 0.6666666666666666,
+        "cobertura": 0.4,
+        "f1": 0.5,
+        "sinPredicciones": false,
+        "sinSoporte": false
+      },
+      "relate": {
+        "soporte": 7,
+        "predichos": 8,
+        "aciertos": 4,
+        "precision": 0.5,
+        "cobertura": 0.5714285714285714,
+        "f1": 0.5333333333333333,
+        "sinPredicciones": false,
+        "sinSoporte": false
+      },
+      "other": {
+        "soporte": 3,
+        "predichos": 0,
+        "aciertos": 0,
+        "precision": 0,
+        "cobertura": 0,
+        "f1": 0,
+        "sinPredicciones": true,
+        "sinSoporte": false
+      }
+    },
+    "macro": {
+      "clases": [
+        "keep",
+        "update",
+        "invalidate",
+        "add",
+        "relate",
+        "other"
+      ],
+      "precision": 0.5185185185185185,
+      "cobertura": 0.5547619047619047,
+      "f1": 0.5263888888888889
+    },
+    "matriz": {
+      "keep": {
+        "keep": 6,
+        "update": 0,
+        "invalidate": 0,
+        "add": 0,
+        "relate": 1,
+        "other": 0
+      },
+      "update": {
+        "keep": 1,
+        "update": 3,
+        "invalidate": 1,
+        "add": 0,
+        "relate": 1,
+        "other": 0
+      },
+      "invalidate": {
+        "keep": 0,
+        "update": 0,
+        "invalidate": 7,
+        "add": 0,
+        "relate": 0,
+        "other": 0
+      },
+      "add": {
+        "keep": 1,
+        "update": 2,
+        "invalidate": 0,
+        "add": 2,
+        "relate": 0,
+        "other": 0
+      },
+      "relate": {
+        "keep": 1,
+        "update": 1,
+        "invalidate": 0,
+        "add": 1,
+        "relate": 4,
+        "other": 0
+      },
+      "other": {
+        "keep": 0,
+        "update": 0,
+        "invalidate": 1,
+        "add": 0,
+        "relate": 2,
+        "other": 0
+      }
+    },
+    "curva": [
+      {
+        "umbral": 0,
+        "casos": 35,
+        "proporcion": 1,
+        "aciertos": 22,
+        "exactitud": 0.6285714285714286
+      },
+      {
+        "umbral": 0.5,
+        "casos": 35,
+        "proporcion": 1,
+        "aciertos": 22,
+        "exactitud": 0.6285714285714286
+      },
+      {
+        "umbral": 0.55,
+        "casos": 35,
+        "proporcion": 1,
+        "aciertos": 22,
+        "exactitud": 0.6285714285714286
+      },
+      {
+        "umbral": 0.6,
+        "casos": 35,
+        "proporcion": 1,
+        "aciertos": 22,
+        "exactitud": 0.6285714285714286
+      },
+      {
+        "umbral": 0.7,
+        "casos": 34,
+        "proporcion": 0.9714285714285714,
+        "aciertos": 22,
+        "exactitud": 0.6470588235294118
+      },
+      {
+        "umbral": 0.8,
+        "casos": 29,
+        "proporcion": 0.8285714285714286,
+        "aciertos": 20,
+        "exactitud": 0.6896551724137931
+      },
+      {
+        "umbral": 0.85,
+        "casos": 25,
+        "proporcion": 0.7142857142857143,
+        "aciertos": 17,
+        "exactitud": 0.68
+      },
+      {
+        "umbral": 0.9,
+        "casos": 18,
+        "proporcion": 0.5142857142857142,
+        "aciertos": 14,
+        "exactitud": 0.7777777777777778
+      },
+      {
+        "umbral": 0.95,
+        "casos": 11,
+        "proporcion": 0.3142857142857143,
+        "aciertos": 9,
+        "exactitud": 0.8181818181818182
+      }
+    ]
+  },
+  "ideas": {
+    "total": 22,
+    "aciertos": 18,
+    "exactitud": 0.8181818181818182,
+    "porClase": {
+      "relates": {
+        "soporte": 5,
+        "predichos": 8,
+        "aciertos": 5,
+        "precision": 0.625,
+        "cobertura": 1,
+        "f1": 0.7692307692307693,
+        "sinPredicciones": false,
+        "sinSoporte": false
+      },
+      "conflicts": {
+        "soporte": 5,
+        "predichos": 6,
+        "aciertos": 5,
+        "precision": 0.8333333333333334,
+        "cobertura": 1,
+        "f1": 0.9090909090909091,
+        "sinPredicciones": false,
+        "sinSoporte": false
+      },
+      "inconsistent": {
+        "soporte": 4,
+        "predichos": 0,
+        "aciertos": 0,
+        "precision": 0,
+        "cobertura": 0,
+        "f1": 0,
+        "sinPredicciones": true,
+        "sinSoporte": false
+      },
+      "duplicates": {
+        "soporte": 4,
+        "predichos": 4,
+        "aciertos": 4,
+        "precision": 1,
+        "cobertura": 1,
+        "f1": 1,
+        "sinPredicciones": false,
+        "sinSoporte": false
+      },
+      "none": {
+        "soporte": 4,
+        "predichos": 4,
+        "aciertos": 4,
+        "precision": 1,
+        "cobertura": 1,
+        "f1": 1,
+        "sinPredicciones": false,
+        "sinSoporte": false
+      }
+    },
+    "macro": {
+      "clases": [
+        "relates",
+        "conflicts",
+        "inconsistent",
+        "duplicates",
+        "none"
+      ],
+      "precision": 0.6916666666666667,
+      "cobertura": 0.8,
+      "f1": 0.7356643356643356
+    },
+    "matriz": {
+      "relates": {
+        "relates": 5,
+        "conflicts": 0,
+        "inconsistent": 0,
+        "duplicates": 0,
+        "none": 0
+      },
+      "conflicts": {
+        "relates": 0,
+        "conflicts": 5,
+        "inconsistent": 0,
+        "duplicates": 0,
+        "none": 0
+      },
+      "inconsistent": {
+        "relates": 3,
+        "conflicts": 1,
+        "inconsistent": 0,
+        "duplicates": 0,
+        "none": 0
+      },
+      "duplicates": {
+        "relates": 0,
+        "conflicts": 0,
+        "inconsistent": 0,
+        "duplicates": 4,
+        "none": 0
+      },
+      "none": {
+        "relates": 0,
+        "conflicts": 0,
+        "inconsistent": 0,
+        "duplicates": 0,
+        "none": 4
+      }
+    },
+    "curva": [
+      {
+        "umbral": 0,
+        "casos": 22,
+        "proporcion": 1,
+        "aciertos": 18,
+        "exactitud": 0.8181818181818182
+      },
+      {
+        "umbral": 0.5,
+        "casos": 22,
+        "proporcion": 1,
+        "aciertos": 18,
+        "exactitud": 0.8181818181818182
+      },
+      {
+        "umbral": 0.55,
+        "casos": 21,
+        "proporcion": 0.9545454545454546,
+        "aciertos": 18,
+        "exactitud": 0.8571428571428571
+      },
+      {
+        "umbral": 0.6,
+        "casos": 20,
+        "proporcion": 0.9090909090909091,
+        "aciertos": 18,
+        "exactitud": 0.9
+      },
+      {
+        "umbral": 0.7,
+        "casos": 19,
+        "proporcion": 0.8636363636363636,
+        "aciertos": 18,
+        "exactitud": 0.9473684210526315
+      },
+      {
+        "umbral": 0.8,
+        "casos": 15,
+        "proporcion": 0.6818181818181818,
+        "aciertos": 14,
+        "exactitud": 0.9333333333333333
+      },
+      {
+        "umbral": 0.85,
+        "casos": 13,
+        "proporcion": 0.5909090909090909,
+        "aciertos": 13,
+        "exactitud": 1
+      },
+      {
+        "umbral": 0.9,
+        "casos": 11,
+        "proporcion": 0.5,
+        "aciertos": 11,
+        "exactitud": 1
+      },
+      {
+        "umbral": 0.95,
+        "casos": 9,
+        "proporcion": 0.4090909090909091,
+        "aciertos": 9,
+        "exactitud": 1
+      }
+    ]
+  },
+  "respuestas": [
+    {
+      "id": "V001",
+      "tarea": "veredicto",
+      "esperado": "add",
+      "obtenido": "keep",
+      "confianza": 0.85,
+      "justificacion": "El cambio sobre revocación de tokens es independiente del panel. El panel sigue siendo válido para listar agentes y su actividad, aunque algunos tengan tokens revocados."
+    },
+    {
+      "id": "V002",
+      "tarea": "veredicto",
+      "esperado": "update",
+      "obtenido": "update",
+      "confianza": 0.95,
+      "justificacion": "El criterio especifica prorrateo usando 40€ (9/12 de 40€). Con cuota a 45€, el cálculo cambia a 9/12 de 45€."
+    },
+    {
+      "id": "V004",
+      "tarea": "veredicto",
+      "esperado": "relate",
+      "obtenido": "relate",
+      "confianza": 0.8,
+      "justificacion": "El nuevo criterio detalla un aspecto específico (liberación de plaza) de la decisión general sobre aforo y lista de espera."
+    },
+    {
+      "id": "V008",
+      "tarea": "veredicto",
+      "esperado": "add",
+      "obtenido": "add",
+      "confianza": 0.85,
+      "justificacion": "El cambio añade una nueva funcionalidad (descargar justificantes) al perfil del socio que ya muestra historial de cuotas."
+    },
+    {
+      "id": "V009",
+      "tarea": "veredicto",
+      "esperado": "invalidate",
+      "obtenido": "invalidate",
+      "confianza": 0.9,
+      "justificacion": "Postgres 18 centralizado es arquitecturalmente opuesto a SQLite local. Son alternativas excluyentes."
+    },
+    {
+      "id": "V010",
+      "tarea": "veredicto",
+      "esperado": "keep",
+      "obtenido": "keep",
+      "confianza": 0.95,
+      "justificacion": "El número de socio y las plazas reservadas para invitados son aspectos completamente independientes."
+    },
+    {
+      "id": "V011",
+      "tarea": "veredicto",
+      "esperado": "keep",
+      "obtenido": "keep",
+      "confianza": 0.95,
+      "justificacion": "Recargo por impago de cuota y calendario de eventos son independientes; el calendario no se ve afectado."
+    },
+    {
+      "id": "V012",
+      "tarea": "veredicto",
+      "esperado": "keep",
+      "obtenido": "keep",
+      "confianza": 0.85,
+      "justificacion": "El cambio de herramienta (Vitest) no invalida el criterio de prueba. La prueba de rechazo de tokens sigue siendo válida."
+    },
+    {
+      "id": "V013",
+      "tarea": "veredicto",
+      "esperado": "relate",
+      "obtenido": "relate",
+      "confianza": 0.8,
+      "justificacion": "El FDR operacionaliza cómo abrir exploraciones hijas; la DEC define cómo heredan alcance. Son aspectos del mismo concepto."
+    },
+    {
+      "id": "V015",
+      "tarea": "veredicto",
+      "esperado": "keep",
+      "obtenido": "keep",
+      "confianza": 0.95,
+      "justificacion": "Registro de agentes por token y preguntas con conclusión son aspectos de subsistemas independientes."
+    },
+    {
+      "id": "V019",
+      "tarea": "veredicto",
+      "esperado": "relate",
+      "obtenido": "relate",
+      "confianza": 0.75,
+      "justificacion": "Ambos tratan la aplicación automática del conocimiento: el cambio establece cuándo es automática; el candidato explica que el grafo lo permite."
+    },
+    {
+      "id": "V021",
+      "tarea": "veredicto",
+      "esperado": "update",
+      "obtenido": "relate",
+      "confianza": 0.7,
+      "justificacion": "La categoría 'otra' es un principio metacategórico que se aplica a taxonomías; se relaciona con cómo clasificar artefactos."
+    },
+    {
+      "id": "V023",
+      "tarea": "veredicto",
+      "esperado": "add",
+      "obtenido": "update",
+      "confianza": 0.85,
+      "justificacion": "El criterio de control de acceso debe reflejar que menores requieren acompañamiento del socio adulto en la puerta."
+    },
+    {
+      "id": "V024",
+      "tarea": "veredicto",
+      "esperado": "invalidate",
+      "obtenido": "invalidate",
+      "confianza": 0.9,
+      "justificacion": "La decisión aprueba que otro rol escriba pruebas antes de implementar, rechazando la IDEA de que el mismo agente escriba ambos."
+    },
+    {
+      "id": "V025",
+      "tarea": "veredicto",
+      "esperado": "update",
+      "obtenido": "keep",
+      "confianza": 0.95,
+      "justificacion": "El criterio describe exactamente el máximo de 8 preguntas abiertas establecido por el cambio."
+    },
+    {
+      "id": "V027",
+      "tarea": "veredicto",
+      "esperado": "invalidate",
+      "obtenido": "invalidate",
+      "confianza": 0.95,
+      "justificacion": "Cuota familiar (cambio) e individual (candidato) son modelos mutuamente excluyentes."
+    },
+    {
+      "id": "V029",
+      "tarea": "veredicto",
+      "esperado": "other",
+      "obtenido": "relate",
+      "confianza": 0.65,
+      "justificacion": "Dos tipos de socio pueden estar relacionados con diferencias de cuota, pero no hay dependencia directa establecida."
+    },
+    {
+      "id": "V033",
+      "tarea": "veredicto",
+      "esperado": "update",
+      "obtenido": "update",
+      "confianza": 0.9,
+      "justificacion": "El umbral sube de 0,8 a 0,85. El FDR menciona el rango 0,55-0,8 para revisión LLM; debe actualizarse a 0,55-0,85."
+    },
+    {
+      "id": "V035",
+      "tarea": "veredicto",
+      "esperado": "add",
+      "obtenido": "add",
+      "confianza": 0.8,
+      "justificacion": "Jev es un servicio externo nuevo que recibe contenido del proyecto; debe añadirse al inventario de salidas de datos."
+    },
+    {
+      "id": "V036",
+      "tarea": "veredicto",
+      "esperado": "update",
+      "obtenido": "update",
+      "confianza": 0.78,
+      "justificacion": "El cambio establece recibos por correo (por defecto) pero permite papel bajo demanda. El FDR debe reflejar este nuevo flujo."
+    },
+    {
+      "id": "V040",
+      "tarea": "veredicto",
+      "esperado": "keep",
+      "obtenido": "keep",
+      "confianza": 0.95,
+      "justificacion": "Invitados recurrentes (cambio) y consentimiento de imagen (candidato) son aspectos independientes de la política de invitados."
+    },
+    {
+      "id": "V043",
+      "tarea": "veredicto",
+      "esperado": "invalidate",
+      "obtenido": "invalidate",
+      "confianza": 0.95,
+      "justificacion": "El cambio dice teléfono es opcional; el criterio rechaza formularios sin teléfono. Hay contradicción clara."
+    },
+    {
+      "id": "V044",
+      "tarea": "veredicto",
+      "esperado": "relate",
+      "obtenido": "relate",
+      "confianza": 0.85,
+      "justificacion": "El descuento por edad depende de la fecha de nacimiento como dato obligatorio. El cambio se apoya en el candidato."
+    },
+    {
+      "id": "V045",
+      "tarea": "veredicto",
+      "esperado": "other",
+      "obtenido": "invalidate",
+      "confianza": 0.85,
+      "justificacion": "La decisión establece 5 años de retención; la fuente anterior recomendaba 1 año. La decisión la invalida."
+    },
+    {
+      "id": "V047",
+      "tarea": "veredicto",
+      "esperado": "keep",
+      "obtenido": "keep",
+      "confianza": 0.9,
+      "justificacion": "Máximo de preguntas abiertas y herencia de alcance son aspectos diferentes de exploraciones; son independientes."
+    },
+    {
+      "id": "V048",
+      "tarea": "veredicto",
+      "esperado": "invalidate",
+      "obtenido": "invalidate",
+      "confianza": 0.95,
+      "justificacion": "El cambio permite menores si son acompañados; el criterio los rechaza. Hay contradicción directa."
+    },
+    {
+      "id": "V054",
+      "tarea": "veredicto",
+      "esperado": "keep",
+      "obtenido": "relate",
+      "confianza": 0.7,
+      "justificacion": "Ambos tratan revisión humana pero en contextos distintos: veredictos vs Change Sets. Están conceptualmente relacionados."
+    },
+    {
+      "id": "V055",
+      "tarea": "veredicto",
+      "esperado": "invalidate",
+      "obtenido": "invalidate",
+      "confianza": 0.95,
+      "justificacion": "El cambio requiere exclusivamente web; la decisión anterior permitía papel en secretaría. Son alternativas excluyentes."
+    },
+    {
+      "id": "V056",
+      "tarea": "veredicto",
+      "esperado": "relate",
+      "obtenido": "update",
+      "confianza": 0.85,
+      "justificacion": "La guía de agentes debe reflejar el nuevo límite de 20 propuestas pendientes máximo por agente."
+    },
+    {
+      "id": "V060",
+      "tarea": "veredicto",
+      "esperado": "invalidate",
+      "obtenido": "invalidate",
+      "confianza": 0.9,
+      "justificacion": "Eventos en blob comprimido vs filas en tabla son decisiones arquitectónicas opuestas para el mismo almacenamiento."
+    },
+    {
+      "id": "V062",
+      "tarea": "veredicto",
+      "esperado": "relate",
+      "obtenido": "keep",
+      "confianza": 0.9,
+      "justificacion": "El carnet digital muestra el número de socio del sistema. El cambio sobre números no reutilizables es consistente con el carnet."
+    },
+    {
+      "id": "V064",
+      "tarea": "veredicto",
+      "esperado": "other",
+      "obtenido": "relate",
+      "confianza": 0.7,
+      "justificacion": "Hay potencial conflicto entre inscripción obligatoria (fin de semana) y actividades abiertas (al aire libre); requiere clarificación."
+    },
+    {
+      "id": "V066",
+      "tarea": "veredicto",
+      "esperado": "relate",
+      "obtenido": "add",
+      "confianza": 0.8,
+      "justificacion": "La IDEA de mostrar resumen es complementaria al cierre explícito de rondas; hay que añadirla al flujo."
+    },
+    {
+      "id": "V067",
+      "tarea": "veredicto",
+      "esperado": "add",
+      "obtenido": "update",
+      "confianza": 0.9,
+      "justificacion": "El descuento para menores de 25 debe reflejarse en la lógica automática de cálculo de cuotas."
+    },
+    {
+      "id": "V069",
+      "tarea": "veredicto",
+      "esperado": "update",
+      "obtenido": "invalidate",
+      "confianza": 0.95,
+      "justificacion": "El cambio dice teléfono es opcional; el FDR dice todos los datos son obligatorios. Hay contradicción clara."
+    },
+    {
+      "id": "I003",
+      "tarea": "idea",
+      "esperado": "duplicates",
+      "obtenido": "duplicates",
+      "confianza": 0.95,
+      "justificacion": "La idea reproduce exactamente el contenido del ADR: guardar eventos crudos de cada intento del agente en un único blob comprimido."
+    },
+    {
+      "id": "I006",
+      "tarea": "idea",
+      "esperado": "duplicates",
+      "obtenido": "duplicates",
+      "confianza": 0.95,
+      "justificacion": "La idea replica el límite de máximo 8 preguntas abiertas simultáneas en exploración que establece la decisión."
+    },
+    {
+      "id": "I008",
+      "tarea": "idea",
+      "esperado": "relates",
+      "obtenido": "relates",
+      "confianza": 0.75,
+      "justificacion": "La idea se relaciona: el nodo menciona que al cerrar ronda el agente propone nuevas líneas. La idea especifica mostrar la cantidad de propuestas generadas."
+    },
+    {
+      "id": "I011",
+      "tarea": "idea",
+      "esperado": "conflicts",
+      "obtenido": "conflicts",
+      "confianza": 0.95,
+      "justificacion": "La idea propone 5 invitados máximo por socio; el nodo establece máximo 2. Contradicción directa en los límites."
+    },
+    {
+      "id": "I013",
+      "tarea": "idea",
+      "esperado": "conflicts",
+      "obtenido": "conflicts",
+      "confianza": 0.98,
+      "justificacion": "La idea propone aplicar todos los veredictos sin revisar. El nodo requiere revisión humana de veredictos con confianza bajo 0,55."
+    },
+    {
+      "id": "I014",
+      "tarea": "idea",
+      "esperado": "inconsistent",
+      "obtenido": "relates",
+      "confianza": 0.65,
+      "justificacion": "La idea de despliegue automático se relaciona con el ciclo Change Set, aunque añade una decisión de CI/CD no contemplada en el nodo."
+    },
+    {
+      "id": "I019",
+      "tarea": "idea",
+      "esperado": "conflicts",
+      "obtenido": "conflicts",
+      "confianza": 0.95,
+      "justificacion": "La idea propone tratar el grafo como fuente de verdad. El nodo afirma explícitamente que el grafo NO tiene autoridad."
+    },
+    {
+      "id": "I020",
+      "tarea": "idea",
+      "esperado": "duplicates",
+      "obtenido": "duplicates",
+      "confianza": 0.95,
+      "justificacion": "La idea replica el contenido del nodo: el grafo se reconstruye desde lo aprobado y no es fuente de verdad."
+    },
+    {
+      "id": "I021",
+      "tarea": "idea",
+      "esperado": "inconsistent",
+      "obtenido": "relates",
+      "confianza": 0.55,
+      "justificacion": "La idea se relaciona con el carnet digital pero introduce ambigüedad: el nodo habla del carnet del socio, no del invitado."
+    },
+    {
+      "id": "I022",
+      "tarea": "idea",
+      "esperado": "relates",
+      "obtenido": "relates",
+      "confianza": 0.75,
+      "justificacion": "Ambas hablan de plazas para invitados. La idea propone mostrar las plazas libres restantes, ampliando el concepto del nodo."
+    },
+    {
+      "id": "I023",
+      "tarea": "idea",
+      "esperado": "relates",
+      "obtenido": "relates",
+      "confianza": 0.8,
+      "justificacion": "La idea extiende el concepto del carnet digital: propone guardarlo en cartera del móvil, mejorando accesibilidad."
+    },
+    {
+      "id": "I024",
+      "tarea": "idea",
+      "esperado": "conflicts",
+      "obtenido": "conflicts",
+      "confianza": 0.85,
+      "justificacion": "La idea propone cierre automático de preguntas. El nodo exige que la persona escriba conclusión para cada pregunta."
+    },
+    {
+      "id": "I027",
+      "tarea": "idea",
+      "esperado": "inconsistent",
+      "obtenido": "conflicts",
+      "confianza": 0.8,
+      "justificacion": "La idea pide que el clasificador redacte. El nodo describe Jev como modelo que solo devuelve decisiones tipadas, no texto."
+    },
+    {
+      "id": "I028",
+      "tarea": "idea",
+      "esperado": "none",
+      "obtenido": "none",
+      "confianza": 0.95,
+      "justificacion": "La idea sobre modo alto contraste de interfaz no guarda relación con el almacenamiento de eventos crudos en blob."
+    },
+    {
+      "id": "I030",
+      "tarea": "idea",
+      "esperado": "duplicates",
+      "obtenido": "duplicates",
+      "confianza": 0.9,
+      "justificacion": "La idea duplica el concepto: lista de espera cuando evento se llena. El nodo usa término 'lista de espera', la idea 'cola'."
+    },
+    {
+      "id": "I031",
+      "tarea": "idea",
+      "esperado": "none",
+      "obtenido": "none",
+      "confianza": 0.9,
+      "justificacion": "La idea de links en mensajes de error no se relaciona con el nombre visible de agentes externos registrados."
+    },
+    {
+      "id": "I032",
+      "tarea": "idea",
+      "esperado": "conflicts",
+      "obtenido": "conflicts",
+      "confianza": 0.95,
+      "justificacion": "La idea propone que implementador escriba pruebas después. El nodo requiere que otro rol las escriba antes de implementar."
+    },
+    {
+      "id": "I033",
+      "tarea": "idea",
+      "esperado": "none",
+      "obtenido": "none",
+      "confianza": 0.95,
+      "justificacion": "La idea sobre tema oscuro según preferencia del SO no se relaciona con tokens de agente de un único proyecto."
+    },
+    {
+      "id": "I036",
+      "tarea": "idea",
+      "esperado": "relates",
+      "obtenido": "relates",
+      "confianza": 0.7,
+      "justificacion": "La idea se relaciona: ambas sobre creación de eventos. La idea propone automatización (eventos recurrentes)."
+    },
+    {
+      "id": "I039",
+      "tarea": "idea",
+      "esperado": "relates",
+      "obtenido": "relates",
+      "confianza": 0.75,
+      "justificacion": "Ambas hablan de lista de espera. La idea propone mostrar posición en la lista, ampliando info del criterio."
+    },
+    {
+      "id": "I044",
+      "tarea": "idea",
+      "esperado": "inconsistent",
+      "obtenido": "relates",
+      "confianza": 0.5,
+      "justificacion": "Ambas organizan trabajo (sprints vs Change Sets), pero son paradigmas potencialmente tensionados. Relación débil."
+    },
+    {
+      "id": "I045",
+      "tarea": "idea",
+      "esperado": "none",
+      "obtenido": "none",
+      "confianza": 0.85,
+      "justificacion": "La idea sobre mostrar umbral de confianza no se relaciona con el gate de cobertura de pruebas del 80%."
+    }
+  ],
+  "archivo": "evals/clasificador/resultados/referencia-claude_1-prueba-2026-09-24-14-08-56.json"
+}

@@ -191,7 +191,7 @@ describe('ejecuciones con el motor durable', () => {
     expect(esquemasRecibidos[0]).toMatchObject({ type: 'object', required: ['reply'], additionalProperties: false });
   });
 
-  it('AC-STK-001-04 dominio, diario y motor durable viven en el mismo PostgreSQL 18', async () => {
+  it('AC-STK-001-04 dominio, diario, motor durable y grafo viven en el mismo PostgreSQL 18', async () => {
     const { servicios: s } = entorno();
     const { sql } = await import('kysely');
     const version = await sql<{ v: string }>`select current_setting('server_version_num') as v`.execute(s.db);
@@ -199,10 +199,13 @@ describe('ejecuciones con el motor durable', () => {
     const esquemas = await sql<{ esquema: string; tabla: string }>`
       select table_schema as esquema, table_name as tabla from information_schema.tables
       where (table_schema = 'public' and table_name in ('events', 'projects', 'record_versions'))
-         or (table_schema = 'dbos' and table_name = 'workflow_status')`.execute(s.db);
+         or (table_schema = 'public' and table_name in ('knowledge_nodes', 'knowledge_edges'))
+        or (table_schema = 'dbos' and table_name = 'workflow_status')`.execute(s.db);
     expect(esquemas.rows.map((r) => `${r.esquema}.${r.tabla}`).sort()).toEqual([
       'dbos.workflow_status',
       'public.events',
+      'public.knowledge_edges',
+      'public.knowledge_nodes',
       'public.projects',
       'public.record_versions',
     ]);

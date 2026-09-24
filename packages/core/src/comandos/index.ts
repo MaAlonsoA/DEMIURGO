@@ -5,5 +5,6 @@ import './runs.ts';
 import './exploracion.ts';
 import './registros.ts';
 import './propuestas.ts';
-import './pendientes.ts';
 import '../acciones/index.ts';
+import '../conocimiento/index.ts';
+import './pendientes.ts';

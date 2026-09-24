@@ -45,7 +45,7 @@ export const cargaFdr = z
 export const cargaRevision = z
   .object({
     registro: referenciaRegistro,
-    veredicto: z.enum(['invalidate', 'update']),
+    veredicto: z.enum(['invalidate', 'update', 'add', 'other']),
     motivo: texto(2000),
     cambio: z.object({ tipo: z.string(), id: z.string(), version: z.number().int().nullable() }).strict(),
     confianza: z.number().min(0).max(1),

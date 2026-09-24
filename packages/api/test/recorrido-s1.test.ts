@@ -1,7 +1,7 @@
 // Recorrido de S1 por la API con agentes simulados y el motor durable: de la intención a
 // «Listo para construir», con la bandeja vacía al final.
 
-import { esperarRun } from '@demiurgo/core';
+import { esperarConocimiento, esperarRun } from '@demiurgo/core';
 import { describe, expect, it } from 'vitest';
 import { usarApi } from './soporte/api.ts';
 
@@ -76,6 +76,8 @@ describe('recorrido S1', () => {
     expect(decision.codigo).toMatch(/^DEC-PRO-\d{3}$/);
 
     // 4. Propuesta de diseño sobre la decisión aprobada: un paquete con la FDR y sus 2 AC.
+    // El gate de frescura exige que el conocimiento haya proyectado la aprobación.
+    await esperarConocimiento(entorno.servicios, proyectoId);
     await comando(proyectoId, 'run.request', {
       accion: 'design_proposal',
       alcance: { tipo: 'record_version', id: decision.versionId },

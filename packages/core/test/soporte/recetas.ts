@@ -1,7 +1,9 @@
 // Recetas de la fábrica para las entidades de S1: cómo crear cada una y, cuando una guarda lo
 // exige, cómo llegar a ciertos estados.
 
+import { randomUUID } from 'node:crypto';
 import { humano, sistema } from '@demiurgo/domain';
+import { sql } from 'kysely';
 import { ejecutarComando } from '../../src/bus/bus.ts';
 import type { Servicios } from '../../src/servicios.ts';
 import { registrarReceta, unico } from './fabrica.ts';
@@ -206,5 +208,165 @@ registrarReceta('proposal', {
   datos: {
     'proposal.accept_edited': () => ({ edicion: cargaDecision() }),
     'proposal.supersede': () => ({ motivo: 'Obsoleta.' }),
+  },
+});
+
+// Recetas de S2.
+
+const ejesPrueba = [
+  {
+    codigo: 'area',
+    nombre: 'Área',
+    categorias: [
+      { codigo: 'socios', nombre: 'Socios', descripcion: 'Datos de los socios.' },
+      { codigo: 'otra', nombre: 'Otra', descripcion: 'Nada de lo anterior.' },
+    ],
+  },
+];
+
+async function nuevaTaxonomia(s: Servicios, proyectoId: string, aprobar: boolean): Promise<string> {
+  const previa = await s.db
+    .selectFrom('taxonomies')
+    .select('version')
+    .where('project_id', '=', proyectoId)
+    .where('code', '=', 'TAX-009')
+    .orderBy('version', 'desc')
+    .executeTakeFirst();
+  const r = await ejecutarComando(s, {
+    comando: 'taxonomy.propose',
+    actor: ana,
+    proyectoId,
+    datos: { codigo: 'TAX-009', titulo: unico('Taxonomía'), ejes: ejesPrueba, version: (previa?.version ?? 0) + 1 },
+  });
+  if (aprobar)
+    await ejecutarComando(s, { comando: 'taxonomy.approve', actor: ana, proyectoId, entidadId: r.entidadId, datos: {} });
+  return r.entidadId;
+}
+
+registrarReceta('taxonomy', {
+  crear: (s, proyectoId) => nuevaTaxonomia(s, proyectoId, false),
+});
+
+const datosClasificacion = (taxonomiaId: string) => ({
+  nodo_ref: unico('NODO'),
+  taxonomia_id: taxonomiaId,
+  eje: 'area',
+  categoria: 'socios',
+  confianza: 0.3,
+  justificacion: 'prueba',
+  clasificador: 'prueba@1',
+  input_hash: unico('h'),
+  update_id: null,
+});
+
+registrarReceta('classification', {
+  async crear(s, proyectoId) {
+    const t = await nuevaTaxonomia(s, proyectoId, true);
+    return (await ejecutarComando(s, { comando: 'classification.record', actor: sis, proyectoId, datos: datosClasificacion(t) }))
+      .entidadId;
+  },
+  datos: { 'classification.resolve': () => ({ categoria: 'socios' }) },
+  estados: {
+    async pending_review(s, proyectoId) {
+      const t = await nuevaTaxonomia(s, proyectoId, true);
+      return (await ejecutarComando(s, { comando: 'classification.hold', actor: sis, proyectoId, datos: datosClasificacion(t) }))
+        .entidadId;
+    },
+    async resolved(s, proyectoId) {
+      const t = await nuevaTaxonomia(s, proyectoId, true);
+      const r = await ejecutarComando(s, {
+        comando: 'classification.hold',
+        actor: sis,
+        proyectoId,
+        datos: datosClasificacion(t),
+      });
+      await ejecutarComando(s, {
+        comando: 'classification.resolve',
+        actor: ana,
+        proyectoId,
+        entidadId: r.entidadId,
+        datos: { categoria: 'socios' },
+      });
+      return r.entidadId;
+    },
+  },
+});
+
+// Una actualización en cola se crea directamente (sin que el motor en línea la procese al instante).
+registrarReceta('knowledge_update', {
+  async crear(s, proyectoId) {
+    const { rows } = await sql<{ id: string }>`
+      insert into knowledge_updates (project_id, trigger, trigger_seq, state)
+      values (${proyectoId}::uuid, ${JSON.stringify({ tipo: 'otro', id: randomUUID(), version: null })}::jsonb, 0, 'queued') returning id`.execute(
+      s.db,
+    );
+    return rows[0]?.id ?? '';
+  },
+  datos: {
+    'knowledge_update.verify': () => ({
+      cambio: null,
+      candidatos: [],
+      input_hash: 'x',
+      clasificador: 'prueba@1',
+      veredictos: [],
+    }),
+    'knowledge_update.apply': () => ({ operaciones: {}, version_antes: 0, version_despues: 0 }),
+    'knowledge_update.reject': () => ({ motivos: ['prueba'] }),
+  },
+});
+
+const datosNodo = () => ({
+  ref: unico('NODO'),
+  tipo: 'fuente',
+  etiqueta: 'Nodo',
+  texto: 'Texto',
+  categorias: {},
+  epistemico: 'desconocido',
+  origen: { tipo: 'source', id: null, version: null },
+  desde: 1,
+  update_id: null,
+});
+
+registrarReceta('knowledge_node', {
+  async crear(s, proyectoId) {
+    return (await ejecutarComando(s, { comando: 'knowledge_node.project', actor: sis, proyectoId, datos: datosNodo() }))
+      .entidadId;
+  },
+  datos: { 'knowledge_node.invalidate': () => ({ hasta: 2 }) },
+});
+
+registrarReceta('knowledge_edge', {
+  async crear(s, proyectoId) {
+    const a = datosNodo();
+    const b = datosNodo();
+    await ejecutarComando(s, { comando: 'knowledge_node.project', actor: sis, proyectoId, datos: a });
+    await ejecutarComando(s, { comando: 'knowledge_node.project', actor: sis, proyectoId, datos: b });
+    const r = await ejecutarComando(s, {
+      comando: 'knowledge_edge.project',
+      actor: sis,
+      proyectoId,
+      datos: { tipo: 'relacionado', desde: a.ref, hacia: b.ref, alta: 1, update_id: null },
+    });
+    return r.entidadId;
+  },
+  datos: { 'knowledge_edge.invalidate': () => ({ hasta: 2 }) },
+});
+
+registrarReceta('idea_assessment', {
+  async crear(s, proyectoId) {
+    const { propuestas } = await nuevoLote(s, proyectoId, true);
+    const r = await ejecutarComando(s, {
+      comando: 'idea_assessment.record',
+      actor: sis,
+      proyectoId,
+      datos: {
+        propuesta_id: propuestas[0] ?? '',
+        hallazgos: [],
+        version_grafo: 0,
+        clasificador: 'prueba@1',
+        input_hash: unico('h'),
+      },
+    });
+    return r.entidadId;
   },
 });

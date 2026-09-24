@@ -203,11 +203,18 @@ export async function bandeja(db: Bd, proyectoId: string) {
 }
 
 // S2 amplía la bandeja con la evaluación de ideas y los pendientes del conocimiento.
+export type SeccionesDelConocimiento = {
+  clasificaciones_por_revisar: Record<string, unknown>[];
+  actualizaciones_rechazadas: Record<string, unknown>[];
+};
 type ExtensionBandeja = {
   evaluacion(db: Bd, propuestaId: string): Promise<unknown>;
-  pendientes(db: Bd, proyectoId: string): Promise<{ total: number; secciones: Record<string, unknown> }>;
+  pendientes(db: Bd, proyectoId: string): Promise<{ total: number; secciones: SeccionesDelConocimiento }>;
 };
-let extension: ExtensionBandeja = { evaluacion: async () => null, pendientes: async () => ({ total: 0, secciones: {} }) };
+let extension: ExtensionBandeja = {
+  evaluacion: async () => null,
+  pendientes: async () => ({ total: 0, secciones: { clasificaciones_por_revisar: [], actualizaciones_rechazadas: [] } }),
+};
 export function registrarExtensionBandeja(e: ExtensionBandeja): void {
   extension = e;
 }

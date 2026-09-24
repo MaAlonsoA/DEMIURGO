@@ -261,6 +261,129 @@ export type TablaPropuestas = {
   created_at: Generated<Marca>;
 };
 
+export type TablaTaxonomias = {
+  id: Generated<string>;
+  project_id: string;
+  code: string;
+  version: number;
+  title: string;
+  axes: Json;
+  sections: Json;
+  content_hash: string;
+  state: string;
+  author: string;
+  created_at: Generated<Marca>;
+  approved_at: MarcaNula;
+  approved_by: string | null;
+};
+
+export type TablaEstadoGrafo = {
+  project_id: string;
+  version: Contador;
+  last_update_id: string | null;
+};
+
+export type TablaNodos = {
+  id: Generated<string>;
+  project_id: string;
+  ref: string;
+  kind: string;
+  source_type: string;
+  source_id: string | null;
+  source_version: number | null;
+  label: string;
+  body: string;
+  categories: Json;
+  epistemic: string;
+  valid_from: Entero64;
+  valid_to: ColumnType<string | null, number | string | null | undefined, number | string | null>;
+  created_by_update: string | null;
+  state: string;
+  created_at: Generated<Marca>;
+};
+
+export type TablaAristas = {
+  id: Generated<string>;
+  project_id: string;
+  kind: string;
+  from_node: string;
+  to_node: string;
+  valid_from: Entero64;
+  valid_to: ColumnType<string | null, number | string | null | undefined, number | string | null>;
+  created_by_update: string | null;
+  state: string;
+  created_at: Generated<Marca>;
+};
+
+export type TablaActualizaciones = {
+  id: Generated<string>;
+  project_id: string;
+  trigger: Json;
+  trigger_seq: Entero64;
+  change: JsonNulo;
+  candidates: JsonNulo;
+  candidates_hash: string | null;
+  input_hash: string | null;
+  classifier: string | null;
+  verdicts: JsonNulo;
+  verification: JsonNulo;
+  operations: JsonNulo;
+  graph_version_before: ColumnType<string | null, number | string | null | undefined, number | string | null>;
+  graph_version_after: ColumnType<string | null, number | string | null | undefined, number | string | null>;
+  failure: string | null;
+  state: string;
+  created_at: Generated<Marca>;
+  finished_at: MarcaNula;
+};
+
+export type TablaCacheVeredictos = {
+  input_hash: string;
+  classifier: string;
+  answers: Json;
+  created_at: Generated<Marca>;
+};
+
+export type TablaClasificaciones = {
+  id: Generated<string>;
+  project_id: string;
+  node_ref: string;
+  taxonomy_id: string;
+  axis: string;
+  category: string;
+  confidence: number;
+  justification: string;
+  classifier: string;
+  input_hash: string;
+  update_id: string | null;
+  resolution: JsonNulo;
+  resolved_by: string | null;
+  state: string;
+  created_at: Generated<Marca>;
+};
+
+export type TablaEvaluacionesIdea = {
+  id: Generated<string>;
+  project_id: string;
+  proposal_id: string;
+  findings: Json;
+  graph_version: Entero64;
+  classifier: string;
+  input_hash: string;
+  state: string;
+  created_at: Generated<Marca>;
+};
+
+export type TablaEvaluacionesClasificador = {
+  id: Generated<string>;
+  classifier: string;
+  dataset: string;
+  partition: string;
+  task: string;
+  metrics: Json;
+  file: string | null;
+  created_at: Generated<Marca>;
+};
+
 export type BD = {
   projects: TablaProyectos;
   events: TablaEventos;
@@ -281,6 +404,15 @@ export type BD = {
   links: TablaEnlaces;
   proposal_batches: TablaLotes;
   proposals: TablaPropuestas;
+  taxonomies: TablaTaxonomias;
+  knowledge_graph_state: TablaEstadoGrafo;
+  knowledge_nodes: TablaNodos;
+  knowledge_edges: TablaAristas;
+  knowledge_updates: TablaActualizaciones;
+  verdict_cache: TablaCacheVeredictos;
+  classifications: TablaClasificaciones;
+  idea_assessments: TablaEvaluacionesIdea;
+  classifier_evaluations: TablaEvaluacionesClasificador;
 };
 
 export type Fila<T extends keyof BD> = Selectable<BD[T]>;

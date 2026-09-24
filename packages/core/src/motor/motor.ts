@@ -13,6 +13,15 @@ import { cargarMetodo, versionEsquema } from '../agentes/metodos.ts';
 import { ejecutarComando, enTransaccion } from '../bus/bus.ts';
 import { grafoAlDia } from '../contexto/grafo.ts';
 import type { MotorFlujos, Servicios } from '../servicios.ts';
+import { arrancadores, conciliadores, fijarServiciosDelMotor, serviciosDelMotor } from './registro.ts';
+
+export {
+  registrarArranqueActualizacion,
+  registrarArranqueEvaluacion,
+  registrarConciliador,
+  serviciosDelMotor,
+} from './registro.ts';
+export type { ArrancadorFlujo } from './registro.ts';
 
 const comprimir = promisify(gzip);
 const MOTOR = sistema('motor');
@@ -28,7 +37,6 @@ export const VERSION_FLUJOS = 'demiurgo-v2-flujos-1';
 /** Reintentos de los pasos transaccionales ante fallos transitorios (corte de conexión, bloqueo). */
 const REINTENTOS = { retriesAllowed: true, maxAttempts: 3, intervalSeconds: 1 } as const;
 
-let servicios: Servicios | null = null;
 const controladores = new Map<string, AbortController>();
 
 // DBOS no permite arrancar un flujo desde dentro de un paso. Los arranques pedidos dentro de un
@@ -49,20 +57,14 @@ async function despacharDiferidos(): Promise<void> {
     try {
       await siguiente?.();
     } catch (e) {
-      servicios?.registro.error('No se pudo arrancar un flujo diferido', { error: String(e) });
+      console.error(JSON.stringify({ nivel: 'error', m: 'No se pudo arrancar un flujo diferido', error: String(e) }));
     }
   }
 }
 let alCompletarPaso: ((paso: string, id: string) => void) | undefined;
 
-/** Servicios del motor en marcha (para los flujos registrados por otros módulos). */
-export function serviciosDelMotor(): Servicios {
-  return requerir();
-}
-
 function requerir(): Servicios {
-  if (!servicios) throw new Error('El motor no está iniciado.');
-  return servicios;
+  return serviciosDelMotor();
 }
 
 export const idFlujoRun = (runId: string): string => `run:${runId}`;
@@ -290,17 +292,6 @@ async function flujoResponder(proyectoId: string, exploracionId: string, pregunt
 
 const flujoResponderRegistrado = DBOS.registerWorkflow(flujoResponder, { name: 'demiurgo.responder' });
 
-/** Flujos adicionales (p. ej. «Actualizar conocimiento») registrados por otros módulos. */
-export type ArrancadorFlujo = (id: string, proyectoId: string) => Promise<void>;
-let arrancarActualizacion: ArrancadorFlujo = async () => undefined;
-export function registrarArranqueActualizacion(f: ArrancadorFlujo): void {
-  arrancarActualizacion = f;
-}
-let arrancarEvaluacion: ArrancadorFlujo = async () => undefined;
-export function registrarArranqueEvaluacion(f: ArrancadorFlujo): void {
-  arrancarEvaluacion = f;
-}
-
 export const motorDbos: MotorFlujos = {
   async iniciarRun(runId, proyectoId) {
     // Con el mismo workflowID, DBOS no repite el flujo: devuelve el existente.
@@ -313,10 +304,10 @@ export const motorDbos: MotorFlujos = {
     await DBOS.cancelWorkflow(idFlujoRun(runId)).catch(() => undefined);
   },
   async iniciarActualizacion(id, proyectoId) {
-    await arrancarFueraDeFlujo(() => arrancarActualizacion(id, proyectoId));
+    await arrancarFueraDeFlujo(() => arrancadores.actualizacion(id, proyectoId));
   },
   async iniciarEvaluacion(loteId, proyectoId) {
-    await arrancarFueraDeFlujo(() => arrancarEvaluacion(loteId, proyectoId));
+    await arrancarFueraDeFlujo(() => arrancadores.evaluacion(loteId, proyectoId));
   },
   async iniciarRespuesta(mensajeId, proyectoId, exploracionId, preguntaId) {
     await arrancarFueraDeFlujo(async () => {
@@ -378,7 +369,7 @@ export async function iniciarMotor(
   opciones: OpcionesMotor = {},
 ): Promise<MotorIniciado> {
   const s: Servicios = { ...base, motor: motorDbos };
-  servicios = s;
+  fijarServiciosDelMotor(s);
   alCompletarPaso = opciones.alCompletarPaso;
   DBOS.setConfig({
     name: 'demiurgo',
@@ -393,13 +384,7 @@ export async function iniciarMotor(
     void despacharDiferidos();
   }, 50);
   await conciliarEjecuciones(s);
-  // Actualizaciones de conocimiento que quedaron sin flujo (corte entre confirmar y arrancar).
-  const pendientes = await s.db
-    .selectFrom('knowledge_updates')
-    .select(['id', 'project_id'])
-    .where('state', 'in', ['queued', 'classifying', 'verifying'])
-    .execute();
-  for (const u of pendientes) await motorDbos.iniciarActualizacion(u.id, u.project_id);
+  for (const c of conciliadores) await c(s);
   return {
     servicios: s,
     async detener() {
@@ -407,7 +392,7 @@ export async function iniciarMotor(
       clearInterval(despachador);
       await despacharDiferidos();
       await DBOS.shutdown();
-      servicios = null;
+      fijarServiciosDelMotor(null);
     },
   };
 }

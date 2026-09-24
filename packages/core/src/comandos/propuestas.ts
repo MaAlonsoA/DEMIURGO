@@ -230,6 +230,11 @@ registrarManejadores({
         });
         ids.push(r.entidadId);
       }
+      // Cada idea de un agente se evalúa contra el conocimiento (§7.7), fuera de la transacción.
+      if (tipoLote === 'agent') {
+        const { servicios, proyectoId } = ctx;
+        ctx.despuesDeConfirmar(() => servicios.motor.iniciarEvaluacion(id, proyectoId));
+      }
       return {
         entidadId: id,
         despues: { tipo: tipoLote, resolucion, propuestas: datos.propuestas.length, productor: formatearActor(ctx.actor) },

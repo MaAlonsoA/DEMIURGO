@@ -1,9 +1,13 @@
 // Rutas de consulta (lectura). Cada una declara su consulta de la matriz de capacidades.
 
-import { ErrorDominio, type NombreConsulta } from '@demiurgo/domain';
+import { ErrorDominio, type NombreConsulta, huellaGrafo } from '@demiurgo/domain';
 import {
   type Servicios,
   bandeja,
+  buscarConocimiento,
+  cargarGrafo,
+  compararReconstruccion,
+  grafoAlDia,
   detalleExploracion,
   detalleLote,
   detalleRegistro,
@@ -150,5 +154,47 @@ registrarConsultas([
         .where('project_id', '=', uuid(params.proyectoId, 'el proyecto'))
         .orderBy('created_at')
         .execute(),
+  },
+]);
+
+registrarConsultas([
+  {
+    ruta: '/api/proyectos/:proyectoId/conocimiento',
+    consulta: 'query.knowledge',
+    async responder({ servicios, params }) {
+      const proyectoId = uuid(params.proyectoId, 'el proyecto');
+      const frescura = await servicios.db.transaction().execute((trx) => grafoAlDia(trx, proyectoId));
+      const g = await cargarGrafo(servicios.db, proyectoId);
+      const actualizaciones = await servicios.db
+        .selectFrom('knowledge_updates')
+        .select(['id', 'state', 'trigger', 'failure', 'graph_version_before', 'graph_version_after', 'created_at'])
+        .where('project_id', '=', proyectoId)
+        .orderBy('trigger_seq', 'desc')
+        .limit(20)
+        .execute();
+      return {
+        version_grafo: g.version,
+        al_dia: frescura.alDia,
+        actualizaciones_en_curso: frescura.pendientes,
+        huella: huellaGrafo(g),
+        nodos_vigentes: g.nodos.filter((n) => n.hasta === null).length,
+        aristas_vigentes: g.aristas.filter((a) => a.baja === null).length,
+        actualizaciones,
+      };
+    },
+  },
+  {
+    ruta: '/api/proyectos/:proyectoId/conocimiento/buscar',
+    consulta: 'query.knowledge',
+    async responder({ servicios, params, query }) {
+      const consulta = (query.q ?? '').trim();
+      if (!consulta) throw new ErrorDominio('validacion', 'Falta el texto de búsqueda (q).');
+      return { resultados: await buscarConocimiento(servicios.db, uuid(params.proyectoId, 'el proyecto'), consulta, 10) };
+    },
+  },
+  {
+    ruta: '/api/proyectos/:proyectoId/conocimiento/reconstruccion',
+    consulta: 'query.knowledge',
+    responder: ({ servicios, params }) => compararReconstruccion(servicios.db, uuid(params.proyectoId, 'el proyecto')),
   },
 ]);

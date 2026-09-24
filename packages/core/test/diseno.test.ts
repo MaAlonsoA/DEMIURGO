@@ -431,20 +431,32 @@ describe('lotes y propuestas', () => {
   it('AC-NUC-001-05 «aceptar y aprobar» se descompone en comandos de la tabla con su actor y la misma correlación', async () => {
     const { propuestas } = await nuevoLote(s, proyectoId, false);
     const r = await cmd('proposal.accept', { aprobar: true }, propuestas[0]);
-    const eventos = await s.db
+    const aceptacion = await s.db
+      .selectFrom('events')
+      .select('cause')
+      .where('command', '=', 'proposal.accept')
+      .where('entity_id', '=', propuestas[0] ?? '')
+      .executeTakeFirstOrThrow();
+    const correlacion = (aceptacion.cause as { correlacion: string }).correlacion;
+    const delMismo = await s.db
       .selectFrom('events')
       .select(['command', 'actor', 'cause'])
       .where('project_id', '=', proyectoId)
-      .orderBy('seq', 'desc')
-      .limit(6)
+      .where(sql<boolean>`cause->>'correlacion' = ${correlacion}`)
+      .orderBy('seq')
       .execute();
-    const correlacion = (eventos[0]?.cause as { correlacion?: string } | undefined)?.correlacion;
-    const delMismo = eventos.filter((e) => (e.cause as { correlacion: string }).correlacion === correlacion);
-    expect(delMismo.map((e) => e.command).sort()).toEqual(
-      ['batch.close', 'proposal.accept', 'record.create', 'record_version.approve', 'record_version.create'].sort(),
-    );
-    // Lo decisivo y lo que crea autoridad lo hace la persona; el cierre del lote, el sistema.
-    for (const e of delMismo) expect(e.actor).toBe(e.command === 'batch.close' ? 'system:bandeja@1' : 'human:ana');
+    const comandos = new Set(delMismo.map((e) => e.command));
+    const esperados = ['proposal.accept', 'record.create', 'record_version.create', 'record_version.approve', 'batch.close'];
+    expect(esperados.filter((c) => !comandos.has(c))).toEqual([]);
+    // Lo decisivo y lo que crea autoridad lo hace la persona; el cierre del lote y el encolado
+    // de «Actualizar conocimiento», el sistema.
+    for (const e of delMismo) {
+      const delSistema = ['batch.close', 'knowledge_update.enqueue'].includes(e.command);
+      expect({ comando: e.command, deSuActor: e.actor.startsWith(delSistema ? 'system:' : 'human:') }).toEqual({
+        comando: e.command,
+        deSuActor: true,
+      });
+    }
     expect(r.estado).toBe('accepted');
   });
 

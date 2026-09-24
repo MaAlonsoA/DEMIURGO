@@ -44,6 +44,8 @@ export const TABLAS: Partial<Record<NombreEntidad, string>> = {
   taxonomy: 'taxonomies',
   classification: 'classifications',
   knowledge_update: 'knowledge_updates',
+  knowledge_node: 'knowledge_nodes',
+  knowledge_edge: 'knowledge_edges',
   idea_assessment: 'idea_assessments',
 };
 

@@ -21,3 +21,5 @@ export * from './secretos.ts';
 export * from './arranque.ts';
 export * from './consultas/lectura.ts';
 export * from './contexto/conocimiento.ts';
+export * from './conocimiento/index.ts';
+export * from './motor/en-linea.ts';

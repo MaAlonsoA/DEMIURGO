@@ -9,3 +9,4 @@ export * from './tablas/esquemas.ts';
 export * from './propuestas.ts';
 export * from './registros.ts';
 export * from './texto.ts';
+export * from './conocimiento.ts';

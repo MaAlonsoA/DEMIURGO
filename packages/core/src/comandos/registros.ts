@@ -62,7 +62,10 @@ const esquemaContenidoVersion = {
   criterios: z.array(esquemaCriterioEntrada).max(60).default([]),
   descartados: z.array(z.string()).default([]),
   enlaces: z.array(esquemaEnlaceEntrada).max(40).default([]),
-  anexos: z.record(z.string().regex(/^datos\/[a-z0-9-]+\.yaml$/), z.string()).default({}),
+  // Anexos en orden (tablas como datos): se guardan y se exportan tal cual.
+  anexos: z.array(z.object({ ruta: z.string().regex(/^datos\/[a-z0-9-]+\.yaml$/), contenido: z.string() }).strict()).default([]),
+  // Número de versión explícito: solo para importar design/ respetando la versión del origen.
+  numero: z.number().int().positive().optional(),
   incremento: z
     .string()
     .regex(/^(D|S|H)\d+$/)
@@ -230,6 +233,10 @@ async function crearVersion(
         .orderBy('n', 'desc')
         .executeTakeFirst()
     )?.n ?? 0;
+  if (datos.numero !== undefined && datos.numero <= n) {
+    throw new ErrorDominio('validacion', `La versión ${datos.numero} no es posterior a la última (${n}).`);
+  }
+  const numero = datos.numero ?? n + 1;
   const previos = base
     ? await ctx.trx.selectFrom('criteria').selectAll().where('record_version_id', '=', base.id).orderBy('position').execute()
     : [];
@@ -295,7 +302,7 @@ async function crearVersion(
     .values({
       project_id: ctx.proyectoId,
       record_id: recordId,
-      n: n + 1,
+      n: numero,
       title: datos.titulo,
       sections: JSON.stringify(datos.secciones),
       annexes: JSON.stringify(datos.anexos),
@@ -335,7 +342,7 @@ async function crearVersion(
       datos: { tipo: e.tipo, desde: { tipo: 'record_version', id }, hacia: { tipo: 'record_version', id: destino.versionId } },
     });
   }
-  return { id, n: n + 1, codigo: registro.code };
+  return { id, n: numero, codigo: registro.code };
 }
 
 registrarManejadores({

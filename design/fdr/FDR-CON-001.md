@@ -41,16 +41,16 @@ Que el conocimiento del proyecto se mantenga al día solo, con un paso verificad
 
 ## Comportamiento
 
-1. Cada evento de autoridad (una versión aprobada, un AC modificado o una propuesta aceptada) encola «Actualizar conocimiento».
-2. Los candidatos se eligen de forma determinista: vecinos en el grafo hasta una distancia fija, coincidencias de texto (FTS `spanish`) y nodos con las mismas categorías. El conjunto está acotado y lleva hash.
-3. El clasificador da un veredicto por candidato (`keep`, `update`, `invalidate`, `add`, `relate` u `other`) con su confianza. La cascada decide: la confianza alta se aplica, la media la revisa un LLM y la baja queda pendiente de la persona.
-4. La verificación es determinista: cada candidato tiene exactamente un veredicto, todas las referencias existen y ningún veredicto cambia la autoridad (esos salen como propuesta). Si algo falla, el update queda `rejected` sin efectos y el fallo se registra.
+1. Cada evento de autoridad (una versión aprobada, un AC modificado o una propuesta aceptada) encola «Actualizar conocimiento». Descartar un borrador también la encola: retira lo que había proyectado. Una propuesta aceptada y aprobada en el mismo paso solo encola la aprobación, y lo confirmado nunca vuelve a propuesto.
+2. Los candidatos se eligen de forma determinista: vecinos a distancia 1 de lo que el cambio sustituye o enlaza, coincidencias de texto (similitud léxica propia, sin acentos ni palabras vacías, reproducible en la reconstrucción) y nodos con las mismas categorías. El conjunto está acotado y lleva hash. La búsqueda para la persona usa FTS `spanish`.
+3. El clasificador da un veredicto por candidato (`keep`, `update`, `invalidate`, `add`, `relate` u `other`) con su confianza. La cascada decide: la confianza alta se aplica, la media la revisa un LLM si hay un revisor configurado y la baja queda pendiente de la persona. Lo que tras la cascada no tiene confianza alta no se aplica solo: una categoría queda pendiente de la persona en la bandeja y una relación queda anotada en la actualización, sin aplicar.
+4. La verificación es determinista: cada candidato tiene exactamente un veredicto, todas las referencias existen y eran candidatas, cada categoría es de un eje de la taxonomía aprobada y ningún veredicto cambia la autoridad (esos salen como propuesta, localizando el registro por el origen del nodo). Si algo falla, o si una revisión no puede proponerse o el sistema falla al procesarlo, el update queda `rejected` sin efectos y el fallo se registra. Solo las salidas verificadas se guardan por `input_hash`: reintentar vuelve a preguntar.
 5. La aplicación es una transacción con su evento. La versión del grafo sube, y lo sustituido queda con `valid_to` y nunca se borra.
 6. Pedir una ejecución con un evento de autoridad sin proyectar se rechaza porque el grafo está desfasado.
 7. Cada idea o propuesta nueva se compara con el conocimiento. Los hallazgos (`relates`, `conflicts`, `inconsistent` y `duplicates`) citan nodo@versión y se ven en la bandeja.
 8. Un constructor puro por rol recorre el grafo desde el alcance de la acción, elige nodos dentro del presupuesto y registra el motivo de cada uno, la versión del grafo, las dependencias y el hash.
 9. El importador lee `design/` y crea o reconoce cada elemento sin duplicar.
-10. Reconstruir el grafo desde la autoridad con las clasificaciones guardadas da la misma huella. La huella es el sha256 del JSON canónico de todos los nodos y aristas del proyecto, con su referencia, sus categorías, su estado epistémico y las versiones del grafo en que nacen y en que se invalidan, sin ids ni fechas.
+10. Reconstruir el grafo desde la autoridad con las clasificaciones guardadas, en el orden en que se aplicó cada actualización, da la misma huella. Si no coincide, la comparación informa de la deriva. La huella es el sha256 del JSON canónico de todos los nodos y aristas del proyecto, con su referencia, sus categorías, su estado epistémico y las versiones del grafo en que nacen y en que se invalidan, sin ids ni fechas.
 
 ## Criterios de aceptación
 

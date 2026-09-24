@@ -5,159 +5,159 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
-  type CasoIdea,
-  type CasoVeredicto,
-  type Clasificador,
-  HALLAZGOS_IDEA,
+  type IdeaCase,
+  type VerdictCase,
+  type Classifier,
+  IDEA_FINDINGS,
   type ItemChoice,
-  type ResultadoEvaluacion,
-  VEREDICTOS,
-  cargarCasosJsonl,
-  esquemaCasoIdea,
-  esquemaCasoVeredicto,
-  evaluarClasificacion,
+  type EvaluationResult,
+  VERDICTS,
+  loadJsonlCases,
+  ideaCaseSchema,
+  verdictCaseSchema,
+  evaluateClassification,
   sha256,
 } from '@demiurgo/domain';
-import type { Bd } from '../db/conexion.ts';
+import type { Db } from '../db/connection.ts';
 
-export type Particion = 'desarrollo' | 'prueba' | 'todas';
+export type Partition = 'dev' | 'test' | 'all';
 
-export type InformeEvaluacion = {
-  clasificador: string;
-  fecha: string;
+export type EvaluationReport = {
+  classifier: string;
+  date: string;
   dataset: string;
   /** Huella sha256 de cada fichero del conjunto: con qué versión exacta se midió. */
-  huellas: { veredictos: string; ideas: string };
-  particion: Particion;
-  duracionMs: number;
-  veredictos: ResultadoEvaluacion<string>;
-  ideas: ResultadoEvaluacion<string>;
-  respuestas: { id: string; tarea: string; esperado: string; obtenido: string; confianza: number; justificacion: string }[];
-  archivo?: string;
+  fingerprints: { verdicts: string; ideas: string };
+  partition: Partition;
+  durationMs: number;
+  verdicts: EvaluationResult<string>;
+  ideas: EvaluationResult<string>;
+  responses: { id: string; task: string; expected: string; actual: string; confidence: number; justification: string }[];
+  file?: string;
 };
 
-const PREGUNTA_VEREDICTO =
+const VERDICT_QUESTION =
   'Con este cambio aprobado, ¿qué le pasa al candidato: sigue igual, se relaciona, hay que actualizarlo, queda invalidado, hay que añadirle algo u otra cosa?';
-const PREGUNTA_IDEA =
+const IDEA_QUESTION =
   '¿Qué relación tiene la idea con este conocimiento: la duplica, lo contradice, es incoherente, se relaciona o ninguna?';
 
-function itemsVeredicto(casos: readonly CasoVeredicto[]): ItemChoice[] {
-  return casos.map((c) => ({
+function verdictItems(cases: readonly VerdictCase[]): ItemChoice[] {
+  return cases.map((c) => ({
     id: c.id,
-    estado: { tarea: 'veredicto', cambio: c.cambio, candidato: c.candidato },
-    pregunta: PREGUNTA_VEREDICTO,
-    opciones: VEREDICTOS,
+    state: { task: 'verdict', change: c.change, candidate: c.candidate },
+    question: VERDICT_QUESTION,
+    options: VERDICTS,
   }));
 }
 
-function itemsIdea(casos: readonly CasoIdea[]): ItemChoice[] {
-  return casos.map((c) => ({
+function ideaItems(cases: readonly IdeaCase[]): ItemChoice[] {
+  return cases.map((c) => ({
     id: c.id,
-    estado: { tarea: 'idea', idea: c.idea, nodo: c.nodo },
-    pregunta: PREGUNTA_IDEA,
-    opciones: HALLAZGOS_IDEA,
+    state: { task: 'idea', idea: c.idea, node: c.node },
+    question: IDEA_QUESTION,
+    options: IDEA_FINDINGS,
   }));
 }
 
-async function responderPorTandas(clasificador: Clasificador, items: readonly ItemChoice[], tanda: number) {
-  const respuestas = [];
-  for (let i = 0; i < items.length; i += tanda) respuestas.push(...(await clasificador.choice(items.slice(i, i + tanda))));
-  return new Map(respuestas.map((r) => [r.id, r]));
+async function respondInChunks(classifier: Classifier, items: readonly ItemChoice[], chunkSize: number) {
+  const responses = [];
+  for (let i = 0; i < items.length; i += chunkSize) responses.push(...(await classifier.choice(items.slice(i, i + chunkSize))));
+  return new Map(responses.map((r) => [r.id, r]));
 }
 
-export async function evaluarClasificador(opciones: {
-  clasificador: Clasificador;
+export async function evaluateClassifier(options: {
+  classifier: Classifier;
   dir?: string;
-  particion?: Particion;
+  partition?: Partition;
   /** Ítems por llamada al clasificador (la referencia por CLI agrupa cada tanda en una llamada). */
-  tanda?: number;
-  db?: Bd;
-  salida?: string;
-}): Promise<InformeEvaluacion> {
-  const dir = opciones.dir ?? 'evals/clasificador/v1';
-  const particion = opciones.particion ?? 'prueba';
-  const filtrar = <T extends { particion: string }>(casos: T[]) =>
-    particion === 'todas' ? casos : casos.filter((c) => c.particion === particion);
-  const textoVeredictos = await readFile(join(dir, 'veredictos.jsonl'), 'utf8');
-  const textoIdeas = await readFile(join(dir, 'ideas.jsonl'), 'utf8');
-  const huellas = { veredictos: sha256(textoVeredictos), ideas: sha256(textoIdeas) };
-  const veredictos = filtrar(cargarCasosJsonl(textoVeredictos, esquemaCasoVeredicto));
-  const ideas = filtrar(cargarCasosJsonl(textoIdeas, esquemaCasoIdea));
-  const inicio = Date.now();
-  const tanda = opciones.tanda ?? 50;
-  const rv = await responderPorTandas(opciones.clasificador, itemsVeredicto(veredictos), tanda);
-  const ri = await responderPorTandas(opciones.clasificador, itemsIdea(ideas), tanda);
-  const duracionMs = Date.now() - inicio;
-  const respuestas: InformeEvaluacion['respuestas'] = [];
-  const casos = <C extends string>(
-    lista: readonly { id: string; esperado: C }[],
-    mapa: Map<string, { eleccion: string; confianza: number; justificacion: string }>,
-    tarea: string,
-    clases: readonly C[],
+  chunkSize?: number;
+  db?: Db;
+  output?: string;
+}): Promise<EvaluationReport> {
+  const dir = options.dir ?? 'evals/classifier/v1';
+  const partition = options.partition ?? 'test';
+  const filter = <T extends { partition: string }>(cases: T[]) =>
+    partition === 'all' ? cases : cases.filter((c) => c.partition === partition);
+  const verdictsText = await readFile(join(dir, 'verdicts.jsonl'), 'utf8');
+  const ideasText = await readFile(join(dir, 'ideas.jsonl'), 'utf8');
+  const fingerprints = { verdicts: sha256(verdictsText), ideas: sha256(ideasText) };
+  const verdicts = filter(loadJsonlCases(verdictsText, verdictCaseSchema));
+  const ideas = filter(loadJsonlCases(ideasText, ideaCaseSchema));
+  const start = Date.now();
+  const chunkSize = options.chunkSize ?? 50;
+  const revision = await respondInChunks(options.classifier, verdictItems(verdicts), chunkSize);
+  const ri = await respondInChunks(options.classifier, ideaItems(ideas), chunkSize);
+  const durationMs = Date.now() - start;
+  const responses: EvaluationReport['responses'] = [];
+  const cases = <C extends string>(
+    list: readonly { id: string; expected: C }[],
+    map: Map<string, { choice: string; confidence: number; justification: string }>,
+    task: string,
+    classes: readonly C[],
   ) =>
-    lista.map((c) => {
-      const r = mapa.get(c.id);
+    list.map((c) => {
+      const r = map.get(c.id);
       // Una respuesta que falta o fuera de las clases cuenta como fallo (se registra como «other»/«none»).
-      const obtenido = (r && (clases as readonly string[]).includes(r.eleccion) ? r.eleccion : clases[clases.length - 1]) as C;
-      respuestas.push({
+      const actual = (r && (classes as readonly string[]).includes(r.choice) ? r.choice : classes[classes.length - 1]) as C;
+      responses.push({
         id: c.id,
-        tarea,
-        esperado: c.esperado,
-        obtenido,
-        confianza: r?.confianza ?? 0,
-        justificacion: r?.justificacion ?? 'sin respuesta',
+        task,
+        expected: c.expected,
+        actual,
+        confidence: r?.confidence ?? 0,
+        justification: r?.justification ?? 'sin respuesta',
       });
-      return { esperado: c.esperado, obtenido, confianza: r?.confianza ?? 0 };
+      return { expected: c.expected, actual, confidence: r?.confidence ?? 0 };
     });
-  const informe: InformeEvaluacion = {
-    clasificador: opciones.clasificador.id,
-    fecha: new Date().toISOString(),
+  const report: EvaluationReport = {
+    classifier: options.classifier.id,
+    date: new Date().toISOString(),
     dataset: dir,
-    huellas,
-    particion,
-    duracionMs,
-    veredictos: evaluarClasificacion({ clases: VEREDICTOS, casos: casos(veredictos, rv, 'veredicto', VEREDICTOS) }),
-    ideas: evaluarClasificacion({ clases: HALLAZGOS_IDEA, casos: casos(ideas, ri, 'idea', HALLAZGOS_IDEA) }),
-    respuestas,
+    fingerprints,
+    partition,
+    durationMs,
+    verdicts: evaluateClassification({ classes: VERDICTS, cases: cases(verdicts, revision, 'verdict', VERDICTS) }),
+    ideas: evaluateClassification({ classes: IDEA_FINDINGS, cases: cases(ideas, ri, 'idea', IDEA_FINDINGS) }),
+    responses,
   };
-  if (opciones.salida) {
-    await mkdir(opciones.salida, { recursive: true });
-    const nombre = `${opciones.clasificador.id.replace(/[^a-z0-9-]+/gi, '_')}-${particion}-${informe.fecha.slice(0, 19).replace(/[:T]/g, '-')}.json`;
-    informe.archivo = join(opciones.salida, nombre).split('\\').join('/');
-    await writeFile(informe.archivo, `${JSON.stringify(informe, null, 2)}\n`, 'utf8');
+  if (options.output) {
+    await mkdir(options.output, { recursive: true });
+    const name = `${options.classifier.id.replace(/[^a-z0-9-]+/gi, '_')}-${partition}-${report.date.slice(0, 19).replace(/[:T]/g, '-')}.json`;
+    report.file = join(options.output, name).split('\\').join('/');
+    await writeFile(report.file, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
   }
-  if (opciones.db) {
-    for (const [tarea, metricas] of [
-      ['veredictos', informe.veredictos],
-      ['ideas', informe.ideas],
+  if (options.db) {
+    for (const [task, metrics] of [
+      ['verdicts', report.verdicts],
+      ['ideas', report.ideas],
     ] as const) {
-      await opciones.db
+      await options.db
         .insertInto('classifier_evaluations')
         .values({
-          classifier: informe.clasificador,
-          dataset: `${dir}@sha256:${huellas[tarea]}`,
-          partition: particion,
-          task: tarea,
-          metrics: JSON.stringify(metricas),
-          file: informe.archivo ?? null,
+          classifier: report.classifier,
+          dataset: `${dir}@sha256:${fingerprints[task]}`,
+          partition: partition,
+          task: task,
+          metrics: JSON.stringify(metrics),
+          file: report.file ?? null,
         })
         .execute();
     }
   }
-  return informe;
+  return report;
 }
 
-function tabla(titulo: string, r: ResultadoEvaluacion<string>): string {
+function table(title: string, r: EvaluationResult<string>): string {
   return [
-    `${titulo}: exactitud ${(r.exactitud * 100).toFixed(1)} % (${r.aciertos}/${r.total})`,
-    ...Object.entries(r.porClase).map(
+    `${title}: exactitud ${(r.accuracy * 100).toFixed(1)} % (${r.hits}/${r.total})`,
+    ...Object.entries(r.byClass).map(
       ([c, m]) =>
-        `  ${c.padEnd(12)} precisión ${(m.precision * 100).toFixed(0).padStart(3)} %  cobertura ${(m.cobertura * 100).toFixed(0).padStart(3)} %  (${m.aciertos}/${m.soporte})`,
+        `  ${c.padEnd(12)} precisión ${(m.precision * 100).toFixed(0).padStart(3)} %  cobertura ${(m.recall * 100).toFixed(0).padStart(3)} %  (${m.hits}/${m.support})`,
     ),
   ].join('\n');
 }
 
 /** Resumen legible: precisión y cobertura por clase. */
-export function resumenEvaluacion(i: InformeEvaluacion): string {
-  return `${i.clasificador} · ${i.particion} · ${i.duracionMs} ms\n${tabla('Veredictos', i.veredictos)}\n${tabla('Ideas', i.ideas)}`;
+export function evaluationSummary(i: EvaluationReport): string {
+  return `${i.classifier} · ${i.partition} · ${i.durationMs} ms\n${table('Verdicts', i.verdicts)}\n${table('Ideas', i.ideas)}`;
 }

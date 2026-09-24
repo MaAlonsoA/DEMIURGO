@@ -4,132 +4,132 @@
 import { readFileSync } from 'node:fs';
 import {
   type Actor,
-  type NombreComando,
-  type NombreEntidad,
-  type TipoActor,
-  agenteExterno,
-  agenteRun,
-  definicionComando,
-  definicionEntidad,
-  humano,
-  sistema,
+  type CommandName,
+  type EntityName,
+  type ActorType,
+  externalAgent,
+  agentRun,
+  commandDefinition,
+  entityDefinition,
+  human,
+  system,
 } from '@demiurgo/domain';
-import { ejecutarComando } from '../../src/bus/bus.ts';
-import type { Servicios } from '../../src/servicios.ts';
+import { executeCommand } from '../../src/bus/bus.ts';
+import type { Services } from '../../src/services.ts';
 
-export const ACTOR_DE_TIPO: Record<TipoActor, Actor> = {
-  human: humano('ana'),
-  agent_external: agenteExterno('bot-prueba', 'sesion-1'),
-  agent_run: agenteRun('00000000-0000-7000-8000-00000000abcd'),
-  system: sistema('prueba'),
+export const ACTOR_BY_TYPE: Record<ActorType, Actor> = {
+  human: human('ana'),
+  agent_external: externalAgent('bot-prueba', 'sesion-1'),
+  agent_run: agentRun('00000000-0000-7000-8000-00000000abcd'),
+  system: system('test'),
 };
 
-export function actorPermitido(comando: NombreComando): Actor {
-  const tipo = definicionComando(comando).permitido[0] as TipoActor;
-  return ACTOR_DE_TIPO[tipo];
+export function allowedActor(command: CommandName): Actor {
+  const type = commandDefinition(command).allowed[0] as ActorType;
+  return ACTOR_BY_TYPE[type];
 }
 
 /** Último incremento implementado según package.json. */
-export function incrementoActual(): string {
-  const raiz = JSON.parse(readFileSync('package.json', 'utf8')) as { demiurgo: { incrementosImplementados: string[] } };
-  const s = raiz.demiurgo.incrementosImplementados.filter((i) => i.startsWith('S'));
+export function currentIncrement(): string {
+  const root = JSON.parse(readFileSync('package.json', 'utf8')) as { demiurgo: { implementedIncrements: string[] } };
+  const s = root.demiurgo.implementedIncrements.filter((i) => i.startsWith('S'));
   return s[s.length - 1] ?? 'S0';
 }
 
-export type Contexto = { s: Servicios; proyectoId: string; entidadId: string };
+export type Context = { s: Services; projectId: string; entityId: string };
 
-export type Receta = {
+export type Recipe = {
   /** Crea la entidad en su estado inicial y devuelve su id. */
-  crear(s: Servicios, proyectoId: string): Promise<string>;
+  create(s: Services, projectId: string): Promise<string>;
   /** Datos válidos para cada comando no creador. Por defecto `{}`. */
-  datos?: Partial<Record<NombreComando, (c: Contexto) => unknown>>;
+  data?: Partial<Record<CommandName, (c: Context) => unknown>>;
   /** Caminos a medida para estados cuyas guardas exigen preparación. */
-  estados?: Partial<Record<string, (s: Servicios, proyectoId: string) => Promise<string>>>;
+  states?: Partial<Record<string, (s: Services, projectId: string) => Promise<string>>>;
 };
 
-let contador = 0;
-export const unico = (prefijo: string): string => `${prefijo}-${Date.now()}-${++contador}`;
+let counter = 0;
+export const unique = (prefix: string): string => `${prefix}-${Date.now()}-${++counter}`;
 
-export const RECETAS: Partial<Record<NombreEntidad, Receta>> = {
+export const RECIPES: Partial<Record<EntityName, Recipe>> = {
   project: {
-    async crear(s) {
-      const r = await ejecutarComando(s, { comando: 'project.create', actor: humano('ana'), datos: { nombre: unico('P') } });
-      return r.entidadId;
+    async create(s) {
+      const r = await executeCommand(s, { command: 'project.create', actor: human('ana'), data: { name: unique('P') } });
+      return r.entityId;
     },
   },
   context_pack: {
-    async crear(s, proyectoId) {
-      const r = await ejecutarComando(s, {
-        comando: 'context_pack.build',
-        actor: sistema('prueba'),
-        proyectoId,
-        datos: { rol: 'eco', constructor: 'eco@1', presupuesto: {}, version_grafo: 0, dependencias: [], contenido: unico('c') },
+    async create(s, projectId) {
+      const r = await executeCommand(s, {
+        command: 'context_pack.build',
+        actor: system('test'),
+        projectId,
+        data: { role: 'echo', constructor: 'eco@1', budget: {}, graph_version: 0, dependencies: [], content: unique('c') },
       });
-      return r.entidadId;
+      return r.entityId;
     },
   },
   ai_run: {
-    async crear(s, proyectoId) {
-      const r = await ejecutarComando(s, {
-        comando: 'run.request',
-        actor: humano('ana'),
-        proyectoId,
-        datos: { accion: 'eco', alcance: { tipo: 'proyecto' }, entrada: { texto: unico('t') } },
+    async create(s, projectId) {
+      const r = await executeCommand(s, {
+        command: 'run.request',
+        actor: human('ana'),
+        projectId,
+        data: { action: 'echo', scope: { type: 'project' }, input: { text: unique('t') } },
       });
-      return r.entidadId;
+      return r.entityId;
     },
-    datos: {
-      'run.complete': () => ({ salida: { reply: 'x' }, uso: null, modelo: null }),
+    data: {
+      'run.complete': () => ({ output: { reply: 'x' }, usage: null, model: null }),
       'run.fail': () => ({ failure_kind: 'agent_error', error: 'x' }),
-      'run.interrupt': () => ({ motivo: 'x' }),
+      'run.interrupt': () => ({ reason: 'x' }),
     },
   },
 };
 
-export function registrarReceta(entidad: NombreEntidad, receta: Receta): void {
-  RECETAS[entidad] = receta;
+export function registerRecipe(entity: EntityName, recipe: Recipe): void {
+  RECIPES[entity] = recipe;
 }
 
 /** Camino de comandos (sin creación) desde el estado inicial hasta `destino`, por BFS. */
-export function camino(entidad: NombreEntidad, inicial: string, destino: string): NombreComando[] | null {
-  const def = definicionEntidad(entidad);
-  const cola: [string, NombreComando[]][] = [[inicial, []]];
-  const vistos = new Set([inicial]);
-  while (cola.length > 0) {
-    const [estado, ruta] = cola.shift() as [string, NombreComando[]];
-    if (estado === destino) return ruta;
-    for (const t of def.transiciones) {
-      if (t.desde === 'nuevo' || !t.desde.includes(estado) || vistos.has(t.hacia)) continue;
-      vistos.add(t.hacia);
-      cola.push([t.hacia, [...ruta, t.comando as NombreComando]]);
+export function commandPath(entity: EntityName, initial: string, target: string): CommandName[] | null {
+  const def = entityDefinition(entity);
+  const queue: [string, CommandName[]][] = [[initial, []]];
+  const seen = new Set([initial]);
+  while (queue.length > 0) {
+    const [state, path] = queue.shift() as [string, CommandName[]];
+    if (state === target) return path;
+    for (const t of def.transitions) {
+      if (t.from === 'new' || !t.from.includes(state) || seen.has(t.to)) continue;
+      seen.add(t.to);
+      queue.push([t.to, [...path, t.command as CommandName]]);
     }
   }
   return null;
 }
 
-export async function llevarA(s: Servicios, proyectoId: string, entidad: NombreEntidad, destino: string): Promise<string> {
-  const receta = RECETAS[entidad];
-  if (!receta) throw new Error(`No hay receta para «${entidad}».`);
-  const aMedida = receta.estados?.[destino];
-  if (aMedida) return aMedida(s, proyectoId);
-  const id = entidad === 'project' ? await receta.crear(s, proyectoId) : await receta.crear(s, proyectoId);
-  const pid = entidad === 'project' ? id : proyectoId;
-  const fila = await estadoActual(s, entidad, id);
-  const ruta = camino(entidad, fila, destino);
-  if (!ruta) throw new Error(`«${entidad}» no llega a «${destino}» desde «${fila}».`);
-  for (const comando of ruta) {
-    const datos: unknown = await Promise.resolve(receta.datos?.[comando]?.({ s, proyectoId: pid, entidadId: id }) ?? {});
-    await ejecutarComando(s, { comando, actor: actorPermitido(comando), proyectoId: pid, entidadId: id, datos });
+export async function moveTo(s: Services, projectId: string, entity: EntityName, target: string): Promise<string> {
+  const recipe = RECIPES[entity];
+  if (!recipe) throw new Error(`No hay receta para «${entity}».`);
+  const custom = recipe.states?.[target];
+  if (custom) return custom(s, projectId);
+  const id = entity === 'project' ? await recipe.create(s, projectId) : await recipe.create(s, projectId);
+  const pid = entity === 'project' ? id : projectId;
+  const row = await currentState(s, entity, id);
+  const path = commandPath(entity, row, target);
+  if (!path) throw new Error(`«${entity}» no llega a «${target}» desde «${row}».`);
+  for (const command of path) {
+    const data: unknown = await Promise.resolve(recipe.data?.[command]?.({ s, projectId: pid, entityId: id }) ?? {});
+    await executeCommand(s, { command, actor: allowedActor(command), projectId: pid, entityId: id, data });
   }
   return id;
 }
 
-const TABLA: Partial<Record<NombreEntidad, string>> = {};
-export async function estadoActual(s: Servicios, entidad: NombreEntidad, id: string): Promise<string> {
-  const { TABLAS } = await import('../../src/bus/bus.ts');
-  const tabla = TABLA[entidad] ?? TABLAS[entidad];
-  if (!tabla) throw new Error(`Sin tabla para ${entidad}`);
+const TABLE: Partial<Record<EntityName, string>> = {};
+export async function currentState(s: Services, entity: EntityName, id: string): Promise<string> {
+  const { TABLES } = await import('../../src/bus/bus.ts');
+  const table = TABLE[entity] ?? TABLES[entity];
+  if (!table) throw new Error(`Sin tabla para ${entity}`);
   const { sql } = await import('kysely');
-  const { rows } = await sql<{ state: string }>`select state from ${sql.table(tabla)} where id = ${id}::uuid`.execute(s.db);
+  const { rows } = await sql<{ state: string }>`select state from ${sql.table(table)} where id = ${id}::uuid`.execute(s.db);
   return rows[0]?.state ?? '';
 }

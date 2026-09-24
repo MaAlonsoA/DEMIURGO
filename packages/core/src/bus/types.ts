@@ -1,86 +1,86 @@
 // Tipos del bus de comandos: comando → capacidad → tabla → evento.
 
-import type { Actor, NombreComando, NombreEntidad } from '@demiurgo/domain';
+import type { Actor, CommandName, EntityName } from '@demiurgo/domain';
 import type { z } from 'zod';
-import type { Bd, Tx } from '../db/conexion.ts';
-import type { Servicios } from '../servicios.ts';
+import type { Db, Tx } from '../db/connection.ts';
+import type { Services } from '../services.ts';
 
 /** Causa de un evento: agrupa los eventos de una misma petición y enlaza con su origen. */
-export type Causa = {
-  correlacion: string;
-  comandoOrigen?: string;
+export type Cause = {
+  correlation: string;
+  sourceCommand?: string;
   run?: string;
-  propuesta?: string;
-  lote?: string;
-  evento?: string;
+  proposal?: string;
+  batch?: string;
+  event?: string;
   /** Versión que se está creando: sus criterios y enlaces solo nacen dentro de su creación. */
-  versionEnCreacion?: string;
+  versionBeingCreated?: string;
 };
 
-export type Peticion = {
-  comando: NombreComando;
+export type Request = {
+  command: CommandName;
   actor: Actor;
   /** Obligatorio salvo en `project.create`. */
-  proyectoId?: string;
+  projectId?: string;
   /** Obligatorio salvo en los comandos que crean la entidad. */
-  entidadId?: string;
-  datos?: unknown;
-  causa?: Partial<Causa>;
+  entityId?: string;
+  data?: unknown;
+  cause?: Partial<Cause>;
 };
 
-export type Resultado = {
-  proyectoId: string;
-  entidad: NombreEntidad;
-  entidadId: string;
-  estado: string;
+export type Result = {
+  projectId: string;
+  entity: EntityName;
+  entityId: string;
+  state: string;
   seq: number | null;
-  resultado?: unknown;
+  result?: unknown;
 };
 
-export type EntidadCargada = {
+export type LoadedEntity = {
   id: string;
-  proyectoId: string;
-  estado: string;
-  fila: Record<string, unknown>;
+  projectId: string;
+  state: string;
+  row: Record<string, unknown>;
 };
 
-export type ContextoComando = {
+export type CommandContext = {
   trx: Tx;
   actor: Actor;
-  proyectoId: string;
-  comando: NombreComando;
-  causa: Causa;
-  servicios: Servicios;
+  projectId: string;
+  command: CommandName;
+  cause: Cause;
+  services: Services;
   /** Ejecuta otro comando dentro de la misma transacción (con su propio actor y evento). */
-  ejecutar(p: Peticion): Promise<Resultado>;
+  execute(p: Request): Promise<Result>;
   /** Registra trabajo para después de confirmar (arrancar flujos, avisar). */
-  despuesDeConfirmar(f: () => Promise<void> | void): void;
+  afterConfirm(f: () => Promise<void> | void): void;
 };
 
-export type Aplicado = {
-  entidadId: string;
+export type Applied = {
+  entityId: string;
   /** Solo en project.create: el proyecto recién creado. */
-  proyectoId?: string;
+  projectId?: string;
   version?: number | null;
-  antes?: unknown;
-  despues?: unknown;
-  resultado?: unknown;
+  before?: unknown;
+  after?: unknown;
+  result?: unknown;
   /** Creación idempotente que ya existía: sin evento ni cambio. */
-  sinCambios?: boolean;
+  noChanges?: boolean;
 };
 
-export type Manejador<D = unknown> = {
-  datos: z.ZodType<D>;
-  aplicar(ctx: ContextoComando, datos: D, entidad: EntidadCargada | null, hacia: string): Promise<Aplicado>;
+export type Handler<D = unknown> = {
+  data: z.ZodType<D>;
+  apply(ctx: CommandContext, data: D, entity: LoadedEntity | null, to: string): Promise<Applied>;
 };
 
-export type ContextoGuarda = {
-  ctx: ContextoComando;
-  datos: unknown;
-  entidad: EntidadCargada | null;
+export type GuardContext = {
+  ctx: CommandContext;
+  data: unknown;
+  entity: LoadedEntity | null;
 };
 
 /** Devuelve null si la guarda se cumple o el motivo en lenguaje de producto si no. */
-export type Guarda = (g: ContextoGuarda) => Promise<string | null> | string | null;
+export type Guard = (g: GuardContext) => Promise<string | null> | string | null;
 
-export type { Bd, Tx };
+export type { Db, Tx };

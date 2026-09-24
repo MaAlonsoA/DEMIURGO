@@ -5,38 +5,38 @@
 // configuración como argumentos. stdout es el canal del protocolo: los avisos van a stderr.
 
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
-import { type OpcionesServidorMcp, comprobarOpcionesMcp, crearServidorMcp } from './servidor.ts';
+import { type McpServerOptions, checkMcpOptions, createMcpServer } from './server.ts';
 
-function salirConError(mensaje: string): never {
-  process.stderr.write(`demiurgo-mcp: ${mensaje}\n`);
+function exitWithError(message: string): never {
+  process.stderr.write(`demiurgo-mcp: ${message}\n`);
   process.exit(2);
 }
 
-function variable(nombre: string): string {
-  const valor = process.env[nombre]?.trim();
-  if (!valor) salirConError(`falta la variable de entorno ${nombre}.`);
-  return valor;
+function variable(name: string): string {
+  const value = process.env[name]?.trim();
+  if (!value) exitWithError(`falta la variable de entorno ${name}.`);
+  return value;
 }
 
-const opciones: OpcionesServidorMcp = {
+const options: McpServerOptions = {
   urlApi: variable('DEMIURGO_API_URL'),
   token: variable('DEMIURGO_AGENT_TOKEN'),
-  proyectoId: variable('DEMIURGO_PROYECTO'),
+  projectId: variable('DEMIURGO_PROJECT'),
 };
 
 try {
-  comprobarOpcionesMcp(opciones);
+  checkMcpOptions(options);
 } catch (e) {
-  salirConError(e instanceof Error ? e.message : String(e));
+  exitWithError(e instanceof Error ? e.message : String(e));
 }
 
-const conexion = serveStdio(() => crearServidorMcp(opciones), {
+const connection = serveStdio(() => createMcpServer(options), {
   onerror: (e) => process.stderr.write(`demiurgo-mcp: ${e.message}\n`),
 });
 
-async function parar(): Promise<void> {
-  await conexion.close();
+async function shutdown(): Promise<void> {
+  await connection.close();
   process.exit(0);
 }
-process.once('SIGINT', () => void parar());
-process.once('SIGTERM', () => void parar());
+process.once('SIGINT', () => void shutdown());
+process.once('SIGTERM', () => void shutdown());

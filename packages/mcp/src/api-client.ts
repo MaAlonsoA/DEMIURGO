@@ -3,104 +3,104 @@
 // (`agent:<nombre>:<sesión>`). Así una herramienta MCP nunca puede hacer más que el token.
 
 /** Comandos que el canal de agentes puede pedir: conversar, registrar fuentes y proponer. */
-export const COMANDOS_AGENTE = ['message.post', 'source.register', 'batch.submit'] as const;
-export type ComandoAgente = (typeof COMANDOS_AGENTE)[number];
+export const AGENT_COMMANDS = ['message.post', 'source.register', 'batch.submit'] as const;
+export type AgentCommand = (typeof AGENT_COMMANDS)[number];
 
-export type ErrorApi = {
+export type ApiError = {
   ok: false;
   /** Código HTTP; 0 si no hubo respuesta. */
-  estado: number;
+  state: number;
   error: string;
-  mensaje: string;
-  motivos: string[];
+  message: string;
+  reasons: string[];
 };
 
-export type RespuestaApi = { ok: true; estado: number; datos: unknown } | ErrorApi;
+export type ApiResponse = { ok: true; state: number; data: unknown } | ApiError;
 
-export type ClienteApi = {
+export type ApiClient = {
   /** GET sobre una ruta del proyecto (por ejemplo `/bandeja`). */
-  leer(ruta: string, consulta?: Record<string, string>): Promise<RespuestaApi>;
+  read(path: string, queryName?: Record<string, string>): Promise<ApiResponse>;
   /** POST de uno de los comandos permitidos al agente; el cuerpo nunca lleva actor. */
-  comando(comando: ComandoAgente, datos: Record<string, unknown>): Promise<RespuestaApi>;
+  command(command: AgentCommand, data: Record<string, unknown>): Promise<ApiResponse>;
 };
 
-export type OpcionesClienteApi = {
+export type ApiClientOptions = {
   urlApi: string;
   token: string;
-  proyectoId: string;
+  projectId: string;
   fetch?: typeof globalThis.fetch;
-  tiempoMaximoMs?: number;
+  maximumTimeMs?: number;
 };
 
-const TIEMPO_MAXIMO_MS = 30_000;
+const MAXIMUM_TIME_MS = 30_000;
 
-export function crearClienteApi(op: OpcionesClienteApi): ClienteApi {
-  const hacerFetch = op.fetch ?? globalThis.fetch;
-  const base = `${op.urlApi.replace(/\/+$/, '')}/api/proyectos/${encodeURIComponent(op.proyectoId)}`;
-  const tiempo = op.tiempoMaximoMs ?? TIEMPO_MAXIMO_MS;
+export function createApiClient(op: ApiClientOptions): ApiClient {
+  const doFetch = op.fetch ?? globalThis.fetch;
+  const base = `${op.urlApi.replace(/\/+$/, '')}/api/projects/${encodeURIComponent(op.projectId)}`;
+  const time = op.maximumTimeMs ?? MAXIMUM_TIME_MS;
 
-  async function pedir(metodo: 'GET' | 'POST', ruta: string, cuerpo?: unknown): Promise<RespuestaApi> {
-    const cabeceras: Record<string, string> = { authorization: `Bearer ${op.token}`, accept: 'application/json' };
-    if (cuerpo !== undefined) cabeceras['content-type'] = 'application/json';
-    let respuesta: Response;
+  async function request(method: 'GET' | 'POST', path: string, body?: unknown): Promise<ApiResponse> {
+    const headers: Record<string, string> = { authorization: `Bearer ${op.token}`, accept: 'application/json' };
+    if (body !== undefined) headers['content-type'] = 'application/json';
+    let response: Response;
     try {
-      respuesta = await hacerFetch(`${base}${ruta}`, {
-        method: metodo,
-        headers: cabeceras,
+      response = await doFetch(`${base}${path}`, {
+        method: method,
+        headers: headers,
         // Una redirección podría llevar el token a otro destino: se trata como error.
         redirect: 'error',
-        signal: AbortSignal.timeout(tiempo),
-        ...(cuerpo === undefined ? {} : { body: JSON.stringify(cuerpo) }),
+        signal: AbortSignal.timeout(time),
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
     } catch (e) {
       return {
         ok: false,
-        estado: 0,
-        error: 'sin_conexion',
-        mensaje: `No se pudo contactar con la API de DEMIURGO en ${op.urlApi}: ${e instanceof Error ? e.message : String(e)}`,
-        motivos: [],
+        state: 0,
+        error: 'disconnected',
+        message: `No se pudo contactar con la API de DEMIURGO en ${op.urlApi}: ${e instanceof Error ? e.message : String(e)}`,
+        reasons: [],
       };
     }
-    const texto = await respuesta.text();
+    const text = await response.text();
     let json: unknown = null;
     try {
-      json = texto ? JSON.parse(texto) : null;
+      json = text ? JSON.parse(text) : null;
     } catch {
       json = null;
     }
-    if (respuesta.ok) return { ok: true, estado: respuesta.status, datos: json };
-    return errorDeRespuesta(respuesta.status, json);
+    if (response.ok) return { ok: true, state: response.status, data: json };
+    return responseError(response.status, json);
   }
 
   return {
-    leer(ruta, consulta) {
-      const qs = consulta && Object.keys(consulta).length > 0 ? `?${new URLSearchParams(consulta).toString()}` : '';
-      return pedir('GET', `${ruta}${qs}`);
+    read(path, queryName) {
+      const qs = queryName && Object.keys(queryName).length > 0 ? `?${new URLSearchParams(queryName).toString()}` : '';
+      return request('GET', `${path}${qs}`);
     },
-    comando(comando, datos) {
-      return pedir('POST', `/comandos/${comando}`, { datos });
+    command(command, data) {
+      return request('POST', `/commands/${command}`, { data });
     },
   };
 }
 
 /** ¿Es el cuerpo un error de dominio de la API (`{ error, mensaje, motivos }`)? */
-function esErrorDeDominio(json: unknown): json is { error: string; mensaje: string; motivos?: unknown } {
+function isDomainError(json: unknown): json is { error: string; message: string; reasons?: unknown } {
   if (typeof json !== 'object' || json === null) return false;
   const o = json as Record<string, unknown>;
-  return typeof o.error === 'string' && typeof o.mensaje === 'string';
+  return typeof o.error === 'string' && typeof o.message === 'string';
 }
 
-function errorDeRespuesta(estado: number, json: unknown): ErrorApi {
-  if (esErrorDeDominio(json)) {
-    const motivos = Array.isArray(json.motivos) ? json.motivos.filter((m): m is string => typeof m === 'string') : [];
-    return { ok: false, estado, error: json.error, mensaje: json.mensaje, motivos };
+function responseError(state: number, json: unknown): ApiError {
+  if (isDomainError(json)) {
+    const reasons = Array.isArray(json.reasons) ? json.reasons.filter((m): m is string => typeof m === 'string') : [];
+    return { ok: false, state, error: json.error, message: json.message, reasons };
   }
   // Respuesta sin el formato de error de la API (por ejemplo, una ruta que no existe).
   return {
     ok: false,
-    estado,
-    error: estado === 404 ? 'ruta_inexistente' : 'respuesta_inesperada',
-    mensaje: `La API de DEMIURGO respondió ${estado} sin un error reconocible.`,
-    motivos: [],
+    state,
+    error: state === 404 ? 'nonexistent_path' : 'unexpected_response',
+    message: `La API de DEMIURGO respondió ${state} sin un error reconocible.`,
+    reasons: [],
   };
 }

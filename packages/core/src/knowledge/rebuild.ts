@@ -5,98 +5,98 @@
 // llamar al clasificador. Las rechazadas no tuvieron efectos y no cuentan.
 
 import {
-  type Clasificador,
-  type Grafo,
+  type Classifier,
+  type Graph,
   type Plan,
-  aplicarPlan,
-  grafoVacio,
-  huellaGrafo,
-  planRetirada,
-  planVacio,
-  planificar,
+  applyPlan,
+  emptyGraph,
+  graphFingerprint,
+  removalPlan,
+  isEmptyPlan,
+  buildPlan,
 } from '@demiurgo/domain';
-import type { Bd } from '../db/conexion.ts';
-import { type Eje, categoriasAplicables, clasificarCambio, motivosDeVerificacion } from './actualizar.ts';
-import { DISPARO_DESCARTE, type ObjetoAutoridad, derivarCambio, derivarRetirada } from './derivar.ts';
-import { cargarGrafo } from './grafo-pg.ts';
+import type { Db } from '../db/connection.ts';
+import { type Axis, applicableCategories, classifyChange, verificationReasons } from './update.ts';
+import { DISCARD_TRIGGER, type AuthorityObject, deriveChange, deriveRetirement } from './derive.ts';
+import { loadGraph } from './graph-pg.ts';
 
-const sinVeredictoGuardado = (): Promise<never> =>
+const withoutSavedVerdict = (): Promise<never> =>
   Promise.reject(new Error('La reconstrucción no tiene veredictos guardados para una entrada: el grafo ha derivado.'));
 
 /** Clasificador que solo responde desde la caché: si falta algo, la reconstrucción falla. */
-const soloCache = (id: string): Clasificador => ({
+const cacheOnly = (id: string): Classifier => ({
   id,
-  choice: sinVeredictoGuardado,
-  score: sinVeredictoGuardado,
-  noul: sinVeredictoGuardado,
+  choice: withoutSavedVerdict,
+  score: withoutSavedVerdict,
+  noul: withoutSavedVerdict,
 });
 
-type TaxonomiaGuardada = { id: string; codigo: string; version: number; contenido?: string } | null;
+type SavedTaxonomy = { id: string; code: string; version: number; content?: string } | null;
 
-export async function reconstruirGrafo(db: Bd, proyectoId: string): Promise<Grafo> {
-  const actualizaciones = await db
+export async function rebuildGraph(db: Db, projectId: string): Promise<Graph> {
+  const updates = await db
     .selectFrom('knowledge_updates as u')
     .innerJoin('events as e', (j) => j.onRef('e.entity_id', '=', 'u.id').on('e.command', '=', 'knowledge_update.apply'))
     .select(['u.id', 'u.trigger', 'u.classifier', 'u.verdicts', 'u.input_hash', 'e.seq'])
-    .where('u.project_id', '=', proyectoId)
-    .where('e.project_id', '=', proyectoId)
+    .where('u.project_id', '=', projectId)
+    .where('e.project_id', '=', projectId)
     .where('u.state', '=', 'applied')
     .orderBy('e.seq')
     .execute();
-  let g = grafoVacio();
-  for (const u of actualizaciones) {
-    const disparo = u.trigger as ObjetoAutoridad;
+  let g = emptyGraph();
+  for (const u of updates) {
+    const trigger = u.trigger as AuthorityObject;
     let plan: Plan;
-    if (disparo.tipo === DISPARO_DESCARTE) {
-      plan = planRetirada(g, await derivarRetirada(db, disparo));
+    if (trigger.type === DISCARD_TRIGGER) {
+      plan = removalPlan(g, await deriveRetirement(db, trigger));
     } else {
-      const cambio = await derivarCambio(db, disparo);
-      if (!cambio || !u.classifier) continue;
-      const guardado = ((u.verdicts ?? {}) as { taxonomia?: TaxonomiaGuardada }).taxonomia ?? null;
-      let taxonomia = null;
-      if (guardado) {
+      const change = await deriveChange(db, trigger);
+      if (!change || !u.classifier) continue;
+      const saved = ((u.verdicts ?? {}) as { taxonomy?: SavedTaxonomy }).taxonomy ?? null;
+      let taxonomy = null;
+      if (saved) {
         const t = await db
           .selectFrom('taxonomies')
           .select(['axes', 'content_hash'])
-          .where('id', '=', guardado.id)
+          .where('id', '=', saved.id)
           .executeTakeFirstOrThrow();
-        taxonomia = { ...guardado, contenido: t.content_hash, ejes: t.axes as Eje[] };
+        taxonomy = { ...saved, content: t.content_hash, axes: t.axes as Axis[] };
       }
-      const d = await clasificarCambio(db, soloCache(u.classifier), g, cambio, taxonomia);
-      if (d.hashVeredictos !== u.input_hash) {
+      const d = await classifyChange(db, cacheOnly(u.classifier), g, change, taxonomy);
+      if (d.verdictsHash !== u.input_hash) {
         throw new Error(`La reconstrucción diverge en la actualización ${u.id}: los candidatos no coinciden.`);
       }
-      const motivos = motivosDeVerificacion(g, d);
-      if (motivos.length > 0) {
-        throw new Error(`La reconstrucción diverge en la actualización ${u.id}: ${motivos.join(' ')}`);
+      const reasons = verificationReasons(g, d);
+      if (reasons.length > 0) {
+        throw new Error(`La reconstrucción diverge en la actualización ${u.id}: ${reasons.join(' ')}`);
       }
-      plan = planificar(g, cambio, categoriasAplicables(d.categorias), d.veredictos, g.version + 1);
+      plan = buildPlan(g, change, applicableCategories(d.categories), d.verdicts, g.version + 1);
     }
-    if (!planVacio(plan)) g = aplicarPlan(g, plan, g.version + 1);
+    if (!isEmptyPlan(plan)) g = applyPlan(g, plan, g.version + 1);
   }
   return g;
 }
 
-export type ComparacionReconstruccion = {
-  vivo: string;
-  reconstruido: string | null;
-  iguales: boolean;
+export type RebuildComparison = {
+  alive: string;
+  rebuilt: string | null;
+  equal: boolean;
   /** Por qué no coinciden (vacío si coinciden). Nunca lanza: informa de la deriva. */
-  deriva: string | null;
+  derivation: string | null;
 };
 
-export async function compararReconstruccion(db: Bd, proyectoId: string): Promise<ComparacionReconstruccion> {
-  const vivo = huellaGrafo(await cargarGrafo(db, proyectoId));
+export async function compareRebuild(db: Db, projectId: string): Promise<RebuildComparison> {
+  const alive = graphFingerprint(await loadGraph(db, projectId));
   try {
-    const reconstruido = huellaGrafo(await reconstruirGrafo(db, proyectoId));
-    const iguales = vivo === reconstruido;
+    const rebuilt = graphFingerprint(await rebuildGraph(db, projectId));
+    const equal = alive === rebuilt;
     return {
-      vivo,
-      reconstruido,
-      iguales,
-      deriva: iguales ? null : 'La huella del grafo reconstruido no coincide con la del grafo vivo.',
+      alive,
+      rebuilt,
+      equal,
+      derivation: equal ? null : 'La huella del grafo reconstruido no coincide con la del grafo vivo.',
     };
   } catch (e) {
-    return { vivo, reconstruido: null, iguales: false, deriva: e instanceof Error ? e.message : String(e) };
+    return { alive, rebuilt: null, equal: false, derivation: e instanceof Error ? e.message : String(e) };
   }
 }

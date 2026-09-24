@@ -2,39 +2,39 @@
 // aceptarlas con cambios. Un agente solo propone; aceptar es siempre de una persona.
 
 import { z } from 'zod';
-import { criterioPropuesto } from './agentes.ts';
+import { proposedCriterion } from './agents.ts';
 
-const texto = (max: number) => z.string().trim().min(1).max(max);
+const text = (max: number) => z.string().trim().min(1).max(max);
 
-export const referenciaRegistro = z
-  .object({ codigo: z.string().regex(/^[A-Z]{3}-[A-Z]{3}-\d{3}$/), version: z.number().int().positive() })
+export const recordReference = z
+  .object({ code: z.string().regex(/^[A-Z]{3}-[A-Z]{3}-\d{3}$/), version: z.number().int().positive() })
   .strict();
 
-export const cargaDecision = z
+export const decisionPayload = z
   .object({
-    titulo: texto(200),
-    contexto: texto(5000),
-    decision: texto(5000),
-    consecuencias: texto(5000),
-    dominio: z
+    title: text(200),
+    context: text(5000),
+    decision: text(5000),
+    consequences: text(5000),
+    domain: z
       .string()
       .regex(/^[a-z][a-z_]*$/)
       .optional(),
   })
   .strict();
 
-export const cargaExploracion = z.object({ proposito: texto(1000) }).strict();
+export const explorationPayload = z.object({ purpose: text(1000) }).strict();
 
-export const cargaFdr = z
+export const fdrPayload = z
   .object({
-    titulo: texto(200),
-    objetivo: texto(5000),
-    alcance: texto(5000),
-    fuera_de_alcance: texto(5000),
-    comportamiento: texto(10_000),
-    criterios: z.array(criterioPropuesto).min(1).max(12),
-    basado_en: referenciaRegistro.optional(),
-    dominio: z
+    title: text(200),
+    goal: text(5000),
+    scope: text(5000),
+    out_of_scope: text(5000),
+    behavior: text(10_000),
+    criteria: z.array(proposedCriterion).min(1).max(12),
+    based_on: recordReference.optional(),
+    domain: z
       .string()
       .regex(/^[a-z][a-z_]*$/)
       .optional(),
@@ -42,40 +42,40 @@ export const cargaFdr = z
   .strict();
 
 /** Propuesta del sistema de conocimiento: revisar un registro con autoridad (nunca un cambio directo). */
-export const cargaRevision = z
+export const revisionPayload = z
   .object({
-    registro: referenciaRegistro,
-    veredicto: z.enum(['invalidate', 'update', 'add', 'other']),
-    motivo: texto(2000),
-    cambio: z.object({ tipo: z.string(), id: z.string(), version: z.number().int().nullable() }).strict(),
-    confianza: z.number().min(0).max(1),
+    record: recordReference,
+    verdict: z.enum(['invalidate', 'update', 'add', 'other']),
+    reason: text(2000),
+    change: z.object({ type: z.string(), id: z.string(), version: z.number().int().nullable() }).strict(),
+    confidence: z.number().min(0).max(1),
   })
   .strict();
 
-export const TIPOS_PROPUESTA_AGENTE = ['decision', 'exploracion', 'fdr'] as const;
+export const AGENT_PROPOSAL_TYPES = ['decision', 'exploration', 'fdr'] as const;
 
 /** Tipos de propuesta. `registro_importado` y `taxonomia_importada` solo los crea la importación de design/. */
-export const CARGAS = {
-  decision: cargaDecision,
-  exploracion: cargaExploracion,
-  fdr: cargaFdr,
-  revision: cargaRevision,
-  registro_importado: z.object({ documento: z.record(z.string(), z.unknown()), ruta: z.string() }).strict(),
-  taxonomia_importada: z.object({ documento: z.record(z.string(), z.unknown()), ruta: z.string() }).strict(),
+export const PAYLOADS = {
+  decision: decisionPayload,
+  exploration: explorationPayload,
+  fdr: fdrPayload,
+  review: revisionPayload,
+  imported_record: z.object({ document: z.record(z.string(), z.unknown()), path: z.string() }).strict(),
+  imported_taxonomy: z.object({ document: z.record(z.string(), z.unknown()), path: z.string() }).strict(),
 } as const;
 
-export type TipoPropuesta = keyof typeof CARGAS;
-export const TIPOS_PROPUESTA = Object.keys(CARGAS) as TipoPropuesta[];
+export type ProposalType = keyof typeof PAYLOADS;
+export const PROPOSAL_TYPES = Object.keys(PAYLOADS) as ProposalType[];
 
-export function esTipoPropuesta(t: string): t is TipoPropuesta {
-  return Object.hasOwn(CARGAS, t);
+export function isProposalType(t: string): t is ProposalType {
+  return Object.hasOwn(PAYLOADS, t);
 }
 
 /** Dependencia declarada: el registro sigue con la misma versión vigente. */
-export const esquemaDependencia = z
-  .object({ tipo: z.literal('record'), id: z.string().uuid(), codigo: z.string(), version: z.number().int().positive() })
+export const dependencySchema = z
+  .object({ type: z.literal('record'), id: z.string().uuid(), code: z.string(), version: z.number().int().positive() })
   .strict();
 
-export type Dependencia = z.infer<typeof esquemaDependencia>;
+export type Dependency = z.infer<typeof dependencySchema>;
 
-export const MAX_PROPUESTAS_AGENTE_EXTERNO = 10;
+export const MAX_EXTERNAL_AGENT_PROPOSALS = 10;

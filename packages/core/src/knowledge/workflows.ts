@@ -3,72 +3,72 @@
 
 import { DBOS, WorkflowQueue } from '@dbos-inc/dbos-sdk';
 import {
-  type Candidato,
-  HALLAZGOS_IDEA,
+  type Candidate,
+  IDEA_FINDINGS,
   type ItemChoice,
-  type RespuestaChoice,
-  candidatosDeIdea,
-  huella,
+  type ChoiceResponse,
+  ideaCandidates,
+  fingerprint,
 } from '@demiurgo/domain';
-import { ejecutarComando } from '../bus/bus.ts';
-import type { Servicios } from '../servicios.ts';
+import { executeCommand } from '../bus/bus.ts';
+import type { Services } from '../services.ts';
 import {
-  registrarArranqueActualizacion,
-  registrarArranqueEvaluacion,
-  registrarConciliador,
-  serviciosDelMotor,
-} from '../motor/registro.ts';
-import { ACTUALIZADOR } from './comandos.ts';
-import { type AGuardar, guardarEnCache, pasoAplicar, pasoClasificar, rechazarPorError, responderConCache } from './actualizar.ts';
-import { cargarGrafo } from './grafo-pg.ts';
+  registerUpdateStarter,
+  registerAssessmentStarter,
+  registerReconciler,
+  engineServices,
+} from '../engine/registry.ts';
+import { UPDATER } from './commands.ts';
+import { type ToSave, saveToCache, applyStep, classifyStep, rejectOnError, respondWithCache } from './update.ts';
+import { loadGraph } from './graph-pg.ts';
 
-const REINTENTOS = { retriesAllowed: true, maxAttempts: 3, intervalSeconds: 1 } as const;
+const RETRIES = { retriesAllowed: true, maxAttempts: 3, intervalSeconds: 1 } as const;
 
 // Una sola actualización a la vez: el grafo avanza en el orden de los eventos de autoridad.
-const cola = new WorkflowQueue('demiurgo-conocimiento', { globalConcurrency: 1, minPollingIntervalMs: 100 });
+const queue = new WorkflowQueue('demiurgo-conocimiento', { globalConcurrency: 1, minPollingIntervalMs: 100 });
 
-export async function pendientesDe(s: Servicios, proyectoId: string): Promise<string[]> {
-  const filas = await s.db
+export async function pendingFor(s: Services, projectId: string): Promise<string[]> {
+  const rows = await s.db
     .selectFrom('knowledge_updates')
     .select('id')
-    .where('project_id', '=', proyectoId)
+    .where('project_id', '=', projectId)
     .where('state', 'in', ['queued', 'classifying', 'verifying'])
     .orderBy('trigger_seq')
     .orderBy('id')
     .execute();
-  return filas.map((f) => f.id);
+  return rows.map((f) => f.id);
 }
 
-async function flujoDrenar(proyectoId: string): Promise<number> {
-  let procesadas = 0;
-  for (let ronda = 0; ronda < 100; ronda++) {
-    const pendientes = await DBOS.runStep(() => pendientesDe(serviciosDelMotor(), proyectoId), { name: 'pendientes' });
-    if (pendientes.length === 0) break;
-    for (const id of pendientes) {
+async function drainWorkflow(projectId: string): Promise<number> {
+  let processed = 0;
+  for (let round = 0; round < 100; round++) {
+    const pending = await DBOS.runStep(() => pendingFor(engineServices(), projectId), { name: 'pending' });
+    if (pending.length === 0) break;
+    for (const id of pending) {
       // Si clasificar o aplicar fallan tras sus reintentos, la actualización queda rechazada:
       // nunca se queda en curso bloqueando la frescura.
       try {
-        const r = await DBOS.runStep(() => pasoClasificar(serviciosDelMotor(), id, proyectoId), {
-          name: 'clasificar',
-          ...REINTENTOS,
+        const r = await DBOS.runStep(() => classifyStep(engineServices(), id, projectId), {
+          name: 'classify',
+          ...RETRIES,
         });
-        await DBOS.runStep(() => pasoAplicar(serviciosDelMotor(), id, proyectoId, r), { name: 'aplicar', ...REINTENTOS });
+        await DBOS.runStep(() => applyStep(engineServices(), id, projectId, r), { name: 'apply', ...RETRIES });
       } catch (e) {
-        await DBOS.runStep(() => rechazarPorError(serviciosDelMotor(), id, proyectoId, e), { name: 'rechazar', ...REINTENTOS });
+        await DBOS.runStep(() => rejectOnError(engineServices(), id, projectId, e), { name: 'reject', ...RETRIES });
       }
-      procesadas++;
+      processed++;
     }
   }
-  return procesadas;
+  return processed;
 }
 
-const drenarRegistrado = DBOS.registerWorkflow(flujoDrenar, { name: 'demiurgo.conocimiento' });
+const registeredDrain = DBOS.registerWorkflow(drainWorkflow, { name: 'demiurgo.knowledge' });
 
 /**
  * Intento de una actualización: cuántas veces ha empezado a clasificarse. Da el id de su flujo,
  * así que un reintento (que la devuelve a la cola) arranca un flujo nuevo.
  */
-async function intentoDe(s: Servicios, updateId: string): Promise<number> {
+async function attemptOf(s: Services, updateId: string): Promise<number> {
   const r = await s.db
     .selectFrom('events')
     .select((eb) => eb.fn.countAll<string>().as('n'))
@@ -79,18 +79,18 @@ async function intentoDe(s: Servicios, updateId: string): Promise<number> {
 }
 
 // Un flujo por intento: el mismo id no arranca dos veces (DBOS) y un reintento tiene id propio.
-registrarArranqueActualizacion(async (updateId, proyectoId) => {
-  const intento = await intentoDe(serviciosDelMotor(), updateId);
-  await DBOS.startWorkflow(drenarRegistrado, { workflowID: `conocimiento:${updateId}:${intento}`, queueName: cola.name })(
-    proyectoId,
+registerUpdateStarter(async (updateId, projectId) => {
+  const attempt = await attemptOf(engineServices(), updateId);
+  await DBOS.startWorkflow(registeredDrain, { workflowID: `conocimiento:${updateId}:${attempt}`, queueName: queue.name })(
+    projectId,
   );
 });
 
 /** Espera a que el conocimiento de un proyecto esté al día (pruebas y CLI). */
-export async function esperarConocimiento(s: Servicios, proyectoId: string, maxMs = 30_000): Promise<void> {
-  const inicio = Date.now();
-  while (Date.now() - inicio < maxMs) {
-    if ((await pendientesDe(s, proyectoId)).length === 0) return;
+export async function waitForKnowledge(s: Services, projectId: string, maxMs = 30_000): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < maxMs) {
+    if ((await pendingFor(s, projectId)).length === 0) return;
     await new Promise((r) => setTimeout(r, 100));
   }
   throw new Error('El conocimiento no se puso al día a tiempo.');
@@ -98,124 +98,124 @@ export async function esperarConocimiento(s: Servicios, proyectoId: string, maxM
 
 // Evaluación de ideas (§7.7): cada propuesta de un agente se compara con el conocimiento.
 
-type Hallazgo = { hallazgo: string; cita: string; estado_epistemico: string; confianza: number; justificacion: string };
-type RespuestaInvalida = { cita: string; eleccion: string; motivo: string };
+type Finding = { finding: string; citation: string; epistemic_status: string; confidence: number; justification: string };
+type InvalidResponse = { citation: string; choice: string; reason: string };
 
-function textoDeIdea(tipo: string, carga: Record<string, unknown>): string {
+function textOfIdea(type: string, payload: Record<string, unknown>): string {
   const t = (k: string): string => {
-    const v = carga[k];
+    const v = payload[k];
     return typeof v === 'string' ? v : '';
   };
-  if (tipo === 'decision') return `${t('titulo')}. ${t('decision')} ${t('contexto')}`;
-  if (tipo === 'exploracion') return t('proposito');
-  if (tipo === 'fdr') return `${t('titulo')}. ${t('objetivo')} ${t('comportamiento')}`;
+  if (type === 'decision') return `${t('title')}. ${t('decision')} ${t('context')}`;
+  if (type === 'exploration') return t('purpose');
+  if (type === 'fdr') return `${t('title')}. ${t('goal')} ${t('behavior')}`;
   return '';
 }
 
-function itemsDeIdea(idea: string, candidatos: readonly Candidato[]): ItemChoice[] {
-  return candidatos.map((c) => ({
+function itemsForIdea(idea: string, candidates: readonly Candidate[]): ItemChoice[] {
+  return candidates.map((c) => ({
     id: c.ref,
-    estado: { tarea: 'idea', idea: { texto: idea }, nodo: { ref: c.ref, tipo: c.tipo, titulo: c.etiqueta, texto: c.texto } },
-    pregunta:
+    state: { task: 'idea', idea: { text: idea }, node: { ref: c.ref, type: c.type, title: c.label, text: c.text } },
+    question:
       '¿Qué relación tiene la idea con este conocimiento: la duplica, lo contradice, es incoherente, se relaciona o ninguna?',
-    opciones: HALLAZGOS_IDEA,
+    options: IDEA_FINDINGS,
   }));
 }
 
-type EvaluacionCalculada = {
-  propuestaId: string;
-  hallazgos: Hallazgo[];
-  invalidas: RespuestaInvalida[];
+type CalculatedAssessment = {
+  proposalId: string;
+  findings: Finding[];
+  invalid: InvalidResponse[];
   version: number;
   hash: string;
   /** Solo si todas las respuestas se verificaron: lo inválido no entra en la caché. */
-  aGuardar: AGuardar | null;
+  toSave: ToSave | null;
 };
 
-export async function calcularEvaluaciones(s: Servicios, loteId: string, proyectoId: string): Promise<EvaluacionCalculada[]> {
-  const propuestas = await s.db
+export async function calculateEvaluations(s: Services, batchId: string, projectId: string): Promise<CalculatedAssessment[]> {
+  const proposals = await s.db
     .selectFrom('proposals')
     .select(['id', 'type', 'payload'])
-    .where('batch_id', '=', loteId)
-    .where('type', 'in', ['decision', 'exploracion', 'fdr'])
+    .where('batch_id', '=', batchId)
+    .where('type', 'in', ['decision', 'exploration', 'fdr'])
     .orderBy('position')
     .execute();
-  const grafo = await cargarGrafo(s.db, proyectoId);
-  const resultado: EvaluacionCalculada[] = [];
-  for (const p of propuestas) {
-    const idea = textoDeIdea(p.type, p.payload as Record<string, unknown>);
-    const candidatos = candidatosDeIdea(grafo, idea);
-    const hash = huella({
-      clasificador: s.clasificador.id,
+  const graph = await loadGraph(s.db, projectId);
+  const result: CalculatedAssessment[] = [];
+  for (const p of proposals) {
+    const idea = textOfIdea(p.type, p.payload as Record<string, unknown>);
+    const candidates = ideaCandidates(graph, idea);
+    const hash = fingerprint({
+      classifier: s.classifier.id,
       idea,
-      candidatos: candidatos.map((c) => ({ ref: c.ref, texto: c.texto })),
+      candidates: candidates.map((c) => ({ ref: c.ref, text: c.text })),
     });
-    const r = await responderConCache(s.db, s.clasificador, hash, itemsDeIdea(idea, candidatos));
+    const r = await respondWithCache(s.db, s.classifier, hash, itemsForIdea(idea, candidates));
     // Verificación determinista: una respuesta por candidato y con una opción válida. Lo que no
     // se verifica se registra (nunca se filtra en silencio) y no se guarda en la caché.
-    const invalidas = motivosDeIdea(candidatos, r.respuestas);
-    const erroneas = new Set(invalidas.map((i) => i.cita));
-    const epistemico = new Map(grafo.nodos.filter((n) => n.hasta === null).map((n) => [n.ref, n.epistemico]));
-    const hallazgos = r.respuestas
-      .filter((x) => !erroneas.has(x.id) && x.eleccion !== 'none')
+    const invalid = reasonsForIdea(candidates, r.responses);
+    const faulty = new Set(invalid.map((i) => i.citation));
+    const epistemic = new Map(graph.nodes.filter((n) => n.until === null).map((n) => [n.ref, n.epistemic]));
+    const findings = r.responses
+      .filter((x) => !faulty.has(x.id) && x.choice !== 'none')
       .map((x) => ({
-        hallazgo: x.eleccion,
-        cita: x.id,
-        estado_epistemico: epistemico.get(x.id) ?? 'desconocido',
-        confianza: x.confianza,
-        justificacion: x.justificacion,
+        finding: x.choice,
+        citation: x.id,
+        epistemic_status: epistemic.get(x.id) ?? 'unknown',
+        confidence: x.confidence,
+        justification: x.justification,
       }));
-    resultado.push({
-      propuestaId: p.id,
-      hallazgos,
-      invalidas,
-      version: grafo.version,
+    result.push({
+      proposalId: p.id,
+      findings,
+      invalid,
+      version: graph.version,
       hash,
-      aGuardar: invalidas.length === 0 ? r.aGuardar : null,
+      toSave: invalid.length === 0 ? r.toSave : null,
     });
   }
-  return resultado;
+  return result;
 }
 
 /** Respuestas que no se verifican: cita que no era candidata, opción desconocida, repetidas o ausentes. */
-function motivosDeIdea(candidatos: readonly Candidato[], respuestas: readonly RespuestaChoice[]): RespuestaInvalida[] {
-  const invalidas: RespuestaInvalida[] = [];
-  const vistas = new Map<string, number>();
-  for (const r of respuestas) {
-    vistas.set(r.id, (vistas.get(r.id) ?? 0) + 1);
-    if (!candidatos.some((c) => c.ref === r.id))
-      invalidas.push({ cita: r.id, eleccion: r.eleccion, motivo: 'No era candidata.' });
-    else if (!(HALLAZGOS_IDEA as readonly string[]).includes(r.eleccion))
-      invalidas.push({ cita: r.id, eleccion: r.eleccion, motivo: 'Opción desconocida.' });
+function reasonsForIdea(candidates: readonly Candidate[], responses: readonly ChoiceResponse[]): InvalidResponse[] {
+  const invalid: InvalidResponse[] = [];
+  const visited = new Map<string, number>();
+  for (const r of responses) {
+    visited.set(r.id, (visited.get(r.id) ?? 0) + 1);
+    if (!candidates.some((c) => c.ref === r.id))
+      invalid.push({ citation: r.id, choice: r.choice, reason: 'No era candidata.' });
+    else if (!(IDEA_FINDINGS as readonly string[]).includes(r.choice))
+      invalid.push({ citation: r.id, choice: r.choice, reason: 'Opción desconocida.' });
   }
-  for (const c of candidatos) {
-    const n = vistas.get(c.ref) ?? 0;
-    if (n === 0) invalidas.push({ cita: c.ref, eleccion: '', motivo: 'Sin respuesta.' });
-    if (n > 1) invalidas.push({ cita: c.ref, eleccion: '', motivo: `${n} respuestas.` });
+  for (const c of candidates) {
+    const n = visited.get(c.ref) ?? 0;
+    if (n === 0) invalid.push({ citation: c.ref, choice: '', reason: 'Sin respuesta.' });
+    if (n > 1) invalid.push({ citation: c.ref, choice: '', reason: `${n} respuestas.` });
   }
-  return invalidas;
+  return invalid;
 }
 
-export async function registrarEvaluaciones(
-  s: Servicios,
-  proyectoId: string,
-  evaluaciones: EvaluacionCalculada[],
+export async function registerEvaluations(
+  s: Services,
+  projectId: string,
+  assessments: CalculatedAssessment[],
 ): Promise<void> {
-  await guardarEnCache(
+  await saveToCache(
     s.db,
-    evaluaciones.map((e) => e.aGuardar),
+    assessments.map((e) => e.toSave),
   );
-  for (const e of evaluaciones) {
-    await ejecutarComando(s, {
-      comando: 'idea_assessment.record',
-      actor: ACTUALIZADOR,
-      proyectoId,
-      datos: {
-        propuesta_id: e.propuestaId,
-        hallazgos: e.hallazgos,
-        invalidas: e.invalidas,
-        version_grafo: e.version,
-        clasificador: s.clasificador.id,
+  for (const e of assessments) {
+    await executeCommand(s, {
+      command: 'idea_assessment.record',
+      actor: UPDATER,
+      projectId,
+      data: {
+        proposal_id: e.proposalId,
+        findings: e.findings,
+        invalid: e.invalid,
+        graph_version: e.version,
+        classifier: s.classifier.id,
         input_hash: e.hash,
       },
     });
@@ -223,82 +223,82 @@ export async function registrarEvaluaciones(
 }
 
 /** Si la evaluación falla tras sus reintentos, cada idea sin evaluar queda con el error registrado. */
-export async function registrarFalloDeEvaluacion(s: Servicios, loteId: string, proyectoId: string, e: unknown): Promise<void> {
-  const sinEvaluar = await s.db
+export async function registerEvaluationFailure(s: Services, batchId: string, projectId: string, e: unknown): Promise<void> {
+  const unevaluated = await s.db
     .selectFrom('proposals')
     .leftJoin('idea_assessments', 'idea_assessments.proposal_id', 'proposals.id')
     .select('proposals.id')
-    .where('proposals.batch_id', '=', loteId)
-    .where('proposals.type', 'in', ['decision', 'exploracion', 'fdr'])
+    .where('proposals.batch_id', '=', batchId)
+    .where('proposals.type', 'in', ['decision', 'exploration', 'fdr'])
     .where('idea_assessments.id', 'is', null)
     .execute();
-  for (const p of sinEvaluar) {
-    await ejecutarComando(s, {
-      comando: 'idea_assessment.record',
-      actor: ACTUALIZADOR,
-      proyectoId,
-      datos: {
-        propuesta_id: p.id,
-        hallazgos: [],
+  for (const p of unevaluated) {
+    await executeCommand(s, {
+      command: 'idea_assessment.record',
+      actor: UPDATER,
+      projectId,
+      data: {
+        proposal_id: p.id,
+        findings: [],
         error: `No se pudo evaluar la idea: ${String(e).slice(0, 1000)}`,
-        version_grafo: 0,
-        clasificador: s.clasificador.id,
+        graph_version: 0,
+        classifier: s.classifier.id,
         input_hash: '',
       },
     });
   }
 }
 
-async function flujoEvaluar(loteId: string, proyectoId: string): Promise<number> {
+async function assessWorkflow(batchId: string, projectId: string): Promise<number> {
   try {
-    const evaluaciones = await DBOS.runStep(() => calcularEvaluaciones(serviciosDelMotor(), loteId, proyectoId), {
-      name: 'evaluar',
-      ...REINTENTOS,
+    const assessments = await DBOS.runStep(() => calculateEvaluations(engineServices(), batchId, projectId), {
+      name: 'assess',
+      ...RETRIES,
     });
-    await DBOS.runStep(() => registrarEvaluaciones(serviciosDelMotor(), proyectoId, evaluaciones), {
-      name: 'registrar',
-      ...REINTENTOS,
+    await DBOS.runStep(() => registerEvaluations(engineServices(), projectId, assessments), {
+      name: 'register',
+      ...RETRIES,
     });
-    return evaluaciones.length;
+    return assessments.length;
   } catch (e) {
     // Una evaluación fallida no se queda pendiente para siempre: queda registrado el error.
-    await DBOS.runStep(() => registrarFalloDeEvaluacion(serviciosDelMotor(), loteId, proyectoId, e), {
+    await DBOS.runStep(() => registerEvaluationFailure(engineServices(), batchId, projectId, e), {
       name: 'registrar-fallo',
-      ...REINTENTOS,
+      ...RETRIES,
     });
     return 0;
   }
 }
 
-const evaluarRegistrado = DBOS.registerWorkflow(flujoEvaluar, { name: 'demiurgo.ideas' });
+const assessRegistered = DBOS.registerWorkflow(assessWorkflow, { name: 'demiurgo.ideas' });
 
-registrarArranqueEvaluacion(async (loteId, proyectoId) => {
-  await DBOS.startWorkflow(evaluarRegistrado, { workflowID: `ideas:${loteId}` })(loteId, proyectoId);
+registerAssessmentStarter(async (batchId, projectId) => {
+  await DBOS.startWorkflow(assessRegistered, { workflowID: `ideas:${batchId}` })(batchId, projectId);
 });
 
 // Al arrancar: actualizaciones sin flujo y lotes de agentes sin evaluar (corte entre confirmar y arrancar).
-registrarConciliador(async (s) => {
-  const pendientes = await s.db
+registerReconciler(async (s) => {
+  const pending = await s.db
     .selectFrom('knowledge_updates')
     .select(['id', 'project_id'])
     .where('state', 'in', ['queued', 'classifying', 'verifying'])
     .execute();
-  for (const u of pendientes) await s.motor.iniciarActualizacion(u.id, u.project_id);
-  const sinEvaluar = await s.db
+  for (const u of pending) await s.engine.startUpdate(u.id, u.project_id);
+  const unevaluated = await s.db
     .selectFrom('proposals')
     .innerJoin('proposal_batches', 'proposal_batches.id', 'proposals.batch_id')
     .leftJoin('idea_assessments', 'idea_assessments.proposal_id', 'proposals.id')
-    .select(['proposal_batches.id as loteId', 'proposal_batches.project_id as proyectoId'])
+    .select(['proposal_batches.id as batchId', 'proposal_batches.project_id as projectId'])
     // Lotes de agentes externos y de ejecuciones (también los paquetes de design_proposal).
     .where((eb) => eb.or([eb('proposal_batches.kind', '=', 'agent'), eb('proposal_batches.run_id', 'is not', null)]))
-    .where('proposals.type', 'in', ['decision', 'exploracion', 'fdr'])
+    .where('proposals.type', 'in', ['decision', 'exploration', 'fdr'])
     .where('idea_assessments.id', 'is', null)
     .groupBy(['proposal_batches.id', 'proposal_batches.project_id'])
     .execute();
-  for (const l of sinEvaluar) await s.motor.iniciarEvaluacion(l.loteId, l.proyectoId);
+  for (const l of unevaluated) await s.engine.startEvaluation(l.batchId, l.projectId);
 });
 
 /** Espera la evaluación de las ideas de un lote (pruebas). */
-export async function esperarEvaluacion(loteId: string): Promise<void> {
-  await DBOS.retrieveWorkflow(`ideas:${loteId}`).getResult();
+export async function waitForEvaluation(batchId: string): Promise<void> {
+  await DBOS.retrieveWorkflow(`ideas:${batchId}`).getResult();
 }

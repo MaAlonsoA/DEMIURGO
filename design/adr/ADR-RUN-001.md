@@ -1,20 +1,20 @@
 ---
-codigo: ADR-RUN-001
-tipo: adr
-titulo: Runner aislado y frontera de las acciones de IA
+code: ADR-RUN-001
+type: adr
+title: Runner aislado y frontera de las acciones de IA
 version: 1
-estado: propuesto
-dominio: plataforma
-incremento: S0
-enlaces:
-  - tipo: based_on
-    destino: DEC-PLN-001@1
-anexos: []
+state: proposed
+domain: plataforma
+increment: S0
+links:
+  - type: based_on
+    target: DEC-PLN-001@1
+annexes: []
 ---
 
 # ADR-RUN-001 · Runner aislado y frontera de las acciones de IA
 
-## Contexto
+## Context
 
 En la v1, el backend corría como root con los datos y la autenticación de Codex montados, y los agentes se lanzaban desde ese mismo proceso. El principio 6 del plan exige lo contrario: las reglas que juzgan no viven en lo que se juzga, y el runner no tiene datos, credenciales, root ni red (I9).
 
@@ -25,7 +25,7 @@ Dominios de confianza (§6 del stack):
 - **T0:** orquestador, base de datos, credenciales y broker.
 - **T1:** todo lo que escribió o ejecuta un agente, incluidos los gates sobre su código.
 
-## Opciones
+## Options
 
 - **Broker propio sobre la CLI `docker`, con contenedores endurecidos.** No añade dependencias npm al único componente con acceso a Docker.
 - **Broker con dockerode.** Mete un árbol npm sin auditar en el componente que equivale a root en la VM de Docker.
@@ -33,7 +33,7 @@ Dominios de confianza (§6 del stack):
 - **Subproceso restringido en el host.** Sin aislamiento de red ni de ficheros en Windows.
 - **Broker en Go.** Opción si el de Node da problemas: el contrato `JobSpec` permite reescribirlo sin tocar nada más.
 
-## Decisión
+## Decision
 
 Runner:
 
@@ -52,7 +52,7 @@ Acciones de IA del Pilar 1 (S1–S2):
 
 Limitación conocida: con Docker Desktop, T0 y T1 comparten la VM de Docker. Un escape de contenedor alcanzaría la base aunque no esté montada. Se mitiga con el endurecimiento; la separación real (microVM o una VM Hyper-V dedicada) llega después del esqueleto. Las acciones de IA del Pilar 1 corren fuera del contenedor: su frontera es el directorio vacío, la falta de herramientas y el entorno filtrado.
 
-## Consecuencias
+## Consequences
 
 - Ningún proceso con credenciales de la base o del modelo corre en T1.
 - Un gate o un agente no pueden leer los datos, la base ni las credenciales.
@@ -79,32 +79,32 @@ Hallazgo: el backend de Docker Desktop en esta máquina es **WSL2**, no Hyper-V 
 
 Alcance reducido (desviación): la sonda comprueba el aislamiento del runner, pero no es el spike que pide el plan (§6, etapa 1). Falta que un agente en un contenedor modifique un repo de ejemplo y que el runner, sin datos ni credenciales, ejecute sus pruebas. Hacerlo o aceptar la desviación queda como decisión pendiente antes de S4.
 
-## Criterios de aceptación
+## Acceptance criteria
 
 ### AC-RUN-001-01 · Contenedor endurecido
 
-- Verificación: automática
-- Comprobación: Se revisa la orden con la que el broker lanza el contenedor.
+- Verification: automatic
+- Check: Se revisa la orden con la que el broker lanza el contenedor.
 
 Dado un `JobSpec` válido, cuando el runner lanza el contenedor, entonces lo hace con usuario no root, `--cap-drop ALL`, `no-new-privileges`, raíz de solo lectura, sin red y con límites de CPU, memoria y PIDs.
 
 ### AC-RUN-001-02 · Tiempo máximo
 
-- Verificación: automática
-- Comprobación: Se lanza un trabajo que dura más que su tiempo máximo.
+- Verification: automatic
+- Check: Se lanza un trabajo que dura más que su tiempo máximo.
 
 Dado un trabajo que excede su tiempo máximo, cuando vence el plazo, entonces el runner mata el contenedor y el trabajo termina con `failure_kind` `timeout`.
 
 ### AC-RUN-001-03 · Frontera de las acciones de IA
 
-- Verificación: automática
-- Comprobación: Se revisan el directorio, los argumentos y el entorno con los que el adaptador lanza la CLI.
+- Verification: automatic
+- Check: Se revisan el directorio, los argumentos y el entorno con los que el adaptador lanza la CLI.
 
 Dada una acción de IA del Pilar 1, cuando el adaptador lanza la CLI, entonces lo hace en un directorio temporal vacío, sin herramientas ni MCP y sin las variables `DEMIURGO_*`, `DATABASE_URL`, `PG*` ni `ANTHROPIC_API_KEY`.
 
 ### AC-RUN-001-04 · Aceptación humana
 
-- Verificación: manual
-- Comprobación: La persona revisa el ADR con el resultado de la sonda y lo fusiona en `main`.
+- Verification: manual
+- Check: La persona revisa el ADR con el resultado de la sonda y lo fusiona en `main`.
 
 Dado este ADR en estado propuesto, cuando la persona lo revisa, entonces lo acepta con el merge.

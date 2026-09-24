@@ -44,7 +44,7 @@ create trigger events_sin_truncate before truncate on events
 -- Aviso tras confirmar, para el flujo SSE incremental (Last-Event-ID).
 create function events_notificar() returns trigger language plpgsql as $$
 begin
-  perform pg_notify('demiurgo_eventos', json_build_object('proyecto', new.project_id, 'id', new.id)::text);
+  perform pg_notify('demiurgo_events', json_build_object('project', new.project_id, 'id', new.id)::text);
   return null;
 end
 $$;

@@ -1,4 +1,4 @@
-export * from './cascada.ts';
+export * from './cascade.ts';
 export * from './jev.ts';
-export * from './referencia-claude.ts';
-export * from './simulado.ts';
+export * from './claude-reference.ts';
+export * from './simulated.ts';

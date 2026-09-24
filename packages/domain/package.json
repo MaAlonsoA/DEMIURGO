@@ -4,7 +4,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./tablas/esquemas": "./src/tablas/esquemas.ts"
+    "./tables/schemas": "./src/tables/schemas.ts"
   },
   "dependencies": {
     "zod": "4.6.5"

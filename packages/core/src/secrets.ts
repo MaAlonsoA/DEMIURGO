@@ -2,8 +2,8 @@
 
 import { createHash, randomBytes } from 'node:crypto';
 
-export const PREFIJO_TOKEN_AGENTE = 'dmg_agente_';
+export const AGENT_TOKEN_PREFIX = 'dmg_agent_';
 
-export const huellaSecreto = (s: string): string => createHash('sha256').update(s, 'utf8').digest('hex');
+export const secretFingerprint = (s: string): string => createHash('sha256').update(s, 'utf8').digest('hex');
 
-export const nuevoSecreto = (prefijo = ''): string => `${prefijo}${randomBytes(32).toString('base64url')}`;
+export const newSecret = (prefix = ''): string => `${prefix}${randomBytes(32).toString('base64url')}`;

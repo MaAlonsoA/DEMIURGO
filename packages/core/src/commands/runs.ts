@@ -1,30 +1,30 @@
 // Ejecuciones de agentes. Una ejecución siempre tiene un context pack de su constructor
 // declarado; el reintento reutiliza el mismo pack (I7).
 
-import { ACCIONES_AGENTE, FAILURE_KINDS, formatearActor, sistema, type AccionAgente } from '@demiurgo/domain';
+import { AGENT_ACTIONS, FAILURE_KINDS, formatActor, system, type AgentAction } from '@demiurgo/domain';
 import { z } from 'zod';
-import { cadena, campo, registrarGuardas } from '../bus/guardas.ts';
-import { manejador, registrarManejadores } from '../bus/manejadores.ts';
-import { versionEsquema, VERSION_METODO } from '../agentes/metodos.ts';
-import { construirContexto } from '../contexto/construir.ts';
-import { grafoAlDia, versionGrafo } from '../contexto/grafo.ts';
+import { string, field, registerGuards } from '../bus/guards.ts';
+import { handler, registerHandlers } from '../bus/handlers.ts';
+import { schemaVersion, METHOD_VERSION } from '../agents/methods.ts';
+import { buildContext } from '../context/build.ts';
+import { graphUpToDate, graphVersion } from '../context/graph.ts';
 
-const esquemaUso = z
+const usageSchema = z
   .object({
-    tokensEntrada: z.number().nonnegative(),
-    tokensSalida: z.number().nonnegative(),
-    duracionMs: z.number().nonnegative(),
-    costeDeclaradoUsd: z.number().nonnegative().optional(),
+    inputTokens: z.number().nonnegative(),
+    outputTokens: z.number().nonnegative(),
+    durationMs: z.number().nonnegative(),
+    declaredCostUsd: z.number().nonnegative().optional(),
   })
   .strict();
 
-const ahora = (): string => new Date().toISOString();
+const now = (): string => new Date().toISOString();
 
-registrarGuardas({
-  async run_original_terminado({ ctx, datos }) {
-    const id = cadena(campo(datos, 'run_id'));
+registerGuards({
+  async original_run_finished({ ctx, data }) {
+    const id = string(field(data, 'run_id'));
     const original = await ctx.trx.selectFrom('ai_runs').select(['state', 'project_id']).where('id', '=', id).executeTakeFirst();
-    if (!original || original.project_id !== ctx.proyectoId) return 'La ejecución que se quiere reintentar no existe.';
+    if (!original || original.project_id !== ctx.projectId) return 'La ejecución que se quiere reintentar no existe.';
     if (!['failed', 'interrupted', 'cancelled'].includes(original.state)) {
       return 'Solo se reintenta una ejecución fallida, interrumpida o cancelada.';
     }
@@ -32,170 +32,170 @@ registrarGuardas({
   },
 });
 
-registrarManejadores({
-  'run.request': manejador({
-    datos: z
+registerHandlers({
+  'run.request': handler({
+    data: z
       .object({
-        accion: z.enum(ACCIONES_AGENTE),
-        alcance: z
-          .object({ tipo: z.string().min(1), id: z.string().uuid().optional(), version: z.number().int().positive().optional() })
+        action: z.enum(AGENT_ACTIONS),
+        scope: z
+          .object({ type: z.string().min(1), id: z.string().uuid().optional(), version: z.number().int().positive().optional() })
           .strict(),
-        entrada: z.record(z.string(), z.unknown()).default({}),
+        input: z.record(z.string(), z.unknown()).default({}),
       })
       .strict(),
-    async aplicar(ctx, datos, _e, hacia) {
-      const accion: AccionAgente = datos.accion;
-      const pack = await construirContexto(
+    async apply(ctx, data, _e, to) {
+      const action: AgentAction = data.action;
+      const pack = await buildContext(
         ctx.trx,
-        ctx.proyectoId,
-        accion,
-        datos.alcance,
-        datos.entrada,
-        await versionGrafo(ctx.trx, ctx.proyectoId),
+        ctx.projectId,
+        action,
+        data.scope,
+        data.input,
+        await graphVersion(ctx.trx, ctx.projectId),
       );
-      const creado = await ctx.ejecutar({ comando: 'context_pack.build', actor: sistema('contexto'), datos: pack });
-      const agente = ctx.servicios.agente;
+      const created = await ctx.execute({ command: 'context_pack.build', actor: system('context'), data: pack });
+      const agent = ctx.services.agent;
       const { id } = await ctx.trx
         .insertInto('ai_runs')
         .values({
-          project_id: ctx.proyectoId,
-          action: accion,
-          scope: JSON.stringify(datos.alcance),
-          method: `${accion}@${VERSION_METODO[accion]}`,
-          schema_version: versionEsquema(accion),
-          provider: agente.proveedor,
+          project_id: ctx.projectId,
+          action: action,
+          scope: JSON.stringify(data.scope),
+          method: `${action}@${METHOD_VERSION[action]}`,
+          schema_version: schemaVersion(action),
+          provider: agent.provider,
           model: null,
-          context_pack_id: creado.entidadId,
+          context_pack_id: created.entityId,
           retry_of: null,
-          state: hacia,
-          requested_by: formatearActor(ctx.actor),
+          state: to,
+          requested_by: formatActor(ctx.actor),
         })
         .returning('id')
         .executeTakeFirstOrThrow();
-      const proyectoId = ctx.proyectoId;
-      ctx.despuesDeConfirmar(() => ctx.servicios.motor.iniciarRun(id, proyectoId));
-      const hash = (creado.resultado as { hash: string }).hash;
+      const projectId = ctx.projectId;
+      ctx.afterConfirm(() => ctx.services.engine.startRun(id, projectId));
+      const hash = (created.result as { hash: string }).hash;
       return {
-        entidadId: id,
-        despues: { accion, alcance: datos.alcance, context_pack: hash },
-        resultado: { runId: id, contextPackId: creado.entidadId, contextPackHash: hash },
+        entityId: id,
+        after: { action, scope: data.scope, context_pack: hash },
+        result: { runId: id, contextPackId: created.entityId, contextPackHash: hash },
       };
     },
   }),
 
-  'run.retry': manejador({
-    datos: z.object({ run_id: z.string().uuid() }).strict(),
-    async aplicar(ctx, datos, _e, hacia) {
-      const o = await ctx.trx.selectFrom('ai_runs').selectAll().where('id', '=', datos.run_id).executeTakeFirstOrThrow();
+  'run.retry': handler({
+    data: z.object({ run_id: z.string().uuid() }).strict(),
+    async apply(ctx, data, _e, to) {
+      const o = await ctx.trx.selectFrom('ai_runs').selectAll().where('id', '=', data.run_id).executeTakeFirstOrThrow();
       const { id } = await ctx.trx
         .insertInto('ai_runs')
         .values({
-          project_id: ctx.proyectoId,
+          project_id: ctx.projectId,
           action: o.action,
           scope: JSON.stringify(o.scope),
           method: o.method,
           schema_version: o.schema_version,
-          provider: ctx.servicios.agente.proveedor,
+          provider: ctx.services.agent.provider,
           model: null,
           context_pack_id: o.context_pack_id,
           retry_of: o.id,
-          state: hacia,
-          requested_by: formatearActor(ctx.actor),
+          state: to,
+          requested_by: formatActor(ctx.actor),
         })
         .returning('id')
         .executeTakeFirstOrThrow();
-      const proyectoId = ctx.proyectoId;
-      ctx.despuesDeConfirmar(() => ctx.servicios.motor.iniciarRun(id, proyectoId));
-      return { entidadId: id, despues: { reintento_de: o.id }, resultado: { runId: id, contextPackId: o.context_pack_id } };
+      const projectId = ctx.projectId;
+      ctx.afterConfirm(() => ctx.services.engine.startRun(id, projectId));
+      return { entityId: id, after: { retry_of: o.id }, result: { runId: id, contextPackId: o.context_pack_id } };
     },
   }),
 
-  'run.begin': manejador({
-    datos: z.object({}).strict(),
-    async aplicar(ctx, _d, e) {
+  'run.begin': handler({
+    data: z.object({}).strict(),
+    async apply(ctx, _d, e) {
       const id = e?.id ?? '';
-      await ctx.trx.updateTable('ai_runs').set({ started_at: ahora() }).where('id', '=', id).execute();
-      return { entidadId: id };
+      await ctx.trx.updateTable('ai_runs').set({ started_at: now() }).where('id', '=', id).execute();
+      return { entityId: id };
     },
   }),
 
-  'run.complete': manejador({
-    datos: z.object({ salida: z.unknown(), uso: esquemaUso.nullable(), modelo: z.string().nullable() }).strict(),
-    async aplicar(ctx, datos, e) {
+  'run.complete': handler({
+    data: z.object({ output: z.unknown(), usage: usageSchema.nullable(), model: z.string().nullable() }).strict(),
+    async apply(ctx, data, e) {
       const id = e?.id ?? '';
       await ctx.trx
         .updateTable('ai_runs')
         .set({
-          output: JSON.stringify(datos.salida ?? null),
-          usage: datos.uso ? JSON.stringify(datos.uso) : null,
-          model: datos.modelo,
-          finished_at: ahora(),
+          output: JSON.stringify(data.output ?? null),
+          usage: data.usage ? JSON.stringify(data.usage) : null,
+          model: data.model,
+          finished_at: now(),
         })
         .where('id', '=', id)
         .execute();
-      return { entidadId: id, despues: { uso: datos.uso, modelo: datos.modelo } };
+      return { entityId: id, after: { usage: data.usage, model: data.model } };
     },
   }),
 
-  'run.fail': manejador({
-    datos: z
+  'run.fail': handler({
+    data: z
       .object({
         failure_kind: z.enum(FAILURE_KINDS),
         error: z.string().max(4000),
-        uso: esquemaUso.nullable().default(null),
-        modelo: z.string().nullable().default(null),
+        usage: usageSchema.nullable().default(null),
+        model: z.string().nullable().default(null),
       })
       .strict(),
-    async aplicar(ctx, datos, e) {
+    async apply(ctx, data, e) {
       const id = e?.id ?? '';
       await ctx.trx
         .updateTable('ai_runs')
         .set({
-          failure_kind: datos.failure_kind,
-          error: datos.error,
-          usage: datos.uso ? JSON.stringify(datos.uso) : null,
-          model: datos.modelo,
-          finished_at: ahora(),
+          failure_kind: data.failure_kind,
+          error: data.error,
+          usage: data.usage ? JSON.stringify(data.usage) : null,
+          model: data.model,
+          finished_at: now(),
         })
         .where('id', '=', id)
         .execute();
-      return { entidadId: id, despues: { failure_kind: datos.failure_kind, error: datos.error } };
+      return { entityId: id, after: { failure_kind: data.failure_kind, error: data.error } };
     },
   }),
 
-  'run.cancel': manejador({
-    datos: z.object({ motivo: z.string().trim().max(500).optional() }).strict(),
-    async aplicar(ctx, datos, e) {
+  'run.cancel': handler({
+    data: z.object({ reason: z.string().trim().max(500).optional() }).strict(),
+    async apply(ctx, data, e) {
       const id = e?.id ?? '';
       await ctx.trx
         .updateTable('ai_runs')
-        .set({ failure_kind: 'cancelled', error: datos.motivo ?? 'Cancelada por la persona.', finished_at: ahora() })
+        .set({ failure_kind: 'cancelled', error: data.reason ?? 'Cancelada por la persona.', finished_at: now() })
         .where('id', '=', id)
         .execute();
-      ctx.despuesDeConfirmar(() => ctx.servicios.motor.cancelarRun(id));
-      return { entidadId: id, despues: { motivo: datos.motivo ?? null } };
+      ctx.afterConfirm(() => ctx.services.engine.cancelRun(id));
+      return { entityId: id, after: { reason: data.reason ?? null } };
     },
   }),
 
-  'run.interrupt': manejador({
-    datos: z.object({ motivo: z.string().max(500) }).strict(),
-    async aplicar(ctx, datos, e) {
+  'run.interrupt': handler({
+    data: z.object({ reason: z.string().max(500) }).strict(),
+    async apply(ctx, data, e) {
       const id = e?.id ?? '';
       await ctx.trx
         .updateTable('ai_runs')
-        .set({ failure_kind: 'infra', error: datos.motivo, finished_at: ahora() })
+        .set({ failure_kind: 'infra', error: data.reason, finished_at: now() })
         .where('id', '=', id)
         .execute();
-      return { entidadId: id, despues: { motivo: datos.motivo } };
+      return { entityId: id, after: { reason: data.reason } };
     },
   }),
 });
 
-registrarGuardas({
-  async grafo_al_dia({ ctx }) {
-    const f = await grafoAlDia(ctx.trx, ctx.proyectoId);
-    return f.alDia
+registerGuards({
+  async graph_up_to_date({ ctx }) {
+    const f = await graphUpToDate(ctx.trx, ctx.projectId);
+    return f.upToDate
       ? null
-      : `El conocimiento del proyecto no está al día: faltan ${f.pendientes} actualización(es) por aplicar. Vuelve a intentarlo cuando termine.`;
+      : `El conocimiento del proyecto no está al día: faltan ${f.pending} actualización(es) por aplicar. Vuelve a intentarlo cuando termine.`;
   },
 });

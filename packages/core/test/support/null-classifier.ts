@@ -1,6 +1,6 @@
-import type { Clasificador } from '@demiurgo/domain';
+import type { Classifier } from '@demiurgo/domain';
 
-export const clasificadorNoConfigurado: Clasificador = {
+export const classifierNotConfigured: Classifier = {
   id: 'no-configurado@0',
   choice: () => Promise.reject(new Error('Clasificador no configurado en esta prueba.')),
   score: () => Promise.reject(new Error('Clasificador no configurado en esta prueba.')),

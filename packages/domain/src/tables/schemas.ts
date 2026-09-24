@@ -4,62 +4,62 @@
 
 import { z } from 'zod';
 
-export const TIPOS_ACTOR = ['human', 'agent_external', 'agent_run', 'system'] as const;
-export type TipoActor = (typeof TIPOS_ACTOR)[number];
+export const ACTOR_TYPES = ['human', 'agent_external', 'agent_run', 'system'] as const;
+export type ActorType = (typeof ACTOR_TYPES)[number];
 
-const estadoDocumento = z.enum(['propuesto', 'aprobado', 'sustituido', 'descartado']);
-const RE_COMANDO = /^[a-z_]+\.[a-z_]+$/;
+const documentStatus = z.enum(['proposed', 'approved', 'superseded', 'discarded']);
+const RE_COMMAND = /^[a-z_]+\.[a-z_]+$/;
 
-export const esquemaCapacidades = z
+export const capabilitiesSchema = z
   .object({
-    codigo: z.literal('DAT-CAP-001'),
+    code: z.literal('DAT-CAP-001'),
     version: z.number().int().positive(),
-    estado: estadoDocumento,
-    actores: z.object({
+    state: documentStatus,
+    actors: z.object({
       human: z.string(),
       agent_external: z.string(),
       agent_run: z.string(),
       system: z.string(),
     }),
-    comandos: z.record(
-      z.string().regex(RE_COMANDO),
+    commands: z.record(
+      z.string().regex(RE_COMMAND),
       z
         .object({
-          entidad: z.string().regex(/^[a-z_]+$/),
-          permitido: z.array(z.enum(TIPOS_ACTOR)).min(1),
-          decisivo: z.boolean(),
-          descripcion: z.string().min(1),
+          entity: z.string().regex(/^[a-z_]+$/),
+          allowed: z.array(z.enum(ACTOR_TYPES)).min(1),
+          decisive: z.boolean(),
+          description: z.string().min(1),
         })
         .strict(),
     ),
-    consultas: z.record(
+    queries: z.record(
       z.string().regex(/^query\.[a-z_]+$/),
-      z.object({ permitido: z.array(z.enum(TIPOS_ACTOR)).min(1), descripcion: z.string().min(1) }).strict(),
+      z.object({ allowed: z.array(z.enum(ACTOR_TYPES)).min(1), description: z.string().min(1) }).strict(),
     ),
   })
   .strict();
 
-export const esquemaTransiciones = z
+export const transitionsSchema = z
   .object({
-    codigo: z.literal('DAT-TRA-001'),
+    code: z.literal('DAT-TRA-001'),
     version: z.number().int().positive(),
-    estado: estadoDocumento,
-    entidades: z.record(
+    state: documentStatus,
+    entities: z.record(
       z.string().regex(/^[a-z_]+$/),
       z
         .object({
-          etiqueta: z.string().min(1),
-          implementado_en: z.string().regex(/^S\d+$/),
-          estados: z.record(z.string().regex(/^[a-z_]+$/), z.string().min(1)),
-          autoridad: z.array(z.string()),
-          transiciones: z
+          label: z.string().min(1),
+          implemented_in: z.string().regex(/^S\d+$/),
+          states: z.record(z.string().regex(/^[a-z_]+$/), z.string().min(1)),
+          authority: z.array(z.string()),
+          transitions: z
             .array(
               z
                 .object({
-                  comando: z.string().regex(RE_COMANDO),
-                  desde: z.union([z.literal('nuevo'), z.array(z.string()).min(1)]),
-                  hacia: z.string(),
-                  guardas: z.array(z.string().regex(/^[a-z_0-9]+$/)).optional(),
+                  command: z.string().regex(RE_COMMAND),
+                  from: z.union([z.literal('new'), z.array(z.string()).min(1)]),
+                  to: z.string(),
+                  guards: z.array(z.string().regex(/^[a-z_0-9]+$/)).optional(),
                 })
                 .strict(),
             )
@@ -70,14 +70,14 @@ export const esquemaTransiciones = z
   })
   .strict();
 
-export type TablaCapacidades = z.infer<typeof esquemaCapacidades>;
-export type TablaTransiciones = z.infer<typeof esquemaTransiciones>;
+export type CapabilitiesTable = z.infer<typeof capabilitiesSchema>;
+export type TransitionsTable = z.infer<typeof transitionsSchema>;
 
 /**
  * Invariantes fijadas en código, no en los datos: editar las tablas no puede relajarlas.
  * Estados que solo alcanza una persona (I1) y lo único que pueden hacer los agentes (I2).
  */
-export const ESTADOS_DE_AUTORIDAD_MINIMOS: Readonly<Record<string, readonly string[]>> = {
+export const MINIMUM_AUTHORITY_STATES: Readonly<Record<string, readonly string[]>> = {
   question: ['confirmed'],
   record_version: ['approved'],
   taxonomy: ['approved'],
@@ -88,100 +88,100 @@ export const ESTADOS_DE_AUTORIDAD_MINIMOS: Readonly<Record<string, readonly stri
 };
 
 /** Comandos que puede ejecutar cada tipo de agente: conversar, registrar fuentes y proponer. */
-export const COMANDOS_PERMITIDOS_A_AGENTES: Readonly<Record<'agent_external' | 'agent_run', readonly string[]>> = {
+export const ALLOWED_AGENT_COMMANDS: Readonly<Record<'agent_external' | 'agent_run', readonly string[]>> = {
   agent_external: ['message.post', 'source.register', 'batch.submit', 'proposal.create'],
   agent_run: ['message.post', 'batch.submit', 'proposal.create'],
 };
 
 /** Consultas que un agente externo nunca puede usar. */
-export const CONSULTAS_VEDADAS_A_AGENTES: readonly string[] = ['query.projects', 'query.tokens'];
+export const QUERIES_FORBIDDEN_TO_AGENTS: readonly string[] = ['query.projects', 'query.tokens'];
 
 /** Incoherencias entre ambas tablas y con las invariantes fijadas en código. Vacía si todo cuadra. */
-export function incoherenciasTablas(cap: TablaCapacidades, tra: TablaTransiciones): string[] {
-  return [...incoherenciasEstructurales(cap, tra), ...incoherenciasDeInvariantes(cap, tra)];
+export function tableInconsistencies(cap: CapabilitiesTable, trans: TransitionsTable): string[] {
+  return [...structuralInconsistencies(cap, trans), ...invariantInconsistencies(cap, trans)];
 }
 
 /** Invariantes fijadas en código (I1 e I2) que los datos no pueden relajar. */
-export function incoherenciasDeInvariantes(cap: TablaCapacidades, tra: TablaTransiciones): string[] {
-  const errores: string[] = [];
-  for (const [entidad, estados] of Object.entries(ESTADOS_DE_AUTORIDAD_MINIMOS)) {
-    for (const e of estados) {
-      if (!tra.entidades[entidad]?.autoridad.includes(e))
-        errores.push(`${entidad}: «${e}» debe ser un estado de autoridad (I1).`);
+export function invariantInconsistencies(cap: CapabilitiesTable, trans: TransitionsTable): string[] {
+  const errors: string[] = [];
+  for (const [entity, states] of Object.entries(MINIMUM_AUTHORITY_STATES)) {
+    for (const e of states) {
+      if (!trans.entities[entity]?.authority.includes(e))
+        errors.push(`${entity}: «${e}» debe ser un estado de autoridad (I1).`);
     }
   }
-  for (const [nombre, c] of Object.entries(cap.comandos)) {
-    for (const tipo of ['agent_external', 'agent_run'] as const) {
-      if (c.permitido.includes(tipo) && !COMANDOS_PERMITIDOS_A_AGENTES[tipo].includes(nombre)) {
-        errores.push(`${nombre}: un ${tipo} solo puede conversar, registrar fuentes y proponer (I2).`);
+  for (const [name, c] of Object.entries(cap.commands)) {
+    for (const type of ['agent_external', 'agent_run'] as const) {
+      if (c.allowed.includes(type) && !ALLOWED_AGENT_COMMANDS[type].includes(name)) {
+        errors.push(`${name}: un ${type} solo puede conversar, registrar fuentes y proponer (I2).`);
       }
     }
   }
-  for (const q of CONSULTAS_VEDADAS_A_AGENTES) {
-    if (cap.consultas[q]?.permitido.includes('agent_external')) errores.push(`${q}: vedada a los agentes externos.`);
+  for (const q of QUERIES_FORBIDDEN_TO_AGENTS) {
+    if (cap.queries[q]?.allowed.includes('agent_external')) errors.push(`${q}: vedada a los agentes externos.`);
   }
-  return errores;
+  return errors;
 }
 
 /** Coherencia interna de los datos: comandos, estados, alcanzabilidad y decisivos. */
-export function incoherenciasEstructurales(cap: TablaCapacidades, tra: TablaTransiciones): string[] {
-  const errores: string[] = [];
-  const usados = new Set<string>();
-  for (const [entidad, def] of Object.entries(tra.entidades)) {
-    const estados = new Set(Object.keys(def.estados));
-    for (const a of def.autoridad) {
-      if (!estados.has(a)) errores.push(`${entidad}: el estado de autoridad «${a}» no existe.`);
+export function structuralInconsistencies(cap: CapabilitiesTable, trans: TransitionsTable): string[] {
+  const errors: string[] = [];
+  const used = new Set<string>();
+  for (const [entity, def] of Object.entries(trans.entities)) {
+    const states = new Set(Object.keys(def.states));
+    for (const a of def.authority) {
+      if (!states.has(a)) errors.push(`${entity}: el estado de autoridad «${a}» no existe.`);
     }
-    const claves = new Set<string>();
-    const alcanzables = new Set<string>();
-    for (const t of def.transiciones) {
-      usados.add(t.comando);
-      const c = cap.comandos[t.comando];
+    const keys = new Set<string>();
+    const reachable = new Set<string>();
+    for (const t of def.transitions) {
+      used.add(t.command);
+      const c = cap.commands[t.command];
       if (!c) {
-        errores.push(`${entidad}: el comando «${t.comando}» no está en la matriz de capacidades.`);
+        errors.push(`${entity}: el comando «${t.command}» no está en la matriz de capacidades.`);
         continue;
       }
-      if (c.entidad !== entidad) errores.push(`${t.comando}: la matriz lo asigna a «${c.entidad}», no a «${entidad}».`);
-      if (!estados.has(t.hacia)) errores.push(`${entidad}: «${t.comando}» lleva a un estado inexistente «${t.hacia}».`);
-      const origenes = t.desde === 'nuevo' ? ['nuevo'] : t.desde;
-      for (const o of origenes) {
-        if (o !== 'nuevo' && !estados.has(o)) errores.push(`${entidad}: «${t.comando}» sale de un estado inexistente «${o}».`);
-        const clave = `${o}|${t.comando}`;
-        if (claves.has(clave)) errores.push(`${entidad}: la transición «${t.comando}» desde «${o}» está duplicada.`);
-        claves.add(clave);
+      if (c.entity !== entity) errors.push(`${t.command}: la matriz lo asigna a «${c.entity}», no a «${entity}».`);
+      if (!states.has(t.to)) errors.push(`${entity}: «${t.command}» lleva a un estado inexistente «${t.to}».`);
+      const origins = t.from === 'new' ? ['new'] : t.from;
+      for (const o of origins) {
+        if (o !== 'new' && !states.has(o)) errors.push(`${entity}: «${t.command}» sale de un estado inexistente «${o}».`);
+        const key = `${o}|${t.command}`;
+        if (keys.has(key)) errors.push(`${entity}: la transición «${t.command}» desde «${o}» está duplicada.`);
+        keys.add(key);
       }
-      if (def.autoridad.includes(t.hacia)) {
-        if (!c.decisivo) errores.push(`${t.comando}: alcanza el estado de autoridad «${t.hacia}» y debe ser decisivo.`);
+      if (def.authority.includes(t.to)) {
+        if (!c.decisive) errors.push(`${t.command}: alcanza el estado de autoridad «${t.to}» y debe ser decisivo.`);
       }
     }
     // Estados alcanzables desde «nuevo».
-    let cambio = true;
-    alcanzables.add('nuevo');
-    while (cambio) {
-      cambio = false;
-      for (const t of def.transiciones) {
-        const origenes = t.desde === 'nuevo' ? ['nuevo'] : t.desde;
-        if (origenes.some((o) => alcanzables.has(o)) && !alcanzables.has(t.hacia)) {
-          alcanzables.add(t.hacia);
-          cambio = true;
+    let change = true;
+    reachable.add('new');
+    while (change) {
+      change = false;
+      for (const t of def.transitions) {
+        const origins = t.from === 'new' ? ['new'] : t.from;
+        if (origins.some((o) => reachable.has(o)) && !reachable.has(t.to)) {
+          reachable.add(t.to);
+          change = true;
         }
       }
     }
-    for (const e of estados) {
-      if (!alcanzables.has(e)) errores.push(`${entidad}: el estado «${e}» no es alcanzable.`);
+    for (const e of states) {
+      if (!reachable.has(e)) errors.push(`${entity}: el estado «${e}» no es alcanzable.`);
     }
   }
-  for (const [nombre, c] of Object.entries(cap.comandos)) {
-    if (!usados.has(nombre)) errores.push(`${nombre}: el comando no aparece en ninguna transición.`);
-    if (!tra.entidades[c.entidad]) errores.push(`${nombre}: la entidad «${c.entidad}» no tiene tabla de transiciones.`);
-    if (c.decisivo && (c.permitido.length !== 1 || c.permitido[0] !== 'human')) {
-      errores.push(`${nombre}: un comando decisivo solo puede estar permitido a «human».`);
+  for (const [name, c] of Object.entries(cap.commands)) {
+    if (!used.has(name)) errors.push(`${name}: el comando no aparece en ninguna transición.`);
+    if (!trans.entities[c.entity]) errors.push(`${name}: la entidad «${c.entity}» no tiene tabla de transiciones.`);
+    if (c.decisive && (c.allowed.length !== 1 || c.allowed[0] !== 'human')) {
+      errors.push(`${name}: un comando decisivo solo puede estar permitido a «human».`);
     }
-    if (c.decisivo) {
-      const def = tra.entidades[c.entidad];
-      const alcanzaAutoridad = def?.transiciones.some((t) => t.comando === nombre && def.autoridad.includes(t.hacia));
-      if (!alcanzaAutoridad) errores.push(`${nombre}: es decisivo pero no alcanza ningún estado de autoridad.`);
+    if (c.decisive) {
+      const def = trans.entities[c.entity];
+      const reachesAuthority = def?.transitions.some((t) => t.command === name && def.authority.includes(t.to));
+      if (!reachesAuthority) errors.push(`${name}: es decisivo pero no alcanza ningún estado de autoridad.`);
     }
   }
-  return errores;
+  return errors;
 }

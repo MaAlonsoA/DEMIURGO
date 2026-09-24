@@ -2,122 +2,122 @@
 // la actualización incremental y la reconstrucción usan exactamente estas funciones, así que
 // reconstruir con las clasificaciones guardadas da la misma huella (I10).
 
-import { type EstadoEpistemico } from './registros.ts';
-import { huella } from './huella.ts';
-import { similitud } from './texto.ts';
+import { type EpistemicStatus } from './records.ts';
+import { fingerprint } from './fingerprint.ts';
+import { similarity } from './text.ts';
 import {
-  type RespuestaChoice,
-  type Umbrales,
-  UMBRALES_POR_DEFECTO,
-  VEREDICTOS,
-  type Veredicto,
-  enrutarPorConfianza,
-} from './clasificador.ts';
+  type ChoiceResponse,
+  type Thresholds,
+  DEFAULT_THRESHOLDS,
+  VERDICTS,
+  type Verdict,
+  routeByConfidence,
+} from './classifier.ts';
 
-export type OrigenNodo = { tipo: string; id: string | null; version: number | null };
+export type NodeOrigin = { type: string; id: string | null; version: number | null };
 
 /** Nodo derivado. `ref` es estable y lleva la versión de lo que representa (p. ej. DEC-PRO-001@2). */
-export type Nodo = {
+export type Node = {
   ref: string;
-  tipo: string;
-  etiqueta: string;
-  texto: string;
-  categorias: Readonly<Record<string, string>>;
-  epistemico: EstadoEpistemico;
+  type: string;
+  label: string;
+  text: string;
+  categories: Readonly<Record<string, string>>;
+  epistemic: EpistemicStatus;
   /** Si viene de algo con autoridad (registro o criterio), nunca se cambia sin la persona. */
-  autoridad: boolean;
-  origen: OrigenNodo;
-  desde: number;
-  hasta: number | null;
+  authority: boolean;
+  origin: NodeOrigin;
+  from: number;
+  until: number | null;
 };
 
-export type Arista = { tipo: string; desde: string; hacia: string; alta: number; baja: number | null };
+export type Edge = { type: string; from: string; to: string; validFrom: number; validTo: number | null };
 
-export type Grafo = { version: number; nodos: Nodo[]; aristas: Arista[] };
+export type Graph = { version: number; nodes: Node[]; edges: Edge[] };
 
-export const grafoVacio = (): Grafo => ({ version: 0, nodos: [], aristas: [] });
+export const emptyGraph = (): Graph => ({ version: 0, nodes: [], edges: [] });
 
-export const nodosVigentes = (g: Grafo): Nodo[] => g.nodos.filter((n) => n.hasta === null);
-export const aristasVigentes = (g: Grafo): Arista[] => g.aristas.filter((a) => a.baja === null);
+export const currentNodes = (g: Graph): Node[] => g.nodes.filter((n) => n.until === null);
+export const currentEdges = (g: Graph): Edge[] => g.edges.filter((a) => a.validTo === null);
 
 /** Cambio de autoridad proyectado de forma determinista (sin clasificador). */
-export type Cambio = {
+export type Change = {
   /** Nodo principal del cambio (el que se clasifica y se compara con los candidatos). */
-  principal: Omit<Nodo, 'desde' | 'hasta' | 'categorias'>;
+  main: Omit<Node, 'from' | 'until' | 'categories'>;
   /** Nodos que acompañan al principal (p. ej. sus criterios). */
-  acompañantes: Omit<Nodo, 'desde' | 'hasta' | 'categorias'>[];
+  companions: Omit<Node, 'from' | 'until' | 'categories'>[];
   /** Aristas nuevas por la estructura (contiene, enlaces de la autoridad). */
-  aristas: { tipo: string; desde: string; hacia: string }[];
+  edges: { type: string; from: string; to: string }[];
   /** Refs que la precedencia de versiones deja sustituidas (lo decide el código, no el modelo). */
-  sustituye: string[];
+  supersedes: string[];
 };
 
-export type Candidato = { ref: string; tipo: string; etiqueta: string; texto: string; motivo: string };
+export type Candidate = { ref: string; type: string; label: string; text: string; reason: string };
 
-const MAX_CANDIDATOS = 12;
+const MAX_CANDIDATES = 12;
 
 /**
  * Preselección determinista de candidatos (§7.3 paso 2): vecinos del registro en el grafo,
  * coincidencias de texto y nodos con las mismas categorías. Acotada y ordenada.
  */
-export function seleccionarCandidatos(g: Grafo, cambio: Cambio, categorias: Readonly<Record<string, string>>): Candidato[] {
+export function selectCandidates(g: Graph, change: Change, categories: Readonly<Record<string, string>>): Candidate[] {
   // Fuera: el propio cambio, lo que sustituye (lo decide la precedencia) y lo que enlaza (esa
   // relación ya la declaró la persona en la autoridad).
-  const propios = new Set([
-    cambio.principal.ref,
-    ...cambio.acompañantes.map((n) => n.ref),
-    ...cambio.sustituye,
-    ...cambio.aristas.map((a) => a.hacia),
+  const own = new Set([
+    change.main.ref,
+    ...change.companions.map((n) => n.ref),
+    ...change.supersedes,
+    ...change.edges.map((a) => a.to),
   ]);
-  const vigentes = nodosVigentes(g).filter((n) => !propios.has(n.ref) && n.tipo !== 'criterio');
-  const porRef = new Map(vigentes.map((n) => [n.ref, n]));
-  const elegidos = new Map<string, { nodo: Nodo; motivo: string; peso: number }>();
-  const añadir = (n: Nodo | undefined, motivo: string, peso: number) => {
+  const current = currentNodes(g).filter((n) => !own.has(n.ref) && n.type !== 'criterion');
+  const byRef = new Map(current.map((n) => [n.ref, n]));
+  const chosen = new Map<string, { node: Node; reason: string; weight: number }>();
+  const add = (n: Node | undefined, reason: string, weight: number) => {
     if (!n) return;
-    const previo = elegidos.get(n.ref);
-    if (!previo || previo.peso < peso) elegidos.set(n.ref, { nodo: n, motivo, peso });
+    const existing = chosen.get(n.ref);
+    if (!existing || existing.weight < weight) chosen.set(n.ref, { node: n, reason, weight });
   };
   // Vecinos a distancia 1 de lo que el cambio sustituye o enlaza.
-  const semillas = new Set([...cambio.sustituye, ...cambio.aristas.map((a) => a.hacia)]);
-  for (const a of aristasVigentes(g)) {
-    if (semillas.has(a.desde)) añadir(porRef.get(a.hacia), `vecino de ${a.desde} (${a.tipo})`, 3);
-    if (semillas.has(a.hacia)) añadir(porRef.get(a.desde), `vecino de ${a.hacia} (${a.tipo})`, 3);
+  const seeds = new Set([...change.supersedes, ...change.edges.map((a) => a.to)]);
+  for (const a of currentEdges(g)) {
+    if (seeds.has(a.from)) add(byRef.get(a.to), `vecino de ${a.from} (${a.type})`, 3);
+    if (seeds.has(a.to)) add(byRef.get(a.from), `vecino de ${a.to} (${a.type})`, 3);
   }
-  const texto = `${cambio.principal.etiqueta}. ${cambio.principal.texto}`;
-  for (const n of vigentes) {
-    const sim = similitud(texto, `${n.etiqueta}. ${n.texto}`);
-    if (sim >= 0.08) añadir(n, `coincidencia de texto (${sim.toFixed(2)})`, 1 + sim);
-    const comunes = Object.entries(categorias).filter(([eje, c]) => c !== 'otra' && n.categorias[eje] === c);
-    if (comunes.length > 0)
-      añadir(n, `misma categoría (${comunes.map(([e, c]) => `${e}=${c}`).join(', ')})`, 2 + comunes.length / 10);
+  const text = `${change.main.label}. ${change.main.text}`;
+  for (const n of current) {
+    const sim = similarity(text, `${n.label}. ${n.text}`);
+    if (sim >= 0.08) add(n, `coincidencia de texto (${sim.toFixed(2)})`, 1 + sim);
+    const common = Object.entries(categories).filter(([axis, c]) => c !== 'other' && n.categories[axis] === c);
+    if (common.length > 0)
+      add(n, `misma categoría (${common.map(([e, c]) => `${e}=${c}`).join(', ')})`, 2 + common.length / 10);
   }
-  return [...elegidos.values()]
-    .sort((a, b) => b.peso - a.peso || (a.nodo.ref < b.nodo.ref ? -1 : 1))
-    .slice(0, MAX_CANDIDATOS)
-    .map(({ nodo, motivo }) => ({
-      ref: nodo.ref,
-      tipo: nodo.tipo,
-      etiqueta: nodo.etiqueta,
-      texto: nodo.texto.slice(0, 1500),
-      motivo,
+  return [...chosen.values()]
+    .sort((a, b) => b.weight - a.weight || (a.node.ref < b.node.ref ? -1 : 1))
+    .slice(0, MAX_CANDIDATES)
+    .map(({ node, reason }) => ({
+      ref: node.ref,
+      type: node.type,
+      label: node.label,
+      text: node.text.slice(0, 1500),
+      reason,
     }));
 }
 
-export function hashEntradaVeredictos(clasificador: string, cambio: Cambio, candidatos: readonly Candidato[]): string {
-  return huella({
-    clasificador,
-    cambio: { ref: cambio.principal.ref, etiqueta: cambio.principal.etiqueta, texto: cambio.principal.texto },
-    candidatos: candidatos.map((c) => ({ ref: c.ref, etiqueta: c.etiqueta, texto: c.texto })),
+export function hashVerdictsInput(classifier: string, change: Change, candidates: readonly Candidate[]): string {
+  return fingerprint({
+    classifier,
+    change: { ref: change.main.ref, label: change.main.label, text: change.main.text },
+    candidates: candidates.map((c) => ({ ref: c.ref, label: c.label, text: c.text })),
   });
 }
 
-export function hashEntradaCategorias(clasificador: string, taxonomia: string, cambio: Cambio): string {
-  return huella({
-    clasificador,
-    taxonomia,
-    ref: cambio.principal.ref,
-    etiqueta: cambio.principal.etiqueta,
-    texto: cambio.principal.texto,
+export function hashCategoriesInput(classifier: string, taxonomy: string, change: Change): string {
+  return fingerprint({
+    classifier,
+    taxonomy,
+    ref: change.main.ref,
+    label: change.main.label,
+    text: change.main.text,
   });
 }
 
@@ -125,142 +125,142 @@ export function hashEntradaCategorias(clasificador: string, taxonomia: string, c
  * Verificación de las categorías (§7.4): la taxonomía es un conjunto cerrado. Cada respuesta
  * nombra un eje de la taxonomía y una categoría de ese eje, una por eje y con confianza válida.
  */
-export function verificarCategorias(
-  ejes: readonly { codigo: string; categorias: readonly { codigo: string }[] }[],
-  respuestas: readonly RespuestaChoice[],
-): { ok: true } | { ok: false; motivos: string[] } {
-  const motivos: string[] = [];
-  const porEje = new Map(ejes.map((e) => [e.codigo, new Set(e.categorias.map((c) => c.codigo))]));
-  const vistos = new Map<string, number>();
-  for (const r of respuestas) {
-    vistos.set(r.id, (vistos.get(r.id) ?? 0) + 1);
-    const categorias = porEje.get(r.id);
-    if (!categorias) motivos.push(`La clasificación cita un eje que no está en la taxonomía: ${r.id}.`);
-    else if (!categorias.has(r.eleccion)) motivos.push(`«${r.eleccion}» no es una categoría del eje ${r.id}.`);
-    if (!(r.confianza >= 0 && r.confianza <= 1)) motivos.push(`Confianza fuera de rango para el eje ${r.id}.`);
+export function verifyCategories(
+  axes: readonly { code: string; categories: readonly { code: string }[] }[],
+  responses: readonly ChoiceResponse[],
+): { ok: true } | { ok: false; reasons: string[] } {
+  const reasons: string[] = [];
+  const byAxis = new Map(axes.map((e) => [e.code, new Set(e.categories.map((c) => c.code))]));
+  const seen = new Map<string, number>();
+  for (const r of responses) {
+    seen.set(r.id, (seen.get(r.id) ?? 0) + 1);
+    const categories = byAxis.get(r.id);
+    if (!categories) reasons.push(`La clasificación cita un eje que no está en la taxonomía: ${r.id}.`);
+    else if (!categories.has(r.choice)) reasons.push(`«${r.choice}» no es una categoría del eje ${r.id}.`);
+    if (!(r.confidence >= 0 && r.confidence <= 1)) reasons.push(`Confianza fuera de rango para el eje ${r.id}.`);
   }
-  for (const [eje, n] of vistos) if (n > 1) motivos.push(`El eje ${eje} tiene ${n} clasificaciones.`);
-  return motivos.length === 0 ? { ok: true } : { ok: false, motivos };
+  for (const [axis, n] of seen) if (n > 1) reasons.push(`El eje ${axis} tiene ${n} clasificaciones.`);
+  return reasons.length === 0 ? { ok: true } : { ok: false, reasons };
 }
 
 /** Verificación determinista (§7.3 paso 4): un veredicto por candidato y todas las referencias existen. */
-export function verificarVeredictos(
-  g: Grafo,
-  candidatos: readonly Candidato[],
-  respuestas: readonly RespuestaChoice[],
-): { ok: true } | { ok: false; motivos: string[] } {
-  const motivos: string[] = [];
-  const esperados = new Set(candidatos.map((c) => c.ref));
-  const existentes = new Set(nodosVigentes(g).map((n) => n.ref));
-  const vistos = new Map<string, number>();
-  for (const r of respuestas) {
-    vistos.set(r.id, (vistos.get(r.id) ?? 0) + 1);
-    if (!existentes.has(r.id)) motivos.push(`El veredicto cita un nodo inexistente: ${r.id}.`);
-    else if (!esperados.has(r.id)) motivos.push(`El veredicto cita un nodo que no era candidato: ${r.id}.`);
-    if (!(VEREDICTOS as readonly string[]).includes(r.eleccion))
-      motivos.push(`Veredicto desconocido para ${r.id}: «${r.eleccion}».`);
-    if (!(r.confianza >= 0 && r.confianza <= 1)) motivos.push(`Confianza fuera de rango para ${r.id}.`);
+export function verifyVerdicts(
+  g: Graph,
+  candidates: readonly Candidate[],
+  responses: readonly ChoiceResponse[],
+): { ok: true } | { ok: false; reasons: string[] } {
+  const reasons: string[] = [];
+  const expected = new Set(candidates.map((c) => c.ref));
+  const existing = new Set(currentNodes(g).map((n) => n.ref));
+  const seen = new Map<string, number>();
+  for (const r of responses) {
+    seen.set(r.id, (seen.get(r.id) ?? 0) + 1);
+    if (!existing.has(r.id)) reasons.push(`El veredicto cita un nodo inexistente: ${r.id}.`);
+    else if (!expected.has(r.id)) reasons.push(`El veredicto cita un nodo que no era candidato: ${r.id}.`);
+    if (!(VERDICTS as readonly string[]).includes(r.choice))
+      reasons.push(`Veredicto desconocido para ${r.id}: «${r.choice}».`);
+    if (!(r.confidence >= 0 && r.confidence <= 1)) reasons.push(`Confianza fuera de rango para ${r.id}.`);
   }
-  for (const c of candidatos) {
-    const n = vistos.get(c.ref) ?? 0;
-    if (n === 0) motivos.push(`El candidato ${c.ref} no tiene veredicto.`);
-    if (n > 1) motivos.push(`El candidato ${c.ref} tiene ${n} veredictos.`);
+  for (const c of candidates) {
+    const n = seen.get(c.ref) ?? 0;
+    if (n === 0) reasons.push(`El candidato ${c.ref} no tiene veredicto.`);
+    if (n > 1) reasons.push(`El candidato ${c.ref} tiene ${n} veredictos.`);
   }
-  return motivos.length === 0 ? { ok: true } : { ok: false, motivos };
+  return reasons.length === 0 ? { ok: true } : { ok: false, reasons };
 }
 
-export type PropuestaDeRevision = { ref: string; veredicto: Veredicto; confianza: number; motivo: string };
+export type ReviewProposal = { ref: string; verdict: Verdict; confidence: number; reason: string };
 
 /** Veredicto que no se aplica por falta de confianza: queda anotado en la actualización. */
-export type VeredictoSinAplicar = { ref: string; veredicto: Veredicto; confianza: number; ruta: string };
+export type UnappliedVerdict = { ref: string; verdict: Verdict; confidence: number; path: string };
 
 export type Plan = {
-  proyectar: Nodo[];
-  invalidar: string[];
-  aristasNuevas: Arista[];
-  aristasInvalidadas: { tipo: string; desde: string; hacia: string }[];
-  revisiones: PropuestaDeRevision[];
-  sinAplicar: VeredictoSinAplicar[];
+  project: Node[];
+  invalidate: string[];
+  newEdges: Edge[];
+  invalidatedEdges: { type: string; from: string; to: string }[];
+  reviews: ReviewProposal[];
+  notApplied: UnappliedVerdict[];
 };
 
-export const planSinCambios = (): Plan => ({
-  proyectar: [],
-  invalidar: [],
-  aristasNuevas: [],
-  aristasInvalidadas: [],
-  revisiones: [],
-  sinAplicar: [],
+export const emptyPlan = (): Plan => ({
+  project: [],
+  invalidate: [],
+  newEdges: [],
+  invalidatedEdges: [],
+  reviews: [],
+  notApplied: [],
 });
 
 /**
  * Plan de operaciones de una actualización verificada (§7.3 paso 5). Lo que toca la autoridad
  * nunca se cambia: sale como propuesta de revisión para la persona.
  */
-export function planificar(
-  g: Grafo,
-  cambio: Cambio,
-  categorias: Readonly<Record<string, string>>,
-  respuestas: readonly RespuestaChoice[],
-  nuevaVersion: number,
-  umbrales: Umbrales = UMBRALES_POR_DEFECTO,
+export function buildPlan(
+  g: Graph,
+  change: Change,
+  categories: Readonly<Record<string, string>>,
+  responses: readonly ChoiceResponse[],
+  newVersion: number,
+  thresholds: Thresholds = DEFAULT_THRESHOLDS,
 ): Plan {
-  const vigentes = new Map(nodosVigentes(g).map((n) => [n.ref, n]));
+  const current = new Map(currentNodes(g).map((n) => [n.ref, n]));
   // Lo confirmado no vuelve a propuesto: si la versión ya se aprobó (p. ej. «Aceptar y aprobar»),
   // el disparo de la propuesta que la creó no la rebaja.
-  if (vigentes.get(cambio.principal.ref)?.epistemico === 'confirmado' && cambio.principal.epistemico !== 'confirmado') {
-    return planSinCambios();
+  if (current.get(change.main.ref)?.epistemic === 'confirmed' && change.main.epistemic !== 'confirmed') {
+    return emptyPlan();
   }
-  const plan = planSinCambios();
-  const invalidar = new Set<string>();
+  const plan = emptyPlan();
+  const invalidate = new Set<string>();
   // Precedencia de versiones, en código: lo sustituido se invalida con sus criterios.
-  for (const ref of cambio.sustituye) {
-    if (!vigentes.has(ref)) continue;
-    invalidar.add(ref);
-    for (const a of aristasVigentes(g)) if (a.desde === ref && a.tipo === 'contiene') invalidar.add(a.hacia);
+  for (const ref of change.supersedes) {
+    if (!current.has(ref)) continue;
+    invalidate.add(ref);
+    for (const a of currentEdges(g)) if (a.from === ref && a.type === 'contains') invalidate.add(a.to);
   }
   // El mismo ref con otro estado epistémico (borrador que se aprueba) se sustituye.
-  for (const n of [cambio.principal, ...cambio.acompañantes]) if (vigentes.has(n.ref)) invalidar.add(n.ref);
-  const aplicable = (confianza: number) => enrutarPorConfianza(confianza, umbrales) === 'aplicar';
-  for (const r of respuestas) {
-    const nodo = vigentes.get(r.id);
-    if (!nodo) continue;
-    const veredicto = r.eleccion as Veredicto;
-    if (veredicto === 'keep') continue;
-    if (veredicto === 'relate') {
+  for (const n of [change.main, ...change.companions]) if (current.has(n.ref)) invalidate.add(n.ref);
+  const applicable = (confidence: number) => routeByConfidence(confidence, thresholds) === 'apply';
+  for (const r of responses) {
+    const node = current.get(r.id);
+    if (!node) continue;
+    const verdict = r.choice as Verdict;
+    if (verdict === 'keep') continue;
+    if (verdict === 'relate') {
       // Una relación es conocimiento derivado: con confianza alta se aplica; si no, queda anotada
       // (la cascada ya pasó la confianza media por el revisor, si lo hay) y no se aplica.
-      if (aplicable(r.confianza))
-        plan.aristasNuevas.push({
-          tipo: 'relacionado',
-          desde: cambio.principal.ref,
-          hacia: r.id,
-          alta: nuevaVersion,
-          baja: null,
+      if (applicable(r.confidence))
+        plan.newEdges.push({
+          type: 'related',
+          from: change.main.ref,
+          to: r.id,
+          validFrom: newVersion,
+          validTo: null,
         });
       else
-        plan.sinAplicar.push({ ref: r.id, veredicto, confianza: r.confianza, ruta: enrutarPorConfianza(r.confianza, umbrales) });
+        plan.notApplied.push({ ref: r.id, verdict, confidence: r.confidence, path: routeByConfidence(r.confidence, thresholds) });
       continue;
     }
-    if (veredicto === 'invalidate' && !nodo.autoridad && aplicable(r.confianza)) {
-      invalidar.add(r.id);
+    if (verdict === 'invalidate' && !node.authority && applicable(r.confidence)) {
+      invalidate.add(r.id);
       continue;
     }
     // update, invalidate, add u other sobre algo con autoridad (o con poca confianza): a la persona.
-    plan.revisiones.push({ ref: r.id, veredicto, confianza: r.confianza, motivo: r.justificacion });
+    plan.reviews.push({ ref: r.id, verdict, confidence: r.confidence, reason: r.justification });
   }
-  plan.invalidar = [...invalidar].sort();
-  for (const n of [cambio.principal, ...cambio.acompañantes]) {
-    plan.proyectar.push({ ...n, categorias: n.ref === cambio.principal.ref ? categorias : {}, desde: nuevaVersion, hasta: null });
+  plan.invalidate = [...invalidate].sort();
+  for (const n of [change.main, ...change.companions]) {
+    plan.project.push({ ...n, categories: n.ref === change.main.ref ? categories : {}, from: newVersion, until: null });
   }
   // Una arista de la estructura solo se proyecta si sus dos extremos quedan vigentes.
-  const quedan = new Set([...[...vigentes.keys()].filter((r) => !invalidar.has(r)), ...plan.proyectar.map((n) => n.ref)]);
-  for (const a of cambio.aristas) {
-    if (quedan.has(a.desde) && quedan.has(a.hacia)) plan.aristasNuevas.push({ ...a, alta: nuevaVersion, baja: null });
+  const remaining = new Set([...[...current.keys()].filter((r) => !invalidate.has(r)), ...plan.project.map((n) => n.ref)]);
+  for (const a of change.edges) {
+    if (remaining.has(a.from) && remaining.has(a.to)) plan.newEdges.push({ ...a, validFrom: newVersion, validTo: null });
   }
   // Las aristas vigentes que tocan un nodo invalidado se invalidan con él.
-  for (const a of aristasVigentes(g)) {
-    if (invalidar.has(a.desde) || invalidar.has(a.hacia))
-      plan.aristasInvalidadas.push({ tipo: a.tipo, desde: a.desde, hacia: a.hacia });
+  for (const a of currentEdges(g)) {
+    if (invalidate.has(a.from) || invalidate.has(a.to))
+      plan.invalidatedEdges.push({ type: a.type, from: a.from, to: a.to });
   }
   return plan;
 }
@@ -269,95 +269,95 @@ export function planificar(
  * Retirada de lo que proyectó una versión en borrador que se descarta (§7.3): su nodo, sus
  * criterios y las aristas que los tocan quedan invalidados. Nunca retira algo confirmado.
  */
-export function planRetirada(g: Grafo, refs: readonly string[]): Plan {
-  const plan = planSinCambios();
-  const vigentes = new Map(nodosVigentes(g).map((n) => [n.ref, n]));
-  const invalidar = new Set<string>();
+export function removalPlan(g: Graph, refs: readonly string[]): Plan {
+  const plan = emptyPlan();
+  const current = new Map(currentNodes(g).map((n) => [n.ref, n]));
+  const invalidate = new Set<string>();
   for (const ref of refs) {
-    const n = vigentes.get(ref);
-    if (!n || n.epistemico === 'confirmado') continue;
-    invalidar.add(ref);
-    for (const a of aristasVigentes(g)) if (a.desde === ref && a.tipo === 'contiene') invalidar.add(a.hacia);
+    const n = current.get(ref);
+    if (!n || n.epistemic === 'confirmed') continue;
+    invalidate.add(ref);
+    for (const a of currentEdges(g)) if (a.from === ref && a.type === 'contains') invalidate.add(a.to);
   }
-  plan.invalidar = [...invalidar].sort();
-  for (const a of aristasVigentes(g)) {
-    if (invalidar.has(a.desde) || invalidar.has(a.hacia))
-      plan.aristasInvalidadas.push({ tipo: a.tipo, desde: a.desde, hacia: a.hacia });
+  plan.invalidate = [...invalidate].sort();
+  for (const a of currentEdges(g)) {
+    if (invalidate.has(a.from) || invalidate.has(a.to))
+      plan.invalidatedEdges.push({ type: a.type, from: a.from, to: a.to });
   }
   return plan;
 }
 
-const clave = (a: { tipo: string; desde: string; hacia: string }): string => `${a.tipo}|${a.desde}|${a.hacia}`;
+const key = (a: { type: string; from: string; to: string }): string => `${a.type}|${a.from}|${a.to}`;
 
 /** Aplica un plan al grafo en memoria (reconstrucción). */
-export function aplicarPlan(g: Grafo, plan: Plan, nuevaVersion: number): Grafo {
-  const invalidar = new Set(plan.invalidar);
-  const aristasFuera = new Set(plan.aristasInvalidadas.map(clave));
-  const nodos = g.nodos.map((n) => (n.hasta === null && invalidar.has(n.ref) ? { ...n, hasta: nuevaVersion } : n));
-  const aristas = g.aristas.map((a) => (a.baja === null && aristasFuera.has(clave(a)) ? { ...a, baja: nuevaVersion } : a));
-  return { version: nuevaVersion, nodos: [...nodos, ...plan.proyectar], aristas: [...aristas, ...plan.aristasNuevas] };
+export function applyPlan(g: Graph, plan: Plan, newVersion: number): Graph {
+  const invalidate = new Set(plan.invalidate);
+  const edgesOut = new Set(plan.invalidatedEdges.map(key));
+  const nodes = g.nodes.map((n) => (n.until === null && invalidate.has(n.ref) ? { ...n, until: newVersion } : n));
+  const edges = g.edges.map((a) => (a.validTo === null && edgesOut.has(key(a)) ? { ...a, validTo: newVersion } : a));
+  return { version: newVersion, nodes: [...nodes, ...plan.project], edges: [...edges, ...plan.newEdges] };
 }
 
 /** Un plan que no cambia nada no sube la versión del grafo. */
-export function planVacio(p: Plan): boolean {
+export function isEmptyPlan(p: Plan): boolean {
   return (
-    p.proyectar.length === 0 && p.invalidar.length === 0 && p.aristasNuevas.length === 0 && p.aristasInvalidadas.length === 0
+    p.project.length === 0 && p.invalidate.length === 0 && p.newEdges.length === 0 && p.invalidatedEdges.length === 0
   );
 }
 
 /** Huella del grafo: nodos y aristas con su validez, sin ids ni fechas (AC-CON-001-06). */
-export function huellaGrafo(g: Grafo): string {
-  const nodos = [...g.nodos]
+export function graphFingerprint(g: Graph): string {
+  const nodes = [...g.nodes]
     .map((n) => ({
       ref: n.ref,
-      tipo: n.tipo,
-      categorias: n.categorias,
-      epistemico: n.epistemico,
-      desde: n.desde,
-      hasta: n.hasta,
+      type: n.type,
+      categories: n.categories,
+      epistemic: n.epistemic,
+      from: n.from,
+      until: n.until,
     }))
-    .sort((a, b) => (a.ref === b.ref ? a.desde - b.desde : a.ref < b.ref ? -1 : 1));
-  const aristas = [...g.aristas]
-    .map((a) => ({ tipo: a.tipo, desde: a.desde, hacia: a.hacia, alta: a.alta, baja: a.baja }))
+    .sort((a, b) => (a.ref === b.ref ? a.from - b.from : a.ref < b.ref ? -1 : 1));
+  const edges = [...g.edges]
+    .map((a) => ({ type: a.type, from: a.from, to: a.to, validFrom: a.validFrom, validTo: a.validTo }))
     .sort((a, b) => {
-      const ka = `${a.tipo}|${a.desde}|${a.hacia}|${a.alta}`;
-      const kb = `${b.tipo}|${b.desde}|${b.hacia}|${b.alta}`;
+      const ka = `${a.type}|${a.from}|${a.to}|${a.validFrom}`;
+      const kb = `${b.type}|${b.from}|${b.to}|${b.validFrom}`;
       return ka < kb ? -1 : ka > kb ? 1 : 0;
     });
-  return huella({ version: g.version, nodos, aristas });
+  return fingerprint({ version: g.version, nodes, edges });
 }
 
 /** Candidatos para evaluar una idea: los nodos vigentes más parecidos (§7.7). */
-export function candidatosDeIdea(g: Grafo, idea: string, limite = 8): Candidato[] {
-  return nodosVigentes(g)
-    .filter((n) => n.tipo !== 'criterio')
-    .map((n) => ({ n, sim: similitud(idea, `${n.etiqueta}. ${n.texto}`) }))
+export function ideaCandidates(g: Graph, idea: string, limit = 8): Candidate[] {
+  return currentNodes(g)
+    .filter((n) => n.type !== 'criterion')
+    .map((n) => ({ n, sim: similarity(idea, `${n.label}. ${n.text}`) }))
     .filter(({ sim }) => sim >= 0.05)
     .sort((a, b) => b.sim - a.sim || (a.n.ref < b.n.ref ? -1 : 1))
-    .slice(0, limite)
+    .slice(0, limit)
     .map(({ n, sim }) => ({
       ref: n.ref,
-      tipo: n.tipo,
-      etiqueta: n.etiqueta,
-      texto: n.texto.slice(0, 1500),
-      motivo: `coincidencia de texto (${sim.toFixed(2)})`,
+      type: n.type,
+      label: n.label,
+      text: n.text.slice(0, 1500),
+      reason: `coincidencia de texto (${sim.toFixed(2)})`,
     }));
 }
 
 /** Selección de conocimiento para un context pack: relevancia léxica, con motivo y presupuesto. */
-export function seleccionarParaContexto(g: Grafo, consulta: string, presupuesto: number): { nodo: Nodo; motivo: string }[] {
-  const puntuados = nodosVigentes(g)
-    .filter((n) => n.epistemico === 'confirmado' && n.tipo !== 'criterio')
-    .map((n) => ({ nodo: n, sim: similitud(consulta, `${n.etiqueta}. ${n.texto}`) }))
+export function selectForContext(g: Graph, queryName: string, budget: number): { node: Node; reason: string }[] {
+  const scored = currentNodes(g)
+    .filter((n) => n.epistemic === 'confirmed' && n.type !== 'criterion')
+    .map((n) => ({ node: n, sim: similarity(queryName, `${n.label}. ${n.text}`) }))
     .filter(({ sim }) => sim > 0)
-    .sort((a, b) => b.sim - a.sim || (a.nodo.ref < b.nodo.ref ? -1 : 1));
-  const elegidos: { nodo: Nodo; motivo: string }[] = [];
-  let usado = 0;
-  for (const { nodo, sim } of puntuados) {
-    const coste = nodo.etiqueta.length + Math.min(nodo.texto.length, 600);
-    if (usado + coste > presupuesto) break;
-    usado += coste;
-    elegidos.push({ nodo, motivo: `relevancia por tema (${sim.toFixed(2)})` });
+    .sort((a, b) => b.sim - a.sim || (a.node.ref < b.node.ref ? -1 : 1));
+  const chosen: { node: Node; reason: string }[] = [];
+  let used = 0;
+  for (const { node, sim } of scored) {
+    const cost = node.label.length + Math.min(node.text.length, 600);
+    if (used + cost > budget) break;
+    used += cost;
+    chosen.push({ node, reason: `relevancia por tema (${sim.toFixed(2)})` });
   }
-  return elegidos;
+  return chosen;
 }

@@ -1,137 +1,137 @@
 # Matriz de capacidades de DEMIURGO v2.
 # Una sola tabla sirve al servidor, a las pruebas generadas (403) y a la UI.
 # Lo que no está permitido aquí devuelve 403 sin efectos. Anexo de ADR-NUC-001.
-codigo: DAT-CAP-001
+code: DAT-CAP-001
 version: 1
-estado: propuesto
+state: proposed
 
-actores:
+actors:
   human: Persona con sesión (cookie httpOnly). Actor human:<persona>.
   agent_external: Agente externo con token. Actor agent:<nombre>:<sesión>.
   agent_run: Ejecución de un agente lanzada por DEMIURGO. Actor agent:run:<id>.
   system: Componente del sistema. Actor system:<componente>@<versión>.
 
 # decisivo: el comando alcanza un estado de autoridad (I1). Solo lo puede ejecutar una persona.
-comandos:
-  project.create: { entidad: project, permitido: [human, system], decisivo: false, descripcion: "Crear un proyecto." }
-  project.archive: { entidad: project, permitido: [human], decisivo: false, descripcion: "Archivar un proyecto en lugar de borrarlo." }
+commands:
+  project.create: { entity: project, allowed: [human, system], decisive: false, description: "Crear un proyecto." }
+  project.archive: { entity: project, allowed: [human], decisive: false, description: "Archivar un proyecto en lugar de borrarlo." }
 
-  agent_token.issue: { entidad: agent_token, permitido: [human], decisivo: false, descripcion: "Emitir un token para un agente externo con su nombre." }
-  agent_token.revoke: { entidad: agent_token, permitido: [human], decisivo: false, descripcion: "Revocar el token de un agente externo." }
+  agent_token.issue: { entity: agent_token, allowed: [human], decisive: false, description: "Emitir un token para un agente externo con su nombre." }
+  agent_token.revoke: { entity: agent_token, allowed: [human], decisive: false, description: "Revocar el token de un agente externo." }
 
-  exploration.open: { entidad: exploration, permitido: [human], decisivo: false, descripcion: "Abrir una exploración con su propósito y su origen." }
-  exploration.conclude: { entidad: exploration, permitido: [human], decisivo: false, descripcion: "Dar por concluida una exploración." }
-  exploration.set_aside: { entidad: exploration, permitido: [human], decisivo: false, descripcion: "Apartar una exploración con un motivo." }
-  exploration.resume: { entidad: exploration, permitido: [human], decisivo: false, descripcion: "Retomar una exploración concluida o apartada." }
+  exploration.open: { entity: exploration, allowed: [human], decisive: false, description: "Abrir una exploración con su propósito y su origen." }
+  exploration.conclude: { entity: exploration, allowed: [human], decisive: false, description: "Dar por concluida una exploración." }
+  exploration.set_aside: { entity: exploration, allowed: [human], decisive: false, description: "Apartar una exploración con un motivo." }
+  exploration.resume: { entity: exploration, allowed: [human], decisive: false, description: "Retomar una exploración concluida o apartada." }
 
-  message.post: { entidad: message, permitido: [human, agent_external, agent_run], decisivo: false, descripcion: "Publicar un mensaje en un hilo con el actor como autor." }
-  source.register: { entidad: source, permitido: [human, agent_external], decisivo: false, descripcion: "Registrar una fuente como entrada no confiable." }
+  message.post: { entity: message, allowed: [human, agent_external, agent_run], decisive: false, description: "Publicar un mensaje en un hilo con el actor como autor." }
+  source.register: { entity: source, allowed: [human, agent_external], decisive: false, description: "Registrar una fuente como entrada no confiable." }
 
-  question.raise: { entidad: question, permitido: [human, system], decisivo: false, descripcion: "Plantear una pregunta en una exploración (las del agente las plantea el sistema desde su salida validada)." }
-  question.infer: { entidad: question, permitido: [system], decisivo: false, descripcion: "Marcar una pregunta como inferida a partir de la salida de un agente." }
-  question.confirm: { entidad: question, permitido: [human], decisivo: true, descripcion: "Confirmar una pregunta con su conclusión." }
-  question.postpone: { entidad: question, permitido: [human], decisivo: false, descripcion: "Posponer una pregunta con un motivo." }
-  question.discard: { entidad: question, permitido: [human], decisivo: false, descripcion: "Descartar una pregunta con un motivo." }
-  question.reopen: { entidad: question, permitido: [human], decisivo: false, descripcion: "Reabrir una pregunta conservando su historial." }
+  question.raise: { entity: question, allowed: [human, system], decisive: false, description: "Plantear una pregunta en una exploración (las del agente las plantea el sistema desde su salida validada)." }
+  question.infer: { entity: question, allowed: [system], decisive: false, description: "Marcar una pregunta como inferida a partir de la salida de un agente." }
+  question.confirm: { entity: question, allowed: [human], decisive: true, description: "Confirmar una pregunta con su conclusión." }
+  question.postpone: { entity: question, allowed: [human], decisive: false, description: "Posponer una pregunta con un motivo." }
+  question.discard: { entity: question, allowed: [human], decisive: false, description: "Descartar una pregunta con un motivo." }
+  question.reopen: { entity: question, allowed: [human], decisive: false, description: "Reabrir una pregunta conservando su historial." }
 
-  record.create: { entidad: record, permitido: [human], decisivo: false, descripcion: "Crear un registro (decisión, FDR, ADR o bug) con su versión 1 en borrador." }
-  record_version.create: { entidad: record_version, permitido: [human], decisivo: false, descripcion: "Crear una versión nueva con arrastre explícito de sus criterios." }
-  record_version.approve: { entidad: record_version, permitido: [human], decisivo: true, descripcion: "Aprobar una versión sin crear otra." }
-  record_version.supersede: { entidad: record_version, permitido: [system], decisivo: false, descripcion: "Marcar como sustituida la versión aprobada anterior." }
-  record_version.discard: { entidad: record_version, permitido: [human], decisivo: false, descripcion: "Descartar una versión en borrador." }
-  criterion.record: { entidad: criterion, permitido: [human], decisivo: false, descripcion: "Registrar un criterio de aceptación dentro de una versión." }
+  record.create: { entity: record, allowed: [human], decisive: false, description: "Crear un registro (decisión, FDR, ADR o bug) con su versión 1 en borrador." }
+  record_version.create: { entity: record_version, allowed: [human], decisive: false, description: "Crear una versión nueva con arrastre explícito de sus criterios." }
+  record_version.approve: { entity: record_version, allowed: [human], decisive: true, description: "Aprobar una versión sin crear otra." }
+  record_version.supersede: { entity: record_version, allowed: [system], decisive: false, description: "Marcar como sustituida la versión aprobada anterior." }
+  record_version.discard: { entity: record_version, allowed: [human], decisive: false, description: "Descartar una versión en borrador." }
+  criterion.record: { entity: criterion, allowed: [human], decisive: false, description: "Registrar un criterio de aceptación dentro de una versión." }
 
-  link.create: { entidad: link, permitido: [human], decisivo: false, descripcion: "Crear un enlace tipado entre versiones." }
-  link.flag_review: { entidad: link, permitido: [system], decisivo: false, descripcion: "Marcar un enlace como pendiente de revisión." }
-  link.keep: { entidad: link, permitido: [human], decisivo: false, descripcion: "Mantener un enlace revisado." }
-  link.change: { entidad: link, permitido: [human], decisivo: false, descripcion: "Dar por cambiado un enlace revisado." }
-  link.obsolete: { entidad: link, permitido: [human], decisivo: false, descripcion: "Dar por obsoleto un enlace revisado." }
+  link.create: { entity: link, allowed: [human], decisive: false, description: "Crear un enlace tipado entre versiones." }
+  link.flag_review: { entity: link, allowed: [system], decisive: false, description: "Marcar un enlace como pendiente de revisión." }
+  link.keep: { entity: link, allowed: [human], decisive: false, description: "Mantener un enlace revisado." }
+  link.change: { entity: link, allowed: [human], decisive: false, description: "Dar por cambiado un enlace revisado." }
+  link.obsolete: { entity: link, allowed: [human], decisive: false, description: "Dar por obsoleto un enlace revisado." }
 
-  batch.submit: { entidad: batch, permitido: [agent_run, agent_external, system], decisivo: false, descripcion: "Enviar un lote de propuestas." }
-  design.import: { entidad: batch, permitido: [human, system], decisivo: false, descripcion: "Importar design/ como lote pendiente." }
-  batch.accept_package: { entidad: batch, permitido: [human], decisivo: true, descripcion: "Aceptar en un paso un paquete coherente del sistema." }
-  batch.reject_package: { entidad: batch, permitido: [human], decisivo: false, descripcion: "Rechazar un paquete completo." }
-  batch.close: { entidad: batch, permitido: [system], decisivo: false, descripcion: "Cerrar un lote cuando todos sus elementos están resueltos." }
-  batch.supersede: { entidad: batch, permitido: [system], decisivo: false, descripcion: "Dejar obsoleto un lote pendiente." }
+  batch.submit: { entity: batch, allowed: [agent_run, agent_external, system], decisive: false, description: "Enviar un lote de propuestas." }
+  design.import: { entity: batch, allowed: [human, system], decisive: false, description: "Importar design/ como lote pendiente." }
+  batch.accept_package: { entity: batch, allowed: [human], decisive: true, description: "Aceptar en un paso un paquete coherente del sistema." }
+  batch.reject_package: { entity: batch, allowed: [human], decisive: false, description: "Rechazar un paquete completo." }
+  batch.close: { entity: batch, allowed: [system], decisive: false, description: "Cerrar un lote cuando todos sus elementos están resueltos." }
+  batch.supersede: { entity: batch, allowed: [system], decisive: false, description: "Dejar obsoleto un lote pendiente." }
 
-  proposal.create: { entidad: proposal, permitido: [agent_run, agent_external, system], decisivo: false, descripcion: "Crear una propuesta dentro de un lote." }
-  proposal.accept: { entidad: proposal, permitido: [human], decisivo: true, descripcion: "Aceptar una propuesta." }
-  proposal.accept_edited: { entidad: proposal, permitido: [human], decisivo: true, descripcion: "Aceptar una propuesta con cambios de la persona." }
-  proposal.reject: { entidad: proposal, permitido: [human], decisivo: false, descripcion: "Rechazar una propuesta con un motivo opcional." }
-  proposal.supersede: { entidad: proposal, permitido: [system], decisivo: false, descripcion: "Dejar obsoleta una propuesta pendiente." }
+  proposal.create: { entity: proposal, allowed: [agent_run, agent_external, system], decisive: false, description: "Crear una propuesta dentro de un lote." }
+  proposal.accept: { entity: proposal, allowed: [human], decisive: true, description: "Aceptar una propuesta." }
+  proposal.accept_edited: { entity: proposal, allowed: [human], decisive: true, description: "Aceptar una propuesta con cambios de la persona." }
+  proposal.reject: { entity: proposal, allowed: [human], decisive: false, description: "Rechazar una propuesta con un motivo opcional." }
+  proposal.supersede: { entity: proposal, allowed: [system], decisive: false, description: "Dejar obsoleta una propuesta pendiente." }
 
-  run.request: { entidad: ai_run, permitido: [human, system], decisivo: false, descripcion: "Solicitar una ejecución de un agente." }
-  run.retry: { entidad: ai_run, permitido: [human], decisivo: false, descripcion: "Reintentar una ejecución terminada con el mismo context pack." }
-  run.begin: { entidad: ai_run, permitido: [system], decisivo: false, descripcion: "Empezar una ejecución encolada." }
-  run.complete: { entidad: ai_run, permitido: [system], decisivo: false, descripcion: "Completar una ejecución con salida válida." }
-  run.fail: { entidad: ai_run, permitido: [system], decisivo: false, descripcion: "Dar por fallida una ejecución con su failure_kind." }
-  run.cancel: { entidad: ai_run, permitido: [human], decisivo: false, descripcion: "Cancelar una ejecución encolada o en curso." }
-  run.interrupt: { entidad: ai_run, permitido: [system], decisivo: false, descripcion: "Marcar como interrumpida una ejecución irrecuperable." }
+  run.request: { entity: ai_run, allowed: [human, system], decisive: false, description: "Solicitar una ejecución de un agente." }
+  run.retry: { entity: ai_run, allowed: [human], decisive: false, description: "Reintentar una ejecución terminada con el mismo context pack." }
+  run.begin: { entity: ai_run, allowed: [system], decisive: false, description: "Empezar una ejecución encolada." }
+  run.complete: { entity: ai_run, allowed: [system], decisive: false, description: "Completar una ejecución con salida válida." }
+  run.fail: { entity: ai_run, allowed: [system], decisive: false, description: "Dar por fallida una ejecución con su failure_kind." }
+  run.cancel: { entity: ai_run, allowed: [human], decisive: false, description: "Cancelar una ejecución encolada o en curso." }
+  run.interrupt: { entity: ai_run, allowed: [system], decisive: false, description: "Marcar como interrumpida una ejecución irrecuperable." }
 
-  context_pack.build: { entidad: context_pack, permitido: [system], decisivo: false, descripcion: "Construir y guardar un context pack inmutable." }
+  context_pack.build: { entity: context_pack, allowed: [system], decisive: false, description: "Construir y guardar un context pack inmutable." }
 
-  taxonomy.propose: { entidad: taxonomy, permitido: [human], decisivo: false, descripcion: "Proponer una versión de la taxonomía." }
-  taxonomy.approve: { entidad: taxonomy, permitido: [human], decisivo: true, descripcion: "Aprobar una versión de la taxonomía." }
-  taxonomy.supersede: { entidad: taxonomy, permitido: [system], decisivo: false, descripcion: "Marcar como sustituida la taxonomía aprobada anterior." }
+  taxonomy.propose: { entity: taxonomy, allowed: [human], decisive: false, description: "Proponer una versión de la taxonomía." }
+  taxonomy.approve: { entity: taxonomy, allowed: [human], decisive: true, description: "Aprobar una versión de la taxonomía." }
+  taxonomy.supersede: { entity: taxonomy, allowed: [system], decisive: false, description: "Marcar como sustituida la taxonomía aprobada anterior." }
 
-  classification.record: { entidad: classification, permitido: [system], decisivo: false, descripcion: "Guardar una clasificación con confianza suficiente." }
-  classification.hold: { entidad: classification, permitido: [system], decisivo: false, descripcion: "Guardar una clasificación de confianza baja pendiente de la persona." }
-  classification.resolve: { entidad: classification, permitido: [human], decisivo: false, descripcion: "Resolver una clasificación pendiente." }
+  classification.record: { entity: classification, allowed: [system], decisive: false, description: "Guardar una clasificación con confianza suficiente." }
+  classification.hold: { entity: classification, allowed: [system], decisive: false, description: "Guardar una clasificación de confianza baja pendiente de la persona." }
+  classification.resolve: { entity: classification, allowed: [human], decisive: false, description: "Resolver una clasificación pendiente." }
 
-  knowledge_update.enqueue: { entidad: knowledge_update, permitido: [system], decisivo: false, descripcion: "Encolar «Actualizar conocimiento» tras un evento de autoridad." }
-  knowledge_update.classify: { entidad: knowledge_update, permitido: [system], decisivo: false, descripcion: "Pasar a clasificar los candidatos." }
-  knowledge_update.verify: { entidad: knowledge_update, permitido: [system], decisivo: false, descripcion: "Pasar a verificar los veredictos." }
-  knowledge_update.apply: { entidad: knowledge_update, permitido: [system], decisivo: false, descripcion: "Aplicar al grafo un update verificado." }
-  knowledge_update.reject: { entidad: knowledge_update, permitido: [system], decisivo: false, descripcion: "Rechazar un update sin efectos." }
-  knowledge_update.retry: { entidad: knowledge_update, permitido: [human], decisivo: false, descripcion: "Volver a encolar un update rechazado." }
+  knowledge_update.enqueue: { entity: knowledge_update, allowed: [system], decisive: false, description: "Encolar «Actualizar conocimiento» tras un evento de autoridad." }
+  knowledge_update.classify: { entity: knowledge_update, allowed: [system], decisive: false, description: "Pasar a clasificar los candidatos." }
+  knowledge_update.verify: { entity: knowledge_update, allowed: [system], decisive: false, description: "Pasar a verificar los veredictos." }
+  knowledge_update.apply: { entity: knowledge_update, allowed: [system], decisive: false, description: "Aplicar al grafo un update verificado." }
+  knowledge_update.reject: { entity: knowledge_update, allowed: [system], decisive: false, description: "Rechazar un update sin efectos." }
+  knowledge_update.retry: { entity: knowledge_update, allowed: [human], decisive: false, description: "Volver a encolar un update rechazado." }
 
-  knowledge_node.project: { entidad: knowledge_node, permitido: [system], decisivo: false, descripcion: "Proyectar un nodo de conocimiento derivado, dentro de un update verificado." }
-  knowledge_node.invalidate: { entidad: knowledge_node, permitido: [system], decisivo: false, descripcion: "Invalidar un nodo derivado (valid_to), nunca borrarlo." }
-  knowledge_edge.project: { entidad: knowledge_edge, permitido: [system], decisivo: false, descripcion: "Proyectar una arista de conocimiento derivado, dentro de un update verificado." }
-  knowledge_edge.invalidate: { entidad: knowledge_edge, permitido: [system], decisivo: false, descripcion: "Invalidar una arista derivada (valid_to), nunca borrarla." }
+  knowledge_node.project: { entity: knowledge_node, allowed: [system], decisive: false, description: "Proyectar un nodo de conocimiento derivado, dentro de un update verificado." }
+  knowledge_node.invalidate: { entity: knowledge_node, allowed: [system], decisive: false, description: "Invalidar un nodo derivado (valid_to), nunca borrarlo." }
+  knowledge_edge.project: { entity: knowledge_edge, allowed: [system], decisive: false, description: "Proyectar una arista de conocimiento derivado, dentro de un update verificado." }
+  knowledge_edge.invalidate: { entity: knowledge_edge, allowed: [system], decisive: false, description: "Invalidar una arista derivada (valid_to), nunca borrarla." }
 
-  idea_assessment.record: { entidad: idea_assessment, permitido: [system], decisivo: false, descripcion: "Guardar la evaluación de una idea frente al conocimiento." }
+  idea_assessment.record: { entity: idea_assessment, allowed: [system], decisive: false, description: "Guardar la evaluación de una idea frente al conocimiento." }
 
   # Pilar 2: diseñado desde S0, implementado desde S3.
-  change_set.propose: { entidad: change_set, permitido: [system], decisivo: false, descripcion: "Proponer un Change Set desde una FDR lista." }
-  change_set.accept_scope: { entidad: change_set, permitido: [human], decisivo: true, descripcion: "Aceptar el alcance de un Change Set." }
-  change_set.start: { entidad: change_set, permitido: [system], decisivo: false, descripcion: "Empezar la implementación." }
-  change_set.submit_review: { entidad: change_set, permitido: [system], decisivo: false, descripcion: "Pasar a revisión con los gates en verde." }
-  change_set.accept: { entidad: change_set, permitido: [human], decisivo: true, descripcion: "Aceptar el resultado." }
-  change_set.request_changes: { entidad: change_set, permitido: [human], decisivo: false, descripcion: "Pedir cambios desde la revisión." }
-  change_set.block: { entidad: change_set, permitido: [system], decisivo: false, descripcion: "Bloquear el Change Set." }
-  change_set.unblock: { entidad: change_set, permitido: [human], decisivo: false, descripcion: "Desbloquear el Change Set." }
-  change_set.pause: { entidad: change_set, permitido: [system], decisivo: false, descripcion: "Pausar porque cambió una versión del alcance." }
-  change_set.resume_scope: { entidad: change_set, permitido: [human], decisivo: true, descripcion: "Volver a aceptar el alcance tras una pausa." }
-  change_set.cancel: { entidad: change_set, permitido: [human], decisivo: false, descripcion: "Cancelar el Change Set." }
-  task.create: { entidad: task, permitido: [system], decisivo: false, descripcion: "Crear una tarea que cubre al menos un AC." }
-  task.advance: { entidad: task, permitido: [system], decisivo: false, descripcion: "Avanzar la tarea al siguiente paso del ciclo." }
-  task.pass: { entidad: task, permitido: [system], decisivo: false, descripcion: "Dar la tarea por superada con los gates en verde." }
-  task.return: { entidad: task, permitido: [system], decisivo: false, descripcion: "Devolver la tarea al implementador con la evidencia del KO." }
-  task.block: { entidad: task, permitido: [system], decisivo: false, descripcion: "Bloquear la tarea tras agotar los intentos." }
-  task.retry: { entidad: task, permitido: [human], decisivo: false, descripcion: "Reintentar una tarea bloqueada." }
-  task.clarify: { entidad: task, permitido: [human], decisivo: false, descripcion: "Aclarar una tarea bloqueada y reintentarla." }
-  acceptance_map.accept: { entidad: acceptance_check, permitido: [human], decisivo: true, descripcion: "Aceptar el mapa AC → comprobación → prueba." }
-  acceptance_check.propose: { entidad: acceptance_check, permitido: [system], decisivo: false, descripcion: "Proponer la prueba de un AC." }
-  acceptance_check.freeze: { entidad: acceptance_check, permitido: [system], decisivo: false, descripcion: "Congelar una prueba por hash." }
-  work_step.enqueue: { entidad: work_step, permitido: [system], decisivo: false, descripcion: "Encolar un paso de trabajo con su clave de idempotencia." }
-  work_step.begin: { entidad: work_step, permitido: [system], decisivo: false, descripcion: "Empezar un paso de trabajo." }
-  work_step.succeed: { entidad: work_step, permitido: [system], decisivo: false, descripcion: "Dar por terminado un paso de trabajo." }
-  work_step.fail: { entidad: work_step, permitido: [system], decisivo: false, descripcion: "Dar por fallido un paso de trabajo con su failure_kind." }
-  work_step.cancel: { entidad: work_step, permitido: [system], decisivo: false, descripcion: "Cancelar un paso de trabajo." }
-  evidence.record: { entidad: evidence, permitido: [system], decisivo: false, descripcion: "Registrar evidencia de un gate del sistema." }
-  evidence.record_manual: { entidad: evidence, permitido: [human], decisivo: false, descripcion: "Registrar evidencia humana de un AC manual." }
+  change_set.propose: { entity: change_set, allowed: [system], decisive: false, description: "Proponer un Change Set desde una FDR lista." }
+  change_set.accept_scope: { entity: change_set, allowed: [human], decisive: true, description: "Aceptar el alcance de un Change Set." }
+  change_set.start: { entity: change_set, allowed: [system], decisive: false, description: "Empezar la implementación." }
+  change_set.submit_review: { entity: change_set, allowed: [system], decisive: false, description: "Pasar a revisión con los gates en verde." }
+  change_set.accept: { entity: change_set, allowed: [human], decisive: true, description: "Aceptar el resultado." }
+  change_set.request_changes: { entity: change_set, allowed: [human], decisive: false, description: "Pedir cambios desde la revisión." }
+  change_set.block: { entity: change_set, allowed: [system], decisive: false, description: "Bloquear el Change Set." }
+  change_set.unblock: { entity: change_set, allowed: [human], decisive: false, description: "Desbloquear el Change Set." }
+  change_set.pause: { entity: change_set, allowed: [system], decisive: false, description: "Pausar porque cambió una versión del alcance." }
+  change_set.resume_scope: { entity: change_set, allowed: [human], decisive: true, description: "Volver a aceptar el alcance tras una pausa." }
+  change_set.cancel: { entity: change_set, allowed: [human], decisive: false, description: "Cancelar el Change Set." }
+  task.create: { entity: task, allowed: [system], decisive: false, description: "Crear una tarea que cubre al menos un AC." }
+  task.advance: { entity: task, allowed: [system], decisive: false, description: "Avanzar la tarea al siguiente paso del ciclo." }
+  task.pass: { entity: task, allowed: [system], decisive: false, description: "Dar la tarea por superada con los gates en verde." }
+  task.return: { entity: task, allowed: [system], decisive: false, description: "Devolver la tarea al implementador con la evidencia del KO." }
+  task.block: { entity: task, allowed: [system], decisive: false, description: "Bloquear la tarea tras agotar los intentos." }
+  task.retry: { entity: task, allowed: [human], decisive: false, description: "Reintentar una tarea bloqueada." }
+  task.clarify: { entity: task, allowed: [human], decisive: false, description: "Aclarar una tarea bloqueada y reintentarla." }
+  acceptance_map.accept: { entity: acceptance_check, allowed: [human], decisive: true, description: "Aceptar el mapa AC → comprobación → prueba." }
+  acceptance_check.propose: { entity: acceptance_check, allowed: [system], decisive: false, description: "Proponer la prueba de un AC." }
+  acceptance_check.freeze: { entity: acceptance_check, allowed: [system], decisive: false, description: "Congelar una prueba por hash." }
+  work_step.enqueue: { entity: work_step, allowed: [system], decisive: false, description: "Encolar un paso de trabajo con su clave de idempotencia." }
+  work_step.begin: { entity: work_step, allowed: [system], decisive: false, description: "Empezar un paso de trabajo." }
+  work_step.succeed: { entity: work_step, allowed: [system], decisive: false, description: "Dar por terminado un paso de trabajo." }
+  work_step.fail: { entity: work_step, allowed: [system], decisive: false, description: "Dar por fallido un paso de trabajo con su failure_kind." }
+  work_step.cancel: { entity: work_step, allowed: [system], decisive: false, description: "Cancelar un paso de trabajo." }
+  evidence.record: { entity: evidence, allowed: [system], decisive: false, description: "Registrar evidencia de un gate del sistema." }
+  evidence.record_manual: { entity: evidence, allowed: [human], decisive: false, description: "Registrar evidencia humana de un AC manual." }
 
 # Consultas: lectura. El agente externo solo puede leer, conversar, registrar fuentes y proponer.
-consultas:
-  query.projects: { permitido: [human], descripcion: "Listar proyectos." }
-  query.state: { permitido: [human, agent_external], descripcion: "Estado del producto." }
-  query.inbox: { permitido: [human, agent_external], descripcion: "Bandeja de propuestas y pendientes." }
-  query.explorations: { permitido: [human, agent_external], descripcion: "Exploraciones, hilos y preguntas." }
-  query.records: { permitido: [human, agent_external], descripcion: "Registros, versiones, criterios, enlaces y readiness." }
-  query.batches: { permitido: [human, agent_external], descripcion: "Lotes y propuestas." }
-  query.runs: { permitido: [human, agent_external], descripcion: "Ejecuciones y sus context packs." }
-  query.knowledge: { permitido: [human, agent_external], descripcion: "Conocimiento derivado, frescura y búsqueda." }
-  query.events: { permitido: [human, agent_external], descripcion: "Diario de eventos y flujo SSE." }
-  query.tables: { permitido: [human, agent_external], descripcion: "Tablas de capacidades y transiciones." }
-  query.tokens: { permitido: [human], descripcion: "Tokens de agentes del proyecto." }
+queries:
+  query.projects: { allowed: [human], description: "Listar proyectos." }
+  query.state: { allowed: [human, agent_external], description: "Estado del producto." }
+  query.inbox: { allowed: [human, agent_external], description: "Bandeja de propuestas y pendientes." }
+  query.explorations: { allowed: [human, agent_external], description: "Exploraciones, hilos y preguntas." }
+  query.records: { allowed: [human, agent_external], description: "Registros, versiones, criterios, enlaces y readiness." }
+  query.batches: { allowed: [human, agent_external], description: "Lotes y propuestas." }
+  query.runs: { allowed: [human, agent_external], description: "Ejecuciones y sus context packs." }
+  query.knowledge: { allowed: [human, agent_external], description: "Conocimiento derivado, frescura y búsqueda." }
+  query.events: { allowed: [human, agent_external], description: "Diario de eventos y flujo SSE." }
+  query.tables: { allowed: [human, agent_external], description: "Tablas de capacidades y transiciones." }
+  query.tokens: { allowed: [human], description: "Tokens de agentes del proyecto." }

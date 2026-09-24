@@ -1,21 +1,21 @@
 // Reacciones a los eventos de autoridad (aprobar una versión, aceptar una propuesta, aprobar
 // la taxonomía). S2 registra aquí el encolado de «Actualizar conocimiento» (§7.3).
 
-import type { ContextoComando } from '../bus/tipos.ts';
+import type { CommandContext } from '../bus/types.ts';
 
-export type ObjetoDeAutoridad = { tipo: string; id: string; version: number | null };
+export type AuthorityObject = { type: string; id: string; version: number | null };
 
 /** Descartar un borrador: retira del conocimiento lo que había proyectado (no es autoridad, pero la cambia). */
-export const DISPARO_DESCARTE = 'record_version_discard';
-export type Reaccion = (ctx: ContextoComando, objeto: ObjetoDeAutoridad) => Promise<void>;
+export const DISCARD_TRIGGER = 'record_version_discard';
+export type Reaction = (ctx: CommandContext, object: AuthorityObject) => Promise<void>;
 
-const REACCIONES: Reaccion[] = [];
+const REACTIONS: Reaction[] = [];
 
-export function registrarReaccionDeAutoridad(r: Reaccion): void {
-  REACCIONES.push(r);
+export function registerAuthorityReaction(r: Reaction): void {
+  REACTIONS.push(r);
 }
 
 /** Se llama dentro de la transacción del comando decisivo, después de aplicar su efecto. */
-export async function alEventoDeAutoridad(ctx: ContextoComando, objeto: ObjetoDeAutoridad): Promise<void> {
-  for (const r of REACCIONES) await r(ctx, objeto);
+export async function onAuthorityEvent(ctx: CommandContext, object: AuthorityObject): Promise<void> {
+  for (const r of REACTIONS) await r(ctx, object);
 }

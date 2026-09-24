@@ -7,170 +7,170 @@
 
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { validarArbol } from './arbol.ts';
-import { RUTA_MODULO_TABLAS, generarModuloTablas } from './deriva.ts';
-import { leerArbol } from './disco.ts';
-import { normalizarEspacios, parsearDocumento, renderizarDocumento } from './formato.ts';
-import { README_DISENO } from './readme.ts';
-import { casosDeJUnit, codigosCitados, informeCompleto, mapaTrazabilidad } from './trazabilidad.ts';
+import { validateTree } from './tree.ts';
+import { TABLES_MODULE_PATH, generateTablesModule } from './derive.ts';
+import { readTree } from './disk.ts';
+import { normalizeWhitespace, parseDocument, renderDocument } from './format.ts';
+import { README_DESIGN } from './readme.ts';
+import { casesFromJUnit, citedCodes, completeReport, traceabilityMap } from './traceability.ts';
 
-const [orden, ...args] = process.argv.slice(2);
+const [command, ...args] = process.argv.slice(2);
 const DIR = args.find((a) => !a.startsWith('--')) ?? 'design';
 
-async function validar(): Promise<number> {
-  const informe = validarArbol(await leerArbol(DIR));
-  if (informe.problemas.length > 0) {
-    for (const p of informe.problemas) console.error(`✗ ${p.ruta}: ${p.mensaje}`);
-    console.error(`\n${informe.problemas.length} problema(s) en ${DIR}/.`);
+async function validate(): Promise<number> {
+  const report = validateTree(await readTree(DIR));
+  if (report.problems.length > 0) {
+    for (const p of report.problems) console.error(`✗ ${p.path}: ${p.message}`);
+    console.error(`\n${report.problems.length} problema(s) en ${DIR}/.`);
     return 1;
   }
-  const acs = informe.registros.reduce((n, r) => n + r.criterios.length, 0);
+  const acs = report.records.reduce((n, r) => n + r.criteria.length, 0);
   console.log(
-    `✓ ${DIR}/ válido: ${informe.registros.length} registros, ${acs} criterios, ${informe.taxonomias.length} taxonomía(s), ${informe.anexos.size} anexo(s).`,
+    `✓ ${DIR}/ válido: ${report.records.length} registros, ${acs} criterios, ${report.taxonomies.length} taxonomía(s), ${report.annexes.size} anexo(s).`,
   );
   return 0;
 }
 
-async function canonizar(): Promise<number> {
-  const arbol = await leerArbol(DIR);
+async function canonicalize(): Promise<number> {
+  const tree = await readTree(DIR);
   let n = 0;
-  let codigo = 0;
-  for (const [ruta, texto] of arbol) {
-    let canonico: string;
-    if (ruta.endsWith('.yaml')) {
+  let code = 0;
+  for (const [path, text] of tree) {
+    let canonical: string;
+    if (path.endsWith('.yaml')) {
       // En un anexo solo se arreglan los finales de línea y los espacios finales.
-      canonico = texto.replaceAll('\r\n', '\n').replace(/[^\S\n]+$/gm, '');
-    } else if (ruta.endsWith('.md') && ruta !== 'README.md') {
-      const r = parsearDocumento(normalizarEspacios(texto), ruta);
+      canonical = text.replaceAll('\r\n', '\n').replace(/[^\S\n]+$/gm, '');
+    } else if (path.endsWith('.md') && path !== 'README.md') {
+      const r = parseDocument(normalizeWhitespace(text), path);
       if (!r.ok) {
-        for (const p of r.problemas) console.error(`✗ ${p.ruta}: ${p.mensaje}`);
-        codigo = 1;
+        for (const p of r.problems) console.error(`✗ ${p.path}: ${p.message}`);
+        code = 1;
         continue;
       }
-      canonico = renderizarDocumento(r.valor);
+      canonical = renderDocument(r.value);
     } else {
       continue;
     }
-    if (canonico !== texto) {
-      await writeFile(join(DIR, ...ruta.split('/')), canonico, 'utf8');
+    if (canonical !== text) {
+      await writeFile(join(DIR, ...path.split('/')), canonical, 'utf8');
       n++;
     }
   }
-  await writeFile(join(DIR, 'README.md'), README_DISENO, 'utf8');
+  await writeFile(join(DIR, 'README.md'), README_DESIGN, 'utf8');
   console.log(`Reescritos ${n} archivo(s) y README.md.`);
-  return codigo;
+  return code;
 }
 
-async function derivar(): Promise<number> {
-  const cap = await readFile(join(DIR, 'datos', 'capacidades.yaml'), 'utf8');
-  const tra = await readFile(join(DIR, 'datos', 'transiciones.yaml'), 'utf8');
-  const generado = generarModuloTablas(cap, tra);
-  if (args.includes('--escribir')) {
-    await writeFile(RUTA_MODULO_TABLAS, generado, 'utf8');
-    console.log(`Escrito ${RUTA_MODULO_TABLAS}.`);
+async function derive(): Promise<number> {
+  const cap = await readFile(join(DIR, 'data', 'capabilities.yaml'), 'utf8');
+  const trans = await readFile(join(DIR, 'data', 'transitions.yaml'), 'utf8');
+  const generated = generateTablesModule(cap, trans);
+  if (args.includes('--write')) {
+    await writeFile(TABLES_MODULE_PATH, generated, 'utf8');
+    console.log(`Escrito ${TABLES_MODULE_PATH}.`);
     return 0;
   }
-  const actual = await readFile(RUTA_MODULO_TABLAS, 'utf8').catch(() => '');
-  if (actual !== generado) {
-    console.error(`✗ ${RUTA_MODULO_TABLAS} no coincide con design/datos/. Ejecuta «pnpm gen».`);
+  const cursor = await readFile(TABLES_MODULE_PATH, 'utf8').catch(() => '');
+  if (cursor !== generated) {
+    console.error(`✗ ${TABLES_MODULE_PATH} no coincide con design/data/. Ejecuta «pnpm gen».`);
     return 1;
   }
-  console.log('✓ Las tablas del dominio coinciden con design/datos/.');
+  console.log('✓ Las tablas del dominio coinciden con design/data/.');
   return 0;
 }
 
-const DIR_INFORMES = 'reports';
+const REPORTS_DIR = 'reports';
 
 /** Lee todos los `reports/junit-*.xml`: cada etapa de pruebas escribe el suyo. */
-async function informesJUnit(): Promise<Map<string, string>> {
-  const informes = new Map<string, string>();
-  const nombres = await readdir(DIR_INFORMES).catch(() => [] as string[]);
-  for (const nombre of nombres.filter((n) => /^junit-.+\.xml$/.test(n)).sort()) {
-    informes.set(`${DIR_INFORMES}/${nombre}`, await readFile(join(DIR_INFORMES, nombre), 'utf8'));
+async function junitReports(): Promise<Map<string, string>> {
+  const reports = new Map<string, string>();
+  const names = await readdir(REPORTS_DIR).catch(() => [] as string[]);
+  for (const name of names.filter((n) => /^junit-.+\.xml$/.test(n)).sort()) {
+    reports.set(`${REPORTS_DIR}/${name}`, await readFile(join(REPORTS_DIR, name), 'utf8'));
   }
-  return informes;
+  return reports;
 }
 
-async function trazabilidad(): Promise<number> {
-  const informe = validarArbol(await leerArbol(DIR));
-  if (informe.problemas.length > 0) {
+async function traceability(): Promise<number> {
+  const report = validateTree(await readTree(DIR));
+  if (report.problems.length > 0) {
     console.error(`✗ ${DIR}/ no es válido: ejecuta antes «pnpm gate:design».`);
     return 1;
   }
-  const informes = await informesJUnit();
-  if (informes.size === 0) {
+  const reports = await junitReports();
+  if (reports.size === 0) {
     console.error(
-      `✗ No hay informes JUnit en ${DIR_INFORMES}/ (junit-*.xml): ejecuta antes pnpm gate:test y pnpm gate:invariantes.`,
+      `✗ No hay informes JUnit en ${REPORTS_DIR}/ (junit-*.xml): ejecuta antes pnpm gate:test y pnpm gate:invariantes.`,
     );
     return 1;
   }
-  const incompletos = [...informes].filter(([, xml]) => !informeCompleto(xml)).map(([ruta]) => ruta);
-  if (incompletos.length > 0) {
-    for (const ruta of incompletos) console.error(`✗ ${ruta} está vacío o incompleto: vuelve a ejecutar sus pruebas.`);
+  const incomplete = [...reports].filter(([, xml]) => !completeReport(xml)).map(([path]) => path);
+  if (incomplete.length > 0) {
+    for (const path of incomplete) console.error(`✗ ${path} está vacío o incompleto: vuelve a ejecutar sus pruebas.`);
     return 1;
   }
-  const casos = [...informes.values()].flatMap(casosDeJUnit);
-  const raiz = JSON.parse(await readFile('package.json', 'utf8')) as { demiurgo?: { incrementosImplementados?: string[] } };
-  const implementados = raiz.demiurgo?.incrementosImplementados ?? [];
-  const mapa = mapaTrazabilidad(informe.registros, casos, implementados);
-  const pasadas = casos.filter((c) => c.resultado === 'pasada').length;
-  console.log(`Informes leídos: ${[...informes.keys()].join(', ')} (${casos.length} pruebas, ${pasadas} pasadas).`);
-  let codigo = 0;
-  for (const d of mapa.desconocidos) {
-    console.error(`✗ ${d.archivo}: la prueba «${d.prueba}» cita ${d.ac}, que no existe en ${DIR}/.`);
-    codigo = 1;
+  const cases = [...reports.values()].flatMap(casesFromJUnit);
+  const root = JSON.parse(await readFile('package.json', 'utf8')) as { demiurgo?: { implementedIncrements?: string[] } };
+  const implemented = root.demiurgo?.implementedIncrements ?? [];
+  const map = traceabilityMap(report.records, cases, implemented);
+  const passed = cases.filter((c) => c.result === 'passed').length;
+  console.log(`Informes leídos: ${[...reports.keys()].join(', ')} (${cases.length} pruebas, ${passed} pasadas).`);
+  let code = 0;
+  for (const d of map.unknown) {
+    console.error(`✗ ${d.file}: la prueba «${d.test}» cita ${d.ac}, que no existe en ${DIR}/.`);
+    code = 1;
   }
-  for (const s of mapa.sinPrueba) {
-    console.error(`✗ ${s.ac} (${s.registro}): criterio automático sin ninguna prueba pasada que empiece por su código.`);
-    codigo = 1;
+  for (const s of map.withoutTest) {
+    console.error(`✗ ${s.ac} (${s.record}): criterio automático sin ninguna prueba pasada que empiece por su código.`);
+    code = 1;
   }
-  if (codigo === 0) {
+  if (code === 0) {
     console.log(
-      `✓ Trazabilidad AC → prueba completa para ${implementados.join(', ') || '(ningún incremento)'}: ${mapa.pruebasPorAc.size} criterios con prueba pasada.`,
+      `✓ Trazabilidad AC → prueba completa para ${implemented.join(', ') || '(ningún incremento)'}: ${map.testsByAc.size} criterios con prueba pasada.`,
     );
   }
-  return codigo;
+  return code;
 }
 
 /** Tabla Markdown con el estado de cada AC: verde, rojo, manual o no implementado. */
-async function estadoAc(): Promise<number> {
-  const informe = validarArbol(await leerArbol(DIR));
-  const casos = [...(await informesJUnit()).values()].flatMap(casosDeJUnit);
-  const raiz = JSON.parse(await readFile('package.json', 'utf8')) as { demiurgo?: { incrementosImplementados?: string[] } };
-  const implementados = raiz.demiurgo?.incrementosImplementados ?? [];
-  const porAc = new Map<string, { pasadas: number; fallidas: number }>();
-  for (const c of casos) {
-    for (const ac of codigosCitados(c.nombre)) {
-      const e = porAc.get(ac) ?? { pasadas: 0, fallidas: 0 };
-      if (c.resultado === 'pasada') e.pasadas++;
-      if (c.resultado === 'fallida') e.fallidas++;
-      porAc.set(ac, e);
+async function acStatus(): Promise<number> {
+  const report = validateTree(await readTree(DIR));
+  const cases = [...(await junitReports()).values()].flatMap(casesFromJUnit);
+  const root = JSON.parse(await readFile('package.json', 'utf8')) as { demiurgo?: { implementedIncrements?: string[] } };
+  const implemented = root.demiurgo?.implementedIncrements ?? [];
+  const byAc = new Map<string, { passed: number; failed: number }>();
+  for (const c of cases) {
+    for (const ac of citedCodes(c.name)) {
+      const e = byAc.get(ac) ?? { passed: 0, failed: 0 };
+      if (c.result === 'passed') e.passed++;
+      if (c.result === 'failed') e.failed++;
+      byAc.set(ac, e);
     }
   }
-  const filas = ['| AC | Registro | Título | Verificación | Estado | Pruebas |', '|---|---|---|---|---|---|'];
-  for (const r of informe.registros) {
-    for (const c of r.criterios) {
-      const e = porAc.get(c.codigo) ?? { pasadas: 0, fallidas: 0 };
-      let estado: string;
-      if (c.verificacion === 'manual') estado = 'manual';
-      else if (!r.incremento || !implementados.includes(r.incremento)) estado = 'no implementado';
-      else if (e.fallidas > 0) estado = 'rojo';
-      else if (e.pasadas > 0) estado = 'verde';
-      else estado = 'rojo (sin prueba)';
-      filas.push(
-        `| ${c.codigo} | ${r.codigo} | ${c.titulo.replaceAll('|', '/')} | ${c.verificacion} | ${estado} | ${e.pasadas} pasadas${e.fallidas ? `, ${e.fallidas} fallidas` : ''} |`,
+  const rows = ['| AC | Registro | Título | Verificación | Estado | Pruebas |', '|---|---|---|---|---|---|'];
+  for (const r of report.records) {
+    for (const c of r.criteria) {
+      const e = byAc.get(c.code) ?? { passed: 0, failed: 0 };
+      let state: string;
+      if (c.verification === 'manual') state = 'manual';
+      else if (!r.increment || !implemented.includes(r.increment)) state = 'no implementado';
+      else if (e.failed > 0) state = 'red';
+      else if (e.passed > 0) state = 'green';
+      else state = 'rojo (sin prueba)';
+      rows.push(
+        `| ${c.code} | ${r.code} | ${c.title.replaceAll('|', '/')} | ${c.verification} | ${state} | ${e.passed} pasadas${e.failed ? `, ${e.failed} fallidas` : ''} |`,
       );
     }
   }
-  console.log(filas.join(String.fromCharCode(10)));
+  console.log(rows.join(String.fromCharCode(10)));
   return 0;
 }
 
-const ordenes: Record<string, () => Promise<number>> = { validar, canonizar, derivar, trazabilidad, 'estado-ac': estadoAc };
-const accion = orden ? ordenes[orden] : undefined;
-if (!accion) {
+const commands: Record<string, () => Promise<number>> = { validate, canonicalize, derive, traceability, 'ac-status': acStatus };
+const action = command ? commands[command] : undefined;
+if (!action) {
   console.error('Uso: cli.ts validar|canonizar|derivar|trazabilidad|estado-ac [dir] [--comprobar|--escribir]');
   process.exitCode = 2;
 } else {
-  process.exitCode = await accion();
+  process.exitCode = await action();
 }

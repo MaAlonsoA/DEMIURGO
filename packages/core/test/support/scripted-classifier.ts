@@ -1,39 +1,39 @@
 // Clasificador guionizado para las pruebas: delega en el simulado y permite forzar respuestas
 // por tarea (veredictos, categorías o ideas) y contar las llamadas.
 
-import type { Clasificador, ItemChoice, RespuestaChoice } from '@demiurgo/domain';
-import { crearClasificadorSimulado } from '../../src/clasificador/simulado.ts';
+import type { Classifier, ItemChoice, ChoiceResponse } from '@demiurgo/domain';
+import { createSimulatedClassifier } from '../../src/classifier/simulated.ts';
 
-type Tarea = 'veredicto' | 'categoria' | 'idea';
-type Guion = (items: readonly ItemChoice[], normal: RespuestaChoice[]) => RespuestaChoice[];
+type Task = 'verdict' | 'category' | 'idea';
+type Script = (items: readonly ItemChoice[], normalize: ChoiceResponse[]) => ChoiceResponse[];
 
-export type ClasificadorGuionizado = Clasificador & {
-  guiones: Partial<Record<Tarea, Guion>>;
-  llamadas: Record<Tarea | 'otra', number>;
-  reiniciar(): void;
+export type ScriptedClassifier = Classifier & {
+  scripts: Partial<Record<Task, Script>>;
+  calls: Record<Task | 'other', number>;
+  restart(): void;
 };
 
-const tareaDe = (i: ItemChoice): Tarea | 'otra' => {
-  const t = (i.estado as { tarea?: string }).tarea;
-  return t === 'veredicto' || t === 'categoria' || t === 'idea' ? t : 'otra';
+const taskOf = (i: ItemChoice): Task | 'other' => {
+  const t = (i.state as { task?: string }).task;
+  return t === 'verdict' || t === 'category' || t === 'idea' ? t : 'other';
 };
 
-export function crearClasificadorGuionizado(): ClasificadorGuionizado {
-  const base = crearClasificadorSimulado();
-  const c: ClasificadorGuionizado = {
+export function createScriptedClassifier(): ScriptedClassifier {
+  const base = createSimulatedClassifier();
+  const c: ScriptedClassifier = {
     id: 'guionizado@1',
-    guiones: {},
-    llamadas: { veredicto: 0, categoria: 0, idea: 0, otra: 0 },
-    reiniciar() {
-      c.guiones = {};
-      c.llamadas = { veredicto: 0, categoria: 0, idea: 0, otra: 0 };
+    scripts: {},
+    calls: { verdict: 0, category: 0, idea: 0, other: 0 },
+    restart() {
+      c.scripts = {};
+      c.calls = { verdict: 0, category: 0, idea: 0, other: 0 };
     },
     async choice(items) {
-      const tarea = items[0] ? tareaDe(items[0]) : 'otra';
-      c.llamadas[tarea] += 1;
-      const normales = await base.choice(items);
-      const guion = tarea === 'otra' ? undefined : c.guiones[tarea];
-      return guion ? guion(items, normales) : normales;
+      const task = items[0] ? taskOf(items[0]) : 'other';
+      c.calls[task] += 1;
+      const baseline = await base.choice(items);
+      const script = task === 'other' ? undefined : c.scripts[task];
+      return script ? script(items, baseline) : baseline;
     },
     score: (items) => base.score(items),
     noul: (items) => base.noul(items),
@@ -41,15 +41,15 @@ export function crearClasificadorGuionizado(): ClasificadorGuionizado {
   return c;
 }
 
-export const respuesta = (
+export const response = (
   id: string,
-  eleccion: string,
-  confianza: number,
-  justificacion = 'guion de prueba',
-): RespuestaChoice => ({
+  choice: string,
+  confidence: number,
+  justification = 'guion de prueba',
+): ChoiceResponse => ({
   id,
-  eleccion,
-  distribucion: { [eleccion]: confianza },
-  confianza,
-  justificacion,
+  choice,
+  distribution: { [choice]: confidence },
+  confidence,
+  justification,
 });

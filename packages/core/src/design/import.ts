@@ -5,99 +5,99 @@
 // «no hay nada que importar» equivale a «la exportación no tiene diff».
 
 import {
-  CARPETAS,
-  type DocumentoRegistro,
-  type DocumentoTaxonomia,
-  type InformeValidacion,
-  renderizarDocumento,
-  validarArbol,
+  FOLDERS,
+  type RecordDocument,
+  type TaxonomyDocument,
+  type ValidationReport,
+  renderDocument,
+  validateTree,
 } from '@demiurgo/design';
-import { CARGAS, ErrorDominio, formatearActor, huella, sistema } from '@demiurgo/domain';
+import { PAYLOADS, DomainError, formatActor, fingerprint, system } from '@demiurgo/domain';
 import { z } from 'zod';
-import { campo, registrarGuardas } from '../bus/guardas.ts';
-import { manejador, registrarManejadores } from '../bus/manejadores.ts';
-import type { ContextoComando } from '../bus/tipos.ts';
-import type { Tx } from '../db/conexion.ts';
-import { registrarAplicacion } from '../comandos/efectos.ts';
-import { derivacionDe, documentoDeTaxonomia, documentoDeVersion } from './exportar.ts';
+import { field, registerGuards } from '../bus/guards.ts';
+import { handler, registerHandlers } from '../bus/handlers.ts';
+import type { CommandContext } from '../bus/types.ts';
+import type { Tx } from '../db/connection.ts';
+import { registerApplication } from '../commands/effects.ts';
+import { derivationOf, taxonomyDocument, versionDocument } from './export.ts';
 
-export const IMPORTADOR = sistema('importador');
+export const IMPORTER = system('importer');
 
-const ESTADO_VERSION: Record<string, string> = { propuesto: 'draft', aprobado: 'approved' };
-const ESTADO_LEGIBLE: Record<string, string> = {
+const VERSION_STATE: Record<string, string> = { proposed: 'draft', approved: 'approved' };
+const READABLE_STATE: Record<string, string> = {
   draft: 'en borrador',
-  approved: 'aprobada',
-  superseded: 'sustituida',
-  discarded: 'descartada',
+  approved: 'approved',
+  superseded: 'superseded',
+  discarded: 'discarded',
 };
 
-export type DocumentoImportado = DocumentoRegistro & { anexosContenido: { ruta: string; contenido: string }[] };
+export type ImportedDocument = RecordDocument & { annexesContent: { path: string; content: string }[] };
 
 /** Orden topológico: los destinos de los enlaces y de «Deriva de» antes que quienes los citan. */
-function ordenar(registros: DocumentoRegistro[]): DocumentoRegistro[] {
-  const porCodigo = new Map(registros.map((r) => [r.codigo, r]));
-  const duenoDeAc = new Map(registros.flatMap((r) => r.criterios.map((c) => [c.codigo, r] as const)));
-  const hecho = new Set<string>();
-  const orden: DocumentoRegistro[] = [];
-  const visitar = (r: DocumentoRegistro, pila: Set<string>) => {
-    if (hecho.has(r.codigo) || pila.has(r.codigo)) return;
-    pila.add(r.codigo);
-    for (const e of r.enlaces) {
-      const d = porCodigo.get(e.destino.codigo);
-      if (d) visitar(d, pila);
+function sort(records: RecordDocument[]): RecordDocument[] {
+  const byCode = new Map(records.map((r) => [r.code, r]));
+  const acOwner = new Map(records.flatMap((r) => r.criteria.map((c) => [c.code, r] as const)));
+  const done = new Set<string>();
+  const command: RecordDocument[] = [];
+  const visit = (r: RecordDocument, stack: Set<string>) => {
+    if (done.has(r.code) || stack.has(r.code)) return;
+    stack.add(r.code);
+    for (const e of r.links) {
+      const d = byCode.get(e.target.code);
+      if (d) visit(d, stack);
     }
-    for (const c of r.criterios) {
-      const d = c.derivaDe ? duenoDeAc.get(c.derivaDe) : undefined;
-      if (d && d !== r) visitar(d, pila);
+    for (const c of r.criteria) {
+      const d = c.derivedFrom ? acOwner.get(c.derivedFrom) : undefined;
+      if (d && d !== r) visit(d, stack);
     }
-    hecho.add(r.codigo);
-    orden.push(r);
+    done.add(r.code);
+    command.push(r);
   };
-  for (const r of [...registros].sort((a, b) => (a.codigo < b.codigo ? -1 : 1))) visitar(r, new Set());
-  return orden;
+  for (const r of [...records].sort((a, b) => (a.code < b.code ? -1 : 1))) visit(r, new Set());
+  return command;
 }
 
-export type Recuentos = Record<
-  'decision' | 'adr' | 'fdr' | 'bug' | 'versiones' | 'criterios' | 'enlaces' | 'taxonomias' | 'anexos',
+export type Counts = Record<
+  'decision' | 'adr' | 'fdr' | 'bug' | 'versions' | 'criteria' | 'links' | 'taxonomies' | 'annexes',
   number
 >;
 
-export function recuentosDelArbol(registros: DocumentoRegistro[], taxonomias: DocumentoTaxonomia[]): Recuentos {
+export function treeCounts(records: RecordDocument[], taxonomies: TaxonomyDocument[]): Counts {
   return {
-    decision: registros.filter((r) => r.tipo === 'decision').length,
-    adr: registros.filter((r) => r.tipo === 'adr').length,
-    fdr: registros.filter((r) => r.tipo === 'fdr').length,
-    bug: registros.filter((r) => r.tipo === 'bug').length,
+    decision: records.filter((r) => r.type === 'decision').length,
+    adr: records.filter((r) => r.type === 'adr').length,
+    fdr: records.filter((r) => r.type === 'fdr').length,
+    bug: records.filter((r) => r.type === 'bug').length,
     // design/ guarda una versión por registro: la que está en curso.
-    versiones: registros.length,
-    criterios: registros.reduce((n, r) => n + r.criterios.length, 0),
-    enlaces: registros.reduce((n, r) => n + r.enlaces.length, 0),
-    taxonomias: taxonomias.length,
-    anexos: registros.reduce((n, r) => n + r.anexos.length, 0),
+    versions: records.length,
+    criteria: records.reduce((n, r) => n + r.criteria.length, 0),
+    links: records.reduce((n, r) => n + r.links.length, 0),
+    taxonomies: taxonomies.length,
+    annexes: records.reduce((n, r) => n + r.annexes.length, 0),
   };
 }
 
-registrarGuardas({
-  diseno_valido: ({ datos }) => {
-    const arbol = campo(datos, 'arbol') as Record<string, string> | undefined;
-    if (!arbol || typeof arbol !== 'object') return 'Falta el árbol de design/.';
-    const informe = validarArbol(new Map(Object.entries(arbol)));
-    if (informe.problemas.length === 0) return null;
-    return `design/ no es válido: ${informe.problemas
+registerGuards({
+  valid_design: ({ data }) => {
+    const tree = field(data, 'tree') as Record<string, string> | undefined;
+    if (!tree || typeof tree !== 'object') return 'Falta el árbol de design/.';
+    const report = validateTree(new Map(Object.entries(tree)));
+    if (report.problems.length === 0) return null;
+    return `design/ no es válido: ${report.problems
       .slice(0, 10)
-      .map((p) => `${p.ruta}: ${p.mensaje}`)
+      .map((p) => `${p.path}: ${p.message}`)
       .join(' · ')}`;
   },
 });
 
 /** El texto de una versión de la v2 con otro estado: sirve para comparar solo el contenido. */
-const contenidoDe = (doc: DocumentoRegistro | DocumentoTaxonomia) => renderizarDocumento({ ...doc, estado: 'propuesto' });
+const contentOf = (doc: RecordDocument | TaxonomyDocument) => renderDocument({ ...doc, state: 'proposed' });
 
-async function registroDe(trx: Tx, proyectoId: string, codigo: string) {
-  return trx.selectFrom('records').selectAll().where('project_id', '=', proyectoId).where('code', '=', codigo).executeTakeFirst();
+async function recordOf(trx: Tx, projectId: string, code: string) {
+  return trx.selectFrom('records').selectAll().where('project_id', '=', projectId).where('code', '=', code).executeTakeFirst();
 }
 
-async function ultimaVersion(trx: Tx, recordId: string): Promise<number> {
+async function latestVersion(trx: Tx, recordId: string): Promise<number> {
   const v = await trx
     .selectFrom('record_versions')
     .select('n')
@@ -108,7 +108,7 @@ async function ultimaVersion(trx: Tx, recordId: string): Promise<number> {
 }
 
 /** Versión aprobada (o ya sustituida) posterior a `n`: aprobar la `n` haría retroceder la vigente. */
-async function aprobadaPosterior(trx: Tx, recordId: string, n: number): Promise<number | null> {
+async function laterApproved(trx: Tx, recordId: string, n: number): Promise<number | null> {
   const v = await trx
     .selectFrom('record_versions')
     .select('n')
@@ -124,8 +124,8 @@ async function aprobadaPosterior(trx: Tx, recordId: string, n: number): Promise<
  * Problemas de los criterios de una versión nueva de un registro que ya está en la v2: un código
  * que ya se usó y ya no está (nunca se reutiliza) o un «Deriva de» distinto del que tenía el criterio.
  */
-async function problemasDeCriterios(trx: Tx, recordId: string, r: DocumentoRegistro, ruta: string): Promise<string[]> {
-  const problemas: string[] = [];
+async function criteriaProblems(trx: Tx, recordId: string, r: RecordDocument, path: string): Promise<string[]> {
+  const problems: string[] = [];
   const base = await trx
     .selectFrom('record_versions')
     .select('id')
@@ -133,10 +133,10 @@ async function problemasDeCriterios(trx: Tx, recordId: string, r: DocumentoRegis
     .where('state', '<>', 'discarded')
     .orderBy('n', 'desc')
     .executeTakeFirst();
-  const previos = base
+  const priors = base
     ? await trx.selectFrom('criteria').select(['id', 'code']).where('record_version_id', '=', base.id).execute()
     : [];
-  const usados = new Set(
+  const used = new Set(
     (
       await trx
         .selectFrom('criteria')
@@ -146,374 +146,374 @@ async function problemasDeCriterios(trx: Tx, recordId: string, r: DocumentoRegis
         .execute()
     ).map((c) => c.code),
   );
-  for (const c of r.criterios) {
-    const previo = previos.find((p) => p.code === c.codigo);
-    if (!previo) {
-      if (usados.has(c.codigo))
-        problemas.push(`${ruta}: ${c.codigo} ya se usó en una versión anterior; un criterio nuevo lleva un código nuevo.`);
+  for (const c of r.criteria) {
+    const existing = priors.find((p) => p.code === c.code);
+    if (!existing) {
+      if (used.has(c.code))
+        problems.push(`${path}: ${c.code} ya se usó en una versión anterior; un criterio nuevo lleva un código nuevo.`);
       continue;
     }
-    if ((await derivacionDe(trx, previo.id)) !== (c.derivaDe ?? null)) {
-      problemas.push(
-        `${ruta}: ${c.codigo} cambia su «Deriva de»; un criterio que se mantiene o se modifica conserva su derivación.`,
+    if ((await derivationOf(trx, existing.id)) !== (c.derivedFrom ?? null)) {
+      problems.push(
+        `${path}: ${c.code} cambia su «Deriva de»; un criterio que se mantiene o se modifica conserva su derivación.`,
       );
     }
   }
-  return problemas;
+  return problems;
 }
 
-type Plan = { propuestas: { tipo: string; carga: Record<string, unknown> }[]; problemas: string[] };
+type Plan = { proposals: { type: string; payload: Record<string, unknown> }[]; problems: string[] };
 
 /**
  * Qué proponer de cada documento según lo que ya hay en la v2: nada si coincide (contenido y
  * estado), la aprobación si solo cambia el estado de propuesto a aprobado, o una versión nueva.
  * Una versión que ya existe con otro contenido, o anterior a la última, es un problema.
  */
-async function planificar(ctx: ContextoComando, arbol: Map<string, string>, informe: InformeValidacion): Promise<Plan> {
-  const plan: Plan = { propuestas: [], problemas: [] };
-  const versionEnDiseno = new Map(informe.registros.map((r) => [r.codigo, r.version]));
-  for (const r of ordenar(informe.registros)) {
-    const ruta = `${CARPETAS[r.tipo]}/${r.codigo}.md`;
+async function buildPlan(ctx: CommandContext, tree: Map<string, string>, report: ValidationReport): Promise<Plan> {
+  const plan: Plan = { proposals: [], problems: [] };
+  const versionInDesign = new Map(report.records.map((r) => [r.code, r.version]));
+  for (const r of sort(report.records)) {
+    const path = `${FOLDERS[r.type]}/${r.code}.md`;
     // Un enlace a una versión anterior de su destino exige que esa versión ya esté en la v2.
-    for (const e of r.enlaces) {
-      if (e.destino.version >= (versionEnDiseno.get(e.destino.codigo) ?? 0)) continue;
-      const destino = await registroDe(ctx.trx, ctx.proyectoId, e.destino.codigo);
-      const existe =
-        destino &&
+    for (const e of r.links) {
+      if (e.target.version >= (versionInDesign.get(e.target.code) ?? 0)) continue;
+      const target = await recordOf(ctx.trx, ctx.projectId, e.target.code);
+      const exists =
+        target &&
         (await ctx.trx
           .selectFrom('record_versions')
           .select('id')
-          .where('record_id', '=', destino.id)
-          .where('n', '=', e.destino.version)
+          .where('record_id', '=', target.id)
+          .where('n', '=', e.target.version)
           .executeTakeFirst());
-      if (!existe) {
-        plan.problemas.push(
-          `${ruta}: el enlace a ${e.destino.codigo}@${e.destino.version} apunta a una versión que no está en design/ ni en la v2.`,
+      if (!exists) {
+        plan.problems.push(
+          `${path}: el enlace a ${e.target.code}@${e.target.version} apunta a una versión que no está en design/ ni en la v2.`,
         );
       }
     }
-    const documento: DocumentoImportado = {
+    const document: ImportedDocument = {
       ...r,
-      anexosContenido: r.anexos.map((a) => ({ ruta: a, contenido: arbol.get(a) ?? '' })),
+      annexesContent: r.annexes.map((a) => ({ path: a, content: tree.get(a) ?? '' })),
     };
-    const registro = await registroDe(ctx.trx, ctx.proyectoId, r.codigo);
-    if (registro) {
+    const record = await recordOf(ctx.trx, ctx.projectId, r.code);
+    if (record) {
       const v = await ctx.trx
         .selectFrom('record_versions')
         .selectAll()
-        .where('record_id', '=', registro.id)
+        .where('record_id', '=', record.id)
         .where('n', '=', r.version)
         .executeTakeFirst();
       if (v) {
-        const enLaV2 = await documentoDeVersion(ctx.trx, registro, v);
-        const anexosIguales = JSON.stringify(enLaV2.anexos) === JSON.stringify(documento.anexosContenido);
-        if (contenidoDe(enLaV2.doc) !== contenidoDe(r) || !anexosIguales) {
-          plan.problemas.push(
-            `${ruta}: la versión ${r.version} ya está en la v2 con otro contenido; sube la versión y añade nota_de_cambio.`,
+        const inV2 = await versionDocument(ctx.trx, record, v);
+        const annexesEqual = JSON.stringify(inV2.annexes) === JSON.stringify(document.annexesContent);
+        if (contentOf(inV2.doc) !== contentOf(r) || !annexesEqual) {
+          plan.problems.push(
+            `${path}: la versión ${r.version} ya está en la v2 con otro contenido; sube la versión y añade nota_de_cambio.`,
           );
           continue;
         }
-        if (v.state === ESTADO_VERSION[r.estado]) continue;
-        if (!(v.state === 'draft' && r.estado === 'aprobado')) {
-          plan.problemas.push(
-            `${ruta}: la versión ${r.version} está ${ESTADO_LEGIBLE[v.state] ?? v.state} en la v2 y no puede pasar a «${r.estado}».`,
+        if (v.state === VERSION_STATE[r.state]) continue;
+        if (!(v.state === 'draft' && r.state === 'approved')) {
+          plan.problems.push(
+            `${path}: la versión ${r.version} está ${READABLE_STATE[v.state] ?? v.state} en la v2 y no puede pasar a «${r.state}».`,
           );
           continue;
         }
-        const posterior = await aprobadaPosterior(ctx.trx, registro.id, r.version);
-        if (posterior !== null) {
-          plan.problemas.push(
-            `${ruta}: la v2 ya tiene aprobada la versión ${posterior}; la ${r.version} solo se puede descartar.`,
+        const later = await laterApproved(ctx.trx, record.id, r.version);
+        if (later !== null) {
+          plan.problems.push(
+            `${path}: la v2 ya tiene aprobada la versión ${later}; la ${r.version} solo se puede descartar.`,
           );
           continue;
         }
       } else {
-        const ultima = await ultimaVersion(ctx.trx, registro.id);
-        if (r.version < ultima) {
-          plan.problemas.push(`${ruta}: la versión ${r.version} es anterior a la última de la v2 (${ultima}).`);
+        const latest = await latestVersion(ctx.trx, record.id);
+        if (r.version < latest) {
+          plan.problems.push(`${path}: la versión ${r.version} es anterior a la última de la v2 (${latest}).`);
           continue;
         }
-        const deCriterios = await problemasDeCriterios(ctx.trx, registro.id, r, ruta);
-        if (deCriterios.length > 0) {
-          plan.problemas.push(...deCriterios);
+        const ofCriteria = await criteriaProblems(ctx.trx, record.id, r, path);
+        if (ofCriteria.length > 0) {
+          plan.problems.push(...ofCriteria);
           continue;
         }
       }
     } else {
       // Un registro nuevo no comparte DOM-NNN con otro que ya esté en la v2 (sus AC se llamarían igual).
-      const choca = await ctx.trx
+      const clash = await ctx.trx
         .selectFrom('records')
         .select('code')
-        .where('project_id', '=', ctx.proyectoId)
-        .where('code', 'like', `___-${r.codigo.slice(4)}`)
+        .where('project_id', '=', ctx.projectId)
+        .where('code', 'like', `___-${r.code.slice(4)}`)
         .executeTakeFirst();
-      if (choca) {
-        plan.problemas.push(`${ruta}: ${r.codigo} comparte ${r.codigo.slice(4)} con ${choca.code}, que ya está en la v2.`);
+      if (clash) {
+        plan.problems.push(`${path}: ${r.code} comparte ${r.code.slice(4)} con ${clash.code}, que ya está en la v2.`);
         continue;
       }
     }
-    plan.propuestas.push({ tipo: 'registro_importado', carga: { documento, ruta } });
+    plan.proposals.push({ type: 'imported_record', payload: { document, path } });
   }
-  for (const t of informe.taxonomias) {
-    const ruta = `${CARPETAS.taxonomia}/${t.codigo}.md`;
-    const existente = await ctx.trx
+  for (const t of report.taxonomies) {
+    const path = `${FOLDERS.taxonomy}/${t.code}.md`;
+    const existing = await ctx.trx
       .selectFrom('taxonomies')
       .selectAll()
-      .where('project_id', '=', ctx.proyectoId)
-      .where('code', '=', t.codigo)
+      .where('project_id', '=', ctx.projectId)
+      .where('code', '=', t.code)
       .where('version', '=', t.version)
       .executeTakeFirst();
-    if (existente) {
-      if (contenidoDe(documentoDeTaxonomia(existente)) !== contenidoDe(t)) {
-        plan.problemas.push(`${ruta}: la versión ${t.version} ya está en la v2 con otro contenido; sube la versión.`);
+    if (existing) {
+      if (contentOf(taxonomyDocument(existing)) !== contentOf(t)) {
+        plan.problems.push(`${path}: la versión ${t.version} ya está en la v2 con otro contenido; sube la versión.`);
         continue;
       }
-      if (existente.state === ESTADO_VERSION[t.estado]) continue;
-      if (!(existente.state === 'draft' && t.estado === 'aprobado')) {
-        plan.problemas.push(
-          `${ruta}: la versión ${t.version} está ${ESTADO_LEGIBLE[existente.state] ?? existente.state} en la v2 y no puede pasar a «${t.estado}».`,
+      if (existing.state === VERSION_STATE[t.state]) continue;
+      if (!(existing.state === 'draft' && t.state === 'approved')) {
+        plan.problems.push(
+          `${path}: la versión ${t.version} está ${READABLE_STATE[existing.state] ?? existing.state} en la v2 y no puede pasar a «${t.state}».`,
         );
         continue;
       }
-      const posterior = await ctx.trx
+      const later = await ctx.trx
         .selectFrom('taxonomies')
         .select('version')
-        .where('project_id', '=', ctx.proyectoId)
-        .where('code', '=', t.codigo)
+        .where('project_id', '=', ctx.projectId)
+        .where('code', '=', t.code)
         .where('state', 'in', ['approved', 'superseded'])
         .where('version', '>', t.version)
         .executeTakeFirst();
-      if (posterior) {
-        plan.problemas.push(
-          `${ruta}: la v2 ya tiene aprobada la versión ${posterior.version}; la ${t.version} no se puede aprobar.`,
+      if (later) {
+        plan.problems.push(
+          `${path}: la v2 ya tiene aprobada la versión ${later.version}; la ${t.version} no se puede aprobar.`,
         );
         continue;
       }
     } else {
-      const ultima = await ctx.trx
+      const latest = await ctx.trx
         .selectFrom('taxonomies')
         .select('version')
-        .where('project_id', '=', ctx.proyectoId)
-        .where('code', '=', t.codigo)
+        .where('project_id', '=', ctx.projectId)
+        .where('code', '=', t.code)
         .orderBy('version', 'desc')
         .executeTakeFirst();
-      if (ultima && t.version < ultima.version) {
-        plan.problemas.push(`${ruta}: la versión ${t.version} es anterior a la última de la v2 (${ultima.version}).`);
+      if (latest && t.version < latest.version) {
+        plan.problems.push(`${path}: la versión ${t.version} es anterior a la última de la v2 (${latest.version}).`);
         continue;
       }
     }
-    plan.propuestas.push({ tipo: 'taxonomia_importada', carga: { documento: t, ruta } });
+    plan.proposals.push({ type: 'imported_taxonomy', payload: { document: t, path } });
   }
   return plan;
 }
 
-registrarManejadores({
-  'design.import': manejador({
-    datos: z.object({ arbol: z.record(z.string(), z.string()), origen: z.string().max(200).optional() }).strict(),
-    async aplicar(ctx, datos, _e, hacia) {
-      const arbol = new Map(Object.entries(datos.arbol).sort(([a], [b]) => (a < b ? -1 : 1)));
-      const hashArbol = huella([...arbol.entries()]);
-      const previa = await ctx.trx
+registerHandlers({
+  'design.import': handler({
+    data: z.object({ tree: z.record(z.string(), z.string()), origin: z.string().max(200).optional() }).strict(),
+    async apply(ctx, data, _e, to) {
+      const tree = new Map(Object.entries(data.tree).sort(([a], [b]) => (a < b ? -1 : 1)));
+      const treeHash = fingerprint([...tree.entries()]);
+      const prior = await ctx.trx
         .selectFrom('proposal_batches')
         .select(['id', 'state'])
-        .where('project_id', '=', ctx.proyectoId)
+        .where('project_id', '=', ctx.projectId)
         .where('kind', '=', 'import')
-        .where('tree_hash', '=', hashArbol)
+        .where('tree_hash', '=', treeHash)
         .where('state', 'in', ['pending', 'accepted'])
         .executeTakeFirst();
-      if (previa)
-        return { entidadId: previa.id, sinCambios: true, resultado: { loteId: previa.id, repetida: true, estado: previa.state } };
-      const informe = validarArbol(arbol);
-      const recuentos = recuentosDelArbol(informe.registros, informe.taxonomias);
-      const { propuestas, problemas } = await planificar(ctx, arbol, informe);
-      if (problemas.length > 0) {
-        throw new ErrorDominio('guarda', 'design/ no se puede importar sobre lo que ya hay en la v2.', problemas);
+      if (prior)
+        return { entityId: prior.id, noChanges: true, result: { batchId: prior.id, duplicate: true, state: prior.state } };
+      const report = validateTree(tree);
+      const counts = treeCounts(report.records, report.taxonomies);
+      const { proposals, problems } = await buildPlan(ctx, tree, report);
+      if (problems.length > 0) {
+        throw new DomainError('guard', 'design/ no se puede importar sobre lo que ya hay en la v2.', problems);
       }
-      if (propuestas.length === 0) {
-        throw new ErrorDominio('conflicto', 'design/ ya está importado: no hay nada nuevo que proponer.');
+      if (proposals.length === 0) {
+        throw new DomainError('conflict', 'design/ ya está importado: no hay nada nuevo que proponer.');
       }
       // Una importación nueva deja obsoleta la que siguiera pendiente: solo se ratifica la última.
-      const pendientes = await ctx.trx
+      const pending = await ctx.trx
         .selectFrom('proposal_batches')
         .select('id')
-        .where('project_id', '=', ctx.proyectoId)
+        .where('project_id', '=', ctx.projectId)
         .where('kind', '=', 'import')
         .where('state', '=', 'pending')
         .execute();
-      for (const p of pendientes) {
-        await ctx.ejecutar({
-          comando: 'batch.supersede',
-          actor: IMPORTADOR,
-          entidadId: p.id,
-          datos: { motivo: 'Hay una importación más reciente de design/.' },
+      for (const p of pending) {
+        await ctx.execute({
+          command: 'batch.supersede',
+          actor: IMPORTER,
+          entityId: p.id,
+          data: { reason: 'Hay una importación más reciente de design/.' },
         });
       }
       // El importador produce las propuestas; quien importa (persona o CLI) queda en el evento de la importación.
       const { id } = await ctx.trx
         .insertInto('proposal_batches')
         .values({
-          project_id: ctx.proyectoId,
+          project_id: ctx.projectId,
           kind: 'import',
-          producer: formatearActor(IMPORTADOR),
+          producer: formatActor(IMPORTER),
           run_id: null,
           context_pack_id: null,
           resolution_mode: 'package',
           dependencies: JSON.stringify([]),
-          summary: `Importación de design/${datos.origen ? ` (${datos.origen})` : ''}: ${JSON.stringify(recuentos)}`,
-          tree_hash: hashArbol,
-          state: hacia,
+          summary: `Importación de design/${data.origin ? ` (${data.origin})` : ''}: ${JSON.stringify(counts)}`,
+          tree_hash: treeHash,
+          state: to,
         })
         .returning('id')
         .executeTakeFirstOrThrow();
-      for (const [i, p] of propuestas.entries()) {
-        await ctx.ejecutar({
-          comando: 'proposal.create',
-          actor: IMPORTADOR,
-          datos: { lote_id: id, posicion: i + 1, tipo: p.tipo, carga: p.carga },
+      for (const [i, p] of proposals.entries()) {
+        await ctx.execute({
+          command: 'proposal.create',
+          actor: IMPORTER,
+          data: { batch_id: id, position: i + 1, type: p.type, payload: p.payload },
         });
       }
       return {
-        entidadId: id,
-        despues: { recuentos, propuestas: propuestas.length, hash: hashArbol },
-        resultado: { loteId: id, recuentos, propuestas: propuestas.length },
+        entityId: id,
+        after: { counts, proposals: proposals.length, hash: treeHash },
+        result: { batchId: id, counts, proposals: proposals.length },
       };
     },
   }),
 });
 
-function sinCambiosDesdeLaImportacion(codigo: string, version: number): ErrorDominio {
-  return new ErrorDominio('conflicto', `${codigo} v${version} cambió en la v2 después de importar: vuelve a importar design/.`);
+function noChangesSinceImport(code: string, version: number): DomainError {
+  return new DomainError('conflict', `${code} v${version} cambió en la v2 después de importar: vuelve a importar design/.`);
 }
 
 // Ratificar: cada documento se crea (o se versiona) con la persona como actor y el estado de su archivo.
-registrarAplicacion('registro_importado', async (ctx, { propuestaId, carga }) => {
-  const d = CARGAS.registro_importado.parse(carga).documento as unknown as DocumentoImportado;
-  const contenido = {
-    titulo: d.titulo,
-    secciones: d.secciones,
-    enlaces: d.enlaces.map((e) => ({ tipo: e.tipo, destino: e.destino })),
-    anexos: d.anexosContenido,
-    ...(d.incremento ? { incremento: d.incremento } : {}),
-    ...(d.notaDeCambio ? { nota_de_cambio: d.notaDeCambio } : {}),
-    origen: { tipo: 'proposal', id: propuestaId },
-    numero: d.version,
+registerApplication('imported_record', async (ctx, { proposalId, payload }) => {
+  const d = PAYLOADS.imported_record.parse(payload).document as unknown as ImportedDocument;
+  const content = {
+    title: d.title,
+    sections: d.sections,
+    links: d.links.map((e) => ({ type: e.type, target: e.target })),
+    annexes: d.annexesContent,
+    ...(d.increment ? { increment: d.increment } : {}),
+    ...(d.changeNote ? { change_note: d.changeNote } : {}),
+    origin: { type: 'proposal', id: proposalId },
+    number: d.version,
   };
-  const criteriosNuevos = d.criterios.map((c) => ({
-    arrastre: 'new' as const,
-    codigo: c.codigo,
-    titulo: c.titulo,
-    enunciado: c.enunciado,
-    verificacion: c.verificacion === 'automática' ? 'automatic' : 'manual',
-    comprobacion: c.comprobacion,
-    ...(c.derivaDe ? { deriva_de: c.derivaDe } : {}),
+  const newCriteria = d.criteria.map((c) => ({
+    carry: 'new' as const,
+    code: c.code,
+    title: c.title,
+    statement: c.statement,
+    verification: c.verification === 'automática' ? 'automatic' : 'manual',
+    check: c.check,
+    ...(c.derivedFrom ? { derived_from: c.derivedFrom } : {}),
   }));
-  let registro = await registroDe(ctx.trx, ctx.proyectoId, d.codigo);
-  const existente = registro
+  let record = await recordOf(ctx.trx, ctx.projectId, d.code);
+  const existing = record
     ? await ctx.trx
         .selectFrom('record_versions')
         .selectAll()
-        .where('record_id', '=', registro.id)
+        .where('record_id', '=', record.id)
         .where('n', '=', d.version)
         .executeTakeFirst()
     : undefined;
   let versionId: string;
-  if (registro && existente) {
+  if (record && existing) {
     // Solo cambia el estado: se comprueba que el contenido sigue siendo el importado.
-    if (contenidoDe((await documentoDeVersion(ctx.trx, registro, existente)).doc) !== contenidoDe(d)) {
-      throw sinCambiosDesdeLaImportacion(d.codigo, d.version);
+    if (contentOf((await versionDocument(ctx.trx, record, existing)).doc) !== contentOf(d)) {
+      throw noChangesSinceImport(d.code, d.version);
     }
-    versionId = existente.id;
-  } else if (!registro) {
-    const r = await ctx.ejecutar({
-      comando: 'record.create',
+    versionId = existing.id;
+  } else if (!record) {
+    const r = await ctx.execute({
+      command: 'record.create',
       actor: ctx.actor,
-      datos: { tipo: d.tipo, codigo: d.codigo, dominio: d.dominio, criterios: criteriosNuevos, ...contenido },
+      data: { type: d.type, code: d.code, domain: d.domain, criteria: newCriteria, ...content },
     });
-    versionId = (r.resultado as { versionId: string }).versionId;
-    registro = await registroDe(ctx.trx, ctx.proyectoId, d.codigo);
+    versionId = (r.result as { versionId: string }).versionId;
+    record = await recordOf(ctx.trx, ctx.projectId, d.code);
   } else {
     // Versión nueva: los criterios que siguen se mantienen o modifican por su código; el resto se descarta.
     const base = await ctx.trx
       .selectFrom('record_versions')
       .select('id')
-      .where('record_id', '=', registro.id)
+      .where('record_id', '=', record.id)
       .where('state', '<>', 'discarded')
       .orderBy('n', 'desc')
       .executeTakeFirstOrThrow();
-    const previos = await ctx.trx.selectFrom('criteria').selectAll().where('record_version_id', '=', base.id).execute();
-    const porCodigo = new Map(previos.map((p) => [p.code, p]));
-    const criterios = criteriosNuevos.map((c) => {
-      const p = porCodigo.get(c.codigo);
+    const priors = await ctx.trx.selectFrom('criteria').selectAll().where('record_version_id', '=', base.id).execute();
+    const byCode = new Map(priors.map((p) => [p.code, p]));
+    const criteria = newCriteria.map((c) => {
+      const p = byCode.get(c.code);
       if (!p) return c;
-      const igual =
-        p.title === c.titulo &&
-        p.statement === c.enunciado &&
-        p.verification === c.verificacion &&
-        p.check_text === c.comprobacion;
-      return igual
-        ? { arrastre: 'kept' as const, codigo: c.codigo }
+      const equal =
+        p.title === c.title &&
+        p.statement === c.statement &&
+        p.verification === c.verification &&
+        p.check_text === c.check;
+      return equal
+        ? { carry: 'kept' as const, code: c.code }
         : {
-            arrastre: 'modified' as const,
-            deriva_de: c.codigo,
-            titulo: c.titulo,
-            enunciado: c.enunciado,
-            verificacion: c.verificacion,
-            comprobacion: c.comprobacion,
+            carry: 'modified' as const,
+            derived_from: c.code,
+            title: c.title,
+            statement: c.statement,
+            verification: c.verification,
+            check: c.check,
           };
     });
-    const codigos = new Set(d.criterios.map((c) => c.codigo));
-    const r = await ctx.ejecutar({
-      comando: 'record_version.create',
+    const codes = new Set(d.criteria.map((c) => c.code));
+    const r = await ctx.execute({
+      command: 'record_version.create',
       actor: ctx.actor,
-      datos: {
-        record_id: registro.id,
-        criterios,
-        descartados: previos.map((p) => p.code).filter((c) => !codigos.has(c)),
-        ...contenido,
-        nota_de_cambio: d.notaDeCambio ?? 'Importado de design/.',
+      data: {
+        record_id: record.id,
+        criteria,
+        discarded: priors.map((p) => p.code).filter((c) => !codes.has(c)),
+        ...content,
+        change_note: d.changeNote ?? 'Importado de design/.',
       },
     });
-    versionId = r.entidadId;
+    versionId = r.entityId;
   }
   const v = await ctx.trx
     .selectFrom('record_versions')
     .select(['n', 'state'])
     .where('id', '=', versionId)
     .executeTakeFirstOrThrow();
-  if (d.estado === 'aprobado' && v.state === 'draft') {
-    await ctx.ejecutar({ comando: 'record_version.approve', actor: ctx.actor, entidadId: versionId, datos: {} });
+  if (d.state === 'approved' && v.state === 'draft') {
+    await ctx.execute({ command: 'record_version.approve', actor: ctx.actor, entityId: versionId, data: {} });
   }
-  const estado = d.estado === 'aprobado' ? 'approved' : v.state;
-  return { tipo: 'record', codigo: d.codigo, recordId: registro?.id ?? null, versionId, version: v.n, estado };
+  const state = d.state === 'approved' ? 'approved' : v.state;
+  return { type: 'record', code: d.code, recordId: record?.id ?? null, versionId, version: v.n, state };
 });
 
-registrarAplicacion('taxonomia_importada', async (ctx, { carga }) => {
-  const t = CARGAS.taxonomia_importada.parse(carga).documento as unknown as DocumentoTaxonomia;
-  const existente = await ctx.trx
+registerApplication('imported_taxonomy', async (ctx, { payload }) => {
+  const t = PAYLOADS.imported_taxonomy.parse(payload).document as unknown as TaxonomyDocument;
+  const existing = await ctx.trx
     .selectFrom('taxonomies')
     .selectAll()
-    .where('project_id', '=', ctx.proyectoId)
-    .where('code', '=', t.codigo)
+    .where('project_id', '=', ctx.projectId)
+    .where('code', '=', t.code)
     .where('version', '=', t.version)
     .executeTakeFirst();
   let id: string;
-  let estado: string;
-  if (existente) {
+  let state: string;
+  if (existing) {
     // Solo cambia el estado (propuesto → aprobado): se aprueba la versión que ya está.
-    if (contenidoDe(documentoDeTaxonomia(existente)) !== contenidoDe(t)) throw sinCambiosDesdeLaImportacion(t.codigo, t.version);
-    id = existente.id;
-    estado = existente.state;
+    if (contentOf(taxonomyDocument(existing)) !== contentOf(t)) throw noChangesSinceImport(t.code, t.version);
+    id = existing.id;
+    state = existing.state;
   } else {
-    const r = await ctx.ejecutar({
-      comando: 'taxonomy.propose',
+    const r = await ctx.execute({
+      command: 'taxonomy.propose',
       actor: ctx.actor,
-      datos: { codigo: t.codigo, titulo: t.titulo, ejes: t.ejes, secciones: t.secciones, version: t.version },
+      data: { code: t.code, title: t.title, axes: t.axes, sections: t.sections, version: t.version },
     });
-    id = r.entidadId;
-    estado = r.estado;
+    id = r.entityId;
+    state = r.state;
   }
-  if (t.estado === 'aprobado' && estado === 'draft') {
-    await ctx.ejecutar({ comando: 'taxonomy.approve', actor: ctx.actor, entidadId: id, datos: {} });
+  if (t.state === 'approved' && state === 'draft') {
+    await ctx.execute({ command: 'taxonomy.approve', actor: ctx.actor, entityId: id, data: {} });
   }
-  return { tipo: 'taxonomy', codigo: t.codigo, taxonomiaId: id, version: t.version };
+  return { type: 'taxonomy', code: t.code, taxonomyId: id, version: t.version };
 });

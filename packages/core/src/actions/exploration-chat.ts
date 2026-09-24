@@ -2,187 +2,187 @@
 // determinista lo declarado; el aplicador convierte la salida validada en mensajes, preguntas,
 // inferencias y un lote de propuestas. Nada de esto toca la autoridad.
 
-import { ErrorDominio, sistema } from '@demiurgo/domain';
-import { registrarConstructor } from '../contexto/construir.ts';
-import { conocimientoParaContexto } from '../contexto/conocimiento.ts';
-import { registrarAplicador } from './aplicadores.ts';
+import { DomainError, system } from '@demiurgo/domain';
+import { registerBuilder } from '../context/build.ts';
+import { knowledgeForContext } from '../context/knowledge.ts';
+import { registerApplier } from './appliers.ts';
 
-const PRESUPUESTO = { mensajes: 12_000, decisiones: 4_000, fuentes: 6_000, conocimiento: 4_000 };
+const BUDGET = { messages: 12_000, decisions: 4_000, sources: 6_000, knowledge: 4_000 };
 
-function recortarPorPresupuesto<T>(elementos: T[], tamaño: (e: T) => number, presupuesto: number): T[] {
-  const elegidos: T[] = [];
-  let usado = 0;
-  for (const e of elementos) {
-    const t = tamaño(e);
-    if (usado + t > presupuesto) break;
-    elegidos.push(e);
-    usado += t;
+function trimByBudget<T>(elements: T[], size: (e: T) => number, budget: number): T[] {
+  const chosen: T[] = [];
+  let used = 0;
+  for (const e of elements) {
+    const t = size(e);
+    if (used + t > budget) break;
+    chosen.push(e);
+    used += t;
   }
-  return elegidos;
+  return chosen;
 }
 
-registrarConstructor('exploration_chat', async ({ trx, proyectoId, alcance, entrada, versionGrafo }) => {
-  const exploracion = await trx
+registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graphVersion }) => {
+  const exploration = await trx
     .selectFrom('explorations')
     .selectAll()
-    .where('id', '=', alcance.id ?? '')
-    .where('project_id', '=', proyectoId)
+    .where('id', '=', scope.id ?? '')
+    .where('project_id', '=', projectId)
     .executeTakeFirst();
-  if (!exploracion) throw new ErrorDominio('no_encontrado', 'La exploración no existe.');
+  if (!exploration) throw new DomainError('not_found', 'La exploración no existe.');
   // Mensajes más recientes primero para el presupuesto; en el pack van en orden cronológico.
-  const mensajes = await trx
+  const messages = await trx
     .selectFrom('messages')
     .select(['id', 'author', 'kind', 'body', 'question_id'])
-    .where('exploration_id', '=', exploracion.id)
+    .where('exploration_id', '=', exploration.id)
     .orderBy('created_at', 'desc')
     .orderBy('id', 'desc')
     .limit(60)
     .execute();
-  const elegidos = recortarPorPresupuesto(mensajes, (m) => m.body.length, PRESUPUESTO.mensajes).toReversed();
-  const preguntas = await trx
+  const chosen = trimByBudget(messages, (m) => m.body.length, BUDGET.messages).toReversed();
+  const questions = await trx
     .selectFrom('questions')
     .select(['id', 'question', 'state', 'conclusion', 'impact'])
-    .where('exploration_id', '=', exploracion.id)
+    .where('exploration_id', '=', exploration.id)
     .where('state', '<>', 'discarded')
     .orderBy('created_at')
     .orderBy('id')
     .execute();
-  const decisiones = await trx
+  const decisions = await trx
     .selectFrom('record_versions')
     .innerJoin('records', 'records.id', 'record_versions.record_id')
     .select(['records.id as recordId', 'records.code', 'record_versions.n', 'record_versions.title', 'record_versions.sections'])
-    .where('records.project_id', '=', proyectoId)
+    .where('records.project_id', '=', projectId)
     .where('records.type', '=', 'decision')
     .where('record_versions.state', '=', 'approved')
     .orderBy('records.code')
     .execute();
-  const resumenDecisiones = recortarPorPresupuesto(
-    decisiones.map((d) => {
-      const secciones = d.sections as { titulo: string; contenido: string }[];
+  const decisionsSummary = trimByBudget(
+    decisions.map((d) => {
+      const sections = d.sections as { title: string; content: string }[];
       return {
-        codigo: d.code,
+        code: d.code,
         version: d.n,
-        titulo: d.title,
-        decision: secciones.find((s) => s.titulo === 'Decisión')?.contenido.slice(0, 400) ?? '',
+        title: d.title,
+        decision: sections.find((s) => s.title === 'Decisión')?.content.slice(0, 400) ?? '',
       };
     }),
-    (d) => d.titulo.length + d.decision.length,
-    PRESUPUESTO.decisiones,
+    (d) => d.title.length + d.decision.length,
+    BUDGET.decisions,
   );
-  const fuentes = await trx
+  const sources = await trx
     .selectFrom('sources')
     .select(['id', 'name', 'content', 'registered_by'])
-    .where('project_id', '=', proyectoId)
+    .where('project_id', '=', projectId)
     .orderBy('created_at', 'desc')
     .orderBy('id', 'desc')
     .limit(5)
     .execute();
-  const fuentesElegidas = recortarPorPresupuesto(
-    fuentes.map((f) => ({ nombre: f.name, registrada_por: f.registered_by, extracto: f.content.slice(0, 2000) })),
-    (f) => f.extracto.length,
-    PRESUPUESTO.fuentes,
+  const chosenSources = trimByBudget(
+    sources.map((f) => ({ name: f.name, registered_by: f.registered_by, excerpt: f.content.slice(0, 2000) })),
+    (f) => f.excerpt.length,
+    BUDGET.sources,
   );
-  const conocimiento = await conocimientoParaContexto(
+  const knowledge = await knowledgeForContext(
     trx,
-    proyectoId,
-    `${exploracion.purpose} ${elegidos.map((m) => m.body).join(' ')}`,
-    PRESUPUESTO.conocimiento,
+    projectId,
+    `${exploration.purpose} ${chosen.map((m) => m.body).join(' ')}`,
+    BUDGET.knowledge,
   );
   return {
-    rol: 'explorar',
+    role: 'explore',
     constructor: 'exploration_chat@1',
-    presupuesto: PRESUPUESTO,
-    version_grafo: versionGrafo,
-    dependencias: [
-      { tipo: 'exploration', id: exploracion.id, version: null },
-      ...resumenDecisiones.map((d) => {
-        const r = decisiones.find((x) => x.code === d.codigo);
-        return { tipo: 'record', id: r?.recordId ?? '', version: d.version };
+    budget: BUDGET,
+    graph_version: graphVersion,
+    dependencies: [
+      { type: 'exploration', id: exploration.id, version: null },
+      ...decisionsSummary.map((d) => {
+        const r = decisions.find((x) => x.code === d.code);
+        return { type: 'record', id: r?.recordId ?? '', version: d.version };
       }),
-      ...conocimiento.dependencias,
+      ...knowledge.dependencies,
     ],
-    contenido: {
-      proposito: exploracion.purpose,
-      pregunta_en_curso: typeof entrada.pregunta_id === 'string' ? entrada.pregunta_id : null,
-      mensajes: elegidos.map((m) => ({ autor: m.author, tipo: m.kind, pregunta: m.question_id, texto: m.body })),
-      preguntas: preguntas.map((q) => ({
+    content: {
+      purpose: exploration.purpose,
+      question_in_progress: typeof input.question_id === 'string' ? input.question_id : null,
+      messages: chosen.map((m) => ({ author: m.author, type: m.kind, question: m.question_id, text: m.body })),
+      questions: questions.map((q) => ({
         id: q.id,
-        pregunta: q.question,
-        estado: q.state,
+        question: q.question,
+        state: q.state,
         conclusion: q.conclusion,
-        impacto: q.impact,
+        impact: q.impact,
       })),
-      decisiones_confirmadas: resumenDecisiones,
-      fuentes_no_confiables: fuentesElegidas,
-      conocimiento: conocimiento.nodos,
+      confirmed_decisions: decisionsSummary,
+      untrusted_sources: chosenSources,
+      knowledge: knowledge.nodes,
     },
   };
 });
 
-registrarAplicador('exploration_chat', async ({ trx, ejecutar, run, salida }) => {
-  const actor = { tipo: 'agent_run' as const, run: run.id };
-  const alcance = run.scope as { id: string };
+registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
+  const actor = { type: 'agent_run' as const, run: run.id };
+  const scope = run.scope as { id: string };
   const pack = await trx
     .selectFrom('context_packs')
     .select(['content'])
     .where('id', '=', run.context_pack_id ?? '')
     .executeTakeFirstOrThrow();
-  const contenido = pack.content as { pregunta_en_curso: string | null; preguntas: { id: string; estado: string }[] };
-  const preguntaId = contenido.pregunta_en_curso ?? undefined;
-  const base = { proyectoId: run.project_id };
-  await ejecutar({
+  const content = pack.content as { question_in_progress: string | null; questions: { id: string; state: string }[] };
+  const questionId = content.question_in_progress ?? undefined;
+  const base = { projectId: run.project_id };
+  await execute({
     ...base,
-    comando: 'message.post',
+    command: 'message.post',
     actor,
-    datos: {
-      exploracion_id: alcance.id,
-      ...(preguntaId ? { pregunta_id: preguntaId } : {}),
-      texto: salida.reply,
-      responder: false,
+    data: {
+      exploration_id: scope.id,
+      ...(questionId ? { question_id: questionId } : {}),
+      text: output.reply,
+      respond: false,
     },
   });
-  for (const o of salida.observaciones) {
-    await ejecutar({
+  for (const o of output.observations) {
+    await execute({
       ...base,
-      comando: 'message.post',
+      command: 'message.post',
       actor,
-      datos: { exploracion_id: alcance.id, texto: o.texto, tipo: o.tipo, responder: false },
+      data: { exploration_id: scope.id, text: o.text, type: o.type, respond: false },
     });
   }
-  for (const q of salida.preguntas) {
-    await ejecutar({
+  for (const q of output.questions) {
+    await execute({
       ...base,
-      comando: 'question.raise',
-      actor: sistema('exploracion'),
-      datos: { exploracion_id: alcance.id, pregunta: q.pregunta, motivo: q.motivo, impacto: q.impacto },
+      command: 'question.raise',
+      actor: system('exploration'),
+      data: { exploration_id: scope.id, question: q.question, reason: q.reason, impact: q.impact },
     });
   }
   // Solo se infieren preguntas pendientes que estaban en el context pack de esta ejecución.
-  const pendientes = new Set(contenido.preguntas.filter((q) => q.estado === 'pending').map((q) => q.id));
-  for (const inf of salida.inferencias) {
-    if (!pendientes.has(inf.pregunta_id)) continue;
-    const q = await trx.selectFrom('questions').select('state').where('id', '=', inf.pregunta_id).executeTakeFirst();
+  const pending = new Set(content.questions.filter((q) => q.state === 'pending').map((q) => q.id));
+  for (const inference of output.inferences) {
+    if (!pending.has(inference.question_id)) continue;
+    const q = await trx.selectFrom('questions').select('state').where('id', '=', inference.question_id).executeTakeFirst();
     if (q?.state !== 'pending') continue;
-    await ejecutar({
+    await execute({
       ...base,
-      comando: 'question.infer',
-      actor: sistema('exploracion'),
-      entidadId: inf.pregunta_id,
-      datos: { conclusion: inf.conclusion, razonamiento: inf.razonamiento },
+      command: 'question.infer',
+      actor: system('exploration'),
+      entityId: inference.question_id,
+      data: { conclusion: inference.conclusion, reasoning: inference.reasoning },
     });
   }
-  if (salida.propuestas.length > 0) {
-    await ejecutar({
+  if (output.proposals.length > 0) {
+    await execute({
       ...base,
-      comando: 'batch.submit',
+      command: 'batch.submit',
       actor,
-      datos: {
-        resumen: `Propuestas de la conversación de exploración (${salida.propuestas.length}).`,
-        tipo_lote: 'agent',
-        resolucion: 'item',
+      data: {
+        summary: `Propuestas de la conversación de exploración (${output.proposals.length}).`,
+        batch_type: 'agent',
+        resolution: 'item',
         run_id: run.id,
         context_pack_id: run.context_pack_id ?? undefined,
-        propuestas: salida.propuestas.map(({ tipo, ...carga }) => ({ tipo, carga })),
+        proposals: output.proposals.map(({ type, ...payload }) => ({ type, payload })),
       },
     });
   }

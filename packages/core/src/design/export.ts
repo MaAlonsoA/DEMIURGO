@@ -3,116 +3,116 @@
 // ratificar una importación, coincide byte a byte con el árbol importado.
 
 import {
-  CARPETAS,
-  type DocumentoRegistro,
-  type DocumentoTaxonomia,
-  type EstadoDocumento,
-  README_DISENO,
-  type TipoRegistro,
-  diferencias,
-  renderizarDocumento,
+  FOLDERS,
+  type RecordDocument,
+  type TaxonomyDocument,
+  type DocumentStatus,
+  README_DESIGN,
+  type RecordType,
+  differences,
+  renderDocument,
 } from '@demiurgo/design';
 import type { Selectable } from 'kysely';
-import type { Bd } from '../db/conexion.ts';
-import type { BD } from '../db/esquema.ts';
+import type { Db } from '../db/connection.ts';
+import type { DB } from '../db/schema.ts';
 
 // design/ guarda la versión en curso de cada registro, que está en borrador o aprobada.
-const ESTADO_DOCUMENTO: Record<string, EstadoDocumento> = { draft: 'propuesto', approved: 'aprobado' };
+const DOCUMENT_STATUS: Record<string, DocumentStatus> = { draft: 'proposed', approved: 'approved' };
 
-type Fila<T extends keyof BD> = Selectable<BD[T]>;
+type Row<T extends keyof DB> = Selectable<DB[T]>;
 
 /**
  * «Deriva de» de un criterio: el de su origen, siguiendo el arrastre (mantener o modificar deriva del
  * mismo código en la versión anterior) hasta el criterio que nació; null si nació sin derivar.
  */
-export async function derivacionDe(db: Bd, criterioId: string): Promise<string | null> {
-  let actual: string | null = criterioId;
-  for (let i = 0; actual && i < 1000; i++) {
+export async function derivationOf(db: Db, criterionId: string): Promise<string | null> {
+  let cursor: string | null = criterionId;
+  for (let i = 0; cursor && i < 1000; i++) {
     const c = await db
       .selectFrom('criteria')
       .select(['carry', 'derived_from'])
-      .where('id', '=', actual)
+      .where('id', '=', cursor)
       .executeTakeFirstOrThrow();
     if (c.carry === 'new') {
       if (!c.derived_from) return null;
       return (await db.selectFrom('criteria').select('code').where('id', '=', c.derived_from).executeTakeFirstOrThrow()).code;
     }
-    actual = c.derived_from;
+    cursor = c.derived_from;
   }
   return null;
 }
 
 /** Documento de design/ de una versión concreta de un registro, tal como se exporta. */
-export async function documentoDeVersion(
-  db: Bd,
-  r: Fila<'records'>,
-  v: Fila<'record_versions'>,
-): Promise<{ doc: DocumentoRegistro; anexos: { ruta: string; contenido: string }[] }> {
-  const criterios = await db
+export async function versionDocument(
+  db: Db,
+  r: Row<'records'>,
+  v: Row<'record_versions'>,
+): Promise<{ doc: RecordDocument; annexes: { path: string; content: string }[] }> {
+  const criteria = await db
     .selectFrom('criteria')
     .selectAll()
     .where('record_version_id', '=', v.id)
     .orderBy('position')
     .execute();
-  const enlaces = await db
+  const links = await db
     .selectFrom('links')
-    .innerJoin('record_versions as destino', 'destino.id', 'links.to_id')
-    .innerJoin('records as rd', 'rd.id', 'destino.record_id')
-    .select(['links.type', 'rd.code', 'destino.n'])
+    .innerJoin('record_versions as target', 'target.id', 'links.to_id')
+    .innerJoin('records as rd', 'rd.id', 'target.record_id')
+    .select(['links.type', 'rd.code', 'target.n'])
     .where('links.from_id', '=', v.id)
     .orderBy('links.id')
     .execute();
-  const anexos = (v.annexes ?? []) as { ruta: string; contenido: string }[];
-  const derivaDe = new Map<string, string>();
-  for (const c of criterios) {
-    const origen = await derivacionDe(db, c.id);
-    if (origen) derivaDe.set(c.id, origen);
+  const annexes = (v.annexes ?? []) as { path: string; content: string }[];
+  const derivedFrom = new Map<string, string>();
+  for (const c of criteria) {
+    const origin = await derivationOf(db, c.id);
+    if (origin) derivedFrom.set(c.id, origin);
   }
-  const doc: DocumentoRegistro = {
-    clase: 'registro',
-    tipo: r.type as TipoRegistro,
-    codigo: r.code,
-    titulo: v.title,
+  const doc: RecordDocument = {
+    kind: 'record',
+    type: r.type as RecordType,
+    code: r.code,
+    title: v.title,
     version: v.n,
-    estado: ESTADO_DOCUMENTO[v.state] ?? 'propuesto',
-    dominio: r.domain,
-    enlaces: enlaces.map((e) => ({
-      tipo: e.type as DocumentoRegistro['enlaces'][number]['tipo'],
-      destino: { codigo: e.code, version: e.n },
+    state: DOCUMENT_STATUS[v.state] ?? 'proposed',
+    domain: r.domain,
+    links: links.map((e) => ({
+      type: e.type as RecordDocument['links'][number]['type'],
+      target: { code: e.code, version: e.n },
     })),
-    anexos: anexos.map((a) => a.ruta),
-    secciones: v.sections as { titulo: string; contenido: string }[],
-    criterios: criterios.map((c) => ({
-      codigo: c.code,
-      titulo: c.title,
-      verificacion: c.verification === 'automatic' ? 'automática' : 'manual',
-      comprobacion: c.check_text,
-      enunciado: c.statement,
-      ...(derivaDe.has(c.id) ? { derivaDe: derivaDe.get(c.id) } : {}),
+    annexes: annexes.map((a) => a.path),
+    sections: v.sections as { title: string; content: string }[],
+    criteria: criteria.map((c) => ({
+      code: c.code,
+      title: c.title,
+      verification: c.verification === 'automatic' ? 'automática' : 'manual',
+      check: c.check_text,
+      statement: c.statement,
+      ...(derivedFrom.has(c.id) ? { derivedFrom: derivedFrom.get(c.id) } : {}),
     })),
   };
-  if (v.increment) doc.incremento = v.increment;
-  if (v.change_note) doc.notaDeCambio = v.change_note;
-  return { doc, anexos };
+  if (v.increment) doc.increment = v.increment;
+  if (v.change_note) doc.changeNote = v.change_note;
+  return { doc, annexes };
 }
 
 /** Documento de design/ de una versión concreta de una taxonomía. */
-export function documentoDeTaxonomia(t: Fila<'taxonomies'>): DocumentoTaxonomia {
+export function taxonomyDocument(t: Row<'taxonomies'>): TaxonomyDocument {
   return {
-    clase: 'taxonomia',
-    codigo: t.code,
-    titulo: t.title,
+    kind: 'taxonomy',
+    code: t.code,
+    title: t.title,
     version: t.version,
-    estado: ESTADO_DOCUMENTO[t.state] ?? 'propuesto',
-    ejes: t.axes as DocumentoTaxonomia['ejes'],
-    secciones: t.sections as DocumentoTaxonomia['secciones'],
+    state: DOCUMENT_STATUS[t.state] ?? 'proposed',
+    axes: t.axes as TaxonomyDocument['axes'],
+    sections: t.sections as TaxonomyDocument['sections'],
   };
 }
 
-export async function exportarDiseno(db: Bd, proyectoId: string): Promise<Map<string, string>> {
-  const arbol = new Map<string, string>([['README.md', README_DISENO]]);
-  const registros = await db.selectFrom('records').selectAll().where('project_id', '=', proyectoId).orderBy('code').execute();
-  for (const r of registros) {
+export async function exportDesign(db: Db, projectId: string): Promise<Map<string, string>> {
+  const tree = new Map<string, string>([['README.md', README_DESIGN]]);
+  const records = await db.selectFrom('records').selectAll().where('project_id', '=', projectId).orderBy('code').execute();
+  for (const r of records) {
     const v = await db
       .selectFrom('record_versions')
       .selectAll()
@@ -121,28 +121,28 @@ export async function exportarDiseno(db: Bd, proyectoId: string): Promise<Map<st
       .orderBy('n', 'desc')
       .executeTakeFirst();
     if (!v) continue;
-    const { doc, anexos } = await documentoDeVersion(db, r, v);
-    arbol.set(`${CARPETAS[doc.tipo]}/${doc.codigo}.md`, renderizarDocumento(doc));
-    for (const a of anexos) arbol.set(a.ruta, a.contenido);
+    const { doc, annexes } = await versionDocument(db, r, v);
+    tree.set(`${FOLDERS[doc.type]}/${doc.code}.md`, renderDocument(doc));
+    for (const a of annexes) tree.set(a.path, a.content);
   }
-  const taxonomias = await db
+  const taxonomies = await db
     .selectFrom('taxonomies')
     .selectAll()
-    .where('project_id', '=', proyectoId)
+    .where('project_id', '=', projectId)
     .where('state', '<>', 'discarded')
     .orderBy('code')
     .orderBy('version', 'desc')
     .execute();
-  const vistas = new Set<string>();
-  for (const t of taxonomias) {
-    if (vistas.has(t.code)) continue;
-    vistas.add(t.code);
-    arbol.set(`${CARPETAS.taxonomia}/${t.code}.md`, renderizarDocumento(documentoDeTaxonomia(t)));
+  const visited = new Set<string>();
+  for (const t of taxonomies) {
+    if (visited.has(t.code)) continue;
+    visited.add(t.code);
+    tree.set(`${FOLDERS.taxonomy}/${t.code}.md`, renderDocument(taxonomyDocument(t)));
   }
-  return arbol;
+  return tree;
 }
 
 /** Diferencias entre la exportación y un árbol (vacío si coinciden byte a byte). */
-export async function compararExportacion(db: Bd, proyectoId: string, arbol: ReadonlyMap<string, string>): Promise<string[]> {
-  return diferencias(arbol, await exportarDiseno(db, proyectoId));
+export async function compareExport(db: Db, projectId: string, tree: ReadonlyMap<string, string>): Promise<string[]> {
+  return differences(tree, await exportDesign(db, projectId));
 }

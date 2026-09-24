@@ -1,52 +1,52 @@
 // Arranque del núcleo a partir de la configuración: base migrada, agente y clasificador
 // según la configuración y motor durable en marcha.
 
-import type { Clasificador, PuertoAgente } from '@demiurgo/domain';
-import { crearAgenteClaudeCli } from './agentes/claude-cli.ts';
-import { crearAgenteSimulado } from './agentes/simulado.ts';
-import { crearClasificadorEnCascada } from './clasificador/cascada.ts';
-import { crearClasificadorJev } from './clasificador/jev.ts';
-import { crearClasificadorReferenciaClaude } from './clasificador/referencia-claude.ts';
-import { crearClasificadorSimulado } from './clasificador/simulado.ts';
-import type { Configuracion } from './config.ts';
-import { type Conexion, conectar } from './db/conexion.ts';
-import { migrar } from './db/migrador.ts';
-import { type MotorIniciado, iniciarMotor } from './motor/motor.ts';
-import { type Registro, registroConsola } from './servicios.ts';
+import type { Classifier, AgentPort } from '@demiurgo/domain';
+import { createClaudeCliAgent } from './agents/claude-cli.ts';
+import { createSimulatedAgent } from './agents/simulated.ts';
+import { createCascadeClassifier } from './classifier/cascade.ts';
+import { createJevClassifier } from './classifier/jev.ts';
+import { createClaudeReferenceClassifier } from './classifier/claude-reference.ts';
+import { createSimulatedClassifier } from './classifier/simulated.ts';
+import type { Config } from './config.ts';
+import { type Connection, connect } from './db/connection.ts';
+import { migrate } from './db/migrator.ts';
+import { type StartedEngine, startEngine } from './engine/engine.ts';
+import { type Logger, consoleLogger } from './services.ts';
 
-export function crearAgente(config: Configuracion): PuertoAgente {
-  return config.agente === 'claude' ? crearAgenteClaudeCli({ modelo: config.modeloAgente }) : crearAgenteSimulado();
+export function createAgent(config: Config): AgentPort {
+  return config.agent === 'claude' ? createClaudeCliAgent({ model: config.agentModel }) : createSimulatedAgent();
 }
 
-function clasificadorBase(config: Configuracion): Clasificador {
-  if (config.clasificador === 'referencia') return crearClasificadorReferenciaClaude({ modelo: config.modeloClasificador });
-  if (config.clasificador === 'jev') return crearClasificadorJev();
-  return crearClasificadorSimulado();
+function baseClassifier(config: Config): Classifier {
+  if (config.classifier === 'reference') return createClaudeReferenceClassifier({ model: config.classifierModel });
+  if (config.classifier === 'jev') return createJevClassifier();
+  return createSimulatedClassifier();
 }
 
 /** Clasificador configurado; con revisor, en cascada: la confianza media la revisa otro modelo. */
-export function crearClasificador(config: Configuracion): Clasificador {
-  const base = clasificadorBase(config);
-  if (config.revisor === 'ninguno') return base;
-  return crearClasificadorEnCascada(base, crearClasificadorReferenciaClaude({ modelo: config.modeloRevisor }));
+export function createClassifier(config: Config): Classifier {
+  const base = baseClassifier(config);
+  if (config.reviewer === 'none') return base;
+  return createCascadeClassifier(base, createClaudeReferenceClassifier({ model: config.reviewerModel }));
 }
 
-export type Nucleo = MotorIniciado & { conexion: Conexion };
+export type Core = StartedEngine & { connection: Connection };
 
-export async function arrancarNucleo(config: Configuracion, registro: Registro = registroConsola): Promise<Nucleo> {
-  const conexion = conectar(config.urlBase);
-  const aplicadas = await migrar(conexion.pool);
-  if (aplicadas.length) registro.info('Migraciones aplicadas', { aplicadas });
-  const motor = await iniciarMotor(
-    { db: conexion.db, reloj: () => new Date(), agente: crearAgente(config), clasificador: crearClasificador(config), registro },
-    config.urlBase,
+export async function startCore(config: Config, record: Logger = consoleLogger): Promise<Core> {
+  const connection = connect(config.baseUrl);
+  const applied = await migrate(connection.pool);
+  if (applied.length) record.info('Migraciones aplicadas', { applied });
+  const engine = await startEngine(
+    { db: connection.db, clock: () => new Date(), agent: createAgent(config), classifier: createClassifier(config), record },
+    config.baseUrl,
   );
   return {
-    ...motor,
-    conexion,
-    async detener() {
-      await motor.detener();
-      await conexion.cerrar();
+    ...engine,
+    connection,
+    async stop() {
+      await engine.stop();
+      await connection.close();
     },
   };
 }

@@ -4,135 +4,135 @@
 // valida con Zod y se comprueba que haya exactamente una por id y que cada elección sea válida.
 
 import type {
-  Clasificador,
-  EstadoClasificador,
+  Classifier,
+  ClassifierState,
   ItemChoice,
   ItemNoul,
   ItemScore,
-  RespuestaChoice,
-  RespuestaNoul,
-  RespuestaScore,
+  ChoiceResponse,
+  NoulResponse,
+  ScoreResponse,
 } from '@demiurgo/domain';
 import { z } from 'zod';
 import {
-  crearInvocadorClaudeCli,
-  jsonDelimitado,
-  MODELO_CLAUDE_POR_DEFECTO,
-  type OpcionesClaudeCli,
-} from '../agentes/claude-cli.ts';
+  createClaudeCliInvoker,
+  delimitedJson,
+  DEFAULT_CLAUDE_MODEL,
+  type ClaudeCliOptions,
+} from '../agents/claude-cli.ts';
 
 /** Id del clasificador de referencia: lleva el modelo, porque otro modelo es otra entrada para la caché. */
-export const idClasificadorReferencia = (modelo: string): string => `referencia-claude:${modelo}@1`;
+export const referenceClassifierId = (model: string): string => `referencia-claude:${model}@1`;
 
 /** Límites de las primitivas de Jev, para que el sustituto acepte lo mismo. */
-export const MAX_OPCIONES_CHOICE = 255;
-export const NIVELES_SCORE = { min: 2, max: 10 } as const;
-const MAX_JUSTIFICACION = 300;
-const TIEMPO_POR_DEFECTO_MS = 120_000;
+export const MAX_CHOICE_OPTIONS = 255;
+export const SCORE_LEVELS = { min: 2, max: 10 } as const;
+const MAX_JUSTIFICATION = 300;
+const DEFAULT_TIME_MS = 120_000;
 
-export type OpcionesClasificadorReferencia = OpcionesClaudeCli & {
+export type ReferenceClassifierOptions = ClaudeCliOptions & {
   /** Tiempo máximo de cada invocación. */
-  tiempoMs?: number;
+  timeMs?: number;
   /** Gasto máximo declarado por invocación (`--max-budget-usd`). */
   maxUsd?: number;
 };
 
-type Primitiva = 'choice' | 'score' | 'noul';
-type Esquema = Record<string, unknown>;
+type Primitive = 'choice' | 'score' | 'noul';
+type Schema = Record<string, unknown>;
 
-const falla = (mensaje: string): Error => new Error(`Clasificador de referencia: ${mensaje}`);
+const failure = (message: string): Error => new Error(`Clasificador de referencia: ${message}`);
 
 // --- Esquemas JSON (draft-07, el que valida la CLI) -----------------------------------------
 
-const confianza = { type: 'number', minimum: 0, maximum: 1 } as const;
+const confidence = { type: 'number', minimum: 0, maximum: 1 } as const;
 
-function objeto(propiedades: Record<string, Esquema>): Esquema {
-  return { type: 'object', properties: propiedades, required: Object.keys(propiedades), additionalProperties: false };
+function object(properties: Record<string, Schema>): Schema {
+  return { type: 'object', properties: properties, required: Object.keys(properties), additionalProperties: false };
 }
 
 /** Exige exactamente una respuesta por ítem: tantas como ítems y, por rama, el id y sus valores. */
-function esquemaRespuestas(n: number, respuesta: Esquema): Esquema {
-  return objeto({ respuestas: { type: 'array', minItems: n, maxItems: n, items: respuesta } });
+function responsesSchema(n: number, response: Schema): Schema {
+  return object({ responses: { type: 'array', minItems: n, maxItems: n, items: response } });
 }
 
-const mismosValores = (listas: readonly (readonly string[])[]): boolean =>
-  listas.every((l) => l.length === listas[0]?.length && l.every((v, i) => v === listas[0]?.[i]));
+const sameValues = (lists: readonly (readonly string[])[]): boolean =>
+  lists.every((l) => l.length === lists[0]?.length && l.every((v, i) => v === lists[0]?.[i]));
 
 /** Por encima de este tamaño, las ramas por ítem no caben con holgura en la línea de órdenes de Windows. */
-const MAX_ESQUEMA_POR_RAMAS = 16_000;
+const MAX_BRANCHED_SCHEMA_SIZE = 16_000;
 
 /**
  * Si todos los ítems comparten valores, un único esquema con `enum` de ids; si no, una rama
  * `anyOf` por ítem que fija su id y sus valores válidos. Si las ramas son demasiado grandes, un
  * esquema único con la unión de valores: la comprobación por ítem la hace entonces la validación.
  */
-function esquemaPorItem(
+function perItemSchema(
   ids: readonly string[],
-  valores: readonly (readonly string[])[],
-  campo: string,
-  resto: Record<string, Esquema>,
-): Esquema {
-  const unico = (permitidos: readonly string[]): Esquema =>
-    objeto({ id: { type: 'string', enum: [...ids] }, [campo]: { type: 'string', enum: [...permitidos] }, ...resto });
-  if (mismosValores(valores)) return unico(valores[0] ?? []);
-  const ramas = {
+  values: readonly (readonly string[])[],
+  field: string,
+  rest: Record<string, Schema>,
+): Schema {
+  const unique = (allowed: readonly string[]): Schema =>
+    object({ id: { type: 'string', enum: [...ids] }, [field]: { type: 'string', enum: [...allowed] }, ...rest });
+  if (sameValues(values)) return unique(values[0] ?? []);
+  const branches = {
     anyOf: ids.map((id, i) =>
-      objeto({ id: { type: 'string', const: id }, [campo]: { type: 'string', enum: [...(valores[i] ?? [])] }, ...resto }),
+      object({ id: { type: 'string', const: id }, [field]: { type: 'string', enum: [...(values[i] ?? [])] }, ...rest }),
     ),
   };
-  return JSON.stringify(ramas).length <= MAX_ESQUEMA_POR_RAMAS ? ramas : unico([...new Set(valores.flat())]);
+  return JSON.stringify(branches).length <= MAX_BRANCHED_SCHEMA_SIZE ? branches : unique([...new Set(values.flat())]);
 }
 
 // --- Validación de las respuestas -----------------------------------------------------------
 
-const numero01 = z.number().min(0).max(1);
-const respuestasChoice = z.object({
-  respuestas: z.array(z.object({ id: z.string(), eleccion: z.string(), confianza: numero01, justificacion: z.string() })),
+const number01 = z.number().min(0).max(1);
+const choiceResponses = z.object({
+  responses: z.array(z.object({ id: z.string(), choice: z.string(), confidence: number01, justification: z.string() })),
 });
-const respuestasScore = z.object({ respuestas: z.array(z.object({ id: z.string(), nivel: z.string(), confianza: numero01 })) });
-const respuestasNoul = z.object({
-  respuestas: z.array(z.object({ id: z.string(), probabilidad: numero01, confianza: numero01 })),
+const scoreResponses = z.object({ responses: z.array(z.object({ id: z.string(), level: z.string(), confidence: number01 })) });
+const noulResponses = z.object({
+  responses: z.array(z.object({ id: z.string(), probability: number01, confidence: number01 })),
 });
 
 /** Empareja las respuestas con los ítems: exactamente una por id y ninguna de más. */
-function emparejar<R extends { id: string }>(items: readonly { id: string }[], respuestas: readonly R[]): R[] {
-  const porId = new Map<string, R>();
-  const conocidos = new Set(items.map((i) => i.id));
-  for (const r of respuestas) {
-    if (!conocidos.has(r.id)) throw falla(`devolvió una respuesta para un id desconocido: ${JSON.stringify(r.id)}.`);
-    if (porId.has(r.id)) throw falla(`devolvió más de una respuesta para el ítem ${JSON.stringify(r.id)}.`);
-    porId.set(r.id, r);
+function match<R extends { id: string }>(items: readonly { id: string }[], responses: readonly R[]): R[] {
+  const byId = new Map<string, R>();
+  const known = new Set(items.map((i) => i.id));
+  for (const r of responses) {
+    if (!known.has(r.id)) throw failure(`devolvió una respuesta para un id desconocido: ${JSON.stringify(r.id)}.`);
+    if (byId.has(r.id)) throw failure(`devolvió más de una respuesta para el ítem ${JSON.stringify(r.id)}.`);
+    byId.set(r.id, r);
   }
-  const faltan = items.filter((i) => !porId.has(i.id)).map((i) => JSON.stringify(i.id));
-  if (faltan.length > 0) throw falla(`no respondió ${faltan.length === 1 ? 'al ítem' : 'a los ítems'} ${faltan.join(', ')}.`);
-  return items.map((i) => porId.get(i.id) as R);
+  const missing = items.filter((i) => !byId.has(i.id)).map((i) => JSON.stringify(i.id));
+  if (missing.length > 0) throw failure(`no respondió ${missing.length === 1 ? 'al ítem' : 'a los ítems'} ${missing.join(', ')}.`);
+  return items.map((i) => byId.get(i.id) as R);
 }
 
 /** La confianza va a la opción elegida y el resto se reparte a partes iguales. */
-export function distribucionConfianza(n: number, elegida: number, conf: number): number[] {
-  const resto = n > 1 ? (1 - conf) / (n - 1) : 0;
-  return Array.from({ length: n }, (_, i) => (i === elegida ? conf : resto));
+export function confidenceDistribution(n: number, chosen: number, conf: number): number[] {
+  const rest = n > 1 ? (1 - conf) / (n - 1) : 0;
+  return Array.from({ length: n }, (_, i) => (i === chosen ? conf : rest));
 }
 
 // --- Entradas ---------------------------------------------------------------------------------
 
-function comprobarIds(items: readonly { id: string }[]): void {
-  const vistos = new Set<string>();
+function checkIds(items: readonly { id: string }[]): void {
+  const seen = new Set<string>();
   for (const { id } of items) {
-    if (!id.trim()) throw falla('todos los ítems necesitan un id no vacío.');
-    if (vistos.has(id)) throw falla(`el id ${JSON.stringify(id)} está repetido en la petición.`);
-    vistos.add(id);
+    if (!id.trim()) throw failure('todos los ítems necesitan un id no vacío.');
+    if (seen.has(id)) throw failure(`el id ${JSON.stringify(id)} está repetido en la petición.`);
+    seen.add(id);
   }
 }
 
-function comprobarValores(id: string, valores: readonly string[], min: number, max: number, nombre: string): void {
-  if (valores.length < min || valores.length > max) {
-    throw falla(`el ítem ${JSON.stringify(id)} necesita entre ${min} y ${max} ${nombre} (tiene ${valores.length}).`);
+function checkValues(id: string, values: readonly string[], min: number, max: number, name: string): void {
+  if (values.length < min || values.length > max) {
+    throw failure(`el ítem ${JSON.stringify(id)} necesita entre ${min} y ${max} ${name} (tiene ${values.length}).`);
   }
-  if (new Set(valores).size !== valores.length) throw falla(`el ítem ${JSON.stringify(id)} tiene ${nombre} repetidas.`);
+  if (new Set(values).size !== values.length) throw failure(`el ítem ${JSON.stringify(id)} tiene ${name} repetidas.`);
 }
 
-const REGLAS_COMUNES = [
+const COMMON_RULES = [
   'Eres el clasificador de referencia de DEMIURGO. No redactas textos: para cada ítem devuelves una decisión tipada y calibrada.',
   '',
   'Reglas:',
@@ -142,142 +142,142 @@ const REGLAS_COMUNES = [
   '- `confianza` es la probabilidad, de 0 a 1, de que tu respuesta sea la correcta. Sé calibrado: usa valores bajos cuando dudes.',
 ];
 
-const REGLAS: Record<Primitiva, string[]> = {
+const RULES: Record<Primitive, string[]> = {
   choice: [
     '- `eleccion` debe ser literalmente una de las `opciones` del ítem.',
-    `- \`justificacion\`: una frase breve en español (como mucho ${MAX_JUSTIFICACION} caracteres).`,
+    `- \`justificacion\`: una frase breve en español (como mucho ${MAX_JUSTIFICATION} caracteres).`,
   ],
   score: ['- `nivel` debe ser literalmente uno de los `niveles` del ítem, que van ordenados de menor a mayor.'],
   noul: ['- `probabilidad` es la probabilidad, de 0 a 1, de que el `enunciado` sea verdadero según el estado del ítem.'],
 };
 
-function sistema(primitiva: Primitiva): string {
-  return [...REGLAS_COMUNES, ...REGLAS[primitiva], '- Responde solo con la salida estructurada que exige el esquema.'].join('\n');
+function system(primitive: Primitive): string {
+  return [...COMMON_RULES, ...RULES[primitive], '- Responde solo con la salida estructurada que exige el esquema.'].join('\n');
 }
 
-function bloqueItem(n: number, campos: Record<string, unknown>, estado: EstadoClasificador): string {
+function blockItem(n: number, fields: Record<string, unknown>, state: ClassifierState): string {
   return [
     `## Ítem ${n}`,
-    ...Object.entries(campos).map(([clave, valor]) => `${clave}: ${jsonDelimitado(valor, 0)}`),
+    ...Object.entries(fields).map(([key, value]) => `${key}: ${delimitedJson(value, 0)}`),
     '<estado_no_confiable>',
-    jsonDelimitado(estado),
+    delimitedJson(state),
     '</estado_no_confiable>',
   ].join('\n');
 }
 
-function entrada(primitiva: Primitiva, bloques: readonly string[]): string {
-  return [`Primitiva: ${primitiva}`, `Número de ítems: ${bloques.length}`, '', bloques.join('\n\n')].join('\n');
+function input(primitive: Primitive, blocks: readonly string[]): string {
+  return [`Primitiva: ${primitive}`, `Número de ítems: ${blocks.length}`, '', blocks.join('\n\n')].join('\n');
 }
 
 // --- Adaptador --------------------------------------------------------------------------------
 
-export function crearClasificadorReferenciaClaude(opciones: OpcionesClasificadorReferencia = {}): Clasificador {
-  const invocar = crearInvocadorClaudeCli(opciones);
-  const modelo = opciones.modelo ?? MODELO_CLAUDE_POR_DEFECTO;
+export function createClaudeReferenceClassifier(options: ReferenceClassifierOptions = {}): Classifier {
+  const invoke = createClaudeCliInvoker(options);
+  const model = options.model ?? DEFAULT_CLAUDE_MODEL;
 
-  async function preguntar(primitiva: Primitiva, esquema: Esquema, bloques: readonly string[]): Promise<unknown> {
-    const resultado = await invocar({
-      esquema,
-      sistema: sistema(primitiva),
-      entrada: entrada(primitiva, bloques),
-      modelo,
-      tiempoMs: opciones.tiempoMs ?? TIEMPO_POR_DEFECTO_MS,
-      ...(opciones.maxUsd === undefined ? {} : { maxUsd: opciones.maxUsd }),
+  async function ask(primitive: Primitive, schema: Schema, blocks: readonly string[]): Promise<unknown> {
+    const result = await invoke({
+      schema,
+      system: system(primitive),
+      input: input(primitive, blocks),
+      model,
+      timeMs: options.timeMs ?? DEFAULT_TIME_MS,
+      ...(options.maxUsd === undefined ? {} : { maxUsd: options.maxUsd }),
     });
-    if (resultado.estado === 'error') {
-      throw falla(`la llamada a la CLI falló (${resultado.failureKind}): ${resultado.mensaje}`);
+    if (result.state === 'error') {
+      throw failure(`la llamada a la CLI falló (${result.failureKind}): ${result.message}`);
     }
-    return resultado.salidaCruda;
+    return result.rawOutput;
   }
 
-  function leer<T>(esquema: z.ZodType<T>, salida: unknown): T {
-    const r = esquema.safeParse(salida);
-    if (!r.success) throw falla(`la respuesta no tiene la forma esperada. ${z.prettifyError(r.error)}`);
+  function read<T>(schema: z.ZodType<T>, output: unknown): T {
+    const r = schema.safeParse(output);
+    if (!r.success) throw failure(`la respuesta no tiene la forma esperada. ${z.prettifyError(r.error)}`);
     return r.data;
   }
 
   return {
-    id: idClasificadorReferencia(modelo),
+    id: referenceClassifierId(model),
 
-    async choice(items: readonly ItemChoice[]): Promise<RespuestaChoice[]> {
+    async choice(items: readonly ItemChoice[]): Promise<ChoiceResponse[]> {
       if (items.length === 0) return [];
-      comprobarIds(items);
-      for (const i of items) comprobarValores(i.id, i.opciones, 2, MAX_OPCIONES_CHOICE, 'opciones');
-      const esquema = esquemaRespuestas(
+      checkIds(items);
+      for (const i of items) checkValues(i.id, i.options, 2, MAX_CHOICE_OPTIONS, 'options');
+      const schema = responsesSchema(
         items.length,
-        esquemaPorItem(
+        perItemSchema(
           items.map((i) => i.id),
-          items.map((i) => i.opciones),
-          'eleccion',
-          { confianza, justificacion: { type: 'string', minLength: 1, maxLength: MAX_JUSTIFICACION } },
+          items.map((i) => i.options),
+          'choice',
+          { confidence, justification: { type: 'string', minLength: 1, maxLength: MAX_JUSTIFICATION } },
         ),
       );
-      const bloques = items.map((i, n) => bloqueItem(n + 1, { id: i.id, pregunta: i.pregunta, opciones: i.opciones }, i.estado));
-      const { respuestas } = leer(respuestasChoice, await preguntar('choice', esquema, bloques));
-      const emparejadas = emparejar(items, respuestas);
+      const blocks = items.map((i, n) => blockItem(n + 1, { id: i.id, question: i.question, options: i.options }, i.state));
+      const { responses } = read(choiceResponses, await ask('choice', schema, blocks));
+      const matched = match(items, responses);
       return items.map((item, n) => {
-        const r = emparejadas[n] as (typeof emparejadas)[number];
-        const elegida = item.opciones.indexOf(r.eleccion);
-        if (elegida < 0) {
-          throw falla(
-            `eligió ${JSON.stringify(r.eleccion)} para el ítem ${JSON.stringify(item.id)}, que no está entre sus opciones.`,
+        const r = matched[n] as (typeof matched)[number];
+        const chosen = item.options.indexOf(r.choice);
+        if (chosen < 0) {
+          throw failure(
+            `eligió ${JSON.stringify(r.choice)} para el ítem ${JSON.stringify(item.id)}, que no está entre sus opciones.`,
           );
         }
-        const reparto = distribucionConfianza(item.opciones.length, elegida, r.confianza);
+        const split = confidenceDistribution(item.options.length, chosen, r.confidence);
         return {
           id: item.id,
-          eleccion: r.eleccion,
-          distribucion: Object.fromEntries(item.opciones.map((o, k) => [o, reparto[k] ?? 0])),
-          confianza: r.confianza,
-          justificacion: r.justificacion.trim(),
+          choice: r.choice,
+          distribution: Object.fromEntries(item.options.map((o, k) => [o, split[k] ?? 0])),
+          confidence: r.confidence,
+          justification: r.justification.trim(),
         };
       });
     },
 
-    async score(items: readonly ItemScore[]): Promise<RespuestaScore[]> {
+    async score(items: readonly ItemScore[]): Promise<ScoreResponse[]> {
       if (items.length === 0) return [];
-      comprobarIds(items);
-      for (const i of items) comprobarValores(i.id, i.niveles, NIVELES_SCORE.min, NIVELES_SCORE.max, 'niveles');
-      const esquema = esquemaRespuestas(
+      checkIds(items);
+      for (const i of items) checkValues(i.id, i.levels, SCORE_LEVELS.min, SCORE_LEVELS.max, 'levels');
+      const schema = responsesSchema(
         items.length,
-        esquemaPorItem(
+        perItemSchema(
           items.map((i) => i.id),
-          items.map((i) => i.niveles),
-          'nivel',
-          { confianza },
+          items.map((i) => i.levels),
+          'level',
+          { confidence },
         ),
       );
-      const bloques = items.map((i, n) => bloqueItem(n + 1, { id: i.id, pregunta: i.pregunta, niveles: i.niveles }, i.estado));
-      const { respuestas } = leer(respuestasScore, await preguntar('score', esquema, bloques));
-      const emparejadas = emparejar(items, respuestas);
+      const blocks = items.map((i, n) => blockItem(n + 1, { id: i.id, question: i.question, levels: i.levels }, i.state));
+      const { responses } = read(scoreResponses, await ask('score', schema, blocks));
+      const matched = match(items, responses);
       return items.map((item, n) => {
-        const r = emparejadas[n] as (typeof emparejadas)[number];
+        const r = matched[n] as (typeof matched)[number];
         // `nivel` es el índice (desde 0) del nivel elegido dentro de `niveles`.
-        const nivel = item.niveles.indexOf(r.nivel);
-        if (nivel < 0) {
-          throw falla(
-            `dio el nivel ${JSON.stringify(r.nivel)} al ítem ${JSON.stringify(item.id)}, que no está entre sus niveles.`,
+        const level = item.levels.indexOf(r.level);
+        if (level < 0) {
+          throw failure(
+            `dio el nivel ${JSON.stringify(r.level)} al ítem ${JSON.stringify(item.id)}, que no está entre sus niveles.`,
           );
         }
         return {
           id: item.id,
-          nivel,
-          distribucion: distribucionConfianza(item.niveles.length, nivel, r.confianza),
-          confianza: r.confianza,
+          level,
+          distribution: confidenceDistribution(item.levels.length, level, r.confidence),
+          confidence: r.confidence,
         };
       });
     },
 
-    async noul(items: readonly ItemNoul[]): Promise<RespuestaNoul[]> {
+    async noul(items: readonly ItemNoul[]): Promise<NoulResponse[]> {
       if (items.length === 0) return [];
-      comprobarIds(items);
-      const esquema = esquemaRespuestas(
+      checkIds(items);
+      const schema = responsesSchema(
         items.length,
-        objeto({ id: { type: 'string', enum: items.map((i) => i.id) }, probabilidad: confianza, confianza }),
+        object({ id: { type: 'string', enum: items.map((i) => i.id) }, probability: confidence, confidence }),
       );
-      const bloques = items.map((i, n) => bloqueItem(n + 1, { id: i.id, enunciado: i.enunciado }, i.estado));
-      const { respuestas } = leer(respuestasNoul, await preguntar('noul', esquema, bloques));
-      return emparejar(items, respuestas).map((r) => ({ id: r.id, probabilidad: r.probabilidad, confianza: r.confianza }));
+      const blocks = items.map((i, n) => blockItem(n + 1, { id: i.id, statement: i.statement }, i.state));
+      const { responses } = read(noulResponses, await ask('noul', schema, blocks));
+      return match(items, responses).map((r) => ({ id: r.id, probability: r.probability, confidence: r.confidence }));
     },
   };
 }

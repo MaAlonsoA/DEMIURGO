@@ -1,46 +1,46 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { HALLAZGOS_IDEA, VEREDICTOS } from '@demiurgo/domain';
+import { IDEA_FINDINGS, VERDICTS } from '@demiurgo/domain';
 import { describe, expect, it } from 'vitest';
-import { crearClasificadorSimulado } from '../src/clasificador/simulado.ts';
-import { evaluarClasificador } from '../src/conocimiento/evaluar.ts';
-import { usarEntorno } from './soporte/entorno.ts';
+import { createSimulatedClassifier } from '../src/classifier/simulated.ts';
+import { evaluateClassifier } from '../src/knowledge/evaluate.ts';
+import { useEnvironment } from './support/env.ts';
 
-const entorno = usarEntorno();
+const environment = useEnvironment();
 
 describe('evaluación del clasificador', () => {
   it('AC-CON-001-11 registra precisión y cobertura por veredicto y por hallazgo en un archivo y en la tabla', async () => {
-    const salida = await mkdtemp(join(tmpdir(), 'dmg-eval-'));
+    const output = await mkdtemp(join(tmpdir(), 'dmg-eval-'));
     try {
-      const informe = await evaluarClasificador({
-        clasificador: crearClasificadorSimulado(),
-        particion: 'prueba',
-        db: entorno().servicios.db,
-        salida,
+      const report = await evaluateClassifier({
+        classifier: createSimulatedClassifier(),
+        partition: 'test',
+        db: environment().services.db,
+        output,
       });
-      expect(informe.veredictos.total).toBeGreaterThanOrEqual(30);
-      expect(informe.ideas.total).toBeGreaterThanOrEqual(20);
-      for (const v of VEREDICTOS) {
-        expect(informe.veredictos.porClase[v]).toMatchObject({ precision: expect.any(Number), cobertura: expect.any(Number) });
+      expect(report.verdicts.total).toBeGreaterThanOrEqual(30);
+      expect(report.ideas.total).toBeGreaterThanOrEqual(20);
+      for (const v of VERDICTS) {
+        expect(report.verdicts.byClass[v]).toMatchObject({ precision: expect.any(Number), recall: expect.any(Number) });
       }
-      for (const h of HALLAZGOS_IDEA) expect(informe.ideas.porClase[h]).toHaveProperty('cobertura');
-      const archivo = JSON.parse(await readFile(informe.archivo ?? '', 'utf8')) as { veredictos: { exactitud: number } };
-      expect(archivo.veredictos.exactitud).toBe(informe.veredictos.exactitud);
-      const filas = await entorno()
-        .servicios.db.selectFrom('classifier_evaluations')
+      for (const h of IDEA_FINDINGS) expect(report.ideas.byClass[h]).toHaveProperty('recall');
+      const file = JSON.parse(await readFile(report.file ?? '', 'utf8')) as { verdicts: { accuracy: number } };
+      expect(file.verdicts.accuracy).toBe(report.verdicts.accuracy);
+      const rows = await environment()
+        .services.db.selectFrom('classifier_evaluations')
         .selectAll()
         .where('classifier', '=', 'simulado@1')
         .execute();
-      expect(filas.map((f) => f.task).sort()).toEqual(['ideas', 'veredictos']);
+      expect(rows.map((f) => f.task).sort()).toEqual(['ideas', 'verdicts']);
     } finally {
-      await rm(salida, { recursive: true, force: true });
+      await rm(output, { recursive: true, force: true });
     }
   });
 
   it('AC-CLA-001-02 el simulador da la misma respuesta para la misma entrada', async () => {
-    const a = await evaluarClasificador({ clasificador: crearClasificadorSimulado(), particion: 'desarrollo' });
-    const b = await evaluarClasificador({ clasificador: crearClasificadorSimulado(), particion: 'desarrollo' });
-    expect(b.respuestas).toEqual(a.respuestas);
+    const a = await evaluateClassifier({ classifier: createSimulatedClassifier(), partition: 'dev' });
+    const b = await evaluateClassifier({ classifier: createSimulatedClassifier(), partition: 'dev' });
+    expect(b.responses).toEqual(a.responses);
   });
 });

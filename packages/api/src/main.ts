@@ -2,29 +2,29 @@
 //   DEMIURGO_DATABASE_URL=postgres://… node packages/api/src/main.ts
 // Nunca en el puerto 8000 (v1): la configuración lo rechaza.
 
-import { arrancarNucleo, leerConfiguracion, registroConsola } from '@demiurgo/core';
-import { crearServidor } from './servidor.ts';
+import { startCore, readConfig, consoleLogger } from '@demiurgo/core';
+import { createServer } from './server.ts';
 
-const config = leerConfiguracion();
-const nucleo = await arrancarNucleo(config, registroConsola);
-const app = await crearServidor({
-  servicios: nucleo.servicios,
-  urlBase: config.urlBase,
-  horasSesion: config.horasSesion,
-  origenesPermitidos: config.origenesPermitidos,
-  hostsPermitidos: [`${config.host}:${config.puerto}`, `localhost:${config.puerto}`, `127.0.0.1:${config.puerto}`],
+const config = readConfig();
+const core = await startCore(config, consoleLogger);
+const app = await createServer({
+  services: core.services,
+  baseUrl: config.baseUrl,
+  sessionHours: config.sessionHours,
+  allowedOrigins: config.allowedOrigins,
+  allowedHosts: [`${config.host}:${config.port}`, `localhost:${config.port}`, `127.0.0.1:${config.port}`],
 });
-await app.listen({ host: config.host, port: config.puerto });
-registroConsola.info('DEMIURGO v2 escuchando', {
-  url: `http://${config.host}:${config.puerto}`,
-  agente: config.agente,
-  clasificador: config.clasificador,
+await app.listen({ host: config.host, port: config.port });
+consoleLogger.info('DEMIURGO v2 escuchando', {
+  url: `http://${config.host}:${config.port}`,
+  agent: config.agent,
+  classifier: config.classifier,
 });
 
-async function parar(): Promise<void> {
+async function shutdown(): Promise<void> {
   await app.close();
-  await nucleo.detener();
+  await core.stop();
   process.exit(0);
 }
-process.once('SIGINT', () => void parar());
-process.once('SIGTERM', () => void parar());
+process.once('SIGINT', () => void shutdown());
+process.once('SIGTERM', () => void shutdown());

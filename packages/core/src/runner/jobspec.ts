@@ -7,44 +7,44 @@
 import { z } from 'zod';
 
 /** Imágenes que el runner puede lanzar, siempre fijadas por digest y ya descargadas. */
-export const IMAGENES_PERMITIDAS: readonly string[] = Object.freeze([
+export const ALLOWED_IMAGES: readonly string[] = Object.freeze([
   'node:24.21-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1',
 ]);
 
 /** Variables de entorno que un trabajo puede fijar dentro del contenedor. */
-export const ENTORNO_PERMITIDO: readonly string[] = Object.freeze(['LANG', 'LC_ALL', 'TZ', 'CI', 'NODE_ENV']);
+export const ALLOWED_ENV: readonly string[] = Object.freeze(['LANG', 'LC_ALL', 'TZ', 'CI', 'NODE_ENV']);
 
-export const TIEMPO_MAX_MS = 600_000;
+export const MAX_TIME_MS = 600_000;
 
-export const LIMITES = Object.freeze({
-  cpus: { min: 0.1, max: 4, porDefecto: 1 },
-  memoriaMb: { min: 64, max: 4096, porDefecto: 512 },
-  pids: { min: 16, max: 1024, porDefecto: 128 },
+export const LIMITS = Object.freeze({
+  cpus: { min: 0.1, max: 4, defaultValue: 1 },
+  memoryMb: { min: 64, max: 4096, defaultValue: 512 },
+  pids: { min: 16, max: 1024, defaultValue: 128 },
 });
 
 /** nombre[:puerto]/ruta:tag@sha256:<64 hex>, en minúsculas como exige el registro. */
-const PATRON_IMAGEN =
+const IMAGE_PATTERN =
   /^[a-z0-9]+(?:[._-][a-z0-9]+)*(?::\d+)?(?:\/[a-z0-9]+(?:[._-][a-z0-9]+)*)*:[\w][\w.-]{0,127}@sha256:[a-f0-9]{64}$/;
 
 /** Texto sin NUL: ni docker ni el sistema operativo lo admiten en argumentos. */
-const sinNul = (campo: string) =>
+const withoutNul = (field: string) =>
   z
-    .string({ error: `${campo} debe ser un texto.` })
-    .refine((s) => !s.includes('\0'), `${campo} no puede contener el carácter NUL.`);
+    .string({ error: `${field} debe ser un texto.` })
+    .refine((s) => !s.includes('\0'), `${field} no puede contener el carácter NUL.`);
 
-const imagen = z
+const image = z
   .string({ error: 'La imagen debe ser un texto.' })
-  .regex(PATRON_IMAGEN, {
+  .regex(IMAGE_PATTERN, {
     error: 'La imagen debe ir fijada por digest: nombre:tag@sha256:<64 hexadecimales en minúscula>.',
     abort: true,
   })
-  .refine((v) => IMAGENES_PERMITIDAS.includes(v), {
+  .refine((v) => ALLOWED_IMAGES.includes(v), {
     error: (iss) => `La imagen ${String(iss.input)} no está en la lista de imágenes permitidas del runner.`,
   });
 
-const comando = z
+const command = z
   .array(
-    sinNul('Cada argumento del comando').pipe(
+    withoutNul('Cada argumento del comando').pipe(
       z.string().max(4096, 'Cada argumento del comando admite 4096 caracteres como máximo.'),
     ),
     {
@@ -55,30 +55,30 @@ const comando = z
   .max(64, 'El comando admite 64 argumentos como máximo.')
   .refine((c) => (c[0] ?? '').length > 0, 'El primer elemento del comando no puede estar vacío.');
 
-const entrada = sinNul('La entrada')
+const input = withoutNul('La entrada')
   .pipe(z.string().max(1_000_000, 'La entrada admite 1 000 000 caracteres como máximo.'))
   .optional();
 
-const tiempoMaxMs = z
+const maxTimeMs = z
   .number({ error: 'tiempoMaxMs debe ser un número de milisegundos.' })
   .int('tiempoMaxMs debe ser un número entero de milisegundos.')
-  .min(1, `tiempoMaxMs debe estar entre 1 y ${TIEMPO_MAX_MS} ms.`)
-  .max(TIEMPO_MAX_MS, `tiempoMaxMs debe estar entre 1 y ${TIEMPO_MAX_MS} ms.`);
+  .min(1, `tiempoMaxMs debe estar entre 1 y ${MAX_TIME_MS} ms.`)
+  .max(MAX_TIME_MS, `tiempoMaxMs debe estar entre 1 y ${MAX_TIME_MS} ms.`);
 
-const rango = (campo: string, r: { min: number; max: number; porDefecto: number }, entero: boolean) => {
+const range = (field: string, r: { min: number; max: number; defaultValue: number }, isInteger: boolean) => {
   const base = z
-    .number({ error: `${campo} debe ser un número.` })
-    .min(r.min, `${campo} debe estar entre ${r.min} y ${r.max}.`)
-    .max(r.max, `${campo} debe estar entre ${r.min} y ${r.max}.`);
-  return (entero ? base.int(`${campo} debe ser un número entero.`) : base).default(r.porDefecto);
+    .number({ error: `${field} debe ser un número.` })
+    .min(r.min, `${field} debe estar entre ${r.min} y ${r.max}.`)
+    .max(r.max, `${field} debe estar entre ${r.min} y ${r.max}.`);
+  return (isInteger ? base.int(`${field} debe ser un número entero.`) : base).default(r.defaultValue);
 };
 
-const limites = z
+const limits = z
   .strictObject(
     {
-      cpus: rango('limites.cpus', LIMITES.cpus, false),
-      memoriaMb: rango('limites.memoriaMb', LIMITES.memoriaMb, true),
-      pids: rango('limites.pids', LIMITES.pids, true),
+      cpus: range('limits.cpus', LIMITS.cpus, false),
+      memoryMb: range('limits.memoryMb', LIMITS.memoryMb, true),
+      pids: range('limits.pids', LIMITS.pids, true),
     },
     {
       error: (iss) =>
@@ -87,9 +87,9 @@ const limites = z
           : 'limites debe ser un objeto.',
     },
   )
-  .default({ cpus: LIMITES.cpus.porDefecto, memoriaMb: LIMITES.memoriaMb.porDefecto, pids: LIMITES.pids.porDefecto });
+  .default({ cpus: LIMITS.cpus.defaultValue, memoryMb: LIMITS.memoryMb.defaultValue, pids: LIMITS.pids.defaultValue });
 
-const entorno = z
+const environment = z
   .record(
     z.string(),
     z
@@ -98,19 +98,19 @@ const entorno = z
       .regex(/^[\x20-\x7e]*$/, 'Los valores del entorno solo admiten caracteres ASCII imprimibles.'),
     { error: 'entorno debe ser un objeto de clave y valor.' },
   )
-  .superRefine((valor, ctx) => {
-    const prohibidas = Object.keys(valor).filter((k) => !ENTORNO_PERMITIDO.includes(k));
-    if (prohibidas.length > 0) {
+  .superRefine((value, ctx) => {
+    const forbidden = Object.keys(value).filter((k) => !ALLOWED_ENV.includes(k));
+    if (forbidden.length > 0) {
       ctx.addIssue({
         code: 'custom',
-        message: `Variables de entorno no permitidas: ${prohibidas.join(', ')}. Solo se admiten ${ENTORNO_PERMITIDO.join(', ')}.`,
+        message: `Variables de entorno no permitidas: ${forbidden.join(', ')}. Solo se admiten ${ALLOWED_ENV.join(', ')}.`,
       });
     }
   })
   .default({});
 
-export const esquemaJobSpec = z.strictObject(
-  { imagen, comando, entrada, tiempoMaxMs, limites, entorno },
+export const jobSpecSchema = z.strictObject(
+  { image, command, input, maxTimeMs, limits, environment },
   {
     error: (iss) =>
       iss.code === 'unrecognized_keys'
@@ -120,22 +120,22 @@ export const esquemaJobSpec = z.strictObject(
 );
 
 /** JobSpec validado, con los valores por defecto aplicados. */
-export type JobSpec = z.output<typeof esquemaJobSpec>;
+export type JobSpec = z.output<typeof jobSpecSchema>;
 /** JobSpec tal como lo pide quien encarga el trabajo. */
-export type JobSpecEntrada = z.input<typeof esquemaJobSpec>;
+export type JobSpecInput = z.input<typeof jobSpecSchema>;
 
-export class JobSpecInvalido extends Error {
-  readonly problemas: readonly string[];
-  constructor(problemas: readonly string[]) {
-    super(`JobSpec rechazado: ${problemas.join(' ')}`);
-    this.name = 'JobSpecInvalido';
-    this.problemas = problemas;
+export class InvalidJobSpec extends Error {
+  readonly problems: readonly string[];
+  constructor(problems: readonly string[]) {
+    super(`JobSpec rechazado: ${problems.join(' ')}`);
+    this.name = 'InvalidJobSpec';
+    this.problems = problems;
   }
 }
 
 /** Valida un JobSpec y lanza `JobSpecInvalido` con los motivos en español si no cumple. */
-export function validarJobSpec(entradaSpec: unknown): JobSpec {
-  const r = esquemaJobSpec.safeParse(entradaSpec);
+export function validateJobSpec(specInput: unknown): JobSpec {
+  const r = jobSpecSchema.safeParse(specInput);
   if (r.success) return r.data;
-  throw new JobSpecInvalido(r.error.issues.map((i) => (i.path.length > 0 ? `${i.path.join('.')}: ${i.message}` : i.message)));
+  throw new InvalidJobSpec(r.error.issues.map((i) => (i.path.length > 0 ? `${i.path.join('.')}: ${i.message}` : i.message)));
 }

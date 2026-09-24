@@ -6,139 +6,139 @@
 import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
 import { DBOS } from '@dbos-inc/dbos-sdk';
-import { type AccionAgente, ESQUEMAS_SALIDA, type ResultadoAgente, agenteRun, esquemaJsonDe, sistema } from '@demiurgo/domain';
+import { type AgentAction, OUTPUT_SCHEMAS, type AgentResult, agentRun, jsonSchemaOf, system } from '@demiurgo/domain';
 import { sql } from 'kysely';
-import { APLICADORES } from '../acciones/aplicadores.ts';
-import { cargarMetodo, versionEsquema } from '../agentes/metodos.ts';
-import { ejecutarComando, enTransaccion } from '../bus/bus.ts';
-import { grafoAlDia } from '../contexto/grafo.ts';
-import type { MotorFlujos, Servicios } from '../servicios.ts';
-import { arrancadores, conciliadores, fijarServiciosDelMotor, serviciosDelMotor } from './registro.ts';
+import { APPLIERS } from '../actions/appliers.ts';
+import { loadMethod, schemaVersion } from '../agents/methods.ts';
+import { executeCommand, inTransaction } from '../bus/bus.ts';
+import { graphUpToDate } from '../context/graph.ts';
+import type { WorkflowEngine, Services } from '../services.ts';
+import { starters, reconcilers, setEngineServices, engineServices } from './registry.ts';
 
 export {
-  registrarArranqueActualizacion,
-  registrarArranqueEvaluacion,
-  registrarConciliador,
-  serviciosDelMotor,
-} from './registro.ts';
-export type { ArrancadorFlujo } from './registro.ts';
+  registerUpdateStarter,
+  registerAssessmentStarter,
+  registerReconciler,
+  engineServices,
+} from './registry.ts';
+export type { WorkflowStarter } from './registry.ts';
 
-const comprimir = promisify(gzip);
-const MOTOR = sistema('motor');
-const TIEMPO_AGENTE_MS = 180_000;
+const compress = promisify(gzip);
+const ENGINE = system('engine');
+const AGENT_TIME_MS = 180_000;
 
 /**
  * Versión fija de la aplicación para DBOS: sin ella, DBOS la deriva del código y un cambio
  * entre un corte y el rearranque impediría recuperar los flujos pendientes. Se sube a mano
  * solo si cambia la forma de un flujo de manera incompatible.
  */
-export const VERSION_FLUJOS = 'demiurgo-v2-flujos-1';
+export const WORKFLOWS_VERSION = 'demiurgo-v2-flujos-1';
 
 /** Reintentos de los pasos transaccionales ante fallos transitorios (corte de conexión, bloqueo). */
-const REINTENTOS = { retriesAllowed: true, maxAttempts: 3, intervalSeconds: 1 } as const;
+const RETRIES = { retriesAllowed: true, maxAttempts: 3, intervalSeconds: 1 } as const;
 
-const controladores = new Map<string, AbortController>();
+const controllers = new Map<string, AbortController>();
 
 // DBOS no permite arrancar un flujo desde dentro de un paso. Los arranques pedidos dentro de un
 // flujo (p. ej. tras confirmar un paso) se difieren a un temporizador creado al lanzar el motor,
 // fuera de cualquier contexto de DBOS. Si el proceso cae antes, la conciliación al arrancar los recupera.
-const diferidos: (() => Promise<void>)[] = [];
-let despachador: NodeJS.Timeout | undefined;
+const deferred: (() => Promise<void>)[] = [];
+let dispatcher: NodeJS.Timeout | undefined;
 
-function arrancarFueraDeFlujo(arranque: () => Promise<void>): Promise<void> {
-  if (!DBOS.isWithinWorkflow()) return arranque();
-  diferidos.push(arranque);
+function startOutsideWorkflow(startup: () => Promise<void>): Promise<void> {
+  if (!DBOS.isWithinWorkflow()) return startup();
+  deferred.push(startup);
   return Promise.resolve();
 }
 
-async function despacharDiferidos(): Promise<void> {
-  while (diferidos.length > 0) {
-    const siguiente = diferidos.shift();
+async function dispatchDeferred(): Promise<void> {
+  while (deferred.length > 0) {
+    const next = deferred.shift();
     try {
-      await siguiente?.();
+      await next?.();
     } catch (e) {
-      console.error(JSON.stringify({ nivel: 'error', m: 'No se pudo arrancar un flujo diferido', error: String(e) }));
+      console.error(JSON.stringify({ level: 'error', m: 'No se pudo arrancar un flujo diferido', error: String(e) }));
     }
   }
 }
-let alCompletarPaso: ((paso: string, id: string) => void) | undefined;
+let onStepComplete: ((step: string, id: string) => void) | undefined;
 
-function requerir(): Servicios {
-  return serviciosDelMotor();
+function require(): Services {
+  return engineServices();
 }
 
-export const idFlujoRun = (runId: string): string => `run:${runId}`;
+export const workflowRunId = (runId: string): string => `run:${runId}`;
 
-async function preparar(runId: string, proyectoId: string): Promise<string> {
-  const s = requerir();
+async function prepare(runId: string, projectId: string): Promise<string> {
+  const s = require();
   const run = await s.db.selectFrom('ai_runs').select('state').where('id', '=', runId).executeTakeFirstOrThrow();
   if (run.state === 'queued') {
-    await ejecutarComando(s, { comando: 'run.begin', actor: MOTOR, proyectoId, entidadId: runId, datos: {} });
+    await executeCommand(s, { command: 'run.begin', actor: ENGINE, projectId, entityId: runId, data: {} });
     return 'running';
   }
   return run.state;
 }
 
-async function invocar(runId: string): Promise<ResultadoAgente> {
-  const s = requerir();
+async function invoke(runId: string): Promise<AgentResult> {
+  const s = require();
   const run = await s.db.selectFrom('ai_runs').selectAll().where('id', '=', runId).executeTakeFirstOrThrow();
   const pack = await s.db
     .selectFrom('context_packs')
     .select(['hash', 'content'])
     .where('id', '=', run.context_pack_id ?? '')
     .executeTakeFirstOrThrow();
-  const accion = run.action as AccionAgente;
+  const action = run.action as AgentAction;
   const [, version] = run.method.split('@');
-  const metodo = await cargarMetodo(accion, version);
+  const method = await loadMethod(action, version);
   const control = new AbortController();
-  controladores.set(runId, control);
+  controllers.set(runId, control);
   try {
-    return await s.agente.ejecutar({
+    return await s.agent.execute({
       runId,
-      accion,
-      metodo: { version: metodo.id, texto: metodo.texto },
-      esquemaSalida: esquemaJsonDe(accion),
-      contexto: { hash: pack.hash, contenido: pack.content },
-      presupuesto: { tiempoMs: TIEMPO_AGENTE_MS },
+      action,
+      method: { version: method.id, text: method.text },
+      outputSchema: jsonSchemaOf(action),
+      context: { hash: pack.hash, content: pack.content },
+      budget: { timeMs: AGENT_TIME_MS },
       signal: control.signal,
     });
   } catch (e) {
     return {
-      estado: 'error',
+      state: 'error',
       failureKind: 'infra',
-      mensaje: `El adaptador falló: ${String(e)}`,
-      eventosCrudos: '',
-      proveedor: s.agente.proveedor,
-      modelo: 'desconocido',
+      message: `El adaptador falló: ${String(e)}`,
+      rawEvents: '',
+      provider: s.agent.provider,
+      model: 'unknown',
     };
   } finally {
-    controladores.delete(runId);
+    controllers.delete(runId);
   }
 }
 
-function resumirErrores(issues: readonly { path: readonly PropertyKey[]; message: string }[]): string {
+function summarizeErrors(issues: readonly { path: readonly PropertyKey[]; message: string }[]): string {
   return issues
     .slice(0, 8)
-    .map((i) => `${i.path.map(String).join('.') || 'salida'}: ${i.message}`)
+    .map((i) => `${i.path.map(String).join('.') || 'output'}: ${i.message}`)
     .join('; ');
 }
 
-async function aplicar(runId: string, proyectoId: string, r: ResultadoAgente, flujo: string): Promise<string> {
-  const s = requerir();
-  const final = await enTransaccion(s, async (ejecutar, trx) => {
+async function apply(runId: string, projectId: string, r: AgentResult, workflow: string): Promise<string> {
+  const s = require();
+  const final = await inTransaction(s, async (execute, trx) => {
     // Mismo orden de bloqueos que el bus (proyecto y después la entidad): sin interbloqueos.
-    await sql`select 1 from projects where id = ${proyectoId}::uuid for update`.execute(trx);
-    const hecho = await trx
+    await sql`select 1 from projects where id = ${projectId}::uuid for update`.execute(trx);
+    const done = await trx
       .selectFrom('step_completions')
       .select('result')
-      .where('workflow_id', '=', flujo)
-      .where('step', '=', 'aplicar')
+      .where('workflow_id', '=', workflow)
+      .where('step', '=', 'apply')
       .executeTakeFirst();
-    if (hecho) return String(hecho.result);
+    if (done) return String(done.result);
     const run = await trx.selectFrom('ai_runs').selectAll().where('id', '=', runId).forUpdate().executeTakeFirstOrThrow();
-    let estado = run.state;
+    let state = run.state;
     if (run.state === 'running') {
-      const intento =
+      const attempt =
         Number(
           (
             await trx
@@ -150,211 +150,211 @@ async function aplicar(runId: string, proyectoId: string, r: ResultadoAgente, fl
         ) + 1;
       await trx
         .insertInto('ai_run_logs')
-        .values({ project_id: proyectoId, run_id: runId, attempt: intento, raw_gzip: await comprimir(r.eventosCrudos) })
+        .values({ project_id: projectId, run_id: runId, attempt: attempt, raw_gzip: await compress(r.rawEvents) })
         .execute();
-      const base = { actor: MOTOR, proyectoId, entidadId: runId, causa: { run: runId } };
-      const accion = run.action as AccionAgente;
-      if (r.estado === 'error') {
-        await ejecutar({
+      const base = { actor: ENGINE, projectId, entityId: runId, cause: { run: runId } };
+      const action = run.action as AgentAction;
+      if (r.state === 'error') {
+        await execute({
           ...base,
-          comando: 'run.fail',
-          datos: { failure_kind: r.failureKind, error: r.mensaje, uso: r.uso ?? null, modelo: r.modelo },
+          command: 'run.fail',
+          data: { failure_kind: r.failureKind, error: r.message, usage: r.usage ?? null, model: r.model },
         });
-        estado = 'failed';
-      } else if (versionEsquema(accion) !== run.schema_version) {
+        state = 'failed';
+      } else if (schemaVersion(action) !== run.schema_version) {
         // El esquema se fija por ejecución (I7): si el código cambió desde que se pidió, no se valida con otro.
-        await ejecutar({
+        await execute({
           ...base,
-          comando: 'run.fail',
-          datos: {
+          command: 'run.fail',
+          data: {
             failure_kind: 'infra',
             error: 'El esquema de salida de la acción cambió desde que se pidió la ejecución.',
-            uso: r.uso,
-            modelo: r.modelo,
+            usage: r.usage,
+            model: r.model,
           },
         });
-        estado = 'failed';
+        state = 'failed';
       } else {
-        const v = ESQUEMAS_SALIDA[accion].safeParse(r.salidaCruda);
+        const v = OUTPUT_SCHEMAS[action].safeParse(r.rawOutput);
         if (!v.success) {
           // Salida fuera de esquema: ningún efecto salvo el propio fallo de la ejecución (I7).
-          await ejecutar({
+          await execute({
             ...base,
-            comando: 'run.fail',
-            datos: { failure_kind: 'invalid_output', error: resumirErrores(v.error.issues), uso: r.uso, modelo: r.modelo },
+            command: 'run.fail',
+            data: { failure_kind: 'invalid_output', error: summarizeErrors(v.error.issues), usage: r.usage, model: r.model },
           });
-          estado = 'failed';
+          state = 'failed';
         } else {
-          const aplicador = APLICADORES[accion] as
-            | ((e: { trx: typeof trx; ejecutar: typeof ejecutar; run: typeof run; salida: unknown }) => Promise<void>)
+          const applier = APPLIERS[action] as
+            | ((e: { trx: typeof trx; execute: typeof execute; run: typeof run; output: unknown }) => Promise<void>)
             | undefined;
-          if (!aplicador) throw new Error(`No hay aplicador para «${accion}».`);
-          await aplicador({ trx, ejecutar: (p) => ejecutar({ causa: { run: runId }, ...p }), run, salida: v.data });
-          await ejecutar({ ...base, comando: 'run.complete', datos: { salida: v.data, uso: r.uso, modelo: r.modelo } });
-          estado = 'completed';
+          if (!applier) throw new Error(`No hay aplicador para «${action}».`);
+          await applier({ trx, execute: (p) => execute({ cause: { run: runId }, ...p }), run, output: v.data });
+          await execute({ ...base, command: 'run.complete', data: { output: v.data, usage: r.usage, model: r.model } });
+          state = 'completed';
         }
       }
     }
     await trx
       .insertInto('step_completions')
-      .values({ workflow_id: flujo, step: 'aplicar', result: JSON.stringify(estado) })
+      .values({ workflow_id: workflow, step: 'apply', result: JSON.stringify(state) })
       .execute();
-    return estado;
+    return state;
   });
-  alCompletarPaso?.('aplicar', runId);
+  onStepComplete?.('apply', runId);
   return final;
 }
 
-async function flujoRun(runId: string, proyectoId: string): Promise<string> {
-  const flujo = DBOS.workflowID ?? idFlujoRun(runId);
-  const estado = await DBOS.runStep(() => preparar(runId, proyectoId), { name: 'preparar', ...REINTENTOS });
-  if (estado !== 'running') return estado;
-  const resultado = await DBOS.runStep(() => invocar(runId), { name: 'invocar' });
+async function runWorkflow(runId: string, projectId: string): Promise<string> {
+  const workflow = DBOS.workflowID ?? workflowRunId(runId);
+  const state = await DBOS.runStep(() => prepare(runId, projectId), { name: 'prepare', ...RETRIES });
+  if (state !== 'running') return state;
+  const result = await DBOS.runStep(() => invoke(runId), { name: 'invoke' });
   try {
-    return await DBOS.runStep(() => aplicar(runId, proyectoId, resultado, flujo), { name: 'aplicar', ...REINTENTOS });
+    return await DBOS.runStep(() => apply(runId, projectId, result, workflow), { name: 'apply', ...RETRIES });
   } catch (e) {
-    await DBOS.runStep(() => fallarPorInfraestructura(runId, proyectoId, e), { name: 'fallar', ...REINTENTOS });
+    await DBOS.runStep(() => failForInfrastructure(runId, projectId, e), { name: 'fail', ...RETRIES });
     return 'failed';
   }
 }
 
 /** Un error del propio sistema al aplicar deja la ejecución fallida (infra), nunca colgada. */
-async function fallarPorInfraestructura(runId: string, proyectoId: string, e: unknown): Promise<void> {
-  const s = requerir();
+async function failForInfrastructure(runId: string, projectId: string, e: unknown): Promise<void> {
+  const s = require();
   const run = await s.db.selectFrom('ai_runs').select('state').where('id', '=', runId).executeTakeFirstOrThrow();
   if (run.state !== 'running') return;
-  await ejecutarComando(s, {
-    comando: 'run.fail',
-    actor: MOTOR,
-    proyectoId,
-    entidadId: runId,
-    datos: { failure_kind: 'infra', error: `Error al aplicar la salida: ${String(e).slice(0, 3000)}` },
+  await executeCommand(s, {
+    command: 'run.fail',
+    actor: ENGINE,
+    projectId,
+    entityId: runId,
+    data: { failure_kind: 'infra', error: `Error al aplicar la salida: ${String(e).slice(0, 3000)}` },
   });
 }
 
-const flujoRunRegistrado = DBOS.registerWorkflow(flujoRun, { name: 'demiurgo.run' });
+const runWorkflowRegistered = DBOS.registerWorkflow(runWorkflow, { name: 'demiurgo.run' });
 
 // Respuesta durable a un mensaje de la persona: espera a que el conocimiento esté al día y
 // pide la ejecución de exploration_chat una sola vez (marca en step_completions).
-async function pedirRespuesta(
-  flujo: string,
-  proyectoId: string,
-  exploracionId: string,
-  preguntaId: string | null,
+async function requestResponse(
+  workflow: string,
+  projectId: string,
+  explorationId: string,
+  questionId: string | null,
 ): Promise<void> {
-  const s = requerir();
-  await enTransaccion(s, async (ejecutar, trx) => {
-    await sql`select 1 from projects where id = ${proyectoId}::uuid for update`.execute(trx);
-    const hecho = await trx
+  const s = require();
+  await inTransaction(s, async (execute, trx) => {
+    await sql`select 1 from projects where id = ${projectId}::uuid for update`.execute(trx);
+    const done = await trx
       .selectFrom('step_completions')
       .select('step')
-      .where('workflow_id', '=', flujo)
-      .where('step', '=', 'pedir')
+      .where('workflow_id', '=', workflow)
+      .where('step', '=', 'request')
       .executeTakeFirst();
-    if (hecho) return;
-    const exploracion = await trx.selectFrom('explorations').select('state').where('id', '=', exploracionId).executeTakeFirst();
-    if (exploracion?.state === 'active') {
-      await ejecutar({
-        comando: 'run.request',
-        actor: sistema('conversacion'),
-        proyectoId,
-        datos: {
-          accion: 'exploration_chat',
-          alcance: { tipo: 'exploration', id: exploracionId },
-          entrada: preguntaId ? { pregunta_id: preguntaId } : {},
+    if (done) return;
+    const exploration = await trx.selectFrom('explorations').select('state').where('id', '=', explorationId).executeTakeFirst();
+    if (exploration?.state === 'active') {
+      await execute({
+        command: 'run.request',
+        actor: system('conversation'),
+        projectId,
+        data: {
+          action: 'exploration_chat',
+          scope: { type: 'exploration', id: explorationId },
+          input: questionId ? { question_id: questionId } : {},
         },
       });
     }
     await trx
       .insertInto('step_completions')
-      .values({ workflow_id: flujo, step: 'pedir', result: JSON.stringify('ok') })
+      .values({ workflow_id: workflow, step: 'request', result: JSON.stringify('ok') })
       .execute();
   });
 }
 
-async function flujoResponder(proyectoId: string, exploracionId: string, preguntaId: string | null): Promise<void> {
-  const flujo = DBOS.workflowID ?? `respuesta:${exploracionId}`;
+async function respondWorkflow(projectId: string, explorationId: string, questionId: string | null): Promise<void> {
+  const workflow = DBOS.workflowID ?? `respuesta:${explorationId}`;
   for (let i = 0; i < 120; i++) {
-    const alDia = await DBOS.runStep(
+    const upToDate = await DBOS.runStep(
       () =>
-        requerir()
+        require()
           .db.transaction()
-          .execute((trx) => grafoAlDia(trx, proyectoId)),
+          .execute((trx) => graphUpToDate(trx, projectId)),
       {
-        name: 'frescura',
+        name: 'freshness',
       },
     );
-    if (alDia.alDia) break;
+    if (upToDate.upToDate) break;
     await DBOS.sleepms(500);
   }
-  await DBOS.runStep(() => pedirRespuesta(flujo, proyectoId, exploracionId, preguntaId), { name: 'pedir', ...REINTENTOS });
+  await DBOS.runStep(() => requestResponse(workflow, projectId, explorationId, questionId), { name: 'request', ...RETRIES });
 }
 
-const flujoResponderRegistrado = DBOS.registerWorkflow(flujoResponder, { name: 'demiurgo.responder' });
+const respondWorkflowRegistered = DBOS.registerWorkflow(respondWorkflow, { name: 'demiurgo.respond' });
 
-export const motorDbos: MotorFlujos = {
-  async iniciarRun(runId, proyectoId) {
+export const dbosEngine: WorkflowEngine = {
+  async startRun(runId, projectId) {
     // Con el mismo workflowID, DBOS no repite el flujo: devuelve el existente.
-    await arrancarFueraDeFlujo(async () => {
-      await DBOS.startWorkflow(flujoRunRegistrado, { workflowID: idFlujoRun(runId) })(runId, proyectoId);
+    await startOutsideWorkflow(async () => {
+      await DBOS.startWorkflow(runWorkflowRegistered, { workflowID: workflowRunId(runId) })(runId, projectId);
     });
   },
-  async cancelarRun(runId) {
-    controladores.get(runId)?.abort();
-    await DBOS.cancelWorkflow(idFlujoRun(runId)).catch(() => undefined);
+  async cancelRun(runId) {
+    controllers.get(runId)?.abort();
+    await DBOS.cancelWorkflow(workflowRunId(runId)).catch(() => undefined);
   },
-  async iniciarActualizacion(id, proyectoId) {
-    await arrancarFueraDeFlujo(() => arrancadores.actualizacion(id, proyectoId));
+  async startUpdate(id, projectId) {
+    await startOutsideWorkflow(() => starters.update(id, projectId));
   },
-  async iniciarEvaluacion(loteId, proyectoId) {
-    await arrancarFueraDeFlujo(() => arrancadores.evaluacion(loteId, proyectoId));
+  async startEvaluation(batchId, projectId) {
+    await startOutsideWorkflow(() => starters.assessment(batchId, projectId));
   },
-  async iniciarRespuesta(mensajeId, proyectoId, exploracionId, preguntaId) {
-    await arrancarFueraDeFlujo(async () => {
-      await DBOS.startWorkflow(flujoResponderRegistrado, { workflowID: `respuesta:${mensajeId}` })(
-        proyectoId,
-        exploracionId,
-        preguntaId ?? null,
+  async startResponse(messageId, projectId, explorationId, questionId) {
+    await startOutsideWorkflow(async () => {
+      await DBOS.startWorkflow(respondWorkflowRegistered, { workflowID: `respuesta:${messageId}` })(
+        projectId,
+        explorationId,
+        questionId ?? null,
       );
     });
   },
 };
 
-export type OpcionesMotor = {
+export type EngineOptions = {
   /** Solo para pruebas de durabilidad: se llama justo después de confirmar un paso. */
-  alCompletarPaso?: (paso: string, id: string) => void;
+  onStepComplete?: (step: string, id: string) => void;
 };
 
-export type MotorIniciado = { servicios: Servicios; detener(): Promise<void> };
+export type StartedEngine = { services: Services; stop(): Promise<void> };
 
 /**
  * Concilia al arrancar: una ejecución encolada sin flujo se arranca; una en curso cuyo flujo
  * ya no se puede reanudar (fallido, cancelado o inexistente) queda interrumpida para que la
  * persona la reintente con el mismo context pack. Nunca queda colgada.
  */
-async function conciliarEjecuciones(s: Servicios): Promise<void> {
-  const vivas = await s.db
+async function reconcileRuns(s: Services): Promise<void> {
+  const liveRuns = await s.db
     .selectFrom('ai_runs')
     .select(['id', 'project_id', 'state'])
     .where('state', 'in', ['queued', 'running'])
     .execute();
-  for (const r of vivas) {
-    const flujo = await DBOS.getWorkflowStatus(idFlujoRun(r.id));
-    const vivo = flujo && ['PENDING', 'ENQUEUED', 'SUCCESS'].includes(flujo.status);
-    if (vivo) continue;
-    if (!flujo && r.state === 'queued') {
-      await motorDbos.iniciarRun(r.id, r.project_id);
+  for (const r of liveRuns) {
+    const workflow = await DBOS.getWorkflowStatus(workflowRunId(r.id));
+    const alive = workflow && ['PENDING', 'ENQUEUED', 'SUCCESS'].includes(workflow.status);
+    if (alive) continue;
+    if (!workflow && r.state === 'queued') {
+      await dbosEngine.startRun(r.id, r.project_id);
       continue;
     }
-    const motivo = flujo
-      ? `El flujo de la ejecución terminó en ${flujo.status} sin completarla; reinténtala.`
+    const reason = workflow
+      ? `El flujo de la ejecución terminó en ${workflow.status} sin completarla; reinténtala.`
       : 'El proceso se cortó sin un flujo que reanudar; reinténtala con el mismo context pack.';
-    await ejecutarComando(s, {
-      comando: r.state === 'running' ? 'run.interrupt' : 'run.fail',
-      actor: MOTOR,
-      proyectoId: r.project_id,
-      entidadId: r.id,
-      datos: r.state === 'running' ? { motivo } : { failure_kind: 'infra', error: motivo },
+    await executeCommand(s, {
+      command: r.state === 'running' ? 'run.interrupt' : 'run.fail',
+      actor: ENGINE,
+      projectId: r.project_id,
+      entityId: r.id,
+      data: r.state === 'running' ? { reason } : { failure_kind: 'infra', error: reason },
     });
   }
 }
@@ -363,49 +363,49 @@ async function conciliarEjecuciones(s: Servicios): Promise<void> {
  * Configura y lanza DBOS sobre la base de la aplicación (esquema `dbos`). Al lanzar, DBOS
  * reanuda los flujos pendientes; después se concilian las ejecuciones y las actualizaciones.
  */
-export async function iniciarMotor(
-  base: Omit<Servicios, 'motor'>,
-  urlBase: string,
-  opciones: OpcionesMotor = {},
-): Promise<MotorIniciado> {
-  const s: Servicios = { ...base, motor: motorDbos };
-  fijarServiciosDelMotor(s);
-  alCompletarPaso = opciones.alCompletarPaso;
+export async function startEngine(
+  base: Omit<Services, 'engine'>,
+  baseUrl: string,
+  options: EngineOptions = {},
+): Promise<StartedEngine> {
+  const s: Services = { ...base, engine: dbosEngine };
+  setEngineServices(s);
+  onStepComplete = options.onStepComplete;
   DBOS.setConfig({
     name: 'demiurgo',
-    systemDatabaseUrl: urlBase,
+    systemDatabaseUrl: baseUrl,
     systemDatabaseSchemaName: 'dbos',
-    applicationVersion: VERSION_FLUJOS,
+    applicationVersion: WORKFLOWS_VERSION,
     executorID: 'local',
     logLevel: 'warn',
   });
   await DBOS.launch();
-  despachador = setInterval(() => {
-    void despacharDiferidos();
+  dispatcher = setInterval(() => {
+    void dispatchDeferred();
   }, 50);
-  await conciliarEjecuciones(s);
-  for (const c of conciliadores) await c(s);
+  await reconcileRuns(s);
+  for (const c of reconcilers) await c(s);
   return {
-    servicios: s,
-    async detener() {
-      for (const c of controladores.values()) c.abort();
-      clearInterval(despachador);
-      await despacharDiferidos();
+    services: s,
+    async stop() {
+      for (const c of controllers.values()) c.abort();
+      clearInterval(dispatcher);
+      await dispatchDeferred();
       await DBOS.shutdown();
-      fijarServiciosDelMotor(null);
+      setEngineServices(null);
     },
   };
 }
 
 /** Espera el resultado del flujo de una ejecución (pruebas y CLI). */
-export async function esperarRun(runId: string): Promise<string | null> {
-  return DBOS.retrieveWorkflow<string>(idFlujoRun(runId)).getResult();
+export async function waitForRun(runId: string): Promise<string | null> {
+  return DBOS.retrieveWorkflow<string>(workflowRunId(runId)).getResult();
 }
 
 /** Espera la respuesta durable a un mensaje (pruebas). */
-export async function esperarRespuesta(mensajeId: string): Promise<void> {
-  await DBOS.retrieveWorkflow<void>(`respuesta:${mensajeId}`).getResult();
+export async function waitForResponse(messageId: string): Promise<void> {
+  await DBOS.retrieveWorkflow<void>(`respuesta:${messageId}`).getResult();
 }
 
 /** Marca de actor para los efectos de una ejecución. */
-export const actorDeRun = agenteRun;
+export const actorOfRun = agentRun;

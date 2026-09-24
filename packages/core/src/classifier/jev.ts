@@ -19,16 +19,16 @@
 // - El id pasará a ser `jev@<versión del modelo>` (p. ej. `jev@jev-1.13.0`), y forma parte del
 //   `input_hash` de cada clasificación.
 
-import type { Clasificador } from '@demiurgo/domain';
+import type { Classifier } from '@demiurgo/domain';
 
-export const ID_CLASIFICADOR_JEV = 'jev@no-disponible';
+export const JEV_CLASSIFIER_ID = 'jev@no-disponible';
 
-export const MENSAJE_JEV_NO_DISPONIBLE =
+export const JEV_UNAVAILABLE_MESSAGE =
   'Jev no está disponible: el adaptador está vacío hasta tener acceso y un ADR sobre el envío de datos a TypeSafe.';
 
-export function crearClasificadorJev(): Clasificador {
-  const noDisponible = async (): Promise<never> => {
-    throw new Error(MENSAJE_JEV_NO_DISPONIBLE);
+export function createJevClassifier(): Classifier {
+  const notAvailable = async (): Promise<never> => {
+    throw new Error(JEV_UNAVAILABLE_MESSAGE);
   };
-  return { id: ID_CLASIFICADOR_JEV, choice: noDisponible, score: noDisponible, noul: noDisponible };
+  return { id: JEV_CLASSIFIER_ID, choice: notAvailable, score: notAvailable, noul: notAvailable };
 }

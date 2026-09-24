@@ -1,2 +1,2 @@
-export * from './cliente-api.ts';
-export * from './servidor.ts';
+export * from './api-client.ts';
+export * from './server.ts';

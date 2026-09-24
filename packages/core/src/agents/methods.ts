@@ -2,24 +2,24 @@
 
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { type AccionAgente, esquemaJsonDe, huella } from '@demiurgo/domain';
+import { type AgentAction, jsonSchemaOf, fingerprint } from '@demiurgo/domain';
 
-export const VERSION_METODO: Record<AccionAgente, string> = {
-  eco: 'v1',
+export const METHOD_VERSION: Record<AgentAction, string> = {
+  echo: 'v1',
   exploration_chat: 'v1',
   design_proposal: 'v1',
 };
 
-const DIR = fileURLToPath(new URL('../../metodos/', import.meta.url));
+const DIR = fileURLToPath(new URL('../../methods/', import.meta.url));
 
-export type Metodo = { id: string; version: string; texto: string };
+export type Method = { id: string; version: string; text: string };
 
-export async function cargarMetodo(accion: AccionAgente, version = VERSION_METODO[accion]): Promise<Metodo> {
-  const texto = await readFile(`${DIR}${accion}/${version}.md`, 'utf8');
-  return { id: `${accion}@${version}`, version, texto: texto.replaceAll('\r\n', '\n') };
+export async function loadMethod(action: AgentAction, version = METHOD_VERSION[action]): Promise<Method> {
+  const text = await readFile(`${DIR}${action}/${version}.md`, 'utf8');
+  return { id: `${action}@${version}`, version, text: text.replaceAll('\r\n', '\n') };
 }
 
 /** Versión del esquema de salida: huella corta del JSON Schema generado desde Zod. */
-export function versionEsquema(accion: AccionAgente): string {
-  return huella(esquemaJsonDe(accion)).slice(0, 16);
+export function schemaVersion(action: AgentAction): string {
+  return fingerprint(jsonSchemaOf(action)).slice(0, 16);
 }

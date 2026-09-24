@@ -2,82 +2,82 @@
 // Regla central: un documento es válido solo si `renderizar(parsear(texto)) === texto`.
 // Así la exportación desde la v2 reproduce `design/` byte a byte.
 
-import { parse as parsearYaml, stringify as serializarYaml } from 'yaml';
+import { parse as parseYaml, stringify as serializeYaml } from 'yaml';
 import { z } from 'zod';
 import {
-  ESTADOS_DOCUMENTO,
-  PREFIJOS,
-  SECCION_CRITERIOS,
-  TIPOS_ENLACE,
-  TIPOS_REGISTRO,
-  VERIFICACIONES,
-  type Criterio,
-  type Documento,
-  type DocumentoRegistro,
-  type DocumentoTaxonomia,
-  type Enlace,
-  type Problema,
-  type Referencia,
-  type Resultado,
-  type Seccion,
-} from './tipos.ts';
+  DOCUMENT_STATUSES,
+  PREFIXES,
+  CRITERIA_SECTION,
+  LINK_TYPES,
+  RECORD_TYPES,
+  VERIFICATIONS,
+  type Criterion,
+  type Document,
+  type RecordDocument,
+  type TaxonomyDocument,
+  type Link,
+  type Problem,
+  type Reference,
+  type Result,
+  type Section,
+} from './types.ts';
 
-const RE_CODIGO_REGISTRO = /^(DEC|ADR|FDR|BUG)-[A-Z]{3}-\d{3}$/;
-const RE_CODIGO_TAXONOMIA = /^TAX-\d{3}$/;
+const RE_RECORD_CODE = /^(DEC|ADR|FDR|BUG)-[A-Z]{3}-\d{3}$/;
+const RE_TAXONOMY_CODE = /^TAX-\d{3}$/;
 // Un enlace apunta a un registro (no a una taxonomía) y a una versión que empieza en 1.
-const RE_REFERENCIA = /^((?:DEC|ADR|FDR|BUG)-[A-Z]{3}-\d{3})@([1-9]\d*)$/;
-const RE_CODIGO_AC = /^AC-[A-Z]{3}-\d{3}-\d{2}$/;
+const RE_REFERENCE = /^((?:DEC|ADR|FDR|BUG)-[A-Z]{3}-\d{3})@([1-9]\d*)$/;
+const RE_AC_CODE = /^AC-[A-Z]{3}-\d{3}-\d{2}$/;
 // Encabezado de Markdown (de `#` a `######`) cuyo texto empieza por un código de AC.
-const RE_ENCABEZADO_AC = /^ {0,3}#{1,6}[ \t]+AC-[A-Z]{3}-\d{3}-\d{2}(?![\w-])/;
+const RE_AC_HEADING = /^ {0,3}#{1,6}[ \t]+AC-[A-Z]{3}-\d{3}-\d{2}(?![\w-])/;
 // Espacio en blanco de cualquier tipo al final de una línea (incluido el espacio duro U+00A0).
-const RE_ESPACIO_FINAL = /[^\S\n]$/;
-const SEPARADOR = ' · ';
+const RE_TRAILING_SPACE = /[^\S\n]$/;
+const SEPARATOR = ' · ';
 
-const esquemaFrontRegistro = z
+const recordFrontSchema = z
   .object({
-    codigo: z.string().regex(RE_CODIGO_REGISTRO, 'El código debe tener la forma TIP-DOM-NNN'),
-    tipo: z.enum(TIPOS_REGISTRO),
-    titulo: z.string().min(3),
+    code: z.string().regex(RE_RECORD_CODE, 'El código debe tener la forma TIP-DOM-NNN'),
+    type: z.enum(RECORD_TYPES),
+    title: z.string().min(3),
     version: z.number().int().positive(),
-    estado: z.enum(ESTADOS_DOCUMENTO),
-    dominio: z.string().regex(/^[a-z][a-z0-9_]*$/),
-    incremento: z
+    state: z.enum(DOCUMENT_STATUSES),
+    domain: z.string().regex(/^[a-z][a-z0-9_]*$/),
+    increment: z
       .string()
       .regex(/^(D|S|H)\d+$/)
       .optional(),
-    nota_de_cambio: z.string().min(1).optional(),
-    enlaces: z.array(
+    change_note: z.string().min(1).optional(),
+    links: z.array(
       z
         .object({
-          tipo: z.enum(TIPOS_ENLACE),
-          destino: z.string().regex(RE_REFERENCIA, 'Referencia CODIGO@version a un registro, con la versión desde 1'),
+          type: z.enum(LINK_TYPES),
+          target: z.string().regex(RE_REFERENCE, 'Referencia CODIGO@version a un registro, con la versión desde 1'),
         })
         .strict(),
     ),
-    anexos: z.array(z.string().regex(/^datos\/[a-z0-9-]+\.yaml$/)),
+    annexes: z.array(z.string().regex(/^datos\/[a-z0-9-]+\.yaml$/)),
   })
   .strict();
 
-const esquemaFrontTaxonomia = z
+const taxonomyFrontSchema = z
   .object({
-    codigo: z.string().regex(RE_CODIGO_TAXONOMIA, 'El código debe tener la forma TAX-NNN'),
-    tipo: z.literal('taxonomia'),
-    titulo: z.string().min(3),
+    code: z.string().regex(RE_TAXONOMY_CODE, 'El código debe tener la forma TAX-NNN'),
+    type: z.literal('taxonomy'),
+    title: z.string().min(3),
     version: z.number().int().positive(),
-    estado: z.enum(ESTADOS_DOCUMENTO),
-    ejes: z
+    state: z.enum(DOCUMENT_STATUSES),
+    axes: z
       .array(
         z
           .object({
-            codigo: z.string().regex(/^[a-z][a-z0-9_]*$/),
-            nombre: z.string().min(1),
-            categorias: z
+            code: z.string().regex(/^[a-z][a-z0-9_]*$/),
+            name: z.string().min(1),
+            categories: z
               .array(
                 z
                   .object({
-                    codigo: z.string().regex(/^[a-z][a-z0-9_]*$/),
-                    nombre: z.string().min(1),
-                    descripcion: z.string().min(1),
+                    code: z.string().regex(/^[a-z][a-z0-9_]*$/),
+                    name: z.string().min(1),
+                    description: z.string().min(1),
                   })
                   .strict(),
               )
@@ -89,14 +89,14 @@ const esquemaFrontTaxonomia = z
   })
   .strict();
 
-export function parsearReferencia(texto: string): Referencia | null {
-  const m = RE_REFERENCIA.exec(texto);
+export function parseReference(text: string): Reference | null {
+  const m = RE_REFERENCE.exec(text);
   if (!m?.[1] || !m[2]) return null;
-  return { codigo: m[1], version: Number(m[2]) };
+  return { code: m[1], version: Number(m[2]) };
 }
 
-export function formatearReferencia(ref: Referencia): string {
-  return `${ref.codigo}@${ref.version}`;
+export function formatReference(ref: Reference): string {
+  return `${ref.code}@${ref.version}`;
 }
 
 /**
@@ -104,8 +104,8 @@ export function formatearReferencia(ref: Referencia): string {
  * blanco de cualquier tipo al final de línea y varias líneas en blanco seguidas. `canonizar`
  * lo aplica antes de leer cada documento.
  */
-export function normalizarEspacios(texto: string): string {
-  return texto
+export function normalizeWhitespace(text: string): string {
+  return text
     .replaceAll('\r\n', '\n')
     .replace(/[^\S\n]+$/gm, '')
     .replace(/\n{3,}/g, '\n\n');
@@ -115,284 +115,284 @@ export function normalizarEspacios(texto: string): string {
  * CRLF y espacios finales en un archivo de texto de `design/` (documento o anexo). Sobreviven
  * a parsear y renderizar, así que la regla canónica no los detecta: se rechazan aquí.
  */
-export function problemasDeEspacios(texto: string, ruta: string): Problema[] {
-  if (texto.includes('\r')) return [{ ruta, mensaje: 'El archivo usa finales de línea CRLF; el formato exige LF.' }];
-  const conEspacios = texto.split('\n').findIndex((l) => RE_ESPACIO_FINAL.test(l));
-  if (conEspacios >= 0) {
-    return [{ ruta, mensaje: `La línea ${conEspacios + 1} termina con espacios; el formato no los admite.` }];
+export function whitespaceProblems(text: string, path: string): Problem[] {
+  if (text.includes('\r')) return [{ path, message: 'El archivo usa finales de línea CRLF; el formato exige LF.' }];
+  const withSpaces = text.split('\n').findIndex((l) => RE_TRAILING_SPACE.test(l));
+  if (withSpaces >= 0) {
+    return [{ path, message: `La línea ${withSpaces + 1} termina con espacios; el formato no los admite.` }];
   }
   return [];
 }
 
 /** Lee YAML; un error de sintaxis se devuelve como problema en español, sin traza de pila. */
-export function leerYaml(texto: string, ruta: string, que: string): Resultado<unknown> {
+export function readYaml(text: string, path: string, what: string): Result<unknown> {
   try {
-    return { ok: true, valor: parsearYaml(texto) as unknown };
+    return { ok: true, value: parseYaml(text) as unknown };
   } catch (e) {
     const { code, linePos } = e as { code?: unknown; linePos?: readonly { line: number; col: number }[] };
     const pos = linePos?.[0];
-    const donde = pos ? ` en la línea ${pos.line}, columna ${pos.col}` : '';
-    const codigo = typeof code === 'string' ? ` (${code})` : '';
-    return fallo(ruta, `${que} no es YAML válido: error de sintaxis${donde}${codigo}.`);
+    const where = pos ? ` en la línea ${pos.line}, columna ${pos.col}` : '';
+    const codeSuffix = typeof code === 'string' ? ` (${code})` : '';
+    return failure(path, `${what} no es YAML válido: error de sintaxis${where}${codeSuffix}.`);
   }
 }
 
-function separarFrontmatter(texto: string, ruta: string): Resultado<{ front: unknown; cuerpo: string }> {
-  const espacios = problemasDeEspacios(texto, ruta);
-  if (espacios.length > 0) return { ok: false, problemas: espacios };
-  if (!texto.startsWith('---\n')) return fallo(ruta, 'Falta el frontmatter: el archivo debe empezar por «---».');
-  const fin = texto.indexOf('\n---\n', 3);
-  if (fin < 0) return fallo(ruta, 'El frontmatter no está cerrado con «---».');
-  const front = leerYaml(texto.slice(4, fin + 1), ruta, 'El frontmatter');
+function splitFrontMatter(text: string, path: string): Result<{ front: unknown; body: string }> {
+  const spaces = whitespaceProblems(text, path);
+  if (spaces.length > 0) return { ok: false, problems: spaces };
+  if (!text.startsWith('---\n')) return failure(path, 'Falta el frontmatter: el archivo debe empezar por «---».');
+  const end = text.indexOf('\n---\n', 3);
+  if (end < 0) return failure(path, 'El frontmatter no está cerrado con «---».');
+  const front = readYaml(text.slice(4, end + 1), path, 'El frontmatter');
   if (!front.ok) return front;
-  return { ok: true, valor: { front: front.valor, cuerpo: texto.slice(fin + 5) } };
+  return { ok: true, value: { front: front.value, body: text.slice(end + 5) } };
 }
 
-function fallo<T>(ruta: string, mensaje: string): Resultado<T> {
-  return { ok: false, problemas: [{ ruta, mensaje }] };
+function failure<T>(path: string, message: string): Result<T> {
+  return { ok: false, problems: [{ path, message }] };
 }
 
-function problemasZod(ruta: string, error: z.ZodError): Problema[] {
-  return error.issues.map((i) => ({ ruta, mensaje: `Frontmatter: ${i.path.join('.') || '(raíz)'}: ${i.message}` }));
+function zodProblems(path: string, error: z.ZodError): Problem[] {
+  return error.issues.map((i) => ({ path, message: `Frontmatter: ${i.path.join('.') || '(raíz)'}: ${i.message}` }));
 }
 
-type Bloque = { titulo: string; lineas: string[] };
+type Block = { title: string; lines: string[] };
 
 /** Divide un cuerpo en bloques por encabezados con el prefijo dado («## » o «### »). */
-function dividir(lineas: string[], prefijo: string): { antes: string[]; bloques: Bloque[] } {
-  const antes: string[] = [];
-  const bloques: Bloque[] = [];
-  for (const linea of lineas) {
-    if (linea.startsWith(prefijo)) {
-      bloques.push({ titulo: linea.slice(prefijo.length), lineas: [] });
-    } else if (bloques.length === 0) {
-      antes.push(linea);
+function split(lines: string[], prefix: string): { before: string[]; blocks: Block[] } {
+  const before: string[] = [];
+  const blocks: Block[] = [];
+  for (const line of lines) {
+    if (line.startsWith(prefix)) {
+      blocks.push({ title: line.slice(prefix.length), lines: [] });
+    } else if (blocks.length === 0) {
+      before.push(line);
     } else {
-      bloques[bloques.length - 1]?.lineas.push(linea);
+      blocks[blocks.length - 1]?.lines.push(line);
     }
   }
-  return { antes, bloques };
+  return { before, blocks };
 }
 
-function recortar(lineas: string[]): string {
-  let ini = 0;
-  let fin = lineas.length;
-  while (ini < fin && lineas[ini]?.trim() === '') ini++;
-  while (fin > ini && lineas[fin - 1]?.trim() === '') fin--;
-  return lineas.slice(ini, fin).join('\n');
+function trim(lines: string[]): string {
+  let start = 0;
+  let end = lines.length;
+  while (start < end && lines[start]?.trim() === '') start++;
+  while (end > start && lines[end - 1]?.trim() === '') end--;
+  return lines.slice(start, end).join('\n');
 }
 
-function parsearCuerpo(
-  cuerpo: string,
-  ruta: string,
-  codigo: string,
-  titulo: string,
-): Resultado<{ secciones: Seccion[]; criteriosTexto: string | null }> {
-  const lineas = cuerpo.split('\n');
-  const { antes, bloques } = dividir(lineas, '## ');
-  const cabecera = recortar(antes);
-  const esperado = `# ${codigo}${SEPARADOR}${titulo}`;
-  if (cabecera !== esperado) {
-    return fallo(ruta, `El título del cuerpo debe ser exactamente «${esperado}».`);
+function parseBody(
+  body: string,
+  path: string,
+  code: string,
+  title: string,
+): Result<{ sections: Section[]; criteriaText: string | null }> {
+  const lines = body.split('\n');
+  const { before, blocks } = split(lines, '## ');
+  const header = trim(before);
+  const expected = `# ${code}${SEPARATOR}${title}`;
+  if (header !== expected) {
+    return failure(path, `El título del cuerpo debe ser exactamente «${expected}».`);
   }
-  const secciones: Seccion[] = [];
-  let criteriosTexto: string | null = null;
-  const problemas: Problema[] = [];
-  const vistas = new Set<string>();
-  for (const [i, b] of bloques.entries()) {
-    const contenido = recortar(b.lineas);
-    if (vistas.has(b.titulo)) problemas.push({ ruta, mensaje: `La sección «${b.titulo}» está repetida.` });
-    vistas.add(b.titulo);
-    if (contenido.includes('\n\n\n')) {
-      problemas.push({ ruta, mensaje: `La sección «${b.titulo}» tiene más de una línea en blanco seguida.` });
+  const sections: Section[] = [];
+  let criteriaText: string | null = null;
+  const problems: Problem[] = [];
+  const visited = new Set<string>();
+  for (const [i, b] of blocks.entries()) {
+    const content = trim(b.lines);
+    if (visited.has(b.title)) problems.push({ path, message: `La sección «${b.title}» está repetida.` });
+    visited.add(b.title);
+    if (content.includes('\n\n\n')) {
+      problems.push({ path, message: `La sección «${b.title}» tiene más de una línea en blanco seguida.` });
     }
-    if (b.titulo !== SECCION_CRITERIOS) {
+    if (b.title !== CRITERIA_SECTION) {
       // Un criterio solo existe dentro de «Criterios de aceptación»: en otra sección, un
       // encabezado con su código parecería un criterio sin serlo.
-      const conAc = [`## ${b.titulo}`, ...b.lineas].find((l) => RE_ENCABEZADO_AC.test(l));
-      if (conAc !== undefined) {
-        problemas.push({
-          ruta,
-          mensaje: `El encabezado «${conAc.trim()}» empieza por un código de criterio fuera de «${SECCION_CRITERIOS}».`,
+      const withAc = [`## ${b.title}`, ...b.lines].find((l) => RE_AC_HEADING.test(l));
+      if (withAc !== undefined) {
+        problems.push({
+          path,
+          message: `El encabezado «${withAc.trim()}» empieza por un código de criterio fuera de «${CRITERIA_SECTION}».`,
         });
       }
     }
-    if (b.titulo === SECCION_CRITERIOS) {
-      if (i !== bloques.length - 1) problemas.push({ ruta, mensaje: `«${SECCION_CRITERIOS}» debe ser la última sección.` });
-      criteriosTexto = contenido;
+    if (b.title === CRITERIA_SECTION) {
+      if (i !== blocks.length - 1) problems.push({ path, message: `«${CRITERIA_SECTION}» debe ser la última sección.` });
+      criteriaText = content;
       continue;
     }
-    if (contenido === '') problemas.push({ ruta, mensaje: `La sección «${b.titulo}» está vacía.` });
-    secciones.push({ titulo: b.titulo, contenido });
+    if (content === '') problems.push({ path, message: `La sección «${b.title}» está vacía.` });
+    sections.push({ title: b.title, content });
   }
-  if (problemas.length > 0) return { ok: false, problemas };
-  return { ok: true, valor: { secciones, criteriosTexto } };
+  if (problems.length > 0) return { ok: false, problems };
+  return { ok: true, value: { sections, criteriaText } };
 }
 
-const RE_CABECERA_AC = /^(AC-[A-Z]{3}-\d{3}-\d{2}) · (.+)$/;
+const RE_AC_HEADER = /^(AC-[A-Z]{3}-\d{3}-\d{2}) · (.+)$/;
 
-function parsearCriterios(texto: string, ruta: string): Resultado<Criterio[]> {
-  const { antes, bloques } = dividir(texto.split('\n'), '### ');
-  if (recortar(antes) !== '') return fallo(ruta, `Hay texto en «${SECCION_CRITERIOS}» antes del primer criterio.`);
-  const criterios: Criterio[] = [];
-  const problemas: Problema[] = [];
-  for (const b of bloques) {
-    const m = RE_CABECERA_AC.exec(b.titulo);
+function parseCriteria(text: string, path: string): Result<Criterion[]> {
+  const { before, blocks } = split(text.split('\n'), '### ');
+  if (trim(before) !== '') return failure(path, `Hay texto en «${CRITERIA_SECTION}» antes del primer criterio.`);
+  const criteria: Criterion[] = [];
+  const problems: Problem[] = [];
+  for (const b of blocks) {
+    const m = RE_AC_HEADER.exec(b.title);
     if (!m?.[1] || !m[2]) {
-      problemas.push({ ruta, mensaje: `Cabecera de criterio inválida: «### ${b.titulo}». Forma: «### AC-DOM-NNN-NN · Título».` });
+      problems.push({ path, message: `Cabecera de criterio inválida: «### ${b.title}». Forma: «### AC-DOM-NNN-NN · Título».` });
       continue;
     }
-    const codigo = m[1];
-    const lineas = b.lineas;
+    const code = m[1];
+    const lines = b.lines;
     let k = 0;
-    while (k < lineas.length && lineas[k]?.trim() === '') k++;
-    const verif = /^- Verificación: (.+)$/.exec(lineas[k] ?? '');
-    const compr = /^- Comprobación: (.+)$/.exec(lineas[k + 1] ?? '');
-    if (!verif?.[1] || !compr?.[1]) {
-      problemas.push({ ruta, mensaje: `${codigo}: faltan «- Verificación:» y «- Comprobación:» justo después de la cabecera.` });
+    while (k < lines.length && lines[k]?.trim() === '') k++;
+    const verif = /^- Verificación: (.+)$/.exec(lines[k] ?? '');
+    const check = /^- Comprobación: (.+)$/.exec(lines[k + 1] ?? '');
+    if (!verif?.[1] || !check?.[1]) {
+      problems.push({ path, message: `${code}: faltan «- Verificación:» y «- Comprobación:» justo después de la cabecera.` });
       continue;
     }
-    if (!(VERIFICACIONES as readonly string[]).includes(verif[1])) {
-      problemas.push({ ruta, mensaje: `${codigo}: la verificación debe ser «automática» o «manual».` });
+    if (!(VERIFICATIONS as readonly string[]).includes(verif[1])) {
+      problems.push({ path, message: `${code}: la verificación debe ser «automática» o «manual».` });
       continue;
     }
     k += 2;
-    let derivaDe: string | undefined;
-    const deriva = /^- Deriva de: (.+)$/.exec(lineas[k] ?? '');
-    if (deriva?.[1]) {
-      derivaDe = deriva[1];
+    let derivedFrom: string | undefined;
+    const derivation = /^- Deriva de: (.+)$/.exec(lines[k] ?? '');
+    if (derivation?.[1]) {
+      derivedFrom = derivation[1];
       k++;
-      if (!RE_CODIGO_AC.test(derivaDe))
-        problemas.push({ ruta, mensaje: `${codigo}: «Deriva de» debe ser un código de criterio.` });
+      if (!RE_AC_CODE.test(derivedFrom))
+        problems.push({ path, message: `${code}: «Deriva de» debe ser un código de criterio.` });
     }
-    const enunciado = recortar(lineas.slice(k));
-    if (enunciado === '') {
-      problemas.push({ ruta, mensaje: `${codigo}: falta el enunciado observable.` });
+    const statement = trim(lines.slice(k));
+    if (statement === '') {
+      problems.push({ path, message: `${code}: falta el enunciado observable.` });
       continue;
     }
-    const criterio: Criterio = {
-      codigo,
-      titulo: m[2],
-      verificacion: verif[1] as Criterio['verificacion'],
-      comprobacion: compr[1],
-      enunciado,
+    const criterion: Criterion = {
+      code,
+      title: m[2],
+      verification: verif[1] as Criterion['verification'],
+      check: check[1],
+      statement,
     };
-    if (derivaDe) criterio.derivaDe = derivaDe;
-    criterios.push(criterio);
+    if (derivedFrom) criterion.derivedFrom = derivedFrom;
+    criteria.push(criterion);
   }
-  if (problemas.length > 0) return { ok: false, problemas };
-  return { ok: true, valor: criterios };
+  if (problems.length > 0) return { ok: false, problems };
+  return { ok: true, value: criteria };
 }
 
-export function parsearDocumento(texto: string, ruta: string): Resultado<Documento> {
-  const sep = separarFrontmatter(texto, ruta);
+export function parseDocument(text: string, path: string): Result<Document> {
+  const sep = splitFrontMatter(text, path);
   if (!sep.ok) return sep;
-  const { front, cuerpo } = sep.valor;
-  const tipo = (front as { tipo?: unknown } | null)?.tipo;
-  if (tipo === 'taxonomia') {
-    const r = esquemaFrontTaxonomia.safeParse(front);
-    if (!r.success) return { ok: false, problemas: problemasZod(ruta, r.error) };
-    const c = parsearCuerpo(cuerpo, ruta, r.data.codigo, r.data.titulo);
+  const { front, body } = sep.value;
+  const type = (front as { type?: unknown } | null)?.type;
+  if (type === 'taxonomy') {
+    const r = taxonomyFrontSchema.safeParse(front);
+    if (!r.success) return { ok: false, problems: zodProblems(path, r.error) };
+    const c = parseBody(body, path, r.data.code, r.data.title);
     if (!c.ok) return c;
-    if (c.valor.criteriosTexto !== null) return fallo(ruta, 'Una taxonomía no lleva criterios de aceptación.');
-    const doc: DocumentoTaxonomia = {
-      clase: 'taxonomia',
-      codigo: r.data.codigo,
-      titulo: r.data.titulo,
+    if (c.value.criteriaText !== null) return failure(path, 'Una taxonomía no lleva criterios de aceptación.');
+    const doc: TaxonomyDocument = {
+      kind: 'taxonomy',
+      code: r.data.code,
+      title: r.data.title,
       version: r.data.version,
-      estado: r.data.estado,
-      ejes: r.data.ejes,
-      secciones: c.valor.secciones,
+      state: r.data.state,
+      axes: r.data.axes,
+      sections: c.value.sections,
     };
-    return { ok: true, valor: doc };
+    return { ok: true, value: doc };
   }
-  const r = esquemaFrontRegistro.safeParse(front);
-  if (!r.success) return { ok: false, problemas: problemasZod(ruta, r.error) };
+  const r = recordFrontSchema.safeParse(front);
+  if (!r.success) return { ok: false, problems: zodProblems(path, r.error) };
   const f = r.data;
-  if (!f.codigo.startsWith(`${PREFIJOS[f.tipo]}-`)) {
-    return fallo(ruta, `El código ${f.codigo} no corresponde al tipo «${f.tipo}» (prefijo ${PREFIJOS[f.tipo]}).`);
+  if (!f.code.startsWith(`${PREFIXES[f.type]}-`)) {
+    return failure(path, `El código ${f.code} no corresponde al tipo «${f.type}» (prefijo ${PREFIXES[f.type]}).`);
   }
-  const c = parsearCuerpo(cuerpo, ruta, f.codigo, f.titulo);
+  const c = parseBody(body, path, f.code, f.title);
   if (!c.ok) return c;
-  let criterios: Criterio[] = [];
-  if (c.valor.criteriosTexto !== null) {
-    const pc = parsearCriterios(c.valor.criteriosTexto, ruta);
+  let criteria: Criterion[] = [];
+  if (c.value.criteriaText !== null) {
+    const pc = parseCriteria(c.value.criteriaText, path);
     if (!pc.ok) return pc;
-    criterios = pc.valor;
+    criteria = pc.value;
   }
-  const enlaces: Enlace[] = f.enlaces.map((e) => ({
-    tipo: e.tipo,
-    destino: parsearReferencia(e.destino) as Referencia,
+  const links: Link[] = f.links.map((e) => ({
+    type: e.type,
+    target: parseReference(e.target) as Reference,
   }));
-  const vistos = new Set<string>();
-  for (const e of enlaces) {
-    const clave = `${e.tipo} → ${e.destino.codigo}`;
-    if (vistos.has(clave)) return fallo(ruta, `Enlace repetido: ${clave}.`);
-    vistos.add(clave);
+  const seen = new Set<string>();
+  for (const e of links) {
+    const key = `${e.type} → ${e.target.code}`;
+    if (seen.has(key)) return failure(path, `Enlace repetido: ${key}.`);
+    seen.add(key);
   }
-  const doc: DocumentoRegistro = {
-    clase: 'registro',
-    tipo: f.tipo,
-    codigo: f.codigo,
-    titulo: f.titulo,
+  const doc: RecordDocument = {
+    kind: 'record',
+    type: f.type,
+    code: f.code,
+    title: f.title,
     version: f.version,
-    estado: f.estado,
-    dominio: f.dominio,
-    enlaces,
-    anexos: f.anexos,
-    secciones: c.valor.secciones,
-    criterios,
+    state: f.state,
+    domain: f.domain,
+    links,
+    annexes: f.annexes,
+    sections: c.value.sections,
+    criteria,
   };
-  if (f.incremento) doc.incremento = f.incremento;
-  if (f.nota_de_cambio) doc.notaDeCambio = f.nota_de_cambio;
-  return { ok: true, valor: doc };
+  if (f.increment) doc.increment = f.increment;
+  if (f.change_note) doc.changeNote = f.change_note;
+  return { ok: true, value: doc };
 }
 
-function aYaml(objeto: Record<string, unknown>): string {
-  return serializarYaml(objeto, { lineWidth: 0, indent: 2, indentSeq: true });
+function toYaml(object: Record<string, unknown>): string {
+  return serializeYaml(object, { lineWidth: 0, indent: 2, indentSeq: true });
 }
 
-function renderizarCriterio(c: Criterio): string {
-  const lineas = [
-    `### ${c.codigo}${SEPARADOR}${c.titulo}`,
+function renderCriterion(c: Criterion): string {
+  const lines = [
+    `### ${c.code}${SEPARATOR}${c.title}`,
     '',
-    `- Verificación: ${c.verificacion}`,
-    `- Comprobación: ${c.comprobacion}`,
+    `- Verificación: ${c.verification}`,
+    `- Comprobación: ${c.check}`,
   ];
-  if (c.derivaDe) lineas.push(`- Deriva de: ${c.derivaDe}`);
-  lineas.push('', c.enunciado);
-  return lineas.join('\n');
+  if (c.derivedFrom) lines.push(`- Deriva de: ${c.derivedFrom}`);
+  lines.push('', c.statement);
+  return lines.join('\n');
 }
 
-export function renderizarDocumento(doc: Documento): string {
+export function renderDocument(doc: Document): string {
   let front: Record<string, unknown>;
-  if (doc.clase === 'taxonomia') {
+  if (doc.kind === 'taxonomy') {
     front = {
-      codigo: doc.codigo,
-      tipo: 'taxonomia',
-      titulo: doc.titulo,
+      code: doc.code,
+      type: 'taxonomy',
+      title: doc.title,
       version: doc.version,
-      estado: doc.estado,
-      ejes: doc.ejes,
+      state: doc.state,
+      axes: doc.axes,
     };
   } else {
     front = {
-      codigo: doc.codigo,
-      tipo: doc.tipo,
-      titulo: doc.titulo,
+      code: doc.code,
+      type: doc.type,
+      title: doc.title,
       version: doc.version,
-      estado: doc.estado,
-      dominio: doc.dominio,
+      state: doc.state,
+      domain: doc.domain,
     };
-    if (doc.incremento) front.incremento = doc.incremento;
-    if (doc.notaDeCambio) front.nota_de_cambio = doc.notaDeCambio;
-    front.enlaces = doc.enlaces.map((e) => ({ tipo: e.tipo, destino: formatearReferencia(e.destino) }));
-    front.anexos = doc.anexos;
+    if (doc.increment) front.increment = doc.increment;
+    if (doc.changeNote) front.change_note = doc.changeNote;
+    front.links = doc.links.map((e) => ({ type: e.type, target: formatReference(e.target) }));
+    front.annexes = doc.annexes;
   }
-  const partes = [`---\n${aYaml(front)}---`, `# ${doc.codigo}${SEPARADOR}${doc.titulo}`];
-  for (const s of doc.secciones) partes.push(`## ${s.titulo}\n\n${s.contenido}`);
-  if (doc.clase === 'registro' && doc.criterios.length > 0) {
-    partes.push(`## ${SECCION_CRITERIOS}\n\n${doc.criterios.map(renderizarCriterio).join('\n\n')}`);
+  const parts = [`---\n${toYaml(front)}---`, `# ${doc.code}${SEPARATOR}${doc.title}`];
+  for (const s of doc.sections) parts.push(`## ${s.title}\n\n${s.content}`);
+  if (doc.kind === 'record' && doc.criteria.length > 0) {
+    parts.push(`## ${CRITERIA_SECTION}\n\n${doc.criteria.map(renderCriterion).join('\n\n')}`);
   }
-  return `${partes.join('\n\n')}\n`;
+  return `${parts.join('\n\n')}\n`;
 }

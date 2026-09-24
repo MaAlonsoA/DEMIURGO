@@ -2,22 +2,22 @@
 
 import { createHash } from 'node:crypto';
 
-export function jsonCanonico(valor: unknown): string {
-  if (valor === null || typeof valor !== 'object') {
-    if (typeof valor === 'number' && !Number.isFinite(valor)) throw new Error('Número no finito en JSON canónico.');
-    return JSON.stringify(valor) ?? 'null';
+export function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== 'object') {
+    if (typeof value === 'number' && !Number.isFinite(value)) throw new Error('Número no finito en JSON canónico.');
+    return JSON.stringify(value) ?? 'null';
   }
-  if (Array.isArray(valor)) return `[${valor.map(jsonCanonico).join(',')}]`;
-  const entradas = Object.entries(valor as Record<string, unknown>)
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  const inputs = Object.entries(value as Record<string, unknown>)
     .filter(([, v]) => v !== undefined)
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-  return `{${entradas.map(([k, v]) => `${JSON.stringify(k)}:${jsonCanonico(v)}`).join(',')}}`;
+  return `{${inputs.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(',')}}`;
 }
 
-export function sha256(texto: string): string {
-  return createHash('sha256').update(texto, 'utf8').digest('hex');
+export function sha256(text: string): string {
+  return createHash('sha256').update(text, 'utf8').digest('hex');
 }
 
-export function huella(valor: unknown): string {
-  return sha256(jsonCanonico(valor));
+export function fingerprint(value: unknown): string {
+  return sha256(canonicalJson(value));
 }

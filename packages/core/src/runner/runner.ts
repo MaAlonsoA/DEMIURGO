@@ -17,10 +17,10 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import type { FailureKind } from '@demiurgo/domain';
-import { type JobSpec, type JobSpecEntrada, validarJobSpec } from './jobspec.ts';
-import { entornoDelProceso } from '../entorno.ts';
+import { type JobSpec, type JobSpecInput, validateJobSpec } from './jobspec.ts';
+import { processEnv } from '../env.ts';
 
-export type FalloRunner = Extract<FailureKind, 'timeout' | 'infra' | 'cancelled'>;
+export type RunnerFailure = Extract<FailureKind, 'timeout' | 'infra' | 'cancelled'>;
 
 /**
  * Resultado de un trabajo. `estado` es `ok` solo si el proceso del contenedor terminó con
@@ -28,44 +28,44 @@ export type FalloRunner = Extract<FailureKind, 'timeout' | 'infra' | 'cancelled'
  * interpreta quien lo encargó. `failureKind` solo aparece cuando el fallo es del runner:
  * tiempo agotado, cancelación o infraestructura (docker no arranca o rechaza el trabajo).
  */
-export type ResultadoTrabajo = {
-  estado: 'ok' | 'fallo';
-  codigoSalida: number | null;
+export type JobResult = {
+  state: 'ok' | 'failure';
+  exitCode: number | null;
   stdout: string;
   stderr: string;
-  duracionMs: number;
-  failureKind?: FalloRunner;
-  contenedor: string;
+  durationMs: number;
+  failureKind?: RunnerFailure;
+  container: string;
 };
 
-export type OpcionesTrabajo = {
+export type JobOptions = {
   /** Cancela el trabajo: se mata el contenedor y el resultado es `cancelled`. */
   signal?: AbortSignal;
   /** Nombre del contenedor; por defecto `demiurgo-run-<uuid>`. */
-  nombreContenedor?: string;
+  containerName?: string;
   /** Ejecutable de docker. Solo para pruebas de fallo de infraestructura. */
-  binarioDocker?: string;
+  dockerBinary?: string;
   /** Tope de bytes que se guardan de stdout y de stderr (por defecto 1 MiB cada uno). */
-  limiteSalidaBytes?: number;
+  outputLimitBytes?: number;
 };
 
 /** Etiqueta con la que se marcan todos los contenedores del runner. */
-export const ETIQUETA_RUNNER = 'demiurgo.runner=1';
-export const USUARIO_RUNNER = '1000:1000';
+export const RUNNER_LABEL = 'demiurgo.runner=1';
+export const RUNNER_USER = '1000:1000';
 export const TMPFS_RUNNER = '/tmp:rw,noexec,nosuid,size=64m';
 
-const PATRON_NOMBRE = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/;
-const LIMITE_SALIDA_POR_DEFECTO = 1024 * 1024;
-const TIEMPO_ORDEN_DOCKER_MS = 15_000;
-const REINTENTOS_PARADA = 10;
-const PAUSA_REINTENTO_MS = 1000;
+const NAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/;
+const DEFAULT_OUTPUT_LIMIT = 1024 * 1024;
+const DOCKER_COMMAND_MS = 15_000;
+const STOP_RETRIES = 10;
+const RETRY_PAUSE_MS = 1000;
 
 /**
  * Variables del entorno del host que se pasan a la CLI de docker: solo lo imprescindible
  * para encontrar el ejecutable, su configuración y el daemon en Windows y en Linux.
  * Nunca DEMIURGO_*, DATABASE_URL, PG* ni claves de proveedores.
  */
-export const ENTORNO_CLI_DOCKER: readonly string[] = Object.freeze([
+export const DOCKER_CLI_ENV: readonly string[] = Object.freeze([
   'PATH',
   'PATHEXT',
   'SystemRoot',
@@ -91,20 +91,20 @@ export const ENTORNO_CLI_DOCKER: readonly string[] = Object.freeze([
 ]);
 
 /** Entorno mínimo del proceso docker a partir del entorno del host (función pura). */
-export function entornoDocker(
-  origen: Readonly<Record<string, string | undefined>> = entornoDelProceso(),
+export function dockerEnv(
+  origin: Readonly<Record<string, string | undefined>> = processEnv(),
 ): Record<string, string> {
   // En Windows los nombres no distinguen mayúsculas (Path, PATH): se buscan sin distinguirlas.
-  const porNombre = new Map<string, string>();
-  for (const [clave, valor] of Object.entries(origen)) {
-    if (valor !== undefined) porNombre.set(clave.toUpperCase(), valor);
+  const byName = new Map<string, string>();
+  for (const [key, value] of Object.entries(origin)) {
+    if (value !== undefined) byName.set(key.toUpperCase(), value);
   }
-  const entorno: Record<string, string> = {};
-  for (const nombre of ENTORNO_CLI_DOCKER) {
-    const valor = porNombre.get(nombre.toUpperCase());
-    if (valor !== undefined) entorno[nombre] = valor;
+  const environment: Record<string, string> = {};
+  for (const name of DOCKER_CLI_ENV) {
+    const value = byName.get(name.toUpperCase());
+    if (value !== undefined) environment[name] = value;
   }
-  return entorno;
+  return environment;
 }
 
 /**
@@ -112,19 +112,19 @@ export function entornoDocker(
  * flags de seguridad son fijos y ningún campo del spec puede añadir montajes, red,
  * privilegios ni cambiar el usuario.
  */
-export function argumentosDocker(entrada: JobSpecEntrada, nombreContenedor: string): string[] {
-  const spec: JobSpec = validarJobSpec(entrada);
-  if (!PATRON_NOMBRE.test(nombreContenedor)) {
-    throw new Error(`Nombre de contenedor no válido: ${JSON.stringify(nombreContenedor)}.`);
+export function dockerArguments(input: JobSpecInput, containerName: string): string[] {
+  const spec: JobSpec = validateJobSpec(input);
+  if (!NAME_PATTERN.test(containerName)) {
+    throw new Error(`Nombre de contenedor no válido: ${JSON.stringify(containerName)}.`);
   }
-  const { cpus, memoriaMb, pids } = spec.limites;
+  const { cpus, memoryMb, pids } = spec.limits;
   const args = [
     'run',
     '--rm',
     '--name',
-    nombreContenedor,
+    containerName,
     '--label',
-    ETIQUETA_RUNNER,
+    RUNNER_LABEL,
     '--pull',
     'never',
     '--network',
@@ -137,180 +137,180 @@ export function argumentosDocker(entrada: JobSpecEntrada, nombreContenedor: stri
     '--security-opt',
     'no-new-privileges',
     '--user',
-    USUARIO_RUNNER,
+    RUNNER_USER,
     '--pids-limit',
     String(pids),
     '--memory',
-    `${memoriaMb}m`,
+    `${memoryMb}m`,
     '--memory-swap',
-    `${memoriaMb}m`,
+    `${memoryMb}m`,
     '--cpus',
     String(cpus),
   ];
-  if (spec.entrada !== undefined) args.push('-i');
-  for (const [clave, valor] of Object.entries(spec.entorno).sort(([a], [b]) => a.localeCompare(b))) {
-    args.push('--env', `${clave}=${valor}`);
+  if (spec.input !== undefined) args.push('-i');
+  for (const [key, value] of Object.entries(spec.environment).sort(([a], [b]) => a.localeCompare(b))) {
+    args.push('--env', `${key}=${value}`);
   }
-  args.push(spec.imagen, ...spec.comando);
+  args.push(spec.image, ...spec.command);
   return args;
 }
 
 /** Acumula la salida de un flujo sin pasar del tope indicado. */
-function colector(limite: number): { anadir(trozo: Buffer): void; texto(): string } {
-  const trozos: Buffer[] = [];
+function collector(limit: number): { add(chunk: Buffer): void; text(): string } {
+  const chunks: Buffer[] = [];
   let bytes = 0;
-  let truncado = false;
+  let truncated = false;
   return {
-    anadir(trozo) {
-      if (bytes >= limite) {
-        truncado = true;
+    add(chunk) {
+      if (bytes >= limit) {
+        truncated = true;
         return;
       }
-      const parte = trozo.length > limite - bytes ? trozo.subarray(0, limite - bytes) : trozo;
-      if (parte.length < trozo.length) truncado = true;
-      trozos.push(parte);
-      bytes += parte.length;
+      const part = chunk.length > limit - bytes ? chunk.subarray(0, limit - bytes) : chunk;
+      if (part.length < chunk.length) truncated = true;
+      chunks.push(part);
+      bytes += part.length;
     },
-    texto() {
-      const t = Buffer.concat(trozos).toString('utf8');
-      return truncado ? `${t}\n[salida truncada por el runner]` : t;
+    text() {
+      const t = Buffer.concat(chunks).toString('utf8');
+      return truncated ? `${t}\n[salida truncada por el runner]` : t;
     },
   };
 }
 
 /** Lanza una orden auxiliar de docker (kill, rm) sin shell y con tiempo máximo. */
-function ordenDocker(binario: string, args: string[], entorno: Record<string, string>): Promise<number | null> {
-  return new Promise((resolver) => {
-    let hijo: ReturnType<typeof spawn>;
+function runDockerCommand(binary: string, args: string[], environment: Record<string, string>): Promise<number | null> {
+  return new Promise((resolve) => {
+    let child: ReturnType<typeof spawn>;
     try {
-      hijo = spawn(binario, args, {
+      child = spawn(binary, args, {
         shell: false,
-        env: entorno,
+        env: environment,
         stdio: 'ignore',
         windowsHide: true,
-        timeout: TIEMPO_ORDEN_DOCKER_MS,
+        timeout: DOCKER_COMMAND_MS,
       });
     } catch {
-      resolver(null);
+      resolve(null);
       return;
     }
-    hijo.once('error', () => resolver(null));
-    hijo.once('close', (codigo) => resolver(codigo));
+    child.once('error', () => resolve(null));
+    child.once('close', (code) => resolve(code));
   });
 }
 
-const pausa = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+const pause = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** Errores de la CLI que indican que el daemon no está disponible. */
-const PATRON_DAEMON_CAIDO = /error during connect|Cannot connect to the Docker daemon|docker daemon is not running/i;
+const DEAD_DAEMON_PATTERN = /error during connect|Cannot connect to the Docker daemon|docker daemon is not running/i;
 
 /**
  * Ejecuta un trabajo en un contenedor efímero y endurecido. Lanza `JobSpecInvalido` si el
  * spec no cumple el esquema cerrado; cualquier otro problema se devuelve como resultado.
  */
-export async function ejecutarTrabajo(entrada: JobSpecEntrada, opciones: OpcionesTrabajo = {}): Promise<ResultadoTrabajo> {
-  const spec = validarJobSpec(entrada);
-  const nombre = opciones.nombreContenedor ?? `demiurgo-run-${randomUUID()}`;
-  const args = argumentosDocker(spec, nombre);
-  const binario = opciones.binarioDocker ?? 'docker';
-  const entorno = entornoDocker();
-  const limite = opciones.limiteSalidaBytes ?? LIMITE_SALIDA_POR_DEFECTO;
-  const inicio = performance.now();
+export async function runJob(input: JobSpecInput, options: JobOptions = {}): Promise<JobResult> {
+  const spec = validateJobSpec(input);
+  const name = options.containerName ?? `demiurgo-run-${randomUUID()}`;
+  const args = dockerArguments(spec, name);
+  const binary = options.dockerBinary ?? 'docker';
+  const environment = dockerEnv();
+  const limit = options.outputLimitBytes ?? DEFAULT_OUTPUT_LIMIT;
+  const start = performance.now();
 
-  if (opciones.signal?.aborted) {
+  if (options.signal?.aborted) {
     return {
-      estado: 'fallo',
-      codigoSalida: null,
+      state: 'failure',
+      exitCode: null,
       stdout: '',
       stderr: '',
-      duracionMs: 0,
+      durationMs: 0,
       failureKind: 'cancelled',
-      contenedor: nombre,
+      container: name,
     };
   }
 
-  const salida = colector(limite);
-  const errores = colector(limite);
-  let motivoParada: 'timeout' | 'cancelled' | undefined;
-  let errorArranque: Error | undefined;
+  const output = collector(limit);
+  const errors = collector(limit);
+  let stopReason: 'timeout' | 'cancelled' | undefined;
+  let startupError: Error | undefined;
 
-  const codigo = await new Promise<number | null>((resolver) => {
-    let terminado = false;
-    let hijo: ReturnType<typeof spawn>;
+  const code = await new Promise<number | null>((resolve) => {
+    let finished = false;
+    let child: ReturnType<typeof spawn>;
 
-    const terminar = (c: number | null) => {
-      if (terminado) return;
-      terminado = true;
-      clearTimeout(temporizador);
-      opciones.signal?.removeEventListener('abort', alAbortar);
-      resolver(c);
+    const terminate = (c: number | null) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      options.signal?.removeEventListener('abort', onAbort);
+      resolve(c);
     };
 
     // Para el contenedor: `docker kill` y, si aún no existe o no responde, `docker rm -f`
     // hasta que el proceso `docker run` termine. Como último recurso se mata la CLI.
-    const detener = async (motivo: 'timeout' | 'cancelled') => {
-      if (motivoParada !== undefined || terminado) return;
-      motivoParada = motivo;
-      await ordenDocker(binario, ['kill', nombre], entorno);
-      for (let i = 0; i < REINTENTOS_PARADA; i++) {
-        if (terminado) break;
-        await pausa(PAUSA_REINTENTO_MS);
-        if (!terminado) await ordenDocker(binario, ['rm', '-f', nombre], entorno);
+    const stop = async (reason: 'timeout' | 'cancelled') => {
+      if (stopReason !== undefined || finished) return;
+      stopReason = reason;
+      await runDockerCommand(binary, ['kill', name], environment);
+      for (let i = 0; i < STOP_RETRIES; i++) {
+        if (finished) break;
+        await pause(RETRY_PAUSE_MS);
+        if (!finished) await runDockerCommand(binary, ['rm', '-f', name], environment);
       }
-      if (!terminado) {
-        hijo.kill('SIGKILL');
-        terminar(null);
+      if (!finished) {
+        child.kill('SIGKILL');
+        terminate(null);
       }
     };
-    const alAbortar = () => void detener('cancelled');
-    const temporizador = setTimeout(() => void detener('timeout'), spec.tiempoMaxMs);
+    const onAbort = () => void stop('cancelled');
+    const timer = setTimeout(() => void stop('timeout'), spec.maxTimeMs);
 
     try {
-      hijo = spawn(binario, args, {
+      child = spawn(binary, args, {
         shell: false,
-        env: entorno,
-        stdio: [spec.entrada !== undefined ? 'pipe' : 'ignore', 'pipe', 'pipe'],
+        env: environment,
+        stdio: [spec.input !== undefined ? 'pipe' : 'ignore', 'pipe', 'pipe'],
         windowsHide: true,
       });
     } catch (e) {
-      errorArranque = e instanceof Error ? e : new Error(String(e));
-      terminar(null);
+      startupError = e instanceof Error ? e : new Error(String(e));
+      terminate(null);
       return;
     }
-    opciones.signal?.addEventListener('abort', alAbortar, { once: true });
-    hijo.stdout?.on('data', (t: Buffer) => salida.anadir(t));
-    hijo.stderr?.on('data', (t: Buffer) => errores.anadir(t));
-    hijo.on('error', (e) => {
+    options.signal?.addEventListener('abort', onAbort, { once: true });
+    child.stdout?.on('data', (t: Buffer) => output.add(t));
+    child.stderr?.on('data', (t: Buffer) => errors.add(t));
+    child.on('error', (e) => {
       // Solo es fallo de arranque si el proceso no llegó a existir; si ya corre (p. ej. un
       // `kill` fallido), el resultado lo decide su evento `close`.
-      if (hijo.pid !== undefined) return;
-      errorArranque = e;
-      terminar(null);
+      if (child.pid !== undefined) return;
+      startupError = e;
+      terminate(null);
     });
-    hijo.once('close', (c) => terminar(c));
-    if (spec.entrada !== undefined && hijo.stdin) {
+    child.once('close', (c) => terminate(c));
+    if (spec.input !== undefined && child.stdin) {
       // Si el contenedor cierra stdin antes de leerlo todo, el EPIPE no es un fallo del runner.
-      hijo.stdin.on('error', () => {});
-      hijo.stdin.end(spec.entrada);
+      child.stdin.on('error', () => {});
+      child.stdin.end(spec.input);
     }
   });
 
-  if (motivoParada !== undefined || errorArranque !== undefined) {
+  if (stopReason !== undefined || startupError !== undefined) {
     // Garantía de limpieza: el contenedor no debe sobrevivir a un trabajo parado.
-    await ordenDocker(binario, ['rm', '-f', nombre], entorno);
+    await runDockerCommand(binary, ['rm', '-f', name], environment);
   }
 
-  const stderr = errores.texto();
+  const stderr = errors.text();
   const base = {
-    codigoSalida: codigo,
-    stdout: salida.texto(),
-    stderr: errorArranque ? `${stderr}No se pudo lanzar docker: ${errorArranque.message}` : stderr,
-    duracionMs: Math.round(performance.now() - inicio),
-    contenedor: nombre,
+    exitCode: code,
+    stdout: output.text(),
+    stderr: startupError ? `${stderr}No se pudo lanzar docker: ${startupError.message}` : stderr,
+    durationMs: Math.round(performance.now() - start),
+    container: name,
   };
-  if (motivoParada !== undefined) return { estado: 'fallo', ...base, failureKind: motivoParada };
-  if (errorArranque !== undefined || codigo === null || codigo === 125 || (codigo !== 0 && PATRON_DAEMON_CAIDO.test(stderr))) {
-    return { estado: 'fallo', ...base, failureKind: 'infra' };
+  if (stopReason !== undefined) return { state: 'failure', ...base, failureKind: stopReason };
+  if (startupError !== undefined || code === null || code === 125 || (code !== 0 && DEAD_DAEMON_PATTERN.test(stderr))) {
+    return { state: 'failure', ...base, failureKind: 'infra' };
   }
-  return { estado: codigo === 0 ? 'ok' : 'fallo', ...base };
+  return { state: code === 0 ? 'ok' : 'failure', ...base };
 }

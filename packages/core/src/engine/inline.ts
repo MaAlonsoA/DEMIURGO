@@ -2,45 +2,45 @@
 // acto, tras confirmar, con las mismas funciones que los flujos durables. Las ejecuciones de
 // agentes y las respuestas solo se anotan (esas pruebas usan el motor durable).
 
-import { pasoAplicar, pasoClasificar, rechazarPorError } from '../conocimiento/actualizar.ts';
-import { calcularEvaluaciones, pendientesDe, registrarEvaluaciones, registrarFalloDeEvaluacion } from '../conocimiento/flujos.ts';
-import type { MotorFlujos, Servicios } from '../servicios.ts';
+import { applyStep, classifyStep, rejectOnError } from '../knowledge/update.ts';
+import { calculateEvaluations, pendingFor, registerEvaluations, registerEvaluationFailure } from '../knowledge/workflows.ts';
+import type { WorkflowEngine, Services } from '../services.ts';
 
-export type MotorEnLinea = MotorFlujos & { runs: string[]; respuestas: string[] };
+export type InlineEngine = WorkflowEngine & { runs: string[]; responses: string[] };
 
-export function crearMotorEnLinea(servicios: () => Servicios): MotorEnLinea {
+export function createInlineEngine(services: () => Services): InlineEngine {
   const runs: string[] = [];
-  const respuestas: string[] = [];
+  const responses: string[] = [];
   return {
     runs,
-    respuestas,
-    iniciarRun: async (id) => {
+    responses,
+    startRun: async (id) => {
       runs.push(id);
     },
-    cancelarRun: async () => undefined,
-    iniciarRespuesta: async (id) => {
-      respuestas.push(id);
+    cancelRun: async () => undefined,
+    startResponse: async (id) => {
+      responses.push(id);
     },
-    async iniciarActualizacion(_id, proyectoId) {
-      const s = servicios();
-      for (let ronda = 0; ronda < 100; ronda++) {
-        const pendientes = await pendientesDe(s, proyectoId);
-        if (pendientes.length === 0) return;
-        for (const id of pendientes) {
+    async startUpdate(_id, projectId) {
+      const s = services();
+      for (let round = 0; round < 100; round++) {
+        const pending = await pendingFor(s, projectId);
+        if (pending.length === 0) return;
+        for (const id of pending) {
           try {
-            await pasoAplicar(s, id, proyectoId, await pasoClasificar(s, id, proyectoId));
+            await applyStep(s, id, projectId, await classifyStep(s, id, projectId));
           } catch (e) {
-            await rechazarPorError(s, id, proyectoId, e);
+            await rejectOnError(s, id, projectId, e);
           }
         }
       }
     },
-    async iniciarEvaluacion(loteId, proyectoId) {
-      const s = servicios();
+    async startEvaluation(batchId, projectId) {
+      const s = services();
       try {
-        await registrarEvaluaciones(s, proyectoId, await calcularEvaluaciones(s, loteId, proyectoId));
+        await registerEvaluations(s, projectId, await calculateEvaluations(s, batchId, projectId));
       } catch (e) {
-        await registrarFalloDeEvaluacion(s, loteId, proyectoId, e);
+        await registerEvaluationFailure(s, batchId, projectId, e);
       }
     },
   };

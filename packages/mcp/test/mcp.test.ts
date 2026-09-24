@@ -8,296 +8,296 @@ import { fileURLToPath } from 'node:url';
 import { type CallToolResult, Client, InMemoryTransport } from '@modelcontextprotocol/client';
 import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/client/stdio';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { usarApi } from '../../api/test/soporte/api.ts';
-import { NOMBRES_HERRAMIENTAS, crearServidorMcp } from '../src/index.ts';
+import { useApi } from '../../api/test/support/api.ts';
+import { TOOL_NAMES, createMcpServer } from '../src/index.ts';
 
-const api = usarApi();
+const api = useApi();
 const MAIN = fileURLToPath(new URL('../src/main.ts', import.meta.url));
 
 let urlApi = '';
-let proyectoId = '';
-let exploracionId = '';
+let projectId = '';
+let explorationId = '';
 let token = '';
 let tokenId = '';
-const clientes: Client[] = [];
+const clients: Client[] = [];
 
 /** Comando de la persona por la API, con su cookie y su token CSRF. */
-async function comandoPersona(comando: string, cuerpo: Record<string, unknown>) {
-  const r = await api().persona.pedir('POST', `/api/proyectos/${proyectoId}/comandos/${comando}`, cuerpo);
-  if (r.statusCode !== 200) throw new Error(`«${comando}» falló con ${r.statusCode}: ${r.body}`);
-  return r.json<{ entidad_id: string; resultado: Record<string, unknown> | null }>();
+async function personCommand(command: string, body: Record<string, unknown>) {
+  const r = await api().person.request('POST', `/api/projects/${projectId}/commands/${command}`, body);
+  if (r.statusCode !== 200) throw new Error(`«${command}» falló con ${r.statusCode}: ${r.body}`);
+  return r.json<{ entity_id: string; result: Record<string, unknown> | null }>();
 }
 
-async function emitirToken(nombre: string): Promise<{ token: string; id: string }> {
-  const r = await comandoPersona('agent_token.issue', { datos: { nombre } });
-  return { token: String(r.resultado?.token), id: r.entidad_id };
+async function issueToken(name: string): Promise<{ token: string; id: string }> {
+  const r = await personCommand('agent_token.issue', { data: { name } });
+  return { token: String(r.result?.token), id: r.entity_id };
 }
 
-async function conectar(tokenAgente: string, fetchSustituto?: typeof globalThis.fetch): Promise<Client> {
-  const servidor = crearServidorMcp({
+async function connect(agentToken: string, substituteFetch?: typeof globalThis.fetch): Promise<Client> {
+  const server = createMcpServer({
     urlApi,
-    token: tokenAgente,
-    proyectoId,
-    ...(fetchSustituto ? { fetch: fetchSustituto } : {}),
+    token: agentToken,
+    projectId,
+    ...(substituteFetch ? { fetch: substituteFetch } : {}),
   });
-  const [extremoCliente, extremoServidor] = InMemoryTransport.createLinkedPair();
-  await servidor.connect(extremoServidor);
-  const cliente = new Client({ name: 'cliente-de-prueba', version: '1.0.0' });
-  await cliente.connect(extremoCliente);
-  clientes.push(cliente);
-  return cliente;
+  const [clientEndpoint, serverEndpoint] = InMemoryTransport.createLinkedPair();
+  await server.connect(serverEndpoint);
+  const client = new Client({ name: 'cliente-de-prueba', version: '1.0.0' });
+  await client.connect(clientEndpoint);
+  clients.push(client);
+  return client;
 }
 
-function llamar(cliente: Client, name: string, args: Record<string, unknown> = {}): Promise<CallToolResult> {
-  return cliente.callTool({ name, arguments: args });
+function call(client: Client, name: string, args: Record<string, unknown> = {}): Promise<CallToolResult> {
+  return client.callTool({ name, arguments: args });
 }
 
-function textoDe(r: CallToolResult): string {
+function textOf(r: CallToolResult): string {
   return r.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
 }
 
 /** Contenido estructurado de un resultado correcto; si la herramienta falló, su texto. */
-function datos(r: CallToolResult): unknown {
-  if (r.isError) throw new Error(`La herramienta devolvió un error: ${textoDe(r)}`);
+function data(r: CallToolResult): unknown {
+  if (r.isError) throw new Error(`La herramienta devolvió un error: ${textOf(r)}`);
   return r.structuredContent;
 }
 
-function urlDe(entrada: string | URL | Request): string {
-  if (typeof entrada === 'string') return entrada;
-  return entrada instanceof URL ? entrada.href : entrada.url;
+function urlOf(input: string | URL | Request): string {
+  if (typeof input === 'string') return input;
+  return input instanceof URL ? input.href : input.url;
 }
 
 const decision = (n: number) => ({
-  tipo: 'decision',
-  carga: {
-    titulo: `Decisión propuesta por MCP ${n}`,
-    contexto: 'El agente externo ha leído la visión y propone fijar el alcance.',
+  type: 'decision',
+  payload: {
+    title: `Decisión propuesta por MCP ${n}`,
+    context: 'El agente externo ha leído la visión y propone fijar el alcance.',
     decision: 'El MVP cubre los dos pilares con aceptación humana.',
-    consecuencias: 'Todo lo que proponga un agente pasa por la bandeja.',
+    consequences: 'Todo lo que proponga un agente pasa por la bandeja.',
   },
 });
 
 beforeAll(async () => {
-  const { app, persona } = api();
+  const { app, person } = api();
   // Servidor real en un puerto libre: el servidor MCP llama a la API por HTTP. Lo cierra el
   // `afterAll` de `usarApi` junto con la aplicación.
   await app.listen({ host: '127.0.0.1', port: 0 });
   urlApi = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
-  const p = await persona.pedir('POST', '/api/proyectos', { nombre: 'Canal MCP' });
+  const p = await person.request('POST', '/api/projects', { name: 'Canal MCP' });
   if (p.statusCode !== 200) throw new Error(`No se pudo crear el proyecto: ${p.body}`);
-  proyectoId = p.json<{ proyecto_id: string }>().proyecto_id;
-  exploracionId = (await comandoPersona('exploration.open', { datos: { proposito: 'Probar el canal de agentes por MCP' } }))
-    .entidad_id;
-  ({ token, id: tokenId } = await emitirToken('claude-code'));
+  projectId = p.json<{ project_id: string }>().project_id;
+  explorationId = (await personCommand('exploration.open', { data: { purpose: 'Probar el canal de agentes por MCP' } }))
+    .entity_id;
+  ({ token, id: tokenId } = await issueToken('claude-code'));
 });
 
 afterAll(async () => {
-  for (const c of clientes) await c.close();
+  for (const c of clients) await c.close();
 });
 
 describe('servidor MCP del canal de agentes', () => {
   it('AC-DIS-001-03 expone exactamente las herramientas del canal y ninguna aprueba, acepta, confirma ni rechaza', async () => {
-    const cliente = await conectar(token);
-    const { tools } = await cliente.listTools();
-    const nombres = tools.map((t) => t.name).sort();
-    expect(nombres).toEqual([...NOMBRES_HERRAMIENTAS].sort());
-    expect(nombres).toEqual(
+    const client = await connect(token);
+    const { tools } = await client.listTools();
+    const names = tools.map((t) => t.name).sort();
+    expect(names).toEqual([...TOOL_NAMES].sort());
+    expect(names).toEqual(
       [
-        'buscar_conocimiento',
-        'conversar',
-        'leer_bandeja',
-        'leer_estado_producto',
-        'leer_exploracion',
-        'leer_exploraciones',
-        'leer_fuentes',
-        'leer_lote',
-        'leer_registro',
-        'proponer',
-        'registrar_fuente',
+        'search_knowledge',
+        'converse',
+        'read_inbox',
+        'read_product_state',
+        'read_exploration',
+        'read_explorations',
+        'read_sources',
+        'read_batch',
+        'read_record',
+        'propose',
+        'register_source',
       ].sort(),
     );
-    const prohibidas = /aprob|aprueb|acept|confirm|rechaz|approv|accept|reject|resolve_|ejecutar_comando/i;
-    const textos = tools.map((t) => `${t.name} ${t.title ?? ''} ${t.description ?? ''}`);
-    expect(textos.filter((t) => prohibidas.test(t))).toEqual([]);
+    const forbidden = /aprob|aprueb|acept|confirm|rechaz|approv|accept|reject|resolve_|ejecutar_comando/i;
+    const texts = tools.map((t) => `${t.name} ${t.title ?? ''} ${t.description ?? ''}`);
+    expect(texts.filter((t) => forbidden.test(t))).toEqual([]);
     expect(tools.filter((t) => !t.description).map((t) => t.name)).toEqual([]);
     expect(tools.filter((t) => t.inputSchema.type !== 'object').map((t) => t.name)).toEqual([]);
-    const soloLectura = tools.filter((t) => t.annotations?.readOnlyHint === true).map((t) => t.name);
-    expect(soloLectura.sort()).toEqual(nombres.filter((n) => n.startsWith('leer_') || n === 'buscar_conocimiento'));
+    const readOnly = tools.filter((t) => t.annotations?.readOnlyHint === true).map((t) => t.name);
+    expect(readOnly.sort()).toEqual(names.filter((n) => n.startsWith('read_') || n === 'search_knowledge'));
   });
 
   it('AC-DIS-001-03 conversar publica un mensaje con el agente como autor', async () => {
-    const cliente = await conectar(token);
-    const r = datos(
-      await llamar(cliente, 'conversar', { exploracion_id: exploracionId, texto: 'Hola: soy un agente externo por MCP.' }),
-    ) as { entidad: string; entidad_id: string };
-    expect(r.entidad).toBe('message');
-    const autor = `agent:claude-code:${tokenId}`;
-    const fila = await api()
-      .entorno.servicios.db.selectFrom('messages')
+    const client = await connect(token);
+    const r = data(
+      await call(client, 'converse', { exploration_id: explorationId, text: 'Hola: soy un agente externo por MCP.' }),
+    ) as { entity: string; entity_id: string };
+    expect(r.entity).toBe('message');
+    const author = `agent:claude-code:${tokenId}`;
+    const row = await api()
+      .environment.services.db.selectFrom('messages')
       .select(['author', 'body'])
-      .where('id', '=', r.entidad_id)
+      .where('id', '=', r.entity_id)
       .executeTakeFirstOrThrow();
-    expect(fila).toEqual({ author: autor, body: 'Hola: soy un agente externo por MCP.' });
+    expect(row).toEqual({ author: author, body: 'Hola: soy un agente externo por MCP.' });
 
-    const exploracion = datos(await llamar(cliente, 'leer_exploracion', { exploracion_id: exploracionId })) as {
-      mensajes: { id: string; author: string }[];
+    const exploration = data(await call(client, 'read_exploration', { exploration_id: explorationId })) as {
+      messages: { id: string; author: string }[];
     };
-    expect(exploracion.mensajes.find((m) => m.id === r.entidad_id)?.author).toBe(autor);
-    const lista = datos(await llamar(cliente, 'leer_exploraciones')) as { exploraciones: { id: string }[] };
-    expect(lista.exploraciones.map((e) => e.id)).toContain(exploracionId);
+    expect(exploration.messages.find((m) => m.id === r.entity_id)?.author).toBe(author);
+    const list = data(await call(client, 'read_explorations')) as { explorations: { id: string }[] };
+    expect(list.explorations.map((e) => e.id)).toContain(explorationId);
   });
 
   it('AC-DIS-001-03 registrar_fuente y proponer dejan la fuente y un lote pendiente que solo la persona resuelve', async () => {
-    const cliente = await conectar(token);
-    const autor = `agent:claude-code:${tokenId}`;
+    const client = await connect(token);
+    const author = `agent:claude-code:${tokenId}`;
 
-    const fuente = datos(
-      await llamar(cliente, 'registrar_fuente', { nombre: 'VISION.md', contenido: '# Visión\n\nDiseñar y construir con IA.' }),
-    ) as { entidad_id: string };
-    const fuentes = datos(await llamar(cliente, 'leer_fuentes')) as {
-      fuentes: { id: string; name: string; registered_by: string }[];
+    const source = data(
+      await call(client, 'register_source', { name: 'VISION.md', content: '# Visión\n\nDiseñar y construir con IA.' }),
+    ) as { entity_id: string };
+    const sources = data(await call(client, 'read_sources')) as {
+      sources: { id: string; name: string; registered_by: string }[];
     };
-    expect(fuentes.fuentes.find((f) => f.id === fuente.entidad_id)).toMatchObject({ name: 'VISION.md', registered_by: autor });
+    expect(sources.sources.find((f) => f.id === source.entity_id)).toMatchObject({ name: 'VISION.md', registered_by: author });
 
-    const lote = datos(await llamar(cliente, 'proponer', { resumen: 'Alcance del MVP', propuestas: [decision(1)] })) as {
-      entidad: string;
-      entidad_id: string;
-      estado: string;
-      resultado: { propuestas: string[] };
+    const batch = data(await call(client, 'propose', { summary: 'Alcance del MVP', proposals: [decision(1)] })) as {
+      entity: string;
+      entity_id: string;
+      state: string;
+      result: { proposals: string[] };
     };
-    expect(lote).toMatchObject({ entidad: 'batch', estado: 'pending' });
-    const propuestaId = lote.resultado.propuestas[0] ?? '';
+    expect(batch).toMatchObject({ entity: 'batch', state: 'pending' });
+    const proposalId = batch.result.proposals[0] ?? '';
 
-    const bandeja = datos(await llamar(cliente, 'leer_bandeja')) as { lotes: { id: string }[] };
-    expect(bandeja.lotes.find((l) => l.id === lote.entidad_id)).toMatchObject({
-      tipo: 'agent',
-      resolucion: 'item',
-      productor: autor,
-      propuestas: [{ id: propuestaId, estado: 'pending' }],
+    const inbox = data(await call(client, 'read_inbox')) as { batches: { id: string }[] };
+    expect(inbox.batches.find((l) => l.id === batch.entity_id)).toMatchObject({
+      type: 'agent',
+      resolution: 'item',
+      producer: author,
+      proposals: [{ id: proposalId, state: 'pending' }],
     });
-    const detalle = datos(await llamar(cliente, 'leer_lote', { lote_id: lote.entidad_id }));
-    expect(detalle).toMatchObject({ state: 'pending', producer: autor, resolution_mode: 'item' });
+    const detail = data(await call(client, 'read_batch', { batch_id: batch.entity_id }));
+    expect(detail).toMatchObject({ state: 'pending', producer: author, resolution_mode: 'item' });
 
     // La persona resuelve con su sesión por la API.
-    const aceptada = await comandoPersona('proposal.accept', { entidad_id: propuestaId, datos: {} });
-    const { recordId, codigo } = aceptada.resultado as { recordId: string; codigo: string };
-    const creacion = await api()
-      .entorno.servicios.db.selectFrom('events')
+    const accepted = await personCommand('proposal.accept', { entity_id: proposalId, data: {} });
+    const { recordId, code } = accepted.result as { recordId: string; code: string };
+    const creation = await api()
+      .environment.services.db.selectFrom('events')
       .select(['actor'])
       .where('command', '=', 'record.create')
       .where('entity_id', '=', recordId)
       .executeTakeFirstOrThrow();
-    expect(creacion.actor).toBe('human:ana');
+    expect(creation.actor).toBe('human:ana');
 
-    expect(datos(await llamar(cliente, 'leer_registro', { codigo }))).toMatchObject({ codigo, tipo: 'decision' });
-    const estado = datos(await llamar(cliente, 'leer_estado_producto')) as { decisiones: { codigo: string }[] };
-    expect(estado.decisiones.map((d) => d.codigo)).toContain(codigo);
+    expect(data(await call(client, 'read_record', { code }))).toMatchObject({ code, type: 'decision' });
+    const state = data(await call(client, 'read_product_state')) as { decisions: { code: string }[] };
+    expect(state.decisions.map((d) => d.code)).toContain(code);
   });
 
   it('AC-DIS-001-03 proponer con 11 propuestas devuelve el motivo (máximo 10) y no crea nada', async () => {
-    const cliente = await conectar(token);
-    const contar = async () =>
+    const client = await connect(token);
+    const count = async () =>
       (
         await api()
-          .entorno.servicios.db.selectFrom('proposal_batches')
+          .environment.services.db.selectFrom('proposal_batches')
           .select('id')
-          .where('project_id', '=', proyectoId)
+          .where('project_id', '=', projectId)
           .execute()
       ).length;
-    const antes = await contar();
-    const r = await llamar(cliente, 'proponer', { propuestas: Array.from({ length: 11 }, (_, i) => decision(i + 1)) });
+    const before = await count();
+    const r = await call(client, 'propose', { proposals: Array.from({ length: 11 }, (_, i) => decision(i + 1)) });
     expect(r.isError).toBe(true);
-    expect(textoDe(r)).toMatch(/como máximo 10/);
-    expect((r.structuredContent as { motivos: string[] }).motivos.join(' ')).toMatch(
+    expect(textOf(r)).toMatch(/como máximo 10/);
+    expect((r.structuredContent as { reasons: string[] }).reasons.join(' ')).toMatch(
       /como máximo 10 elementos por lote \(hay 11\)/,
     );
-    expect(await contar()).toBe(antes);
+    expect(await count()).toBe(before);
   });
 
   it('AC-DIS-001-03 un token revocado hace que las herramientas devuelvan un error de autenticación', async () => {
-    const otro = await emitirToken('agente-revocado');
-    const cliente = await conectar(otro.token);
-    expect(datos(await llamar(cliente, 'leer_estado_producto'))).toHaveProperty('proyecto.id', proyectoId);
-    await comandoPersona('agent_token.revoke', { entidad_id: otro.id, datos: { motivo: 'Fin de la prueba' } });
-    const llamadas: [string, Record<string, unknown>][] = [
-      ['leer_estado_producto', {}],
-      ['conversar', { exploracion_id: exploracionId, texto: 'No debería publicarse.' }],
-      ['proponer', { propuestas: [decision(99)] }],
+    const another = await issueToken('agente-revocado');
+    const client = await connect(another.token);
+    expect(data(await call(client, 'read_product_state'))).toHaveProperty('project.id', projectId);
+    await personCommand('agent_token.revoke', { entity_id: another.id, data: { reason: 'Fin de la prueba' } });
+    const calls: [string, Record<string, unknown>][] = [
+      ['read_product_state', {}],
+      ['converse', { exploration_id: explorationId, text: 'No debería publicarse.' }],
+      ['propose', { proposals: [decision(99)] }],
     ];
-    const resultados = await Promise.all(llamadas.map(([nombre, args]) => llamar(cliente, nombre, args)));
-    for (const r of resultados) {
+    const results = await Promise.all(calls.map(([name, args]) => call(client, name, args)));
+    for (const r of results) {
       expect(r.isError).toBe(true);
-      expect(r.structuredContent).toMatchObject({ error: 'no_autenticado', estado_http: 401 });
-      expect(textoDe(r)).toMatch(/^Error de autenticación \(HTTP 401\): Token de agente no válido o revocado/);
+      expect(r.structuredContent).toMatchObject({ error: 'unauthenticated', http_status: 401 });
+      expect(textOf(r)).toMatch(/^Error de autenticación \(HTTP 401\): Token de agente no válido o revocado/);
     }
   });
 
   it('los argumentos no válidos se rechazan en español sin llamar a la API', async () => {
-    let llamadas = 0;
-    const cliente = await conectar(token, async (entrada, init) => {
-      llamadas++;
-      return fetch(entrada, init);
+    let calls = 0;
+    const client = await connect(token, async (input, init) => {
+      calls++;
+      return fetch(input, init);
     });
-    const r = await llamar(cliente, 'leer_exploracion', { exploracion_id: 'no-es-un-uuid' });
+    const r = await call(client, 'read_exploration', { exploration_id: 'no-es-un-uuid' });
     expect(r.isError).toBe(true);
-    expect(textoDe(r)).toMatch(/^Argumentos no válidos: La herramienta «leer_exploracion» recibió argumentos no válidos/);
-    expect(textoDe(r)).toMatch(/exploracion_id: .*UUID/);
-    const p = await llamar(cliente, 'proponer', { propuestas: [{ tipo: 'otro', carga: {} }] });
+    expect(textOf(r)).toMatch(/^Argumentos no válidos: La herramienta «leer_exploracion» recibió argumentos no válidos/);
+    expect(textOf(r)).toMatch(/exploracion_id: .*UUID/);
+    const p = await call(client, 'propose', { proposals: [{ type: 'another', payload: {} }] });
     expect(p.isError).toBe(true);
-    expect(llamadas).toBe(0);
+    expect(calls).toBe(0);
   });
 
   it('buscar_conocimiento avisa en español mientras la búsqueda no existe en la API', async () => {
-    const pedidas: string[] = [];
-    const cliente = await conectar(token, async (entrada, init) => {
-      const url = urlDe(entrada);
-      pedidas.push(url);
-      if (url.includes('/conocimiento/buscar')) {
+    const requested: string[] = [];
+    const client = await connect(token, async (input, init) => {
+      const url = urlOf(input);
+      requested.push(url);
+      if (url.includes('/knowledge/search')) {
         return new Response(JSON.stringify({ message: 'Route not found', error: 'Not Found', statusCode: 404 }), {
           status: 404,
           headers: { 'content-type': 'application/json' },
         });
       }
-      return fetch(entrada, init);
+      return fetch(input, init);
     });
-    const r = await llamar(cliente, 'buscar_conocimiento', { consulta: 'aceptación humana' });
+    const r = await call(client, 'search_knowledge', { queryName: 'aceptación humana' });
     expect(r.isError).toBe(true);
-    expect(textoDe(r)).toMatch(/^No disponible \(HTTP 404\): La búsqueda de conocimiento aún no está disponible\./);
-    expect(pedidas[0]).toContain(`/api/proyectos/${proyectoId}/conocimiento/buscar`);
-    expect(new URL(pedidas[0] ?? '').searchParams.get('q')).toBe('aceptación humana');
+    expect(textOf(r)).toMatch(/^No disponible \(HTTP 404\): La búsqueda de conocimiento aún no está disponible\./);
+    expect(requested[0]).toContain(`/api/projects/${projectId}/knowledge/search`);
+    expect(new URL(requested[0] ?? '').searchParams.get('q')).toBe('aceptación humana');
 
     // Contra la API real: o la ruta ya existe y responde, o el aviso es el mismo.
-    const real = await llamar(await conectar(token), 'buscar_conocimiento', { consulta: 'aceptación humana' });
-    expect(!real.isError || textoDe(real).includes('La búsqueda de conocimiento aún no está disponible')).toBe(true);
+    const real = await call(await connect(token), 'search_knowledge', { queryName: 'aceptación humana' });
+    expect(!real.isError || textOf(real).includes('La búsqueda de conocimiento aún no está disponible')).toBe(true);
   });
 
   it('main.ts sirve las herramientas por stdio con la configuración del entorno', async () => {
-    const transporte = new StdioClientTransport({
+    const transport = new StdioClientTransport({
       command: process.execPath,
       args: [MAIN],
       env: {
         ...getDefaultEnvironment(),
         DEMIURGO_API_URL: urlApi,
         DEMIURGO_AGENT_TOKEN: token,
-        DEMIURGO_PROYECTO: proyectoId,
+        DEMIURGO_PROJECT: projectId,
       },
       stderr: 'pipe',
     });
-    const cliente = new Client({ name: 'cliente-stdio', version: '1.0.0' });
-    await cliente.connect(transporte);
-    clientes.push(cliente);
-    const { tools } = await cliente.listTools();
-    expect(tools.map((t) => t.name).sort()).toEqual([...NOMBRES_HERRAMIENTAS].sort());
-    expect(datos(await llamar(cliente, 'leer_estado_producto'))).toHaveProperty('proyecto.id', proyectoId);
+    const client = new Client({ name: 'cliente-stdio', version: '1.0.0' });
+    await client.connect(transport);
+    clients.push(client);
+    const { tools } = await client.listTools();
+    expect(tools.map((t) => t.name).sort()).toEqual([...TOOL_NAMES].sort());
+    expect(data(await call(client, 'read_product_state'))).toHaveProperty('project.id', projectId);
   });
 
   it('main.ts se niega a arrancar sin configuración y lo dice en español', async () => {
-    const r = await new Promise<{ codigo: number | string | null | undefined; stderr: string }>((resolver) => {
+    const r = await new Promise<{ code: number | string | null | undefined; stderr: string }>((resolve) => {
       execFile(process.execPath, [MAIN], { env: getDefaultEnvironment() }, (error, _stdout, stderr) =>
-        resolver({ codigo: error ? error.code : 0, stderr }),
+        resolve({ code: error ? error.code : 0, stderr }),
       );
     });
-    expect(r.codigo).toBe(2);
+    expect(r.code).toBe(2);
     expect(r.stderr).toMatch(/falta la variable de entorno DEMIURGO_API_URL/);
   });
 });

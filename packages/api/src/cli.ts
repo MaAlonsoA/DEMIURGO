@@ -8,142 +8,142 @@
 //   node packages/api/src/cli.ts exportar-diseno <proyectoId> [--comprobar dir | --salida dir | dir]
 
 import {
-  type Particion,
-  IMPORTADOR,
-  arrancarNucleo,
-  compararExportacion,
-  exportarDiseno,
-  crearClasificador,
-  evaluarClasificador,
-  resumenEvaluacion,
-  conectar,
-  ejecutarComando,
-  esperarRun,
-  leerConfiguracion,
-  migrar,
-  registroConsola,
+  type Partition,
+  IMPORTER,
+  startCore,
+  compareExport,
+  exportDesign,
+  createClassifier,
+  evaluateClassifier,
+  evaluationSummary,
+  connect,
+  executeCommand,
+  waitForRun,
+  readConfig,
+  migrate,
+  consoleLogger,
 } from '@demiurgo/core';
-import { leerArbol, reemplazarArbol } from '@demiurgo/design';
-import { sistema } from '@demiurgo/domain';
-import { crearPersona } from './credenciales.ts';
+import { readTree, replaceTree } from '@demiurgo/design';
+import { system } from '@demiurgo/domain';
+import { createPerson } from './credentials.ts';
 
-const [orden, ...args] = process.argv.slice(2);
-const config = leerConfiguracion();
+const [command, ...args] = process.argv.slice(2);
+const config = readConfig();
 
-async function leerEntrada(): Promise<string> {
-  const trozos: Buffer[] = [];
-  for await (const t of process.stdin) trozos.push(t as Buffer);
-  return Buffer.concat(trozos).toString('utf8').trim();
+async function readInput(): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const t of process.stdin) chunks.push(t as Buffer);
+  return Buffer.concat(chunks).toString('utf8').trim();
 }
 
-async function conBase<T>(f: (c: ReturnType<typeof conectar>) => Promise<T>): Promise<T> {
-  const c = conectar(config.urlBase);
+async function withBase<T>(f: (c: ReturnType<typeof connect>) => Promise<T>): Promise<T> {
+  const c = connect(config.baseUrl);
   try {
-    await migrar(c.pool);
+    await migrate(c.pool);
     return await f(c);
   } finally {
-    await c.cerrar();
+    await c.close();
   }
 }
 
-const ordenes: Record<string, () => Promise<void>> = {
-  async migrar() {
-    const c = conectar(config.urlBase);
+const commands: Record<string, () => Promise<void>> = {
+  async migrate() {
+    const c = connect(config.baseUrl);
     try {
-      console.log(JSON.stringify({ aplicadas: await migrar(c.pool) }));
+      console.log(JSON.stringify({ applied: await migrate(c.pool) }));
     } finally {
-      await c.cerrar();
+      await c.close();
     }
   },
 
-  async 'crear-persona'() {
-    const usuario = args[0];
-    if (!usuario) throw new Error('Uso: crear-persona <usuario> (clave por la entrada estándar)');
-    const clave = await leerEntrada();
-    await conBase(async (c) => {
-      const id = await crearPersona(c.db, usuario, clave);
-      console.log(JSON.stringify({ persona: usuario, id }));
+  async 'create-person'() {
+    const username = args[0];
+    if (!username) throw new Error('Uso: crear-persona <usuario> (clave por la entrada estándar)');
+    const key = await readInput();
+    await withBase(async (c) => {
+      const id = await createPerson(c.db, username, key);
+      console.log(JSON.stringify({ person: username, id }));
     });
   },
 
-  async 'crear-proyecto'() {
-    const nombre = args[0];
-    if (!nombre) throw new Error('Uso: crear-proyecto <nombre>');
-    const nucleo = await arrancarNucleo(config, registroConsola);
+  async 'create-project'() {
+    const name = args[0];
+    if (!name) throw new Error('Uso: crear-proyecto <nombre>');
+    const core = await startCore(config, consoleLogger);
     try {
-      const r = await ejecutarComando(nucleo.servicios, { comando: 'project.create', actor: sistema('cli'), datos: { nombre } });
-      console.log(JSON.stringify({ proyecto_id: r.proyectoId }));
+      const r = await executeCommand(core.services, { command: 'project.create', actor: system('cli'), data: { name } });
+      console.log(JSON.stringify({ project_id: r.projectId }));
     } finally {
-      await nucleo.detener();
+      await core.stop();
     }
   },
 
-  async 'ejecucion-real'() {
-    const [proyectoId, accion, alcance, entrada] = args;
-    if (!proyectoId || !accion || !alcance)
+  async 'real-run'() {
+    const [projectId, action, scope, input] = args;
+    if (!projectId || !action || !scope)
       throw new Error('Uso: ejecucion-real <proyectoId> <accion> <json-alcance> [json-entrada]');
-    const nucleo = await arrancarNucleo(config, registroConsola);
+    const core = await startCore(config, consoleLogger);
     try {
-      const r = await ejecutarComando(nucleo.servicios, {
-        comando: 'run.request',
-        actor: sistema('cli'),
-        proyectoId,
-        datos: { accion, alcance: JSON.parse(alcance) as unknown, entrada: entrada ? (JSON.parse(entrada) as unknown) : {} },
+      const r = await executeCommand(core.services, {
+        command: 'run.request',
+        actor: system('cli'),
+        projectId,
+        data: { action, scope: JSON.parse(scope) as unknown, input: input ? (JSON.parse(input) as unknown) : {} },
       });
-      const estado = await esperarRun(r.entidadId);
-      const run = await nucleo.servicios.db
+      const state = await waitForRun(r.entityId);
+      const run = await core.services.db
         .selectFrom('ai_runs')
         .selectAll()
-        .where('id', '=', r.entidadId)
+        .where('id', '=', r.entityId)
         .executeTakeFirstOrThrow();
-      console.log(JSON.stringify({ estado, run }, null, 2));
+      console.log(JSON.stringify({ state, run }, null, 2));
     } finally {
-      await nucleo.detener();
+      await core.stop();
     }
   },
 };
 
-ordenes['evaluar-clasificador'] = async () => {
-  const particion = (args[0] ?? 'prueba') as Particion;
-  await conBase(async (c) => {
-    const informe = await evaluarClasificador({
-      clasificador: crearClasificador(config),
-      particion,
-      tanda: 40,
+commands['evaluate-classifier'] = async () => {
+  const partition = (args[0] ?? 'test') as Partition;
+  await withBase(async (c) => {
+    const report = await evaluateClassifier({
+      classifier: createClassifier(config),
+      partition,
+      chunkSize: 40,
       db: c.db,
-      salida: 'evals/clasificador/resultados',
+      output: 'evals/classifier/results',
     });
-    console.log(resumenEvaluacion(informe));
-    console.log(`Resultado guardado en ${informe.archivo ?? '(sin archivo)'}`);
+    console.log(evaluationSummary(report));
+    console.log(`Resultado guardado en ${report.file ?? '(sin archivo)'}`);
   });
 };
 
-ordenes['importar-diseno'] = async () => {
-  const [proyectoId, dir = 'design'] = args;
-  if (!proyectoId) throw new Error('Uso: importar-diseno <proyectoId> [dir]');
-  const nucleo = await arrancarNucleo(config, registroConsola);
+commands['import-design'] = async () => {
+  const [projectId, dir = 'design'] = args;
+  if (!projectId) throw new Error('Uso: importar-diseno <proyectoId> [dir]');
+  const core = await startCore(config, consoleLogger);
   try {
-    const arbol = await leerArbol(dir);
-    const r = await ejecutarComando(nucleo.servicios, {
-      comando: 'design.import',
-      actor: IMPORTADOR,
-      proyectoId,
-      datos: { arbol: Object.fromEntries(arbol), origen: dir },
+    const tree = await readTree(dir);
+    const r = await executeCommand(core.services, {
+      command: 'design.import',
+      actor: IMPORTER,
+      projectId,
+      data: { tree: Object.fromEntries(tree), origin: dir },
     });
-    console.log(JSON.stringify({ lote_id: r.entidadId, estado: r.estado, ...(r.resultado as object) }, null, 2));
+    console.log(JSON.stringify({ batch_id: r.entityId, state: r.state, ...(r.result as object) }, null, 2));
   } finally {
-    await nucleo.detener();
+    await core.stop();
   }
 };
 
-ordenes['exportar-diseno'] = async () => {
-  const [proyectoId, opcion, dir] = args;
-  if (!proyectoId) throw new Error('Uso: exportar-diseno <proyectoId> [--comprobar dir | --salida dir | dir]');
-  await conBase(async (c) => {
-    if (opcion === '--comprobar') {
-      const difs = await compararExportacion(c.db, proyectoId, await leerArbol(dir ?? 'design'));
-      if (difs.length > 0) {
-        for (const d of difs) console.error(`✗ ${d}`);
+commands['export-design'] = async () => {
+  const [projectId, option, dir] = args;
+  if (!projectId) throw new Error('Uso: exportar-diseno <proyectoId> [--comprobar dir | --salida dir | dir]');
+  await withBase(async (c) => {
+    if (option === '--check') {
+      const diffs = await compareExport(c.db, projectId, await readTree(dir ?? 'design'));
+      if (diffs.length > 0) {
+        for (const d of diffs) console.error(`✗ ${d}`);
         process.exitCode = 1;
         return;
       }
@@ -151,27 +151,27 @@ ordenes['exportar-diseno'] = async () => {
       return;
     }
     // Sin bandera, el segundo argumento es el directorio de salida.
-    const destino = (opcion === '--salida' ? dir : opcion) ?? 'design-exportado';
-    if (destino.startsWith('--')) throw new Error(`Opción desconocida: ${destino}.`);
-    const arbol = await exportarDiseno(c.db, proyectoId);
-    const borrados = await reemplazarArbol(destino, arbol);
-    console.log(`Exportados ${arbol.size} archivo(s) en ${destino}/.`);
-    for (const r of borrados) console.log(`  borrado ${r}: ya no está en la v2.`);
+    const target = (option === '--out' ? dir : option) ?? 'design-exported';
+    if (target.startsWith('--')) throw new Error(`Opción desconocida: ${target}.`);
+    const tree = await exportDesign(c.db, projectId);
+    const removed = await replaceTree(target, tree);
+    console.log(`Exportados ${tree.size} archivo(s) en ${target}/.`);
+    for (const r of removed) console.log(`  borrado ${r}: ya no está en la v2.`);
   });
 };
 
-const accion = orden ? ordenes[orden] : undefined;
-if (!accion) {
-  console.error(`Órdenes: ${Object.keys(ordenes).join(', ')}`);
+const action = command ? commands[command] : undefined;
+if (!action) {
+  console.error(`Órdenes: ${Object.keys(commands).join(', ')}`);
   process.exitCode = 2;
 } else {
   try {
-    await accion();
+    await action();
   } catch (e) {
     console.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
     // Los motivos de una guarda dicen qué falta, documento a documento.
-    const motivos = (e as { motivos?: unknown }).motivos;
-    if (Array.isArray(motivos)) for (const m of motivos) console.error(`  - ${String(m)}`);
+    const reasons = (e as { reasons?: unknown }).reasons;
+    if (Array.isArray(reasons)) for (const m of reasons) console.error(`  - ${String(m)}`);
     process.exitCode = 1;
   }
 }

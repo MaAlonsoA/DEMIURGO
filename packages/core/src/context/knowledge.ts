@@ -1,26 +1,26 @@
 // Conocimiento derivado para los context packs. Hasta S2 no hay grafo: no aporta nodos.
 
-import type { Tx } from '../db/conexion.ts';
+import type { Tx } from '../db/connection.ts';
 
-export type NodoDeContexto = { ref: string; tipo: string; titulo: string; texto: string; motivo: string };
-export type ConocimientoDeContexto = {
-  nodos: NodoDeContexto[];
-  dependencias: { tipo: string; id: string; version: number | null }[];
+export type ContextNode = { ref: string; type: string; title: string; text: string; reason: string };
+export type ContextKnowledge = {
+  nodes: ContextNode[];
+  dependencies: { type: string; id: string; version: number | null }[];
 };
 
-type Seleccionador = (trx: Tx, proyectoId: string, consulta: string, presupuesto: number) => Promise<ConocimientoDeContexto>;
+type Selector = (trx: Tx, projectId: string, queryName: string, budget: number) => Promise<ContextKnowledge>;
 
-let seleccionador: Seleccionador = async () => ({ nodos: [], dependencias: [] });
+let selector: Selector = async () => ({ nodes: [], dependencies: [] });
 
-export function registrarSeleccionadorDeConocimiento(s: Seleccionador): void {
-  seleccionador = s;
+export function registerKnowledgeSelector(s: Selector): void {
+  selector = s;
 }
 
-export function conocimientoParaContexto(
+export function knowledgeForContext(
   trx: Tx,
-  proyectoId: string,
-  consulta: string,
-  presupuesto: number,
-): Promise<ConocimientoDeContexto> {
-  return seleccionador(trx, proyectoId, consulta, presupuesto);
+  projectId: string,
+  queryName: string,
+  budget: number,
+): Promise<ContextKnowledge> {
+  return selector(trx, projectId, queryName, budget);
 }

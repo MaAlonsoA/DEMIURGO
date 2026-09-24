@@ -2,37 +2,37 @@
 // decide. Nada llega a `accepted` sin un evento de actor human (I1).
 
 import {
-  CARGAS,
-  ErrorDominio,
-  MAX_PROPUESTAS_AGENTE_EXTERNO,
-  type TipoPropuesta,
-  esTipoPropuesta,
-  esquemaDependencia,
-  formatearActor,
-  sistema,
+  PAYLOADS,
+  DomainError,
+  MAX_EXTERNAL_AGENT_PROPOSALS,
+  type ProposalType,
+  isProposalType,
+  dependencySchema,
+  formatActor,
+  system,
 } from '@demiurgo/domain';
 import { z } from 'zod';
-import { cadena, campo, registrarGuardas } from '../bus/guardas.ts';
-import { manejador, registrarManejadores } from '../bus/manejadores.ts';
-import type { ContextoComando, EntidadCargada } from '../bus/tipos.ts';
-import type { Bd, Tx } from '../db/conexion.ts';
-import { APLICACIONES, type Efecto } from './efectos.ts';
-import { alEventoDeAutoridad } from './reacciones.ts';
+import { string, field, registerGuards } from '../bus/guards.ts';
+import { handler, registerHandlers } from '../bus/handlers.ts';
+import type { CommandContext, LoadedEntity } from '../bus/types.ts';
+import type { Db, Tx } from '../db/connection.ts';
+import { APPLICATIONS, type Effect } from './effects.ts';
+import { onAuthorityEvent } from './reactions.ts';
 
 const uuid = z.string().uuid();
 
-const esquemaPropuestaEntrada = z
-  .object({ tipo: z.string(), carga: z.record(z.string(), z.unknown()), dependencias: z.array(esquemaDependencia).default([]) })
+const proposalEntrySchema = z
+  .object({ type: z.string(), payload: z.record(z.string(), z.unknown()), dependencies: z.array(dependencySchema).default([]) })
   .strict();
 
-type Dependencia = z.infer<typeof esquemaDependencia>;
+type Dependency = z.infer<typeof dependencySchema>;
 
 /**
  * Motivos de obsolescencia. Una dependencia caduca si su versión se descartó o si la vigente del
  * registro es otra; depender de un borrador sin ninguna versión aprobada no caduca mientras exista.
  */
-export async function dependenciasCaducadas(trx: Bd, deps: readonly Dependencia[]): Promise<string[]> {
-  const motivos: string[] = [];
+export async function staleDependencies(trx: Db, deps: readonly Dependency[]): Promise<string[]> {
+  const reasons: string[] = [];
   for (const d of deps) {
     const version = await trx
       .selectFrom('record_versions')
@@ -40,7 +40,7 @@ export async function dependenciasCaducadas(trx: Bd, deps: readonly Dependencia[
       .where('record_id', '=', d.id)
       .where('n', '=', d.version)
       .executeTakeFirst();
-    const vigente = await trx
+    const current = await trx
       .selectFrom('record_versions')
       .select('n')
       .where('record_id', '=', d.id)
@@ -48,142 +48,142 @@ export async function dependenciasCaducadas(trx: Bd, deps: readonly Dependencia[
       .orderBy('n', 'desc')
       .executeTakeFirst();
     if (!version || version.state === 'discarded') {
-      motivos.push(`La propuesta está obsoleta: la versión ${d.version} de ${d.codigo} se ha descartado.`);
-    } else if (vigente && vigente.n !== d.version) {
-      motivos.push(
-        `La propuesta está obsoleta: ${d.codigo} ha cambiado (vigente: v${vigente.n}; la propuesta partía de v${d.version}).`,
+      reasons.push(`La propuesta está obsoleta: la versión ${d.version} de ${d.code} se ha descartado.`);
+    } else if (current && current.n !== d.version) {
+      reasons.push(
+        `La propuesta está obsoleta: ${d.code} ha cambiado (vigente: v${current.n}; la propuesta partía de v${d.version}).`,
       );
     }
   }
-  return motivos;
+  return reasons;
 }
 
-async function loteDe(trx: Tx, entidad: EntidadCargada | null) {
-  const loteId = cadena(entidad?.fila.batch_id) || (entidad?.id ?? '');
-  return trx.selectFrom('proposal_batches').selectAll().where('id', '=', loteId).executeTakeFirstOrThrow();
+async function batchOf(trx: Tx, entity: LoadedEntity | null) {
+  const batchId = string(entity?.row.batch_id) || (entity?.id ?? '');
+  return trx.selectFrom('proposal_batches').selectAll().where('id', '=', batchId).executeTakeFirstOrThrow();
 }
 
-registrarGuardas({
+registerGuards({
   // Una propuesta solo nace dentro del envío de su lote (o de la importación), en un lote
   // pendiente del mismo productor: nadie añade propuestas a un lote ajeno o ya resuelto.
-  lote_propio_abierto: async ({ ctx, datos }) => {
-    if (!['batch.submit', 'design.import'].includes(ctx.causa.comandoOrigen ?? '')) {
+  own_open_batch: async ({ ctx, data }) => {
+    if (!['batch.submit', 'design.import'].includes(ctx.cause.sourceCommand ?? '')) {
       return 'Las propuestas se envían dentro de un lote (batch.submit).';
     }
-    const lote = await ctx.trx
+    const batch = await ctx.trx
       .selectFrom('proposal_batches')
       .select(['producer', 'state'])
-      .where('id', '=', cadena(campo(datos, 'lote_id')))
-      .where('project_id', '=', ctx.proyectoId)
+      .where('id', '=', string(field(data, 'batch_id')))
+      .where('project_id', '=', ctx.projectId)
       .executeTakeFirst();
-    if (!lote) return 'El lote no existe.';
-    if (lote.state !== 'pending') return 'El lote ya está resuelto.';
-    return lote.producer === formatearActor(ctx.actor) ? null : 'Solo el productor del lote puede añadirle propuestas.';
+    if (!batch) return 'El lote no existe.';
+    if (batch.state !== 'pending') return 'El lote ya está resuelto.';
+    return batch.producer === formatActor(ctx.actor) ? null : 'Solo el productor del lote puede añadirle propuestas.';
   },
 
-  lote_de_agente_externo_max_10: ({ ctx, datos }) => {
-    const n = (campo(datos, 'propuestas') as unknown[] | undefined)?.length ?? 0;
-    if (ctx.actor.tipo === 'agent_external' && n > MAX_PROPUESTAS_AGENTE_EXTERNO) {
-      return `Un agente externo propone como máximo ${MAX_PROPUESTAS_AGENTE_EXTERNO} elementos por lote (hay ${n}).`;
+  external_agent_batch_max_10: ({ ctx, data }) => {
+    const n = (field(data, 'proposals') as unknown[] | undefined)?.length ?? 0;
+    if (ctx.actor.type === 'agent_external' && n > MAX_EXTERNAL_AGENT_PROPOSALS) {
+      return `Un agente externo propone como máximo ${MAX_EXTERNAL_AGENT_PROPOSALS} elementos por lote (hay ${n}).`;
     }
     return null;
   },
 
-  carga_valida: ({ ctx, datos }) => {
-    const tipo = cadena(campo(datos, 'tipo'));
-    if (!esTipoPropuesta(tipo)) return `Tipo de propuesta desconocido: «${tipo}».`;
-    if (ctx.actor.tipo === 'agent_external' && !['decision', 'exploracion', 'fdr'].includes(tipo)) {
-      return `Un agente externo no puede proponer «${tipo}».`;
+  valid_payload: ({ ctx, data }) => {
+    const type = string(field(data, 'type'));
+    if (!isProposalType(type)) return `Tipo de propuesta desconocido: «${type}».`;
+    if (ctx.actor.type === 'agent_external' && !['decision', 'exploration', 'fdr'].includes(type)) {
+      return `Un agente externo no puede proponer «${type}».`;
     }
     // Lo importado de design/ solo lo propone la importación: aceptarlo crea autoridad con el estado del archivo.
-    if (['registro_importado', 'taxonomia_importada'].includes(tipo) && ctx.causa.comandoOrigen !== 'design.import') {
-      return `Solo la importación de design/ propone «${tipo}».`;
+    if (['imported_record', 'imported_taxonomy'].includes(type) && ctx.cause.sourceCommand !== 'design.import') {
+      return `Solo la importación de design/ propone «${type}».`;
     }
-    const r = CARGAS[tipo].safeParse(campo(datos, 'carga'));
+    const r = PAYLOADS[type].safeParse(field(data, 'payload'));
     return r.success
       ? null
       : `La propuesta no es válida: ${r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`;
   },
 
-  edicion_valida: async ({ ctx, datos, entidad }) => {
-    const tipo = cadena(entidad?.fila.type) as TipoPropuesta;
-    if (!esTipoPropuesta(tipo)) return 'Tipo de propuesta desconocido.';
-    const r = CARGAS[tipo].safeParse(campo(datos, 'edicion'));
+  valid_edit: async ({ ctx, data, entity }) => {
+    const type = string(entity?.row.type) as ProposalType;
+    if (!isProposalType(type)) return 'Tipo de propuesta desconocido.';
+    const r = PAYLOADS[type].safeParse(field(data, 'edit'));
     void ctx;
     return r.success
       ? null
       : `La edición no es válida: ${r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`;
   },
 
-  resolucion_por_elemento: async ({ ctx, entidad }) => {
-    const lote = await loteDe(ctx.trx, entidad);
-    const porPaquete = ['batch.accept_package', 'batch.reject_package', 'batch.supersede'].includes(
-      ctx.causa.comandoOrigen ?? '',
+  per_element_resolution: async ({ ctx, entity }) => {
+    const batch = await batchOf(ctx.trx, entity);
+    const byPackage = ['batch.accept_package', 'batch.reject_package', 'batch.supersede'].includes(
+      ctx.cause.sourceCommand ?? '',
     );
-    if (lote.resolution_mode === 'package' && !porPaquete) {
-      return ctx.comando === 'proposal.supersede'
+    if (batch.resolution_mode === 'package' && !byPackage) {
+      return ctx.command === 'proposal.supersede'
         ? 'Esta propuesta forma parte de un paquete: queda obsoleto el paquete completo.'
         : 'Esta propuesta forma parte de un paquete: se acepta o se rechaza el paquete completo.';
     }
     return null;
   },
 
-  resolucion_en_paquete: async ({ ctx, entidad }) => {
-    const lote = await loteDe(ctx.trx, entidad);
-    return lote.resolution_mode === 'package' ? null : 'Este lote se resuelve elemento a elemento.';
+  package_resolution: async ({ ctx, entity }) => {
+    const batch = await batchOf(ctx.trx, entity);
+    return batch.resolution_mode === 'package' ? null : 'Este lote se resuelve elemento a elemento.';
   },
 
-  dependencias_vigentes: async ({ ctx, entidad }) => {
-    if (!entidad) return null;
-    const esLote = ctx.comando.startsWith('batch.');
-    const lote = await loteDe(ctx.trx, entidad);
-    const deps = [...((lote.dependencies ?? []) as Dependencia[])];
-    if (esLote) {
-      const propuestas = await ctx.trx
+  current_dependencies: async ({ ctx, entity }) => {
+    if (!entity) return null;
+    const isBatch = ctx.command.startsWith('batch.');
+    const batch = await batchOf(ctx.trx, entity);
+    const deps = [...((batch.dependencies ?? []) as Dependency[])];
+    if (isBatch) {
+      const proposals = await ctx.trx
         .selectFrom('proposals')
         .select('dependencies')
-        .where('batch_id', '=', lote.id)
+        .where('batch_id', '=', batch.id)
         .where('state', '=', 'pending')
         .execute();
-      for (const p of propuestas) deps.push(...((p.dependencies ?? []) as Dependencia[]));
+      for (const p of proposals) deps.push(...((p.dependencies ?? []) as Dependency[]));
     } else {
-      deps.push(...((entidad.fila.dependencies ?? []) as Dependencia[]));
+      deps.push(...((entity.row.dependencies ?? []) as Dependency[]));
     }
-    const motivos = await dependenciasCaducadas(ctx.trx, deps);
-    return motivos.length ? [...new Set(motivos)].join(' ') : null;
+    const reasons = await staleDependencies(ctx.trx, deps);
+    return reasons.length ? [...new Set(reasons)].join(' ') : null;
   },
 
   // Una dependencia declarada apunta a una versión que existe de un registro de este proyecto.
-  dependencias_del_proyecto: async ({ ctx, datos }) => {
+  project_dependencies: async ({ ctx, data }) => {
     const deps = [
-      ...((campo(datos, 'dependencias') as Dependencia[] | undefined) ?? []),
-      ...((campo(datos, 'propuestas') as { dependencias?: Dependencia[] }[] | undefined) ?? []).flatMap(
-        (p) => p.dependencias ?? [],
+      ...((field(data, 'dependencies') as Dependency[] | undefined) ?? []),
+      ...((field(data, 'proposals') as { dependencies?: Dependency[] }[] | undefined) ?? []).flatMap(
+        (p) => p.dependencies ?? [],
       ),
     ];
-    const motivos = new Set<string>();
+    const reasons = new Set<string>();
     for (const d of deps) {
       const v = await ctx.trx
         .selectFrom('record_versions')
         .innerJoin('records', 'records.id', 'record_versions.record_id')
         .select('records.code')
         .where('records.id', '=', d.id)
-        .where('records.project_id', '=', ctx.proyectoId)
+        .where('records.project_id', '=', ctx.projectId)
         .where('record_versions.n', '=', d.version)
         .executeTakeFirst();
-      if (v?.code !== d.codigo) motivos.add(`La dependencia ${d.codigo} v${d.version} no existe en este proyecto.`);
+      if (v?.code !== d.code) reasons.add(`La dependencia ${d.code} v${d.version} no existe en este proyecto.`);
     }
-    return motivos.size ? [...motivos].join(' ') : null;
+    return reasons.size ? [...reasons].join(' ') : null;
   },
 
-  todas_las_propuestas_resueltas: async ({ ctx, entidad }) => {
-    const pendientes = await ctx.trx
+  all_proposals_resolved: async ({ ctx, entity }) => {
+    const pending = await ctx.trx
       .selectFrom('proposals')
       .select('id')
-      .where('batch_id', '=', entidad?.id ?? '')
+      .where('batch_id', '=', entity?.id ?? '')
       .where('state', '=', 'pending')
       .execute();
-    return pendientes.length === 0 ? null : `Quedan ${pendientes.length} propuesta(s) pendiente(s) en el lote.`;
+    return pending.length === 0 ? null : `Quedan ${pending.length} propuesta(s) pendiente(s) en el lote.`;
   },
 });
 
@@ -192,360 +192,360 @@ registrarGuardas({
  * entero si la dependencia es del lote o si se resuelve en paquete (no se acepta medio paquete) y,
  * si no, cada propuesta afectada. Se revisa al aprobar una versión y al enviar un lote.
  */
-export async function revisarObsolescencia(ctx: ContextoComando, filtro: { registro?: string; lote?: string }): Promise<void> {
-  const afectadas = (deps: unknown) =>
-    ((deps ?? []) as Dependencia[]).filter((d) => !filtro.registro || d.id === filtro.registro);
-  let consulta = ctx.trx
+export async function reviewObsolescence(ctx: CommandContext, filter: { record?: string; batch?: string }): Promise<void> {
+  const affected = (deps: unknown) =>
+    ((deps ?? []) as Dependency[]).filter((d) => !filter.record || d.id === filter.record);
+  let queryName = ctx.trx
     .selectFrom('proposal_batches')
     .select(['id', 'dependencies', 'resolution_mode'])
-    .where('project_id', '=', ctx.proyectoId)
+    .where('project_id', '=', ctx.projectId)
     .where('state', '=', 'pending');
-  if (filtro.lote) consulta = consulta.where('id', '=', filtro.lote);
-  for (const l of await consulta.execute()) {
-    const delLote = await dependenciasCaducadas(ctx.trx, afectadas(l.dependencies));
-    const propuestas = await ctx.trx
+  if (filter.batch) queryName = queryName.where('id', '=', filter.batch);
+  for (const l of await queryName.execute()) {
+    const ofBatch = await staleDependencies(ctx.trx, affected(l.dependencies));
+    const proposals = await ctx.trx
       .selectFrom('proposals')
       .select(['id', 'dependencies'])
       .where('batch_id', '=', l.id)
       .where('state', '=', 'pending')
       .orderBy('position')
       .execute();
-    const obsoletas: { id: string; motivo: string }[] = [];
-    for (const p of propuestas) {
-      const motivos = await dependenciasCaducadas(ctx.trx, afectadas(p.dependencies));
-      if (motivos.length) obsoletas.push({ id: p.id, motivo: [...new Set(motivos)].join(' ').slice(0, 2000) });
+    const obsoleteProposals: { id: string; reason: string }[] = [];
+    for (const p of proposals) {
+      const reasons = await staleDependencies(ctx.trx, affected(p.dependencies));
+      if (reasons.length) obsoleteProposals.push({ id: p.id, reason: [...new Set(reasons)].join(' ').slice(0, 2000) });
     }
-    if (delLote.length || (l.resolution_mode === 'package' && obsoletas.length)) {
-      const motivo = [...new Set([...delLote, ...obsoletas.map((o) => o.motivo)])].join(' ').slice(0, 2000);
-      await ctx.ejecutar({ comando: 'batch.supersede', actor: sistema('versiones'), entidadId: l.id, datos: { motivo } });
+    if (ofBatch.length || (l.resolution_mode === 'package' && obsoleteProposals.length)) {
+      const reason = [...new Set([...ofBatch, ...obsoleteProposals.map((o) => o.reason)])].join(' ').slice(0, 2000);
+      await ctx.execute({ command: 'batch.supersede', actor: system('versions'), entityId: l.id, data: { reason } });
       continue;
     }
-    for (const o of obsoletas) {
-      await ctx.ejecutar({
-        comando: 'proposal.supersede',
-        actor: sistema('versiones'),
-        entidadId: o.id,
-        datos: { motivo: o.motivo },
+    for (const o of obsoleteProposals) {
+      await ctx.execute({
+        command: 'proposal.supersede',
+        actor: system('versions'),
+        entityId: o.id,
+        data: { reason: o.reason },
       });
     }
   }
 }
 
 /** Referencias a registros dentro de la carga que son dependencias aunque nadie las declare. */
-async function dependenciasDeLaCarga(ctx: ContextoComando, carga: Record<string, unknown>): Promise<Dependencia[]> {
-  const ref = carga.basado_en as { codigo?: unknown; version?: unknown } | undefined;
-  if (typeof ref?.codigo !== 'string' || typeof ref.version !== 'number') return [];
+async function payloadDependencies(ctx: CommandContext, payload: Record<string, unknown>): Promise<Dependency[]> {
+  const ref = payload.based_on as { code?: unknown; version?: unknown } | undefined;
+  if (typeof ref?.code !== 'string' || typeof ref.version !== 'number') return [];
   const r = await ctx.trx
     .selectFrom('records')
     .select('id')
-    .where('project_id', '=', ctx.proyectoId)
-    .where('code', '=', ref.codigo)
+    .where('project_id', '=', ctx.projectId)
+    .where('code', '=', ref.code)
     .executeTakeFirst();
-  return r ? [{ tipo: 'record', id: r.id, codigo: ref.codigo, version: ref.version }] : [];
+  return r ? [{ type: 'record', id: r.id, code: ref.code, version: ref.version }] : [];
 }
 
 /** Cierra un lote por elementos cuando ya no le quedan propuestas pendientes. */
 /** `resolviendo` es la propuesta que se está resolviendo ahora: su estado cambia al terminar el comando. */
-async function cerrarSiResuelto(ctx: ContextoComando, loteId: string, resolviendo: string): Promise<void> {
+async function closeIfResolved(ctx: CommandContext, batchId: string, resolving: string): Promise<void> {
   // Si la resolución viene del propio lote (paquete u obsolescencia), el lote cambia de estado él mismo.
-  if (['batch.accept_package', 'batch.reject_package', 'batch.supersede'].includes(ctx.causa.comandoOrigen ?? '')) return;
-  const lote = await ctx.trx
+  if (['batch.accept_package', 'batch.reject_package', 'batch.supersede'].includes(ctx.cause.sourceCommand ?? '')) return;
+  const batch = await ctx.trx
     .selectFrom('proposal_batches')
     .select(['state', 'resolution_mode'])
-    .where('id', '=', loteId)
+    .where('id', '=', batchId)
     .executeTakeFirstOrThrow();
-  if (lote.state !== 'pending' || lote.resolution_mode !== 'item') return;
-  const pendientes = await ctx.trx
+  if (batch.state !== 'pending' || batch.resolution_mode !== 'item') return;
+  const pending = await ctx.trx
     .selectFrom('proposals')
     .select('id')
-    .where('batch_id', '=', loteId)
+    .where('batch_id', '=', batchId)
     .where('state', '=', 'pending')
-    .where('id', '<>', resolviendo)
+    .where('id', '<>', resolving)
     .execute();
-  if (pendientes.length === 0)
-    await ctx.ejecutar({ comando: 'batch.close', actor: sistema('bandeja'), entidadId: loteId, datos: {} });
+  if (pending.length === 0)
+    await ctx.execute({ command: 'batch.close', actor: system('inbox'), entityId: batchId, data: {} });
 }
 
-async function aplicarPropuesta(
-  ctx: ContextoComando,
-  e: EntidadCargada,
-  carga: unknown,
-  opciones: { aprobar: boolean },
-): Promise<Efecto> {
-  const tipo = cadena(e.fila.type) as TipoPropuesta;
-  const aplicar = APLICACIONES[tipo];
-  if (!aplicar) throw new ErrorDominio('no_implementado', `Aceptar propuestas de tipo «${tipo}» aún no está implementado.`);
+async function applyProposal(
+  ctx: CommandContext,
+  e: LoadedEntity,
+  payload: unknown,
+  options: { approve: boolean },
+): Promise<Effect> {
+  const type = string(e.row.type) as ProposalType;
+  const apply = APPLICATIONS[type];
+  if (!apply) throw new DomainError('not_implemented', `Aceptar propuestas de tipo «${type}» aún no está implementado.`);
   // Los comandos que crea la propuesta llevan en su causa la propuesta que los originó.
-  const conCausa: ContextoComando = { ...ctx, ejecutar: (p) => ctx.ejecutar({ ...p, causa: { propuesta: e.id, ...p.causa } }) };
-  return aplicar(conCausa, { propuestaId: e.id, carga, aprobar: opciones.aprobar });
+  const withCause: CommandContext = { ...ctx, execute: (p) => ctx.execute({ ...p, cause: { proposal: e.id, ...p.cause } }) };
+  return apply(withCause, { proposalId: e.id, payload, approve: options.approve });
 }
 
-registrarManejadores({
-  'batch.submit': manejador({
-    datos: z
+registerHandlers({
+  'batch.submit': handler({
+    data: z
       .object({
-        resumen: z.string().trim().max(2000).optional(),
-        tipo_lote: z.enum(['agent', 'system_package', 'knowledge']).optional(),
-        resolucion: z.enum(['item', 'package']).optional(),
+        summary: z.string().trim().max(2000).optional(),
+        batch_type: z.enum(['agent', 'system_package', 'knowledge']).optional(),
+        resolution: z.enum(['item', 'package']).optional(),
         run_id: uuid.optional(),
         context_pack_id: uuid.optional(),
-        dependencias: z.array(esquemaDependencia).default([]),
-        propuestas: z.array(esquemaPropuestaEntrada).min(1).max(50),
+        dependencies: z.array(dependencySchema).default([]),
+        proposals: z.array(proposalEntrySchema).min(1).max(50),
       })
       .strict(),
-    async aplicar(ctx, datos, _e, hacia) {
+    async apply(ctx, data, _e, to) {
       // El canal fija el tipo de lote: un agente externo siempre propone por elementos.
-      const externo = ctx.actor.tipo === 'agent_external';
-      const tipoLote = externo ? 'agent' : (datos.tipo_lote ?? 'agent');
-      const resolucion = externo ? 'item' : (datos.resolucion ?? 'item');
-      if (tipoLote === 'agent' && resolucion === 'package') {
-        throw new ErrorDominio('validacion', 'Un lote de agente se resuelve elemento a elemento.');
+      const external = ctx.actor.type === 'agent_external';
+      const batchType = external ? 'agent' : (data.batch_type ?? 'agent');
+      const resolution = external ? 'item' : (data.resolution ?? 'item');
+      if (batchType === 'agent' && resolution === 'package') {
+        throw new DomainError('validation', 'Un lote de agente se resuelve elemento a elemento.');
       }
       // La procedencia la fija el canal: un agente externo no puede atribuir su lote a una ejecución.
-      const runId = ctx.actor.tipo === 'agent_run' ? ctx.actor.run : externo ? null : (datos.run_id ?? null);
-      const packId = externo ? null : (datos.context_pack_id ?? null);
+      const runId = ctx.actor.type === 'agent_run' ? ctx.actor.run : external ? null : (data.run_id ?? null);
+      const packId = external ? null : (data.context_pack_id ?? null);
       const { id } = await ctx.trx
         .insertInto('proposal_batches')
         .values({
-          project_id: ctx.proyectoId,
-          kind: tipoLote,
-          producer: formatearActor(ctx.actor),
+          project_id: ctx.projectId,
+          kind: batchType,
+          producer: formatActor(ctx.actor),
           run_id: runId,
           context_pack_id: packId,
-          resolution_mode: resolucion,
-          dependencies: JSON.stringify(datos.dependencias),
-          summary: datos.resumen ?? null,
+          resolution_mode: resolution,
+          dependencies: JSON.stringify(data.dependencies),
+          summary: data.summary ?? null,
           tree_hash: null,
-          state: hacia,
+          state: to,
         })
         .returning('id')
         .executeTakeFirstOrThrow();
       const ids: string[] = [];
-      for (const [i, p] of datos.propuestas.entries()) {
-        const r = await ctx.ejecutar({
-          comando: 'proposal.create',
+      for (const [i, p] of data.proposals.entries()) {
+        const r = await ctx.execute({
+          command: 'proposal.create',
           actor: ctx.actor,
-          datos: { lote_id: id, posicion: i + 1, tipo: p.tipo, carga: p.carga, dependencias: p.dependencias },
+          data: { batch_id: id, position: i + 1, type: p.type, payload: p.payload, dependencies: p.dependencies },
         });
-        ids.push(r.entidadId);
+        ids.push(r.entityId);
       }
       // Lo que nace con una dependencia que ya no es la vigente queda obsoleto desde el principio.
-      await revisarObsolescencia(ctx, { lote: id });
+      await reviewObsolescence(ctx, { batch: id });
       // Cada idea de un agente (externo o de una ejecución, también los paquetes de diseño) se
       // evalúa contra el conocimiento (§7.7), fuera de la transacción.
-      if (tipoLote === 'agent' || runId !== null) {
-        const { servicios, proyectoId } = ctx;
-        ctx.despuesDeConfirmar(() => servicios.motor.iniciarEvaluacion(id, proyectoId));
+      if (batchType === 'agent' || runId !== null) {
+        const { services, projectId } = ctx;
+        ctx.afterConfirm(() => services.engine.startEvaluation(id, projectId));
       }
       return {
-        entidadId: id,
-        despues: { tipo: tipoLote, resolucion, propuestas: datos.propuestas.length, productor: formatearActor(ctx.actor) },
-        resultado: { loteId: id, propuestas: ids },
+        entityId: id,
+        after: { type: batchType, resolution, proposals: data.proposals.length, producer: formatActor(ctx.actor) },
+        result: { batchId: id, proposals: ids },
       };
     },
   }),
 
-  'proposal.create': manejador({
-    datos: z
+  'proposal.create': handler({
+    data: z
       .object({
-        lote_id: uuid,
-        posicion: z.number().int().positive(),
-        tipo: z.string(),
-        carga: z.record(z.string(), z.unknown()),
-        dependencias: z.array(esquemaDependencia).default([]),
+        batch_id: uuid,
+        position: z.number().int().positive(),
+        type: z.string(),
+        payload: z.record(z.string(), z.unknown()),
+        dependencies: z.array(dependencySchema).default([]),
       })
       .strict(),
-    async aplicar(ctx, datos, _e, hacia) {
-      const dependencias = [...datos.dependencias];
-      for (const d of await dependenciasDeLaCarga(ctx, datos.carga)) {
+    async apply(ctx, data, _e, to) {
+      const dependencies = [...data.dependencies];
+      for (const d of await payloadDependencies(ctx, data.payload)) {
         // Una referencia a otra versión del mismo registro también cuenta: si no coinciden, la propuesta nace obsoleta.
-        if (!dependencias.some((x) => x.id === d.id && x.version === d.version)) dependencias.push(d);
+        if (!dependencies.some((x) => x.id === d.id && x.version === d.version)) dependencies.push(d);
       }
       const { id } = await ctx.trx
         .insertInto('proposals')
         .values({
-          project_id: ctx.proyectoId,
-          batch_id: datos.lote_id,
-          position: datos.posicion,
-          type: datos.tipo,
-          payload: JSON.stringify(datos.carga),
-          dependencies: JSON.stringify(dependencias),
-          state: hacia,
+          project_id: ctx.projectId,
+          batch_id: data.batch_id,
+          position: data.position,
+          type: data.type,
+          payload: JSON.stringify(data.payload),
+          dependencies: JSON.stringify(dependencies),
+          state: to,
         })
         .returning('id')
         .executeTakeFirstOrThrow();
-      return { entidadId: id, despues: { lote: datos.lote_id, tipo: datos.tipo, dependencias } };
+      return { entityId: id, after: { batch: data.batch_id, type: data.type, dependencies } };
     },
   }),
 
-  'proposal.accept': manejador({
-    datos: z.object({ aprobar: z.boolean().default(false) }).strict(),
-    async aplicar(ctx, datos, e) {
-      const entidad = e as EntidadCargada;
-      const efecto = await aplicarPropuesta(ctx, entidad, entidad.fila.payload, { aprobar: datos.aprobar });
+  'proposal.accept': handler({
+    data: z.object({ approve: z.boolean().default(false) }).strict(),
+    async apply(ctx, data, e) {
+      const entity = e as LoadedEntity;
+      const effect = await applyProposal(ctx, entity, entity.row.payload, { approve: data.approve });
       await ctx.trx
         .updateTable('proposals')
-        .set({ resolution: JSON.stringify({ efecto }), resolved_by: formatearActor(ctx.actor), resolved_at: new Date() })
-        .where('id', '=', entidad.id)
+        .set({ resolution: JSON.stringify({ effect }), resolved_by: formatActor(ctx.actor), resolved_at: new Date() })
+        .where('id', '=', entity.id)
         .execute();
-      await alEventoDeAutoridad(ctx, { tipo: 'proposal', id: entidad.id, version: null });
-      await cerrarSiResuelto(ctx, cadena(entidad.fila.batch_id), entidad.id);
-      return { entidadId: entidad.id, despues: { efecto, aprobar: datos.aprobar }, resultado: efecto };
+      await onAuthorityEvent(ctx, { type: 'proposal', id: entity.id, version: null });
+      await closeIfResolved(ctx, string(entity.row.batch_id), entity.id);
+      return { entityId: entity.id, after: { effect, approve: data.approve }, result: effect };
     },
   }),
 
-  'proposal.accept_edited': manejador({
-    datos: z.object({ edicion: z.record(z.string(), z.unknown()), aprobar: z.boolean().default(false) }).strict(),
-    async aplicar(ctx, datos, e) {
-      const entidad = e as EntidadCargada;
-      const efecto = await aplicarPropuesta(ctx, entidad, datos.edicion, { aprobar: datos.aprobar });
+  'proposal.accept_edited': handler({
+    data: z.object({ edit: z.record(z.string(), z.unknown()), approve: z.boolean().default(false) }).strict(),
+    async apply(ctx, data, e) {
+      const entity = e as LoadedEntity;
+      const effect = await applyProposal(ctx, entity, data.edit, { approve: data.approve });
       await ctx.trx
         .updateTable('proposals')
         .set({
-          resolution: JSON.stringify({ efecto, edicion: datos.edicion }),
-          resolved_by: formatearActor(ctx.actor),
+          resolution: JSON.stringify({ effect, edit: data.edit }),
+          resolved_by: formatActor(ctx.actor),
           resolved_at: new Date(),
         })
-        .where('id', '=', entidad.id)
+        .where('id', '=', entity.id)
         .execute();
-      await alEventoDeAutoridad(ctx, { tipo: 'proposal', id: entidad.id, version: null });
-      await cerrarSiResuelto(ctx, cadena(entidad.fila.batch_id), entidad.id);
+      await onAuthorityEvent(ctx, { type: 'proposal', id: entity.id, version: null });
+      await closeIfResolved(ctx, string(entity.row.batch_id), entity.id);
       return {
-        entidadId: entidad.id,
-        antes: { carga: entidad.fila.payload },
-        despues: { efecto, edicion: datos.edicion },
-        resultado: efecto,
+        entityId: entity.id,
+        before: { payload: entity.row.payload },
+        after: { effect, edit: data.edit },
+        result: effect,
       };
     },
   }),
 
-  'proposal.reject': manejador({
-    datos: z.object({ motivo: z.string().trim().max(2000).optional() }).strict(),
-    async aplicar(ctx, datos, e) {
-      const entidad = e as EntidadCargada;
+  'proposal.reject': handler({
+    data: z.object({ reason: z.string().trim().max(2000).optional() }).strict(),
+    async apply(ctx, data, e) {
+      const entity = e as LoadedEntity;
       await ctx.trx
         .updateTable('proposals')
         .set({
-          resolution: JSON.stringify({ motivo: datos.motivo ?? null }),
-          resolved_by: formatearActor(ctx.actor),
+          resolution: JSON.stringify({ reason: data.reason ?? null }),
+          resolved_by: formatActor(ctx.actor),
           resolved_at: new Date(),
         })
-        .where('id', '=', entidad.id)
+        .where('id', '=', entity.id)
         .execute();
-      await cerrarSiResuelto(ctx, cadena(entidad.fila.batch_id), entidad.id);
-      return { entidadId: entidad.id, despues: { motivo: datos.motivo ?? null } };
+      await closeIfResolved(ctx, string(entity.row.batch_id), entity.id);
+      return { entityId: entity.id, after: { reason: data.reason ?? null } };
     },
   }),
 
-  'proposal.supersede': manejador({
-    datos: z.object({ motivo: z.string().max(2000) }).strict(),
-    async aplicar(ctx, datos, e) {
-      const entidad = e as EntidadCargada;
+  'proposal.supersede': handler({
+    data: z.object({ reason: z.string().max(2000) }).strict(),
+    async apply(ctx, data, e) {
+      const entity = e as LoadedEntity;
       await ctx.trx
         .updateTable('proposals')
         .set({
-          resolution: JSON.stringify({ obsoleta: datos.motivo }),
-          resolved_by: formatearActor(ctx.actor),
+          resolution: JSON.stringify({ obsolete: data.reason }),
+          resolved_by: formatActor(ctx.actor),
           resolved_at: new Date(),
         })
-        .where('id', '=', entidad.id)
+        .where('id', '=', entity.id)
         .execute();
-      await cerrarSiResuelto(ctx, cadena(entidad.fila.batch_id), entidad.id);
-      return { entidadId: entidad.id, despues: { motivo: datos.motivo } };
+      await closeIfResolved(ctx, string(entity.row.batch_id), entity.id);
+      return { entityId: entity.id, after: { reason: data.reason } };
     },
   }),
 
-  'batch.accept_package': manejador({
-    datos: z.object({ aprobar: z.boolean().default(false) }).strict(),
-    async aplicar(ctx, datos, e) {
-      const lote = e as EntidadCargada;
-      const pendientes = await ctx.trx
+  'batch.accept_package': handler({
+    data: z.object({ approve: z.boolean().default(false) }).strict(),
+    async apply(ctx, data, e) {
+      const batch = e as LoadedEntity;
+      const pending = await ctx.trx
         .selectFrom('proposals')
         .select('id')
-        .where('batch_id', '=', lote.id)
+        .where('batch_id', '=', batch.id)
         .where('state', '=', 'pending')
         .orderBy('position')
         .execute();
-      const efectos: unknown[] = [];
-      for (const p of pendientes) {
-        const r = await ctx.ejecutar({
-          comando: 'proposal.accept',
+      const effects: unknown[] = [];
+      for (const p of pending) {
+        const r = await ctx.execute({
+          command: 'proposal.accept',
           actor: ctx.actor,
-          entidadId: p.id,
-          datos: { aprobar: datos.aprobar },
-          causa: { comandoOrigen: 'batch.accept_package', lote: lote.id },
+          entityId: p.id,
+          data: { approve: data.approve },
+          cause: { sourceCommand: 'batch.accept_package', batch: batch.id },
         });
-        efectos.push(r.resultado);
+        effects.push(r.result);
       }
       await ctx.trx
         .updateTable('proposal_batches')
-        .set({ resolved_by: formatearActor(ctx.actor), resolved_at: new Date() })
-        .where('id', '=', lote.id)
+        .set({ resolved_by: formatActor(ctx.actor), resolved_at: new Date() })
+        .where('id', '=', batch.id)
         .execute();
-      return { entidadId: lote.id, despues: { aceptadas: pendientes.length, aprobar: datos.aprobar }, resultado: { efectos } };
+      return { entityId: batch.id, after: { accepted: pending.length, approve: data.approve }, result: { effects } };
     },
   }),
 
-  'batch.reject_package': manejador({
-    datos: z.object({ motivo: z.string().trim().max(2000).optional() }).strict(),
-    async aplicar(ctx, datos, e) {
-      const lote = e as EntidadCargada;
-      const pendientes = await ctx.trx
+  'batch.reject_package': handler({
+    data: z.object({ reason: z.string().trim().max(2000).optional() }).strict(),
+    async apply(ctx, data, e) {
+      const batch = e as LoadedEntity;
+      const pending = await ctx.trx
         .selectFrom('proposals')
         .select('id')
-        .where('batch_id', '=', lote.id)
+        .where('batch_id', '=', batch.id)
         .where('state', '=', 'pending')
         .execute();
-      for (const p of pendientes) {
-        await ctx.ejecutar({
-          comando: 'proposal.reject',
+      for (const p of pending) {
+        await ctx.execute({
+          command: 'proposal.reject',
           actor: ctx.actor,
-          entidadId: p.id,
-          datos: datos.motivo ? { motivo: datos.motivo } : {},
-          causa: { comandoOrigen: 'batch.reject_package', lote: lote.id },
+          entityId: p.id,
+          data: data.reason ? { reason: data.reason } : {},
+          cause: { sourceCommand: 'batch.reject_package', batch: batch.id },
         });
       }
       await ctx.trx
         .updateTable('proposal_batches')
-        .set({ resolved_by: formatearActor(ctx.actor), resolved_at: new Date() })
-        .where('id', '=', lote.id)
+        .set({ resolved_by: formatActor(ctx.actor), resolved_at: new Date() })
+        .where('id', '=', batch.id)
         .execute();
-      return { entidadId: lote.id, despues: { rechazadas: pendientes.length, motivo: datos.motivo ?? null } };
+      return { entityId: batch.id, after: { rejected: pending.length, reason: data.reason ?? null } };
     },
   }),
 
-  'batch.close': manejador({
-    datos: z.object({}).strict(),
-    async aplicar(ctx, _d, e) {
+  'batch.close': handler({
+    data: z.object({}).strict(),
+    async apply(ctx, _d, e) {
       await ctx.trx
         .updateTable('proposal_batches')
         .set({ resolved_at: new Date() })
         .where('id', '=', e?.id ?? '')
         .execute();
-      return { entidadId: e?.id ?? '' };
+      return { entityId: e?.id ?? '' };
     },
   }),
 
-  'batch.supersede': manejador({
-    datos: z.object({ motivo: z.string().max(2000) }).strict(),
-    async aplicar(ctx, datos, e) {
-      const lote = e as EntidadCargada;
-      const pendientes = await ctx.trx
+  'batch.supersede': handler({
+    data: z.object({ reason: z.string().max(2000) }).strict(),
+    async apply(ctx, data, e) {
+      const batch = e as LoadedEntity;
+      const pending = await ctx.trx
         .selectFrom('proposals')
         .select('id')
-        .where('batch_id', '=', lote.id)
+        .where('batch_id', '=', batch.id)
         .where('state', '=', 'pending')
         .execute();
-      for (const p of pendientes) {
-        await ctx.ejecutar({
-          comando: 'proposal.supersede',
+      for (const p of pending) {
+        await ctx.execute({
+          command: 'proposal.supersede',
           actor: ctx.actor,
-          entidadId: p.id,
-          datos: { motivo: datos.motivo },
-          causa: { comandoOrigen: 'batch.supersede', lote: lote.id },
+          entityId: p.id,
+          data: { reason: data.reason },
+          cause: { sourceCommand: 'batch.supersede', batch: batch.id },
         });
       }
-      return { entidadId: lote.id, despues: { motivo: datos.motivo } };
+      return { entityId: batch.id, after: { reason: data.reason } };
     },
   }),
 });

@@ -1,10 +1,10 @@
 // Importa todos los módulos de comandos para que registren sus manejadores y guardas.
-import './proyectos.ts';
+import './projects.ts';
 import './packs.ts';
 import './runs.ts';
-import './exploracion.ts';
-import './registros.ts';
-import './propuestas.ts';
-import '../acciones/index.ts';
-import '../conocimiento/index.ts';
-import '../diseno/importar.ts';
+import './exploration.ts';
+import './records.ts';
+import './proposals.ts';
+import '../actions/index.ts';
+import '../knowledge/index.ts';
+import '../design/import.ts';

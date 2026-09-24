@@ -1,93 +1,93 @@
 // Reintento con el mismo context pack (I7) y procedencia de los lotes de una ejecución.
 
-import { esperarRun } from '@demiurgo/core';
-import { crearAgenteSimulado } from '../../core/src/agentes/simulado.ts';
-import { GUIONES_POR_DEFECTO } from '../../core/src/agentes/simulado.ts';
+import { waitForRun } from '@demiurgo/core';
+import { createSimulatedAgent } from '../../core/src/agents/simulated.ts';
+import { DEFAULT_SCRIPTS } from '../../core/src/agents/simulated.ts';
 import { describe, expect, it } from 'vitest';
-import { usarApi } from './soporte/api.ts';
+import { useApi } from './support/api.ts';
 
 // La primera invocación de cada pack devuelve una salida inválida; las siguientes, la normal.
-const vistos = new Set<string>();
-const api = usarApi({
+const seen = new Set<string>();
+const api = useApi({
   durable: true,
-  agente: () =>
-    crearAgenteSimulado({
-      guiones: {
+  agent: () =>
+    createSimulatedAgent({
+      scripts: {
         exploration_chat: (p) => {
-          if (!vistos.has(p.contexto.hash)) {
-            vistos.add(p.contexto.hash);
+          if (!seen.has(p.context.hash)) {
+            seen.add(p.context.hash);
             return { reply: 7 };
           }
-          return GUIONES_POR_DEFECTO.exploration_chat(p);
+          return DEFAULT_SCRIPTS.exploration_chat(p);
         },
       },
     }),
 });
 
-async function comando(proyectoId: string, nombre: string, datos: unknown, entidadId?: string) {
-  const r = await api().persona.pedir('POST', `/api/proyectos/${proyectoId}/comandos/${nombre}`, {
-    ...(entidadId ? { entidad_id: entidadId } : {}),
-    datos,
+async function command(projectId: string, name: string, data: unknown, entityId?: string) {
+  const r = await api().person.request('POST', `/api/projects/${projectId}/commands/${name}`, {
+    ...(entityId ? { entity_id: entityId } : {}),
+    data,
   });
-  if (r.statusCode !== 200) throw new Error(`${nombre}: ${r.body}`);
-  return r.json<{ entidad_id: string; resultado: Record<string, unknown> }>();
+  if (r.statusCode !== 200) throw new Error(`${name}: ${r.body}`);
+  return r.json<{ entity_id: string; result: Record<string, unknown> }>();
 }
 
-describe('reintento', () => {
+describe('retry', () => {
   it('AC-DIS-001-07 el context pack del reintento coincide con el del envío (mismo hash)', async () => {
-    const proyectoId = (await api().persona.pedir('POST', '/api/proyectos', { nombre: 'Reintento' })).json<{
-      proyecto_id: string;
-    }>().proyecto_id;
-    const e = await comando(proyectoId, 'exploration.open', { proposito: 'Cuotas de socios' });
-    await comando(proyectoId, 'message.post', { exploracion_id: e.entidad_id, texto: 'Quiero cuotas anuales', responder: false });
-    const envio = await comando(proyectoId, 'run.request', {
-      accion: 'exploration_chat',
-      alcance: { tipo: 'exploration', id: e.entidad_id },
+    const projectId = (await api().person.request('POST', '/api/projects', { name: 'Retry' })).json<{
+      project_id: string;
+    }>().project_id;
+    const e = await command(projectId, 'exploration.open', { purpose: 'Cuotas de socios' });
+    await command(projectId, 'message.post', { exploration_id: e.entity_id, text: 'Quiero cuotas anuales', respond: false });
+    const submission = await command(projectId, 'run.request', {
+      action: 'exploration_chat',
+      scope: { type: 'exploration', id: e.entity_id },
     });
-    expect(await esperarRun(envio.entidad_id)).toBe('failed');
-    const fallida = (await api().persona.pedir('GET', `/api/proyectos/${proyectoId}/runs/${envio.entidad_id}`)).json<{
+    expect(await waitForRun(submission.entity_id)).toBe('failed');
+    const failed = (await api().person.request('GET', `/api/projects/${projectId}/runs/${submission.entity_id}`)).json<{
       failure_kind: string;
       context_pack: { hash: string };
     }>();
-    expect(fallida.failure_kind).toBe('invalid_output');
+    expect(failed.failure_kind).toBe('invalid_output');
 
     // Entre medias cambia la conversación: el reintento no reconstruye el contexto.
-    await comando(proyectoId, 'message.post', { exploracion_id: e.entidad_id, texto: 'Mejor mensuales', responder: false });
-    const reintento = await comando(proyectoId, 'run.retry', { run_id: envio.entidad_id });
-    expect(await esperarRun(reintento.entidad_id)).toBe('completed');
-    const segundo = (await api().persona.pedir('GET', `/api/proyectos/${proyectoId}/runs/${reintento.entidad_id}`)).json<{
+    await command(projectId, 'message.post', { exploration_id: e.entity_id, text: 'Mejor mensuales', respond: false });
+    const retry = await command(projectId, 'run.retry', { run_id: submission.entity_id });
+    expect(await waitForRun(retry.entity_id)).toBe('completed');
+    const second = (await api().person.request('GET', `/api/projects/${projectId}/runs/${retry.entity_id}`)).json<{
       retry_of: string;
       context_pack: { hash: string };
     }>();
-    expect(segundo.retry_of).toBe(envio.entidad_id);
-    expect(segundo.context_pack.hash).toBe(fallida.context_pack.hash);
+    expect(second.retry_of).toBe(submission.entity_id);
+    expect(second.context_pack.hash).toBe(failed.context_pack.hash);
 
     // Procedencia: el lote de la ejecución guarda su run y su context pack.
-    const lotes = await api()
-      .entorno.servicios.db.selectFrom('proposal_batches')
+    const batches = await api()
+      .environment.services.db.selectFrom('proposal_batches')
       .selectAll()
-      .where('project_id', '=', proyectoId)
+      .where('project_id', '=', projectId)
       .execute();
-    expect(lotes).toHaveLength(1);
+    expect(batches).toHaveLength(1);
     const run = await api()
-      .entorno.servicios.db.selectFrom('ai_runs')
+      .environment.services.db.selectFrom('ai_runs')
       .select('context_pack_id')
-      .where('id', '=', reintento.entidad_id)
+      .where('id', '=', retry.entity_id)
       .executeTakeFirstOrThrow();
-    expect(lotes[0]).toMatchObject({
-      run_id: reintento.entidad_id,
+    expect(batches[0]).toMatchObject({
+      run_id: retry.entity_id,
       context_pack_id: run.context_pack_id,
-      producer: `agent:run:${reintento.entidad_id}`,
+      producer: `agent:run:${retry.entity_id}`,
     });
   });
 
   it('AC-DIS-001-20 cada lote de una ejecución guarda la ejecución y el context pack que lo produjeron', async () => {
-    const lotes = await api()
-      .entorno.servicios.db.selectFrom('proposal_batches')
+    const batches = await api()
+      .environment.services.db.selectFrom('proposal_batches')
       .select(['run_id', 'context_pack_id', 'producer'])
       .execute();
-    expect(lotes.length).toBeGreaterThan(0);
-    for (const l of lotes) {
+    expect(batches.length).toBeGreaterThan(0);
+    for (const l of batches) {
       expect(l.run_id).not.toBeNull();
       expect(l.context_pack_id).not.toBeNull();
       expect(l.producer).toBe(`agent:run:${l.run_id}`);

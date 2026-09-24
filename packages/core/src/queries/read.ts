@@ -2,23 +2,23 @@
 // su readiness y lotes. Son funciones derivadas: no se almacenan (§4 del plan).
 
 import {
-  type Dependencia,
-  type EntradaReadiness,
-  ErrorDominio,
+  type Dependency,
+  type ReadinessInput,
+  DomainError,
   type Readiness,
-  type TipoRegistro,
-  epistemicoDeObservacion,
-  epistemicoDePregunta,
-  epistemicoDePropuesta,
-  epistemicoDeVersion,
+  type RecordType,
+  epistemicOfObservation,
+  epistemicOfQuestion,
+  epistemicOfProposal,
+  epistemicOfVersion,
   readiness,
 } from '@demiurgo/domain';
-import type { Bd } from '../db/conexion.ts';
-import { dependenciasCaducadas } from '../comandos/propuestas.ts';
+import type { Db } from '../db/connection.ts';
+import { staleDependencies } from '../commands/proposals.ts';
 
-type Dep = { tipo: string; id: string; codigo?: string; version: number };
+type Dep = { type: string; id: string; code?: string; version: number };
 
-async function vigenteDe(db: Bd, recordId: string): Promise<number | null> {
+async function currentOf(db: Db, recordId: string): Promise<number | null> {
   const v = await db
     .selectFrom('record_versions')
     .select('n')
@@ -30,24 +30,24 @@ async function vigenteDe(db: Bd, recordId: string): Promise<number | null> {
 }
 
 /** Exploración de origen de una versión: se sigue su origen (propuesta → lote → ejecución → alcance). */
-export async function exploracionDeOrigen(db: Bd, versionId: string, saltos = 6): Promise<string | null> {
-  let actual: { tipo: string; id: string } | null = { tipo: 'record_version', id: versionId };
-  for (let i = 0; i < saltos && actual; i++) {
-    if (actual.tipo === 'exploration') return actual.id;
-    if (actual.tipo === 'record_version') {
-      const v = await db.selectFrom('record_versions').select('origin').where('id', '=', actual.id).executeTakeFirst();
-      actual = (v?.origin as { tipo: string; id: string } | null) ?? null;
-    } else if (actual.tipo === 'proposal') {
+export async function originExploration(db: Db, versionId: string, hops = 6): Promise<string | null> {
+  let cursor: { type: string; id: string } | null = { type: 'record_version', id: versionId };
+  for (let i = 0; i < hops && cursor; i++) {
+    if (cursor.type === 'exploration') return cursor.id;
+    if (cursor.type === 'record_version') {
+      const v = await db.selectFrom('record_versions').select('origin').where('id', '=', cursor.id).executeTakeFirst();
+      cursor = (v?.origin as { type: string; id: string } | null) ?? null;
+    } else if (cursor.type === 'proposal') {
       const p = await db
         .selectFrom('proposals')
         .innerJoin('proposal_batches', 'proposal_batches.id', 'proposals.batch_id')
         .select(['proposal_batches.run_id'])
-        .where('proposals.id', '=', actual.id)
+        .where('proposals.id', '=', cursor.id)
         .executeTakeFirst();
       if (!p?.run_id) return null;
       const run = await db.selectFrom('ai_runs').select('scope').where('id', '=', p.run_id).executeTakeFirst();
-      const scope = run?.scope as { tipo: string; id?: string } | undefined;
-      actual = scope?.id ? { tipo: scope.tipo, id: scope.id } : null;
+      const scope = run?.scope as { type: string; id?: string } | undefined;
+      cursor = scope?.id ? { type: scope.type, id: scope.id } : null;
     } else {
       return null;
     }
@@ -55,147 +55,147 @@ export async function exploracionDeOrigen(db: Bd, versionId: string, saltos = 6)
   return null;
 }
 
-export async function readinessDeVersion(db: Bd, proyectoId: string, versionId: string): Promise<Readiness> {
+export async function versionReadiness(db: Db, projectId: string, versionId: string): Promise<Readiness> {
   const v = await db
     .selectFrom('record_versions')
     .innerJoin('records', 'records.id', 'record_versions.record_id')
     .select(['records.id as recordId', 'records.code', 'records.type', 'record_versions.n', 'record_versions.state'])
     .where('record_versions.id', '=', versionId)
-    .where('records.project_id', '=', proyectoId)
+    .where('records.project_id', '=', projectId)
     .executeTakeFirst();
-  if (!v) throw new ErrorDominio('no_encontrado', 'La versión no existe.');
-  const criterios = await db
+  if (!v) throw new DomainError('not_found', 'La versión no existe.');
+  const criteria = await db
     .selectFrom('criteria')
     .select(['code', 'verification', 'check_text', 'statement'])
     .where('record_version_id', '=', versionId)
     .orderBy('position')
     .execute();
-  const enlaces = await db
+  const links = await db
     .selectFrom('links')
-    .innerJoin('record_versions as destino', 'destino.id', 'links.to_id')
-    .innerJoin('records as rd', 'rd.id', 'destino.record_id')
+    .innerJoin('record_versions as target', 'target.id', 'links.to_id')
+    .innerJoin('records as rd', 'rd.id', 'target.record_id')
     .select([
       'links.type',
       'links.state',
       'rd.id as recordId',
       'rd.code',
-      'rd.type as tipoDestino',
-      'destino.n',
-      'destino.state as estadoDestino',
+      'rd.type as targetType',
+      'target.n',
+      'target.state as targetState',
     ])
     .where('links.from_id', '=', versionId)
     .execute();
-  const basadoEn: EntradaReadiness['basadoEn'] = [];
-  const enlacesEnRevision: string[] = [];
-  for (const e of enlaces) {
-    if (e.type === 'based_on' && e.tipoDestino === 'decision') {
-      basadoEn.push({
-        codigo: e.code,
+  const basedOn: ReadinessInput['basedOn'] = [];
+  const linksUnderReview: string[] = [];
+  for (const e of links) {
+    if (e.type === 'based_on' && e.targetType === 'decision') {
+      basedOn.push({
+        code: e.code,
         version: e.n,
-        estadoVersion: e.estadoDestino,
-        vigente: await vigenteDe(db, e.recordId),
-        estadoEnlace: e.state,
+        versionState: e.targetState,
+        current: await currentOf(db, e.recordId),
+        linkState: e.state,
       });
     } else if (e.state === 'needs_review') {
-      enlacesEnRevision.push(`${e.code} v${e.n}`);
+      linksUnderReview.push(`${e.code} v${e.n}`);
     }
   }
-  const origen = await exploracionDeOrigen(db, versionId);
-  const preguntasAbiertas = origen
+  const origin = await originExploration(db, versionId);
+  const openQuestions = origin
     ? await db
         .selectFrom('questions')
-        .select(['question as pregunta', 'state as estado'])
-        .where('exploration_id', '=', origen)
+        .select(['question as question', 'state as state'])
+        .where('exploration_id', '=', origin)
         .where('state', 'in', ['pending', 'postponed'])
         .execute()
     : [];
   // Una propuesta la afecta si depende del registro, por sí misma o por su lote.
-  const pendientes = await db
+  const pending = await db
     .selectFrom('proposals')
     .innerJoin('proposal_batches', 'proposal_batches.id', 'proposals.batch_id')
-    .select(['proposals.dependencies', 'proposal_batches.dependencies as depsLote'])
-    .where('proposals.project_id', '=', proyectoId)
+    .select(['proposals.dependencies', 'proposal_batches.dependencies as batchDeps'])
+    .where('proposals.project_id', '=', projectId)
     .where('proposals.state', '=', 'pending')
     .execute();
-  const propuestasPendientes = pendientes.filter((p) =>
-    [...((p.dependencies ?? []) as Dep[]), ...((p.depsLote ?? []) as Dep[])].some((d) => d.id === v.recordId),
+  const pendingProposals = pending.filter((p) =>
+    [...((p.dependencies ?? []) as Dep[]), ...((p.batchDeps ?? []) as Dep[])].some((d) => d.id === v.recordId),
   ).length;
   return readiness({
-    codigo: v.code,
-    tipo: v.type as TipoRegistro,
-    version: { n: v.n, estado: v.state },
-    vigente: await vigenteDe(db, v.recordId),
-    criterios: criterios.map((c) => ({
-      codigo: c.code,
-      verificacion: c.verification,
-      comprobacion: c.check_text,
-      enunciado: c.statement,
+    code: v.code,
+    type: v.type as RecordType,
+    version: { n: v.n, state: v.state },
+    current: await currentOf(db, v.recordId),
+    criteria: criteria.map((c) => ({
+      code: c.code,
+      verification: c.verification,
+      check: c.check_text,
+      statement: c.statement,
     })),
-    basadoEn,
-    enlacesEnRevision,
-    preguntasAbiertas,
-    propuestasPendientes,
+    basedOn,
+    linksUnderReview,
+    openQuestions,
+    pendingProposals,
   });
 }
 
-export async function bandeja(db: Bd, proyectoId: string) {
-  const lotes = await db
+export async function inbox(db: Db, projectId: string) {
+  const batches = await db
     .selectFrom('proposal_batches')
     .selectAll()
-    .where('project_id', '=', proyectoId)
+    .where('project_id', '=', projectId)
     .where('state', '=', 'pending')
     .orderBy('created_at')
     .execute();
-  const itemsLotes = [];
-  for (const l of lotes) {
-    const propuestas = await db
+  const batchItems = [];
+  for (const l of batches) {
+    const proposals = await db
       .selectFrom('proposals')
       .selectAll()
       .where('batch_id', '=', l.id)
       .where('state', '=', 'pending')
       .orderBy('position')
       .execute();
-    const conAviso = [];
-    for (const p of propuestas) {
-      const deps = [...((l.dependencies ?? []) as Dependencia[]), ...((p.dependencies ?? []) as Dependencia[])];
-      const avisos = await dependenciasCaducadas(db, deps);
-      conAviso.push({
+    const withWarning = [];
+    for (const p of proposals) {
+      const deps = [...((l.dependencies ?? []) as Dependency[]), ...((p.dependencies ?? []) as Dependency[])];
+      const warnings = await staleDependencies(db, deps);
+      withWarning.push({
         id: p.id,
-        tipo: p.type,
-        carga: p.payload,
-        estado: p.state,
-        estado_epistemico: epistemicoDePropuesta(p.state),
-        obsolescencia: avisos,
-        evaluacion: await evaluacionDe(db, p.id),
+        type: p.type,
+        payload: p.payload,
+        state: p.state,
+        epistemic_status: epistemicOfProposal(p.state),
+        obsolescence: warnings,
+        assessment: await assessmentOf(db, p.id),
       });
     }
-    itemsLotes.push({
+    batchItems.push({
       id: l.id,
-      tipo: l.kind,
-      productor: l.producer,
-      resolucion: l.resolution_mode,
-      resumen: l.summary,
+      type: l.kind,
+      producer: l.producer,
+      resolution: l.resolution_mode,
+      summary: l.summary,
       run_id: l.run_id,
-      creado: l.created_at,
-      propuestas: conAviso,
+      created: l.created_at,
+      proposals: withWarning,
     });
   }
-  const preguntas = await db
+  const questions = await db
     .selectFrom('questions')
     .select(['id', 'exploration_id', 'question', 'state', 'conclusion', 'reasoning', 'raised_by'])
-    .where('project_id', '=', proyectoId)
+    .where('project_id', '=', projectId)
     .where('state', '=', 'inferred')
     .orderBy('created_at')
     .execute();
   // Lo que espera a la persona aunque no venga de un agente: preguntas abiertas y borradores sin aprobar.
-  const abiertas = await db
+  const open = await db
     .selectFrom('questions')
     .select(['id', 'exploration_id', 'question', 'state', 'state_reason', 'raised_by'])
-    .where('project_id', '=', proyectoId)
+    .where('project_id', '=', projectId)
     .where('state', 'in', ['pending', 'postponed'])
     .orderBy('created_at')
     .execute();
-  const borradores = await db
+  const drafts = await db
     .selectFrom('record_versions')
     .innerJoin('records', 'records.id', 'record_versions.record_id')
     .select([
@@ -207,228 +207,228 @@ export async function bandeja(db: Bd, proyectoId: string) {
       'record_versions.state',
       'record_versions.record_id',
     ])
-    .where('record_versions.project_id', '=', proyectoId)
+    .where('record_versions.project_id', '=', projectId)
     .where('record_versions.state', '=', 'draft')
     .orderBy('records.code')
     .orderBy('record_versions.n')
     .execute();
-  const enlaces = await db
+  const links = await db
     .selectFrom('links')
     .selectAll()
-    .where('project_id', '=', proyectoId)
+    .where('project_id', '=', projectId)
     .where('state', '=', 'needs_review')
     .execute();
-  const extra = await pendientesDeConocimiento(db, proyectoId);
+  const extra = await pendingKnowledge(db, projectId);
   const total =
-    itemsLotes.reduce((n, l) => n + l.propuestas.length, 0) +
-    preguntas.length +
-    abiertas.length +
-    borradores.length +
-    enlaces.length +
+    batchItems.reduce((n, l) => n + l.proposals.length, 0) +
+    questions.length +
+    open.length +
+    drafts.length +
+    links.length +
     extra.total;
   return {
     total,
-    lotes: itemsLotes,
-    preguntas_por_confirmar: preguntas.map((q) => ({ ...q, estado_epistemico: epistemicoDePregunta(q.state) })),
-    preguntas_abiertas: abiertas.map((q) => ({ ...q, estado_epistemico: epistemicoDePregunta(q.state) })),
-    versiones_por_aprobar: await Promise.all(
-      borradores.map(async (v) => {
+    batches: batchItems,
+    questions_to_confirm: questions.map((q) => ({ ...q, epistemic_status: epistemicOfQuestion(q.state) })),
+    open_questions: open.map((q) => ({ ...q, epistemic_status: epistemicOfQuestion(q.state) })),
+    versions_to_approve: await Promise.all(
+      drafts.map(async (v) => {
         // Un borrador anterior a la vigente ya no se puede aprobar: solo descartar.
-        const vigente = await vigenteDe(db, v.record_id);
+        const current = await currentOf(db, v.record_id);
         return {
           id: v.id,
-          codigo: v.code,
-          tipo: v.type,
+          code: v.code,
+          type: v.type,
           n: v.n,
-          titulo: v.title,
-          aprobable: vigente === null || vigente < v.n,
-          estado_epistemico: epistemicoDeVersion(v.state),
+          title: v.title,
+          approvable: current === null || current < v.n,
+          epistemic_status: epistemicOfVersion(v.state),
         };
       }),
     ),
-    enlaces_en_revision: enlaces.map((e) => ({ ...e, estado_epistemico: 'pendiente' as const })),
-    ...extra.secciones,
+    links_under_review: links.map((e) => ({ ...e, epistemic_status: 'pending' as const })),
+    ...extra.sections,
   };
 }
 
 // S2 amplía la bandeja con la evaluación de ideas y los pendientes del conocimiento.
-export type SeccionesDelConocimiento = {
-  clasificaciones_por_revisar: Record<string, unknown>[];
-  actualizaciones_rechazadas: Record<string, unknown>[];
+export type KnowledgeSections = {
+  classifications_to_review: Record<string, unknown>[];
+  rejected_updates: Record<string, unknown>[];
 };
-type ExtensionBandeja = {
-  evaluacion(db: Bd, propuestaId: string): Promise<unknown>;
-  pendientes(db: Bd, proyectoId: string): Promise<{ total: number; secciones: SeccionesDelConocimiento }>;
+type InboxExtension = {
+  assessment(db: Db, proposalId: string): Promise<unknown>;
+  pending(db: Db, projectId: string): Promise<{ total: number; sections: KnowledgeSections }>;
 };
-let extension: ExtensionBandeja = {
-  evaluacion: async () => null,
-  pendientes: async () => ({ total: 0, secciones: { clasificaciones_por_revisar: [], actualizaciones_rechazadas: [] } }),
+let extension: InboxExtension = {
+  assessment: async () => null,
+  pending: async () => ({ total: 0, sections: { classifications_to_review: [], rejected_updates: [] } }),
 };
-export function registrarExtensionBandeja(e: ExtensionBandeja): void {
+export function registerInboxExtension(e: InboxExtension): void {
   extension = e;
 }
-const evaluacionDe = (db: Bd, id: string) => extension.evaluacion(db, id);
-const pendientesDeConocimiento = (db: Bd, id: string) => extension.pendientes(db, id);
+const assessmentOf = (db: Db, id: string) => extension.assessment(db, id);
+const pendingKnowledge = (db: Db, id: string) => extension.pending(db, id);
 
-export async function detalleRegistro(db: Bd, proyectoId: string, codigo: string) {
+export async function recordDetail(db: Db, projectId: string, code: string) {
   const r = await db
     .selectFrom('records')
     .selectAll()
-    .where('project_id', '=', proyectoId)
-    .where('code', '=', codigo)
+    .where('project_id', '=', projectId)
+    .where('code', '=', code)
     .executeTakeFirst();
-  if (!r) throw new ErrorDominio('no_encontrado', `No existe el registro ${codigo}.`);
-  const versiones = await db.selectFrom('record_versions').selectAll().where('record_id', '=', r.id).orderBy('n').execute();
-  const vigente = await vigenteDe(db, r.id);
-  const detalle = [];
-  for (const v of versiones) {
-    const criterios = await db
+  if (!r) throw new DomainError('not_found', `No existe el registro ${code}.`);
+  const versions = await db.selectFrom('record_versions').selectAll().where('record_id', '=', r.id).orderBy('n').execute();
+  const current = await currentOf(db, r.id);
+  const detail = [];
+  for (const v of versions) {
+    const criteria = await db
       .selectFrom('criteria')
       .selectAll()
       .where('record_version_id', '=', v.id)
       .orderBy('position')
       .execute();
-    const enlaces = await db.selectFrom('links').selectAll().where('from_id', '=', v.id).execute();
-    detalle.push({
+    const links = await db.selectFrom('links').selectAll().where('from_id', '=', v.id).execute();
+    detail.push({
       id: v.id,
       n: v.n,
-      estado: v.state,
-      estado_epistemico: epistemicoDeVersion(v.state),
-      vigente: v.n === vigente,
-      titulo: v.title,
-      secciones: v.sections,
-      anexos: v.annexes,
-      nota_de_cambio: v.change_note,
-      origen: v.origin,
-      autor: v.author,
-      aprobada_por: v.approved_by,
-      criterios: criterios.map((c) => ({
+      state: v.state,
+      epistemic_status: epistemicOfVersion(v.state),
+      current: v.n === current,
+      title: v.title,
+      sections: v.sections,
+      annexes: v.annexes,
+      change_note: v.change_note,
+      origin: v.origin,
+      author: v.author,
+      approved_by: v.approved_by,
+      criteria: criteria.map((c) => ({
         id: c.id,
-        codigo: c.code,
-        titulo: c.title,
-        enunciado: c.statement,
-        verificacion: c.verification,
-        comprobacion: c.check_text,
-        arrastre: c.carry,
+        code: c.code,
+        title: c.title,
+        statement: c.statement,
+        verification: c.verification,
+        check: c.check_text,
+        carry: c.carry,
       })),
-      enlaces,
-      readiness: r.type === 'decision' ? null : await readinessDeVersion(db, proyectoId, v.id),
+      links,
+      readiness: r.type === 'decision' ? null : await versionReadiness(db, projectId, v.id),
     });
   }
   return {
     id: r.id,
-    codigo: r.code,
-    tipo: r.type,
-    dominio: r.domain,
-    vigente,
-    realizacion: 'sin implementar',
-    versiones: detalle,
+    code: r.code,
+    type: r.type,
+    domain: r.domain,
+    current,
+    implementation: 'sin implementar',
+    versions: detail,
   };
 }
 
-export async function estadoProducto(db: Bd, proyectoId: string) {
-  const proyecto = await db
+export async function productState(db: Db, projectId: string) {
+  const project = await db
     .selectFrom('projects')
     .select(['id', 'name', 'state'])
-    .where('id', '=', proyectoId)
+    .where('id', '=', projectId)
     .executeTakeFirst();
-  if (!proyecto) throw new ErrorDominio('no_encontrado', 'El proyecto no existe.');
-  const registros = await db.selectFrom('records').selectAll().where('project_id', '=', proyectoId).orderBy('code').execute();
-  const filas = [];
-  for (const r of registros) {
-    const ultima = await db
+  if (!project) throw new DomainError('not_found', 'El proyecto no existe.');
+  const records = await db.selectFrom('records').selectAll().where('project_id', '=', projectId).orderBy('code').execute();
+  const rows = [];
+  for (const r of records) {
+    const latest = await db
       .selectFrom('record_versions')
       .select(['id', 'n', 'state', 'title'])
       .where('record_id', '=', r.id)
       .orderBy('n', 'desc')
       .executeTakeFirstOrThrow();
-    const vigente = await vigenteDe(db, r.id);
-    const idVigente =
-      vigente === null
+    const current = await currentOf(db, r.id);
+    const currentId =
+      current === null
         ? null
         : (
             await db
               .selectFrom('record_versions')
               .select('id')
               .where('record_id', '=', r.id)
-              .where('n', '=', vigente)
+              .where('n', '=', current)
               .executeTakeFirstOrThrow()
           ).id;
-    filas.push({
-      codigo: r.code,
-      tipo: r.type,
-      dominio: r.domain,
-      titulo: ultima.title,
-      vigente,
-      ultima: { n: ultima.n, estado: ultima.state },
-      estado_epistemico: vigente !== null ? 'confirmado' : epistemicoDeVersion(ultima.state),
-      readiness: r.type === 'decision' ? null : await readinessDeVersion(db, proyectoId, idVigente ?? ultima.id),
-      realizacion: 'sin implementar',
+    rows.push({
+      code: r.code,
+      type: r.type,
+      domain: r.domain,
+      title: latest.title,
+      current,
+      latest: { n: latest.n, state: latest.state },
+      epistemic_status: current !== null ? 'confirmed' : epistemicOfVersion(latest.state),
+      readiness: r.type === 'decision' ? null : await versionReadiness(db, projectId, currentId ?? latest.id),
+      implementation: 'sin implementar',
     });
   }
-  const exploraciones = await db
+  const explorations = await db
     .selectFrom('explorations')
     .select(['id', 'purpose', 'state', 'parent_id', 'origin_type', 'origin_id'])
-    .where('project_id', '=', proyectoId)
+    .where('project_id', '=', projectId)
     .orderBy('created_at')
     .execute();
-  const abiertas = await db
+  const open = await db
     .selectFrom('questions')
     .select(['exploration_id', (eb) => eb.fn.countAll<string>().as('n')])
-    .where('project_id', '=', proyectoId)
+    .where('project_id', '=', projectId)
     .where('state', 'in', ['pending', 'postponed', 'inferred'])
     .groupBy('exploration_id')
     .execute();
-  const b = await bandeja(db, proyectoId);
+  const b = await inbox(db, projectId);
   return {
-    proyecto: { id: proyecto.id, nombre: proyecto.name, estado: proyecto.state },
-    decisiones: filas.filter((f) => f.tipo === 'decision'),
-    disenos: filas.filter((f) => f.tipo !== 'decision'),
-    listos_para_construir: filas.filter((f) => f.readiness?.listo).map((f) => f.codigo),
-    exploraciones: exploraciones.map((e) => ({
+    project: { id: project.id, name: project.name, state: project.state },
+    decisions: rows.filter((f) => f.type === 'decision'),
+    designs: rows.filter((f) => f.type !== 'decision'),
+    ready_to_build: rows.filter((f) => f.readiness?.ready).map((f) => f.code),
+    explorations: explorations.map((e) => ({
       ...e,
-      preguntas_abiertas: Number(abiertas.find((a) => a.exploration_id === e.id)?.n ?? 0),
+      open_questions: Number(open.find((a) => a.exploration_id === e.id)?.n ?? 0),
     })),
-    bandeja: { total: b.total },
+    inbox: { total: b.total },
   };
 }
 
-export async function detalleExploracion(db: Bd, proyectoId: string, id: string) {
+export async function explorationDetail(db: Db, projectId: string, id: string) {
   const e = await db
     .selectFrom('explorations')
     .selectAll()
-    .where('project_id', '=', proyectoId)
+    .where('project_id', '=', projectId)
     .where('id', '=', id)
     .executeTakeFirst();
-  if (!e) throw new ErrorDominio('no_encontrado', 'La exploración no existe.');
-  const mensajes = await db
+  if (!e) throw new DomainError('not_found', 'La exploración no existe.');
+  const messages = await db
     .selectFrom('messages')
     .selectAll()
     .where('exploration_id', '=', id)
     .orderBy('created_at')
     .orderBy('id')
     .execute();
-  const preguntas = await db.selectFrom('questions').selectAll().where('exploration_id', '=', id).orderBy('created_at').execute();
-  const hijas = await db.selectFrom('explorations').select(['id', 'purpose', 'state']).where('parent_id', '=', id).execute();
+  const questions = await db.selectFrom('questions').selectAll().where('exploration_id', '=', id).orderBy('created_at').execute();
+  const children = await db.selectFrom('explorations').select(['id', 'purpose', 'state']).where('parent_id', '=', id).execute();
   return {
     ...e,
-    mensajes: mensajes.map((m) => ({
+    messages: messages.map((m) => ({
       ...m,
-      estado_epistemico: m.author.startsWith('human:') ? null : epistemicoDeObservacion(m.kind),
+      epistemic_status: m.author.startsWith('human:') ? null : epistemicOfObservation(m.kind),
     })),
-    preguntas: preguntas.map((q) => ({ ...q, estado_epistemico: epistemicoDePregunta(q.state) })),
-    hijas,
+    questions: questions.map((q) => ({ ...q, epistemic_status: epistemicOfQuestion(q.state) })),
+    children,
   };
 }
 
-export async function detalleLote(db: Bd, proyectoId: string, id: string) {
+export async function batchDetail(db: Db, projectId: string, id: string) {
   const l = await db
     .selectFrom('proposal_batches')
     .selectAll()
-    .where('project_id', '=', proyectoId)
+    .where('project_id', '=', projectId)
     .where('id', '=', id)
     .executeTakeFirst();
-  if (!l) throw new ErrorDominio('no_encontrado', 'El lote no existe.');
-  const propuestas = await db.selectFrom('proposals').selectAll().where('batch_id', '=', id).orderBy('position').execute();
-  return { ...l, propuestas: propuestas.map((p) => ({ ...p, estado_epistemico: epistemicoDePropuesta(p.state) })) };
+  if (!l) throw new DomainError('not_found', 'El lote no existe.');
+  const proposals = await db.selectFrom('proposals').selectAll().where('batch_id', '=', id).orderBy('position').execute();
+  return { ...l, proposals: proposals.map((p) => ({ ...p, epistemic_status: epistemicOfProposal(p.state) })) };
 }

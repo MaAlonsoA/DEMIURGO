@@ -9,17 +9,17 @@ export default defineConfig({
     projects: [
       {
         test: {
-          name: 'unitarias',
+          name: 'unit',
           include: ['packages/{domain,design}/test/**/*.test.ts'],
-          exclude: ['**/invariantes/**', '**/node_modules/**'],
+          exclude: ['**/invariants/**', '**/node_modules/**'],
         },
       },
       {
         test: {
-          name: 'integracion',
+          name: 'integration',
           include: ['packages/{core,api,mcp}/test/**/*.test.ts'],
-          exclude: ['**/invariantes/**', '**/node_modules/**'],
-          globalSetup: ['packages/core/test/soporte/preparacion-global.ts'],
+          exclude: ['**/invariants/**', '**/node_modules/**'],
+          globalSetup: ['packages/core/test/support/global-setup.ts'],
           testTimeout: 60_000,
           hookTimeout: 120_000,
           pool: 'forks',
@@ -27,10 +27,10 @@ export default defineConfig({
       },
       {
         test: {
-          name: 'invariantes',
-          include: ['packages/*/test/invariantes/**/*.test.ts'],
+          name: 'invariants',
+          include: ['packages/*/test/invariants/**/*.test.ts'],
           exclude: ['**/node_modules/**'],
-          globalSetup: ['packages/core/test/soporte/preparacion-global.ts'],
+          globalSetup: ['packages/core/test/support/global-setup.ts'],
           testTimeout: 120_000,
           hookTimeout: 120_000,
           pool: 'forks',

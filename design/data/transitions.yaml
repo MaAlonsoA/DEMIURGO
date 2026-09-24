@@ -2,218 +2,218 @@
 # Toda transición sale de aquí: lo que no está devuelve 409 sin efectos. Anexo de ADR-NUC-001.
 # desde: nuevo  -> el comando crea la entidad en el estado «hacia».
 # autoridad     -> estados que solo alcanza un evento de actor human (I1).
-codigo: DAT-TRA-001
+code: DAT-TRA-001
 version: 1
-estado: propuesto
+state: proposed
 
-entidades:
+entities:
   project:
-    etiqueta: Proyecto
-    implementado_en: S0
-    estados: { active: Activo, archived: Archivado }
-    autoridad: []
-    transiciones:
-      - { comando: project.create, desde: nuevo, hacia: active }
-      - { comando: project.archive, desde: [active], hacia: archived }
+    label: Proyecto
+    implemented_in: S0
+    states: { active: Activo, archived: Archivado }
+    authority: []
+    transitions:
+      - { command: project.create, from: new, to: active }
+      - { command: project.archive, from: [active], to: archived }
 
   agent_token:
-    etiqueta: Token de agente
-    implementado_en: S1
-    estados: { active: Activo, revoked: Revocado }
-    autoridad: []
-    transiciones:
-      - { comando: agent_token.issue, desde: nuevo, hacia: active, guardas: [nombre_de_agente_valido] }
-      - { comando: agent_token.revoke, desde: [active], hacia: revoked }
+    label: Token de agente
+    implemented_in: S1
+    states: { active: Activo, revoked: Revocado }
+    authority: []
+    transitions:
+      - { command: agent_token.issue, from: new, to: active, guards: [valid_agent_name] }
+      - { command: agent_token.revoke, from: [active], to: revoked }
 
   exploration:
-    etiqueta: Exploración
-    implementado_en: S1
-    estados: { active: Activa, concluded: Concluida, set_aside: Apartada }
-    autoridad: []
-    transiciones:
-      - { comando: exploration.open, desde: nuevo, hacia: active, guardas: [origen_existente] }
-      - { comando: exploration.conclude, desde: [active], hacia: concluded }
-      - { comando: exploration.set_aside, desde: [active], hacia: set_aside, guardas: [motivo_presente] }
-      - { comando: exploration.resume, desde: [concluded, set_aside], hacia: active }
+    label: Exploración
+    implemented_in: S1
+    states: { active: Activa, concluded: Concluida, set_aside: Apartada }
+    authority: []
+    transitions:
+      - { command: exploration.open, from: new, to: active, guards: [existing_origin] }
+      - { command: exploration.conclude, from: [active], to: concluded }
+      - { command: exploration.set_aside, from: [active], to: set_aside, guards: [reason_present] }
+      - { command: exploration.resume, from: [concluded, set_aside], to: active }
 
   message:
-    etiqueta: Mensaje
-    implementado_en: S1
-    estados: { recorded: Registrado }
-    autoridad: []
-    transiciones:
-      - { comando: message.post, desde: nuevo, hacia: recorded, guardas: [exploracion_activa] }
+    label: Mensaje
+    implemented_in: S1
+    states: { recorded: Registrado }
+    authority: []
+    transitions:
+      - { command: message.post, from: new, to: recorded, guards: [exploration_active] }
 
   source:
-    etiqueta: Fuente
-    implementado_en: S1
-    estados: { registered: Registrada }
-    autoridad: []
-    transiciones:
-      - { comando: source.register, desde: nuevo, hacia: registered }
+    label: Fuente
+    implemented_in: S1
+    states: { registered: Registrada }
+    authority: []
+    transitions:
+      - { command: source.register, from: new, to: registered }
 
   question:
-    etiqueta: Pregunta
-    implementado_en: S1
-    estados: { pending: Pendiente, inferred: Inferida, confirmed: Confirmada, postponed: Pospuesta, discarded: Descartada }
-    autoridad: [confirmed]
-    transiciones:
-      - { comando: question.raise, desde: nuevo, hacia: pending, guardas: [exploracion_activa] }
-      - { comando: question.infer, desde: [pending], hacia: inferred, guardas: [conclusion_presente] }
-      - { comando: question.confirm, desde: [pending, inferred], hacia: confirmed, guardas: [conclusion_presente] }
-      - { comando: question.postpone, desde: [pending, inferred], hacia: postponed, guardas: [motivo_presente] }
-      - { comando: question.discard, desde: [pending, inferred, postponed], hacia: discarded, guardas: [motivo_presente] }
-      - { comando: question.reopen, desde: [confirmed, postponed, discarded], hacia: pending }
+    label: Pregunta
+    implemented_in: S1
+    states: { pending: Pendiente, inferred: Inferida, confirmed: Confirmada, postponed: Pospuesta, discarded: Descartada }
+    authority: [confirmed]
+    transitions:
+      - { command: question.raise, from: new, to: pending, guards: [exploration_active] }
+      - { command: question.infer, from: [pending], to: inferred, guards: [conclusion_present] }
+      - { command: question.confirm, from: [pending, inferred], to: confirmed, guards: [conclusion_present] }
+      - { command: question.postpone, from: [pending, inferred], to: postponed, guards: [reason_present] }
+      - { command: question.discard, from: [pending, inferred, postponed], to: discarded, guards: [reason_present] }
+      - { command: question.reopen, from: [confirmed, postponed, discarded], to: pending }
 
   record:
-    etiqueta: Registro
-    implementado_en: S1
-    estados: { registered: Registrado }
-    autoridad: []
-    transiciones:
-      - { comando: record.create, desde: nuevo, hacia: registered, guardas: [codigo_libre, plantilla_valida] }
+    label: Registro
+    implemented_in: S1
+    states: { registered: Registrado }
+    authority: []
+    transitions:
+      - { command: record.create, from: new, to: registered, guards: [free_code, valid_template] }
 
   record_version:
-    etiqueta: Versión de registro
-    implementado_en: S1
-    estados: { draft: Borrador, approved: Aprobada, superseded: Sustituida, discarded: Descartada }
-    autoridad: [approved]
-    transiciones:
-      - { comando: record_version.create, desde: nuevo, hacia: draft, guardas: [registro_del_proyecto, plantilla_valida, arrastre_de_criterios_completo] }
-      - { comando: record_version.approve, desde: [draft], hacia: approved, guardas: [plantilla_valida, sin_aprobada_posterior] }
-      - { comando: record_version.supersede, desde: [approved], hacia: superseded, guardas: [hay_aprobada_posterior] }
-      - { comando: record_version.discard, desde: [draft], hacia: discarded }
+    label: Versión de registro
+    implemented_in: S1
+    states: { draft: Borrador, approved: Aprobada, superseded: Sustituida, discarded: Descartada }
+    authority: [approved]
+    transitions:
+      - { command: record_version.create, from: new, to: draft, guards: [record_of_project, valid_template, criteria_carry_complete] }
+      - { command: record_version.approve, from: [draft], to: approved, guards: [valid_template, without_later_approved] }
+      - { command: record_version.supersede, from: [approved], to: superseded, guards: [has_later_approved] }
+      - { command: record_version.discard, from: [draft], to: discarded }
 
   criterion:
-    etiqueta: Criterio de aceptación
-    implementado_en: S1
-    estados: { recorded: Registrado }
-    autoridad: []
-    transiciones:
-      - { comando: criterion.record, desde: nuevo, hacia: recorded, guardas: [dentro_de_su_version, version_en_borrador] }
+    label: Criterio de aceptación
+    implemented_in: S1
+    states: { recorded: Registrado }
+    authority: []
+    transitions:
+      - { command: criterion.record, from: new, to: recorded, guards: [within_its_version, version_in_draft] }
 
   link:
-    etiqueta: Enlace
-    implementado_en: S1
-    estados: { current: Vigente, needs_review: Pendiente de revisión, kept: Mantenido, changed: Cambiado, obsolete: Obsoleto }
-    autoridad: []
-    transiciones:
-      - { comando: link.create, desde: nuevo, hacia: current, guardas: [dentro_de_su_version, extremos_existentes] }
-      - { comando: link.flag_review, desde: [current, kept, changed], hacia: needs_review }
-      - { comando: link.keep, desde: [needs_review], hacia: kept }
-      - { comando: link.change, desde: [needs_review], hacia: changed }
-      - { comando: link.obsolete, desde: [needs_review], hacia: obsolete }
+    label: Enlace
+    implemented_in: S1
+    states: { current: Vigente, needs_review: Pendiente de revisión, kept: Mantenido, changed: Cambiado, obsolete: Obsoleto }
+    authority: []
+    transitions:
+      - { command: link.create, from: new, to: current, guards: [within_its_version, endpoints_exist] }
+      - { command: link.flag_review, from: [current, kept, changed], to: needs_review }
+      - { command: link.keep, from: [needs_review], to: kept }
+      - { command: link.change, from: [needs_review], to: changed }
+      - { command: link.obsolete, from: [needs_review], to: obsolete }
 
   batch:
-    etiqueta: Lote de propuestas
-    implementado_en: S1
-    estados: { pending: Pendiente, accepted: Aceptado, rejected: Rechazado, resolved: Resuelto, superseded: Obsoleto }
-    autoridad: [accepted]
-    transiciones:
-      - { comando: batch.submit, desde: nuevo, hacia: pending, guardas: [lote_de_agente_externo_max_10, dependencias_del_proyecto] }
-      - { comando: design.import, desde: nuevo, hacia: pending, guardas: [diseno_valido] }
-      - { comando: batch.accept_package, desde: [pending], hacia: accepted, guardas: [resolucion_en_paquete, dependencias_vigentes] }
-      - { comando: batch.reject_package, desde: [pending], hacia: rejected, guardas: [resolucion_en_paquete] }
-      - { comando: batch.close, desde: [pending], hacia: resolved, guardas: [todas_las_propuestas_resueltas] }
-      - { comando: batch.supersede, desde: [pending], hacia: superseded }
+    label: Lote de propuestas
+    implemented_in: S1
+    states: { pending: Pendiente, accepted: Aceptado, rejected: Rechazado, resolved: Resuelto, superseded: Obsoleto }
+    authority: [accepted]
+    transitions:
+      - { command: batch.submit, from: new, to: pending, guards: [external_agent_batch_max_10, project_dependencies] }
+      - { command: design.import, from: new, to: pending, guards: [valid_design] }
+      - { command: batch.accept_package, from: [pending], to: accepted, guards: [package_resolution, current_dependencies] }
+      - { command: batch.reject_package, from: [pending], to: rejected, guards: [package_resolution] }
+      - { command: batch.close, from: [pending], to: resolved, guards: [all_proposals_resolved] }
+      - { command: batch.supersede, from: [pending], to: superseded }
 
   proposal:
-    etiqueta: Propuesta
-    implementado_en: S1
-    estados: { pending: Pendiente, accepted: Aceptada, accepted_edited: Aceptada con cambios, rejected: Rechazada, superseded: Obsoleta }
-    autoridad: [accepted, accepted_edited]
-    transiciones:
-      - { comando: proposal.create, desde: nuevo, hacia: pending, guardas: [lote_propio_abierto, carga_valida, dependencias_del_proyecto] }
-      - { comando: proposal.accept, desde: [pending], hacia: accepted, guardas: [resolucion_por_elemento, dependencias_vigentes] }
-      - { comando: proposal.accept_edited, desde: [pending], hacia: accepted_edited, guardas: [resolucion_por_elemento, dependencias_vigentes, edicion_valida] }
-      - { comando: proposal.reject, desde: [pending], hacia: rejected, guardas: [resolucion_por_elemento] }
-      - { comando: proposal.supersede, desde: [pending], hacia: superseded, guardas: [resolucion_por_elemento] }
+    label: Propuesta
+    implemented_in: S1
+    states: { pending: Pendiente, accepted: Aceptada, accepted_edited: Aceptada con cambios, rejected: Rechazada, superseded: Obsoleta }
+    authority: [accepted, accepted_edited]
+    transitions:
+      - { command: proposal.create, from: new, to: pending, guards: [own_open_batch, valid_payload, project_dependencies] }
+      - { command: proposal.accept, from: [pending], to: accepted, guards: [per_element_resolution, current_dependencies] }
+      - { command: proposal.accept_edited, from: [pending], to: accepted_edited, guards: [per_element_resolution, current_dependencies, valid_edit] }
+      - { command: proposal.reject, from: [pending], to: rejected, guards: [per_element_resolution] }
+      - { command: proposal.supersede, from: [pending], to: superseded, guards: [per_element_resolution] }
 
   ai_run:
-    etiqueta: Ejecución de agente
-    implementado_en: S0
-    estados: { queued: En cola, running: En curso, completed: Completada, failed: Fallida, cancelled: Cancelada, interrupted: Interrumpida }
-    autoridad: []
-    transiciones:
-      - { comando: run.request, desde: nuevo, hacia: queued, guardas: [grafo_al_dia] }
-      - { comando: run.retry, desde: nuevo, hacia: queued, guardas: [run_original_terminado] }
-      - { comando: run.begin, desde: [queued], hacia: running }
-      - { comando: run.complete, desde: [running], hacia: completed }
-      - { comando: run.fail, desde: [queued, running], hacia: failed }
-      - { comando: run.cancel, desde: [queued, running], hacia: cancelled }
-      - { comando: run.interrupt, desde: [running], hacia: interrupted }
+    label: Ejecución de agente
+    implemented_in: S0
+    states: { queued: En cola, running: En curso, completed: Completada, failed: Fallida, cancelled: Cancelada, interrupted: Interrumpida }
+    authority: []
+    transitions:
+      - { command: run.request, from: new, to: queued, guards: [graph_up_to_date] }
+      - { command: run.retry, from: new, to: queued, guards: [original_run_finished] }
+      - { command: run.begin, from: [queued], to: running }
+      - { command: run.complete, from: [running], to: completed }
+      - { command: run.fail, from: [queued, running], to: failed }
+      - { command: run.cancel, from: [queued, running], to: cancelled }
+      - { command: run.interrupt, from: [running], to: interrupted }
 
   context_pack:
-    etiqueta: Context pack
-    implementado_en: S0
-    estados: { recorded: Registrado }
-    autoridad: []
-    transiciones:
-      - { comando: context_pack.build, desde: nuevo, hacia: recorded }
+    label: Context pack
+    implemented_in: S0
+    states: { recorded: Registrado }
+    authority: []
+    transitions:
+      - { command: context_pack.build, from: new, to: recorded }
 
   taxonomy:
-    etiqueta: Taxonomía
-    implementado_en: S2
-    estados: { draft: Borrador, approved: Aprobada, superseded: Sustituida }
-    autoridad: [approved]
-    transiciones:
-      - { comando: taxonomy.propose, desde: nuevo, hacia: draft, guardas: [taxonomia_valida] }
-      - { comando: taxonomy.approve, desde: [draft], hacia: approved, guardas: [taxonomia_sin_aprobada_posterior] }
-      - { comando: taxonomy.supersede, desde: [approved], hacia: superseded }
+    label: Taxonomía
+    implemented_in: S2
+    states: { draft: Borrador, approved: Aprobada, superseded: Sustituida }
+    authority: [approved]
+    transitions:
+      - { command: taxonomy.propose, from: new, to: draft, guards: [valid_taxonomy] }
+      - { command: taxonomy.approve, from: [draft], to: approved, guards: [taxonomy_without_later_approved] }
+      - { command: taxonomy.supersede, from: [approved], to: superseded }
 
   classification:
-    etiqueta: Clasificación
-    implementado_en: S2
-    estados: { applied: Aplicada, pending_review: Pendiente de revisión, resolved: Resuelta }
-    autoridad: []
-    transiciones:
-      - { comando: classification.record, desde: nuevo, hacia: applied, guardas: [clasificacion_valida] }
-      - { comando: classification.hold, desde: nuevo, hacia: pending_review, guardas: [clasificacion_valida] }
-      - { comando: classification.resolve, desde: [pending_review], hacia: resolved, guardas: [categorias_de_la_taxonomia] }
+    label: Clasificación
+    implemented_in: S2
+    states: { applied: Aplicada, pending_review: Pendiente de revisión, resolved: Resuelta }
+    authority: []
+    transitions:
+      - { command: classification.record, from: new, to: applied, guards: [valid_classification] }
+      - { command: classification.hold, from: new, to: pending_review, guards: [valid_classification] }
+      - { command: classification.resolve, from: [pending_review], to: resolved, guards: [taxonomy_categories] }
 
   knowledge_update:
-    etiqueta: Actualización de conocimiento
-    implementado_en: S2
-    estados: { queued: En cola, classifying: Clasificando, verifying: Verificando, applied: Aplicada, rejected: Rechazada }
-    autoridad: []
-    transiciones:
-      - { comando: knowledge_update.enqueue, desde: nuevo, hacia: queued }
-      - { comando: knowledge_update.classify, desde: [queued], hacia: classifying }
-      - { comando: knowledge_update.verify, desde: [classifying], hacia: verifying }
-      - { comando: knowledge_update.apply, desde: [verifying], hacia: applied }
-      - { comando: knowledge_update.reject, desde: [classifying, verifying], hacia: rejected }
-      - { comando: knowledge_update.retry, desde: [rejected], hacia: queued }
+    label: Actualización de conocimiento
+    implemented_in: S2
+    states: { queued: En cola, classifying: Clasificando, verifying: Verificando, applied: Aplicada, rejected: Rechazada }
+    authority: []
+    transitions:
+      - { command: knowledge_update.enqueue, from: new, to: queued }
+      - { command: knowledge_update.classify, from: [queued], to: classifying }
+      - { command: knowledge_update.verify, from: [classifying], to: verifying }
+      - { command: knowledge_update.apply, from: [verifying], to: applied }
+      - { command: knowledge_update.reject, from: [classifying, verifying], to: rejected }
+      - { command: knowledge_update.retry, from: [rejected], to: queued }
 
   knowledge_node:
-    etiqueta: Nodo de conocimiento
-    implementado_en: S2
-    estados: { current: Vigente, invalidated: Invalidado }
-    autoridad: []
-    transiciones:
-      - { comando: knowledge_node.project, desde: nuevo, hacia: current }
-      - { comando: knowledge_node.invalidate, desde: [current], hacia: invalidated }
+    label: Nodo de conocimiento
+    implemented_in: S2
+    states: { current: Vigente, invalidated: Invalidado }
+    authority: []
+    transitions:
+      - { command: knowledge_node.project, from: new, to: current }
+      - { command: knowledge_node.invalidate, from: [current], to: invalidated }
 
   knowledge_edge:
-    etiqueta: Arista de conocimiento
-    implementado_en: S2
-    estados: { current: Vigente, invalidated: Invalidada }
-    autoridad: []
-    transiciones:
-      - { comando: knowledge_edge.project, desde: nuevo, hacia: current }
-      - { comando: knowledge_edge.invalidate, desde: [current], hacia: invalidated }
+    label: Arista de conocimiento
+    implemented_in: S2
+    states: { current: Vigente, invalidated: Invalidada }
+    authority: []
+    transitions:
+      - { command: knowledge_edge.project, from: new, to: current }
+      - { command: knowledge_edge.invalidate, from: [current], to: invalidated }
 
   idea_assessment:
-    etiqueta: Evaluación de idea
-    implementado_en: S2
-    estados: { recorded: Registrada }
-    autoridad: []
-    transiciones:
-      - { comando: idea_assessment.record, desde: nuevo, hacia: recorded }
+    label: Evaluación de idea
+    implemented_in: S2
+    states: { recorded: Registrada }
+    authority: []
+    transitions:
+      - { command: idea_assessment.record, from: new, to: recorded }
 
   change_set:
-    etiqueta: Change Set
-    implementado_en: S3
-    estados:
+    label: Change Set
+    implemented_in: S3
+    states:
       proposed: Propuesto
       scope_accepted: Alcance aceptado
       in_progress: En curso
@@ -222,24 +222,24 @@ entidades:
       blocked: Bloqueado
       paused: Pausado
       cancelled: Cancelado
-    autoridad: [scope_accepted, accepted]
-    transiciones:
-      - { comando: change_set.propose, desde: nuevo, hacia: proposed, guardas: [fdr_lista_para_construir] }
-      - { comando: change_set.accept_scope, desde: [proposed], hacia: scope_accepted, guardas: [fdr_lista_para_construir, cobertura_completa] }
-      - { comando: change_set.start, desde: [scope_accepted], hacia: in_progress, guardas: [grafo_al_dia] }
-      - { comando: change_set.submit_review, desde: [in_progress], hacia: in_review, guardas: [gates_en_verde] }
-      - { comando: change_set.accept, desde: [in_review], hacia: accepted, guardas: [gates_en_verde] }
-      - { comando: change_set.request_changes, desde: [in_review], hacia: in_progress }
-      - { comando: change_set.block, desde: [in_progress], hacia: blocked }
-      - { comando: change_set.unblock, desde: [blocked], hacia: in_progress }
-      - { comando: change_set.pause, desde: [scope_accepted, in_progress, in_review, blocked], hacia: paused }
-      - { comando: change_set.resume_scope, desde: [paused], hacia: scope_accepted, guardas: [fdr_lista_para_construir, cobertura_completa] }
-      - { comando: change_set.cancel, desde: [proposed, scope_accepted, in_progress, in_review, blocked, paused], hacia: cancelled, guardas: [motivo_presente] }
+    authority: [scope_accepted, accepted]
+    transitions:
+      - { command: change_set.propose, from: new, to: proposed, guards: [fdr_ready_to_build] }
+      - { command: change_set.accept_scope, from: [proposed], to: scope_accepted, guards: [fdr_ready_to_build, full_coverage] }
+      - { command: change_set.start, from: [scope_accepted], to: in_progress, guards: [graph_up_to_date] }
+      - { command: change_set.submit_review, from: [in_progress], to: in_review, guards: [gates_green] }
+      - { command: change_set.accept, from: [in_review], to: accepted, guards: [gates_green] }
+      - { command: change_set.request_changes, from: [in_review], to: in_progress }
+      - { command: change_set.block, from: [in_progress], to: blocked }
+      - { command: change_set.unblock, from: [blocked], to: in_progress }
+      - { command: change_set.pause, from: [scope_accepted, in_progress, in_review, blocked], to: paused }
+      - { command: change_set.resume_scope, from: [paused], to: scope_accepted, guards: [fdr_ready_to_build, full_coverage] }
+      - { command: change_set.cancel, from: [proposed, scope_accepted, in_progress, in_review, blocked, paused], to: cancelled, guards: [reason_present] }
 
   task:
-    etiqueta: Tarea
-    implementado_en: S3
-    estados:
+    label: Tarea
+    implemented_in: S3
+    states:
       open: Abierta
       tests_written: Pruebas escritas
       tests_frozen: Pruebas congeladas
@@ -247,46 +247,46 @@ entidades:
       checking: Comprobando
       passed: Superada
       blocked: Bloqueada
-    autoridad: []
-    transiciones:
-      - { comando: task.create, desde: nuevo, hacia: open, guardas: [cubre_al_menos_un_ac_aprobado] }
-      - { comando: task.advance, desde: [open], hacia: tests_written }
-      - { comando: task.advance, desde: [tests_written], hacia: tests_frozen, guardas: [mapa_aceptado] }
-      - { comando: task.advance, desde: [tests_frozen], hacia: implementing }
-      - { comando: task.advance, desde: [implementing], hacia: checking }
-      - { comando: task.pass, desde: [checking], hacia: passed, guardas: [gates_en_verde] }
-      - { comando: task.return, desde: [checking], hacia: implementing, guardas: [quedan_intentos] }
-      - { comando: task.block, desde: [open, tests_written, tests_frozen, implementing, checking], hacia: blocked }
-      - { comando: task.retry, desde: [blocked], hacia: implementing }
-      - { comando: task.clarify, desde: [blocked], hacia: implementing, guardas: [aclaracion_presente] }
+    authority: []
+    transitions:
+      - { command: task.create, from: new, to: open, guards: [covers_at_least_one_approved_ac] }
+      - { command: task.advance, from: [open], to: tests_written }
+      - { command: task.advance, from: [tests_written], to: tests_frozen, guards: [test_map_accepted] }
+      - { command: task.advance, from: [tests_frozen], to: implementing }
+      - { command: task.advance, from: [implementing], to: checking }
+      - { command: task.pass, from: [checking], to: passed, guards: [gates_green] }
+      - { command: task.return, from: [checking], to: implementing, guards: [attempts_remaining] }
+      - { command: task.block, from: [open, tests_written, tests_frozen, implementing, checking], to: blocked }
+      - { command: task.retry, from: [blocked], to: implementing }
+      - { command: task.clarify, from: [blocked], to: implementing, guards: [clarification_present] }
 
   acceptance_check:
-    etiqueta: Prueba de aceptación
-    implementado_en: S3
-    estados: { proposed: Propuesta, mapped: Mapa aceptado, frozen: Congelada }
-    autoridad: [mapped]
-    transiciones:
-      - { comando: acceptance_check.propose, desde: nuevo, hacia: proposed }
-      - { comando: acceptance_map.accept, desde: [proposed], hacia: mapped }
-      - { comando: acceptance_check.freeze, desde: [mapped], hacia: frozen, guardas: [prueba_en_rojo_sobre_la_base] }
+    label: Prueba de aceptación
+    implemented_in: S3
+    states: { proposed: Propuesta, mapped: Mapa aceptado, frozen: Congelada }
+    authority: [mapped]
+    transitions:
+      - { command: acceptance_check.propose, from: new, to: proposed }
+      - { command: acceptance_map.accept, from: [proposed], to: mapped }
+      - { command: acceptance_check.freeze, from: [mapped], to: frozen, guards: [red_test_on_base] }
 
   work_step:
-    etiqueta: Paso de trabajo
-    implementado_en: S3
-    estados: { queued: En cola, running: En curso, succeeded: Terminado, failed: Fallido, cancelled: Cancelado }
-    autoridad: []
-    transiciones:
-      - { comando: work_step.enqueue, desde: nuevo, hacia: queued }
-      - { comando: work_step.begin, desde: [queued], hacia: running }
-      - { comando: work_step.succeed, desde: [running], hacia: succeeded }
-      - { comando: work_step.fail, desde: [queued, running], hacia: failed }
-      - { comando: work_step.cancel, desde: [queued, running], hacia: cancelled }
+    label: Paso de trabajo
+    implemented_in: S3
+    states: { queued: En cola, running: En curso, succeeded: Terminado, failed: Fallido, cancelled: Cancelado }
+    authority: []
+    transitions:
+      - { command: work_step.enqueue, from: new, to: queued }
+      - { command: work_step.begin, from: [queued], to: running }
+      - { command: work_step.succeed, from: [running], to: succeeded }
+      - { command: work_step.fail, from: [queued, running], to: failed }
+      - { command: work_step.cancel, from: [queued, running], to: cancelled }
 
   evidence:
-    etiqueta: Evidencia
-    implementado_en: S4
-    estados: { recorded: Registrada }
-    autoridad: []
-    transiciones:
-      - { comando: evidence.record, desde: nuevo, hacia: recorded }
-      - { comando: evidence.record_manual, desde: nuevo, hacia: recorded, guardas: [ac_manual] }
+    label: Evidencia
+    implemented_in: S4
+    states: { recorded: Registrada }
+    authority: []
+    transitions:
+      - { command: evidence.record, from: new, to: recorded }
+      - { command: evidence.record_manual, from: new, to: recorded, guards: [ac_manual] }

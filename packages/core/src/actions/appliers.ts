@@ -1,25 +1,25 @@
 // Efectos de la salida validada de cada acción. Solo se ejecutan con salida válida y dentro
 // de la misma transacción que completa la ejecución: o todo o nada, una sola vez.
 
-import type { AccionAgente, SalidaAccion } from '@demiurgo/domain';
-import type { Peticion, Resultado } from '../bus/tipos.ts';
-import type { Fila } from '../db/esquema.ts';
-import type { Tx } from '../db/conexion.ts';
+import type { AgentAction, ActionOutput } from '@demiurgo/domain';
+import type { Request, Result } from '../bus/types.ts';
+import type { Row } from '../db/schema.ts';
+import type { Tx } from '../db/connection.ts';
 
-export type EntradaAplicador<A extends AccionAgente> = {
+export type ApplierInput<A extends AgentAction> = {
   trx: Tx;
-  ejecutar: (p: Peticion) => Promise<Resultado>;
-  run: Fila<'ai_runs'>;
-  salida: SalidaAccion<A>;
+  execute: (p: Request) => Promise<Result>;
+  run: Row<'ai_runs'>;
+  output: ActionOutput<A>;
 };
 
-type Aplicador<A extends AccionAgente> = (e: EntradaAplicador<A>) => Promise<void>;
+type Applier<A extends AgentAction> = (e: ApplierInput<A>) => Promise<void>;
 
-export const APLICADORES: { [A in AccionAgente]?: Aplicador<A> } = {
+export const APPLIERS: { [A in AgentAction]?: Applier<A> } = {
   // eco no tiene efectos: la salida queda en la propia ejecución.
-  eco: async () => undefined,
+  echo: async () => undefined,
 };
 
-export function registrarAplicador<A extends AccionAgente>(accion: A, aplicador: Aplicador<A>): void {
-  (APLICADORES as Record<string, unknown>)[accion] = aplicador;
+export function registerApplier<A extends AgentAction>(action: A, applier: Applier<A>): void {
+  (APPLIERS as Record<string, unknown>)[action] = applier;
 }

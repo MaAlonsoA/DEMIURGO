@@ -4,228 +4,228 @@
 // que no se verifica no entra en la caché, así que reintentar vuelve a preguntar.
 
 import {
-  type Candidato,
-  type Cambio,
-  type Clasificador,
-  type Grafo,
+  type Candidate,
+  type Change,
+  type Classifier,
+  type Graph,
   type ItemChoice,
   type Plan,
-  type RespuestaChoice,
-  VEREDICTOS,
-  enrutarPorConfianza,
-  hashEntradaCategorias,
-  hashEntradaVeredictos,
-  nodosVigentes,
-  planRetirada,
-  planSinCambios,
-  planVacio,
-  planificar,
-  seleccionarCandidatos,
-  verificarCategorias,
-  verificarVeredictos,
+  type ChoiceResponse,
+  VERDICTS,
+  routeByConfidence,
+  hashCategoriesInput,
+  hashVerdictsInput,
+  currentNodes,
+  removalPlan,
+  emptyPlan,
+  isEmptyPlan,
+  buildPlan,
+  selectCandidates,
+  verifyCategories,
+  verifyVerdicts,
 } from '@demiurgo/domain';
 import { sql } from 'kysely';
-import { enTransaccion, ejecutarComando } from '../bus/bus.ts';
-import type { Peticion, Resultado } from '../bus/tipos.ts';
-import type { Bd, Tx } from '../db/conexion.ts';
-import type { Servicios } from '../servicios.ts';
-import { ACTUALIZADOR } from './comandos.ts';
-import { DISPARO_DESCARTE, type ObjetoAutoridad, derivarCambio, derivarRetirada } from './derivar.ts';
-import { cargarGrafo } from './grafo-pg.ts';
+import { inTransaction, executeCommand } from '../bus/bus.ts';
+import type { Request, Result } from '../bus/types.ts';
+import type { Db, Tx } from '../db/connection.ts';
+import type { Services } from '../services.ts';
+import { UPDATER } from './commands.ts';
+import { DISCARD_TRIGGER, type AuthorityObject, deriveChange, deriveRetirement } from './derive.ts';
+import { loadGraph } from './graph-pg.ts';
 
-export type Eje = { codigo: string; nombre: string; categorias: { codigo: string; nombre: string; descripcion: string }[] };
+export type Axis = { code: string; name: string; categories: { code: string; name: string; description: string }[] };
 /** Taxonomía aprobada vigente; `contenido` es su huella, parte del input_hash de las categorías. */
-export type TaxonomiaVigente = { id: string; codigo: string; version: number; contenido: string; ejes: Eje[] };
+export type CurrentTaxonomy = { id: string; code: string; version: number; content: string; axes: Axis[] };
 
-export async function taxonomiaVigente(db: Bd, proyectoId: string): Promise<TaxonomiaVigente | null> {
+export async function currentTaxonomy(db: Db, projectId: string): Promise<CurrentTaxonomy | null> {
   const t = await db
     .selectFrom('taxonomies')
     .select(['id', 'code', 'version', 'axes', 'content_hash'])
-    .where('project_id', '=', proyectoId)
+    .where('project_id', '=', projectId)
     .where('state', '=', 'approved')
     .orderBy('code')
     .orderBy('version', 'desc')
     .executeTakeFirst();
-  return t ? { id: t.id, codigo: t.code, version: t.version, contenido: t.content_hash, ejes: t.axes as Eje[] } : null;
+  return t ? { id: t.id, code: t.code, version: t.version, content: t.content_hash, axes: t.axes as Axis[] } : null;
 }
 
 /** Clave de la taxonomía en el input_hash: el mismo código y versión con otro contenido es otra entrada. */
-export const claveTaxonomia = (t: { codigo: string; version: number; contenido: string }): string =>
-  `${t.codigo}@${t.version}#${t.contenido}`;
+export const taxonomyKey = (t: { code: string; version: number; content: string }): string =>
+  `${t.code}@${t.version}#${t.content}`;
 
 /** Respuesta de un clasificador pendiente de guardar: solo entra en la caché si se verifica. */
-export type AGuardar = { hash: string; clasificador: string; respuestas: RespuestaChoice[] };
+export type ToSave = { hash: string; classifier: string; responses: ChoiceResponse[] };
 
 /** Lee de la caché o pregunta al clasificador. No guarda: eso se hace tras verificar. */
-export async function responderConCache(
-  db: Bd,
-  clasificador: Clasificador,
+export async function respondWithCache(
+  db: Db,
+  classifier: Classifier,
   hash: string,
   items: readonly ItemChoice[],
-): Promise<{ respuestas: RespuestaChoice[]; desdeCache: boolean; aGuardar: AGuardar | null }> {
-  const previa = await db.selectFrom('verdict_cache').select('answers').where('input_hash', '=', hash).executeTakeFirst();
-  if (previa) return { respuestas: previa.answers as RespuestaChoice[], desdeCache: true, aGuardar: null };
-  const respuestas = items.length === 0 ? [] : await clasificador.choice(items);
-  return { respuestas, desdeCache: false, aGuardar: { hash, clasificador: clasificador.id, respuestas } };
+): Promise<{ responses: ChoiceResponse[]; fromCache: boolean; toSave: ToSave | null }> {
+  const prior = await db.selectFrom('verdict_cache').select('answers').where('input_hash', '=', hash).executeTakeFirst();
+  if (prior) return { responses: prior.answers as ChoiceResponse[], fromCache: true, toSave: null };
+  const responses = items.length === 0 ? [] : await classifier.choice(items);
+  return { responses, fromCache: false, toSave: { hash, classifier: classifier.id, responses } };
 }
 
 /** Guarda respuestas verificadas (inmutables: la primera que llega se queda). */
-export async function guardarEnCache(db: Bd, entradas: readonly (AGuardar | null)[]): Promise<void> {
-  for (const e of entradas) {
+export async function saveToCache(db: Db, inputs: readonly (ToSave | null)[]): Promise<void> {
+  for (const e of inputs) {
     if (!e) continue;
-    await sql`insert into verdict_cache (input_hash, classifier, answers) values (${e.hash}, ${e.clasificador}, ${JSON.stringify(e.respuestas)}::jsonb)
+    await sql`insert into verdict_cache (input_hash, classifier, answers) values (${e.hash}, ${e.classifier}, ${JSON.stringify(e.responses)}::jsonb)
       on conflict (input_hash) do nothing`.execute(db);
   }
 }
 
-export function itemsDeCategorias(cambio: Cambio, taxonomia: { ejes: readonly Eje[] }): ItemChoice[] {
-  return taxonomia.ejes.map((eje) => ({
-    id: eje.codigo,
-    estado: {
-      tarea: 'categoria',
-      eje: eje.codigo,
-      categorias: eje.categorias,
-      artefacto: { titulo: cambio.principal.etiqueta, texto: cambio.principal.texto },
+export function itemsForCategories(change: Change, taxonomy: { axes: readonly Axis[] }): ItemChoice[] {
+  return taxonomy.axes.map((axis) => ({
+    id: axis.code,
+    state: {
+      task: 'category',
+      axis: axis.code,
+      categories: axis.categories,
+      artifact: { title: change.main.label, text: change.main.text },
     },
-    pregunta: `¿A qué categoría de «${eje.nombre}» pertenece este artefacto?`,
-    opciones: eje.categorias.map((c) => c.codigo),
+    question: `¿A qué categoría de «${axis.name}» pertenece este artefacto?`,
+    options: axis.categories.map((c) => c.code),
   }));
 }
 
-export function itemsDeVeredictos(cambio: Cambio, candidatos: readonly Candidato[]): ItemChoice[] {
-  return candidatos.map((c) => ({
+export function itemsForVerdicts(change: Change, candidates: readonly Candidate[]): ItemChoice[] {
+  return candidates.map((c) => ({
     id: c.ref,
-    estado: {
-      tarea: 'veredicto',
-      cambio: {
-        ref: cambio.principal.ref,
-        tipo: cambio.principal.tipo,
-        titulo: cambio.principal.etiqueta,
-        texto: cambio.principal.texto,
+    state: {
+      task: 'verdict',
+      change: {
+        ref: change.main.ref,
+        type: change.main.type,
+        title: change.main.label,
+        text: change.main.text,
       },
-      candidato: { ref: c.ref, tipo: c.tipo, titulo: c.etiqueta, texto: c.texto },
+      candidate: { ref: c.ref, type: c.type, title: c.label, text: c.text },
     },
-    pregunta:
+    question:
       'Con este cambio aprobado, ¿qué le pasa al candidato: sigue igual, se relaciona, hay que actualizarlo, queda invalidado, hay que añadirle algo u otra cosa?',
-    opciones: VEREDICTOS,
+    options: VERDICTS,
   }));
 }
 
 /** Categorías que se aplican al nodo: solo las de confianza alta. */
-export function categoriasAplicables(respuestas: readonly RespuestaChoice[]): Record<string, string> {
+export function applicableCategories(responses: readonly ChoiceResponse[]): Record<string, string> {
   return Object.fromEntries(
-    respuestas.filter((r) => enrutarPorConfianza(r.confianza) === 'aplicar').map((r) => [r.id, r.eleccion]),
+    responses.filter((r) => routeByConfidence(r.confidence) === 'apply').map((r) => [r.id, r.choice]),
   );
 }
 
-export type Clasificado = {
-  cambio: Cambio;
-  taxonomia: { id: string; codigo: string; version: number; contenido: string } | null;
-  ejes: Eje[];
-  hashCategorias: string | null;
-  categorias: RespuestaChoice[];
-  candidatos: Candidato[];
-  hashVeredictos: string;
-  veredictos: RespuestaChoice[];
+export type Classified = {
+  change: Change;
+  taxonomy: { id: string; code: string; version: number; content: string } | null;
+  axes: Axis[];
+  categoriesHash: string | null;
+  categories: ChoiceResponse[];
+  candidates: Candidate[];
+  verdictsHash: string;
+  verdicts: ChoiceResponse[];
   /** Respuestas nuevas del clasificador: se guardan en la caché solo si se verifican. */
-  aGuardar: AGuardar[];
+  toSave: ToSave[];
 };
 
 /** Recorre el cálculo completo de un cambio sobre un grafo dado (incremental y reconstrucción). */
-export async function clasificarCambio(
-  db: Bd,
-  clasificador: Clasificador,
-  grafo: Grafo,
-  cambio: Cambio,
-  taxonomia: TaxonomiaVigente | null,
-): Promise<Clasificado> {
-  const aGuardar: AGuardar[] = [];
-  let hashCategorias: string | null = null;
-  let categorias: RespuestaChoice[] = [];
-  if (taxonomia) {
-    hashCategorias = hashEntradaCategorias(clasificador.id, claveTaxonomia(taxonomia), cambio);
-    const r = await responderConCache(db, clasificador, hashCategorias, itemsDeCategorias(cambio, taxonomia));
-    categorias = r.respuestas;
-    if (r.aGuardar) aGuardar.push(r.aGuardar);
+export async function classifyChange(
+  db: Db,
+  classifier: Classifier,
+  graph: Graph,
+  change: Change,
+  taxonomy: CurrentTaxonomy | null,
+): Promise<Classified> {
+  const toSave: ToSave[] = [];
+  let categoriesHash: string | null = null;
+  let categories: ChoiceResponse[] = [];
+  if (taxonomy) {
+    categoriesHash = hashCategoriesInput(classifier.id, taxonomyKey(taxonomy), change);
+    const r = await respondWithCache(db, classifier, categoriesHash, itemsForCategories(change, taxonomy));
+    categories = r.responses;
+    if (r.toSave) toSave.push(r.toSave);
   }
   // Solo las categorías válidas orientan la búsqueda de candidatos; las inválidas rechazan después.
-  const validas = taxonomia && verificarCategorias(taxonomia.ejes, categorias).ok ? categorias : [];
-  const candidatos = seleccionarCandidatos(grafo, cambio, categoriasAplicables(validas));
-  const hashVeredictos = hashEntradaVeredictos(clasificador.id, cambio, candidatos);
-  const r = await responderConCache(db, clasificador, hashVeredictos, itemsDeVeredictos(cambio, candidatos));
-  if (r.aGuardar) aGuardar.push(r.aGuardar);
+  const valid = taxonomy && verifyCategories(taxonomy.axes, categories).ok ? categories : [];
+  const candidates = selectCandidates(graph, change, applicableCategories(valid));
+  const verdictsHash = hashVerdictsInput(classifier.id, change, candidates);
+  const r = await respondWithCache(db, classifier, verdictsHash, itemsForVerdicts(change, candidates));
+  if (r.toSave) toSave.push(r.toSave);
   return {
-    cambio,
-    taxonomia: taxonomia
-      ? { id: taxonomia.id, codigo: taxonomia.codigo, version: taxonomia.version, contenido: taxonomia.contenido }
+    change,
+    taxonomy: taxonomy
+      ? { id: taxonomy.id, code: taxonomy.code, version: taxonomy.version, content: taxonomy.content }
       : null,
-    ejes: taxonomia?.ejes ?? [],
-    hashCategorias,
-    categorias,
-    candidatos,
-    hashVeredictos,
-    veredictos: r.respuestas,
-    aGuardar,
+    axes: taxonomy?.axes ?? [],
+    categoriesHash,
+    categories,
+    candidates,
+    verdictsHash,
+    verdicts: r.responses,
+    toSave,
   };
 }
 
 /** Motivos por los que la salida del clasificador no se verifica (vacío si se verifica). */
-export function motivosDeVerificacion(grafo: Grafo, d: Clasificado): string[] {
-  const motivos: string[] = [];
-  const v = verificarVeredictos(grafo, d.candidatos, d.veredictos);
-  if (!v.ok) motivos.push(...v.motivos);
-  if (d.taxonomia) {
-    const c = verificarCategorias(d.ejes, d.categorias);
-    if (!c.ok) motivos.push(...c.motivos);
+export function verificationReasons(graph: Graph, d: Classified): string[] {
+  const reasons: string[] = [];
+  const v = verifyVerdicts(graph, d.candidates, d.verdicts);
+  if (!v.ok) reasons.push(...v.reasons);
+  if (d.taxonomy) {
+    const c = verifyCategories(d.axes, d.categories);
+    if (!c.ok) reasons.push(...c.reasons);
   }
-  return motivos;
+  return reasons;
 }
 
-export type ResultadoPasoClasificar =
-  | { tipo: 'terminado' }
-  | { tipo: 'sin_cambio' }
-  | { tipo: 'error'; motivo: string }
-  | { tipo: 'retirada'; refs: string[] }
-  | { tipo: 'clasificado'; datos: Clasificado };
+export type ClassifyStepResult =
+  | { type: 'finished' }
+  | { type: 'no_change' }
+  | { type: 'error'; reason: string }
+  | { type: 'withdrawal'; refs: string[] }
+  | { type: 'classified'; data: Classified };
 
-export async function pasoClasificar(s: Servicios, updateId: string, proyectoId: string): Promise<ResultadoPasoClasificar> {
+export async function classifyStep(s: Services, updateId: string, projectId: string): Promise<ClassifyStepResult> {
   const u = await s.db
     .selectFrom('knowledge_updates')
     .select(['state', 'trigger'])
     .where('id', '=', updateId)
     .executeTakeFirstOrThrow();
-  if (!['queued', 'classifying'].includes(u.state)) return { tipo: 'terminado' };
+  if (!['queued', 'classifying'].includes(u.state)) return { type: 'finished' };
   if (u.state === 'queued') {
-    await ejecutarComando(s, {
-      comando: 'knowledge_update.classify',
-      actor: ACTUALIZADOR,
-      proyectoId,
-      entidadId: updateId,
-      datos: {},
+    await executeCommand(s, {
+      command: 'knowledge_update.classify',
+      actor: UPDATER,
+      projectId,
+      entityId: updateId,
+      data: {},
     });
   }
   // Cualquier fallo al derivar o clasificar rechaza la actualización: nunca se queda en curso.
   try {
-    const disparo = u.trigger as ObjetoAutoridad;
-    if (disparo.tipo === DISPARO_DESCARTE) return { tipo: 'retirada', refs: await derivarRetirada(s.db, disparo) };
-    const cambio = await derivarCambio(s.db, disparo);
-    if (!cambio) return { tipo: 'sin_cambio' };
-    const grafo = await cargarGrafo(s.db, proyectoId);
-    const datos = await clasificarCambio(s.db, s.clasificador, grafo, cambio, await taxonomiaVigente(s.db, proyectoId));
-    return { tipo: 'clasificado', datos };
+    const trigger = u.trigger as AuthorityObject;
+    if (trigger.type === DISCARD_TRIGGER) return { type: 'withdrawal', refs: await deriveRetirement(s.db, trigger) };
+    const change = await deriveChange(s.db, trigger);
+    if (!change) return { type: 'no_change' };
+    const graph = await loadGraph(s.db, projectId);
+    const data = await classifyChange(s.db, s.classifier, graph, change, await currentTaxonomy(s.db, projectId));
+    return { type: 'classified', data };
   } catch (e) {
-    return { tipo: 'error', motivo: `No se pudo clasificar el cambio: ${String(e).slice(0, 1500)}` };
+    return { type: 'error', reason: `No se pudo clasificar el cambio: ${String(e).slice(0, 1500)}` };
   }
 }
 
 /** Ejecutor del actualizador: el actor por defecto es el propio actualizador (system). */
-type Ejecutar = (p: Omit<Peticion, 'actor'> & { actor?: Peticion['actor'] }) => Promise<Resultado>;
+type Execute = (p: Omit<Request, 'actor'> & { actor?: Request['actor'] }) => Promise<Result>;
 
-async function idNodoVigente(trx: Tx, proyectoId: string, ref: string): Promise<string | null> {
+async function currentNodeId(trx: Tx, projectId: string, ref: string): Promise<string | null> {
   const n = await trx
     .selectFrom('knowledge_nodes')
     .select('id')
-    .where('project_id', '=', proyectoId)
+    .where('project_id', '=', projectId)
     .where('ref', '=', ref)
     .where('valid_to', 'is', null)
     .executeTakeFirst();
@@ -233,79 +233,79 @@ async function idNodoVigente(trx: Tx, proyectoId: string, ref: string): Promise<
 }
 
 /** Aplica al grafo de la base las operaciones de un plan, con sus comandos y eventos. */
-async function aplicarOperaciones(
-  ejecutar: Ejecutar,
+async function applyOperations(
+  execute: Execute,
   trx: Tx,
-  proyectoId: string,
+  projectId: string,
   plan: Plan,
   version: number,
   updateId: string,
 ): Promise<void> {
   // Primero se localizan las aristas a cerrar (con sus nodos aún vigentes) y luego se invalida.
-  const aristasACerrar: string[] = [];
-  for (const a of plan.aristasInvalidadas) {
-    const desde = await idNodoVigente(trx, proyectoId, a.desde);
-    const hacia = await idNodoVigente(trx, proyectoId, a.hacia);
-    if (!desde || !hacia) continue;
-    const aristas = await trx
+  const edgesToClose: string[] = [];
+  for (const a of plan.invalidatedEdges) {
+    const from = await currentNodeId(trx, projectId, a.from);
+    const to = await currentNodeId(trx, projectId, a.to);
+    if (!from || !to) continue;
+    const edges = await trx
       .selectFrom('knowledge_edges')
       .select('id')
-      .where('project_id', '=', proyectoId)
-      .where('kind', '=', a.tipo)
-      .where('from_node', '=', desde)
-      .where('to_node', '=', hacia)
+      .where('project_id', '=', projectId)
+      .where('kind', '=', a.type)
+      .where('from_node', '=', from)
+      .where('to_node', '=', to)
       .where('valid_to', 'is', null)
       .execute();
-    aristasACerrar.push(...aristas.map((e) => e.id));
+    edgesToClose.push(...edges.map((e) => e.id));
   }
-  for (const id of aristasACerrar)
-    await ejecutar({ comando: 'knowledge_edge.invalidate', entidadId: id, datos: { hasta: version } });
-  for (const ref of plan.invalidar) {
-    const id = await idNodoVigente(trx, proyectoId, ref);
-    if (id) await ejecutar({ comando: 'knowledge_node.invalidate', entidadId: id, datos: { hasta: version } });
+  for (const id of edgesToClose)
+    await execute({ command: 'knowledge_edge.invalidate', entityId: id, data: { until: version } });
+  for (const ref of plan.invalidate) {
+    const id = await currentNodeId(trx, projectId, ref);
+    if (id) await execute({ command: 'knowledge_node.invalidate', entityId: id, data: { until: version } });
   }
-  for (const n of plan.proyectar) {
-    await ejecutar({
-      comando: 'knowledge_node.project',
-      datos: {
+  for (const n of plan.project) {
+    await execute({
+      command: 'knowledge_node.project',
+      data: {
         ref: n.ref,
-        tipo: n.tipo,
-        etiqueta: n.etiqueta,
-        texto: n.texto,
-        categorias: n.categorias,
-        epistemico: n.epistemico,
-        origen: n.origen,
-        desde: version,
+        type: n.type,
+        label: n.label,
+        text: n.text,
+        categories: n.categories,
+        epistemic: n.epistemic,
+        origin: n.origin,
+        from: version,
         update_id: updateId,
       },
     });
   }
-  for (const a of plan.aristasNuevas) {
-    await ejecutar({
-      comando: 'knowledge_edge.project',
-      datos: { tipo: a.tipo, desde: a.desde, hacia: a.hacia, alta: version, update_id: updateId },
+  for (const a of plan.newEdges) {
+    await execute({
+      command: 'knowledge_edge.project',
+      data: { type: a.type, from: a.from, to: a.to, validFrom: version, update_id: updateId },
     });
   }
 }
 
-const operacionesDe = (plan: Plan) => ({
-  proyectados: plan.proyectar.map((n) => n.ref),
-  invalidados: plan.invalidar,
-  aristas_nuevas: plan.aristasNuevas.length,
-  aristas_invalidadas: plan.aristasInvalidadas.length,
-  revisiones: plan.revisiones,
-  sin_aplicar: plan.sinAplicar,
+const operationsOf = (plan: Plan) => ({
+  projected: plan.project.map((n) => n.ref),
+  invalidated: plan.invalidate,
+  new_edges: plan.newEdges.length,
+  invalidated_edges: plan.invalidatedEdges.length,
+  reviews: plan.reviews,
+  not_applied: plan.notApplied,
 });
 
 /** Verifica y aplica (o rechaza) en una sola transacción; idempotente ante un corte. */
-export async function pasoAplicar(
-  s: Servicios,
+export async function applyStep(
+  s: Services,
   updateId: string,
-  proyectoId: string,
-  r: ResultadoPasoClasificar,
+  projectId: string,
+  r: ClassifyStepResult,
 ): Promise<string> {
-  return enTransaccion(s, async (ejecutarBase, trx) => {
-    await sql`select 1 from projects where id = ${proyectoId}::uuid for update`.execute(trx);
+  return inTransaction(s, async (executeBase, trx) => {
+    await sql`select 1 from projects where id = ${projectId}::uuid for update`.execute(trx);
     const u = await trx
       .selectFrom('knowledge_updates')
       .select('state')
@@ -313,92 +313,92 @@ export async function pasoAplicar(
       .forUpdate()
       .executeTakeFirstOrThrow();
     if (u.state !== 'classifying') return u.state;
-    const ejecutar: Ejecutar = (p) => ejecutarBase({ proyectoId, ...p, actor: p.actor ?? ACTUALIZADOR });
-    const rechazar = async (motivos: string[]) => {
-      await ejecutar({ entidadId: updateId, comando: 'knowledge_update.reject', datos: { motivos } });
+    const execute: Execute = (p) => executeBase({ projectId, ...p, actor: p.actor ?? UPDATER });
+    const reject = async (reasons: string[]) => {
+      await execute({ entityId: updateId, command: 'knowledge_update.reject', data: { reasons } });
       return 'rejected';
     };
-    if (r.tipo === 'terminado') return u.state;
-    if (r.tipo === 'error') return rechazar([r.motivo]);
-    const grafo = await cargarGrafo(trx, proyectoId);
+    if (r.type === 'finished') return u.state;
+    if (r.type === 'error') return reject([r.reason]);
+    const graph = await loadGraph(trx, projectId);
     // Aplica el plan; `despues` añade clasificaciones y propuestas antes del evento final.
-    const aplicar = async (plan: Plan, despues?: () => Promise<void>) => {
-      const version = planVacio(plan) ? grafo.version : grafo.version + 1;
-      await aplicarOperaciones(ejecutar, trx, proyectoId, plan, version, updateId);
-      await despues?.();
-      await ejecutar({
-        entidadId: updateId,
-        comando: 'knowledge_update.apply',
-        datos: { operaciones: operacionesDe(plan), version_antes: grafo.version, version_despues: version },
+    const apply = async (plan: Plan, after?: () => Promise<void>) => {
+      const version = isEmptyPlan(plan) ? graph.version : graph.version + 1;
+      await applyOperations(execute, trx, projectId, plan, version, updateId);
+      await after?.();
+      await execute({
+        entityId: updateId,
+        command: 'knowledge_update.apply',
+        data: { operations: operationsOf(plan), version_before: graph.version, version_after: version },
       });
       return 'applied';
     };
-    if (r.tipo === 'sin_cambio' || r.tipo === 'retirada') {
-      await ejecutar({
-        entidadId: updateId,
-        comando: 'knowledge_update.verify',
-        datos: {
-          cambio: r.tipo === 'retirada' ? { retirada: r.refs } : null,
-          candidatos: [],
+    if (r.type === 'no_change' || r.type === 'withdrawal') {
+      await execute({
+        entityId: updateId,
+        command: 'knowledge_update.verify',
+        data: {
+          change: r.type === 'withdrawal' ? { withdrawal: r.refs } : null,
+          candidates: [],
           input_hash: '',
-          clasificador: s.clasificador.id,
-          veredictos: [],
+          classifier: s.classifier.id,
+          verdicts: [],
         },
       });
-      if (r.tipo === 'sin_cambio') return aplicar(planSinCambios());
-      return aplicar(planRetirada(grafo, r.refs));
+      if (r.type === 'no_change') return apply(emptyPlan());
+      return apply(removalPlan(graph, r.refs));
     }
-    const d = r.datos;
-    await ejecutar({
-      entidadId: updateId,
-      comando: 'knowledge_update.verify',
-      datos: {
-        cambio: d.cambio,
-        candidatos: d.candidatos,
-        input_hash: d.hashVeredictos,
-        clasificador: s.clasificador.id,
-        veredictos: {
-          taxonomia: d.taxonomia,
-          hash_categorias: d.hashCategorias,
-          categorias: d.categorias,
-          veredictos: d.veredictos,
+    const d = r.data;
+    await execute({
+      entityId: updateId,
+      command: 'knowledge_update.verify',
+      data: {
+        change: d.change,
+        candidates: d.candidates,
+        input_hash: d.verdictsHash,
+        classifier: s.classifier.id,
+        verdicts: {
+          taxonomy: d.taxonomy,
+          categories_hash: d.categoriesHash,
+          categories: d.categories,
+          verdicts: d.verdicts,
         },
       },
     });
-    const motivos = motivosDeVerificacion(grafo, d);
-    if (motivos.length > 0) return rechazar(motivos);
-    const plan = planificar(grafo, d.cambio, categoriasAplicables(d.categorias), d.veredictos, grafo.version + 1);
+    const reasons = verificationReasons(graph, d);
+    if (reasons.length > 0) return reject(reasons);
+    const plan = buildPlan(graph, d.change, applicableCategories(d.categories), d.verdicts, graph.version + 1);
     // Lo que toca la autoridad sale como propuesta: si una revisión no puede proponerse, la
     // actualización se rechaza en lugar de perderla.
-    const revisiones = await prepararRevisiones(trx, proyectoId, grafo, d, plan.revisiones);
-    if (revisiones.motivos.length > 0) return rechazar(revisiones.motivos);
-    await guardarEnCache(trx, d.aGuardar);
-    const taxonomiaId = d.taxonomia?.id;
-    return aplicar(plan, async () => {
-      for (const c of taxonomiaId ? d.categorias : []) {
-        await ejecutar({
-          comando: enrutarPorConfianza(c.confianza) === 'aplicar' ? 'classification.record' : 'classification.hold',
-          datos: {
-            nodo_ref: d.cambio.principal.ref,
-            taxonomia_id: taxonomiaId,
-            eje: c.id,
-            categoria: c.eleccion,
-            confianza: c.confianza,
-            justificacion: c.justificacion,
-            clasificador: s.clasificador.id,
-            input_hash: d.hashCategorias ?? '',
+    const reviews = await prepareReviews(trx, projectId, graph, d, plan.reviews);
+    if (reviews.reasons.length > 0) return reject(reviews.reasons);
+    await saveToCache(trx, d.toSave);
+    const taxonomyId = d.taxonomy?.id;
+    return apply(plan, async () => {
+      for (const c of taxonomyId ? d.categories : []) {
+        await execute({
+          command: routeByConfidence(c.confidence) === 'apply' ? 'classification.record' : 'classification.hold',
+          data: {
+            node_ref: d.change.main.ref,
+            taxonomy_id: taxonomyId,
+            axis: c.id,
+            category: c.choice,
+            confidence: c.confidence,
+            justification: c.justification,
+            classifier: s.classifier.id,
+            input_hash: d.categoriesHash ?? '',
             update_id: updateId,
           },
         });
       }
-      if (revisiones.propuestas.length > 0) {
-        await ejecutar({
-          comando: 'batch.submit',
-          datos: {
-            resumen: `El conocimiento sugiere revisar ${revisiones.propuestas.length} registro(s) tras ${d.cambio.principal.ref}.`,
-            tipo_lote: 'knowledge',
-            resolucion: 'item',
-            propuestas: revisiones.propuestas,
+      if (reviews.proposals.length > 0) {
+        await execute({
+          command: 'batch.submit',
+          data: {
+            summary: `El conocimiento sugiere revisar ${reviews.proposals.length} registro(s) tras ${d.change.main.ref}.`,
+            batch_type: 'knowledge',
+            resolution: 'item',
+            proposals: reviews.proposals,
           },
         });
       }
@@ -410,71 +410,71 @@ export async function pasoAplicar(
  * Si procesar una actualización falla por un error del sistema (tras sus reintentos), queda
  * rechazada con el motivo: nunca se queda en curso bloqueando la frescura.
  */
-export async function rechazarPorError(s: Servicios, updateId: string, proyectoId: string, e: unknown): Promise<void> {
+export async function rejectOnError(s: Services, updateId: string, projectId: string, e: unknown): Promise<void> {
   const u = await s.db.selectFrom('knowledge_updates').select('state').where('id', '=', updateId).executeTakeFirstOrThrow();
   if (!['queued', 'classifying', 'verifying'].includes(u.state)) return;
-  const base = { actor: ACTUALIZADOR, proyectoId, entidadId: updateId } as const;
-  if (u.state === 'queued') await ejecutarComando(s, { ...base, comando: 'knowledge_update.classify', datos: {} });
-  await ejecutarComando(s, {
+  const base = { actor: UPDATER, projectId, entityId: updateId } as const;
+  if (u.state === 'queued') await executeCommand(s, { ...base, command: 'knowledge_update.classify', data: {} });
+  await executeCommand(s, {
     ...base,
-    comando: 'knowledge_update.reject',
-    datos: { motivos: [`Error del sistema al procesar la actualización: ${String(e).slice(0, 1500)}`] },
+    command: 'knowledge_update.reject',
+    data: { reasons: [`Error del sistema al procesar la actualización: ${String(e).slice(0, 1500)}`] },
   });
 }
 
-type PropuestaDeRevision = {
-  tipo: 'revision';
-  carga: Record<string, unknown>;
-  dependencias: { tipo: 'record'; id: string; codigo: string; version: number }[];
+type ReviewProposal = {
+  type: 'review';
+  payload: Record<string, unknown>;
+  dependencies: { type: 'record'; id: string; code: string; version: number }[];
 };
 
 /**
  * Propuestas de revisión para la persona. El registro se localiza por el origen del nodo (la
  * versión que proyectó), nunca interpretando su ref.
  */
-async function prepararRevisiones(
+async function prepareReviews(
   trx: Tx,
-  proyectoId: string,
-  grafo: Grafo,
-  d: Clasificado,
-  revisiones: Plan['revisiones'],
-): Promise<{ propuestas: PropuestaDeRevision[]; motivos: string[] }> {
-  const vigentes = new Map(nodosVigentes(grafo).map((n) => [n.ref, n]));
-  const propuestas: PropuestaDeRevision[] = [];
-  const motivos: string[] = [];
-  for (const rv of revisiones) {
-    const origen = vigentes.get(rv.ref)?.origen;
+  projectId: string,
+  graph: Graph,
+  d: Classified,
+  reviews: Plan['reviews'],
+): Promise<{ proposals: ReviewProposal[]; reasons: string[] }> {
+  const current = new Map(currentNodes(graph).map((n) => [n.ref, n]));
+  const proposals: ReviewProposal[] = [];
+  const reasons: string[] = [];
+  for (const revision of reviews) {
+    const origin = current.get(revision.ref)?.origin;
     const v =
-      origen?.tipo === 'record_version' && origen.id
+      origin?.type === 'record_version' && origin.id
         ? await trx
             .selectFrom('record_versions')
             .innerJoin('records', 'records.id', 'record_versions.record_id')
             .select(['records.id as recordId', 'records.code', 'record_versions.n'])
-            .where('record_versions.id', '=', origen.id)
-            .where('records.project_id', '=', proyectoId)
+            .where('record_versions.id', '=', origin.id)
+            .where('records.project_id', '=', projectId)
             .executeTakeFirst()
         : undefined;
     if (!v) {
-      motivos.push(
-        `No se puede proponer la revisión de ${rv.ref}: su nodo no procede de una versión de registro de este proyecto.`,
+      reasons.push(
+        `No se puede proponer la revisión de ${revision.ref}: su nodo no procede de una versión de registro de este proyecto.`,
       );
       continue;
     }
-    propuestas.push({
-      tipo: 'revision',
-      carga: {
-        registro: { codigo: v.code, version: v.n },
-        veredicto: rv.veredicto,
-        motivo: (rv.motivo || `El cambio ${d.cambio.principal.ref} podría afectar a ${rv.ref}.`).slice(0, 2000),
-        cambio: {
-          tipo: d.cambio.principal.origen.tipo,
-          id: d.cambio.principal.origen.id ?? '',
-          version: d.cambio.principal.origen.version,
+    proposals.push({
+      type: 'review',
+      payload: {
+        record: { code: v.code, version: v.n },
+        verdict: revision.verdict,
+        reason: (revision.reason || `El cambio ${d.change.main.ref} podría afectar a ${revision.ref}.`).slice(0, 2000),
+        change: {
+          type: d.change.main.origin.type,
+          id: d.change.main.origin.id ?? '',
+          version: d.change.main.origin.version,
         },
-        confianza: rv.confianza,
+        confidence: revision.confidence,
       },
-      dependencias: [{ tipo: 'record', id: v.recordId, codigo: v.code, version: v.n }],
+      dependencies: [{ type: 'record', id: v.recordId, code: v.code, version: v.n }],
     });
   }
-  return { propuestas, motivos };
+  return { proposals, reasons };
 }

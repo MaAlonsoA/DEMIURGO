@@ -1,46 +1,46 @@
 // Constructores de context packs por acción. Recopilan de la autoridad lo que declara cada
 // constructor y devuelven un pack determinista: mismo alcance y mismo grafo → mismo hash.
 
-import { type AccionAgente, ErrorDominio } from '@demiurgo/domain';
-import type { Tx } from '../db/conexion.ts';
-import type { DatosPack } from '../comandos/packs.ts';
+import { type AgentAction, DomainError } from '@demiurgo/domain';
+import type { Tx } from '../db/connection.ts';
+import type { PackData } from '../commands/packs.ts';
 
-export type Alcance = { tipo: string; id?: string | undefined; version?: number | undefined };
+export type Scope = { type: string; id?: string | undefined; version?: number | undefined };
 
-export type Recopilador = (a: {
+export type Builder = (a: {
   trx: Tx;
-  proyectoId: string;
-  alcance: Alcance;
-  entrada: Record<string, unknown>;
-  versionGrafo: number;
-}) => Promise<DatosPack>;
+  projectId: string;
+  scope: Scope;
+  input: Record<string, unknown>;
+  graphVersion: number;
+}) => Promise<PackData>;
 
-export const CONSTRUCTORES: Partial<Record<AccionAgente, Recopilador>> = {
-  async eco({ entrada, versionGrafo }) {
+export const BUILDERS: Partial<Record<AgentAction, Builder>> = {
+  async echo({ input, graphVersion }) {
     return {
-      rol: 'eco',
+      role: 'echo',
       constructor: 'eco@1',
-      presupuesto: { caracteres: 2000 },
-      version_grafo: versionGrafo,
-      dependencias: [],
-      contenido: { entrada: { texto: typeof entrada.texto === 'string' ? entrada.texto.slice(0, 2000) : '' } },
+      budget: { characters: 2000 },
+      graph_version: graphVersion,
+      dependencies: [],
+      content: { input: { text: typeof input.text === 'string' ? input.text.slice(0, 2000) : '' } },
     };
   },
 };
 
-export function registrarConstructor(accion: AccionAgente, r: Recopilador): void {
-  CONSTRUCTORES[accion] = r;
+export function registerBuilder(action: AgentAction, r: Builder): void {
+  BUILDERS[action] = r;
 }
 
-export async function construirContexto(
+export async function buildContext(
   trx: Tx,
-  proyectoId: string,
-  accion: AccionAgente,
-  alcance: Alcance,
-  entrada: Record<string, unknown>,
-  versionGrafo: number,
-): Promise<DatosPack> {
-  const r = CONSTRUCTORES[accion];
-  if (!r) throw new ErrorDominio('no_implementado', `No hay constructor de contexto para «${accion}».`);
-  return r({ trx, proyectoId, alcance, entrada, versionGrafo });
+  projectId: string,
+  action: AgentAction,
+  scope: Scope,
+  input: Record<string, unknown>,
+  graphVersion: number,
+): Promise<PackData> {
+  const r = BUILDERS[action];
+  if (!r) throw new DomainError('not_implemented', `No hay constructor de contexto para «${action}».`);
+  return r({ trx, projectId, scope, input, graphVersion });
 }

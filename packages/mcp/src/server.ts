@@ -7,47 +7,47 @@
 // `main.ts` la lee al arrancar por stdio.
 
 import {
-  MAX_PROPUESTAS_AGENTE_EXTERNO,
-  cargaDecision,
-  cargaExploracion,
-  cargaFdr,
-  esquemaDependencia,
-  referenciaRegistro,
+  MAX_EXTERNAL_AGENT_PROPOSALS,
+  decisionPayload,
+  explorationPayload,
+  fdrPayload,
+  dependencySchema,
+  recordReference,
 } from '@demiurgo/domain';
 import { type CallToolResult, McpServer, type StandardSchemaWithJSON } from '@modelcontextprotocol/server';
 import { z } from 'zod';
-import { type ClienteApi, type ErrorApi, type RespuestaApi, crearClienteApi } from './cliente-api.ts';
+import { type ApiClient, type ApiError, type ApiResponse, createApiClient } from './api-client.ts';
 
-export type OpcionesServidorMcp = {
+export type McpServerOptions = {
   /** URL base de la API HTTP de DEMIURGO, por ejemplo `http://127.0.0.1:8100`. */
   urlApi: string;
   /** Token de agente (`dmg_agente_…`); la API fija con él el actor `agent:<nombre>:<sesión>`. */
   token: string;
   /** Proyecto al que da acceso el token. */
-  proyectoId: string;
+  projectId: string;
   /** Sustituto de `fetch` para pruebas. */
   fetch?: typeof globalThis.fetch;
 };
 
-export const NOMBRES_HERRAMIENTAS = [
-  'leer_estado_producto',
-  'leer_bandeja',
-  'leer_exploraciones',
-  'leer_exploracion',
-  'leer_registro',
-  'leer_lote',
-  'leer_fuentes',
-  'buscar_conocimiento',
-  'conversar',
-  'registrar_fuente',
-  'proponer',
+export const TOOL_NAMES = [
+  'read_product_state',
+  'read_inbox',
+  'read_explorations',
+  'read_exploration',
+  'read_record',
+  'read_batch',
+  'read_sources',
+  'search_knowledge',
+  'converse',
+  'register_source',
+  'propose',
 ] as const;
-export type NombreHerramienta = (typeof NOMBRES_HERRAMIENTAS)[number];
+export type ToolName = (typeof TOOL_NAMES)[number];
 
-const PREFIJO_TOKEN_AGENTE = 'dmg_agente_';
+const AGENT_TOKEN_PREFIX = 'dmg_agent_';
 const VERSION = '0.1.0';
 
-const INSTRUCCIONES = [
+const INSTRUCTIONS = [
   'Canal de agentes de DEMIURGO para un proyecto.',
   'Con este token puedes leer el estado del producto, la bandeja, las exploraciones, los registros, los lotes y las fuentes;',
   'conversar en una exploración con tu nombre; registrar fuentes; y enviar propuestas.',
@@ -57,149 +57,149 @@ const INSTRUCCIONES = [
 // Esquemas de entrada. Las cargas de las propuestas son las del dominio: las mismas que valida la API.
 
 const uuid = z.uuid();
-const sinArgumentos = z.object({}).strict();
+const noArguments = z.object({}).strict();
 
-const entradaLeerExploracion = z.object({ exploracion_id: uuid.describe('Id de la exploración.') }).strict();
-const entradaLeerRegistro = z
-  .object({ codigo: referenciaRegistro.shape.codigo.describe('Código del registro, por ejemplo DEC-PLN-001 o FDR-DIS-001.') })
+const readExplorationInput = z.object({ exploration_id: uuid.describe('Id de la exploración.') }).strict();
+const readRecordInput = z
+  .object({ code: recordReference.shape.code.describe('Código del registro, por ejemplo DEC-PLN-001 o FDR-DIS-001.') })
   .strict();
-const entradaLeerLote = z.object({ lote_id: uuid.describe('Id del lote de propuestas.') }).strict();
-const entradaBuscar = z
-  .object({ consulta: z.string().trim().min(1).max(500).describe('Texto que se busca en el conocimiento del proyecto.') })
+const readBatchInput = z.object({ batch_id: uuid.describe('Id del lote de propuestas.') }).strict();
+const searchInput = z
+  .object({ queryName: z.string().trim().min(1).max(500).describe('Texto que se busca en el conocimiento del proyecto.') })
   .strict();
 
-const entradaConversar = z
+const chatInput = z
   .object({
-    exploracion_id: uuid.describe('Id de la exploración donde se publica el mensaje.'),
-    pregunta_id: uuid.optional().describe('Id de la pregunta, si el mensaje va en su hilo.'),
-    texto: z.string().trim().min(1).max(20_000).describe('Texto del mensaje.'),
+    exploration_id: uuid.describe('Id de la exploración donde se publica el mensaje.'),
+    question_id: uuid.optional().describe('Id de la pregunta, si el mensaje va en su hilo.'),
+    text: z.string().trim().min(1).max(20_000).describe('Texto del mensaje.'),
   })
   .strict();
 
-const entradaRegistrarFuente = z
+const registerSourceInput = z
   .object({
-    nombre: z.string().trim().min(1).max(200).describe('Nombre de la fuente, por ejemplo VISION.md.'),
-    contenido: z.string().min(1).max(200_000).describe('Contenido completo de la fuente.'),
+    name: z.string().trim().min(1).max(200).describe('Nombre de la fuente, por ejemplo VISION.md.'),
+    content: z.string().min(1).max(200_000).describe('Contenido completo de la fuente.'),
   })
   .strict();
 
-const dependencias = z
-  .array(esquemaDependencia)
+const dependencies = z
+  .array(dependencySchema)
   .optional()
   .describe('Registros de los que depende la propuesta (id, código y versión vigente); si cambian, la propuesta queda obsoleta.');
 
-const propuesta = z.discriminatedUnion('tipo', [
-  z.object({ tipo: z.literal('decision'), carga: cargaDecision, dependencias }).strict(),
-  z.object({ tipo: z.literal('exploracion'), carga: cargaExploracion, dependencias }).strict(),
-  z.object({ tipo: z.literal('fdr'), carga: cargaFdr, dependencias }).strict(),
+const proposal = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('decision'), payload: decisionPayload, dependencies }).strict(),
+  z.object({ type: z.literal('exploration'), payload: explorationPayload, dependencies }).strict(),
+  z.object({ type: z.literal('fdr'), payload: fdrPayload, dependencies }).strict(),
 ]);
 
 // El máximo por lote lo aplica la API (con su motivo); aquí solo se documenta.
 const entradaProponer = z
   .object({
-    resumen: z.string().trim().max(2000).optional().describe('Resumen del lote para quien lo revise.'),
-    propuestas: z.array(propuesta).min(1).describe(`Propuestas del lote: como máximo ${MAX_PROPUESTAS_AGENTE_EXTERNO}.`),
+    summary: z.string().trim().max(2000).optional().describe('Resumen del lote para quien lo revise.'),
+    proposals: z.array(proposal).min(1).describe(`Propuestas del lote: como máximo ${MAX_EXTERNAL_AGENT_PROPOSALS}.`),
   })
   .strict();
 
 // Validación con mensajes en español. El SDK valida la entrada con mensajes en inglés; para
 // evitarlo recibe un esquema que anuncia el JSON Schema de Zod pero deja pasar el valor, y la
 // herramienta valida después con la configuración regional española de Zod.
-const errorEnEspanol = z.locales.es().localeError;
+const errorInSpanish = z.locales.es().localeError;
 
-function anunciar(esquema: z.ZodType): StandardSchemaWithJSON<unknown, unknown> {
+function announce(schema: z.ZodType): StandardSchemaWithJSON<unknown, unknown> {
   return {
     '~standard': {
       version: 1,
       vendor: 'demiurgo',
-      validate: (valor: unknown) => ({ value: valor }),
-      jsonSchema: esquema['~standard'].jsonSchema,
+      validate: (value: unknown) => ({ value: value }),
+      jsonSchema: schema['~standard'].jsonSchema,
     },
   };
 }
 
-function resultado(datos: Record<string, unknown>): CallToolResult {
-  return { content: [{ type: 'text', text: JSON.stringify(datos, null, 2) }], structuredContent: datos };
+function result(data: Record<string, unknown>): CallToolResult {
+  return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], structuredContent: data };
 }
 
-const CATEGORIAS: Record<string, string> = {
-  no_autenticado: 'Error de autenticación',
-  prohibido: 'Operación no permitida',
-  no_encontrado: 'No encontrado',
-  transicion_invalida: 'Transición no válida',
-  guarda: 'No se cumplen las condiciones',
-  conflicto: 'Conflicto',
-  validacion: 'Datos no válidos',
-  peticion: 'Petición no válida',
-  no_implementado: 'Aún no implementado',
-  no_disponible: 'No disponible',
-  sin_conexion: 'Sin conexión con la API',
-  argumentos: 'Argumentos no válidos',
+const CATEGORIES: Record<string, string> = {
+  unauthenticated: 'Error de autenticación',
+  forbidden: 'Operación no permitida',
+  not_found: 'No encontrado',
+  invalid_transition: 'Transición no válida',
+  guard: 'No se cumplen las condiciones',
+  conflict: 'Conflict',
+  validation: 'Datos no válidos',
+  request: 'Petición no válida',
+  not_implemented: 'Aún no implementado',
+  not_available: 'No disponible',
+  disconnected: 'Sin conexión con la API',
+  argList: 'Argumentos no válidos',
 };
 
-function errorHerramienta(e: Omit<ErrorApi, 'ok'>): CallToolResult {
-  const categoria = CATEGORIAS[e.error] ?? 'Error de la API';
-  const http = e.estado > 0 ? ` (HTTP ${e.estado})` : '';
-  const lineas = [`${categoria}${http}: ${e.mensaje}`];
-  if (e.motivos.length > 0) lineas.push('Motivos:', ...e.motivos.map((m) => `- ${m}`));
+function toolError(e: Omit<ApiError, 'ok'>): CallToolResult {
+  const category = CATEGORIES[e.error] ?? 'Error de la API';
+  const http = e.state > 0 ? ` (HTTP ${e.state})` : '';
+  const lines = [`${category}${http}: ${e.message}`];
+  if (e.reasons.length > 0) lines.push('Motivos:', ...e.reasons.map((m) => `- ${m}`));
   return {
-    content: [{ type: 'text', text: lineas.join('\n') }],
-    structuredContent: { error: e.error, mensaje: e.mensaje, motivos: e.motivos, estado_http: e.estado },
+    content: [{ type: 'text', text: lines.join('\n') }],
+    structuredContent: { error: e.error, message: e.message, reasons: e.reasons, http_status: e.state },
     isError: true,
   };
 }
 
-function objeto(datos: unknown, clave: string): Record<string, unknown> {
-  return typeof datos === 'object' && datos !== null && !Array.isArray(datos)
-    ? (datos as Record<string, unknown>)
-    : { [clave]: datos };
+function object(data: unknown, key: string): Record<string, unknown> {
+  return typeof data === 'object' && data !== null && !Array.isArray(data)
+    ? (data as Record<string, unknown>)
+    : { [key]: data };
 }
 
-type Definicion<E extends z.ZodType> = {
-  titulo: string;
-  descripcion: string;
-  entrada: E;
-  soloLectura: boolean;
-  ejecutar(args: z.output<E>, api: ClienteApi): Promise<CallToolResult>;
+type Definition<E extends z.ZodType> = {
+  title: string;
+  description: string;
+  input: E;
+  readOnly: boolean;
+  execute(args: z.output<E>, api: ApiClient): Promise<CallToolResult>;
 };
 
-function registrar<E extends z.ZodType>(servidor: McpServer, api: ClienteApi, nombre: NombreHerramienta, d: Definicion<E>): void {
-  servidor.registerTool(
-    nombre,
+function register<E extends z.ZodType>(server: McpServer, api: ApiClient, name: ToolName, d: Definition<E>): void {
+  server.registerTool(
+    name,
     {
-      title: d.titulo,
-      description: d.descripcion,
-      inputSchema: anunciar(d.entrada),
+      title: d.title,
+      description: d.description,
+      inputSchema: announce(d.input),
       annotations: {
-        title: d.titulo,
-        readOnlyHint: d.soloLectura,
+        title: d.title,
+        readOnlyHint: d.readOnly,
         destructiveHint: false,
-        idempotentHint: d.soloLectura,
+        idempotentHint: d.readOnly,
         openWorldHint: false,
       },
     },
     async (args: unknown) => {
-      const r = d.entrada.safeParse(args ?? {}, { error: errorEnEspanol });
+      const r = d.input.safeParse(args ?? {}, { error: errorInSpanish });
       if (!r.success) {
-        return errorHerramienta({
-          estado: 0,
-          error: 'argumentos',
-          mensaje: `La herramienta «${nombre}» recibió argumentos no válidos.`,
-          motivos: r.error.issues.map((i) => (i.path.length > 0 ? `${i.path.join('.')}: ${i.message}` : i.message)),
+        return toolError({
+          state: 0,
+          error: 'argList',
+          message: `La herramienta «${name}» recibió argumentos no válidos.`,
+          reasons: r.error.issues.map((i) => (i.path.length > 0 ? `${i.path.join('.')}: ${i.message}` : i.message)),
         });
       }
-      return d.ejecutar(r.data, api);
+      return d.execute(r.data, api);
     },
   );
 }
 
 /** Convierte una respuesta de la API en el resultado de la herramienta. */
-function responder(r: RespuestaApi, clave = 'datos'): CallToolResult {
-  return r.ok ? resultado(objeto(r.datos, clave)) : errorHerramienta(r);
+function respond(r: ApiResponse, key = 'data'): CallToolResult {
+  return r.ok ? result(object(r.data, key)) : toolError(r);
 }
 
 /** Comprueba la configuración antes de crear el servidor; lanza un error en español si no es válida. */
-export function comprobarOpcionesMcp(op: OpcionesServidorMcp): void {
+export function checkMcpOptions(op: McpServerOptions): void {
   let url: URL;
   try {
     url = new URL(op.urlApi);
@@ -209,145 +209,145 @@ export function comprobarOpcionesMcp(op: OpcionesServidorMcp): void {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new Error(`La URL de la API de DEMIURGO debe ser http o https: «${op.urlApi}».`);
   }
-  if (!op.token.startsWith(PREFIJO_TOKEN_AGENTE)) {
-    throw new Error(`El token de agente debe empezar por «${PREFIJO_TOKEN_AGENTE}».`);
+  if (!op.token.startsWith(AGENT_TOKEN_PREFIX)) {
+    throw new Error(`El token de agente debe empezar por «${AGENT_TOKEN_PREFIX}».`);
   }
-  if (!uuid.safeParse(op.proyectoId).success) {
-    throw new Error(`El id de proyecto no es válido: «${op.proyectoId}».`);
+  if (!uuid.safeParse(op.projectId).success) {
+    throw new Error(`El id de proyecto no es válido: «${op.projectId}».`);
   }
 }
 
 /** Crea el servidor MCP del canal de agentes sobre la API HTTP de DEMIURGO. */
-export function crearServidorMcp(op: OpcionesServidorMcp): McpServer {
-  comprobarOpcionesMcp(op);
-  const api = crearClienteApi(op);
-  const servidor = new McpServer(
+export function createMcpServer(op: McpServerOptions): McpServer {
+  checkMcpOptions(op);
+  const api = createApiClient(op);
+  const server = new McpServer(
     { name: 'demiurgo', title: 'DEMIURGO', version: VERSION },
-    { capabilities: { tools: {} }, instructions: INSTRUCCIONES },
+    { capabilities: { tools: {} }, instructions: INSTRUCTIONS },
   );
 
-  registrar(servidor, api, 'leer_estado_producto', {
-    titulo: 'Leer el estado del producto',
-    descripcion:
+  register(server, api, 'read_product_state', {
+    title: 'Leer el estado del producto',
+    description:
       'Devuelve el estado del producto: decisiones y diseños con su versión vigente, su estado epistémico y su readiness, las exploraciones y el recuento de la bandeja.',
-    entrada: sinArgumentos,
-    soloLectura: true,
-    ejecutar: async (_a, c) => responder(await c.leer('/estado')),
+    input: noArguments,
+    readOnly: true,
+    execute: async (_a, c) => respond(await c.read('/state')),
   });
 
-  registrar(servidor, api, 'leer_bandeja', {
-    titulo: 'Leer la bandeja',
-    descripcion:
+  register(server, api, 'read_inbox', {
+    title: 'Leer la bandeja',
+    description:
       'Devuelve la bandeja del proyecto: lotes pendientes con sus propuestas y su productor, preguntas por revisar y enlaces en revisión, cada elemento con su estado epistémico.',
-    entrada: sinArgumentos,
-    soloLectura: true,
-    ejecutar: async (_a, c) => responder(await c.leer('/bandeja')),
+    input: noArguments,
+    readOnly: true,
+    execute: async (_a, c) => respond(await c.read('/inbox')),
   });
 
-  registrar(servidor, api, 'leer_exploraciones', {
-    titulo: 'Listar las exploraciones',
-    descripcion: 'Lista las exploraciones del proyecto con su propósito, su estado y su origen.',
-    entrada: sinArgumentos,
-    soloLectura: true,
-    ejecutar: async (_a, c) => responder(await c.leer('/exploraciones'), 'exploraciones'),
+  register(server, api, 'read_explorations', {
+    title: 'Listar las exploraciones',
+    description: 'Lista las exploraciones del proyecto con su propósito, su estado y su origen.',
+    input: noArguments,
+    readOnly: true,
+    execute: async (_a, c) => respond(await c.read('/explorations'), 'explorations'),
   });
 
-  registrar(servidor, api, 'leer_exploracion', {
-    titulo: 'Leer una exploración',
-    descripcion:
+  register(server, api, 'read_exploration', {
+    title: 'Leer una exploración',
+    description:
       'Devuelve una exploración con su hilo de mensajes (cada uno con su autor), sus preguntas y sus exploraciones hijas.',
-    entrada: entradaLeerExploracion,
-    soloLectura: true,
-    ejecutar: async (a, c) => responder(await c.leer(`/exploraciones/${encodeURIComponent(a.exploracion_id)}`)),
+    input: readExplorationInput,
+    readOnly: true,
+    execute: async (a, c) => respond(await c.read(`/explorations/${encodeURIComponent(a.exploration_id)}`)),
   });
 
-  registrar(servidor, api, 'leer_registro', {
-    titulo: 'Leer un registro',
-    descripcion:
+  register(server, api, 'read_record', {
+    title: 'Leer un registro',
+    description:
       'Devuelve un registro (decisión, FDR, ADR o bug) por su código: sus versiones, secciones, criterios (AC) con su verificación, enlaces y readiness.',
-    entrada: entradaLeerRegistro,
-    soloLectura: true,
-    ejecutar: async (a, c) => responder(await c.leer(`/registros/${encodeURIComponent(a.codigo)}`)),
+    input: readRecordInput,
+    readOnly: true,
+    execute: async (a, c) => respond(await c.read(`/records/${encodeURIComponent(a.code)}`)),
   });
 
-  registrar(servidor, api, 'leer_lote', {
-    titulo: 'Leer un lote de propuestas',
-    descripcion: 'Devuelve un lote de propuestas con su productor, su modo de resolución y el estado de cada propuesta.',
-    entrada: entradaLeerLote,
-    soloLectura: true,
-    ejecutar: async (a, c) => responder(await c.leer(`/lotes/${encodeURIComponent(a.lote_id)}`)),
+  register(server, api, 'read_batch', {
+    title: 'Leer un lote de propuestas',
+    description: 'Devuelve un lote de propuestas con su productor, su modo de resolución y el estado de cada propuesta.',
+    input: readBatchInput,
+    readOnly: true,
+    execute: async (a, c) => respond(await c.read(`/batches/${encodeURIComponent(a.batch_id)}`)),
   });
 
-  registrar(servidor, api, 'leer_fuentes', {
-    titulo: 'Listar las fuentes',
-    descripcion: 'Lista las fuentes registradas en el proyecto con su nombre, su huella de contenido y quién las registró.',
-    entrada: sinArgumentos,
-    soloLectura: true,
-    ejecutar: async (_a, c) => responder(await c.leer('/fuentes'), 'fuentes'),
+  register(server, api, 'read_sources', {
+    title: 'Listar las fuentes',
+    description: 'Lista las fuentes registradas en el proyecto con su nombre, su huella de contenido y quién las registró.',
+    input: noArguments,
+    readOnly: true,
+    execute: async (_a, c) => respond(await c.read('/sources'), 'sources'),
   });
 
-  registrar(servidor, api, 'buscar_conocimiento', {
-    titulo: 'Buscar en el conocimiento',
-    descripcion:
+  register(server, api, 'search_knowledge', {
+    title: 'Buscar en el conocimiento',
+    description:
       'Busca en el conocimiento del proyecto (registros, exploraciones y fuentes) y devuelve los resultados más relevantes.',
-    entrada: entradaBuscar,
-    soloLectura: true,
-    async ejecutar(a, c) {
-      const r = await c.leer('/conocimiento/buscar', { q: a.consulta });
-      if (!r.ok && r.error === 'ruta_inexistente') {
-        return errorHerramienta({
-          estado: r.estado,
-          error: 'no_disponible',
-          mensaje: 'La búsqueda de conocimiento aún no está disponible.',
-          motivos: [],
+    input: searchInput,
+    readOnly: true,
+    async execute(a, c) {
+      const r = await c.read('/knowledge/search', { q: a.queryName });
+      if (!r.ok && r.error === 'nonexistent_path') {
+        return toolError({
+          state: r.state,
+          error: 'not_available',
+          message: 'La búsqueda de conocimiento aún no está disponible.',
+          reasons: [],
         });
       }
-      return responder(r, 'resultados');
+      return respond(r, 'results');
     },
   });
 
-  registrar(servidor, api, 'conversar', {
-    titulo: 'Conversar en una exploración',
-    descripcion:
+  register(server, api, 'converse', {
+    title: 'Conversar en una exploración',
+    description:
       'Publica un mensaje en el hilo de una exploración (o de una de sus preguntas) con el nombre de este agente como autor.',
-    entrada: entradaConversar,
-    soloLectura: false,
-    ejecutar: async (a, c) =>
-      responder(
-        await c.comando('message.post', {
-          exploracion_id: a.exploracion_id,
-          ...(a.pregunta_id ? { pregunta_id: a.pregunta_id } : {}),
-          texto: a.texto,
+    input: chatInput,
+    readOnly: false,
+    execute: async (a, c) =>
+      respond(
+        await c.command('message.post', {
+          exploration_id: a.exploration_id,
+          ...(a.question_id ? { question_id: a.question_id } : {}),
+          text: a.text,
         }),
       ),
   });
 
-  registrar(servidor, api, 'registrar_fuente', {
-    titulo: 'Registrar una fuente',
-    descripcion:
+  register(server, api, 'register_source', {
+    title: 'Registrar una fuente',
+    description:
       'Registra un documento como fuente del proyecto (por ejemplo VISION.md). Una fuente es una entrada no confiable: informa, pero no cambia ningún registro.',
-    entrada: entradaRegistrarFuente,
-    soloLectura: false,
-    ejecutar: async (a, c) => responder(await c.comando('source.register', { nombre: a.nombre, contenido: a.contenido })),
+    input: registerSourceInput,
+    readOnly: false,
+    execute: async (a, c) => respond(await c.command('source.register', { name: a.name, content: a.content })),
   });
 
-  registrar(servidor, api, 'proponer', {
-    titulo: 'Proponer',
-    descripcion: `Envía un lote de propuestas (decisión, exploración o FDR con sus criterios) a la bandeja del proyecto. Como máximo ${MAX_PROPUESTAS_AGENTE_EXTERNO} propuestas por lote. Las propuestas quedan pendientes y una persona las resuelve una a una; este agente no puede resolverlas.`,
-    entrada: entradaProponer,
-    soloLectura: false,
-    ejecutar: async (a, c) =>
-      responder(
-        await c.comando('batch.submit', {
-          ...(a.resumen ? { resumen: a.resumen } : {}),
-          propuestas: a.propuestas.map((p) => ({
-            tipo: p.tipo,
-            carga: p.carga,
-            ...(p.dependencias ? { dependencias: p.dependencias } : {}),
+  register(server, api, 'propose', {
+    title: 'Propose',
+    description: `Envía un lote de propuestas (decisión, exploración o FDR con sus criterios) a la bandeja del proyecto. Como máximo ${MAX_EXTERNAL_AGENT_PROPOSALS} propuestas por lote. Las propuestas quedan pendientes y una persona las resuelve una a una; este agente no puede resolverlas.`,
+    input: entradaProponer,
+    readOnly: false,
+    execute: async (a, c) =>
+      respond(
+        await c.command('batch.submit', {
+          ...(a.summary ? { summary: a.summary } : {}),
+          proposals: a.proposals.map((p) => ({
+            type: p.type,
+            payload: p.payload,
+            ...(p.dependencies ? { dependencies: p.dependencies } : {}),
           })),
         }),
       ),
   });
 
-  return servidor;
+  return server;
 }

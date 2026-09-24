@@ -7,64 +7,64 @@ import { fileURLToPath } from 'node:url';
 import type { Pool } from 'pg';
 import { sha256 } from '@demiurgo/domain';
 
-export const DIR_MIGRACIONES = fileURLToPath(new URL('../../migraciones/', import.meta.url));
+export const MIGRATIONS_DIR = fileURLToPath(new URL('../../migrations/', import.meta.url));
 
-export type Migracion = { version: string; nombre: string; sql: string; checksum: string };
+export type Migration = { version: string; name: string; sql: string; checksum: string };
 
-export async function leerMigraciones(dir = DIR_MIGRACIONES): Promise<Migracion[]> {
-  const archivos = (await readdir(dir)).filter((a) => /^\d{4}_[a-z0-9_]+\.sql$/.test(a)).sort();
-  const migraciones: Migracion[] = [];
-  for (const archivo of archivos) {
-    const sql = (await readFile(join(dir, archivo), 'utf8')).replaceAll('\r\n', '\n');
-    migraciones.push({ version: archivo.slice(0, 4), nombre: archivo.slice(5, -4), sql, checksum: sha256(sql) });
+export async function readMigrations(dir = MIGRATIONS_DIR): Promise<Migration[]> {
+  const files = (await readdir(dir)).filter((a) => /^\d{4}_[a-z0-9_]+\.sql$/.test(a)).sort();
+  const migrations: Migration[] = [];
+  for (const file of files) {
+    const sql = (await readFile(join(dir, file), 'utf8')).replaceAll('\r\n', '\n');
+    migrations.push({ version: file.slice(0, 4), name: file.slice(5, -4), sql, checksum: sha256(sql) });
   }
-  return migraciones;
+  return migrations;
 }
 
-const BLOQUEO_MIGRACIONES = 7_421_001;
+const MIGRATIONS_LOCK = 7_421_001;
 
-export async function migrar(pool: Pool, migraciones?: Migracion[]): Promise<string[]> {
-  const lista = migraciones ?? (await leerMigraciones());
-  const cliente = await pool.connect();
-  const aplicadas: string[] = [];
+export async function migrate(pool: Pool, migrations?: Migration[]): Promise<string[]> {
+  const list = migrations ?? (await readMigrations());
+  const client = await pool.connect();
+  const applied: string[] = [];
   try {
-    await cliente.query('select pg_advisory_lock($1)', [BLOQUEO_MIGRACIONES]);
-    await cliente.query(`create table if not exists schema_migrations (
+    await client.query('select pg_advisory_lock($1)', [MIGRATIONS_LOCK]);
+    await client.query(`create table if not exists schema_migrations (
       version text primary key, name text not null, checksum text not null, applied_at timestamptz not null default now())`);
-    const { rows } = await cliente.query<{ version: string; checksum: string }>(
+    const { rows } = await client.query<{ version: string; checksum: string }>(
       'select version, checksum from schema_migrations',
     );
-    const previas = new Map(rows.map((r) => [r.version, r.checksum]));
-    const enDisco = new Set(lista.map((m) => m.version));
-    const perdidas = [...previas.keys()].filter((v) => !enDisco.has(v));
+    const priors = new Map(rows.map((r) => [r.version, r.checksum]));
+    const onDisk = new Set(list.map((m) => m.version));
+    const perdidas = [...priors.keys()].filter((v) => !onDisk.has(v));
     if (perdidas.length)
       throw new Error(`Faltan en disco migraciones ya aplicadas (${perdidas.join(', ')}); no se puede arrancar.`);
-    for (const m of lista) {
-      const previa = previas.get(m.version);
-      if (previa !== undefined) {
-        if (previa !== m.checksum) {
-          throw new Error(`La migración ${m.version}_${m.nombre} ya aplicada ha cambiado; no se puede arrancar.`);
+    for (const m of list) {
+      const prior = priors.get(m.version);
+      if (prior !== undefined) {
+        if (prior !== m.checksum) {
+          throw new Error(`La migración ${m.version}_${m.name} ya aplicada ha cambiado; no se puede arrancar.`);
         }
         continue;
       }
-      await cliente.query('begin');
+      await client.query('begin');
       try {
-        await cliente.query(m.sql);
-        await cliente.query('insert into schema_migrations (version, name, checksum) values ($1, $2, $3)', [
+        await client.query(m.sql);
+        await client.query('insert into schema_migrations (version, name, checksum) values ($1, $2, $3)', [
           m.version,
-          m.nombre,
+          m.name,
           m.checksum,
         ]);
-        await cliente.query('commit');
-        aplicadas.push(`${m.version}_${m.nombre}`);
+        await client.query('commit');
+        applied.push(`${m.version}_${m.name}`);
       } catch (e) {
-        await cliente.query('rollback');
+        await client.query('rollback');
         throw e;
       }
     }
-    return aplicadas;
+    return applied;
   } finally {
-    await cliente.query('select pg_advisory_unlock($1)', [BLOQUEO_MIGRACIONES]).catch(() => undefined);
-    cliente.release();
+    await client.query('select pg_advisory_unlock($1)', [MIGRATIONS_LOCK]).catch(() => undefined);
+    client.release();
   }
 }

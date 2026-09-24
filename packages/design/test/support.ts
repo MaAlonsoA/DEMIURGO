@@ -1,94 +1,94 @@
 // Constructores de documentos y árboles de `design/` para las pruebas del formato.
 
-import { renderizarDocumento } from '../src/formato.ts';
-import { README_DISENO } from '../src/readme.ts';
+import { renderDocument } from '../src/format.ts';
+import { README_DESIGN } from '../src/readme.ts';
 import {
-  CARPETAS,
-  PLANTILLAS,
-  type Criterio,
-  type Documento,
-  type DocumentoRegistro,
-  type DocumentoTaxonomia,
-  type Problema,
-  type Resultado,
-  type TipoRegistro,
-} from '../src/tipos.ts';
+  FOLDERS,
+  TEMPLATES,
+  type Criterion,
+  type Document,
+  type RecordDocument,
+  type TaxonomyDocument,
+  type Problem,
+  type Result,
+  type RecordType,
+} from '../src/types.ts';
 
-export function criterio(codigo: string, parcial: Partial<Criterio> = {}): Criterio {
+export function criterion(code: string, partial: Partial<Criterion> = {}): Criterion {
   return {
-    codigo,
-    titulo: 'Criterio de prueba',
-    verificacion: 'automática',
-    comprobacion: 'Se comprueba con una prueba.',
-    enunciado: 'Dado algo, cuando pasa, entonces se observa.',
-    ...parcial,
+    code,
+    title: 'Criterio de prueba',
+    verification: 'automática',
+    check: 'Se comprueba con una prueba.',
+    statement: 'Dado algo, cuando pasa, entonces se observa.',
+    ...partial,
   };
 }
 
 /** Registro válido del tipo dado: secciones de su plantilla y, si las exige, un criterio. */
-export function registro(tipo: TipoRegistro, codigo: string, parcial: Partial<DocumentoRegistro> = {}): DocumentoRegistro {
-  const plantilla = PLANTILLAS[tipo];
+export function record(type: RecordType, code: string, partial: Partial<RecordDocument> = {}): RecordDocument {
+  const template = TEMPLATES[type];
   return {
-    clase: 'registro',
-    tipo,
-    codigo,
-    titulo: `Registro ${codigo}`,
+    kind: 'record',
+    type,
+    code,
+    title: `Registro ${code}`,
     version: 1,
-    estado: 'propuesto',
-    dominio: 'pruebas',
-    enlaces: [],
-    anexos: [],
-    secciones: plantilla.secciones.map((titulo) => ({ titulo, contenido: `Texto de ${titulo.toLowerCase()}.` })),
-    criterios: plantilla.exigeCriterios ? [criterio(`AC-${codigo.slice(4)}-01`)] : [],
-    ...parcial,
+    state: 'proposed',
+    domain: 'tests',
+    links: [],
+    annexes: [],
+    sections: template.sections.map((title) => ({ title, content: `Texto de ${title.toLowerCase()}.` })),
+    criteria: template.requiresCriteria ? [criterion(`AC-${code.slice(4)}-01`)] : [],
+    ...partial,
   };
 }
 
-export function taxonomia(codigo: string, parcial: Partial<DocumentoTaxonomia> = {}): DocumentoTaxonomia {
+export function taxonomy(code: string, partial: Partial<TaxonomyDocument> = {}): TaxonomyDocument {
   return {
-    clase: 'taxonomia',
-    codigo,
-    titulo: 'Taxonomía de prueba',
+    kind: 'taxonomy',
+    code,
+    title: 'Taxonomía de prueba',
     version: 1,
-    estado: 'propuesto',
-    ejes: [
+    state: 'proposed',
+    axes: [
       {
-        codigo: 'area',
-        nombre: 'Área',
-        categorias: [
-          { codigo: 'nucleo', nombre: 'Núcleo', descripcion: 'El núcleo del sistema.' },
-          { codigo: 'otra', nombre: 'Otra', descripcion: 'Ninguna encaja sin forzarla.' },
+        code: 'area',
+        name: 'Área',
+        categories: [
+          { code: 'core', name: 'Núcleo', description: 'El núcleo del sistema.' },
+          { code: 'other', name: 'Other', description: 'Ninguna encaja sin forzarla.' },
         ],
       },
     ],
-    secciones: [{ titulo: 'Propósito', contenido: 'Organizar el conocimiento.' }],
-    ...parcial,
+    sections: [{ title: 'Propósito', content: 'Organizar el conocimiento.' }],
+    ...partial,
   };
 }
 
-export function rutaDe(doc: Documento): string {
-  return `${CARPETAS[doc.clase === 'taxonomia' ? 'taxonomia' : doc.tipo]}/${doc.codigo}.md`;
+export function pathOf(doc: Document): string {
+  return `${FOLDERS[doc.kind === 'taxonomy' ? 'taxonomy' : doc.type]}/${doc.code}.md`;
 }
 
 /** Árbol con el README fijo, los documentos renderizados en su ruta y archivos extra. */
-export function arbolCon(docs: readonly Documento[], extra: Readonly<Record<string, string>> = {}): Map<string, string> {
-  const arbol = new Map<string, string>([['README.md', README_DISENO]]);
-  for (const d of docs) arbol.set(rutaDe(d), renderizarDocumento(d));
-  for (const [ruta, texto] of Object.entries(extra)) arbol.set(ruta, texto);
-  return arbol;
+export function treeWith(docs: readonly Document[], extra: Readonly<Record<string, string>> = {}): Map<string, string> {
+  const tree = new Map<string, string>([['README.md', README_DESIGN]]);
+  for (const d of docs) tree.set(pathOf(d), renderDocument(d));
+  for (const [path, text] of Object.entries(extra)) tree.set(path, text);
+  return tree;
 }
 
-export function valor<T>(r: Resultado<T>): T {
-  if (!r.ok) throw new Error(`Se esperaba un resultado válido: ${JSON.stringify(r.problemas)}`);
-  return r.valor;
+export function value<T>(r: Result<T>): T {
+  if (!r.ok) throw new Error(`Se esperaba un resultado válido: ${JSON.stringify(r.problems)}`);
+  return r.value;
 }
 
 /** Mensajes de un resultado fallido; si el resultado es válido, la prueba falla. */
-export function fallos(r: Resultado<unknown>): string[] {
+export function failures(r: Result<unknown>): string[] {
   if (r.ok) throw new Error('Se esperaba un resultado con problemas.');
-  return r.problemas.map((p) => p.mensaje);
+  return r.problems.map((p) => p.message);
 }
 
-export function mensajesDe(informe: { problemas: readonly Problema[] }): string[] {
-  return informe.problemas.map((p) => p.mensaje);
+export function messagesOf(report: { problems: readonly Problem[] }): string[] {
+  return report.problems.map((p) => p.message);
 }

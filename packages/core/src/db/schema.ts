@@ -3,27 +3,27 @@
 
 import type { ColumnType, Generated, Insertable, Selectable } from 'kysely';
 
-type Marca = ColumnType<Date, Date | string | undefined, Date | string>;
-type MarcaNula = ColumnType<Date | null, Date | string | null | undefined, Date | string | null>;
+type Timestamp = ColumnType<Date, Date | string | undefined, Date | string>;
+type NullableTimestamp = ColumnType<Date | null, Date | string | null | undefined, Date | string | null>;
 type Json = ColumnType<unknown, string, string>;
-type JsonNulo = ColumnType<unknown, string | null | undefined, string | null>;
-type Entero64 = ColumnType<string, number | string | bigint, number | string | bigint>;
-type IdentidadGenerada = ColumnType<string, never, never>;
-type Contador = ColumnType<string, number | string | undefined, number | string>;
+type NullableJson = ColumnType<unknown, string | null | undefined, string | null>;
+type Int64 = ColumnType<string, number | string | bigint, number | string | bigint>;
+type GeneratedIdentity = ColumnType<string, never, never>;
+type Counter = ColumnType<string, number | string | undefined, number | string>;
 
-export type TablaProyectos = {
+export type ProjectsTable = {
   id: Generated<string>;
   name: string;
   state: string;
-  event_seq: Contador;
-  created_at: Generated<Marca>;
+  event_seq: Counter;
+  created_at: Generated<Timestamp>;
 };
 
-export type TablaEventos = {
-  id: IdentidadGenerada;
+export type EventsTable = {
+  id: GeneratedIdentity;
   project_id: string;
-  seq: Entero64;
-  at: Generated<Marca>;
+  seq: Int64;
+  at: Generated<Timestamp>;
   actor: string;
   command: string;
   entity_type: string;
@@ -31,43 +31,43 @@ export type TablaEventos = {
   entity_version: number | null;
   state_before: string | null;
   state_after: string | null;
-  before: JsonNulo;
-  after: JsonNulo;
-  cause: JsonNulo;
+  before: NullableJson;
+  after: NullableJson;
+  cause: NullableJson;
 };
 
-export type TablaPersonas = {
+export type HumansTable = {
   id: Generated<string>;
   username: string;
   password_hash: string;
-  created_at: Generated<Marca>;
+  created_at: Generated<Timestamp>;
 };
 
-export type TablaSesiones = {
+export type SessionsTable = {
   id: Generated<string>;
   human_id: string;
   token_hash: string;
   csrf_hash: string;
-  created_at: Generated<Marca>;
-  expires_at: Marca;
-  revoked_at: MarcaNula;
+  created_at: Generated<Timestamp>;
+  expires_at: Timestamp;
+  revoked_at: NullableTimestamp;
 };
 
-export type TablaContextPacks = {
+export type ContextPacksTable = {
   id: Generated<string>;
   project_id: string;
   role: string;
   builder: string;
   budget: Json;
-  graph_version: Entero64;
+  graph_version: Int64;
   dependencies: Json;
   content: Json;
   hash: string;
   state: string;
-  created_at: Generated<Marca>;
+  created_at: Generated<Timestamp>;
 };
 
-export type TablaRuns = {
+export type RunsTable = {
   id: Generated<string>;
   project_id: string;
   action: string;
@@ -81,42 +81,42 @@ export type TablaRuns = {
   state: string;
   failure_kind: string | null;
   error: string | null;
-  output: JsonNulo;
-  usage: JsonNulo;
+  output: NullableJson;
+  usage: NullableJson;
   requested_by: string;
-  created_at: Generated<Marca>;
-  started_at: MarcaNula;
-  finished_at: MarcaNula;
+  created_at: Generated<Timestamp>;
+  started_at: NullableTimestamp;
+  finished_at: NullableTimestamp;
 };
 
-export type TablaRegistrosRun = {
+export type RunLogsTable = {
   id: Generated<string>;
   project_id: string;
   run_id: string;
   attempt: number;
   raw_gzip: Buffer;
-  created_at: Generated<Marca>;
+  created_at: Generated<Timestamp>;
 };
 
-export type TablaPasosCompletados = {
+export type StepCompletionsTable = {
   workflow_id: string;
   step: string;
-  result: JsonNulo;
-  completed_at: Generated<Marca>;
+  result: NullableJson;
+  completed_at: Generated<Timestamp>;
 };
 
-export type TablaTokensAgente = {
+export type AgentTokensTable = {
   id: Generated<string>;
   project_id: string;
   name: string;
   token_hash: string;
   state: string;
   issued_by: string;
-  created_at: Generated<Marca>;
-  revoked_at: MarcaNula;
+  created_at: Generated<Timestamp>;
+  revoked_at: NullableTimestamp;
 };
 
-export type TablaExploraciones = {
+export type ExplorationsTable = {
   id: Generated<string>;
   project_id: string;
   parent_id: string | null;
@@ -127,10 +127,10 @@ export type TablaExploraciones = {
   state: string;
   state_reason: string | null;
   opened_by: string;
-  created_at: Generated<Marca>;
+  created_at: Generated<Timestamp>;
 };
 
-export type TablaPreguntas = {
+export type QuestionsTable = {
   id: Generated<string>;
   project_id: string;
   exploration_id: string;
@@ -142,10 +142,10 @@ export type TablaPreguntas = {
   state: string;
   state_reason: string | null;
   raised_by: string;
-  created_at: Generated<Marca>;
+  created_at: Generated<Timestamp>;
 };
 
-export type TablaMensajes = {
+export type MessagesTable = {
   id: Generated<string>;
   project_id: string;
   exploration_id: string;
@@ -155,10 +155,10 @@ export type TablaMensajes = {
   kind: string | null;
   body: string;
   state: string;
-  created_at: Generated<Marca>;
+  created_at: Generated<Timestamp>;
 };
 
-export type TablaFuentes = {
+export type SourcesTable = {
   id: Generated<string>;
   project_id: string;
   name: string;
@@ -166,20 +166,20 @@ export type TablaFuentes = {
   content_hash: string;
   registered_by: string;
   state: string;
-  created_at: Generated<Marca>;
+  created_at: Generated<Timestamp>;
 };
 
-export type TablaRegistros = {
+export type RecordsTable = {
   id: Generated<string>;
   project_id: string;
   code: string;
   type: string;
   domain: string;
   state: string;
-  created_at: Generated<Marca>;
+  created_at: Generated<Timestamp>;
 };
 
-export type TablaVersiones = {
+export type VersionsTable = {
   id: Generated<string>;
   project_id: string;
   record_id: string;
@@ -189,16 +189,16 @@ export type TablaVersiones = {
   annexes: Json;
   increment: string | null;
   change_note: string | null;
-  origin: JsonNulo;
+  origin: NullableJson;
   author: string;
   content_hash: string;
   state: string;
-  created_at: Generated<Marca>;
-  approved_at: MarcaNula;
+  created_at: Generated<Timestamp>;
+  approved_at: NullableTimestamp;
   approved_by: string | null;
 };
 
-export type TablaCriterios = {
+export type CriteriaTable = {
   id: Generated<string>;
   project_id: string;
   record_version_id: string;
@@ -211,10 +211,10 @@ export type TablaCriterios = {
   carry: string;
   position: number;
   state: string;
-  created_at: Generated<Marca>;
+  created_at: Generated<Timestamp>;
 };
 
-export type TablaEnlaces = {
+export type LinksTable = {
   id: Generated<string>;
   project_id: string;
   type: string;
@@ -226,10 +226,10 @@ export type TablaEnlaces = {
   to_version: number | null;
   state: string;
   created_by: string;
-  created_at: Generated<Marca>;
+  created_at: Generated<Timestamp>;
 };
 
-export type TablaLotes = {
+export type BatchesTable = {
   id: Generated<string>;
   project_id: string;
   kind: string;
@@ -241,12 +241,12 @@ export type TablaLotes = {
   summary: string | null;
   tree_hash: string | null;
   state: string;
-  created_at: Generated<Marca>;
-  resolved_at: MarcaNula;
+  created_at: Generated<Timestamp>;
+  resolved_at: NullableTimestamp;
   resolved_by: string | null;
 };
 
-export type TablaPropuestas = {
+export type ProposalsTable = {
   id: Generated<string>;
   project_id: string;
   batch_id: string;
@@ -255,13 +255,13 @@ export type TablaPropuestas = {
   payload: Json;
   dependencies: Json;
   state: string;
-  resolution: JsonNulo;
+  resolution: NullableJson;
   resolved_by: string | null;
-  resolved_at: MarcaNula;
-  created_at: Generated<Marca>;
+  resolved_at: NullableTimestamp;
+  created_at: Generated<Timestamp>;
 };
 
-export type TablaTaxonomias = {
+export type TaxonomiesTable = {
   id: Generated<string>;
   project_id: string;
   code: string;
@@ -272,18 +272,18 @@ export type TablaTaxonomias = {
   content_hash: string;
   state: string;
   author: string;
-  created_at: Generated<Marca>;
-  approved_at: MarcaNula;
+  created_at: Generated<Timestamp>;
+  approved_at: NullableTimestamp;
   approved_by: string | null;
 };
 
-export type TablaEstadoGrafo = {
+export type GraphStateTable = {
   project_id: string;
-  version: Contador;
+  version: Counter;
   last_update_id: string | null;
 };
 
-export type TablaNodos = {
+export type NodesTable = {
   id: Generated<string>;
   project_id: string;
   ref: string;
@@ -295,55 +295,55 @@ export type TablaNodos = {
   body: string;
   categories: Json;
   epistemic: string;
-  valid_from: Entero64;
+  valid_from: Int64;
   valid_to: ColumnType<string | null, number | string | null | undefined, number | string | null>;
   created_by_update: string | null;
   state: string;
-  created_at: Generated<Marca>;
+  created_at: Generated<Timestamp>;
 };
 
-export type TablaAristas = {
+export type EdgesTable = {
   id: Generated<string>;
   project_id: string;
   kind: string;
   from_node: string;
   to_node: string;
-  valid_from: Entero64;
+  valid_from: Int64;
   valid_to: ColumnType<string | null, number | string | null | undefined, number | string | null>;
   created_by_update: string | null;
   state: string;
-  created_at: Generated<Marca>;
+  created_at: Generated<Timestamp>;
 };
 
-export type TablaActualizaciones = {
+export type UpdatesTable = {
   id: Generated<string>;
   project_id: string;
   trigger: Json;
-  trigger_seq: Entero64;
-  change: JsonNulo;
-  candidates: JsonNulo;
+  trigger_seq: Int64;
+  change: NullableJson;
+  candidates: NullableJson;
   candidates_hash: string | null;
   input_hash: string | null;
   classifier: string | null;
-  verdicts: JsonNulo;
-  verification: JsonNulo;
-  operations: JsonNulo;
+  verdicts: NullableJson;
+  verification: NullableJson;
+  operations: NullableJson;
   graph_version_before: ColumnType<string | null, number | string | null | undefined, number | string | null>;
   graph_version_after: ColumnType<string | null, number | string | null | undefined, number | string | null>;
   failure: string | null;
   state: string;
-  created_at: Generated<Marca>;
-  finished_at: MarcaNula;
+  created_at: Generated<Timestamp>;
+  finished_at: NullableTimestamp;
 };
 
-export type TablaCacheVeredictos = {
+export type VerdictCacheTable = {
   input_hash: string;
   classifier: string;
   answers: Json;
-  created_at: Generated<Marca>;
+  created_at: Generated<Timestamp>;
 };
 
-export type TablaClasificaciones = {
+export type ClassificationsTable = {
   id: Generated<string>;
   project_id: string;
   node_ref: string;
@@ -355,25 +355,25 @@ export type TablaClasificaciones = {
   classifier: string;
   input_hash: string;
   update_id: string | null;
-  resolution: JsonNulo;
+  resolution: NullableJson;
   resolved_by: string | null;
   state: string;
-  created_at: Generated<Marca>;
+  created_at: Generated<Timestamp>;
 };
 
-export type TablaEvaluacionesIdea = {
+export type IdeaAssessmentsTable = {
   id: Generated<string>;
   project_id: string;
   proposal_id: string;
   findings: Json;
-  graph_version: Entero64;
+  graph_version: Int64;
   classifier: string;
   input_hash: string;
   state: string;
-  created_at: Generated<Marca>;
+  created_at: Generated<Timestamp>;
 };
 
-export type TablaEvaluacionesClasificador = {
+export type ClassifierEvaluationsTable = {
   id: Generated<string>;
   classifier: string;
   dataset: string;
@@ -381,39 +381,39 @@ export type TablaEvaluacionesClasificador = {
   task: string;
   metrics: Json;
   file: string | null;
-  created_at: Generated<Marca>;
+  created_at: Generated<Timestamp>;
 };
 
-export type BD = {
-  projects: TablaProyectos;
-  events: TablaEventos;
-  humans: TablaPersonas;
-  sessions: TablaSesiones;
-  context_packs: TablaContextPacks;
-  ai_runs: TablaRuns;
-  ai_run_logs: TablaRegistrosRun;
-  step_completions: TablaPasosCompletados;
-  agent_tokens: TablaTokensAgente;
-  explorations: TablaExploraciones;
-  questions: TablaPreguntas;
-  messages: TablaMensajes;
-  sources: TablaFuentes;
-  records: TablaRegistros;
-  record_versions: TablaVersiones;
-  criteria: TablaCriterios;
-  links: TablaEnlaces;
-  proposal_batches: TablaLotes;
-  proposals: TablaPropuestas;
-  taxonomies: TablaTaxonomias;
-  knowledge_graph_state: TablaEstadoGrafo;
-  knowledge_nodes: TablaNodos;
-  knowledge_edges: TablaAristas;
-  knowledge_updates: TablaActualizaciones;
-  verdict_cache: TablaCacheVeredictos;
-  classifications: TablaClasificaciones;
-  idea_assessments: TablaEvaluacionesIdea;
-  classifier_evaluations: TablaEvaluacionesClasificador;
+export type DB = {
+  projects: ProjectsTable;
+  events: EventsTable;
+  humans: HumansTable;
+  sessions: SessionsTable;
+  context_packs: ContextPacksTable;
+  ai_runs: RunsTable;
+  ai_run_logs: RunLogsTable;
+  step_completions: StepCompletionsTable;
+  agent_tokens: AgentTokensTable;
+  explorations: ExplorationsTable;
+  questions: QuestionsTable;
+  messages: MessagesTable;
+  sources: SourcesTable;
+  records: RecordsTable;
+  record_versions: VersionsTable;
+  criteria: CriteriaTable;
+  links: LinksTable;
+  proposal_batches: BatchesTable;
+  proposals: ProposalsTable;
+  taxonomies: TaxonomiesTable;
+  knowledge_graph_state: GraphStateTable;
+  knowledge_nodes: NodesTable;
+  knowledge_edges: EdgesTable;
+  knowledge_updates: UpdatesTable;
+  verdict_cache: VerdictCacheTable;
+  classifications: ClassificationsTable;
+  idea_assessments: IdeaAssessmentsTable;
+  classifier_evaluations: ClassifierEvaluationsTable;
 };
 
-export type Fila<T extends keyof BD> = Selectable<BD[T]>;
-export type NuevaFila<T extends keyof BD> = Insertable<BD[T]>;
+export type Row<T extends keyof DB> = Selectable<DB[T]>;
+export type NewRow<T extends keyof DB> = Insertable<DB[T]>;

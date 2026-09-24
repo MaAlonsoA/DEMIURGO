@@ -4,25 +4,25 @@
 // anotadas en la actualización. El id combina los dos, así que la caché por input_hash
 // distingue la cascada del clasificador base y la reconstrucción la reproduce desde la caché.
 
-import { type Clasificador, UMBRALES_POR_DEFECTO, type Umbrales, enrutarPorConfianza } from '@demiurgo/domain';
+import { type Classifier, DEFAULT_THRESHOLDS, type Thresholds, routeByConfidence } from '@demiurgo/domain';
 
-export function crearClasificadorEnCascada(
-  base: Clasificador,
-  revisor: Clasificador,
-  umbrales: Umbrales = UMBRALES_POR_DEFECTO,
-): Clasificador {
+export function createCascadeClassifier(
+  base: Classifier,
+  reviewer: Classifier,
+  thresholds: Thresholds = DEFAULT_THRESHOLDS,
+): Classifier {
   return {
-    id: `${base.id}>${revisor.id}`,
+    id: `${base.id}>${reviewer.id}`,
     async choice(items) {
-      const respuestas = await base.choice(items);
-      const medias = new Set(
-        respuestas.filter((r) => enrutarPorConfianza(r.confianza, umbrales) === 'revisar_llm').map((r) => r.id),
+      const responses = await base.choice(items);
+      const averages = new Set(
+        responses.filter((r) => routeByConfidence(r.confidence, thresholds) === 'review_llm').map((r) => r.id),
       );
-      if (medias.size === 0) return respuestas;
-      const revisadas = new Map((await revisor.choice(items.filter((i) => medias.has(i.id)))).map((r) => [r.id, r]));
-      return respuestas.map((r) => {
-        const revisada = medias.has(r.id) ? revisadas.get(r.id) : undefined;
-        return revisada ? { ...revisada, revisadoPor: revisor.id } : r;
+      if (averages.size === 0) return responses;
+      const reviewedById = new Map((await reviewer.choice(items.filter((i) => averages.has(i.id)))).map((r) => [r.id, r]));
+      return responses.map((r) => {
+        const reviewed = averages.has(r.id) ? reviewedById.get(r.id) : undefined;
+        return reviewed ? { ...reviewed, reviewedBy: reviewer.id } : r;
       });
     },
     score: (items) => base.score(items),

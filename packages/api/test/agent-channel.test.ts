@@ -2,160 +2,160 @@
 // propuestas. Todo lo demás, 403 (lista de permitidos generada desde la matriz).
 
 import { randomUUID } from 'node:crypto';
-import { NOMBRES_COMANDO, definicionComando } from '@demiurgo/domain';
+import { COMMAND_NAMES, commandDefinition } from '@demiurgo/domain';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { usarApi } from './soporte/api.ts';
+import { useApi } from './support/api.ts';
 
-const api = usarApi();
-let proyectoId = '';
-let exploracionId = '';
+const api = useApi();
+let projectId = '';
+let explorationId = '';
 let token = '';
 let tokenId = '';
 
-async function comoPersona(nombre: string, datos: unknown, entidadId?: string) {
-  const r = await api().persona.pedir('POST', `/api/proyectos/${proyectoId}/comandos/${nombre}`, {
-    ...(entidadId ? { entidad_id: entidadId } : {}),
-    datos,
+async function asPerson(name: string, data: unknown, entityId?: string) {
+  const r = await api().person.request('POST', `/api/projects/${projectId}/commands/${name}`, {
+    ...(entityId ? { entity_id: entityId } : {}),
+    data,
   });
-  if (r.statusCode !== 200) throw new Error(`${nombre}: ${r.body}`);
-  return r.json<{ entidad_id: string; resultado: Record<string, unknown> }>();
+  if (r.statusCode !== 200) throw new Error(`${name}: ${r.body}`);
+  return r.json<{ entity_id: string; result: Record<string, unknown> }>();
 }
 
 beforeAll(async () => {
-  const p = await api().persona.pedir('POST', '/api/proyectos', { nombre: 'Canal' });
-  proyectoId = p.json<{ proyecto_id: string }>().proyecto_id;
-  exploracionId = (await comoPersona('exploration.open', { proposito: 'Invitados a los eventos' })).entidad_id;
-  const t = await comoPersona('agent_token.issue', { nombre: 'claude-code' });
-  token = String(t.resultado.token);
-  tokenId = t.entidad_id;
+  const p = await api().person.request('POST', '/api/projects', { name: 'Channel' });
+  projectId = p.json<{ project_id: string }>().project_id;
+  explorationId = (await asPerson('exploration.open', { purpose: 'Invitados a los eventos' })).entity_id;
+  const t = await asPerson('agent_token.issue', { name: 'claude-code' });
+  token = String(t.result.token);
+  tokenId = t.entity_id;
 });
 
 describe('canal de agentes por la API', () => {
   it('AC-DIS-001-02 con token, un agente lee, conversa con su nombre, registra una fuente y propone; la persona acepta', async () => {
-    const agente = api().agente(token);
-    expect((await agente.pedir('GET', `/api/proyectos/${proyectoId}/estado`)).statusCode).toBe(200);
-    expect((await agente.pedir('GET', `/api/proyectos/${proyectoId}/exploraciones/${exploracionId}`)).statusCode).toBe(200);
+    const agent = api().agent(token);
+    expect((await agent.request('GET', `/api/projects/${projectId}/state`)).statusCode).toBe(200);
+    expect((await agent.request('GET', `/api/projects/${projectId}/explorations/${explorationId}`)).statusCode).toBe(200);
 
-    const m = await agente.pedir('POST', `/api/proyectos/${proyectoId}/comandos/message.post`, {
-      datos: { exploracion_id: exploracionId, texto: 'Propongo limitar los invitados a dos por socio.' },
+    const m = await agent.request('POST', `/api/projects/${projectId}/commands/message.post`, {
+      data: { exploration_id: explorationId, text: 'Propongo limitar los invitados a dos por socio.' },
     });
     expect(m.statusCode).toBe(200);
-    const detalle = await agente.pedir('GET', `/api/proyectos/${proyectoId}/exploraciones/${exploracionId}`);
-    const mensajes = detalle.json<{ mensajes: { author: string; body: string }[] }>().mensajes;
-    expect(mensajes.at(-1)?.author).toBe(`agent:claude-code:${tokenId}`);
+    const detail = await agent.request('GET', `/api/projects/${projectId}/explorations/${explorationId}`);
+    const messages = detail.json<{ messages: { author: string; body: string }[] }>().messages;
+    expect(messages.at(-1)?.author).toBe(`agent:claude-code:${tokenId}`);
 
-    const f = await agente.pedir('POST', `/api/proyectos/${proyectoId}/comandos/source.register`, {
-      datos: { nombre: 'reglamento.md', contenido: 'Cada socio puede traer invitados a los eventos abiertos.' },
+    const f = await agent.request('POST', `/api/projects/${projectId}/commands/source.register`, {
+      data: { name: 'reglamento.md', content: 'Cada socio puede traer invitados a los eventos abiertos.' },
     });
     expect(f.statusCode).toBe(200);
 
-    const lote = await agente.pedir('POST', `/api/proyectos/${proyectoId}/comandos/batch.submit`, {
-      datos: {
-        propuestas: [
+    const batch = await agent.request('POST', `/api/projects/${projectId}/commands/batch.submit`, {
+      data: {
+        proposals: [
           {
-            tipo: 'decision',
-            carga: {
-              titulo: 'Dos invitados por socio',
-              contexto: 'Aforo limitado.',
+            type: 'decision',
+            payload: {
+              title: 'Dos invitados por socio',
+              context: 'Aforo limitado.',
               decision: 'Máximo dos invitados.',
-              consecuencias: 'Hay que contarlos.',
+              consequences: 'Hay que contarlos.',
             },
           },
         ],
       },
     });
-    expect(lote.statusCode).toBe(200);
-    const bandeja = await api().persona.pedir('GET', `/api/proyectos/${proyectoId}/bandeja`);
-    const lotes = bandeja.json<{ lotes: { productor: string; resolucion: string; propuestas: { id: string }[] }[] }>().lotes;
-    const delAgente = lotes.find((l) => l.productor === `agent:claude-code:${tokenId}`);
-    expect(delAgente?.resolucion).toBe('item');
+    expect(batch.statusCode).toBe(200);
+    const inbox = await api().person.request('GET', `/api/projects/${projectId}/inbox`);
+    const batches = inbox.json<{ batches: { producer: string; resolution: string; proposals: { id: string }[] }[] }>().batches;
+    const fromAgent = batches.find((l) => l.producer === `agent:claude-code:${tokenId}`);
+    expect(fromAgent?.resolution).toBe('item');
 
     // El agente no puede aceptar su propia propuesta; la persona sí.
-    const propuesta = delAgente?.propuestas[0]?.id ?? '';
-    const intento = await agente.pedir('POST', `/api/proyectos/${proyectoId}/comandos/proposal.accept`, {
-      entidad_id: propuesta,
-      datos: {},
+    const proposal = fromAgent?.proposals[0]?.id ?? '';
+    const attempt = await agent.request('POST', `/api/projects/${projectId}/commands/proposal.accept`, {
+      entity_id: proposal,
+      data: {},
     });
-    expect(intento.statusCode).toBe(403);
-    const aceptada = await comoPersona('proposal.accept', {}, propuesta);
-    const codigo = String(aceptada.resultado.codigo);
-    const eventos = await api()
-      .entorno.servicios.db.selectFrom('events')
+    expect(attempt.statusCode).toBe(403);
+    const accepted = await asPerson('proposal.accept', {}, proposal);
+    const code = String(accepted.result.code);
+    const events = await api()
+      .environment.services.db.selectFrom('events')
       .select(['command', 'actor'])
-      .where('project_id', '=', proyectoId)
+      .where('project_id', '=', projectId)
       .where('command', '=', 'record.create')
       .execute();
-    expect(eventos).toEqual([{ command: 'record.create', actor: 'human:ana' }]);
-    expect((await agente.pedir('GET', `/api/proyectos/${proyectoId}/registros/${codigo}`)).statusCode).toBe(200);
+    expect(events).toEqual([{ command: 'record.create', actor: 'human:ana' }]);
+    expect((await agent.request('GET', `/api/projects/${projectId}/records/${code}`)).statusCode).toBe(200);
   });
 
-  const noPermitidos = NOMBRES_COMANDO.filter((c) => !definicionComando(c).permitido.includes('agent_external'));
+  const notAllowed = COMMAND_NAMES.filter((c) => !commandDefinition(c).allowed.includes('agent_external'));
 
-  it.each(noPermitidos)('AC-DIS-001-05 con token de agente, %s devuelve 403', async (comando) => {
+  it.each(notAllowed)('AC-DIS-001-05 con token de agente, %s devuelve 403', async (command) => {
     const r = await api()
-      .agente(token)
-      .pedir('POST', `/api/proyectos/${proyectoId}/comandos/${comando}`, { entidad_id: randomUUID(), datos: {} });
+      .agent(token)
+      .request('POST', `/api/projects/${projectId}/commands/${command}`, { entity_id: randomUUID(), data: {} });
     expect(r.statusCode).toBe(403);
   });
 
   it('AC-DIS-001-05 con token de agente, las consultas vedadas, otro proyecto y crear proyectos devuelven 403', async () => {
-    const agente = api().agente(token);
-    expect((await agente.pedir('GET', '/api/proyectos')).statusCode).toBe(403);
-    expect((await agente.pedir('GET', `/api/proyectos/${proyectoId}/tokens`)).statusCode).toBe(403);
-    expect((await agente.pedir('POST', '/api/proyectos', { nombre: 'Del agente' })).statusCode).toBe(403);
-    const otro = (await api().persona.pedir('POST', '/api/proyectos', { nombre: 'Otro' })).json<{ proyecto_id: string }>()
-      .proyecto_id;
-    expect((await agente.pedir('GET', `/api/proyectos/${otro}/estado`)).statusCode).toBe(403);
-    expect((await agente.pedir('POST', `/api/proyectos/${otro}/comandos/message.post`, { datos: {} })).statusCode).toBe(403);
+    const agent = api().agent(token);
+    expect((await agent.request('GET', '/api/projects')).statusCode).toBe(403);
+    expect((await agent.request('GET', `/api/projects/${projectId}/tokens`)).statusCode).toBe(403);
+    expect((await agent.request('POST', '/api/projects', { name: 'Del agente' })).statusCode).toBe(403);
+    const another = (await api().person.request('POST', '/api/projects', { name: 'Other' })).json<{ project_id: string }>()
+      .project_id;
+    expect((await agent.request('GET', `/api/projects/${another}/state`)).statusCode).toBe(403);
+    expect((await agent.request('POST', `/api/projects/${another}/commands/message.post`, { data: {} })).statusCode).toBe(403);
   });
 
   it('AC-DIS-001-15 un token de agente no obtiene una sesión humana', async () => {
-    const r = await api().agente(token).pedir('POST', '/api/sesion', { usuario: 'ana', clave: 'clave-de-prueba-larga' });
+    const r = await api().agent(token).request('POST', '/api/session', { username: 'ana', key: 'clave-de-prueba-larga' });
     expect(r.statusCode).toBe(403);
     expect(r.cookies).toHaveLength(0);
   });
 
   it('un token revocado deja de valer', async () => {
-    const t = await comoPersona('agent_token.issue', { nombre: 'efimero' });
-    await comoPersona('agent_token.revoke', {}, t.entidad_id);
-    const r = await api().agente(String(t.resultado.token)).pedir('GET', `/api/proyectos/${proyectoId}/estado`);
+    const t = await asPerson('agent_token.issue', { name: 'ephemeral' });
+    await asPerson('agent_token.revoke', {}, t.entity_id);
+    const r = await api().agent(String(t.result.token)).request('GET', `/api/projects/${projectId}/state`);
     expect(r.statusCode).toBe(401);
   });
 
   it('AC-ESQ-001-13 con token de agente, una cabecera de actor o una cookie de persona no cambian el actor', async () => {
-    const agente = api().agente(token);
-    const r = await agente.pedir(
+    const agent = api().agent(token);
+    const r = await agent.request(
       'POST',
-      `/api/proyectos/${proyectoId}/comandos/message.post`,
-      { actor: 'human:ana', datos: { exploracion_id: exploracionId, texto: 'Mensaje con cabeceras falsas' } },
-      { 'x-actor': 'human:ana', cookie: `demiurgo_sesion=${api().persona.cookie}`, 'x-demiurgo-csrf': api().persona.csrf },
+      `/api/projects/${projectId}/commands/message.post`,
+      { actor: 'human:ana', data: { exploration_id: explorationId, text: 'Mensaje con cabeceras falsas' } },
+      { 'x-actor': 'human:ana', cookie: `demiurgo_sesion=${api().person.cookie}`, 'x-demiurgo-csrf': api().person.csrf },
     );
     expect(r.statusCode).toBe(200);
-    const ultimo = await api()
-      .entorno.servicios.db.selectFrom('events')
+    const last = await api()
+      .environment.services.db.selectFrom('events')
       .select('actor')
-      .where('project_id', '=', proyectoId)
+      .where('project_id', '=', projectId)
       .orderBy('seq', 'desc')
       .executeTakeFirstOrThrow();
-    expect(ultimo.actor).toBe(`agent:claude-code:${tokenId}`);
+    expect(last.actor).toBe(`agent:claude-code:${tokenId}`);
     // Y con token de agente no se ejecuta un comando de persona aunque vaya la cookie.
-    const decisivo = await agente.pedir(
+    const decisive = await agent.request(
       'POST',
-      `/api/proyectos/${proyectoId}/comandos/exploration.open`,
-      { datos: { proposito: 'x' } },
+      `/api/projects/${projectId}/commands/exploration.open`,
+      { data: { purpose: 'x' } },
       {
-        cookie: `demiurgo_sesion=${api().persona.cookie}`,
-        'x-demiurgo-csrf': api().persona.csrf,
+        cookie: `demiurgo_sesion=${api().person.cookie}`,
+        'x-demiurgo-csrf': api().person.csrf,
       },
     );
-    expect(decisivo.statusCode).toBe(403);
+    expect(decisive.statusCode).toBe(403);
   });
 
   it('el nombre «run» está reservado para los tokens de agente', async () => {
-    const r = await api().persona.pedir('POST', `/api/proyectos/${proyectoId}/comandos/agent_token.issue`, {
-      datos: { nombre: 'run' },
+    const r = await api().person.request('POST', `/api/projects/${projectId}/commands/agent_token.issue`, {
+      data: { name: 'run' },
     });
     expect(r.statusCode).toBe(409);
-    expect(r.json<{ motivos: string[] }>().motivos.join(' ')).toMatch(/reservado/);
+    expect(r.json<{ reasons: string[] }>().reasons.join(' ')).toMatch(/reservado/);
   });
 });

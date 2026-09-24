@@ -2,24 +2,24 @@
 
 import { Kysely, PostgresDialect, type Transaction } from 'kysely';
 import { Pool, types } from 'pg';
-import type { BD } from './esquema.ts';
+import type { DB } from './schema.ts';
 
 // bigint (int8) llega como texto para no perder precisión; los contadores se convierten al leer.
 types.setTypeParser(20, (v) => v);
 
-export type Bd = Kysely<BD>;
-export type Tx = Transaction<BD>;
+export type Db = Kysely<DB>;
+export type Tx = Transaction<DB>;
 
-export type Conexion = { pool: Pool; db: Bd; cerrar(): Promise<void> };
+export type Connection = { pool: Pool; db: Db; close(): Promise<void> };
 
-export function conectar(url: string, maximo = 10): Conexion {
-  const pool = new Pool({ connectionString: url, max: maximo });
+export function connect(url: string, maximum = 10): Connection {
+  const pool = new Pool({ connectionString: url, max: maximum });
   pool.on('error', () => undefined);
-  const db = new Kysely<BD>({ dialect: new PostgresDialect({ pool }) });
+  const db = new Kysely<DB>({ dialect: new PostgresDialect({ pool }) });
   return {
     pool,
     db,
-    async cerrar() {
+    async close() {
       await db.destroy();
     },
   };

@@ -1,91 +1,91 @@
 // Efecto de aceptar cada tipo de propuesta. Se ejecuta con el actor humano que acepta, así que
 // cada cambio de autoridad lleva su evento `human` (I1).
 
-import { CARGAS, ErrorDominio, type TipoPropuesta } from '@demiurgo/domain';
-import type { ContextoComando } from '../bus/tipos.ts';
-import { resolverReferencia } from './registros.ts';
+import { PAYLOADS, DomainError, type ProposalType } from '@demiurgo/domain';
+import type { CommandContext } from '../bus/types.ts';
+import { resolveReference } from './records.ts';
 
-export type Efecto = Record<string, unknown>;
-export type EntradaEfecto = { propuestaId: string; carga: unknown; aprobar: boolean };
-export type Aplicacion = (ctx: ContextoComando, e: EntradaEfecto) => Promise<Efecto>;
+export type Effect = Record<string, unknown>;
+export type EffectInput = { proposalId: string; payload: unknown; approve: boolean };
+export type Application = (ctx: CommandContext, e: EffectInput) => Promise<Effect>;
 
-async function crearRegistro(ctx: ContextoComando, datos: Record<string, unknown>, aprobar: boolean): Promise<Efecto> {
-  const r = await ctx.ejecutar({ comando: 'record.create', actor: ctx.actor, datos });
-  const res = r.resultado as { recordId: string; codigo: string; versionId: string };
-  if (aprobar) await ctx.ejecutar({ comando: 'record_version.approve', actor: ctx.actor, entidadId: res.versionId, datos: {} });
-  return { tipo: 'record', codigo: res.codigo, recordId: res.recordId, versionId: res.versionId, version: 1, aprobada: aprobar };
+async function createRecord(ctx: CommandContext, data: Record<string, unknown>, approve: boolean): Promise<Effect> {
+  const r = await ctx.execute({ command: 'record.create', actor: ctx.actor, data });
+  const res = r.result as { recordId: string; code: string; versionId: string };
+  if (approve) await ctx.execute({ command: 'record_version.approve', actor: ctx.actor, entityId: res.versionId, data: {} });
+  return { type: 'record', code: res.code, recordId: res.recordId, versionId: res.versionId, version: 1, approved: approve };
 }
 
-export const APLICACIONES: Partial<Record<TipoPropuesta, Aplicacion>> = {
-  async decision(ctx, { propuestaId, carga, aprobar }) {
-    const c = CARGAS.decision.parse(carga);
-    return crearRegistro(
+export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
+  async decision(ctx, { proposalId, payload, approve }) {
+    const c = PAYLOADS.decision.parse(payload);
+    return createRecord(
       ctx,
       {
-        tipo: 'decision',
-        dominio: c.dominio ?? 'producto',
-        titulo: c.titulo,
-        secciones: [
-          { titulo: 'Contexto', contenido: c.contexto },
-          { titulo: 'Decisión', contenido: c.decision },
-          { titulo: 'Consecuencias', contenido: c.consecuencias },
+        type: 'decision',
+        domain: c.domain ?? 'product',
+        title: c.title,
+        sections: [
+          { title: 'Context', content: c.context },
+          { title: 'Decisión', content: c.decision },
+          { title: 'Consequences', content: c.consequences },
         ],
-        origen: { tipo: 'proposal', id: propuestaId },
+        origin: { type: 'proposal', id: proposalId },
       },
-      aprobar,
+      approve,
     );
   },
 
-  async exploracion(ctx, { propuestaId, carga }) {
-    const c = CARGAS.exploracion.parse(carga);
-    const r = await ctx.ejecutar({
-      comando: 'exploration.open',
+  async exploration(ctx, { proposalId, payload }) {
+    const c = PAYLOADS.exploration.parse(payload);
+    const r = await ctx.execute({
+      command: 'exploration.open',
       actor: ctx.actor,
-      datos: { proposito: c.proposito, origen: { tipo: 'proposal', id: propuestaId } },
+      data: { purpose: c.purpose, origin: { type: 'proposal', id: proposalId } },
     });
-    return { tipo: 'exploration', id: r.entidadId };
+    return { type: 'exploration', id: r.entityId };
   },
 
-  async fdr(ctx, { propuestaId, carga, aprobar }) {
-    const c = CARGAS.fdr.parse(carga);
-    return crearRegistro(
+  async fdr(ctx, { proposalId, payload, approve }) {
+    const c = PAYLOADS.fdr.parse(payload);
+    return createRecord(
       ctx,
       {
-        tipo: 'fdr',
-        dominio: c.dominio ?? 'producto',
-        titulo: c.titulo,
-        secciones: [
-          { titulo: 'Objetivo', contenido: c.objetivo },
-          { titulo: 'Alcance', contenido: c.alcance },
-          { titulo: 'Fuera de alcance', contenido: c.fuera_de_alcance },
-          { titulo: 'Comportamiento', contenido: c.comportamiento },
+        type: 'fdr',
+        domain: c.domain ?? 'product',
+        title: c.title,
+        sections: [
+          { title: 'Goal', content: c.goal },
+          { title: 'Scope', content: c.scope },
+          { title: 'Fuera de alcance', content: c.out_of_scope },
+          { title: 'Behavior', content: c.behavior },
         ],
-        criterios: c.criterios.map((k) => ({ arrastre: 'new', ...k })),
-        enlaces: c.basado_en ? [{ tipo: 'based_on', destino: c.basado_en }] : [],
-        origen: { tipo: 'proposal', id: propuestaId },
+        criteria: c.criteria.map((k) => ({ carry: 'new', ...k })),
+        links: c.based_on ? [{ type: 'based_on', target: c.based_on }] : [],
+        origin: { type: 'proposal', id: proposalId },
       },
-      aprobar,
+      approve,
     );
   },
 
   // Aceptar una revisión propuesta por el conocimiento no cambia el registro: abre una
   // exploración para revisarlo, con su origen.
-  async revision(ctx, { carga }) {
-    const c = CARGAS.revision.parse(carga);
-    const v = await resolverReferencia(ctx.trx, ctx.proyectoId, c.registro.codigo, c.registro.version);
-    if (!v) throw new ErrorDominio('no_encontrado', `No existe ${c.registro.codigo}@${c.registro.version}.`);
-    const r = await ctx.ejecutar({
-      comando: 'exploration.open',
+  async review(ctx, { payload }) {
+    const c = PAYLOADS.review.parse(payload);
+    const v = await resolveReference(ctx.trx, ctx.projectId, c.record.code, c.record.version);
+    if (!v) throw new DomainError('not_found', `No existe ${c.record.code}@${c.record.version}.`);
+    const r = await ctx.execute({
+      command: 'exploration.open',
       actor: ctx.actor,
-      datos: {
-        proposito: `Revisar ${c.registro.codigo} v${c.registro.version}: ${c.motivo}`.slice(0, 1000),
-        origen: { tipo: 'record_version', id: v.versionId, version: c.registro.version },
+      data: {
+        purpose: `Revisar ${c.record.code} v${c.record.version}: ${c.reason}`.slice(0, 1000),
+        origin: { type: 'record_version', id: v.versionId, version: c.record.version },
       },
     });
-    return { tipo: 'exploration', id: r.entidadId };
+    return { type: 'exploration', id: r.entityId };
   },
 };
 
-export function registrarAplicacion(tipo: TipoPropuesta, a: Aplicacion): void {
-  APLICACIONES[tipo] = a;
+export function registerApplication(type: ProposalType, a: Application): void {
+  APPLICATIONS[type] = a;
 }

@@ -1,11 +1,11 @@
 // Motor de conocimiento: comandos, flujos durables e integración con el resto del núcleo.
-import './comandos.ts';
-import './flujos.ts';
-import './integracion.ts';
+import './commands.ts';
+import './workflows.ts';
+import './integration.ts';
 
-export * from './actualizar.ts';
-export * from './derivar.ts';
-export { esperarConocimiento, esperarEvaluacion } from './flujos.ts';
-export * from './grafo-pg.ts';
-export * from './reconstruir.ts';
-export * from './evaluar.ts';
+export * from './update.ts';
+export * from './derive.ts';
+export { waitForKnowledge, waitForEvaluation } from './workflows.ts';
+export * from './graph-pg.ts';
+export * from './rebuild.ts';
+export * from './evaluate.ts';

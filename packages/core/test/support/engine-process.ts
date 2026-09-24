@@ -4,46 +4,46 @@
 //   node proceso-motor.ts <url> recuperar <runId>                         → DBOS reanuda el flujo pendiente
 //   node proceso-motor.ts <url> conciliar                                 → arranca, concilia y espera a que no quede nada vivo
 
-import { crearAgenteSimulado } from '../../src/agentes/simulado.ts';
-import { crearClasificadorSimulado } from '../../src/clasificador/simulado.ts';
-import { conectar } from '../../src/db/conexion.ts';
-import { esperarRun, iniciarMotor } from '../../src/motor/motor.ts';
-import { registroSilencioso } from '../../src/servicios.ts';
+import { createSimulatedAgent } from '../../src/agents/simulated.ts';
+import { createSimulatedClassifier } from '../../src/classifier/simulated.ts';
+import { connect } from '../../src/db/connection.ts';
+import { waitForRun, startEngine } from '../../src/engine/engine.ts';
+import { silentLogger } from '../../src/services.ts';
 
-const [url = '', modo = '', a = '', b = ''] = process.argv.slice(2);
-const conexion = conectar(url);
-const agente =
-  modo === 'iniciar'
-    ? crearAgenteSimulado({ demoraMs: 60_000, alInvocar: () => console.log('INVOCANDO') })
-    : crearAgenteSimulado({ alInvocar: () => console.log('INVOCANDO_DE_NUEVO') });
-const motor = await iniciarMotor(
-  { db: conexion.db, reloj: () => new Date(), agente, clasificador: crearClasificadorSimulado(), registro: registroSilencioso },
+const [url = '', mode = '', a = '', b = ''] = process.argv.slice(2);
+const connection = connect(url);
+const agent =
+  mode === 'start'
+    ? createSimulatedAgent({ delayMs: 60_000, onInvoke: () => console.log('INVOKING') })
+    : createSimulatedAgent({ onInvoke: () => console.log('INVOKING_AGAIN') });
+const engine = await startEngine(
+  { db: connection.db, clock: () => new Date(), agent, classifier: createSimulatedClassifier(), record: silentLogger },
   url,
-  modo === 'cortar-tras-aplicar'
+  mode === 'cortar-tras-aplicar'
     ? {
-        alCompletarPaso: (paso) => {
-          if (paso !== 'aplicar') return;
-          console.log('APLICADO');
+        onStepComplete: (step) => {
+          if (step !== 'apply') return;
+          console.log('APPLIED');
           process.kill(process.pid, 'SIGKILL');
         },
       }
     : {},
 );
-if (modo === 'iniciar' || modo === 'cortar-tras-aplicar') {
-  await motor.servicios.motor.iniciarRun(b, a);
+if (mode === 'start' || mode === 'cortar-tras-aplicar') {
+  await engine.services.engine.startRun(b, a);
   await new Promise((r) => setTimeout(r, 120_000));
-} else if (modo === 'recuperar') {
-  const estado = await esperarRun(a);
-  console.log(`RESULTADO ${estado}`);
-  await motor.detener();
-  await conexion.cerrar();
+} else if (mode === 'recover') {
+  const state = await waitForRun(a);
+  console.log(`RESULTADO ${state}`);
+  await engine.stop();
+  await connection.close();
 } else {
   for (let i = 0; i < 200; i++) {
-    const vivas = await conexion.db.selectFrom('ai_runs').select('id').where('state', 'in', ['queued', 'running']).execute();
-    if (vivas.length === 0) break;
+    const liveRuns = await connection.db.selectFrom('ai_runs').select('id').where('state', 'in', ['queued', 'running']).execute();
+    if (liveRuns.length === 0) break;
     await new Promise((r) => setTimeout(r, 100));
   }
-  console.log('CONCILIADO');
-  await motor.detener();
-  await conexion.cerrar();
+  console.log('RECONCILED');
+  await engine.stop();
+  await connection.close();
 }

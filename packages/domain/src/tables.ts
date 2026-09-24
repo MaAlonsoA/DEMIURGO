@@ -1,50 +1,50 @@
 // Acceso tipado a las tablas generadas desde design/datos/.
 
-import type { TipoActorConDesconocido } from './actores.ts';
-import { CAPACIDADES, TRANSICIONES } from './generado/tablas.ts';
+import type { ActorTypeWithUnknown } from './actors.ts';
+import { CAPABILITIES, TRANSITIONS } from './generated/tables.ts';
 
-export { CAPACIDADES, TRANSICIONES };
+export { CAPABILITIES, TRANSITIONS };
 
-export type NombreComando = keyof typeof CAPACIDADES.comandos;
-export type NombreConsulta = keyof typeof CAPACIDADES.consultas;
-export type NombreEntidad = keyof typeof TRANSICIONES.entidades;
+export type CommandName = keyof typeof CAPABILITIES.commands;
+export type QueryName = keyof typeof CAPABILITIES.queries;
+export type EntityName = keyof typeof TRANSITIONS.entities;
 
-type DefComando = { entidad: string; permitido: readonly string[]; decisivo: boolean; descripcion: string };
-type DefTransicion = { comando: string; desde: 'nuevo' | readonly string[]; hacia: string; guardas?: readonly string[] };
-type DefEntidad = {
-  etiqueta: string;
-  implementado_en: string;
-  estados: Readonly<Record<string, string>>;
-  autoridad: readonly string[];
-  transiciones: readonly DefTransicion[];
+type CommandDef = { entity: string; allowed: readonly string[]; decisive: boolean; description: string };
+type TransitionDef = { command: string; from: 'new' | readonly string[]; to: string; guards?: readonly string[] };
+type EntityDef = {
+  label: string;
+  implemented_in: string;
+  states: Readonly<Record<string, string>>;
+  authority: readonly string[];
+  transitions: readonly TransitionDef[];
 };
 
-const comandos = CAPACIDADES.comandos as Readonly<Record<string, DefComando>>;
-const consultas = CAPACIDADES.consultas as Readonly<Record<string, { permitido: readonly string[]; descripcion: string }>>;
-const entidades = TRANSICIONES.entidades as Readonly<Record<string, DefEntidad>>;
+const commands = CAPABILITIES.commands as Readonly<Record<string, CommandDef>>;
+const queries = CAPABILITIES.queries as Readonly<Record<string, { allowed: readonly string[]; description: string }>>;
+const entities = TRANSITIONS.entities as Readonly<Record<string, EntityDef>>;
 
-export const NOMBRES_COMANDO = Object.keys(comandos) as NombreComando[];
-export const NOMBRES_CONSULTA = Object.keys(consultas) as NombreConsulta[];
-export const NOMBRES_ENTIDAD = Object.keys(entidades) as NombreEntidad[];
+export const COMMAND_NAMES = Object.keys(commands) as CommandName[];
+export const QUERY_NAMES = Object.keys(queries) as QueryName[];
+export const ENTITY_NAMES = Object.keys(entities) as EntityName[];
 
-export function esComando(nombre: string): nombre is NombreComando {
-  return Object.hasOwn(comandos, nombre);
+export function isCommand(name: string): name is CommandName {
+  return Object.hasOwn(commands, name);
 }
 
-export function definicionComando(c: NombreComando): DefComando {
-  return comandos[c] as DefComando;
+export function commandDefinition(c: CommandName): CommandDef {
+  return commands[c] as CommandDef;
 }
 
-export function definicionEntidad(e: NombreEntidad): DefEntidad {
-  return entidades[e] as DefEntidad;
+export function entityDefinition(e: EntityName): EntityDef {
+  return entities[e] as EntityDef;
 }
 
-export function entidadDe(c: NombreComando): NombreEntidad {
-  return definicionComando(c).entidad as NombreEntidad;
+export function entityOf(c: CommandName): EntityName {
+  return commandDefinition(c).entity as EntityName;
 }
 
-export function permitidoComando(c: NombreComando, tipo: TipoActorConDesconocido): boolean {
-  return tipo !== 'unknown' && definicionComando(c).permitido.includes(tipo);
+export function allowedForCommand(c: CommandName, type: ActorTypeWithUnknown): boolean {
+  return type !== 'unknown' && commandDefinition(c).allowed.includes(type);
 }
 
 /**
@@ -53,8 +53,8 @@ export function permitidoComando(c: NombreComando, tipo: TipoActorConDesconocido
  * permita un comando a `system`, este componente no puede ejecutar otro (no se relaja editando
  * los datos).
  */
-export const COMANDOS_POR_COMPONENTE: Readonly<Record<string, readonly string[]>> = {
-  conocimiento: [
+export const COMMANDS_BY_COMPONENT: Readonly<Record<string, readonly string[]>> = {
+  knowledge: [
     'knowledge_update.enqueue',
     'knowledge_update.classify',
     'knowledge_update.verify',
@@ -73,58 +73,58 @@ export const COMANDOS_POR_COMPONENTE: Readonly<Record<string, readonly string[]>
 };
 
 /** Si el actor es un componente de sistema con lista cerrada, ¿puede ejecutar el comando? */
-export function permitidoAlComponente(c: NombreComando, actor: { tipo: string; componente?: string }): boolean {
-  if (actor.tipo !== 'system' || !actor.componente) return true;
-  const lista = COMANDOS_POR_COMPONENTE[actor.componente];
-  return !lista || lista.includes(c);
+export function allowedForComponent(c: CommandName, actor: { type: string; component?: string }): boolean {
+  if (actor.type !== 'system' || !actor.component) return true;
+  const list = COMMANDS_BY_COMPONENT[actor.component];
+  return !list || list.includes(c);
 }
 
-export function permitidoConsulta(q: NombreConsulta, tipo: TipoActorConDesconocido): boolean {
-  return tipo !== 'unknown' && (consultas[q]?.permitido.includes(tipo) ?? false);
+export function allowedForQuery(q: QueryName, type: ActorTypeWithUnknown): boolean {
+  return type !== 'unknown' && (queries[q]?.allowed.includes(type) ?? false);
 }
 
-export function esDecisivo(c: NombreComando): boolean {
-  return definicionComando(c).decisivo;
+export function isDecisive(c: CommandName): boolean {
+  return commandDefinition(c).decisive;
 }
 
-export function esCreacion(c: NombreComando): boolean {
-  const def = definicionEntidad(entidadDe(c));
-  return def.transiciones.some((t) => t.comando === c && t.desde === 'nuevo');
+export function isCreation(c: CommandName): boolean {
+  const def = entityDefinition(entityOf(c));
+  return def.transitions.some((t) => t.command === c && t.from === 'new');
 }
 
-export type Transicion = { hacia: string; guardas: readonly string[] };
+export type Transition = { to: string; guards: readonly string[] };
 
 /** Busca la transición (entidad, estado, comando). `estado` null significa «nuevo». */
-export function buscarTransicion(entidad: NombreEntidad, estado: string | null, comando: NombreComando): Transicion | null {
-  for (const t of definicionEntidad(entidad).transiciones) {
-    if (t.comando !== comando) continue;
-    const coincide = estado === null ? t.desde === 'nuevo' : t.desde !== 'nuevo' && t.desde.includes(estado);
-    if (coincide) return { hacia: t.hacia, guardas: t.guardas ?? [] };
+export function findTransition(entity: EntityName, state: string | null, command: CommandName): Transition | null {
+  for (const t of entityDefinition(entity).transitions) {
+    if (t.command !== command) continue;
+    const matches = state === null ? t.from === 'new' : t.from !== 'new' && t.from.includes(state);
+    if (matches) return { to: t.to, guards: t.guards ?? [] };
   }
   return null;
 }
 
-export function etiquetaEstado(entidad: NombreEntidad, estado: string): string {
-  return definicionEntidad(entidad).estados[estado] ?? estado;
+export function stateLabel(entity: EntityName, state: string): string {
+  return entityDefinition(entity).states[state] ?? state;
 }
 
-export function etiquetaEntidad(entidad: NombreEntidad): string {
-  return definicionEntidad(entidad).etiqueta;
+export function entityLabel(entity: EntityName): string {
+  return entityDefinition(entity).label;
 }
 
-export function esEstadoDeAutoridad(entidad: NombreEntidad, estado: string): boolean {
-  return definicionEntidad(entidad).autoridad.includes(estado);
+export function isAuthorityState(entity: EntityName, state: string): boolean {
+  return entityDefinition(entity).authority.includes(state);
 }
 
 /** Incrementos en orden, para saber qué entidades están implementadas. */
-const ORDEN_INCREMENTOS = ['S0', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'];
+const INCREMENT_ORDER = ['S0', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'];
 
-export function implementadaEn(entidad: NombreEntidad, incrementoActual: string): boolean {
-  return ORDEN_INCREMENTOS.indexOf(definicionEntidad(entidad).implementado_en) <= ORDEN_INCREMENTOS.indexOf(incrementoActual);
+export function implementedIn(entity: EntityName, currentIncrement: string): boolean {
+  return INCREMENT_ORDER.indexOf(entityDefinition(entity).implemented_in) <= INCREMENT_ORDER.indexOf(currentIncrement);
 }
 
-export function todasLasGuardas(): string[] {
+export function allGuards(): string[] {
   const s = new Set<string>();
-  for (const e of Object.values(entidades)) for (const t of e.transiciones) for (const g of t.guardas ?? []) s.add(g);
+  for (const e of Object.values(entities)) for (const t of e.transitions) for (const g of t.guards ?? []) s.add(g);
   return [...s].sort();
 }

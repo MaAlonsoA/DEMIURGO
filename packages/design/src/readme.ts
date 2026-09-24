@@ -1,6 +1,6 @@
 // Texto fijo de `design/README.md`. La exportación de la v2 lo escribe tal cual.
 
-export const README_DISENO = `# design/: el diseño de DEMIURGO v2
+export const README_DESIGN = `# design/: el diseño de DEMIURGO v2
 
 Esta carpeta es la autoridad de diseño **hasta H1**: la persona aprueba los cambios con el merge. Desde H1, la v2 la importa, la persona ratifica la importación en un paso y \`design/\` pasa a ser una exportación generada.
 

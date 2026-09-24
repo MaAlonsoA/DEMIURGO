@@ -3,33 +3,33 @@
 // derivar el mismo disparo da el mismo cambio ahora y en una reconstrucción: nunca se mira el
 // estado actual de la versión.
 
-import type { Cambio } from '@demiurgo/domain';
-import type { Bd } from '../db/conexion.ts';
+import type { Change } from '@demiurgo/domain';
+import type { Db } from '../db/connection.ts';
 
-export type ObjetoAutoridad = { tipo: string; id: string; version: number | null };
+export type AuthorityObject = { type: string; id: string; version: number | null };
 
-export { DISPARO_DESCARTE } from '../comandos/reacciones.ts';
+export { DISCARD_TRIGGER } from '../commands/reactions.ts';
 
 /** Refs que retira el descarte de una versión (el nodo del borrador; sus criterios van con él). */
-export async function derivarRetirada(db: Bd, objeto: ObjetoAutoridad): Promise<string[]> {
+export async function deriveRetirement(db: Db, object: AuthorityObject): Promise<string[]> {
   const v = await db
     .selectFrom('record_versions')
     .innerJoin('records', 'records.id', 'record_versions.record_id')
     .select(['record_versions.n', 'records.code'])
-    .where('record_versions.id', '=', objeto.id)
+    .where('record_versions.id', '=', object.id)
     .executeTakeFirst();
   return v ? [`${v.code}@${v.n}`] : [];
 }
 
-const TEXTO_MAX = 4000;
+const MAX_TEXT = 4000;
 
-export async function derivarCambio(db: Bd, objeto: ObjetoAutoridad): Promise<Cambio | null> {
+export async function deriveChange(db: Db, object: AuthorityObject): Promise<Change | null> {
   let versionId: string | null = null;
-  if (objeto.tipo === 'record_version') versionId = objeto.id;
-  if (objeto.tipo === 'proposal') {
-    const p = await db.selectFrom('proposals').select(['state', 'resolution']).where('id', '=', objeto.id).executeTakeFirst();
-    const efecto = (p?.resolution as { efecto?: { versionId?: string } } | null)?.efecto;
-    versionId = efecto?.versionId ?? null;
+  if (object.type === 'record_version') versionId = object.id;
+  if (object.type === 'proposal') {
+    const p = await db.selectFrom('proposals').select(['state', 'resolution']).where('id', '=', object.id).executeTakeFirst();
+    const effect = (p?.resolution as { effect?: { versionId?: string } } | null)?.effect;
+    versionId = effect?.versionId ?? null;
   }
   if (!versionId) return null;
   const v = await db
@@ -49,24 +49,24 @@ export async function derivarCambio(db: Bd, objeto: ObjetoAutoridad): Promise<Ca
   if (!v) return null;
   // Independiente del momento en que se derive: una aprobación proyecta la versión aprobada y
   // una propuesta aceptada, la versión que creó tal como nació (en borrador).
-  const aprobada = objeto.tipo === 'record_version';
-  const secciones = v.sections as { titulo: string; contenido: string }[];
+  const approved = object.type === 'record_version';
+  const sections = v.sections as { title: string; content: string }[];
   const ref = `${v.code}@${v.n}`;
-  const criterios = await db
+  const criteria = await db
     .selectFrom('criteria')
     .select(['code', 'title', 'statement', 'check_text'])
     .where('record_version_id', '=', v.id)
     .orderBy('position')
     .execute();
-  const enlaces = await db
+  const links = await db
     .selectFrom('links')
-    .innerJoin('record_versions as destino', 'destino.id', 'links.to_id')
-    .innerJoin('records as rd', 'rd.id', 'destino.record_id')
-    .select(['links.type', 'rd.code', 'destino.n'])
+    .innerJoin('record_versions as target', 'target.id', 'links.to_id')
+    .innerJoin('records as rd', 'rd.id', 'target.record_id')
+    .select(['links.type', 'rd.code', 'target.n'])
     .where('links.from_id', '=', v.id)
     .orderBy('links.id')
     .execute();
-  const otras = aprobada
+  const other = approved
     ? (
         await db
           .selectFrom('record_versions')
@@ -77,33 +77,33 @@ export async function derivarCambio(db: Bd, objeto: ObjetoAutoridad): Promise<Ca
           .execute()
       ).map((o) => `${v.code}@${o.n}`)
     : [];
-  const epistemico = aprobada ? 'confirmado' : 'propuesto';
+  const epistemic = approved ? 'confirmed' : 'proposed';
   return {
-    principal: {
+    main: {
       ref,
-      tipo: v.type,
-      etiqueta: v.title,
-      texto: secciones
-        .map((s) => `${s.titulo}: ${s.contenido}`)
+      type: v.type,
+      label: v.title,
+      text: sections
+        .map((s) => `${s.title}: ${s.content}`)
         .join('\n')
-        .slice(0, TEXTO_MAX),
-      epistemico,
-      autoridad: true,
-      origen: { tipo: 'record_version', id: v.id, version: v.n },
+        .slice(0, MAX_TEXT),
+      epistemic,
+      authority: true,
+      origin: { type: 'record_version', id: v.id, version: v.n },
     },
-    acompañantes: criterios.map((c) => ({
+    companions: criteria.map((c) => ({
       ref: `${c.code}@${v.n}`,
-      tipo: 'criterio',
-      etiqueta: c.title,
-      texto: `${c.statement}\nComprobación: ${c.check_text}`.slice(0, TEXTO_MAX),
-      epistemico,
-      autoridad: true,
-      origen: { tipo: 'record_version', id: v.id, version: v.n },
+      type: 'criterion',
+      label: c.title,
+      text: `${c.statement}\nComprobación: ${c.check_text}`.slice(0, MAX_TEXT),
+      epistemic,
+      authority: true,
+      origin: { type: 'record_version', id: v.id, version: v.n },
     })),
-    aristas: [
-      ...criterios.map((c) => ({ tipo: 'contiene', desde: ref, hacia: `${c.code}@${v.n}` })),
-      ...enlaces.map((e) => ({ tipo: e.type, desde: ref, hacia: `${e.code}@${e.n}` })),
+    edges: [
+      ...criteria.map((c) => ({ type: 'contains', from: ref, to: `${c.code}@${v.n}` })),
+      ...links.map((e) => ({ type: e.type, from: ref, to: `${e.code}@${e.n}` })),
     ],
-    sustituye: otras,
+    supersedes: other,
   };
 }

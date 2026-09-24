@@ -1,62 +1,62 @@
 // Entorno de pruebas del núcleo: base efímera + servicios con agente simulado.
 
-import type { Clasificador, PuertoAgente } from '@demiurgo/domain';
+import type { Classifier, AgentPort } from '@demiurgo/domain';
 import { afterAll, beforeAll } from 'vitest';
-import { crearAgenteSimulado } from '../../src/agentes/simulado.ts';
-import { type Conexion, conectar } from '../../src/db/conexion.ts';
-import { type MotorIniciado, iniciarMotor } from '../../src/motor/motor.ts';
-import { crearClasificadorSimulado } from '../../src/clasificador/simulado.ts';
-import { crearMotorEnLinea } from '../../src/motor/en-linea.ts';
-import { type MotorFlujos, type Servicios, registroSilencioso } from '../../src/servicios.ts';
-import { usarBaseEfimera } from './base-efimera.ts';
-import { clasificadorNoConfigurado } from './clasificador-nulo.ts';
+import { createSimulatedAgent } from '../../src/agents/simulated.ts';
+import { type Connection, connect } from '../../src/db/connection.ts';
+import { type StartedEngine, startEngine } from '../../src/engine/engine.ts';
+import { createSimulatedClassifier } from '../../src/classifier/simulated.ts';
+import { createInlineEngine } from '../../src/engine/inline.ts';
+import { type WorkflowEngine, type Services, silentLogger } from '../../src/services.ts';
+import { useEphemeralDatabase } from './ephemeral-db.ts';
+import { classifierNotConfigured } from './null-classifier.ts';
 
-export { clasificadorNoConfigurado };
+export { classifierNotConfigured };
 
-export type Entorno = {
-  servicios: Servicios;
-  conexion: Conexion;
+export type Environment = {
+  services: Services;
+  connection: Connection;
   url: string;
-  motor: MotorFlujos;
+  engine: WorkflowEngine;
 };
 
-type Opciones = {
+type Options = {
   /** Lanza DBOS sobre la base efímera; si no, el motor es inerte. */
   durable?: boolean;
-  agente?: () => PuertoAgente;
-  clasificador?: () => Clasificador;
+  agent?: () => AgentPort;
+  classifier?: () => Classifier;
 };
 
 /** Registra, para el archivo de prueba, una base efímera y los servicios del núcleo. */
-export function usarEntorno(opciones: Opciones = {}): () => Entorno {
-  const base = usarBaseEfimera();
-  let entorno: Entorno | undefined;
-  let iniciado: MotorIniciado | undefined;
+export function useEnvironment(options: Options = {}): () => Environment {
+  const base = useEphemeralDatabase();
+  let environment: Environment | undefined;
+  let started: StartedEngine | undefined;
   beforeAll(async () => {
     const url = base().url;
-    const conexion = conectar(url);
-    const comun = {
-      db: conexion.db,
-      reloj: () => new Date(),
-      agente: (opciones.agente ?? (() => crearAgenteSimulado()))(),
-      clasificador: (opciones.clasificador ?? (() => crearClasificadorSimulado()))(),
-      registro: registroSilencioso,
+    const connection = connect(url);
+    const common = {
+      db: connection.db,
+      clock: () => new Date(),
+      agent: (options.agent ?? (() => createSimulatedAgent()))(),
+      classifier: (options.classifier ?? (() => createSimulatedClassifier()))(),
+      record: silentLogger,
     };
-    if (opciones.durable) {
-      iniciado = await iniciarMotor(comun, url);
-      entorno = { servicios: iniciado.servicios, conexion, url, motor: iniciado.servicios.motor };
+    if (options.durable) {
+      started = await startEngine(common, url);
+      environment = { services: started.services, connection, url, engine: started.services.engine };
     } else {
       // Sin DBOS: el conocimiento y las evaluaciones se procesan en el acto; las ejecuciones solo se anotan.
-      const servicios: Servicios = { ...comun, motor: crearMotorEnLinea(() => servicios) };
-      entorno = { servicios, conexion, url, motor: servicios.motor };
+      const services: Services = { ...common, engine: createInlineEngine(() => services) };
+      environment = { services, connection, url, engine: services.engine };
     }
   });
   afterAll(async () => {
-    await iniciado?.detener();
-    await entorno?.conexion.cerrar();
+    await started?.stop();
+    await environment?.connection.close();
   });
   return () => {
-    if (!entorno) throw new Error('El entorno aún no está listo.');
-    return entorno;
+    if (!environment) throw new Error('El entorno aún no está listo.');
+    return environment;
   };
 }

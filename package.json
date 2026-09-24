@@ -9,18 +9,18 @@
     "gate:types": "tsc -p tsconfig.json --noEmit",
     "gate:lint": "oxlint --type-aware --deny-warnings",
     "gate:format": "biome format .",
-    "gate:design": "node packages/design/src/cli.ts validar",
-    "gate:deriva": "node packages/design/src/cli.ts derivar --comprobar",
-    "gate:test": "vitest run --project unitarias --project integracion --reporter=default --reporter=junit --outputFile.junit=reports/junit-pruebas.xml",
-    "gate:invariantes": "vitest run --project invariantes --reporter=default --reporter=junit --outputFile.junit=reports/junit-invariantes.xml",
-    "gate:trazabilidad": "node packages/design/src/cli.ts trazabilidad",
-    "gate:all": "pnpm gate:types && pnpm gate:lint && pnpm gate:format && pnpm gate:design && pnpm gate:deriva && pnpm gate:test && pnpm gate:invariantes && pnpm gate:trazabilidad",
+    "gate:design": "node packages/design/src/cli.ts validate",
+    "gate:drift": "node packages/design/src/cli.ts derive --check",
+    "gate:test": "vitest run --project unit --project integration --reporter=default --reporter=junit --outputFile.junit=reports/junit-tests.xml",
+    "gate:invariants": "vitest run --project invariants --reporter=default --reporter=junit --outputFile.junit=reports/junit-invariants.xml",
+    "gate:traceability": "node packages/design/src/cli.ts traceability",
+    "gate:all": "pnpm gate:types && pnpm gate:lint && pnpm gate:format && pnpm gate:design && pnpm gate:drift && pnpm gate:test && pnpm gate:invariants && pnpm gate:traceability",
     "format": "biome format --write .",
-    "gen": "node packages/design/src/cli.ts derivar --escribir",
+    "gen": "node packages/design/src/cli.ts derive --write",
     "db:up": "docker compose -p demiurgo-v2-dev -f compose.dev.yaml up -d --wait",
     "db:down": "docker compose -p demiurgo-v2-dev -f compose.dev.yaml down",
-    "instancia:bd": "docker compose -p demiurgo-v2 -f compose.instancia.yaml up -d --wait",
-    "instancia:api": "node packages/api/src/main.ts",
+    "instance:db": "docker compose -p demiurgo-v2 -f compose.instance.yaml up -d --wait",
+    "instance:api": "node packages/api/src/main.ts",
     "cli": "node packages/api/src/cli.ts"
   },
   "packageManager": "pnpm@11.27.1+sha512.a81d4c21b9b09a4b0aebf90ef5e527d4262bdda322d26082978cb549023ac6d9cafc98b19fffaa5c71db438a65f70224edb78d7311187861ff96480d1cdca23c",
@@ -34,7 +34,7 @@
     "vitest": "4.1.11"
   },
   "demiurgo": {
-    "incrementosImplementados": [
+    "implementedIncrements": [
       "D0",
       "S0",
       "S1",

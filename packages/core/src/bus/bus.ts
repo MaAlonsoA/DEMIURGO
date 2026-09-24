@@ -8,26 +8,26 @@
 
 import { randomUUID } from 'node:crypto';
 import {
-  ErrorDominio,
-  buscarTransicion,
-  entidadDe,
-  esCreacion,
-  etiquetaEntidad,
-  etiquetaEstado,
-  formatearActor,
-  permitidoAlComponente,
-  permitidoComando,
-  type NombreEntidad,
+  DomainError,
+  findTransition,
+  entityOf,
+  isCreation,
+  entityLabel,
+  stateLabel,
+  formatActor,
+  allowedForComponent,
+  allowedForCommand,
+  type EntityName,
 } from '@demiurgo/domain';
 import { sql } from 'kysely';
-import type { Servicios } from '../servicios.ts';
-import '../comandos/index.ts';
-import { GUARDAS } from './guardas.ts';
-import { MANEJADORES } from './manejadores.ts';
-import type { Causa, ContextoComando, EntidadCargada, Peticion, Resultado, Tx } from './tipos.ts';
+import type { Services } from '../services.ts';
+import '../commands/index.ts';
+import { GUARDS } from './guards.ts';
+import { HANDLERS } from './handlers.ts';
+import type { Cause, CommandContext, LoadedEntity, Request, Result, Tx } from './types.ts';
 
 /** Tabla de cada entidad implementada. */
-export const TABLAS: Partial<Record<NombreEntidad, string>> = {
+export const TABLES: Partial<Record<EntityName, string>> = {
   project: 'projects',
   agent_token: 'agent_tokens',
   exploration: 'explorations',
@@ -50,231 +50,231 @@ export const TABLAS: Partial<Record<NombreEntidad, string>> = {
   idea_assessment: 'idea_assessments',
 };
 
-type Pendiente = () => Promise<void> | void;
+type Pending = () => Promise<void> | void;
 
 /** Ejecuta un comando en su propia transacción y, tras confirmar, el trabajo diferido. */
-export async function ejecutarComando(servicios: Servicios, peticion: Peticion): Promise<Resultado> {
-  comprobarCapacidad(peticion);
-  const pendientes: Pendiente[] = [];
-  const resultado = await servicios.db
+export async function executeCommand(services: Services, request: Request): Promise<Result> {
+  checkCapability(request);
+  const pending: Pending[] = [];
+  const result = await services.db
     .transaction()
-    .execute((trx) => ejecutarEnTransaccion(servicios, trx, peticion, pendientes));
-  await ejecutarPendientes(servicios, pendientes);
-  return resultado;
+    .execute((trx) => executeInTransaction(services, trx, request, pending));
+  await executePending(services, pending);
+  return result;
 }
 
 /** Ejecuta varios comandos dependientes en una sola transacción. */
-export async function enTransaccion<T>(
-  servicios: Servicios,
-  trabajo: (ejecutar: (p: Peticion) => Promise<Resultado>, trx: Tx) => Promise<T>,
+export async function inTransaction<T>(
+  services: Services,
+  job: (execute: (p: Request) => Promise<Result>, trx: Tx) => Promise<T>,
 ): Promise<T> {
-  const pendientes: Pendiente[] = [];
-  const correlacion = randomUUID();
-  const r = await servicios.db
+  const pending: Pending[] = [];
+  const correlation = randomUUID();
+  const r = await services.db
     .transaction()
     .execute((trx) =>
-      trabajo((p) => ejecutarEnTransaccion(servicios, trx, { ...p, causa: { correlacion, ...p.causa } }, pendientes), trx),
+      job((p) => executeInTransaction(services, trx, { ...p, cause: { correlation, ...p.cause } }, pending), trx),
     );
-  await ejecutarPendientes(servicios, pendientes);
+  await executePending(services, pending);
   return r;
 }
 
-async function ejecutarPendientes(servicios: Servicios, pendientes: Pendiente[]): Promise<void> {
-  for (const f of pendientes) {
+async function executePending(services: Services, pending: Pending[]): Promise<void> {
+  for (const f of pending) {
     try {
       await f();
     } catch (e) {
-      servicios.registro.error('Fallo en trabajo diferido tras confirmar', { error: String(e) });
+      services.record.error('Fallo en trabajo diferido tras confirmar', { error: String(e) });
     }
   }
 }
 
-function comprobarCapacidad(p: Peticion): void {
-  if (!permitidoComando(p.comando, p.actor.tipo)) {
-    throw new ErrorDominio('prohibido', `${formatearActor(p.actor)} no puede ejecutar «${p.comando}».`, [
-      `La matriz de capacidades no permite «${p.comando}» a ${p.actor.tipo}.`,
+function checkCapability(p: Request): void {
+  if (!allowedForCommand(p.command, p.actor.type)) {
+    throw new DomainError('forbidden', `${formatActor(p.actor)} no puede ejecutar «${p.command}».`, [
+      `La matriz de capacidades no permite «${p.command}» a ${p.actor.type}.`,
     ]);
   }
-  if (!permitidoAlComponente(p.comando, p.actor)) {
-    throw new ErrorDominio('prohibido', `${formatearActor(p.actor)} no puede ejecutar «${p.comando}».`, [
-      `El componente ${formatearActor(p.actor)} solo escribe conocimiento derivado, clasificaciones y propuestas.`,
+  if (!allowedForComponent(p.command, p.actor)) {
+    throw new DomainError('forbidden', `${formatActor(p.actor)} no puede ejecutar «${p.command}».`, [
+      `El componente ${formatActor(p.actor)} solo escribe conocimiento derivado, clasificaciones y propuestas.`,
     ]);
   }
 }
 
-async function cargarEntidad(trx: Tx, entidad: NombreEntidad, id: string, proyectoId: string): Promise<EntidadCargada> {
-  const tabla = TABLAS[entidad];
-  if (!tabla) throw new ErrorDominio('no_implementado', `La entidad «${entidad}» aún no está implementada.`);
-  const esProyecto = entidad === 'project';
+async function loadEntity(trx: Tx, entity: EntityName, id: string, projectId: string): Promise<LoadedEntity> {
+  const table = TABLES[entity];
+  if (!table) throw new DomainError('not_implemented', `La entidad «${entity}» aún no está implementada.`);
+  const isProject = entity === 'project';
   const { rows } = await sql<Record<string, unknown>>`
-    select * from ${sql.table(tabla)} where id = ${id}::uuid for update`.execute(trx);
-  const fila = rows[0];
-  const filaProyecto = esProyecto ? fila?.id : fila?.project_id;
-  if (!fila || filaProyecto !== proyectoId) {
-    throw new ErrorDominio('no_encontrado', `No existe ${etiquetaEntidad(entidad).toLowerCase()} ${id} en este proyecto.`);
+    select * from ${sql.table(table)} where id = ${id}::uuid for update`.execute(trx);
+  const row = rows[0];
+  const projectRow = isProject ? row?.id : row?.project_id;
+  if (!row || projectRow !== projectId) {
+    throw new DomainError('not_found', `No existe ${entityLabel(entity).toLowerCase()} ${id} en este proyecto.`);
   }
-  return { id, proyectoId, estado: String(fila.state), fila };
+  return { id, projectId, state: String(row.state), row };
 }
 
 const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function ejecutarEnTransaccion(
-  servicios: Servicios,
+export async function executeInTransaction(
+  services: Services,
   trx: Tx,
-  peticion: Peticion,
-  pendientes: Pendiente[],
-): Promise<Resultado> {
-  comprobarCapacidad(peticion);
-  const { comando, actor } = peticion;
-  const entidad = entidadDe(comando);
-  const manejador = MANEJADORES[comando];
-  if (!manejador) throw new ErrorDominio('no_implementado', `El comando «${comando}» aún no está implementado.`);
+  request: Request,
+  pending: Pending[],
+): Promise<Result> {
+  checkCapability(request);
+  const { command, actor } = request;
+  const entity = entityOf(command);
+  const handler = HANDLERS[command];
+  if (!handler) throw new DomainError('not_implemented', `El comando «${command}» aún no está implementado.`);
 
-  const validacion = manejador.datos.safeParse(peticion.datos ?? {});
-  if (!validacion.success) {
-    throw new ErrorDominio(
-      'validacion',
-      `Los datos de «${comando}» no son válidos.`,
-      validacion.error.issues.map((i) => `${i.path.join('.') || 'datos'}: ${i.message}`),
+  const validation = handler.data.safeParse(request.data ?? {});
+  if (!validation.success) {
+    throw new DomainError(
+      'validation',
+      `Los datos de «${command}» no son válidos.`,
+      validation.error.issues.map((i) => `${i.path.join('.') || 'data'}: ${i.message}`),
     );
   }
 
-  const creacion = esCreacion(comando);
-  let proyectoId = peticion.proyectoId ?? '';
-  if (comando !== 'project.create') {
-    if (!RE_UUID.test(proyectoId)) throw new ErrorDominio('no_encontrado', 'Falta el proyecto.');
-    const proyecto = await sql<{ state: string }>`select state from projects where id = ${proyectoId}::uuid for update`.execute(
+  const creation = isCreation(command);
+  let projectId = request.projectId ?? '';
+  if (command !== 'project.create') {
+    if (!RE_UUID.test(projectId)) throw new DomainError('not_found', 'Falta el proyecto.');
+    const project = await sql<{ state: string }>`select state from projects where id = ${projectId}::uuid for update`.execute(
       trx,
     );
-    const estadoProyecto = proyecto.rows[0]?.state;
-    if (!estadoProyecto) throw new ErrorDominio('no_encontrado', 'El proyecto no existe.');
-    if (estadoProyecto === 'archived' && entidad !== 'project') {
-      throw new ErrorDominio('transicion_invalida', 'El proyecto está archivado: no admite cambios.');
+    const projectState = project.rows[0]?.state;
+    if (!projectState) throw new DomainError('not_found', 'El proyecto no existe.');
+    if (projectState === 'archived' && entity !== 'project') {
+      throw new DomainError('invalid_transition', 'El proyecto está archivado: no admite cambios.');
     }
   }
 
-  let cargada: EntidadCargada | null = null;
-  if (!creacion) {
-    const id = peticion.entidadId ?? '';
-    if (!RE_UUID.test(id)) throw new ErrorDominio('no_encontrado', `Falta la entidad sobre la que actúa «${comando}».`);
-    cargada = await cargarEntidad(trx, entidad, id, proyectoId);
+  let loaded: LoadedEntity | null = null;
+  if (!creation) {
+    const id = request.entityId ?? '';
+    if (!RE_UUID.test(id)) throw new DomainError('not_found', `Falta la entidad sobre la que actúa «${command}».`);
+    loaded = await loadEntity(trx, entity, id, projectId);
   }
 
-  const transicion = buscarTransicion(entidad, cargada?.estado ?? null, comando);
-  if (!transicion) {
-    const estado = cargada ? etiquetaEstado(entidad, cargada.estado) : 'nuevo';
-    throw new ErrorDominio(
-      'transicion_invalida',
-      `No se puede aplicar «${comando}» a ${etiquetaEntidad(entidad).toLowerCase()} en estado «${estado}».`,
+  const transition = findTransition(entity, loaded?.state ?? null, command);
+  if (!transition) {
+    const state = loaded ? stateLabel(entity, loaded.state) : 'new';
+    throw new DomainError(
+      'invalid_transition',
+      `No se puede aplicar «${command}» a ${entityLabel(entity).toLowerCase()} en estado «${state}».`,
     );
   }
 
-  const causa: Causa = { correlacion: peticion.causa?.correlacion ?? randomUUID(), ...peticion.causa };
-  const ctx: ContextoComando = {
+  const cause: Cause = { correlation: request.cause?.correlation ?? randomUUID(), ...request.cause };
+  const ctx: CommandContext = {
     trx,
     actor,
-    proyectoId,
-    comando,
-    causa,
-    servicios,
-    ejecutar: (p) =>
-      ejecutarEnTransaccion(
-        servicios,
+    projectId,
+    command,
+    cause,
+    services,
+    execute: (p) =>
+      executeInTransaction(
+        services,
         trx,
-        { proyectoId, ...p, causa: { ...causa, comandoOrigen: causa.comandoOrigen ?? comando, ...p.causa } },
-        pendientes,
+        { projectId, ...p, cause: { ...cause, sourceCommand: cause.sourceCommand ?? command, ...p.cause } },
+        pending,
       ),
-    despuesDeConfirmar: (f) => {
-      pendientes.push(f);
+    afterConfirm: (f) => {
+      pending.push(f);
     },
   };
 
-  const motivos: string[] = [];
-  for (const nombre of transicion.guardas) {
-    const guarda = GUARDAS[nombre];
-    if (!guarda) throw new Error(`La guarda «${nombre}» no tiene implementación.`);
-    const motivo = await guarda({ ctx, datos: validacion.data, entidad: cargada });
-    if (motivo) motivos.push(motivo);
+  const reasons: string[] = [];
+  for (const name of transition.guards) {
+    const guard = GUARDS[name];
+    if (!guard) throw new Error(`La guarda «${name}» no tiene implementación.`);
+    const reason = await guard({ ctx, data: validation.data, entity: loaded });
+    if (reason) reasons.push(reason);
   }
-  if (motivos.length > 0) {
-    throw new ErrorDominio('guarda', `No se cumplen las condiciones de «${comando}».`, motivos);
+  if (reasons.length > 0) {
+    throw new DomainError('guard', `No se cumplen las condiciones de «${command}».`, reasons);
   }
 
   // El estado cambia antes de aplicar: los comandos anidados ya ven la entidad en su estado nuevo.
-  if (cargada) {
-    const tabla = TABLAS[entidad] as string;
-    await sql`update ${sql.table(tabla)} set state = ${transicion.hacia} where id = ${cargada.id}::uuid`.execute(trx);
+  if (loaded) {
+    const table = TABLES[entity] as string;
+    await sql`update ${sql.table(table)} set state = ${transition.to} where id = ${loaded.id}::uuid`.execute(trx);
   }
-  const aplicado = await manejador.aplicar(ctx, validacion.data, cargada, transicion.hacia);
-  if (aplicado.proyectoId) {
-    proyectoId = aplicado.proyectoId;
-    ctx.proyectoId = proyectoId;
+  const applied = await handler.apply(ctx, validation.data, loaded, transition.to);
+  if (applied.projectId) {
+    projectId = applied.projectId;
+    ctx.projectId = projectId;
   }
-  if (aplicado.sinCambios) {
+  if (applied.noChanges) {
     return {
-      proyectoId,
-      entidad,
-      entidadId: aplicado.entidadId,
-      estado: transicion.hacia,
+      projectId,
+      entity,
+      entityId: applied.entityId,
+      state: transition.to,
       seq: null,
-      resultado: aplicado.resultado,
+      result: applied.result,
     };
   }
-  const seq = await registrarEvento(trx, {
-    proyectoId,
-    actor: formatearActor(actor),
-    comando,
-    entidad,
-    entidadId: aplicado.entidadId,
-    version: aplicado.version ?? null,
-    estadoAntes: cargada?.estado ?? null,
-    estadoDespues: transicion.hacia,
-    antes: aplicado.antes,
-    despues: aplicado.despues,
-    causa,
+  const seq = await registerEvent(trx, {
+    projectId,
+    actor: formatActor(actor),
+    command,
+    entity,
+    entityId: applied.entityId,
+    version: applied.version ?? null,
+    stateBefore: loaded?.state ?? null,
+    stateAfter: transition.to,
+    before: applied.before,
+    after: applied.after,
+    cause,
   });
-  return { proyectoId, entidad, entidadId: aplicado.entidadId, estado: transicion.hacia, seq, resultado: aplicado.resultado };
+  return { projectId, entity, entityId: applied.entityId, state: transition.to, seq, result: applied.result };
 }
 
-type NuevoEvento = {
-  proyectoId: string;
+type NewEvent = {
+  projectId: string;
   actor: string;
-  comando: string;
-  entidad: string;
-  entidadId: string;
+  command: string;
+  entity: string;
+  entityId: string;
   version: number | null;
-  estadoAntes: string | null;
-  estadoDespues: string | null;
-  antes?: unknown;
-  despues?: unknown;
-  causa: Causa;
+  stateBefore: string | null;
+  stateAfter: string | null;
+  before?: unknown;
+  after?: unknown;
+  cause: Cause;
 };
 
-const aJson = (v: unknown): string | null => (v === undefined ? null : JSON.stringify(v));
+const toJson = (v: unknown): string | null => (v === undefined ? null : JSON.stringify(v));
 
 /** Añade un evento al diario con el siguiente número de secuencia del proyecto. */
-export async function registrarEvento(trx: Tx, e: NuevoEvento): Promise<number> {
+export async function registerEvent(trx: Tx, e: NewEvent): Promise<number> {
   const { event_seq } = await trx
     .updateTable('projects')
     .set({ event_seq: sql`event_seq + 1` })
-    .where('id', '=', e.proyectoId)
+    .where('id', '=', e.projectId)
     .returning('event_seq')
     .executeTakeFirstOrThrow();
   await trx
     .insertInto('events')
     .values({
-      project_id: e.proyectoId,
+      project_id: e.projectId,
       seq: event_seq,
       actor: e.actor,
-      command: e.comando,
-      entity_type: e.entidad,
-      entity_id: e.entidadId,
+      command: e.command,
+      entity_type: e.entity,
+      entity_id: e.entityId,
       entity_version: e.version,
-      state_before: e.estadoAntes,
-      state_after: e.estadoDespues,
-      before: aJson(e.antes),
-      after: aJson(e.despues),
-      cause: aJson(e.causa),
+      state_before: e.stateBefore,
+      state_after: e.stateAfter,
+      before: toJson(e.before),
+      after: toJson(e.after),
+      cause: toJson(e.cause),
     })
     .execute();
   return Number(event_seq);

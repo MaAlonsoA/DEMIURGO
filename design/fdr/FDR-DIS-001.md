@@ -1,24 +1,24 @@
 ---
-codigo: FDR-DIS-001
-tipo: fdr
-titulo: De la intención a «Listo para construir», con canal de agentes
+code: FDR-DIS-001
+type: fdr
+title: De la intención a «Listo para construir», con canal de agentes
 version: 1
-estado: propuesto
-dominio: diseno
-incremento: S1
-enlaces:
-  - tipo: based_on
-    destino: DEC-PLN-001@1
-anexos: []
+state: proposed
+domain: diseno
+increment: S1
+links:
+  - type: based_on
+    target: DEC-PLN-001@1
+annexes: []
 ---
 
 # FDR-DIS-001 · De la intención a «Listo para construir», con canal de agentes
 
-## Objetivo
+## Goal
 
 La franja más fina del Pilar 1, usable por una persona o por un agente: partir de una intención y llegar a una decisión aprobada y a una FDR con AC «Listo para construir», con la bandeja vacía. Sin UI: la aceptación humana se hace por la API con la cookie de sesión.
 
-## Alcance
+## Scope
 
 - Exploraciones con propósito y origen, hilos de mensajes con el actor como autor y la acción de IA `exploration_chat`.
 - Preguntas con su ciclo de vida: confirmar con conclusión, posponer y descartar con motivo, y reabrir conservando el historial.
@@ -31,7 +31,7 @@ La franja más fina del Pilar 1, usable por una persona o por un agente: partir 
 - Canal de agentes por API con token y por servidor MCP: leer, conversar con su nombre, registrar fuentes y proponer.
 - Sesión humana con cookie httpOnly, SameSite=Strict y token CSRF.
 
-## Fuera de alcance
+## Out of scope
 
 - La UI: se decidirá en Claude Design.
 - La política de atención y la síntesis por ronda (S6).
@@ -39,7 +39,7 @@ La franja más fina del Pilar 1, usable por una persona o por un agente: partir 
 - El conocimiento derivado y la evaluación de ideas (S2).
 - Varias personas o equipos.
 
-## Comportamiento
+## Behavior
 
 1. La persona abre una exploración con su intención. La acción `exploration_chat` responde con un mensaje y, si procede, con preguntas y propuestas en un lote pendiente.
 2. La persona acepta la propuesta de decisión con «Aceptar y aprobar»: se crea el registro con su versión y se aprueba en el mismo paso humano.
@@ -80,144 +80,144 @@ Correspondencia del estado epistémico (AC-DIS-001-12 se comprueba contra esta t
 | Observación `unknown` | desconocido |
 | Enlace pendiente de revisión | pendiente |
 
-## Criterios de aceptación
+## Acceptance criteria
 
 ### AC-DIS-001-01 · Recorrido completo
 
-- Verificación: automática
-- Comprobación: Un E2E por la API con el simulador recorre el camino entero.
+- Verification: automatic
+- Check: Un E2E por la API con el simulador recorre el camino entero.
 
 Dada una intención nueva, cuando la persona acepta y aprueba la decisión propuesta, acepta en un paso la propuesta de diseño (una FDR con 2 AC) y aprueba la FDR, entonces la FDR aparece como «Listo para construir» y la bandeja queda vacía.
 
 ### AC-DIS-001-02 · Canal de agentes por API
 
-- Verificación: automática
-- Comprobación: Un agente de prueba usa la API con su token y la persona acepta con su sesión.
+- Verification: automatic
+- Check: Un agente de prueba usa la API con su token y la persona acepta con su sesión.
 
 Dado un agente con token, cuando usa la API, entonces lee, conversa con su nombre, registra una fuente y propone; y la persona acepta la propuesta con su sesión.
 
 ### AC-DIS-001-03 · Canal de agentes por MCP
 
-- Verificación: automática
-- Comprobación: Un cliente MCP de prueba llama a cada herramienta del servidor.
+- Verification: automatic
+- Check: Un cliente MCP de prueba llama a cada herramienta del servidor.
 
 Dado un agente conectado por MCP, cuando usa las herramientas, entonces puede leer, conversar, registrar fuentes y proponer, y ninguna herramienta aprueba ni acepta.
 
 ### AC-DIS-001-04 · Decisivos solo humanos
 
-- Verificación: automática
-- Comprobación: Una prueba de propiedades recorre los comandos decisivos con actores no humanos.
+- Verification: automatic
+- Check: Una prueba de propiedades recorre los comandos decisivos con actores no humanos.
 
 Dado cualquier comando decisivo, cuando lo ejecuta un actor que no es humano, entonces se rechaza sin efectos.
 
 ### AC-DIS-001-05 · Lista de permitidos del agente
 
-- Verificación: automática
-- Comprobación: Se recorren con un token de agente todas las operaciones de la API.
+- Verification: automatic
+- Check: Se recorren con un token de agente todas las operaciones de la API.
 
 Dado un token de agente, cuando pide cualquier operación que no sea leer, conversar, registrar fuentes o proponer, entonces recibe 403.
 
 ### AC-DIS-001-06 · Readiness falsa por cada motivo
 
-- Verificación: automática
-- Comprobación: Una prueba por motivo construye una versión a la que solo le falta esa condición.
+- Verification: automatic
+- Check: Una prueba por motivo construye una versión a la que solo le falta esa condición.
 
 Dada una versión a la que le falta una sola condición, cuando se calcula su readiness, entonces es falsa y explica el motivo en lenguaje de producto. Se cubre cada motivo: versión no aprobada, no vigente, sin criterios, sin decisión aprobada, decisión no vigente, enlace pendiente de revisión, preguntas pendientes o pospuestas en la exploración de origen y propuestas pendientes que la afectan.
 
 ### AC-DIS-001-07 · Mismo context pack en el reintento
 
-- Verificación: automática
-- Comprobación: Se reintenta una ejecución y se comparan los hashes de los dos context packs.
+- Verification: automatic
+- Check: Se reintenta una ejecución y se comparan los hashes de los dos context packs.
 
 Dada una ejecución terminada, cuando se reintenta, entonces el hash del context pack del reintento coincide con el del envío.
 
 ### AC-DIS-001-08 · Aprobar no crea versión
 
-- Verificación: automática
-- Comprobación: Se aprueba una versión y se cuentan las versiones del registro.
+- Verification: automatic
+- Check: Se aprueba una versión y se cuentan las versiones del registro.
 
 Dada una versión en borrador, cuando se aprueba, entonces el número de versiones no cambia, la vigente es la última aprobada y la aprobada anterior queda sustituida.
 
 ### AC-DIS-001-09 · Contenido inmutable
 
-- Verificación: automática
-- Comprobación: Se intenta modificar una versión y sus criterios en la base, y se crea una versión nueva sin arrastrar todos los criterios.
+- Verification: automatic
+- Check: Se intenta modificar una versión y sus criterios en la base, y se crea una versión nueva sin arrastrar todos los criterios.
 
 Dada una versión con criterios, cuando se intenta modificar su contenido o sus criterios, entonces la base lo rechaza; y una versión nueva exige arrastrar cada criterio: mantener, modificar o descartar.
 
 ### AC-DIS-001-10 · Gobierno de preguntas
 
-- Verificación: automática
-- Comprobación: Se confirma, pospone, descarta y reabre una pregunta con y sin los datos exigidos.
+- Verification: automatic
+- Check: Se confirma, pospone, descarta y reabre una pregunta con y sin los datos exigidos.
 
 Dada una pregunta, cuando se confirma sin conclusión o se pospone o descarta sin motivo, entonces se rechaza; y cuando se reabre, conserva su historial.
 
 ### AC-DIS-001-11 · Lotes de agentes externos
 
-- Verificación: automática
-- Comprobación: Un agente externo envía lotes de 10 y de 11 propuestas y la persona resuelve uno.
+- Verification: automatic
+- Check: Un agente externo envía lotes de 10 y de 11 propuestas y la persona resuelve uno.
 
 Dado un agente externo, cuando envía un lote de más de 10 propuestas, entonces se rechaza; y un lote admitido se resuelve elemento a elemento y muestra su productor.
 
 ### AC-DIS-001-12 · Estado epistémico visible
 
-- Verificación: automática
-- Comprobación: Se consultan la bandeja, el estado del producto y los detalles de exploración y de lote con un elemento de cada fila de la tabla de correspondencias y se compara el estado epistémico de cada uno con la tabla.
+- Verification: automatic
+- Check: Se consultan la bandeja, el estado del producto y los detalles de exploración y de lote con un elemento de cada fila de la tabla de correspondencias y se compara el estado epistémico de cada uno con la tabla.
 
 Dada la bandeja, el estado del producto y los detalles de exploración y de lote, cuando se consultan, entonces cada elemento lleva el estado epistémico que le asigna la tabla de correspondencias de Comportamiento: confirmado, propuesto, pendiente o desconocido.
 
 ### AC-DIS-001-13 · Estado del producto mínimo
 
-- Verificación: automática
-- Comprobación: Se consulta el estado de un proyecto con decisiones, diseños y propuestas pendientes.
+- Verification: automatic
+- Check: Se consulta el estado de un proyecto con decisiones, diseños y propuestas pendientes.
 
 Dado un proyecto con decisiones y diseños, cuando se consulta su estado, entonces lista cada uno con su versión vigente, su estado y su readiness, junto con el recuento de la bandeja.
 
 ### AC-DIS-001-14 · Chequeo de verificabilidad
 
-- Verificación: automática
-- Comprobación: Se registran un AC sin ninguna palabra de resultado observable, otro con un término vago y otro que cumple la regla.
+- Verification: automatic
+- Check: Se registran un AC sin ninguna palabra de resultado observable, otro con un término vago y otro que cumple la regla.
 
 Dado un AC cuyo enunciado no contiene ninguna palabra de resultado observable o contiene un término vago de la regla determinista de S1 (Comportamiento, punto 12), cuando se registra, entonces recibe un aviso y se guarda igualmente: el chequeo nunca bloquea. Un AC que cumple la regla no recibe aviso.
 
 ### AC-DIS-001-15 · Credencial humana protegida
 
-- Verificación: automática
-- Comprobación: Se revisan los atributos de la cookie, se envía una mutación sin token CSRF y se intenta abrir sesión con un token de agente.
+- Verification: automatic
+- Check: Se revisan los atributos de la cookie, se envía una mutación sin token CSRF y se intenta abrir sesión con un token de agente.
 
 Dada la sesión humana, cuando se emite la cookie, entonces es httpOnly y SameSite=Strict; una mutación con cookie sin el token CSRF se rechaza; y un token de agente no obtiene una sesión humana.
 
 ### AC-DIS-001-16 · Propuesta obsoleta
 
-- Verificación: automática
-- Comprobación: Se cambia una dependencia declarada de una propuesta pendiente y la persona intenta aceptarla.
+- Verification: automatic
+- Check: Se cambia una dependencia declarada de una propuesta pendiente y la persona intenta aceptarla.
 
 Dada una propuesta con una dependencia declarada que cambió, cuando la persona la acepta, entonces se rechaza con aviso de obsolescencia y la propuesta queda obsoleta.
 
 ### AC-DIS-001-17 · Ejecución real registrada
 
-- Verificación: manual
-- Comprobación: La persona revisa la ejecución real registrada y su resultado.
+- Verification: manual
+- Check: La persona revisa la ejecución real registrada y su resultado.
 
 Dado S1 terminado, cuando se revisa el registro de ejecuciones, entonces hay al menos una ejecución real con Claude registrada con su resultado.
 
 ### AC-DIS-001-18 · Plantilla obligatoria
 
-- Verificación: automática
-- Comprobación: Se crea y se aprueba un registro de cada tipo al que le falta una sección de su plantilla.
+- Verification: automatic
+- Check: Se crea y se aprueba un registro de cada tipo al que le falta una sección de su plantilla.
 
 Dado un registro cuyas secciones no cumplen la plantilla de su tipo (por ejemplo, un bug sin Reproducción), cuando se crea o se aprueba, entonces se rechaza con lo que falta.
 
 ### AC-DIS-001-19 · Inferir es del sistema
 
-- Verificación: automática
-- Comprobación: Un agente intenta inferir y confirmar una pregunta, y el sistema la infiere a partir de la salida validada de una ejecución.
+- Verification: automatic
+- Check: Un agente intenta inferir y confirmar una pregunta, y el sistema la infiere a partir de la salida validada de una ejecución.
 
 Dada una pregunta pendiente, cuando un agente intenta inferirla o confirmarla, entonces se rechaza; y solo el sistema la pasa a inferida, a partir de la salida validada de un agente.
 
 ### AC-DIS-001-20 · Procedencia del lote
 
-- Verificación: automática
-- Comprobación: Se completa una ejecución que produce un lote y se revisa lo que guarda el lote.
+- Verification: automatic
+- Check: Se completa una ejecución que produce un lote y se revisa lo que guarda el lote.
 
 Dada una ejecución que produce un lote de propuestas, cuando se guarda el lote, entonces guarda la ejecución y el context pack que lo produjeron.

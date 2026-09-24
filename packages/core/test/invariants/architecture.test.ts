@@ -3,94 +3,94 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { join, sep } from 'node:path';
 import {
-  COMANDOS_POR_COMPONENTE,
-  buscarTransicion,
-  definicionEntidad,
-  entidadDe,
-  esComando,
-  esDecisivo,
-  todasLasGuardas,
+  COMMANDS_BY_COMPONENT,
+  findTransition,
+  entityDefinition,
+  entityOf,
+  isCommand,
+  isDecisive,
+  allGuards,
 } from '@demiurgo/domain';
 import { describe, expect, it } from 'vitest';
 import '../../src/bus/bus.ts';
-import { GUARDAS } from '../../src/bus/guardas.ts';
-import { crearBaseEfimera } from '../soporte/base-efimera.ts';
+import { GUARDS } from '../../src/bus/guards.ts';
+import { createEphemeralDatabase } from '../support/ephemeral-db.ts';
 
-async function fuentes(dir: string): Promise<Map<string, string>> {
+async function sources(dir: string): Promise<Map<string, string>> {
   const m = new Map<string, string>();
   for (const e of await readdir(dir, { recursive: true, withFileTypes: true })) {
     if (e.isFile() && e.name.endsWith('.ts')) {
-      const ruta = join(e.parentPath, e.name).split(sep).join('/');
-      m.set(ruta, await readFile(ruta, 'utf8'));
+      const path = join(e.parentPath, e.name).split(sep).join('/');
+      m.set(path, await readFile(path, 'utf8'));
     }
   }
   return m;
 }
 
-async function todasLasFuentes(): Promise<Map<string, string>> {
+async function allSources(): Promise<Map<string, string>> {
   const m = new Map<string, string>();
   for (const p of await readdir('packages')) {
     const dir = join('packages', p, 'src');
-    for (const [k, v] of await fuentes(dir).catch(() => new Map<string, string>())) m.set(k, v);
+    for (const [k, v] of await sources(dir).catch(() => new Map<string, string>())) m.set(k, v);
   }
   return m;
 }
 
 /** Módulos que pueden leer variables de entorno: la configuración y el entorno de procesos hijos. */
 // La sonda contiene el script que se ejecuta dentro del contenedor: allí lee el entorno del runner.
-const LECTORES_DE_ENTORNO = new Set([
+const ENV_READERS = new Set([
   'packages/core/src/config.ts',
-  'packages/core/src/entorno.ts',
-  'packages/core/src/runner/sonda.ts',
+  'packages/core/src/env.ts',
+  'packages/core/src/runner/probe.ts',
   // Arranque del servidor MCP: proceso aparte que solo lee su URL, su token y su proyecto.
   'packages/mcp/src/main.ts',
 ]);
 
-describe('arquitectura', () => {
+describe('architecture', () => {
   it('AC-ESQ-001-06 solo la configuración lee variables de entorno', async () => {
-    const infractores = [...(await todasLasFuentes()).entries()]
-      .filter(([ruta, texto]) => !LECTORES_DE_ENTORNO.has(ruta) && /process\.env\b/.test(texto))
-      .map(([ruta]) => ruta);
-    expect(infractores).toEqual([]);
+    const violators = [...(await allSources()).entries()]
+      .filter(([path, text]) => !ENV_READERS.has(path) && /process\.env\b/.test(text))
+      .map(([path]) => path);
+    expect(violators).toEqual([]);
   });
 
   it('AC-ESQ-001-06 las pruebas usan bases efímeras con prefijo dmg_t_', async () => {
-    const base = await crearBaseEfimera();
+    const base = await createEphemeralDatabase();
     try {
-      expect(base.nombre).toMatch(/^dmg_t_\d+_[0-9a-f]{8}$/);
-      expect(new URL(base.url).pathname).toBe(`/${base.nombre}`);
+      expect(base.name).toMatch(/^dmg_t_\d+_[0-9a-f]{8}$/);
+      expect(new URL(base.url).pathname).toBe(`/${base.name}`);
     } finally {
-      await base.eliminar();
+      await base.drop();
     }
   });
 
   it('AC-NUC-001-03 toda guarda declarada en las tablas tiene implementación registrada', () => {
-    const sinImplementar = todasLasGuardas().filter((g) => !GUARDAS[g]);
-    expect(sinImplementar).toEqual([]);
+    const notImplemented = allGuards().filter((g) => !GUARDS[g]);
+    expect(notImplemented).toEqual([]);
   });
 
   it('AC-DIS-001-04 las acciones de agente solo publican, plantean o infieren preguntas y envían lotes: nunca deciden (I2)', async () => {
     // La salida de un agente se aplica aquí: mensajes, preguntas (el sistema las infiere) y lotes de propuestas.
-    const PERMITIDOS = new Set(['message.post', 'question.raise', 'question.infer', 'batch.submit']);
-    const infracciones: string[] = [];
-    for (const dir of ['packages/core/src/acciones', 'packages/core/src/agentes']) {
-      for (const [ruta, texto] of await fuentes(dir)) {
-        for (const c of texto.matchAll(/'([a-z_]+\.[a-z_]+)'/g)) {
-          const nombre = c[1] ?? '';
-          if (esComando(nombre) && !PERMITIDOS.has(nombre)) infracciones.push(`${ruta}: ${nombre}`);
+    const ALLOWED = new Set(['message.post', 'question.raise', 'question.infer', 'batch.submit']);
+    const violations: string[] = [];
+    for (const dir of ['packages/core/src/actions', 'packages/core/src/agents']) {
+      for (const [path, text] of await sources(dir)) {
+        for (const c of text.matchAll(/'([a-z_]+\.[a-z_]+)'/g)) {
+          const name = c[1] ?? '';
+          if (isCommand(name) && !ALLOWED.has(name)) violations.push(`${path}: ${name}`);
         }
-        for (const t of texto.matchAll(
+        for (const t of text.matchAll(
           /(?:insertInto|updateTable|deleteFrom)\('([a-z_]+)'\)|insert into ([a-z_]+)|update ([a-z_]+) set/g,
         )) {
-          infracciones.push(`${ruta}: escribe en ${t[1] ?? t[2] ?? t[3] ?? ''}`);
+          violations.push(`${path}: escribe en ${t[1] ?? t[2] ?? t[3] ?? ''}`);
         }
       }
     }
-    expect(infracciones).toEqual([]);
+    expect(violations).toEqual([]);
   });
 
   it('AC-CON-001-12 el actualizador y el clasificador solo emiten comandos de conocimiento derivado, clasificaciones y propuestas', async () => {
-    const PERMITIDOS = new Set([
+    const ALLOWED = new Set([
       'knowledge_update.classify',
       'knowledge_update.verify',
       'knowledge_update.apply',
@@ -104,52 +104,52 @@ describe('arquitectura', () => {
       'idea_assessment.record',
       'batch.submit',
     ]);
-    const TABLAS_PERMITIDAS = new Set(['verdict_cache', 'classifier_evaluations']);
-    const modulos = [
-      ...['actualizar.ts', 'flujos.ts', 'reconstruir.ts', 'derivar.ts', 'grafo-pg.ts', 'integracion.ts', 'evaluar.ts'].map(
-        (m) => `packages/core/src/conocimiento/${m}`,
+    const ALLOWED_TABLES = new Set(['verdict_cache', 'classifier_evaluations']);
+    const modules = [
+      ...['actualizar.ts', 'flujos.ts', 'reconstruir.ts', 'derive.ts', 'grafo-pg.ts', 'integration.ts', 'assess.ts'].map(
+        (m) => `packages/core/src/knowledge/${m}`,
       ),
       // Los adaptadores del clasificador no emiten comandos ni escriben en la base.
-      ...(await fuentes('packages/core/src/clasificador')).keys(),
+      ...(await sources('packages/core/src/classifier')).keys(),
     ];
-    const infracciones: string[] = [];
-    for (const m of modulos) {
-      const texto = await readFile(m, 'utf8');
+    const violations: string[] = [];
+    for (const m of modules) {
+      const text = await readFile(m, 'utf8');
       // Todo literal que nombra un comando de la matriz debe estar en la lista permitida.
-      for (const c of texto.matchAll(/'([a-z_]+\.[a-z_]+)'/g)) {
-        const nombre = c[1] ?? '';
-        if (esComando(nombre) && !PERMITIDOS.has(nombre)) infracciones.push(`${m}: ${nombre}`);
+      for (const c of text.matchAll(/'([a-z_]+\.[a-z_]+)'/g)) {
+        const name = c[1] ?? '';
+        if (isCommand(name) && !ALLOWED.has(name)) violations.push(`${m}: ${name}`);
       }
       // Ninguna escritura directa fuera de las tablas de caché y evaluaciones.
-      for (const t of texto.matchAll(
+      for (const t of text.matchAll(
         /(?:insertInto|updateTable|deleteFrom)\('([a-z_]+)'\)|insert into ([a-z_]+)|update ([a-z_]+) set/g,
       )) {
-        const tabla = t[1] ?? t[2] ?? t[3] ?? '';
-        if (!TABLAS_PERMITIDAS.has(tabla)) infracciones.push(`${m}: escribe en ${tabla}`);
+        const table = t[1] ?? t[2] ?? t[3] ?? '';
+        if (!ALLOWED_TABLES.has(table)) violations.push(`${m}: escribe en ${table}`);
       }
     }
-    expect(infracciones).toEqual([]);
+    expect(violations).toEqual([]);
   });
 
   it('AC-CON-001-12 el componente del conocimiento tiene una lista cerrada sin comandos decisivos ni estados de autoridad', () => {
     // La lista la impone el bus en ejecución (aunque la matriz permita el comando a system): así
     // tampoco vale construir el nombre del comando en tiempo de ejecución.
-    const infracciones: string[] = [];
-    for (const c of COMANDOS_POR_COMPONENTE.conocimiento ?? []) {
-      if (!esComando(c)) {
-        infracciones.push(`${c}: no es un comando`);
+    const violations: string[] = [];
+    for (const c of COMMANDS_BY_COMPONENT.knowledge ?? []) {
+      if (!isCommand(c)) {
+        violations.push(`${c}: no es un comando`);
         continue;
       }
-      if (esDecisivo(c)) infracciones.push(`${c}: es decisivo`);
-      const def = definicionEntidad(entidadDe(c));
-      for (const t of def.transiciones.filter((x) => x.comando === c)) {
-        if (def.autoridad.includes(t.hacia)) infracciones.push(`${c}: alcanza el estado de autoridad ${t.hacia}`);
+      if (isDecisive(c)) violations.push(`${c}: es decisivo`);
+      const def = entityDefinition(entityOf(c));
+      for (const t of def.transitions.filter((x) => x.command === c)) {
+        if (def.authority.includes(t.to)) violations.push(`${c}: alcanza el estado de autoridad ${t.to}`);
       }
     }
-    expect(infracciones).toEqual([]);
+    expect(violations).toEqual([]);
     // Y sustituir una versión aprobada exige otra aprobada posterior (guarda en la tabla).
-    expect(buscarTransicion('record_version', 'approved', 'record_version.supersede')?.guardas).toContain(
-      'hay_aprobada_posterior',
+    expect(findTransition('record_version', 'approved', 'record_version.supersede')?.guards).toContain(
+      'has_later_approved',
     );
   });
 });

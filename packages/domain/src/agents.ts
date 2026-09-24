@@ -4,117 +4,117 @@
 
 import { z } from 'zod';
 
-export const ACCIONES_AGENTE = ['eco', 'exploration_chat', 'design_proposal'] as const;
-export type AccionAgente = (typeof ACCIONES_AGENTE)[number];
+export const AGENT_ACTIONS = ['echo', 'exploration_chat', 'design_proposal'] as const;
+export type AgentAction = (typeof AGENT_ACTIONS)[number];
 
 /** Tipos de fallo cerrados (docs/investigacion-stack-2026-09-24.md §8). */
 export const FAILURE_KINDS = ['infra', 'timeout', 'invalid_output', 'agent_error', 'cancelled', 'stale_knowledge'] as const;
 export type FailureKind = (typeof FAILURE_KINDS)[number];
 
-export type Uso = {
-  tokensEntrada: number;
-  tokensSalida: number;
-  duracionMs: number;
-  costeDeclaradoUsd?: number;
+export type Usage = {
+  inputTokens: number;
+  outputTokens: number;
+  durationMs: number;
+  declaredCostUsd?: number;
 };
 
-export type PeticionAgente = {
+export type AgentRequest = {
   runId: string;
-  accion: AccionAgente;
-  metodo: { version: string; texto: string };
+  action: AgentAction;
+  method: { version: string; text: string };
   /** JSON Schema generado desde el esquema Zod de la acción. */
-  esquemaSalida: Record<string, unknown>;
-  contexto: { hash: string; contenido: unknown };
-  presupuesto: { tiempoMs: number; maxUsd?: number };
-  modelo?: string;
+  outputSchema: Record<string, unknown>;
+  context: { hash: string; content: unknown };
+  budget: { timeMs: number; maxUsd?: number };
+  model?: string;
   signal?: AbortSignal;
 };
 
-export type ResultadoAgente =
-  | { estado: 'ok'; salidaCruda: unknown; uso: Uso; eventosCrudos: string; proveedor: string; modelo: string }
+export type AgentResult =
+  | { state: 'ok'; rawOutput: unknown; usage: Usage; rawEvents: string; provider: string; model: string }
   | {
-      estado: 'error';
+      state: 'error';
       failureKind: Exclude<FailureKind, 'invalid_output'>;
-      mensaje: string;
-      uso?: Uso;
-      eventosCrudos: string;
-      proveedor: string;
-      modelo: string;
+      message: string;
+      usage?: Usage;
+      rawEvents: string;
+      provider: string;
+      model: string;
     };
 
-export interface PuertoAgente {
-  readonly proveedor: string;
-  ejecutar(peticion: PeticionAgente): Promise<ResultadoAgente>;
+export interface AgentPort {
+  readonly provider: string;
+  execute(request: AgentRequest): Promise<AgentResult>;
 }
 
 // Esquemas de salida por acción: la única fuente del contrato (Zod → JSON Schema).
 
-const texto = (max: number) => z.string().trim().min(1).max(max);
+const text = (max: number) => z.string().trim().min(1).max(max);
 
-export const salidaEco = z.object({ reply: texto(2000) }).strict();
+export const echoOutput = z.object({ reply: text(2000) }).strict();
 
-export const salidaExplorationChat = z
+export const explorationChatOutput = z
   .object({
-    reply: texto(6000),
-    observaciones: z.array(z.object({ tipo: z.enum(['claim', 'hypothesis', 'unknown']), texto: texto(1000) }).strict()).max(10),
-    preguntas: z
-      .array(z.object({ pregunta: texto(500), motivo: texto(500), impacto: z.enum(['alto', 'medio', 'bajo']) }).strict())
+    reply: text(6000),
+    observations: z.array(z.object({ type: z.enum(['claim', 'hypothesis', 'unknown']), text: text(1000) }).strict()).max(10),
+    questions: z
+      .array(z.object({ question: text(500), reason: text(500), impact: z.enum(['high', 'medium', 'low']) }).strict())
       .max(5),
-    inferencias: z
-      .array(z.object({ pregunta_id: z.string().uuid(), conclusion: texto(1500), razonamiento: texto(1500) }).strict())
+    inferences: z
+      .array(z.object({ question_id: z.string().uuid(), conclusion: text(1500), reasoning: text(1500) }).strict())
       .max(5),
-    propuestas: z
+    proposals: z
       .array(
-        z.discriminatedUnion('tipo', [
+        z.discriminatedUnion('type', [
           z
             .object({
-              tipo: z.literal('decision'),
-              titulo: texto(160),
-              contexto: texto(3000),
-              decision: texto(3000),
-              consecuencias: texto(3000),
+              type: z.literal('decision'),
+              title: text(160),
+              context: text(3000),
+              decision: text(3000),
+              consequences: text(3000),
             })
             .strict(),
-          z.object({ tipo: z.literal('exploracion'), proposito: texto(500) }).strict(),
+          z.object({ type: z.literal('exploration'), purpose: text(500) }).strict(),
         ]),
       )
       .max(5),
   })
   .strict();
 
-export const criterioPropuesto = z
+export const proposedCriterion = z
   .object({
-    titulo: texto(160),
-    enunciado: texto(1500),
-    verificacion: z.enum(['automatic', 'manual']),
-    comprobacion: texto(600),
+    title: text(160),
+    statement: text(1500),
+    verification: z.enum(['automatic', 'manual']),
+    check: text(600),
   })
   .strict();
 
-export const salidaDesignProposal = z
+export const designProposalOutput = z
   .object({
     fdr: z
       .object({
-        titulo: texto(160),
-        objetivo: texto(3000),
-        alcance: texto(3000),
-        fuera_de_alcance: texto(3000),
-        comportamiento: texto(6000),
-        criterios: z.array(criterioPropuesto).min(1).max(12),
+        title: text(160),
+        goal: text(3000),
+        scope: text(3000),
+        out_of_scope: text(3000),
+        behavior: text(6000),
+        criteria: z.array(proposedCriterion).min(1).max(12),
       })
       .strict(),
   })
   .strict();
 
-export const ESQUEMAS_SALIDA = {
-  eco: salidaEco,
-  exploration_chat: salidaExplorationChat,
-  design_proposal: salidaDesignProposal,
-} as const satisfies Record<AccionAgente, z.ZodType>;
+export const OUTPUT_SCHEMAS = {
+  echo: echoOutput,
+  exploration_chat: explorationChatOutput,
+  design_proposal: designProposalOutput,
+} as const satisfies Record<AgentAction, z.ZodType>;
 
-export type SalidaAccion<A extends AccionAgente> = z.infer<(typeof ESQUEMAS_SALIDA)[A]>;
+export type ActionOutput<A extends AgentAction> = z.infer<(typeof OUTPUT_SCHEMAS)[A]>;
 
-export function esquemaJsonDe(accion: AccionAgente): Record<string, unknown> {
+export function jsonSchemaOf(action: AgentAction): Record<string, unknown> {
   // draft-07: es el borrador que valida la CLI de Claude (2.1.281); así el esquema viaja tal cual.
-  return z.toJSONSchema(ESQUEMAS_SALIDA[accion], { target: 'draft-7' });
+  return z.toJSONSchema(OUTPUT_SCHEMAS[action], { target: 'draft-7' });
 }

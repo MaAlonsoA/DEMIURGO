@@ -1,62 +1,62 @@
 // Context packs: inmutables e identificados por su hash (I7). Construir dos veces el mismo
 // pack devuelve el existente sin crear otro.
 
-import { huella } from '@demiurgo/domain';
+import { fingerprint } from '@demiurgo/domain';
 import { z } from 'zod';
-import { manejador, registrarManejadores } from '../bus/manejadores.ts';
+import { handler, registerHandlers } from '../bus/handlers.ts';
 
-export const esquemaPack = z
+export const packSchema = z
   .object({
-    rol: z.string().min(1),
+    role: z.string().min(1),
     constructor: z.string().min(1),
-    presupuesto: z.record(z.string(), z.number().int().nonnegative()),
-    version_grafo: z.number().int().nonnegative(),
-    dependencias: z.array(z.object({ tipo: z.string(), id: z.string(), version: z.number().int().nullable() }).strict()),
-    contenido: z.unknown(),
+    budget: z.record(z.string(), z.number().int().nonnegative()),
+    graph_version: z.number().int().nonnegative(),
+    dependencies: z.array(z.object({ type: z.string(), id: z.string(), version: z.number().int().nullable() }).strict()),
+    content: z.unknown(),
   })
   .strict();
 
-export type DatosPack = z.infer<typeof esquemaPack>;
+export type PackData = z.infer<typeof packSchema>;
 
-export function hashPack(p: DatosPack): string {
-  return huella({
-    rol: p.rol,
+export function hashPack(p: PackData): string {
+  return fingerprint({
+    role: p.role,
     constructor: p.constructor,
-    presupuesto: p.presupuesto,
-    version_grafo: p.version_grafo,
-    dependencias: p.dependencias,
-    contenido: p.contenido,
+    budget: p.budget,
+    graph_version: p.graph_version,
+    dependencies: p.dependencies,
+    content: p.content,
   });
 }
 
-registrarManejadores({
-  'context_pack.build': manejador({
-    datos: esquemaPack,
-    async aplicar(ctx, datos, _e, hacia) {
-      const hash = hashPack(datos);
-      const previo = await ctx.trx
+registerHandlers({
+  'context_pack.build': handler({
+    data: packSchema,
+    async apply(ctx, data, _e, to) {
+      const hash = hashPack(data);
+      const existing = await ctx.trx
         .selectFrom('context_packs')
         .select('id')
-        .where('project_id', '=', ctx.proyectoId)
+        .where('project_id', '=', ctx.projectId)
         .where('hash', '=', hash)
         .executeTakeFirst();
-      if (previo) return { entidadId: previo.id, sinCambios: true, resultado: { hash } };
+      if (existing) return { entityId: existing.id, noChanges: true, result: { hash } };
       const { id } = await ctx.trx
         .insertInto('context_packs')
         .values({
-          project_id: ctx.proyectoId,
-          role: datos.rol,
-          builder: datos.constructor,
-          budget: JSON.stringify(datos.presupuesto),
-          graph_version: datos.version_grafo,
-          dependencies: JSON.stringify(datos.dependencias),
-          content: JSON.stringify(datos.contenido ?? null),
+          project_id: ctx.projectId,
+          role: data.role,
+          builder: data.constructor,
+          budget: JSON.stringify(data.budget),
+          graph_version: data.graph_version,
+          dependencies: JSON.stringify(data.dependencies),
+          content: JSON.stringify(data.content ?? null),
           hash,
-          state: hacia,
+          state: to,
         })
         .returning('id')
         .executeTakeFirstOrThrow();
-      return { entidadId: id, despues: { rol: datos.rol, hash, version_grafo: datos.version_grafo }, resultado: { hash } };
+      return { entityId: id, after: { role: data.role, hash, graph_version: data.graph_version }, result: { hash } };
     },
   }),
 });

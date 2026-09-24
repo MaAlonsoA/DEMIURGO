@@ -1,246 +1,246 @@
 // Validación de un árbol `design/` completo, expresado como un mapa ruta → texto.
 // Es puro: la lectura del disco está en `disco.ts`.
 
-import { LIMITES_VERSION } from '@demiurgo/domain';
-import { incoherenciasTablas, esquemaCapacidades, esquemaTransiciones } from '@demiurgo/domain/tablas/esquemas';
-import { leerYaml, parsearDocumento, problemasDeEspacios, renderizarDocumento } from './formato.ts';
-import { README_DISENO } from './readme.ts';
-import { CARPETAS, PLANTILLAS, type Documento, type DocumentoRegistro, type DocumentoTaxonomia, type Problema } from './tipos.ts';
+import { VERSION_LIMITS } from '@demiurgo/domain';
+import { tableInconsistencies, capabilitiesSchema, transitionsSchema } from '@demiurgo/domain/tables/schemas';
+import { readYaml, parseDocument, whitespaceProblems, renderDocument } from './format.ts';
+import { README_DESIGN } from './readme.ts';
+import { FOLDERS, TEMPLATES, type Document, type RecordDocument, type TaxonomyDocument, type Problem } from './types.ts';
 
-export type ArbolDiseno = ReadonlyMap<string, string>;
+export type DesignTree = ReadonlyMap<string, string>;
 
-export type InformeValidacion = {
-  problemas: Problema[];
-  registros: DocumentoRegistro[];
-  taxonomias: DocumentoTaxonomia[];
-  anexos: Map<string, string>;
+export type ValidationReport = {
+  problems: Problem[];
+  records: RecordDocument[];
+  taxonomies: TaxonomyDocument[];
+  annexes: Map<string, string>;
 };
 
-const CARPETA_A_CLASE = new Map<string, string>(Object.entries(CARPETAS).map(([tipo, carpeta]) => [carpeta, tipo]));
+const FOLDER_TO_CLASS = new Map<string, string>(Object.entries(FOLDERS).map(([type, folder]) => [folder, type]));
 
-export function validarArbol(arbol: ArbolDiseno): InformeValidacion {
-  const problemas: Problema[] = [];
-  const registros: DocumentoRegistro[] = [];
-  const taxonomias: DocumentoTaxonomia[] = [];
-  const anexos = new Map<string, string>();
+export function validateTree(tree: DesignTree): ValidationReport {
+  const problems: Problem[] = [];
+  const records: RecordDocument[] = [];
+  const taxonomies: TaxonomyDocument[] = [];
+  const annexes = new Map<string, string>();
 
-  if (!arbol.has('README.md')) problemas.push({ ruta: 'README.md', mensaje: 'Falta README.md.' });
+  if (!tree.has('README.md')) problems.push({ path: 'README.md', message: 'Falta README.md.' });
 
-  for (const [ruta, texto] of [...arbol.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-    if (ruta === 'README.md') {
-      if (texto !== README_DISENO) {
-        problemas.push({ ruta, mensaje: 'README.md no coincide con el texto fijo; ejecuta «canonizar».' });
+  for (const [path, text] of [...tree.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    if (path === 'README.md') {
+      if (text !== README_DESIGN) {
+        problems.push({ path, message: 'README.md no coincide con el texto fijo; ejecuta «canonizar».' });
       }
       continue;
     }
-    const partes = ruta.split('/');
-    if (partes.length !== 2) {
-      problemas.push({ ruta, mensaje: 'Archivo fuera de la estructura de design/.' });
+    const parts = path.split('/');
+    if (parts.length !== 2) {
+      problems.push({ path, message: 'Archivo fuera de la estructura de design/.' });
       continue;
     }
-    const [carpeta, nombre] = partes as [string, string];
-    if (carpeta === 'datos') {
-      if (!nombre.endsWith('.yaml')) problemas.push({ ruta, mensaje: 'En datos/ solo hay archivos .yaml.' });
-      else anexos.set(ruta, texto);
+    const [folder, name] = parts as [string, string];
+    if (folder === 'data') {
+      if (!name.endsWith('.yaml')) problems.push({ path, message: 'En datos/ solo hay archivos .yaml.' });
+      else annexes.set(path, text);
       continue;
     }
-    const tipo = CARPETA_A_CLASE.get(carpeta);
-    if (!tipo || !nombre.endsWith('.md')) {
-      problemas.push({ ruta, mensaje: 'Archivo fuera de la estructura de design/.' });
+    const type = FOLDER_TO_CLASS.get(folder);
+    if (!type || !name.endsWith('.md')) {
+      problems.push({ path, message: 'Archivo fuera de la estructura de design/.' });
       continue;
     }
-    const r = parsearDocumento(texto, ruta);
+    const r = parseDocument(text, path);
     if (!r.ok) {
-      problemas.push(...r.problemas);
+      problems.push(...r.problems);
       continue;
     }
-    const doc: Documento = r.valor;
-    const tipoDoc = doc.clase === 'taxonomia' ? 'taxonomia' : doc.tipo;
-    if (tipoDoc !== tipo) problemas.push({ ruta, mensaje: `Un documento de tipo «${tipoDoc}» no va en ${carpeta}/.` });
-    if (nombre !== `${doc.codigo}.md`) problemas.push({ ruta, mensaje: `El archivo debe llamarse ${doc.codigo}.md.` });
-    if (renderizarDocumento(doc) !== texto) {
-      problemas.push({ ruta, mensaje: 'No está en formato canónico; ejecuta «node packages/design/src/cli.ts canonizar».' });
+    const doc: Document = r.value;
+    const docType = doc.kind === 'taxonomy' ? 'taxonomy' : doc.type;
+    if (docType !== type) problems.push({ path, message: `Un documento de tipo «${docType}» no va en ${folder}/.` });
+    if (name !== `${doc.code}.md`) problems.push({ path, message: `El archivo debe llamarse ${doc.code}.md.` });
+    if (renderDocument(doc) !== text) {
+      problems.push({ path, message: 'No está en formato canónico; ejecuta «node packages/design/src/cli.ts canonizar».' });
     }
-    if (doc.clase === 'taxonomia') taxonomias.push(doc);
-    else registros.push(doc);
+    if (doc.kind === 'taxonomy') taxonomies.push(doc);
+    else records.push(doc);
   }
 
-  problemas.push(...comprobarRegistros(registros, anexos));
-  problemas.push(...comprobarTaxonomias(taxonomias));
-  problemas.push(...comprobarAnexos(anexos, registros));
-  return { problemas, registros, taxonomias, anexos };
+  problems.push(...checkRecords(records, annexes));
+  problems.push(...checkTaxonomies(taxonomies));
+  problems.push(...checkAnnexes(annexes, records));
+  return { problems, records, taxonomies, annexes };
 }
 
-function rutaDe(doc: Documento): string {
-  return `${CARPETAS[doc.clase === 'taxonomia' ? 'taxonomia' : doc.tipo]}/${doc.codigo}.md`;
+function pathOf(doc: Document): string {
+  return `${FOLDERS[doc.kind === 'taxonomy' ? 'taxonomy' : doc.type]}/${doc.code}.md`;
 }
 
-function comprobarRegistros(registros: DocumentoRegistro[], anexos: Map<string, string>): Problema[] {
-  const problemas: Problema[] = [];
-  const porCodigo = new Map<string, DocumentoRegistro>();
-  const porBase = new Map<string, string>();
-  const codigosAc = new Map<string, string>();
-  for (const r of registros) {
-    const ruta = rutaDe(r);
-    if (porCodigo.has(r.codigo)) problemas.push({ ruta, mensaje: `Código de registro duplicado: ${r.codigo}.` });
-    porCodigo.set(r.codigo, r);
+function checkRecords(records: RecordDocument[], annexes: Map<string, string>): Problem[] {
+  const problems: Problem[] = [];
+  const byCode = new Map<string, RecordDocument>();
+  const byBase = new Map<string, string>();
+  const acCodes = new Map<string, string>();
+  for (const r of records) {
+    const path = pathOf(r);
+    if (byCode.has(r.code)) problems.push({ path, message: `Código de registro duplicado: ${r.code}.` });
+    byCode.set(r.code, r);
     // La parte DOM-NNN da nombre a los criterios (AC-DOM-NNN-NN): es única entre tipos.
-    const base = r.codigo.slice(4);
-    const otro = porBase.get(base);
-    if (otro !== undefined && otro !== r.codigo) {
-      problemas.push({
-        ruta,
-        mensaje: `${r.codigo} comparte ${base} con ${otro}: la parte DOM-NNN de un código es única entre tipos, porque sus criterios compartirían AC-${base}-NN.`,
+    const base = r.code.slice(4);
+    const another = byBase.get(base);
+    if (another !== undefined && another !== r.code) {
+      problems.push({
+        path,
+        message: `${r.code} comparte ${base} con ${another}: la parte DOM-NNN de un código es única entre tipos, porque sus criterios compartirían AC-${base}-NN.`,
       });
     }
-    porBase.set(base, r.codigo);
-    const plantilla = PLANTILLAS[r.tipo];
+    byBase.set(base, r.code);
+    const template = TEMPLATES[r.type];
     let i = 0;
-    for (const s of r.secciones) if (s.titulo === plantilla.secciones[i]) i++;
-    if (i < plantilla.secciones.length) {
-      problemas.push({
-        ruta,
-        mensaje: `Faltan secciones de la plantilla (en orden): ${plantilla.secciones.slice(i).join(', ')}.`,
+    for (const s of r.sections) if (s.title === template.sections[i]) i++;
+    if (i < template.sections.length) {
+      problems.push({
+        path,
+        message: `Faltan secciones de la plantilla (en orden): ${template.sections.slice(i).join(', ')}.`,
       });
     }
-    if (plantilla.exigeCriterios && r.criterios.length === 0) {
-      problemas.push({ ruta, mensaje: 'Este tipo de registro exige al menos un criterio de aceptación.' });
+    if (template.requiresCriteria && r.criteria.length === 0) {
+      problems.push({ path, message: 'Este tipo de registro exige al menos un criterio de aceptación.' });
     }
-    if (r.version > 1 && !r.notaDeCambio) problemas.push({ ruta, mensaje: 'Una versión posterior a la 1 exige nota_de_cambio.' });
+    if (r.version > 1 && !r.changeNote) problems.push({ path, message: 'Una versión posterior a la 1 exige nota_de_cambio.' });
     // La v2 guarda estos textos sin espacios al principio ni al final: si los tuvieran, la exportación no coincidiría.
-    const textos: [string, string | undefined][] = [
-      ['El título', r.titulo],
-      ['La nota de cambio', r.notaDeCambio],
-      ...r.criterios.flatMap((c): [string, string][] => [
-        [`${c.codigo}: el título`, c.titulo],
-        [`${c.codigo}: el enunciado`, c.enunciado],
-        [`${c.codigo}: la comprobación`, c.comprobacion],
+    const texts: [string, string | undefined][] = [
+      ['El título', r.title],
+      ['La nota de cambio', r.changeNote],
+      ...r.criteria.flatMap((c): [string, string][] => [
+        [`${c.code}: el título`, c.title],
+        [`${c.code}: el enunciado`, c.statement],
+        [`${c.code}: la comprobación`, c.check],
       ]),
     ];
-    for (const [campo, valor] of textos) {
-      if (valor !== undefined && valor !== valor.trim()) {
-        problemas.push({ ruta, mensaje: `${campo} empieza o acaba con espacios en blanco.` });
+    for (const [field, value] of texts) {
+      if (value !== undefined && value !== value.trim()) {
+        problems.push({ path, message: `${field} empieza o acaba con espacios en blanco.` });
       }
     }
     // Los mismos límites que la v2 aplica al crear la versión: si no, el lote no se podría ratificar.
-    const L = LIMITES_VERSION;
-    const largos: [string, string | undefined, number][] = [
-      ['El título', r.titulo, L.titulo],
-      ['La nota de cambio', r.notaDeCambio, L.notaDeCambio],
-      ...r.secciones.flatMap((s): [string, string, number][] => [
-        [`El título de la sección «${s.titulo.slice(0, 40)}»`, s.titulo, L.tituloSeccion],
-        [`La sección «${s.titulo.slice(0, 40)}»`, s.contenido, L.seccion],
+    const L = VERSION_LIMITS;
+    const lengths: [string, string | undefined, number][] = [
+      ['El título', r.title, L.title],
+      ['La nota de cambio', r.changeNote, L.changeNote],
+      ...r.sections.flatMap((s): [string, string, number][] => [
+        [`El título de la sección «${s.title.slice(0, 40)}»`, s.title, L.sectionTitle],
+        [`La sección «${s.title.slice(0, 40)}»`, s.content, L.section],
       ]),
-      ...r.criterios.flatMap((c): [string, string, number][] => [
-        [`${c.codigo}: el título`, c.titulo, L.tituloCriterio],
-        [`${c.codigo}: el enunciado`, c.enunciado, L.enunciado],
-        [`${c.codigo}: la comprobación`, c.comprobacion, L.comprobacion],
+      ...r.criteria.flatMap((c): [string, string, number][] => [
+        [`${c.code}: el título`, c.title, L.criterionTitle],
+        [`${c.code}: el enunciado`, c.statement, L.statement],
+        [`${c.code}: la comprobación`, c.check, L.check],
       ]),
     ];
-    for (const [campo, valor, max] of largos) {
-      if (valor !== undefined && valor.length > max) problemas.push({ ruta, mensaje: `${campo} supera los ${max} caracteres.` });
+    for (const [field, value, max] of lengths) {
+      if (value !== undefined && value.length > max) problems.push({ path, message: `${field} supera los ${max} caracteres.` });
     }
-    for (const [que, n, max] of [
-      ['secciones', r.secciones.length, L.secciones],
-      ['criterios', r.criterios.length, L.criterios],
-      ['enlaces', r.enlaces.length, L.enlaces],
+    for (const [what, n, max] of [
+      ['sections', r.sections.length, L.sections],
+      ['criteria', r.criteria.length, L.criteria],
+      ['links', r.links.length, L.links],
     ] as const) {
-      if (n > max) problemas.push({ ruta, mensaje: `Tiene ${n} ${que}; el máximo es ${max}.` });
+      if (n > max) problems.push({ path, message: `Tiene ${n} ${what}; el máximo es ${max}.` });
     }
-    for (const c of r.criterios) {
-      if (!c.codigo.startsWith(`AC-${base}-`)) {
-        problemas.push({ ruta, mensaje: `${c.codigo}: el código de un criterio de ${r.codigo} empieza por AC-${base}-.` });
+    for (const c of r.criteria) {
+      if (!c.code.startsWith(`AC-${base}-`)) {
+        problems.push({ path, message: `${c.code}: el código de un criterio de ${r.code} empieza por AC-${base}-.` });
       }
-      const previo = codigosAc.get(c.codigo);
-      if (previo) problemas.push({ ruta, mensaje: `Código de criterio duplicado: ${c.codigo} (también en ${previo}).` });
-      codigosAc.set(c.codigo, r.codigo);
+      const existing = acCodes.get(c.code);
+      if (existing) problems.push({ path, message: `Código de criterio duplicado: ${c.code} (también en ${existing}).` });
+      acCodes.set(c.code, r.code);
     }
-    for (const a of r.anexos) {
-      if (!anexos.has(a)) problemas.push({ ruta, mensaje: `El anexo ${a} no existe.` });
+    for (const a of r.annexes) {
+      if (!annexes.has(a)) problems.push({ path, message: `El anexo ${a} no existe.` });
     }
   }
-  for (const r of registros) {
-    for (const e of r.enlaces) {
-      const destino = porCodigo.get(e.destino.codigo);
-      if (!destino) {
-        problemas.push({ ruta: rutaDe(r), mensaje: `El enlace ${e.tipo} apunta a ${e.destino.codigo}, que no existe.` });
-      } else if (e.destino.version > destino.version) {
+  for (const r of records) {
+    for (const e of r.links) {
+      const target = byCode.get(e.target.code);
+      if (!target) {
+        problems.push({ path: pathOf(r), message: `El enlace ${e.type} apunta a ${e.target.code}, que no existe.` });
+      } else if (e.target.version > target.version) {
         // Un enlace puede seguir en una versión anterior de su destino (mantenido tras revisarlo);
         // la importación comprueba que esa versión ya está en la v2.
-        problemas.push({
-          ruta: rutaDe(r),
-          mensaje: `El enlace ${e.tipo} apunta a ${e.destino.codigo}@${e.destino.version}, posterior a la versión ${destino.version} de design/.`,
+        problems.push({
+          path: pathOf(r),
+          message: `El enlace ${e.type} apunta a ${e.target.code}@${e.target.version}, posterior a la versión ${target.version} de design/.`,
         });
       }
-      if (e.destino.codigo === r.codigo)
-        problemas.push({ ruta: rutaDe(r), mensaje: 'Un registro no puede enlazarse a sí mismo.' });
+      if (e.target.code === r.code)
+        problems.push({ path: pathOf(r), message: 'Un registro no puede enlazarse a sí mismo.' });
     }
-    for (const c of r.criterios) {
-      if (c.derivaDe === undefined) continue;
-      if (c.derivaDe === c.codigo) {
-        problemas.push({ ruta: rutaDe(r), mensaje: `${c.codigo}: un criterio no puede derivar de sí mismo.` });
-      } else if (!codigosAc.has(c.derivaDe)) {
-        problemas.push({ ruta: rutaDe(r), mensaje: `${c.codigo}: deriva de ${c.derivaDe}, que no existe en design/.` });
+    for (const c of r.criteria) {
+      if (c.derivedFrom === undefined) continue;
+      if (c.derivedFrom === c.code) {
+        problems.push({ path: pathOf(r), message: `${c.code}: un criterio no puede derivar de sí mismo.` });
+      } else if (!acCodes.has(c.derivedFrom)) {
+        problems.push({ path: pathOf(r), message: `${c.code}: deriva de ${c.derivedFrom}, que no existe en design/.` });
       }
     }
   }
-  return problemas;
+  return problems;
 }
 
-function comprobarTaxonomias(taxonomias: DocumentoTaxonomia[]): Problema[] {
-  const problemas: Problema[] = [];
-  const codigos = new Set<string>();
-  for (const t of taxonomias) {
-    const ruta = rutaDe(t);
-    if (codigos.has(t.codigo)) problemas.push({ ruta, mensaje: `Código de taxonomía duplicado: ${t.codigo}.` });
-    if (t.titulo !== t.titulo.trim()) problemas.push({ ruta, mensaje: 'El título empieza o acaba con espacios en blanco.' });
-    if (t.titulo.length < 3 || t.titulo.length > 200)
-      problemas.push({ ruta, mensaje: 'El título tiene entre 3 y 200 caracteres.' });
-    codigos.add(t.codigo);
-    const ejes = new Set<string>();
-    for (const eje of t.ejes) {
-      if (ejes.has(eje.codigo)) problemas.push({ ruta, mensaje: `Eje duplicado: ${eje.codigo}.` });
-      ejes.add(eje.codigo);
-      const cats = new Set<string>();
-      for (const c of eje.categorias) {
-        if (cats.has(c.codigo)) problemas.push({ ruta, mensaje: `Categoría duplicada en ${eje.codigo}: ${c.codigo}.` });
-        cats.add(c.codigo);
+function checkTaxonomies(taxonomies: TaxonomyDocument[]): Problem[] {
+  const problems: Problem[] = [];
+  const codes = new Set<string>();
+  for (const t of taxonomies) {
+    const path = pathOf(t);
+    if (codes.has(t.code)) problems.push({ path, message: `Código de taxonomía duplicado: ${t.code}.` });
+    if (t.title !== t.title.trim()) problems.push({ path, message: 'El título empieza o acaba con espacios en blanco.' });
+    if (t.title.length < 3 || t.title.length > 200)
+      problems.push({ path, message: 'El título tiene entre 3 y 200 caracteres.' });
+    codes.add(t.code);
+    const axes = new Set<string>();
+    for (const axis of t.axes) {
+      if (axes.has(axis.code)) problems.push({ path, message: `Eje duplicado: ${axis.code}.` });
+      axes.add(axis.code);
+      const categories = new Set<string>();
+      for (const c of axis.categories) {
+        if (categories.has(c.code)) problems.push({ path, message: `Categoría duplicada en ${axis.code}: ${c.code}.` });
+        categories.add(c.code);
       }
-      if (!cats.has('otra')) problemas.push({ ruta, mensaje: `El eje ${eje.codigo} no tiene la categoría «otra».` });
+      if (!categories.has('other')) problems.push({ path, message: `El eje ${axis.code} no tiene la categoría «otra».` });
     }
   }
-  return problemas;
+  return problems;
 }
 
-function comprobarAnexos(anexos: Map<string, string>, registros: DocumentoRegistro[]): Problema[] {
-  const problemas: Problema[] = [];
-  const referenciados = new Map<string, number>();
-  for (const r of registros) for (const a of r.anexos) referenciados.set(a, (referenciados.get(a) ?? 0) + 1);
-  const leidos = new Map<string, unknown>();
-  for (const [ruta, texto] of anexos) {
-    const n = referenciados.get(ruta) ?? 0;
-    if (n !== 1) problemas.push({ ruta, mensaje: `Un anexo debe pertenecer a exactamente un registro (ahora: ${n}).` });
-    problemas.push(...problemasDeEspacios(texto, ruta));
-    const yaml = leerYaml(texto, ruta, 'El anexo');
-    if (yaml.ok) leidos.set(ruta, yaml.valor);
-    else problemas.push(...yaml.problemas);
+function checkAnnexes(annexes: Map<string, string>, records: RecordDocument[]): Problem[] {
+  const problems: Problem[] = [];
+  const referenced = new Map<string, number>();
+  for (const r of records) for (const a of r.annexes) referenced.set(a, (referenced.get(a) ?? 0) + 1);
+  const read = new Map<string, unknown>();
+  for (const [path, text] of annexes) {
+    const n = referenced.get(path) ?? 0;
+    if (n !== 1) problems.push({ path, message: `Un anexo debe pertenecer a exactamente un registro (ahora: ${n}).` });
+    problems.push(...whitespaceProblems(text, path));
+    const yaml = readYaml(text, path, 'El anexo');
+    if (yaml.ok) read.set(path, yaml.value);
+    else problems.push(...yaml.problems);
   }
-  const cap = leidos.get('datos/capacidades.yaml');
-  const tra = leidos.get('datos/transiciones.yaml');
-  if (cap !== undefined && tra !== undefined) {
-    const rc = esquemaCapacidades.safeParse(cap);
-    const rt = esquemaTransiciones.safeParse(tra);
+  const cap = read.get('data/capabilities.yaml');
+  const trans = read.get('data/transitions.yaml');
+  if (cap !== undefined && trans !== undefined) {
+    const rc = capabilitiesSchema.safeParse(cap);
+    const transitionsResult = transitionsSchema.safeParse(trans);
     if (!rc.success) {
       for (const i of rc.error.issues)
-        problemas.push({ ruta: 'datos/capacidades.yaml', mensaje: `${i.path.join('.')}: ${i.message}` });
+        problems.push({ path: 'data/capabilities.yaml', message: `${i.path.join('.')}: ${i.message}` });
     }
-    if (!rt.success) {
-      for (const i of rt.error.issues)
-        problemas.push({ ruta: 'datos/transiciones.yaml', mensaje: `${i.path.join('.')}: ${i.message}` });
+    if (!transitionsResult.success) {
+      for (const i of transitionsResult.error.issues)
+        problems.push({ path: 'data/transitions.yaml', message: `${i.path.join('.')}: ${i.message}` });
     }
-    if (rc.success && rt.success) {
-      for (const m of incoherenciasTablas(rc.data, rt.data)) problemas.push({ ruta: 'datos/', mensaje: m });
+    if (rc.success && transitionsResult.success) {
+      for (const m of tableInconsistencies(rc.data, transitionsResult.data)) problems.push({ path: 'data/', message: m });
     }
   }
-  return problemas;
+  return problems;
 }

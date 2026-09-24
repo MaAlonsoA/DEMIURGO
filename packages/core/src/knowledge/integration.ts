@@ -1,68 +1,68 @@
 // Integración del conocimiento con el resto del núcleo: selección para los context packs,
 // evaluación de ideas tras cada lote de un agente y la parte de la bandeja que le toca.
 
-import { seleccionarParaContexto } from '@demiurgo/domain';
-import { registrarExtensionBandeja } from '../consultas/lectura.ts';
-import { registrarSeleccionadorDeConocimiento } from '../contexto/conocimiento.ts';
-import { cargarGrafo } from './grafo-pg.ts';
+import { selectForContext } from '@demiurgo/domain';
+import { registerInboxExtension } from '../queries/read.ts';
+import { registerKnowledgeSelector } from '../context/knowledge.ts';
+import { loadGraph } from './graph-pg.ts';
 
-registrarSeleccionadorDeConocimiento(async (trx, proyectoId, consulta, presupuesto) => {
-  const g = await cargarGrafo(trx, proyectoId);
-  const elegidos = seleccionarParaContexto(g, consulta, presupuesto);
+registerKnowledgeSelector(async (trx, projectId, queryName, budget) => {
+  const g = await loadGraph(trx, projectId);
+  const chosen = selectForContext(g, queryName, budget);
   return {
-    nodos: elegidos.map(({ nodo, motivo }) => ({
-      ref: nodo.ref,
-      tipo: nodo.tipo,
-      titulo: nodo.etiqueta,
-      texto: nodo.texto.slice(0, 600),
-      motivo,
+    nodes: chosen.map(({ node, reason }) => ({
+      ref: node.ref,
+      type: node.type,
+      title: node.label,
+      text: node.text.slice(0, 600),
+      reason,
     })),
-    dependencias: elegidos.map(({ nodo }) => ({ tipo: 'knowledge_node', id: nodo.ref, version: g.version })),
+    dependencies: chosen.map(({ node }) => ({ type: 'knowledge_node', id: node.ref, version: g.version })),
   };
 });
 
-registrarExtensionBandeja({
-  async evaluacion(db, propuestaId) {
+registerInboxExtension({
+  async assessment(db, proposalId) {
     const e = await db
       .selectFrom('idea_assessments')
       .select(['findings', 'graph_version', 'classifier'])
-      .where('proposal_id', '=', propuestaId)
+      .where('proposal_id', '=', proposalId)
       .executeTakeFirst();
-    if (!e) return { pendiente: true };
+    if (!e) return { isPending: true };
     // Las evaluaciones guardan sus hallazgos, las respuestas que no se verificaron y el error, si lo hubo.
-    const f = (Array.isArray(e.findings) ? { hallazgos: e.findings } : e.findings) as {
-      hallazgos?: unknown[];
-      invalidas?: unknown[];
+    const f = (Array.isArray(e.findings) ? { findings: e.findings } : e.findings) as {
+      findings?: unknown[];
+      invalid?: unknown[];
       error?: string | null;
     };
     return {
-      hallazgos: f.hallazgos ?? [],
-      invalidas: f.invalidas ?? [],
+      findings: f.findings ?? [],
+      invalid: f.invalid ?? [],
       error: f.error ?? null,
-      version_grafo: Number(e.graph_version),
-      clasificador: e.classifier,
+      graph_version: Number(e.graph_version),
+      classifier: e.classifier,
     };
   },
-  async pendientes(db, proyectoId) {
-    const clasificaciones = await db
+  async pending(db, projectId) {
+    const classifications = await db
       .selectFrom('classifications')
       .select(['id', 'node_ref', 'axis', 'category', 'confidence', 'justification', 'classifier'])
-      .where('project_id', '=', proyectoId)
+      .where('project_id', '=', projectId)
       .where('state', '=', 'pending_review')
       .orderBy('created_at')
       .execute();
-    const rechazadas = await db
+    const rejected = await db
       .selectFrom('knowledge_updates')
       .select(['id', 'trigger', 'failure', 'created_at'])
-      .where('project_id', '=', proyectoId)
+      .where('project_id', '=', projectId)
       .where('state', '=', 'rejected')
       .orderBy('created_at')
       .execute();
     return {
-      total: clasificaciones.length + rechazadas.length,
-      secciones: {
-        clasificaciones_por_revisar: clasificaciones.map((c) => ({ ...c, estado_epistemico: 'pendiente' })),
-        actualizaciones_rechazadas: rechazadas.map((u) => ({ ...u, estado_epistemico: 'pendiente' })),
+      total: classifications.length + rejected.length,
+      sections: {
+        classifications_to_review: classifications.map((c) => ({ ...c, epistemic_status: 'pending' })),
+        rejected_updates: rejected.map((u) => ({ ...u, epistemic_status: 'pending' })),
       },
     };
   },

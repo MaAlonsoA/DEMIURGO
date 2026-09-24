@@ -1,23 +1,23 @@
 import { request } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { describe, expect, it } from 'vitest';
-import { COOKIE_SESION } from '../src/credenciales.ts';
-import { crearServidor } from '../src/servidor.ts';
-import { CLAVE, usarApi } from './soporte/api.ts';
+import { COOKIE_SESSION } from '../src/credentials.ts';
+import { createServer } from '../src/server.ts';
+import { KEY, useApi } from './support/api.ts';
 
-const api = usarApi();
+const api = useApi();
 
-async function crearProyecto(nombre: string): Promise<string> {
-  const r = await api().persona.pedir('POST', '/api/proyectos', { nombre });
+async function createProject(name: string): Promise<string> {
+  const r = await api().person.request('POST', '/api/projects', { name });
   expect(r.statusCode).toBe(200);
-  return r.json<{ proyecto_id: string }>().proyecto_id;
+  return r.json<{ project_id: string }>().project_id;
 }
 
-async function actorDelUltimoEvento(proyectoId: string): Promise<string> {
+async function actorOfLastEvent(projectId: string): Promise<string> {
   const e = await api()
-    .entorno.servicios.db.selectFrom('events')
+    .environment.services.db.selectFrom('events')
     .select('actor')
-    .where('project_id', '=', proyectoId)
+    .where('project_id', '=', projectId)
     .orderBy('seq', 'desc')
     .executeTakeFirstOrThrow();
   return e.actor;
@@ -25,71 +25,71 @@ async function actorDelUltimoEvento(proyectoId: string): Promise<string> {
 
 describe('API: actor, sesión y errores', () => {
   it('AC-ESQ-001-13 el actor sale de la credencial y un actor declarado en el cuerpo se ignora', async () => {
-    const r = await api().persona.pedir('POST', '/api/proyectos', { nombre: 'Actor', actor: 'system:suplantador@1' });
+    const r = await api().person.request('POST', '/api/projects', { name: 'Actor', actor: 'system:suplantador@1' });
     expect(r.statusCode).toBe(200);
-    const proyectoId = r.json<{ proyecto_id: string }>().proyecto_id;
-    expect(await actorDelUltimoEvento(proyectoId)).toBe('human:ana');
-    const c = await api().persona.pedir('POST', `/api/proyectos/${proyectoId}/comandos/run.request`, {
+    const projectId = r.json<{ project_id: string }>().project_id;
+    expect(await actorOfLastEvent(projectId)).toBe('human:ana');
+    const c = await api().person.request('POST', `/api/projects/${projectId}/commands/run.request`, {
       actor: 'agent:run:falso',
-      datos: { accion: 'eco', alcance: { tipo: 'proyecto' }, entrada: { texto: 'x' } },
+      data: { action: 'echo', scope: { type: 'project' }, input: { text: 'x' } },
     });
     expect(c.statusCode).toBe(200);
-    expect(await actorDelUltimoEvento(proyectoId)).toBe('human:ana');
+    expect(await actorOfLastEvent(projectId)).toBe('human:ana');
   });
 
   it('AC-ESQ-001-13 sin credencial no hay actor: 401', async () => {
-    const r = await api().anonimo.pedir('POST', '/api/proyectos', { nombre: 'Anónimo' });
+    const r = await api().anonymous.request('POST', '/api/projects', { name: 'Anónimo' });
     expect(r.statusCode).toBe(401);
-    expect(r.json<{ mensaje: string }>().mensaje).toMatch(/iniciar sesión/);
+    expect(r.json<{ message: string }>().message).toMatch(/iniciar sesión/);
   });
 
   it('AC-DIS-001-15 la cookie es httpOnly y SameSite=Strict y las mutaciones exigen el token CSRF', async () => {
-    const login = await api().app.inject({ method: 'POST', url: '/api/sesion', payload: { usuario: 'ana', clave: CLAVE } });
-    const galleta = login.cookies.find((c) => c.name === COOKIE_SESION);
-    expect(galleta).toMatchObject({ httpOnly: true, sameSite: 'Strict', path: '/' });
-    const sinCsrf = await api().app.inject({
+    const login = await api().app.inject({ method: 'POST', url: '/api/session', payload: { username: 'ana', key: KEY } });
+    const cookie = login.cookies.find((c) => c.name === COOKIE_SESSION);
+    expect(cookie).toMatchObject({ httpOnly: true, sameSite: 'Strict', path: '/' });
+    const withoutCsrf = await api().app.inject({
       method: 'POST',
-      url: '/api/proyectos',
-      cookies: { [COOKIE_SESION]: galleta?.value ?? '' },
-      payload: { nombre: 'Sin CSRF' },
+      url: '/api/projects',
+      cookies: { [COOKIE_SESSION]: cookie?.value ?? '' },
+      payload: { name: 'Sin CSRF' },
     });
-    expect(sinCsrf.statusCode).toBe(403);
-    expect(sinCsrf.json<{ mensaje: string }>().mensaje).toMatch(/CSRF/);
-    const mal = await api().persona.pedir('POST', '/api/proyectos', { nombre: 'Origen' }, { origin: 'http://evil.example' });
-    expect(mal.statusCode).toBe(403);
+    expect(withoutCsrf.statusCode).toBe(403);
+    expect(withoutCsrf.json<{ message: string }>().message).toMatch(/CSRF/);
+    const bad = await api().person.request('POST', '/api/projects', { name: 'Origin' }, { origin: 'http://evil.example' });
+    expect(bad.statusCode).toBe(403);
   });
 
   it('AC-ESQ-001-02 por HTTP un comando no permitido devuelve 403 con el motivo', async () => {
-    const proyectoId = await crearProyecto('Prohibido');
-    const r = await api().persona.pedir('POST', `/api/proyectos/${proyectoId}/comandos/run.begin`, {
-      entidad_id: '00000000-0000-7000-8000-000000000001',
-      datos: {},
+    const projectId = await createProject('Forbidden');
+    const r = await api().person.request('POST', `/api/projects/${projectId}/commands/run.begin`, {
+      entity_id: '00000000-0000-7000-8000-000000000001',
+      data: {},
     });
     expect(r.statusCode).toBe(403);
-    expect(r.json()).toMatchObject({ error: 'prohibido' });
+    expect(r.json()).toMatchObject({ error: 'forbidden' });
   });
 
   it('AC-ESQ-001-03 por HTTP una transición inexistente devuelve 409', async () => {
-    const proyectoId = await crearProyecto('Transición');
-    const archivar = () =>
-      api().persona.pedir('POST', `/api/proyectos/${proyectoId}/comandos/project.archive`, { entidad_id: proyectoId, datos: {} });
-    expect((await archivar()).statusCode).toBe(200);
-    const r = await archivar();
+    const projectId = await createProject('Transición');
+    const archive = () =>
+      api().person.request('POST', `/api/projects/${projectId}/commands/project.archive`, { entity_id: projectId, data: {} });
+    expect((await archive()).statusCode).toBe(200);
+    const r = await archive();
     expect(r.statusCode).toBe(409);
-    expect(r.json<{ mensaje: string }>().mensaje).toMatch(/Archivado/);
+    expect(r.json<{ message: string }>().message).toMatch(/Archivado/);
   });
 
   it('un comando desconocido da 404 y unos datos inválidos 422', async () => {
-    const proyectoId = await crearProyecto('Errores');
-    expect((await api().persona.pedir('POST', `/api/proyectos/${proyectoId}/comandos/no.existe`, {})).statusCode).toBe(404);
-    const r = await api().persona.pedir('POST', `/api/proyectos/${proyectoId}/comandos/run.request`, {
-      datos: { accion: 'nada' },
+    const projectId = await createProject('Errors');
+    expect((await api().person.request('POST', `/api/projects/${projectId}/commands/no.existe`, {})).statusCode).toBe(404);
+    const r = await api().person.request('POST', `/api/projects/${projectId}/commands/run.request`, {
+      data: { action: 'nothing' },
     });
     expect(r.statusCode).toBe(422);
   });
 
   it('las tablas se sirven como datos para la UI', async () => {
-    const r = await api().persona.pedir('GET', '/api/tablas');
+    const r = await api().person.request('GET', '/api/tables');
     expect(r.statusCode).toBe(200);
     expect(r.json()).toHaveProperty('capacidades.comandos.project\\.create');
   });
@@ -97,92 +97,92 @@ describe('API: actor, sesión y errores', () => {
 
 describe('API: contrato de los comandos', () => {
   it('AC-ESQ-001-01 cada comando publica su capacidad y el JSON Schema de sus datos', async () => {
-    const r = await api().persona.pedir('GET', '/api/comandos');
+    const r = await api().person.request('GET', '/api/commands');
     expect(r.statusCode).toBe(200);
-    const comandos = r.json<Record<string, { permitido: string[]; decisivo: boolean; implementado: boolean; datos: unknown }>>();
-    expect(comandos['proposal.accept']).toMatchObject({
-      permitido: ['human'],
-      decisivo: true,
-      implementado: true,
-      datos: { type: 'object', properties: { aprobar: { type: 'boolean' } } },
+    const commands = r.json<Record<string, { allowed: string[]; decisive: boolean; implemented: boolean; data: unknown }>>();
+    expect(commands['proposal.accept']).toMatchObject({
+      allowed: ['human'],
+      decisive: true,
+      implemented: true,
+      data: { type: 'object', properties: { approve: { type: 'boolean' } } },
     });
-    expect(comandos['message.post']?.datos).toMatchObject({ required: expect.arrayContaining(['exploracion_id', 'texto']) });
+    expect(commands['message.post']?.data).toMatchObject({ required: expect.arrayContaining(['exploration_id', 'text']) });
   });
 });
 
 describe('API: flujo SSE incremental', () => {
   it('AC-ESQ-001-14 con Last-Event-ID llegan solo los eventos posteriores', async () => {
-    const { entorno, persona } = api();
-    const proyectoId = await crearProyecto('SSE');
-    for (const texto of ['a', 'b']) {
-      await persona.pedir('POST', `/api/proyectos/${proyectoId}/comandos/run.request`, {
-        datos: { accion: 'eco', alcance: { tipo: 'proyecto' }, entrada: { texto } },
+    const { environment, person } = api();
+    const projectId = await createProject('SSE');
+    for (const text of ['a', 'b']) {
+      await person.request('POST', `/api/projects/${projectId}/commands/run.request`, {
+        data: { action: 'echo', scope: { type: 'project' }, input: { text } },
       });
     }
-    const todos = await entorno.servicios.db
+    const all = await environment.services.db
       .selectFrom('events')
       .select('id')
-      .where('project_id', '=', proyectoId)
+      .where('project_id', '=', projectId)
       .orderBy('id')
       .execute();
-    const corte = todos[2]?.id ?? '0';
-    const posteriores = todos.filter((e) => BigInt(e.id) > BigInt(corte)).map((e) => e.id);
+    const cutoff = all[2]?.id ?? '0';
+    const later = all.filter((e) => BigInt(e.id) > BigInt(cutoff)).map((e) => e.id);
 
     // Servidor real escuchando en un puerto libre: inject no sirve para flujos abiertos.
-    const app = await crearServidor({
-      servicios: entorno.servicios,
-      urlBase: entorno.url,
-      horasSesion: 1,
-      origenesPermitidos: [],
+    const app = await createServer({
+      services: environment.services,
+      baseUrl: environment.url,
+      sessionHours: 1,
+      allowedOrigins: [],
     });
     await app.listen({ host: '127.0.0.1', port: 0 });
     const { port } = app.server.address() as AddressInfo;
     try {
-      const recibidos = await new Promise<string[]>((resolver, rechazar) => {
+      const received = await new Promise<string[]>((resolve, reject) => {
         const ids: string[] = [];
         const req = request(
           {
             host: '127.0.0.1',
             port,
-            path: `/api/proyectos/${proyectoId}/eventos/flujo`,
-            headers: { cookie: `${COOKIE_SESION}=${persona.cookie}`, 'last-event-id': corte },
+            path: `/api/projects/${projectId}/events/stream`,
+            headers: { cookie: `${COOKIE_SESSION}=${person.cookie}`, 'last-event-id': cutoff },
           },
           (res) => {
             let buffer = '';
-            const alRecibir = async (d: Buffer): Promise<void> => {
+            const onReceive = async (d: Buffer): Promise<void> => {
               buffer += d.toString();
               for (const m of buffer.matchAll(/^id: (\d+)$/gm)) if (!ids.includes(m[1] ?? '')) ids.push(m[1] ?? '');
-              if (ids.length === posteriores.length) {
+              if (ids.length === later.length) {
                 // Un evento nuevo llega también por el flujo abierto.
-                await persona.pedir('POST', '/api/proyectos', { nombre: 'Otro proyecto' });
-                await persona.pedir('POST', `/api/proyectos/${proyectoId}/comandos/run.request`, {
-                  datos: { accion: 'eco', alcance: { tipo: 'proyecto' }, entrada: { texto: 'c' } },
+                await person.request('POST', '/api/projects', { name: 'Otro proyecto' });
+                await person.request('POST', `/api/projects/${projectId}/commands/run.request`, {
+                  data: { action: 'echo', scope: { type: 'project' }, input: { text: 'c' } },
                 });
               }
-              if (ids.length >= posteriores.length + 2) {
+              if (ids.length >= later.length + 2) {
                 req.destroy();
-                resolver(ids);
+                resolve(ids);
               }
             };
             res.on('data', (d: Buffer) => {
-              alRecibir(d).catch(rechazar);
+              onReceive(d).catch(reject);
             });
           },
         );
-        req.on('error', (e) => (ids.length >= posteriores.length + 2 ? undefined : rechazar(e)));
-        setTimeout(() => rechazar(new Error(`Tiempo agotado; recibidos ${ids.join(',')}`)), 20_000);
+        req.on('error', (e) => (ids.length >= later.length + 2 ? undefined : reject(e)));
+        setTimeout(() => reject(new Error(`Tiempo agotado; recibidos ${ids.join(',')}`)), 20_000);
         req.end();
       });
-      expect(recibidos.slice(0, posteriores.length)).toEqual(posteriores);
-      expect(recibidos.every((id) => BigInt(id) > BigInt(corte))).toBe(true);
+      expect(received.slice(0, later.length)).toEqual(later);
+      expect(received.every((id) => BigInt(id) > BigInt(cutoff))).toBe(true);
       // Sin fugas entre proyectos: todos los eventos recibidos son de este proyecto.
-      const deOtros = await entorno.servicios.db
+      const fromOthers = await environment.services.db
         .selectFrom('events')
         .select('id')
-        .where('id', 'in', recibidos)
-        .where('project_id', '<>', proyectoId)
+        .where('id', 'in', received)
+        .where('project_id', '<>', projectId)
         .execute();
-      expect(deOtros).toEqual([]);
+      expect(fromOthers).toEqual([]);
     } finally {
       await app.close();
     }

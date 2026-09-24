@@ -1,114 +1,114 @@
-import { ErrorDominio, humano, sistema } from '@demiurgo/domain';
+import { DomainError, human, system } from '@demiurgo/domain';
 import { describe, expect, it } from 'vitest';
-import { ejecutarComando, enTransaccion } from '../src/bus/bus.ts';
-import { usarEntorno } from './soporte/entorno.ts';
+import { executeCommand, inTransaction } from '../src/bus/bus.ts';
+import { useEnvironment } from './support/env.ts';
 
-const entorno = usarEntorno();
-const ana = humano('ana');
+const environment = useEnvironment();
+const ana = human('ana');
 
-async function eventos(proyectoId: string) {
-  return entorno().servicios.db.selectFrom('events').selectAll().where('project_id', '=', proyectoId).orderBy('seq').execute();
+async function events(projectId: string) {
+  return environment().services.db.selectFrom('events').selectAll().where('project_id', '=', projectId).orderBy('seq').execute();
 }
 
 describe('bus de comandos', () => {
   it('AC-ESQ-001-01 un comando permitido cambia el estado y deja exactamente un evento completo', async () => {
-    const s = entorno().servicios;
-    const creado = await ejecutarComando(s, { comando: 'project.create', actor: ana, datos: { nombre: 'Socios' } });
-    expect(creado.estado).toBe('active');
-    let ev = await eventos(creado.proyectoId);
+    const s = environment().services;
+    const created = await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Socios' } });
+    expect(created.state).toBe('active');
+    let ev = await events(created.projectId);
     expect(ev).toHaveLength(1);
     expect(ev[0]).toMatchObject({
       seq: '1',
       actor: 'human:ana',
       command: 'project.create',
       entity_type: 'project',
-      entity_id: creado.proyectoId,
+      entity_id: created.projectId,
       state_before: null,
       state_after: 'active',
     });
-    expect(ev[0]?.cause).toHaveProperty('correlacion');
+    expect(ev[0]?.cause).toHaveProperty('correlation');
 
-    const archivado = await ejecutarComando(s, {
-      comando: 'project.archive',
+    const archived = await executeCommand(s, {
+      command: 'project.archive',
       actor: ana,
-      proyectoId: creado.proyectoId,
-      entidadId: creado.proyectoId,
-      datos: { motivo: 'Prueba' },
+      projectId: created.projectId,
+      entityId: created.projectId,
+      data: { reason: 'Test' },
     });
-    expect(archivado.estado).toBe('archived');
-    ev = await eventos(creado.proyectoId);
+    expect(archived.state).toBe('archived');
+    ev = await events(created.projectId);
     expect(ev).toHaveLength(2);
-    expect(ev[1]).toMatchObject({ seq: '2', state_before: 'active', state_after: 'archived', after: { motivo: 'Prueba' } });
-    const p = await s.db.selectFrom('projects').select('state').where('id', '=', creado.proyectoId).executeTakeFirstOrThrow();
+    expect(ev[1]).toMatchObject({ seq: '2', state_before: 'active', state_after: 'archived', after: { reason: 'Test' } });
+    const p = await s.db.selectFrom('projects').select('state').where('id', '=', created.projectId).executeTakeFirstOrThrow();
     expect(p.state).toBe('archived');
   });
 
   it('AC-ESQ-001-01 si falla algo en la transacción no queda ni el cambio ni el evento', async () => {
-    const s = entorno().servicios;
-    const creado = await ejecutarComando(s, { comando: 'project.create', actor: ana, datos: { nombre: 'Atómico' } });
-    const antes = await eventos(creado.proyectoId);
+    const s = environment().services;
+    const created = await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Atómico' } });
+    const before = await events(created.projectId);
     await expect(
-      enTransaccion(s, async (ejecutar) => {
-        await ejecutar({
-          comando: 'project.archive',
+      inTransaction(s, async (execute) => {
+        await execute({
+          command: 'project.archive',
           actor: ana,
-          proyectoId: creado.proyectoId,
-          entidadId: creado.proyectoId,
-          datos: {},
+          projectId: created.projectId,
+          entityId: created.projectId,
+          data: {},
         });
         // Segundo comando inválido en la misma transacción: el primero también se deshace.
-        await ejecutar({ comando: 'project.archive', actor: ana, proyectoId: creado.proyectoId, entidadId: creado.proyectoId });
+        await execute({ command: 'project.archive', actor: ana, projectId: created.projectId, entityId: created.projectId });
       }),
-    ).rejects.toBeInstanceOf(ErrorDominio);
-    expect(await eventos(creado.proyectoId)).toEqual(antes);
-    const p = await s.db.selectFrom('projects').select('state').where('id', '=', creado.proyectoId).executeTakeFirstOrThrow();
+    ).rejects.toBeInstanceOf(DomainError);
+    expect(await events(created.projectId)).toEqual(before);
+    const p = await s.db.selectFrom('projects').select('state').where('id', '=', created.projectId).executeTakeFirstOrThrow();
     expect(p.state).toBe('active');
   });
 
   it('valida los datos antes de tocar nada (422)', async () => {
-    const s = entorno().servicios;
-    await expect(ejecutarComando(s, { comando: 'project.create', actor: ana, datos: { nombre: '' } })).rejects.toMatchObject({
-      tipo: 'validacion',
+    const s = environment().services;
+    await expect(executeCommand(s, { command: 'project.create', actor: ana, data: { name: '' } })).rejects.toMatchObject({
+      type: 'validation',
     });
   });
 
   it('un proyecto archivado no admite cambios', async () => {
-    const s = entorno().servicios;
-    const { proyectoId } = await ejecutarComando(s, { comando: 'project.create', actor: ana, datos: { nombre: 'Viejo' } });
-    await ejecutarComando(s, { comando: 'project.archive', actor: ana, proyectoId, entidadId: proyectoId, datos: {} });
+    const s = environment().services;
+    const { projectId } = await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Old' } });
+    await executeCommand(s, { command: 'project.archive', actor: ana, projectId, entityId: projectId, data: {} });
     await expect(
-      ejecutarComando(s, {
-        comando: 'run.request',
+      executeCommand(s, {
+        command: 'run.request',
         actor: ana,
-        proyectoId,
-        datos: { accion: 'eco', alcance: { tipo: 'proyecto' } },
+        projectId,
+        data: { action: 'echo', scope: { type: 'project' } },
       }),
-    ).rejects.toMatchObject({ tipo: 'transicion_invalida' });
+    ).rejects.toMatchObject({ type: 'invalid_transition' });
   });
 
   it('run.request construye un context pack y el reintento reutiliza el mismo', async () => {
-    const s = entorno().servicios;
-    const { proyectoId } = await ejecutarComando(s, { comando: 'project.create', actor: ana, datos: { nombre: 'Packs' } });
-    const r = await ejecutarComando(s, {
-      comando: 'run.request',
+    const s = environment().services;
+    const { projectId } = await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Packs' } });
+    const r = await executeCommand(s, {
+      command: 'run.request',
       actor: ana,
-      proyectoId,
-      datos: { accion: 'eco', alcance: { tipo: 'proyecto' }, entrada: { texto: 'hola' } },
+      projectId,
+      data: { action: 'echo', scope: { type: 'project' }, input: { text: 'hello' } },
     });
-    const run = await s.db.selectFrom('ai_runs').selectAll().where('id', '=', r.entidadId).executeTakeFirstOrThrow();
-    expect(run).toMatchObject({ state: 'queued', action: 'eco', method: 'eco@v1', requested_by: 'human:ana' });
-    await ejecutarComando(s, {
-      comando: 'run.fail',
-      actor: sistema('motor'),
-      proyectoId,
-      entidadId: r.entidadId,
-      datos: { failure_kind: 'agent_error', error: 'x' },
+    const run = await s.db.selectFrom('ai_runs').selectAll().where('id', '=', r.entityId).executeTakeFirstOrThrow();
+    expect(run).toMatchObject({ state: 'queued', action: 'echo', method: 'eco@v1', requested_by: 'human:ana' });
+    await executeCommand(s, {
+      command: 'run.fail',
+      actor: system('engine'),
+      projectId,
+      entityId: r.entityId,
+      data: { failure_kind: 'agent_error', error: 'x' },
     });
-    const reintento = await ejecutarComando(s, { comando: 'run.retry', actor: ana, proyectoId, datos: { run_id: r.entidadId } });
-    const nuevo = await s.db.selectFrom('ai_runs').selectAll().where('id', '=', reintento.entidadId).executeTakeFirstOrThrow();
-    expect(nuevo.context_pack_id).toBe(run.context_pack_id);
-    expect(nuevo.retry_of).toBe(run.id);
-    const packs = await s.db.selectFrom('context_packs').select('id').where('project_id', '=', proyectoId).execute();
+    const retry = await executeCommand(s, { command: 'run.retry', actor: ana, projectId, data: { run_id: r.entityId } });
+    const fresh = await s.db.selectFrom('ai_runs').selectAll().where('id', '=', retry.entityId).executeTakeFirstOrThrow();
+    expect(fresh.context_pack_id).toBe(run.context_pack_id);
+    expect(fresh.retry_of).toBe(run.id);
+    const packs = await s.db.selectFrom('context_packs').select('id').where('project_id', '=', projectId).execute();
     expect(packs).toHaveLength(1);
   });
 });

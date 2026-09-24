@@ -4,25 +4,25 @@
 
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { IMAGENES_PERMITIDAS, type JobSpecEntrada } from './jobspec.ts';
-import { argumentosDocker, ejecutarTrabajo, type ResultadoTrabajo } from './runner.ts';
+import { ALLOWED_IMAGES, type JobSpecInput } from './jobspec.ts';
+import { dockerArguments, runJob, type JobResult } from './runner.ts';
 
-export type DestinoTcp = { host: string; puerto: number };
+export type TcpTarget = { host: string; port: number };
 
-export type ConfiguracionSonda = {
+export type ProbeConfig = {
   /** Rutas cuya mera existencia ya sería una fuga (datos, credenciales, socket, host). */
-  rutasSensibles: string[];
-  destinosTcp: DestinoTcp[];
-  nombresDns: string[];
+  sensitivePaths: string[];
+  tcpTargets: TcpTarget[];
+  dnsNames: string[];
   /** Directorios donde la sonda intenta escribir; `.` es el directorio de trabajo. */
-  rutasEscritura: string[];
+  writePaths: string[];
   /** Directorio de trabajo temporal donde sí debe poder escribir. */
-  rutaTmp: string;
-  timeoutConexionMs: number;
+  tmpPath: string;
+  connectionTimeoutMs: number;
 };
 
-export const CONFIGURACION_SONDA: ConfiguracionSonda = Object.freeze({
-  rutasSensibles: [
+export const PROBE_CONFIG: ProbeConfig = Object.freeze({
+  sensitivePaths: [
     '/data',
     '/codex',
     '/root/.claude',
@@ -37,21 +37,21 @@ export const CONFIGURACION_SONDA: ConfiguracionSonda = Object.freeze({
     '/mnt/host',
     '/workspace',
   ],
-  destinosTcp: [
-    { host: 'host.docker.internal', puerto: 55432 },
-    { host: 'host.docker.internal', puerto: 8000 },
-    { host: '192.168.65.254', puerto: 55432 },
-    { host: '172.17.0.1', puerto: 5432 },
+  tcpTargets: [
+    { host: 'host.docker.internal', port: 55432 },
+    { host: 'host.docker.internal', port: 8000 },
+    { host: '192.168.65.254', port: 55432 },
+    { host: '172.17.0.1', port: 5432 },
     // Pasarela del puente de Docker con el puerto publicado del Postgres de desarrollo y de la CI.
-    { host: '172.17.0.1', puerto: 55432 },
-    { host: '10.0.2.2', puerto: 55432 },
-    { host: '127.0.0.1', puerto: 5432 },
-    { host: '1.1.1.1', puerto: 443 },
+    { host: '172.17.0.1', port: 55432 },
+    { host: '10.0.2.2', port: 55432 },
+    { host: '127.0.0.1', port: 5432 },
+    { host: '1.1.1.1', port: 443 },
   ],
-  nombresDns: ['registry.npmjs.org'],
-  rutasEscritura: ['/', '.', '/home/node', '/etc', '/usr/local/lib'],
-  rutaTmp: '/tmp',
-  timeoutConexionMs: 1500,
+  dnsNames: ['registry.npmjs.org'],
+  writePaths: ['/', '.', '/home/node', '/etc', '/usr/local/lib'],
+  tmpPath: '/tmp',
+  connectionTimeoutMs: 1500,
 });
 
 /**
@@ -59,14 +59,14 @@ export const CONFIGURACION_SONDA: ConfiguracionSonda = Object.freeze({
  * subcadenas sin distinguir mayúsculas: preferimos un falso positivo a una fuga sin ver.
  * `PG`, `GH` y `SSH` solo cuentan como prefijo de segmento para no marcar nombres inocentes.
  */
-export const PATRON_VARIABLE_SENSIBLE =
+export const SENSITIVE_VARIABLE_PATTERN =
   /KEY|TOKEN|SECRET|PASSWORD|PASSWD|PASS|CREDENTIAL|AUTH|COOKIE|SESSION|PRIVATE|DATABASE|DEMIURGO|ANTHROPIC|OPENAI|CODEX|CLAUDE|AWS|GITHUB|(^|_)PG|(^|_)GH_|(^|_)SSH_/i;
 
 /** Genera el script de la sonda con la configuración incrustada como JSON. */
-export function generarScriptSonda(config: ConfiguracionSonda = CONFIGURACION_SONDA): string {
+export function generateProbeScript(config: ProbeConfig = PROBE_CONFIG): string {
   return `'use strict';
 const CONFIG = ${JSON.stringify(config)};
-const PATRON = new RegExp(${JSON.stringify(PATRON_VARIABLE_SENSIBLE.source)}, 'i');
+const PATRON = new RegExp(${JSON.stringify(SENSITIVE_VARIABLE_PATTERN.source)}, 'i');
 const fs = process.getBuiltinModule('node:fs');
 const net = process.getBuiltinModule('node:net');
 const dns = process.getBuiltinModule('node:dns');
@@ -164,83 +164,83 @@ principal().catch((e) => { process.stderr.write('Fallo de la sonda: ' + detalleE
 `;
 }
 
-export const SCRIPT_SONDA = generarScriptSonda();
+export const PROBE_SCRIPT = generateProbeScript();
 
-const intento = z.object({ objetivo: z.string(), ruta: z.string(), escrito: z.boolean(), detalle: z.string() });
+const attempt = z.object({ goal: z.string(), path: z.string(), written: z.boolean(), detail: z.string() });
 
-export const esquemaInformeSonda = z.object({
+export const probeReportSchema = z.object({
   uid: z.number().int(),
   gid: z.number().int(),
   cwd: z.string(),
-  variablesVisibles: z.array(z.string()),
-  variablesSensibles: z.array(z.string()),
-  ficherosVisibles: z.array(z.string()),
-  rutas: z.array(z.object({ ruta: z.string(), estado: z.enum(['visible', 'ausente', 'sin_permiso']), detalle: z.string() })),
-  proceso: z.object({ capEff: z.string().nullable(), noNewPrivs: z.string().nullable(), seccomp: z.string().nullable() }),
-  conexiones: z.array(
-    z.object({ tipo: z.enum(['tcp', 'dns']), destino: z.string(), conectado: z.boolean(), detalle: z.string() }),
+  visibleVariables: z.array(z.string()),
+  sensitiveVariables: z.array(z.string()),
+  visibleFiles: z.array(z.string()),
+  paths: z.array(z.object({ path: z.string(), state: z.enum(['visible', 'absent', 'no_access']), detail: z.string() })),
+  proc: z.object({ capEff: z.string().nullable(), noNewPrivs: z.string().nullable(), seccomp: z.string().nullable() }),
+  connections: z.array(
+    z.object({ type: z.enum(['tcp', 'dns']), target: z.string(), connected: z.boolean(), detail: z.string() }),
   ),
-  escrituraFueraDeTmp: z.array(intento),
-  escrituraEnTmp: intento,
+  writeOutsideTmp: z.array(attempt),
+  writeInTmp: attempt,
 });
 
-export type InformeSonda = z.infer<typeof esquemaInformeSonda>;
+export type ProbeReport = z.infer<typeof probeReportSchema>;
 
 /** Lista de incumplimientos del aislamiento según el informe (vacía si todo está bien). */
-export function violacionesSonda(informe: InformeSonda): string[] {
+export function probeViolations(report: ProbeReport): string[] {
   const v: string[] = [];
-  if (informe.uid === 0) v.push('La sonda se ejecuta como root (uid 0).');
-  if (informe.gid === 0) v.push('La sonda se ejecuta con el grupo root (gid 0).');
-  if (informe.variablesSensibles.length > 0) v.push(`Variables sensibles visibles: ${informe.variablesSensibles.join(', ')}.`);
-  if (informe.ficherosVisibles.length > 0) v.push(`Ficheros sensibles visibles: ${informe.ficherosVisibles.join(', ')}.`);
-  for (const c of informe.conexiones.filter((x) => x.conectado)) v.push(`Conexión ${c.tipo} abierta con ${c.destino}.`);
-  for (const e of informe.escrituraFueraDeTmp.filter((x) => x.escrito)) v.push(`Escritura fuera de /tmp en ${e.ruta}.`);
-  if (informe.proceso.capEff !== null && /[1-9a-f]/i.test(informe.proceso.capEff)) {
-    v.push(`El proceso conserva capacidades (CapEff ${informe.proceso.capEff}).`);
+  if (report.uid === 0) v.push('La sonda se ejecuta como root (uid 0).');
+  if (report.gid === 0) v.push('La sonda se ejecuta con el grupo root (gid 0).');
+  if (report.sensitiveVariables.length > 0) v.push(`Variables sensibles visibles: ${report.sensitiveVariables.join(', ')}.`);
+  if (report.visibleFiles.length > 0) v.push(`Ficheros sensibles visibles: ${report.visibleFiles.join(', ')}.`);
+  for (const c of report.connections.filter((x) => x.connected)) v.push(`Conexión ${c.type} abierta con ${c.target}.`);
+  for (const e of report.writeOutsideTmp.filter((x) => x.written)) v.push(`Escritura fuera de /tmp en ${e.path}.`);
+  if (report.proc.capEff !== null && /[1-9a-f]/i.test(report.proc.capEff)) {
+    v.push(`El proceso conserva capacidades (CapEff ${report.proc.capEff}).`);
   }
-  if (informe.proceso.noNewPrivs !== null && informe.proceso.noNewPrivs !== '1') v.push('no-new-privileges no está activo.');
+  if (report.proc.noNewPrivs !== null && report.proc.noNewPrivs !== '1') v.push('no-new-privileges no está activo.');
   return v;
 }
 
 /** JobSpec con el que se lanza la sonda. */
-export function specSonda(tiempoMaxMs = 30_000): JobSpecEntrada {
+export function probeSpec(maxTimeMs = 30_000): JobSpecInput {
   return {
-    imagen: IMAGENES_PERMITIDAS[0] ?? '',
-    comando: ['node', '-'],
-    entrada: SCRIPT_SONDA,
-    tiempoMaxMs,
-    entorno: { LANG: 'C.UTF-8', CI: '1' },
+    image: ALLOWED_IMAGES[0] ?? '',
+    command: ['node', '-'],
+    input: PROBE_SCRIPT,
+    maxTimeMs,
+    environment: { LANG: 'C.UTF-8', CI: '1' },
   };
 }
 
-export type ResultadoSonda = {
-  informe: InformeSonda;
-  violaciones: string[];
-  duracionMs: number;
-  argumentos: string[];
-  resultado: ResultadoTrabajo;
+export type ProbeResult = {
+  report: ProbeReport;
+  violations: string[];
+  durationMs: number;
+  argList: string[];
+  result: JobResult;
 };
 
 /** Lanza la sonda en el runner y devuelve su informe. Lanza un error si la sonda no llega a informar. */
-export async function ejecutarSonda(opciones: { signal?: AbortSignal; tiempoMaxMs?: number } = {}): Promise<ResultadoSonda> {
-  const spec = specSonda(opciones.tiempoMaxMs);
-  const nombre = `demiurgo-sonda-${randomUUID()}`;
-  const resultado = await ejecutarTrabajo(spec, {
-    nombreContenedor: nombre,
-    ...(opciones.signal ? { signal: opciones.signal } : {}),
+export async function runProbe(options: { signal?: AbortSignal; maxTimeMs?: number } = {}): Promise<ProbeResult> {
+  const spec = probeSpec(options.maxTimeMs);
+  const name = `demiurgo-sonda-${randomUUID()}`;
+  const result = await runJob(spec, {
+    containerName: name,
+    ...(options.signal ? { signal: options.signal } : {}),
   });
-  if (resultado.estado !== 'ok') {
+  if (result.state !== 'ok') {
     throw new Error(
-      `La sonda no terminó bien (${resultado.failureKind ?? `código ${resultado.codigoSalida}`}): ${resultado.stderr.trim()}`,
+      `La sonda no terminó bien (${result.failureKind ?? `código ${result.exitCode}`}): ${result.stderr.trim()}`,
     );
   }
-  let crudo: unknown;
+  let raw: unknown;
   try {
-    crudo = JSON.parse(resultado.stdout);
+    raw = JSON.parse(result.stdout);
   } catch {
-    throw new Error(`La sonda no devolvió JSON: ${resultado.stdout.slice(0, 500)}`);
+    throw new Error(`La sonda no devolvió JSON: ${result.stdout.slice(0, 500)}`);
   }
-  const informe = esquemaInformeSonda.parse(crudo);
-  const argumentos = argumentosDocker(spec, nombre);
-  return { informe, violaciones: violacionesSonda(informe), duracionMs: resultado.duracionMs, argumentos, resultado };
+  const report = probeReportSchema.parse(raw);
+  const argList = dockerArguments(spec, name);
+  return { report, violations: probeViolations(report), durationMs: result.durationMs, argList, result };
 }

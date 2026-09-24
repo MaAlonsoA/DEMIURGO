@@ -1,34 +1,34 @@
 // Errores de dominio. Los mensajes van en español y en lenguaje de producto.
 
-export const ESTADO_HTTP = {
-  no_autenticado: 401,
-  prohibido: 403,
-  no_encontrado: 404,
-  transicion_invalida: 409,
-  guarda: 409,
-  conflicto: 409,
-  validacion: 422,
-  no_implementado: 501,
+export const HTTP_STATUS = {
+  unauthenticated: 401,
+  forbidden: 403,
+  not_found: 404,
+  invalid_transition: 409,
+  guard: 409,
+  conflict: 409,
+  validation: 422,
+  not_implemented: 501,
 } as const;
 
-export type TipoError = keyof typeof ESTADO_HTTP;
+export type ErrorType = keyof typeof HTTP_STATUS;
 
-export class ErrorDominio extends Error {
-  readonly tipo: TipoError;
-  readonly motivos: readonly string[];
+export class DomainError extends Error {
+  readonly type: ErrorType;
+  readonly reasons: readonly string[];
 
-  constructor(tipo: TipoError, mensaje: string, motivos: readonly string[] = []) {
-    super(mensaje);
-    this.name = 'ErrorDominio';
-    this.tipo = tipo;
-    this.motivos = motivos;
+  constructor(type: ErrorType, message: string, reasons: readonly string[] = []) {
+    super(message);
+    this.name = 'DomainError';
+    this.type = type;
+    this.reasons = reasons;
   }
 
-  get estadoHttp(): number {
-    return ESTADO_HTTP[this.tipo];
+  get httpStatus(): number {
+    return HTTP_STATUS[this.type];
   }
 }
 
-export function esErrorDominio(e: unknown): e is ErrorDominio {
-  return e instanceof ErrorDominio;
+export function isDomainError(e: unknown): e is DomainError {
+  return e instanceof DomainError;
 }

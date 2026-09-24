@@ -1,8 +1,8 @@
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { usarBaseEfimera } from './soporte/base-efimera.ts';
+import { useEphemeralDatabase } from './support/ephemeral-db.ts';
 
-const base = usarBaseEfimera();
+const base = useEphemeralDatabase();
 let pool: Pool;
 
 beforeAll(async () => {
@@ -19,11 +19,11 @@ afterAll(async () => {
 
 describe('diario de eventos', () => {
   it('AC-ESQ-001-04 rechaza UPDATE, DELETE y TRUNCATE y el diario queda igual', async () => {
-    const antes = await pool.query('select * from events order by id');
+    const before = await pool.query('select * from events order by id');
     await expect(pool.query("update events set actor = 'human:otro'")).rejects.toThrow(/solo admite INSERT/);
     await expect(pool.query('delete from events')).rejects.toThrow(/solo admite INSERT/);
     await expect(pool.query('truncate events cascade')).rejects.toThrow(/solo admite INSERT/);
-    const despues = await pool.query('select * from events order by id');
-    expect(despues.rows).toEqual(antes.rows);
+    const after = await pool.query('select * from events order by id');
+    expect(after.rows).toEqual(before.rows);
   });
 });

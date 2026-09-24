@@ -2,101 +2,101 @@
 // (AC-ESQ-001-09). Se usa en la CI y en las pruebas; los guiones permiten forzar salidas
 // inválidas, errores o demoras.
 
-import type { AccionAgente, PeticionAgente, PuertoAgente, ResultadoAgente } from '@demiurgo/domain';
+import type { AgentAction, AgentRequest, AgentPort, AgentResult } from '@demiurgo/domain';
 
-export type Guion = (p: PeticionAgente) => unknown;
+export type Script = (p: AgentRequest) => unknown;
 
-export type OpcionesSimulado = {
-  guiones?: Partial<Record<AccionAgente, Guion>>;
-  demoraMs?: number;
+export type SimulatedOptions = {
+  scripts?: Partial<Record<AgentAction, Script>>;
+  delayMs?: number;
   /** Se llama justo al empezar cada invocación (p. ej. para señalar a una prueba). */
-  alInvocar?: (p: PeticionAgente) => void;
+  onInvoke?: (p: AgentRequest) => void;
   /** Error forzado del agente, sin salida. */
-  fallo?: { failureKind: 'agent_error' | 'infra' | 'timeout'; mensaje: string };
+  failure?: { failureKind: 'agent_error' | 'infra' | 'timeout'; message: string };
 };
 
-type Objeto = Record<string, unknown>;
-const obj = (v: unknown): Objeto => (typeof v === 'object' && v !== null ? (v as Objeto) : {});
-const lista = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+type AnyObject = Record<string, unknown>;
+const obj = (v: unknown): AnyObject => (typeof v === 'object' && v !== null ? (v as AnyObject) : {});
+const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const txt = (v: unknown, def = ''): string => (typeof v === 'string' ? v : def);
 
-function recortar(t: string, n: number): string {
-  const limpio = t.replace(/\s+/g, ' ').trim();
-  return limpio.length > n ? `${limpio.slice(0, n - 1)}…` : limpio;
+function trim(t: string, n: number): string {
+  const clean = t.replace(/\s+/g, ' ').trim();
+  return clean.length > n ? `${clean.slice(0, n - 1)}…` : clean;
 }
 
-export const GUIONES_POR_DEFECTO: Record<AccionAgente, Guion> = {
-  eco(p) {
-    const texto = txt(obj(obj(p.contexto.contenido).entrada).texto);
-    return { reply: texto ? `Eco: ${recortar(texto, 1900)}` : 'Eco: (vacío)' };
+export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
+  echo(p) {
+    const text = txt(obj(obj(p.context.content).input).text);
+    return { reply: text ? `Eco: ${trim(text, 1900)}` : 'Eco: (vacío)' };
   },
 
   exploration_chat(p) {
-    const c = obj(p.contexto.contenido);
-    const mensajes = lista(c.mensajes).map(obj);
-    const ultimo = mensajes.toReversed().find((m) => txt(m.autor).startsWith('human:') || txt(m.autor).startsWith('agent:'));
-    const texto = txt(ultimo?.texto, txt(c.proposito));
-    const pendientes = lista(c.preguntas)
+    const c = obj(p.context.content);
+    const messages = list(c.messages).map(obj);
+    const last = messages.toReversed().find((m) => txt(m.author).startsWith('human:') || txt(m.author).startsWith('agent:'));
+    const text = txt(last?.text, txt(c.purpose));
+    const pending = list(c.questions)
       .map(obj)
-      .filter((q) => q.estado === 'pending');
-    const quiereDecidir = /\b(decid|elegimos|elijo|quiero|vamos a|usaremos)/i.test(texto);
-    const salida: Objeto = {
-      reply: `Entendido: «${recortar(texto, 300)}». ${quiereDecidir ? 'Propongo registrarlo como decisión.' : 'Necesito concretar algo más.'}`,
-      observaciones: [{ tipo: 'hypothesis', texto: `La intención principal es: ${recortar(texto, 200)}` }],
-      preguntas: [],
-      inferencias: [],
-      propuestas: [],
+      .filter((q) => q.state === 'pending');
+    const wantsToDecide = /\b(decid|elegimos|elijo|quiero|vamos a|usaremos)/i.test(text);
+    const output: AnyObject = {
+      reply: `Entendido: «${trim(text, 300)}». ${wantsToDecide ? 'Propongo registrarlo como decisión.' : 'Necesito concretar algo más.'}`,
+      observations: [{ type: 'hypothesis', text: `La intención principal es: ${trim(text, 200)}` }],
+      questions: [],
+      inferences: [],
+      proposals: [],
     };
-    if (quiereDecidir) {
-      (salida.propuestas as unknown[]).push({
-        tipo: 'decision',
-        titulo: recortar(texto, 120),
-        contexto: recortar(`Exploración: ${txt(c.proposito)}`, 2900),
-        decision: recortar(texto, 2900),
-        consecuencias: 'Hay que diseñar la funcionalidad con criterios de aceptación verificables.',
+    if (wantsToDecide) {
+      (output.proposals as unknown[]).push({
+        type: 'decision',
+        title: trim(text, 120),
+        context: trim(`Exploración: ${txt(c.purpose)}`, 2900),
+        decision: trim(text, 2900),
+        consequences: 'Hay que diseñar la funcionalidad con criterios de aceptación verificables.',
       });
-      const primera = pendientes[0];
-      if (primera && typeof primera.id === 'string') {
-        (salida.inferencias as unknown[]).push({
-          pregunta_id: primera.id,
-          conclusion: recortar(texto, 1400),
-          razonamiento: 'La persona lo ha expresado en su último mensaje.',
+      const first = pending[0];
+      if (first && typeof first.id === 'string') {
+        (output.inferences as unknown[]).push({
+          question_id: first.id,
+          conclusion: trim(text, 1400),
+          reasoning: 'La persona lo ha expresado en su último mensaje.',
         });
       }
-    } else if (pendientes.length === 0) {
-      (salida.preguntas as unknown[]).push({
-        pregunta: '¿Quién usará primero el producto y qué necesita hacer?',
-        motivo: 'Define el alcance del primer diseño.',
-        impacto: 'alto',
+    } else if (pending.length === 0) {
+      (output.questions as unknown[]).push({
+        question: '¿Quién usará primero el producto y qué necesita hacer?',
+        reason: 'Define el alcance del primer diseño.',
+        impact: 'high',
       });
     }
-    return salida;
+    return output;
   },
 
   design_proposal(p) {
-    const c = obj(p.contexto.contenido);
+    const c = obj(p.context.content);
     const d = obj(c.decision);
-    const titulo = recortar(txt(d.titulo, 'Funcionalidad'), 140);
+    const title = trim(txt(d.title, 'Feature'), 140);
     return {
       fdr: {
-        titulo: `Diseño: ${titulo}`,
-        objetivo: recortar(`Llevar a producto la decisión ${txt(d.codigo)}: ${txt(d.decision, titulo)}`, 2900),
-        alcance: 'El recorrido principal de la decisión, de principio a fin, para una persona.',
-        fuera_de_alcance: 'Integraciones externas y varios usuarios a la vez.',
-        comportamiento: `La persona realiza el recorrido principal de «${titulo}» y ve el resultado confirmado.`,
-        criterios: [
+        title: `Diseño: ${title}`,
+        goal: trim(`Llevar a producto la decisión ${txt(d.code)}: ${txt(d.decision, title)}`, 2900),
+        scope: 'El recorrido principal de la decisión, de principio a fin, para una persona.',
+        out_of_scope: 'Integraciones externas y varios usuarios a la vez.',
+        behavior: `La persona realiza el recorrido principal de «${title}» y ve el resultado confirmado.`,
+        criteria: [
           {
-            titulo: 'Recorrido principal',
-            enunciado: `Dado un proyecto vacío, cuando la persona completa el recorrido de «${titulo}», entonces ve el resultado guardado.`,
-            verificacion: 'automatic',
-            comprobacion: 'Una prueba de extremo a extremo recorre el flujo y comprueba el resultado.',
+            title: 'Recorrido principal',
+            statement: `Dado un proyecto vacío, cuando la persona completa el recorrido de «${title}», entonces ve el resultado guardado.`,
+            verification: 'automatic',
+            check: 'Una prueba de extremo a extremo recorre el flujo y comprueba el resultado.',
           },
           {
-            titulo: 'Error comprensible',
-            enunciado:
+            title: 'Error comprensible',
+            statement:
               'Dado un dato inválido, cuando la persona lo envía, entonces ve un mensaje en español que explica qué corregir.',
-            verificacion: 'automatic',
-            comprobacion: 'Una prueba envía un dato inválido y comprueba el mensaje.',
+            verification: 'automatic',
+            check: 'Una prueba envía un dato inválido y comprueba el mensaje.',
           },
         ],
       },
@@ -104,57 +104,57 @@ export const GUIONES_POR_DEFECTO: Record<AccionAgente, Guion> = {
   },
 };
 
-export function crearAgenteSimulado(opciones: OpcionesSimulado = {}): PuertoAgente {
+export function createSimulatedAgent(options: SimulatedOptions = {}): AgentPort {
   return {
-    proveedor: 'simulado',
-    async ejecutar(p: PeticionAgente): Promise<ResultadoAgente> {
-      opciones.alInvocar?.(p);
-      const inicio = Date.now();
-      if (opciones.demoraMs) {
-        await new Promise<void>((resolver, rechazar) => {
-          const t = setTimeout(resolver, opciones.demoraMs);
+    provider: 'simulated',
+    async execute(p: AgentRequest): Promise<AgentResult> {
+      options.onInvoke?.(p);
+      const start = Date.now();
+      if (options.delayMs) {
+        await new Promise<void>((resolve, reject) => {
+          const t = setTimeout(resolve, options.delayMs);
           p.signal?.addEventListener('abort', () => {
             clearTimeout(t);
-            rechazar(new Error('cancelada'));
+            reject(new Error('cancelled'));
           });
         }).catch(() => undefined);
         if (p.signal?.aborted) {
           return {
-            estado: 'error',
+            state: 'error',
             failureKind: 'cancelled',
-            mensaje: 'Cancelada.',
-            eventosCrudos: '',
-            proveedor: 'simulado',
-            modelo: 'simulado',
+            message: 'Cancelled.',
+            rawEvents: '',
+            provider: 'simulated',
+            model: 'simulated',
           };
         }
       }
-      const uso = {
-        tokensEntrada: JSON.stringify(p.contexto.contenido).length,
-        tokensSalida: 0,
-        duracionMs: Date.now() - inicio,
+      const usage = {
+        inputTokens: JSON.stringify(p.context.content).length,
+        outputTokens: 0,
+        durationMs: Date.now() - start,
       };
-      if (opciones.fallo) {
+      if (options.failure) {
         return {
-          estado: 'error',
-          failureKind: opciones.fallo.failureKind,
-          mensaje: opciones.fallo.mensaje,
-          uso,
-          eventosCrudos: '',
-          proveedor: 'simulado',
-          modelo: 'simulado',
+          state: 'error',
+          failureKind: options.failure.failureKind,
+          message: options.failure.message,
+          usage,
+          rawEvents: '',
+          provider: 'simulated',
+          model: 'simulated',
         };
       }
-      const guion = opciones.guiones?.[p.accion] ?? GUIONES_POR_DEFECTO[p.accion];
-      const salida = guion(p);
-      const cruda = JSON.stringify(salida);
+      const script = options.scripts?.[p.action] ?? DEFAULT_SCRIPTS[p.action];
+      const output = script(p);
+      const raw = JSON.stringify(output);
       return {
-        estado: 'ok',
-        salidaCruda: salida,
-        uso: { ...uso, tokensSalida: cruda.length },
-        eventosCrudos: cruda,
-        proveedor: 'simulado',
-        modelo: 'simulado',
+        state: 'ok',
+        rawOutput: output,
+        usage: { ...usage, outputTokens: raw.length },
+        rawEvents: raw,
+        provider: 'simulated',
+        model: 'simulated',
       };
     },
   };

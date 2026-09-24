@@ -3,65 +3,65 @@
 
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll } from 'vitest';
-import { type Entorno, usarEntorno } from '../../../core/test/soporte/entorno.ts';
-import { CABECERA_CSRF, COOKIE_SESION, crearPersona } from '../../src/credenciales.ts';
-import { crearServidor } from '../../src/servidor.ts';
+import { type Environment, useEnvironment } from '../../../core/test/support/env.ts';
+import { CSRF_HEADER, COOKIE_SESSION, createPerson } from '../../src/credentials.ts';
+import { createServer } from '../../src/server.ts';
 
-export const CLAVE = 'clave-de-prueba-larga';
+export const KEY = 'clave-de-prueba-larga';
 
-export type Cliente = {
-  pedir(
-    metodo: 'GET' | 'POST' | 'DELETE',
+export type Client = {
+  request(
+    method: 'GET' | 'POST' | 'DELETE',
     url: string,
-    cuerpo?: unknown,
-    cabeceras?: Record<string, string>,
+    body?: unknown,
+    headers?: Record<string, string>,
   ): Promise<LightMyRequestResponse>;
 };
 
 export type Api = {
   app: FastifyInstance;
-  entorno: Entorno;
-  persona: Cliente & { cookie: string; csrf: string };
-  anonimo: Cliente;
-  agente(token: string): Cliente;
+  environment: Environment;
+  person: Client & { cookie: string; csrf: string };
+  anonymous: Client;
+  agent(token: string): Client;
 };
 
-export function usarApi(opciones: Parameters<typeof usarEntorno>[0] = {}): () => Api {
-  const entorno = usarEntorno(opciones);
+export function useApi(options: Parameters<typeof useEnvironment>[0] = {}): () => Api {
+  const environment = useEnvironment(options);
   let api: Api | undefined;
   beforeAll(async () => {
-    const e = entorno();
-    const app = await crearServidor({
-      servicios: e.servicios,
-      urlBase: e.url,
-      horasSesion: 1,
-      origenesPermitidos: ['http://127.0.0.1:8100'],
+    const e = environment();
+    const app = await createServer({
+      services: e.services,
+      baseUrl: e.url,
+      sessionHours: 1,
+      allowedOrigins: ['http://127.0.0.1:8100'],
     });
-    await crearPersona(e.servicios.db, 'ana', CLAVE);
-    const login = await app.inject({ method: 'POST', url: '/api/sesion', payload: { usuario: 'ana', clave: CLAVE } });
+    await createPerson(e.services.db, 'ana', KEY);
+    const login = await app.inject({ method: 'POST', url: '/api/session', payload: { username: 'ana', key: KEY } });
     if (login.statusCode !== 200) throw new Error(`No se pudo iniciar sesión: ${login.body}`);
-    const galleta = login.cookies.find((c) => c.name === COOKIE_SESION);
+    const cookie = login.cookies.find((c) => c.name === COOKIE_SESSION);
     const csrf = login.json<{ csrf: string }>().csrf;
-    const cliente = (cabecerasBase: Record<string, string>, cookies: Record<string, string>): Cliente => ({
-      pedir: (method, url, cuerpo, cabeceras = {}) =>
+    const client = (baseHeaders: Record<string, string>, cookies: Record<string, string>): Client => ({
+      request: (method, url, body, headers = {}) =>
         app.inject({
           method,
           url,
-          headers: { ...cabecerasBase, ...cabeceras },
+          headers: { ...baseHeaders, ...headers },
           cookies,
-          ...(cuerpo === undefined ? {} : { payload: cuerpo as Record<string, unknown> }),
+          ...(body === undefined ? {} : { payload: body as Record<string, unknown> }),
         }),
     });
     api = {
       app,
-      entorno: e,
-      persona: {
-        ...cliente({ [CABECERA_CSRF]: csrf }, { [COOKIE_SESION]: galleta?.value ?? '' }),
-        cookie: galleta?.value ?? '',
+      environment: e,
+      person: {
+        ...client({ [CSRF_HEADER]: csrf }, { [COOKIE_SESSION]: cookie?.value ?? '' }),
+        cookie: cookie?.value ?? '',
         csrf,
       },
-      anonimo: cliente({}, {}),
-      agente: (token) => cliente({ authorization: `Bearer ${token}` }, {}),
+      anonymous: client({}, {}),
+      agent: (token) => client({ authorization: `Bearer ${token}` }, {}),
     };
   });
   afterAll(async () => {

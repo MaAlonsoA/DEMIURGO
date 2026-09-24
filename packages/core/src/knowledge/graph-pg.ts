@@ -1,84 +1,84 @@
 // Puerto KnowledgeGraph sobre tablas de Postgres (§7.6): nodos y aristas con validez por
 // versión del grafo. Cambiar de motor (Memgraph, AGE) es reconstruir desde la autoridad.
 
-import type { Arista, EstadoEpistemico, Grafo, Nodo } from '@demiurgo/domain';
+import type { Edge, EpistemicStatus, Graph, Node } from '@demiurgo/domain';
 import { sql } from 'kysely';
-import type { Bd } from '../db/conexion.ts';
+import type { Db } from '../db/connection.ts';
 
-const TIPOS_CON_AUTORIDAD = new Set(['decision', 'fdr', 'adr', 'bug', 'criterio']);
+const TYPES_WITH_AUTHORITY = new Set(['decision', 'fdr', 'adr', 'bug', 'criterion']);
 
-export async function versionDelGrafo(db: Bd, proyectoId: string): Promise<number> {
+export async function readGraphVersion(db: Db, projectId: string): Promise<number> {
   const e = await db
     .selectFrom('knowledge_graph_state')
     .select('version')
-    .where('project_id', '=', proyectoId)
+    .where('project_id', '=', projectId)
     .executeTakeFirst();
   return Number(e?.version ?? 0);
 }
 
 /** Carga el grafo completo del proyecto (vigente e histórico) para operar en memoria. */
-export async function cargarGrafo(db: Bd, proyectoId: string): Promise<Grafo> {
-  const nodos = await db.selectFrom('knowledge_nodes').selectAll().where('project_id', '=', proyectoId).orderBy('id').execute();
-  const porId = new Map(nodos.map((n) => [n.id, n.ref]));
-  const aristas = await db.selectFrom('knowledge_edges').selectAll().where('project_id', '=', proyectoId).orderBy('id').execute();
+export async function loadGraph(db: Db, projectId: string): Promise<Graph> {
+  const nodes = await db.selectFrom('knowledge_nodes').selectAll().where('project_id', '=', projectId).orderBy('id').execute();
+  const byId = new Map(nodes.map((n) => [n.id, n.ref]));
+  const edges = await db.selectFrom('knowledge_edges').selectAll().where('project_id', '=', projectId).orderBy('id').execute();
   return {
-    version: await versionDelGrafo(db, proyectoId),
-    nodos: nodos.map(
-      (n): Nodo => ({
+    version: await readGraphVersion(db, projectId),
+    nodes: nodes.map(
+      (n): Node => ({
         ref: n.ref,
-        tipo: n.kind,
-        etiqueta: n.label,
-        texto: n.body,
-        categorias: (n.categories ?? {}) as Record<string, string>,
-        epistemico: n.epistemic as EstadoEpistemico,
-        autoridad: TIPOS_CON_AUTORIDAD.has(n.kind),
-        origen: { tipo: n.source_type, id: n.source_id, version: n.source_version },
-        desde: Number(n.valid_from),
-        hasta: n.valid_to === null ? null : Number(n.valid_to),
+        type: n.kind,
+        label: n.label,
+        text: n.body,
+        categories: (n.categories ?? {}) as Record<string, string>,
+        epistemic: n.epistemic as EpistemicStatus,
+        authority: TYPES_WITH_AUTHORITY.has(n.kind),
+        origin: { type: n.source_type, id: n.source_id, version: n.source_version },
+        from: Number(n.valid_from),
+        until: n.valid_to === null ? null : Number(n.valid_to),
       }),
     ),
-    aristas: aristas.map(
-      (a): Arista => ({
-        tipo: a.kind,
-        desde: porId.get(a.from_node) ?? '',
-        hacia: porId.get(a.to_node) ?? '',
-        alta: Number(a.valid_from),
-        baja: a.valid_to === null ? null : Number(a.valid_to),
+    edges: edges.map(
+      (a): Edge => ({
+        type: a.kind,
+        from: byId.get(a.from_node) ?? '',
+        to: byId.get(a.to_node) ?? '',
+        validFrom: Number(a.valid_from),
+        validTo: a.valid_to === null ? null : Number(a.valid_to),
       }),
     ),
   };
 }
 
 /** Búsqueda de texto (FTS «spanish») sobre el conocimiento vigente. */
-export async function buscarConocimiento(db: Bd, proyectoId: string, consulta: string, limite = 10) {
-  const { rows } = await sql<{ ref: string; kind: string; label: string; body: string; epistemic: string; rango: number }>`
+export async function searchKnowledge(db: Db, projectId: string, queryName: string, limit = 10) {
+  const { rows } = await sql<{ ref: string; kind: string; label: string; body: string; epistemic: string; range: number }>`
     select ref, kind, label, left(body, 600) as body, epistemic, ts_rank(search, q) as rango
-    from knowledge_nodes, websearch_to_tsquery('spanish', ${consulta}) q
-    where project_id = ${proyectoId}::uuid and valid_to is null and search @@ q
+    from knowledge_nodes, websearch_to_tsquery('spanish', ${queryName}) q
+    where project_id = ${projectId}::uuid and valid_to is null and search @@ q
     order by rango desc, ref
-    limit ${limite}`.execute(db);
+    limit ${limit}`.execute(db);
   return rows.map((r) => ({
     ref: r.ref,
-    tipo: r.kind,
-    titulo: r.label,
-    extracto: r.body,
-    estado_epistemico: r.epistemic,
-    rango: r.rango,
+    type: r.kind,
+    title: r.label,
+    excerpt: r.body,
+    epistemic_status: r.epistemic,
+    range: r.range,
   }));
 }
 
 /** Vecinos de un nodo vigente hasta una distancia (CTE recursiva). */
-export async function vecinos(db: Bd, proyectoId: string, ref: string, distancia = 2) {
-  const { rows } = await sql<{ ref: string; kind: string; label: string; distancia: number }>`
+export async function neighbors(db: Db, projectId: string, ref: string, distance = 2) {
+  const { rows } = await sql<{ ref: string; kind: string; label: string; distance: number }>`
     with recursive inicio as (
-      select id from knowledge_nodes where project_id = ${proyectoId}::uuid and ref = ${ref} and valid_to is null
+      select id from knowledge_nodes where project_id = ${projectId}::uuid and ref = ${ref} and valid_to is null
     ), recorrido(id, distancia) as (
       select id, 0 from inicio
       union
       select case when e.from_node = r.id then e.to_node else e.from_node end, r.distancia + 1
       from recorrido r
       join knowledge_edges e on (e.from_node = r.id or e.to_node = r.id) and e.valid_to is null
-      where r.distancia < ${distancia}
+      where r.distancia < ${distance}
     )
     select n.ref, n.kind, n.label, min(r.distancia)::int as distancia
     from recorrido r join knowledge_nodes n on n.id = r.id

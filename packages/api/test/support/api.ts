@@ -5,7 +5,7 @@ import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll } from 'vitest';
 import { type Environment, useEnvironment } from '../../../core/test/support/env.ts';
 import { CSRF_HEADER, SESSION_COOKIE, createPerson } from '../../src/credentials.ts';
-import { createServer } from '../../src/server.ts';
+import { type ServerOptions, createServer } from '../../src/server.ts';
 
 export const PASSWORD = 'long-test-password';
 
@@ -26,7 +26,10 @@ export type Api = {
   agent(token: string): Client;
 };
 
-export function useApi(options: Parameters<typeof useEnvironment>[0] = {}): () => Api {
+export function useApi(
+  options: Parameters<typeof useEnvironment>[0] = {},
+  server: Partial<Pick<ServerOptions, 'devTools'>> = {},
+): () => Api {
   const environment = useEnvironment(options);
   let api: Api | undefined;
   beforeAll(async () => {
@@ -36,6 +39,7 @@ export function useApi(options: Parameters<typeof useEnvironment>[0] = {}): () =
       databaseUrl: e.url,
       sessionHours: 1,
       allowedOrigins: ['http://127.0.0.1:8100'],
+      ...server,
     });
     await createPerson(e.services.db, 'ana', PASSWORD);
     const login = await app.inject({ method: 'POST', url: '/api/session', payload: { username: 'ana', password: PASSWORD } });

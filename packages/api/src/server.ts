@@ -29,6 +29,7 @@ import {
   resolveAgentToken,
 } from './credentials.ts';
 import { type Broadcaster, createBroadcaster } from './broadcaster.ts';
+import { type DevTools, registerDevRoutes } from './dev-tools.ts';
 import { QUERIES, type QueryRoute } from './queries.ts';
 
 export type ServerOptions = {
@@ -41,6 +42,10 @@ export type ServerOptions = {
   secureCookie?: boolean;
   /** Folder with the web build (packages/web/dist): served from the same origin as the API. */
   webRoot?: string;
+  /** Shared with the runtime, which closes it while the core restarts. By default, its own. */
+  broadcaster?: Broadcaster;
+  /** Only with DEMIURGO_DEV_TOOLS=1: snapshots and reset under /api/dev. */
+  devTools?: DevTools;
 };
 
 declare module 'fastify' {
@@ -79,7 +84,7 @@ const commandBody = z.object({ entity_id: z.string().uuid().optional(), data: z.
 export async function createServer(op: ServerOptions): Promise<FastifyInstance> {
   const app = Fastify({ logger: false, bodyLimit: 4 * 1024 * 1024 });
   const { services } = op;
-  const broadcaster: Broadcaster = createBroadcaster(op.databaseUrl);
+  const broadcaster: Broadcaster = op.broadcaster ?? createBroadcaster(op.databaseUrl);
   app.addHook('onClose', async () => {
     await broadcaster.close();
   });
@@ -87,6 +92,8 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
   app.decorateRequest('credential', null as never);
 
   app.addHook('onRequest', async (req) => {
+    // While the dev tools restart the core, requests wait for the new one.
+    if (op.devTools) await op.devTools.ready();
     if (op.allowedHosts && !op.allowedHosts.includes(req.headers.host ?? '')) {
       throw new DomainError('forbidden', 'Host not allowed.');
     }
@@ -144,7 +151,7 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
     // The CSRF token is derived from the cookie's token: it is only returned if it is the one of this session.
     const token = req.cookies[SESSION_COOKIE];
     const csrf = c.type === 'person' && token && secretFingerprint(sessionCsrf(token)) === c.csrfHash ? sessionCsrf(token) : null;
-    return { actor: c.actor, type: c.type, csrf };
+    return { actor: c.actor, type: c.type, csrf, ...(op.devTools ? { dev_tools: true } : {}) };
   });
 
   app.delete('/api/session', async (req, reply) => {
@@ -266,6 +273,7 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
   });
 
   for (const c of QUERIES) registerQuery(app, services, c);
+  if (op.devTools) registerDevRoutes(app, op.devTools);
   if (op.webRoot) await serveWeb(app, op.webRoot);
   app.setNotFoundHandler((req, reply) => {
     // Outside /api, a GET is a route of the web app: it gets index.html and the app resolves it.

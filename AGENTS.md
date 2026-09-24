@@ -1,9 +1,24 @@
-# DEMIURGO: intención de producto
+# DEMIURGO v2: reglas para agentes
 
-DEMIURGO sirve para diseñar su propio MVP dentro de la aplicación antes de reimplementarlo con una arquitectura limpia. En esta etapa deben funcionar y poder crearse artefactos hasta Diseño; Implementación y Revisión quedan como fases del ciclo, aún sin ejecutar desde esta interfaz.
+DEMIURGO guía el desarrollo con IA de principio a fin con dos pilares: diseñar (de la intención a «Listo para construir») y construir de forma gobernada. El plan está en `docs/plan-reimplementacion-2026-09-24.md` y el stack en `docs/investigacion-stack-2026-09-24.md`.
 
-Jerarquía: **Proyecto → Exploraciones → Decisiones → Diseños (ADR y FDR) → Implementación → Revisión**. Un proyecto es el contenedor del producto; una exploración es un proceso concreto con conversación, preguntas y conclusiones. Las decisiones pertenecen a una exploración. Los diseños pertenecen a una exploración y se justifican en una decisión. No presentar el proyecto como si fuera una exploración.
+## Reglas de fondo
 
-El ciclo puede volver a Exploración desde cualquiera de sus fases, incluso desde una respuesta a una pregunta. Cada nueva línea conserva su origen y requiere aceptación humana cuando la propone el agente. No convertir hipótesis en decisiones aprobadas automáticamente.
+- **El modelo propone, el sistema dispone y la persona decide.** Ninguna salida de IA cambia un estado de autoridad. Nunca aceptes automáticamente una propuesta de IA ni conviertas una hipótesis en algo aprobado.
+- **El actor lo fija el servidor** según la credencial o el canal: `human:<persona>` (cookie de sesión), `agent:<nombre>:<sesión>` (token de agente), `agent:run:<id>` (ejecuciones) y `system:<componente>@<versión>`. El cliente nunca declara su actor.
+- **Todo cambio de estado sale de las tablas de datos** (`design/datos/`): lo que no está en la matriz de capacidades da 403 y lo que no está en la tabla de transiciones da 409, en ambos casos sin efectos.
+- **El diario (`events`) solo admite INSERT.** Cada mutación deja su evento en la misma transacción.
+- Textos de producto, mensajes de error, documentación y commits **en español**.
 
-Trabajar solo con la instancia estable, publicada en `127.0.0.1:8000`.
+## Entorno
+
+- La v1 está descartada. Solo se consulta como catálogo de lecciones con `git show v1-referencia:<ruta>`. No la arregles ni la reutilices.
+- **Prohibido tocar** el proyecto compose `demiurgo-stable`, `%LOCALAPPDATA%\Demiurgo\stable` y el puerto 8000 (son de la v1).
+- Postgres de desarrollo: proyecto compose `demiurgo-v2-dev`, puerto 55432. Las pruebas crean bases efímeras; nunca apuntes una prueba a una base en uso.
+- Antes de H1, `design/` es la autoridad de diseño y la persona la aprueba con el merge. Desde H1, `design/` es una exportación generada por la v2.
+
+## Cómo trabajar
+
+- TDD: cada AC de `design/` tiene al menos una prueba cuyo nombre empieza por su código (`AC-ESQ-01 …`).
+- Cierra cada cambio con `pnpm gate:all` en verde.
+- Commits pequeños con la skill `commit`. No hagas push ni merge en `main`.

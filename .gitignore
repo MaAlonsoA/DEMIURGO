@@ -1,25 +1,31 @@
-__pycache__/
-*.pyc
-.pytest_cache/
+# Dependencias y salidas
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.vitest/
+reports/
+
+# Datos locales y secretos
 *.db
-*.db-shm
-*.db-wal
-*.db-journal
-*.db-mj*
-e2e-*.db*
+*.db-*
 *.sqlite
 *.sqlite3
-*.bak
-*.backup
-backups/
 .env
 .env.*
 !.env.example
-.codex/
 auth.json
 credentials.json
-frontend/node_modules/
-frontend/dist/
-frontend/*.tsbuildinfo
-artifacts/
+.codex/
+.demiurgo-local/
+
+# Restos de la v1 que quedan en disco al cambiar de rama
+__pycache__/
+*.pyc
+.pytest_cache/
+/artifacts/
 .playwright-cli/
+/app/
+/frontend/
+/migrations/
+/tests/

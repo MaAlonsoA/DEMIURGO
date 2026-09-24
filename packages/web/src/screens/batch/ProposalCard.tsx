@@ -25,7 +25,7 @@ import {
   RecordChip,
   TypeLabel,
 } from './parts.tsx';
-import { acceptedRecord, obsoleteReason, PROPOSAL_TYPE_WORDS, proposalTitle } from './model.ts';
+import { acceptedRecord, obsoleteReason, PROPOSAL_TYPE_WORDS, proposalTitle, rowOfVersion } from './model.ts';
 import { ProposalActions } from './ProposalActions.tsx';
 
 export type ProposalView = {
@@ -117,6 +117,8 @@ export function ProposalBody({
   }
   if (p.type === 'review') {
     const r = p.payload.record as { code?: string; version?: number } | undefined;
+    const c = p.payload.change as { id?: string; version?: number | null } | undefined;
+    const change = c?.id ? rowOfVersion(rows, c.id) : undefined;
     return (
       <ChangeBox title="What it asks">
         <div className="flex flex-wrap items-center gap-2 text-[13.5px]">
@@ -124,6 +126,13 @@ export function ProposalBody({
           {r?.code && <RecordChip projectId={projectId} code={r.code} version={r.version ?? null} rows={rows} />}
           <span className="text-muted">· {Math.round(Number(p.payload.confidence ?? 0) * 100)}% sure</span>
         </div>
+        {change && (
+          <div className="flex flex-wrap items-center gap-2 text-[13.5px]">
+            <span className="text-muted">Because of</span>
+            <RecordChip projectId={projectId} code={change.code} version={c?.version ?? null} rows={rows} />
+          </div>
+        )}
+        <p className="text-xs text-muted">Accepting opens a thread to review it; the record itself doesn&apos;t change.</p>
       </ChangeBox>
     );
   }
@@ -204,7 +213,7 @@ export function ProposalCard({
             ? 'Drafted by DEMIURGO'
             : who.kind === 'agent'
               ? `Proposed by ${who.name}`
-              : 'Found by DEMIURGO'}
+              : "Found by DEMIURGO's knowledge"}
           {createdAt && <span className="text-muted"> · {dayTime(createdAt)}</span>}
         </span>
       </div>
@@ -224,6 +233,7 @@ export function ProposalCard({
           projectId={projectId}
           proposal={p}
           blocked={warnings.length > 0}
+          {...(p.type === 'review' ? { labels: { accept: 'Open a review', reject: 'Keep it as it is' } } : {})}
           className="pt-1"
           {...(onResolved ? { onResolved } : {})}
         />

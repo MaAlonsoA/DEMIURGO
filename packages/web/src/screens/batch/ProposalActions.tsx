@@ -11,7 +11,6 @@ import { cn } from '../../lib/cn.ts';
 import { useAllows } from '../../ui/ActionBar.tsx';
 import { Button } from '../../ui/Button.tsx';
 import { ConfirmDialog, TextDialog } from '../../ui/dialogs.tsx';
-import { Reasons } from '../../ui/Reasons.tsx';
 import { APPROVABLE_TYPES, changedFields, EDITABLE_FIELDS, editedPayload, proposalTitle } from './model.ts';
 
 export type ProposalRef = { id: string; type: string; payload: Record<string, unknown>; state: string };
@@ -53,6 +52,7 @@ export function ProposalActions({
   proposal: p,
   blocked = false,
   labels = {},
+  size = 'lg',
   className,
   onResolved,
 }: {
@@ -61,6 +61,7 @@ export function ProposalActions({
   /** The server already says its dependencies changed: accepting would fail, so only Reject is offered. */
   blocked?: boolean;
   labels?: { accept?: string; reject?: string };
+  size?: 'md' | 'lg';
   className?: string;
   onResolved?: () => void;
 }) {
@@ -135,18 +136,18 @@ export function ProposalActions({
   return (
     <div className={cn('flex flex-wrap items-center gap-2.5', className)}>
       {canAccept && (
-        <Button size="lg" variant="needs" data-command="proposal.accept" onClick={() => open('accept')}>
+        <Button size={size} variant="needs" data-command="proposal.accept" onClick={() => open('accept')}>
           {labels.accept ?? 'Accept'}
         </Button>
       )}
       {canApprove && (
-        <Button size="lg" variant="outline" data-command="proposal.accept" onClick={() => open('approve')}>
+        <Button size={size} variant="outline" data-command="proposal.accept" onClick={() => open('approve')}>
           Accept and approve
         </Button>
       )}
       {canChange && (
         <Button
-          size="lg"
+          size={size}
           variant="outline"
           data-command="proposal.accept_edited"
           onClick={() => setDraft(Object.fromEntries(fields.map((f) => [f.key, textOf(p.payload[f.key])])))}
@@ -155,7 +156,7 @@ export function ProposalActions({
         </Button>
       )}
       {canReject && (
-        <Button size="lg" variant="outline" data-command="proposal.reject" onClick={() => open('reject')}>
+        <Button size={size} variant="outline" data-command="proposal.reject" onClick={() => open('reject')}>
           {labels.reject ?? 'Reject'}
         </Button>
       )}
@@ -256,9 +257,4 @@ function ChangeForm({
       {children}
     </form>
   );
-}
-
-/** Errors of an action run outside a dialog, next to the action. */
-export function InlineReasons({ error }: { error: unknown }) {
-  return error ? <Reasons error={error} className="mt-2" /> : null;
 }

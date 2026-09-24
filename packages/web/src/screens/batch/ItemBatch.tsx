@@ -111,11 +111,15 @@ export function ItemBatch({ projectId, batch }: { projectId: string; batch: Batc
           <section className="flex items-start gap-3 rounded-xl border border-line px-3.5 py-3" aria-label="Who proposes">
             <WhoMark actor={batch.producer} size={28} />
             <div className="flex flex-col text-[13px]">
-              <strong className="font-semibold">{whoOf(batch.producer).name}</strong>
+              <strong className="font-semibold">
+                {whoOf(batch.producer).kind === 'automatic' ? "DEMIURGO's knowledge" : whoOf(batch.producer).name}
+              </strong>
               <span className="text-xs text-muted">
                 {whoOf(batch.producer).kind === 'agent'
                   ? 'An agent from outside. It only proposes: nothing changes until you accept.'
-                  : 'It only proposes: nothing changes until you accept.'}
+                  : whoOf(batch.producer).kind === 'automatic'
+                    ? 'It found these while taking in a change. It only proposes: nothing changes until you accept.'
+                    : 'It only proposes: nothing changes until you accept.'}
               </span>
             </div>
           </section>

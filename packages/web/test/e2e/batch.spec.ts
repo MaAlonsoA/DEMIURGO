@@ -1,4 +1,13 @@
-import { agentBatch, assessed, decision, decisionProposal, designPackage, newApprovedVersion } from './needs-data.ts';
+import {
+  agentBatch,
+  assessed,
+  conflict,
+  decision,
+  decisionProposal,
+  designPackage,
+  newApprovedVersion,
+  tabTo,
+} from './needs-data.ts';
 import { BASE_URL, designTree, expect, expectAccessible, screenshot, test } from './support/fixtures.ts';
 
 type Batch = { state: string; proposals: { id: string; state: string; resolution: Record<string, unknown> | null }[] };
@@ -93,6 +102,25 @@ test('AC-WEB-001-01 Ratify from the UI goes to the same origin with the session 
 
   const replay = await page.request.post(request.url(), { data: request.postDataJSON(), headers: {} });
   expect(replay.status()).toBe(403);
+});
+
+test('AC-WEB-001-03 the package is opened, read and ratified with the keyboard only', async ({ page, person }) => {
+  const projectId = await person.createProject('Keyboard ratify');
+  const imported = await person.importDesign(projectId);
+  await page.goto(`/p/${projectId}/batches/${imported.batchId}`);
+  const open = page.getByRole('button', { name: /Open Interfaz web de la v2/ });
+  await tabTo(page, open);
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('button', { name: /Close Interfaz web de la v2/ })).toHaveAttribute('aria-expanded', 'true');
+  // Back up the page to Ratify, still with the keyboard.
+  const ratify = page.getByRole('button', { name: 'Ratify', exact: true });
+  await tabTo(page, ratify, 40, true);
+  await page.keyboard.press('Enter');
+  const dialog = page.getByRole('alertdialog');
+  await expect(dialog).toBeVisible();
+  await tabTo(page, dialog.getByRole('button', { name: 'Ratify' }), 5);
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { name: 'Ratified' })).toBeVisible();
 });
 
 test('AC-INT-001-12 an agent batch is resolved one proposal at a time with its author visible and no accept-all; a system package only whole', async ({
@@ -198,6 +226,7 @@ test('screens of cut 1: the package before ratifying, the confirmation, an out-o
   await page.goto(`/p/${projectId}/batches/${first.batchId}`);
   await expect(page.getByRole('table', { name: "What's inside" })).toBeVisible();
   await screenshot(page, 1, '01-package-before-ratifying');
+  await page.getByRole('button', { name: 'Got it' }).click();
   await page.getByRole('region', { name: 'Documents' }).getByRole('button', { name: /Open/ }).nth(1).click();
   await page.mouse.wheel(0, 500);
   await screenshot(page, 1, '02-package-document-open');
@@ -237,4 +266,33 @@ test('screens of cut 1: the package before ratifying, the confirmation, an out-o
   await screenshot(page, 1, '06-agent-batch-one-at-a-time');
   await page.getByRole('article').getByRole('button', { name: 'Change', exact: true }).click();
   await screenshot(page, 1, '07-agent-batch-change');
+
+  // A proposal that went out of date, and the reviews knowledge asks for.
+  const stale = await agentBatch(person, other, [
+    {
+      ...decisionProposal('Members sign up in two steps', 'Members sign up for an activity in two steps.'),
+      dependencies: [{ type: 'record', id: d.recordId, code: d.code, version: 1 }],
+    },
+  ]);
+  await newApprovedVersion(person, other, d, 'Members sign up for an activity in one step, with a confirmation.');
+  await page.goto(`/p/${other}/batches/${stale.batchId}`);
+  await expect(page.locator('[data-out-of-date]')).toBeVisible();
+  await screenshot(page, 1, '08-proposal-out-of-date');
+  const { second } = await conflict(person, other, 'the calendar');
+  const reviews = await person.get<{ batches: { id: string; type: string }[] }>(`/api/projects/${other}/inbox`);
+  const knowledge = reviews.batches.find((b) => b.type === 'knowledge')?.id ?? '';
+  await page.goto(`/p/${other}/batches/${knowledge}`);
+  await expect(page.getByRole('button', { name: 'Open a review' })).toBeVisible();
+  await expect(page.getByRole('article')).toContainText(second.code);
+  await expectAccessible(page, 'a knowledge batch');
+  await screenshot(page, 1, '09-knowledge-batch');
+
+  // A package once ratified.
+  const ratified = await person.createProject('Ratified');
+  const imported = await person.importDesign(ratified);
+  await person.command(ratified, 'batch.accept_package', {}, imported.batchId);
+  await page.goto(`/p/${ratified}/batches/${imported.batchId}`);
+  await expect(page.getByRole('heading', { name: 'Ratified' })).toBeVisible();
+  await expectAccessible(page, 'a ratified package');
+  await screenshot(page, 1, '10-package-ratified');
 });

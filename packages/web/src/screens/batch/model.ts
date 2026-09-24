@@ -197,3 +197,8 @@ export function acceptedRecord(p: {
 export function rowOf(rows: readonly ProductRow[], code: string): ProductRow | undefined {
   return rows.find((r) => r.code === code);
 }
+
+/** The record whose latest or current version is this one, among the product's rows. */
+export function rowOfVersion(rows: readonly ProductRow[], versionId: string): ProductRow | undefined {
+  return rows.find((r) => r.latest_id === versionId || r.current_id === versionId);
+}

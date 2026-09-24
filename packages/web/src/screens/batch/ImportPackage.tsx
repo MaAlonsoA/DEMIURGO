@@ -313,7 +313,7 @@ function DocumentRow({ projectId, proposal: p }: { projectId: string; proposal: 
               search={{ v: effect.version }}
               className="font-semibold text-needs hover:text-needs-hover"
             >
-              Record
+              {effect.approved ? 'Open the record' : 'Open the draft'}
             </Link>
           )}
         </span>

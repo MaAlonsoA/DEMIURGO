@@ -2,7 +2,17 @@
 // as walkthrough-s1): decisions, agent batches with a token, a DEMIURGO package and the knowledge
 // items (classifications, failed updates and conflicts) the simulated classifier produces.
 
+import type { Locator, Page } from '@playwright/test';
 import type { AgentApi, PersonApi } from './support/fixtures.ts';
+
+/** Moves the focus with Tab alone until it reaches the element (keyboard-only walks). */
+export async function tabTo(page: Page, target: Locator, max = 60, back = false): Promise<void> {
+  for (let i = 0; i < max; i++) {
+    if (await target.evaluate((el) => el === document.activeElement)) return;
+    await page.keyboard.press(back ? 'Shift+Tab' : 'Tab');
+  }
+  throw new Error(`Tab never reached ${String(target)}.`);
+}
 
 export type Created = { recordId: string; code: string; versionId: string; version: number };
 
@@ -167,3 +177,105 @@ export type Inbox = {
 };
 
 export const inboxOf = (person: PersonApi, projectId: string) => person.get<Inbox>(`/api/projects/${projectId}/inbox`);
+
+type Knowledge = { up_to_date: boolean; updates_in_progress: number; updates: { id: string; state: string }[] };
+
+/**
+ * A knowledge update that failed. The E2E classifier fails the first three calls with the same
+ * input, so the text is unique per test; it is retried twice here, so the person's retry works.
+ * Its text matches a category of the taxonomy: once taken in, nothing is held for review.
+ */
+export async function failedUpdate(person: PersonApi, projectId: string): Promise<string> {
+  const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  await decision(
+    person,
+    projectId,
+    `Billing refunds ${unique} [classifier-fails]`,
+    'Invoices, payments and refunds for billing.',
+  );
+  const inbox = await person.until<Inbox>(`/api/projects/${projectId}/inbox`, (i) => i.rejected_updates.length > 0);
+  const id = inbox.rejected_updates[0]?.id ?? '';
+  for (let i = 0; i < 2; i++) {
+    await person.command(projectId, 'knowledge_update.retry', {}, id);
+    await person.until<Knowledge>(
+      `/api/projects/${projectId}/knowledge`,
+      (k) => k.updates_in_progress === 0 && k.updates.find((u) => u.id === id)?.state === 'rejected',
+    );
+  }
+  return id;
+}
+
+/** Two approved decisions that say opposite things: knowledge proposes to review the first. */
+export async function conflict(
+  person: PersonApi,
+  projectId: string,
+  topic: string,
+): Promise<{ first: Created; second: Created }> {
+  const first = await decision(person, projectId, `Organizers publish ${topic}`, `Organizers publish ${topic} every week.`);
+  await knowledgeSettled(person, projectId);
+  const second = await decision(
+    person,
+    projectId,
+    `Organizers never publish ${topic}`,
+    `Organizers never publish ${topic} every week.`,
+  );
+  await person.until<Inbox>(`/api/projects/${projectId}/inbox`, (i) => i.batches.some((b) => b.type === 'knowledge'));
+  return { first, second };
+}
+
+/**
+ * One thing of each kind in Needs you: a conflict, an assumed and an open question, an agent batch
+ * (and DEMIURGO's from the conversation), a version to approve, a link to review, classifications to
+ * review and a knowledge update that failed.
+ */
+export async function everyKind(person: PersonApi, projectId: string): Promise<Inbox> {
+  await approvedTaxonomy(person, projectId);
+  await knowledgeSettled(person, projectId);
+  await failedUpdate(person, projectId);
+  const a = await decision(
+    person,
+    projectId,
+    'Members sign up for activities',
+    'Members can sign up for activities in one step.',
+  );
+  await knowledgeSettled(person, projectId);
+  await decision(person, projectId, 'Members never sign up for activities', 'Members cannot sign up for activities in one step.');
+  await knowledgeSettled(person, projectId);
+  await person.command(projectId, 'record.create', {
+    type: 'fdr',
+    domain: 'producto',
+    title: 'Sign up for an activity',
+    sections: [
+      { title: 'Goal', content: 'A member takes a place in one step.' },
+      { title: 'Scope', content: 'Upcoming activities with places left.' },
+      { title: 'Out of scope', content: 'Payments and waiting lists.' },
+      { title: 'Behavior', content: 'The member opens an activity and takes a place.' },
+    ],
+    criteria: [
+      {
+        carry: 'new',
+        title: 'Takes a place',
+        statement: 'When a member takes a place, then the activity shows one place less.',
+        verification: 'automatic',
+        check: 'An end-to-end test signs up and checks the places.',
+      },
+    ],
+    links: [{ type: 'based_on', target: { code: a.code, version: 1 } }],
+  });
+  await newApprovedVersion(person, projectId, a, 'Members can sign up for activities in two steps.');
+  const { batchId } = await agentBatch(person, projectId, [
+    decisionProposal('Guests see the catalog', 'Guests can see the catalog but not sign up.'),
+  ]);
+  await threadWithQuestions(person, projectId, 'How members sign up');
+  await knowledgeSettled(person, projectId);
+  await assessed(person, projectId, batchId);
+  return person.until<Inbox>(
+    `/api/projects/${projectId}/inbox`,
+    (i) =>
+      i.batches.some((b) => b.type === 'knowledge') &&
+      i.batches.some((b) => b.producer.startsWith('agent:run:')) &&
+      i.links_under_review.length > 0 &&
+      i.classifications_to_review.length > 0 &&
+      i.rejected_updates.length > 0,
+  );
+}

@@ -10,11 +10,14 @@ services:
     ports:
       - "127.0.0.1:55432:5432"
     volumes:
-      - data:/var/lib/postgresql
+      # The key stays `datos`: the running container (and every database in it, snapshots
+      # included) lives on the volume demiurgo-v2-dev_datos. Renaming the key would make
+      # `pnpm db:up` recreate the container on an empty volume.
+      - datos:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U demiurgo -d demiurgo_dev"]
       interval: 2s
       timeout: 3s
       retries: 30
 volumes:
-  data:
+  datos:

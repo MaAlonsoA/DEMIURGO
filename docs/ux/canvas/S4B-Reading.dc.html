@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Day 1 · 2 · Reading your idea</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F4F0}
+a{color:#2B4ACB}a:hover{color:#1E3599}
+</style>
+</helmet>
+<div style="position: relative; width: 1440px; height: 900px; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; background: #F5F4F0; color: #1D1C1A; font-family: 'Instrument Sans', 'Segoe UI', system-ui, sans-serif; font-size: 14px; line-height: 1.5">
+
+<header style="height: 56px; flex-shrink: 0; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; padding: 0 28px">
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.14em">DEMIURGO</span>
+<span style="font-size: 13px; color: #6E6A62">New project</span>
+</header>
+
+<main style="flex-grow: 1; display: flex; justify-content: center; padding-top: 56px">
+<div style="width: 760px; display: flex; flex-direction: column; gap: 24px">
+
+<div style="display: flex; gap: 12px; align-items: flex-start">
+<span style="width: 26px; height: 26px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: #1D1C1A; color: #FFFFFF"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4.5"></circle><path d="M3 22a9 9 0 0 1 18 0z"></path></svg></span>
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #6E6A62">Your idea · just now</span><span style="font-size: 16px; color: #3E3B36">"We want an app to publish our association's activities and let members sign up. Organizers post trips, workshops and meetings, and they need to know who is coming."</span></div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px; background: #FFFFFF; border: 1px solid #E3E0D8; border-radius: 16px; padding: 22px 24px">
+<div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 12px">
+<span style="display: flex; align-items: center; gap: 10px"><span style="width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; background: #1D1C1A; color: #FFFFFF; font-size: 13px; font-weight: 700">D</span><strong style="font-size: 17px; font-weight: 600">{{ headline }}</strong></span>
+<span style="display: flex; align-items: center; gap: 12px"><span style="font-size: 13px; color: #6E6A62">{{ secs }}s</span><sc-if value="{{ working }}" hint-placeholder-val="{{ true }}"><a href="S4A-Start.dc.html" style="font-size: 13px; font-weight: 600; color: #6B4608; border: 1px solid #D9BE8A; border-radius: 6px; padding: 3px 10px; text-decoration: none">Cancel</a></sc-if></span>
+</div>
+
+<sc-for list="{{ steps }}" as="s" hint-placeholder-count="4">
+<div style="display: flex; gap: 14px; padding: 12px 0; border-top: 1px solid #EFEDE7; opacity: {{ s.op }}">
+<span style="width: 20px; height: 22px; flex-shrink: 0; display: flex; align-items: center; justify-content: center">
+<sc-if value="{{ s.done }}" hint-placeholder-val="{{ false }}"><span style="width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: #1D1C1A; color: #FFFFFF"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"></path></svg></span></sc-if>
+<sc-if value="{{ s.active }}" hint-placeholder-val="{{ false }}"><span onMouseEnter="{{ s.onWork }}" onMouseLeave="{{ s.off }}" style="width: 9px; height: 9px; border-radius: 50%; background: #B7791F; box-shadow: {{ s.workHalo }}; transition: box-shadow 120ms"></span></sc-if>
+<sc-if value="{{ s.pending }}" hint-placeholder-val="{{ true }}"><span style="width: 12px; height: 12px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid #C4BFB3"></span></sc-if>
+</span>
+<div style="flex-grow: 1; display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 15px; font-weight: 600">{{ s.title }}</span>
+<sc-if value="{{ s.done }}" hint-placeholder-val="{{ false }}">
+<span style="display: flex; flex-wrap: wrap; gap: 8px">
+<sc-for list="{{ s.chips }}" as="c" hint-placeholder-count="2"><span onMouseEnter="{{ c.on }}" onMouseLeave="{{ c.off }}" style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; background: #FBFAF7; border: 1px solid #E3E0D8; border-radius: 8px; padding: 5px 10px"><span style="width: 10px; height: 10px; flex-shrink: 0; box-sizing: border-box; border-radius: 50%; {{ c.dot }}; box-shadow: {{ c.halo }}; transition: box-shadow 120ms"></span>{{ c.t }}</span></sc-for>
+</span>
+</sc-if>
+</div>
+</div>
+</sc-for>
+
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 14px; border-top: 1px solid #EFEDE7">
+<span style="font-size: 13px; color: #5B5850">{{ footnote }}</span>
+<sc-if value="{{ finished }}" hint-placeholder-val="{{ false }}"><a href="S4C-Understood.dc.html" style="display: flex; align-items: center; gap: 8px; font-weight: 600; color: #FFFFFF; background: #2B4ACB; border-radius: 10px; padding: 10px 18px; text-decoration: none">See what I understood<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></a></sc-if>
+<sc-if value="{{ working }}" hint-placeholder-val="{{ true }}"><button type="button" onClick="{{ skip }}" style="font: inherit; font-size: 13px; font-weight: 600; background: transparent; border: none; color: #5B5850; cursor: pointer">Skip the animation</button></sc-if>
+</div>
+</div>
+
+</div>
+</main>
+
+<sc-if value="{{ legendOpen }}" hint-placeholder-val="{{ true }}">
+<section aria-label="What the marks mean" style="position: absolute; left: 24px; bottom: 24px; width: 284px; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; background: #FFFFFF; border: 1px solid #E3E0D8; border-radius: 14px; padding: 14px 16px; box-shadow: 0 8px 24px rgba(29, 28, 26, 0.06)">
+<div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 4px">
+<strong style="font-size: 13px; font-weight: 600">What the marks mean</strong>
+<button type="button" onClick="{{ hide }}" style="font: inherit; font-size: 12px; font-weight: 600; background: transparent; border: none; padding: 2px 0; cursor: pointer; color: #5B5850">Hide</button>
+</div>
+<sc-for list="{{ legend }}" as="e" hint-placeholder-count="3">
+<div onMouseEnter="{{ e.on }}" onMouseLeave="{{ e.off }}" style="display: flex; gap: 10px; align-items: flex-start; border-radius: 8px; padding: 6px 8px; margin: 0 -8px; background: {{ e.bg }}; transition: background 120ms">
+<span style="width: 22px; height: 20px; flex-shrink: 0; display: flex; align-items: center; justify-content: center"><span style="width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; {{ e.dot }}"></span></span>
+<span style="display: flex; flex-direction: column"><strong style="font-size: 13px; font-weight: 600">{{ e.word }}</strong><span style="font-size: 12px; line-height: 1.4; color: #5B5850">{{ e.desc }}</span></span>
+</div>
+</sc-for>
+<span style="padding-top: 8px; border-top: 1px solid #EFEDE7; font-size: 12px; color: #6E6A62">Point at one to find it on screen.</span>
+</section>
+</sc-if>
+
+<sc-if value="{{ legendClosed }}" hint-placeholder-val="{{ false }}">
+<button type="button" onClick="{{ show }}" aria-label="What the marks mean" title="What the marks mean (?)" style="position: absolute; left: 24px; bottom: 24px; width: 34px; height: 34px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; background: #FFFFFF; border: 1px solid #D6D2C8; border-radius: 999px; padding: 0; box-shadow: 0 4px 14px rgba(29, 28, 26, 0.08); cursor: pointer; color: #1D1C1A"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 11v7"></path><circle cx="12" cy="6.5" r="1.4" fill="currentColor" stroke="none"></circle></svg></button>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  componentDidMount() {
+    this.t0 = Date.now();
+    this.iv = setInterval(() => {
+      const s = (this.state && this.state.step) || 0;
+      const secs = Math.round((Date.now() - this.t0) / 1000) + 2;
+      if (s >= 4) { clearInterval(this.iv); this.setState({ secs }); return; }
+      this.setState({ step: s + 1, secs });
+    }, 1300);
+  }
+
+  componentWillUnmount() { clearInterval(this.iv); }
+
+  renderVals() {
+    const st = this.state || {};
+    const step = st.step || 0;
+    const hl = st.hl || null;
+    const on = (k) => () => this.setState({ hl: k });
+    const off = () => this.setState({ hl: null });
+    const halo = (k, base, r) => hl === k ? (base ? base + ', 0 0 0 ' + (r || 5) + 'px #1D1C1A' : '0 0 0 2px #FFFFFF, 0 0 0 4px #1D1C1A') : (base || 'none');
+
+    const DOT = {
+      working: 'background: #B7791F; box-shadow: 0 0 0 3px #F6EDDA',
+      proposed: 'border: 2px solid #2B4ACB',
+      assumed: 'border: 1.5px solid #1D1C1A; background: linear-gradient(90deg, #1D1C1A 50%, transparent 50%)',
+      open: 'border: 1.5px dashed #3E3B36'
+    };
+    const S = [
+      { title: 'Who will use it', k: 'proposed', chips: ['Organizers', 'Members'] },
+      { title: 'What it must do', k: 'proposed', chips: ['Publish activities', 'Sign up for an activity', "See who's coming", 'Know who is a member'] },
+      { title: "What I'm assuming", k: 'assumed', chips: ['Members sign up themselves', 'Each activity has a date and a place'] },
+      { title: 'What I still need to ask you', k: 'open', chips: ['Can anyone sign up, or only members?', 'Does signing up need approval?', 'Is there a limit on places?'] }
+    ];
+    const steps = S.map((x, i) => ({
+      title: x.title,
+      chips: x.chips.map((t) => ({ t, dot: DOT[x.k], halo: halo(x.k), on: on(x.k), off })),
+      done: i < step, active: i === step && step < 4, pending: i > step,
+      op: i > step ? 0.45 : 1,
+      workHalo: halo('working', '0 0 0 4px #F6EDDA', 6),
+      onWork: on('working'), off
+    }));
+    const finished = step >= 4;
+
+    // Each mark joins the legend the moment it first appears on screen.
+    const L = [
+      { k: 'working', word: 'Working', desc: 'DEMIURGO is working on it right now.', show: !finished },
+      { k: 'proposed', word: 'Proposed', desc: 'DEMIURGO suggests it. You decide.', show: step >= 1 },
+      { k: 'assumed', word: 'Assumed', desc: 'A small thing DEMIURGO decided on its own. You can change it.', show: step >= 3 },
+      { k: 'open', word: 'Open', desc: 'A question still waiting for your answer.', show: step >= 4 }
+    ];
+    const legend = L.filter((e) => e.show).map((e) => ({
+      word: e.word, desc: e.desc, dot: DOT[e.k],
+      bg: hl === e.k ? '#EFEDE7' : 'transparent',
+      on: on(e.k), off
+    }));
+    const legendOpen = st.legend !== 'closed';
+
+    return {
+      steps,
+      finished,
+      working: !finished,
+      secs: st.secs || 2,
+      headline: finished ? "Here's a first reading of your idea" : 'Reading your idea…',
+      footnote: finished ? 'Everything above is only proposed. You will review it before anything is decided.' : 'DEMIURGO is only reading. Nothing is decided without you.',
+      skip: () => { clearInterval(this.iv); this.setState({ step: 4 }); },
+      legend,
+      legendOpen,
+      legendClosed: !legendOpen,
+      hide: () => this.setState({ legend: 'closed', hl: null }),
+      show: () => this.setState({ legend: 'open' })
+    };
+  }
+}
+</script>
+</body>
+</html>

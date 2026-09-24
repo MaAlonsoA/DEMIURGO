@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Review a feature · 3 · Changing something</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F4F0}
+a{color:#2B4ACB}a:hover{color:#1E3599}
+</style>
+</helmet>
+<div style="position: relative; width: 1440px; height: 900px; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; background: #F5F4F0; color: #1D1C1A; font-family: 'Instrument Sans', 'Segoe UI', system-ui, sans-serif; font-size: 14px; line-height: 1.5">
+
+<header style="height: 56px; flex-shrink: 0; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 0 24px; background: #FFFFFF; border-bottom: 1px solid #E3E0D8">
+<div style="display: flex; align-items: center; gap: 28px">
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.14em">DEMIURGO</span>
+<span style="font-weight: 600">Club Activities</span>
+<nav aria-label="Sections" style="display: flex; gap: 4px">
+<a href="S4E-DayDone.dc.html" aria-current="page" style="font-weight: 600; text-decoration: none; color: #1D1C1A; background: #EFEDE7; border-radius: 6px; padding: 6px 12px">Product</a>
+<a href="#" style="font-weight: 500; text-decoration: none; color: #5B5850; border-radius: 6px; padding: 6px 12px">Threads</a>
+<a href="#" style="font-weight: 500; text-decoration: none; color: #5B5850; border-radius: 6px; padding: 6px 12px">History</a>
+</nav>
+</div>
+<span style="display: flex; align-items: center; gap: 8px; font-weight: 600">Needs you<span onMouseEnter="{{ on.needs }}" onMouseLeave="{{ off }}" style="min-width: 22px; height: 22px; flex-shrink: 0; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: #2B4ACB; color: #FFFFFF; font-size: 12px; font-weight: 700; padding: 0 6px; box-shadow: {{ h.needs }}; transition: box-shadow 120ms">1</span></span>
+</header>
+
+<div style="flex-grow: 1; min-height: 0; display: flex">
+<main style="flex-grow: 1; min-width: 0; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px; padding: 16px 40px 64px">
+<nav aria-label="Breadcrumb" style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #8C877B"><a href="S4E-DayDone.dc.html" style="display: inline-flex; align-items: center; gap: 4px; font-weight: 600; text-decoration: none; color: #5B5850"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>Product</a><span>/</span><span>Features</span><span>/</span><span style="font-weight: 600; color: #1D1C1A">Activity catalog</span></nav>
+
+<section style="display: flex; flex-direction: column; gap: 6px; border-radius: 12px; outline: {{ ol.what }}; outline-offset: 8px; opacity: {{ sp.what }}; transition: opacity 200ms">
+<span style="display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #6E6A62"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 9h18"></path><path d="M9 9v11"></path></svg>FEATURE<span style="color: #C4BFB3">·</span><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; letter-spacing: 0; color: #1E3599"><span onMouseEnter="{{ on.proposed }}" onMouseLeave="{{ off }}" style="width: 10px; height: 10px; flex-shrink: 0; border-radius: 50%; box-sizing: border-box; border: 2px solid #2B4ACB; box-shadow: {{ h.proposed }}; transition: box-shadow 120ms"></span>Proposed</span><span title="Not ready" onMouseEnter="{{ on.bars }}" onMouseLeave="{{ off }}" style="margin-left: 8px; display: inline-flex; gap: 3px; border-radius: 3px; box-shadow: {{ h.bars }}; transition: box-shadow 120ms"><span style="width: 12px; height: 7px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC; background: transparent"></span><span style="width: 12px; height: 7px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC; background: transparent"></span><span style="width: 12px; height: 7px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC; background: transparent"></span></span></span>
+<h1 style="margin: 0; font-size: 28px; font-weight: 600; line-height: 1.15">Activity catalog</h1>
+<p style="margin: 0; font-size: 15px; color: #3E3B36">Members see every upcoming activity in one place. Organizers publish them.</p>
+<div style="display: flex; align-items: center; gap: 14px; margin-top: 4px; font-size: 12px; color: #6E6A62">
+<span style="display: flex; align-items: center; gap: 6px">For<span style="display: inline-flex; align-items: center; gap: 6px; background: #FFFFFF; border: 1px solid #E3E0D8; border-radius: 7px; padding: 2px 8px; font-weight: 600; color: #1D1C1A"><span onMouseEnter="{{ on.confirmed }}" onMouseLeave="{{ off }}" style="width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; background: #1D1C1A; box-shadow: {{ h.confirmed }}; transition: box-shadow 120ms"></span>Organizers</span><span style="display: inline-flex; align-items: center; gap: 6px; background: #FFFFFF; border: 1px solid #E3E0D8; border-radius: 7px; padding: 2px 8px; font-weight: 600; color: #1D1C1A"><span onMouseEnter="{{ on.confirmed }}" onMouseLeave="{{ off }}" style="width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; background: #1D1C1A; box-shadow: {{ h.confirmed }}; transition: box-shadow 120ms"></span>Members</span></span>
+<span style="width: 1px; height: 16px; background: #E3E0D8"></span>
+<span style="display: flex; align-items: center; gap: 6px"><span onMouseEnter="{{ on.who }}" onMouseLeave="{{ off }}" style="width: 18px; height: 18px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 5px; background: #1D1C1A; color: #FFFFFF; font-size: 10px; font-weight: 700; box-shadow: {{ h.who }}; transition: box-shadow 120ms">D</span>Drafted by DEMIURGO · 2 min ago · version 1</span>
+</div>
+<span style="font-size: 12px; color: #6E6A62">Not in this feature: <span style="color: #3E3B36">signing up (its own feature), waiting lists, paying.</span></span>
+</section>
+
+<section aria-label="Change" style="display: flex; align-items: center; gap: 16px; background: #F4F6FE; border: 1px solid #D5DCF7; border-radius: 14px; padding: 12px 14px 12px 18px">
+<sc-if value="{{ cv.pending }}" hint-placeholder-val="{{ true }}"><span onMouseEnter="{{ on.needs }}" onMouseLeave="{{ off }}" style="min-width: 22px; height: 22px; flex-shrink: 0; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: #2B4ACB; color: #FFFFFF; font-size: 12px; font-weight: 700; padding: 0 6px; box-shadow: {{ h.needsTint }}; transition: box-shadow 120ms">1</span>
+<span style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 15px; font-weight: 600">A change to look at</strong><span style="font-size: 13px; color: #5B5850">What DEMIURGO changed is in blue on the page. Apply it to the draft, or discard it.</span></span>
+<a href="S5B-Review.dc.html" style="font: inherit; font-weight: 600; color: #1D1C1A; background: #FFFFFF; border: 1px solid #D6D2C8; border-radius: 10px; padding: 9px 16px; text-decoration: none; cursor: pointer; white-space: nowrap">Discard</a><button type="button" onClick="{{ cv.apply }}" style="font: inherit; font-weight: 600; color: #FFFFFF; background: #2B4ACB; border: none; border-radius: 10px; padding: 10px 18px; text-decoration: none; cursor: pointer; white-space: nowrap">Apply to the draft</button></sc-if>
+<sc-if value="{{ cv.applied }}" hint-placeholder-val="{{ false }}"><span style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 15px; font-weight: 600">Applied to the draft</strong><span style="font-size: 13px; color: #5B5850">Now 6 steps and 4 checks. The feature still waits for you to confirm it.</span></span>
+<a href="S5B-Review.dc.html" style="font: inherit; font-weight: 600; color: #FFFFFF; background: #2B4ACB; border: none; border-radius: 10px; padding: 10px 18px; text-decoration: none; cursor: pointer; white-space: nowrap">Back to the review</a></sc-if>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px; border-radius: 12px; outline: {{ ol.how }}; outline-offset: 8px; opacity: {{ sp.how }}; transition: opacity 200ms">
+<div style="display: flex; align-items: baseline; justify-content: space-between"><h2 style="margin: 0; font-size: 12px; font-weight: 600; color: #6E6A62">How it works · 6 steps</h2><span style="font-size: 12px; color: #8C877B">Point at a step: the checks and rules behind it light up</span></div>
+<div style="position: relative; height: 196px; box-sizing: border-box; background: #FFFFFF; border: 1px solid #E3E0D8; border-radius: 14px; overflow: hidden">
+<span style="position: absolute; top: 0; bottom: 0; left: 784px; right: 0; background: #FBFAF7; border-left: 1px solid #EFEDE7"></span>
+<span style="position: absolute; left: 0; width: 784px; top: 96px; border-top: 1px dashed #E3E0D8"></span>
+<span style="position: absolute; left: 16px; top: 9px; display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #6E6A62; color: #8C877B"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4.5"></circle><path d="M3 22a9 9 0 0 1 18 0z"></path></svg>ORGANIZER</span>
+<span style="position: absolute; left: 16px; top: 101px; display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #6E6A62; color: #8C877B"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4.5"></circle><path d="M3 22a9 9 0 0 1 18 0z"></path></svg>MEMBER</span>
+<span style="position: absolute; left: 800px; top: 9px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #6E6A62; color: #8C877B">LEADS TO</span>
+<span style="position: absolute; left: 800px; top: 34px; width: 180px; font-size: 12px; line-height: 1.4; color: #8C877B">Needs nothing built before it.</span>
+<svg width="998" height="194" viewBox="0 0 998 194" aria-hidden="true" style="position: absolute; left: 0; top: 0; pointer-events: none"><defs><marker id="s5ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#BDB8AC"></path></marker><marker id="s5ab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#2B4ACB"></path></marker></defs><path d="M187 59 H205" stroke="#BDB8AC" stroke-width="1.5" fill="none" marker-end="url(#s5ah)"></path><path d="M291 87 V123" stroke="#BDB8AC" stroke-width="1.5" fill="none" marker-end="url(#s5ah)"></path><path d="M187 151 H205" stroke="#BDB8AC" stroke-width="1.5" fill="none" marker-end="url(#s5ah)"></path><path d="M377 151 H395" stroke="#BDB8AC" stroke-width="1.5" fill="none" marker-end="url(#s5ah)"></path><path d="M481 124 V110 H893 V123" stroke="#BDB8AC" stroke-width="1.5" fill="none" stroke-dasharray="4 4" marker-end="url(#s5ah)"></path><path d="M101 178 V188 H671 V180" stroke="#2B4ACB" stroke-width="1.5" fill="none" marker-end="url(#s5ab)"></path></svg>
+<div onMouseEnter="{{ n.s1.on }}" onMouseLeave="{{ off }}" style="position: absolute; left: 16px; top: 32px; width: 170px; height: 54px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; background: #FFFFFF; border: 1px solid {{ n.s1.bc }}; border-radius: 10px; padding: 0 12px; box-shadow: {{ n.s1.sh }}; opacity: {{ n.s1.op }}; transition: opacity 150ms, box-shadow 150ms">
+<strong style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; white-space: nowrap">Creates an activity</strong>
+<span style="font-size: 12px; color: #6E6A62; white-space: nowrap">date, place and places</span>
+<span title="Proved by 1 check" style="position: absolute; top: -9px; right: -9px; height: 18px; box-sizing: border-box; display: inline-flex; align-items: center; gap: 3px; background: #FFFFFF; border: 1px solid #E3E0D8; border-radius: 999px; padding: 0 6px 0 4px; font-size: 11px; font-weight: 600; color: #3E3B36; box-shadow: {{ h.checks }}; transition: box-shadow 120ms"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3.5"></circle></svg>0/1</span>
+</div>
+<div onMouseEnter="{{ n.s2.on }}" onMouseLeave="{{ off }}" style="position: absolute; left: 206px; top: 32px; width: 170px; height: 54px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; background: #FFFFFF; border: 1px solid {{ n.s2.bc }}; border-radius: 10px; padding: 0 12px; box-shadow: {{ n.s2.sh }}; opacity: {{ n.s2.op }}; transition: opacity 150ms, box-shadow 150ms">
+<strong style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; white-space: nowrap">It's in the catalog</strong>
+<span style="font-size: 12px; color: #6E6A62; white-space: nowrap">right away</span>
+<span title="Proved by 1 check" style="position: absolute; top: -9px; right: -9px; height: 18px; box-sizing: border-box; display: inline-flex; align-items: center; gap: 3px; background: #FFFFFF; border: 1px solid #E3E0D8; border-radius: 999px; padding: 0 6px 0 4px; font-size: 11px; font-weight: 600; color: #3E3B36; box-shadow: {{ h.checks }}; transition: box-shadow 120ms"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3.5"></circle></svg>0/1</span>
+</div>
+<div onMouseEnter="{{ n.s3.on }}" onMouseLeave="{{ off }}" style="position: absolute; left: 16px; top: 124px; width: 170px; height: 54px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; background: #FFFFFF; border: 1px solid {{ n.s3.bc }}; border-radius: 10px; padding: 0 12px; box-shadow: {{ n.s3.sh }}; opacity: {{ n.s3.op }}; transition: opacity 150ms, box-shadow 150ms">
+<strong style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; white-space: nowrap">Opens Activities</strong>
+<span style="font-size: 12px; color: #6E6A62; white-space: nowrap">from the menu</span>
+<span title="Proved by 1 check" style="position: absolute; top: -9px; right: -9px; height: 18px; box-sizing: border-box; display: inline-flex; align-items: center; gap: 3px; background: #FFFFFF; border: 1px solid #E3E0D8; border-radius: 999px; padding: 0 6px 0 4px; font-size: 11px; font-weight: 600; color: #3E3B36; box-shadow: {{ h.checks }}; transition: box-shadow 120ms"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3.5"></circle></svg>0/1</span>
+</div>
+<div onMouseEnter="{{ n.s4.on }}" onMouseLeave="{{ off }}" style="position: absolute; left: 206px; top: 124px; width: 170px; height: 54px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; background: #FFFFFF; border: 1px solid {{ n.s4.bc }}; border-radius: 10px; padding: 0 12px; box-shadow: {{ n.s4.sh }}; opacity: {{ n.s4.op }}; transition: opacity 150ms, box-shadow 150ms">
+<strong style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; white-space: nowrap">Sees what's coming</strong>
+<span style="font-size: 12px; color: #6E6A62; white-space: nowrap">soonest first</span>
+<span title="Proved by 2 checks" style="position: absolute; top: -9px; right: -9px; height: 18px; box-sizing: border-box; display: inline-flex; align-items: center; gap: 3px; background: #FFFFFF; border: 1px solid #E3E0D8; border-radius: 999px; padding: 0 6px 0 4px; font-size: 11px; font-weight: 600; color: #3E3B36; box-shadow: {{ h.checks }}; transition: box-shadow 120ms"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3.5"></circle></svg>0/2</span>
+</div>
+<div onMouseEnter="{{ n.s5.on }}" onMouseLeave="{{ off }}" style="position: absolute; left: 396px; top: 124px; width: 170px; height: 54px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; background: #FFFFFF; border: 1px solid {{ n.s5.bc }}; border-radius: 10px; padding: 0 12px; box-shadow: {{ n.s5.sh }}; opacity: {{ n.s5.op }}; transition: opacity 150ms, box-shadow 150ms">
+<strong style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; white-space: nowrap">Opens one</strong>
+<span style="font-size: 12px; color: #6E6A62; white-space: nowrap">details and places left</span>
+<span title="Proved by 1 check" style="position: absolute; top: -9px; right: -9px; height: 18px; box-sizing: border-box; display: inline-flex; align-items: center; gap: 3px; background: #FFFFFF; border: 1px solid #E3E0D8; border-radius: 999px; padding: 0 6px 0 4px; font-size: 11px; font-weight: 600; color: #3E3B36; box-shadow: {{ h.checks }}; transition: box-shadow 120ms"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3.5"></circle></svg>0/1</span>
+</div>
+<div onMouseEnter="{{ n.s6.on }}" onMouseLeave="{{ off }}" style="position: absolute; left: 586px; top: 124px; width: 170px; height: 54px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; background: #FFFFFF; border: 1px solid {{ n.s6.bc }}; border-radius: 10px; padding: 0 12px; box-shadow: {{ n.s6.sh }}; opacity: {{ n.s6.op }}; transition: opacity 150ms, box-shadow 150ms">
+<strong style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; white-space: nowrap"><span style="width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; box-sizing: border-box; border: 2px solid #2B4ACB; box-shadow: {{ h.proposed }}; transition: box-shadow 120ms"></span>Or opens Past</strong>
+<span style="font-size: 12px; color: #6E6A62; white-space: nowrap">finished, newest first</span>
+<span title="Proved by 1 check" style="position: absolute; top: -9px; right: -9px; height: 18px; box-sizing: border-box; display: inline-flex; align-items: center; gap: 3px; background: #FFFFFF; border: 1px solid #E3E0D8; border-radius: 999px; padding: 0 6px 0 4px; font-size: 11px; font-weight: 600; color: #3E3B36; box-shadow: {{ h.checks }}; transition: box-shadow 120ms"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3.5"></circle></svg>0/1</span>
+</div>
+<div onMouseEnter="{{ n.ext.on }}" onMouseLeave="{{ off }}" style="position: absolute; left: 800px; top: 124px; width: 186px; height: 54px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; gap: 1px; background: #FFFFFF; border: 1px dashed {{ n.ext.bc }}; border-radius: 10px; padding: 0 12px; box-shadow: {{ n.ext.sh }}; opacity: {{ n.ext.op }}; transition: opacity 150ms, box-shadow 150ms">
+<span style="display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #6E6A62"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 9h18"></path><path d="M9 9v11"></path></svg>FEATURE<span style="width: 9px; height: 9px; flex-shrink: 0; border-radius: 50%; box-sizing: border-box; border: 1.5px dashed #3E3B36; box-shadow: {{ h.open }}; transition: box-shadow 120ms"></span></span>
+<strong style="font-size: 13px; font-weight: 600; white-space: nowrap">Sign up for an activity</strong>
+</div>
+</div>
+<div style="display: flex; align-items: center; gap: 8px; font-size: 12px"><span style="color: #6E6A62; margin-right: 2px; white-space: nowrap">Rules it follows</span><span onMouseEnter="{{ n.rDate.on }}" onMouseLeave="{{ off }}" style="display: inline-flex; align-items: center; gap: 6px; background: #FFFFFF; border: 1px solid {{ n.rDate.bc }}; border-radius: 8px; padding: 3px 9px; box-shadow: {{ n.rDate.sh }}; opacity: {{ n.rDate.op }}; transition: opacity 150ms, box-shadow 150ms; white-space: nowrap"><span style="width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; background: #1D1C1A; box-shadow: {{ h.confirmed }}; transition: box-shadow 120ms"></span>Each activity has a date and a place</span><span onMouseEnter="{{ n.rLimit.on }}" onMouseLeave="{{ off }}" style="display: inline-flex; align-items: center; gap: 6px; background: #FFFFFF; border: 1px solid {{ n.rLimit.bc }}; border-radius: 8px; padding: 3px 9px; box-shadow: {{ n.rLimit.sh }}; opacity: {{ n.rLimit.op }}; transition: opacity 150ms, box-shadow 150ms; white-space: nowrap"><span style="width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; background: #1D1C1A; box-shadow: {{ h.confirmed }}; transition: box-shadow 120ms"></span>Organizers set a limit on places</span><span onMouseEnter="{{ n.rPast.on }}" onMouseLeave="{{ off }}" style="display: inline-flex; align-items: center; gap: 6px; background: #FFFFFF; border: 1px solid {{ n.rPast.bc }}; border-radius: 8px; padding: 3px 9px; box-shadow: {{ n.rPast.sh }}; opacity: {{ n.rPast.op }}; transition: opacity 150ms, box-shadow 150ms; white-space: nowrap"><span title="Replaced" style="display: inline-flex; border-radius: 50%; box-shadow: {{ h.replaced }}; transition: box-shadow 120ms"><svg width="13" height="13" viewBox="0 0 12 12" aria-hidden="true"><circle cx="4.4" cy="7.2" r="3.4" fill="#C4BFB3"></circle><circle cx="7.6" cy="4.8" r="3.4" fill="#FFFFFF" stroke="#8C877B" stroke-width="1.2"></circle></svg></span><s style="color: #8C877B">Past activities are hidden</s></span><span onMouseEnter="{{ n.rPastTab.on }}" onMouseLeave="{{ off }}" style="display: inline-flex; align-items: center; gap: 6px; background: #FFFFFF; border: 1px solid {{ n.rPastTab.bc }}; border-radius: 8px; padding: 3px 9px; box-shadow: {{ n.rPastTab.sh }}; opacity: {{ n.rPastTab.op }}; transition: opacity 150ms, box-shadow 150ms; white-space: nowrap"><span style="width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; box-sizing: border-box; border: 2px solid #2B4ACB; box-shadow: {{ h.proposed }}; transition: box-shadow 120ms"></span>Past ones go to a Past tab</span></div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px; border-radius: 12px; outline: {{ ol.checks }}; outline-offset: 8px; opacity: {{ sp.checks }}; transition: opacity 200ms">
+<div style="display: flex; align-items: baseline; justify-content: space-between"><h2 style="margin: 0; font-size: 12px; font-weight: 600; color: #6E6A62">Checks · how we'll know it works</h2><span style="font-size: 12px; color: #8C877B">None has run yet: nothing is built</span></div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px">
+<div onMouseEnter="{{ n.c1.on }}" onMouseLeave="{{ off }}" style="height: 150px; min-width: 0; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px; background: #FFFFFF; border: 1px solid {{ n.c1.bc }}; border-radius: 12px; padding: 11px 13px; box-shadow: {{ n.c1.sh }}; opacity: {{ n.c1.op }}; transition: opacity 150ms, box-shadow 150ms">
+<span style="display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #6E6A62"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3.5"></circle></svg>CHECK 1</span>
+<strong style="font-size: 14px; font-weight: 600; line-height: 1.3">Upcoming only, soonest first</strong>
+<span style="font-size: 12.5px; line-height: 1.4; color: #3E3B36">When a member opens Activities, they see only upcoming activities, the soonest first.</span>
+<span style="margin-top: auto; display: flex; align-items: center; justify-content: space-between; padding-top: 6px; border-top: 1px solid #EFEDE7; font-size: 12px; color: #6E6A62"><span style="display: flex; align-items: center; gap: 6px"><span style="width: 18px; height: 18px; flex-shrink: 0; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 1.5px solid #1D1C1A; color: #1D1C1A; box-shadow: {{ h.auto }}; transition: box-shadow 120ms"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 3v3M12 18v3M3 12h3M18 12h3"></path></svg></span>Automatic test</span><sc-if value="{{ rp.signal }}" hint-placeholder-val="{{ true }}"><span title="Rests on 1 assumption" style="display: inline-flex; align-items: center; gap: 4px; font-weight: 600; color: #3E3B36"><span style="width: 9px; height: 9px; flex-shrink: 0; box-sizing: border-box; border-radius: 50%; {{ rp.dot }}; box-shadow: {{ rp.h }}; transition: box-shadow 120ms"></span>1</span></sc-if></span>
+</div>
+<div onMouseEnter="{{ n.c2.on }}" onMouseLeave="{{ off }}" style="height: 150px; min-width: 0; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px; background: #FFFFFF; border: 1px solid {{ n.c2.bc }}; border-radius: 12px; padding: 11px 13px; box-shadow: {{ n.c2.sh }}; opacity: {{ n.c2.op }}; transition: opacity 150ms, box-shadow 150ms">
+<span style="display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #6E6A62"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3.5"></circle></svg>CHECK 2</span>
+<strong style="font-size: 14px; font-weight: 600; line-height: 1.3">Date, place and places left</strong>
+<span style="font-size: 12.5px; line-height: 1.4; color: #3E3B36">Every activity in the list shows its date, its place and how many places are left.</span>
+<span style="margin-top: auto; display: flex; align-items: center; justify-content: space-between; padding-top: 6px; border-top: 1px solid #EFEDE7; font-size: 12px; color: #6E6A62"><span style="display: flex; align-items: center; gap: 6px"><span style="width: 18px; height: 18px; flex-shrink: 0; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 1.5px solid #1D1C1A; color: #1D1C1A; box-shadow: {{ h.auto }}; transition: box-shadow 120ms"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 3v3M12 18v3M3 12h3M18 12h3"></path></svg></span>Automatic test</span></span>
+</div>
+<div onMouseEnter="{{ n.c3.on }}" onMouseLeave="{{ off }}" style="height: 150px; min-width: 0; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px; background: #FFFFFF; border: 1px solid {{ n.c3.bc }}; border-radius: 12px; padding: 11px 13px; box-shadow: {{ n.c3.sh }}; opacity: {{ n.c3.op }}; transition: opacity 150ms, box-shadow 150ms">
+<span style="display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #6E6A62"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3.5"></circle></svg>CHECK 3</span>
+<strong style="font-size: 14px; font-weight: 600; line-height: 1.3">New activities show up at once</strong>
+<span style="font-size: 12.5px; line-height: 1.4; color: #3E3B36">When an organizer publishes an activity, members see it in the catalog straight away.</span>
+<span style="margin-top: auto; display: flex; align-items: center; justify-content: space-between; padding-top: 6px; border-top: 1px solid #EFEDE7; font-size: 12px; color: #6E6A62"><span style="display: flex; align-items: center; gap: 6px"><span style="width: 18px; height: 18px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: #1D1C1A; color: #FFFFFF; box-shadow: {{ h.you }}; transition: box-shadow 120ms"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4.5"></circle><path d="M3 22a9 9 0 0 1 18 0z"></path></svg></span>You try it once built</span></span>
+</div>
+<div onMouseEnter="{{ n.c4.on }}" onMouseLeave="{{ off }}" style="height: 150px; min-width: 0; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px; background: #FFFFFF; border: 1px solid {{ n.c4.bc }}; border-radius: 12px; padding: 11px 13px; box-shadow: {{ n.c4.sh }}; opacity: {{ n.c4.op }}; transition: opacity 150ms, box-shadow 150ms">
+<span style="display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #6E6A62"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3.5"></circle></svg>CHECK 4<span style="color: #C4BFB3">·</span><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; letter-spacing: 0; color: #1E3599"><span style="width: 9px; height: 9px; flex-shrink: 0; border-radius: 50%; box-sizing: border-box; border: 2px solid #2B4ACB; box-shadow: {{ h.proposed }}; transition: box-shadow 120ms"></span>New</span></span>
+<strong style="font-size: 14px; font-weight: 600; line-height: 1.3">Past, newest first</strong>
+<span style="font-size: 12.5px; line-height: 1.4; color: #3E3B36">When a member opens Past, they see finished activities, the most recent first.</span>
+<span style="margin-top: auto; display: flex; align-items: center; justify-content: space-between; padding-top: 6px; border-top: 1px solid #EFEDE7; font-size: 12px; color: #6E6A62"><span style="display: flex; align-items: center; gap: 6px"><span style="width: 18px; height: 18px; flex-shrink: 0; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 1.5px solid #1D1C1A; color: #1D1C1A; box-shadow: {{ h.auto }}; transition: box-shadow 120ms"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 3v3M12 18v3M3 12h3M18 12h3"></path></svg></span>Automatic test</span></span>
+</div>
+</div>
+</section>
+</main>
+
+<aside aria-label="About this feature" style="width: 360px; flex-shrink: 0; box-sizing: border-box; display: flex; flex-direction: column; gap: 22px; padding: 20px 22px; border-left: 1px solid #E3E0D8; background: #FFFFFF">
+<section style="display: flex; flex-direction: column; gap: 10px; opacity: {{ sp.ready }}; transition: opacity 200ms">
+<div style="display: flex; align-items: center; justify-content: space-between"><h2 style="margin: 0; font-size: 15px; font-weight: 600">{{ ready.title }}</h2><span style="font-size: 12px; font-weight: 600; color: {{ ready.leftColor }}">{{ ready.left }}</span></div>
+<div title="Not ready" onMouseEnter="{{ on.bars }}" onMouseLeave="{{ off }}" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; border-radius: 4px; box-shadow: {{ h.bars }}; transition: box-shadow 120ms"><span style="display: flex; flex-direction: column; gap: 4px"><span style="height: 8px; box-sizing: border-box; border-radius: 3px; border: 1px solid #BDB8AC; background: transparent"></span><span style="font-size: 11px; font-weight: 500; color: #8C877B">ready</span></span><span style="display: flex; flex-direction: column; gap: 4px"><span style="height: 8px; box-sizing: border-box; border-radius: 3px; border: 1px solid #BDB8AC; background: transparent"></span><span style="font-size: 11px; font-weight: 500; color: #8C877B">built</span></span><span style="display: flex; flex-direction: column; gap: 4px"><span style="height: 8px; box-sizing: border-box; border-radius: 3px; border: 1px solid #BDB8AC; background: transparent"></span><span style="font-size: 11px; font-weight: 500; color: #8C877B">verified</span></span></div>
+<div style="display: flex; flex-direction: column; gap: 7px; margin-top: 2px">
+<sc-for list="{{ ready.items }}" as="r" hint-placeholder-count="5">
+<span style="display: flex; align-items: center; gap: 10px; font-size: 13px; color: {{ r.color }}; font-weight: {{ r.weight }}"><span onMouseEnter="{{ r.on }}" onMouseLeave="{{ r.off }}" style="width: 9px; height: 9px; flex-shrink: 0; box-sizing: border-box; border-radius: 50%; {{ r.dot }}; box-shadow: {{ r.h }}; transition: box-shadow 120ms"></span>{{ r.t }}</span>
+</sc-for>
+</div>
+</section>
+<section style="display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: center; justify-content: space-between"><h2 style="margin: 0; font-size: 12px; font-weight: 600; color: #6E6A62">Change · past activities</h2><span style="font-size: 12px; color: #8C877B">On this feature</span></div>
+<div style="align-self: flex-end; max-width: 276px; display: flex; flex-direction: column; gap: 4px">
+<span style="align-self: flex-end; display: flex; align-items: center; gap: 6px; font-size: 12px; color: #6E6A62">You · now<span style="width: 16px; height: 16px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: #1D1C1A; color: #FFFFFF"><svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4.5"></circle><path d="M3 22a9 9 0 0 1 18 0z"></path></svg></span></span>
+<span style="background: #EFEDE7; border-radius: 12px 12px 4px 12px; padding: 9px 12px; font-size: 13px">Don't hide past activities. Put them in a Past tab, so it's easy to find last year's.</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; background: #FFFFFF; border: 1px solid #D5DCF7; border-radius: 12px; padding: 12px 14px">
+<span style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #6E6A62"><span onMouseEnter="{{ on.who }}" onMouseLeave="{{ off }}" style="width: 18px; height: 18px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 5px; background: #1D1C1A; color: #FFFFFF; font-size: 10px; font-weight: 700; box-shadow: {{ h.who }}; transition: box-shadow 120ms">D</span>DEMIURGO · proposes</span>
+<span style="font-size: 13px">I changed the draft. It's in blue on the page.</span>
+<span style="font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #6E6A62">WHAT IT CHANGES</span>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<span style="display: flex; align-items: center; gap: 8px; font-size: 13px"><span title="Replaced" style="display: inline-flex; border-radius: 50%; box-shadow: {{ h.replaced }}; transition: box-shadow 120ms"><svg width="13" height="13" viewBox="0 0 12 12" aria-hidden="true"><circle cx="4.4" cy="7.2" r="3.4" fill="#C4BFB3"></circle><circle cx="7.6" cy="4.8" r="3.4" fill="#FFFFFF" stroke="#8C877B" stroke-width="1.2"></circle></svg></span><s style="color: #8C877B">Past activities are hidden</s></span>
+<span style="display: flex; align-items: center; gap: 8px; font-size: 13px"><span onMouseEnter="{{ on.proposed }}" onMouseLeave="{{ off }}" style="width: 9px; height: 9px; flex-shrink: 0; border-radius: 50%; box-sizing: border-box; border: 2px solid #2B4ACB; box-shadow: {{ h.proposed }}; transition: box-shadow 120ms"></span><span>Past ones go to a Past tab</span></span>
+<span style="display: flex; align-items: center; gap: 8px; font-size: 13px"><span onMouseEnter="{{ on.proposed }}" onMouseLeave="{{ off }}" style="width: 9px; height: 9px; flex-shrink: 0; border-radius: 50%; box-sizing: border-box; border: 2px solid #2B4ACB; box-shadow: {{ h.proposed }}; transition: box-shadow 120ms"></span><span>New step: Or opens Past</span></span>
+<span style="display: flex; align-items: center; gap: 8px; font-size: 13px"><span onMouseEnter="{{ on.proposed }}" onMouseLeave="{{ off }}" style="width: 9px; height: 9px; flex-shrink: 0; border-radius: 50%; box-sizing: border-box; border: 2px solid #2B4ACB; box-shadow: {{ h.proposed }}; transition: box-shadow 120ms"></span><span>New check: Past, newest first</span></span>
+</div>
+<span style="font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #6E6A62">WHAT IT TOUCHES</span>
+<span style="font-size: 13px">One rule for the whole product. Nothing else depends on it.</span>
+<div style="display: flex; flex-direction: column; align-items: flex-start; gap: 8px; background: #FBFAF7; border-radius: 10px; padding: 10px 12px; font-size: 12.5px; line-height: 1.45">
+<span><strong style="font-weight: 600">“Easy to find” can't be checked</strong>, so I didn't make it a check. Is this what you mean?</span>
+<button type="button" style="font: inherit; font-size: 12px; font-weight: 600; background: #FFFFFF; border: 1px solid #D6D2C8; border-radius: 999px; padding: 4px 11px; cursor: pointer; color: #1D1C1A">Past is one click from Activities</button>
+</div>
+</div>
+<sc-if value="{{ cv.applied }}" hint-placeholder-val="{{ false }}"><span style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #6E6A62"><span style="width: 16px; height: 16px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: #1D1C1A; color: #FFFFFF"><svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4.5"></circle><path d="M3 22a9 9 0 0 1 18 0z"></path></svg></span>You applied it · now</span></sc-if>
+</section>
+<div style="margin-top: auto; display: flex; align-items: center; gap: 10px; border: 1px solid #D6D2C8; border-radius: 12px; padding: 10px 10px 10px 12px; opacity: {{ sp.ready }}; transition: opacity 200ms"><span onMouseEnter="{{ on.who }}" onMouseLeave="{{ off }}" style="width: 20px; height: 20px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 5px; background: #1D1C1A; color: #FFFFFF; font-size: 10px; font-weight: 700; box-shadow: {{ h.who }}; transition: box-shadow 120ms">D</span><span style="flex-grow: 1; font-size: 13px; color: #8C877B">Reply to DEMIURGO…</span><span style="width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; background: #EFEDE7; color: #5B5850"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></span></div>
+</aside>
+</div>
+
+<button type="button" onClick="{{ lg.toggle }}" aria-label="What the marks mean" aria-expanded="{{ lg.aria }}" title="What the marks mean (?)" style="position: absolute; left: 24px; bottom: 24px; font: inherit; height: 34px; min-width: 34px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: 6px; background: {{ lg.iBg }}; border: 1px solid #D6D2C8; border-radius: 999px; padding: {{ lg.pad }}; box-shadow: 0 4px 14px rgba(29, 28, 26, 0.08); cursor: pointer; color: #1D1C1A"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 11v7"></path><circle cx="12" cy="6.5" r="1.4" fill="currentColor" stroke="none"></circle></svg><sc-if value="{{ lg.fresh }}" hint-placeholder-val="{{ true }}"><span style="font-size: 12px; font-weight: 600">{{ lg.newLabel }}</span></sc-if></button>
+
+<sc-if value="{{ lg.pop }}" hint-placeholder-val="{{ false }}">
+<section role="dialog" aria-label="What the marks mean" style="position: absolute; left: 24px; bottom: 70px; width: 312px; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; background: #FFFFFF; border: 1px solid #D6D2C8; border-radius: 14px; padding: 14px 16px; box-shadow: 0 12px 32px rgba(29, 28, 26, 0.14)">
+<div style="display: flex; align-items: center; justify-content: space-between">
+<strong style="font-size: 13px; font-weight: 600">What the marks mean</strong>
+<button type="button" onClick="{{ lg.toggle }}" aria-label="Close" style="font: inherit; display: flex; background: transparent; border: none; padding: 2px; cursor: pointer; color: #6E6A62"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
+<sc-if value="{{ lg.hasNew }}" hint-placeholder-val="{{ true }}">
+<span style="font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #6E6A62">NEW ON THIS SCREEN</span>
+<sc-for list="{{ lg.newList }}" as="e" hint-placeholder-count="2">
+<div onMouseEnter="{{ e.on }}" onMouseLeave="{{ e.off }}" style="display: flex; gap: 8px; align-items: flex-start; border-radius: 8px; padding: 6px 6px; background: {{ e.bg }}; transition: background 120ms">
+<span style="width: 34px; height: 20px; flex-shrink: 0; display: flex; align-items: center; justify-content: center">
+<sc-if value="{{ e.isDot }}" hint-placeholder-val="{{ true }}"><span style="width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; {{ e.dot }}"></span></sc-if>
+<sc-if value="{{ e.isBubble }}" hint-placeholder-val="{{ false }}"><span style="min-width: 18px; height: 18px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: #2B4ACB; color: #FFFFFF; font-size: 11px; font-weight: 700; padding: 0 5px">1</span></sc-if>
+<sc-if value="{{ e.isBars }}" hint-placeholder-val="{{ false }}"><span style="display: flex; gap: 2px"><span style="width: 8px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span><span style="width: 8px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span><span style="width: 8px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span></span></sc-if>
+<sc-if value="{{ e.isReady }}" hint-placeholder-val="{{ false }}"><span style="display: flex; gap: 2px"><span style="width: 8px; height: 6px; box-sizing: border-box; border-radius: 2px; background: #1D1C1A"></span><span style="width: 8px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span><span style="width: 8px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span></span></sc-if>
+<sc-if value="{{ e.isChecks }}" hint-placeholder-val="{{ false }}"><span style="display: flex; align-items: center; gap: 2px; font-size: 11px; font-weight: 600; color: #3E3B36"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3.5"></circle></svg>0/3</span></sc-if>
+<sc-if value="{{ e.isWho }}" hint-placeholder-val="{{ false }}"><span style="width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; background: #1D1C1A; color: #FFFFFF; font-size: 9px; font-weight: 700">D</span></sc-if>
+<sc-if value="{{ e.isAuto }}" hint-placeholder-val="{{ false }}"><span style="width: 18px; height: 18px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 1.5px solid #1D1C1A; color: #1D1C1A"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 3v3M12 18v3M3 12h3M18 12h3"></path></svg></span></sc-if>
+<sc-if value="{{ e.isYou }}" hint-placeholder-val="{{ false }}"><span style="width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: #1D1C1A; color: #FFFFFF"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4.5"></circle><path d="M3 22a9 9 0 0 1 18 0z"></path></svg></span></sc-if>
+<sc-if value="{{ e.isReplaced }}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" viewBox="0 0 12 12" aria-hidden="true"><circle cx="4.4" cy="7.2" r="3.4" fill="#C4BFB3"></circle><circle cx="7.6" cy="4.8" r="3.4" fill="#FFFFFF" stroke="#8C877B" stroke-width="1.2"></circle></svg></sc-if>
+</span>
+<span style="display: flex; flex-direction: column"><strong style="font-size: 13px; font-weight: 600">{{ e.word }}</strong><span style="font-size: 12px; line-height: 1.4; color: #5B5850">{{ e.desc }}</span></span>
+</div>
+</sc-for>
+</sc-if>
+<span style="padding-top: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #6E6A62">{{ lg.knownTitle }}</span>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 8px">
+<sc-for list="{{ lg.known }}" as="e" hint-placeholder-count="6">
+<div onMouseEnter="{{ e.on }}" onMouseLeave="{{ e.off }}" style="display: flex; align-items: center; gap: 6px; border-radius: 6px; padding: 5px 4px; background: {{ e.bg }}; transition: background 120ms">
+<span style="width: 34px; height: 20px; flex-shrink: 0; display: flex; align-items: center; justify-content: center">
+<sc-if value="{{ e.isDot }}" hint-placeholder-val="{{ true }}"><span style="width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; {{ e.dot }}"></span></sc-if>
+<sc-if value="{{ e.isBubble }}" hint-placeholder-val="{{ false }}"><span style="min-width: 18px; height: 18px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: #2B4ACB; color: #FFFFFF; font-size: 11px; font-weight: 700; padding: 0 5px">1</span></sc-if>
+<sc-if value="{{ e.isBars }}" hint-placeholder-val="{{ false }}"><span style="display: flex; gap: 2px"><span style="width: 8px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span><span style="width: 8px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span><span style="width: 8px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span></span></sc-if>
+<sc-if value="{{ e.isReady }}" hint-placeholder-val="{{ false }}"><span style="display: flex; gap: 2px"><span style="width: 8px; height: 6px; box-sizing: border-box; border-radius: 2px; background: #1D1C1A"></span><span style="width: 8px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span><span style="width: 8px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span></span></sc-if>
+<sc-if value="{{ e.isChecks }}" hint-placeholder-val="{{ false }}"><span style="display: flex; align-items: center; gap: 2px; font-size: 11px; font-weight: 600; color: #3E3B36"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3.5"></circle></svg>0/3</span></sc-if>
+<sc-if value="{{ e.isWho }}" hint-placeholder-val="{{ false }}"><span style="width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; background: #1D1C1A; color: #FFFFFF; font-size: 9px; font-weight: 700">D</span></sc-if>
+<sc-if value="{{ e.isAuto }}" hint-placeholder-val="{{ false }}"><span style="width: 18px; height: 18px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 1.5px solid #1D1C1A; color: #1D1C1A"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 3v3M12 18v3M3 12h3M18 12h3"></path></svg></span></sc-if>
+<sc-if value="{{ e.isYou }}" hint-placeholder-val="{{ false }}"><span style="width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: #1D1C1A; color: #FFFFFF"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4.5"></circle><path d="M3 22a9 9 0 0 1 18 0z"></path></svg></span></sc-if>
+<sc-if value="{{ e.isReplaced }}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" viewBox="0 0 12 12" aria-hidden="true"><circle cx="4.4" cy="7.2" r="3.4" fill="#C4BFB3"></circle><circle cx="7.6" cy="4.8" r="3.4" fill="#FFFFFF" stroke="#8C877B" stroke-width="1.2"></circle></svg></sc-if>
+</span>
+<span style="font-size: 13px">{{ e.word }}</span>
+</div>
+</sc-for>
+</div>
+<div style="display: flex; align-items: center; justify-content: space-between; padding-top: 8px; border-top: 1px solid #EFEDE7; font-size: 12px"><a href="S3A-Language.dc.html" style="font-weight: 600; text-decoration: none">See every mark</a><span style="color: #6E6A62">Press ? to open it anywhere</span></div>
+</section>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const MODE = 'C';
+    const st = this.state || {};
+    const part = st.part || 1;
+    const kept = MODE === 'D' || !!st.kept;
+    const applied = !!st.applied;
+    const hl = st.hl || null;
+    const set = (k) => () => this.setState({ hl: k });
+    const off = () => this.setState({ hl: null });
+
+    // Marks and their legend.
+    const ring = '0 0 0 2px #FFFFFF, 0 0 0 4px #1D1C1A';
+    const wide = '0 0 0 3px #FFFFFF, 0 0 0 5px #1D1C1A';
+    const DOTS = {
+      confirmed: 'background: #1D1C1A',
+      assumed: 'border: 1.5px solid #1D1C1A; background: linear-gradient(90deg, #1D1C1A 50%, transparent 50%)',
+      proposed: 'border: 2px solid #2B4ACB',
+      open: 'border: 1.5px dashed #3E3B36'
+    };
+    const SYM = {
+      needs: { word: 'Needs you', kind: 'bubble' },
+      proposed: { word: 'Proposed', kind: 'dot', dot: DOTS.proposed },
+      confirmed: { word: 'Confirmed', kind: 'dot', dot: DOTS.confirmed },
+      assumed: { word: 'Assumed', kind: 'dot', dot: DOTS.assumed },
+      open: { word: 'Open', kind: 'dot', dot: DOTS.open },
+      bars: { word: 'Not ready', kind: 'bars' },
+      ready: { word: 'Ready to build', kind: 'ready' },
+      checks: { word: 'Checks', kind: 'checks' },
+      who: { word: 'Who did it', kind: 'who' },
+      auto: { word: 'Automatic', kind: 'auto' },
+      you: { word: 'You', kind: 'you' },
+      replaced: { word: 'Replaced', kind: 'replaced' }
+    };
+    const on = {};
+    const h = {};
+    Object.keys(SYM).forEach((k) => { on[k] = set(k); h[k] = hl === k ? ring : 'none'; });
+    ['bars', 'ready', 'checks'].forEach((k) => { h[k] = hl === k ? wide : 'none'; });
+    h.needsTint = hl === 'needs' ? '0 0 0 2px #F4F6FE, 0 0 0 4px #1D1C1A' : 'none';
+
+    const LEGEND = {
+      A: {
+        NEW: [
+          { k: 'auto', desc: 'A test checks it on its own, every time something changes.' },
+          { k: 'you', desc: "You try it yourself once it's built. DEMIURGO tells you when." }
+        ],
+        KNOWN: ['needs', 'proposed', 'confirmed', 'assumed', 'open', 'bars', 'checks', 'who']
+      },
+      B: { NEW: [], KNOWN: ['needs', 'proposed', 'confirmed', 'assumed', 'open', 'bars', 'checks', 'who', 'auto', 'you'] },
+      C: {
+        NEW: [{ k: 'replaced', desc: 'The old version, behind the one that replaces it. It stays in the history.' }],
+        KNOWN: ['needs', 'proposed', 'confirmed', 'open', 'bars', 'checks', 'who', 'auto', 'you']
+      },
+      D: {
+        NEW: [{ k: 'ready', desc: 'First bar filled: you confirmed it. Built and verified come next.' }],
+        KNOWN: ['needs', 'confirmed', 'open', 'checks', 'who', 'auto', 'you']
+      }
+    }[MODE];
+    const entry = (k, desc) => ({
+      word: SYM[k].word, desc: desc || '', dot: SYM[k].dot || '',
+      isDot: SYM[k].kind === 'dot', isBubble: SYM[k].kind === 'bubble', isBars: SYM[k].kind === 'bars',
+      isReady: SYM[k].kind === 'ready', isChecks: SYM[k].kind === 'checks', isWho: SYM[k].kind === 'who',
+      isAuto: SYM[k].kind === 'auto', isYou: SYM[k].kind === 'you', isReplaced: SYM[k].kind === 'replaced',
+      bg: hl === k ? '#EFEDE7' : 'transparent',
+      on: set(k), off
+    });
+    const pop = st.legend === 'pop';
+    const hasNew = LEGEND.NEW.length > 0;
+    const fresh = hasNew && !st.seen;
+    const lg = {
+      pop, hasNew, fresh,
+      aria: pop ? 'true' : 'false',
+      iBg: pop ? '#EFEDE7' : '#FFFFFF',
+      pad: fresh ? '0 12px 0 9px' : '0',
+      newLabel: LEGEND.NEW.length === 1 ? '1 new mark' : LEGEND.NEW.length + ' new marks',
+      knownTitle: hasNew ? 'ALSO ON THIS SCREEN' : 'ON THIS SCREEN',
+      newList: LEGEND.NEW.map((x) => entry(x.k, x.desc)),
+      known: LEGEND.KNOWN.map((k) => entry(k)),
+      toggle: () => this.setState({ legend: pop ? 'closed' : 'pop', seen: true, hl: null })
+    };
+
+    // Steps, checks and rules are linked: pointing at one lights up the others.
+    const REL = {
+      c1: ['s3', 's4', 'rPast'],
+      c2: ['s4', 's5', 'rDate', 'rLimit'],
+      c3: ['s1', 's2'],
+      c4: ['s6', 'rPastTab'],
+      rDate: ['s1', 's5'],
+      rLimit: ['s1', 's5'],
+      rPast: ['s4'],
+      rPastTab: ['s6'],
+      ext: ['s5'],
+      rules: ['rDate', 'rLimit', 'rPast']
+    };
+    const IDS = ['s1', 's2', 's3', 's4', 's5', 's6', 'c1', 'c2', 'c3', 'c4', 'rDate', 'rLimit', 'rPast', 'rPastTab', 'ext', 'rules'];
+    // In part 5 of the review, the assumption and what rests on it stay lit.
+    const focus = hl || (MODE === 'B' && part === 5 ? 'rPast' : null);
+    let rel = null;
+    if (focus && IDS.indexOf(focus) >= 0) {
+      rel = [focus].concat(REL[focus] || []);
+      Object.keys(REL).forEach((o) => { if (REL[o].indexOf(focus) >= 0) rel.push(o); });
+    }
+    const NEWIDS = MODE === 'C' ? ['s6', 'c4', 'rPastTab'] : [];
+    const n = {};
+    IDS.forEach((id) => {
+      const lit = !!rel && rel.indexOf(id) >= 0;
+      const base = NEWIDS.indexOf(id) >= 0 ? '#2B4ACB' : (id === 'ext' ? '#8C877B' : '#E3E0D8');
+      n[id] = {
+        on: set(id),
+        bc: lit ? '#1D1C1A' : base,
+        sh: lit ? '0 0 0 1px #1D1C1A' : 'none',
+        op: rel && !lit ? '0.35' : '1',
+        bg: lit ? '#EFEDE7' : 'transparent'
+      };
+    });
+
+    // The review walks through the same page: the part under review stays, the rest steps back.
+    const PARTS = ['context', 'what', 'how', 'checks'];
+    const cur = MODE === 'B' && part <= 4 ? PARTS[part - 1] : null;
+    const sp = {};
+    const ol = {};
+    ['context', 'what', 'how', 'checks', 'ready'].forEach((k) => {
+      let o = '1';
+      if (MODE === 'B' && part <= 4) o = k === cur ? '1' : '0.35';
+      if (MODE === 'B' && part === 5 && ['context', 'what', 'ready'].indexOf(k) >= 0) o = '0.35';
+      sp[k] = o;
+      ol[k] = k === cur ? '2px solid #2B4ACB' : '2px solid transparent';
+    });
+
+    const rp = {
+      dot: kept ? DOTS.confirmed : DOTS.assumed,
+      h: kept ? h.confirmed : h.assumed,
+      signal: MODE !== 'C' && !kept
+    };
+
+    const Q = [
+      { name: 'Context', q: 'Is this the right context?', hint: 'Where it comes from, what it changes and what it touches.' },
+      { name: "What it's for", q: 'Is this what you meant?', hint: 'One line, who it is for, and what it leaves out.' },
+      { name: 'How it works', q: 'Is this how it should work?', hint: '5 steps between two people. Point at a step to see what proves it.' },
+      { name: 'Checks', q: 'Would these 3 checks prove it works?', hint: 'Two are automatic. The third is yours to try, once it is built.' },
+      { name: 'What I assumed', q: 'Past activities are hidden. Keep it?', hint: 'I decided it on my own. Check 1 rests on it.' },
+      { name: 'Confirm', q: 'Confirm Activity catalog?', hint: 'It becomes ready to build. Nothing gets built yet, and you can still change it later.' }
+    ];
+    const go = (p) => () => this.setState({ part: p, hl: null });
+    const rv = {
+      steps: [1, 2, 3, 4, 5].map((i) => ({
+        n: String(i), name: Q[i - 1].name, go: go(i),
+        cur: i === part ? 'step' : 'false',
+        bg: i === part ? '#2B4ACB' : (i < part ? '#1D1C1A' : '#FFFFFF'),
+        bc: i === part ? '#2B4ACB' : (i < part ? '#1D1C1A' : '#C4BFB3'),
+        fg: i <= part ? '#FFFFFF' : '#6E6A62'
+      })),
+      label: part <= 5 ? 'Part ' + part + ' of 5 · ' + Q[part - 1].name : 'All 5 parts reviewed',
+      q: Q[part - 1].q,
+      hint: Q[part - 1].hint,
+      canBack: part > 1,
+      back: go(part - 1),
+      asking: part <= 5,
+      final: part === 6,
+      changeLabel: part === 5 ? 'Change it' : 'Change something',
+      okLabel: part === 5 ? 'Keep it' : 'Looks right',
+      ok: () => this.setState(part === 5 ? { part: 6, kept: true, hl: null } : { part: part + 1, hl: null }),
+      restart: go(1)
+    };
+
+    const cv = { pending: !applied, applied, apply: () => this.setState({ applied: true, hl: null }) };
+
+    // What "ready to build" needs, in product words.
+    const waiting = MODE === 'C' && !applied;
+    const R = [
+      { t: 'Comes from your confirmed idea', ok: true },
+      { t: 'No questions left open', ok: true },
+      { t: 'Each check says how it will be checked', ok: true },
+      { t: waiting ? 'A change is waiting for you' : 'No changes waiting', ok: !waiting },
+      { t: MODE === 'D' ? 'Confirmed by you · just now' : 'You confirm the details', ok: MODE === 'D' }
+    ];
+    const left = R.filter((r) => !r.ok).length;
+    const ready = {
+      title: MODE === 'D' ? 'Ready to build' : 'Before it can be built',
+      left: left === 0 ? 'Nothing left' : (left === 1 ? '1 thing left' : left + ' things left'),
+      leftColor: left === 0 ? '#5B5850' : '#1E3599',
+      items: R.map((r) => ({
+        t: r.t,
+        dot: r.ok ? DOTS.confirmed : DOTS.proposed,
+        color: r.ok ? '#1D1C1A' : '#1E3599',
+        weight: r.ok ? '400' : '600',
+        on: set(r.ok ? 'confirmed' : 'proposed'),
+        h: r.ok ? h.confirmed : h.proposed,
+        off
+      }))
+    };
+
+    return { on, off, h, lg, n, sp, ol, rp, rv, cv, ready };
+  }
+}
+</script>
+</body>
+</html>

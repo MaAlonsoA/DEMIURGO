@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>What H1 needs from the UI</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F4F0}
+a{color:#2B4ACB}a:hover{color:#1E3599}
+</style>
+</helmet>
+<div style="position: relative; width: 1440px; height: 900px; box-sizing: border-box; display: flex; flex-direction: column; gap: 22px; padding: 36px 44px; overflow: hidden; background: #F5F4F0; color: #1D1C1A; font-family: 'Instrument Sans', 'Segoe UI', system-ui, sans-serif; font-size: 14px; line-height: 1.5">
+<header style="display: flex; align-items: flex-end; justify-content: space-between; gap: 32px">
+<div style="display: flex; flex-direction: column; gap: 6px; max-width: 860px">
+<span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6E6A62">Page 8 · Back to H1</span>
+<h1 style="margin: 0; font-size: 30px; font-weight: 600; line-height: 1.2">What H1 needs from the UI</h1>
+<p style="margin: 0; font-size: 16px; color: #3E3B36">H1 is done when the FDR of S3 is born and approved inside DEMIURGO, with you in the UI. Here is the path there, and what we already have for each stop. Click any of them.</p>
+</div>
+<div style="display: flex; align-items: center; gap: 18px; flex-shrink: 0; padding-bottom: 4px">
+<span style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600"><span style="width: 10px; height: 10px; flex-shrink: 0; box-sizing: border-box; border-radius: 2px; background: #1D1C1A; border: 0 solid transparent"></span>Designed <span style="font-weight: 400; color: #6E6A62">{{ sum.designed }}</span></span>
+<span style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600"><span style="width: 10px; height: 10px; flex-shrink: 0; box-sizing: border-box; border-radius: 2px; background: linear-gradient(90deg, #1D1C1A 50%, transparent 50%); border: 1.5px solid #1D1C1A"></span>Partly <span style="font-weight: 400; color: #6E6A62">{{ sum.partly }}</span></span>
+<span style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600"><span style="width: 10px; height: 10px; flex-shrink: 0; box-sizing: border-box; border-radius: 2px; background: transparent; border: 1.5px dashed #5B5850"></span>Missing <span style="font-weight: 400; color: #6E6A62">{{ sum.missing }}</span></span>
+<span style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600"><span style="width: 10px; height: 2px; flex-shrink: 0; box-sizing: border-box; border-radius: 2px; background: #A8A397; border: 0 solid transparent"></span>No screen <span style="font-weight: 400; color: #6E6A62">{{ sum.none }}</span></span>
+</div>
+</header>
+<div style="flex-grow: 1; min-height: 0; display: grid; grid-template-columns: 520px 360px minmax(0, 1fr); gap: 24px">
+<section style="display: flex; flex-direction: column; gap: 14px; min-height: 0">
+<div style="display: flex; align-items: baseline; gap: 10px"><span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6E6A62">The path · 7 stops</span><span style="font-size: 12.5px; color: #6E6A62">from design/ to the FDR of S3, approved</span></div>
+<div style="position: relative; display: flex; flex-direction: column; gap: 4px">
+<span style="position: absolute; left: 27px; top: 24px; bottom: 24px; width: 2px; background: #D6D2C8"></span>
+<sc-for list="{{ path }}" as="p" hint-placeholder-count="7"><button type="button" aria-pressed="{{ p.pressed }}" onClick="{{ p.pick }}" style="position: relative; font: inherit; text-align: left; display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: {{ p.bg }}; border: 1.5px solid {{ p.bc }}; border-radius: 12px; cursor: pointer; color: #1D1C1A"><span style="width: 28px; height: 28px; flex-shrink: 0; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 1.5px solid #1D1C1A; background: {{ p.numBg }}; color: {{ p.numFg }}; font-size: 13px; font-weight: 700">{{ p.n }}</span><span style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 15px; font-weight: 600">{{ p.title }}</strong><span style="font-size: 12.5px; color: #6E6A62; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ p.sub }}</span></span><span style="display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; font-size: 12px; font-weight: 600; color: {{ p.covFg }}; background: #FFFFFF; border: 1px solid #E3E0D8; border-radius: 999px; padding: 2px 9px"><span style="width: {{ p.ciW }}; height: {{ p.ciH }}; flex-shrink: 0; box-sizing: border-box; border-radius: 2px; background: {{ p.ciBg }}; border: {{ p.ciBd }}"></span>{{ p.covLabel }}</span></button></sc-for>
+</div>
+<div style="display: flex; align-items: center; gap: 12px; padding: 4px 13.5px"><span style="width: 28px; height: 28px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: #1D1C1A; color: #FFFFFF"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4"></path><path d="M5 4h11l-2 4 2 4H5"></path></svg></span><span style="font-size: 14px"><strong style="font-weight: 600">H1 is done.</strong> <span style="color: #3E3B36">The FDR of S3 was born and approved in DEMIURGO.</span></span></div>
+<div style="display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #E3E0D8; padding-top: 14px">
+<span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6E6A62">Next · one page each</span>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px"><span style="display: flex; align-items: baseline; gap: 8px; font-size: 13px"><span style="width: 22px; flex-shrink: 0; font-weight: 700; color: #6E6A62">9</span>Take over the design</span><span style="display: flex; align-items: baseline; gap: 8px; font-size: 13px"><span style="width: 22px; flex-shrink: 0; font-weight: 700; color: #6E6A62">12</span>Needs you, complete</span><span style="display: flex; align-items: baseline; gap: 8px; font-size: 13px"><span style="width: 22px; flex-shrink: 0; font-weight: 700; color: #6E6A62">10</span>A record and its versions</span><span style="display: flex; align-items: baseline; gap: 8px; font-size: 13px"><span style="width: 22px; flex-shrink: 0; font-weight: 700; color: #6E6A62">13</span>Knowledge and sources</span><span style="display: flex; align-items: baseline; gap: 8px; font-size: 13px"><span style="width: 22px; flex-shrink: 0; font-weight: 700; color: #6E6A62">11</span>Design S3 in DEMIURGO</span><span style="display: flex; align-items: baseline; gap: 8px; font-size: 13px"><span style="width: 22px; flex-shrink: 0; font-weight: 700; color: #6E6A62">14</span>Models & providers · optional</span></div>
+</div>
+</section>
+<section style="display: flex; flex-direction: column; gap: 14px; min-height: 0">
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6E6A62">Along the way</span><span style="font-size: 12.5px; color: #6E6A62">Not stops of their own, but H1 needs them.</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<sc-for list="{{ way }}" as="w" hint-placeholder-count="8"><button type="button" aria-pressed="{{ w.pressed }}" onClick="{{ w.pick }}" style="font: inherit; text-align: left; display: flex; align-items: center; gap: 12px; padding: 7px 12px; background: {{ w.bg }}; border: 1.5px solid {{ w.bc }}; border-radius: 12px; cursor: pointer; color: #1D1C1A"><span style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column"><strong style="font-size: 14px; font-weight: 600">{{ w.title }}</strong><span style="font-size: 12px; color: #6E6A62; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ w.sub }}</span></span><span style="display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; font-size: 12px; font-weight: 600; color: {{ w.covFg }}; background: #FFFFFF; border: 1px solid #E3E0D8; border-radius: 999px; padding: 2px 9px"><span style="width: {{ w.ciW }}; height: {{ w.ciH }}; flex-shrink: 0; box-sizing: border-box; border-radius: 2px; background: {{ w.ciBg }}; border: {{ w.ciBd }}"></span>{{ w.covLabel }}</span></button></sc-for>
+</div>
+</section>
+<section aria-live="polite" style="display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow: hidden; background: #FFFFFF; border: 1px solid #E3E0D8; border-radius: 16px; padding: 22px 24px">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px"><span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6E6A62">{{ d.where }}</span><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; border: 1px solid #E3E0D8; border-radius: 999px; padding: 2px 9px"><span style="width: {{ d.ciW }}; height: {{ d.ciH }}; flex-shrink: 0; box-sizing: border-box; border-radius: 2px; background: {{ d.ciBg }}; border: {{ d.ciBd }}"></span>{{ d.covLabel }}</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><h2 style="margin: 0; font-size: 22px; font-weight: 600; line-height: 1.25">{{ d.title }}</h2><p style="margin: 0; font-size: 14px; color: #3E3B36">{{ d.doText }}</p></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6E6A62">The back end already has</span><ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; font-size: 13px; line-height: 1.4"><sc-for list="{{ d.has }}" as="hb" hint-placeholder-count="3"><li>{{ hb.t }}</li></sc-for></ul></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6E6A62">Designed so far</span><div style="display: flex; flex-wrap: wrap; gap: 6px"><sc-if value="{{ d.anyHave }}" hint-placeholder-val="{{ true }}"><sc-for list="{{ d.have }}" as="vb" hint-placeholder-count="2"><span style="font-size: 12.5px; background: #F5F4F0; border-radius: 8px; padding: 3px 9px">{{ vb.t }}</span></sc-for></sc-if><sc-if value="{{ d.noHave }}" hint-placeholder-val="{{ false }}"><span style="font-size: 13px; color: #6E6A62">Nothing yet.</span></sc-if></div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6E6A62">Missing</span><ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; font-size: 13px; line-height: 1.4"><sc-for list="{{ d.miss }}" as="mb" hint-placeholder-count="3"><li>{{ mb.t }}</li></sc-for></ul></div>
+<sc-if value="{{ d.anyShow }}" hint-placeholder-val="{{ true }}"><div style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6E6A62">It must show</span><ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; font-size: 13px; line-height: 1.4"><sc-for list="{{ d.show }}" as="sb" hint-placeholder-count="3"><li>{{ sb.t }}</li></sc-for></ul></div></sc-if>
+<div style="margin-top: auto; display: flex; align-items: center; gap: 8px; border-top: 1px solid #EFEDE7; padding-top: 12px; font-size: 13px"><span style="color: #6E6A62">Where we design it:</span><strong style="font-weight: 600">{{ d.page }}</strong></div>
+</section>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const st = this.state || {};
+    const sel = st.sel || 'p1';
+
+    const ITEMS = [
+      {
+        id: 'p1', group: 'path', n: '1', cov: 'missing', page: 'Page 9',
+        title: 'Take over the design',
+        sub: 'Sign in, check what was imported, ratify it',
+        doText: 'Sign in, open what DEMIURGO imported from design/, check it matches, and ratify it in one step. From then on, the design lives in DEMIURGO.',
+        has: [
+          'The import as one pending package: 12 proposals (11 records and the taxonomy).',
+          'Its counts next to design/: 1 decision, 6 ADR, 4 FDR, 11 versions, 92 checks, 10 links.',
+          'Ratify: one action, only for a person (batch.accept_package).',
+          'Sign in with a session (cookie and CSRF).'
+        ],
+        have: ['Step 5 · 2 · the review ends in one Confirm for the whole feature: the same gesture'],
+        miss: [
+          'Sign in.',
+          'The package: what is inside, its counts, each document.',
+          'What changes after ratifying: design/ becomes an export.'
+        ],
+        show: ['Nothing is approved until you ratify.', 'The counts, side by side with design/.']
+      },
+      {
+        id: 'p2', group: 'path', n: '2', cov: 'partly', page: 'Page 9',
+        title: 'See your product',
+        sub: 'DEMIURGO’s own design, at a glance',
+        doText: 'See what is decided, what is still a draft, what is ready to build and what needs you. Right after ratifying, almost everything is still a draft.',
+        has: [
+          'Every record with its current and latest version, how sure, ready or not, and not built.',
+          'Features ready to build, and threads with open questions.',
+          'The Needs you count.',
+          'The event log, for the what-changed lens.'
+        ],
+        have: ['Step 2 · Overview', 'Step 6 · 1 · Welcome back, with the lens'],
+        miss: [
+          'Records instead of features, people and rules: decisions, tech decisions (ADR) and features (FDR).',
+          'The first view after ratifying, with everything Proposed.'
+        ],
+        show: ['How sure, on every element. Proposed never looks like Confirmed.']
+      },
+      {
+        id: 'p3', group: 'path', n: '3', cov: 'partly', page: 'Page 10',
+        title: 'Approve what you agree with',
+        sub: 'Read a record and approve its version',
+        doText: 'Open a record, read it and approve the version you agree with. Or accept a proposal and approve it in one go.',
+        has: [
+          'Versions: draft, approved, replaced, discarded. The current one is the latest approved.',
+          'Sections by type: decision, ADR, FDR and bug.',
+          'Checks, each verified automatically or by hand, and how.',
+          'Links and their state. Who wrote it and who approved it.'
+        ],
+        have: ['Step 5 · 1 · The feature at a glance', 'Step 5 · 2 · One part at a time'],
+        miss: [
+          'A record’s versions, and which one is current.',
+          'The decision and ADR pages: only the feature exists.',
+          'Behavior as the FDR’s text. The lanes come later.'
+        ],
+        show: ['Approving creates no version.', 'Accept and approve: one gesture, two visible effects.']
+      },
+      {
+        id: 'p4', group: 'path', n: '4', cov: 'partly', page: 'Page 11',
+        title: 'Explore S3',
+        sub: 'A thread with DEMIURGO, until the questions settle',
+        doText: 'Open a thread about S3 and talk it through with DEMIURGO until the questions are settled.',
+        has: [
+          'Threads with messages from you, DEMIURGO or an agent. What DEMIURGO observes is marked claim, hypothesis or unknown.',
+          'Questions: open, assumed, confirmed, parked or dropped, and reopen.',
+          'Threads inside threads. Conclude, set aside, resume.'
+        ],
+        have: ['Step 4 · 4 · The first question', 'Step 6 · 2 · a question, while catching up'],
+        miss: ['The thread itself.', 'Assumed answers, waiting for you to confirm them.', 'Concluding a thread, and what it leaves.'],
+        show: ['What DEMIURGO says stays Proposed until you confirm it.']
+      },
+      {
+        id: 'p5', group: 'path', n: '5', cov: 'missing', page: 'Page 11',
+        title: 'Ask for a draft',
+        sub: 'DEMIURGO drafts the FDR and its checks',
+        doText: 'Ask DEMIURGO to draft the feature, watch it work, and get a package: the FDR with its checks, to accept whole or reject.',
+        has: [
+          'Runs: queued, running, done, failed, cancelled or interrupted.',
+          'Why it failed. Retry with the same context, or cancel.',
+          'DEMIURGO’s package, accepted or rejected whole.'
+        ],
+        have: ['Step 5 · 2 · Confirm the whole feature', 'Step 6 · 3 · work in progress, in amber'],
+        miss: ['Asking for a draft from a thread.', 'A run working, failing, retried.', 'The package arriving in Needs you.'],
+        show: ['Who did it: the run and its model.', 'Invalid output changes nothing.']
+      },
+      {
+        id: 'p6', group: 'path', n: '6', cov: 'partly', page: 'Page 10',
+        title: 'Change it',
+        sub: 'A new version: a note, and each check carried',
+        doText: 'Something is off: make a new version with a note of what changed, and decide for each check whether it stays, changes or goes.',
+        has: [
+          'A new version with a change note, and each check kept, changed or dropped.',
+          'A warning when a check can’t be verified. It never blocks.',
+          'An older draft can only be discarded.',
+          'Proposals built on the old version go out of date.'
+        ],
+        have: ['Step 5 · 3 · Changing something', 'Step 7 · 2 · out of date'],
+        miss: ['Carrying each check into the new version.', 'The change note.', 'Comparing two versions.'],
+        show: ['A new version needs a note and a choice for every check.']
+      },
+      {
+        id: 'p7', group: 'path', n: '7', cov: 'partly', page: 'Page 10',
+        title: 'Ready to build',
+        sub: 'The FDR of S3, approved with nothing missing',
+        doText: 'The FDR of S3 is approved and nothing is missing. H1 is done.',
+        has: [
+          'Readiness: ready or not, with its reasons in product words, and warnings.',
+          'Reasons: not approved, not current, no checks, a check with no way to verify it, no decision behind it, a changed decision, a link to review, open or parked questions, pending proposals.'
+        ],
+        have: ['Step 5 · 1 · Before it can be built', 'Step 5 · 4 · Ready to build', 'Step 6 · the rust bar: in doubt'],
+        miss: ['The back end’s real reasons, as it writes them.', 'The warnings, next to the reasons.'],
+        show: ['Ready to build only with no reasons left.']
+      },
+      {
+        id: 'w1', group: 'way', cov: 'partly', page: 'Page 12',
+        title: 'Needs you, complete',
+        sub: 'Everything that waits for you',
+        doText: 'Everything waiting for you, in one place. Resolve each one and move on.',
+        has: [
+          'Proposals by batch, with who made them, the run, out-of-date notes and idea checks.',
+          'Assumed answers to confirm, and open questions.',
+          'Versions to approve. Links to review: keep, change or out of date.',
+          'Classifications to review, and knowledge updates that failed.'
+        ],
+        have: ['Step 6 · 1 · Needs you, in order', 'Step 6 · 2 · Catching up, one at a time', 'Step 7 · 2 · a batch, one at a time'],
+        miss: ['Links, classifications and failed updates.', 'Versions waiting for approval.', 'A package (whole) next to an agent’s batch (one by one).'],
+        show: ['Accepting is always your explicit gesture.', 'An agent’s batch: one at a time, 10 at most.']
+      },
+      {
+        id: 'w2', group: 'way', cov: 'missing', page: 'Page 12',
+        title: 'Errors',
+        sub: 'Why not, in words you can act on',
+        doText: 'When something can’t be done, say why, in words you can act on.',
+        has: [
+          '403: it is not yours to do, or an agent can’t do it.',
+          '409: not now, with its reasons (for example, knowledge is behind).',
+          '422: something is missing or wrong, with its reasons.'
+        ],
+        have: [],
+        miss: ['How each error looks, where it appears and what you can do next.'],
+        show: ['Never a bare “Error”.']
+      },
+      {
+        id: 'w3', group: 'way', cov: 'missing', page: 'Page 11',
+        title: 'Runs',
+        sub: 'What DEMIURGO does, what failed',
+        doText: 'See what DEMIURGO is doing, what failed and why, and try again.',
+        has: [
+          'State, why it failed, what it retries, cancel.',
+          'Its context: role, budget, graph version and hash, reused on retry.',
+          'Interrupted by a restart. Invalid output, with no effects.'
+        ],
+        have: ['Step 3 · the amber Working signal'],
+        miss: ['A run’s page.', 'Failing, retrying and being interrupted.'],
+        show: ['Where a run’s context came from.']
+      },
+      {
+        id: 'w4', group: 'way', cov: 'partly', page: 'Page 13',
+        title: 'Knowledge',
+        sub: 'Is DEMIURGO up to date?',
+        doText: 'Trust that DEMIURGO knows the project as it is, and see when it doesn’t.',
+        has: [
+          'The graph, its version and how fresh it is. Search.',
+          'Idea checks that cite a record: duplicates, contradicts or relates.',
+          'A conflict with something approved comes back as a review.',
+          'The taxonomy: propose and approve.'
+        ],
+        have: ['Step 6 · 2 · a conflict', 'Step 2 · Map'],
+        miss: ['Freshness: an action waits until knowledge is up to date.', 'Idea checks with their citation.', 'The taxonomy.'],
+        show: ['A conflict is a proposal, never a change.']
+      },
+      {
+        id: 'w5', group: 'way', cov: 'partly', page: 'Page 13',
+        title: 'Sources',
+        sub: 'What was relied on',
+        doText: 'See the sources DEMIURGO and agents used, and add your own.',
+        has: ['The list of sources, and registering one.'],
+        have: ['Step 7 · 3 · the sources an agent added'],
+        miss: ['A home for sources, outside an agent’s page.'],
+        show: ['Who added each source.']
+      },
+      {
+        id: 'w6', group: 'way', cov: 'designed', page: 'Reused on page 12',
+        title: 'An agent, through the channel',
+        sub: 'For testing, from your terminal',
+        doText: 'You test with your own agent from the terminal. What it proposes lands in Needs you, like anything else.',
+        has: ['Read, talk, add sources and propose, 10 at a time.', '403 for everything else.'],
+        have: ['Step 7 · 2 · its proposals, one at a time'],
+        miss: ['Nothing. It has no screens of its own.'],
+        show: ['Its name, as the author of each proposal.']
+      },
+      {
+        id: 'w7', group: 'way', cov: 'none', page: 'No page',
+        title: 'Agent keys',
+        sub: 'From the CLI, for testing',
+        doText: 'Issued and revoked from the CLI, only for testing.',
+        has: ['Issue and revoke a key (agent_token.issue, revoke).'],
+        have: ['Step 7 · 1 · kept, not for now'],
+        miss: ['No screen.'],
+        show: []
+      },
+      {
+        id: 'w8', group: 'way', cov: 'missing', page: 'Page 14 · optional',
+        title: 'Models & providers',
+        sub: 'Model and reasoning per task',
+        doText: 'Choose which provider, model and reasoning DEMIURGO uses for each kind of task. Nothing to paste anywhere.',
+        has: ['One port for every engine (ADR-AGE-001). Each run stores its profile and model.', 'Today an environment variable picks simulated or Claude.'],
+        have: [],
+        miss: [
+          'Providers, and how each one is connected.',
+          'Who does what: task, model, reasoning.',
+          'How Claude connects: your signed-in CLI (personal use) or an API key.',
+          'Its FDR: not written yet.'
+        ],
+        show: ['Which model did each run.']
+      }
+    ];
+
+    const COV = {
+      designed: { label: 'Designed', bg: '#1D1C1A', bd: '0 solid transparent', w: '10px', h: '10px', fg: '#1D1C1A' },
+      partly: { label: 'Partly', bg: 'linear-gradient(90deg, #1D1C1A 50%, transparent 50%)', bd: '1.5px solid #1D1C1A', w: '10px', h: '10px', fg: '#1D1C1A' },
+      missing: { label: 'Missing', bg: 'transparent', bd: '1.5px dashed #5B5850', w: '10px', h: '10px', fg: '#1D1C1A' },
+      none: { label: 'No screen', bg: '#A8A397', bd: '0 solid transparent', w: '10px', h: '2px', fg: '#6E6A62' }
+    };
+
+    const row = (it) => {
+      const on = it.id === sel;
+      const c = COV[it.cov];
+      return {
+        n: it.n || '',
+        title: it.title,
+        sub: it.sub,
+        page: it.page,
+        covLabel: c.label,
+        covFg: c.fg,
+        ciBg: c.bg,
+        ciBd: c.bd,
+        ciW: c.w,
+        ciH: c.h,
+        pick: () => this.setState({ sel: it.id }),
+        pressed: on ? 'true' : 'false',
+        bg: on ? '#FFFFFF' : 'transparent',
+        bc: on ? '#2B4ACB' : 'transparent',
+        numBg: on ? '#1D1C1A' : '#F5F4F0',
+        numFg: on ? '#FFFFFF' : '#1D1C1A'
+      };
+    };
+
+    const path = ITEMS.filter((i) => i.group === 'path').map(row);
+    const way = ITEMS.filter((i) => i.group === 'way').map(row);
+
+    const it = ITEMS.find((i) => i.id === sel) || ITEMS[0];
+    const c = COV[it.cov];
+    const bullets = (list) => list.map((t) => ({ t }));
+    const d = {
+      title: it.title,
+      doText: it.doText,
+      where: it.group === 'path' ? 'Stop ' + it.n + ' of 7' : 'Along the way',
+      page: it.page,
+      covLabel: c.label,
+      ciBg: c.bg,
+      ciBd: c.bd,
+      ciW: c.w,
+      ciH: c.h,
+      has: bullets(it.has),
+      have: bullets(it.have),
+      noHave: it.have.length === 0,
+      anyHave: it.have.length > 0,
+      miss: bullets(it.miss),
+      show: bullets(it.show),
+      anyShow: it.show.length > 0
+    };
+
+    const count = (k) => ITEMS.filter((i) => i.cov === k).length;
+    const sum = {
+      designed: String(count('designed')),
+      partly: String(count('partly')),
+      missing: String(count('missing')),
+      none: String(count('none'))
+    };
+
+    return { path, way, d, sum };
+  }
+}
+</script>
+</body>
+</html>

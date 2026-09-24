@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Map · point, peek and keep</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F4F0}
+a{color:#2B4ACB}a:hover{color:#1E3599}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; background: #F5F4F0; color: #1D1C1A; font-family: 'Instrument Sans', 'Segoe UI', system-ui, sans-serif; font-size: 14px; line-height: 1.5">
+
+<header style="height: 56px; flex-shrink: 0; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 0 24px; background: #FFFFFF; border-bottom: 1px solid #E3E0D8">
+<div style="display: flex; align-items: center; gap: 28px">
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.14em">DEMIURGO</span>
+<span style="font-weight: 600">Club Activities</span>
+<nav aria-label="Sections" style="display: flex; gap: 4px">
+<a href="#" aria-current="page" style="font-weight: 600; text-decoration: none; color: #1D1C1A; background: #EFEDE7; border-radius: 6px; padding: 6px 12px">Product</a>
+<a href="#" style="font-weight: 500; text-decoration: none; color: #5B5850; border-radius: 6px; padding: 6px 12px">Threads</a>
+<a href="#" style="font-weight: 500; text-decoration: none; color: #5B5850; border-radius: 6px; padding: 6px 12px">History</a>
+</nav>
+</div>
+<span style="display: flex; align-items: center; gap: 8px; font-weight: 600">Needs you<span style="min-width: 22px; height: 22px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: #2B4ACB; color: #FFFFFF; font-size: 12px; font-weight: 700; padding: 0 6px">3</span></span>
+</header>
+
+<div style="height: 48px; flex-shrink: 0; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 0 24px; border-bottom: 1px solid #E3E0D8; background: #FBFAF7">
+<nav aria-label="Product views" style="display: flex; gap: 2px; background: #EFEDE7; border-radius: 8px; padding: 3px">
+<a href="#" style="font-size: 13px; font-weight: 500; text-decoration: none; color: #5B5850; border-radius: 6px; padding: 4px 12px">Overview</a>
+<a href="#" aria-current="page" style="font-size: 13px; font-weight: 600; text-decoration: none; color: #1D1C1A; background: #FFFFFF; border-radius: 6px; padding: 4px 12px; box-shadow: 0 1px 2px rgba(29, 28, 26, 0.1)">Map</a>
+<a href="#" style="font-size: 13px; font-weight: 500; text-decoration: none; color: #5B5850; border-radius: 6px; padding: 4px 12px">Origins</a>
+<a href="#" style="font-size: 13px; font-weight: 500; text-decoration: none; color: #5B5850; border-radius: 6px; padding: 4px 12px">Journeys</a>
+</nav>
+<span style="font-size: 13px; color: #3E3B36"><strong style="font-weight: 600">Point</strong> at a card to peek · <strong style="font-weight: 600">point</strong> at a symbol for its detail · <strong style="font-weight: 600">click</strong> to keep it on the right · click empty space to clear</span>
+</div>
+
+<div style="position: relative; flex-grow: 1; min-height: 0">
+
+<div onClick="{{ clear }}" style="position: absolute; left: 0; top: 0; width: 1100px; height: 796px; overflow: hidden; background-color: #F5F4F0; background-image: radial-gradient(#DAD6CC 1px, transparent 1px); background-size: 20px 20px">
+
+<div style="position: absolute; left: 32px; top: 56px; width: 320px; height: 600px; box-sizing: border-box; border: 1px dashed #D2CDC2; border-radius: 16px; background: rgba(255, 255, 255, 0.4); padding: 12px 16px"><span style="font-size: 12px; font-weight: 600; color: #6E6A62">Activities</span></div>
+<div style="position: absolute; left: 384px; top: 56px; width: 340px; height: 600px; box-sizing: border-box; border: 1px dashed #D2CDC2; border-radius: 16px; background: rgba(255, 255, 255, 0.4); padding: 12px 16px"><span style="font-size: 12px; font-weight: 600; color: #6E6A62">Sign-ups</span></div>
+<div style="position: absolute; left: 756px; top: 56px; width: 312px; height: 600px; box-sizing: border-box; border: 1px dashed #D2CDC2; border-radius: 16px; background: rgba(255, 255, 255, 0.4); padding: 12px 16px"><span style="font-size: 12px; font-weight: 600; color: #6E6A62">Members</span></div>
+
+<svg width="1100" height="796" viewBox="0 0 1100 796" aria-hidden="true" style="position: absolute; left: 0; top: 0">
+<path d="M404 170 H332" fill="none" stroke="#8C877B" stroke-width="{{ e.e1.w }}" opacity="{{ e.e1.op }}"></path>
+<path d="M704 170 H776" fill="none" stroke="#8C877B" stroke-width="{{ e.e2.w }}" opacity="{{ e.e2.op }}"></path>
+<path d="M554 240 V276" fill="none" stroke="#8C877B" stroke-width="{{ e.e3.w }}" opacity="{{ e.e3.op }}"></path>
+<path d="M554 320 V328" fill="none" stroke="#8C877B" stroke-width="{{ e.e4.w }}" opacity="{{ e.e4.op }}"></path>
+<path d="M404 434 H380 V205 H404 M380 205 H332" fill="none" stroke="#2B4ACB" stroke-dasharray="5 4" stroke-width="{{ e.e5.w }}" opacity="{{ e.e5.op }}"></path>
+<path d="M192 268 V232" fill="none" stroke="#2B4ACB" stroke-width="{{ e.e6.w }}" opacity="{{ e.e6.op }}"></path>
+<path d="M912 252 V232" fill="none" stroke="#8C877B" stroke-width="{{ e.e7.w }}" opacity="{{ e.e7.op }}"></path>
+<path d="M776 330 H740 V298 H704" fill="none" stroke="#B4461B" stroke-dasharray="5 4" stroke-width="{{ e.e8.w }}" opacity="{{ e.e8.op }}"></path>
+</svg>
+
+<span style="position: absolute; left: 350px; top: 150px; font-size: 11px; color: #5B5850; background: #F5F4F0; padding: 0 3px; opacity: {{ e.e1.op }}">needs</span>
+<span style="position: absolute; left: 722px; top: 150px; font-size: 11px; color: #5B5850; background: #F5F4F0; padding: 0 3px; opacity: {{ e.e2.op }}">needs</span>
+<span style="position: absolute; left: 340px; top: 372px; font-size: 11px; color: #1E3599; background: #F5F4F0; padding: 0 3px; opacity: {{ e.e5.op }}">affects</span>
+<span style="position: absolute; left: 710px; top: 306px; font-size: 11px; font-weight: 600; color: #9A3412; background: #F5F4F0; padding: 0 3px; opacity: {{ e.e8.op }}">conflicts</span>
+<span style="position: absolute; left: 406px; top: 250px; font-size: 11px; color: #6E6A62; opacity: {{ e.e3.op }}">Rules it follows</span>
+
+<button type="button" onMouseEnter="{{ v.F1.enter }}" onMouseLeave="{{ v.F1.leave }}" onFocus="{{ v.F1.enter }}" onBlur="{{ v.F1.leave }}" onClick="{{ v.F1.click }}" style="position: absolute; left: 52px; top: 100px; width: 280px; height: 132px; box-sizing: border-box; display: flex; flex-direction: column; gap: 5px; text-align: left; font: inherit; color: #1D1C1A; background: #FFFFFF; border: 1px solid #E3E0D8; border-radius: 12px; padding: 13px 14px; cursor: pointer; transition: opacity 140ms, box-shadow 140ms; opacity: {{ v.F1.op }}; {{ v.F1.ring }}">
+<span style="display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #6E6A62"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 9h18"></path><path d="M9 9v11"></path></svg>FEATURE<span style="color: #C4BFB3">·</span><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; letter-spacing: 0; color: #1D1C1A"><span style="width: 10px; height: 10px; border-radius: 50%; background: #1D1C1A"></span>Confirmed</span><span style="margin-left: auto; display: flex; gap: 3px"><span style="width: 10px; height: 6px; border-radius: 2px; background: #1D1C1A"></span><span style="width: 10px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span><span style="width: 10px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span></span></span>
+<strong style="font-size: 15px; font-weight: 600">Activity catalog</strong>
+<span style="font-size: 13px; color: #5B5850">Organizers publish; members browse.</span>
+<span style="margin-top: auto; display: flex; align-items: center; justify-content: space-between; padding-top: 7px; border-top: 1px solid #EFEDE7; font-size: 12px; color: #6E6A62"><span style="display: flex; align-items: center; gap: 6px"><span style="width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: #1D1C1A; color: #FFFFFF"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4.5"></circle><path d="M3 22a9 9 0 0 1 18 0z"></path></svg></span>Fri</span><span style="display: flex; align-items: center; gap: 4px; font-weight: 600; color: #3E3B36"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3.5"></circle></svg>2/2</span></span>
+</button>
+
+<div aria-hidden="true" style="position: absolute; left: 60px; top: 276px; width: 280px; height: 124px; box-sizing: border-box; background: #FFFFFF; border: 1px solid #E3E0D8; border-radius: 12px; opacity: {{ v.P1.op }}"></div>
+<button type="button" onMouseEnter="{{ v.P1.enter }}" onMouseLeave="{{ v.P1.leave }}" onFocus="{{ v.P1.enter }}" onBlur="{{ v.P1.leave }}" onClick="{{ v.P1.click }}" style="position: absolute; left: 52px; top: 268px; width: 280px; height: 124px; box-sizing: border-box; display: flex; flex-direction: column; gap: 5px; text-align: left; font: inherit; color: #1D1C1A; background: #FFFFFF; border: 1px solid #E3E0D8; border-radius: 12px; padding: 13px 14px; cursor: pointer; transition: opacity 140ms, box-shadow 140ms; opacity: {{ v.P1.op }}; {{ v.P1.ring }}">
+<span onMouseEnter="{{ t.P1needs.enter }}" onMouseLeave="{{ t.P1needs.leave }}" style="position: absolute; top: -9px; right: -9px; min-width: 22px; height: 22px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border-radius: 999px; background: #2B4ACB; color: #FFFFFF; font-size: 12px; font-weight: 700; padding: 0 6px; box-shadow: 0 0 0 3px #F5F4F0">2</span>
+<span style="display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #6E6A62"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3.5"></circle></svg>2 CHECKS<span style="color: #C4BFB3">·</span><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; letter-spacing: 0; color: #1E3599"><span style="width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; border: 2px solid #2B4ACB"></span>Proposed</span></span>
+<strong style="font-size: 14px; font-weight: 600; line-height: 1.3">An activity always has a date</strong>
+<span style="font-size: 13px; color: #5B5850">+1 more in this batch</span>
+<span style="margin-top: auto; display: flex; align-items: center; justify-content: space-between; padding-top: 7px; border-top: 1px solid #EFEDE7; font-size: 12px; color: #6E6A62"><span style="display: flex; align-items: center; gap: 6px"><span style="width: 18px; height: 18px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; border-radius: 5px; border: 1.5px solid #1D1C1A; color: #1D1C1A"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M9 3v5M15 3v5"></path><path d="M6 8h12v3a6 6 0 0 1-12 0z"></path><path d="M12 17v4"></path></svg></span>Claude Code · 08:40</span></span>
+</button>
+
+<button type="button" onMouseEnter="{{ v.F2.enter }}" onMouseLeave="{{ v.F2.leave }}" onFocus="{{ v.F2.enter }}" onBlur="{{ v.F2.leave }}" onClick="{{ v.F2.click }}" style="position: absolute; left: 404px; top: 100px; width: 300px; height: 140px; box-sizing: border-box; display: flex; flex-direction: column; gap: 5px; text-align: left; font: inherit; color: #1D1C1A; background: #FFFFFF; border: 1px solid #E3E0D8; border-radius: 12px; padding: 13px 14px; cursor: pointer; transition: opacity 140ms, box-shadow 140ms; opacity: {{ v.F2.op }}; {{ v.F2.ring }}">
+<span onMouseEnter="{{ t.F2needs.enter }}" onMouseLeave="{{ t.F2needs.leave }}" style="position: absolute; top: -11px; right: -11px; min-width: 22px; height: 22px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border-radius: 999px; background: #2B4ACB; color: #FFFFFF; font-size: 12px; font-weight: 700; padding: 0 6px; box-shadow: 0 0 0 3px #F5F4F0">1</span>
+<span style="display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #6E6A62"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 9h18"></path><path d="M9 9v11"></path></svg>FEATURE<span style="color: #C4BFB3">·</span><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; letter-spacing: 0; color: #1E3599"><span style="width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; border: 2px solid #2B4ACB"></span>Proposed</span><span onMouseEnter="{{ t.F2bars.enter }}" onMouseLeave="{{ t.F2bars.leave }}" style="margin-left: auto; display: flex; gap: 3px; padding: 4px; margin-right: -4px"><span style="width: 10px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span><span style="width: 10px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span><span style="width: 10px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span></span></span>
+<strong style="font-size: 15px; font-weight: 600">Sign up for an activity</strong>
+<span style="font-size: 13px; color: #5B5850">A member takes a place in one step.</span>
+<span style="margin-top: auto; display: flex; align-items: center; justify-content: space-between; padding-top: 7px; border-top: 1px solid #EFEDE7; font-size: 12px; color: #6E6A62"><span style="display: flex; align-items: center; gap: 6px"><span style="width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border-radius: 5px; background: #1D1C1A; color: #FFFFFF; font-size: 10px; font-weight: 700">D</span>Sat</span><span style="display: flex; align-items: center; gap: 12px"><span style="display: flex; align-items: center; gap: 4px; font-weight: 600; color: #3E3B36"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3.5"></circle></svg>2/3</span><span onMouseEnter="{{ t.F2dep.enter }}" onMouseLeave="{{ t.F2dep.leave }}" style="display: flex; align-items: center; gap: 4px; font-weight: 600; color: #8A5A0B; padding: 2px 4px; margin: -2px -4px; border-radius: 4px; background: #FBF4E6"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"></path><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"></path></svg>2</span></span></span>
+</button>
+
+<button type="button" onMouseEnter="{{ v.D1.enter }}" onMouseLeave="{{ v.D1.leave }}" onFocus="{{ v.D1.enter }}" onBlur="{{ v.D1.leave }}" onClick="{{ v.D1.click }}" style="position: absolute; left: 404px; top: 276px; width: 300px; height: 44px; box-sizing: border-box; display: flex; align-items: center; gap: 10px; text-align: left; font: inherit; color: #1D1C1A; background: #FFFFFF; border: 1px solid #E3E0D8; border-radius: 10px; padding: 0 12px; cursor: pointer; transition: opacity 140ms, box-shadow 140ms; opacity: {{ v.D1.op }}; {{ v.D1.ring }}"><span style="display: flex; color: #6E6A62"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 9-9 9-9-9z"></path></svg></span><span style="flex-grow: 1; font-size: 13px; font-weight: 600">Only members can sign up</span><span style="width: 10px; height: 10px; border-radius: 50%; background: #1D1C1A"></span></button>
+
+<button type="button" onMouseEnter="{{ v.D2.enter }}" onMouseLeave="{{ v.D2.leave }}" onFocus="{{ v.D2.enter }}" onBlur="{{ v.D2.leave }}" onClick="{{ v.D2.click }}" style="position: absolute; left: 404px; top: 328px; width: 300px; height: 44px; box-sizing: border-box; display: flex; align-items: center; gap: 10px; text-align: left; font: inherit; color: #1D1C1A; background: #FFFFFF; border: 1px solid #E3E0D8; border-radius: 10px; padding: 0 12px; cursor: pointer; transition: opacity 140ms, box-shadow 140ms; opacity: {{ v.D2.op }}; {{ v.D2.ring }}"><span style="display: flex; color: #6E6A62"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 9-9 9-9-9z"></path></svg></span><span style="flex-grow: 1; font-size: 13px; font-weight: 600">Signing up is instant</span><span style="width: 10px; height: 10px; border-radius: 50%; background: #1D1C1A"></span></button>
+
+<button type="button" onMouseEnter="{{ v.Q3.enter }}" onMouseLeave="{{ v.Q3.leave }}" onFocus="{{ v.Q3.enter }}" onBlur="{{ v.Q3.leave }}" onClick="{{ v.Q3.click }}" style="position: absolute; left: 404px; top: 412px; width: 300px; height: 44px; box-sizing: border-box; display: flex; align-items: center; gap: 10px; text-align: left; font: inherit; color: #1D1C1A; background: #FFFFFF; border: 1px dashed #8C877B; border-radius: 10px; padding: 0 12px; cursor: pointer; transition: opacity 140ms, box-shadow 140ms; opacity: {{ v.Q3.op }}; {{ v.Q3.ring }}"><span style="display: flex; color: #6E6A62"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H10l-4 4v-4H4z"></path></svg></span><span style="flex-grow: 1; font-size: 13px; font-weight: 600">A limit on places per activity?</span><span style="width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; border: 1.5px dashed #3E3B36"></span><span onMouseEnter="{{ t.Q3needs.enter }}" onMouseLeave="{{ t.Q3needs.leave }}" style="min-width: 20px; height: 20px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: #2B4ACB; color: #FFFFFF; font-size: 11px; font-weight: 700; padding: 0 6px">1</span></button>
+
+<button type="button" onMouseEnter="{{ v.F3.enter }}" onMouseLeave="{{ v.F3.leave }}" onFocus="{{ v.F3.enter }}" onBlur="{{ v.F3.leave }}" onClick="{{ v.F3.click }}" style="position: absolute; left: 776px; top: 100px; width: 272px; height: 132px; box-sizing: border-box; display: flex; flex-direction: column; gap: 5px; text-align: left; font: inherit; color: #1D1C1A; background: #FFFFFF; border: 1px dashed #8C877B; border-radius: 12px; padding: 13px 14px; cursor: pointer; transition: opacity 140ms, box-shadow 140ms; opacity: {{ v.F3.op }}; {{ v.F3.ring }}">
+<span style="display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #6E6A62"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 9h18"></path><path d="M9 9v11"></path></svg>FEATURE<span style="color: #C4BFB3">·</span><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; letter-spacing: 0; color: #1D1C1A"><span style="width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; border: 1.5px dashed #3E3B36"></span>Open</span><span style="margin-left: auto; display: flex; gap: 3px"><span style="width: 10px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span><span style="width: 10px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span><span style="width: 10px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span></span></span>
+<strong style="font-size: 15px; font-weight: 600">Members &amp; access</strong>
+<span style="font-size: 13px; color: #5B5850">How we know who is a member.</span>
+<span style="margin-top: auto; display: flex; align-items: center; justify-content: space-between; padding-top: 7px; border-top: 1px solid #EFEDE7; font-size: 12px; color: #6E6A62"><span style="display: flex; align-items: center; gap: 6px"><span style="width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border-radius: 5px; background: #1D1C1A; color: #FFFFFF; font-size: 10px; font-weight: 700">D</span>Now</span><span style="display: flex; align-items: center; gap: 6px; font-weight: 600; color: #6B4608"><span style="width: 8px; height: 8px; border-radius: 50%; background: #B7791F; box-shadow: 0 0 0 3px #F6EDDA"></span>1m 12s</span></span>
+</button>
+
+<button type="button" onMouseEnter="{{ v.Q5.enter }}" onMouseLeave="{{ v.Q5.leave }}" onFocus="{{ v.Q5.enter }}" onBlur="{{ v.Q5.leave }}" onClick="{{ v.Q5.click }}" style="position: absolute; left: 776px; top: 252px; width: 272px; height: 44px; box-sizing: border-box; display: flex; align-items: center; gap: 10px; text-align: left; font: inherit; color: #1D1C1A; background: #FFFFFF; border: 1px dashed #8C877B; border-radius: 10px; padding: 0 12px; cursor: pointer; transition: opacity 140ms, box-shadow 140ms; opacity: {{ v.Q5.op }}; {{ v.Q5.ring }}"><span style="display: flex; color: #6E6A62"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H10l-4 4v-4H4z"></path></svg></span><span style="flex-grow: 1; font-size: 13px; font-weight: 600">Who counts as a member?</span><span style="width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; border: 1.5px dashed #3E3B36"></span></button>
+
+<button type="button" onMouseEnter="{{ v.I1.enter }}" onMouseLeave="{{ v.I1.leave }}" onFocus="{{ v.I1.enter }}" onBlur="{{ v.I1.leave }}" onClick="{{ v.I1.click }}" style="position: absolute; left: 776px; top: 308px; width: 272px; height: 44px; box-sizing: border-box; display: flex; align-items: center; gap: 10px; text-align: left; font: inherit; color: #3E3B36; background: #FBFAF7; border: 1px dashed #C4BFB3; border-radius: 10px; padding: 0 12px; cursor: pointer; transition: opacity 140ms, box-shadow 140ms; opacity: {{ v.I1.op }}; {{ v.I1.ring }}"><span style="display: flex; color: #6E6A62"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"></path><path d="M10 21h4"></path><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.1 2.2h5c0-.8.4-1.6 1.1-2.2A6 6 0 0 0 12 3z"></path></svg></span><span style="flex-grow: 1; font-size: 13px; font-weight: 600">Guest passes</span><span onMouseEnter="{{ t.I1conf.enter }}" onMouseLeave="{{ t.I1conf.leave }}" style="display: flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 600; color: #9A3412; padding: 2px 4px; border-radius: 4px; background: #F8E9E2"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9.5 17h-19z"></path><path d="M12 10v4"></path><path d="M12 17.5v.01"></path></svg>1</span><svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1.5" width="3" height="9" rx="1" fill="#8C877B"></rect><rect x="7" y="1.5" width="3" height="9" rx="1" fill="#8C877B"></rect></svg></button>
+
+</div>
+
+<sc-if value="{{ noPin }}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; left: 1100px; top: 0; width: 340px; height: 796px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; gap: 10px; padding: 32px; border-left: 1px solid #E3E0D8; background: #FFFFFF; color: #5B5850; text-align: center">
+<strong style="font-size: 15px; font-weight: 600; color: #1D1C1A">Nothing kept here</strong>
+<span style="font-size: 13px">Point at any card to peek at it. Click it to keep it here while you look around the map.</span>
+</div>
+</sc-if>
+
+<sc-for list="{{ panels }}" as="d" hint-placeholder-count="1">
+<div onMouseEnter="{{ d.keep }}" onMouseLeave="{{ d.leave }}" style="position: absolute; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px; background: #FFFFFF; padding: 18px 20px; {{ d.boxCss }}">
+<span style="display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #6E6A62">
+<sc-if value="{{ d.isFeature }}" hint-placeholder-val="{{ true }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 9h18"></path><path d="M9 9v11"></path></svg></sc-if>
+<sc-if value="{{ d.isDecision }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 9-9 9-9-9z"></path></svg></sc-if>
+<sc-if value="{{ d.isQuestion }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H10l-4 4v-4H4z"></path></svg></sc-if>
+<sc-if value="{{ d.isCheck }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3.5"></circle></svg></sc-if>
+<sc-if value="{{ d.isIdea }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"></path><path d="M10 21h4"></path><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.1 2.2h5c0-.8.4-1.6 1.1-2.2A6 6 0 0 0 12 3z"></path></svg></sc-if>
+{{ d.kicker }}<span style="color: #C4BFB3">·</span>
+<span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; letter-spacing: 0; color: {{ d.wordColor }}">
+<sc-if value="{{ d.showDot }}" hint-placeholder-val="{{ true }}"><span style="width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; {{ d.dotCss }}"></span></sc-if>
+<sc-if value="{{ d.isParked }}" hint-placeholder-val="{{ false }}"><svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1.5" width="3" height="9" rx="1" fill="#8C877B"></rect><rect x="7" y="1.5" width="3" height="9" rx="1" fill="#8C877B"></rect></svg></sc-if>
+{{ d.word }}</span>
+<sc-if value="{{ d.hasBars }}" hint-placeholder-val="{{ true }}"><span style="margin-left: auto; display: flex; gap: 3px"><span style="width: 10px; height: 6px; box-sizing: border-box; border-radius: 2px; {{ d.b1 }}"></span><span style="width: 10px; height: 6px; box-sizing: border-box; border-radius: 2px; {{ d.b2 }}"></span><span style="width: 10px; height: 6px; box-sizing: border-box; border-radius: 2px; {{ d.b3 }}"></span></span></sc-if>
+</span>
+
+<div style="display: flex; flex-direction: column; gap: 3px"><strong style="font-size: 18px; font-weight: 600; line-height: 1.25">{{ d.title }}</strong><span style="font-size: 13px; color: #5B5850">{{ d.summary }}</span></div>
+
+<sc-if value="{{ d.hasNeeds }}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; background: #F4F6FE; border-radius: 10px; padding: 10px 12px">
+<span style="display: flex; align-items: center; gap: 8px; font-size: 13px"><span style="min-width: 20px; height: 20px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: #2B4ACB; color: #FFFFFF; font-size: 11px; font-weight: 700; padding: 0 6px">{{ d.needsCount }}</span>{{ d.needsText }}</span>
+<button type="button" style="flex-shrink: 0; font: inherit; font-size: 12px; font-weight: 600; color: #FFFFFF; background: #2B4ACB; border: none; border-radius: 6px; padding: 5px 11px; cursor: pointer">{{ d.needsAction }}</button>
+</div>
+</sc-if>
+
+<sc-if value="{{ d.hasWorking }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; background: #F6EDDA; color: #6B4608; border-radius: 10px; padding: 9px 12px; font-size: 13px">
+<span style="display: flex; align-items: center; gap: 8px"><span style="width: 8px; height: 8px; border-radius: 50%; background: #B7791F"></span>{{ d.working }}</span>
+<button type="button" style="flex-shrink: 0; font: inherit; font-size: 12px; font-weight: 600; color: #6B4608; background: transparent; border: 1px solid #D9BE8A; border-radius: 6px; padding: 3px 9px; cursor: pointer">Cancel</button>
+</div>
+</sc-if>
+
+<sc-if value="{{ d.hasConflict }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; align-items: center; gap: 8px; background: #F8E9E2; color: #9A3412; border-radius: 10px; padding: 9px 12px; font-size: 13px; font-weight: 600"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9.5 17h-19z"></path><path d="M12 10v4"></path><path d="M12 17.5v.01"></path></svg>{{ d.conflict }}</div>
+</sc-if>
+
+<div style="display: flex; flex-direction: column; gap: 3px"><span style="font-size: 12px; font-weight: 600; color: #6E6A62">Comes from</span><span style="font-size: 13px">{{ d.from }}</span></div>
+
+<sc-if value="{{ d.hasDeps }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 5px"><span style="font-size: 12px; font-weight: 600; color: #6E6A62">Depends on</span>
+<sc-for list="{{ d.deps }}" as="dep" hint-placeholder-count="2"><span style="display: flex; align-items: center; gap: 8px; font-size: 13px"><span style="width: 9px; height: 9px; flex-shrink: 0; border-radius: 50%; {{ dep.dot }}"></span>{{ dep.name }}<span style="margin-left: auto; font-size: 12px; font-weight: 600; color: {{ dep.noteColor }}">{{ dep.note }}</span></span></sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ d.hasLinks }}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 3px"><span style="font-size: 12px; font-weight: 600; color: #6E6A62">Connected</span><span style="font-size: 13px">{{ d.links }}</span></div>
+</sc-if>
+
+<sc-if value="{{ d.hasChecks }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 3px"><span style="font-size: 12px; font-weight: 600; color: #6E6A62">How we'll know it works</span><span style="font-size: 13px">{{ d.checks }}</span></div>
+</sc-if>
+
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 12px; border-top: 1px solid #EFEDE7; {{ d.footCss }}">
+<span style="font-size: 12px; color: #6E6A62">{{ d.last }}</span>
+<span style="display: flex; gap: 6px">
+<sc-if value="{{ d.peek }}" hint-placeholder-val="{{ true }}"><button type="button" onClick="{{ d.pinMe }}" style="font: inherit; font-size: 12px; font-weight: 600; color: #1D1C1A; background: #FFFFFF; border: 1px solid #D6D2C8; border-radius: 6px; padding: 4px 10px; cursor: pointer">Keep open</button></sc-if>
+<button type="button" style="font: inherit; font-size: 12px; font-weight: 600; color: #FFFFFF; background: #1D1C1A; border: none; border-radius: 6px; padding: 5px 11px; cursor: pointer">Open</button>
+</span>
+</div>
+</div>
+</sc-for>
+
+<sc-if value="{{ hasTip }}" hint-placeholder-val="{{ false }}">
+<div role="tooltip" style="position: absolute; left: {{ tip.x }}px; top: {{ tip.y }}px; width: 270px; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; background: #1D1C1A; color: #FFFFFF; border-radius: 10px; padding: 10px 12px; font-size: 12px; box-shadow: 0 8px 24px rgba(29, 28, 26, 0.22); pointer-events: none">
+<strong style="font-size: 12px; font-weight: 600">{{ tip.title }}</strong>
+<sc-for list="{{ tip.lines }}" as="ln" hint-placeholder-count="2"><span style="display: flex; align-items: center; gap: 8px"><span style="width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; {{ ln.dot }}"></span>{{ ln.text }}</span></sc-for>
+</div>
+</sc-if>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  items() {
+    return {
+      F1: { type: 'feature', kicker: 'FEATURE', st: 'confirmed', bars: 'ready', title: 'Activity catalog', summary: 'Organizers publish activities with a title and date; members see what is published.', from: 'Your Initial idea, Fri', links: 'Needed by Sign up for an activity', checks: '2 checks, both confirmed', last: 'Confirmed by you · Fri', x: 52, y: 100, w: 280 },
+      P1: { type: 'check', kicker: '2 CHECKS', st: 'proposed', title: 'An activity always has a date', summary: 'And past activities are hidden from members. Proposed together, as one batch.', needs: { count: 2, text: 'Accept or reject 2 checks', action: 'Review' }, from: 'Claude Code (agent), today at 08:40', links: 'For Activity catalog', last: 'Proposed by Claude Code · 08:40', x: 52, y: 268, w: 280 },
+      F2: { type: 'feature', kicker: 'FEATURE', st: 'proposed', bars: 'none', title: 'Sign up for an activity', summary: 'A member takes a place in one step. The same person can’t take two.', needs: { count: 1, text: 'A limit on places per activity?', action: 'Answer' }, from: 'Initial idea → Who can sign up? → Needs approval?', deps: [{ name: 'Activity catalog', dot: 'background: #1D1C1A', note: 'Ready', noteColor: '#5B5850' }, { name: 'Members & access', dot: 'background: #B7791F', note: 'Drafting · 1m 12s', noteColor: '#6B4608' }], links: 'Follows 2 rules: Only members can sign up, Signing up is instant', checks: '3 checks: 2 confirmed, 1 proposed', last: 'Drafted by DEMIURGO · Sat', x: 404, y: 100, w: 300 },
+      D1: { type: 'decision', kicker: 'DECISION', st: 'confirmed', title: 'Only members can sign up', summary: 'Activities are internal for now.', conflict: 'The idea Guest passes contradicts it', from: 'Question “Who can sign up?” in your Initial idea', links: 'A rule of Sign up for an activity', last: 'Confirmed by you · Fri', x: 404, y: 276, w: 300 },
+      D2: { type: 'decision', kicker: 'DECISION', st: 'confirmed', title: 'Signing up is instant', summary: 'No approval step: a member confirms their place directly.', from: 'Question “Does signing up need approval?”', links: 'A rule of Sign up for an activity', last: 'Confirmed by you · Fri', x: 404, y: 328, w: 300 },
+      Q3: { type: 'question', kicker: 'QUESTION', st: 'open', title: 'A limit on places per activity?', summary: 'It changes what members see when an activity is full. DEMIURGO recommends: organizers set a limit.', needs: { count: 1, text: 'Answer this question', action: 'Answer' }, from: 'Asked by DEMIURGO today, while drafting Sign up', links: 'Affects Sign up for an activity and Activity catalog', last: 'Asked by DEMIURGO · today', x: 404, y: 412, w: 300 },
+      F3: { type: 'feature', kicker: 'FEATURE', st: 'open', bars: 'none', title: 'Members & access', summary: 'How we know someone is a member.', working: 'DEMIURGO is drafting it · 1m 12s', from: 'Your Initial idea, Fri', links: 'Needed by Sign up for an activity', last: 'Started by DEMIURGO · now', x: 776, y: 100, w: 272 },
+      Q5: { type: 'question', kicker: 'QUESTION', st: 'open', title: 'Who counts as a member?', summary: 'DEMIURGO needs it to finish Members & access.', from: 'Asked by DEMIURGO · Sat', links: 'Affects Members & access', last: 'Asked by DEMIURGO · Sat', x: 776, y: 252, w: 272 },
+      I1: { type: 'idea', kicker: 'IDEA', st: 'parked', title: 'Guest passes', summary: 'Members bring a guest to open activities.', conflict: 'Contradicts “Only members can sign up”', from: 'Your Initial idea, parked by you on Fri', last: 'Parked by you · Fri', x: 776, y: 308, w: 272 }
+    };
+  }
+
+  edges() {
+    return {
+      e1: ['F2', 'F1'], e2: ['F2', 'F3'], e3: ['F2', 'D1', 'D2'], e4: ['D1', 'D2', 'F2'],
+      e5: ['Q3', 'F2', 'F1'], e6: ['P1', 'F1'], e7: ['Q5', 'F3'], e8: ['I1', 'D1']
+    };
+  }
+
+  tips() {
+    const blue = 'background: #2B4ACB', ink = 'background: #1D1C1A', amber = 'background: #B7791F', rust = 'background: #B4461B';
+    return {
+      F2dep: { owner: 'F2', x: 434, y: 248, title: 'Depends on 2', lines: [{ dot: ink, text: 'Activity catalog · ready' }, { dot: amber, text: 'Members & access · being drafted' }] },
+      F2bars: { owner: 'F2', x: 434, y: 22, title: 'Not ready to build yet', lines: [{ dot: blue, text: '1 question for you' }, { dot: amber, text: 'Members & access is still being drafted' }] },
+      F2needs: { owner: 'F2', x: 434, y: 22, title: 'Needs you · 1', lines: [{ dot: blue, text: 'Answer: a limit on places per activity?' }] },
+      P1needs: { owner: 'P1', x: 62, y: 196, title: 'Needs you · 2', lines: [{ dot: blue, text: 'Accept or reject 2 checks from Claude Code' }] },
+      Q3needs: { owner: 'Q3', x: 434, y: 462, title: 'Needs you · 1', lines: [{ dot: blue, text: 'Answer this question. A recommendation is ready.' }] },
+      I1conf: { owner: 'I1', x: 778, y: 358, title: 'Conflict', lines: [{ dot: rust, text: 'Contradicts “Only members can sign up”, confirmed by you on Fri' }] }
+    };
+  }
+
+  enter(id) {
+    clearTimeout(this.closeT);
+    clearTimeout(this.openT);
+    const st = this.state || {};
+    const warm = st.hovered || (Date.now() - (this.lastClose || 0) < 400);
+    if (warm) this.setState({ hovered: id, tip: null });
+    else this.openT = setTimeout(() => this.setState({ hovered: id, tip: null }), 380);
+  }
+
+  leave() {
+    clearTimeout(this.openT);
+    clearTimeout(this.closeT);
+    this.closeT = setTimeout(() => { this.lastClose = Date.now(); this.setState({ hovered: null }); }, 220);
+  }
+
+  keep() { clearTimeout(this.closeT); }
+
+  pin(id, ev) {
+    if (ev && ev.stopPropagation) ev.stopPropagation();
+    clearTimeout(this.openT);
+    clearTimeout(this.closeT);
+    this.setState({ pinned: id, hovered: null, tip: null });
+  }
+
+  clear() {
+    clearTimeout(this.openT);
+    this.setState({ pinned: null, hovered: null, tip: null });
+  }
+
+  tipOn(key) {
+    clearTimeout(this.openT);
+    clearTimeout(this.closeT);
+    this.setState({ tip: key, hovered: null });
+  }
+
+  tipOff(owner) {
+    this.setState({ tip: null });
+    this.enter(owner);
+  }
+
+  panel(id, it, mode) {
+    const peek = mode === 'peek';
+    const ink = 'background: #1D1C1A', empty = 'border: 1px solid #BDB8AC';
+    const bars = it.bars === 'ready' ? [ink, empty, empty] : [empty, empty, empty];
+    const dotCss = { confirmed: 'background: #1D1C1A', proposed: 'border: 2px solid #2B4ACB', open: 'border: 1.5px dashed #3E3B36' }[it.st] || '';
+    const word = { confirmed: 'Confirmed', proposed: 'Proposed', open: 'Open', parked: 'Parked' }[it.st];
+    const wordColor = { confirmed: '#1D1C1A', proposed: '#1E3599', open: '#1D1C1A', parked: '#6E6A62' }[it.st];
+    let boxCss;
+    if (peek) {
+      const w = 330;
+      let left = it.x + it.w + 16;
+      if (left + w > 1090) left = it.x - 16 - w;
+      const top = Math.max(12, Math.min(it.y - 8, 796 - 400));
+      boxCss = `left: ${left}px; top: ${top}px; width: ${w}px; border: 1px solid #D6D2C8; border-radius: 14px; box-shadow: 0 14px 36px rgba(29, 28, 26, 0.18);`;
+    } else {
+      boxCss = 'left: 1100px; top: 0px; width: 340px; height: 796px; border-left: 1px solid #E3E0D8;';
+    }
+    return {
+      peek,
+      boxCss,
+      footCss: peek ? '' : 'margin-top: auto;',
+      keep: peek ? () => this.keep() : () => {},
+      leave: peek ? () => this.leave() : () => {},
+      pinMe: () => this.pin(id),
+      isFeature: it.type === 'feature', isDecision: it.type === 'decision', isQuestion: it.type === 'question', isCheck: it.type === 'check', isIdea: it.type === 'idea',
+      kicker: it.kicker, word, wordColor, dotCss, showDot: it.st !== 'parked', isParked: it.st === 'parked',
+      hasBars: !!it.bars, b1: bars[0], b2: bars[1], b3: bars[2],
+      title: it.title, summary: it.summary,
+      hasNeeds: !!it.needs, needsCount: it.needs ? it.needs.count : 0, needsText: it.needs ? it.needs.text : '', needsAction: it.needs ? it.needs.action : '',
+      hasWorking: !!it.working, working: it.working || '',
+      hasConflict: !!it.conflict, conflict: it.conflict || '',
+      from: it.from,
+      hasDeps: !!(it.deps && it.deps.length), deps: it.deps || [],
+      hasLinks: !!it.links, links: it.links || '',
+      hasChecks: !!it.checks, checks: it.checks || '',
+      last: it.last
+    };
+  }
+
+  renderVals() {
+    const st = this.state || {};
+    const pinned = st.pinned === undefined ? 'F2' : st.pinned;
+    const hovered = st.hovered || null;
+    const items = this.items();
+    const edges = this.edges();
+    const tips = this.tips();
+    const active = hovered || pinned;
+    let near = null;
+    if (active) {
+      near = { [active]: true };
+      Object.keys(edges).forEach((k) => { if (edges[k].indexOf(active) >= 0) edges[k].forEach((i) => { near[i] = true; }); });
+    }
+    const v = {};
+    Object.keys(items).forEach((id) => {
+      let ring = '';
+      if (pinned === id) ring = 'border: 2px solid #2B4ACB; box-shadow: 0 0 0 4px #DCE3FB;';
+      else if (hovered === id) ring = 'box-shadow: 0 8px 22px rgba(29, 28, 26, 0.14);';
+      v[id] = {
+        op: near && !near[id] ? 0.3 : 1,
+        ring,
+        enter: () => this.enter(id),
+        leave: () => this.leave(),
+        click: (ev) => this.pin(id, ev)
+      };
+    });
+    const e = {};
+    Object.keys(edges).forEach((k) => {
+      const on = !!active && edges[k].indexOf(active) >= 0;
+      e[k] = { op: !active ? 1 : (on ? 1 : 0.15), w: on ? 2.5 : 1.5 };
+    });
+    const t = {};
+    Object.keys(tips).forEach((k) => {
+      t[k] = { enter: () => this.tipOn(k), leave: () => this.tipOff(tips[k].owner) };
+    });
+    const panels = [];
+    if (pinned && items[pinned]) panels.push(this.panel(pinned, items[pinned], 'pin'));
+    if (hovered && items[hovered] && hovered !== pinned) panels.push(this.panel(hovered, items[hovered], 'peek'));
+    const tip = st.tip ? tips[st.tip] : { x: 0, y: 0, title: '', lines: [] };
+    return {
+      v, e, t, panels,
+      hasTip: !!st.tip, tip,
+      noPin: !pinned,
+      clear: () => this.clear()
+    };
+  }
+}
+</script>
+</body>
+</html>

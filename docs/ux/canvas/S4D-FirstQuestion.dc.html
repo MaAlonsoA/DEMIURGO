@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Day 1 · 4 · The first question</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F4F0}
+a{color:#2B4ACB}a:hover{color:#1E3599}
+</style>
+</helmet>
+<div style="position: relative; width: 1440px; height: 900px; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; background: #F5F4F0; color: #1D1C1A; font-family: 'Instrument Sans', 'Segoe UI', system-ui, sans-serif; font-size: 14px; line-height: 1.5">
+
+<header style="height: 56px; flex-shrink: 0; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 0 24px; background: #FFFFFF; border-bottom: 1px solid #E3E0D8">
+<div style="display: flex; align-items: center; gap: 28px">
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.14em">DEMIURGO</span>
+<span style="font-weight: 600">Club Activities</span>
+<nav aria-label="Sections" style="display: flex; gap: 4px">
+<a href="#" aria-current="page" style="font-weight: 600; text-decoration: none; color: #1D1C1A; background: #EFEDE7; border-radius: 6px; padding: 6px 12px">Product</a>
+<a href="#" style="font-weight: 500; text-decoration: none; color: #5B5850; border-radius: 6px; padding: 6px 12px">Threads</a>
+<a href="#" style="font-weight: 500; text-decoration: none; color: #5B5850; border-radius: 6px; padding: 6px 12px">History</a>
+</nav>
+</div>
+<span style="display: flex; align-items: center; gap: 8px; font-weight: 600">Needs you<span onMouseEnter="{{ on.needs }}" onMouseLeave="{{ off }}" style="min-width: 22px; height: 22px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: #2B4ACB; color: #FFFFFF; font-size: 12px; font-weight: 700; padding: 0 6px; box-shadow: {{ h.needs }}; transition: box-shadow 120ms">3</span></span>
+</header>
+
+<div style="flex-grow: 1; min-height: 0; display: flex">
+<main style="flex-grow: 1; min-width: 0; box-sizing: border-box; display: flex; flex-direction: column; gap: 22px; padding: 22px 40px">
+
+<div style="align-self: flex-start; display: flex; align-items: center; gap: 12px; background: #1D1C1A; color: #FFFFFF; border-radius: 10px; padding: 8px 8px 8px 14px; font-size: 13px"><span style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: #FFFFFF; color: #1D1C1A"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"></path></svg></span>Starting point confirmed · 9 items<button type="button" style="font: inherit; font-size: 13px; font-weight: 600; color: #FFFFFF; background: rgba(255, 255, 255, 0.14); border: none; border-radius: 6px; padding: 3px 10px; cursor: pointer">Undo</button></div>
+
+<section style="display: flex; flex-direction: column; gap: 6px; opacity: 0.5">
+<span style="font-size: 12px; font-weight: 600; color: #6E6A62">The product</span>
+<h1 style="margin: 0; font-size: 28px; font-weight: 600; line-height: 1.2">Club Activities</h1>
+<p style="margin: 0; display: flex; align-items: center; gap: 10px; font-size: 16px; color: #3E3B36"><span onMouseEnter="{{ on.confirmed }}" onMouseLeave="{{ off }}" style="width: 10px; height: 10px; flex-shrink: 0; border-radius: 50%; background: #1D1C1A; box-shadow: {{ h.confirmed }}; transition: box-shadow 120ms"></span>Publish the association's activities and let members sign up.</p>
+</section>
+
+<section style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h2 style="margin: 0; font-size: 12px; font-weight: 600; color: #6E6A62">Who uses it</h2>
+<div style="display: flex; gap: 8px; flex-wrap: wrap">
+<span style="display: inline-flex; align-items: center; gap: 8px; background: #FFFFFF; border: 1px solid #E3E0D8; border-radius: 8px; padding: 7px 10px; opacity: 0.5"><span onMouseEnter="{{ on.confirmed }}" onMouseLeave="{{ off }}" style="width: 10px; height: 10px; border-radius: 50%; background: #1D1C1A; box-shadow: {{ h.confirmed }}; transition: box-shadow 120ms"></span><strong style="font-weight: 600">Organizers</strong></span>
+<span style="display: inline-flex; align-items: center; gap: 8px; background: #FFFFFF; border: 2px solid #2B4ACB; border-radius: 8px; padding: 6px 9px"><span onMouseEnter="{{ on.confirmed }}" onMouseLeave="{{ off }}" style="width: 10px; height: 10px; border-radius: 50%; background: #1D1C1A; box-shadow: {{ h.confirmed }}; transition: box-shadow 120ms"></span><strong style="font-weight: 600">Members</strong></span>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; opacity: 0.5">
+<h2 style="margin: 0; font-size: 12px; font-weight: 600; color: #6E6A62">Rules for the whole product</h2>
+<div style="display: flex; gap: 8px; flex-wrap: wrap">
+<span style="display: inline-flex; align-items: center; gap: 8px; background: #FFFFFF; border: 1px solid #E3E0D8; border-radius: 8px; padding: 7px 10px"><span onMouseEnter="{{ on.confirmed }}" onMouseLeave="{{ off }}" style="width: 10px; height: 10px; border-radius: 50%; background: #1D1C1A; box-shadow: {{ h.confirmed }}; transition: box-shadow 120ms"></span>Members sign up themselves</span>
+<span style="display: inline-flex; align-items: center; gap: 8px; background: #FFFFFF; border: 1px solid #E3E0D8; border-radius: 8px; padding: 7px 10px"><span onMouseEnter="{{ on.confirmed }}" onMouseLeave="{{ off }}" style="width: 10px; height: 10px; border-radius: 50%; background: #1D1C1A; box-shadow: {{ h.confirmed }}; transition: box-shadow 120ms"></span>Each activity has a date and a place</span>
+</div>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-size: 12px; font-weight: 600; color: #6E6A62">Features</h2>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px">
+
+<div style="height: 128px; box-sizing: border-box; display: flex; flex-direction: column; gap: 5px; background: #FFFFFF; border: 1px dashed #8C877B; border-radius: 12px; padding: 13px 14px; opacity: 0.5">
+<span style="display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #6E6A62"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 9h18"></path><path d="M9 9v11"></path></svg>FEATURE<span style="color: #C4BFB3">·</span><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; letter-spacing: 0; color: #1D1C1A"><span onMouseEnter="{{ on.open }}" onMouseLeave="{{ off }}" style="width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; border: 1.5px dashed #3E3B36; box-shadow: {{ h.open }}; transition: box-shadow 120ms"></span>Open</span><span title="Not ready" onMouseEnter="{{ on.bars }}" onMouseLeave="{{ off }}" style="margin-left: auto; display: flex; gap: 3px; border-radius: 3px; box-shadow: {{ h.bars }}; transition: box-shadow 120ms"><span style="width: 10px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span><span style="width: 10px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span><span style="width: 10px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span></span></span>
+<strong style="font-size: 15px; font-weight: 600">Activity catalog</strong>
+<span style="font-size: 13px; color: #5B5850">Not affected by the questions.</span>
+<span style="margin-top: auto; display: flex; align-items: center; justify-content: space-between; padding-top: 7px; border-top: 1px solid #EFEDE7; font-size: 12px; color: #6E6A62"><span>DEMIURGO</span><span style="display: flex; align-items: center; gap: 6px; font-weight: 600; color: #6B4608"><span onMouseEnter="{{ on.working }}" onMouseLeave="{{ off }}" style="width: 8px; height: 8px; border-radius: 50%; background: #B7791F; box-shadow: {{ h.working }}; transition: box-shadow 120ms"></span>Drafting 20s</span></span>
+</div>
+
+<div style="height: 128px; box-sizing: border-box; display: flex; flex-direction: column; gap: 5px; background: #FFFFFF; border: 2px solid #2B4ACB; border-radius: 12px; padding: 12px 13px; box-shadow: 0 0 0 4px #DCE3FB">
+<span style="display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #6E6A62"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 9h18"></path><path d="M9 9v11"></path></svg>FEATURE<span style="color: #C4BFB3">·</span><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; letter-spacing: 0; color: #1D1C1A"><span onMouseEnter="{{ on.open }}" onMouseLeave="{{ off }}" style="width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; border: 1.5px dashed #3E3B36; box-shadow: {{ h.open }}; transition: box-shadow 120ms"></span>Open</span><span title="Not ready" onMouseEnter="{{ on.bars }}" onMouseLeave="{{ off }}" style="margin-left: auto; display: flex; gap: 3px; border-radius: 3px; box-shadow: {{ h.bars }}; transition: box-shadow 120ms"><span style="width: 10px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span><span style="width: 10px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span><span style="width: 10px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span></span></span>
+<strong style="font-size: 15px; font-weight: 600">Sign up for an activity</strong>
+<span style="font-size: 13px; color: #5B5850">Waits for your answer.</span>
+<span style="margin-top: auto; padding-top: 7px; border-top: 1px solid #EFEDE7; font-size: 12px; font-weight: 600; color: #1E3599">Affected by this question</span>
+</div>
+
+<div style="height: 128px; box-sizing: border-box; display: flex; flex-direction: column; gap: 5px; background: #FFFFFF; border: 1px dashed #8C877B; border-radius: 12px; padding: 13px 14px; opacity: 0.5">
+<span style="display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #6E6A62"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 9h18"></path><path d="M9 9v11"></path></svg>FEATURE<span style="color: #C4BFB3">·</span><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; letter-spacing: 0; color: #1D1C1A"><span onMouseEnter="{{ on.open }}" onMouseLeave="{{ off }}" style="width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; border: 1.5px dashed #3E3B36; box-shadow: {{ h.open }}; transition: box-shadow 120ms"></span>Open</span><span title="Not ready" onMouseEnter="{{ on.bars }}" onMouseLeave="{{ off }}" style="margin-left: auto; display: flex; gap: 3px; border-radius: 3px; box-shadow: {{ h.bars }}; transition: box-shadow 120ms"><span style="width: 10px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span><span style="width: 10px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span><span style="width: 10px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span></span></span>
+<strong style="font-size: 15px; font-weight: 600">See who's coming</strong>
+<span style="font-size: 13px; color: #5B5850">Waits its turn.</span>
+</div>
+
+<div style="height: 128px; box-sizing: border-box; display: flex; flex-direction: column; gap: 5px; background: #FFFFFF; border: 2px dashed #2B4ACB; border-radius: 12px; padding: 12px 13px">
+<span style="display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #6E6A62"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 9h18"></path><path d="M9 9v11"></path></svg>FEATURE<span style="color: #C4BFB3">·</span><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; letter-spacing: 0; color: #1D1C1A"><span onMouseEnter="{{ on.open }}" onMouseLeave="{{ off }}" style="width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; border: 1.5px dashed #3E3B36; box-shadow: {{ h.open }}; transition: box-shadow 120ms"></span>Open</span><span title="Not ready" onMouseEnter="{{ on.bars }}" onMouseLeave="{{ off }}" style="margin-left: auto; display: flex; gap: 3px; border-radius: 3px; box-shadow: {{ h.bars }}; transition: box-shadow 120ms"><span style="width: 10px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span><span style="width: 10px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span><span style="width: 10px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span></span></span>
+<strong style="font-size: 15px; font-weight: 600">Members &amp; access</strong>
+<span style="font-size: 13px; color: #5B5850">Waits for your answer.</span>
+<span style="margin-top: auto; padding-top: 7px; border-top: 1px solid #EFEDE7; font-size: 12px; font-weight: 600; color: #1E3599">Affected by this question</span>
+</div>
+
+</div>
+</section>
+</main>
+
+<aside aria-label="Question 1 of 3" style="width: 420px; flex-shrink: 0; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px; padding: 22px 24px; border-left: 1px solid #E3E0D8; background: #FFFFFF">
+<div style="display: flex; align-items: center; justify-content: space-between">
+<span style="display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #6E6A62"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H10l-4 4v-4H4z"></path></svg>QUESTION<span style="color: #C4BFB3">·</span><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; letter-spacing: 0; color: #1D1C1A"><span onMouseEnter="{{ on.open }}" onMouseLeave="{{ off }}" style="width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; border: 1.5px dashed #3E3B36; box-shadow: {{ h.open }}; transition: box-shadow 120ms"></span>Open</span></span>
+<span style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: #3E3B36">1 of 3<span aria-hidden="true" style="display: flex; gap: 3px"><span style="width: 16px; height: 4px; border-radius: 2px; background: #2B4ACB"></span><span style="width: 16px; height: 4px; border-radius: 2px; background: #D6D2C8"></span><span style="width: 16px; height: 4px; border-radius: 2px; background: #D6D2C8"></span></span></span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<h2 style="margin: 0; font-size: 21px; font-weight: 600; line-height: 1.3">Can anyone sign up, or only members?</h2>
+<span style="font-size: 13px; color: #5B5850">It decides who can use the app and whether we need a way to know who is a member.</span>
+</div>
+
+<div role="radiogroup" aria-label="Your answer" style="display: flex; flex-direction: column; gap: 8px">
+<sc-for list="{{ options }}" as="o" hint-placeholder-count="3">
+<button type="button" role="radio" aria-checked="{{ o.checked }}" onClick="{{ o.pick }}" style="font: inherit; text-align: left; display: flex; gap: 12px; align-items: flex-start; background: {{ o.bg }}; border: {{ o.border }}; border-radius: 12px; padding: 12px 14px; cursor: pointer; color: #1D1C1A">
+<span style="width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; box-sizing: border-box; border-radius: 50%; {{ o.radio }}"></span>
+<span style="display: flex; flex-direction: column; gap: 2px"><span style="display: flex; align-items: center; gap: 8px; font-weight: 600">{{ o.label }}<sc-if value="{{ o.rec }}" hint-placeholder-val="{{ false }}"><span style="font-size: 11px; font-weight: 700; color: #1E3599; background: #E0E6FA; border-radius: 4px; padding: 1px 6px">Recommended</span></sc-if></span><span style="font-size: 13px; color: #5B5850">{{ o.effect }}</span><sc-if value="{{ o.rec }}" hint-placeholder-val="{{ false }}"><span style="font-size: 12px; color: #1E3599">Why: your idea only talks about members, and the activities are internal.</span></sc-if></span>
+</button>
+</sc-for>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="q1-note" style="font-size: 12px; font-weight: 600; color: #3E3B36">Add a note <span style="font-weight: 400; color: #6E6A62">(optional)</span></label>
+<input id="q1-note" type="text" placeholder="Anything I should keep in mind" style="font: inherit; font-size: 13px; border: 1px solid #D6D2C8; border-radius: 8px; padding: 8px 10px; background: #FFFFFF; color: #1D1C1A">
+</div>
+
+<div style="margin-top: auto; display: flex; flex-direction: column; gap: 10px">
+<a href="S4E-DayDone.dc.html" style="text-align: center; font-weight: 600; color: #FFFFFF; background: #2B4ACB; border-radius: 10px; padding: 11px 16px; text-decoration: none">Confirm: {{ chosen }}</a>
+<div style="display: flex; gap: 8px"><button type="button" style="flex-grow: 1; font: inherit; font-weight: 600; color: #1D1C1A; background: #FFFFFF; border: 1px solid #D6D2C8; border-radius: 8px; padding: 8px 12px; cursor: pointer">Not now</button><button type="button" style="flex-grow: 1; font: inherit; font-weight: 600; color: #5B5850; background: transparent; border: 1px solid #E3E0D8; border-radius: 8px; padding: 8px 12px; cursor: pointer">Doesn't apply</button></div>
+<span style="font-size: 12px; color: #6E6A62">Talk it through with DEMIURGO instead: <a href="#" style="font-weight: 600; text-decoration: none">Ask about this</a></span>
+</div>
+</aside>
+</div>
+
+<button type="button" onClick="{{ lg.toggle }}" aria-label="What the marks mean" aria-expanded="{{ lg.aria }}" title="What the marks mean (?)" style="position: absolute; left: 24px; bottom: 24px; font: inherit; height: 34px; min-width: 34px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: 6px; background: {{ lg.iBg }}; border: 1px solid #D6D2C8; border-radius: 999px; padding: {{ lg.pad }}; box-shadow: 0 4px 14px rgba(29, 28, 26, 0.08); cursor: pointer; color: #1D1C1A"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 11v7"></path><circle cx="12" cy="6.5" r="1.4" fill="currentColor" stroke="none"></circle></svg><sc-if value="{{ lg.fresh }}" hint-placeholder-val="{{ true }}"><span style="font-size: 12px; font-weight: 600">{{ lg.newLabel }}</span></sc-if></button>
+
+<sc-if value="{{ lg.pop }}" hint-placeholder-val="{{ false }}">
+<section role="dialog" aria-label="What the marks mean" style="position: absolute; left: 24px; bottom: 70px; width: 312px; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; background: #FFFFFF; border: 1px solid #D6D2C8; border-radius: 14px; padding: 14px 16px; box-shadow: 0 12px 32px rgba(29, 28, 26, 0.14)">
+<div style="display: flex; align-items: center; justify-content: space-between">
+<strong style="font-size: 13px; font-weight: 600">What the marks mean</strong>
+<button type="button" onClick="{{ lg.toggle }}" aria-label="Close" style="font: inherit; display: flex; background: transparent; border: none; padding: 2px; cursor: pointer; color: #6E6A62"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
+<span style="font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #6E6A62">NEW ON THIS SCREEN</span>
+<sc-for list="{{ lg.newList }}" as="e" hint-placeholder-count="2">
+<div onMouseEnter="{{ e.on }}" onMouseLeave="{{ e.off }}" style="display: flex; gap: 8px; align-items: flex-start; border-radius: 8px; padding: 6px 6px; background: {{ e.bg }}; transition: background 120ms">
+<span style="width: 34px; height: 20px; flex-shrink: 0; display: flex; align-items: center; justify-content: center">
+<sc-if value="{{ e.isDot }}" hint-placeholder-val="{{ true }}"><span style="width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; {{ e.dot }}"></span></sc-if>
+<sc-if value="{{ e.isBubble }}" hint-placeholder-val="{{ false }}"><span style="min-width: 18px; height: 18px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: #2B4ACB; color: #FFFFFF; font-size: 11px; font-weight: 700; padding: 0 5px">1</span></sc-if>
+<sc-if value="{{ e.isBars }}" hint-placeholder-val="{{ false }}"><span style="display: flex; gap: 2px"><span style="width: 8px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span><span style="width: 8px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span><span style="width: 8px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span></span></sc-if>
+<sc-if value="{{ e.isChecks }}" hint-placeholder-val="{{ false }}"><span style="display: flex; align-items: center; gap: 2px; font-size: 11px; font-weight: 600; color: #3E3B36"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3.5"></circle></svg>0/3</span></sc-if>
+<sc-if value="{{ e.isWho }}" hint-placeholder-val="{{ false }}"><span style="width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; background: #1D1C1A; color: #FFFFFF; font-size: 9px; font-weight: 700">D</span></sc-if>
+</span>
+<span style="display: flex; flex-direction: column"><strong style="font-size: 13px; font-weight: 600">{{ e.word }}</strong><span style="font-size: 12px; line-height: 1.4; color: #5B5850">{{ e.desc }}</span></span>
+</div>
+</sc-for>
+<span style="padding-top: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: #6E6A62">ALSO ON THIS SCREEN</span>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 8px">
+<sc-for list="{{ lg.known }}" as="e" hint-placeholder-count="4">
+<div onMouseEnter="{{ e.on }}" onMouseLeave="{{ e.off }}" style="display: flex; align-items: center; gap: 6px; border-radius: 6px; padding: 5px 4px; background: {{ e.bg }}; transition: background 120ms">
+<span style="width: 34px; height: 20px; flex-shrink: 0; display: flex; align-items: center; justify-content: center">
+<sc-if value="{{ e.isDot }}" hint-placeholder-val="{{ true }}"><span style="width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; {{ e.dot }}"></span></sc-if>
+<sc-if value="{{ e.isBubble }}" hint-placeholder-val="{{ false }}"><span style="min-width: 18px; height: 18px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: #2B4ACB; color: #FFFFFF; font-size: 11px; font-weight: 700; padding: 0 5px">1</span></sc-if>
+<sc-if value="{{ e.isBars }}" hint-placeholder-val="{{ false }}"><span style="display: flex; gap: 2px"><span style="width: 8px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span><span style="width: 8px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span><span style="width: 8px; height: 6px; box-sizing: border-box; border-radius: 2px; border: 1px solid #BDB8AC"></span></span></sc-if>
+<sc-if value="{{ e.isChecks }}" hint-placeholder-val="{{ false }}"><span style="display: flex; align-items: center; gap: 2px; font-size: 11px; font-weight: 600; color: #3E3B36"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3.5"></circle></svg>0/3</span></sc-if>
+<sc-if value="{{ e.isWho }}" hint-placeholder-val="{{ false }}"><span style="width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; background: #1D1C1A; color: #FFFFFF; font-size: 9px; font-weight: 700">D</span></sc-if>
+</span>
+<span style="font-size: 13px">{{ e.word }}</span>
+</div>
+</sc-for>
+</div>
+<div style="display: flex; align-items: center; justify-content: space-between; padding-top: 8px; border-top: 1px solid #EFEDE7; font-size: 12px"><a href="S3A-Language.dc.html" style="font-weight: 600; text-decoration: none">See every mark</a><span style="color: #6E6A62">Press ? to open it anywhere</span></div>
+</section>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  legendVals(NEW, KNOWN) {
+    const st = this.state || {};
+    const hl = st.hl || null;
+    const mode = st.legend || 'closed';
+    const set = (k) => () => this.setState({ hl: k });
+    const off = () => this.setState({ hl: null });
+    const ring = '0 0 0 2px #FFFFFF, 0 0 0 4px #1D1C1A';
+    const halo = (k, base, r) => hl === k ? (base ? base + ', 0 0 0 ' + (r || 5) + 'px #1D1C1A' : ring) : (base || 'none');
+    const SYM = {
+      confirmed: { word: 'Confirmed', kind: 'dot', dot: 'background: #1D1C1A' },
+      assumed: { word: 'Assumed', kind: 'dot', dot: 'border: 1.5px solid #1D1C1A; background: linear-gradient(90deg, #1D1C1A 50%, transparent 50%)' },
+      proposed: { word: 'Proposed', kind: 'dot', dot: 'border: 2px solid #2B4ACB' },
+      open: { word: 'Open', kind: 'dot', dot: 'border: 1.5px dashed #3E3B36' },
+      needs: { word: 'Needs you', kind: 'bubble' },
+      working: { word: 'Working', kind: 'dot', dot: 'background: #B7791F; box-shadow: 0 0 0 3px #F6EDDA' },
+      bars: { word: 'Not ready', kind: 'bars' },
+      checks: { word: 'Checks', kind: 'checks' },
+      who: { word: 'Who did it', kind: 'who' }
+    };
+    const entry = (k, desc) => ({
+      word: SYM[k].word, desc: desc || '', dot: SYM[k].dot || '',
+      isDot: SYM[k].kind === 'dot', isBubble: SYM[k].kind === 'bubble', isBars: SYM[k].kind === 'bars',
+      isChecks: SYM[k].kind === 'checks', isWho: SYM[k].kind === 'who',
+      bg: hl === k ? '#EFEDE7' : 'transparent',
+      on: set(k), off
+    });
+    const on = {};
+    const h = {};
+    Object.keys(SYM).forEach((k) => { on[k] = set(k); h[k] = halo(k); });
+    h.working = halo('working', '0 0 0 3px #F6EDDA');
+    h.needsCard = halo('needs', '0 0 0 3px #F5F4F0');
+    h.bars = hl === 'bars' ? '0 0 0 3px #FFFFFF, 0 0 0 5px #1D1C1A' : 'none';
+    h.checks = hl === 'checks' ? '0 0 0 3px #FFFFFF, 0 0 0 5px #1D1C1A' : 'none';
+    const pop = mode === 'pop';
+    // A mark stays "new" until its explanation has been seen once.
+    const fresh = !st.seen;
+    return {
+      on, off, h,
+      lg: {
+        pop, fresh,
+        aria: pop ? 'true' : 'false',
+        iBg: pop ? '#EFEDE7' : '#FFFFFF',
+        pad: fresh ? '0 12px 0 9px' : '0',
+        newLabel: NEW.length + ' new marks',
+        newList: NEW.map((n) => entry(n.k, n.desc)),
+        known: KNOWN.map((k) => entry(k)),
+        toggle: () => this.setState({ legend: pop ? 'closed' : 'pop', seen: true, hl: null })
+      }
+    };
+  }
+
+  renderVals() {
+    const st = this.state || {};
+    const picked = st.picked === undefined ? 0 : st.picked;
+    const O = [
+      { label: 'Only members', effect: 'Members sign in; others can see activities but not sign up.', rec: true },
+      { label: 'Members and guests', effect: 'Adds a way to invite guests and count them.', rec: false },
+      { label: 'Anyone', effect: 'No membership needed. Simpler, but anyone can take a place.', rec: false }
+    ];
+    const options = O.map((o, i) => ({
+      label: o.label, effect: o.effect, rec: o.rec,
+      checked: i === picked ? 'true' : 'false',
+      bg: i === picked ? '#F4F6FE' : '#FFFFFF',
+      border: i === picked ? '2px solid #2B4ACB' : '1px solid #E3E0D8',
+      radio: i === picked ? 'border: 5px solid #2B4ACB; background: #FFFFFF' : 'border: 2px solid #BDB8AC',
+      pick: () => this.setState({ picked: i })
+    }));
+    const NEW = [
+      { k: 'bars', desc: 'How far a feature is: ready · built · verified. All empty: it still needs details.' },
+      { k: 'working', desc: "DEMIURGO is on it. The time says for how long. You don't have to wait." }
+    ];
+    return Object.assign({ options, chosen: O[picked].label.toLowerCase() }, this.legendVals(NEW, ['confirmed', 'open', 'needs']));
+  }
+}
+</script>
+</body>
+</html>

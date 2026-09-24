@@ -16,6 +16,7 @@ import { type Stage, StageBars } from '../../ui/signals.tsx';
 import { KIND_WORDS, type NeedContext } from './frame.tsx';
 import { catchUpOrder, minutesOf, type NeedItem } from './order.ts';
 import { NeedView, needTitle } from './NeedView.tsx';
+import { UpToDate } from './UpToDate.tsx';
 
 type Seen = { key: string; kind: NeedItem['kind']; title: string };
 
@@ -45,6 +46,9 @@ export function CatchUp({ ctx, items }: { ctx: NeedContext; items: NeedItem[] | 
   const total = Math.max(walk.length, ordered.length);
   const position = Math.min(handled + 1, total);
   const leave = () => void navigate({ to: '/p/$projectId/needs-you', params: { projectId: ctx.projectId } });
+
+  // Everything resolved (or nothing to start with): you're up to date (canvas S6C).
+  if (items && ordered.length === 0) return <UpToDate projectId={ctx.projectId} />;
 
   return (
     <Page
@@ -255,16 +259,13 @@ function WhatItUnblocks({ ctx, item }: { ctx: NeedContext; item: NeedItem }) {
   );
 }
 
+/** The end of the walk with things skipped: they stay in Needs you (with nothing left, it is "You're up to date"). */
 function Finished({ projectId, skipped }: { projectId: string; skipped: number }) {
   return (
     <section className="flex max-w-[860px] flex-col gap-2" data-finished>
-      <h1 className="text-2xl leading-tight font-semibold">
-        {skipped > 0 ? 'You went through everything' : 'Nothing needs you'}
-      </h1>
+      <h1 className="text-2xl leading-tight font-semibold">You went through everything</h1>
       <p className="text-sm text-ink-2">
-        {skipped > 0
-          ? `${skipped} ${skipped === 1 ? 'thing you skipped stays' : 'things you skipped stay'} in Needs you, in the same order.`
-          : PRODUCT_WORDS.nothingNeedsYou}
+        {`${skipped} ${skipped === 1 ? 'thing you skipped stays' : 'things you skipped stay'} in Needs you, in the same order.`}
       </p>
       <div className="mt-2 flex items-center gap-3">
         <Link to="/p/$projectId/needs-you" params={{ projectId }} className={buttonStyles({ variant: 'ink', size: 'lg' })}>

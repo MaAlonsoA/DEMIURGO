@@ -4,7 +4,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearch } from '@tanstack/react-router';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useRef, useState } from 'react';
 import { ApiError } from '../../api/client.ts';
 import { useCommand } from '../../api/commands.ts';
 import { inboxQuery, readinessQuery, recordQuery, stateQuery } from '../../api/queries.ts';
@@ -12,7 +12,8 @@ import { canCreate } from '../../api/tables.ts';
 import type { RecordDetail, RecordVersion } from '../../api/types.ts';
 import { useRouteParams, useTables } from '../../lib/hooks.ts';
 import { dayTime } from '../../lib/time.ts';
-import { ActionButtons, useActions } from '../../ui/ActionBar.tsx';
+import { ActionButtons, useActions, useAllows } from '../../ui/ActionBar.tsx';
+import { AskBar, type AskBarHandle } from '../../ui/AskBar.tsx';
 import { buttonStyles } from '../../ui/Button.tsx';
 import { Code } from '../../ui/Card.tsx';
 import { ConfirmDialog, TextDialog } from '../../ui/dialogs.tsx';
@@ -28,6 +29,8 @@ import { type NeedsItem, needsItems } from '../overview/needs.ts';
 import { Checks } from './Checks.tsx';
 import { isEarlierDraft, newerDraft, selectVersion, versionIndex, versionStage } from './logic.ts';
 import { ContextPanel, ReadinessPanel, VersionsPanel } from './RecordAside.tsx';
+import { ReviewArea, ReviewBand, ReviewProvider, ReviewSections, useReview } from './Review.tsx';
+import { canReview } from './review.ts';
 import { VersionPicker } from './VersionPicker.tsx';
 
 type Dialog = null | 'approve' | 'discard';
@@ -303,53 +306,95 @@ function RecordPage({
   const next = inbox
     ? needsItems(inbox, state).find((i) => !('code' in i.target.params) || i.target.params.code !== record.code)
     : undefined;
+  // The guided review of a draft (canvas S5A–S5B) and "Ask DEMIURGO about this", tied to this version.
+  const tables = useTables();
+  const allows = useAllows('record_version', version.state);
+  const reviewable = canReview(record.type, version.state, allows('record_version.approve'), isEarlierDraft(record, version));
+  const review = useReview(record, version, reviewable);
+  const ask = useRef<AskBarHandle>(null);
   const aside = (
     <>
       <ReadinessPanel projectId={projectId} version={version} readiness={ready} stage={versionStage(version, ready)} />
-      <ContextPanel
-        projectId={projectId}
-        version={version}
-        thread={thread}
-        targets={state ? versionIndex(state, inbox) : undefined}
-      />
-      <VersionsPanel projectId={projectId} record={record} shown={version} />
+      <ReviewArea part="context">
+        <ContextPanel
+          projectId={projectId}
+          version={version}
+          thread={thread}
+          targets={state ? versionIndex(state, inbox) : undefined}
+        />
+      </ReviewArea>
+      <ReviewArea part="versions">
+        <VersionsPanel projectId={projectId} record={record} shown={version} />
+      </ReviewArea>
     </>
   );
+  const askBar = (
+    <AskBar
+      key={record.code}
+      ref={ask}
+      projectId={projectId}
+      variant="panel"
+      subject={{
+        kind: 'record',
+        type: record.type,
+        title: version.title,
+        versionIds: record.versions.map((v) => v.id),
+        versionId: version.id,
+      }}
+    />
+  );
   return (
-    <Page aside={aside} className="[&>*]:max-w-[900px]">
-      <Breadcrumbs items={[{ label: 'Product', to: '/p/$projectId', params: { projectId } }, { label: version.title }]} />
-      <Header projectId={projectId} record={record} version={version} />
-      {ready?.ready && version.current ? (
-        <ReadyBanner projectId={projectId} version={version} next={next} />
-      ) : version.current && next && !newerDraft(record, version) ? (
-        <NextStrip projectId={projectId} next={next} />
-      ) : (
-        <VersionNotice projectId={projectId} record={record} version={version} />
-      )}
-      <article className="mb-8 flex flex-col gap-6 rounded-[var(--radius-panel)] border border-line bg-surface px-7 py-6">
-        {version.sections.map((s) => (
-          <section key={s.title} className="flex flex-col gap-1.5">
-            <h2 className="text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">{s.title}</h2>
-            <Markdown>{s.content}</Markdown>
-          </section>
-        ))}
-      </article>
-      {record.type !== 'decision' || version.criteria.length > 0 ? (
-        <Checks criteria={version.criteria} readiness={ready} />
-      ) : null}
-      {version.annexes.length > 0 && (
-        <section className="mt-8 flex flex-col gap-2">
-          <h2 className="text-xs font-semibold text-muted">Annexes · {version.annexes.length}</h2>
-          {version.annexes.map((a) => (
-            <details key={a.path} className="rounded-[var(--radius-card)] border border-line bg-surface px-4 py-2.5">
-              <summary className="cursor-pointer font-mono text-xs text-ink-2">{a.path}</summary>
-              <pre className="mt-2 max-h-96 overflow-auto rounded-md bg-surface-2 p-3 font-mono text-[11px] leading-relaxed">
-                {a.content}
-              </pre>
-            </details>
-          ))}
-        </section>
-      )}
-    </Page>
+    <ReviewProvider review={review}>
+      <Page aside={aside} asideFooter={askBar} className="[&>*]:max-w-[900px]">
+        <Breadcrumbs items={[{ label: 'Product', to: '/p/$projectId', params: { projectId } }, { label: version.title }]} />
+        <Header projectId={projectId} record={record} version={version} />
+        {reviewable ? (
+          <ReviewBand
+            projectId={projectId}
+            record={record}
+            version={version}
+            review={review}
+            ask={ask}
+            canNewVersion={!!tables && canCreate(tables, 'record_version.create')}
+          />
+        ) : ready?.ready && version.current ? (
+          <ReadyBanner projectId={projectId} version={version} next={next} />
+        ) : version.current && next && !newerDraft(record, version) ? (
+          <NextStrip projectId={projectId} next={next} />
+        ) : (
+          <VersionNotice projectId={projectId} record={record} version={version} />
+        )}
+        <article className="mb-8 flex flex-col gap-6 rounded-[var(--radius-panel)] border border-line bg-surface px-7 py-6">
+          <ReviewSections sections={version.sections} parts={review.parts}>
+            {(s) => (
+              <section key={s.title} className="flex flex-col gap-1.5">
+                <h2 className="text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">{s.title}</h2>
+                <Markdown>{s.content}</Markdown>
+              </section>
+            )}
+          </ReviewSections>
+        </article>
+        {record.type !== 'decision' || version.criteria.length > 0 ? (
+          <ReviewArea part="checks">
+            <Checks criteria={version.criteria} readiness={ready} />
+          </ReviewArea>
+        ) : null}
+        {version.annexes.length > 0 && (
+          <ReviewArea part="annexes">
+            <section className="mt-8 flex flex-col gap-2">
+              <h2 className="text-xs font-semibold text-muted">Annexes · {version.annexes.length}</h2>
+              {version.annexes.map((a) => (
+                <details key={a.path} className="rounded-[var(--radius-card)] border border-line bg-surface px-4 py-2.5">
+                  <summary className="cursor-pointer font-mono text-xs text-ink-2">{a.path}</summary>
+                  <pre className="mt-2 max-h-96 overflow-auto rounded-md bg-surface-2 p-3 font-mono text-[11px] leading-relaxed">
+                    {a.content}
+                  </pre>
+                </details>
+              ))}
+            </section>
+          </ReviewArea>
+        )}
+      </Page>
+    </ReviewProvider>
   );
 }

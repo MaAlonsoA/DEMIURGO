@@ -7,7 +7,6 @@ import { useId } from 'react';
 import { explorationsQuery, inboxQuery, stateQuery, taxonomiesQuery } from '../../api/queries.ts';
 import type { ProductRow } from '../../api/types.ts';
 import { useProjectId } from '../../lib/hooks.ts';
-import { PRODUCT_WORDS } from '../../words.ts';
 import { buttonStyles } from '../../ui/Button.tsx';
 import { WarningIcon } from '../../ui/icons.tsx';
 import { Page, PageTitle, Skeleton } from '../../ui/layout.tsx';
@@ -17,6 +16,7 @@ import { CatchUp } from './CatchUp.tsx';
 import { KIND_WORDS, type NeedContext } from './frame.tsx';
 import { catchUpOrder, type Group, type GroupKey, groupsOf, minutesOf, type NeedItem, needsOf } from './order.ts';
 import { NeedView, needTitle } from './NeedView.tsx';
+import { UpToDate } from './UpToDate.tsx';
 
 const HINTS: Record<GroupKey, string> = {
   conflicts: 'Knowledge found them. DEMIURGO recommends; you decide.',
@@ -53,6 +53,8 @@ export function NeedsYouScreen() {
 
 function NeedsList({ ctx, items, total }: { ctx: NeedContext; items: NeedItem[] | null; total: number }) {
   const groups = items ? groupsOf(items) : [];
+  // Nothing left: you're up to date (canvas S6C).
+  if (items && items.length === 0) return <UpToDate projectId={ctx.projectId} />;
   return (
     <Page aside={items && items.length > 0 ? <InOrder ctx={ctx} items={items} /> : undefined}>
       <PageTitle
@@ -62,14 +64,10 @@ function NeedsList({ ctx, items, total }: { ctx: NeedContext; items: NeedItem[] 
             <NeedsBubble count={total} />
           </span>
         }
-        subtitle={
-          items && items.length === 0 ? undefined : 'Everything that waits for you. Each thing is resolved here, in place.'
-        }
+        subtitle="Everything that waits for you. Each thing is resolved here, in place."
       />
       {!items ? (
         <ListSkeleton />
-      ) : items.length === 0 ? (
-        <AllClear projectId={ctx.projectId} />
       ) : (
         <div className="flex max-w-[980px] flex-col gap-8">
           {groups.map((g) => (
@@ -149,22 +147,6 @@ function InOrder({ ctx, items }: { ctx: NeedContext; items: NeedItem[] }) {
       </Link>
       <p className="text-center text-xs text-muted">One at a time, in this order. What you skip stays here.</p>
     </section>
-  );
-}
-
-export function AllClear({ projectId }: { projectId: string }) {
-  return (
-    <div className="flex max-w-[560px] flex-col gap-1.5 rounded-xl bg-surface-2 px-6 py-5" data-all-clear>
-      <strong className="text-[15px] font-semibold">{PRODUCT_WORDS.nothingNeedsYou}</strong>
-      <span className="text-[13px] text-ink-3">Everything is saved.</span>
-      <Link
-        to="/p/$projectId"
-        params={{ projectId }}
-        className="mt-1 text-[13px] font-semibold text-needs hover:text-needs-hover"
-      >
-        See the product
-      </Link>
-    </div>
   );
 }
 

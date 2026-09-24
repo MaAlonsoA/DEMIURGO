@@ -17,6 +17,8 @@ export type CardProps = {
   bars?: ReactNode;
   needs?: number;
   needsDetail?: string;
+  /** Where it is, in one pill above the title (canvas B1): "Ready to build", "Needs you", "Working". */
+  pill?: ReactNode;
   title: string;
   line?: ReactNode;
   who?: ReactNode;
@@ -74,6 +76,7 @@ export function Card(p: CardProps) {
         </span>
       ) : null}
       <Kind icon={p.icon} type={p.type} status={p.status} bars={p.bars} />
+      {p.pill && <span className="mt-0.5 flex">{p.pill}</span>}
       <strong className="text-[15px] leading-snug font-semibold">{p.title}</strong>
       {p.line && <span className="line-clamp-2 text-[13px] text-ink-3">{p.line}</span>}
       {p.children}

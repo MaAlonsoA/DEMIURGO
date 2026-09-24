@@ -1,15 +1,19 @@
-// Right column of the overview (canvas S6A): what needs the person, in the order "Catch up"
-// walks it, and the features ready to build.
+// Right column of the overview (canvas B1 and S6A): what needs the person, in the order "Catch
+// up" walks it and about how long it takes, what DEMIURGO is running now, the features ready to
+// build and what was decided most recently.
 
 import { Link } from '@tanstack/react-router';
 import { useId } from 'react';
-import type { Inbox, ProductState } from '../../api/types.ts';
+import type { Inbox, ProductState, RunListItem } from '../../api/types.ts';
 import { buttonStyles } from '../../ui/Button.tsx';
 import { Skeleton } from '../../ui/layout.tsx';
 import { Mark } from '../../ui/marks.tsx';
 import { NeedsBubble, StageBars } from '../../ui/signals.tsx';
 import { PRODUCT_WORDS } from '../../words.ts';
+import { minutesOf, needsOf } from '../needs-you/order.ts';
+import { RecentlyDecided, RunningNow } from './Blueprint.tsx';
 import { type NeedsItem, justRatified, needsItems } from './needs.ts';
+import { recentlyDecided } from './progress.ts';
 
 const SHOWN = 4;
 
@@ -42,10 +46,15 @@ export function NeedsColumn({
   projectId,
   state,
   inbox,
+  runs,
+  now,
 }: {
   projectId: string;
   state: ProductState | undefined;
   inbox: Inbox | undefined;
+  /** Runs working now. */
+  runs: RunListItem[];
+  now: number;
 }) {
   const needsId = useId();
   const readyId = useId();
@@ -54,16 +63,23 @@ export function NeedsColumn({
   const firstVersion = inbox?.versions_to_approve.find((v) => v.approvable);
   const total = inbox?.total ?? 0;
   const ready = [...(state?.designs ?? [])].filter((r) => r.type === 'fdr' && state?.ready_to_build.includes(r.code));
+  const rows = [...(state?.designs ?? []), ...(state?.decisions ?? [])];
+  const minutes = inbox ? minutesOf(needsOf(inbox, rows)) : 0;
+  const threads = new Map((state?.explorations ?? []).map((e) => [e.id, e.purpose]));
 
   return (
     <>
       <section aria-labelledby={needsId} className="flex flex-col gap-2.5">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-0.5">
           <h2 className="flex items-center gap-2 text-[15px] font-semibold">
             <span id={needsId}>{PRODUCT_WORDS.needsYou}</span>
             <NeedsBubble count={total} />
           </h2>
-          {total > SHOWN && <span className="text-xs text-muted">{total} in all</span>}
+          {total > 0 && (
+            <span className="text-xs text-muted" data-needs-summary>
+              {total} {total === 1 ? 'item' : 'items'} · about {minutes} {minutes === 1 ? 'minute' : 'minutes'}
+            </span>
+          )}
         </div>
         {!inbox ? (
           <div className="flex flex-col gap-2" aria-hidden="true">
@@ -131,6 +147,8 @@ export function NeedsColumn({
         )}
       </section>
 
+      <RunningNow projectId={projectId} runs={runs} threads={threads} now={now} />
+
       <section aria-labelledby={readyId} className="flex flex-col gap-2">
         <h2 id={readyId} className="text-xs font-semibold text-muted">
           {PRODUCT_WORDS.readyToBuild}
@@ -155,6 +173,8 @@ export function NeedsColumn({
           </ul>
         )}
       </section>
+
+      <RecentlyDecided projectId={projectId} rows={recentlyDecided(rows)} />
     </>
   );
 }

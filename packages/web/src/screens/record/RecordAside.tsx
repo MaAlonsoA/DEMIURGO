@@ -17,6 +17,7 @@ import { STAGE_WORDS, type Stage, WhoMark } from '../../ui/signals.tsx';
 import { Tip } from '../../ui/Tip.tsx';
 import { PRODUCT_WORDS, stateWord, whoOf } from '../../words.ts';
 import { LINK_WORDS, type VersionRef } from './logic.ts';
+import { ReviewArea } from './Review.tsx';
 
 function Panel({ title, children, aside }: { title: string; children: ReactNode; aside?: ReactNode }) {
   const id = useId();
@@ -83,27 +84,32 @@ export function ReadinessPanel({
   readiness: Readiness | null;
   stage: Stage;
 }) {
+  const id = useId();
   if (!readiness) return null;
   const left = readiness.reasons.length;
   const thread = version.origin_exploration;
+  // The guided review walks its assumed answers as a part of their own; the rest steps back.
   return (
-    <Panel
-      title={readiness.ready ? PRODUCT_WORDS.readyToBuild : 'Before it can be built'}
-      aside={
-        <span className={cn('text-xs font-semibold', left ? 'text-needs-hover' : 'text-ink-3')}>
-          {left === 0 ? 'Nothing left' : `${left} ${left === 1 ? 'thing' : 'things'} left`}
-        </span>
-      }
-    >
-      <StageTrack stage={stage} />
-      {readiness.ready ? (
-        <p className="text-[13px] text-ink-2">Nothing blocks it. Nothing is built yet.</p>
-      ) : stage === 'doubt' ? (
-        <p className="text-[13px] text-problem">It was ready to build, and now something blocks it.</p>
-      ) : null}
-      <ReadinessReasons reasons={readiness.reasons} warnings={readiness.warnings} />
+    <section aria-labelledby={id} className="flex flex-col gap-3">
+      <ReviewArea part="readiness" className="flex flex-col gap-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 id={id} className="text-[15px] font-semibold">
+            {readiness.ready ? PRODUCT_WORDS.readyToBuild : 'Before it can be built'}
+          </h2>
+          <span className={cn('text-xs font-semibold', left ? 'text-needs-hover' : 'text-ink-3')}>
+            {left === 0 ? 'Nothing left' : `${left} ${left === 1 ? 'thing' : 'things'} left`}
+          </span>
+        </div>
+        <StageTrack stage={stage} />
+        {readiness.ready ? (
+          <p className="text-[13px] text-ink-2">Nothing blocks it. Nothing is built yet.</p>
+        ) : stage === 'doubt' ? (
+          <p className="text-[13px] text-problem">It was ready to build, and now something blocks it.</p>
+        ) : null}
+        <ReadinessReasons reasons={readiness.reasons} warnings={readiness.warnings} />
+      </ReviewArea>
       {thread && version.inferred_questions.length > 0 && (
-        <div className="flex flex-col gap-2 border-t border-line-soft pt-3">
+        <ReviewArea part="assumed" className="flex flex-col gap-2 border-t border-line-soft pt-3">
           <Sub>Assumed in its thread</Sub>
           <ul className="flex flex-col gap-2.5">
             {version.inferred_questions.map((q) => (
@@ -126,9 +132,9 @@ export function ReadinessPanel({
               </li>
             ))}
           </ul>
-        </div>
+        </ReviewArea>
       )}
-    </Panel>
+    </section>
   );
 }
 

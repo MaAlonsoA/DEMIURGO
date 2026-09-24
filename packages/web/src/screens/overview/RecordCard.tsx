@@ -16,6 +16,8 @@ import { NeedsGlyph, STAGE_WORDS, StageBars, WhoMark, whoLabel } from '../../ui/
 import { Tip } from '../../ui/Tip.tsx';
 import { EPISTEMIC_MARK, MARKS, PRODUCT_WORDS, TYPE_WORDS, whoOf } from '../../words.ts';
 import { rowStage, type Waiting, waitingCount, waitingPhrase } from '../record/logic.ts';
+import { FeaturePill } from './Blueprint.tsx';
+import type { FeatureStatus } from './progress.ts';
 
 /** A dimmed element gets its full contrast back while it is pointed at or focused. */
 export const UNDIM = 'hover:[&_[data-card]]:opacity-100 focus-within:[&_[data-card]]:opacity-100';
@@ -188,7 +190,7 @@ function Peeking({ projectId, row, children, ...rest }: Omit<Props, 'lens'> & { 
   );
 }
 
-export function FeatureCard(p: Props) {
+export function FeatureCard({ status, now, ...p }: Props & { status: FeatureStatus; now: number }) {
   const { row, lens, waiting } = p;
   const needs = waitingCount(waiting);
   const who = (
@@ -213,6 +215,7 @@ export function FeatureCard(p: Props) {
           bars={<Bars row={row} />}
           needs={needs}
           needsDetail={waitingPhrase(waiting)}
+          pill={status ? <FeaturePill status={status} now={now} /> : undefined}
           title={row.title}
           line={row.summary}
           who={who}

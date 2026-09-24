@@ -6,15 +6,30 @@ import type { ReactNode } from 'react';
 import { cn } from '../lib/cn.ts';
 import { ChevronLeft } from './icons.tsx';
 
-export function Page({ children, aside, className }: { children: ReactNode; aside?: ReactNode; className?: string }) {
+export function Page({
+  children,
+  aside,
+  asideFooter,
+  className,
+}: {
+  children: ReactNode;
+  aside?: ReactNode;
+  /** Kept at the bottom of the right column while the page scrolls ("Ask DEMIURGO about this"). */
+  asideFooter?: ReactNode;
+  className?: string;
+}) {
   return (
     <div className="flex min-h-[calc(100vh-56px)]">
       <main id="main" className={cn('min-w-0 flex-1 px-10 pt-7 pb-24', className)}>
         {children}
       </main>
       {aside && (
-        <aside className="w-[360px] shrink-0 border-l border-line bg-surface px-5 pt-7 pb-24" aria-label="Side panel">
+        <aside
+          className={cn('w-[360px] shrink-0 border-l border-line bg-surface px-5 pt-7', asideFooter ? 'flex flex-col' : 'pb-24')}
+          aria-label="Side panel"
+        >
           <div className="sticky top-[76px] flex flex-col gap-6">{aside}</div>
+          {asideFooter && <div className="sticky bottom-0 z-10 mt-auto bg-surface pt-6 pb-5">{asideFooter}</div>}
         </aside>
       )}
     </div>

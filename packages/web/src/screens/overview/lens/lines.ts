@@ -304,6 +304,8 @@ function explorationLine(t: ChangedThing): Told {
       note: 'New thread',
     };
   }
+  const wrote = e.findLast((x) => x.command === 'message.post' && isHuman(x.actor));
+  if (wrote) return { event: wrote, segments: [`${subject(wrote.actor)} wrote in `, { strong: title }, '.'], note: 'You wrote' };
   const any = e.at(-1) as Event;
   return {
     event: any,

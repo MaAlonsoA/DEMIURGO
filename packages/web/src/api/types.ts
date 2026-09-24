@@ -65,6 +65,14 @@ export type ProductRow = {
   epistemic_status: Epistemic;
   readiness: Readiness | null;
   implementation: string;
+  /** First paragraph of the latest version: the card's one line. */
+  summary: string;
+  /** Criteria of the latest version. */
+  checks: number;
+  latest_id: string;
+  current_id: string | null;
+  updated_at: string;
+  updated_by: string;
 };
 
 export type ExplorationSummary = {
@@ -210,6 +218,12 @@ export type RecordVersion = {
   origin: { type: string; id: string; version?: number | null } | null;
   author: string;
   approved_by: string | null;
+  created_at: string;
+  approved_at: string | null;
+  /** Thread the version comes from (through its proposal, batch and run), if any. */
+  origin_exploration: string | null;
+  /** Inferred questions of that thread not confirmed yet: a readiness warning (◐). */
+  inferred_questions: { id: string; question: string; conclusion: string | null }[];
   criteria: Criterion[];
   links: Link[];
   readiness: Readiness | null;
@@ -270,7 +284,10 @@ export type ExplorationDetail = {
   children: { id: string; purpose: string; state: string }[];
 };
 
-export type Exploration = Omit<ExplorationDetail, 'messages' | 'questions' | 'children'>;
+export type Exploration = Omit<ExplorationDetail, 'messages' | 'questions' | 'children'> & {
+  open_questions: number;
+  last_activity: string;
+};
 
 export type Proposal = {
   id: string;
@@ -304,7 +321,14 @@ export type BatchDetail = {
   resolved_at: string | null;
   resolved_by: string | null;
   proposals: Proposal[];
+  /** Only for an import: the counts of design/ when imported and those of this package. */
+  import_counts?: { origin: ImportCounts | null; package: ImportCounts };
 };
+
+export type ImportCounts = Record<
+  'decision' | 'adr' | 'fdr' | 'bug' | 'versions' | 'criteria' | 'links' | 'taxonomies' | 'annexes',
+  number
+>;
 
 export type ContextPack = {
   id: string;
@@ -381,3 +405,73 @@ export type Knowledge = {
 };
 
 export type SearchResult = { ref?: string; label?: string; kind?: string; body?: string; [k: string]: unknown };
+
+/** A run in the list (GET …/runs): its thread is its scope, or where its decision was born. */
+export type RunListItem = {
+  id: string;
+  state: string;
+  action: string;
+  scope: { type: string; id?: string; version?: number };
+  provider: string;
+  model: string | null;
+  retry_of: string | null;
+  failure_kind: string | null;
+  error: string | null;
+  requested_by: string;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  context_pack_hash: string | null;
+  exploration_id: string | null;
+  /** Batch the run produced, if any. */
+  batch_id: string | null;
+};
+
+export type GraphNode = {
+  ref: string;
+  type: string;
+  label: string;
+  excerpt: string;
+  epistemic_status: string;
+  /** Taxonomy axis → category, from the node's classification. */
+  areas: Record<string, string>;
+  state: 'current' | 'invalidated';
+  record: { code: string; version: number } | null;
+};
+
+export type GraphEdge = { type: string; from: string; to: string; state: string };
+
+export type KnowledgeGraph = { graph_version: number; nodes: GraphNode[]; edges: GraphEdge[] };
+
+export type IdeaAssessment = {
+  id: string;
+  graph_version: number;
+  classifier: string;
+  created_at: string;
+  error: string | null;
+  proposal: { id: string; type: string; title: string | null; batch_id: string; state: string };
+  findings: {
+    /** duplicates, contradicts or relates. */
+    verdict: string;
+    citation: string;
+    label: string | null;
+    record: { code: string; version: number } | null;
+    epistemic_status: string | null;
+    confidence: number | null;
+    justification: string | null;
+  }[];
+};
+
+export type Taxonomy = {
+  id: string;
+  code: string;
+  version: number;
+  title: string;
+  axes: unknown;
+  sections: Section[];
+  state: string;
+  author: string;
+  created_at: string;
+  approved_at: string | null;
+  approved_by: string | null;
+};

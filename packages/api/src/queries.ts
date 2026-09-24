@@ -13,6 +13,11 @@ import {
   recordDetail,
   productState,
   versionReadiness,
+  explorationsList,
+  runsList,
+  knowledgeGraph,
+  ideaAssessments,
+  taxonomiesList,
 } from '@demiurgo/core';
 import type { Credential } from './credentials.ts';
 
@@ -101,13 +106,7 @@ registerQueries([
   {
     path: '/api/projects/:projectId/explorations',
     queryName: 'query.explorations',
-    respond: ({ services, params }) =>
-      services.db
-        .selectFrom('explorations')
-        .selectAll()
-        .where('project_id', '=', uuid(params.projectId, 'project'))
-        .orderBy('created_at')
-        .execute(),
+    respond: ({ services, params }) => explorationsList(services.db, uuid(params.projectId, 'project')),
   },
   {
     path: '/api/projects/:projectId/explorations/:explorationId',
@@ -194,5 +193,35 @@ registerQueries([
     path: '/api/projects/:projectId/knowledge/rebuild',
     queryName: 'query.knowledge',
     respond: ({ services, params }) => compareRebuild(services.db, uuid(params.projectId, 'project')),
+  },
+]);
+
+// Queries of the web UI (H1): they reuse the query names of the matrix, so design/data does not change.
+const RE_STATE = /^[a-z_]{1,40}$/;
+
+registerQueries([
+  {
+    path: '/api/projects/:projectId/runs',
+    queryName: 'query.runs',
+    respond: ({ services, params, query }) =>
+      runsList(services.db, uuid(params.projectId, 'project'), {
+        ...(query.exploration ? { exploration: uuid(query.exploration, 'exploration') } : {}),
+        ...(query.state && RE_STATE.test(query.state) ? { state: query.state } : {}),
+      }),
+  },
+  {
+    path: '/api/projects/:projectId/knowledge/graph',
+    queryName: 'query.knowledge',
+    respond: ({ services, params }) => knowledgeGraph(services.db, uuid(params.projectId, 'project')),
+  },
+  {
+    path: '/api/projects/:projectId/knowledge/idea-assessments',
+    queryName: 'query.knowledge',
+    respond: ({ services, params }) => ideaAssessments(services.db, uuid(params.projectId, 'project')),
+  },
+  {
+    path: '/api/projects/:projectId/taxonomies',
+    queryName: 'query.knowledge',
+    respond: ({ services, params }) => taxonomiesList(services.db, uuid(params.projectId, 'project')),
   },
 ]);

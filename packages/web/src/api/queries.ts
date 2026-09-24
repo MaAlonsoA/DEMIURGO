@@ -9,17 +9,21 @@ import type {
   EventRow,
   Exploration,
   ExplorationDetail,
+  IdeaAssessment,
   Inbox,
   Knowledge,
+  KnowledgeGraph,
   ProductState,
   Project,
   Readiness,
   RecordDetail,
   RunDetail,
+  RunListItem,
   SearchResult,
   Session,
   Source,
   Tables,
+  Taxonomy,
 } from './types.ts';
 
 const P = (projectId: string) => `/api/projects/${projectId}`;
@@ -121,3 +125,34 @@ export const knowledgeSearchQuery = (p: string, q: string) =>
 
 export const sourcesQuery = (p: string) =>
   queryOptions({ queryKey: keys.sources(p), queryFn: () => get<Source[]>(`${P(p)}/sources`) });
+
+export const runsQuery = (p: string, filter: { exploration?: string; state?: string } = {}) => {
+  const search = new URLSearchParams(filter).toString();
+  return queryOptions({
+    queryKey: [...keys.runs(p), filter] as const,
+    queryFn: () => get<RunListItem[]>(`${P(p)}/runs${search ? `?${search}` : ''}`),
+  });
+};
+
+export const graphQuery = (p: string) =>
+  queryOptions({
+    queryKey: [...keys.knowledge(p), 'graph'] as const,
+    queryFn: () => get<KnowledgeGraph>(`${P(p)}/knowledge/graph`),
+  });
+
+export const ideaAssessmentsQuery = (p: string) =>
+  queryOptions({
+    queryKey: [...keys.knowledge(p), 'idea-assessments'] as const,
+    queryFn: () => get<IdeaAssessment[]>(`${P(p)}/knowledge/idea-assessments`),
+  });
+
+export const rebuildQuery = (p: string) =>
+  queryOptions({
+    queryKey: [...keys.knowledge(p), 'rebuild'] as const,
+    queryFn: () =>
+      get<{ live: string; rebuilt: string | null; equal: boolean; drift: string | null }>(`${P(p)}/knowledge/rebuild`),
+    staleTime: 60_000,
+  });
+
+export const taxonomiesQuery = (p: string) =>
+  queryOptions({ queryKey: [...keys.knowledge(p), 'taxonomies'] as const, queryFn: () => get<Taxonomy[]>(`${P(p)}/taxonomies`) });

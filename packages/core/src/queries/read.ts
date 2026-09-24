@@ -289,6 +289,17 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
       .orderBy('position')
       .execute();
     const links = await db.selectFrom('links').selectAll().where('from_id', '=', v.id).execute();
+    const origin = await originExploration(db, v.id);
+    // Inferred questions of the origin thread: the UI shows them as a readiness warning (◐).
+    const inferred = origin
+      ? await db
+          .selectFrom('questions')
+          .select(['id', 'question', 'conclusion'])
+          .where('exploration_id', '=', origin)
+          .where('state', '=', 'inferred')
+          .orderBy('created_at')
+          .execute()
+      : [];
     detail.push({
       id: v.id,
       n: v.n,
@@ -302,6 +313,10 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
       origin: v.origin,
       author: v.author,
       approved_by: v.approved_by,
+      created_at: v.created_at,
+      approved_at: v.approved_at,
+      origin_exploration: origin,
+      inferred_questions: inferred,
       criteria: criteria.map((c) => ({
         id: c.id,
         code: c.code,
@@ -326,6 +341,18 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
   };
 }
 
+/** First paragraph of the first section with content, as plain text: the card's one line. */
+export function firstParagraph(sections: readonly { title: string; content: string }[], max = 240): string {
+  const text = sections.find((x) => x.content.trim() !== '')?.content ?? '';
+  const paragraph = text.split(/\n\s*\n/).find((x) => x.trim() !== '') ?? '';
+  const plain = paragraph
+    .replace(/^\s*(?:[-*+]|\d+\.)\s+/gm, '')
+    .replace(/[*_`#>]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return plain.length > max ? `${plain.slice(0, max - 1)}…` : plain;
+}
+
 export async function productState(db: Db, projectId: string) {
   const project = await db.selectFrom('projects').select(['id', 'name', 'state']).where('id', '=', projectId).executeTakeFirst();
   if (!project) throw new DomainError('not_found', 'The project does not exist.');
@@ -334,9 +361,14 @@ export async function productState(db: Db, projectId: string) {
   for (const r of records) {
     const latest = await db
       .selectFrom('record_versions')
-      .select(['id', 'n', 'state', 'title'])
+      .select(['id', 'n', 'state', 'title', 'sections', 'author', 'approved_by', 'created_at', 'approved_at'])
       .where('record_id', '=', r.id)
       .orderBy('n', 'desc')
+      .executeTakeFirstOrThrow();
+    const checks = await db
+      .selectFrom('criteria')
+      .select((eb) => eb.fn.countAll<string>().as('n'))
+      .where('record_version_id', '=', latest.id)
       .executeTakeFirstOrThrow();
     const current = await currentOf(db, r.id);
     const currentId =
@@ -360,6 +392,12 @@ export async function productState(db: Db, projectId: string) {
       epistemic_status: current !== null ? 'confirmed' : epistemicOfVersion(latest.state),
       readiness: r.type === 'decision' ? null : await versionReadiness(db, projectId, currentId ?? latest.id),
       implementation: 'not implemented',
+      summary: firstParagraph(latest.sections as { title: string; content: string }[]),
+      checks: Number(checks.n),
+      latest_id: latest.id,
+      current_id: currentId,
+      updated_at: latest.approved_at ?? latest.created_at,
+      updated_by: latest.approved_by ?? latest.author,
     });
   }
   const explorations = await db
@@ -426,5 +464,41 @@ export async function batchDetail(db: Db, projectId: string, id: string) {
     .executeTakeFirst();
   if (!l) throw new DomainError('not_found', 'The batch does not exist.');
   const proposals = await db.selectFrom('proposals').selectAll().where('batch_id', '=', id).orderBy('position').execute();
-  return { ...l, proposals: proposals.map((p) => ({ ...p, epistemic_status: epistemicOfProposal(p.state) })) };
+  const importCounts = l.kind === 'import' ? await importCountsOf(db, l.id, proposals) : null;
+  return {
+    ...l,
+    ...(importCounts ? { import_counts: importCounts } : {}),
+    proposals: proposals.map((p) => ({ ...p, epistemic_status: epistemicOfProposal(p.state) })),
+  };
+}
+
+type Counts = Record<'decision' | 'adr' | 'fdr' | 'bug' | 'versions' | 'criteria' | 'links' | 'taxonomies' | 'annexes', number>;
+
+/** Counts of an import: those of design/ when it was imported, and those of the proposals of the package. */
+async function importCountsOf(db: Db, batchId: string, proposals: readonly { type: string; payload: unknown }[]) {
+  const event = await db
+    .selectFrom('events')
+    .select('after')
+    .where('entity_id', '=', batchId)
+    .where('command', '=', 'design.import')
+    .executeTakeFirst();
+  const after = event?.after as { counts?: Counts } | null | undefined;
+  const origin = after?.counts ?? null;
+  const documents = proposals
+    .filter((p) => p.type === 'imported_record')
+    .map(
+      (p) => (p.payload as { document: { type: string; criteria?: unknown[]; links?: unknown[]; annexes?: unknown[] } }).document,
+    );
+  const pkg: Counts = {
+    decision: documents.filter((d) => d.type === 'decision').length,
+    adr: documents.filter((d) => d.type === 'adr').length,
+    fdr: documents.filter((d) => d.type === 'fdr').length,
+    bug: documents.filter((d) => d.type === 'bug').length,
+    versions: documents.length,
+    criteria: documents.reduce((n, d) => n + (d.criteria?.length ?? 0), 0),
+    links: documents.reduce((n, d) => n + (d.links?.length ?? 0), 0),
+    taxonomies: proposals.filter((p) => p.type === 'imported_taxonomy').length,
+    annexes: documents.reduce((n, d) => n + (d.annexes?.length ?? 0), 0),
+  };
+  return { origin, package: pkg };
 }

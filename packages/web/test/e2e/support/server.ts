@@ -7,12 +7,15 @@
 //   [slow]       the run keeps working until it is cancelled;
 //   [fail-once]  the first run with a context pack fails; its retry (same pack) succeeds;
 //   [invalid]    the output does not match the schema (invalid_output, no effects).
+// And the simulated classifier obeys one marker in what it classifies:
+//   [classifier-fails]  the classifier fails the first three calls with that input, so the
+//                       knowledge update is rejected after its retries; the person's retry works.
 
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createPerson, createServer } from '@demiurgo/api';
-import type { AgentPort } from '@demiurgo/domain';
+import type { AgentPort, Classifier } from '@demiurgo/domain';
 import { connect, createSimulatedAgent, createSimulatedClassifier, migrate, silentLogger, startEngine } from '@demiurgo/core';
 
 const port = Number(process.env.E2E_PORT ?? 8310);
@@ -82,12 +85,32 @@ function scriptedAgent(): AgentPort {
   };
 }
 
+function scriptedClassifier(): Classifier {
+  const base = createSimulatedClassifier();
+  const failures = new Map<string, number>();
+  return {
+    ...base,
+    id: base.id,
+    async choice(items) {
+      const text = JSON.stringify(items);
+      if (text.includes('[classifier-fails]')) {
+        const n = failures.get(text) ?? 0;
+        if (n < 3) {
+          failures.set(text, n + 1);
+          throw new Error('The simulated classifier failed on purpose.');
+        }
+      }
+      return base.choice(items);
+    },
+  };
+}
+
 const engine = await startEngine(
   {
     db: connection.db,
     clock: () => new Date(),
     agent: scriptedAgent(),
-    classifier: createSimulatedClassifier(),
+    classifier: scriptedClassifier(),
     logger: silentLogger,
   },
   url,

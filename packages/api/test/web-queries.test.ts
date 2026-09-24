@@ -187,4 +187,37 @@ describe('API: queries of the web UI', () => {
     expect(thread?.open_questions).toBe(0);
     expect(thread?.last_activity).toBeTruthy();
   });
+
+  it('AC-INT-001-11 the inbox says which records each link joins, and what each batch and proposal depends on', async () => {
+    const dec = await get<{ id: string; versions: { sections: { title: string; content: string }[] }[] }>('/records/DEC-PLN-001');
+    const v2 = await command('record_version.create', {
+      record_id: dec.id,
+      title: 'Reimplementar DEMIURGO como v2 (revisada)',
+      sections: dec.versions[0]?.sections ?? [],
+      change_note: 'Revisión.',
+    });
+    await command('record_version.approve', {}, v2.entity_id);
+    const inbox = await get<{
+      links_under_review: {
+        type: string;
+        from_code: string;
+        from_n: number;
+        to_code: string;
+        to_n: number;
+        from_title: string;
+      }[];
+      batches: { dependencies: unknown[]; proposals: { dependencies: unknown[] }[] }[];
+    }>('/inbox');
+    const link = inbox.links_under_review.find((l) => l.to_code === 'DEC-PLN-001');
+    expect(link).toMatchObject({ type: 'based_on', to_n: 1 });
+    expect(link?.from_code).toMatch(/^(FDR|ADR)-/);
+    expect(link?.from_n).toBe(1);
+    expect(typeof link?.from_title).toBe('string');
+    for (const b of inbox.batches) {
+      expect(Array.isArray(b.dependencies)).toBe(true);
+      for (const x of b.proposals) expect(Array.isArray(x.dependencies)).toBe(true);
+    }
+    const state = await get<{ designs: { code: string; origin_exploration: string | null }[] }>('/state');
+    expect(state.designs.every((d) => d.origin_exploration === null)).toBe(true);
+  });
 });

@@ -73,6 +73,8 @@ export type ProductRow = {
   current_id: string | null;
   updated_at: string;
   updated_by: string;
+  /** Thread the latest version comes from, if any. */
+  origin_exploration: string | null;
 };
 
 export type ExplorationSummary = {
@@ -104,6 +106,7 @@ export type InboxProposal = {
   epistemic_status: Epistemic;
   obsolescence: string[];
   assessment: IdeaAssessmentSummary | null;
+  dependencies: Dependency[];
 };
 
 export type IdeaFinding = {
@@ -127,6 +130,7 @@ export type InboxBatch = {
   summary: string | null;
   run_id: string | null;
   created: string;
+  dependencies: Dependency[];
   proposals: InboxProposal[];
 };
 
@@ -164,6 +168,12 @@ export type InboxLink = {
   state: string;
   created_by: string;
   epistemic_status: Epistemic;
+  from_code: string;
+  from_n: number;
+  from_title: string;
+  to_code: string;
+  to_n: number;
+  to_title: string;
 };
 
 export type Inbox = {
@@ -173,8 +183,17 @@ export type Inbox = {
   open_questions: InboxQuestion[];
   versions_to_approve: InboxVersion[];
   links_under_review: InboxLink[];
-  classifications_to_review: Record<string, unknown>[];
-  rejected_updates: Record<string, unknown>[];
+  classifications_to_review: {
+    id: string;
+    node_ref: string;
+    axis: string;
+    category: string;
+    confidence: number;
+    justification: string;
+    classifier: string;
+    epistemic_status: Epistemic;
+  }[];
+  rejected_updates: { id: string; trigger: unknown; failure: string | null; created_at: string; epistemic_status: Epistemic }[];
 };
 
 export type Criterion = {

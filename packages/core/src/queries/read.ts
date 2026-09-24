@@ -167,6 +167,7 @@ export async function inbox(db: Db, projectId: string) {
         epistemic_status: epistemicOfProposal(p.state),
         obsolescence: warnings,
         assessment: await assessmentOf(db, p.id),
+        dependencies: (p.dependencies ?? []) as Dependency[],
       });
     }
     batchItems.push({
@@ -177,6 +178,7 @@ export async function inbox(db: Db, projectId: string) {
       summary: l.summary,
       run_id: l.run_id,
       created: l.created_at,
+      dependencies: (l.dependencies ?? []) as Dependency[],
       proposals: withWarning,
     });
   }
@@ -212,11 +214,24 @@ export async function inbox(db: Db, projectId: string) {
     .orderBy('records.code')
     .orderBy('record_versions.n')
     .execute();
+  // Which records each link joins, so the person knows what to review.
   const links = await db
     .selectFrom('links')
-    .selectAll()
-    .where('project_id', '=', projectId)
-    .where('state', '=', 'needs_review')
+    .innerJoin('record_versions as f', 'f.id', 'links.from_id')
+    .innerJoin('records as fr', 'fr.id', 'f.record_id')
+    .innerJoin('record_versions as t', 't.id', 'links.to_id')
+    .innerJoin('records as tr', 'tr.id', 't.record_id')
+    .selectAll('links')
+    .select([
+      'fr.code as from_code',
+      'f.n as from_n',
+      'f.title as from_title',
+      'tr.code as to_code',
+      't.n as to_n',
+      't.title as to_title',
+    ])
+    .where('links.project_id', '=', projectId)
+    .where('links.state', '=', 'needs_review')
     .execute();
   const extra = await pendingKnowledge(db, projectId);
   const total =
@@ -398,6 +413,7 @@ export async function productState(db: Db, projectId: string) {
       current_id: currentId,
       updated_at: latest.approved_at ?? latest.created_at,
       updated_by: latest.approved_by ?? latest.author,
+      origin_exploration: await originExploration(db, latest.id),
     });
   }
   const explorations = await db

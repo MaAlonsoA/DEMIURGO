@@ -35,10 +35,7 @@ pnpm web:dev
 
 Se entra en http://127.0.0.1:5173 con `dev` / `demiurgo-dev-password`. La base `demiurgo_web_dev` quedó vacía a propósito, como pidió la persona para probar de punta a punta, y solo tiene la persona `dev`. Al no haber proyectos, la portada lleva a **What do you want to build?**, el Día 1 de un producto nuevo.
 
-Para volver a empezar de cero:
-1. Parar la API.
-2. Recrear la base: `DROP DATABASE demiurgo_web_dev WITH (FORCE)` y `CREATE DATABASE demiurgo_web_dev`, en el contenedor `demiurgo-v2-dev-postgres-1`.
-3. Repetir `migrate` y `create-person`.
+Para volver a empezar de cero o volver a un punto guardado, arranca la API con `$env:DEMIURGO_DEV_TOOLS = '1'`. Así aparece la pestaña **Dev** con las instantáneas: guardar, restaurar, borrar y reset. Por terminal: `pnpm snap reset`. Todo está en `docs/instantaneas-dev.md`.
 
 Esto no toca la instancia `demiurgo-v2`, que está en el 55433.
 
@@ -214,6 +211,32 @@ No es un corte del spec. Sigue sus reglas: solo lo que el back de H1 sostiene; l
   - las ideas aparcadas (hilos apartados) y **Capture an idea**, que guarda la idea como hilo sin pedir nada a DEMIURGO.
 - **Pruebas:** AC-INT-001-09 (tres pruebas: preguntar por una funcionalidad y por el producto, y capturar una idea), AC-INT-001-05 (la revisión y Confirm), AC-WEB-001-03 (la revisión solo con teclado y axe en cada parte) y AC-INT-001-11 («You're up to date»).
 
+**B · Product blueprint (tablero B2 y el buscador de B1).** En el paso 1 del canvas, la persona eligió la estructura B, con el producto en el centro. B1 es la portada (ver arriba). B2 es una funcionalidad dentro del blueprint:
+- **Barra lateral «Blueprint»** en cada página de registro:
+  - «← ⟨proyecto⟩»;
+  - las funcionalidades con el mismo estado que en la portada (Needs you con su cuenta, Ready to build, In doubt…);
+  - las decisiones y decisiones técnicas con su marca;
+  - *Rules for the whole product* como «Later»;
+  - las ideas aparcadas.
+  
+  El registro en pantalla va resaltado, y ↑ y ↓ recorren la barra. Por debajo de 1400 px se estrecha: a 1280 px no hay scroll horizontal.
+- **Pestañas del registro** (`?tab=`, que conserva `?v`): Overview, Questions · N, Checks · N y History.
+  - **Questions** responde en el sitio las preguntas del hilo del que viene la versión:
+    - la respuesta que DEMIURGO supuso aparece como *Recommended*, con su porqué;
+    - **Confirm** es decisivo y pide confirmación; **Answer** pide la respuesta; **Not now** y **Doesn't apply** piden un motivo;
+    - al lado, «If you confirm» dice solo lo que hace H1: la respuesta confirmada en su hilo, el impacto, lo que cita la readiness y los checks. Que se convierta en una decisión es «Later».
+  - **History** cuenta, a partir del diario, quién creó, aprobó, sustituyó o descartó cada versión. Se actualiza en directo.
+- **Buscador de la cabecera** («Search decisions, features, ideas», con Ctrl+K):
+  - busca en el conocimiento y muestra el tipo, las palabras encontradas marcadas y la marca de cada resultado;
+  - Enter abre el registro en su versión, o los checks de su registro si el resultado es un check;
+  - por debajo de 1400 px se pliega en una lupa.
+- **Pruebas:** AC-INT-001-09 (dos), AC-INT-001-04 (la barra lateral), AC-INT-001-08 (History y Checks), AC-INT-001-17 (el buscador) y AC-WEB-001-03 (barra lateral, pestañas y buscador solo con teclado, con axe).
+
+**Arreglos al integrar:**
+- «What it touches» nombra el destino de cada enlace, aunque apunte a una versión sustituida.
+- La búsqueda del conocimiento devuelve la relevancia de cada resultado (`rank`). Antes, un alias equivocado en la consulta la perdía.
+- Se añade el favicon.
+
 ## 3. Cambios en el back
 
 Todos en inglés, de solo lectura salvo el CSRF, y con sus pruebas en `packages/api/test/web.test.ts`, `web-queries.test.ts` y `changes.test.ts`. No se ha tocado ningún comando, tabla, guarda, regla de autoridad ni el esquema de la base. `design/data/` no cambia: las consultas nuevas reutilizan los nombres de consulta de la matriz.
@@ -240,6 +263,9 @@ Todos en inglés, de solo lectura salvo el CSRF, y con sus pruebas en `packages/
 | Versiones del detalle de un registro con `created_at`, `approved_at`, `origin_exploration` e `inferred_questions` | Las preguntas inferidas sin confirmar del hilo de origen se muestran como aviso ◐ en la readiness |
 | Hilos (`GET …/explorations`) con `open_questions` y `last_activity` | La lista de hilos |
 | Bandeja: enlaces por revisar con los códigos, versiones y títulos que unen; lotes y propuestas con sus dependencias | Decir qué hay que revisar y calcular qué desbloquea cada cosa |
+| Cada enlace del detalle de un registro lleva el código, la versión, el título, el estado y si es la versión vigente de su destino | «What it touches» no podía nombrar un destino ya sustituido |
+| `GET …/events?entity=` devuelve los eventos de una entidad y los que causó | La página de una ejecución y History, sin paginar el diario entero |
+| La búsqueda del conocimiento devuelve `rank`, la relevancia de cada resultado (**arreglo**) | La consulta calculaba `ts_rank` con el alias `range` y leía `rank`: el campo nunca llegaba |
 
 ### Arnés E2E (no es código de producción)
 
@@ -292,6 +318,8 @@ Los dos documentos llevan `increment: H1`, así que `gate:traceability` exige un
 
 Los dos AC manuales (aceptar el ADR y validar la experiencia) son de la persona y no los he marcado.
 
+El corte 8 añade pruebas a AC-INT-001-01, -02, -04, -05, -08, -09, -10, -11 y -17, y a AC-WEB-001-03: el Día 1, «Ask DEMIURGO», la revisión guiada, «You're up to date», la barra lateral, las pestañas y el buscador. Las pruebas de los cortes anteriores siguen pasando.
+
 ## 6. Desviaciones y decisiones
 
 - **Confirmar una respuesta supuesta pide confirmación.** El spec no lo pedía para las preguntas. Pero confirmar una respuesta inferida convierte en conclusión algo que escribió DEMIURGO: es decisivo, así que abre un `ConfirmDialog`, como aprobar o ratificar.
@@ -338,6 +366,13 @@ Ninguno bloquea H1. Cuando falta el dato, la UI lo muestra como ausente y nunca 
 - El título de una funcionalidad no se conoce hasta que llega su paquete. Mientras DEMIURGO la redacta, su tarjeta dice «A new feature · From ⟨decisión⟩».
 - No hay una consulta del historial de aprobaciones. *Recently decided* usa la última versión aprobada de cada registro.
 - Si el reloj de la base va por delante del navegador (pasa con Docker), el tiempo de una ejecución puede marcar 0:00 al principio.
+- La búsqueda del conocimiento tiene tres limitaciones:
+  - usa la configuración de texto `spanish`, aunque los productos nuevos se escriben en inglés;
+  - solo cubre registros y checks, así que las «ideas» del rótulo no se encuentran;
+  - no da la posición de lo encontrado. El buscador marca las palabras en el cliente.
+- `question.impact` es un nivel (high, medium o low), no un texto que diga a qué afecta.
+- La readiness cuenta las preguntas pendientes sin nombrarlas («There are 2 pending question(s)…»).
+- No hay una consulta de eventos por registro. History hace una llamada por versión y no incluye los eventos de enlaces ni de checks.
 - Las entidades de S6 no existen: propósito del producto, quién lo usa, reglas y funcionalidades sacadas de una idea. Se muestran como «Later».
 
 ### De la interfaz

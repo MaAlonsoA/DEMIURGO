@@ -6,3 +6,4 @@ import './exploracion.ts';
 import './registros.ts';
 import './propuestas.ts';
 import './pendientes.ts';
+import '../acciones/index.ts';

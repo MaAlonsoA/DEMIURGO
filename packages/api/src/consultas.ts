@@ -1,7 +1,15 @@
 // Rutas de consulta (lectura). Cada una declara su consulta de la matriz de capacidades.
 
 import { ErrorDominio, type NombreConsulta } from '@demiurgo/domain';
-import type { Servicios } from '@demiurgo/core';
+import {
+  type Servicios,
+  bandeja,
+  detalleExploracion,
+  detalleLote,
+  detalleRegistro,
+  estadoProducto,
+  readinessDeVersion,
+} from '@demiurgo/core';
 import type { Credencial } from './credenciales.ts';
 
 export type EntradaConsulta = {
@@ -74,3 +82,73 @@ export const CONSULTAS: RutaConsulta[] = [
 export function registrarConsultas(nuevas: RutaConsulta[]): void {
   CONSULTAS.push(...nuevas);
 }
+
+registrarConsultas([
+  {
+    ruta: '/api/proyectos/:proyectoId/estado',
+    consulta: 'query.state',
+    responder: ({ servicios, params }) => estadoProducto(servicios.db, uuid(params.proyectoId, 'el proyecto')),
+  },
+  {
+    ruta: '/api/proyectos/:proyectoId/bandeja',
+    consulta: 'query.inbox',
+    responder: ({ servicios, params }) => bandeja(servicios.db, uuid(params.proyectoId, 'el proyecto')),
+  },
+  {
+    ruta: '/api/proyectos/:proyectoId/exploraciones',
+    consulta: 'query.explorations',
+    responder: ({ servicios, params }) =>
+      servicios.db
+        .selectFrom('explorations')
+        .selectAll()
+        .where('project_id', '=', uuid(params.proyectoId, 'el proyecto'))
+        .orderBy('created_at')
+        .execute(),
+  },
+  {
+    ruta: '/api/proyectos/:proyectoId/exploraciones/:exploracionId',
+    consulta: 'query.explorations',
+    responder: ({ servicios, params }) =>
+      detalleExploracion(servicios.db, uuid(params.proyectoId, 'el proyecto'), uuid(params.exploracionId, 'la exploración')),
+  },
+  {
+    ruta: '/api/proyectos/:proyectoId/fuentes',
+    consulta: 'query.explorations',
+    responder: ({ servicios, params }) =>
+      servicios.db
+        .selectFrom('sources')
+        .select(['id', 'name', 'content_hash', 'registered_by', 'created_at'])
+        .where('project_id', '=', uuid(params.proyectoId, 'el proyecto'))
+        .orderBy('created_at')
+        .execute(),
+  },
+  {
+    ruta: '/api/proyectos/:proyectoId/registros/:codigo',
+    consulta: 'query.records',
+    responder: ({ servicios, params }) =>
+      detalleRegistro(servicios.db, uuid(params.proyectoId, 'el proyecto'), params.codigo ?? ''),
+  },
+  {
+    ruta: '/api/proyectos/:proyectoId/versiones/:versionId/readiness',
+    consulta: 'query.records',
+    responder: ({ servicios, params }) =>
+      readinessDeVersion(servicios.db, uuid(params.proyectoId, 'el proyecto'), uuid(params.versionId, 'la versión')),
+  },
+  {
+    ruta: '/api/proyectos/:proyectoId/lotes/:loteId',
+    consulta: 'query.batches',
+    responder: ({ servicios, params }) =>
+      detalleLote(servicios.db, uuid(params.proyectoId, 'el proyecto'), uuid(params.loteId, 'el lote')),
+  },
+  {
+    ruta: '/api/proyectos/:proyectoId/tokens',
+    consulta: 'query.tokens',
+    responder: ({ servicios, params }) =>
+      servicios.db
+        .selectFrom('agent_tokens')
+        .select(['id', 'name', 'state', 'issued_by', 'created_at', 'revoked_at'])
+        .where('project_id', '=', uuid(params.proyectoId, 'el proyecto'))
+        .orderBy('created_at')
+        .execute(),
+  },
+]);

@@ -167,7 +167,7 @@ registrarManejadores({
   }),
 
   'exploration.set_aside': manejador({
-    datos: z.object({ motivo: z.string().max(1000) }).strict(),
+    datos: z.object({ motivo: z.string().max(1000).default('') }).strict(),
     async aplicar(ctx, datos, e) {
       await ctx.trx
         .updateTable('explorations')
@@ -315,7 +315,7 @@ registrarManejadores({
   }),
 
   'question.postpone': manejador({
-    datos: z.object({ motivo: z.string().max(1000) }).strict(),
+    datos: z.object({ motivo: z.string().max(1000).default('') }).strict(),
     async aplicar(ctx, datos, e) {
       await ctx.trx
         .updateTable('questions')
@@ -327,7 +327,7 @@ registrarManejadores({
   }),
 
   'question.discard': manejador({
-    datos: z.object({ motivo: z.string().max(1000) }).strict(),
+    datos: z.object({ motivo: z.string().max(1000).default('') }).strict(),
     async aplicar(ctx, datos, e) {
       await ctx.trx
         .updateTable('questions')

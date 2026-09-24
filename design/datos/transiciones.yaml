@@ -123,7 +123,7 @@ entidades:
     estados: { pending: Pendiente, accepted: Aceptada, accepted_edited: Aceptada con cambios, rejected: Rechazada, superseded: Obsoleta }
     autoridad: [accepted, accepted_edited]
     transiciones:
-      - { comando: proposal.create, desde: nuevo, hacia: pending, guardas: [carga_valida] }
+      - { comando: proposal.create, desde: nuevo, hacia: pending, guardas: [lote_propio_abierto, carga_valida] }
       - { comando: proposal.accept, desde: [pending], hacia: accepted, guardas: [resolucion_por_elemento, dependencias_vigentes] }
       - { comando: proposal.accept_edited, desde: [pending], hacia: accepted_edited, guardas: [resolucion_por_elemento, dependencias_vigentes, edicion_valida] }
       - { comando: proposal.reject, desde: [pending], hacia: rejected, guardas: [resolucion_por_elemento] }
@@ -184,6 +184,24 @@ entidades:
       - { comando: knowledge_update.reject, desde: [classifying, verifying], hacia: rejected }
       - { comando: knowledge_update.retry, desde: [rejected], hacia: queued }
 
+  knowledge_node:
+    etiqueta: Nodo de conocimiento
+    implementado_en: S2
+    estados: { current: Vigente, invalidated: Invalidado }
+    autoridad: []
+    transiciones:
+      - { comando: knowledge_node.project, desde: nuevo, hacia: current }
+      - { comando: knowledge_node.invalidate, desde: [current], hacia: invalidated }
+
+  knowledge_edge:
+    etiqueta: Arista de conocimiento
+    implementado_en: S2
+    estados: { current: Vigente, invalidated: Invalidada }
+    autoridad: []
+    transiciones:
+      - { comando: knowledge_edge.project, desde: nuevo, hacia: current }
+      - { comando: knowledge_edge.invalidate, desde: [current], hacia: invalidated }
+
   idea_assessment:
     etiqueta: Evaluación de idea
     implementado_en: S2
@@ -210,7 +228,7 @@ entidades:
       - { comando: change_set.accept_scope, desde: [proposed], hacia: scope_accepted, guardas: [fdr_lista_para_construir, cobertura_completa] }
       - { comando: change_set.start, desde: [scope_accepted], hacia: in_progress, guardas: [grafo_al_dia] }
       - { comando: change_set.submit_review, desde: [in_progress], hacia: in_review, guardas: [gates_en_verde] }
-      - { comando: change_set.accept, desde: [in_review], hacia: accepted }
+      - { comando: change_set.accept, desde: [in_review], hacia: accepted, guardas: [gates_en_verde] }
       - { comando: change_set.request_changes, desde: [in_review], hacia: in_progress }
       - { comando: change_set.block, desde: [in_progress], hacia: blocked }
       - { comando: change_set.unblock, desde: [blocked], hacia: in_progress }
@@ -233,7 +251,7 @@ entidades:
     transiciones:
       - { comando: task.create, desde: nuevo, hacia: open, guardas: [cubre_al_menos_un_ac_aprobado] }
       - { comando: task.advance, desde: [open], hacia: tests_written }
-      - { comando: task.advance, desde: [tests_written], hacia: tests_frozen }
+      - { comando: task.advance, desde: [tests_written], hacia: tests_frozen, guardas: [mapa_aceptado] }
       - { comando: task.advance, desde: [tests_frozen], hacia: implementing }
       - { comando: task.advance, desde: [implementing], hacia: checking }
       - { comando: task.pass, desde: [checking], hacia: passed, guardas: [gates_en_verde] }
@@ -251,6 +269,18 @@ entidades:
       - { comando: acceptance_check.propose, desde: nuevo, hacia: proposed }
       - { comando: acceptance_map.accept, desde: [proposed], hacia: mapped }
       - { comando: acceptance_check.freeze, desde: [mapped], hacia: frozen, guardas: [prueba_en_rojo_sobre_la_base] }
+
+  work_step:
+    etiqueta: Paso de trabajo
+    implementado_en: S3
+    estados: { queued: En cola, running: En curso, succeeded: Terminado, failed: Fallido, cancelled: Cancelado }
+    autoridad: []
+    transiciones:
+      - { comando: work_step.enqueue, desde: nuevo, hacia: queued }
+      - { comando: work_step.begin, desde: [queued], hacia: running }
+      - { comando: work_step.succeed, desde: [running], hacia: succeeded }
+      - { comando: work_step.fail, desde: [queued, running], hacia: failed }
+      - { comando: work_step.cancel, desde: [queued, running], hacia: cancelled }
 
   evidence:
     etiqueta: Evidencia

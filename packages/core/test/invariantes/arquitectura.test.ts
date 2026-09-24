@@ -34,6 +34,8 @@ const LECTORES_DE_ENTORNO = new Set([
   'packages/core/src/config.ts',
   'packages/core/src/entorno.ts',
   'packages/core/src/runner/sonda.ts',
+  // Arranque del servidor MCP: proceso aparte que solo lee su URL, su token y su proyecto.
+  'packages/mcp/src/main.ts',
 ]);
 
 describe('arquitectura', () => {

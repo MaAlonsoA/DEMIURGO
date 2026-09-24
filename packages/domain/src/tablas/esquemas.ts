@@ -73,9 +73,48 @@ export const esquemaTransiciones = z
 export type TablaCapacidades = z.infer<typeof esquemaCapacidades>;
 export type TablaTransiciones = z.infer<typeof esquemaTransiciones>;
 
+/**
+ * Invariantes fijadas en código, no en los datos: editar las tablas no puede relajarlas.
+ * Estados que solo alcanza una persona (I1) y lo único que pueden hacer los agentes (I2).
+ */
+export const ESTADOS_DE_AUTORIDAD_MINIMOS: Readonly<Record<string, readonly string[]>> = {
+  question: ['confirmed'],
+  record_version: ['approved'],
+  taxonomy: ['approved'],
+  proposal: ['accepted', 'accepted_edited'],
+  batch: ['accepted'],
+  change_set: ['scope_accepted', 'accepted'],
+  acceptance_check: ['mapped'],
+};
+
+/** Comandos que puede ejecutar cada tipo de agente: conversar, registrar fuentes y proponer. */
+export const COMANDOS_PERMITIDOS_A_AGENTES: Readonly<Record<'agent_external' | 'agent_run', readonly string[]>> = {
+  agent_external: ['message.post', 'source.register', 'batch.submit', 'proposal.create'],
+  agent_run: ['message.post', 'batch.submit', 'proposal.create'],
+};
+
+/** Consultas que un agente externo nunca puede usar. */
+export const CONSULTAS_VEDADAS_A_AGENTES: readonly string[] = ['query.projects', 'query.tokens'];
+
 /** Devuelve la lista de incoherencias entre ambas tablas, en español. Vacía si son coherentes. */
 export function incoherenciasTablas(cap: TablaCapacidades, tra: TablaTransiciones): string[] {
   const errores: string[] = [];
+  for (const [entidad, estados] of Object.entries(ESTADOS_DE_AUTORIDAD_MINIMOS)) {
+    for (const e of estados) {
+      if (!tra.entidades[entidad]?.autoridad.includes(e))
+        errores.push(`${entidad}: «${e}» debe ser un estado de autoridad (I1).`);
+    }
+  }
+  for (const [nombre, c] of Object.entries(cap.comandos)) {
+    for (const tipo of ['agent_external', 'agent_run'] as const) {
+      if (c.permitido.includes(tipo) && !COMANDOS_PERMITIDOS_A_AGENTES[tipo].includes(nombre)) {
+        errores.push(`${nombre}: un ${tipo} solo puede conversar, registrar fuentes y proponer (I2).`);
+      }
+    }
+  }
+  for (const q of CONSULTAS_VEDADAS_A_AGENTES) {
+    if (cap.consultas[q]?.permitido.includes('agent_external')) errores.push(`${q}: vedada a los agentes externos.`);
+  }
   const usados = new Set<string>();
   for (const [entidad, def] of Object.entries(tra.entidades)) {
     const estados = new Set(Object.keys(def.estados));

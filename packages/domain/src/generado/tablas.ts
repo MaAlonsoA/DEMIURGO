@@ -99,11 +99,10 @@ export const CAPACIDADES = {
       "entidad": "question",
       "permitido": [
         "human",
-        "agent_run",
         "system"
       ],
       "decisivo": false,
-      "descripcion": "Plantear una pregunta en una exploración."
+      "descripcion": "Plantear una pregunta en una exploración (las del agente las plantea el sistema desde su salida validada)."
     },
     "question.infer": {
       "entidad": "question",
@@ -487,6 +486,38 @@ export const CAPACIDADES = {
       "decisivo": false,
       "descripcion": "Volver a encolar un update rechazado."
     },
+    "knowledge_node.project": {
+      "entidad": "knowledge_node",
+      "permitido": [
+        "system"
+      ],
+      "decisivo": false,
+      "descripcion": "Proyectar un nodo de conocimiento derivado, dentro de un update verificado."
+    },
+    "knowledge_node.invalidate": {
+      "entidad": "knowledge_node",
+      "permitido": [
+        "system"
+      ],
+      "decisivo": false,
+      "descripcion": "Invalidar un nodo derivado (valid_to), nunca borrarlo."
+    },
+    "knowledge_edge.project": {
+      "entidad": "knowledge_edge",
+      "permitido": [
+        "system"
+      ],
+      "decisivo": false,
+      "descripcion": "Proyectar una arista de conocimiento derivado, dentro de un update verificado."
+    },
+    "knowledge_edge.invalidate": {
+      "entidad": "knowledge_edge",
+      "permitido": [
+        "system"
+      ],
+      "decisivo": false,
+      "descripcion": "Invalidar una arista derivada (valid_to), nunca borrarla."
+    },
     "idea_assessment.record": {
       "entidad": "idea_assessment",
       "permitido": [
@@ -662,6 +693,46 @@ export const CAPACIDADES = {
       ],
       "decisivo": false,
       "descripcion": "Congelar una prueba por hash."
+    },
+    "work_step.enqueue": {
+      "entidad": "work_step",
+      "permitido": [
+        "system"
+      ],
+      "decisivo": false,
+      "descripcion": "Encolar un paso de trabajo con su clave de idempotencia."
+    },
+    "work_step.begin": {
+      "entidad": "work_step",
+      "permitido": [
+        "system"
+      ],
+      "decisivo": false,
+      "descripcion": "Empezar un paso de trabajo."
+    },
+    "work_step.succeed": {
+      "entidad": "work_step",
+      "permitido": [
+        "system"
+      ],
+      "decisivo": false,
+      "descripcion": "Dar por terminado un paso de trabajo."
+    },
+    "work_step.fail": {
+      "entidad": "work_step",
+      "permitido": [
+        "system"
+      ],
+      "decisivo": false,
+      "descripcion": "Dar por fallido un paso de trabajo con su failure_kind."
+    },
+    "work_step.cancel": {
+      "entidad": "work_step",
+      "permitido": [
+        "system"
+      ],
+      "decisivo": false,
+      "descripcion": "Cancelar un paso de trabajo."
     },
     "evidence.record": {
       "entidad": "evidence",
@@ -1195,6 +1266,7 @@ export const TRANSICIONES = {
           "desde": "nuevo",
           "hacia": "pending",
           "guardas": [
+            "lote_propio_abierto",
             "carga_valida"
           ]
         },
@@ -1446,6 +1518,52 @@ export const TRANSICIONES = {
         }
       ]
     },
+    "knowledge_node": {
+      "etiqueta": "Nodo de conocimiento",
+      "implementado_en": "S2",
+      "estados": {
+        "current": "Vigente",
+        "invalidated": "Invalidado"
+      },
+      "autoridad": [],
+      "transiciones": [
+        {
+          "comando": "knowledge_node.project",
+          "desde": "nuevo",
+          "hacia": "current"
+        },
+        {
+          "comando": "knowledge_node.invalidate",
+          "desde": [
+            "current"
+          ],
+          "hacia": "invalidated"
+        }
+      ]
+    },
+    "knowledge_edge": {
+      "etiqueta": "Arista de conocimiento",
+      "implementado_en": "S2",
+      "estados": {
+        "current": "Vigente",
+        "invalidated": "Invalidada"
+      },
+      "autoridad": [],
+      "transiciones": [
+        {
+          "comando": "knowledge_edge.project",
+          "desde": "nuevo",
+          "hacia": "current"
+        },
+        {
+          "comando": "knowledge_edge.invalidate",
+          "desde": [
+            "current"
+          ],
+          "hacia": "invalidated"
+        }
+      ]
+    },
     "idea_assessment": {
       "etiqueta": "Evaluación de idea",
       "implementado_en": "S2",
@@ -1523,7 +1641,10 @@ export const TRANSICIONES = {
           "desde": [
             "in_review"
           ],
-          "hacia": "accepted"
+          "hacia": "accepted",
+          "guardas": [
+            "gates_en_verde"
+          ]
         },
         {
           "comando": "change_set.request_changes",
@@ -1618,7 +1739,10 @@ export const TRANSICIONES = {
           "desde": [
             "tests_written"
           ],
-          "hacia": "tests_frozen"
+          "hacia": "tests_frozen",
+          "guardas": [
+            "mapa_aceptado"
+          ]
         },
         {
           "comando": "task.advance",
@@ -1717,6 +1841,55 @@ export const TRANSICIONES = {
           "guardas": [
             "prueba_en_rojo_sobre_la_base"
           ]
+        }
+      ]
+    },
+    "work_step": {
+      "etiqueta": "Paso de trabajo",
+      "implementado_en": "S3",
+      "estados": {
+        "queued": "En cola",
+        "running": "En curso",
+        "succeeded": "Terminado",
+        "failed": "Fallido",
+        "cancelled": "Cancelado"
+      },
+      "autoridad": [],
+      "transiciones": [
+        {
+          "comando": "work_step.enqueue",
+          "desde": "nuevo",
+          "hacia": "queued"
+        },
+        {
+          "comando": "work_step.begin",
+          "desde": [
+            "queued"
+          ],
+          "hacia": "running"
+        },
+        {
+          "comando": "work_step.succeed",
+          "desde": [
+            "running"
+          ],
+          "hacia": "succeeded"
+        },
+        {
+          "comando": "work_step.fail",
+          "desde": [
+            "queued",
+            "running"
+          ],
+          "hacia": "failed"
+        },
+        {
+          "comando": "work_step.cancel",
+          "desde": [
+            "queued",
+            "running"
+          ],
+          "hacia": "cancelled"
         }
       ]
     },

@@ -43,6 +43,8 @@ export type Receta = {
   crear(s: Servicios, proyectoId: string): Promise<string>;
   /** Datos válidos para cada comando no creador. Por defecto `{}`. */
   datos?: Partial<Record<NombreComando, (c: Contexto) => unknown>>;
+  /** Caminos a medida para estados cuyas guardas exigen preparación. */
+  estados?: Partial<Record<string, (s: Servicios, proyectoId: string) => Promise<string>>>;
 };
 
 let contador = 0;
@@ -108,6 +110,8 @@ export function camino(entidad: NombreEntidad, inicial: string, destino: string)
 export async function llevarA(s: Servicios, proyectoId: string, entidad: NombreEntidad, destino: string): Promise<string> {
   const receta = RECETAS[entidad];
   if (!receta) throw new Error(`No hay receta para «${entidad}».`);
+  const aMedida = receta.estados?.[destino];
+  if (aMedida) return aMedida(s, proyectoId);
   const id = entidad === 'project' ? await receta.crear(s, proyectoId) : await receta.crear(s, proyectoId);
   const pid = entidad === 'project' ? id : proyectoId;
   const fila = await estadoActual(s, entidad, id);

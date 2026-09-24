@@ -27,7 +27,7 @@ comandos:
   message.post: { entidad: message, permitido: [human, agent_external, agent_run], decisivo: false, descripcion: "Publicar un mensaje en un hilo con el actor como autor." }
   source.register: { entidad: source, permitido: [human, agent_external], decisivo: false, descripcion: "Registrar una fuente como entrada no confiable." }
 
-  question.raise: { entidad: question, permitido: [human, agent_run, system], decisivo: false, descripcion: "Plantear una pregunta en una exploración." }
+  question.raise: { entidad: question, permitido: [human, system], decisivo: false, descripcion: "Plantear una pregunta en una exploración (las del agente las plantea el sistema desde su salida validada)." }
   question.infer: { entidad: question, permitido: [system], decisivo: false, descripcion: "Marcar una pregunta como inferida a partir de la salida de un agente." }
   question.confirm: { entidad: question, permitido: [human], decisivo: true, descripcion: "Confirmar una pregunta con su conclusión." }
   question.postpone: { entidad: question, permitido: [human], decisivo: false, descripcion: "Posponer una pregunta con un motivo." }
@@ -85,6 +85,11 @@ comandos:
   knowledge_update.reject: { entidad: knowledge_update, permitido: [system], decisivo: false, descripcion: "Rechazar un update sin efectos." }
   knowledge_update.retry: { entidad: knowledge_update, permitido: [human], decisivo: false, descripcion: "Volver a encolar un update rechazado." }
 
+  knowledge_node.project: { entidad: knowledge_node, permitido: [system], decisivo: false, descripcion: "Proyectar un nodo de conocimiento derivado, dentro de un update verificado." }
+  knowledge_node.invalidate: { entidad: knowledge_node, permitido: [system], decisivo: false, descripcion: "Invalidar un nodo derivado (valid_to), nunca borrarlo." }
+  knowledge_edge.project: { entidad: knowledge_edge, permitido: [system], decisivo: false, descripcion: "Proyectar una arista de conocimiento derivado, dentro de un update verificado." }
+  knowledge_edge.invalidate: { entidad: knowledge_edge, permitido: [system], decisivo: false, descripcion: "Invalidar una arista derivada (valid_to), nunca borrarla." }
+
   idea_assessment.record: { entidad: idea_assessment, permitido: [system], decisivo: false, descripcion: "Guardar la evaluación de una idea frente al conocimiento." }
 
   # Pilar 2: diseñado desde S0, implementado desde S3.
@@ -109,6 +114,11 @@ comandos:
   acceptance_map.accept: { entidad: acceptance_check, permitido: [human], decisivo: true, descripcion: "Aceptar el mapa AC → comprobación → prueba." }
   acceptance_check.propose: { entidad: acceptance_check, permitido: [system], decisivo: false, descripcion: "Proponer la prueba de un AC." }
   acceptance_check.freeze: { entidad: acceptance_check, permitido: [system], decisivo: false, descripcion: "Congelar una prueba por hash." }
+  work_step.enqueue: { entidad: work_step, permitido: [system], decisivo: false, descripcion: "Encolar un paso de trabajo con su clave de idempotencia." }
+  work_step.begin: { entidad: work_step, permitido: [system], decisivo: false, descripcion: "Empezar un paso de trabajo." }
+  work_step.succeed: { entidad: work_step, permitido: [system], decisivo: false, descripcion: "Dar por terminado un paso de trabajo." }
+  work_step.fail: { entidad: work_step, permitido: [system], decisivo: false, descripcion: "Dar por fallido un paso de trabajo con su failure_kind." }
+  work_step.cancel: { entidad: work_step, permitido: [system], decisivo: false, descripcion: "Cancelar un paso de trabajo." }
   evidence.record: { entidad: evidence, permitido: [system], decisivo: false, descripcion: "Registrar evidencia de un gate del sistema." }
   evidence.record_manual: { entidad: evidence, permitido: [human], decisivo: false, descripcion: "Registrar evidencia humana de un AC manual." }
 

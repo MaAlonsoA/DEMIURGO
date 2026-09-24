@@ -37,4 +37,5 @@ registrarGuardas({
   aclaracion_presente: guardaPendiente('S5'),
   prueba_en_rojo_sobre_la_base: guardaPendiente('S3'),
   ac_manual: guardaPendiente('S4'),
+  mapa_aceptado: guardaPendiente('S3'),
 });

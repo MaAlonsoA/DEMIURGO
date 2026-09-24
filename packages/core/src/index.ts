@@ -19,3 +19,5 @@ export * from './clasificador/index.ts';
 export * from './entorno.ts';
 export * from './secretos.ts';
 export * from './arranque.ts';
+export * from './consultas/lectura.ts';
+export * from './contexto/conocimiento.ts';

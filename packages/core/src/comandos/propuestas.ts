@@ -15,7 +15,7 @@ import { z } from 'zod';
 import { cadena, campo, registrarGuardas } from '../bus/guardas.ts';
 import { manejador, registrarManejadores } from '../bus/manejadores.ts';
 import type { ContextoComando, EntidadCargada } from '../bus/tipos.ts';
-import type { Tx } from '../db/conexion.ts';
+import type { Bd, Tx } from '../db/conexion.ts';
 import { APLICACIONES, type Efecto } from './efectos.ts';
 import { alEventoDeAutoridad } from './reacciones.ts';
 
@@ -28,7 +28,7 @@ const esquemaPropuestaEntrada = z
 type Dependencia = z.infer<typeof esquemaDependencia>;
 
 /** Motivos de obsolescencia: dependencias cuyo registro ya no tiene esa versión vigente. */
-export async function dependenciasCaducadas(trx: Tx, deps: readonly Dependencia[]): Promise<string[]> {
+export async function dependenciasCaducadas(trx: Bd, deps: readonly Dependencia[]): Promise<string[]> {
   const motivos: string[] = [];
   for (const d of deps) {
     const vigente = await trx
@@ -53,6 +53,23 @@ async function loteDe(trx: Tx, entidad: EntidadCargada | null) {
 }
 
 registrarGuardas({
+  // Una propuesta solo nace dentro del envío de su lote (o de la importación), en un lote
+  // pendiente del mismo productor: nadie añade propuestas a un lote ajeno o ya resuelto.
+  lote_propio_abierto: async ({ ctx, datos }) => {
+    if (!['batch.submit', 'design.import'].includes(ctx.causa.comandoOrigen ?? '')) {
+      return 'Las propuestas se envían dentro de un lote (batch.submit).';
+    }
+    const lote = await ctx.trx
+      .selectFrom('proposal_batches')
+      .select(['producer', 'state'])
+      .where('id', '=', cadena(campo(datos, 'lote_id')))
+      .where('project_id', '=', ctx.proyectoId)
+      .executeTakeFirst();
+    if (!lote) return 'El lote no existe.';
+    if (lote.state !== 'pending') return 'El lote ya está resuelto.';
+    return lote.producer === formatearActor(ctx.actor) ? null : 'Solo el productor del lote puede añadirle propuestas.';
+  },
+
   lote_de_agente_externo_max_10: ({ ctx, datos }) => {
     const n = (campo(datos, 'propuestas') as unknown[] | undefined)?.length ?? 0;
     if (ctx.actor.tipo === 'agent_external' && n > MAX_PROPUESTAS_AGENTE_EXTERNO) {
@@ -129,7 +146,8 @@ registrarGuardas({
 });
 
 /** Cierra un lote por elementos cuando ya no le quedan propuestas pendientes. */
-async function cerrarSiResuelto(ctx: ContextoComando, loteId: string): Promise<void> {
+/** `resolviendo` es la propuesta que se está resolviendo ahora: su estado cambia al terminar el comando. */
+async function cerrarSiResuelto(ctx: ContextoComando, loteId: string, resolviendo: string): Promise<void> {
   // Si la resolución viene del propio lote (paquete u obsolescencia), el lote cambia de estado él mismo.
   if (['batch.accept_package', 'batch.reject_package', 'batch.supersede'].includes(ctx.causa.comandoOrigen ?? '')) return;
   const lote = await ctx.trx
@@ -143,6 +161,7 @@ async function cerrarSiResuelto(ctx: ContextoComando, loteId: string): Promise<v
     .select('id')
     .where('batch_id', '=', loteId)
     .where('state', '=', 'pending')
+    .where('id', '<>', resolviendo)
     .execute();
   if (pendientes.length === 0)
     await ctx.ejecutar({ comando: 'batch.close', actor: sistema('bandeja'), entidadId: loteId, datos: {} });
@@ -254,7 +273,7 @@ registrarManejadores({
         .where('id', '=', entidad.id)
         .execute();
       await alEventoDeAutoridad(ctx, { tipo: 'proposal', id: entidad.id, version: null });
-      await cerrarSiResuelto(ctx, cadena(entidad.fila.batch_id));
+      await cerrarSiResuelto(ctx, cadena(entidad.fila.batch_id), entidad.id);
       return { entidadId: entidad.id, despues: { efecto, aprobar: datos.aprobar }, resultado: efecto };
     },
   }),
@@ -274,7 +293,7 @@ registrarManejadores({
         .where('id', '=', entidad.id)
         .execute();
       await alEventoDeAutoridad(ctx, { tipo: 'proposal', id: entidad.id, version: null });
-      await cerrarSiResuelto(ctx, cadena(entidad.fila.batch_id));
+      await cerrarSiResuelto(ctx, cadena(entidad.fila.batch_id), entidad.id);
       return {
         entidadId: entidad.id,
         antes: { carga: entidad.fila.payload },
@@ -297,7 +316,7 @@ registrarManejadores({
         })
         .where('id', '=', entidad.id)
         .execute();
-      await cerrarSiResuelto(ctx, cadena(entidad.fila.batch_id));
+      await cerrarSiResuelto(ctx, cadena(entidad.fila.batch_id), entidad.id);
       return { entidadId: entidad.id, despues: { motivo: datos.motivo ?? null } };
     },
   }),
@@ -315,7 +334,7 @@ registrarManejadores({
         })
         .where('id', '=', entidad.id)
         .execute();
-      await cerrarSiResuelto(ctx, cadena(entidad.fila.batch_id));
+      await cerrarSiResuelto(ctx, cadena(entidad.fila.batch_id), entidad.id);
       return { entidadId: entidad.id, despues: { motivo: datos.motivo } };
     },
   }),

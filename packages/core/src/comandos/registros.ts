@@ -382,7 +382,14 @@ registrarManejadores({
     datos: z.object({ nota: z.string().trim().max(2000).optional() }).strict(),
     async aplicar(ctx, datos, e) {
       const v = e?.fila as { id: string; record_id: string; n: number };
-      const anterior = await versionVigente(ctx.trx, v.record_id);
+      const anterior = await ctx.trx
+        .selectFrom('record_versions')
+        .selectAll()
+        .where('record_id', '=', v.record_id)
+        .where('state', '=', 'approved')
+        .where('id', '<>', v.id)
+        .orderBy('n', 'desc')
+        .executeTakeFirst();
       await ctx.trx
         .updateTable('record_versions')
         .set({ approved_at: new Date(), approved_by: formatearActor(ctx.actor) })

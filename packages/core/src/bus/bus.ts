@@ -192,6 +192,11 @@ export async function ejecutarEnTransaccion(
     throw new ErrorDominio('guarda', `No se cumplen las condiciones de «${comando}».`, motivos);
   }
 
+  // El estado cambia antes de aplicar: los comandos anidados ya ven la entidad en su estado nuevo.
+  if (cargada) {
+    const tabla = TABLAS[entidad] as string;
+    await sql`update ${sql.table(tabla)} set state = ${transicion.hacia} where id = ${cargada.id}::uuid`.execute(trx);
+  }
   const aplicado = await manejador.aplicar(ctx, validacion.data, cargada, transicion.hacia);
   if (aplicado.proyectoId) {
     proyectoId = aplicado.proyectoId;
@@ -206,10 +211,6 @@ export async function ejecutarEnTransaccion(
       seq: null,
       resultado: aplicado.resultado,
     };
-  }
-  if (cargada) {
-    const tabla = TABLAS[entidad] as string;
-    await sql`update ${sql.table(tabla)} set state = ${transicion.hacia} where id = ${cargada.id}::uuid`.execute(trx);
   }
   const seq = await registrarEvento(trx, {
     proyectoId,

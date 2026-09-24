@@ -11,13 +11,18 @@ export async function versionGrafo(trx: Tx, proyectoId: string): Promise<number>
   return Number(rows[0]?.version ?? 0);
 }
 
-/** Frescura: el grafo ha proyectado todos los eventos de autoridad del proyecto. */
+/**
+ * Frescura para las acciones del Pilar 1: no hay ninguna actualización de conocimiento en
+ * curso (en cola, clasificando o verificando). Una actualización rechazada no bloquea las
+ * conversaciones: queda en la bandeja para que la persona la reintente. El gate estricto
+ * (también las rechazadas de su alcance) es el de un Change Set al pasar a in_progress (S3).
+ */
 export async function grafoAlDia(trx: Tx, proyectoId: string): Promise<{ alDia: boolean; pendientes: number }> {
   const existe = await sql<{ t: string | null }>`select to_regclass('public.knowledge_updates')::text as t`.execute(trx);
   if (!existe.rows[0]?.t) return { alDia: true, pendientes: 0 };
   const { rows } = await sql<{ n: string }>`
     select count(*)::text as n from knowledge_updates
-    where project_id = ${proyectoId}::uuid and state <> 'applied'`.execute(trx);
+    where project_id = ${proyectoId}::uuid and state in ('queued', 'classifying', 'verifying')`.execute(trx);
   const pendientes = Number(rows[0]?.n ?? 0);
   return { alDia: pendientes === 0, pendientes };
 }

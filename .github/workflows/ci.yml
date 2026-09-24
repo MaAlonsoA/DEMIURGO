@@ -1,0 +1,101 @@
+# CI de DEMIURGO v2: cuatro etapas encadenadas. Juntas ejecutan todo `pnpm gate:all`.
+name: CI
+
+on:
+  push:
+    branches: [main, v2]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: 24.21.0
+  IMAGEN_POSTGRES: postgres:18.6@sha256:86c951e05bf56c93d95d397747fb8820ac76cc3bedb78f43abd83eedbe3666ae
+  IMAGEN_RUNNER: node:24.21-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
+  DEMIURGO_PRUEBAS_URL: postgres://demiurgo:demiurgo-dev@127.0.0.1:55432/postgres
+
+jobs:
+  tipos-y-lint:
+    name: Tipos, lint, formato, diseño y deriva
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: corepack enable pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm gate:types
+      - run: pnpm gate:lint
+      - run: pnpm gate:format
+      - run: pnpm gate:design
+      - run: pnpm gate:deriva
+
+  unitarias:
+    name: Pruebas unitarias
+    needs: tipos-y-lint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: corepack enable pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm vitest run --project unitarias
+
+  integracion:
+    name: Pruebas de integración con Postgres
+    needs: unitarias
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:18.6@sha256:86c951e05bf56c93d95d397747fb8820ac76cc3bedb78f43abd83eedbe3666ae
+        env:
+          POSTGRES_USER: demiurgo
+          POSTGRES_PASSWORD: demiurgo-dev
+          POSTGRES_DB: demiurgo_dev
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U demiurgo -d demiurgo_dev"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: corepack enable pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: docker pull "$IMAGEN_RUNNER"
+      - run: pnpm vitest run --project integracion
+        env:
+          CI: 'true'
+
+  invariantes:
+    name: Suite de invariantes
+    needs: integracion
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:18.6@sha256:86c951e05bf56c93d95d397747fb8820ac76cc3bedb78f43abd83eedbe3666ae
+        env:
+          POSTGRES_USER: demiurgo
+          POSTGRES_PASSWORD: demiurgo-dev
+          POSTGRES_DB: demiurgo_dev
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U demiurgo -d demiurgo_dev"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: corepack enable pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm gate:invariantes
+        env:
+          CI: 'true'

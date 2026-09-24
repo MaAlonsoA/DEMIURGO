@@ -41,7 +41,7 @@ Un criterio automático tiene al menos una prueba cuyo nombre empieza por su có
 
 ## Reglas que comprueba el validador
 
-- El archivo es canónico: volver a escribirlo desde su contenido no cambia ni un byte (LF, sin líneas en blanco de más).
+- El archivo es canónico: volver a escribirlo desde su contenido no cambia ni un byte (LF, sin espacios al final de línea ni líneas en blanco de más).
 - Los códigos de registros, taxonomías y criterios son únicos.
 - Los enlaces apuntan a registros existentes y a versiones que existen.
 - Los anexos existen y sus tablas son coherentes entre sí.

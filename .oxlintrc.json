@@ -14,7 +14,9 @@
     "unicorn/no-array-sort": "off",
     "import/no-cycle": "off",
     "typescript/no-unsafe-type-assertion": "off",
-    "typescript/consistent-return": "off"
+    "typescript/consistent-return": "off",
+    "import/no-unassigned-import": "off",
+    "import/no-named-as-default-member": "off"
   },
   "ignorePatterns": ["**/node_modules/**", "**/generado/**", "app/**", "frontend/**", "migrations/**", "tests/**", "reports/**"]
 }

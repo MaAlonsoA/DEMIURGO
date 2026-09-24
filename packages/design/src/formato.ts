@@ -93,6 +93,12 @@ function separarFrontmatter(texto: string, ruta: string): Resultado<{ front: unk
   if (texto.includes('\r')) {
     return fallo(ruta, 'El archivo usa finales de línea CRLF; el formato exige LF.');
   }
+  // Los espacios finales sobreviven a parsear y renderizar, así que la regla canónica no
+  // los detecta: se rechazan aquí.
+  const conEspacios = texto.split('\n').findIndex((l) => /[ \t]$/.test(l));
+  if (conEspacios >= 0) {
+    return fallo(ruta, `La línea ${conEspacios + 1} termina con espacios; el formato no los admite.`);
+  }
   if (!texto.startsWith('---\n')) return fallo(ruta, 'Falta el frontmatter: el archivo debe empezar por «---».');
   const fin = texto.indexOf('\n---\n', 3);
   if (fin < 0) return fallo(ruta, 'El frontmatter no está cerrado con «---».');

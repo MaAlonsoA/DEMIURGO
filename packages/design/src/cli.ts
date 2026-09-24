@@ -35,7 +35,7 @@ async function canonizar(): Promise<number> {
   let n = 0;
   for (const [ruta, texto] of arbol) {
     if (!ruta.endsWith('.md') || ruta === 'README.md') continue;
-    const r = parsearDocumento(texto.replaceAll('\r\n', '\n'), ruta);
+    const r = parsearDocumento(texto.replaceAll('\r\n', '\n').replace(/[ \t]+$/gm, ''), ruta);
     if (!r.ok) {
       for (const p of r.problemas) console.error(`✗ ${p.ruta}: ${p.mensaje}`);
       continue;

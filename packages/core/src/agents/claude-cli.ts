@@ -7,7 +7,14 @@ import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
-import type { FailureKind, AgentRequest, AgentPort, AgentResult, Usage } from '@demiurgo/domain';
+import {
+  type FailureKind,
+  type AgentRequest,
+  type AgentPort,
+  type AgentResult,
+  type Usage,
+  delimitedJson,
+} from '@demiurgo/domain';
 import { z } from 'zod';
 import { processEnv, allowedEnv } from '../env.ts';
 import {
@@ -111,14 +118,8 @@ export function claudeArguments(invocation: ClaudeInvocation): string[] {
   return args;
 }
 
-/**
- * JSON ready to sit between delimiters: `<` and `>` are written with their JSON Unicode escape,
- * so untrusted data can never close the tag that delimits it. It remains
- * equivalent JSON.
- */
-export function delimitedJson(value: unknown, indent = 2): string {
-  return (JSON.stringify(value, null, indent) ?? 'null').replaceAll('<', '\\u003c').replaceAll('>', '\\u003e');
-}
+// It lives in the domain (the prompt composition uses it); re-exported for the adapters.
+export { delimitedJson };
 
 // --- Executable resolution --------------------------------------------------------------
 

@@ -17,3 +17,18 @@ export function summaryOf(s: Snapshot): string {
 }
 
 export const sizeOf = (bytes: number): string => `${(bytes / 1e6).toFixed(1)} MB`;
+
+const openers = new Set<() => void>();
+
+/** Opens the dev panel from anywhere else in the app (the person menu). */
+export function openDevPanel(): void {
+  for (const open of openers) open();
+}
+
+/** The panel listens while it is mounted. */
+export function onOpenDevPanel(open: () => void): () => void {
+  openers.add(open);
+  return () => {
+    openers.delete(open);
+  };
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Snapshot } from '../../src/api/dev.ts';
-import { hasDevTools, sizeOf, summaryOf } from '../../src/screens/dev/snapshots.ts';
+import { hasDevTools, onOpenDevPanel, openDevPanel, sizeOf, summaryOf } from '../../src/screens/dev/snapshots.ts';
 
 const snapshot = (projects: Snapshot['projects']): Snapshot => ({
   name: 'dmg_snap_20260924_225426_after_day_1',
@@ -34,5 +34,16 @@ describe('dev snapshots panel', () => {
     ).toBe('2 projects · 7 events');
     expect(sizeOf(9_437_184)).toBe('9.4 MB');
     expect(sizeOf(0)).toBe('0.0 MB');
+  });
+
+  it('opens from anywhere (the person menu) while the panel is mounted, and not after', () => {
+    let opened = 0;
+    const stop = onOpenDevPanel(() => {
+      opened += 1;
+    });
+    openDevPanel();
+    stop();
+    openDevPanel();
+    expect(opened).toBe(1);
   });
 });

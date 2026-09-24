@@ -1,10 +1,11 @@
 // Dev tools panel, only when the API runs with DEMIURGO_DEV_TOOLS=1: save the whole database as a
 // snapshot, restore or delete one, or reset to an empty database. It is not product UI: a "Dev"
-// tab on the bottom edge opens it on every screen, including a fresh Day 1 after a reset.
+// tab on the bottom edge opens it on every screen, including a fresh Day 1 after a reset, and so
+// does "Snapshots…" in the person menu.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Dialog } from 'radix-ui';
-import { type FormEvent, useId, useState } from 'react';
+import { type FormEvent, useEffect, useId, useState } from 'react';
 import {
   type Snapshot,
   devSnapshotsQuery,
@@ -18,7 +19,7 @@ import { dayTime } from '../../lib/time.ts';
 import { Button } from '../../ui/Button.tsx';
 import { Reasons } from '../../ui/Reasons.tsx';
 import { visits } from '../overview/lens/visit.ts';
-import { hasDevTools, sizeOf, summaryOf } from './snapshots.ts';
+import { hasDevTools, onOpenDevPanel, sizeOf, summaryOf } from './snapshots.ts';
 
 const overlay = 'fixed inset-0 z-50 bg-ink/25 animate-fade-in';
 const panel =
@@ -47,6 +48,7 @@ export function DevTools() {
 function DevPanel() {
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState('');
+  useEffect(() => onOpenDevPanel(() => setOpen(true)), []);
   const labelId = useId();
   const client = useQueryClient();
   const list = useQuery({ ...devSnapshotsQuery, enabled: open });

@@ -85,6 +85,7 @@ export function Peek({
           role="link"
           tabIndex={0}
           aria-label={label}
+          data-kept={kept && open ? 'true' : undefined}
           className={cn(
             'block rounded-[var(--radius-card)] outline-none focus-visible:ring-2 focus-visible:ring-needs',
             className,
@@ -107,6 +108,7 @@ export function Peek({
       </Popover.Anchor>
       <Popover.Portal>
         <Popover.Content
+          aria-label={label}
           side="right"
           align="start"
           sideOffset={10}

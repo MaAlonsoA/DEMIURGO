@@ -21,7 +21,8 @@ import {
   type OpcionesClaudeCli,
 } from '../agentes/claude-cli.ts';
 
-export const ID_CLASIFICADOR_REFERENCIA = 'referencia-claude@1';
+/** Id del clasificador de referencia: lleva el modelo, porque otro modelo es otra entrada para la caché. */
+export const idClasificadorReferencia = (modelo: string): string => `referencia-claude:${modelo}@1`;
 
 /** Límites de las primitivas de Jev, para que el sustituto acepte lo mismo. */
 export const MAX_OPCIONES_CHOICE = 255;
@@ -196,7 +197,7 @@ export function crearClasificadorReferenciaClaude(opciones: OpcionesClasificador
   }
 
   return {
-    id: ID_CLASIFICADOR_REFERENCIA,
+    id: idClasificadorReferencia(modelo),
 
     async choice(items: readonly ItemChoice[]): Promise<RespuestaChoice[]> {
       if (items.length === 0) return [];

@@ -18,6 +18,8 @@ export type RespuestaChoice = {
   distribucion: Readonly<Record<string, number>>;
   confianza: number;
   justificacion: string;
+  /** Si la confianza era media y la revisó otro clasificador (la cascada), su id. */
+  revisadoPor?: string;
 };
 
 export type ItemScore = { id: string; estado: EstadoClasificador; pregunta: string; niveles: readonly string[] };

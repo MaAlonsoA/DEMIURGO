@@ -87,7 +87,7 @@ describe('clasificador de referencia sobre claude -p', () => {
   it('AC-CLA-001-03 agrupa los ítems en un solo claude -p con --json-schema y modelo pequeño y normaliza la fixture', async () => {
     const { lanzador, ordenes } = lanzadorFalso(fixture('clasificador-choice.json'));
     const clasificador = crearClasificadorReferenciaClaude({ lanzador, ejecutable: 'claude' });
-    expect(clasificador.id).toBe('referencia-claude@1');
+    expect(clasificador.id).toBe('referencia-claude:haiku@1');
     const respuestas = await clasificador.choice(ITEMS);
 
     expect(ordenes).toHaveLength(1);

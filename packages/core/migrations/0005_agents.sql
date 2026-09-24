@@ -78,6 +78,7 @@ create index agent_calls_by_time on agent_calls (started_at);
 
 create table agent_call_events (
   id bigint generated always as identity primary key,
+  project_id uuid references projects (id),
   call_id uuid not null references agent_calls (id),
   seq integer not null,
   received_at timestamptz not null default now(),
@@ -92,13 +93,13 @@ create trigger agent_call_events_append_only before update or delete on agent_ca
 -- Live progress: the project's SSE stream reads the events back from the table, never from the payload.
 create function agent_call_events_notify() returns trigger language plpgsql as $$
 declare
-  c record;
+  call_run uuid;
 begin
-  select project_id, run_id into c from agent_calls where id = new.call_id;
-  if c.project_id is not null then
+  if new.project_id is not null then
+    select run_id into call_run from agent_calls where id = new.call_id;
     perform pg_notify(
       'demiurgo_events',
-      json_build_object('project', c.project_id, 'progress', coalesce(c.run_id::text, ''))::text
+      json_build_object('project', new.project_id, 'progress', coalesce(call_run::text, ''))::text
     );
   end if;
   return new;

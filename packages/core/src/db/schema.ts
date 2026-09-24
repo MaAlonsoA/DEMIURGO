@@ -154,6 +154,7 @@ export type AgentCallsTable = {
 
 export type AgentCallEventsTable = {
   id: GeneratedIdentity;
+  project_id: string | null;
   call_id: string;
   seq: number;
   received_at: Generated<Timestamp>;

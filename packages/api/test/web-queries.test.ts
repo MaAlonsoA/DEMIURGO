@@ -218,10 +218,8 @@ describe('API: queries of the web UI', () => {
       }[];
       batches: { dependencies: unknown[]; proposals: { dependencies: unknown[] }[] }[];
     }>('/inbox');
-    const link = inbox.links_under_review.find((l) => l.to_code === 'DEC-PLN-001');
-    expect(link).toMatchObject({ type: 'based_on', to_n: 1 });
-    expect(link?.from_code).toMatch(/^(FDR|ADR)-/);
-    expect(link?.from_n).toBe(1);
+    const link = inbox.links_under_review.find((l) => l.to_code === 'DEC-PLN-001' && l.from_code === 'FDR-DIS-001');
+    expect(link).toMatchObject({ type: 'based_on', to_n: 1, from_n: 1 });
     expect(typeof link?.from_title).toBe('string');
     for (const b of inbox.batches) {
       expect(Array.isArray(b.dependencies)).toBe(true);

@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { readConfig } from '../src/config.ts';
 
@@ -13,6 +14,13 @@ describe('configuration', () => {
     expect(readConfig(BASE).devTools).toBe(false);
     expect(readConfig({ ...BASE, DEMIURGO_DEV_TOOLS: '1' }).devTools).toBe(true);
     expect(() => readConfig({ ...BASE, DEMIURGO_DEV_TOOLS: 'yes' })).toThrow(/DEMIURGO_DEV_TOOLS/);
+  });
+
+  it('AC-AGE-002-01 finds the OpenCode config where OpenCode keeps it, unless another is given', () => {
+    const home = { ...BASE, USERPROFILE: '/users/ana' };
+    expect(readConfig(home).openCodeConfig).toBe(join('/users/ana', '.config', 'opencode', 'opencode.json'));
+    expect(readConfig({ ...home, XDG_CONFIG_HOME: '/cfg' }).openCodeConfig).toBe(join('/cfg', 'opencode', 'opencode.json'));
+    expect(readConfig({ ...home, DEMIURGO_OPENCODE_CONFIG: '/oc.json' }).openCodeConfig).toBe('/oc.json');
   });
 
   it('rejects a variable that was renamed instead of silently ignoring it', () => {

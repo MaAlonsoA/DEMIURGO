@@ -1,6 +1,8 @@
 // Injected configuration. Along with `env.ts`, it is the only module that reads environment
 // variables (AC-ESQ-001-06): the rest of the core receives the configuration as a parameter.
 
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { z } from 'zod';
 
 const schema = z.object({
@@ -18,6 +20,8 @@ const schema = z.object({
   DEMIURGO_ORIGINS: z.string().default('http://127.0.0.1:8100,http://localhost:8100'),
   // Development tools (snapshots, reset). Never on for the real instance.
   DEMIURGO_DEV_TOOLS: z.enum(['0', '1']).default('0'),
+  // OpenCode's config, where the local models (Qwen…) are declared. Read-only.
+  DEMIURGO_OPENCODE_CONFIG: z.string().min(1).optional(),
 });
 
 export type Config = {
@@ -33,6 +37,8 @@ export type Config = {
   sessionHours: number;
   allowedOrigins: string[];
   devTools: boolean;
+  /** OpenCode's `opencode.json`: the local models the person configured. */
+  openCodeConfig: string;
 };
 
 /** Ports reserved for v1: v2 never uses them. */
@@ -74,5 +80,11 @@ export function readConfig(environment: Readonly<Record<string, string | undefin
     sessionHours: e.DEMIURGO_SESSION_HOURS,
     allowedOrigins: e.DEMIURGO_ORIGINS.split(',').map((o) => o.trim()),
     devTools: e.DEMIURGO_DEV_TOOLS === '1',
+    openCodeConfig: e.DEMIURGO_OPENCODE_CONFIG ?? join(configHome(environment), 'opencode', 'opencode.json'),
   };
+}
+
+/** Where OpenCode looks for its config: `$XDG_CONFIG_HOME`, or `~/.config` (also on Windows). */
+function configHome(environment: Readonly<Record<string, string | undefined>>): string {
+  return environment.XDG_CONFIG_HOME ?? join(environment.USERPROFILE ?? environment.HOME ?? homedir(), '.config');
 }

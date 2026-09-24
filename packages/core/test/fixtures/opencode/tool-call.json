@@ -1,0 +1,46 @@
+{
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": null,
+        "reasoning_content": "The user wants me to repeat \"hello from DEMIURGO\" in one sentence. This is straightforward.\n",
+        "refusal": null,
+        "role": "assistant",
+        "tool_calls": [
+          {
+            "function": { "arguments": "{\"reply\":\"hello from DEMIURGO\"}", "name": "StructuredOutput" },
+            "id": "call_13a4ac284595f621",
+            "type": "function"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1790289265,
+  "id": "chatcmpl-2769651a060a1ed0",
+  "model": "qwen3.8-27b",
+  "object": "chat.completion",
+  "timings": {
+    "cache_n": 0,
+    "draft_n": 70,
+    "draft_n_accepted": 47,
+    "predicted_ms": 200.211095,
+    "predicted_n": 57,
+    "predicted_per_second": 279.70477859880845,
+    "predicted_per_token_ms": 3.575198125,
+    "prompt_ms": 88.09530699999999,
+    "prompt_n": 354,
+    "prompt_per_second": 4018.3752353573163,
+    "prompt_per_token_ms": 0.24885679943502823
+  },
+  "usage": {
+    "completion_tokens": 57,
+    "completion_tokens_details": { "reasoning_tokens": 24 },
+    "prompt_tokens": 354,
+    "prompt_tokens_details": { "cached_tokens": 0 },
+    "total_tokens": 411
+  }
+}

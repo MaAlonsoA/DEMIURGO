@@ -10,11 +10,12 @@ import type { Config } from './config.ts';
 import { type Connection, connect } from './db/connection.ts';
 import { migrate } from './db/migrator.ts';
 import { type StartedEngine, startEngine } from './engine/engine.ts';
+import { engineServices } from './engine/registry.ts';
 import { createClaudeProvider } from './providers/claude.ts';
 import { createCodexProvider } from './providers/codex.ts';
 import { createOpenCodeProvider } from './providers/opencode.ts';
 import { type ProviderRegistry, createProviderRegistry } from './providers/registry.ts';
-import { type Logger, type Services, consoleLogger } from './services.ts';
+import { type Logger, consoleLogger } from './services.ts';
 
 /** Claude, Codex and the local models of OpenCode; the simulated provider only with the dev tools. */
 export function createProviders(config: Config): ProviderRegistry {
@@ -32,23 +33,19 @@ export async function startCore(config: Config, logger: Logger = consoleLogger):
   const connection = connect(config.databaseUrl);
   const applied = await migrate(connection.pool);
   if (applied.length) logger.info('Migrations applied', { applied });
-  let services: Services | undefined;
   const providers = createProviders(config);
   const engine = await startEngine(
     {
       db: connection.db,
       clock: () => new Date(),
       providers,
-      classifierFor: agentClassifiers(() => {
-        if (!services) throw new Error('The core has not started.');
-        return services;
-      }),
+      // The engine's services exist before DBOS resumes workflows and the reconcilers run.
+      classifierFor: agentClassifiers(engineServices),
       agentSessionsDir: config.agentSessionsDir,
       logger,
     },
     config.databaseUrl,
   );
-  services = engine.services;
   void refreshCatalogs({ db: connection.db, providers }, system('providers'))
     .then((catalogs) =>
       logger.info('Providers discovered', {

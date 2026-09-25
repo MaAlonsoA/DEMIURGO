@@ -18,6 +18,8 @@ Put it before the title zone of every card, node and detail. The dot says how su
 - Never show something an agent proposed with the Confirmed dot.
 - Use `size="sm"` inside cards and nodes.
 
+The dot's hover text is its word; pass `title=""` when a Tooltip already explains it (the same holds for StatusMark, StageBars and WhoMark).
+
 ```jsx
 <CertaintyDot state="proposed" size="sm" label />
 ```

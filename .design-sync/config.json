@@ -3,8 +3,8 @@
   "shape": "package",
   "pkg": "@demiurgo/design-system",
   "globalName": "Demiurgo",
-  "buildCmd": "node .design-sync/source/build.mjs",
-  "entry": ".design-sync/source/dist/index.js",
+  "buildCmd": "node packages/design-system/build.mjs",
+  "entry": "packages/design-system/dist/index.js",
   "cssEntry": "demiurgo.css",
   "extraFonts": [
     "fonts.css"

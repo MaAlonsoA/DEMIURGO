@@ -26,6 +26,8 @@
     "migrations/**",
     "tests/**",
     "reports/**",
-    ".claude/**"
+    ".claude/**",
+    ".design-sync/**",
+    "packages/design-system/build.mjs"
   ]
 }

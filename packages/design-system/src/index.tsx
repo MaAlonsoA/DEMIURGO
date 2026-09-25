@@ -1,5 +1,7 @@
 // DEMIURGO design system: the visual language agreed in the canvas «DEMIURGO · UX», as React components.
 // Every component renders the `dm-*` classes of demiurgo.css; load that stylesheet (styles.css) once.
+// The props an app needs (links, actions, widths, hover text) are optional: without them each
+// component renders exactly as in the canvas.
 import * as React from 'react';
 
 type Children = { children?: React.ReactNode };
@@ -10,13 +12,18 @@ const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).jo
 const PATHS = {
   feature: '<rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 9h18"></path><path d="M9 9v11"></path>',
   decision: '<path d="M12 3l9 9-9 9-9-9z"></path>',
-  'tech-decision': '<rect x="6" y="6" width="12" height="12" rx="2"></rect><path d="M10 10h4v4h-4z"></path><path d="M10 2v4M14 2v4M10 18v4M14 18v4M2 10h4M2 14h4M18 10h4M18 14h4"></path>',
+  'tech-decision':
+    '<rect x="6" y="6" width="12" height="12" rx="2"></rect><path d="M10 10h4v4h-4z"></path><path d="M10 2v4M14 2v4M10 18v4M14 18v4M2 10h4M2 14h4M18 10h4M18 14h4"></path>',
   question: '<path d="M4 5h16v11H10l-4 4v-4H4z"></path>',
   check: '<circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3.5"></circle>',
   idea: '<path d="M9 18h6"></path><path d="M10 21h4"></path><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.1 2.2h5c0-.8.4-1.6 1.1-2.2A6 6 0 0 0 12 3z"></path>',
-  thread: '<circle cx="6" cy="5" r="2"></circle><circle cx="6" cy="19" r="2"></circle><circle cx="18" cy="7" r="2"></circle><path d="M6 7v10"></path><path d="M18 9c0 5-12 3-12 8"></path>',
-  journey: '<circle cx="6" cy="19" r="2"></circle><circle cx="18" cy="5" r="2"></circle><path d="M8 19h7.5a3.5 3.5 0 0 0 0-7h-7a3.5 3.5 0 0 1 0-7H16"></path>',
-  'depends-on': '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"></path><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"></path>',
+  thread:
+    '<circle cx="6" cy="5" r="2"></circle><circle cx="6" cy="19" r="2"></circle><circle cx="18" cy="7" r="2"></circle><path d="M6 7v10"></path><path d="M18 9c0 5-12 3-12 8"></path>',
+  journey:
+    '<circle cx="6" cy="19" r="2"></circle><circle cx="18" cy="5" r="2"></circle><path d="M8 19h7.5a3.5 3.5 0 0 0 0-7h-7a3.5 3.5 0 0 1 0-7H16"></path>',
+  bug: '<rect x="7" y="7" width="10" height="13" rx="5"></rect><path d="M12 7v13M4 11h3M17 11h3M4 17h3M17 17h3M9 4l1.5 3M15 4l-1.5 3"></path>',
+  'depends-on':
+    '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"></path><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"></path>',
   conflict: '<path d="M12 3l9.5 17h-19z"></path><path d="M12 10v4"></path><path d="M12 17.5v.01"></path>',
   'needs-review': '<path d="M20 11a8 8 0 1 0-2.3 5.7"></path><path d="M20 4v7h-7"></path>',
   blocked: '<rect x="3" y="8" width="18" height="8" rx="1"></rect><path d="M8 8l-3 8M13 8l-3 8M18 8l-3 8"></path>',
@@ -24,11 +31,21 @@ const PATHS = {
   plug: '<path d="M9 3v5M15 3v5"></path><path d="M6 8h12v3a6 6 0 0 1-12 0z"></path><path d="M12 17v4"></path>',
   automatic: '<circle cx="12" cy="12" r="3"></circle><path d="M12 3v3M12 18v3M3 12h3M18 12h3"></path>',
   info: '<path d="M12 11v7"></path><circle cx="12" cy="6.5" r="1.4" fill="currentColor" stroke="none"></circle>',
-  close: '<path d="M6 6l12 12M18 6L6 18"></path>'
+  close: '<path d="M6 6l12 12M18 6L6 18"></path>',
 } as const;
-type IconName = keyof typeof PATHS;
+export type IconName = keyof typeof PATHS;
 
-function Svg({ name, size = 16, stroke = 1.8 }: { name: IconName; size?: number; stroke?: number }) {
+export interface IconProps {
+  /** The icon: a type (feature … journey, bug) or a signal (depends-on, conflict, needs-review, blocked, clock, plug, automatic, info, close). */
+  name: IconName;
+  /** Pixel size. */
+  size?: number;
+  /** Stroke width: 1.8 for type icons, 2 for signal icons. */
+  stroke?: number;
+  className?: string;
+}
+/** A stroke icon on the 24 grid, in currentColor. */
+export function Icon({ name, size = 16, stroke = 1.8, className }: IconProps) {
   return (
     <svg
       width={size}
@@ -40,12 +57,14 @@ function Svg({ name, size = 16, stroke = 1.8 }: { name: IconName; size?: number;
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
+      className={className}
       dangerouslySetInnerHTML={{ __html: PATHS[name] }}
     />
   );
 }
+const Svg = Icon;
 
-export type ItemType = 'feature' | 'decision' | 'tech-decision' | 'question' | 'check' | 'idea' | 'thread' | 'journey';
+export type ItemType = 'feature' | 'decision' | 'tech-decision' | 'question' | 'check' | 'idea' | 'thread' | 'journey' | 'bug';
 const TYPE_WORD: Record<ItemType, string> = {
   feature: 'Feature',
   decision: 'Decision',
@@ -54,7 +73,8 @@ const TYPE_WORD: Record<ItemType, string> = {
   check: 'Check',
   idea: 'Idea',
   thread: 'Thread',
-  journey: 'Journey'
+  journey: 'Journey',
+  bug: 'Bug',
 };
 
 export interface TypeIconProps {
@@ -84,7 +104,7 @@ const CERTAINTY_WORD: Record<Certainty, string> = {
   assumed: 'Assumed',
   proposed: 'Proposed',
   open: 'Open',
-  unknown: 'Unknown'
+  unknown: 'Unknown',
 };
 
 export interface CertaintyDotProps {
@@ -94,14 +114,18 @@ export interface CertaintyDotProps {
   size?: 'md' | 'sm';
   /** Show the word next to the dot. Proposed reads in blue. */
   label?: boolean;
+  /** Hover text; the state's word by default. Pass '' when a Tooltip already explains the mark. */
+  title?: string;
 }
 /** How sure DEMIURGO is about something: one dot and one word, on every element. */
-export function CertaintyDot({ state, size = 'md', label = false }: CertaintyDotProps) {
+export function CertaintyDot({ state, size = 'md', label = false, title }: CertaintyDotProps) {
   const mark =
     state === 'unknown' ? (
-      <span className="dm-unknown" title="Unknown">?</span>
+      <span className="dm-unknown" title={title ?? 'Unknown'}>
+        ?
+      </span>
     ) : (
-      <span className={cx('dm-dot', `dm-dot--${state}`, size === 'sm' && 'dm-dot--sm')} title={CERTAINTY_WORD[state]} />
+      <span className={cx('dm-dot', `dm-dot--${state}`, size === 'sm' && 'dm-dot--sm')} title={title ?? CERTAINTY_WORD[state]} />
     );
   if (!label) return mark;
   return (
@@ -118,7 +142,7 @@ const STATUS_WORD: Record<Status, string> = {
   dropped: 'Dropped',
   replaced: 'Replaced',
   'out-of-date': 'Out of date',
-  conflict: 'Conflict'
+  conflict: 'Conflict',
 };
 
 export interface StatusMarkProps {
@@ -128,9 +152,11 @@ export interface StatusMarkProps {
   count?: number;
   /** Show the word next to the mark. */
   label?: boolean;
+  /** Hover text; the status word by default. Pass '' when a Tooltip already explains the mark. */
+  title?: string;
 }
 /** Grey marks for things that are no longer active, and the rust Conflict mark. */
-export function StatusMark({ status, count, label = false }: StatusMarkProps) {
+export function StatusMark({ status, count, label = false, title }: StatusMarkProps) {
   let mark: React.ReactNode;
   if (status === 'parked') {
     mark = (
@@ -168,9 +194,11 @@ export function StatusMark({ status, count, label = false }: StatusMarkProps) {
     );
   }
   return (
-    <span title={STATUS_WORD[status]} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+    <span title={title ?? STATUS_WORD[status]} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
       {mark}
-      {label ? <span style={{ color: status === 'conflict' ? 'var(--problem)' : 'var(--muted)' }}>{STATUS_WORD[status]}</span> : null}
+      {label ? (
+        <span style={{ color: status === 'conflict' ? 'var(--problem)' : 'var(--muted)' }}>{STATUS_WORD[status]}</span>
+      ) : null}
     </span>
   );
 }
@@ -182,7 +210,7 @@ const STAGE_WORD: Record<Stage, string> = {
   building: 'Building',
   verified: 'Verified',
   'in-doubt': 'In doubt',
-  'first-only': 'Ready to build (built and verified come later)'
+  'first-only': 'Ready to build (built and verified come later)',
 };
 const STAGE_BARS: Record<Stage, [string, string, string]> = {
   'not-ready': ['', '', ''],
@@ -190,7 +218,7 @@ const STAGE_BARS: Record<Stage, [string, string, string]> = {
   building: ['ink', 'build', ''],
   verified: ['ink', 'ink', 'ink'],
   'in-doubt': ['doubt', '', ''],
-  'first-only': ['ink', 'later', 'later']
+  'first-only': ['ink', 'later', 'later'],
 };
 
 export interface StageBarsProps {
@@ -198,11 +226,13 @@ export interface StageBarsProps {
   stage: Stage;
   /** Show the word next to the track. On cards, leave it off: the word shows on hover. */
   label?: boolean;
+  /** Hover text; the stage's word by default. Pass '' when a Tooltip already explains the track. */
+  title?: string;
 }
 /** How far a feature is: a three-bar track with no text on the card. Features only. */
-export function StageBars({ stage, label = false }: StageBarsProps) {
+export function StageBars({ stage, label = false, title }: StageBarsProps) {
   const track = (
-    <span className="dm-bars" title={STAGE_WORD[stage]} role="img" aria-label={STAGE_WORD[stage]}>
+    <span className="dm-bars" title={title ?? STAGE_WORD[stage]} role="img" aria-label={STAGE_WORD[stage]}>
       {STAGE_BARS[stage].map((b, i) => (
         <span key={i} className={cx('dm-bar', b && `dm-bar--${b}`)} />
       ))}
@@ -229,9 +259,11 @@ export interface WhoMarkProps {
   name?: string;
   /** Show the word (or the name) next to the mark. */
   label?: boolean;
+  /** Hover text; who (and the name) by default. Pass '' when a Tooltip already explains the mark. */
+  title?: string;
 }
 /** Who did something: You, DEMIURGO, an Agent or Automatic. */
-export function WhoMark({ who, size = 18, name, label = false }: WhoMarkProps) {
+export function WhoMark({ who, size = 18, name, label = false, title }: WhoMarkProps) {
   const cls = { you: 'dm-who--you', demiurgo: 'dm-who--d', agent: 'dm-who--agent', automatic: 'dm-who--auto' }[who];
   const inner =
     who === 'you' ? (
@@ -247,7 +279,11 @@ export function WhoMark({ who, size = 18, name, label = false }: WhoMarkProps) {
       <Svg name="automatic" size={size - 8} stroke={2.5} />
     );
   const mark = (
-    <span className={cx('dm-who', cls)} style={{ width: size, height: size }} title={name ? `${WHO_WORD[who]}: ${name}` : WHO_WORD[who]}>
+    <span
+      className={cx('dm-who', cls)}
+      style={{ width: size, height: size }}
+      title={title ?? (name ? `${WHO_WORD[who]}: ${name}` : WHO_WORD[who])}
+    >
       {inner}
     </span>
   );
@@ -330,6 +366,8 @@ export function Signal({ kind, value }: SignalProps) {
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   /** primary: the one action that resolves what needs you (blue); secondary: the other choices; quiet: a light blue action inside a panel; text: the way out. */
   variant?: 'primary' | 'secondary' | 'quiet' | 'text';
+  /** React 19 passes ref as a prop: it reaches the button. */
+  ref?: React.Ref<HTMLButtonElement>;
 }
 /** Buttons say what happens. Blue is for the action that answers what needs you, one per view. */
 export function Button({ variant = 'secondary', className, type = 'button', ...rest }: ButtonProps) {
@@ -339,6 +377,8 @@ export function Button({ variant = 'secondary', className, type = 'button', ...r
 export interface ChipProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   /** Whether the chip is chosen. A pressed chip is ink. */
   pressed?: boolean;
+  /** React 19 passes ref as a prop: it reaches the button. */
+  ref?: React.Ref<HTMLButtonElement>;
 }
 /** A short choice, such as the reason for rejecting a proposal. */
 export function Chip({ pressed = false, className, type = 'button', ...rest }: ChipProps) {
@@ -362,11 +402,13 @@ export interface ChoiceProps {
   value?: string;
   /** Called with the chosen label. */
   onChange?: (label: string) => void;
+  /** What is being chosen, for assistive technology. */
+  'aria-label'?: string;
 }
 /** Answering a question: each option says what it changes; DEMIURGO recommends one, the person picks. */
-export function Choice({ options, value, onChange }: ChoiceProps) {
+export function Choice({ options, value, onChange, 'aria-label': ariaLabel = 'Your answer' }: ChoiceProps) {
   return (
-    <div role="radiogroup" aria-label="Your answer" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div role="radiogroup" aria-label={ariaLabel} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {options.map((o) => {
         const on = o.label === value;
         return (
@@ -376,6 +418,12 @@ export function Choice({ options, value, onChange }: ChoiceProps) {
             aria-checked={on}
             tabIndex={0}
             onClick={() => onChange?.(o.label)}
+            onKeyDown={(e) => {
+              if (e.key === ' ' || e.key === 'Enter') {
+                e.preventDefault();
+                onChange?.(o.label);
+              }
+            }}
             style={{
               display: 'flex',
               gap: 12,
@@ -384,7 +432,7 @@ export function Choice({ options, value, onChange }: ChoiceProps) {
               border: on ? '2px solid var(--needs)' : '1px solid var(--line-strong)',
               borderRadius: 'var(--radius-card-md)',
               padding: on ? '11px 13px' : '12px 14px',
-              cursor: 'pointer'
+              cursor: 'pointer',
             }}
           >
             <span
@@ -395,7 +443,7 @@ export function Choice({ options, value, onChange }: ChoiceProps) {
                 marginTop: 2,
                 boxSizing: 'border-box',
                 borderRadius: '50%',
-                border: on ? '5px solid var(--needs)' : '1.5px solid var(--line-strong)'
+                border: on ? '5px solid var(--needs)' : '1.5px solid var(--line-strong)',
               }}
             />
             <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -419,18 +467,53 @@ export function Choice({ options, value, onChange }: ChoiceProps) {
   );
 }
 
+/** Renders a link to a target (a tab's name, or "Needs you"), e.g. with the app's router. */
+export type LinkRenderer = (target: string, props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => React.ReactNode;
+
 export interface HeaderProps {
   /** The project name. */
-  project: string;
+  project: React.ReactNode;
   /** The section tabs, in order. */
   tabs: string[];
   /** The current tab. */
   current: string;
   /** How many things need the person. */
   needs?: number;
+  /** Renders each tab, and Needs you, as a link. With it, Needs you is always there, with its counter only when something waits. */
+  link?: LinkRenderer;
+  /** Tools on the right, before Needs you: search, status, the person's menu. */
+  actions?: React.ReactNode;
 }
+const plainLink: LinkRenderer = (_target, props) => <a href="#" {...props} />;
 /** The app header: the product name, the project, the sections and Needs you on the right. */
-export function Header({ project, tabs, current, needs = 0 }: HeaderProps) {
+export function Header({ project, tabs, current, needs = 0, link, actions }: HeaderProps) {
+  const tabLink = link ?? plainLink;
+  const needsYou = link ? (
+    link('Needs you', {
+      'aria-current': current === 'Needs you' ? 'page' : undefined,
+      style: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 8,
+        fontWeight: 600,
+        whiteSpace: 'nowrap',
+        flexShrink: 0,
+        color: 'var(--ink)',
+        background: current === 'Needs you' ? 'var(--line-soft)' : 'transparent',
+        borderRadius: 'var(--radius-tab)',
+        padding: '6px 12px',
+        textDecoration: 'none',
+      },
+      children: (
+        <>
+          Needs you
+          <NeedsYou count={needs} />
+        </>
+      ),
+    })
+  ) : (
+    <NeedsYou count={needs} label />
+  );
   return (
     <header
       style={{
@@ -442,7 +525,7 @@ export function Header({ project, tabs, current, needs = 0 }: HeaderProps) {
         gap: 24,
         padding: '0 24px',
         background: 'var(--surface)',
-        borderBottom: '1px solid var(--line)'
+        borderBottom: '1px solid var(--line)',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
@@ -450,26 +533,32 @@ export function Header({ project, tabs, current, needs = 0 }: HeaderProps) {
         <span style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{project}</span>
         <nav aria-label="Sections" style={{ display: 'flex', gap: 4 }}>
           {tabs.map((t) => (
-            <a
-              key={t}
-              href="#"
-              aria-current={t === current ? 'page' : undefined}
-              style={{
-                fontWeight: t === current ? 600 : 500,
-                color: t === current ? 'var(--ink)' : 'var(--ink-3)',
-                background: t === current ? 'var(--line-soft)' : 'transparent',
-                borderRadius: 'var(--radius-tab)',
-                padding: '6px 12px',
-                textDecoration: 'none',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              {t}
-            </a>
+            <React.Fragment key={t}>
+              {tabLink(t, {
+                'aria-current': t === current ? 'page' : undefined,
+                style: {
+                  fontWeight: t === current ? 600 : 500,
+                  color: t === current ? 'var(--ink)' : 'var(--ink-3)',
+                  background: t === current ? 'var(--line-soft)' : 'transparent',
+                  borderRadius: 'var(--radius-tab)',
+                  padding: '6px 12px',
+                  textDecoration: 'none',
+                  whiteSpace: 'nowrap',
+                },
+                children: t,
+              })}
+            </React.Fragment>
           ))}
         </nav>
       </div>
-      <NeedsYou count={needs} label />
+      {actions ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+          {actions}
+          {needsYou}
+        </div>
+      ) : (
+        needsYou
+      )}
     </header>
   );
 }
@@ -479,12 +568,14 @@ export function Header({ project, tabs, current, needs = 0 }: HeaderProps) {
 export interface FeatureCardProps {
   /** How sure. */
   state: Certainty;
-  /** How far. */
-  stage: Stage;
+  /** How far. Features only: leave it out for the other types. */
+  stage?: Stage;
+  /** What it is: a feature by default; every type uses the same template. */
+  type?: ItemType;
   /** Plain words; no codes on a card. */
   title: string;
   /** One line that says what it does. */
-  line: string;
+  line: React.ReactNode;
   /** Who touched it last. */
   who: Who;
   /** When, e.g. "Thursday" or "18:52". */
@@ -495,11 +586,32 @@ export interface FeatureCardProps {
   signals?: React.ReactNode;
   /** Selected: 2px blue border with a ring. */
   selected?: boolean;
-  /** Card width in px. */
-  width?: number;
+  /** Card width in px, or a CSS width such as '100%'. */
+  width?: number | string;
+  /** Zone 2's dot and word as the app draws them (e.g. with a tooltip); by default CertaintyDot and its word. */
+  mark?: React.ReactNode;
+  /** Zone 2's track as the app draws it; by default StageBars for the stage. */
+  bars?: React.ReactNode;
+  /** The footer's mark as the app draws it; by default WhoMark. */
+  whoMark?: React.ReactNode;
 }
 /** A feature on the map or the overview: the six-zone card template (what, how sure and how far, Needs you, title and line, who and when, signals). */
-export function FeatureCard({ state, stage, title, line, who, when, needs = 0, signals, selected = false, width = 300 }: FeatureCardProps) {
+export function FeatureCard({
+  state,
+  stage,
+  type = 'feature',
+  title,
+  line,
+  who,
+  when,
+  needs = 0,
+  signals,
+  selected = false,
+  width = 300,
+  mark,
+  bars,
+  whoMark,
+}: FeatureCardProps) {
   return (
     <div className={cx('dm-card', selected && 'dm-selected', state === 'open' && 'dm-dashed')} style={{ width, height: 146 }}>
       {needs > 0 ? (
@@ -508,19 +620,31 @@ export function FeatureCard({ state, stage, title, line, who, when, needs = 0, s
         </span>
       ) : null}
       <span className="dm-card-type">
-        <Svg name="feature" size={14} />
-        FEATURE<span className="dm-sep">·</span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, letterSpacing: 0, color: state === 'proposed' ? 'var(--needs-strong)' : 'var(--ink)' }}>
-          <CertaintyDot state={state} size="sm" />
-          {CERTAINTY_WORD[state]}
-        </span>
-        <StageBars stage={stage} />
+        <Svg name={type} size={14} />
+        {TYPE_WORD[type].toUpperCase()}
+        <span className="dm-sep">·</span>
+        {mark ?? (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              fontSize: 12,
+              letterSpacing: 0,
+              color: state === 'proposed' ? 'var(--needs-strong)' : 'var(--ink)',
+            }}
+          >
+            <CertaintyDot state={state} size="sm" />
+            {CERTAINTY_WORD[state]}
+          </span>
+        )}
+        {bars ?? (stage ? <StageBars stage={stage} /> : null)}
       </span>
       <strong className="dm-card-title">{title}</strong>
       <span className="dm-card-line">{line}</span>
       <span className="dm-card-foot">
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <WhoMark who={who} size={18} />
+          {whoMark ?? <WhoMark who={who} size={18} />}
           {WHO_WORD[who]} · {when}
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>{signals}</span>
@@ -540,15 +664,29 @@ export interface NodeProps {
   trailing?: React.ReactNode;
   /** Selected: 2px blue border with a ring. */
   selected?: boolean;
+  /** The dot as the app draws it (e.g. with a tooltip); by default CertaintyDot, or the Parked mark. */
+  mark?: React.ReactNode;
 }
 /** The small size of the card template: one 44px row for trees, lists and the small things on the map. */
-export function Node({ type, state, title, trailing, selected = false }: NodeProps) {
+export function Node({ type, state, title, trailing, selected = false, mark }: NodeProps) {
   const faded = state === 'parked';
   return (
     <div className={cx('dm-node', selected && 'dm-selected', state === 'open' && 'dm-dashed', faded && 'dm-faded')}>
       <Svg name={type} size={14} />
-      {faded ? <StatusMark status="parked" /> : <CertaintyDot state={state} size="sm" />}
-      <span style={{ fontSize: 14, fontWeight: state === 'proposed' || state === 'confirmed' ? 600 : 400, flexGrow: 1 }}>{title}</span>
+      {mark ?? (faded ? <StatusMark status="parked" /> : <CertaintyDot state={state} size="sm" />)}
+      <span
+        style={{
+          fontSize: 14,
+          fontWeight: state === 'proposed' || state === 'confirmed' ? 600 : 400,
+          flexGrow: 1,
+          minWidth: 0,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {title}
+      </span>
       {trailing}
     </div>
   );
@@ -557,8 +695,8 @@ export function Node({ type, state, title, trailing, selected = false }: NodePro
 export interface PanelProps extends Children {
   /** Floating: the peek that appears beside a pointed card, with a float shadow. */
   floating?: boolean;
-  /** Width in px. */
-  width?: number;
+  /** Width in px, or a CSS width such as '100%'. */
+  width?: number | string;
 }
 /** The detail size of the card template: a panel for the selected thing, or a floating peek. */
 export function Panel({ children, floating = false, width = 330 }: PanelProps) {
@@ -573,7 +711,17 @@ export interface TooltipProps extends Children {}
 /** The dark tooltip shown when pointing at a single mark. */
 export function Tooltip({ children }: TooltipProps) {
   return (
-    <span role="tooltip" style={{ display: 'inline-block', background: 'var(--ink)', color: 'var(--surface)', fontSize: 12, borderRadius: 'var(--radius-tab)', padding: '5px 9px' }}>
+    <span
+      role="tooltip"
+      style={{
+        display: 'inline-block',
+        background: 'var(--ink)',
+        color: 'var(--surface)',
+        fontSize: 12,
+        borderRadius: 'var(--radius-tab)',
+        padding: '5px 9px',
+      }}
+    >
       {children}
     </span>
   );
@@ -586,6 +734,8 @@ export interface LegendEntry {
   word: string;
   /** One line that explains it; shown for new marks. */
   desc?: string;
+  /** An id for the app, passed back to onPoint. */
+  id?: string;
 }
 export interface LegendProps {
   /** Open shows the panel; closed shows only the ⓘ button. */
@@ -594,13 +744,32 @@ export interface LegendProps {
   newMarks?: LegendEntry[];
   /** Marks the person already knows, compact. */
   known?: LegendEntry[];
+  /** "Got it": folds the legend. With it, Got it is a button. */
+  onGotIt?: () => void;
+  /** The ⓘ button: opens or folds the legend. */
+  onToggle?: () => void;
+  /** Pointing at an entry (null when the pointer leaves), to light up its marks on the screen. */
+  onPoint?: (entry: LegendEntry | null) => void;
+  /** A line under the entries, such as how to open the legend again. */
+  footer?: React.ReactNode;
 }
 const legendSlot = (m: React.ReactNode) => (
-  <span style={{ width: 34, height: 20, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{m}</span>
+  <span style={{ width: 34, height: 20, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    {m}
+  </span>
 );
+const unstyledButton: React.CSSProperties = {
+  font: 'inherit',
+  background: 'none',
+  border: 'none',
+  padding: 0,
+  cursor: 'pointer',
+};
 
 /** A legend of the marks on the current screen, bottom-left, that folds into an ⓘ and announces new marks. */
-export function Legend({ open = true, newMarks = [], known = [] }: LegendProps) {
+export function Legend({ open = true, newMarks = [], known = [], onGotIt, onToggle, onPoint, footer }: LegendProps) {
+  const point = (e: LegendEntry) =>
+    onPoint ? { onMouseEnter: () => onPoint(e), onMouseLeave: () => onPoint(null) } : ({} as React.HTMLAttributes<HTMLElement>);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 12 }}>
       {open ? (
@@ -608,6 +777,9 @@ export function Legend({ open = true, newMarks = [], known = [] }: LegendProps) 
           aria-label="What the marks mean"
           style={{
             width: 312,
+            // Many new marks at once scroll inside it: it never covers more than half the window.
+            maxHeight: 'min(52vh, 480px)',
+            overflowY: 'auto',
             boxSizing: 'border-box',
             display: 'flex',
             flexDirection: 'column',
@@ -616,18 +788,29 @@ export function Legend({ open = true, newMarks = [], known = [] }: LegendProps) 
             border: '1px solid var(--line-strong)',
             borderRadius: 'var(--radius-card)',
             padding: '14px 16px',
-            boxShadow: 'var(--shadow-float)'
+            boxShadow: 'var(--shadow-float)',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <strong style={{ fontSize: 13 }}>What the marks mean</strong>
-            <span className="dm-text-caption" style={{ color: 'var(--muted)' }}>
-              Got it
-            </span>
+            {onGotIt ? (
+              <button
+                type="button"
+                className="dm-text-caption"
+                style={{ ...unstyledButton, color: 'var(--muted)' }}
+                onClick={onGotIt}
+              >
+                Got it
+              </button>
+            ) : (
+              <span className="dm-text-caption" style={{ color: 'var(--muted)' }}>
+                Got it
+              </span>
+            )}
           </div>
           {newMarks.length ? <span className="dm-label">New on this screen</span> : null}
           {newMarks.map((e) => (
-            <div key={e.word} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: 6 }}>
+            <div key={e.id ?? e.word} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: 6 }} {...point(e)}>
               {legendSlot(e.mark)}
               <span>
                 <strong style={{ display: 'block', fontSize: 13 }}>{e.word}</strong>
@@ -644,17 +827,31 @@ export function Legend({ open = true, newMarks = [], known = [] }: LegendProps) 
           ) : null}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 8px', fontSize: 13 }}>
             {known.map((e) => (
-              <span key={e.word} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 4px' }}>
+              <span
+                key={e.id ?? e.word}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 4px' }}
+                {...point(e)}
+              >
                 {legendSlot(e.mark)}
                 {e.word}
               </span>
             ))}
           </div>
+          {footer ? (
+            <div
+              className="dm-text-caption"
+              style={{ color: 'var(--muted)', borderTop: '1px solid var(--line-soft)', paddingTop: 8 }}
+            >
+              {footer}
+            </div>
+          ) : null}
         </section>
       ) : null}
       <button
         type="button"
-        aria-label="What the marks mean"
+        aria-label={newMarks.length && !open ? `What the marks mean: ${newMarks.length} new` : 'What the marks mean'}
+        aria-expanded={onToggle ? open : undefined}
+        onClick={onToggle}
         style={{
           font: 'inherit',
           height: 34,
@@ -667,11 +864,16 @@ export function Legend({ open = true, newMarks = [], known = [] }: LegendProps) 
           borderRadius: 'var(--radius-pill)',
           padding: newMarks.length && !open ? '0 12px 0 9px' : '0 9px',
           boxShadow: 'var(--shadow-raised)',
-          color: 'var(--ink)'
+          color: 'var(--ink)',
+          cursor: onToggle ? 'pointer' : undefined,
         }}
       >
         <Svg name="info" size={16} stroke={2.4} />
-        {newMarks.length && !open ? <span className="dm-text-caption" style={{ fontWeight: 600 }}>{newMarks.length} new marks</span> : null}
+        {newMarks.length && !open ? (
+          <span className="dm-text-caption" style={{ fontWeight: 600 }}>
+            {newMarks.length} new {newMarks.length === 1 ? 'mark' : 'marks'}
+          </span>
+        ) : null}
       </button>
     </div>
   );
@@ -686,44 +888,63 @@ export interface ReadinessItem {
   kind?: 'reason' | 'warning' | 'assumed';
   /** The certainty of the thing the reason is about; defaults to open. */
   state?: Certainty;
+  /** The mark as the app draws it (e.g. with a tooltip); by default a dot, or the Conflict icon for a warning. */
+  mark?: React.ReactNode;
 }
 export interface ReadinessProps {
-  /** What still stops it. Empty means ready. */
+  /** What still stops it. Empty, or only warnings, means ready. */
   items?: ReadinessItem[];
   /** What to do next once it is ready. */
   next?: string;
+  /** Width in px, or a CSS width such as '100%'. */
+  width?: number | string;
+  /** The ready track as the app draws it; false leaves it out (the app shows the stage elsewhere). */
+  track?: React.ReactNode | false;
 }
+const readinessLine = (it: ReadinessItem) => (
+  <span
+    key={it.text}
+    className="dm-text-small"
+    data-kind={it.kind ?? 'reason'}
+    style={{
+      display: 'flex',
+      gap: 8,
+      alignItems: 'baseline',
+      color: it.kind === 'warning' ? 'var(--problem)' : it.kind === 'assumed' ? 'var(--ink-3)' : 'var(--ink)',
+    }}
+  >
+    {it.mark ??
+      (it.kind === 'warning' ? (
+        <Svg name="conflict" size={14} stroke={2} />
+      ) : (
+        <CertaintyDot state={it.kind === 'assumed' ? 'assumed' : (it.state ?? 'open')} size="sm" />
+      ))}
+    <span>{it.text}</span>
+  </span>
+);
 /** Before it can be built: what still stops a feature, in product words, until it reads Ready to build. */
-export function Readiness({ items = [], next }: ReadinessProps) {
+export function Readiness({ items = [], next, width = 330, track }: ReadinessProps) {
+  // Warnings never block: with nothing else, it is ready and they show under it.
+  const ready = items.every((it) => it.kind === 'warning');
   return (
-    <div className="dm-panel" style={{ width: 330 }}>
+    <div className="dm-panel" style={{ width }}>
       <span className="dm-label">Before it can be built</span>
-      {items.length === 0 ? (
+      {ready ? (
         <>
-          <StageBars stage="ready" label />
+          {track === false ? null : (track ?? <StageBars stage="ready" label />)}
           {next ? (
             <span className="dm-text-small" style={{ color: 'var(--ink-3)' }}>
               {next}
             </span>
           ) : null}
         </>
-      ) : (
-        items.map((it) => (
-          <span
-            key={it.text}
-            className="dm-text-small"
-            style={{ display: 'flex', gap: 8, alignItems: 'baseline', color: it.kind === 'warning' ? 'var(--problem)' : it.kind === 'assumed' ? 'var(--ink-3)' : 'var(--ink)' }}
-          >
-            {it.kind === 'warning' ? <Svg name="conflict" size={14} stroke={2} /> : <CertaintyDot state={it.kind === 'assumed' ? 'assumed' : (it.state ?? 'open')} size="sm" />}
-            <span>{it.text}</span>
-          </span>
-        ))
-      )}
+      ) : null}
+      {items.map(readinessLine)}
     </div>
   );
 }
 
-export interface ProposalProps {
+export interface ProposalProps extends Children {
   /** Who proposes. */
   author: 'demiurgo' | 'agent';
   /** The agent's name, e.g. "Claude Code". */
@@ -744,47 +965,94 @@ export interface ProposalProps {
   note?: string;
   /** Out of date: what it relied on changed. It offers no Accept. */
   outOfDate?: string;
+  /** What the proposal changes in detail, shown before the actions. */
+  children?: React.ReactNode;
+  /** The actions, in place of Accept, Change and Reject (e.g. only the ones the person may take); null for none. */
+  actions?: React.ReactNode;
+  /** Width in px, or a CSS width such as '100%'. */
+  width?: number | string;
+  /** The author's mark as the app draws it (e.g. with a tooltip); by default WhoMark. */
+  whoMark?: React.ReactNode;
+  /** The type line's dot and word, or the Out of date mark, as the app draws them (e.g. Accepted once
+      resolved); by default Proposed, or Out of date. */
+  mark?: React.ReactNode;
 }
 /** One proposal at a time, from DEMIURGO or an agent: what it changes, why in its own words, and Accept, Change or Reject. */
-export function Proposal({ author, authorName, position, type, kindLabel, title, why, source, note, outOfDate }: ProposalProps) {
+export function Proposal({
+  author,
+  authorName,
+  position,
+  type,
+  kindLabel,
+  title,
+  why,
+  source,
+  note,
+  outOfDate,
+  children,
+  actions,
+  width,
+  whoMark,
+  mark,
+}: ProposalProps) {
   if (outOfDate) {
     return (
-      <div className="dm-panel" style={{ width: 360, background: 'var(--surface-soft)' }}>
-        <StatusMark status="out-of-date" label />
+      <div className="dm-panel" style={{ width: width ?? 360, background: 'var(--surface-soft)' }}>
+        {mark ?? <StatusMark status="out-of-date" label />}
         <strong style={{ fontSize: 15, color: 'var(--ink-3)' }}>{title}</strong>
         <span className="dm-text-small" style={{ color: 'var(--ink-3)' }}>
           {outOfDate}
         </span>
+        {children}
+        {actions}
       </div>
     );
   }
   return (
-    <div className="dm-panel" style={{ width: 520 }}>
+    <div className="dm-panel" style={{ width: width ?? 520 }}>
       <span className="dm-text-caption" style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--muted)' }}>
-        <WhoMark who={author} size={20} name={authorName} />
-        <strong style={{ color: 'var(--ink)' }}>{authorName ?? WHO_WORD[author]}</strong> proposes{position ? ` · ${position}` : ''}
+        {whoMark ?? <WhoMark who={author} size={20} name={authorName} />}
+        <strong style={{ color: 'var(--ink)' }}>{authorName ?? WHO_WORD[author]}</strong> proposes
+        {position ? ` · ${position}` : ''}
       </span>
       <span className="dm-card-type">
         <Svg name={type} size={14} />
         {kindLabel.toUpperCase()}
         <span className="dm-sep">·</span>
-        <CertaintyDot state="proposed" size="sm" label />
+        {mark ?? <CertaintyDot state="proposed" size="sm" label />}
       </span>
       <strong style={{ fontSize: 17, fontWeight: 600 }}>{title}</strong>
-      <span style={{ fontSize: 14, color: 'var(--ink-2)' }}>
-        “{why}”{source ? <span style={{ color: 'var(--muted)' }}> · {source}, unverified</span> : null}
-      </span>
+      {why || source ? (
+        <span style={{ fontSize: 14, color: 'var(--ink-2)' }}>
+          {why ? `“${why}”` : null}
+          {source ? <span style={{ color: 'var(--muted)' }}> · {source}, unverified</span> : null}
+        </span>
+      ) : null}
       {note ? (
-        <span className="dm-text-small" style={{ background: 'var(--surface-soft)', borderRadius: 'var(--radius-sm)', padding: '8px 10px', display: 'flex', gap: 8 }}>
+        <span
+          className="dm-text-small"
+          style={{
+            background: 'var(--surface-soft)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '8px 10px',
+            display: 'flex',
+            gap: 8,
+          }}
+        >
           <WhoMark who="demiurgo" size={18} />
           {note}
         </span>
       ) : null}
-      <div style={{ display: 'flex', gap: 10 }}>
-        <Button variant="primary">Accept</Button>
-        <Button>Change</Button>
-        <Button>Reject</Button>
-      </div>
+      {children}
+      {actions !== undefined ? (
+        actions
+      ) : (
+        <div style={{ display: 'flex', gap: 10 }}>
+          <Button variant="primary">Accept</Button>
+          <Button>Change</Button>
+          <Button>Reject</Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -796,30 +1064,71 @@ export interface WhileAwayItem {
   who: Who | 'waited';
   /** One line per thing. */
   text: React.ReactNode;
+  /** Something at the end of the line, such as a Conflict mark. */
+  trailing?: React.ReactNode;
+  /** An id for the app; the line carries it as data-id. */
+  id?: string;
+  /** Who, as the app draws it (e.g. with a tooltip); by default WhoMark, or the grey clock. */
+  whoMark?: React.ReactNode;
 }
 export interface WhileAwayProps {
   /** What happened since the last visit, one line per thing. */
   items: WhileAwayItem[];
+  /** The heading; "While you were away" by default. */
+  title?: React.ReactNode;
+  /** "Show everything": leaves the summary. With it, Show everything is a button. */
+  onShowAll?: () => void;
+  /** A closing line, such as "Nothing you confirmed was changed." */
+  note?: React.ReactNode;
+  /** Width in px, or a CSS width such as '100%'. */
+  width?: number | string;
 }
+const awayRow: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: '70px 18px minmax(0, 1fr)',
+  alignItems: 'center',
+  gap: 10,
+  fontSize: 13.5,
+};
 /** What happened since your last visit, one line per thing, with who did it. */
-export function WhileAway({ items }: WhileAwayProps) {
+export function WhileAway({ items, title, onShowAll, note, width = 620 }: WhileAwayProps) {
+  const showAll = { fontWeight: 600, color: 'var(--needs-strong)' };
   return (
-    <div className="dm-panel" style={{ width: 620 }}>
+    <div className="dm-panel" style={{ width }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <strong style={{ fontSize: 15 }}>While you were away</strong>
-        <span className="dm-text-caption" style={{ fontWeight: 600, color: 'var(--needs-strong)' }}>
-          Show everything
-        </span>
+        <strong style={{ fontSize: 15 }}>{title ?? 'While you were away'}</strong>
+        {onShowAll ? (
+          <button type="button" className="dm-text-caption" style={{ ...unstyledButton, ...showAll }} onClick={onShowAll}>
+            Show everything
+          </button>
+        ) : (
+          <span className="dm-text-caption" style={showAll}>
+            Show everything
+          </span>
+        )}
       </div>
       {items.map((it, i) => (
-        <div key={i} style={{ display: 'grid', gridTemplateColumns: '70px 18px minmax(0, 1fr)', alignItems: 'center', gap: 10, fontSize: 13.5 }}>
-          <span className="dm-text-caption" style={{ color: 'var(--inactive)' }}>
+        <div
+          key={it.id ?? i}
+          data-id={it.id}
+          style={it.trailing ? { ...awayRow, gridTemplateColumns: '70px 18px minmax(0, 1fr) auto' } : awayRow}
+        >
+          {/* Times are metadata: muted (inactive is for marks and would fail text contrast). */}
+          <span className="dm-text-caption" style={{ color: 'var(--muted)' }}>
             {it.time}
           </span>
-          {it.who === 'waited' ? <StatusMark status="out-of-date" /> : <WhoMark who={it.who} size={18} />}
+          {it.whoMark ?? (it.who === 'waited' ? <StatusMark status="out-of-date" /> : <WhoMark who={it.who} size={18} />)}
           <span>{it.text}</span>
+          {it.trailing}
         </div>
       ))}
+      {note ? (
+        <div style={awayRow}>
+          <span />
+          <span />
+          <span style={{ color: 'var(--ink-3)' }}>{note}</span>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -835,9 +1144,15 @@ export interface CheckRowProps {
   code?: string;
   /** A verifiability warning; replaces the statement line in rust. */
   warning?: string;
+  /** Verifiability warnings that keep the statement: each one under it, in rust (data-kind="warning"). */
+  warnings?: string[];
+  /** How it is verified, in one line, under the statement. */
+  how?: string;
+  /** Who verifies it, as the app draws it (e.g. with a tooltip); by default WhoMark with its word. */
+  whoMark?: React.ReactNode;
 }
 /** A check (acceptance criterion): what must be true, how it is verified and by whom. */
-export function CheckRow({ title, statement, verifiedBy, code, warning }: CheckRowProps) {
+export function CheckRow({ title, statement, verifiedBy, code, warning, warnings = [], how, whoMark }: CheckRowProps) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '20px minmax(0, 1fr) auto', gap: 10, alignItems: 'start' }}>
       <span style={{ marginTop: 2 }}>
@@ -848,9 +1163,25 @@ export function CheckRow({ title, statement, verifiedBy, code, warning }: CheckR
         <span className="dm-text-small" style={{ display: 'block', color: warning ? 'var(--problem)' : 'var(--ink-3)' }}>
           {warning ?? statement}
         </span>
+        {warnings.map((w) => (
+          <span
+            key={w}
+            className="dm-text-small"
+            data-kind="warning"
+            style={{ display: 'flex', gap: 6, alignItems: 'baseline', color: 'var(--problem)' }}
+          >
+            <Svg name="conflict" size={13} stroke={2} />
+            {w}
+          </span>
+        ))}
+        {how ? (
+          <span className="dm-text-caption" style={{ display: 'block', color: 'var(--muted)' }}>
+            {how}
+          </span>
+        ) : null}
         {code ? <span className="dm-code">{code}</span> : null}
       </span>
-      <WhoMark who={verifiedBy === 'automatic' ? 'automatic' : 'you'} size={18} label />
+      {whoMark ?? <WhoMark who={verifiedBy === 'automatic' ? 'automatic' : 'you'} size={18} label />}
     </div>
   );
 }

@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DEMIURGO · Flujo</title>
+<style>
+  :root {
+    --bg: #f6f5f1; --surface: #ffffff; --ink: #1c1b19; --ink-2: #4a4843; --muted: #7a776f; --line: #dedad0;
+    --human: #2f5bd3; --human-soft: #e7edfc;
+    --agent: #8a4fc8; --agent-soft: #f1e9fb;
+    --system: #2e7d6b; --system-soft: #e1f2ed;
+    --loop: #c25a1c; --flow: #8d8a82;
+    --built: #2e7d4f; --partial: #b07600; --pending: #9a948a;
+    --focus: #f0a400;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141413; --surface: #1d1d1b; --ink: #ecebe6; --ink-2: #c4c2ba; --muted: #928f87; --line: #33322e;
+      --human: #8aa8ff; --human-soft: #1d2842;
+      --agent: #c49af0; --agent-soft: #2c2140;
+      --system: #6fd0b6; --system-soft: #16302a;
+      --loop: #f09a5f; --flow: #6d6a63;
+      --built: #6fcf97; --partial: #f0b35a; --pending: #7d796f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 20px 16px 8px; max-width: 1400px; margin: 0 auto; }
+  h1 { margin: 0; font-size: 1.5rem; }
+  header p { margin: 4px 0 0; color: var(--ink-2); max-width: 900px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 16px; max-width: 1400px; margin: 0 auto; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+  button { font: inherit; cursor: pointer; }
+  .tab, .zoom button { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 4px 12px; font-size: .88rem; }
+  .tab[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .zoom { display: flex; gap: 4px; margin-left: auto; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: .82rem; color: var(--ink-2); padding: 0 16px 8px; max-width: 1400px; margin: 0 auto; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 14px; height: 14px; border-radius: 4px; border: 2px solid; display: inline-block; }
+  .ln { width: 26px; height: 0; border-top: 2px solid var(--flow); display: inline-block; }
+  .ln.loop { border-top: 2px dashed var(--loop); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  main { display: flex; gap: 12px; padding: 0 16px 24px; max-width: 1400px; margin: 0 auto; }
+  .canvas { flex: 1; min-width: 0; height: calc(100vh - 190px); min-height: 460px; overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+  svg { display: block; }
+  .lane-label { font-size: 13px; font-weight: 700; fill: var(--muted); letter-spacing: .06em; }
+  .lane { fill: none; stroke: var(--line); stroke-dasharray: 2 4; }
+  .node { cursor: pointer; outline: none; }
+  .node rect.box { stroke-width: 2; rx: 10; }
+  .node.human rect.box { fill: var(--human-soft); stroke: var(--human); }
+  .node.agent rect.box { fill: var(--agent-soft); stroke: var(--agent); }
+  .node.system rect.box { fill: var(--system-soft); stroke: var(--system); }
+  .node.pending rect.box { stroke-dasharray: 5 4; }
+  .node text { font-size: 12.5px; fill: var(--ink); pointer-events: none; }
+  .node text.inc { font-size: 10.5px; fill: var(--muted); font-weight: 600; }
+  .node circle.st { stroke: var(--surface); stroke-width: 2; }
+  .node:focus rect.box, .node:hover rect.box { stroke-width: 3.5; }
+  .node:focus-visible rect.focus { stroke: var(--focus); stroke-width: 3; fill: none; }
+  .node.selected rect.box { stroke-width: 4; }
+  .edge { fill: none; stroke: var(--flow); stroke-width: 1.6; }
+  .edge.loop { stroke: var(--loop); stroke-dasharray: 6 4; stroke-width: 1.8; }
+  .edge-label { font-size: 10.5px; fill: var(--muted); }
+  .edge-label.loop { fill: var(--loop); font-weight: 600; }
+  .dim { opacity: .14; }
+  .hl .edge { opacity: .25; }
+  .hl .edge.on { opacity: 1; stroke-width: 2.6; }
+  aside { width: 360px; flex-shrink: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; height: calc(100vh - 190px); min-height: 460px; overflow-y: auto; }
+  aside h2 { margin: 0 0 4px; font-size: 1.15rem; }
+  aside .meta { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
+  .pill { font-size: .75rem; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); }
+  .pill.human { color: var(--human); border-color: var(--human); }
+  .pill.agent { color: var(--agent); border-color: var(--agent); }
+  .pill.system { color: var(--system); border-color: var(--system); }
+  .pill.built { color: var(--built); border-color: var(--built); }
+  .pill.partial { color: var(--partial); border-color: var(--partial); }
+  .pill.pending { color: var(--pending); border-color: var(--pending); }
+  aside h3 { font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 14px 0 4px; }
+  aside p, aside li { color: var(--ink-2); margin: 4px 0; }
+  aside ul { padding-left: 18px; margin: 4px 0; }
+  aside code { font: .82em ui-monospace, Consolas, monospace; background: var(--bg); padding: 1px 4px; border-radius: 4px; word-break: break-all; }
+  .close { float: right; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 8px; padding: 2px 10px; }
+  .hint { color: var(--muted); }
+  .loopbtn { border: none; background: none; color: var(--loop); padding: 0; text-align: left; text-decoration: underline; }
+  @media (max-width: 900px) {
+    main { flex-direction: column; }
+    .canvas { height: 62vh; }
+    aside { width: 100%; height: auto; min-height: 0; }
+    aside[hidden] { display: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>DEMIURGO · el flujo completo y sus bucles</h1>
+  <p>La aplicación tal como está pensada en el plan de reimplementación: diseñar (Pilar 1), el motor de conocimiento y contexto, construir (Pilar 2) y los hitos en que DEMIURGO se diseña y se construye a sí mismo. Pulsa cualquier bloque para ver su detalle. Estado a 25-09-2026.</p>
+</header>
+<div class="bar">
+  <div class="tabs" role="group" aria-label="Qué mostrar">
+    <button class="tab" data-filter="all" aria-pressed="true">Todo</button>
+    <button class="tab" data-filter="p1" aria-pressed="false">Pilar 1 · Diseñar</button>
+    <button class="tab" data-filter="know" aria-pressed="false">Conocimiento</button>
+    <button class="tab" data-filter="p2" aria-pressed="false">Pilar 2 · Construir</button>
+    <button class="tab" data-filter="hitos" aria-pressed="false">Hitos</button>
+  </div>
+  <div class="zoom" role="group" aria-label="Zoom">
+    <button id="zout" aria-label="Alejar">−</button>
+    <button id="zfit" aria-label="Ajustar">Ajustar</button>
+    <button id="zin" aria-label="Acercar">+</button>
+  </div>
+</div>
+<div class="legend" aria-label="Leyenda">
+  <span><i class="sw" style="border-color:var(--human);background:var(--human-soft)"></i>Persona (decide)</span>
+  <span><i class="sw" style="border-color:var(--agent);background:var(--agent-soft)"></i>Agente (propone)</span>
+  <span><i class="sw" style="border-color:var(--system);background:var(--system-soft)"></i>Sistema (determinista)</span>
+  <span><i class="ln"></i>Flujo</span>
+  <span><i class="ln loop"></i>Bucle</span>
+  <span><i class="dot" style="background:var(--built)"></i>Construido</span>
+  <span><i class="dot" style="background:var(--partial)"></i>En parte</span>
+  <span><i class="dot" style="background:var(--pending)"></i>Sin empezar (borde discontinuo)</span>
+</div>
+<main>
+  <div class="canvas" id="canvas"><svg id="svg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagrama de flujo de DEMIURGO"></svg></div>
+  <aside id="panel" aria-live="polite">
+    <p class="hint">Elige un bloque del diagrama (clic, o Tab y Enter) para ver qué es, quién actúa, sus entradas y salidas, sus bucles y dónde vive en el código. Escape cierra el detalle.</p>
+  </aside>
+</main>
+<script>
+"use strict";
+const W = 1560, H = 1180, BW = 150, BH = 62;
+const ACTOR = { human: "Persona", agent: "Agente", system: "Sistema" };
+const STATUS = { built: "Construido", partial: "En parte", pending: "Sin empezar" };
+// Nodos: id, grupo, columna x, fila y, actor, estado, incremento, título y detalle.
+const N = [
+  // Transversal (fila superior)
+  { id: "x_person", g: "cross", x: 90, y: 70, a: "human", s: "built", inc: "S0–S1", t: "Persona", sub: "la única que decide",
+    what: "Quien acepta, aprueba, ratifica y confirma. Nada con autoridad cambia sin un evento de actor human.",
+    io: ["Entra: propuestas, versiones, preguntas y paquetes en Needs you", "Sale: aceptar, aprobar, confirmar, rechazar, pedir cambios"],
+    code: ["packages/web/src/screens/needs-you", "packages/api/src/server.ts (sesión con cookie httpOnly y CSRF)", "design/data/capabilities.yaml (lo decisivo es solo humano)"] },
+  { id: "x_channel", g: "cross", x: 290, y: 70, a: "agent", s: "built", inc: "S1", t: "Canal de agentes", sub: "MCP / API con token",
+    what: "Agentes externos (por ejemplo Claude Code) leen, conversan con su nombre, registran fuentes y proponen. Lista de permitidos: todo lo demás da 403. Sus lotes se resuelven elemento a elemento.",
+    io: ["Entra: token dmg_agent_…", "Sale: propuestas en lotes de hasta 10"],
+    code: ["packages/mcp/src", "design/data/capabilities.yaml"] },
+  { id: "x_engines", g: "cross", x: 490, y: 70, a: "agent", s: "built", inc: "H1 (FDR-AGE-002)", t: "Agentes y motores", sub: "Claude · Codex · OpenCode",
+    what: "Cada tarea la ejecuta un agente (AGENT.md + skills) sobre el motor que eligió la persona en Models & providers. Salida estructurada nativa y validación con Zod; salida inválida = invalid_output sin efectos.",
+    io: ["Entra: context pack con huella", "Sale: salida tipada o fallo visible (Retry with…)"],
+    code: ["packages/core/agents", "packages/core/skills", "packages/core/src/providers", "packages/core/src/assignments", "packages/web/src/screens/models"] },
+  { id: "x_bus", g: "cross", x: 690, y: 70, a: "system", s: "built", inc: "S0", t: "Bus y diario", sub: "comando → tabla → evento",
+    what: "Toda escritura es un comando: capacidad (403), validación (422), transición de la tabla (409), guardas y efecto con su evento en la misma transacción. El diario es append-only.",
+    io: ["Entra: comandos de personas, agentes y sistema", "Sale: eventos (SSE en vivo para la web)"],
+    code: ["packages/core/src/bus", "design/data/transitions.yaml", "packages/core/src/engine (DBOS, pasos durables)"] },
+  { id: "x_obs", g: "cross", x: 890, y: 70, a: "system", s: "partial", inc: "S0 · S5", t: "Observabilidad", sub: "registro y métricas",
+    what: "Registro de cada ejecución y llamada (eventos, tokens, coste, tiempos). Pendiente: failure_kind completo, métrica «¿faltó contexto?» y mejora basada en evidencia (S9).",
+    io: ["Entra: eventos de ejecuciones y gates", "Sale: consumo, estadísticas, casos de evaluación"],
+    code: ["packages/core/src/assignments (llamadas y eventos)", "packages/web/src/screens/run", "packages/web/src/screens/models (consumo)"] },
+  { id: "h1", g: "hitos", x: 1150, y: 70, a: "human", s: "partial", inc: "H1", t: "H1 · DEMIURGO se diseña", sub: "a mano, dentro de la app",
+    what: "Desde H1 se diseña dentro de DEMIURGO. Decidido el 25-09: sin importar design/; se crean uno a uno todos los documentos (decisión del plan, taxonomía, 7 ADR, 7 FDR) y se cierra cuando la FDR de S3 nace y se aprueba dentro.",
+    io: ["Entra: la idea de DEMIURGO", "Sale: el diseño de DEMIURGO como autoridad dentro de la app"],
+    code: ["packages/web/src (la web de H1)", "docs/pendientes-y-decisiones-2026-09-25.html"] },
+  { id: "h2", g: "hitos", x: 1400, y: 70, a: "system", s: "pending", inc: "H2", t: "H2 · se construye", sub: "a sí mismo",
+    what: "DEMIURGO ejecuta sus propios Change Sets sobre un clon de su repo, construidos por la release anterior con sus gates. Desde aquí nada entra en main fuera de un Change Set.",
+    io: ["Entra: FDR listas de DEMIURGO", "Sale: la siguiente release de DEMIURGO"],
+    code: [] },
+
+  // Pilar 1
+  { id: "p_idea", g: "p1", x: 90, y: 220, a: "human", s: "built", inc: "H1", t: "Idea", sub: "What do you want to build?",
+    what: "La persona escribe la idea y un nombre. Se crea el proyecto y su primer hilo con la idea como propósito.",
+    io: ["Entra: texto libre", "Sale: proyecto + hilo + mensaje con respuesta pedida"],
+    code: ["packages/web/src/screens/onboarding/NewProject.tsx"] },
+  { id: "p_day1", g: "p1", x: 260, y: 220, a: "human", s: "built", inc: "H1", t: "Día 1", sub: "lectura en directo",
+    what: "DEMIURGO lee la idea en vivo: lo que entendió (todo Proposed o Unknown), las preguntas que vienen y lo que propone. «Correct something» vuelve a pedir la lectura.",
+    io: ["Entra: la idea", "Sale: lectura, preguntas una a una, decisiones propuestas"],
+    code: ["packages/web/src/screens/onboarding"] },
+  { id: "p_chat", g: "p1", x: 430, y: 220, a: "agent", s: "built", inc: "S1", t: "Conversación", sub: "exploration_chat",
+    what: "El agente (onboarding o explorer) responde en el hilo con observaciones, preguntas y propuestas. La respuesta durable espera a que el conocimiento esté al día.",
+    io: ["Entra: context pack del hilo (o su delta)", "Sale: mensaje, observaciones, preguntas, lote de propuestas"],
+    code: ["packages/core/src/actions", "packages/core/src/commands/exploration.ts", "packages/web/src/screens/thread"] },
+  { id: "p_q", g: "p1", x: 600, y: 220, a: "human", s: "partial", inc: "S1 · S6", t: "Preguntas", sub: "inferidas → confirmadas",
+    what: "DEMIURGO pregunta y puede suponer una respuesta (inferred). Solo la persona confirma. Decidido el 25-09: las inferidas sin confirmar bloquearán «Ready to build». S6 añade impacto y un máximo de 3.",
+    io: ["Entra: preguntas del agente", "Sale: conclusiones confirmadas, pospuestas o descartadas"],
+    code: ["packages/core/src/commands/exploration.ts", "packages/web/src/screens/onboarding/Questions.tsx"] },
+  { id: "p_dec", g: "p1", x: 770, y: 220, a: "agent", s: "built", inc: "S1", t: "Decisiones propuestas", sub: "lote de propuestas",
+    what: "Propuestas con su productor, context pack y dependencias. Se evalúan contra el conocimiento (duplica, contradice, se relaciona).",
+    io: ["Entra: salida del agente", "Sale: lote pendiente en Needs you"],
+    code: ["packages/core/src/commands/proposals.ts", "packages/web/src/screens/batch"] },
+  { id: "p_accept", g: "p1", x: 940, y: 220, a: "human", s: "built", inc: "S1", t: "Aceptar", sub: "o «Accept and approve»",
+    what: "Gesto humano explícito. Los paquetes del sistema se aceptan enteros; los lotes de agentes externos, elemento a elemento.",
+    io: ["Entra: propuesta vigente (no obsoleta)", "Sale: registro con versión en borrador o aprobada; evento de autoridad"],
+    code: ["packages/core/src/commands/proposals.ts", "packages/web/src/screens/batch/ProposalActions.tsx"] },
+  { id: "p_fdr", g: "p1", x: 1110, y: 220, a: "agent", s: "built", inc: "S1", t: "FDR con AC", sub: "design_proposal (Draft it)",
+    what: "A partir de una decisión aprobada, el agente designer redacta la funcionalidad con sus criterios de aceptación, en un paquete.",
+    io: ["Entra: decisión aprobada + contexto", "Sale: paquete FDR + AC"],
+    code: ["packages/core/agents/designer", "packages/core/src/actions"] },
+  { id: "p_approve", g: "p1", x: 1280, y: 220, a: "human", s: "built", inc: "S1", t: "Revisar y aprobar", sub: "aprobar no crea versión",
+    what: "Revisión guiada y aprobación. La vigente es la última aprobada; el contenido de una versión es inmutable.",
+    io: ["Entra: versión en borrador", "Sale: versión aprobada; evento de autoridad"],
+    code: ["packages/core/src/commands/records.ts", "packages/web/src/screens/record"] },
+  { id: "p_ready", g: "p1", x: 1440, y: 220, a: "system", s: "built", inc: "S1", t: "Ready to build", sub: "readiness con motivos",
+    what: "Función pura: dice qué falta en lenguaje de producto. Solo sin motivos queda lista para construir.",
+    io: ["Entra: versión aprobada, AC, preguntas del hilo", "Sale: lista para un Change Set"],
+    code: ["packages/domain/src/records.ts"] },
+  { id: "p_manual", g: "p1", x: 260, y: 350, a: "human", s: "built", inc: "H1", t: "Registro a mano", sub: "decisión, FDR, ADR o bug",
+    what: "La persona escribe un registro sin pedir nada a DEMIURGO, con la plantilla del tipo, sus checks y sus enlaces. Necesario para crear los ADR en H1.",
+    io: ["Entra: plantilla del tipo", "Sale: versión 1 en borrador"],
+    code: ["packages/web/src/screens/new-record"] },
+  { id: "p_obsolete", g: "p1", x: 855, y: 350, a: "system", s: "built", inc: "S1", t: "Obsoleta o rechazada", sub: "no se acepta medio paquete",
+    what: "Si cambia algo de lo que dependía, la propuesta queda obsoleta con su motivo; o la persona la rechaza. Se vuelve al hilo.",
+    io: ["Entra: dependencia cambiada o rechazo", "Sale: vuelta a la conversación"],
+    code: ["packages/core/src/commands/proposals.ts"] },
+  { id: "p_version", g: "p1", x: 1280, y: 350, a: "human", s: "partial", inc: "S1 · S7", t: "Versión nueva", sub: "arrastre de AC",
+    what: "Nota de cambio obligatoria y Keep/Change/Drop por cada AC. S7 añade el impacto por el grafo y la realización por versión.",
+    io: ["Entra: versión base", "Sale: borrador nuevo; puede pausar un Change Set"],
+    code: ["packages/web/src/screens/new-version"] },
+
+  // Conocimiento
+  { id: "k_event", g: "know", x: 90, y: 520, a: "system", s: "built", inc: "S2", t: "Evento de autoridad", sub: "aprobar, aceptar, fusionar",
+    what: "Cada evento de autoridad dispara «Actualizar conocimiento» en una cola en serie.",
+    io: ["Entra: versión aprobada, propuesta aceptada, Change Set fusionado", "Sale: actualización encolada"],
+    code: ["packages/core/src/commands/reactions.ts", "packages/core/src/knowledge/commands.ts"] },
+  { id: "k_cand", g: "know", x: 290, y: 520, a: "system", s: "built", inc: "S2", t: "Candidatos", sub: "deterministas, con huella",
+    what: "Vecinos en el grafo, coincidencias de texto y mismas categorías: un conjunto acotado con hash.",
+    io: ["Entra: el cambio", "Sale: candidatos"],
+    code: ["packages/domain/src/knowledge.ts"] },
+  { id: "k_class", g: "know", x: 490, y: 520, a: "agent", s: "partial", inc: "S2", t: "Clasificador", sub: "Jev (pendiente) / LLM",
+    what: "Una decisión por par (cambio, candidato): keep, update, invalidate, add, relate. Hoy es un agente LLM (knowledge_classifier, con revisor en cascada); Jev espera acceso.",
+    io: ["Entra: candidatos y taxonomía", "Sale: veredictos con confianza"],
+    code: ["packages/core/src/classifier", "packages/core/agents/knowledge_classifier", "packages/core/agents/knowledge_reviewer"] },
+  { id: "k_verify", g: "know", x: 690, y: 520, a: "system", s: "built", inc: "S2", t: "Verificación", sub: "determinista",
+    what: "Cada candidato tiene un veredicto, las referencias existen y nada toca la autoridad directamente. Si falla, la actualización se rechaza sin efectos.",
+    io: ["Entra: veredictos", "Sale: plan aplicable o rechazo"],
+    code: ["packages/core/src/knowledge/update.ts"] },
+  { id: "k_apply", g: "know", x: 890, y: 520, a: "system", s: "built", inc: "S2", t: "Aplicar", sub: "invalidar, nunca borrar",
+    what: "Una transacción con su evento; sube la versión del grafo. Borrar es invalidar (valid_to).",
+    io: ["Entra: plan verificado", "Sale: grafo nuevo; propuestas de revisión"],
+    code: ["packages/core/src/knowledge/update.ts", "packages/core/src/knowledge/workflows.ts"] },
+  { id: "k_graph", g: "know", x: 1090, y: 520, a: "system", s: "built", inc: "S2", t: "Grafo", sub: "proyección reconstruible",
+    what: "Conocimiento derivado en Postgres. Reconstruirlo con las clasificaciones guardadas da la misma huella.",
+    io: ["Entra: aplicaciones", "Sale: búsqueda, vistas, context packs"],
+    code: ["packages/core/src/knowledge/graph-pg.ts", "packages/core/src/knowledge/rebuild.ts", "packages/web/src/screens/knowledge"] },
+  { id: "k_fresh", g: "know", x: 1290, y: 520, a: "system", s: "built", inc: "S2", t: "Gate de frescura", sub: "nada trabaja con contexto viejo",
+    what: "Las respuestas esperan a que el conocimiento esté al día, y un Change Set no empieza con el grafo desfasado.",
+    io: ["Entra: versión del grafo frente al último evento", "Sale: permitir o esperar"],
+    code: ["packages/core/src/context", "packages/core/src/engine/engine.ts"] },
+  { id: "k_review", g: "know", x: 890, y: 650, a: "human", s: "built", inc: "S2", t: "Revisión a la persona", sub: "lo que afecta a la autoridad",
+    what: "Si el clasificador cree que algo con autoridad quedó afectado, o su confianza es baja, sale como propuesta en Needs you. Nunca es un cambio directo.",
+    io: ["Entra: veredictos sobre autoridad o de baja confianza", "Sale: propuesta de revisión"],
+    code: ["packages/core/src/knowledge/commands.ts", "packages/web/src/screens/needs-you"] },
+  { id: "k_ideas", g: "know", x: 490, y: 650, a: "system", s: "built", inc: "S2", t: "Evaluación de ideas", sub: "duplica · contradice · relaciona",
+    what: "Cada propuesta nueva se compara con el conocimiento. Es evidencia con cita en la bandeja, nunca una decisión.",
+    io: ["Entra: propuesta", "Sale: hallazgos con cita"],
+    code: ["packages/core/src/knowledge/evaluate.ts", "packages/core/src/knowledge/workflows.ts"] },
+  { id: "k_packs", g: "know", x: 1290, y: 650, a: "system", s: "built", inc: "S2", t: "Context packs", sub: "por rol, con presupuesto",
+    what: "Constructor puro por acción: elige nodos con su motivo, guarda la versión del grafo y su hash. El reintento usa el mismo pack.",
+    io: ["Entra: grafo y alcance de la acción", "Sale: pack para el agente"],
+    code: ["packages/core/src/context/build.ts"] },
+  { id: "k_tax", g: "know", x: 90, y: 650, a: "human", s: "built", inc: "S2", t: "Taxonomía", sub: "la aprueba la persona",
+    what: "Ejes y categorías cerradas, siempre con «other». Es autoridad: la aprueba la persona.",
+    io: ["Entra: propuesta de taxonomía", "Sale: categorías para clasificar"],
+    code: ["packages/web/src/screens/knowledge"] },
+
+  // Pilar 2
+  { id: "c_cs", g: "p2", x: 90, y: 860, a: "system", s: "pending", inc: "S3", t: "Change Set", sub: "Preparar implementación",
+    what: "El sistema propone un Change Set desde una FDR lista: alcance, orígenes, rama, base y presupuesto.",
+    io: ["Entra: FDR Ready to build", "Sale: Change Set propuesto"], code: ["design/data/transitions.yaml (change_set, solo declarado)"] },
+  { id: "c_scope", g: "p2", x: 260, y: 860, a: "human", s: "pending", inc: "S3", t: "Aceptar alcance", sub: "exige readiness y cobertura",
+    what: "La persona acepta el alcance en un paso. Todo AC queda cubierto por una tarea.",
+    io: ["Entra: Change Set propuesto", "Sale: scope_accepted"], code: [] },
+  { id: "c_tests", g: "p2", x: 430, y: 860, a: "agent", s: "pending", inc: "S3", t: "Pruebas de aceptación", sub: "una por AC",
+    what: "Un agente escribe una prueba por criterio, con el código del AC en el nombre, en el workspace de la plantilla.",
+    io: ["Entra: FDR@v y sus AC", "Sale: pruebas propuestas"], code: [] },
+  { id: "c_map", g: "p2", x: 600, y: 860, a: "human", s: "pending", inc: "S3", t: "Mapa AC → prueba", sub: "lo acepta la persona",
+    what: "Antes de congelar, la persona acepta qué prueba demuestra cada criterio (contra el problema del oráculo débil).",
+    io: ["Entra: pruebas propuestas", "Sale: mapa aceptado"], code: [] },
+  { id: "c_frozen", g: "p2", x: 770, y: 860, a: "system", s: "pending", inc: "S3", t: "G0: rojo y congeladas", sub: "por hash",
+    what: "Cada prueba falla sobre la base y queda congelada por hash. Escribir fuera, una prueba que ya pasa o un AC sin prueba ponen G0 en rojo.",
+    io: ["Entra: mapa aceptado", "Sale: pruebas congeladas"], code: [] },
+  { id: "c_impl", g: "p2", x: 940, y: 860, a: "agent", s: "pending", inc: "S4", t: "Implementación", sub: "runner aislado",
+    what: "El implementador trabaja en su worktree, sin datos ni credenciales, con el context pack. Exige frescura para empezar.",
+    io: ["Entra: tarea, pack y pruebas congeladas", "Sale: commits + Claim (nunca evidencia)"],
+    code: ["packages/core/src/runner (broker y sonda de S0)"] },
+  { id: "c_gates", g: "p2", x: 1110, y: 860, a: "system", s: "pending", inc: "S4", t: "Gates G1–G5", sub: "desde la release en ejecución",
+    what: "Tipos, lint, pruebas congeladas intactas, AC en verde… cargados desde la release que ejecuta, no desde el workspace.",
+    io: ["Entra: SHA del workspace", "Sale: verde o rojo con evidencia"], code: [] },
+  { id: "c_evidence", g: "p2", x: 1280, y: 860, a: "system", s: "pending", inc: "S4", t: "Evidencia", sub: "solo del sistema",
+    what: "Evidencia append-only por AC@v y SHA. Una afirmación del agente nunca cuenta. Un failed posterior revoca.",
+    io: ["Entra: resultados de gates", "Sale: AC verificados"], code: [] },
+  { id: "c_review", g: "p2", x: 1440, y: 860, a: "human", s: "pending", inc: "S4", t: "Revisión humana", sub: "Aceptar / Pedir cambios",
+    what: "Vista de revisión en lenguaje de producto: AC, qué cambió (como afirmación), lo no comprobado y el consumo.",
+    io: ["Entra: Change Set en revisión", "Sale: aceptado o de vuelta a implementación"], code: [] },
+  { id: "c_retry", g: "p2", x: 1110, y: 990, a: "system", s: "pending", inc: "S4", t: "3 intentos", sub: "misma sesión, evidencia del KO",
+    what: "Si un gate falla, la evidencia vuelve al mismo agente en la misma sesión lógica, hasta 3 veces.",
+    io: ["Entra: gate en rojo", "Sale: nuevo intento o bloqueo"], code: [] },
+  { id: "c_blocked", g: "p2", x: 940, y: 990, a: "human", s: "pending", inc: "S5", t: "Bloqueada", sub: "Reintentar / Aclarar",
+    what: "Tras 3 rojos la tarea se bloquea y la persona decide: reintentar, aclarar o abrir una exploración.",
+    io: ["Entra: tres fallos", "Sale: vuelta a implementar"], code: [] },
+  { id: "c_pause", g: "p2", x: 430, y: 990, a: "system", s: "pending", inc: "S5", t: "Pausa", sub: "si cambia el alcance",
+    what: "Si se aprueba una versión nueva de algo del alcance, el Change Set pasa a paused y la persona vuelve a aceptar el alcance.",
+    io: ["Entra: versión nueva aprobada", "Sale: paused → aceptar alcance"], code: [] },
+  { id: "c_bug", g: "p2", x: 90, y: 990, a: "human", s: "pending", inc: "S5", t: "Bugfix", sub: "prueba de regresión en rojo",
+    what: "Un registro bug con reproducción entra por el mismo ciclo: primero una prueba de regresión en rojo, después la corrección.",
+    io: ["Entra: registro bug", "Sale: Change Set de corrección"], code: [] },
+  { id: "c_done", g: "p2", x: 1440, y: 990, a: "human", s: "pending", inc: "S4", t: "Aceptado", sub: "FDR verificada",
+    what: "La FDR queda «Verificada» sobre un SHA concreto. Fusionar es un evento de autoridad y vuelve al conocimiento.",
+    io: ["Entra: aceptación humana", "Sale: evento de autoridad, release"], code: [] },
+];
+// Aristas: [desde, hasta, etiqueta, bucle?]
+const E = [
+  ["p_idea", "p_day1", ""], ["p_day1", "p_chat", ""], ["p_chat", "p_q", ""], ["p_q", "p_dec", ""], ["p_dec", "p_accept", ""],
+  ["p_accept", "p_fdr", ""], ["p_fdr", "p_approve", ""], ["p_approve", "p_ready", ""], ["p_manual", "p_approve", "a mano"],
+  ["p_ready", "c_cs", "lista para construir"],
+  ["p_q", "p_chat", "otra ronda", 1], ["p_chat", "p_day1", "Correct something", 1],
+  ["p_dec", "p_obsolete", "", 0], ["p_obsolete", "p_chat", "vuelve al hilo", 1],
+  ["p_approve", "p_version", "cambiarla", 1], ["p_version", "p_approve", "", 1],
+  ["p_accept", "k_event", "autoridad"], ["p_approve", "k_event", "autoridad"],
+  ["k_event", "k_cand", ""], ["k_cand", "k_class", ""], ["k_class", "k_verify", ""], ["k_verify", "k_apply", ""],
+  ["k_apply", "k_graph", ""], ["k_graph", "k_fresh", ""], ["k_graph", "k_packs", ""], ["k_tax", "k_class", "categorías"],
+  ["k_apply", "k_review", "toca autoridad", 1], ["k_class", "k_review", "confianza baja", 1], ["k_review", "p_accept", "vuelve como propuesta", 1],
+  ["p_dec", "k_ideas", "evaluar"], ["k_ideas", "p_accept", "cita en la bandeja"],
+  ["k_packs", "p_chat", "contexto"], ["k_fresh", "p_chat", "espera"], ["x_engines", "p_chat", ""], ["x_channel", "p_dec", "propone"],
+  ["x_person", "p_idea", ""],
+  ["c_cs", "c_scope", ""], ["c_scope", "c_tests", ""], ["c_tests", "c_map", ""], ["c_map", "c_frozen", ""], ["c_frozen", "c_impl", ""],
+  ["c_impl", "c_gates", ""], ["c_gates", "c_evidence", ""], ["c_evidence", "c_review", ""], ["c_review", "c_done", ""],
+  ["k_fresh", "c_impl", "exige frescura"], ["k_packs", "c_impl", "contexto"],
+  ["c_gates", "c_retry", "rojo", 1], ["c_retry", "c_impl", "misma sesión", 1], ["c_retry", "c_blocked", "tras 3", 1], ["c_blocked", "c_impl", "Reintentar / Aclarar", 1],
+  ["c_review", "c_impl", "Pedir cambios", 1], ["p_version", "c_pause", "alcance cambiado", 1], ["c_pause", "c_scope", "", 1],
+  ["c_bug", "c_tests", "regresión en rojo", 1], ["c_done", "k_event", "fusionar", 1], ["c_evidence", "x_obs", ""],
+  ["h1", "p_idea", "diseña DEMIURGO", 1], ["c_done", "h2", "", 0], ["h2", "c_cs", "la release anterior construye", 1],
+];
+const GROUPS = { p1: ["p1"], know: ["know"], p2: ["p2"], hitos: ["hitos"] };
+const byId = new Map(N.map((n) => [n.id, n]));
+const svg = document.getElementById("svg");
+const NS = "http://www.w3.org/2000/svg";
+const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+let scale = 1;
+function size() { svg.setAttribute("width", W * scale); svg.setAttribute("height", H * scale); }
+svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+
+const defs = el("defs", {}, svg);
+for (const [id, color] of [["arrow", "var(--flow)"], ["arrowLoop", "var(--loop)"]]) {
+  const m = el("marker", { id, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" }, defs);
+  el("path", { d: "M0,0 L10,5 L0,10 z", fill: color }, m);
+}
+// Carriles
+const LANES = [["TRANSVERSAL Y HITOS", 20, 130], ["PILAR 1 · DISEÑAR", 165, 430], ["CONOCIMIENTO Y CONTEXTO", 465, 715], ["PILAR 2 · CONSTRUIR", 800, 1060]];
+for (const [label, y1, y2] of LANES) {
+  el("rect", { class: "lane", x: 8, y: y1, width: W - 16, height: y2 - y1, rx: 14 }, svg);
+  el("text", { class: "lane-label", x: 22, y: y1 + 18 }, svg).textContent = label;
+}
+function anchor(n, toward) {
+  const cx = n.x, cy = n.y, dx = toward.x - cx, dy = toward.y - cy;
+  if (dx === 0 && dy === 0) return { x: cx, y: cy };
+  const sx = (BW / 2) / Math.abs(dx || 1e-9), sy = (BH / 2) / Math.abs(dy || 1e-9);
+  const s = Math.min(sx, sy);
+  return { x: cx + dx * s, y: cy + dy * s };
+}
+const edgeEls = [];
+const edgeLayer = el("g", { id: "edges" }, svg);
+E.forEach(([f, t, label, loop], i) => {
+  const a = byId.get(f), b = byId.get(t);
+  if (!a || !b) throw new Error("Arista rota " + f + "→" + t);
+  const p = anchor(a, b), q = anchor(b, a);
+  let d, lx, ly;
+  if (loop) {
+    const mx = (p.x + q.x) / 2, my = (p.y + q.y) / 2;
+    const nx = -(q.y - p.y), ny = q.x - p.x, len = Math.hypot(nx, ny) || 1;
+    const off = 42 + (i % 3) * 8;
+    const cx = mx + (nx / len) * off, cy = my + (ny / len) * off;
+    d = `M${p.x},${p.y} Q${cx},${cy} ${q.x},${q.y}`;
+    lx = (p.x + 2 * cx + q.x) / 4; ly = (p.y + 2 * cy + q.y) / 4;
+  } else {
+    d = `M${p.x},${p.y} L${q.x},${q.y}`;
+    lx = (p.x + q.x) / 2; ly = (p.y + q.y) / 2 - 5;
+  }
+  const g = el("g", { "data-from": f, "data-to": t }, edgeLayer);
+  el("path", { d, class: "edge" + (loop ? " loop" : ""), "marker-end": `url(#${loop ? "arrowLoop" : "arrow"})` }, g);
+  if (label) el("text", { class: "edge-label" + (loop ? " loop" : ""), x: lx, y: ly, "text-anchor": "middle" }, g).textContent = label;
+  edgeEls.push({ g, f, t, loop: !!loop, label });
+});
+// Nodos
+const nodeLayer = el("g", { id: "nodes" }, svg);
+function wrap(text, max) {
+  const words = text.split(" "); const lines = []; let line = "";
+  for (const w of words) { if ((line + " " + w).trim().length > max) { if (line) lines.push(line); line = w; } else line = (line + " " + w).trim(); }
+  if (line) lines.push(line); return lines.slice(0, 2);
+}
+const nodeEls = new Map();
+for (const n of N) {
+  const g = el("g", { class: `node ${n.a} ${n.s}`, tabindex: 0, role: "button", "data-id": n.id, "aria-label": `${n.t}: ${n.sub}. ${ACTOR[n.a]}, ${STATUS[n.s]}, ${n.inc}` }, nodeLayer);
+  el("rect", { class: "box", x: n.x - BW / 2, y: n.y - BH / 2, width: BW, height: BH }, g);
+  el("rect", { class: "focus", x: n.x - BW / 2 - 4, y: n.y - BH / 2 - 4, width: BW + 8, height: BH + 8, rx: 13, fill: "none" }, g);
+  const lines = wrap(n.t, 20);
+  lines.forEach((l, i) => { const tx = el("text", { x: n.x, y: n.y - 10 + i * 14 - (lines.length - 1) * 5, "text-anchor": "middle", "font-weight": 700 }, g); tx.textContent = l; });
+  const sub = el("text", { x: n.x, y: n.y + 14 + (lines.length > 1 ? 6 : 0), "text-anchor": "middle" }, g); sub.textContent = n.sub.length > 23 ? n.sub.slice(0, 22) + "…" : n.sub;
+  el("text", { class: "inc", x: n.x + BW / 2 - 8, y: n.y - BH / 2 + 12, "text-anchor": "end" }, g).textContent = n.inc.split(" ")[0];
+  el("circle", { class: "st", cx: n.x - BW / 2 + 10, cy: n.y - BH / 2 + 9, r: 5, fill: `var(--${n.s})` }, g);
+  g.addEventListener("click", () => select(n.id));
+  g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(n.id); } });
+  nodeEls.set(n.id, g);
+}
+// Panel
+const panel = document.getElementById("panel");
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+let selected = null;
+function select(id) {
+  const n = byId.get(id); if (!n) return;
+  selected = id;
+  for (const [k, g] of nodeEls) g.classList.toggle("selected", k === id);
+  svg.classList.add("hl");
+  for (const e of edgeEls) e.g.querySelector("path").classList.toggle("on", e.f === id || e.t === id);
+  const loops = edgeEls.filter((e) => e.loop && (e.f === id || e.t === id));
+  const inn = edgeEls.filter((e) => e.t === id && !e.loop).map((e) => byId.get(e.f));
+  const out = edgeEls.filter((e) => e.f === id && !e.loop).map((e) => byId.get(e.t));
+  const link = (m) => `<button class="loopbtn" data-go="${m.id}">${esc(m.t)}</button>`;
+  panel.hidden = false;
+  panel.innerHTML = `<button class="close" id="close" aria-label="Cerrar el detalle">✕</button>
+    <h2>${esc(n.t)}</h2><p class="hint">${esc(n.sub)}</p>
+    <div class="meta"><span class="pill ${n.a}">${ACTOR[n.a]}</span><span class="pill ${n.s}">${STATUS[n.s]}</span><span class="pill">${esc(n.inc)}</span></div>
+    <h3>Qué es</h3><p>${esc(n.what)}</p>
+    <h3>Entradas y salidas</h3><ul>${n.io.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
+    <h3>Viene de · va a</h3><p>${inn.length ? inn.map(link).join(", ") : "—"} → ${out.length ? out.map(link).join(", ") : "—"}</p>
+    <h3>Bucles</h3>${loops.length ? `<ul>${loops.map((e) => `<li>${link(byId.get(e.f))} ⟲ ${link(byId.get(e.t))}${e.label ? ` · <em>${esc(e.label)}</em>` : ""}</li>`).join("")}</ul>` : "<p>No participa en bucles.</p>"}
+    <h3>En el código</h3>${n.code.length ? `<ul>${n.code.map((c) => `<li><code>${esc(c)}</code></li>`).join("")}</ul>` : "<p>Aún no existe: pertenece a un incremento sin empezar.</p>"}`;
+  document.getElementById("close").addEventListener("click", clear);
+  for (const b of panel.querySelectorAll("[data-go]")) b.addEventListener("click", () => { select(b.dataset.go); nodeEls.get(b.dataset.go).focus(); });
+}
+function clear() {
+  const last = selected; selected = null;
+  for (const g of nodeEls.values()) g.classList.remove("selected");
+  svg.classList.remove("hl");
+  panel.innerHTML = '<p class="hint">Elige un bloque del diagrama (clic, o Tab y Enter) para ver qué es, quién actúa, sus entradas y salidas, sus bucles y dónde vive en el código. Escape cierra el detalle.</p>';
+  if (last) nodeEls.get(last)?.focus();
+}
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && selected) clear(); });
+// Filtros
+function filter(key) {
+  for (const b of document.querySelectorAll(".tab")) b.setAttribute("aria-pressed", String(b.dataset.filter === key));
+  const on = (n) => key === "all" || GROUPS[key].includes(n.g);
+  for (const n of N) nodeEls.get(n.id).classList.toggle("dim", !on(n));
+  for (const e of edgeEls) e.g.classList.toggle("dim", !(on(byId.get(e.f)) && on(byId.get(e.t))));
+}
+for (const b of document.querySelectorAll(".tab")) b.addEventListener("click", () => filter(b.dataset.filter));
+// Zoom
+const canvas = document.getElementById("canvas");
+function fit() { scale = Math.max(0.35, Math.min(1.4, (canvas.clientWidth - 4) / W)); size(); }
+document.getElementById("zin").addEventListener("click", () => { scale = Math.min(2, scale * 1.2); size(); });
+document.getElementById("zout").addEventListener("click", () => { scale = Math.max(0.3, scale / 1.2); size(); });
+document.getElementById("zfit").addEventListener("click", fit);
+fit();
+</script>
+</body>
+</html>

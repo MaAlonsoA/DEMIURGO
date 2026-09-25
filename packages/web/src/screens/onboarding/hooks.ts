@@ -23,7 +23,9 @@ export function useDay(projectId: string, explorationId: string) {
   const stageThreadId = stage?.exploration_id && stage.exploration_id !== explorationId ? stage.exploration_id : '';
   const stageThread = useQuery({ ...explorationQuery(projectId, stageThreadId), enabled: !!stageThreadId });
   const mandatory = (stageThread.data?.questions ?? []).filter((q) => q.stage_id);
-  const merged = thread.data && mandatory.length ? { ...thread.data, questions: [...thread.data.questions, ...mandatory] } : thread.data;
+  const withStage = thread.data && mandatory.length ? { ...thread.data, questions: [...thread.data.questions, ...mandatory] } : thread.data;
+  // Questions still in the reserve aren't shown yet: they come up in the thread as the person answers.
+  const merged = withStage && { ...withStage, questions: withStage.questions.filter((q) => q.shown_at !== null) };
   const people = thread.data ? personMessages(thread.data.messages) : [];
   const idea = people[0];
   const latest = people.at(-1);

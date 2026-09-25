@@ -149,7 +149,7 @@ function Understood({
   const n = questions.length;
   const next =
     n > 0
-      ? { label: 'Answer the questions', to: '/p/$projectId/start/$explorationId/questions' as const }
+      ? { label: 'Answer in the thread', to: '/p/$projectId/threads/$explorationId' as const }
       : { label: 'See your starting point', to: '/p/$projectId/start/$explorationId/done' as const };
 
   return (

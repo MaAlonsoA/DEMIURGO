@@ -113,9 +113,10 @@ export function PageBody({
   className?: string;
 }) {
   return (
+    // Left-aligned like the page header, so the title and the content always start on the same line.
     <div
       className={cn(
-        'mx-auto w-full px-4 py-6 sm:px-6 lg:px-8',
+        'w-full px-4 py-6 sm:px-6 lg:px-8',
         width === 'reading' && 'max-w-3xl',
         width === 'wide' && 'max-w-7xl',
         className,

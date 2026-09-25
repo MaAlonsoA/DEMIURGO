@@ -93,12 +93,6 @@
 }
 
 @layer base {
-  html,
-  body {
-    /* The design system sets body on paper, ink, 14px; the page never goes below the desktop width. */
-    min-width: 1280px;
-    -webkit-font-smoothing: antialiased;
-  }
   button:not(:disabled),
   [role='button'] {
     cursor: pointer;

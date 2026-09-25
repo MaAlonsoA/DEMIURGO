@@ -1,7 +1,7 @@
 // Surfaces and read-only structures (DESIGN.md §6.6): a card, a key-value list (dl), and a
 // vertical timeline whose connector is decorative — each event says what happened in words (R37).
 
-import type { ReactNode } from 'react';
+import type { ReactNode, Ref } from 'react';
 import { cn } from '../lib/cn.ts';
 
 export function Card({
@@ -10,6 +10,8 @@ export function Card({
   as: As = 'div',
   tone,
   padding = 'md',
+  ref,
+  tabIndex,
   ...rest
 }: {
   children: ReactNode;
@@ -18,9 +20,14 @@ export function Card({
   /** A tinted card for a state (a failure, a draft ready). */
   tone?: 'accent' | 'danger' | 'warning' | 'info' | 'success';
   padding?: 'none' | 'sm' | 'md';
+  ref?: Ref<HTMLElement>;
+  /** -1 to let the page move the focus here (e.g. after an action). */
+  tabIndex?: number;
 } & Record<`data-${string}`, unknown> & { 'aria-label'?: string; 'aria-labelledby'?: string }) {
   return (
     <As
+      ref={ref as never}
+      tabIndex={tabIndex}
       className={cn(
         'rounded-lg border',
         !tone && 'border-edge bg-panel',

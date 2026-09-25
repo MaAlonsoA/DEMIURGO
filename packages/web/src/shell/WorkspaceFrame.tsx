@@ -1,5 +1,5 @@
 // Pages outside a project (/projects, /new, /models): a slim top bar with DEMIURGO, the way to the
-// projects and to Models & providers, Help and the person's menu — so Sign out exists everywhere
+// projects, to a new project and to Models & providers, Help and the person's menu — so Sign out exists everywhere
 // (INVENTORY §2 #22). The page itself is centred on the working panel.
 
 import { useQuery } from '@tanstack/react-query';
@@ -47,6 +47,9 @@ export function WorkspaceFrame({ children, current }: { children: ReactNode; cur
               Your projects
             </Link>
           ) : null}
+          <Link to="/new" aria-current={current === 'new' ? 'page' : undefined} className={linkClass(current === 'new')}>
+            New project
+          </Link>
           <Link to="/models" aria-current={current === 'models' ? 'page' : undefined} className={linkClass(current === 'models')}>
             Models &amp; providers
           </Link>

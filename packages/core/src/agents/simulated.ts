@@ -67,6 +67,13 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
       reply: `Got it: "${truncate(text, 300)}". ${wantsToDecide ? 'I suggest recording it as a decision.' : 'I need to pin down something more.'}`,
       observations: [{ type: 'hypothesis', text: `The main intent is: ${truncate(text, 200)}` }],
       questions: [],
+      question_options: pending
+        .filter((q) => typeof q.id === 'string')
+        .slice(0, 8)
+        .map((q) => ({ question_id: q.id, options: [
+          { answer: 'Yes', implies: 'It becomes a requirement of the first version.' },
+          { answer: 'Not for now', implies: 'It stays out of scope; it can come back later.' },
+        ] })),
       inferences: [],
       proposals: [],
     };
@@ -91,6 +98,10 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
         question: 'Who will use the product first, and what do they need to do?',
         reason: 'Defines the scope of the first design.',
         impact: 'high',
+        options: [
+          { answer: 'Only me, to design my own products', implies: 'A single-user app: no accounts, roles or sharing yet.' },
+          { answer: 'A small team', implies: 'Accounts and shared projects are needed from the start.' },
+        ],
       });
     }
     return output;

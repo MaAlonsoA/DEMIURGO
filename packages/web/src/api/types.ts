@@ -320,6 +320,9 @@ export type Question = {
   raised_by: string;
   created_at: string;
   epistemic_status: Epistemic;
+  /** Predefined answers proposed by the agent, with what each one implies. */
+  options?: { answer: string; implies: string }[];
+  stage_id?: string | null;
 };
 
 export type ExplorationDetail = {

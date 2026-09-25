@@ -154,6 +154,14 @@ export const CAPABILITIES = {
       "decisive": false,
       "description": "Mark a question as inferred from an agent's output."
     },
+    "question.suggest_options": {
+      "entity": "question",
+      "allowed": [
+        "system"
+      ],
+      "decisive": false,
+      "description": "Set the predefined answers an agent proposes for a pending question."
+    },
     "question.confirm": {
       "entity": "question",
       "allowed": [
@@ -1114,6 +1122,13 @@ export const TRANSITIONS = {
           "guards": [
             "conclusion_present"
           ]
+        },
+        {
+          "command": "question.suggest_options",
+          "from": [
+            "pending"
+          ],
+          "to": "pending"
         },
         {
           "command": "question.confirm",

@@ -1,6 +1,6 @@
 // Agent tokens, explorations, conversation, sources and questions (Pillar 1).
 
-import { DomainError, VALID_AGENT_NAME, formatActor, fingerprint } from '@demiurgo/domain';
+import { DomainError, VALID_AGENT_NAME, formatActor, fingerprint, questionOption } from '@demiurgo/domain';
 import { sql } from 'kysely';
 import { z } from 'zod';
 import { trimmed, field, registerGuards } from '../bus/guards.ts';
@@ -281,6 +281,7 @@ registerHandlers({
         // A design stage's mandatory question: only the system raises them, when the stage opens.
         stage_id: uuid.optional(),
         stage_key: text(60).optional(),
+        options: z.array(questionOption).max(4).optional(),
       })
       .strict(),
     async apply(ctx, data, _e, to) {
@@ -298,6 +299,7 @@ registerHandlers({
           raised_by: formatActor(ctx.actor),
           stage_id: data.stage_id ?? null,
           stage_key: data.stage_key ?? null,
+          options: JSON.stringify(data.options ?? []),
         })
         .returning('id')
         .executeTakeFirstOrThrow();
@@ -305,6 +307,18 @@ registerHandlers({
         entityId: id,
         after: { question: data.question, impact: data.impact ?? null, stage_key: data.stage_key ?? null },
       };
+    },
+  }),
+
+  'question.suggest_options': handler({
+    data: z.object({ options: z.array(questionOption).max(4) }).strict(),
+    async apply(ctx, data, e) {
+      await ctx.trx
+        .updateTable('questions')
+        .set({ options: JSON.stringify(data.options) })
+        .where('id', '=', e?.id ?? '')
+        .execute();
+      return { entityId: e?.id ?? '', before: { options: e?.row.options ?? [] }, after: data };
     },
   }),
 

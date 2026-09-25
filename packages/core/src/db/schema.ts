@@ -218,6 +218,7 @@ export type QuestionsTable = {
   raised_by: string;
   stage_id: string | null;
   stage_key: string | null;
+  options: ColumnType<{ answer: string; implies: string }[], string | undefined, string>;
   created_at: Generated<Timestamp>;
 };
 

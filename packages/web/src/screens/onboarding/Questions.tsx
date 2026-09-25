@@ -9,7 +9,7 @@ import { Link } from '@tanstack/react-router';
 import { useEffect, useId, useRef, useState } from 'react';
 import { ApiError } from '../../api/client.ts';
 import { useCommand } from '../../api/commands.ts';
-import { batchQuery } from '../../api/queries.ts';
+import { batchQuery, stagesQuery } from '../../api/queries.ts';
 import { canCreate } from '../../api/tables.ts';
 import type { Message, Question } from '../../api/types.ts';
 import { cn } from '../../lib/cn.ts';
@@ -131,6 +131,9 @@ function Progress({ position, total }: { position: number; total: number }) {
   );
 }
 
+/** The answer picked: one of the predefined options, DEMIURGO's inference, or the person's own words. */
+type Choice = { kind: 'option'; index: number } | { kind: 'inferred' } | { kind: 'own' };
+
 function Ask({
   projectId,
   explorationId,
@@ -148,14 +151,27 @@ function Ask({
 }) {
   const command = useCommand(projectId);
   const allows = useAllows('question', q.state);
+  const stages = useQuery(stagesQuery(projectId)).data;
+  const stage = q.stage_id ? stages?.find((s) => s.id === q.stage_id) : undefined;
+  const options = q.options ?? [];
+  const inferred = q.state === 'inferred' && q.conclusion ? q.conclusion : null;
+  const [choice, setChoice] = useState<Choice>(
+    inferred ? { kind: 'inferred' } : options.length ? { kind: 'option', index: -1 } : { kind: 'own' },
+  );
   const [text, setText] = useState('');
   const [parking, setParking] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const answerId = useId();
   useEffect(() => heading.current?.focus(), []);
 
+  const conclusion =
+    choice.kind === 'own'
+      ? text.trim()
+      : choice.kind === 'inferred'
+        ? (inferred ?? '')
+        : (options[choice.index]?.answer ?? '');
   const answer = () =>
-    command.mutate({ command: 'question.confirm', entityId: q.id, data: { conclusion: text.trim() } }, { onSuccess: onNext });
+    command.mutate({ command: 'question.confirm', entityId: q.id, data: { conclusion } }, { onSuccess: onNext });
   const park = (reason: string) =>
     command.mutate(
       { command: 'question.postpone', entityId: q.id, data: { reason } },
@@ -166,13 +182,15 @@ function Ask({
         },
       },
     );
+  const canAnswer = allows('question.confirm');
+  const picking = options.length > 0 || !!inferred;
 
   return (
     <>
       <div className="flex items-center justify-between gap-3">
         <span className="dm-label flex items-center gap-1.5">
           <TypeIcon kind="question" size={14} />
-          Question
+          {stage ? `${stage.title} · mandatory` : 'Question'}
           <span className="dm-sep" aria-hidden="true">
             ·
           </span>
@@ -182,45 +200,88 @@ function Ask({
         </span>
         <Progress position={position} total={total} />
       </div>
-      <div className="flex flex-col gap-1.5">
-        <h2 ref={heading} tabIndex={-1} className="dm-text-title outline-none">
-          {q.question}
-        </h2>
-        {q.reason && <p className="dm-text-small text-ink-3">Why I ask: {q.reason}</p>}
-        {q.impact && <p className="dm-text-small text-ink-3">{IMPACT_WORDS[q.impact] ?? q.impact}</p>}
-      </div>
-      {allows('question.confirm') && (
+      <h2 ref={heading} tabIndex={-1} className="dm-text-title outline-none">
+        {q.question}
+      </h2>
+      {(q.reason || q.impact) && (
+        <dl className="flex flex-col gap-2 rounded-sm border border-line bg-surface-soft px-3.5 py-3">
+          {q.reason && (
+            <div className="flex flex-col gap-0.5">
+              <dt className="dm-label">Why it matters</dt>
+              <dd className="dm-text-small text-ink-2">{q.reason}</dd>
+            </div>
+          )}
+          {q.impact && (
+            <div className="flex flex-col gap-0.5">
+              <dt className="dm-label">What it affects</dt>
+              <dd className="dm-text-small text-ink-2">
+                <span className="font-semibold text-ink">{IMPACT_LEVEL[q.impact] ?? q.impact}.</span>{' '}
+                {IMPACT_WORDS[q.impact] ?? ''}
+              </dd>
+            </div>
+          )}
+        </dl>
+      )}
+      {canAnswer && (
         <form
           id={`${answerId}-form`}
-          className="flex flex-col gap-1.5"
+          className="flex flex-col gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            if (text.trim() && !command.isPending) answer();
+            if (conclusion && !command.isPending) answer();
           }}
         >
-          <label htmlFor={answerId} className="dm-text-caption font-semibold text-ink-2">
-            Your answer
-          </label>
-          <textarea
-            id={answerId}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            rows={5}
-            maxLength={3000}
-            placeholder="Answer in your own words"
-            className="dm-text-body w-full resize-y rounded-control border border-line-strong bg-surface px-3 py-2 leading-relaxed text-ink placeholder:text-muted focus:border-needs focus:outline-none"
-          />
+          <span className="dm-text-caption font-semibold text-ink-2">{picking ? 'Pick an answer' : 'Your answer'}</span>
+          {picking && (
+            <div role="radiogroup" aria-label="Answers" className="flex flex-col gap-1.5">
+              {inferred && (
+                <OptionButton
+                  selected={choice.kind === 'inferred'}
+                  onSelect={() => setChoice({ kind: 'inferred' })}
+                  answer={inferred}
+                  implies={q.reasoning ? `DEMIURGO inferred it: ${q.reasoning}` : 'DEMIURGO inferred it from the conversation.'}
+                />
+              )}
+              {options.map((o, i) => (
+                <OptionButton
+                  key={i}
+                  selected={choice.kind === 'option' && choice.index === i}
+                  onSelect={() => setChoice({ kind: 'option', index: i })}
+                  answer={o.answer}
+                  implies={o.implies}
+                />
+              ))}
+              <OptionButton
+                selected={choice.kind === 'own'}
+                onSelect={() => setChoice({ kind: 'own' })}
+                answer="Something else"
+                implies="Write it in your own words."
+              />
+            </div>
+          )}
+          {choice.kind === 'own' && (
+            <textarea
+              aria-label="Your answer"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              rows={4}
+              maxLength={3000}
+              autoFocus={picking}
+              placeholder="Answer in your own words"
+              className="dm-text-body w-full resize-y rounded-control border border-line-strong bg-surface px-3 py-2 leading-relaxed text-ink placeholder:text-muted focus:border-needs focus:outline-none"
+            />
+          )}
         </form>
       )}
       {!parking && command.error ? <Reasons error={command.error} /> : null}
       <div className="mt-auto flex flex-col gap-2.5">
-        {allows('question.confirm') && (
+        {canAnswer && (
           <Button
             type="submit"
             form={`${answerId}-form`}
             variant="primary"
             className="w-full"
-            disabled={!text.trim() || command.isPending}
+            disabled={!conclusion || command.isPending}
           >
             {command.isPending && !parking ? 'Answering…' : 'Answer'}
           </Button>
@@ -267,6 +328,43 @@ function Ask({
         onSubmit={park}
       />
     </>
+  );
+}
+
+const IMPACT_LEVEL: Record<string, string> = { high: 'High impact', medium: 'Medium impact', low: 'Low impact' };
+
+/** One predefined answer: the answer and, quieter, what choosing it implies. */
+function OptionButton({
+  selected,
+  onSelect,
+  answer,
+  implies,
+}: {
+  selected: boolean;
+  onSelect: () => void;
+  answer: string;
+  implies: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      onClick={onSelect}
+      className={cn(
+        'flex w-full items-start gap-2.5 rounded-control border bg-surface px-3 py-2.5 text-left',
+        selected ? 'border-needs' : 'border-line hover:border-line-strong',
+      )}
+    >
+      <span
+        aria-hidden="true"
+        className={cn('mt-[5px] size-3 shrink-0 rounded-full border', selected ? 'border-needs bg-needs' : 'border-line-strong')}
+      />
+      <span className="flex flex-col gap-0.5">
+        <span className="dm-text-body font-semibold text-ink">{answer}</span>
+        <span className="dm-text-small text-ink-3">{implies}</span>
+      </span>
+    </button>
   );
 }
 

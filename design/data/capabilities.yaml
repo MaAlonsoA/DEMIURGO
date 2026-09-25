@@ -35,6 +35,7 @@ commands:
 
   question.raise: { entity: question, allowed: [human, system], decisive: false, description: "Raise a question in an exploration (the agent's are raised by the system from its validated output)." }
   question.infer: { entity: question, allowed: [system], decisive: false, description: "Mark a question as inferred from an agent's output." }
+  question.suggest_options: { entity: question, allowed: [system], decisive: false, description: "Set the predefined answers an agent proposes for a pending question." }
   question.confirm: { entity: question, allowed: [human], decisive: true, description: "Confirm a question with its conclusion." }
   question.postpone: { entity: question, allowed: [human], decisive: false, description: "Postpone a question with a reason." }
   question.discard: { entity: question, allowed: [human], decisive: false, description: "Discard a question with a reason." }

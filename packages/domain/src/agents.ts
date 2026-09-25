@@ -123,6 +123,9 @@ export const proposedCriterion = z
   })
   .strict();
 
+/** A predefined answer to a question and what choosing it implies for the design. */
+export const questionOption = z.object({ answer: text(300), implies: text(300) }).strict();
+
 export const explorationChatOutput = z
   .object({
     reply: text(6000),
@@ -130,8 +133,22 @@ export const explorationChatOutput = z
     purpose: text(1000).nullable(),
     observations: z.array(z.object({ type: z.enum(['claim', 'hypothesis', 'unknown']), text: text(1000) }).strict()).max(10),
     questions: z
-      .array(z.object({ question: text(500), reason: text(500), impact: z.enum(['high', 'medium', 'low']) }).strict())
+      .array(
+        z
+          .object({
+            question: text(500),
+            reason: text(500),
+            impact: z.enum(['high', 'medium', 'low']),
+            // 2 to 4 likely answers the person can pick with one click; empty when none fits.
+            options: z.array(questionOption).max(4),
+          })
+          .strict(),
+      )
       .max(5),
+    // Likely answers for questions already pending in the context pack (e.g. a stage's mandatory ones).
+    question_options: z
+      .array(z.object({ question_id: z.string().uuid(), options: z.array(questionOption).max(4) }).strict())
+      .max(8),
     inferences: z
       .array(z.object({ question_id: z.string().uuid(), conclusion: text(1500), reasoning: text(1500) }).strict())
       .max(5),

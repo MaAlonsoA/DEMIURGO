@@ -237,6 +237,18 @@ export function ParkedCard({ projectId, thread, dimmed }: { projectId: string; t
   );
 }
 
+/** "+ New record": a decision, feature, tech decision or bug written by hand (record.create). */
+export function NewRecordLink({ projectId, className }: { projectId: string; className?: string }) {
+  const tables = useTables();
+  if (!tables || !canCreate(tables, 'record.create')) return null;
+  return (
+    <Link to="/p/$projectId/records/new" params={{ projectId }} className={className ?? buttonClass('secondary')}>
+      <PlusIcon size={14} />
+      New record
+    </Link>
+  );
+}
+
 /** "+ Capture an idea" (B1): saved as a thread, without asking DEMIURGO and without leaving the overview. */
 export function CaptureIdea({ projectId }: { projectId: string }) {
   const tables = useTables();

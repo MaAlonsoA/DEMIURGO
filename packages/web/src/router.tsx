@@ -8,6 +8,7 @@ import { ActivityScreen } from './screens/activity/Activity.tsx';
 import { BatchScreen } from './screens/batch/Batch.tsx';
 import { KnowledgeScreen } from './screens/knowledge/Knowledge.tsx';
 import { NeedsYouScreen } from './screens/needs-you/NeedsYou.tsx';
+import { NewRecordScreen } from './screens/new-record/NewRecord.tsx';
 import { NewVersionScreen } from './screens/new-version/NewVersion.tsx';
 import { NotFound } from './screens/not-found/NotFound.tsx';
 import { DayDoneScreen } from './screens/onboarding/DayDone.tsx';
@@ -110,6 +111,15 @@ const recordRoute = createRoute({
   },
   component: RecordScreen,
 });
+const newRecordRoute = createRoute({
+  getParentRoute: () => projectRoute,
+  path: '/records/new',
+  validateSearch: (s: Record<string, unknown>): { type?: string } => {
+    const type = text(s.type);
+    return type ? { type } : {};
+  },
+  component: NewRecordScreen,
+});
 const newVersionRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: '/records/$code/new-version',
@@ -175,6 +185,7 @@ const routeTree = rootRoute.addChildren([
       mapRoute,
       journeysRoute,
       recordRoute,
+      newRecordRoute,
       newVersionRoute,
       threadsRoute,
       threadRoute,

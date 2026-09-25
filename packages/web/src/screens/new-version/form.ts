@@ -39,7 +39,8 @@ export function initialForm(base: RecordVersion): VersionForm {
   };
 }
 
-export function addCheck(form: VersionForm): VersionForm {
+/** Adds a blank new check (to a new version or to a new record). */
+export function addCheck<F extends { checks: CheckDraft[]; added: number }>(form: F): F {
   const added = form.added + 1;
   return {
     ...form,

@@ -12,6 +12,7 @@ import { ChevronLeft } from '../../ui/icons.tsx';
 import { Skeleton } from '../../ui/layout.tsx';
 import { Mark } from '../../ui/marks.tsx';
 import { NeedsBubble } from '../../ui/signals.tsx';
+import { NewRecordLink } from '../overview/Blueprint.tsx';
 import { type FeatureStatus, type RailNode, railOf } from './rail.ts';
 
 export function BlueprintFrame({ projectId, code, children }: { projectId: string; code: string; children: ReactNode }) {
@@ -110,6 +111,10 @@ export function BlueprintRail({ projectId, code }: { projectId: string; code: st
         <ChevronLeft size={13} className="shrink-0 text-muted" />
         <span className="truncate">{rail.project || 'The product'}</span>
       </Link>
+      <NewRecordLink
+        projectId={projectId}
+        className="dm-text-small flex items-center gap-1.5 rounded-control px-2.5 py-1 font-semibold text-needs-strong hover:bg-line-soft"
+      />
       {!state.data ? (
         <div role="status" aria-label="Loading the product" className="flex flex-col gap-2 px-2.5">
           <Skeleton className="h-3 w-16" />

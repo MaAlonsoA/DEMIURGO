@@ -26,7 +26,7 @@ import { ProductTabs } from '../shell/Header.tsx';
 import { useLens, type Lens } from './lens/useLens.ts';
 import { WhileAway } from './lens/WhileAway.tsx';
 import { NeedsColumn } from './NeedsColumn.tsx';
-import { CaptureIdea, DraftingCard, LaterRows, ParkedCard, ProgressLine } from './Blueprint.tsx';
+import { CaptureIdea, DraftingCard, LaterRows, NewRecordLink, ParkedCard, ProgressLine } from './Blueprint.tsx';
 import { draftingRuns, featureStatus, productProgress, workingRuns } from './progress.ts';
 import { FeatureCard, LensFrame, type LensMark, RecordNode, UNDIM } from './RecordCard.tsx';
 
@@ -162,12 +162,15 @@ function Overview({ projectId }: { projectId: string }) {
           subtitle={empty ? undefined : <ProgressLine progress={progress} />}
           className="mb-4"
           actions={
-            lens.available && !lens.on ? (
-              <Button variant="secondary" className="rounded-full" onClick={() => lens.setOn(true)}>
-                <EyeIcon size={14} />
-                Show what changed · {lens.lines.length}
-              </Button>
-            ) : undefined
+            <span className="flex items-center gap-2">
+              {lens.available && !lens.on && (
+                <Button variant="secondary" className="rounded-full" onClick={() => lens.setOn(true)}>
+                  <EyeIcon size={14} />
+                  Show what changed · {lens.lines.length}
+                </Button>
+              )}
+              <NewRecordLink projectId={projectId} />
+            </span>
           }
         />
         <ProductTabs active="overview" />
@@ -176,7 +179,7 @@ function Overview({ projectId }: { projectId: string }) {
 
         {empty && (
           <EmptyState className="mb-8">
-            Nothing here yet. Import design/ or open a thread to start designing.{' '}
+            Nothing here yet. Write a record yourself or open a thread to design it with DEMIURGO.{' '}
             <Link to="/p/$projectId/threads" params={{ projectId }} className="font-semibold text-needs hover:text-needs-strong">
               Go to Threads
             </Link>

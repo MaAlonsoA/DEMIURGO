@@ -293,7 +293,8 @@ function NewVersionForm({
   );
 }
 
-function Section({ title, content, onChange }: { title: string; content: string; onChange: (content: string) => void }) {
+/** A template section in markdown (also used by New record). */
+export function Section({ title, content, onChange }: { title: string; content: string; onChange: (content: string) => void }) {
   const id = useId();
   const rows = Math.min(18, Math.max(3, content.split('\n').length + 1));
   return (

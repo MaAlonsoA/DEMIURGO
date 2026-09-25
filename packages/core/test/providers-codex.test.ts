@@ -77,7 +77,7 @@ describe('Codex provider', () => {
         'model_reasoning_effort="high"',
         `developer_instructions=${JSON.stringify(invocation().system)}`,
         'sandbox_mode="read-only"',
-        'web_search="disabled"',
+        'web_search="live"',
       ]),
     );
     expect(valuesOf(args, '--disable')).toEqual([...CODEX_DISABLED_FEATURES]);

@@ -32,13 +32,23 @@ export const CLAUDE_MODELS: readonly { id: string; label: string }[] = [
 
 /**
  * Fixed isolation for every invocation:
- * - `--tools ""`: no built-in tools (no Bash, no reading or writing files).
+ * - `--tools WebSearch`: only web search, pre-approved (no WebFetch: it could open local addresses such as
+ *   the API or Postgres; no Bash, no reading or writing files).
  * - `--strict-mcp-config`: only the MCP servers from `--mcp-config`, and none is passed.
  * - `--safe-mode`: no CLAUDE.md, skills, plugins, hooks, MCP, agents or custom styles.
  * - `--setting-sources ""`: user, project and local settings aren't read.
  * `--bare` doesn't work: it requires ANTHROPIC_API_KEY and doesn't read the subscription.
  */
-export const CLAUDE_ISOLATION_FLAGS = ['--tools', '', '--strict-mcp-config', '--safe-mode', '--setting-sources', ''] as const;
+export const CLAUDE_ISOLATION_FLAGS = [
+  '--tools',
+  'WebSearch',
+  '--allowedTools',
+  'WebSearch',
+  '--strict-mcp-config',
+  '--safe-mode',
+  '--setting-sources',
+  '',
+] as const;
 
 /** CreateProcess allows 32,767 characters; margin is left for the quotes Node adds. */
 const WINDOWS_LINE_LIMIT = 32_000;

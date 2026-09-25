@@ -186,11 +186,12 @@ describe('claude-cli agent adapter', () => {
     for (const l of [...failure.calls, ...hung.calls]) expect(existsSync(l.command.cwd)).toBe(false);
   });
 
-  it('AC-RUN-001-03 disables all tools, MCP, the on-disk session and local settings', async () => {
+  it('AC-RUN-001-03 allows only web search, and disables every other tool, MCP, the on-disk session and local settings', async () => {
     const { launcher, calls } = fakeLauncher({ stdout: fixture('echo-success.json') });
     await claudeAgent({ launcher, executable: 'claude' }).execute(request());
     const { args } = first(calls).command;
-    expect(valueOf(args, '--tools')).toBe('');
+    expect(valueOf(args, '--tools')).toBe('WebSearch');
+    expect(valueOf(args, '--allowedTools')).toBe('WebSearch');
     expect(args).toContain('--strict-mcp-config');
     expect(args).not.toContain('--mcp-config');
     expect(args).toContain('--no-session-persistence');

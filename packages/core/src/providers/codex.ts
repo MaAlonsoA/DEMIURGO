@@ -72,7 +72,7 @@ export function codexArguments(inv: ProviderInvocation, files: { schema: string;
     '-c',
     'sandbox_mode="read-only"',
     '-c',
-    'web_search="disabled"',
+    'web_search="live"',
     '--ignore-user-config',
     '--ignore-rules',
     '--skip-git-repo-check',

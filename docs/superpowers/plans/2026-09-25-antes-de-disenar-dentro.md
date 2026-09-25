@@ -53,7 +53,7 @@
 - **Unitaria:** `readingOf` recorre sus cuatro estados.
 - **E2E:** el Día 1 con la marca `[slow-knowledge]` muestra «catching up» y nunca ofrece repetir la petición.
 
-### Tarea 2 · Preguntas inferidas en la readiness (S, 2–3 h) · **pendiente de tu decisión**
+### Tarea 2 · Preguntas inferidas en la readiness (S, 2–3 h) · **decidido: sí** («todo tiene que estar aprobado por el desarrollador», 25-09)
 
 **Problema.** Una respuesta que supuso DEMIURGO y nadie confirmó no bloquea «Ready to build».
 
@@ -188,7 +188,7 @@ Se registra en `docs/ejecuciones-reales/`.
 | 2 | 3 y 4 · Registros y enlaces a mano | 1½ días |
 | 3 | 5 · Claves de agente | ½ día |
 | 4 | 6, 7, 8, 9 y 10 · Menores | 1½ días |
-| 5 | 2 · Preguntas inferidas (si dices que sí) | 2–3 h |
+| 5 | 2 · Preguntas inferidas | 2–3 h |
 | 6 | 11 y 12 · Gate, revisión y humo | ½ día |
 
 **Total:** unos 4–5 días de trabajo. Al terminar, tu instancia (8100) se reinicia con el código nuevo y aplica la migración. Después empieza el diseño dentro, que sigue siendo tu decisión.

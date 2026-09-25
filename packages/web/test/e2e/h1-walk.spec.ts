@@ -38,34 +38,37 @@ async function settleNeedsYou(page: Page, person: PersonApi, projectId: string):
   for (let round = 0; round < 120; round++) {
     await knowledgeSettled(person, projectId);
     const empty = page.getByText('Nothing needs you. You can close DEMIURGO.');
-    const item = page.getByRole('main').locator('[data-need]').first();
-    await expect(empty.or(item)).toBeVisible();
+    const row = page.getByRole('main').getByRole('option').first();
+    await expect(empty.or(row)).toBeVisible();
     if (await empty.isVisible()) {
       // The knowledge may still bring a conflict after the last approval: check once more.
       await knowledgeSettled(person, projectId);
       if (await empty.isVisible()) return done;
       continue;
     }
-    const key = (await item.getAttribute('data-need')) ?? '';
-    const kind = (await item.getAttribute('data-kind')) ?? '';
+    const key = (await row.getAttribute('data-need')) ?? '';
+    const kind = (await row.getAttribute('data-kind')) ?? '';
     // Acts on that thing by its key, not on "the first one": knowledge can put a new conflict on top
-    // between reading it and clicking, and "the first one" would then have none of these buttons.
-    const target = page.locator(`[data-need="${key}"]`);
+    // between reading it and clicking. The row is picked, then its detail holds the actions.
+    const option = page.locator(`[role="option"][data-need="${key}"]`);
+    const detail = page.locator(`[data-detail][data-need="${key}"]`);
     try {
-      await settleOne(page, target, kind, key);
+      await option.click({ timeout: 15_000 });
+      await expect(detail).toBeVisible({ timeout: 15_000 });
+      await settleOne(page, detail, kind, key);
     } catch (e) {
       // It went away or changed before the click: look at Needs you again.
       if (e instanceof Error && e.name === 'TimeoutError') continue;
       throw e;
     }
     // Under load (three workers share one serial knowledge queue) an approval can wait for the project lock.
-    await expect(target).toHaveCount(0, { timeout: 45_000 });
+    await expect(option).toHaveCount(0, { timeout: 45_000 });
     done.push(kind);
   }
   throw new Error('Needs you never emptied.');
 }
 
-/** Resolves one thing of Needs you in place; a button that doesn't come in 15 s is a TimeoutError. */
+/** Resolves one thing of Needs you in its detail; a button that doesn't come in 15 s is a TimeoutError. */
 async function settleOne(page: Page, item: Locator, kind: string, key: string): Promise<void> {
   const click = (name: string, exact = true) => item.getByRole('button', { name, exact }).click({ timeout: 15_000 });
   switch (kind) {
@@ -85,7 +88,7 @@ async function settleOne(page: Page, item: Locator, kind: string, key: string): 
       break;
     }
     case 'conflict':
-      await click('Keep it as it is', false);
+      await click('Keep it as it is');
       await confirmIn(page, 'Keep it as it is');
       break;
     case 'link':
@@ -100,7 +103,7 @@ async function settleOne(page: Page, item: Locator, kind: string, key: string): 
         await confirmIn(page, 'Confirm');
       } else {
         await click('Answer');
-        await page.getByRole('dialog').getByLabel('Conclusion').fill('Settled while walking H1.');
+        await page.getByRole('dialog').getByLabel('Your answer').fill('Settled while walking H1.');
         await confirmIn(page, 'Answer');
       }
       break;
@@ -124,10 +127,12 @@ test('AC-INT-001-01 the H1 walk in the browser: ratify, a thread, a draft, accep
   await page.goto(`/p/${projectId}/needs-you`);
   await signInThroughUi(page);
   await expect(page).toHaveURL(`${BASE_URL}/p/${projectId}/needs-you`);
-  // The legend opens on the first screens; the person reads it and folds it: it sits over the
-  // bottom left, where the batch pages keep their actions.
-  await page.getByRole('button', { name: 'Got it' }).click();
-  await page.locator(`[data-need="package:${batchId}"]`).getByRole('link').first().click();
+  // The package is picked in the queue and opened from its detail.
+  await page.locator(`[role="option"][data-need="package:${batchId}"]`).click();
+  await page
+    .locator(`[data-detail][data-need="package:${batchId}"]`)
+    .getByRole('link', { name: /Open the package/ })
+    .click();
   await expect(page).toHaveURL(new RegExp(`/batches/${batchId}$`));
 
   // 1. Take over the design: nothing is approved before ratifying.
@@ -139,7 +144,7 @@ test('AC-INT-001-01 the H1 walk in the browser: ratify, a thread, a draft, accep
 
   // 2. Approve what is right: whatever the ratification left in Needs you.
   await page
-    .getByRole('banner')
+    .getByRole('navigation', { name: 'Sections' })
     .getByRole('link', { name: /Needs you/ })
     .click();
   const settled = await settleNeedsYou(page, person, projectId);
@@ -148,12 +153,14 @@ test('AC-INT-001-01 the H1 walk in the browser: ratify, a thread, a draft, accep
 
   // 3. A thread: the person decides and DEMIURGO proposes the decision.
   await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Threads' }).click();
-  await page.getByRole('button', { name: 'New thread' }).click();
+  await page.getByRole('main').getByRole('button', { name: 'New thread', exact: true }).click();
   await page.getByRole('dialog').getByLabel('Purpose').fill('Design S3: change set and frozen tests');
   await page.getByRole('dialog').getByRole('button', { name: 'Open thread' }).click();
   await expect(page).toHaveURL(/\/threads\/[0-9a-f-]+$/);
   await expectAccessible(page, 'a new thread');
-  await page.getByLabel('Message').fill("We'll use a map of checks that the person accepts before the tests are frozen.");
+  await page
+    .getByLabel('Message', { exact: true })
+    .fill("We'll use a map of checks that the person accepts before the tests are frozen.");
   await page.getByRole('button', { name: 'Ask DEMIURGO' }).click();
   const proposed = page.locator('[data-message-by="demiurgo"] [data-proposed]');
   await expect(proposed).toContainText('Proposed 1 decision for you to review.', { timeout: 60_000 });
@@ -193,12 +200,12 @@ test('AC-INT-001-01 the H1 walk in the browser: ratify, a thread, a draft, accep
 
   // Whatever the approval brought (a conflict, a link) is settled; then Needs you is empty.
   await page
-    .getByRole('banner')
+    .getByRole('navigation', { name: 'Sections' })
     .getByRole('link', { name: /Needs you/ })
     .click();
   await settleNeedsYou(page, person, projectId);
   await expect(page.getByText('Nothing needs you. You can close DEMIURGO.')).toBeVisible();
-  await expect(page.getByRole('banner').locator('[data-needs]')).toHaveCount(0);
+  await expect(page.locator('nav [data-nav="needs"] [data-count]')).toHaveCount(0);
   await screenshot(page, 8, 'h1-01-needs-you-empty');
 
   // The feature is Ready to build: no reasons and the first bar full.

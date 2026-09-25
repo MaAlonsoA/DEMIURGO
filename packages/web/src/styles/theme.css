@@ -1,0 +1,119 @@
+/* Tailwind reads the design tokens and nothing else (DESIGN.md §6). Every color utility maps to a
+   semantic token from tokens.css (bg-panel, text-fg-2, border-edge, bg-accent-soft…); type sizes,
+   radii and shadows come from the scales below. `reference` keeps Tailwind from emitting its own
+   variables: the utilities point straight at the tokens. */
+
+@theme inline reference {
+  /* Surfaces, lines and text. */
+  --color-app: var(--c-app);
+  --color-panel: var(--c-panel);
+  --color-sunken: var(--c-sunken);
+  --color-hover: var(--c-hover);
+  --color-selected: var(--c-selected);
+  --color-edge-subtle: var(--c-edge-subtle);
+  --color-edge: var(--c-edge);
+  --color-edge-strong: var(--c-edge-strong);
+  --color-edge-control: var(--c-edge-control);
+  --color-fg: var(--c-fg);
+  --color-fg-2: var(--c-fg-2);
+  --color-fg-3: var(--c-fg-3);
+
+  /* Roles: solid fill, its hover, the text on it, text on surfaces, the soft tint and its edge. */
+  --color-accent: var(--c-accent);
+  --color-accent-hover: var(--c-accent-hover);
+  --color-on-accent: var(--c-on-accent);
+  --color-accent-text: var(--c-accent-text);
+  --color-accent-soft: var(--c-accent-soft);
+  --color-accent-edge: var(--c-accent-edge);
+  --color-info: var(--c-info);
+  --color-info-text: var(--c-info-text);
+  --color-info-soft: var(--c-info-soft);
+  --color-info-edge: var(--c-info-edge);
+  --color-success: var(--c-success);
+  --color-success-text: var(--c-success-text);
+  --color-success-soft: var(--c-success-soft);
+  --color-success-edge: var(--c-success-edge);
+  --color-warning: var(--c-warning);
+  --color-warning-text: var(--c-warning-text);
+  --color-warning-soft: var(--c-warning-soft);
+  --color-warning-edge: var(--c-warning-edge);
+  --color-danger: var(--c-danger);
+  --color-danger-hover: var(--c-danger-hover);
+  --color-on-danger: var(--c-on-danger);
+  --color-danger-text: var(--c-danger-text);
+  --color-danger-soft: var(--c-danger-soft);
+  --color-danger-edge: var(--c-danger-edge);
+  --color-inverse: var(--c-inverse);
+  --color-on-inverse: var(--c-on-inverse);
+  --color-focus: var(--c-focus);
+  --color-scrim: var(--c-scrim);
+
+  /* Faces. */
+  --font-ui: var(--font-ui);
+  --font-code: var(--font-code);
+
+  /* Type scale (size / line height): UI text is 14px; prose (messages, records) is 15px. */
+  --text-*: initial;
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 13px;
+  --text-sm--line-height: 18px;
+  --text-base: 14px;
+  --text-base--line-height: 20px;
+  --text-md: 15px;
+  --text-md--line-height: 24px;
+  --text-lg: 17px;
+  --text-lg--line-height: 24px;
+  --text-xl: 20px;
+  --text-xl--line-height: 28px;
+  --text-2xl: 24px;
+  --text-2xl--line-height: 32px;
+  --text-3xl: 30px;
+  --text-3xl--line-height: 38px;
+
+  /* Radii: controls 6, cards and panels 8, dialogs 12; pills are rounded-full. */
+  --radius-xs: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  /* Only floating layers cast shadows. */
+  --shadow-popover: var(--e-popover);
+  --shadow-dialog: var(--e-dialog);
+}
+
+@theme {
+  --animate-enter: enter var(--m-base) var(--m-ease);
+  --animate-flash: flash 1.6s ease-out;
+  --animate-breathe: breathe 1.8s ease-in-out infinite;
+
+  @keyframes enter {
+    from {
+      opacity: 0;
+      transform: translateY(3px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  /* A row that just changed state: a short tint that fades (DESIGN.md §4.6). */
+  @keyframes flash {
+    from {
+      background-color: var(--c-accent-soft);
+    }
+    to {
+      background-color: transparent;
+    }
+  }
+  /* The working dot: it breathes instead of spinning, so a long run doesn't look frantic. */
+  @keyframes breathe {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
+  }
+}

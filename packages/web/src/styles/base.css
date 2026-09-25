@@ -1,0 +1,146 @@
+/* Base rules of the new visual language (DESIGN.md §6): one focus ring for everything, reduced
+   motion, and the prose style for Markdown written by people and by DEMIURGO. */
+
+@layer base {
+  html {
+    /* The sticky page header and the thread composer never hide the focused element (WCAG 2.4.11). */
+    scroll-padding-top: 72px;
+    scroll-padding-bottom: 160px;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* One focus ring: 2px, offset, in the focus token (3:1 against every surface; WCAG 2.4.7/2.4.13). */
+  :focus-visible {
+    outline: 2px solid var(--c-focus);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--c-selected);
+    color: var(--c-fg);
+  }
+
+  [hidden] {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@layer components {
+  /* Markdown prose (records, DEMIURGO's replies): readable measure and rhythm, token colors only. */
+  .md-prose {
+    color: var(--c-fg);
+    font-size: 15px;
+    line-height: 24px;
+    overflow-wrap: anywhere;
+  }
+  .md-prose > * + * {
+    margin-top: 0.75em;
+  }
+  .md-prose h1,
+  .md-prose h2,
+  .md-prose h3,
+  .md-prose h4 {
+    font-weight: 600;
+    line-height: 1.35;
+    margin-top: 1.25em;
+  }
+  .md-prose h1 {
+    font-size: 18px;
+  }
+  .md-prose h2 {
+    font-size: 16px;
+  }
+  .md-prose h3,
+  .md-prose h4 {
+    font-size: 15px;
+  }
+  .md-prose ul {
+    list-style: disc;
+    padding-left: 1.4em;
+  }
+  .md-prose ol {
+    list-style: decimal;
+    padding-left: 1.6em;
+  }
+  .md-prose li + li,
+  .md-prose li > ul,
+  .md-prose li > ol {
+    margin-top: 0.3em;
+  }
+  .md-prose code {
+    font-family: var(--font-code);
+    font-size: 0.86em;
+    background: var(--c-sunken);
+    border: 1px solid var(--c-edge);
+    border-radius: 4px;
+    padding: 0.05em 0.3em;
+  }
+  .md-prose pre {
+    font-family: var(--font-code);
+    font-size: 13px;
+    line-height: 20px;
+    background: var(--c-sunken);
+    border: 1px solid var(--c-edge);
+    border-radius: 6px;
+    padding: 12px 14px;
+    overflow-x: auto;
+  }
+  .md-prose pre code {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    font-size: inherit;
+  }
+  .md-prose table {
+    border-collapse: collapse;
+    font-size: 14px;
+    line-height: 20px;
+    display: block;
+    overflow-x: auto;
+  }
+  .md-prose th,
+  .md-prose td {
+    border: 1px solid var(--c-edge);
+    padding: 6px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  .md-prose th {
+    background: var(--c-sunken);
+    font-weight: 600;
+  }
+  .md-prose a {
+    color: var(--c-accent-text);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .md-prose strong {
+    font-weight: 600;
+  }
+  .md-prose blockquote {
+    border-left: 3px solid var(--c-edge-strong);
+    padding-left: 12px;
+    color: var(--c-fg-2);
+  }
+  .md-prose hr {
+    border: 0;
+    border-top: 1px solid var(--c-edge);
+  }
+  /* Compact variant for previews and side panels. */
+  .md-prose--sm {
+    font-size: 14px;
+    line-height: 22px;
+  }
+}

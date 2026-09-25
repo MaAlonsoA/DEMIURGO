@@ -3,6 +3,11 @@
    sits in the components layer, so Tailwind utilities can still adjust a dm-* element as layout glue. */
 @import '@demiurgo/design-system/fonts.css';
 @import '@demiurgo/design-system/demiurgo.css' layer(components);
+/* The new visual language (DESIGN.md §6): tokens, the Tailwind theme on them, and base rules. Until
+   every screen is rebuilt, the old design-system stylesheet above stays for the screens not yet moved. */
+@import './styles/tokens.css';
+@import './styles/theme.css';
+@import './styles/base.css';
 
 /* Tailwind reads the design system's tokens and nothing else: bg-paper is var(--paper), rounded-card
    is var(--radius-card), shadow-float is var(--shadow-float). There are no other colors, radii or
@@ -98,17 +103,9 @@
     min-width: 1280px;
     -webkit-font-smoothing: antialiased;
   }
-  /* Keyboard focus is ring-focus: a surface gap and an ink ring. */
-  :focus-visible {
-    outline: 2px solid var(--ink);
-    outline-offset: 2px;
-  }
   button:not(:disabled),
   [role='button'] {
     cursor: pointer;
-  }
-  ::selection {
-    background: var(--needs-ring);
   }
 }
 

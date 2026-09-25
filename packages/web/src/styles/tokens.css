@@ -1,0 +1,94 @@
+/* Design tokens of the web (DESIGN.md §6). Two layers:
+   - these semantic tokens, the only colors the app uses, named by role and never by hue;
+   - the Tailwind theme in app.css, which exposes exactly these (bg-panel, text-fg-2, border-edge…).
+   Each token holds its light and its dark value with light-dark(). The theme follows the operating
+   system; the person can pin one from their menu, which sets data-theme on <html> and so the
+   color-scheme that light-dark() reads. Every text pair meets WCAG 2.2 AA (4.5:1) and every non-text
+   pair 3:1 in both themes: test/unit/tokens.test.ts checks them. */
+
+:root {
+  color-scheme: light dark;
+
+  /* Surfaces: the app frame, the working panel, wells, hover and selection. */
+  --c-app: light-dark(#f2f2f5, #0e0e12);
+  --c-panel: light-dark(#ffffff, #16161c);
+  --c-sunken: light-dark(#f7f7f9, #121217);
+  --c-hover: light-dark(#eeeef2, #1f1f27);
+  --c-selected: light-dark(#e9e7fb, #262142);
+
+  /* Lines: dividers, structure, and the border that identifies a control (3:1). */
+  --c-edge-subtle: light-dark(#ececf0, #22222a);
+  --c-edge: light-dark(#e2e2e8, #2a2a33);
+  --c-edge-strong: light-dark(#c9c9d2, #3d3d49);
+  --c-edge-control: light-dark(#8a8a96, #70707e);
+
+  /* Text: primary, secondary and tertiary (all 4.5:1 on every surface). */
+  --c-fg: light-dark(#1b1b22, #ededf2);
+  --c-fg-2: light-dark(#565663, #ababb8);
+  --c-fg-3: light-dark(#666673, #8e8e9c);
+
+  /* Accent (violet): "you" — your turn, primary actions, links, focus, selection. */
+  --c-accent: light-dark(#5b3fd6, #6a50e8);
+  --c-accent-hover: light-dark(#4b30be, #5f45de);
+  --c-on-accent: light-dark(#ffffff, #ffffff);
+  --c-accent-text: light-dark(#5236cc, #ae9fff);
+  --c-accent-soft: light-dark(#f1eefe, #221d3b);
+  --c-accent-edge: light-dark(#c9bffa, #4a3f86);
+
+  /* Progress (blue): queued, working, updating, connecting. */
+  --c-info: light-dark(#1d64d8, #3b82f0);
+  --c-info-text: light-dark(#155bc8, #7fb0ff);
+  --c-info-soft: light-dark(#eaf1fe, #12213a);
+  --c-info-edge: light-dark(#b5ccf7, #27467a);
+
+  /* Success (green): confirmed, approved, done, applied. */
+  --c-success: light-dark(#1c7c3e, #2e9e5b);
+  --c-success-text: light-dark(#18723a, #62cf8e);
+  --c-success-soft: light-dark(#e8f5ec, #10271a);
+  --c-success-edge: light-dark(#a9d8b7, #22543a);
+
+  /* Caution (amber): assumed by DEMIURGO, out of date, stalled, needs a review. */
+  --c-warning: light-dark(#b86e00, #d99a2b);
+  --c-warning-text: light-dark(#8a5300, #edbb5c);
+  --c-warning-soft: light-dark(#fef4de, #2a2111);
+  --c-warning-edge: light-dark(#edcb86, #5e4820);
+
+  /* Problem (red): failed, conflict, rejected update. */
+  --c-danger: light-dark(#c9302c, #c9383d);
+  --c-danger-hover: light-dark(#b0231f, #b52f34);
+  --c-on-danger: light-dark(#ffffff, #ffffff);
+  --c-danger-text: light-dark(#b42623, #ff8a8d);
+  --c-danger-soft: light-dark(#fdecec, #2f1517);
+  --c-danger-edge: light-dark(#f1b6b4, #6a2a2d);
+
+  /* Inverse (tooltips, toasts), focus, the dialog scrim and the shadow tint. */
+  --c-inverse: light-dark(#1b1b22, #ededf2);
+  --c-on-inverse: light-dark(#f5f5f8, #16161c);
+  --c-focus: light-dark(#5b3fd6, #9c8bff);
+  --c-scrim: light-dark(rgb(20 20 28 / 0.45), rgb(0 0 0 / 0.6));
+  --c-shadow: light-dark(rgb(20 20 28 / 0.12), rgb(0 0 0 / 0.5));
+  --c-shadow-near: light-dark(rgb(20 20 28 / 0.06), rgb(0 0 0 / 0.4));
+
+  /* Type: the system's UI and code faces (no web fonts to download). */
+  --font-ui:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI Variable Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  --font-code: ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  /* Elevation: only floating layers cast a shadow; everything else is separated by lines. */
+  --e-popover: 0 1px 2px var(--c-shadow-near), 0 8px 24px var(--c-shadow);
+  --e-dialog: 0 2px 4px var(--c-shadow-near), 0 24px 64px var(--c-shadow);
+
+  /* Motion: short, and none when the person asks for reduced motion (see app.css). */
+  --m-fast: 120ms;
+  --m-base: 180ms;
+  --m-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}

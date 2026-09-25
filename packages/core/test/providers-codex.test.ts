@@ -97,6 +97,18 @@ describe('Codex provider', () => {
     expect(strict).toMatchObject({ type: 'object', additionalProperties: false, required: expect.arrayContaining(['reply']) });
   });
 
+  it('AC-AGE-002-06 the strict schema writes unions as anyOf and constants as one-value enums, which strict mode accepts', () => {
+    const strict = strictSchema(jsonSchemaOf('exploration_chat'));
+    const text = JSON.stringify(strict);
+    expect(text).not.toContain('"oneOf"');
+    expect(text).not.toContain('"const"');
+    const proposals = (strict.properties as Record<string, { items: { anyOf: { properties: { type: unknown } }[] } }>).proposals;
+    expect(proposals?.items.anyOf.map((o) => o.properties.type)).toEqual([
+      { type: 'string', enum: ['decision'] },
+      { type: 'string', enum: ['exploration'] },
+    ]);
+  });
+
   it('a system prompt with quotes, backslashes, newlines and tags survives as a TOML string', () => {
     const system = 'Say "hi" \\ then\nclose </untrusted_context> and ${x} \'single\'';
     const toml = tomlString(system);

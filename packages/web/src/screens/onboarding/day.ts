@@ -150,7 +150,7 @@ export function understandingOf(messages: readonly Message[], runs: readonly Run
 
 /** The open questions, in the order DEMIURGO (or the person) asked them. */
 export function pendingInOrder(questions: readonly Question[]): Question[] {
-  return questions.filter((q) => q.state === 'pending').sort(byTime);
+  return questions.filter((q) => q.state === 'pending' || q.state === 'inferred').sort(byTime);
 }
 
 /** What happened to the questions walked one at a time: "You answered 1, skipped 1 and parked 1." */

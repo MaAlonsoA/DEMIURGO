@@ -4,7 +4,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
-import { explorationQuery, projectsQuery, runsQuery } from '../../api/queries.ts';
+import { explorationQuery, projectsQuery, runsQuery, stagesQuery } from '../../api/queries.ts';
 import { useNow } from '../run/hooks.ts';
 import { isActive } from '../thread/timeline.ts';
 import { personMessages, readingOf } from './day.ts';
@@ -17,6 +17,13 @@ export function useDay(projectId: string, explorationId: string) {
   // now and then, in case its first event arrived before the stream was open.
   const runs = useQuery({ ...runsQuery(projectId, { exploration: explorationId }), refetchInterval: waiting ? 2500 : false });
   const project = useQuery(projectsQuery).data?.find((p) => p.id === projectId);
+  // The open design stage's mandatory questions live in the stage's own thread; the Day 1 walks
+  // them too, so the person answers them here instead of finding an empty list.
+  const stage = useQuery(stagesQuery(projectId)).data?.find((s) => s.state === 'open');
+  const stageThreadId = stage?.exploration_id && stage.exploration_id !== explorationId ? stage.exploration_id : '';
+  const stageThread = useQuery({ ...explorationQuery(projectId, stageThreadId), enabled: !!stageThreadId });
+  const mandatory = (stageThread.data?.questions ?? []).filter((q) => q.stage_id);
+  const merged = thread.data && mandatory.length ? { ...thread.data, questions: [...thread.data.questions, ...mandatory] } : thread.data;
   const people = thread.data ? personMessages(thread.data.messages) : [];
   const idea = people[0];
   const latest = people.at(-1);
@@ -24,7 +31,7 @@ export function useDay(projectId: string, explorationId: string) {
   const reading = readingOf(runs.data ?? [], latest);
   useEffect(() => setWaiting(reading.phase === 'waiting' || reading.phase === 'catching_up'), [reading.phase]);
   return {
-    thread: thread.data,
+    thread: merged,
     runs: runs.data,
     project,
     idea,

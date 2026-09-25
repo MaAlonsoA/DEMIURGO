@@ -24,7 +24,7 @@ import { useNow } from '../run/hooks.ts';
 import { proposalsInWords } from '../run/runs.ts';
 import { OpenThreadDialog } from '../threads/Threads.tsx';
 import { RunCard } from './RunCards.tsx';
-import { QuestionCard } from './ThreadQuestions.tsx';
+import { QuestionCard, useDrafts } from './ThreadQuestions.tsx';
 import { type TimelineItem, isActive } from './timeline.ts';
 
 export type QuestionHandlers = {
@@ -69,7 +69,6 @@ export function Conversation({
           return (
             <QuestionCard
               key={item.key}
-              projectId={projectId}
               thread={handlers.thread}
               question={item.question}
               stageTitle={item.question.stage_id ? handlers.stageTitle : null}
@@ -269,9 +268,13 @@ function ForkIcon() {
   );
 }
 
-/** A new thread DEMIURGO suggests: the person explores it separately or keeps it here. */
-function ForkSuggestion({ projectId, proposal }: { projectId: string; proposal: { id: string; state: string; payload: unknown } }) {
-  const command = useCommand(projectId);
+/**
+ * A new thread DEMIURGO suggests: the person explores it separately or keeps it here. The choice is
+ * a draft, sent with the answers of the thread.
+ */
+function ForkSuggestion({ proposal }: { proposal: { id: string; state: string; payload: unknown } }) {
+  const drafts = useDrafts();
+  const choice = drafts?.forks[proposal.id];
   const purpose = String((proposal.payload as { purpose?: unknown } | null)?.purpose ?? '');
   if (proposal.state !== 'pending') {
     return (
@@ -293,25 +296,25 @@ function ForkSuggestion({ projectId, proposal }: { projectId: string; proposal: 
           Could deserve its own thread: <span className="font-semibold text-ink">«{purpose}»</span>
         </span>
       </p>
-      <div className="flex gap-2">
+      <div className="flex items-center gap-2">
         <Button
-          variant="secondary"
-          disabled={command.isPending}
-          onClick={() => command.mutate({ command: 'proposal.accept', entityId: proposal.id, data: {} })}
+          variant={choice === 'explore' ? 'primary' : 'secondary'}
+          aria-pressed={choice === 'explore'}
+          disabled={!drafts}
+          onClick={() => drafts?.setFork(proposal.id, choice === 'explore' ? null : 'explore')}
         >
           Explore separately
         </Button>
         <Button
-          variant="text"
-          disabled={command.isPending}
-          onClick={() =>
-            command.mutate({ command: 'proposal.reject', entityId: proposal.id, data: { reason: 'Kept in this thread.' } })
-          }
+          variant={choice === 'keep' ? 'primary' : 'text'}
+          aria-pressed={choice === 'keep'}
+          disabled={!drafts}
+          onClick={() => drafts?.setFork(proposal.id, choice === 'keep' ? null : 'keep')}
         >
           Keep it here
         </Button>
+        {choice && <span className="dm-text-caption ml-auto text-muted">Not sent yet</span>}
       </div>
-      {command.error ? <Reasons error={command.error} /> : null}
     </div>
   );
 }
@@ -326,7 +329,7 @@ function Proposed({ projectId, batchId }: { projectId: string; batchId: string }
   return (
     <>
       {forks.map((p) => (
-        <ForkSuggestion key={p.id} projectId={projectId} proposal={p} />
+        <ForkSuggestion key={p.id} proposal={p} />
       ))}
       {rest.length > 0 && (
         <div

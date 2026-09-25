@@ -4,7 +4,7 @@
 // when a command fails, with its reasons. A thread that is not active waits for Resume.
 
 import { DropdownMenu } from 'radix-ui';
-import { type FormEvent, type KeyboardEvent, useState } from 'react';
+import { type FormEvent, type KeyboardEvent, type ReactNode, useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
 import { canCreate } from '../../api/tables.ts';
 import { cn } from '../../lib/cn.ts';
@@ -26,6 +26,7 @@ export function Composer({
   onResume,
   replying,
   onClearReply,
+  ready,
 }: {
   projectId: string;
   explorationId: string;
@@ -38,6 +39,8 @@ export function Composer({
     | { question: string; onAnswer: (text: string, done: () => void) => void; pending: boolean; error: unknown }
     | undefined;
   onClearReply?: () => void;
+  /** Above the box: the drafts waiting to be confirmed and sent. */
+  ready?: ReactNode;
 }) {
   const tables = useTables();
   const command = useCommand(projectId);
@@ -101,6 +104,7 @@ export function Composer({
     <div className="sticky bottom-0 z-10 bg-linear-to-t from-paper from-75% to-transparent pt-6 pb-6">
       {command.error ? <Reasons error={command.error} className="mb-2" /> : null}
       {replying?.error ? <Reasons error={replying.error} className="mb-2" /> : null}
+      {ready}
       <form
         onSubmit={onSubmit}
         aria-label="Write in the thread"
@@ -159,7 +163,7 @@ export function Composer({
           </p>
           {canPost && (
             <Button type="submit" variant="text" disabled={!active || empty || busy}>
-              {replying ? (replying.pending ? 'Answering…' : 'Answer') : sending === 'send' ? 'Sending…' : 'Send'}
+              {replying ? 'Use as answer' : sending === 'send' ? 'Sending…' : 'Send'}
             </Button>
           )}
           {canRequest && (

@@ -26,7 +26,16 @@ import { NotFound } from '../not-found/NotFound.tsx';
 import { OpenThreadDialog, ThreadNode } from '../threads/Threads.tsx';
 import { Composer } from './Composer.tsx';
 import { Conversation } from './Conversation.tsx';
-import { DeeperPanel, StageComplete, isOpenQuestion, isShown, useAnswer } from './ThreadQuestions.tsx';
+import {
+  DeeperPanel,
+  DraftsProvider,
+  SendDrafts,
+  StageComplete,
+  isOpenQuestion,
+  isShown,
+  useDraftsState,
+  useSendDrafts,
+} from './ThreadQuestions.tsx';
 import { buildTimeline, draftableDecisions } from './timeline.ts';
 
 const short = (text: string, n = 56) => (text.length > n ? `${text.slice(0, n - 1)}…` : text);
@@ -42,7 +51,8 @@ export function ThreadScreen() {
   const [deeper, setDeeper] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [replyOff, setReplyOff] = useState(false);
-  const answering = useAnswer(projectId, thread.data);
+  const drafts = useDraftsState(explorationId);
+  const sending = useSendDrafts(projectId, thread.data, drafts);
 
   if (thread.error instanceof ApiError && thread.error.status === 404) {
     return <NotFound thing="this thread">It may belong to another project.</NotFound>;
@@ -66,95 +76,104 @@ export function ThreadScreen() {
   const nextStage = stage ? stages?.find((x) => x.position === stage.position + 1) : undefined;
   const openShown = shown.filter(isOpenQuestion);
   const reserve = t.questions.filter((q) => !isShown(q) && isOpenQuestion(q)).length;
-  // The composer replies to the question the person chose, else to the first one open.
-  const replying = replyOff ? undefined : (openShown.find((q) => q.id === replyTo) ?? openShown[0]);
+  // The composer replies to the question the person chose, else to the first one open without a draft.
+  const replying = replyOff
+    ? undefined
+    : (openShown.find((q) => q.id === replyTo) ?? openShown.find((q) => !drafts.answers[q.id]));
   const deeperQuestion = deeper ? t.questions.find((q) => q.id === deeper && isOpenQuestion(q)) : undefined;
   const stageDone = !!stage && stage.total > 0 && stage.covered === stage.total;
 
   return (
-    <Page
-      className="pb-0"
-      asidePanel
-      aside={
-        deeperQuestion ? (
-          <DeeperPanel
-            key={deeperQuestion.id}
-            projectId={projectId}
-            thread={t}
-            question={deeperQuestion}
-            runs={runs.data ?? []}
-            onClose={() => setDeeper(null)}
-          />
-        ) : (
-          <ThreadAside projectId={projectId} thread={t} />
-        )
-      }
-    >
-      <div className="mx-auto flex min-h-[calc(100vh-56px-28px)] max-w-[760px] flex-col">
-        <ThreadHeader projectId={projectId} thread={t} products={state.data} stage={stage} />
-        <div className="flex-1">
-          {runs.isPending ? (
-            <div aria-hidden="true" className="flex flex-col gap-4">
-              <Skeleton className="h-16 w-3/5 self-end" />
-              <Skeleton className="h-24 w-4/5" />
-            </div>
-          ) : (
-            <Conversation
+    <DraftsProvider value={drafts}>
+      <Page
+        className="pb-0"
+        asidePanel
+        aside={
+          deeperQuestion ? (
+            <DeeperPanel
+              key={deeperQuestion.id}
               projectId={projectId}
-              items={items}
+              thread={t}
+              question={deeperQuestion}
               runs={runs.data ?? []}
-              questions={t.questions}
-              active={active}
-              handlers={{
-                thread: t,
-                stageTitle: stage?.title ?? null,
-                deeper,
-                onDeeper: (id) => setDeeper(deeper === id ? null : id),
-                onOwnWords: (id) => {
-                  setReplyTo(id);
-                  setReplyOff(false);
-                  document.getElementById('thread-composer')?.focus();
-                },
-              }}
+              onClose={() => setDeeper(null)}
             />
-          )}
-          {stage && stageDone && active && (
-            <div className="mt-5 flex flex-col">
-              <StageComplete projectId={projectId} stage={stage} next={nextStage?.title ?? null} />
-            </div>
-          )}
-          {reserve > 0 && active && (
-            <p className="dm-text-caption mt-5 rounded-sm border border-dashed border-line-strong px-3 py-2 text-muted">
-              DEMIURGO keeps {reserve} {reserve === 1 ? 'question' : 'questions'} for later. They come up as you answer.
-            </p>
-          )}
+          ) : (
+            <ThreadAside projectId={projectId} thread={t} />
+          )
+        }
+      >
+        <div className="mx-auto flex min-h-[calc(100vh-56px-28px)] max-w-[760px] flex-col">
+          <ThreadHeader projectId={projectId} thread={t} products={state.data} stage={stage} />
+          <div className="flex-1">
+            {runs.isPending ? (
+              <div aria-hidden="true" className="flex flex-col gap-4">
+                <Skeleton className="h-16 w-3/5 self-end" />
+                <Skeleton className="h-24 w-4/5" />
+              </div>
+            ) : (
+              <Conversation
+                projectId={projectId}
+                items={items}
+                runs={runs.data ?? []}
+                questions={t.questions}
+                active={active}
+                handlers={{
+                  thread: t,
+                  stageTitle: stage?.title ?? null,
+                  deeper,
+                  onDeeper: (id) => setDeeper(deeper === id ? null : id),
+                  onOwnWords: (id) => {
+                    setReplyTo(id);
+                    setReplyOff(false);
+                    document.getElementById('thread-composer')?.focus();
+                  },
+                }}
+              />
+            )}
+            {stage && stageDone && active && (
+              <div className="mt-5 flex flex-col">
+                <StageComplete projectId={projectId} stage={stage} next={nextStage?.title ?? null} />
+              </div>
+            )}
+            {reserve > 0 && active && (
+              <p className="dm-text-caption mt-5 rounded-sm border border-dashed border-line-strong px-3 py-2 text-muted">
+                DEMIURGO keeps {reserve} {reserve === 1 ? 'question' : 'questions'} for later. They come up as you answer.
+              </p>
+            )}
+          </div>
+          {resume.error ? <Reasons error={resume.error} className="mt-4" /> : null}
+          <Composer
+            projectId={projectId}
+            explorationId={t.id}
+            active={active}
+            replying={
+              replying
+                ? {
+                    question: replying.question,
+                    onAnswer: (text, done) => {
+                      drafts.setAnswer(replying.id, text);
+                      setReplyTo(null);
+                      done();
+                    },
+                    pending: false,
+                    error: null,
+                  }
+                : undefined
+            }
+            onClearReply={() => setReplyOff(true)}
+            ready={active ? <SendDrafts state={sending} onDiscard={drafts.clear} /> : null}
+            inactiveNote={
+              t.state === 'concluded'
+                ? 'This thread is concluded. Resume it to continue.'
+                : 'This thread is set aside. Resume it to continue.'
+            }
+            decisions={decisions}
+            onResume={canResume ? () => resume.mutate({ command: 'exploration.resume', entityId: t.id }) : undefined}
+          />
         </div>
-        {resume.error ? <Reasons error={resume.error} className="mt-4" /> : null}
-        <Composer
-          projectId={projectId}
-          explorationId={t.id}
-          active={active}
-          replying={
-            replying
-              ? {
-                  question: replying.question,
-                  onAnswer: (text, done) => answering.answer(replying, text, done),
-                  pending: answering.pending,
-                  error: answering.error,
-                }
-              : undefined
-          }
-          onClearReply={() => setReplyOff(true)}
-          inactiveNote={
-            t.state === 'concluded'
-              ? 'This thread is concluded. Resume it to continue.'
-              : 'This thread is set aside. Resume it to continue.'
-          }
-          decisions={decisions}
-          onResume={canResume ? () => resume.mutate({ command: 'exploration.resume', entityId: t.id }) : undefined}
-        />
-      </div>
-    </Page>
+      </Page>
+    </DraftsProvider>
   );
 }
 
@@ -449,7 +468,12 @@ function ThreadAside({ projectId, thread: t }: { projectId: string; thread: Expl
           New thread inside
         </Button>
       )}
-      <OpenThreadDialog projectId={projectId} open={opening} onOpenChange={setOpening} parent={{ id: t.id, purpose: t.purpose }} />
+      <OpenThreadDialog
+        projectId={projectId}
+        open={opening}
+        onOpenChange={setOpening}
+        parent={{ id: t.id, purpose: t.purpose }}
+      />
     </section>
   );
 }

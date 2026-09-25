@@ -1,10 +1,13 @@
 // Guided thread: DEMIURGO's questions live in the conversation as its messages, at most two open
 // at a time (the rest wait in the reserve). Answering is replying: one click on an option (or
-// several, then "Answer with N selected"), or the person's own words. "Go deeper" opens a side
-// conversation about one question, and "Use as answer" settles it in the main thread. When the
-// thread has nothing left to answer, DEMIURGO reads the answers and goes on.
+// several), or the person's own words. Answers and the choices on suggested threads are drafts the
+// person can change freely until "Confirm and send" settles them together: nothing reaches
+// DEMIURGO before that. "Go deeper" opens a side conversation about one question, and "Use as
+// answer" drafts its answer in the main thread. When the thread has nothing left to answer,
+// DEMIURGO reads the answers and goes on.
 
-import { useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { ApiError } from '../../api/client.ts';
 import { useCommand } from '../../api/commands.ts';
 import type { ExplorationDetail, Question, RunListItem, StageRow } from '../../api/types.ts';
 import { cn } from '../../lib/cn.ts';
@@ -19,27 +22,159 @@ const OPEN = new Set(['pending', 'inferred']);
 export const isOpenQuestion = (q: Question) => OPEN.has(q.state);
 export const isShown = (q: Question) => !!q.shown_at;
 
-/** Confirms a question with its answer; with nothing left to answer, asks DEMIURGO to go on. */
-export function useAnswer(projectId: string, thread: ExplorationDetail | undefined) {
-  const command = useCommand(projectId);
-  const answer = (q: Question, conclusion: string, onDone?: () => void) => {
-    if (!thread) return;
-    const left = thread.questions.filter((x) => x.id !== q.id && isOpenQuestion(x)).length;
-    command.mutate(
-      { command: 'question.confirm', entityId: q.id, data: { conclusion } },
-      {
-        onSuccess: () => {
-          onDone?.();
-          if (left === 0)
-            command.mutate({
-              command: 'run.request',
-              data: { action: 'exploration_chat', scope: { type: 'exploration', id: thread.id } },
-            });
-        },
-      },
-    );
+/** The longest answer a question takes (question.confirm). */
+const MAX_ANSWER = 3000;
+
+export type ForkChoice = 'explore' | 'keep';
+
+/** What the person chose in the thread and has not sent yet. */
+export type Drafts = {
+  answers: Record<string, string>;
+  forks: Record<string, ForkChoice>;
+  setAnswer: (questionId: string, text: string | null) => void;
+  setFork: (proposalId: string, choice: ForkChoice | null) => void;
+  clear: () => void;
+};
+
+const DraftsContext = createContext<Drafts | null>(null);
+export const DraftsProvider = DraftsContext.Provider;
+export const useDrafts = () => useContext(DraftsContext);
+
+type Stored = { thread: string; answers: Record<string, string>; forks: Record<string, ForkChoice> };
+const draftsKey = (thread: string) => `dm-thread-drafts:${thread}`;
+
+function loadDrafts(thread: string): Stored {
+  try {
+    const raw = window.localStorage.getItem(draftsKey(thread));
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<Stored>;
+      return { thread, answers: parsed.answers ?? {}, forks: parsed.forks ?? {} };
+    }
+  } catch {
+    // Drafts kept across reloads are a convenience.
+  }
+  return { thread, answers: {}, forks: {} };
+}
+
+function storeDrafts(s: Stored) {
+  try {
+    if (Object.keys(s.answers).length === 0 && Object.keys(s.forks).length === 0)
+      window.localStorage.removeItem(draftsKey(s.thread));
+    else window.localStorage.setItem(draftsKey(s.thread), JSON.stringify({ answers: s.answers, forks: s.forks }));
+  } catch {
+    // Drafts kept across reloads are a convenience.
+  }
+}
+
+/** The drafts of one thread, kept in this browser until they are sent. */
+export function useDraftsState(threadId: string): Drafts {
+  const [stored, setStored] = useState(() => loadDrafts(threadId));
+  let current = stored;
+  if (stored.thread !== threadId) {
+    current = loadDrafts(threadId);
+    setStored(current);
+  }
+  const change = (f: (s: Stored) => Stored) =>
+    setStored((s) => {
+      const next = f(s);
+      storeDrafts(next);
+      return next;
+    });
+  return {
+    answers: current.answers,
+    forks: current.forks,
+    setAnswer: (id, text) =>
+      change((s) => {
+        const answers = { ...s.answers };
+        if (text?.trim()) answers[id] = text.trim().slice(0, MAX_ANSWER);
+        else delete answers[id];
+        return { ...s, answers };
+      }),
+    setFork: (id, choice) =>
+      change((s) => {
+        const forks = { ...s.forks };
+        if (choice) forks[id] = choice;
+        else delete forks[id];
+        return { ...s, forks };
+      }),
+    clear: () => change((s) => ({ ...s, answers: {}, forks: {} })),
   };
-  return { answer, pending: command.isPending, error: command.error };
+}
+
+/**
+ * Sends the drafts together: confirms each answer and resolves each suggested thread, one after
+ * another; with nothing left to answer, asks DEMIURGO to read the answers and go on. A suggestion
+ * already resolved elsewhere (409) is dropped from the drafts.
+ */
+export function useSendDrafts(projectId: string, thread: ExplorationDetail | undefined, drafts: Drafts) {
+  const command = useCommand(projectId);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const answers = (thread?.questions ?? []).filter((q) => isOpenQuestion(q) && isShown(q) && drafts.answers[q.id]);
+  const forks = Object.entries(drafts.forks);
+  const openShown = (thread?.questions ?? []).filter((q) => isOpenQuestion(q) && isShown(q)).length;
+
+  const send = async () => {
+    if (!thread || sending || answers.length + forks.length === 0) return;
+    setSending(true);
+    setError(null);
+    try {
+      for (const q of answers) {
+        await command.mutateAsync({ command: 'question.confirm', entityId: q.id, data: { conclusion: drafts.answers[q.id] } });
+        drafts.setAnswer(q.id, null);
+      }
+      for (const [id, choice] of forks) {
+        try {
+          await command.mutateAsync(
+            choice === 'explore'
+              ? { command: 'proposal.accept', entityId: id, data: {} }
+              : { command: 'proposal.reject', entityId: id, data: { reason: 'Kept in this thread.' } },
+          );
+        } catch (e) {
+          if (!(e instanceof ApiError && e.status === 409)) throw e;
+        }
+        drafts.setFork(id, null);
+      }
+      const left = thread.questions.filter((q) => isOpenQuestion(q) && !answers.some((a) => a.id === q.id)).length;
+      if (answers.length > 0 && left === 0)
+        await command.mutateAsync({
+          command: 'run.request',
+          data: { action: 'exploration_chat', scope: { type: 'exploration', id: thread.id } },
+        });
+    } catch (e) {
+      setError(e);
+    } finally {
+      setSending(false);
+    }
+  };
+  return { answers: answers.length, forks: forks.length, openShown, send, sending, error };
+}
+
+/** The bar above the composer while there are drafts: nothing is sent until the person confirms. */
+export function SendDrafts({ state, onDiscard }: { state: ReturnType<typeof useSendDrafts>; onDiscard: () => void }) {
+  const { answers, forks, openShown, send, sending, error } = state;
+  if (answers + forks === 0 && !error) return null;
+  const parts = [
+    answers > 0 ? `${answers} of ${Math.max(openShown, answers)} ${openShown === 1 ? 'answer' : 'answers'}` : null,
+    forks > 0 ? `${forks} thread ${forks === 1 ? 'choice' : 'choices'}` : null,
+  ].filter(Boolean);
+  return (
+    <div className="mb-2 flex flex-col gap-2 rounded-control border border-needs-line bg-needs-soft px-4 py-2.5">
+      <div className="flex items-center gap-3">
+        <p className="dm-text-small min-w-0 flex-1 text-ink">
+          <span className="font-semibold">{parts.join(' and ')} ready.</span>{' '}
+          <span className="text-ink-3">Nothing is sent until you confirm; you can still change them.</span>
+        </p>
+        <Button variant="text" disabled={sending} onClick={onDiscard}>
+          Discard
+        </Button>
+        <Button variant="primary" disabled={sending || answers + forks === 0} onClick={() => void send()}>
+          {sending ? 'Sending…' : 'Confirm and send'}
+        </Button>
+      </div>
+      {error ? <Reasons error={error} /> : null}
+    </div>
+  );
 }
 
 /** The answer a multiple choice records: every option picked, in their order. */
@@ -50,6 +185,14 @@ const joined = (q: Question, picked: number[]) =>
     .filter(Boolean)
     .join(' · ');
 
+/** The options a draft picks: the one it names, or (multiple choice) every one it joins. */
+const pickedOf = (q: Question, draft: string | undefined): number[] => {
+  if (!draft) return [];
+  const options = q.options ?? [];
+  const parts = q.multiple ? draft.split(' · ') : [draft];
+  return options.flatMap((o, k) => (parts.includes(o.answer) ? [k] : []));
+};
+
 /** Toggling an option: an exclusive one clears the others, and any other clears the exclusive ones. */
 const toggled = (q: Question, picked: number[], k: number) => {
   const options = q.options ?? [];
@@ -59,7 +202,6 @@ const toggled = (q: Question, picked: number[], k: number) => {
 };
 
 export function QuestionCard({
-  projectId,
   thread,
   question: q,
   stageTitle,
@@ -68,7 +210,6 @@ export function QuestionCard({
   onDeeper,
   onOwnWords,
 }: {
-  projectId: string;
   thread: ExplorationDetail;
   question: Question;
   stageTitle: string | null;
@@ -77,17 +218,21 @@ export function QuestionCard({
   onDeeper: () => void;
   onOwnWords: () => void;
 }) {
-  const { answer, pending, error } = useAnswer(projectId, thread);
+  const drafts = useDrafts();
   const allows = useAllows('question', q.state);
-  const [picked, setPicked] = useState<number[]>([]);
   if (!isOpenQuestion(q)) return <SettledQuestion question={q} />;
   const options = q.options ?? [];
   const inferred = q.state === 'inferred' && q.conclusion ? q.conclusion : null;
-  const canAnswer = allows('question.confirm') && thread.state === 'active';
+  const canAnswer = !!drafts && allows('question.confirm') && thread.state === 'active';
+  const draft = drafts?.answers[q.id];
+  const picked = pickedOf(q, draft);
+  const ownWords = !!draft && picked.length === 0 && draft !== inferred;
+  const set = (text: string | null) => drafts?.setAnswer(q.id, text);
 
   return (
     <article
       data-question={q.id}
+      data-draft={draft ? 'true' : undefined}
       className="flex max-w-[680px] flex-col gap-3 self-start rounded-card-md border-2 border-needs bg-surface px-4 py-3.5"
     >
       <header className="dm-label flex items-center gap-1.5">
@@ -102,8 +247,8 @@ export function QuestionCard({
             <Option
               answer={inferred}
               implies={q.reasoning ? `DEMIURGO inferred it: ${q.reasoning}` : 'DEMIURGO inferred it from the conversation.'}
-              disabled={pending}
-              onClick={() => answer(q, inferred)}
+              selected={draft === inferred}
+              onClick={() => set(draft === inferred ? null : inferred)}
             />
           )}
           {options.map((o, k) => (
@@ -113,21 +258,27 @@ export function QuestionCard({
               implies={o.implies}
               multiple={!!q.multiple}
               selected={picked.includes(k)}
-              disabled={pending}
-              onClick={() => (q.multiple ? setPicked(toggled(q, picked, k)) : answer(q, o.answer))}
+              onClick={() => {
+                if (q.multiple) set(joined(q, toggled(q, picked, k)) || null);
+                else set(picked.includes(k) ? null : o.answer);
+              }}
             />
           ))}
         </div>
       )}
-      {canAnswer && q.multiple && options.length > 0 && (
-        <div className="flex items-center gap-3">
-          <span className="dm-text-caption text-muted">Pick all that apply</span>
-          {picked.length > 0 && (
-            <Button variant="primary" disabled={pending} onClick={() => answer(q, joined(q, picked))}>
-              Answer with {picked.length} selected
-            </Button>
-          )}
-        </div>
+      {canAnswer && q.multiple && options.length > 0 && picked.length === 0 && (
+        <span className="dm-text-caption text-muted">Pick all that apply</span>
+      )}
+      {canAnswer && ownWords && (
+        <p className="dm-text-small flex items-baseline gap-2 rounded-sm bg-surface-soft px-3 py-2 text-ink">
+          <span className="min-w-0 flex-1 whitespace-pre-wrap">
+            <span className="text-ink-3">Your answer: </span>
+            {draft}
+          </span>
+          <Button variant="text" className="shrink-0" onClick={() => set(null)}>
+            Clear
+          </Button>
+        </p>
       )}
       {canAnswer && (
         <div className="flex flex-wrap items-center gap-1">
@@ -138,9 +289,9 @@ export function QuestionCard({
           <Button variant="text" onClick={onOwnWords}>
             Answer in my own words
           </Button>
+          {draft && <span className="dm-text-caption ml-auto text-muted">Not sent yet</span>}
         </div>
       )}
-      {error ? <Reasons error={error} /> : null}
     </article>
   );
 }
@@ -150,25 +301,22 @@ function Option({
   implies,
   multiple = false,
   selected = false,
-  disabled,
   onClick,
 }: {
   answer: string;
   implies: string;
   multiple?: boolean;
   selected?: boolean;
-  disabled: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
-      disabled={disabled}
-      aria-pressed={multiple ? selected : undefined}
+      aria-pressed={selected}
       onClick={onClick}
       className={cn(
-        'flex flex-col gap-0.5 rounded-card-md border bg-surface px-3 py-2.5 text-left hover:border-needs disabled:opacity-60',
-        selected ? 'border-2 border-needs' : 'border-line',
+        'flex flex-col gap-0.5 rounded-card-md border bg-surface px-3 py-2.5 text-left hover:border-needs',
+        selected ? 'border-2 border-needs bg-needs-soft' : 'border-line',
       )}
     >
       <span className="dm-text-small flex items-center gap-2 font-semibold text-ink">
@@ -201,7 +349,10 @@ function SettledQuestion({ question: q }: { question: Question }) {
   );
 }
 
-/** The side conversation about one question, and settling it with an option or one's own words. */
+/**
+ * The side conversation about one question, and settling it with an option, one's own words or a
+ * reply of DEMIURGO (to trim first). Settling it drafts the answer in the main thread.
+ */
 export function DeeperPanel({
   projectId,
   thread,
@@ -216,10 +367,12 @@ export function DeeperPanel({
   onClose: () => void;
 }) {
   const command = useCommand(projectId);
-  const { answer, pending, error } = useAnswer(projectId, thread);
+  const drafts = useDrafts();
+  const draft = drafts?.answers[q.id];
   const [text, setText] = useState('');
-  const [picked, setPicked] = useState<number[]>([]);
-  const [own, setOwn] = useState<string | null>(null);
+  const [picked, setPicked] = useState<number[]>(() => pickedOf(q, draft));
+  const [own, setOwn] = useState<string | null>(() => (draft && pickedOf(q, draft).length === 0 ? draft : null));
+  const ownRef = useRef<HTMLTextAreaElement>(null);
   const messages = thread.messages.filter((m) => m.question_id === q.id);
   // DEMIURGO is writing while the run that answers the last message of the person has not ended.
   const lastAsked = [...messages].reverse().find((m) => m.author.startsWith('human:'));
@@ -240,6 +393,10 @@ export function DeeperPanel({
       { onSuccess: () => setText('') },
     );
   };
+  const takeReply = (body: string) => {
+    setOwn(body.trim().slice(0, MAX_ANSWER));
+    requestAnimationFrame(() => ownRef.current?.focus());
+  };
 
   return (
     <section aria-label="Going deeper" className="flex min-h-0 flex-1 flex-col gap-4">
@@ -255,7 +412,9 @@ export function DeeperPanel({
       </div>
       <div ref={scroller} className="-mx-1 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-1">
         {messages.length === 0 && !writing && (
-          <p className="dm-text-small text-muted">Ask anything about this question: what each option means, examples, what others do.</p>
+          <p className="dm-text-small text-muted">
+            Ask anything about this question: what each option means, examples, what others do.
+          </p>
         )}
         {messages.map((m) =>
           m.author.startsWith('human:') ? (
@@ -268,7 +427,14 @@ export function DeeperPanel({
           ) : (
             <div key={m.id} className="dm-text-small flex gap-2 leading-relaxed text-ink">
               <WhoMark actor={m.author} size={16} />
-              <span className="whitespace-pre-wrap">{m.body}</span>
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <span className="whitespace-pre-wrap">{m.body}</span>
+                {!m.kind && drafts && (
+                  <Button variant="text" className="self-start" onClick={() => takeReply(m.body)}>
+                    Use this reply as the answer
+                  </Button>
+                )}
+              </div>
             </div>
           ),
         )}
@@ -332,20 +498,30 @@ export function DeeperPanel({
         </div>
         {own !== null && (
           <textarea
+            ref={ownRef}
             aria-label="Your answer"
             value={own}
             onChange={(e) => setOwn(e.target.value)}
-            rows={2}
+            rows={own.length > 200 ? 6 : 2}
+            maxLength={MAX_ANSWER}
             className="dm-text-small w-full resize-y rounded-control border border-line-strong bg-surface px-3 py-2 text-ink outline-none focus:border-needs"
           />
         )}
         <div className="flex items-center gap-3">
-          <Button variant="primary" disabled={!conclusion || pending} onClick={() => answer(q, conclusion, onClose)}>
-            {pending ? 'Answering…' : 'Use as answer'}
+          <Button
+            variant="primary"
+            disabled={!conclusion || !drafts}
+            onClick={() => {
+              drafts?.setAnswer(q.id, conclusion);
+              onClose();
+            }}
+          >
+            Use as answer
           </Button>
-          {!conclusion && <span className="dm-text-caption text-muted">Pick an option or write your own words first.</span>}
+          <span className="dm-text-caption text-muted">
+            {conclusion ? 'You confirm it with the others in the thread.' : 'Pick an option, or use a reply or your own words.'}
+          </span>
         </div>
-        {error ? <Reasons error={error} /> : null}
       </div>
     </section>
   );

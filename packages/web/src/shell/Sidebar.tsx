@@ -170,10 +170,23 @@ export function Sidebar({
 
   return (
     <nav aria-label="Sections" className="flex h-full min-h-0 flex-col gap-1 px-2 py-3">
-      <div className={cn('flex items-center gap-1 pb-1', compact && 'flex-col')}>
-        <div className="min-w-0 flex-1">
-          <ProjectSwitcher projectId={projectId} {...(compact ? { compact } : {})} />
-        </div>
+      <div className={cn('flex items-center gap-1 px-1 pb-1', compact && 'flex-col px-0')}>
+        <Link
+          to="/"
+          aria-label="DEMIURGO: your projects"
+          className={cn(
+            'inline-flex min-w-0 flex-1 items-center gap-2 rounded-md py-1 text-sm font-semibold text-fg',
+            compact && 'flex-none',
+          )}
+        >
+          <span
+            aria-hidden
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-xs bg-accent text-xs text-on-accent"
+          >
+            D
+          </span>
+          {!compact ? <span className="truncate">DEMIURGO</span> : null}
+        </Link>
         {onToggle ? (
           <Tooltip content={compact ? 'Expand the sidebar' : 'Collapse the sidebar'} side="right">
             <button
@@ -188,6 +201,7 @@ export function Sidebar({
           </Tooltip>
         ) : null}
       </div>
+      <ProjectSwitcher projectId={projectId} {...(compact ? { compact } : {})} />
       <button
         type="button"
         onClick={openCommandMenu}

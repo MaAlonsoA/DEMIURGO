@@ -246,3 +246,20 @@ Format: **D-NNN · title**, then *Decision*, *Alternatives*, *Why* and *Source*.
     and only theme sizes, radii and shadows.
 - *Why:* every intermediate commit keeps a working app; the replaced test gets a replacement in the
   same commit (brief §Verification).
+
+**D-018 · Build order, and which pieces are shared**
+- *Decision:* the commits follow this order:
+  1. tokens;
+  2. component kit;
+  3. shell and navigation;
+  4. the pieces several groups share: `QuestionActions`, `AskBox`, `PreviewSheet`;
+  5. screens, in groups, in order of job priority (J1…J5).
+
+  The brief puts the shell before the components. Here the kit's primitives come first because the
+  shell is built from them. The screen-level components come after the shell, as the brief asks.
+- *Also:* two e2e tests moved, unchanged, to the spec of the screen that owns them, so that each
+  group owns its specs: "up to date" moved to `up-to-date.spec.ts`, and "what connects to a record"
+  moved to `record-incoming.spec.ts`. The overview and record groups were merged into one agent (g4)
+  because `fidelity.spec.ts` covers both.
+- *Why:* the shell needs buttons, menus, dialogs and tooltips. Pieces used by several groups are
+  built once, so there is one vocabulary: the question verbs, and one Ask box in one place (R88).

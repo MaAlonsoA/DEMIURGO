@@ -29,6 +29,7 @@ export const INVALIDATES: Record<string, string[]> = {
   taxonomy: ['knowledge', 'inbox'],
   idea_assessment: ['knowledge', 'inbox', 'batch'],
   source: ['sources'],
+  agent_token: ['tokens'],
 };
 
 export type Connection = 'connecting' | 'open' | 'down';

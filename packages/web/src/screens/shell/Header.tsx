@@ -152,6 +152,12 @@ function PersonMenu() {
           >
             Models &amp; providers
           </DropdownMenu.Item>
+          <DropdownMenu.Item
+            onSelect={() => void navigate({ to: '/p/$projectId/agent-keys', params: { projectId } })}
+            className="dm-text-small cursor-pointer rounded-tab px-2.5 py-1.5 text-ink outline-none data-[highlighted]:bg-line-soft"
+          >
+            Agent keys
+          </DropdownMenu.Item>
           {devTools ? (
             <DropdownMenu.Item
               // Once the menu has closed and given the focus back: then the dialog takes it.

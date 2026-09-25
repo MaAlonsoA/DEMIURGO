@@ -2,6 +2,7 @@
 //   node packages/api/src/cli.ts migrate
 //   node packages/api/src/cli.ts create-person <username>          (the password is read from stdin)
 //   node packages/api/src/cli.ts create-project <name>
+//   node packages/api/src/cli.ts issue-agent-token <projectId> <agentName> <username>   (the person's password from stdin)
 //   node packages/api/src/cli.ts real-run <projectId> <action> <json-scope> [json-input]
 //   node packages/api/src/cli.ts evaluate-classifier <provider> <model> [effort|-] [test|dev|all]   (spends quota)
 //   node packages/api/src/cli.ts import-design <projectId> [dir]                (creates the H1 pending batch)
@@ -27,8 +28,8 @@ import {
   consoleLogger,
 } from '@demiurgo/core';
 import { readTree, replaceTree } from '@demiurgo/design';
-import { composeSystem, system } from '@demiurgo/domain';
-import { createPerson } from './credentials.ts';
+import { composeSystem, human, system } from '@demiurgo/domain';
+import { createPerson, verifyPerson } from './credentials.ts';
 
 const [command, ...args] = process.argv.slice(2);
 const config = readConfig();
@@ -76,6 +77,29 @@ const commands: Record<string, () => Promise<void>> = {
     try {
       const r = await executeCommand(core.services, { command: 'project.create', actor: system('cli'), data: { name } });
       console.log(JSON.stringify({ project_id: r.projectId }));
+    } finally {
+      await core.stop();
+    }
+  },
+
+  // An agent key is a person's act (agent_token.issue): the person's password is checked first.
+  async 'issue-agent-token'() {
+    const [projectId, name, username] = args;
+    if (!projectId || !name || !username) {
+      throw new Error("Usage: issue-agent-token <projectId> <agentName> <username> (the person's password is read from stdin)");
+    }
+    const password = await readInput();
+    const core = await startCore(config, consoleLogger);
+    try {
+      await verifyPerson(core.services.db, username, password);
+      const r = await executeCommand(core.services, {
+        command: 'agent_token.issue',
+        actor: human(username),
+        projectId,
+        data: { name },
+      });
+      const result = r.result as { token: string; actor: string };
+      console.log(JSON.stringify({ token: result.token, actor: result.actor, issued_by: `human:${username}` }));
     } finally {
       await core.stop();
     }

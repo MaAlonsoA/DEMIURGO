@@ -4,6 +4,7 @@
 import { queryOptions } from '@tanstack/react-query';
 import { ApiError, get, setCsrf } from './client.ts';
 import type {
+  AgentToken,
   BatchDetail,
   Changes,
   CommandCatalog,
@@ -47,6 +48,7 @@ export const keys = {
   events: (p: string, from: string) => ['p', p, 'events', from] as const,
   knowledge: (p: string) => ['p', p, 'knowledge'] as const,
   sources: (p: string) => ['p', p, 'sources'] as const,
+  tokens: (p: string) => ['p', p, 'tokens'] as const,
 };
 
 /** The session, or null without one. Keeps the CSRF token in memory for the mutations. */
@@ -126,6 +128,10 @@ export const knowledgeSearchQuery = (p: string, q: string) =>
 
 export const sourcesQuery = (p: string) =>
   queryOptions({ queryKey: keys.sources(p), queryFn: () => get<Source[]>(`${P(p)}/sources`) });
+
+/** The keys of the external agents of a project (never their secrets). */
+export const tokensQuery = (p: string) =>
+  queryOptions({ queryKey: keys.tokens(p), queryFn: () => get<AgentToken[]>(`${P(p)}/tokens`) });
 
 export const runsQuery = (p: string, filter: { exploration?: string; state?: string } = {}) => {
   const search = new URLSearchParams(filter).toString();

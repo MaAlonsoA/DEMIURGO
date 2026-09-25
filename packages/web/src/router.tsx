@@ -8,6 +8,7 @@ import { ActivityScreen } from './screens/activity/Activity.tsx';
 import { BatchScreen } from './screens/batch/Batch.tsx';
 import { KnowledgeScreen } from './screens/knowledge/Knowledge.tsx';
 import { NeedsYouScreen } from './screens/needs-you/NeedsYou.tsx';
+import { AgentKeysScreen } from './screens/agent-keys/AgentKeys.tsx';
 import { NewRecordScreen } from './screens/new-record/NewRecord.tsx';
 import { NewVersionScreen } from './screens/new-version/NewVersion.tsx';
 import { NotFound } from './screens/not-found/NotFound.tsx';
@@ -156,6 +157,7 @@ const knowledgeRoute = createRoute({
 });
 const sourcesRoute = createRoute({ getParentRoute: () => projectRoute, path: '/sources', component: SourcesScreen });
 const modelsRoute = createRoute({ getParentRoute: () => projectRoute, path: '/models', component: ModelsScreen });
+const agentKeysRoute = createRoute({ getParentRoute: () => projectRoute, path: '/agent-keys', component: AgentKeysScreen });
 const startRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: '/start/$explorationId',
@@ -196,6 +198,7 @@ const routeTree = rootRoute.addChildren([
       knowledgeRoute,
       sourcesRoute,
       modelsRoute,
+      agentKeysRoute,
       startRoute,
       startQuestionsRoute,
       startDoneRoute,

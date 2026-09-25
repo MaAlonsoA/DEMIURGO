@@ -548,3 +548,13 @@ export type ChangedThing = {
 };
 
 export type Changes = { latest: string; things: ChangedThing[] };
+
+/** An external agent's key: its name and state. The secret is only shown once, when issued. */
+export type AgentToken = {
+  id: string;
+  name: string;
+  state: 'active' | 'revoked';
+  issued_by: string;
+  created_at: string;
+  revoked_at: string | null;
+};

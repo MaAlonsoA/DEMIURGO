@@ -1,0 +1,4412 @@
+{
+  "traces": {
+    "resourceSpans": [
+      {
+        "resource": {
+          "attributes": [
+            {
+              "key": "service.name",
+              "value": {
+                "stringValue": "demiurgo"
+              }
+            },
+            {
+              "key": "service.version",
+              "value": {
+                "stringValue": "fixture"
+              }
+            },
+            {
+              "key": "deployment.environment.name",
+              "value": {
+                "stringValue": "test"
+              }
+            },
+            {
+              "key": "demiurgo.instance",
+              "value": {
+                "stringValue": "8100"
+              }
+            },
+            {
+              "key": "demiurgo.schema_version",
+              "value": {
+                "intValue": 1
+              }
+            }
+          ],
+          "droppedAttributesCount": 0
+        },
+        "scopeSpans": [
+          {
+            "scope": {
+              "name": "demiurgo",
+              "version": "1"
+            },
+            "spans": [
+              {
+                "traceId": "0199b100000070008000000000000001",
+                "spanId": "b3c1c0d71fbae6d4",
+                "parentSpanId": "1e4b99cac60eb0b4",
+                "name": "command run.request",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194417000000",
+                "endTimeUnixNano": "1790379194417350800",
+                "attributes": [
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "run.request"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "system:engine:1"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "system"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "ai_run"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c001"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.outcome",
+                    "value": {
+                      "stringValue": "ok"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 2
+                    }
+                  },
+                  {
+                    "key": "demiurgo.state.after",
+                    "value": {
+                      "stringValue": "requested"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000001",
+                "spanId": "084a8b48c3d2f9a8",
+                "parentSpanId": "1e4b99cac60eb0b4",
+                "name": "run.prepare",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194417000000",
+                "endTimeUnixNano": "1790379194417194200",
+                "attributes": [
+                  {
+                    "key": "demiurgo.run.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c001"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.workflow.id",
+                    "value": {
+                      "stringValue": "wf-0199b000-0000-7000-8000-00000000c001"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.step.attempt",
+                    "value": {
+                      "intValue": 1
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000001",
+                "spanId": "b6395f7daaa1221f",
+                "parentSpanId": "1bd22ba0133d1b96",
+                "name": "invoke_agent explorer",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194419000000",
+                "endTimeUnixNano": "1790379194419206000",
+                "attributes": [
+                  {
+                    "key": "gen_ai.operation.name",
+                    "value": {
+                      "stringValue": "invoke_agent"
+                    }
+                  },
+                  {
+                    "key": "gen_ai.provider.name",
+                    "value": {
+                      "stringValue": "anthropic"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.provider.id",
+                    "value": {
+                      "stringValue": "claude"
+                    }
+                  },
+                  {
+                    "key": "gen_ai.agent.name",
+                    "value": {
+                      "stringValue": "explorer"
+                    }
+                  },
+                  {
+                    "key": "gen_ai.agent.version",
+                    "value": {
+                      "stringValue": "v3"
+                    }
+                  },
+                  {
+                    "key": "gen_ai.request.model",
+                    "value": {
+                      "stringValue": "claude-sonnet-4-5"
+                    }
+                  },
+                  {
+                    "key": "gen_ai.response.model",
+                    "value": {
+                      "stringValue": "claude-sonnet-4-5-20260901"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.effort",
+                    "value": {
+                      "stringValue": "medium"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.engine.source",
+                    "value": {
+                      "stringValue": "group"
+                    }
+                  },
+                  {
+                    "key": "gen_ai.conversation.id",
+                    "value": {
+                      "stringValue": "5e4d3c2b-1a0f-4e8d-9c7b-6a5f4e3d2c1b"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.session.id",
+                    "value": {
+                      "stringValue": "5e4d3c2b-1a0f-4e8d-9c7b-6a5f4e3d2c1b"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.session.mode",
+                    "value": {
+                      "stringValue": "fresh"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.session.key_hash",
+                    "value": {
+                      "stringValue": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.session.name",
+                    "value": {
+                      "stringValue": "demiurgo explorer 5e4d3c2b"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.call.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000d001"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.call.attempt",
+                    "value": {
+                      "intValue": 1
+                    }
+                  },
+                  {
+                    "key": "demiurgo.run.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c001"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.prompt.hash",
+                    "value": {
+                      "stringValue": "b5db0cc0a05416ff525372397beb9da270e35ac203dc4c06884568eb19e7bc02"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.input.hash",
+                    "value": {
+                      "stringValue": "ea319736af5b4922961135ad95f5fe2cc46727c95f372a1ef453537a03684e80"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.schema.hash",
+                    "value": {
+                      "stringValue": "ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.schema.version",
+                    "value": {
+                      "stringValue": "2"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.output.hash",
+                    "value": {
+                      "stringValue": "155d8e69cc37322349837f0d9dcfb9368bf2c3ce9b33d926f9d5058fc4b02ed2"
+                    }
+                  },
+                  {
+                    "key": "gen_ai.usage.input_tokens",
+                    "value": {
+                      "intValue": 10000
+                    }
+                  },
+                  {
+                    "key": "gen_ai.usage.output_tokens",
+                    "value": {
+                      "intValue": 400
+                    }
+                  },
+                  {
+                    "key": "gen_ai.usage.cache_read.input_tokens",
+                    "value": {
+                      "intValue": 0
+                    }
+                  },
+                  {
+                    "key": "gen_ai.usage.cache_write.input_tokens",
+                    "value": {
+                      "intValue": 1000
+                    }
+                  },
+                  {
+                    "key": "demiurgo.usage.uncached_input_tokens",
+                    "value": {
+                      "intValue": 9000
+                    }
+                  },
+                  {
+                    "key": "demiurgo.usage.declared_cost_usd",
+                    "value": {
+                      "doubleValue": 0.042
+                    }
+                  },
+                  {
+                    "key": "demiurgo.usage.turns",
+                    "value": {
+                      "intValue": 1
+                    }
+                  },
+                  {
+                    "key": "demiurgo.usage.provenance",
+                    "value": {
+                      "stringValue": "{\"uncachedInput\":\"claude:result.usage.input_tokens\",\"cacheRead\":\"claude:result.usage.cache_read_input_tokens\",\"cacheWrite\":\"claude:result.usage.cache_creation_input_tokens\",\"output\":\"claude:result.usage.output_tokens\",\"reasoning\":\"not_reported\",\"declaredCostUsd\":\"claude:result.total_cost_usd:cumulative\"}"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.usage.raw",
+                    "value": {
+                      "stringValue": "{\"usage\":{\"input_tokens\":9000,\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":1000,\"output_tokens\":400},\"total_cost_usd\":0.042,\"num_turns\":1}"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.call.duration_reported_ms",
+                    "value": {
+                      "intValue": 1234
+                    }
+                  },
+                  {
+                    "key": "demiurgo.cli.version",
+                    "value": {
+                      "stringValue": "2.1.283"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.cli.command",
+                    "value": {
+                      "arrayValue": {
+                        "values": [
+                          {
+                            "stringValue": "claude"
+                          },
+                          {
+                            "stringValue": "-p"
+                          },
+                          {
+                            "stringValue": "--output-format"
+                          },
+                          {
+                            "stringValue": "stream-json"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": "demiurgo.cli.cwd",
+                    "value": {
+                      "stringValue": "D:/Dev/Demiurgo"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.cli.exit_code",
+                    "value": {
+                      "intValue": 0
+                    }
+                  },
+                  {
+                    "key": "demiurgo.cli.stop_reason",
+                    "value": {
+                      "stringValue": "end_turn"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000001",
+                "spanId": "1bd22ba0133d1b96",
+                "parentSpanId": "1e4b99cac60eb0b4",
+                "name": "run.invoke",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194418000000",
+                "endTimeUnixNano": "1790379194419110500",
+                "attributes": [
+                  {
+                    "key": "demiurgo.run.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c001"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.workflow.id",
+                    "value": {
+                      "stringValue": "wf-0199b000-0000-7000-8000-00000000c001"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.step.attempt",
+                    "value": {
+                      "intValue": 1
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000001",
+                "spanId": "f17cc5c2df4fe37c",
+                "parentSpanId": "803ec9399010fb75",
+                "name": "command message.post",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194419000000",
+                "endTimeUnixNano": "1790379194419041000",
+                "attributes": [
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "message.post"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "agent:run:0199b000-0000-7000-8000-00000000c001"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "agent_run"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "message"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000bb02"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.outcome",
+                    "value": {
+                      "stringValue": "ok"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 3
+                    }
+                  },
+                  {
+                    "key": "demiurgo.state.after",
+                    "value": {
+                      "stringValue": "sent"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.cause.run",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c001"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000001",
+                "spanId": "baa4bb29a2c6398e",
+                "parentSpanId": "803ec9399010fb75",
+                "name": "command question.raise",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194419000000",
+                "endTimeUnixNano": "1790379194419041200",
+                "attributes": [
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "question.raise"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "agent:run:0199b000-0000-7000-8000-00000000c001"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "agent_run"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "question"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000e101"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.outcome",
+                    "value": {
+                      "stringValue": "ok"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 4
+                    }
+                  },
+                  {
+                    "key": "demiurgo.state.after",
+                    "value": {
+                      "stringValue": "pending"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.cause.run",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c001"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000001",
+                "spanId": "d37eff96fca0bf1a",
+                "parentSpanId": "803ec9399010fb75",
+                "name": "command question.infer",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194419000000",
+                "endTimeUnixNano": "1790379194419033400",
+                "attributes": [
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "question.infer"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "agent:run:0199b000-0000-7000-8000-00000000c001"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "agent_run"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "question"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000e101"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.outcome",
+                    "value": {
+                      "stringValue": "ok"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 5
+                    }
+                  },
+                  {
+                    "key": "demiurgo.state.before",
+                    "value": {
+                      "stringValue": "pending"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.state.after",
+                    "value": {
+                      "stringValue": "inferred"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.cause.run",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c001"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000001",
+                "spanId": "f6c3515f2098fa3e",
+                "parentSpanId": "9020677fc95b534b",
+                "name": "command proposal.create",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194419000000",
+                "endTimeUnixNano": "1790379194419056800",
+                "attributes": [
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "proposal.create"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "agent:run:0199b000-0000-7000-8000-00000000c001"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "agent_run"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "proposal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000f001"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.outcome",
+                    "value": {
+                      "stringValue": "ok"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 7
+                    }
+                  },
+                  {
+                    "key": "demiurgo.state.after",
+                    "value": {
+                      "stringValue": "pending"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.cause.run",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c001"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000001",
+                "spanId": "9020677fc95b534b",
+                "parentSpanId": "803ec9399010fb75",
+                "name": "command batch.submit",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194419000000",
+                "endTimeUnixNano": "1790379194419129600",
+                "attributes": [
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "batch.submit"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "agent:run:0199b000-0000-7000-8000-00000000c001"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "agent_run"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "batch"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000e001"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.outcome",
+                    "value": {
+                      "stringValue": "ok"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 6
+                    }
+                  },
+                  {
+                    "key": "demiurgo.state.after",
+                    "value": {
+                      "stringValue": "open"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.cause.run",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c001"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000001",
+                "spanId": "803ec9399010fb75",
+                "parentSpanId": "1e4b99cac60eb0b4",
+                "name": "run.apply",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194419000000",
+                "endTimeUnixNano": "1790379194419476800",
+                "attributes": [
+                  {
+                    "key": "demiurgo.run.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c001"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.step.attempt",
+                    "value": {
+                      "intValue": 1
+                    }
+                  },
+                  {
+                    "key": "demiurgo.step.result",
+                    "value": {
+                      "stringValue": "applied"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000001",
+                "spanId": "1e4b99cac60eb0b4",
+                "parentSpanId": "791d0bd582229cb5",
+                "name": "command message.post",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194415000000",
+                "endTimeUnixNano": "1790379194418942000",
+                "attributes": [
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "message.post"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "human:ana"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "human"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "message"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000bb01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.outcome",
+                    "value": {
+                      "stringValue": "ok"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 1
+                    }
+                  },
+                  {
+                    "key": "demiurgo.state.after",
+                    "value": {
+                      "stringValue": "sent"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000001",
+                "spanId": "791d0bd582229cb5",
+                "name": "interaction message.post",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194415000000",
+                "endTimeUnixNano": "1790379194419529000",
+                "attributes": [
+                  {
+                    "key": "demiurgo.interaction.id",
+                    "value": {
+                      "stringValue": "0199b100-0000-7000-8000-000000000001"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.channel",
+                    "value": {
+                      "stringValue": "api"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "human:ana"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "human"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "message.post"
+                    }
+                  },
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "/api/projects/:projectId/commands/:command"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000002",
+                "spanId": "0a1f6540c525fb77",
+                "parentSpanId": "dec4e01174ecb315",
+                "name": "command question.confirm",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194431000000",
+                "endTimeUnixNano": "1790379194431049900",
+                "attributes": [
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "question.confirm"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "human:ana"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "human"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "question"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000e101"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.outcome",
+                    "value": {
+                      "stringValue": "ok"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 8
+                    }
+                  },
+                  {
+                    "key": "demiurgo.state.before",
+                    "value": {
+                      "stringValue": "inferred"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.state.after",
+                    "value": {
+                      "stringValue": "confirmed"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000002",
+                "spanId": "dec4e01174ecb315",
+                "name": "interaction question.confirm",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194431000000",
+                "endTimeUnixNano": "1790379194431145700",
+                "attributes": [
+                  {
+                    "key": "demiurgo.interaction.id",
+                    "value": {
+                      "stringValue": "0199b100-0000-7000-8000-000000000002"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.channel",
+                    "value": {
+                      "stringValue": "api"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "human:ana"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "human"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "question.confirm"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "question"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000e101"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000003",
+                "spanId": "e975b53c9270809a",
+                "parentSpanId": "413d111c36012d64",
+                "name": "command proposal.accept",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194446000000",
+                "endTimeUnixNano": "1790379194446066300",
+                "attributes": [
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "proposal.accept"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "human:ana"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "human"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "proposal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000f001"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.outcome",
+                    "value": {
+                      "stringValue": "ok"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 9
+                    }
+                  },
+                  {
+                    "key": "demiurgo.state.before",
+                    "value": {
+                      "stringValue": "pending"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.state.after",
+                    "value": {
+                      "stringValue": "accepted"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000003",
+                "spanId": "413d111c36012d64",
+                "name": "interaction proposal.accept",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194446000000",
+                "endTimeUnixNano": "1790379194446182300",
+                "attributes": [
+                  {
+                    "key": "demiurgo.interaction.id",
+                    "value": {
+                      "stringValue": "0199b100-0000-7000-8000-000000000003"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.channel",
+                    "value": {
+                      "stringValue": "api"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "human:ana"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "human"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "proposal.accept"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "proposal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000f001"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000004",
+                "spanId": "9c4ab7ddc18d12f1",
+                "parentSpanId": "57e585612541ce7b",
+                "name": "command run.request",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194462000000",
+                "endTimeUnixNano": "1790379194462045600",
+                "attributes": [
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "run.request"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "system:engine:1"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "system"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "ai_run"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c002"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.outcome",
+                    "value": {
+                      "stringValue": "ok"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 11
+                    }
+                  },
+                  {
+                    "key": "demiurgo.state.after",
+                    "value": {
+                      "stringValue": "requested"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000004",
+                "spanId": "577a64155be60b9a",
+                "parentSpanId": "57e585612541ce7b",
+                "name": "run.prepare",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194462000000",
+                "endTimeUnixNano": "1790379194462008600",
+                "attributes": [
+                  {
+                    "key": "demiurgo.run.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c002"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.workflow.id",
+                    "value": {
+                      "stringValue": "wf-0199b000-0000-7000-8000-00000000c002"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.step.attempt",
+                    "value": {
+                      "intValue": 1
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000004",
+                "spanId": "bb12c58563811be0",
+                "parentSpanId": "5163c4bb28aaf444",
+                "name": "invoke_agent explorer",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194462000000",
+                "endTimeUnixNano": "1790379194462177900",
+                "attributes": [
+                  {
+                    "key": "gen_ai.operation.name",
+                    "value": {
+                      "stringValue": "invoke_agent"
+                    }
+                  },
+                  {
+                    "key": "gen_ai.provider.name",
+                    "value": {
+                      "stringValue": "anthropic"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.provider.id",
+                    "value": {
+                      "stringValue": "claude"
+                    }
+                  },
+                  {
+                    "key": "gen_ai.agent.name",
+                    "value": {
+                      "stringValue": "explorer"
+                    }
+                  },
+                  {
+                    "key": "gen_ai.agent.version",
+                    "value": {
+                      "stringValue": "v3"
+                    }
+                  },
+                  {
+                    "key": "gen_ai.request.model",
+                    "value": {
+                      "stringValue": "claude-sonnet-4-5"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.effort",
+                    "value": {
+                      "stringValue": "medium"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.engine.source",
+                    "value": {
+                      "stringValue": "group"
+                    }
+                  },
+                  {
+                    "key": "gen_ai.conversation.id",
+                    "value": {
+                      "stringValue": "5e4d3c2b-1a0f-4e8d-9c7b-6a5f4e3d2c1b"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.session.id",
+                    "value": {
+                      "stringValue": "5e4d3c2b-1a0f-4e8d-9c7b-6a5f4e3d2c1b"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.session.mode",
+                    "value": {
+                      "stringValue": "resumed"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.session.key_hash",
+                    "value": {
+                      "stringValue": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.session.name",
+                    "value": {
+                      "stringValue": "demiurgo explorer 5e4d3c2b"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.session.base_run",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c001"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.session.base_pack_hash",
+                    "value": {
+                      "stringValue": "1111111111111111111111111111111111111111111111111111111111111111"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.delta.hash",
+                    "value": {
+                      "stringValue": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.call.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000d002"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.call.attempt",
+                    "value": {
+                      "intValue": 1
+                    }
+                  },
+                  {
+                    "key": "demiurgo.run.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c002"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.prompt.hash",
+                    "value": {
+                      "stringValue": "b5db0cc0a05416ff525372397beb9da270e35ac203dc4c06884568eb19e7bc02"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.input.hash",
+                    "value": {
+                      "stringValue": "2f4dba892632eca300f8e519654df4564e32aa38a42e5a0c7b1a6e18c8e4bd0e"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.schema.hash",
+                    "value": {
+                      "stringValue": "ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.schema.version",
+                    "value": {
+                      "stringValue": "2"
+                    }
+                  },
+                  {
+                    "key": "gen_ai.usage.input_tokens",
+                    "value": {
+                      "intValue": 1000
+                    }
+                  },
+                  {
+                    "key": "gen_ai.usage.output_tokens",
+                    "value": {
+                      "intValue": 0
+                    }
+                  },
+                  {
+                    "key": "gen_ai.usage.cache_read.input_tokens",
+                    "value": {
+                      "intValue": 0
+                    }
+                  },
+                  {
+                    "key": "gen_ai.usage.cache_write.input_tokens",
+                    "value": {
+                      "intValue": 0
+                    }
+                  },
+                  {
+                    "key": "demiurgo.usage.uncached_input_tokens",
+                    "value": {
+                      "intValue": 1000
+                    }
+                  },
+                  {
+                    "key": "demiurgo.usage.declared_cost_usd",
+                    "value": {
+                      "doubleValue": 0.042
+                    }
+                  },
+                  {
+                    "key": "demiurgo.usage.turns",
+                    "value": {
+                      "intValue": 1
+                    }
+                  },
+                  {
+                    "key": "demiurgo.usage.provenance",
+                    "value": {
+                      "stringValue": "{\"uncachedInput\":\"claude:result.usage.input_tokens\",\"cacheRead\":\"claude:result.usage.cache_read_input_tokens\",\"cacheWrite\":\"claude:result.usage.cache_creation_input_tokens\",\"output\":\"claude:result.usage.output_tokens\",\"reasoning\":\"not_reported\",\"declaredCostUsd\":\"claude:result.total_cost_usd:cumulative\"}"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.usage.raw",
+                    "value": {
+                      "stringValue": "{\"usage\":{\"input_tokens\":1000,\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":0,\"output_tokens\":0},\"total_cost_usd\":0.042,\"num_turns\":1}"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.call.duration_reported_ms",
+                    "value": {
+                      "intValue": 30000
+                    }
+                  },
+                  {
+                    "key": "demiurgo.cli.version",
+                    "value": {
+                      "stringValue": "2.1.283"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.cli.command",
+                    "value": {
+                      "arrayValue": {
+                        "values": [
+                          {
+                            "stringValue": "claude"
+                          },
+                          {
+                            "stringValue": "-p"
+                          },
+                          {
+                            "stringValue": "--output-format"
+                          },
+                          {
+                            "stringValue": "stream-json"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": "demiurgo.cli.cwd",
+                    "value": {
+                      "stringValue": "D:/Dev/Demiurgo"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.cli.exit_code",
+                    "value": {
+                      "intValue": 1
+                    }
+                  },
+                  {
+                    "key": "demiurgo.failure_kind",
+                    "value": {
+                      "stringValue": "timeout"
+                    }
+                  },
+                  {
+                    "key": "error.type",
+                    "value": {
+                      "stringValue": "timeout"
+                    }
+                  },
+                  {
+                    "key": "error.message",
+                    "value": {
+                      "stringValue": "The provider did not answer in 30 s."
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 2,
+                  "message": "The provider did not answer in 30 s."
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000004",
+                "spanId": "5163c4bb28aaf444",
+                "parentSpanId": "57e585612541ce7b",
+                "name": "run.invoke",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194462000000",
+                "endTimeUnixNano": "1790379194462415400",
+                "attributes": [
+                  {
+                    "key": "demiurgo.run.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c002"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.workflow.id",
+                    "value": {
+                      "stringValue": "wf-0199b000-0000-7000-8000-00000000c002"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.step.attempt",
+                    "value": {
+                      "intValue": 1
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000004",
+                "spanId": "f3618e8a5d5f7bb1",
+                "parentSpanId": "c087763076f9adab",
+                "name": "command run.fail",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194462000000",
+                "endTimeUnixNano": "1790379194462022400",
+                "attributes": [
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "run.fail"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "system:engine:1"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "system"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "ai_run"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c002"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.outcome",
+                    "value": {
+                      "stringValue": "ok"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 12
+                    }
+                  },
+                  {
+                    "key": "demiurgo.state.before",
+                    "value": {
+                      "stringValue": "running"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.state.after",
+                    "value": {
+                      "stringValue": "failed"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000004",
+                "spanId": "c087763076f9adab",
+                "parentSpanId": "57e585612541ce7b",
+                "name": "run.fail",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194462000000",
+                "endTimeUnixNano": "1790379194462066300",
+                "attributes": [
+                  {
+                    "key": "demiurgo.run.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c002"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.workflow.id",
+                    "value": {
+                      "stringValue": "wf-0199b000-0000-7000-8000-00000000c002"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.step.attempt",
+                    "value": {
+                      "intValue": 1
+                    }
+                  },
+                  {
+                    "key": "demiurgo.failure_kind",
+                    "value": {
+                      "stringValue": "timeout"
+                    }
+                  },
+                  {
+                    "key": "error.type",
+                    "value": {
+                      "stringValue": "timeout"
+                    }
+                  },
+                  {
+                    "key": "error.message",
+                    "value": {
+                      "stringValue": "The provider did not answer in 30 s."
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 2,
+                  "message": "The provider did not answer in 30 s."
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000004",
+                "spanId": "57e585612541ce7b",
+                "parentSpanId": "a8401da64f2a22ea",
+                "name": "command message.post",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194462000000",
+                "endTimeUnixNano": "1790379194462856800",
+                "attributes": [
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "message.post"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "human:ana"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "human"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "message"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000bb03"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.outcome",
+                    "value": {
+                      "stringValue": "ok"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 10
+                    }
+                  },
+                  {
+                    "key": "demiurgo.state.after",
+                    "value": {
+                      "stringValue": "sent"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000004",
+                "spanId": "a8401da64f2a22ea",
+                "name": "interaction message.post",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194461000000",
+                "endTimeUnixNano": "1790379194461958100",
+                "attributes": [
+                  {
+                    "key": "demiurgo.interaction.id",
+                    "value": {
+                      "stringValue": "0199b100-0000-7000-8000-000000000004"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.channel",
+                    "value": {
+                      "stringValue": "api"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "human:ana"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "human"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "message.post"
+                    }
+                  },
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "/api/projects/:projectId/commands/:command"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000005",
+                "spanId": "b1f2b69963424cf8",
+                "parentSpanId": "53f855fbaecc0d40",
+                "name": "command run.retry",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194477000000",
+                "endTimeUnixNano": "1790379194477035500",
+                "attributes": [
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "run.retry"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "human:ana"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "human"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "ai_run"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c003"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.outcome",
+                    "value": {
+                      "stringValue": "ok"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 13
+                    }
+                  },
+                  {
+                    "key": "demiurgo.state.after",
+                    "value": {
+                      "stringValue": "requested"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000005",
+                "spanId": "b08afac4a66deceb",
+                "parentSpanId": "53f855fbaecc0d40",
+                "name": "run.prepare",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194477000000",
+                "endTimeUnixNano": "1790379194477173100",
+                "attributes": [
+                  {
+                    "key": "demiurgo.run.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c003"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.workflow.id",
+                    "value": {
+                      "stringValue": "wf-0199b000-0000-7000-8000-00000000c003"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.step.attempt",
+                    "value": {
+                      "intValue": 1
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [
+                  {
+                    "attributes": [
+                      {
+                        "key": "demiurgo.run.retry_of",
+                        "value": {
+                          "stringValue": "0199b000-0000-7000-8000-00000000c002"
+                        }
+                      }
+                    ],
+                    "spanId": "577a64155be60b9a",
+                    "traceId": "0199b100000070008000000000000004",
+                    "droppedAttributesCount": 0,
+                    "flags": 769
+                  }
+                ],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000005",
+                "spanId": "0f2a45b3f9339f34",
+                "parentSpanId": "baa127586c4016e1",
+                "name": "invoke_agent explorer",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194477000000",
+                "endTimeUnixNano": "1790379194477034200",
+                "attributes": [
+                  {
+                    "key": "gen_ai.operation.name",
+                    "value": {
+                      "stringValue": "invoke_agent"
+                    }
+                  },
+                  {
+                    "key": "gen_ai.provider.name",
+                    "value": {
+                      "stringValue": "openai"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.provider.id",
+                    "value": {
+                      "stringValue": "codex"
+                    }
+                  },
+                  {
+                    "key": "gen_ai.agent.name",
+                    "value": {
+                      "stringValue": "explorer"
+                    }
+                  },
+                  {
+                    "key": "gen_ai.agent.version",
+                    "value": {
+                      "stringValue": "v3"
+                    }
+                  },
+                  {
+                    "key": "gen_ai.request.model",
+                    "value": {
+                      "stringValue": "gpt-5-codex"
+                    }
+                  },
+                  {
+                    "key": "gen_ai.response.model",
+                    "value": {
+                      "stringValue": "gpt-5-codex-20260901"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.effort",
+                    "value": {
+                      "stringValue": "high"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.engine.source",
+                    "value": {
+                      "stringValue": "override"
+                    }
+                  },
+                  {
+                    "key": "gen_ai.conversation.id",
+                    "value": {
+                      "stringValue": "6f5e4d3c-2b1a-4f9e-8d7c-7b6a5f4e3d2c"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.session.id",
+                    "value": {
+                      "stringValue": "6f5e4d3c-2b1a-4f9e-8d7c-7b6a5f4e3d2c"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.session.mode",
+                    "value": {
+                      "stringValue": "fresh"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.session.key_hash",
+                    "value": {
+                      "stringValue": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.session.name",
+                    "value": {
+                      "stringValue": "demiurgo explorer 6f5e4d3c"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.call.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000d003"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.call.attempt",
+                    "value": {
+                      "intValue": 1
+                    }
+                  },
+                  {
+                    "key": "demiurgo.run.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c003"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.prompt.hash",
+                    "value": {
+                      "stringValue": "b5db0cc0a05416ff525372397beb9da270e35ac203dc4c06884568eb19e7bc02"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.input.hash",
+                    "value": {
+                      "stringValue": "2f4dba892632eca300f8e519654df4564e32aa38a42e5a0c7b1a6e18c8e4bd0e"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.schema.hash",
+                    "value": {
+                      "stringValue": "ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.schema.version",
+                    "value": {
+                      "stringValue": "2"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.output.hash",
+                    "value": {
+                      "stringValue": "155d8e69cc37322349837f0d9dcfb9368bf2c3ce9b33d926f9d5058fc4b02ed2"
+                    }
+                  },
+                  {
+                    "key": "gen_ai.usage.input_tokens",
+                    "value": {
+                      "intValue": 5000
+                    }
+                  },
+                  {
+                    "key": "gen_ai.usage.output_tokens",
+                    "value": {
+                      "intValue": 600
+                    }
+                  },
+                  {
+                    "key": "gen_ai.usage.cache_read.input_tokens",
+                    "value": {
+                      "intValue": 0
+                    }
+                  },
+                  {
+                    "key": "gen_ai.usage.reasoning.output_tokens",
+                    "value": {
+                      "intValue": 120
+                    }
+                  },
+                  {
+                    "key": "demiurgo.usage.uncached_input_tokens",
+                    "value": {
+                      "intValue": 5000
+                    }
+                  },
+                  {
+                    "key": "demiurgo.usage.provenance",
+                    "value": {
+                      "stringValue": "{\"uncachedInput\":\"codex:turn.completed.usage.input_tokens-cached_input_tokens\",\"cacheRead\":\"codex:turn.completed.usage.cached_input_tokens\",\"cacheWrite\":\"not_reported\",\"output\":\"codex:turn.completed.usage.output_tokens\",\"reasoning\":\"codex:turn.completed.usage.reasoning_output_tokens\",\"declaredCostUsd\":\"not_reported\"}"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.usage.raw",
+                    "value": {
+                      "stringValue": "{\"usage\":{\"input_tokens\":5000,\"cached_input_tokens\":0,\"output_tokens\":600,\"reasoning_output_tokens\":120}}"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.call.duration_reported_ms",
+                    "value": {
+                      "intValue": 1234
+                    }
+                  },
+                  {
+                    "key": "demiurgo.cli.version",
+                    "value": {
+                      "stringValue": "0.104.0"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.cli.command",
+                    "value": {
+                      "arrayValue": {
+                        "values": [
+                          {
+                            "stringValue": "codex"
+                          },
+                          {
+                            "stringValue": "exec"
+                          },
+                          {
+                            "stringValue": "--json"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": "demiurgo.cli.cwd",
+                    "value": {
+                      "stringValue": "D:/Dev/Demiurgo"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.cli.exit_code",
+                    "value": {
+                      "intValue": 0
+                    }
+                  },
+                  {
+                    "key": "demiurgo.cli.stop_reason",
+                    "value": {
+                      "stringValue": "end_turn"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000005",
+                "spanId": "baa127586c4016e1",
+                "parentSpanId": "53f855fbaecc0d40",
+                "name": "run.invoke",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194477000000",
+                "endTimeUnixNano": "1790379194477156300",
+                "attributes": [
+                  {
+                    "key": "demiurgo.run.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c003"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.workflow.id",
+                    "value": {
+                      "stringValue": "wf-0199b000-0000-7000-8000-00000000c003"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.step.attempt",
+                    "value": {
+                      "intValue": 1
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000005",
+                "spanId": "fcf4649aa8f42bab",
+                "parentSpanId": "300ddd8c81fe5691",
+                "name": "command question.raise",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194477000000",
+                "endTimeUnixNano": "1790379194477023100",
+                "attributes": [
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "question.raise"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "agent:run:0199b000-0000-7000-8000-00000000c003"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "agent_run"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "question"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000e102"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.outcome",
+                    "value": {
+                      "stringValue": "ok"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 14
+                    }
+                  },
+                  {
+                    "key": "demiurgo.state.after",
+                    "value": {
+                      "stringValue": "pending"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.cause.run",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c003"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000005",
+                "spanId": "d4372820051be006",
+                "parentSpanId": "3ee9f6d5451943a6",
+                "name": "command proposal.create",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194477000000",
+                "endTimeUnixNano": "1790379194477016600",
+                "attributes": [
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "proposal.create"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "agent:run:0199b000-0000-7000-8000-00000000c003"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "agent_run"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "proposal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000f002"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.outcome",
+                    "value": {
+                      "stringValue": "ok"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 16
+                    }
+                  },
+                  {
+                    "key": "demiurgo.state.after",
+                    "value": {
+                      "stringValue": "pending"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.cause.run",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c003"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000005",
+                "spanId": "3ee9f6d5451943a6",
+                "parentSpanId": "300ddd8c81fe5691",
+                "name": "command batch.submit",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194477000000",
+                "endTimeUnixNano": "1790379194477042300",
+                "attributes": [
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "batch.submit"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "agent:run:0199b000-0000-7000-8000-00000000c003"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "agent_run"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "batch"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000e002"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.outcome",
+                    "value": {
+                      "stringValue": "ok"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 15
+                    }
+                  },
+                  {
+                    "key": "demiurgo.state.after",
+                    "value": {
+                      "stringValue": "open"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.cause.run",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c003"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000005",
+                "spanId": "300ddd8c81fe5691",
+                "parentSpanId": "53f855fbaecc0d40",
+                "name": "run.apply",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194477000000",
+                "endTimeUnixNano": "1790379194477128400",
+                "attributes": [
+                  {
+                    "key": "demiurgo.run.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c003"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.step.attempt",
+                    "value": {
+                      "intValue": 1
+                    }
+                  },
+                  {
+                    "key": "demiurgo.step.result",
+                    "value": {
+                      "stringValue": "applied"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000005",
+                "spanId": "53f855fbaecc0d40",
+                "name": "interaction run.retry",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194477000000",
+                "endTimeUnixNano": "1790379194477645700",
+                "attributes": [
+                  {
+                    "key": "demiurgo.interaction.id",
+                    "value": {
+                      "stringValue": "0199b100-0000-7000-8000-000000000005"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.channel",
+                    "value": {
+                      "stringValue": "api"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "human:ana"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "human"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "run.retry"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "ai_run"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c002"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000006",
+                "spanId": "0a6763705493a3c2",
+                "parentSpanId": "0dd7a9b9bfc55b6e",
+                "name": "command proposal.reject",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194492000000",
+                "endTimeUnixNano": "1790379194492033000",
+                "attributes": [
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "proposal.reject"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "human:ana"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "human"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "proposal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000f002"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.outcome",
+                    "value": {
+                      "stringValue": "ok"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 17
+                    }
+                  },
+                  {
+                    "key": "demiurgo.state.before",
+                    "value": {
+                      "stringValue": "pending"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.state.after",
+                    "value": {
+                      "stringValue": "rejected"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000006",
+                "spanId": "0dd7a9b9bfc55b6e",
+                "name": "interaction proposal.reject",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194492000000",
+                "endTimeUnixNano": "1790379194492096000",
+                "attributes": [
+                  {
+                    "key": "demiurgo.interaction.id",
+                    "value": {
+                      "stringValue": "0199b100-0000-7000-8000-000000000006"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.channel",
+                    "value": {
+                      "stringValue": "api"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "human:ana"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "human"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "proposal.reject"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "proposal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000f002"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000007",
+                "spanId": "afa018818b3e3077",
+                "parentSpanId": "f011255d1f698377",
+                "name": "command exploration.open",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194507000000",
+                "endTimeUnixNano": "1790379194507031700",
+                "attributes": [
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "exploration.open"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "human:ana"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "human"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "exploration"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000ab02"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.outcome",
+                    "value": {
+                      "stringValue": "ok"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 18
+                    }
+                  },
+                  {
+                    "key": "demiurgo.state.after",
+                    "value": {
+                      "stringValue": "active"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000007",
+                "spanId": "f011255d1f698377",
+                "name": "interaction exploration.open",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194507000000",
+                "endTimeUnixNano": "1790379194507099500",
+                "attributes": [
+                  {
+                    "key": "demiurgo.interaction.id",
+                    "value": {
+                      "stringValue": "0199b100-0000-7000-8000-000000000007"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.channel",
+                    "value": {
+                      "stringValue": "api"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "human:ana"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "human"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "exploration.open"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000008",
+                "spanId": "3cca935d46f49d31",
+                "parentSpanId": "70ffa0a8e2ed3832",
+                "name": "command message.post",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194522000000",
+                "endTimeUnixNano": "1790379194522090900",
+                "attributes": [
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "message.post"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "human:ana"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "human"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "message"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000bb04"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.outcome",
+                    "value": {
+                      "stringValue": "ok"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 19
+                    }
+                  },
+                  {
+                    "key": "demiurgo.state.after",
+                    "value": {
+                      "stringValue": "sent"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              },
+              {
+                "traceId": "0199b100000070008000000000000008",
+                "spanId": "70ffa0a8e2ed3832",
+                "name": "interaction message.post",
+                "kind": 1,
+                "startTimeUnixNano": "1790379194522000000",
+                "endTimeUnixNano": "1790379194522164700",
+                "attributes": [
+                  {
+                    "key": "demiurgo.interaction.id",
+                    "value": {
+                      "stringValue": "0199b100-0000-7000-8000-000000000008"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.channel",
+                    "value": {
+                      "stringValue": "api"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor",
+                    "value": {
+                      "stringValue": "human:ana"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.actor.type",
+                    "value": {
+                      "stringValue": "human"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "message.post"
+                    }
+                  },
+                  {
+                    "key": "http.route",
+                    "value": {
+                      "stringValue": "/api/projects/:projectId/commands/:command"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "events": [],
+                "droppedEventsCount": 0,
+                "status": {
+                  "code": 1
+                },
+                "links": [],
+                "droppedLinksCount": 0,
+                "flags": 257
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "logs": {
+    "resourceLogs": [
+      {
+        "resource": {
+          "attributes": [
+            {
+              "key": "service.name",
+              "value": {
+                "stringValue": "demiurgo"
+              }
+            },
+            {
+              "key": "service.version",
+              "value": {
+                "stringValue": "fixture"
+              }
+            },
+            {
+              "key": "deployment.environment.name",
+              "value": {
+                "stringValue": "test"
+              }
+            },
+            {
+              "key": "demiurgo.instance",
+              "value": {
+                "stringValue": "8100"
+              }
+            },
+            {
+              "key": "demiurgo.schema_version",
+              "value": {
+                "intValue": 1
+              }
+            }
+          ],
+          "droppedAttributesCount": 0
+        },
+        "scopeLogs": [
+          {
+            "scope": {
+              "name": "demiurgo",
+              "version": "1"
+            },
+            "logRecords": [
+              {
+                "timeUnixNano": "1790379194416000000",
+                "observedTimeUnixNano": "1790379194416000000",
+                "severityNumber": 9,
+                "body": {
+                  "stringValue": "{\"before\":null,\"after\":{\"exploration\":\"0199b000-0000-7000-8000-00000000ab01\",\"question\":null,\"type\":null,\"length\":42}}"
+                },
+                "eventName": "demiurgo.journal",
+                "attributes": [
+                  {
+                    "key": "event.name",
+                    "value": {
+                      "stringValue": "demiurgo.journal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 1
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "message.post"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "message"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000bb01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "flags": 1,
+                "traceId": "0199b100000070008000000000000001",
+                "spanId": "1e4b99cac60eb0b4"
+              },
+              {
+                "timeUnixNano": "1790379194417000000",
+                "observedTimeUnixNano": "1790379194417000000",
+                "severityNumber": 9,
+                "body": {
+                  "stringValue": "{\"before\":null,\"after\":{\"action\":\"exploration_chat\",\"agent\":\"explorer\",\"engine\":{\"provider\":\"claude\",\"model\":\"claude-sonnet-4-5\",\"effort\":\"medium\"},\"engine_source\":\"group\",\"scope\":{\"type\":\"exploration\",\"id\":\"0199b000-0000-7000-8000-00000000ab01\"},\"context_pack\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"answers_message\":\"0199b000-0000-7000-8000-00000000bb01\"}}"
+                },
+                "eventName": "demiurgo.journal",
+                "attributes": [
+                  {
+                    "key": "event.name",
+                    "value": {
+                      "stringValue": "demiurgo.journal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 2
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "run.request"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "ai_run"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c001"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "flags": 1,
+                "traceId": "0199b100000070008000000000000001",
+                "spanId": "b3c1c0d71fbae6d4"
+              },
+              {
+                "timeUnixNano": "1790379194419000000",
+                "observedTimeUnixNano": "1790379194419000000",
+                "severityNumber": 9,
+                "body": {
+                  "stringValue": "You are the explorer of DEMIURGO. Answer with a proposal."
+                },
+                "eventName": "demiurgo.text",
+                "attributes": [
+                  {
+                    "key": "event.name",
+                    "value": {
+                      "stringValue": "demiurgo.text"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.call.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000d001"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.text.hash",
+                    "value": {
+                      "stringValue": "b5db0cc0a05416ff525372397beb9da270e35ac203dc4c06884568eb19e7bc02"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.text.kind",
+                    "value": {
+                      "stringValue": "system_prompt"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.text.chars",
+                    "value": {
+                      "intValue": 57
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "flags": 1,
+                "traceId": "0199b100000070008000000000000001",
+                "spanId": "b6395f7daaa1221f"
+              },
+              {
+                "timeUnixNano": "1790379194419000000",
+                "observedTimeUnixNano": "1790379194419000000",
+                "severityNumber": 9,
+                "body": {
+                  "stringValue": "Do guests need an account?"
+                },
+                "eventName": "demiurgo.text",
+                "attributes": [
+                  {
+                    "key": "event.name",
+                    "value": {
+                      "stringValue": "demiurgo.text"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.call.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000d001"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.text.hash",
+                    "value": {
+                      "stringValue": "ea319736af5b4922961135ad95f5fe2cc46727c95f372a1ef453537a03684e80"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.text.kind",
+                    "value": {
+                      "stringValue": "input"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.text.chars",
+                    "value": {
+                      "intValue": 26
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "flags": 1,
+                "traceId": "0199b100000070008000000000000001",
+                "spanId": "b6395f7daaa1221f"
+              },
+              {
+                "timeUnixNano": "1790379194419000000",
+                "observedTimeUnixNano": "1790379194419000000",
+                "severityNumber": 9,
+                "body": {
+                  "stringValue": "{\"answer\":\"Guests need no account.\"}"
+                },
+                "eventName": "demiurgo.text",
+                "attributes": [
+                  {
+                    "key": "event.name",
+                    "value": {
+                      "stringValue": "demiurgo.text"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.call.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000d001"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.text.hash",
+                    "value": {
+                      "stringValue": "155d8e69cc37322349837f0d9dcfb9368bf2c3ce9b33d926f9d5058fc4b02ed2"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.text.kind",
+                    "value": {
+                      "stringValue": "output_raw"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.text.chars",
+                    "value": {
+                      "intValue": 36
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "flags": 1,
+                "traceId": "0199b100000070008000000000000001",
+                "spanId": "b6395f7daaa1221f"
+              },
+              {
+                "timeUnixNano": "1790379194419000000",
+                "observedTimeUnixNano": "1790379194419000000",
+                "severityNumber": 9,
+                "body": {
+                  "stringValue": "{\"before\":null,\"after\":{\"exploration\":\"0199b000-0000-7000-8000-00000000ab01\",\"question\":null,\"type\":\"claim\",\"length\":30}}"
+                },
+                "eventName": "demiurgo.journal",
+                "attributes": [
+                  {
+                    "key": "event.name",
+                    "value": {
+                      "stringValue": "demiurgo.journal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 3
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "message.post"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "message"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000bb02"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "flags": 1,
+                "traceId": "0199b100000070008000000000000001",
+                "spanId": "f17cc5c2df4fe37c"
+              },
+              {
+                "timeUnixNano": "1790379194419000000",
+                "observedTimeUnixNano": "1790379194419000000",
+                "severityNumber": 9,
+                "body": {
+                  "stringValue": "{\"before\":null,\"after\":{\"question\":\"Do guests need an account?\",\"impact\":\"high\",\"stage_key\":null}}"
+                },
+                "eventName": "demiurgo.journal",
+                "attributes": [
+                  {
+                    "key": "event.name",
+                    "value": {
+                      "stringValue": "demiurgo.journal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 4
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "question.raise"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "question"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000e101"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "flags": 1,
+                "traceId": "0199b100000070008000000000000001",
+                "spanId": "baa4bb29a2c6398e"
+              },
+              {
+                "timeUnixNano": "1790379194419000000",
+                "observedTimeUnixNano": "1790379194419000000",
+                "severityNumber": 9,
+                "body": {
+                  "stringValue": "{\"before\":{\"conclusion\":null},\"after\":{\"conclusion\":\"Guests need no account.\",\"reasoning\":\"The brief says so.\"}}"
+                },
+                "eventName": "demiurgo.journal",
+                "attributes": [
+                  {
+                    "key": "event.name",
+                    "value": {
+                      "stringValue": "demiurgo.journal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 5
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "question.infer"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "question"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000e101"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "flags": 1,
+                "traceId": "0199b100000070008000000000000001",
+                "spanId": "d37eff96fca0bf1a"
+              },
+              {
+                "timeUnixNano": "1790379194419000000",
+                "observedTimeUnixNano": "1790379194419000000",
+                "severityNumber": 9,
+                "body": {
+                  "stringValue": "{\"before\":null,\"after\":{\"type\":\"agent\",\"resolution\":\"item\",\"proposals\":1,\"producer\":\"agent:run:0199b000-0000-7000-8000-00000000c001\"}}"
+                },
+                "eventName": "demiurgo.journal",
+                "attributes": [
+                  {
+                    "key": "event.name",
+                    "value": {
+                      "stringValue": "demiurgo.journal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 6
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "batch.submit"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "batch"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000e001"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "flags": 1,
+                "traceId": "0199b100000070008000000000000001",
+                "spanId": "9020677fc95b534b"
+              },
+              {
+                "timeUnixNano": "1790379194419000000",
+                "observedTimeUnixNano": "1790379194419000000",
+                "severityNumber": 9,
+                "body": {
+                  "stringValue": "{\"before\":null,\"after\":{\"batch\":\"0199b000-0000-7000-8000-00000000e001\",\"type\":\"answer\",\"dependencies\":[]}}"
+                },
+                "eventName": "demiurgo.journal",
+                "attributes": [
+                  {
+                    "key": "event.name",
+                    "value": {
+                      "stringValue": "demiurgo.journal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 7
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "proposal.create"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "proposal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000f001"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "flags": 1,
+                "traceId": "0199b100000070008000000000000001",
+                "spanId": "f6c3515f2098fa3e"
+              },
+              {
+                "timeUnixNano": "1790379194431000000",
+                "observedTimeUnixNano": "1790379194431000000",
+                "severityNumber": 9,
+                "body": {
+                  "stringValue": "{\"before\":{\"conclusion\":\"Guests need no account.\"},\"after\":{\"conclusion\":\"Guests need no account.\"}}"
+                },
+                "eventName": "demiurgo.journal",
+                "attributes": [
+                  {
+                    "key": "event.name",
+                    "value": {
+                      "stringValue": "demiurgo.journal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 8
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "question.confirm"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "question"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000e101"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "flags": 1,
+                "traceId": "0199b100000070008000000000000002",
+                "spanId": "0a1f6540c525fb77"
+              },
+              {
+                "timeUnixNano": "1790379194446000000",
+                "observedTimeUnixNano": "1790379194446000000",
+                "severityNumber": 9,
+                "body": {
+                  "stringValue": "{\"before\":null,\"after\":{\"effect\":{\"kind\":\"answer\"},\"approve\":false}}"
+                },
+                "eventName": "demiurgo.journal",
+                "attributes": [
+                  {
+                    "key": "event.name",
+                    "value": {
+                      "stringValue": "demiurgo.journal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 9
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "proposal.accept"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "proposal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000f001"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "flags": 1,
+                "traceId": "0199b100000070008000000000000003",
+                "spanId": "e975b53c9270809a"
+              },
+              {
+                "timeUnixNano": "1790379194462000000",
+                "observedTimeUnixNano": "1790379194462000000",
+                "severityNumber": 9,
+                "body": {
+                  "stringValue": "{\"before\":null,\"after\":{\"exploration\":\"0199b000-0000-7000-8000-00000000ab01\",\"question\":null,\"type\":null,\"length\":42}}"
+                },
+                "eventName": "demiurgo.journal",
+                "attributes": [
+                  {
+                    "key": "event.name",
+                    "value": {
+                      "stringValue": "demiurgo.journal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 10
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "message.post"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "message"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000bb03"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "flags": 1,
+                "traceId": "0199b100000070008000000000000004",
+                "spanId": "57e585612541ce7b"
+              },
+              {
+                "timeUnixNano": "1790379194462000000",
+                "observedTimeUnixNano": "1790379194462000000",
+                "severityNumber": 9,
+                "body": {
+                  "stringValue": "{\"before\":null,\"after\":{\"action\":\"exploration_chat\",\"agent\":\"explorer\",\"engine\":{\"provider\":\"claude\",\"model\":\"claude-sonnet-4-5\",\"effort\":\"medium\"},\"engine_source\":\"group\",\"scope\":{\"type\":\"exploration\",\"id\":\"0199b000-0000-7000-8000-00000000ab01\"},\"context_pack\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"answers_message\":\"0199b000-0000-7000-8000-00000000bb03\"}}"
+                },
+                "eventName": "demiurgo.journal",
+                "attributes": [
+                  {
+                    "key": "event.name",
+                    "value": {
+                      "stringValue": "demiurgo.journal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 11
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "run.request"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "ai_run"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c002"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "flags": 1,
+                "traceId": "0199b100000070008000000000000004",
+                "spanId": "9c4ab7ddc18d12f1"
+              },
+              {
+                "timeUnixNano": "1790379194462000000",
+                "observedTimeUnixNano": "1790379194462000000",
+                "severityNumber": 9,
+                "body": {
+                  "stringValue": "And what about the second pillar?"
+                },
+                "eventName": "demiurgo.text",
+                "attributes": [
+                  {
+                    "key": "event.name",
+                    "value": {
+                      "stringValue": "demiurgo.text"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.call.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000d002"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.text.hash",
+                    "value": {
+                      "stringValue": "2f4dba892632eca300f8e519654df4564e32aa38a42e5a0c7b1a6e18c8e4bd0e"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.text.kind",
+                    "value": {
+                      "stringValue": "input"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.text.chars",
+                    "value": {
+                      "intValue": 33
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "flags": 1,
+                "traceId": "0199b100000070008000000000000004",
+                "spanId": "bb12c58563811be0"
+              },
+              {
+                "timeUnixNano": "1790379194462000000",
+                "observedTimeUnixNano": "1790379194462000000",
+                "severityNumber": 9,
+                "body": {
+                  "stringValue": "{\"before\":null,\"after\":{\"failure_kind\":\"timeout\",\"error\":\"The provider did not answer in 30 s.\"}}"
+                },
+                "eventName": "demiurgo.journal",
+                "attributes": [
+                  {
+                    "key": "event.name",
+                    "value": {
+                      "stringValue": "demiurgo.journal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 12
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "run.fail"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "ai_run"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c002"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "flags": 1,
+                "traceId": "0199b100000070008000000000000004",
+                "spanId": "f3618e8a5d5f7bb1"
+              },
+              {
+                "timeUnixNano": "1790379194477000000",
+                "observedTimeUnixNano": "1790379194477000000",
+                "severityNumber": 9,
+                "body": {
+                  "stringValue": "{\"before\":null,\"after\":{\"retry_of\":\"0199b000-0000-7000-8000-00000000c002\",\"engine\":{\"provider\":\"codex\",\"model\":\"gpt-5-codex\",\"effort\":\"high\"},\"engine_source\":\"override\",\"override\":{\"provider\":\"codex\",\"model\":\"gpt-5-codex\",\"effort\":\"high\"}}}"
+                },
+                "eventName": "demiurgo.journal",
+                "attributes": [
+                  {
+                    "key": "event.name",
+                    "value": {
+                      "stringValue": "demiurgo.journal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 13
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "run.retry"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "ai_run"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000c003"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "flags": 1,
+                "traceId": "0199b100000070008000000000000005",
+                "spanId": "b1f2b69963424cf8"
+              },
+              {
+                "timeUnixNano": "1790379194477000000",
+                "observedTimeUnixNano": "1790379194477000000",
+                "severityNumber": 9,
+                "body": {
+                  "stringValue": "{\"before\":null,\"after\":{\"question\":\"Is the second pillar in scope for H1?\",\"impact\":\"medium\",\"stage_key\":null}}"
+                },
+                "eventName": "demiurgo.journal",
+                "attributes": [
+                  {
+                    "key": "event.name",
+                    "value": {
+                      "stringValue": "demiurgo.journal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 14
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "question.raise"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "question"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000e102"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "flags": 1,
+                "traceId": "0199b100000070008000000000000005",
+                "spanId": "fcf4649aa8f42bab"
+              },
+              {
+                "timeUnixNano": "1790379194477000000",
+                "observedTimeUnixNano": "1790379194477000000",
+                "severityNumber": 9,
+                "body": {
+                  "stringValue": "{\"before\":null,\"after\":{\"type\":\"agent\",\"resolution\":\"item\",\"proposals\":1,\"producer\":\"agent:run:0199b000-0000-7000-8000-00000000c003\"}}"
+                },
+                "eventName": "demiurgo.journal",
+                "attributes": [
+                  {
+                    "key": "event.name",
+                    "value": {
+                      "stringValue": "demiurgo.journal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 15
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "batch.submit"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "batch"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000e002"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "flags": 1,
+                "traceId": "0199b100000070008000000000000005",
+                "spanId": "3ee9f6d5451943a6"
+              },
+              {
+                "timeUnixNano": "1790379194477000000",
+                "observedTimeUnixNano": "1790379194477000000",
+                "severityNumber": 9,
+                "body": {
+                  "stringValue": "{\"before\":null,\"after\":{\"batch\":\"0199b000-0000-7000-8000-00000000e002\",\"type\":\"answer\",\"dependencies\":[]}}"
+                },
+                "eventName": "demiurgo.journal",
+                "attributes": [
+                  {
+                    "key": "event.name",
+                    "value": {
+                      "stringValue": "demiurgo.journal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 16
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "proposal.create"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "proposal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000f002"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "flags": 1,
+                "traceId": "0199b100000070008000000000000005",
+                "spanId": "d4372820051be006"
+              },
+              {
+                "timeUnixNano": "1790379194492000000",
+                "observedTimeUnixNano": "1790379194492000000",
+                "severityNumber": 9,
+                "body": {
+                  "stringValue": "{\"before\":null,\"after\":{\"reason\":\"Out of scope for H1.\"}}"
+                },
+                "eventName": "demiurgo.journal",
+                "attributes": [
+                  {
+                    "key": "event.name",
+                    "value": {
+                      "stringValue": "demiurgo.journal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 17
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "proposal.reject"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "proposal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000f002"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "flags": 1,
+                "traceId": "0199b100000070008000000000000006",
+                "spanId": "0a6763705493a3c2"
+              },
+              {
+                "timeUnixNano": "1790379194507000000",
+                "observedTimeUnixNano": "1790379194507000000",
+                "severityNumber": 9,
+                "body": {
+                  "stringValue": "{\"before\":null,\"after\":{\"purpose\":\"The second pillar\",\"origin\":null,\"parent\":null}}"
+                },
+                "eventName": "demiurgo.journal",
+                "attributes": [
+                  {
+                    "key": "event.name",
+                    "value": {
+                      "stringValue": "demiurgo.journal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 18
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "exploration.open"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "exploration"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000ab02"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "flags": 1,
+                "traceId": "0199b100000070008000000000000007",
+                "spanId": "afa018818b3e3077"
+              },
+              {
+                "timeUnixNano": "1790379194522000000",
+                "observedTimeUnixNano": "1790379194522000000",
+                "severityNumber": 9,
+                "body": {
+                  "stringValue": "{\"before\":null,\"after\":{\"exploration\":\"0199b000-0000-7000-8000-00000000ab02\",\"question\":null,\"type\":null,\"length\":42}}"
+                },
+                "eventName": "demiurgo.journal",
+                "attributes": [
+                  {
+                    "key": "event.name",
+                    "value": {
+                      "stringValue": "demiurgo.journal"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.event.seq",
+                    "value": {
+                      "intValue": 19
+                    }
+                  },
+                  {
+                    "key": "demiurgo.command",
+                    "value": {
+                      "stringValue": "message.post"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.type",
+                    "value": {
+                      "stringValue": "message"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.entity.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000bb04"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199b000-0000-7000-8000-00000000aa01"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "flags": 1,
+                "traceId": "0199b100000070008000000000000008",
+                "spanId": "3cca935d46f49d31"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

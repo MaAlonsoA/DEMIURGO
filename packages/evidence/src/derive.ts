@@ -61,6 +61,20 @@ async function runOfProposal(client: PoolClient, proposalId: string): Promise<st
   return uuid(rows[0]?.run_id);
 }
 
+/** The run that inferred a question: the last successful `question.infer` on it before `at`. */
+async function runOfInference(client: PoolClient, questionId: string, at: Date): Promise<string | null> {
+  const { rows } = await client.query<{ run: string | null }>(
+    `select coalesce(c.cause_run::text, substring(c.actor from '^agent:run:(.{36})$')) as run
+     from commands c
+     where c.command = 'question.infer' and c.entity_type = 'question' and c.entity_id = $1
+       and coalesce(c.outcome, 'ok') = 'ok' and c.started_at <= $2
+     order by c.started_at desc
+     limit 1`,
+    [questionId, at],
+  );
+  return uuid(rows[0]?.run);
+}
+
 /** The rule of one command: what it says about a run, or nothing. */
 export async function ruleFor(client: PoolClient, row: CommandRow): Promise<DerivedEvaluation | null> {
   if (row.outcome !== null && row.outcome !== 'ok') return null;
@@ -89,10 +103,12 @@ export async function ruleFor(client: PoolClient, row: CommandRow): Promise<Deri
     }
     case 'question.confirm': {
       // Only an inferred question says something about a run. The payload of `question.confirm`
-      // carries no run today (exploration.ts: { conclusion }); when the core adds `inferred_by`
-      // (or `run_id`) to it, the rule lights up. Until then the command is skipped.
-      if (row.state_before !== 'inferred') return null;
-      const run = uuid(after.inferred_by) ?? uuid(after.run_id) ?? uuid(after.run);
+      // carries no run today (exploration.ts: { conclusion }), so the run is the one that applied the
+      // last `question.infer` on that question (its `cause_run`, or its `agent:run:<id>` actor); a
+      // payload that names it (`inferred_by`, `run_id`) wins when the core adds one.
+      if (row.state_before !== 'inferred' || row.entity_id === null) return null;
+      const run =
+        uuid(after.inferred_by) ?? uuid(after.run_id) ?? uuid(after.run) ?? (await runOfInference(client, row.entity_id, at));
       if (run === null) return null;
       const same = (before.conclusion ?? null) === (after.conclusion ?? null) || before.conclusion === undefined;
       return same

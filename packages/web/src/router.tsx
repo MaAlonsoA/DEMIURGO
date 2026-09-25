@@ -23,6 +23,8 @@ import { RunScreen } from './screens/run/Run.tsx';
 import { AppRoot } from './screens/shell/AppRoot.tsx';
 import { ProjectShell } from './screens/shell/ProjectShell.tsx';
 import { SignInScreen } from './screens/sign-in/SignIn.tsx';
+import { JourneysScreen } from './screens/journeys/Journeys.tsx';
+import { MapScreen } from './screens/map/Map.tsx';
 import { ModelsScreen, WorkspaceModelsScreen } from './screens/models/ModelsAndProviders.tsx';
 import { SourcesScreen } from './screens/sources/Sources.tsx';
 import { ThreadScreen } from './screens/thread/Thread.tsx';
@@ -89,6 +91,16 @@ const projectRoute = createRoute({
 
 const overviewRoute = createRoute({ getParentRoute: () => projectRoute, path: '/', component: OverviewScreen });
 const originsRoute = createRoute({ getParentRoute: () => projectRoute, path: '/origins', component: OriginsScreen });
+const mapRoute = createRoute({ getParentRoute: () => projectRoute, path: '/map', component: MapScreen });
+const journeysRoute = createRoute({
+  getParentRoute: () => projectRoute,
+  path: '/journeys',
+  validateSearch: (s: Record<string, unknown>): { j?: string } => {
+    const j = text(s.j);
+    return j ? { j } : {};
+  },
+  component: JourneysScreen,
+});
 const recordRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: '/records/$code',
@@ -160,6 +172,8 @@ const routeTree = rootRoute.addChildren([
     projectRoute.addChildren([
       overviewRoute,
       originsRoute,
+      mapRoute,
+      journeysRoute,
       recordRoute,
       newVersionRoute,
       threadsRoute,

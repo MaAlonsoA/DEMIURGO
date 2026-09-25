@@ -19,7 +19,7 @@ import { Search } from './Search.tsx';
 type Tab = { label: string; to: string; match: RegExp; needs?: boolean };
 
 const TABS: Tab[] = [
-  { label: 'Product', to: '/p/$projectId', match: /^\/p\/[^/]+(\/(origins|records)(\/.*)?)?\/?$/ },
+  { label: 'Product', to: '/p/$projectId', match: /^\/p\/[^/]+(\/(origins|records|map|journeys)(\/.*)?)?\/?$/ },
   { label: 'Threads', to: '/p/$projectId/threads', match: /^\/p\/[^/]+\/threads/ },
   { label: 'Needs you', to: '/p/$projectId/needs-you', match: /^\/p\/[^/]+\/(needs-you|batches)/, needs: true },
   { label: 'Knowledge', to: '/p/$projectId/knowledge', match: /^\/p\/[^/]+\/knowledge/ },
@@ -176,10 +176,16 @@ function PersonMenu() {
   );
 }
 
-/** Subtabs of "Product": Overview and Origins. */
-export function ProductTabs({ active }: { active: 'overview' | 'origins' }) {
+type ProductView = 'overview' | 'map' | 'origins' | 'journeys';
+
+/** Subtabs of "Product" (canvas, step 2): Overview, Map, Origins and Journeys. */
+export function ProductTabs({ active }: { active: ProductView }) {
   const projectId = useProjectId();
-  const item = (key: 'overview' | 'origins', label: string, to: '/p/$projectId' | '/p/$projectId/origins') => (
+  const item = (
+    key: ProductView,
+    label: string,
+    to: '/p/$projectId' | '/p/$projectId/map' | '/p/$projectId/origins' | '/p/$projectId/journeys',
+  ) => (
     <Link
       to={to}
       params={{ projectId }}
@@ -195,7 +201,9 @@ export function ProductTabs({ active }: { active: 'overview' | 'origins' }) {
   return (
     <nav aria-label="Product views" className="mb-6 flex gap-5 border-b border-line">
       {item('overview', 'Overview', '/p/$projectId')}
+      {item('map', 'Map', '/p/$projectId/map')}
       {item('origins', 'Origins', '/p/$projectId/origins')}
+      {item('journeys', 'Journeys', '/p/$projectId/journeys')}
     </nav>
   );
 }

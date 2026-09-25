@@ -1,32 +1,43 @@
-// Design stages (design engine): a fixed catalog, in order. Each stage has mandatory questions that
-// the system raises when the stage opens; a stage passes only when a person has confirmed (or
-// discarded with a reason) every one of them. The AI helps answer; it never decides coverage.
+// Design stages (design engine): the product-level stages, a fixed catalog in order. They cover what
+// holds for the whole product; the functional requirements live in each feature (FDR), which has
+// its own journey (requirements with fit criteria, its quality/security/rollout deltas, Ready to
+// build). Each stage has mandatory questions that the system raises when the stage opens; a stage
+// passes only when a person has confirmed (or discarded with a reason) every one of them. The AI
+// helps answer; it never decides coverage.
 // References: ISO/IEC/IEEE 29148 and Volere (measurable fit criteria), EARS, arc42/C4/ADR,
 // STRIDE threat modeling, the Kubernetes KEP production readiness review and Google SRE's PRR.
 
 export type StageQuestion = { key: string; question: string; reason: string; impact: 'high' | 'medium' | 'low' };
-export type StageDefinition = { key: string; title: string; purpose: string; questions: StageQuestion[] };
+export type StageDefinition = {
+  key: string;
+  title: string;
+  /** What the stage leaves on record once passed. */
+  produces: string;
+  purpose: string;
+  questions: StageQuestion[];
+};
 
 export const STAGES: readonly StageDefinition[] = [
   {
     key: 'requirements',
-    title: 'Requirements',
+    title: 'Product definition',
+    produces: 'The feature list: one feature (FDR) per capability, each with its own requirements.',
     purpose:
-      'Requirements: who uses the product, what they must be able to do and how we will know each requirement is met (ISO/IEC/IEEE 29148, Volere fit criteria, EARS).',
+      'Product definition: who uses the product, what problem it solves, what is out and which features the first version has (ISO/IEC/IEEE 29148 stakeholder requirements).',
     questions: [
       { key: 'stakeholders', question: 'Who are the users and stakeholders, and which one comes first?', reason: 'Every requirement traces back to someone who needs it.', impact: 'high' },
       { key: 'problem', question: 'What problem does the product solve for them, and what happens today without it?', reason: 'The problem defines the scope and what success looks like.', impact: 'high' },
-      { key: 'capabilities', question: 'What must a user be able to do in the first version? List the key capabilities.', reason: 'The first version needs a bounded set of capabilities to design and build.', impact: 'high' },
+      { key: 'features', question: 'Which features must the first version have? Each one becomes a feature to design.', reason: 'The features are where the requirements and their checks live.', impact: 'high' },
       { key: 'scope_out', question: 'What is explicitly out of scope for the first version?', reason: 'Stating what is left out prevents scope creep and hidden expectations.', impact: 'medium' },
-      { key: 'fit_criteria', question: 'For each key capability, what measurable criterion shows it is met?', reason: 'Volere: a requirement without a fit criterion cannot be verified.', impact: 'high' },
       { key: 'constraints', question: 'What constraints are fixed (platform, budget, deadlines, regulations, existing systems)?', reason: 'Constraints narrow the design space before choosing anything.', impact: 'medium' },
     ],
   },
   {
     key: 'quality',
-    title: 'Quality requirements',
+    title: 'Global quality',
+    produces: 'Quality requirements (NFR) that apply to every feature.',
     purpose:
-      'Quality requirements: performance, availability, usability, accessibility, data and operability targets, each measurable (ISO/IEC 25010, arc42 quality scenarios).',
+      'Global quality: product-wide performance, availability, usability, accessibility, data and operability targets, each measurable (ISO/IEC 25010, arc42 quality scenarios).',
     questions: [
       { key: 'performance', question: 'What response times and load must the product handle (users, data volume, peaks)?', reason: 'Performance targets shape the architecture.', impact: 'high' },
       { key: 'availability', question: 'How available must it be, and what happens if it is down (acceptable downtime, data loss)?', reason: 'Availability and recovery targets drive infrastructure and cost.', impact: 'high' },
@@ -38,6 +49,7 @@ export const STAGES: readonly StageDefinition[] = [
   {
     key: 'architecture',
     title: 'Architecture',
+    produces: 'The architecture decisions (ADR) every feature builds on.',
     purpose:
       'Architecture: context, building blocks, key decisions with their reasons and the risks they carry (arc42, C4, ADRs).',
     questions: [
@@ -50,9 +62,10 @@ export const STAGES: readonly StageDefinition[] = [
   },
   {
     key: 'security',
-    title: 'Security',
+    title: 'Security baseline',
+    produces: 'The product threat model (THR); each feature adds only its own threats.',
     purpose:
-      'Security: what we protect, from whom, the threats per component and their mitigations (threat modeling, STRIDE).',
+      'Security baseline: what we protect, from whom, the threats per component and their mitigations (threat modeling, STRIDE).',
     questions: [
       { key: 'assets', question: 'What assets must be protected (data, credentials, money, reputation)?', reason: 'Threat modeling starts from what is worth attacking.', impact: 'high' },
       { key: 'actors', question: 'Who could attack or misuse the system, and with what access?', reason: 'Attackers and trust boundaries define the threat surface.', impact: 'high' },
@@ -63,9 +76,10 @@ export const STAGES: readonly StageDefinition[] = [
   },
   {
     key: 'production',
-    title: 'Production readiness',
+    title: 'Operations baseline',
+    produces: 'How the product is deployed, observed and supported (PRR); each feature adds its own rollout.',
     purpose:
-      'Production readiness: how it is deployed, observed, rolled back and supported (Kubernetes KEP production readiness review, Google SRE PRR).',
+      'Operations baseline: how it is deployed, observed, rolled back and supported (Kubernetes KEP production readiness review, Google SRE PRR).',
     questions: [
       { key: 'deploy_rollback', question: 'How is it deployed, and how is a bad release rolled back?', reason: 'KEP PRR: rollout and rollback must be planned before launch.', impact: 'high' },
       { key: 'monitoring', question: 'How do we know it is healthy: which metrics, logs and alerts (SLIs/SLOs)?', reason: 'SRE: what is not observed cannot be operated.', impact: 'high' },

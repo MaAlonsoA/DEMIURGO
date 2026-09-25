@@ -573,6 +573,7 @@ export type AgentToken = {
 export type StageRow = {
   key: string;
   title: string;
+  produces: string;
   position: number;
   id: string | null;
   state: 'not_started' | 'open' | 'passed';

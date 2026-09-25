@@ -23,10 +23,15 @@ export function DesignStages({ projectId }: { projectId: string }) {
   return (
     <section aria-labelledby={id} data-design-stages className="mb-8 flex flex-col gap-2.5">
       <div className="flex items-center justify-between gap-4">
-        <h2 id={id} className="dm-text-caption font-semibold text-muted">
-          Design stages
-          {current && <span className="font-normal"> · now: {current.title}</span>}
-        </h2>
+        <div className="flex flex-col gap-0.5">
+          <h2 id={id} className="dm-text-caption font-semibold text-muted">
+            Product design
+            {current && <span className="font-normal"> · now: {current.title}</span>}
+          </h2>
+          <p className="dm-text-small text-ink-3">
+            What holds for the whole product. Each feature then has its own requirements, checks and Ready to build.
+          </p>
+        </div>
         {!started && (
           <Button
             variant="secondary"
@@ -79,8 +84,9 @@ function StageCard({
         {s.position + 1} · {s.state === 'passed' ? 'Passed' : s.state === 'open' ? 'Open' : 'Not started'}
       </span>
       <span className="dm-text-body font-semibold">{s.title}</span>
+      <span className="dm-text-small text-ink-3">{s.produces}</span>
       <span className="dm-text-small text-ink-2">
-        {s.covered}/{s.total} mandatory questions covered
+        {s.covered}/{s.total} questions answered
       </span>
       {s.state !== 'not_started' && (
         <div className="mt-1 flex items-center gap-2">

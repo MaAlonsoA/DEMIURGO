@@ -261,6 +261,7 @@ registerQueries([
         return {
           key: def.key,
           title: def.title,
+          produces: def.produces,
           position,
           id: row?.id ?? null,
           state: row?.state ?? 'not_started',

@@ -178,7 +178,7 @@ export const explorationChatOutput = z
           z
             .object({
               type: z.literal('design_record'),
-              record_type: z.enum(['requirement', 'quality_requirement', 'threat_model', 'production_readiness', 'adr']),
+              record_type: z.enum(['fdr', 'requirement', 'quality_requirement', 'threat_model', 'production_readiness', 'adr']),
               title: text(160),
               sections: z
                 .array(z.object({ title: text(120), content: text(6000) }).strict())

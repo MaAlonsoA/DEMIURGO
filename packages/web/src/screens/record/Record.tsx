@@ -29,6 +29,7 @@ import { RecordSectionPanel, RecordSectionTabs, useRecordTab } from '../blueprin
 import { NotFound } from '../not-found/NotFound.tsx';
 import { type NeedsItem, needsItems } from '../overview/needs.ts';
 import { Checks } from './Checks.tsx';
+import { FeatureJourney } from './FeatureJourney.tsx';
 import { isEarlierDraft, newerDraft, selectVersion, versionIndex, versionStage } from './logic.ts';
 import { ContextPanel, ReadinessPanel, VersionsPanel } from './RecordAside.tsx';
 import { ReviewArea, ReviewBand, ReviewProvider, ReviewSections, useReview } from './Review.tsx';
@@ -385,6 +386,7 @@ function RecordPage({
         ) : (
           <VersionNotice projectId={projectId} record={record} version={version} />
         )}
+        {record.type === 'fdr' && <FeatureJourney version={version} readiness={ready} />}
         <article className="mb-8 flex flex-col gap-6 rounded-card border border-line bg-surface px-7 py-6">
           <ReviewSections sections={version.sections} parts={review.parts}>
             {(s) => (

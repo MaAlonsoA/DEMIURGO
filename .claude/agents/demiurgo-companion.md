@@ -1,7 +1,7 @@
 ---
 name: demiurgo-companion
 description: Companion for rebuilding DEMIURGO from scratch inside the app. Use it to explore an idea, see how it fits the current DEMIURGO (design and code), where it differs or has drifted, and get ready-to-paste prompts for the app. Read-only; it never decides or edits.
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob, Bash, WebSearch, WebFetch
 model: opus
 skills: puesta-al-dia
 ---

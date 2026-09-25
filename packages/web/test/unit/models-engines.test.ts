@@ -81,13 +81,15 @@ describe('choosing an engine', () => {
     expect(engineLabel({ provider: 'gone', model: 'x', effort: null }, CATALOGS)).toBe('gone · x');
   });
 
-  it('AC-AGE-002-03 AC-AGE-002-08 says what runs the agent here, or what the person has to do', () => {
-    expect(
-      resolutionLine({ status: 'ok', source: 'project', provider: 'codex', model: 'gpt-6-sol', effort: 'high' }, CATALOGS),
-    ).toEqual({
+  it('AC-AGE-002-03 AC-AGE-002-08 says what runs the agent and where it comes from, or what the person has to do', () => {
+    const sol = { provider: 'codex', model: 'gpt-6-sol', effort: 'high' };
+    expect(resolutionLine({ status: 'ok', source: 'group', ...sol }, CATALOGS)).toEqual({
       tone: 'ok',
-      text: 'Codex · GPT-6-Sol · high (this project)',
+      text: 'Codex · GPT-6-Sol · high (from its group)',
     });
+    expect(resolutionLine({ status: 'ok', source: 'agent', ...sol }, CATALOGS).text).toBe(
+      'Codex · GPT-6-Sol · high (its own model)',
+    );
     expect(resolutionLine({ status: 'unassigned' }, CATALOGS)).toEqual({
       tone: 'problem',
       text: 'No model: DEMIURGO cannot run it.',
@@ -96,7 +98,7 @@ describe('choosing an engine', () => {
       resolutionLine(
         {
           status: 'unavailable',
-          source: 'global',
+          source: 'group',
           reason: 'gpt-6-sol is no longer offered by Codex.',
           provider: 'codex',
           model: 'gpt-6-sol',
@@ -121,18 +123,16 @@ describe('choosing an engine', () => {
 });
 
 describe('saying what changed', () => {
-  it('AC-AGE-002-02 a change of engine is said in words once it applies, with where it applies', () => {
+  it('AC-AGE-002-02 a change of engine is said in words once it applies, of a group or of one task', () => {
     const sol = { provider: 'codex', model: 'gpt-6-sol', effort: 'medium' };
-    expect(changeWords('Explorer', { scope: 'global', engine: sol }, CATALOGS)).toBe(
-      'Explorer now uses Codex · GPT-6-Sol · medium everywhere.',
+    expect(changeWords('Deep thinking', { kind: 'group', engine: sol }, CATALOGS)).toBe(
+      'Deep thinking now uses Codex · GPT-6-Sol · medium.',
     );
-    expect(changeWords('Explorer', { scope: 'project', engine: sol }, CATALOGS)).toBe(
-      'Explorer now uses Codex · GPT-6-Sol · medium in this project.',
+    expect(changeWords('Deep thinking', { kind: 'group', engine: null }, CATALOGS)).toBe('Deep thinking has no engine now.');
+    expect(changeWords('Explorer', { kind: 'agent', engine: sol }, CATALOGS)).toBe(
+      "Explorer now uses Codex · GPT-6-Sol · medium instead of its group's.",
     );
-    expect(changeWords('Explorer', { scope: 'project', engine: null }, CATALOGS)).toBe(
-      "Explorer uses everywhere's engine in this project again.",
-    );
-    expect(changeWords('Explorer', { scope: 'global', engine: null }, CATALOGS)).toBe('Explorer has no engine everywhere now.');
+    expect(changeWords('Explorer', { kind: 'agent', engine: null }, CATALOGS)).toBe('Explorer follows its group again.');
   });
 
   it('AC-AGE-002-02 names a part of DEMIURGO as the agents table does, and every failure kind in words', () => {

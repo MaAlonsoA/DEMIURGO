@@ -122,6 +122,16 @@ export type AgentAssignmentsTable = {
   assigned_at: Timestamp;
 };
 
+export type GroupAssignmentsTable = {
+  id: Generated<string>;
+  group_id: string;
+  provider: string | null;
+  model: string | null;
+  effort: string | null;
+  assigned_by: string;
+  assigned_at: Timestamp;
+};
+
 export type AgentSessionsTable = {
   key: string;
   project_id: string;
@@ -488,6 +498,7 @@ export type DB = {
   ai_run_logs: RunLogsTable;
   provider_catalogs: ProviderCatalogsTable;
   agent_assignments: AgentAssignmentsTable;
+  group_assignments: GroupAssignmentsTable;
   agent_sessions: AgentSessionsTable;
   agent_calls: AgentCallsTable;
   agent_call_events: AgentCallEventsTable;

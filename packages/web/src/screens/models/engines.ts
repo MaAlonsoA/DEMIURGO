@@ -57,9 +57,9 @@ export function engineLabel(engine: Engine, catalogs: readonly Catalog[]): strin
   return [c?.label ?? engine.provider, model, ...(engine.effort ? [engine.effort] : [])].join(' · ');
 }
 
-const SOURCE_WORDS = { project: 'this project', global: 'everywhere', override: 'this time' } as const;
+const SOURCE_WORDS = { group: 'from its group', agent: 'its own model', override: 'this time' } as const;
 
-/** What runs the agent here, or what the person has to do so it can run. */
+/** What runs the agent, and where that comes from; or what the person has to do so it can run. */
 export function resolutionLine(r: Resolution | null, catalogs: readonly Catalog[]): { tone: 'ok' | 'problem'; text: string } {
   if (!r || r.status === 'unassigned') return { tone: 'problem', text: 'No model: DEMIURGO cannot run it.' };
   if (r.status === 'unavailable') return { tone: 'problem', text: r.reason };
@@ -89,17 +89,19 @@ export function failureKindsText(failures: Record<string, number>): string {
 }
 
 /**
- * What a change of engine did, said once it applied (DESIGN.md §3.9): "Explorer now uses Codex ·
- * GPT-6 · medium everywhere", "Explorer uses everywhere's engine in this project again".
+ * What a change of engine did, said once it applied (DESIGN.md §3.9): "Deep thinking now uses Codex
+ * · GPT-6 · medium.", "Ask DEMIURGO now uses Claude · Opus · high instead of its group's.",
+ * "Ask DEMIURGO follows its group again."
  */
 export function changeWords(
-  section: string,
-  change: { scope: 'global' | 'project'; engine: Engine | null },
+  name: string,
+  change: { kind: 'group' | 'agent'; engine: Engine | null },
   catalogs: readonly Catalog[],
 ): string {
-  const where = change.scope === 'global' ? 'everywhere' : 'in this project';
-  if (change.engine) return `${section} now uses ${engineLabel(change.engine, catalogs)} ${where}.`;
-  return change.scope === 'global'
-    ? `${section} has no engine everywhere now.`
-    : `${section} uses everywhere's engine in this project again.`;
+  if (change.kind === 'group') {
+    return change.engine ? `${name} now uses ${engineLabel(change.engine, catalogs)}.` : `${name} has no engine now.`;
+  }
+  return change.engine
+    ? `${name} now uses ${engineLabel(change.engine, catalogs)} instead of its group's.`
+    : `${name} follows its group again.`;
 }

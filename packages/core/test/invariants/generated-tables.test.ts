@@ -148,7 +148,7 @@ describe('AC-AGE-002-02 403 generated from the workspace settings of the matrix'
   it.each(settingCases)('AC-AGE-002-02 $setting with $actor.type is rejected with no effects', async ({ setting, actor }) => {
     const deps = { db: environment().services.db, providers: createProviderRegistry([createSimulatedProvider()]) };
     const before = await settingRows();
-    const data = { agent: 'echo', scope: 'global', provider: 'simulated', model: 'simulated', effort: null };
+    const data = { agent: 'echo', provider: 'simulated', model: 'simulated', effort: null };
     await expect(SETTINGS[setting](deps, actor, data)).rejects.toMatchObject({ type: 'forbidden' });
     expect(await settingRows()).toBe(before);
   });

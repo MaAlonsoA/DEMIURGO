@@ -4,6 +4,7 @@ description: Classifies how an accepted change affects the project's knowledge, 
 action: knowledge_classification
 section: Knowledge · after accepting something
 skills: [demiurgo-glossary, structured-output]
+group: quick
 session: none
 time_limit: 180
 ---

@@ -200,8 +200,8 @@ describe('agent runs', () => {
             .executeTakeFirstOrThrow()
         ).n,
       );
-    await unassignAgent(deps, ana, { agent: 'designer', scope: 'global' });
-    await unassignAgent(deps, ana, { agent: 'explorer', scope: 'global' });
+    // designer and explorer are both Deep thinking.
+    await unassignAgent(deps, ana, { group: 'deep' });
     try {
       const before = await count();
       const r = await rejection(
@@ -218,9 +218,7 @@ describe('agent runs', () => {
       await cmd('message.post', { exploration_id: thread, text: 'Just a note.', respond: false });
       expect(await count()).toBe(before);
     } finally {
-      for (const agent of ['designer', 'explorer']) {
-        await assignAgent(deps, ana, { agent, scope: 'global', provider: 'simulated', model: 'simulated', effort: null });
-      }
+      await assignAgent(deps, ana, { group: 'deep', provider: 'simulated', model: 'simulated', effort: null });
     }
   });
 });

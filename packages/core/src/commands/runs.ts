@@ -59,12 +59,12 @@ async function agentFor(action: AgentAction, requested: string | undefined): Pro
 }
 
 /**
- * The engine this run uses (override → project → global), or a 409 that tells the person what to
- * do: the run is not created. An override outside the catalog is a 422, like an assignment.
+ * The engine this run uses (Retry with… → the agent's own → its group's), or a 409 that tells the
+ * person what to do: the run is not created. An override outside the catalog is a 422, like an
+ * assignment.
  */
 async function engineFor(ctx: CommandContext, agent: LoadedAgent, override?: Engine): Promise<Engine> {
   const r = await resolveEngine(ctx.trx, ctx.services.providers, {
-    projectId: ctx.projectId,
     agent: agent.id,
     ...(override ? { override } : {}),
   });

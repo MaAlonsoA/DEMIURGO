@@ -1,5 +1,6 @@
-// Models & providers (FDR-AGE-002): what each provider offers, which engine runs each agent
-// (globally and for this project), statistics and consumption, and the calls of a run.
+// Models & providers (FDR-AGE-002): what each provider offers, which engine runs each group of
+// agents and each agent's own as an exception (the same for every project), statistics and
+// consumption, and the calls of a run.
 
 import { queryOptions } from '@tanstack/react-query';
 import { get, request } from './client.ts';
@@ -20,19 +21,17 @@ export type Catalog = {
 
 export type Engine = { provider: string; model: string; effort: string | null };
 
-export type Assignment = {
-  agent: string;
-  scope: 'global' | 'project';
-  projectId: string | null;
-  engine: Engine;
-  assignedBy: string;
-  assignedAt: string;
-};
+export type Assignment = { engine: Engine; assignedBy: string; assignedAt: string };
+
+/** Where an agent's engine comes from: Retry with…, its own (an exception), or its group's. */
+export type EngineSource = 'override' | 'agent' | 'group';
 
 export type Resolution =
-  | ({ status: 'ok'; source: 'override' | 'project' | 'global' } & Engine)
+  | ({ status: 'ok'; source: EngineSource } & Engine)
   | { status: 'unassigned' }
-  | ({ status: 'unavailable'; source: 'override' | 'project' | 'global'; reason: string } & Engine);
+  | ({ status: 'unavailable'; source: EngineSource; reason: string } & Engine);
+
+export type AgentGroup = { id: string; name: string; description: string; assignment: Assignment | null };
 
 export type AgentInfo = {
   id: string;
@@ -43,8 +42,10 @@ export type AgentInfo = {
   session: 'thread' | 'none';
   time_limit: number;
   version: string;
-  global: Assignment | null;
-  project: Assignment | null;
+  /** The group whose engine it follows, or null if it only runs on its own. */
+  group: string | null;
+  /** Its own engine, an exception to its group's. */
+  own: Assignment | null;
   effective: Resolution | null;
 };
 
@@ -75,7 +76,11 @@ export type ProvidersResponse = {
   consumption: Consumption;
 };
 
-export type AgentsResponse = { agents: AgentInfo[]; skills: { id: string; description: string }[] };
+export type AgentsResponse = {
+  groups: AgentGroup[];
+  agents: AgentInfo[];
+  skills: { id: string; description: string }[];
+};
 
 export type RunUsage = {
   inputTokens: number;
@@ -109,7 +114,7 @@ export type RunCall = {
 
 export const modelKeys = {
   providers: ['models', 'providers'] as const,
-  agents: (projectId?: string) => ['models', 'agents', projectId ?? 'everywhere'] as const,
+  agents: ['models', 'agents'] as const,
   calls: (projectId: string, runId: string) => ['p', projectId, 'run', runId, 'calls'] as const,
 };
 
@@ -118,12 +123,11 @@ export const providersQuery = queryOptions({
   queryFn: () => get<ProvidersResponse>('/api/providers'),
 });
 
-/** The agents with their engines: of a project, or only everywhere's outside any project. */
-export const agentsQuery = (projectId?: string) =>
-  queryOptions({
-    queryKey: modelKeys.agents(projectId),
-    queryFn: () => get<AgentsResponse>(projectId ? `/api/agents?project=${encodeURIComponent(projectId)}` : '/api/agents'),
-  });
+/** The groups and the agents with their engines: the same inside and outside any project. */
+export const agentsQuery = queryOptions({
+  queryKey: modelKeys.agents,
+  queryFn: () => get<AgentsResponse>('/api/agents'),
+});
 
 export const runCallsQuery = (projectId: string, runId: string) =>
   queryOptions({
@@ -133,15 +137,15 @@ export const runCallsQuery = (projectId: string, runId: string) =>
 
 export const refreshProviders = () => request<{ catalogs: Catalog[] }>('POST', '/api/providers/refresh');
 
-export const assignEngine = (agent: string, scope: 'global' | 'project', engine: Engine, projectId?: string) =>
-  request<{ ok: true }>('PUT', `/api/agents/${encodeURIComponent(agent)}/assignment`, {
-    scope,
-    ...(scope === 'project' && projectId ? { project_id: projectId } : {}),
-    ...engine,
-  });
+/** What an engine choice is for: a whole group, or one agent as an exception to its group. */
+export type EngineTarget = { group: string } | { agent: string };
 
-export const unassignEngine = (agent: string, scope: 'global' | 'project', projectId?: string) =>
-  request<{ ok: true }>(
-    'DELETE',
-    `/api/agents/${encodeURIComponent(agent)}/assignment?scope=${scope}${scope === 'project' && projectId ? `&project=${projectId}` : ''}`,
-  );
+const assignmentPath = (t: EngineTarget) =>
+  'group' in t
+    ? `/api/groups/${encodeURIComponent(t.group)}/assignment`
+    : `/api/agents/${encodeURIComponent(t.agent)}/assignment`;
+
+export const assignEngine = (target: EngineTarget, engine: Engine) =>
+  request<{ ok: true }>('PUT', assignmentPath(target), engine);
+
+export const unassignEngine = (target: EngineTarget) => request<{ ok: true }>('DELETE', assignmentPath(target));

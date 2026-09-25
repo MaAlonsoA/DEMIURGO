@@ -1,7 +1,9 @@
-// Which engine runs each agent (FDR-AGE-002): a global assignment and a per-project override, chosen
-// by a person from what discovery found. Append-only: every change is a row with who and when, and
-// the current assignment is the latest (a row without provider removes it). Resolution goes
-// override → project → global, and DEMIURGO never switches provider or model on its own.
+// Which engine runs each agent (FDR-AGE-002), chosen by a person from what discovery found, for
+// every project: one engine per group of agents (Deep thinking, Quick…) and, as an exception, an
+// agent's own. Append-only: every change is a row with who and when, and the current choice is the
+// latest (a row without provider removes it). Resolution goes Retry with… → the agent's own → its
+// group's, and DEMIURGO never switches provider or model on its own. Project assignments (older
+// rows of agent_assignments) are kept but no longer read.
 
 import { type Actor, DomainError, formatActor } from '@demiurgo/domain';
 import { sql } from 'kysely';
@@ -11,25 +13,24 @@ import type { ProviderRegistry } from '../providers/registry.ts';
 import { type SettingsDeps, catalogOf, requireSetting } from './catalogs.ts';
 
 export type Engine = { provider: string; model: string; effort: string | null };
-export type AssignmentScope = 'global' | 'project';
-export type AssignmentTarget = { agent: string; scope: AssignmentScope; projectId?: string };
+/** What an engine choice is for: a whole group, or one agent as an exception to its group. */
+export type AssignmentTarget = { agent: string } | { group: string };
 export type AssignmentInput = AssignmentTarget & Engine;
+/** Where the engine of a run came from: Retry with…, the agent's own engine, or its group's. */
+export type AssignmentSource = 'override' | 'agent' | 'group';
 
 export type Resolution =
-  | ({ status: 'ok'; source: 'override' | 'project' | 'global' } & Engine)
+  | ({ status: 'ok'; source: AssignmentSource } & Engine)
   | { status: 'unassigned' }
-  | ({ status: 'unavailable'; source: 'override' | 'project' | 'global'; reason: string } & Engine);
+  | ({ status: 'unavailable'; source: AssignmentSource; reason: string } & Engine);
 
-export type CurrentAssignment = {
-  agent: string;
-  scope: AssignmentScope;
-  projectId: string | null;
-  engine: Engine;
-  assignedBy: string;
-  assignedAt: string;
+export type CurrentAssignment = { engine: Engine; assignedBy: string; assignedAt: string };
+
+/** The current choices by id: each agent's own engine and each group's. Removed ones don't appear. */
+export type CurrentAssignments = {
+  agents: Record<string, CurrentAssignment>;
+  groups: Record<string, CurrentAssignment>;
 };
-
-const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function labelOf(providers: ProviderRegistry, id: string): string {
   return providers.get(id)?.label ?? (id ? `${id[0]?.toUpperCase()}${id.slice(1)}` : id);
@@ -80,58 +81,57 @@ async function validateEngine(db: Db | Tx, providers: ProviderRegistry, e: Engin
   }
 }
 
-async function validateTarget(db: Db | Tx, t: AssignmentTarget): Promise<string | null> {
+async function validateTarget(t: AssignmentTarget): Promise<void> {
   const catalog = await loadAgentCatalog();
+  if ('group' in t) {
+    if (!catalog.groups.some((g) => g.id === t.group)) {
+      throw new DomainError('validation', `There is no group "${t.group}".`, [
+        `Groups: ${catalog.groups.map((g) => g.id).join(', ') || 'none'}.`,
+      ]);
+    }
+    return;
+  }
   if (!catalog.get(t.agent)) {
     throw new DomainError('validation', `There is no agent "${t.agent}".`, [
       `Agents: ${catalog.agents.map((a) => a.id).join(', ')}.`,
     ]);
   }
-  if (t.scope === 'global') {
-    if (t.projectId !== undefined) throw new DomainError('validation', 'A global assignment has no project.');
-    return null;
-  }
-  if (!t.projectId) throw new DomainError('validation', 'A project assignment needs its project.');
-  if (!RE_UUID.test(t.projectId)) throw new DomainError('not_found', 'The project does not exist.');
-  const project = await db.selectFrom('projects').select('id').where('id', '=', t.projectId).executeTakeFirst();
-  if (!project) throw new DomainError('not_found', 'The project does not exist.');
-  return t.projectId;
 }
 
-/** A person assigns a provider, model and effort to an agent, globally or for a project. */
+/** One more row for a group or an agent; a null engine removes the choice. */
+export async function insertChoice(db: Db | Tx, target: AssignmentTarget, engine: Engine | null, by: string): Promise<void> {
+  const e = { provider: engine?.provider ?? null, model: engine?.model ?? null, effort: engine?.effort ?? null };
+  if ('group' in target) {
+    await db
+      .insertInto('group_assignments')
+      .values({ group_id: target.group, ...e, assigned_by: by })
+      .execute();
+    return;
+  }
+  await db
+    .insertInto('agent_assignments')
+    .values({ scope: 'global', project_id: null, agent: target.agent, ...e, assigned_by: by })
+    .execute();
+}
+
+/** A person assigns a provider, model and effort to a group, or to one agent as an exception. */
 export async function assignAgent(deps: SettingsDeps, actor: Actor, input: AssignmentInput): Promise<void> {
   requireSetting('agent.assign', actor);
-  const projectId = await validateTarget(deps.db, input);
+  await validateTarget(input);
   const engine = { provider: input.provider, model: input.model, effort: input.effort };
   await validateEngine(deps.db, deps.providers, engine);
-  await deps.db
-    .insertInto('agent_assignments')
-    .values({ scope: input.scope, project_id: projectId, agent: input.agent, ...engine, assigned_by: formatActor(actor) })
-    .execute();
+  await insertChoice(deps.db, input, engine, formatActor(actor));
 }
 
-/** A person removes an agent's assignment (a project one falls back to the global one). */
+/** A person removes a choice: an agent then follows its group again; a group is left without engine. */
 export async function unassignAgent(deps: SettingsDeps, actor: Actor, target: AssignmentTarget): Promise<void> {
   requireSetting('agent.unassign', actor);
-  const projectId = await validateTarget(deps.db, target);
-  await deps.db
-    .insertInto('agent_assignments')
-    .values({
-      scope: target.scope,
-      project_id: projectId,
-      agent: target.agent,
-      provider: null,
-      model: null,
-      effort: null,
-      assigned_by: formatActor(actor),
-    })
-    .execute();
+  await validateTarget(target);
+  await insertChoice(deps.db, target, null, formatActor(actor));
 }
 
-type AssignmentRow = {
-  agent: string;
-  scope: AssignmentScope;
-  project_id: string | null;
+type ChoiceRow = {
+  key: string;
   provider: string | null;
   model: string | null;
   effort: string | null;
@@ -139,41 +139,48 @@ type AssignmentRow = {
   assigned_at: Date;
 };
 
-/** Current assignments: the global ones and, with a project, its overrides. Removed ones don't appear. */
-export async function currentAssignments(db: Db | Tx, projectId?: string): Promise<CurrentAssignment[]> {
-  const { rows } = await sql<AssignmentRow>`
-    select * from (
-      select distinct on (scope, coalesce(project_id::text, ''), agent)
-        agent, scope, project_id, provider, model, effort, assigned_by, assigned_at
-      from agent_assignments
-      where scope = 'global' or project_id = ${projectId ?? null}::uuid
-      order by scope, coalesce(project_id::text, ''), agent, assigned_at desc, id desc
-    ) latest
-    where provider is not null
-    order by agent, scope`.execute(db);
-  return rows.map((r) => ({
-    agent: r.agent,
-    scope: r.scope,
-    projectId: r.project_id,
-    engine: { provider: r.provider ?? '', model: r.model ?? '', effort: r.effort },
-    assignedBy: r.assigned_by,
-    assignedAt: new Date(r.assigned_at).toISOString(),
-  }));
+function byKey(rows: readonly ChoiceRow[]): Record<string, CurrentAssignment> {
+  const out: Record<string, CurrentAssignment> = {};
+  for (const r of rows) {
+    if (r.provider === null) continue;
+    out[r.key] = {
+      engine: { provider: r.provider, model: r.model ?? '', effort: r.effort },
+      assignedBy: r.assigned_by,
+      assignedAt: new Date(r.assigned_at).toISOString(),
+    };
+  }
+  return out;
 }
 
-/** The engine a run of this agent uses: override → project → global. Never a silent fallback. */
+/** The current choices: each agent's own engine (everywhere) and each group's. */
+export async function currentAssignments(db: Db | Tx): Promise<CurrentAssignments> {
+  const agents = await sql<ChoiceRow>`
+    select distinct on (agent) agent as key, provider, model, effort, assigned_by, assigned_at
+    from agent_assignments
+    where scope = 'global'
+    order by agent, assigned_at desc, id desc`.execute(db);
+  const groups = await sql<ChoiceRow>`
+    select distinct on (group_id) group_id as key, provider, model, effort, assigned_by, assigned_at
+    from group_assignments
+    order by group_id, assigned_at desc, id desc`.execute(db);
+  return { agents: byKey(agents.rows), groups: byKey(groups.rows) };
+}
+
+/** The engine a run of this agent uses: Retry with… → its own → its group's. Never a silent fallback. */
 export async function resolveEngine(
   db: Db | Tx,
   providers: ProviderRegistry,
-  /** Without a project, only the global assignment counts (the workspace's Models & providers). */
-  p: { projectId?: string; agent: string; override?: Engine },
+  p: { agent: string; override?: Engine },
 ): Promise<Resolution> {
-  let chosen: { source: 'override' | 'project' | 'global'; engine: Engine } | null = null;
+  let chosen: { source: AssignmentSource; engine: Engine } | null = null;
   if (p.override) chosen = { source: 'override', engine: p.override };
   else {
-    const current = (await currentAssignments(db, p.projectId)).filter((a) => a.agent === p.agent);
-    const own = current.find((a) => a.scope === 'project') ?? current.find((a) => a.scope === 'global');
-    if (own) chosen = { source: own.scope, engine: own.engine };
+    const current = await currentAssignments(db);
+    const own = current.agents[p.agent];
+    const group = (await loadAgentCatalog()).get(p.agent)?.group;
+    const shared = group ? current.groups[group] : undefined;
+    if (own) chosen = { source: 'agent', engine: own.engine };
+    else if (shared) chosen = { source: 'group', engine: shared.engine };
   }
   if (!chosen) return { status: 'unassigned' };
   const problem = await engineProblem(db, providers, chosen.engine);

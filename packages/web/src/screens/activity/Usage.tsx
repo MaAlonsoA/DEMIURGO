@@ -25,7 +25,7 @@ export function ProjectUsage({ projectId }: { projectId: string }) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const usage = useQuery(usageQuery(projectId));
-  const agents = useQuery(agentsQuery(projectId)).data?.agents;
+  const agents = useQuery(agentsQuery).data?.agents;
   const rows = usage.data;
 
   if (usage.isPending)

@@ -4,6 +4,7 @@ description: Helps the person move from an intent to clear decisions in a thread
 action: exploration_chat
 section: Thread · Ask DEMIURGO
 skills: [asking-questions, demiurgo-glossary, structured-output]
+group: deep
 session: thread
 time_limit: 600
 ---

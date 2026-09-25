@@ -22,7 +22,7 @@ export async function seedCatalog(db: Db, provider: string, models: readonly Pro
     .execute();
 }
 
-/** The simulated catalog, and every agent assigned globally to it. */
+/** The simulated catalog, every group of agents on it, and on it too each agent without a group. */
 export async function seedSimulated(db: Db): Promise<void> {
   await seedCatalog(
     db,
@@ -30,18 +30,18 @@ export async function seedSimulated(db: Db): Promise<void> {
     [{ id: 'simulated', label: 'Simulated (deterministic)', efforts: [], defaultEffort: null }],
     'Simulated',
   );
-  for (const agent of (await loadAgentCatalog()).agents) {
+  const engine = { provider: 'simulated', model: 'simulated', effort: null };
+  const catalog = await loadAgentCatalog();
+  for (const group of catalog.groups) {
+    await db
+      .insertInto('group_assignments')
+      .values({ group_id: group.id, ...engine, assigned_by: 'human:setup' })
+      .execute();
+  }
+  for (const agent of catalog.agents.filter((a) => a.group === null)) {
     await db
       .insertInto('agent_assignments')
-      .values({
-        scope: 'global',
-        project_id: null,
-        agent: agent.id,
-        provider: 'simulated',
-        model: 'simulated',
-        effort: null,
-        assigned_by: 'human:setup',
-      })
+      .values({ scope: 'global', project_id: null, agent: agent.id, ...engine, assigned_by: 'human:setup' })
       .execute();
   }
 }

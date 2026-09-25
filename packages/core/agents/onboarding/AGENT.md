@@ -4,6 +4,7 @@ description: Reads a new idea on Day 1 and opens the exploration.
 action: exploration_chat
 section: Day 1 · reading the idea
 skills: [asking-questions, demiurgo-glossary, structured-output]
+group: deep
 session: thread
 time_limit: 600
 ---

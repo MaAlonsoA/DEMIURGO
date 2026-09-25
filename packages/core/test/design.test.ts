@@ -1049,7 +1049,7 @@ describe('project across every entity', () => {
       where t.table_schema = 'public' and t.table_type = 'BASE TABLE'
         -- Infrastructure without a project: identity, engine, migrations, cache by input_hash, classifier evaluations,
         -- and the workspace settings of models and providers (FDR-AGE-002).
-        and t.table_name not in ('projects', 'humans', 'sessions', 'step_completions', 'schema_migrations', 'verdict_cache', 'classifier_evaluations', 'provider_catalogs', 'agent_assignments')
+        and t.table_name not in ('projects', 'humans', 'sessions', 'step_completions', 'schema_migrations', 'verdict_cache', 'classifier_evaluations', 'provider_catalogs', 'agent_assignments', 'group_assignments')
         and not exists (select 1 from information_schema.columns c
                         where c.table_schema = 'public' and c.table_name = t.table_name and c.column_name = 'project_id')`.execute(
       s.db,

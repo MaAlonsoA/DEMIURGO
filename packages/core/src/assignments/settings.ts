@@ -6,11 +6,15 @@ import { z } from 'zod';
 import { assignAgent, unassignAgent } from './assignments.ts';
 import { type SettingsDeps, refreshCatalogs, requireSetting } from './catalogs.ts';
 
-const target = z
-  .object({ agent: z.string().min(1), scope: z.enum(['global', 'project']), project_id: z.string().optional() })
-  .strict();
+// A choice is for one group of agents or for one agent (an exception to its group), for every project.
+const target = z.union([z.object({ group: z.string().min(1) }).strict(), z.object({ agent: z.string().min(1) }).strict()]);
 
 const engine = z.object({ provider: z.string().min(1), model: z.string().min(1), effort: z.string().min(1).nullable() }).strict();
+
+const assignment = z.union([
+  z.object({ group: z.string().min(1), ...engine.shape }).strict(),
+  z.object({ agent: z.string().min(1), ...engine.shape }).strict(),
+]);
 
 function parse<T>(schema: z.ZodType<T>, data: unknown, name: string): T {
   const r = schema.safeParse(data ?? {});
@@ -27,25 +31,8 @@ function parse<T>(schema: z.ZodType<T>, data: unknown, name: string): T {
 type Setting = (deps: SettingsDeps, actor: Actor, data: unknown) => Promise<unknown>;
 
 const HANDLERS: Record<SettingName, Setting> = {
-  'agent.assign': (deps, actor, data) => {
-    const d = parse(target.extend(engine.shape).strict(), data, 'agent.assign');
-    return assignAgent(deps, actor, {
-      agent: d.agent,
-      scope: d.scope,
-      ...(d.project_id === undefined ? {} : { projectId: d.project_id }),
-      provider: d.provider,
-      model: d.model,
-      effort: d.effort,
-    });
-  },
-  'agent.unassign': (deps, actor, data) => {
-    const d = parse(target, data, 'agent.unassign');
-    return unassignAgent(deps, actor, {
-      agent: d.agent,
-      scope: d.scope,
-      ...(d.project_id === undefined ? {} : { projectId: d.project_id }),
-    });
-  },
+  'agent.assign': (deps, actor, data) => assignAgent(deps, actor, parse(assignment, data, 'agent.assign')),
+  'agent.unassign': (deps, actor, data) => unassignAgent(deps, actor, parse(target, data, 'agent.unassign')),
   'providers.refresh': (deps, actor) => refreshCatalogs(deps, actor),
 };
 

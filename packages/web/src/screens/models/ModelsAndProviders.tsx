@@ -1,6 +1,6 @@
 // Models & providers (DESIGN.md §3.9; FDR-AGE-002; INV-MODELS-01…20): what each provider offers
-// right now, which engine runs each part of DEMIURGO — everywhere and, inside a project, here —
-// and what the engines have spent. Only discovered models can be chosen and nothing switches on
+// right now, which engine runs each group of tasks (and the tasks that are exceptions), the same
+// for every project, and what the engines have spent. Only discovered models can be chosen and nothing switches on
 // its own. It also lives outside any project (/models, in the workspace frame), so a first
 // project that can't start for lack of an engine has somewhere to go.
 
@@ -10,26 +10,26 @@ import { projectsQuery } from '../../api/queries.ts';
 import { announce } from '../../components/announce.tsx';
 import { Button } from '../../components/Button.tsx';
 import { EmptyState } from '../../components/EmptyState.tsx';
-import { CpuIcon, RefreshIcon } from '../../components/icons.tsx';
+import { ChevronRightIcon, CpuIcon, RefreshIcon } from '../../components/icons.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
 import { PageBody, PageHeader, Section, usePageTitle } from '../../components/Page.tsx';
 import { Bone, RowsSkeleton, Skeleton } from '../../components/Spinner.tsx';
 import { useProjectId } from '../../lib/hooks.ts';
 import { WorkspaceFrame } from '../../shell/WorkspaceFrame.tsx';
-import { AgentRow } from './Agents.tsx';
+import { GroupCard, TaskRow } from './Groups.tsx';
 import { agentOrder } from './engines.ts';
 import { ProviderCard } from './Providers.tsx';
 import { SpendSection, StatsSection } from './Spend.tsx';
 
-/** Inside a project: everywhere and this project's overrides. */
+/** Inside a project: the same choice as outside, which applies to every project. */
 export function ModelsScreen() {
   const projectId = useProjectId();
   const project = (useQuery(projectsQuery).data ?? []).find((p) => p.id === projectId);
   usePageTitle(['Models & providers', project?.name]);
-  return <ModelsAndProviders projectId={projectId} />;
+  return <ModelsAndProviders />;
 }
 
-/** Outside any project: only the choice for everywhere. */
+/** Outside any project: a first project needs an engine before it exists. */
 export function WorkspaceModelsScreen() {
   usePageTitle(['Models & providers']);
   return (
@@ -39,10 +39,10 @@ export function WorkspaceModelsScreen() {
   );
 }
 
-function ModelsAndProviders({ projectId }: { projectId?: string }) {
+function ModelsAndProviders() {
   const client = useQueryClient();
   const providers = useQuery(providersQuery);
-  const agents = useQuery(agentsQuery(projectId));
+  const agents = useQuery(agentsQuery);
   const refresh = useMutation({
     mutationFn: refreshProviders,
     onSuccess: async () => {
@@ -52,6 +52,10 @@ function ModelsAndProviders({ projectId }: { projectId?: string }) {
   });
   const catalogs = providers.data?.catalogs ?? [];
   const agentList = agents.data?.agents;
+  const groups = agents.data?.groups ?? [];
+  const skills = agents.data?.skills ?? [];
+  const sorted = (agentList ?? []).toSorted((a, b) => agentOrder(a.id, b.id));
+  const ungrouped = sorted.filter((a) => !a.group || !groups.some((g) => g.id === a.group));
 
   return (
     <>
@@ -65,9 +69,8 @@ function ModelsAndProviders({ projectId }: { projectId?: string }) {
         title="Models & providers"
         meta={
           <span className="max-w-3xl">
-            Which engine runs each part of DEMIURGO. You choose from what each provider offers right now; DEMIURGO never switches
-            on its own.
-            {projectId ? null : ' This is the choice for every project.'}
+            Which engine runs each kind of task, the same for every project. Choose one per group, and another for a single task
+            only when it needs it. You choose from what each provider offers right now; DEMIURGO never switches on its own.
           </span>
         }
         actions={
@@ -118,19 +121,32 @@ function ModelsAndProviders({ projectId }: { projectId?: string }) {
                 The agents come with DEMIURGO. If none shows, the server could not read its catalog.
               </EmptyState>
             ) : (
-              <ul aria-label="Parts of DEMIURGO" className="flex flex-col">
-                {agentList
-                  .toSorted((a, b) => agentOrder(a.id, b.id))
-                  .map((a) => (
-                    <AgentRow
-                      key={a.id}
-                      agent={a}
+              <div className="flex flex-col gap-4">
+                <div className="grid gap-4 xl:grid-cols-2">
+                  {groups.map((g) => (
+                    <GroupCard
+                      key={g.id}
+                      group={g}
+                      agents={sorted.filter((a) => a.group === g.id)}
                       catalogs={catalogs}
-                      skills={agents.data?.skills ?? []}
-                      {...(projectId ? { projectId } : {})}
+                      skills={skills}
                     />
                   ))}
-              </ul>
+                </div>
+                {ungrouped.length > 0 ? (
+                  <details data-ungrouped className="group rounded-lg border border-edge-subtle p-4">
+                    <summary className="inline-flex min-h-6 cursor-pointer list-none items-center gap-1 text-sm font-medium text-fg-2 hover:text-fg [&::-webkit-details-marker]:hidden">
+                      <ChevronRightIcon size={12} className="transition-transform group-open:rotate-90" />
+                      Tasks outside any group · {ungrouped.length}
+                    </summary>
+                    <ul aria-label="Tasks outside any group" className="mt-2 flex flex-col">
+                      {ungrouped.map((a) => (
+                        <TaskRow key={a.id} agent={a} catalogs={catalogs} skills={skills} groupEngine={null} />
+                      ))}
+                    </ul>
+                  </details>
+                ) : null}
+              </div>
             )}
           </Section>
 

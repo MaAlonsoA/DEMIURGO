@@ -1,7 +1,9 @@
 // DEMIURGO agents and skills as files of the repository (FDR-AGE-002): each agent is
 // `agents/<id>/AGENT.md` (YAML front-matter + instructions) and each skill `skills/<id>/SKILL.md`.
 // The catalog is loaded once and validated whole: an agent with an unknown action or skill stops
-// the load. An agent's version is the fingerprint of its content and its skills.
+// the load. An agent's version is the fingerprint of its content and its skills. The groups of
+// agents (`agents/groups.yaml`) say which engine choice an agent follows in Models & providers; the
+// group is not part of the version: it changes who runs the agent, not what it is asked.
 
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -28,11 +30,21 @@ export const DEFAULT_AGENTS: Readonly<Record<AgentAction, string>> = {
   design_proposal: 'designer',
 };
 
-export type LoadedAgent = AgentDefinition & { version: string; skillDefinitions: readonly SkillDefinition[] };
+export type LoadedAgent = AgentDefinition & {
+  version: string;
+  skillDefinitions: readonly SkillDefinition[];
+  /** The group whose engine the agent follows, or null if it only runs on its own engine. */
+  group: string | null;
+};
+
+/** A group of agents that share one engine choice (Deep thinking, Quick…). */
+export type AgentGroup = { id: string; name: string; description: string };
 
 export type AgentCatalog = {
   agents: readonly LoadedAgent[];
   skills: readonly SkillDefinition[];
+  /** In the order of `groups.yaml`. */
+  groups: readonly AgentGroup[];
   get(id: string): LoadedAgent | undefined;
   defaultFor(action: AgentAction): LoadedAgent;
 };
@@ -46,12 +58,17 @@ const agentFront = z
     action: z.string().min(1),
     section: z.string().min(1),
     skills: z.array(z.string().min(1)).default([]),
+    group: z.string().min(1).optional(),
     session: z.enum(['thread', 'none']),
     time_limit: z.number().int().min(10).max(1800).default(300),
   })
   .strict();
 
 const skillFront = z.object({ name: z.string().min(1), description: z.string().min(1) }).strict();
+
+const groupList = z.array(
+  z.object({ id: z.string().regex(/^[a-z][a-z0-9_]*$/), name: z.string().min(1), description: z.string().min(1) }).strict(),
+);
 
 /** Splits a markdown file into its YAML front-matter and its body. */
 function splitFrontMatter(text: string): { front: unknown; body: string } | null {
@@ -85,6 +102,18 @@ async function load(root: string): Promise<AgentCatalog> {
     if (front.data.name !== id) problems.push(`skill ${id}: the name "${front.data.name}" does not match its folder.`);
     skills.set(id, { id, description: front.data.description, body: parts.body });
   }
+  const groups: AgentGroup[] = [];
+  const groupsText = await readFile(join(root, 'agents', 'groups.yaml'), 'utf8').catch(() => null);
+  if (groupsText !== null) {
+    const parsed = groupList.safeParse(parseYaml(groupsText) ?? []);
+    if (!parsed.success) problems.push('groups.yaml: each group needs an id, a name and a description.');
+    else {
+      for (const g of parsed.data) {
+        if (groups.some((x) => x.id === g.id)) problems.push(`groups.yaml: the group "${g.id}" appears twice.`);
+        else groups.push(g);
+      }
+    }
+  }
   const actions = new Set<string>([...AGENT_ACTIONS, CLASSIFICATION_ACTION]);
   const agents: LoadedAgent[] = [];
   for (const id of await folders(join(root, 'agents'))) {
@@ -100,6 +129,7 @@ async function load(root: string): Promise<AgentCatalog> {
     if (!actions.has(f.action)) problems.push(`${id}: unknown action "${f.action}".`);
     const missing = f.skills.filter((s) => !skills.has(s));
     for (const s of missing) problems.push(`${id}: unknown skill "${s}".`);
+    if (f.group !== undefined && !groups.some((g) => g.id === f.group)) problems.push(`${id}: unknown group "${f.group}".`);
     if (!parts.body) problems.push(`${id}: AGENT.md has no instructions.`);
     if (missing.length > 0) continue;
     const definition: AgentDefinition = {
@@ -113,7 +143,12 @@ async function load(root: string): Promise<AgentCatalog> {
       body: parts.body,
     };
     const skillDefinitions = f.skills.map((s) => skills.get(s) as SkillDefinition);
-    agents.push({ ...definition, version: agentVersion(definition, skillDefinitions), skillDefinitions });
+    agents.push({
+      ...definition,
+      version: agentVersion(definition, skillDefinitions),
+      skillDefinitions,
+      group: f.group ?? null,
+    });
   }
   for (const [action, id] of Object.entries(DEFAULT_AGENTS)) {
     const agent = agents.find((a) => a.id === id);
@@ -126,6 +161,7 @@ async function load(root: string): Promise<AgentCatalog> {
   return {
     agents,
     skills: [...skills.values()],
+    groups,
     get: (id) => byId.get(id),
     defaultFor(action) {
       const agent = byId.get(DEFAULT_AGENTS[action]);

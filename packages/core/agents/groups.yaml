@@ -1,0 +1,9 @@
+# Groups of agents (Models & providers): the person picks one engine per group and every agent of
+# the group runs on it, unless the agent has its own engine as an exception. Each agent names its
+# group in its AGENT.md (`group: <id>`). A new group is a new entry here, in the order the web shows.
+- id: deep
+  name: Deep thinking
+  description: Conversations and designs that need a lot of reasoning. A heavy model pays off here.
+- id: quick
+  name: Quick
+  description: Short, repetitive checks that run after every change. A light, fast model is enough.

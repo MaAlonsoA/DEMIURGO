@@ -4,6 +4,7 @@ description: Reviews the classifications another classifier answered with medium
 action: knowledge_classification
 section: Knowledge · review of medium confidence
 skills: [demiurgo-glossary, structured-output]
+group: quick
 session: none
 time_limit: 180
 ---

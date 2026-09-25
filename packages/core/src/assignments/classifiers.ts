@@ -28,7 +28,7 @@ async function classifierOf(
   projectId: string,
   agent: LoadedAgent,
 ): Promise<{ ok: true; classifier: Classifier } | { ok: false; problem: string }> {
-  const r = await resolveEngine(s.db, s.providers, { projectId, agent: agent.id });
+  const r = await resolveEngine(s.db, s.providers, { agent: agent.id });
   const problem = resolutionProblem(agent.id, r);
   if (problem || r.status !== 'ok') return { ok: false, problem: problem ?? `${agent.id} cannot run.` };
   if (r.provider === 'simulated') return { ok: true, classifier: createSimulatedClassifier() };

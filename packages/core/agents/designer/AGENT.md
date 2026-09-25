@@ -4,6 +4,7 @@ description: Proposes a feature design (FDR) with acceptance criteria from an ap
 action: design_proposal
 section: Thread · Draft it
 skills: [writing-acs, demiurgo-glossary, structured-output]
+group: deep
 session: thread
 time_limit: 600
 ---

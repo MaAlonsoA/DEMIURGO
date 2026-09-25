@@ -1,5 +1,6 @@
-// Models & providers through the API (FDR-AGE-002): catalogs, agents and their assignments, the
-// calls of a run with their events, and the live progress on the project's SSE stream.
+// Models & providers through the API (FDR-AGE-002): catalogs, the groups of agents and the agents
+// with their engines, the calls of a run with their events, and the live progress on the project's
+// SSE stream.
 
 import { request } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -47,47 +48,44 @@ describe('models and providers API', () => {
     const agent = api().agent(token);
     expect((await agent.request('GET', '/api/providers')).statusCode).toBe(403);
     expect((await agent.request('GET', '/api/agents')).statusCode).toBe(403);
-    const put = await agent.request('PUT', '/api/agents/explorer/assignment', {
-      scope: 'global',
-      provider: 'simulated',
-      model: 'simulated',
-      effort: null,
-    });
-    expect(put.statusCode).toBe(403);
+    const engine = { provider: 'simulated', model: 'simulated', effort: null };
+    expect((await agent.request('PUT', '/api/agents/explorer/assignment', engine)).statusCode).toBe(403);
+    expect((await agent.request('PUT', '/api/groups/deep/assignment', engine)).statusCode).toBe(403);
+    expect((await agent.request('DELETE', '/api/groups/deep/assignment')).statusCode).toBe(403);
     expect((await agent.request('POST', '/api/providers/refresh')).statusCode).toBe(403);
   });
 
-  it('AC-AGE-002-02 a model outside the catalog is a 422; a valid one is assigned for the project', async () => {
+  it("AC-AGE-002-02 a model outside the catalog is a 422; an agent's own engine is an exception to its group", async () => {
     const person = api().person;
-    const bad = await person.request('PUT', '/api/agents/explorer/assignment', {
-      scope: 'project',
-      project_id: projectId,
+    const bad = await person.request('PUT', '/api/groups/deep/assignment', {
       provider: 'simulated',
       model: 'gpt-9',
       effort: null,
     });
     expect(bad.statusCode).toBe(422);
     expect(bad.json<{ reasons: string[] }>().reasons.join(' ')).toMatch(/Simulated offers: simulated/);
-    const ok = await person.request('PUT', '/api/agents/explorer/assignment', {
-      scope: 'project',
-      project_id: projectId,
-      provider: 'simulated',
-      model: 'simulated',
-      effort: null,
+    const engine = { provider: 'simulated', model: 'simulated', effort: null };
+    expect((await person.request('PUT', '/api/groups/deep/assignment', engine)).statusCode).toBe(200);
+    expect((await person.request('PUT', '/api/agents/explorer/assignment', engine)).statusCode).toBe(200);
+    type Agents = {
+      groups: { id: string; name: string; assignment: unknown }[];
+      agents: { id: string; group: string | null; own: unknown; effective: { status: string; source: string } }[];
+    };
+    const body = (await person.request('GET', '/api/agents')).json<Agents>();
+    expect(body.groups.map((g) => g.id)).toEqual(['deep', 'quick']);
+    expect(body.groups[0]).toMatchObject({ name: 'Deep thinking', assignment: expect.any(Object) });
+    expect(body.agents.find((a) => a.id === 'explorer')).toMatchObject({
+      group: 'deep',
+      own: expect.any(Object),
+      effective: { status: 'ok', source: 'agent' },
     });
-    expect(ok.statusCode).toBe(200);
-    const agents = (await person.request('GET', `/api/agents?project=${projectId}`)).json<{
-      agents: { id: string; project: unknown; global: unknown; effective: { status: string; source: string } }[];
-    }>().agents;
-    const explorer = agents.find((a) => a.id === 'explorer');
-    expect(explorer).toMatchObject({
-      project: expect.any(Object),
-      global: expect.any(Object),
-      effective: { status: 'ok', source: 'project' },
-    });
-    expect(agents.map((a) => a.id)).toContain('knowledge_classifier');
-    const removed = await person.request('DELETE', `/api/agents/explorer/assignment?scope=project&project=${projectId}`);
-    expect(removed.statusCode).toBe(200);
+    expect(body.agents.find((a) => a.id === 'onboarding')).toMatchObject({ own: null, effective: { source: 'group' } });
+    expect(body.agents.map((a) => a.id)).toContain('knowledge_classifier');
+    // Removing the exception, explorer follows its group again.
+    expect((await person.request('DELETE', '/api/agents/explorer/assignment')).statusCode).toBe(200);
+    const after = (await person.request('GET', '/api/agents')).json<Agents>();
+    expect(after.agents.find((a) => a.id === 'explorer')).toMatchObject({ own: null, effective: { source: 'group' } });
+    expect((await person.request('PUT', '/api/groups/nobody/assignment', engine)).statusCode).toBe(422);
   });
 
   it('AC-AGE-002-10 a run streams its progress on the SSE and leaves its calls with the events in order', async () => {

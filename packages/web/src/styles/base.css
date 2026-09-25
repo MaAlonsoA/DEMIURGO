@@ -24,6 +24,11 @@
   [hidden] {
     display: none !important;
   }
+
+  button:not(:disabled),
+  [role='button'] {
+    cursor: pointer;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

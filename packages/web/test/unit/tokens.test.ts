@@ -26,12 +26,6 @@ const tokensCss = sources.find((s) => s.path === 'styles/tokens.css')?.text ?? '
 const themeCss = sources.find((s) => s.path === 'styles/theme.css')?.text ?? '';
 const entryCss = sources.find((s) => s.path === 'styles.css')?.text ?? '';
 
-/** The old design-system stylesheet stays while screens move (D-017); its names are allowed until then. */
-const legacy = entryCss.includes('@demiurgo/design-system/demiurgo.css');
-const legacyCss = legacy
-  ? readFileSync(fileURLToPath(new URL('../../../design-system/demiurgo.css', import.meta.url)), 'utf8')
-  : '';
-
 // ── The tokens and their two values ──────────────────────────────────────────────────────────────
 
 const pairs = new Map<string, { light: string; dark: string }>();
@@ -110,14 +104,11 @@ describe('the design tokens', () => {
 const themeNames = (css: string, prefix: string) =>
   new Set([...css.matchAll(new RegExp(`--${prefix}-([a-z0-9-]+):`, 'g'))].map((m) => m[1] ?? ''));
 
-const COLORS = new Set([...themeNames(themeCss, 'color'), ...themeNames(entryCss, 'color'), 'transparent', 'current', 'inherit']);
+const COLORS = new Set([...themeNames(themeCss, 'color'), 'transparent', 'current', 'inherit']);
 const TEXT = new Set([...themeNames(themeCss, 'text')].filter((n) => !n.includes('--')));
-const RADII = new Set([...themeNames(themeCss, 'radius'), ...themeNames(entryCss, 'radius'), 'full', 'none']);
-const SHADOWS = new Set([...themeNames(themeCss, 'shadow'), ...themeNames(entryCss, 'shadow'), 'none']);
-const TOKENS = new Set([
-  ...[...tokensCss.matchAll(/--([a-z0-9-]+):/g)].map((m) => m[1] ?? ''),
-  ...[...legacyCss.matchAll(/--([a-z0-9-]+):/g)].map((m) => m[1] ?? ''),
-]);
+const RADII = new Set([...themeNames(themeCss, 'radius'), 'full', 'none']);
+const SHADOWS = new Set([...themeNames(themeCss, 'shadow'), 'none']);
+const TOKENS = new Set([...tokensCss.matchAll(/--([a-z0-9-]+):/g)].map((m) => m[1] ?? ''));
 
 function offenders(pattern: RegExp, allowed: (m: RegExpMatchArray) => boolean, among = code): string[] {
   return among.flatMap((s) =>
@@ -133,6 +124,11 @@ function offenders(pattern: RegExp, allowed: (m: RegExpMatchArray) => boolean, a
 const classes = code.filter((s) => !s.path.endsWith('.css'));
 
 describe('the web paints only with its tokens', () => {
+  it('loads only its own stylesheets: Tailwind, the tokens, the theme and the base rules', () => {
+    const imports = [...entryCss.matchAll(/@import\s+'([^']+)'/g)].map((m) => m[1]);
+    expect(imports).toEqual(['tailwindcss', './styles/tokens.css', './styles/theme.css', './styles/base.css']);
+  });
+
   it('has no raw colors in components: no hex, rgb or hsl outside the token file', () => {
     expect(offenders(/#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch)\(/g, () => false, classes)).toEqual([]);
   });

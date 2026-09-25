@@ -298,3 +298,36 @@ test('screens of cut 7: knowledge graph, search, idea checks, taxonomy and rebui
 function finished(events: EventRow[], command: string): number {
   return events.filter((e) => e.command === command).length;
 }
+
+test('a new project says its knowledge is not grouped yet, and a taxonomy from the template is proposed and approved from there', async ({
+  page,
+  person,
+}) => {
+  const projectId = await person.createProject('Fresh taxonomy');
+  await page.goto(`/p/${projectId}`);
+  const hint = page.locator('[data-taxonomy-hint]');
+  await expect(hint).toContainText("DEMIURGO doesn't group what it knows yet.");
+  await hint.getByRole('link', { name: 'Set up how it groups knowledge' }).click();
+  await expect(page).toHaveURL((u) => u.pathname.endsWith('/knowledge') && u.search === '?tab=taxonomy');
+
+  const setup = page.locator('[data-taxonomy-setup]');
+  await expect(setup).toContainText('Set up how DEMIURGO groups knowledge');
+  await expectAccessible(page, 'Knowledge · a project without a taxonomy');
+  await setup.getByRole('button', { name: 'Start from a template' }).click();
+  const editor = page.getByRole('form', { name: 'New version of TAX-001' });
+  await expect(editor.getByRole('group', { name: 'Area' })).toBeVisible();
+  await expect(editor.getByRole('group', { name: 'Quality' })).toBeVisible();
+  await editor.getByRole('button', { name: 'Propose', exact: true }).click();
+  await expect(editor).toBeHidden();
+
+  await page.goto(`/p/${projectId}`);
+  await expect(hint).toContainText('A taxonomy is waiting for your approval');
+  await hint.getByRole('link', { name: 'Review the taxonomy' }).click();
+  const taxonomy = page.getByRole('article', { name: /^TAX-001 v1/ });
+  await taxonomy.getByRole('button', { name: 'Approve' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Approve' }).click();
+  await expect(taxonomy.getByText('Approved', { exact: true })).toBeVisible();
+  await page.goto(`/p/${projectId}`);
+  await expect(page.getByRole('heading', { level: 1, name: 'Fresh taxonomy' })).toBeVisible();
+  await expect(hint).toHaveCount(0);
+});

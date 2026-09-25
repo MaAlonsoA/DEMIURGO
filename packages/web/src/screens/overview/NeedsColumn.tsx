@@ -15,6 +15,7 @@ import { minutesOf, needsOf } from '../needs-you/order.ts';
 import { RecentlyDecided, RunningNow } from './Blueprint.tsx';
 import { type NeedsItem, justRatified, needsItems } from './needs.ts';
 import { recentlyDecided } from './progress.ts';
+import { TaxonomyHint } from '../knowledge/TaxonomyHint.tsx';
 
 const SHOWN = 4;
 
@@ -151,6 +152,8 @@ export function NeedsColumn({
           </>
         )}
       </section>
+
+      <TaxonomyHint projectId={projectId} />
 
       <RunningNow projectId={projectId} runs={runs} threads={threads} now={now} />
 

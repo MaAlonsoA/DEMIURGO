@@ -20,7 +20,7 @@ import { Markdown } from '../../ui/Markdown.tsx';
 import { StateMark } from '../../ui/marks.tsx';
 import { Reasons } from '../../ui/Reasons.tsx';
 import { WhoMark } from '../../ui/signals.tsx';
-import { type TaxonomyDraft, draftFrom, parseAxes } from './taxonomy.ts';
+import { type TaxonomyDraft, draftFrom, parseAxes, starterDraft } from './taxonomy.ts';
 import { TaxonomyEditor } from './TaxonomyEditor.tsx';
 
 export function TaxonomyTab({ projectId }: { projectId: string }) {
@@ -49,7 +49,7 @@ export function TaxonomyTab({ projectId }: { projectId: string }) {
           The taxonomy organizes what DEMIURGO knows. Only the approved version is used to classify, and only what changes after
           approving it is classified with it.
         </p>
-        {canPropose && !draft && (
+        {canPropose && !draft && taxonomies.length > 0 && (
           <Button variant="secondary" onClick={() => setDraft({ draft: draftFrom(base), base })} className="shrink-0">
             <PlusIcon size={13} />
             {base ? 'Propose a new version' : 'Propose a taxonomy'}
@@ -58,7 +58,27 @@ export function TaxonomyTab({ projectId }: { projectId: string }) {
       </div>
       {draft && <TaxonomyEditor projectId={projectId} initial={draft.draft} base={draft.base} onClose={() => setDraft(null)} />}
       {taxonomies.length === 0 && !draft ? (
-        <EmptyState>There is no taxonomy yet. Without one, nothing in the knowledge is classified.</EmptyState>
+        canPropose ? (
+          <section aria-labelledby="taxonomy-setup" data-taxonomy-setup className="dm-card dm-dashed gap-3 px-5 py-4">
+            <h2 id="taxonomy-setup" className="dm-text-heading">
+              Set up how DEMIURGO groups knowledge
+            </h2>
+            <p className="dm-text-small text-ink-2">
+              Without a taxonomy nothing is classified. Start from a template by area and by quality and change any word, or start
+              blank. Nothing is used until you approve it.
+            </p>
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" onClick={() => setDraft({ draft: starterDraft(), base: null })}>
+                Start from a template
+              </Button>
+              <Button variant="text" onClick={() => setDraft({ draft: draftFrom(null), base: null })}>
+                Start blank
+              </Button>
+            </div>
+          </section>
+        ) : (
+          <EmptyState>There is no taxonomy yet. Without one, nothing in the knowledge is classified.</EmptyState>
+        )
       ) : null}
       {current && <Group title="Current">{<TaxonomyCard projectId={projectId} taxonomy={current} current={current} />}</Group>}
       {proposed.length > 0 && (

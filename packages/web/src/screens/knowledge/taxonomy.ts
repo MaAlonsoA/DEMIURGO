@@ -53,6 +53,47 @@ export function draftFrom(base: Taxonomy | null): TaxonomyDraft {
   };
 }
 
+const starterAxes: Axis[] = [
+  {
+    code: 'area',
+    name: 'Area',
+    categories: [
+      { code: 'product', name: 'Product', description: 'What the product does for the people who use it.' },
+      { code: 'interface', name: 'Interface', description: 'What people see and use: screens, words and flows.' },
+      { code: 'data', name: 'Data', description: 'What is stored, its rules and how it is kept.' },
+      { code: 'platform', name: 'Platform', description: 'How it runs: stack, infrastructure and operation.' },
+      OTHER,
+    ],
+  },
+  {
+    code: 'quality',
+    name: 'Quality',
+    categories: [
+      { code: 'security', name: 'Security', description: 'Who can do what, and what is protected.' },
+      { code: 'performance', name: 'Performance', description: 'How fast it answers and how much it can take.' },
+      { code: 'usability', name: 'Usability', description: 'How easy it is to understand and to use.' },
+      { code: 'reliability', name: 'Reliability', description: 'That it keeps working and loses nothing.' },
+      OTHER,
+    ],
+  },
+];
+
+/** The taxonomy a new project starts from: by area and by quality, every word editable. */
+export function starterDraft(): TaxonomyDraft {
+  return {
+    code: 'TAX-001',
+    title: 'How DEMIURGO groups knowledge',
+    sections: [],
+    axes: starterAxes.map((a) => ({
+      key: key(),
+      code: a.code,
+      name: a.name,
+      codeTouched: true,
+      categories: a.categories.map((c) => ({ ...c, key: key(), codeTouched: true })),
+    })),
+  };
+}
+
 /** The data of taxonomy.propose. */
 export function toProposal(d: TaxonomyDraft): { code: string; title: string; axes: Axis[]; sections: Section[] } {
   return {

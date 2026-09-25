@@ -16,6 +16,7 @@ import { Mark } from '../../ui/marks.tsx';
 import { Reasons } from '../../ui/Reasons.tsx';
 import { NeedsBubble } from '../../ui/signals.tsx';
 import { stateWord } from '../../words.ts';
+import { TaxonomyHint } from '../knowledge/TaxonomyHint.tsx';
 import { NotFound } from '../not-found/NotFound.tsx';
 import { daySummary, understandingOf, writtenBy } from './day.ts';
 import { useDay } from './hooks.ts';
@@ -120,6 +121,8 @@ export function DayDoneScreen() {
               ))}
             </section>
           )}
+
+          <TaxonomyHint projectId={projectId} />
 
           <div className="mt-auto flex flex-col gap-1.5 rounded-card-md bg-surface-soft px-4 py-3.5">
             <strong className="dm-text-small font-semibold">You can close DEMIURGO</strong>

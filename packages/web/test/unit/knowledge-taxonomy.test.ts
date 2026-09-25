@@ -8,6 +8,7 @@ import {
   missing,
   parseAxes,
   removeCategory,
+  starterDraft,
   toProposal,
   updateCategory,
 } from '../../src/screens/knowledge/taxonomy.ts';
@@ -100,5 +101,23 @@ describe('proposing a taxonomy from the UI', () => {
     expect(codeFromName('Diseño & UX')).toBe('diseno_ux');
     expect(codeFromName('3D')).toBe('c_3d');
     expect(codeFromName('')).toBe('');
+  });
+});
+
+describe('the starting taxonomy of a new project', () => {
+  it('groups by area and by quality, each with "other", and can be proposed as it is', () => {
+    const d = starterDraft();
+    expect(d.code).toBe('TAX-001');
+    expect(missing(d)).toEqual([]);
+    const proposal = toProposal(d);
+    expect(proposal.axes.map((a) => a.code)).toEqual(['area', 'quality']);
+    for (const a of proposal.axes) expect(a.categories.map((c) => c.code)).toContain('other');
+    expect(proposal.axes[1]?.categories.map((c) => c.code)).toEqual([
+      'security',
+      'performance',
+      'usability',
+      'reliability',
+      'other',
+    ]);
   });
 });

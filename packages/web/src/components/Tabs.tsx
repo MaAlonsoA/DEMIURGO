@@ -26,6 +26,8 @@ export function LinkTabs({ label, tabs, className }: { label: string; tabs: Link
       {tabs.map((t) => (
         <Link
           key={t.key}
+          // Sibling views share a path prefix: only the exact one is the router's active link.
+          activeOptions={{ exact: true, includeSearch: false }}
           {...t.link}
           aria-current={t.current ? 'page' : undefined}
           data-tab={t.key}

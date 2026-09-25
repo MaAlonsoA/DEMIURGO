@@ -181,7 +181,7 @@ function MenuBody({ projectId, close }: { projectId: string; close: () => void }
           role="combobox"
           aria-label="Search decisions, features, ideas"
           aria-expanded={options.length > 0}
-          aria-controls={listId}
+          {...(options.length > 0 ? { 'aria-controls': listId } : {})}
           aria-autocomplete="list"
           {...(options[active] ? { 'aria-activedescendant': optionId(active) } : {})}
           placeholder="Search decisions, features, ideas — or go to a section"
@@ -196,78 +196,83 @@ function MenuBody({ projectId, close }: { projectId: string; close: () => void }
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {search.error && enabled ? <ErrorNotice error={search.error} focus={false} compact className="m-1" /> : null}
-        <ul id={listId} role="listbox" aria-label="Results" className="flex flex-col">
-          {typed.length >= MIN ? (
-            <li role="presentation" className="px-2.5 pt-1 pb-1.5 text-xs font-medium text-fg-3">
-              {waiting
-                ? 'Searching…'
-                : hits.length === 0
-                  ? 'No matches'
-                  : `${hits.length} ${hits.length === 1 ? 'match' : 'matches'}`}
-            </li>
-          ) : null}
-          {hits.map((o) => {
-            const i = options.indexOf(o);
-            if (o.kind !== 'hit') return null;
-            const type = nodeType(o.type);
-            return (
-              <li
-                key={o.key}
-                id={optionId(i)}
-                role="option"
-                aria-selected={i === active}
-                aria-disabled={o.target ? undefined : true}
-                data-search-result={o.key}
-                onClick={() => choose(o)}
-                onMouseMove={() => setActive(i)}
-                className={cn(
-                  'flex items-start gap-3 rounded-md px-2.5 py-2',
-                  o.target ? 'cursor-pointer' : 'cursor-default',
-                  i === active && 'bg-hover',
-                )}
-              >
-                <TypeIcon type={o.type} size={16} className="mt-0.5 shrink-0 text-fg-2" />
-                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="text-base font-medium text-fg">
-                    <span className="sr-only">{type.word}: </span>
-                    <Highlighted text={o.title} query={query} />
-                  </span>
-                  {o.excerpt ? (
-                    <span className="line-clamp-2 text-sm text-fg-2">
-                      <Highlighted text={snippet(o.excerpt, query)} query={query} />
+        {typed.length >= MIN ? (
+          <p className="px-2.5 pt-1 pb-1.5 text-xs font-medium text-fg-3">
+            {waiting
+              ? 'Searching…'
+              : hits.length === 0
+                ? 'No matches'
+                : `${hits.length} ${hits.length === 1 ? 'match' : 'matches'}`}
+          </p>
+        ) : null}
+        {/* A listbox needs options (ARIA): with nothing to choose, only the line above is shown. */}
+        {options.length > 0 ? (
+          <ul id={listId} role="listbox" aria-label="Results" className="flex flex-col">
+            {hits.map((o) => {
+              const i = options.indexOf(o);
+              if (o.kind !== 'hit') return null;
+              const type = nodeType(o.type);
+              return (
+                <li
+                  key={o.key}
+                  id={optionId(i)}
+                  role="option"
+                  aria-selected={i === active}
+                  aria-disabled={o.target ? undefined : true}
+                  data-search-result={o.key}
+                  onClick={() => choose(o)}
+                  onMouseMove={() => setActive(i)}
+                  className={cn(
+                    'flex items-start gap-3 rounded-md px-2.5 py-2',
+                    o.target ? 'cursor-pointer' : 'cursor-default',
+                    i === active && 'bg-hover',
+                  )}
+                >
+                  <TypeIcon type={o.type} size={16} className="mt-0.5 shrink-0 text-fg-2" />
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="text-base font-medium text-fg">
+                      <span className="sr-only">{type.word}: </span>
+                      <Highlighted text={o.title} query={query} />
                     </span>
-                  ) : null}
-                  {!o.target ? <span className="text-xs text-fg-3">It has no page of its own.</span> : null}
-                </span>
-                <Certainty status={o.status} className="mt-0.5" />
+                    {o.excerpt ? (
+                      <span className="line-clamp-2 text-sm text-fg-2">
+                        <Highlighted text={snippet(o.excerpt, query)} query={query} />
+                      </span>
+                    ) : null}
+                    {!o.target ? <span className="text-xs text-fg-3">It has no page of its own.</span> : null}
+                  </span>
+                  <Certainty status={o.status} className="mt-0.5" />
+                </li>
+              );
+            })}
+            {gos.length > 0 ? (
+              <li role="presentation" className="px-2.5 pt-2 pb-1.5 text-xs font-medium text-fg-3">
+                Go to
               </li>
-            );
-          })}
-          <li role="presentation" className="px-2.5 pt-2 pb-1.5 text-xs font-medium text-fg-3">
-            Go to
-          </li>
-          {gos.map((o) => {
-            const i = options.indexOf(o);
-            if (o.kind !== 'go') return null;
-            return (
-              <li
-                key={o.key}
-                id={optionId(i)}
-                role="option"
-                aria-selected={i === active}
-                onClick={() => choose(o)}
-                onMouseMove={() => setActive(i)}
-                className={cn(
-                  'flex cursor-pointer items-center gap-3 rounded-md px-2.5 py-2 text-base text-fg',
-                  i === active && 'bg-hover',
-                )}
-              >
-                <span className="text-fg-2">{o.icon}</span>
-                {o.label}
-              </li>
-            );
-          })}
-        </ul>
+            ) : null}
+            {gos.map((o) => {
+              const i = options.indexOf(o);
+              if (o.kind !== 'go') return null;
+              return (
+                <li
+                  key={o.key}
+                  id={optionId(i)}
+                  role="option"
+                  aria-selected={i === active}
+                  onClick={() => choose(o)}
+                  onMouseMove={() => setActive(i)}
+                  className={cn(
+                    'flex cursor-pointer items-center gap-3 rounded-md px-2.5 py-2 text-base text-fg',
+                    i === active && 'bg-hover',
+                  )}
+                >
+                  <span className="text-fg-2">{o.icon}</span>
+                  {o.label}
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
       </div>
     </>
   );

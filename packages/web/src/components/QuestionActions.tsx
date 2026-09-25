@@ -29,16 +29,17 @@ type DialogKind = null | 'confirm' | 'answer' | 'change' | 'park' | 'drop' | 're
 function useQuestionCommand(projectId: string, q: QuestionLike, onDone?: (what: string) => void) {
   const command = useCommand(projectId);
   const [dialog, setDialog] = useState<DialogKind>(null);
+  // A promise, not mutate's callbacks: those are dropped when the card unmounts first (a confirmed or
+  // parked question moves to another group), and then nothing would be announced.
   const run = (name: string, data: Record<string, unknown>, said: string) =>
-    command.mutate(
-      { command: name, entityId: q.id, data },
-      {
-        onSuccess: () => {
-          setDialog(null);
-          announce(said);
-          onDone?.(said);
-        },
+    void command.mutateAsync({ command: name, entityId: q.id, data }).then(
+      () => {
+        setDialog(null);
+        announce(said);
+        onDone?.(said);
       },
+      // The error stays in command.error, shown in the open dialog.
+      () => undefined,
     );
   const open = (d: DialogKind) => {
     command.reset();

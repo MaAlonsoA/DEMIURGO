@@ -7,6 +7,7 @@ import { Dialog as D } from 'radix-ui';
 import type { ReactNode } from 'react';
 import { cn } from '../lib/cn.ts';
 import { CloseIcon, EyeIcon } from './icons.tsx';
+import { useReturnFocus } from './returnFocus.ts';
 import { Tooltip } from './Tooltip.tsx';
 
 /** A side sheet with a title, content and a footer (e.g. "Open"). Modal, so focus stays inside. */
@@ -27,6 +28,7 @@ export function PreviewSheet({
   footer?: ReactNode;
   label?: string;
 }) {
+  const returnFocus = useReturnFocus(open);
   return (
     <D.Root open={open} onOpenChange={onOpenChange}>
       <D.Portal>
@@ -34,6 +36,7 @@ export function PreviewSheet({
         <D.Content
           aria-describedby={undefined}
           data-preview
+          onCloseAutoFocus={returnFocus}
           className="fixed inset-y-0 right-0 z-50 flex w-full animate-enter flex-col border-l border-edge bg-panel shadow-dialog sm:w-[440px] sm:max-w-[90vw]"
         >
           <div className="flex items-start gap-3 border-b border-edge px-5 pt-4 pb-3">

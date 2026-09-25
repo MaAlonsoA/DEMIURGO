@@ -10,6 +10,7 @@ import { cn } from '../lib/cn.ts';
 import { Button } from './Button.tsx';
 import { CloseIcon } from './icons.tsx';
 import { ErrorNotice } from './Notice.tsx';
+import { useReturnFocus } from './returnFocus.ts';
 
 const overlay = 'fixed inset-0 z-50 bg-scrim animate-enter';
 const panel =
@@ -33,11 +34,12 @@ export function Dialog({
   wide?: boolean;
   className?: string;
 }) {
+  const returnFocus = useReturnFocus(open);
   return (
     <D.Root open={open} onOpenChange={onOpenChange}>
       <D.Portal>
         <D.Overlay className={overlay} />
-        <D.Content className={cn(panel, wide && 'w-[min(760px,calc(100vw-32px))]', className)}>
+        <D.Content className={cn(panel, wide && 'w-[min(760px,calc(100vw-32px))]', className)} onCloseAutoFocus={returnFocus}>
           <div className="flex items-start gap-3">
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <D.Title className="text-lg font-semibold text-fg">{title}</D.Title>
@@ -94,11 +96,12 @@ export function ConfirmDialog({
   tone?: 'primary' | 'danger';
   cancel?: string;
 }) {
+  const returnFocus = useReturnFocus(open);
   return (
     <AlertDialog.Root open={open} onOpenChange={onOpenChange}>
       <AlertDialog.Portal>
         <AlertDialog.Overlay className={overlay} />
-        <AlertDialog.Content className={panel}>
+        <AlertDialog.Content className={panel} onCloseAutoFocus={returnFocus}>
           <AlertDialog.Title className="text-lg font-semibold text-fg">{title}</AlertDialog.Title>
           <AlertDialog.Description asChild>
             <div className="flex flex-col gap-2 text-base text-fg-2">{description}</div>

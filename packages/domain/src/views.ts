@@ -17,6 +17,23 @@ export function relationOf(linkType: string, fromType: string, toType: string): 
   return null;
 }
 
+/**
+ * The areas of the map, one per domain: from the most features to the fewest; on a tie, the most
+ * rules (decisions and tech decisions); then by name.
+ */
+export function areaOrder(records: readonly { domain: string; type: string }[]): string[] {
+  const count = new Map<string, { features: number; rules: number }>();
+  for (const r of records) {
+    const c = count.get(r.domain) ?? { features: 0, rules: 0 };
+    if (r.type === 'fdr') c.features++;
+    else c.rules++;
+    count.set(r.domain, c);
+  }
+  return [...count.entries()]
+    .toSorted(([a, x], [b, y]) => y.features - x.features || y.rules - x.rules || a.localeCompare(b))
+    .map(([d]) => d);
+}
+
 export type JourneyStep = { n: number; title: string; detail: string[] };
 
 const stripMarks = (t: string): string => t.replace(/\*\*(.+?)\*\*/g, '$1').trim();

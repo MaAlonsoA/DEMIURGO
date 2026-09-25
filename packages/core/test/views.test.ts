@@ -7,6 +7,7 @@ import { human, relationOf, system } from '@demiurgo/domain';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { executeCommand } from '../src/bus/bus.ts';
 import { IMPORTER } from '../src/design/import.ts';
+import { recordDetail } from '../src/queries/read.ts';
 import { productJourneys, productMap } from '../src/queries/views.ts';
 import { useEnvironment } from './support/env.ts';
 
@@ -126,5 +127,47 @@ describe('journey gaps', () => {
     expect(map.questions.find((q) => q.id === open)?.affects).toContain(
       journeys.find((x) => x.title === 'Sign up for an activity')?.code,
     );
+  });
+});
+
+describe('what connects to a record', () => {
+  const DECISION = [
+    { title: 'Context', content: 'c' },
+    { title: 'Decision', content: 'd' },
+    { title: 'Consequences', content: 'k' },
+  ];
+  type Created = { recordId: string; code: string };
+
+  it('AC-INT-002-08 a record lists the records whose shown version links to it, with the link type', async () => {
+    const s = environment().services;
+    const adr = await recordDetail(s.db, projectId, 'ADR-AGE-001');
+    expect(adr.incoming).toContainEqual(
+      expect.objectContaining({ from_code: 'FDR-AGE-002', from_type: 'fdr', type: 'based_on', to_n: 2, relation: 'follows' }),
+    );
+    expect(adr.incoming.every((l) => l.from_code !== 'ADR-AGE-001')).toBe(true);
+    const plan = await recordDetail(s.db, projectId, 'DEC-PLN-001');
+    expect(plan.incoming.map((l) => l.from_code)).toEqual(expect.arrayContaining(['FDR-INT-001', 'FDR-DIS-001', 'FDR-INT-002']));
+  });
+
+  it('AC-INT-002-08 a link that a newer version of the other record dropped no longer connects', async () => {
+    const s = environment().services;
+    const create = async (data: Record<string, unknown>) =>
+      (await executeCommand(s, { command: 'record.create', actor: ana, projectId, data })).result as Created;
+    const rule = await create({ type: 'decision', domain: 'links', title: 'A rule', sections: DECISION });
+    const follower = await create({
+      type: 'decision',
+      domain: 'links',
+      title: 'Follows the rule',
+      sections: DECISION,
+      links: [{ type: 'based_on', target: { code: rule.code, version: 1 } }],
+    });
+    expect((await recordDetail(s.db, projectId, rule.code)).incoming.map((l) => l.from_code)).toEqual([follower.code]);
+    await executeCommand(s, {
+      command: 'record_version.create',
+      actor: ana,
+      projectId,
+      data: { record_id: follower.recordId, title: 'Follows nothing', sections: DECISION, change_note: 'Drops the rule.' },
+    });
+    expect((await recordDetail(s.db, projectId, rule.code)).incoming).toEqual([]);
   });
 });

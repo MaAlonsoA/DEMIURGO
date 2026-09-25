@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { behaviorSteps, criterionPath, relationOf } from '../src/views.ts';
+import { areaOrder, behaviorSteps, criterionPath, relationOf } from '../src/views.ts';
 
 describe('journey steps from Behavior', () => {
   it('AC-INT-002-05 the numbered points are the steps, in order, with their nested bullets as detail', () => {
@@ -74,5 +74,23 @@ describe('map relations from links', () => {
     expect(relationOf('derived_from', 'fdr', 'fdr')).toBe('affects');
     expect(relationOf('covers', 'fdr', 'fdr')).toBeNull();
     expect(relationOf('origin', 'fdr', 'decision')).toBeNull();
+  });
+});
+
+const r = (domain: string, type: string) => ({ domain, type });
+
+describe('areas of the map', () => {
+  it('AC-INT-002-01 from the most features to the fewest; on a tie, the most rules; then by name', () => {
+    const records = [
+      ...Array.from({ length: 11 }, () => r('rules-only', 'decision')),
+      r('one-feature', 'fdr'),
+      r('two-features', 'fdr'),
+      r('two-features', 'fdr'),
+      r('b-tie', 'fdr'),
+      r('b-tie', 'adr'),
+      r('a-tie', 'fdr'),
+      r('a-tie', 'adr'),
+    ];
+    expect(areaOrder(records)).toEqual(['two-features', 'a-tie', 'b-tie', 'one-feature', 'rules-only']);
   });
 });

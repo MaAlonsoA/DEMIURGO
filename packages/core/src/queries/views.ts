@@ -3,7 +3,7 @@
 // Behavior and its criteria, with the open questions of its thread as gaps). Everything comes from
 // what the records say; nothing is inferred.
 
-import { type Relation, behaviorSteps, criterionPath, relationOf } from '@demiurgo/domain';
+import { type Relation, areaOrder, behaviorSteps, criterionPath, relationOf } from '@demiurgo/domain';
 import type { Db } from '../db/connection.ts';
 import { productState } from './read.ts';
 
@@ -56,11 +56,8 @@ export async function productMap(db: Db, projectId: string) {
     affects: rows.filter((r) => r.origin_exploration === q.exploration_id).map((r) => r.code),
   }));
   const ideas = state.explorations.filter((e) => e.state === 'set_aside').map((e) => ({ id: e.id, purpose: e.purpose }));
-  // Areas with the most features first; the domain always exists, the taxonomy may not.
-  const count = new Map<string, number>();
-  for (const r of rows) count.set(r.domain, (count.get(r.domain) ?? 0) + (r.type === 'fdr' ? 10 : 1));
-  const areas = [...count.entries()].toSorted((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([d]) => d);
-  return { project: state.project, areas, records: rows, relations, questions, ideas };
+  // The domain always exists; the taxonomy may not.
+  return { project: state.project, areas: areaOrder(rows), records: rows, relations, questions, ideas };
 }
 
 export async function productJourneys(db: Db, projectId: string) {

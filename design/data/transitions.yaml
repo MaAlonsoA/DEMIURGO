@@ -36,6 +36,7 @@ entities:
       - { command: exploration.conclude, from: [active], to: concluded }
       - { command: exploration.set_aside, from: [active], to: set_aside, guards: [reason_present] }
       - { command: exploration.resume, from: [concluded, set_aside], to: active }
+      - { command: exploration.revise_purpose, from: [active], to: active }
 
   message:
     label: Message

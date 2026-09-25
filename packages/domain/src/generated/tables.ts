@@ -84,6 +84,14 @@ export const CAPABILITIES = {
       "decisive": false,
       "description": "Resume a concluded or set-aside exploration."
     },
+    "exploration.revise_purpose": {
+      "entity": "exploration",
+      "allowed": [
+        "system"
+      ],
+      "decisive": false,
+      "description": "Rewrite the purpose of an exploration as a summary of what it has designed (the agent's, applied by the system from its validated output)."
+    },
     "message.post": {
       "entity": "message",
       "allowed": [
@@ -974,6 +982,13 @@ export const TRANSITIONS = {
           "from": [
             "concluded",
             "set_aside"
+          ],
+          "to": "active"
+        },
+        {
+          "command": "exploration.revise_purpose",
+          "from": [
+            "active"
           ],
           "to": "active"
         }

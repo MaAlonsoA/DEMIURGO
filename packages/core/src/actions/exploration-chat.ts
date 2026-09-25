@@ -141,6 +141,18 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
       respond: false,
     },
   });
+  if (output.purpose) {
+    const current = await trx.selectFrom('explorations').select(['purpose', 'state']).where('id', '=', scope.id).executeTakeFirst();
+    if (current?.state === 'active' && current.purpose !== output.purpose) {
+      await execute({
+        ...base,
+        command: 'exploration.revise_purpose',
+        actor: system('exploration'),
+        entityId: scope.id,
+        data: { purpose: output.purpose },
+      });
+    }
+  }
   for (const o of output.observations) {
     await execute({
       ...base,

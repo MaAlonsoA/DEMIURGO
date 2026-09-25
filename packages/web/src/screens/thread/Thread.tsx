@@ -7,7 +7,7 @@ import { Link } from '@tanstack/react-router';
 import { type ReactNode, useState } from 'react';
 import { ApiError } from '../../api/client.ts';
 import { useCommand } from '../../api/commands.ts';
-import { explorationQuery, explorationsQuery, runsQuery, stateQuery } from '../../api/queries.ts';
+import { entityEventsQuery, explorationQuery, explorationsQuery, runsQuery, stateQuery } from '../../api/queries.ts';
 import { canCreate } from '../../api/tables.ts';
 import type { ExplorationDetail, ProductState, Question } from '../../api/types.ts';
 import { useRouteParams, useTables } from '../../lib/hooks.ts';
@@ -90,6 +90,32 @@ export function ThreadScreen() {
 
 type Dialog = null | 'conclude' | 'set_aside';
 
+const PURPOSE_COMMANDS = new Set(['exploration.open', 'exploration.revise_purpose']);
+
+/** Earlier versions of the thread's purpose: the agent rewrites it as the design moves on. */
+function PurposeHistory({ projectId, explorationId }: { projectId: string; explorationId: string }) {
+  const events = useQuery(entityEventsQuery(projectId, explorationId)).data;
+  const versions = (events ?? [])
+    .filter((e) => e.entity_id === explorationId && PURPOSE_COMMANDS.has(e.command))
+    .map((e) => ({ id: e.id, at: e.at, purpose: String((e.after as { purpose?: string } | null)?.purpose ?? '') }))
+    .filter((v) => v.purpose)
+    .toReversed();
+  if (versions.length < 2) return null;
+  return (
+    <details data-purpose-history className="dm-text-small text-ink-2">
+      <summary className="cursor-pointer select-none">Earlier summaries ({versions.length - 1})</summary>
+      <ol className="mt-2 flex flex-col gap-2.5 border-l border-line pl-3">
+        {versions.slice(1).map((v) => (
+          <li key={v.id} className="flex flex-col gap-0.5">
+            <span className="dm-label">{shortDate(v.at)}</span>
+            <p className="dm-text-body leading-relaxed whitespace-pre-wrap text-ink-2">{v.purpose}</p>
+          </li>
+        ))}
+      </ol>
+    </details>
+  );
+}
+
 function ThreadHeader({
   projectId,
   thread: t,
@@ -155,6 +181,7 @@ function ThreadHeader({
         />
       </div>
       <Provenance projectId={projectId} thread={t} parent={parent} products={products} />
+      <PurposeHistory projectId={projectId} explorationId={t.id} />
       {!dialog && command.error ? <Reasons error={command.error} /> : null}
       {t.state === 'concluded' && t.state_reason && (
         <div

@@ -63,6 +63,7 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
         text,
       );
     const output: AnyObject = {
+      purpose: null,
       reply: `Got it: "${truncate(text, 300)}". ${wantsToDecide ? 'I suggest recording it as a decision.' : 'I need to pin down something more.'}`,
       observations: [{ type: 'hypothesis', text: `The main intent is: ${truncate(text, 200)}` }],
       questions: [],

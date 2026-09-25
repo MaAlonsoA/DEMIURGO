@@ -117,6 +117,8 @@ export const echoOutput = z.object({ reply: text(2000) }).strict();
 export const explorationChatOutput = z
   .object({
     reply: text(6000),
+    // The thread's purpose rewritten as a summary of what it has designed so far; null keeps it.
+    purpose: text(1000).nullable(),
     observations: z.array(z.object({ type: z.enum(['claim', 'hypothesis', 'unknown']), text: text(1000) }).strict()).max(10),
     questions: z
       .array(z.object({ question: text(500), reason: text(500), impact: z.enum(['high', 'medium', 'low']) }).strict())

@@ -169,6 +169,15 @@ registerHandlers({
     },
   }),
 
+  'exploration.revise_purpose': handler({
+    data: z.object({ purpose: text(1000) }).strict(),
+    async apply(ctx, data, e) {
+      const id = e?.id ?? '';
+      await ctx.trx.updateTable('explorations').set({ purpose: data.purpose }).where('id', '=', id).execute();
+      return { entityId: id, before: { purpose: e?.row.purpose ?? null }, after: { purpose: data.purpose } };
+    },
+  }),
+
   'message.post': handler({
     data: z
       .object({

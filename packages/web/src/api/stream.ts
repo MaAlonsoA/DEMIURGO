@@ -19,7 +19,7 @@ export const INVALIDATES: Record<string, string[]> = {
   link: ['record', 'readiness', 'inbox', 'state'],
   question: ['exploration', 'inbox', 'state', 'readiness', 'explorations'],
   message: ['exploration', 'explorations'],
-  exploration: ['exploration', 'explorations', 'state'],
+  exploration: ['exploration', 'explorations', 'state', 'events'],
   ai_run: ['run', 'runs', 'exploration', 'events'],
   context_pack: ['run'],
   knowledge_update: ['knowledge', 'inbox'],

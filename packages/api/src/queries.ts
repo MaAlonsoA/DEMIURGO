@@ -20,6 +20,8 @@ import {
   ideaAssessments,
   taxonomiesList,
   changesSince,
+  productJourneys,
+  productMap,
 } from '@demiurgo/core';
 import type { Credential } from './credentials.ts';
 
@@ -98,6 +100,17 @@ registerQueries([
     path: '/api/projects/:projectId/state',
     queryName: 'query.state',
     respond: ({ services, params }) => productState(services.db, uuid(params.projectId, 'project')),
+  },
+  {
+    // The product's map and journeys (FDR-INT-002): read like the records they come from.
+    path: '/api/projects/:projectId/map',
+    queryName: 'query.records',
+    respond: ({ services, params }) => productMap(services.db, uuid(params.projectId, 'project')),
+  },
+  {
+    path: '/api/projects/:projectId/journeys',
+    queryName: 'query.records',
+    respond: ({ services, params }) => productJourneys(services.db, uuid(params.projectId, 'project')),
   },
   {
     path: '/api/projects/:projectId/inbox',

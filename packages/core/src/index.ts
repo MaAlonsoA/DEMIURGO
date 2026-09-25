@@ -28,6 +28,7 @@ export * from './secrets.ts';
 export * from './startup.ts';
 export * from './queries/read.ts';
 export * from './queries/web.ts';
+export * from './queries/views.ts';
 export * from './context/knowledge.ts';
 export * from './knowledge/index.ts';
 export * from './engine/inline.ts';

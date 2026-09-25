@@ -11,3 +11,4 @@ export * from './records.ts';
 export * from './text.ts';
 export * from './knowledge.ts';
 export * from './compose.ts';
+export * from './views.ts';

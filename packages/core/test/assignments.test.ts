@@ -163,7 +163,7 @@ describe('assignments', () => {
   it('AC-AGE-002-03 resolution: override, then project, then global; none names the agent', async () => {
     expect(await resolveEngine(deps.db, deps.providers, { projectId, agent: 'onboarding' })).toEqual({ status: 'unassigned' });
     expect(resolutionProblem('onboarding', { status: 'unassigned' })).toBe(
-      'Choose a model for onboarding in Settings → Models & providers.',
+      'Choose a model for onboarding in Models & providers.',
     );
 
     await assignAgent(deps, ana, { agent: 'onboarding', scope: 'global', provider: 'codex', model: 'gpt-6-luna', effort: 'low' });

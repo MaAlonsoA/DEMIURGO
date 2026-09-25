@@ -107,6 +107,12 @@ export function registerModelRoutes(app: FastifyInstance, r: ModelRoutes): void 
   app.get('/api/projects/:projectId/runs/:runId/calls', async (req) => {
     const { projectId, runId } = req.params as { projectId: string; runId: string };
     r.requireQuery(req, 'query.runs', projectId);
-    return { calls: await runCalls(r.services.db, uuid(projectId, 'project'), uuid(runId, 'run')) };
+    const calls = await runCalls(r.services.db, uuid(projectId, 'project'), uuid(runId, 'run'));
+    // An external agent reads the normalized events only: the raw text of a provider can carry
+    // local paths and details of the person's environment.
+    if (req.credential.type !== 'person') {
+      return { calls: calls.map((c) => ({ ...c, events: c.events.map(({ raw: _raw, ...e }) => e) })) };
+    }
+    return { calls };
   });
 }

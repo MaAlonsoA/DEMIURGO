@@ -18,9 +18,24 @@ export type RunProgress = {
 const byRun = new Map<string, RunProgress>();
 const listeners = new Set<() => void>();
 
+/**
+ * Keeps the progress of a run, never going back within one call: a message that arrives late (fewer
+ * events) is dropped, and the tokens shown only grow. A new call of the run (a fresh retry) starts again.
+ */
 export function recordProgress(p: RunProgress): void {
-  byRun.set(p.run_id, p);
+  const shown = byRun.get(p.run_id);
+  if (shown && shown.call_id === p.call_id) {
+    if (p.events < shown.events) return;
+    const tokens = Math.max(shown.tokens ?? 0, p.tokens ?? 0);
+    byRun.set(p.run_id, { ...p, tokens: tokens > 0 ? tokens : null });
+  } else {
+    byRun.set(p.run_id, p);
+  }
   for (const l of listeners) l();
+}
+
+export function progressOf(runId: string): RunProgress | undefined {
+  return byRun.get(runId);
 }
 
 export function useRunProgress(runId: string | undefined): RunProgress | undefined {

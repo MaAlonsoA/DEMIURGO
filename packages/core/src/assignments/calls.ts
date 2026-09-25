@@ -85,3 +85,43 @@ export async function callProvider(db: Db, provider: Provider, meta: CallMeta, i
     .execute();
   return result;
 }
+
+/**
+ * Closes the calls a crash left running: nothing is running when DEMIURGO starts, so each one ends
+ * as interrupted, with an error event at the end of its trace. Returns how many were closed.
+ */
+export async function closeOrphanCalls(db: Db): Promise<number> {
+  const orphans = await db.selectFrom('agent_calls').select(['id', 'project_id']).where('state', '=', 'running').execute();
+  for (const o of orphans) {
+    await db.transaction().execute(async (trx) => {
+      const last = await trx
+        .selectFrom('agent_call_events')
+        .select((eb) => eb.fn.max('seq').as('seq'))
+        .where('call_id', '=', o.id)
+        .executeTakeFirst();
+      await trx
+        .insertInto('agent_call_events')
+        .values({
+          project_id: o.project_id,
+          call_id: o.id,
+          seq: (last?.seq ?? 0) + 1,
+          kind: 'error',
+          tokens: null,
+          raw: JSON.stringify({ interrupted: true, reason: 'DEMIURGO stopped before this call finished.' }),
+        })
+        .execute();
+      await trx
+        .updateTable('agent_calls')
+        .set({
+          state: 'error',
+          failure_kind: 'interrupted',
+          error: 'DEMIURGO stopped before this call finished.',
+          finished_at: new Date(),
+        })
+        .where('id', '=', o.id)
+        .where('state', '=', 'running')
+        .execute();
+    });
+  }
+  return orphans.length;
+}

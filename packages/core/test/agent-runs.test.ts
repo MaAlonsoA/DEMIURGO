@@ -210,10 +210,10 @@ describe('agent runs', () => {
           scope: { type: 'record_version', id: '00000000-0000-7000-8000-000000000001' },
         }),
       );
-      expect(r).toEqual({ type: 'guard', reasons: ['Choose a model for designer in Settings → Models & providers.'] });
+      expect(r).toEqual({ type: 'guard', reasons: ['Choose a model for designer in Models & providers.'] });
       const thread = await openThread('No engine');
       const m = await rejection(cmd('message.post', { exploration_id: thread, text: 'Hello?', respond: true }));
-      expect(m).toEqual({ type: 'guard', reasons: ['Choose a model for explorer in Settings → Models & providers.'] });
+      expect(m).toEqual({ type: 'guard', reasons: ['Choose a model for explorer in Models & providers.'] });
       // Without asking for an answer, the message is posted.
       await cmd('message.post', { exploration_id: thread, text: 'Just a note.', respond: false });
       expect(await count()).toBe(before);

@@ -1,5 +1,5 @@
 // Core test environment: ephemeral database + services with the simulated provider, and every agent
-// assigned to it (as a person would leave Settings → Models & providers).
+// assigned to it (as a person would leave Models & providers).
 
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';

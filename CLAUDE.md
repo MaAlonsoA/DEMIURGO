@@ -21,7 +21,7 @@ pnpm snap list|save|restore|drop|reset   # instantáneas de la base de dev (DEMI
 - La trazabilidad AC → prueba se construye desde `reports/junit-*.xml`: ejecuta `gate:test` y `gate:invariants` antes de `gate:traceability`. Cada AC automático necesita una prueba que pase y cuyo título empiece por su código.
 - Las pruebas que usan el motor durable arrancan DBOS sobre su base efímera; las demás usan el motor en línea (`packages/core/src/engine/inline.ts`), que procesa el conocimiento en el acto.
 - **Motores de los agentes** (FDR-AGE-002):
-  - se eligen en la web, en *Settings → Models & providers*: Claude, Codex u OpenCode (modelos locales como Qwen), globalmente o por proyecto;
+  - se eligen en la web, en *Models & providers* (menú de la persona): Claude, Codex u OpenCode (modelos locales como Qwen), globalmente o por proyecto;
   - sin motor asignado, la ejecución no se crea (409 «Choose a model for …»);
   - el proveedor `simulated` solo existe con `DEMIURGO_DEV_TOOLS=1`;
   - Claude y Codex consumen cuota de la suscripción: solo cuando se pida, y nunca en las pruebas, que usan el simulado y fixtures;

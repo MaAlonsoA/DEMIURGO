@@ -23,7 +23,7 @@ import {
 import { sql } from 'kysely';
 import { APPLIERS } from '../actions/appliers.ts';
 import { DEFAULT_AGENTS, loadAgentCatalog, schemaVersion } from '../agents/catalog.ts';
-import { callProvider } from '../assignments/calls.ts';
+import { callProvider, closeOrphanCalls } from '../assignments/calls.ts';
 import { previousSession, saveSession, sessionDirectory, sessionKey } from '../assignments/sessions.ts';
 import { executeCommand, inTransaction } from '../bus/bus.ts';
 import { graphUpToDate } from '../context/graph.ts';
@@ -591,6 +591,8 @@ export async function startEngine(
     executorID: 'local',
     logLevel: 'warn',
   });
+  // Before DBOS resumes anything: a call still "running" now was left so by a crash.
+  await closeOrphanCalls(s.db);
   await DBOS.launch();
   dispatcher = setInterval(() => {
     void dispatchDeferred();

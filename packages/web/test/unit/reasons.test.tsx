@@ -6,7 +6,7 @@ import { Reasons, explain } from '../../src/ui/Reasons.tsx';
 describe('reasons of a rejected action', () => {
   it('AC-AGE-002-03 a missing engine names the agent and links to Models & providers', () => {
     const error = new ApiError(409, 'guard', 'The conditions for "run.request" are not met.', [
-      'Choose a model for onboarding in Settings → Models & providers.',
+      'Choose a model for onboarding in Models & providers.',
     ]);
     const html = renderToStaticMarkup(<Reasons error={error} modelsHref="/p/p1/models" />);
     expect(html).toContain('Choose a model for onboarding');
@@ -18,7 +18,7 @@ describe('reasons of a rejected action', () => {
 
   it('AC-AGE-002-03 outside a project (starting the first one), a missing engine links to Models & providers of the workspace', () => {
     const error = new ApiError(409, 'guard', 'The conditions for "message.post" are not met.', [
-      'Choose a model for onboarding in Settings → Models & providers.',
+      'Choose a model for onboarding in Models & providers.',
     ]);
     expect(renderToStaticMarkup(<Reasons error={error} />)).toContain('href="/models"');
   });

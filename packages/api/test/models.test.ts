@@ -142,5 +142,13 @@ describe('models and providers API', () => {
     expect(calls[0]?.events.map((x) => x.kind)).toEqual(['started', 'message', 'result']);
     expect(calls[0]?.events.map((x) => x.seq)).toEqual([1, 2, 3]);
     expect(calls[0]?.usage.provenance).toMatchObject({ inputTokens: 'simulated:input.length' });
+    // A person sees each event as the provider wrote it; an external agent only its normalized
+    // kind and tokens: the raw text can carry local paths and the person's environment.
+    expect(calls[0]?.events.every((x) => typeof (x as { raw?: unknown }).raw === 'string')).toBe(true);
+    const seen = (await api().agent(token).request('GET', `/api/projects/${projectId}/runs/${runId}/calls`)).json<{
+      calls: { events: Record<string, unknown>[] }[];
+    }>().calls;
+    expect(seen[0]?.events.map((x) => x.kind)).toEqual(['started', 'message', 'result']);
+    expect(seen[0]?.events.some((x) => 'raw' in x)).toBe(false);
   });
 });

@@ -1,5 +1,5 @@
 // Seeds for tests and the e2e server: a provider's catalog and every agent assigned to the simulated
-// provider, as a person would leave them from Settings → Models & providers.
+// provider, as a person would leave them in Models & providers.
 
 import type { ProviderModel } from '@demiurgo/domain';
 import { loadAgentCatalog } from '../../src/agents/catalog.ts';

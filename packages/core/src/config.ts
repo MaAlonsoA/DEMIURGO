@@ -65,7 +65,7 @@ export function readConfig(environment: Readonly<Record<string, string | undefin
   }
   const removed = REMOVED_VARIABLES.filter((n) => environment[n] !== undefined);
   if (removed.length > 0) {
-    throw new Error(`${removed.join(', ')} no longer exist: choose each agent's model in Settings → Models & providers.`);
+    throw new Error(`${removed.join(', ')} no longer exist: choose each agent's model in Models & providers.`);
   }
   const e = schema.parse(environment);
   if (FORBIDDEN_PORTS.includes(e.DEMIURGO_PORT)) {

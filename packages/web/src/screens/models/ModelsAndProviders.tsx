@@ -1,4 +1,4 @@
-// Settings → Models & providers (FDR-AGE-002): what each provider offers now, which engine runs each
+// Models & providers (FDR-AGE-002): what each provider offers now, which engine runs each
 // agent (everywhere, and this project's overrides), and what they have spent. Only discovered models
 // can be chosen; nothing here switches engine on its own. It also lives outside any project
 // (/models), so a first project that can't start because no engine is chosen has somewhere to go.

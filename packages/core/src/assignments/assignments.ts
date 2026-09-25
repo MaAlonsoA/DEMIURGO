@@ -40,7 +40,7 @@ async function engineProblem(db: Db | Tx, providers: ProviderRegistry, e: Engine
   const label = labelOf(providers, e.provider);
   if (!providers.get(e.provider)) return `${label} isn't available here.`;
   const catalog = await catalogOf(db, e.provider);
-  if (!catalog) return `${label} hasn't been discovered yet: press Refresh in Settings → Models & providers.`;
+  if (!catalog) return `${label} hasn't been discovered yet: press Refresh in Models & providers.`;
   const model = catalog.models.find((m) => m.id === e.model);
   if (!model) return `${e.model} is no longer offered by ${label}.`;
   if (model.efforts.length === 0 ? e.effort !== null : e.effort === null || !model.efforts.includes(e.effort)) {
@@ -185,6 +185,6 @@ export async function resolveEngine(
 /** What the person has to do so the agent can run, or null if it can. */
 export function resolutionProblem(agent: string, r: Resolution): string | null {
   if (r.status === 'ok') return null;
-  if (r.status === 'unassigned') return `Choose a model for ${agent} in Settings → Models & providers.`;
+  if (r.status === 'unassigned') return `Choose a model for ${agent} in Models & providers.`;
   return `${r.reason} Choose another model for ${agent}.`;
 }

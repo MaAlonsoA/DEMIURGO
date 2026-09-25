@@ -4,7 +4,7 @@
 // when a command fails, with its reasons. A thread that is not active waits for Resume.
 
 import { DropdownMenu } from 'radix-ui';
-import { type FormEvent, type KeyboardEvent, useId, useState } from 'react';
+import { type FormEvent, type KeyboardEvent, useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
 import { canCreate } from '../../api/tables.ts';
 import { cn } from '../../lib/cn.ts';
@@ -24,6 +24,8 @@ export function Composer({
   inactiveNote,
   decisions,
   onResume,
+  replying,
+  onClearReply,
 }: {
   projectId: string;
   explorationId: string;
@@ -31,16 +33,21 @@ export function Composer({
   inactiveNote: string;
   decisions: Draftable[] | undefined;
   onResume?: (() => void) | undefined;
+  /** An open question the composer answers: Send confirms it with what was written. */
+  replying?:
+    | { question: string; onAnswer: (text: string, done: () => void) => void; pending: boolean; error: unknown }
+    | undefined;
+  onClearReply?: () => void;
 }) {
   const tables = useTables();
   const command = useCommand(projectId);
   const [text, setText] = useState('');
   const [sending, setSending] = useState<Sending | null>(null);
-  const id = useId();
+  const id = 'thread-composer';
   const canPost = !!tables && canCreate(tables, 'message.post');
   const canRequest = !!tables && canCreate(tables, 'run.request');
   const empty = text.trim() === '';
-  const busy = command.isPending;
+  const busy = command.isPending || !!replying?.pending;
 
   const run = (kind: Sending, call: Parameters<typeof command.mutate>[0], clear: boolean) => {
     setSending(kind);
@@ -53,6 +60,10 @@ export function Composer({
   };
   const send = () => {
     if (empty || busy) return;
+    if (replying) {
+      replying.onAnswer(text.trim(), () => setText(''));
+      return;
+    }
     run('send', { command: 'message.post', data: { exploration_id: explorationId, text: text.trim(), respond: false } }, true);
   };
   const ask = () => {
@@ -89,11 +100,29 @@ export function Composer({
   return (
     <div className="sticky bottom-0 z-10 bg-linear-to-t from-paper from-75% to-transparent pt-6 pb-6">
       {command.error ? <Reasons error={command.error} className="mb-2" /> : null}
+      {replying?.error ? <Reasons error={replying.error} className="mb-2" /> : null}
       <form
         onSubmit={onSubmit}
         aria-label="Write in the thread"
         className="flex flex-col rounded-control border border-line-strong bg-surface shadow-raised has-[textarea:focus-visible]:border-needs"
       >
+        {replying && active && (
+          <div className="dm-text-caption flex items-center gap-2 border-b border-line-soft px-4 py-2 text-muted">
+            <span className="min-w-0 flex-1 truncate">
+              Replying to: <span className="font-semibold text-ink">{replying.question}</span>
+            </span>
+            {onClearReply && (
+              <button
+                type="button"
+                onClick={onClearReply}
+                className="shrink-0 font-semibold text-ink-3 hover:text-ink"
+                aria-label="Write to the thread instead of answering"
+              >
+                Write something else
+              </button>
+            )}
+          </div>
+        )}
         <label htmlFor={id} className="sr-only">
           Message
         </label>
@@ -105,7 +134,7 @@ export function Composer({
           disabled={!active || !canPost}
           rows={active ? 3 : 1}
           maxLength={20_000}
-          placeholder={active ? 'Write to the thread…' : ''}
+          placeholder={active ? (replying ? 'Your answer, or pick an option above' : 'Write to the thread…') : ''}
           className={cn(
             'dm-text-body w-full rounded-t-control bg-transparent px-4 pt-3 pb-1 leading-relaxed text-ink outline-none placeholder:text-muted disabled:cursor-not-allowed disabled:bg-surface-soft',
             active ? 'min-h-[76px] resize-y' : 'h-10 resize-none',
@@ -130,7 +159,7 @@ export function Composer({
           </p>
           {canPost && (
             <Button type="submit" variant="text" disabled={!active || empty || busy}>
-              {sending === 'send' ? 'Sending…' : 'Send'}
+              {replying ? (replying.pending ? 'Answering…' : 'Answer') : sending === 'send' ? 'Sending…' : 'Send'}
             </Button>
           )}
           {canRequest && (

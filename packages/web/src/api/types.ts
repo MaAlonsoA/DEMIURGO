@@ -321,8 +321,13 @@ export type Question = {
   created_at: string;
   epistemic_status: Epistemic;
   /** Predefined answers proposed by the agent, with what each one implies. */
-  options?: { answer: string; implies: string }[];
+  options?: { answer: string; implies: string; exclusive?: boolean }[];
   stage_id?: string | null;
+  stage_key?: string | null;
+  /** Several options may be picked. */
+  multiple?: boolean;
+  /** When it was shown in its thread; null while it waits in the reserve. */
+  shown_at?: string | null;
 };
 
 export type ExplorationDetail = {

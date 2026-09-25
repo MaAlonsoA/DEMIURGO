@@ -159,11 +159,16 @@ export function OpenThreadDialog({
   open,
   onOpenChange,
   parent,
+  initial = '',
+  fork = false,
 }: {
   projectId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   parent?: { id: string; purpose: string };
+  /** The purpose to start from (a fork starts from the message it forks). */
+  initial?: string;
+  fork?: boolean;
 }) {
   const command = useCommand(projectId);
   const navigate = useNavigate();
@@ -175,7 +180,7 @@ export function OpenThreadDialog({
     <TextDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={parent ? 'Open a thread inside' : 'Open a thread'}
+      title={fork ? 'Fork into a new thread' : parent ? 'Open a thread inside' : 'Open a thread'}
       description={
         parent ? (
           <>
@@ -186,6 +191,7 @@ export function OpenThreadDialog({
         )
       }
       label="Purpose"
+      initial={initial}
       submit="Open thread"
       required
       maxLength={1000}

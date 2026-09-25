@@ -1,15 +1,16 @@
-// A thread (spec §4.7): its purpose, state and origin; the conversation with the runs between the
-// messages and the composer at the bottom; on the right, its questions resolved in place and the
-// threads inside it. Conclude, Set aside and Resume come from the tables.
+// A thread (spec §4.7): its purpose, state and origin, and the stage it carries; the conversation
+// (with DEMIURGO's questions answered in place, two at a time) and the composer at the bottom; on
+// the right, the threads inside it, or the side conversation of the question being gone into.
+// Conclude, Set aside and Resume come from the tables.
 
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { type ReactNode, useState } from 'react';
 import { ApiError } from '../../api/client.ts';
 import { useCommand } from '../../api/commands.ts';
-import { entityEventsQuery, explorationQuery, explorationsQuery, runsQuery, stateQuery } from '../../api/queries.ts';
+import { entityEventsQuery, explorationQuery, explorationsQuery, runsQuery, stagesQuery, stateQuery } from '../../api/queries.ts';
 import { canCreate } from '../../api/tables.ts';
-import type { ExplorationDetail, ProductState, Question } from '../../api/types.ts';
+import type { ExplorationDetail, ProductState, Question, StageRow } from '../../api/types.ts';
 import { useRouteParams, useTables } from '../../lib/hooks.ts';
 import { shortDate } from '../../lib/time.ts';
 import { ActionBar, useAllows } from '../../ui/ActionBar.tsx';
@@ -18,7 +19,6 @@ import { TextDialog } from '../../ui/dialogs.tsx';
 import { PlusIcon, TypeIcon } from '../../ui/icons.tsx';
 import { Breadcrumbs, type Crumb, Page, SectionTitle, Skeleton } from '../../ui/layout.tsx';
 import { StateMark } from '../../ui/marks.tsx';
-import { QuestionItem } from '../../ui/QuestionItem.tsx';
 import { Reasons } from '../../ui/Reasons.tsx';
 import { WhoMark } from '../../ui/signals.tsx';
 import { whoOf } from '../../words.ts';
@@ -26,6 +26,7 @@ import { NotFound } from '../not-found/NotFound.tsx';
 import { OpenThreadDialog, ThreadNode } from '../threads/Threads.tsx';
 import { Composer } from './Composer.tsx';
 import { Conversation } from './Conversation.tsx';
+import { DeeperPanel, StageComplete, isOpenQuestion, isShown, useAnswer } from './ThreadQuestions.tsx';
 import { buildTimeline, draftableDecisions } from './timeline.ts';
 
 const short = (text: string, n = 56) => (text.length > n ? `${text.slice(0, n - 1)}…` : text);
@@ -35,8 +36,13 @@ export function ThreadScreen() {
   const thread = useQuery(explorationQuery(projectId, explorationId));
   const runs = useQuery(runsQuery(projectId, { exploration: explorationId }));
   const state = useQuery(stateQuery(projectId));
+  const stages = useQuery(stagesQuery(projectId)).data;
   const resume = useCommand(projectId);
   const allows = useAllows('exploration', thread.data?.state);
+  const [deeper, setDeeper] = useState<string | null>(null);
+  const [replyTo, setReplyTo] = useState<string | null>(null);
+  const [replyOff, setReplyOff] = useState(false);
+  const answering = useAnswer(projectId, thread.data);
 
   if (thread.error instanceof ApiError && thread.error.status === 404) {
     return <NotFound thing="this thread">It may belong to another project.</NotFound>;
@@ -51,15 +57,33 @@ export function ThreadScreen() {
   }
   if (!t) return <ThreadSkeleton />;
 
-  const items = buildTimeline(t.messages, runs.data ?? []);
+  const shown = t.questions.filter(isShown);
+  const items = buildTimeline(t.messages, runs.data ?? [], shown);
   const active = t.state === 'active';
   const decisions = state.data ? draftableDecisions(state.data.decisions, t.id) : undefined;
   const canResume = allows('exploration.resume');
+  const stage = stages?.find((x) => x.exploration_id === t.id && x.state === 'open');
+  const nextStage = stage ? stages?.find((x) => x.position === stage.position + 1) : undefined;
+  const openShown = shown.filter(isOpenQuestion);
+  const reserve = t.questions.filter((q) => !isShown(q) && isOpenQuestion(q)).length;
+  // The composer replies to the question the person chose, else to the first one open.
+  const replying = replyOff ? undefined : (openShown.find((q) => q.id === replyTo) ?? openShown[0]);
+  const deeperQuestion = deeper ? t.questions.find((q) => q.id === deeper && isOpenQuestion(q)) : undefined;
+  const stageDone = !!stage && stage.total > 0 && stage.covered === stage.total;
 
   return (
-    <Page className="pb-0" aside={<ThreadAside projectId={projectId} thread={t} />}>
+    <Page
+      className="pb-0"
+      aside={
+        deeperQuestion ? (
+          <DeeperPanel projectId={projectId} thread={t} question={deeperQuestion} onClose={() => setDeeper(null)} />
+        ) : (
+          <ThreadAside projectId={projectId} thread={t} />
+        )
+      }
+    >
       <div className="mx-auto flex min-h-[calc(100vh-56px-28px)] max-w-[760px] flex-col">
-        <ThreadHeader projectId={projectId} thread={t} products={state.data} />
+        <ThreadHeader projectId={projectId} thread={t} products={state.data} stage={stage} />
         <div className="flex-1">
           {runs.isPending ? (
             <div aria-hidden="true" className="flex flex-col gap-4">
@@ -67,7 +91,34 @@ export function ThreadScreen() {
               <Skeleton className="h-24 w-4/5" />
             </div>
           ) : (
-            <Conversation projectId={projectId} items={items} runs={runs.data ?? []} questions={t.questions} active={active} />
+            <Conversation
+              projectId={projectId}
+              items={items}
+              runs={runs.data ?? []}
+              questions={t.questions}
+              active={active}
+              handlers={{
+                thread: t,
+                stageTitle: stage?.title ?? null,
+                deeper,
+                onDeeper: (id) => setDeeper(deeper === id ? null : id),
+                onOwnWords: (id) => {
+                  setReplyTo(id);
+                  setReplyOff(false);
+                  document.getElementById('thread-composer')?.focus();
+                },
+              }}
+            />
+          )}
+          {stage && stageDone && active && (
+            <div className="mt-5 flex flex-col">
+              <StageComplete projectId={projectId} stage={stage} next={nextStage?.title ?? null} />
+            </div>
+          )}
+          {reserve > 0 && active && (
+            <p className="dm-text-caption mt-5 rounded-sm border border-dashed border-line-strong px-3 py-2 text-muted">
+              DEMIURGO keeps {reserve} {reserve === 1 ? 'question' : 'questions'} for later. They come up as you answer.
+            </p>
           )}
         </div>
         {resume.error ? <Reasons error={resume.error} className="mt-4" /> : null}
@@ -75,6 +126,17 @@ export function ThreadScreen() {
           projectId={projectId}
           explorationId={t.id}
           active={active}
+          replying={
+            replying
+              ? {
+                  question: replying.question,
+                  onAnswer: (text, done) => answering.answer(replying, text, done),
+                  pending: answering.pending,
+                  error: answering.error,
+                }
+              : undefined
+          }
+          onClearReply={() => setReplyOff(true)}
           inactiveNote={
             t.state === 'concluded'
               ? 'This thread is concluded. Resume it to continue.'
@@ -120,10 +182,12 @@ function ThreadHeader({
   projectId,
   thread: t,
   products,
+  stage,
 }: {
   projectId: string;
   thread: ExplorationDetail;
   products?: ProductState;
+  stage?: StageRow | undefined;
 }) {
   const command = useCommand(projectId);
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -164,7 +228,17 @@ function ThreadHeader({
         </span>
       </div>
       <div className="flex items-start justify-between gap-6">
-        <h1 className="dm-text-page-title leading-tight font-semibold text-balance">{t.purpose}</h1>
+        <div className="flex min-w-0 flex-col gap-2">
+          <h1 className="dm-text-page-title leading-tight font-semibold text-balance">{t.purpose}</h1>
+          {stage && (
+            <span
+              data-thread-stage={stage.key}
+              className="dm-text-caption self-start rounded-pill border border-line px-2.5 py-0.5 text-muted"
+            >
+              {stage.title} · {stage.covered} of {stage.total} answered
+            </span>
+          )}
+        </div>
         <ActionBar
           entity="exploration"
           state={t.state}
@@ -339,76 +413,36 @@ function originOf(
   }
 }
 
-/** The right column: the questions of the thread and the threads inside it. */
+/** The right column: the threads inside this one (DEMIURGO's questions live in the conversation). */
 function ThreadAside({ projectId, thread: t }: { projectId: string; thread: ExplorationDetail }) {
   const tables = useTables();
   const [opening, setOpening] = useState(false);
-  const order: Record<string, number> = { pending: 0, inferred: 1, postponed: 2, confirmed: 3, discarded: 4 };
-  const sorted = [...t.questions].sort((a, b) => (order[a.state] ?? 5) - (order[b.state] ?? 5));
-  const waiting = sorted.filter((q) => ['pending', 'inferred', 'postponed'].includes(q.state));
-  const settled = sorted.filter((q) => !['pending', 'inferred', 'postponed'].includes(q.state));
   const canOpen = !!tables && canCreate(tables, 'exploration.open');
 
   return (
-    <>
-      <section aria-labelledby="thread-questions" className="flex flex-col">
-        <SectionTitle aside={waiting.length > 0 ? `${waiting.length} waiting` : undefined}>
-          <span id="thread-questions">Questions</span>
-        </SectionTitle>
-        {t.questions.length === 0 && (
-          <p className="dm-text-small text-muted">No questions yet. DEMIURGO raises them as the thread goes on.</p>
-        )}
-        <QuestionList projectId={projectId} questions={waiting} />
-        {settled.length > 0 && (
-          <>
-            <h3 className="dm-label mt-4 mb-1">Settled</h3>
-            <QuestionList projectId={projectId} questions={settled} />
-          </>
-        )}
-      </section>
-
-      <section aria-labelledby="thread-children" className="flex flex-col border-t border-line-soft pt-5">
-        <SectionTitle>
-          <span id="thread-children">Threads inside</span>
-        </SectionTitle>
-        {t.children.length > 0 ? (
-          <ul className="mb-3 flex flex-col gap-2">
-            {t.children.map((c) => (
-              <li key={c.id} className="flex">
-                <ThreadNode projectId={projectId} thread={c} />
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="dm-text-small mb-3 text-muted">None yet.</p>
-        )}
-        {canOpen && (
-          <Button variant="secondary" className="self-start" onClick={() => setOpening(true)}>
-            <PlusIcon size={12} />
-            New thread inside
-          </Button>
-        )}
-        <OpenThreadDialog
-          projectId={projectId}
-          open={opening}
-          onOpenChange={setOpening}
-          parent={{ id: t.id, purpose: t.purpose }}
-        />
-      </section>
-    </>
-  );
-}
-
-function QuestionList({ projectId, questions }: { projectId: string; questions: Question[] }) {
-  if (questions.length === 0) return null;
-  return (
-    <ul className="flex flex-col divide-y divide-line-soft">
-      {questions.map((q) => (
-        <li key={q.id} className="py-3 first:pt-1">
-          <QuestionItem projectId={projectId} question={q} />
-        </li>
-      ))}
-    </ul>
+    <section aria-labelledby="thread-children" className="flex flex-col">
+      <SectionTitle>
+        <span id="thread-children">Threads inside</span>
+      </SectionTitle>
+      {t.children.length > 0 ? (
+        <ul className="mb-3 flex flex-col gap-2">
+          {t.children.map((c) => (
+            <li key={c.id} className="flex">
+              <ThreadNode projectId={projectId} thread={c} />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="dm-text-small mb-3 text-muted">None yet. Fork a message of DEMIURGO to explore an idea apart.</p>
+      )}
+      {canOpen && (
+        <Button variant="secondary" className="self-start" onClick={() => setOpening(true)}>
+          <PlusIcon size={12} />
+          New thread inside
+        </Button>
+      )}
+      <OpenThreadDialog projectId={projectId} open={opening} onOpenChange={setOpening} parent={{ id: t.id, purpose: t.purpose }} />
+    </section>
   );
 }
 

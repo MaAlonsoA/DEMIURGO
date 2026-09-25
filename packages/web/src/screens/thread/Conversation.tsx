@@ -1,24 +1,39 @@
 // The conversation of a thread (spec §4.7): the person's messages on the right, DEMIURGO's reply
 // with its observations (Proposed ○ or Unknown ?, never Confirmed) and an agent's messages on the
-// left, and the runs between them. While the person reads the end, what arrives stays in view.
+// left, and the runs between them. DEMIURGO's questions are its messages too (answered in place),
+// a new thread it suggests shows inline, and any of its messages can be forked into a new thread.
+// While the person reads the end, what arrives stays in view.
 
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
+import { useCommand } from '../../api/commands.ts';
 import { batchQuery } from '../../api/queries.ts';
-import type { Message, Question, RunListItem } from '../../api/types.ts';
+import type { ExplorationDetail, Message, Question, RunListItem } from '../../api/types.ts';
 import { cn } from '../../lib/cn.ts';
 import { ago, dayTime } from '../../lib/time.ts';
+import { Button } from '../../ui/Button.tsx';
 import { ChevronRight, TypeIcon } from '../../ui/icons.tsx';
 import { Skeleton } from '../../ui/layout.tsx';
 import { ObservationChip, StateMark } from '../../ui/marks.tsx';
+import { Reasons } from '../../ui/Reasons.tsx';
 import { WhoMark } from '../../ui/signals.tsx';
 import { Tip } from '../../ui/Tip.tsx';
 import { whoOf } from '../../words.ts';
 import { useNow } from '../run/hooks.ts';
 import { proposalsInWords } from '../run/runs.ts';
+import { OpenThreadDialog } from '../threads/Threads.tsx';
 import { RunCard } from './RunCards.tsx';
+import { QuestionCard } from './ThreadQuestions.tsx';
 import { type TimelineItem, isActive } from './timeline.ts';
+
+export type QuestionHandlers = {
+  thread: ExplorationDetail;
+  stageTitle: string | null;
+  deeper: string | null;
+  onDeeper: (questionId: string) => void;
+  onOwnWords: (questionId: string) => void;
+};
 
 export function Conversation({
   projectId,
@@ -26,12 +41,14 @@ export function Conversation({
   runs,
   questions,
   active,
+  handlers,
 }: {
   projectId: string;
   items: TimelineItem[];
   runs: RunListItem[];
   questions: Question[];
   active: boolean;
+  handlers: QuestionHandlers;
 }) {
   const runOf = new Map(runs.map((r) => [r.id, r]));
   const now = useNow(runs.some(isActive));
@@ -48,6 +65,20 @@ export function Conversation({
   return (
     <section aria-label="Conversation" className="flex flex-col gap-5">
       {items.map((item) => {
+        if (item.type === 'question')
+          return (
+            <QuestionCard
+              key={item.key}
+              projectId={projectId}
+              thread={handlers.thread}
+              question={item.question}
+              stageTitle={item.question.stage_id ? handlers.stageTitle : null}
+              deeperOpen={handlers.deeper === item.question.id}
+              deeperCount={handlers.thread.messages.filter((m) => m.question_id === item.question.id).length}
+              onDeeper={() => handlers.onDeeper(item.question.id)}
+              onOwnWords={() => handlers.onOwnWords(item.question.id)}
+            />
+          );
         if (item.type === 'run')
           return <RunCard key={item.key} projectId={projectId} run={item.run} display={item.display} now={now} />;
         if (item.type === 'demiurgo') {
@@ -56,6 +87,7 @@ export function Conversation({
             <DemiurgoMessage
               key={item.key}
               projectId={projectId}
+              thread={handlers.thread}
               reply={item.reply}
               observations={item.observations}
               model={run?.model ?? null}
@@ -141,17 +173,20 @@ function PersonMessage({ message: m, by, about }: { message: Message; by: 'you' 
 /** DEMIURGO's answer: its reply and, below, what it observed with its chip. */
 function DemiurgoMessage({
   projectId,
+  thread,
   reply,
   observations,
   model,
   batchId,
 }: {
   projectId: string;
+  thread: ExplorationDetail;
   reply: Message | null;
   observations: Message[];
   model: string | null;
   batchId: string | null;
 }) {
+  const [forking, setForking] = useState(false);
   const first = reply ?? observations[0];
   if (!first) return null;
   // Observations carry their type; anything else DEMIURGO wrote in the same run reads as its reply.
@@ -192,42 +227,136 @@ function DemiurgoMessage({
         </div>
       )}
       {batchId && <Proposed projectId={projectId} batchId={batchId} />}
+      {thread.state === 'active' && (
+        <div className="flex justify-end border-t border-line-soft pt-2">
+          <Button variant="text" onClick={() => setForking(true)} data-command="exploration.open">
+            <ForkIcon />
+            Fork into a new thread
+          </Button>
+        </div>
+      )}
+      <OpenThreadDialog
+        projectId={projectId}
+        open={forking}
+        onOpenChange={setForking}
+        parent={{ id: thread.id, purpose: thread.purpose }}
+        initial={(reply?.body ?? first.body).slice(0, 1000)}
+        fork
+      />
     </article>
   );
 }
 
-/** What the conversation proposed: it waits in Needs you, on its ground, until the person resolves it. */
+function ForkIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="6" cy="5" r="2" />
+      <circle cx="6" cy="19" r="2" />
+      <circle cx="18" cy="8" r="2" />
+      <path d="M6 7v10" />
+      <path d="M18 10c0 4-6 3-12 7" />
+    </svg>
+  );
+}
+
+/** A new thread DEMIURGO suggests: the person explores it separately or keeps it here. */
+function ForkSuggestion({ projectId, proposal }: { projectId: string; proposal: { id: string; state: string; payload: unknown } }) {
+  const command = useCommand(projectId);
+  const purpose = String((proposal.payload as { purpose?: unknown } | null)?.purpose ?? '');
+  if (proposal.state !== 'pending') {
+    return (
+      <p className="dm-text-caption text-muted">
+        {proposal.state === 'accepted' ? `Opened as its own thread: «${purpose}»` : `Kept in this thread: «${purpose}»`}
+      </p>
+    );
+  }
+  return (
+    <div
+      data-fork-suggestion={proposal.id}
+      className="flex flex-col gap-2 rounded-card-md border border-dashed border-line-strong px-3 py-2.5"
+    >
+      <p className="dm-text-small flex items-start gap-2 text-ink-2">
+        <span className="mt-0.5 flex text-ink-3">
+          <ForkIcon />
+        </span>
+        <span>
+          Could deserve its own thread: <span className="font-semibold text-ink">«{purpose}»</span>
+        </span>
+      </p>
+      <div className="flex gap-2">
+        <Button
+          variant="secondary"
+          disabled={command.isPending}
+          onClick={() => command.mutate({ command: 'proposal.accept', entityId: proposal.id, data: {} })}
+        >
+          Explore separately
+        </Button>
+        <Button
+          variant="text"
+          disabled={command.isPending}
+          onClick={() =>
+            command.mutate({ command: 'proposal.reject', entityId: proposal.id, data: { reason: 'Kept in this thread.' } })
+          }
+        >
+          Keep it here
+        </Button>
+      </div>
+      {command.error ? <Reasons error={command.error} /> : null}
+    </div>
+  );
+}
+
+/** What the conversation proposed: new threads inline; the rest waits in Needs you until resolved. */
 function Proposed({ projectId, batchId }: { projectId: string; batchId: string }) {
   const batch = useQuery(batchQuery(projectId, batchId)).data;
   if (!batch) return <Skeleton className="h-4 w-1/2" />;
-  const pending = batch.state === 'pending';
+  const forks = batch.proposals.filter((p) => p.type === 'exploration');
+  const rest = batch.proposals.filter((p) => p.type !== 'exploration');
+  const pending = batch.state === 'pending' && rest.some((p) => p.state === 'pending');
   return (
-    <div
-      data-proposed={batch.id}
-      className={cn(
-        'dm-text-small flex items-center gap-2.5 rounded-sm border px-3 py-2',
-        pending ? 'border-needs-line bg-needs-soft text-ink' : 'border-transparent bg-surface-soft text-ink-2',
+    <>
+      {forks.map((p) => (
+        <ForkSuggestion key={p.id} projectId={projectId} proposal={p} />
+      ))}
+      {rest.length > 0 && (
+        <div
+          data-proposed={batch.id}
+          className={cn(
+            'dm-text-small flex items-center gap-2.5 rounded-sm border px-3 py-2',
+            pending ? 'border-needs-line bg-needs-soft text-ink' : 'border-transparent bg-surface-soft text-ink-2',
+          )}
+        >
+          <span className="flex text-muted">
+            <TypeIcon kind="package" size={14} />
+          </span>
+          <span className="min-w-0 flex-1">
+            Proposed <span className="font-semibold">{proposalsInWords(rest.map((p) => p.type))}</span>
+            {pending ? ' for you to review.' : '.'}
+          </span>
+          {!pending && <StateMark entity="batch" state={batch.state} />}
+          <Link
+            to="/p/$projectId/batches/$batchId"
+            params={{ projectId, batchId: batch.id }}
+            className={cn(
+              'inline-flex shrink-0 items-center gap-0.5 font-semibold',
+              pending ? 'text-needs-strong hover:underline' : 'text-ink-2 hover:text-ink',
+            )}
+          >
+            {pending ? 'Review' : 'Open'}
+            <ChevronRight size={12} />
+          </Link>
+        </div>
       )}
-    >
-      <span className="flex text-muted">
-        <TypeIcon kind="package" size={14} />
-      </span>
-      <span className="min-w-0 flex-1">
-        Proposed <span className="font-semibold">{proposalsInWords(batch.proposals.map((p) => p.type))}</span>
-        {pending ? ' for you to review.' : '.'}
-      </span>
-      {!pending && <StateMark entity="batch" state={batch.state} />}
-      <Link
-        to="/p/$projectId/batches/$batchId"
-        params={{ projectId, batchId: batch.id }}
-        className={cn(
-          'inline-flex shrink-0 items-center gap-0.5 font-semibold',
-          pending ? 'text-needs-strong hover:underline' : 'text-ink-2 hover:text-ink',
-        )}
-      >
-        {pending ? 'Review' : 'Open'}
-        <ChevronRight size={12} />
-      </Link>
-    </div>
+    </>
   );
 }

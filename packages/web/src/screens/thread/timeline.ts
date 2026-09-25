@@ -3,7 +3,7 @@
 // failed or was cancelled, and when it left a draft ready; a finished conversation speaks through
 // its messages.
 
-import type { Message, ProductRow, RunListItem } from '../../api/types.ts';
+import type { Message, ProductRow, Question, RunListItem } from '../../api/types.ts';
 import { whoOf } from '../../words.ts';
 
 export type RunDisplay = 'working' | 'failed' | 'retried' | 'cancelled' | 'draft';
@@ -11,7 +11,8 @@ export type RunDisplay = 'working' | 'failed' | 'retried' | 'cancelled' | 'draft
 export type TimelineItem =
   | { type: 'message'; key: string; at: number; message: Message; by: 'you' | 'agent' | 'automatic' }
   | { type: 'demiurgo'; key: string; at: number; runId: string | null; reply: Message | null; observations: Message[] }
-  | { type: 'run'; key: string; at: number; run: RunListItem; display: RunDisplay };
+  | { type: 'run'; key: string; at: number; run: RunListItem; display: RunDisplay }
+  | { type: 'question'; key: string; at: number; question: Question };
 
 const time = (iso: string | null | undefined): number => (iso ? Date.parse(iso) : 0);
 
@@ -27,10 +28,16 @@ export function runDisplay(run: RunListItem, runs: readonly RunListItem[]): RunD
   return null;
 }
 
-export function buildTimeline(messages: readonly Message[], runs: readonly RunListItem[]): TimelineItem[] {
+export function buildTimeline(
+  messages: readonly Message[],
+  runs: readonly RunListItem[],
+  questions: readonly Question[] = [],
+): TimelineItem[] {
   const items: TimelineItem[] = [];
   let group: Extract<TimelineItem, { type: 'demiurgo' }> | null = null;
   for (const m of messages) {
+    // What was said about one question lives in its "Go deeper" side conversation.
+    if (m.question_id) continue;
     const kind = whoOf(m.author).kind;
     if (kind === 'demiurgo') {
       if (!group || group.runId !== m.run_id) {
@@ -44,6 +51,11 @@ export function buildTimeline(messages: readonly Message[], runs: readonly RunLi
     }
     group = null;
     items.push({ type: 'message', key: `m:${m.id}`, at: time(m.created_at), message: m, by: kind });
+  }
+  // DEMIURGO's questions are its messages too, from when each was shown (the reserve stays hidden).
+  for (const q of questions) {
+    if (!q.shown_at) continue;
+    items.push({ type: 'question', key: `q:${q.id}`, at: time(q.shown_at), question: q });
   }
   for (const run of runs) {
     const display = runDisplay(run, runs);

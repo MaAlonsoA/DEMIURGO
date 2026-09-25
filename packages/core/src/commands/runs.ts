@@ -226,7 +226,8 @@ registerHandlers({
           action: o.action,
           scope: JSON.stringify(o.scope),
           ...runAgentColumns(agent, engine),
-          schema_version: o.schema_version,
+          // A retry validates against today's schema: the old one may be what made the original fail.
+          schema_version: schemaVersion(action),
           model: null,
           context_pack_id: o.context_pack_id,
           retry_of: o.id,

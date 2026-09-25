@@ -110,6 +110,9 @@ const RADII = new Set([...themeNames(themeCss, 'radius'), 'full', 'none']);
 const SHADOWS = new Set([...themeNames(themeCss, 'shadow'), 'none']);
 const TOKENS = new Set([...tokensCss.matchAll(/--([a-z0-9-]+):/g)].map((m) => m[1] ?? ''));
 
+/** Besides the tokens: Tailwind's own variables and the sizes Radix measures at run time. */
+const runtime = (name: string) => name.startsWith('tw-') || name.startsWith('radix-');
+
 function offenders(pattern: RegExp, allowed: (m: RegExpMatchArray) => boolean, among = code): string[] {
   return among.flatMap((s) =>
     [...s.text.matchAll(pattern)]
@@ -181,6 +184,6 @@ describe('the web paints only with its tokens', () => {
   });
 
   it('refers only to tokens that exist', () => {
-    expect(offenders(/var\(--([a-z0-9-]+)/g, (m) => TOKENS.has(m[1] ?? '') || (m[1] ?? '').startsWith('tw-'))).toEqual([]);
+    expect(offenders(/var\(--([a-z0-9-]+)/g, (m) => TOKENS.has(m[1] ?? '') || runtime(m[1] ?? ''))).toEqual([]);
   });
 });

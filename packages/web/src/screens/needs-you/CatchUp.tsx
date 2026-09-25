@@ -139,8 +139,10 @@ export function CatchUp({ ctx, items }: { ctx: NeedContext; items: NeedItem[] })
       />
       <PageBody>
         <div className="flex flex-col gap-8 xl:flex-row xl:items-start">
+          {/* It scrolls on its own on wide screens: focusable, so the keyboard can scroll it too (WCAG 2.1.1). */}
           <section
             aria-labelledby={listId}
+            tabIndex={0}
             className="order-2 flex w-full shrink-0 flex-col gap-3 xl:sticky xl:top-4 xl:order-1 xl:max-h-[calc(100vh-32px)] xl:w-80 xl:overflow-y-auto"
           >
             <div className="flex items-baseline justify-between gap-3">

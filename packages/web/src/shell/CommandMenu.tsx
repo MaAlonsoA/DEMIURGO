@@ -167,6 +167,10 @@ function MenuBody({ projectId, close }: { projectId: string; close: () => void }
   };
 
   const optionId = (i: number) => `${listId}-${i}`;
+  // The focus stays in the field (aria-activedescendant): the active option is scrolled into view.
+  useEffect(() => {
+    document.getElementById(`${listId}-${active}`)?.scrollIntoView({ block: 'nearest' });
+  }, [active, listId]);
   const hits = options.filter((o) => o.kind === 'hit');
   const gos = options.filter((o) => o.kind === 'go');
 
@@ -194,7 +198,8 @@ function MenuBody({ projectId, close }: { projectId: string; close: () => void }
         />
         <kbd className="shrink-0 rounded-xs border border-edge px-1.5 font-ui text-xs text-fg-3">Esc</kbd>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-2">
+      {/* Focusable, so the results can be scrolled by keyboard too (WCAG 2.1.1). */}
+      <div role="region" tabIndex={0} aria-label="Search results" className="min-h-0 flex-1 overflow-y-auto p-2">
         {search.error && enabled ? <ErrorNotice error={search.error} focus={false} compact className="m-1" /> : null}
         {typed.length >= MIN ? (
           <p className="px-2.5 pt-1 pb-1.5 text-xs font-medium text-fg-3">

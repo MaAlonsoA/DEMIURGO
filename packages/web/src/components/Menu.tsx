@@ -6,8 +6,9 @@ import type { ReactNode } from 'react';
 import { cn } from '../lib/cn.ts';
 import { CheckIcon } from './icons.tsx';
 
+// A long menu (the project switcher with many projects) scrolls inside the space Radix measures.
 const content =
-  'z-50 min-w-52 animate-enter rounded-lg border border-edge bg-panel p-1 text-base text-fg shadow-popover outline-none';
+  'z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-52 animate-enter overflow-y-auto rounded-lg border border-edge bg-panel p-1 text-base text-fg shadow-popover outline-none';
 const item =
   'flex min-h-8 cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 outline-none select-none data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 data-[highlighted]:bg-hover';
 

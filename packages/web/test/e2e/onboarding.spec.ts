@@ -418,7 +418,7 @@ test('AC-INT-001-02 with no projects DEMIURGO opens on "What do you want to buil
 
   const projectId = await person.createProject('Entry points');
   await page.goto('/projects');
-  await page.getByRole('link', { name: 'New project' }).click();
+  await page.getByRole('main').getByRole('link', { name: 'New project' }).click();
   await expect(page).toHaveURL(/\/new$/);
   await expect(page.getByRole('link', { name: 'Your projects' })).toBeVisible();
 

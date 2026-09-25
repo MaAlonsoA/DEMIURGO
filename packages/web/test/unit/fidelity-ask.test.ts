@@ -88,6 +88,8 @@ function message(id: string, author: string, minute: number): Message {
     state: 'posted',
     created_at: at(minute),
     epistemic_status: null,
+    response: null,
+    response_run: null,
   };
 }
 

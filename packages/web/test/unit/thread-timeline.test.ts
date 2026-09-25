@@ -16,6 +16,8 @@ function message(id: string, author: string, s: number, extra: Partial<Message> 
     state: 'recorded',
     created_at: at(s),
     epistemic_status: null,
+    response: null,
+    response_run: null,
     ...extra,
   };
 }

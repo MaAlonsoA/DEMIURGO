@@ -151,7 +151,7 @@ export const explorationChatOutput = z
       .max(8),
     inferences: z
       .array(z.object({ question_id: z.string().uuid(), conclusion: text(1500), reasoning: text(1500) }).strict())
-      .max(5),
+      .max(12),
     proposals: z
       .array(
         z.discriminatedUnion('type', [
@@ -179,7 +179,7 @@ export const explorationChatOutput = z
             .strict(),
         ]),
       )
-      .max(5),
+      .max(15),
   })
   .strict();
 

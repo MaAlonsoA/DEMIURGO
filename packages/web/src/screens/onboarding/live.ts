@@ -1,5 +1,5 @@
-// What this tab started: the Day 1 threads whose first reading shows live (canvas S4B) even when
-// DEMIURGO is quicker than the page. Where an answer stands comes from the message itself.
+// What this tab started (DESIGN.md §3.9): the Day 1 threads whose first reading shows live even
+// when DEMIURGO is quicker than the page. Where an answer stands comes from the message itself.
 // Memory of the tab only: after a reload, the screens follow what the API says.
 
 const liveThreads = new Set<string>();

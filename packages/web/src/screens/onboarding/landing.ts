@@ -1,5 +1,5 @@
-// Where DEMIURGO opens ("/"): with no projects, on "What do you want to build?"; with only one,
-// inside that project (FDR-INT-001, behavior 1); with more, on the list to choose from.
+// Where DEMIURGO opens ("/", DESIGN.md §1 J5): with no projects, on "What do you want to build?";
+// with only one, inside that project (FDR-INT-001, behavior 1); with more, on the list to choose from.
 
 export type Landing = { to: '/new' } | { to: '/p/$projectId'; projectId: string } | { to: '/projects' };
 

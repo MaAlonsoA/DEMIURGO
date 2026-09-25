@@ -1,14 +1,20 @@
-// Sign in (spec §4.1): a centred card. A 401 says "Wrong user or password." under the form and
-// keeps the user. Afterwards it goes to `next` or to the project.
+// Sign in (DESIGN.md §3.9, §6.7): outside the app shell, a centred card with DEMIURGO's wordmark.
+// The focus starts on "User"; a missing field is explained in words next to it instead of a
+// silently disabled button; paste and password managers work (WCAG 3.3.8, R82). A 401 says
+// "Wrong user or password." and keeps the user; any other failure is explained in product words.
+// Afterwards it goes to `next` (only paths inside the app) or to "/".
 
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearch } from '@tanstack/react-router';
-import { type FormEvent, useId, useState } from 'react';
+import { type FormEvent, useRef, useState } from 'react';
 import { ApiError, request, setCsrf } from '../../api/client.ts';
 import { keys } from '../../api/queries.ts';
 import type { Session } from '../../api/types.ts';
-import { Button } from '../../ui/Button.tsx';
-import { Reasons } from '../../ui/Reasons.tsx';
+import { Button } from '../../components/Button.tsx';
+import { Field, TextInput } from '../../components/Field.tsx';
+import { ErrorNotice, Notice } from '../../components/Notice.tsx';
+import { usePageTitle } from '../../components/Page.tsx';
+import { Wordmark } from '../../shell/WorkspaceFrame.tsx';
 
 /** Only paths inside the app are followed after signing in. */
 export function safeNext(next: string | undefined): string {
@@ -16,20 +22,31 @@ export function safeNext(next: string | undefined): string {
   return next;
 }
 
+type Missing = { user: boolean; password: boolean };
+
 export function SignInScreen() {
+  usePageTitle(['Sign in']);
   const { next } = useSearch({ strict: false }) as { next?: string };
   const router = useRouter();
   const client = useQueryClient();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [missing, setMissing] = useState<Missing>({ user: false, password: false });
   const [wrong, setWrong] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [pending, setPending] = useState(false);
-  const userId = useId();
-  const passwordId = useId();
+  const userRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (pending) return;
+    const gaps = { user: !username.trim(), password: !password };
+    setMissing(gaps);
+    if (gaps.user || gaps.password) {
+      (gaps.user ? userRef : passwordRef).current?.focus();
+      return;
+    }
     setPending(true);
     setWrong(false);
     setError(null);
@@ -43,69 +60,74 @@ export function SignInScreen() {
       await client.invalidateQueries({ queryKey: keys.projects });
       router.history.push(safeNext(next));
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401) setWrong(true);
-      else setError(err);
+      if (err instanceof ApiError && err.status === 401) {
+        setWrong(true);
+        passwordRef.current?.focus();
+      } else setError(err);
       setPassword('');
-    } finally {
       setPending(false);
     }
   };
 
-  const field =
-    'dm-text-body h-10 w-full rounded-control border border-line-strong bg-surface px-3 text-ink focus:border-needs focus:outline-none';
-
   return (
-    <main id="main" className="flex min-h-screen items-center justify-center bg-paper px-4">
-      <form
-        onSubmit={(e) => void submit(e)}
-        className="flex w-[380px] flex-col gap-5 rounded-card border border-line bg-surface p-8 shadow-raised"
-        aria-labelledby="sign-in-title"
-      >
-        <div className="flex flex-col gap-1">
-          <span className="dm-text-wordmark">DEMIURGO</span>
-          <h1 id="sign-in-title" className="dm-text-page-title font-semibold">
+    <main id="main" className="flex min-h-screen flex-col items-center justify-center bg-app px-4 py-12 font-ui text-fg">
+      <div className="flex w-full max-w-sm flex-col items-stretch gap-6">
+        <Wordmark className="self-center" />
+        <form
+          noValidate
+          onSubmit={(e) => void submit(e)}
+          aria-labelledby="page-title"
+          className="flex flex-col gap-5 rounded-xl border border-edge bg-panel px-6 py-7 sm:px-8"
+        >
+          <h1 id="page-title" tabIndex={-1} className="text-xl font-semibold text-fg outline-none">
             Sign in
           </h1>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor={userId} className="dm-text-caption font-semibold text-ink-2">
-            User
-          </label>
-          <input
-            id={userId}
-            name="username"
-            autoComplete="username"
-            required
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            className={field}
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor={passwordId} className="dm-text-caption font-semibold text-ink-2">
-            Password
-          </label>
-          <input
-            id={passwordId}
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className={field}
-          />
-        </div>
-        <Button type="submit" variant="secondary" disabled={pending || !username || !password}>
-          {pending ? 'Signing in…' : 'Sign in'}
-        </Button>
-        {wrong && (
-          <p role="alert" className="dm-text-small font-medium text-problem">
-            Wrong user or password.
-          </p>
-        )}
-        {error ? <Reasons error={error} /> : null}
-      </form>
+          <Field label="User" error={missing.user ? 'Write your user to sign in.' : undefined}>
+            {(p) => (
+              <TextInput
+                {...p}
+                ref={userRef}
+                name="username"
+                autoComplete="username"
+                autoCapitalize="none"
+                spellCheck={false}
+                required
+                // biome-ignore lint/a11y/noAutofocus: the only thing to do on this page is to write the user (DESIGN.md §3.9)
+                autoFocus
+                value={username}
+                onChange={(e) => {
+                  setUsername(e.target.value);
+                  if (missing.user) setMissing((m) => ({ ...m, user: false }));
+                }}
+                className="h-10"
+              />
+            )}
+          </Field>
+          <Field label="Password" error={missing.password ? 'Write your password to sign in.' : undefined}>
+            {(p) => (
+              <TextInput
+                {...p}
+                ref={passwordRef}
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (missing.password) setMissing((m) => ({ ...m, password: false }));
+                }}
+                className="h-10"
+              />
+            )}
+          </Field>
+          {wrong ? <Notice tone="danger" role="alert" title="Wrong user or password." /> : null}
+          {error ? <ErrorNotice error={error} /> : null}
+          <Button type="submit" variant="primary" size="lg" pending={pending} pendingLabel="Signing in…" className="w-full">
+            Sign in
+          </Button>
+        </form>
+      </div>
     </main>
   );
 }

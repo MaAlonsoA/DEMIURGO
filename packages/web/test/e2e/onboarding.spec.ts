@@ -1,7 +1,12 @@
-// Day 1 (canvas step 4, adapted to H1): a new product from a blank page. The idea becomes a
-// project and its first thread, DEMIURGO reads it live, the person answers its questions one at a
-// time and asks it to propose decisions, and the day ends with what waits and "You can close
-// DEMIURGO". What H1 cannot give yet (who uses it, rules, features) is a quiet "Later".
+// Day 1 (canvas step 4, adapted to H1; DESIGN.md §3.9): a new product from a blank page. The idea
+// becomes a project and its first thread, DEMIURGO reads it live, the person answers its questions
+// in the thread (the one-question walk stays reachable by URL, D-007) and asks it to propose
+// decisions, and the day ends with what waits and "You can close DEMIURGO". What H1 cannot give yet
+// (who uses it, rules, features) is a quiet "Later". Every state shows its word (data-status).
+// The first thread of a project carries the design stages (v2.1): DEMIURGO's first reading shows
+// two of their mandatory questions, and answering one can bring the next; the tests count what the
+// API shows instead of a fixed number, or start the day in a second thread when they need only the
+// questions they raise.
 
 import type { Locator, Page } from '@playwright/test';
 import { type PersonApi, expect, expectAccessible, screenshot, test } from './support/fixtures.ts';
@@ -9,7 +14,14 @@ import { type PersonApi, expect, expectAccessible, screenshot, test } from './su
 type Detail = {
   purpose: string;
   messages: { author: string; kind: string | null; body: string; run_id: string | null; response: string | null }[];
-  questions: { id: string; state: string; question: string; conclusion: string | null; state_reason: string | null }[];
+  questions: {
+    id: string;
+    state: string;
+    question: string;
+    conclusion: string | null;
+    state_reason: string | null;
+    shown_at: string | null;
+  }[];
 };
 type Run = { id: string; state: string; action: string; batch_id: string | null; retry_of: string | null };
 type Batch = { id: string; state: string; proposals: { id: string; type: string; state: string }[] };
@@ -20,14 +32,14 @@ const STUDIO =
   'We run a small yoga studio and people should be able to book a place in a class online. Teachers publish their weekly classes, and we need to see who booked and close a class when it is full.';
 const START_URL = /\/p\/([0-9a-f-]{36})\/start\/([0-9a-f-]{36})$/;
 
-/** The legend folded into its ⓘ, so the screenshots show the screen itself. */
-async function legendFolded(page: Page) {
-  await page.addInitScript(() => localStorage.setItem('demiurgo:legend', JSON.stringify({ dismissed: true, seen: [] })));
-}
-
-/** Day 1 started through the API: the project, its first thread and the idea, answered by DEMIURGO. */
-async function startDay(person: PersonApi, name: string, idea: string, purpose = idea) {
+/**
+ * Day 1 started through the API: the project, its thread and the idea, answered by DEMIURGO.
+ * `stages: false` opens the product's main thread first, which takes the design stages and their
+ * questions (they stay in its reserve), so the day walks only the questions a test raises.
+ */
+async function startDay(person: PersonApi, name: string, idea: string, { purpose = idea, stages = true } = {}) {
   const projectId = await person.createProject(name);
+  if (!stages) await person.command(projectId, 'exploration.open', { purpose: 'The product' });
   const explorationId = (await person.command(projectId, 'exploration.open', { purpose })).entity_id;
   await person.command(projectId, 'message.post', { exploration_id: explorationId, text: idea, respond: true });
   return { projectId, explorationId };
@@ -44,6 +56,32 @@ function runsSettled(person: PersonApi, projectId: string, explorationId: string
 
 const detailOf = (person: PersonApi, projectId: string, explorationId: string) =>
   person.get<Detail>(`/api/projects/${projectId}/explorations/${explorationId}`);
+
+/** The questions the day shows: open, and out of DEMIURGO's reserve. */
+const shownOpen = (detail: Detail) => detail.questions.filter((q) => q.shown_at && ['pending', 'inferred'].includes(q.state));
+
+const willAsk = (n: number) => `Then I'll ask you ${n} ${n === 1 ? 'question' : 'questions'}, one at a time`;
+
+/**
+ * Walks the one-question screen to its end: the first `answer` questions get an answer (the first
+ * option, or the person's own words), the rest are skipped.
+ */
+async function walk(page: Page, { answer, words }: { answer: number; words: string }) {
+  for (let i = 0; i < 12; i++) {
+    const aside = page.getByRole('complementary', { name: /^Question \d+ of \d+$/ });
+    if ((await aside.count()) === 0) return;
+    const title = (await aside.getByRole('heading', { level: 2 }).textContent()) ?? '';
+    if (i < answer) {
+      const option = aside.getByRole('radio').first();
+      if ((await option.count()) > 0) await option.check();
+      else await aside.getByLabel('Your answer').fill(words);
+      await aside.getByRole('button', { name: 'Answer', exact: true }).click();
+    } else {
+      await aside.getByRole('button', { name: /^(Skip|Next)$/ }).click();
+    }
+    await expect(page.getByRole('heading', { level: 2, name: title, exact: true })).toHaveCount(0);
+  }
+}
 
 const idsOf = (url: string) => {
   const [, projectId = '', explorationId = ''] = START_URL.exec(new URL(url).pathname) ?? [];
@@ -95,24 +133,36 @@ test('AC-INT-001-01 a new product from a blank page: the idea becomes a project 
   const observed = read.messages.filter((m) => m.kind);
   expect(observed.length).toBeGreaterThan(0);
   await expect(reading.locator('[data-observation]')).toHaveCount(observed.length);
-  await expect(reading.locator('[data-observation="hypothesis"] [data-mark]').first()).toHaveAttribute('data-mark', 'proposed');
-  await expect(reading.locator('[data-reading-question]')).toHaveCount(1);
-  await expect(reading.locator('[data-reading-question] [data-mark]').first()).toHaveAttribute('data-mark', 'open');
-  await expect(page.locator('main [data-mark="confirmed"]')).toHaveCount(0);
+  await expect(reading.locator('[data-observation="hypothesis"] [data-status]').first()).toHaveAttribute(
+    'data-status',
+    'proposed',
+  );
+  const shown = shownOpen(read);
+  expect(shown.length).toBeGreaterThan(0);
+  await expect(reading.locator('[data-reading-question]')).toHaveCount(shown.length);
+  await expect(reading.locator('[data-reading-question] [data-status]').first()).toHaveAttribute('data-status', 'open');
+  await expect(page.locator('main [data-status="confirmed"]')).toHaveCount(0);
   await expectAccessible(page, 'DEMIURGO reading the idea');
 
-  // Here's what I understood: everything proposed, its questions, and what comes later.
+  // Here's what I understood: everything proposed, its questions, and what comes later. The button
+  // that swapped the view is gone, so the focus goes to the new title.
   await reading.getByRole('button', { name: 'See what I understood' }).click();
   await expect(page.getByText('This is my first reading of your idea.')).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Club Activities' })).toBeFocused();
   const understood = page.getByRole('region', { name: 'What I understood' });
   await expect(understood.locator('[data-observation]')).toHaveCount(observed.length);
-  for (const mark of await understood.locator('[data-observation] [data-mark]').all()) {
-    expect(['proposed', 'unknown']).toContain(await mark.getAttribute('data-mark'));
+  for (const mark of await understood.locator('[data-observation] [data-status]').all()) {
+    expect(['proposed', 'unknown']).toContain(await mark.getAttribute('data-status'));
   }
-  await expect(page.getByRole('heading', { name: "Then I'll ask you 1 question, one at a time" })).toBeVisible();
+  await expect(page.getByRole('heading', { name: willAsk(shown.length) })).toBeVisible();
+  // One primary action: the questions are answered in the thread.
+  await expect(page.getByRole('link', { name: 'Answer in the thread' })).toHaveAttribute(
+    'href',
+    `/p/${projectId}/threads/${explorationId}`,
+  );
   await expect(page.locator('[data-later]')).toHaveCount(3);
   await expect(page.locator('[data-later="who"]')).toContainText('Later');
-  await expect(page.locator('main [data-mark="confirmed"]')).toHaveCount(0);
+  await expect(page.locator('main [data-status="confirmed"]')).toHaveCount(0);
   await expectAccessible(page, "here's what I understood");
 
   // Correct something: DEMIURGO reads it again, with the correction.
@@ -133,29 +183,39 @@ test('AC-INT-001-01 a new product from a blank page: the idea becomes a project 
 
 test('AC-INT-001-09 Day 1 asks its questions one at a time and each answer confirms the question', async ({ page, person }) => {
   test.setTimeout(120_000);
-  const { projectId, explorationId } = await startDay(person, 'Studio Bookings', STUDIO);
+  const { projectId, explorationId } = await startDay(person, 'Studio Bookings', STUDIO, { stages: false });
   await runsSettled(person, projectId, explorationId);
-  const [asked] = (await detailOf(person, projectId, explorationId)).questions;
-  // Two more questions, so the day walks three.
+  // Three questions, so the day walks three.
   const raise = async (question: string, extra: Record<string, unknown> = {}) =>
     (await person.command(projectId, 'question.raise', { exploration_id: explorationId, question, ...extra })).entity_id;
+  const first = await raise('Who books the classes?', { reason: 'Defines the scope of the first design.', impact: 'high' });
   const second = await raise('Can a person book more than one class a week?', {
     reason: 'It decides whether the studio needs limits per person.',
     impact: 'medium',
   });
   const third = await raise('Do teachers get paid through the app?');
+  const asked = shownOpen(await detailOf(person, projectId, explorationId));
+  expect(asked.map((q) => q.id)).toEqual([first, second, third]);
 
   await page.goto(`/p/${projectId}/start/${explorationId}`);
-  await expect(page.getByRole('heading', { name: "Then I'll ask you 3 questions, one at a time" })).toBeVisible();
-  await page.getByRole('link', { name: 'Answer the questions' }).first().click();
-  await expect(page).toHaveURL(new RegExp(`/start/${explorationId}/questions$`));
+  await expect(page.getByRole('heading', { name: willAsk(3) })).toBeVisible();
+  // Since patch 4af77f1 the questions are answered in the thread; the one-question walk is reached
+  // by its URL only (D-007).
+  await expect(page.getByRole('link', { name: 'Answer in the thread' })).toHaveAttribute(
+    'href',
+    `/p/${projectId}/threads/${explorationId}`,
+  );
+  await expect(page.getByRole('link', { name: 'Answer the questions' })).toHaveCount(0);
+  await page.goto(`/p/${projectId}/start/${explorationId}/questions`);
 
-  // 1 of 3: the question in big type, why it is asked and what it affects; Answer confirms it.
+  // 1 of 3: the question in big type, why it matters and what it affects; Answer confirms it.
   const one = page.getByRole('complementary', { name: 'Question 1 of 3' });
-  await expect(one.getByRole('heading', { level: 2, name: asked?.question ?? '' })).toBeVisible();
-  await expect(one).toContainText('Why I ask: Defines the scope of the first design.');
+  await expect(one.getByRole('heading', { level: 2, name: 'Who books the classes?' })).toBeVisible();
+  await expect(one.getByRole('heading', { level: 2, name: 'Who books the classes?' })).toBeFocused();
+  await expect(one).toContainText('Why it matters');
+  await expect(one).toContainText('Defines the scope of the first design.');
   await expect(one).toContainText('It shapes a lot of the design.');
-  await expect(one.locator('[data-mark]').first()).toHaveAttribute('data-mark', 'open');
+  await expect(one.locator('[data-status]').first()).toHaveAttribute('data-status', 'open');
   await expectAccessible(page, 'a question of Day 1');
   await expect(one.getByRole('button', { name: 'Answer', exact: true })).toBeDisabled();
   await one.getByLabel('Your answer').fill('People who book a class, and the teachers who publish them.');
@@ -164,21 +224,21 @@ test('AC-INT-001-09 Day 1 asks its questions one at a time and each answer confi
   // 2 of 3: Skip leaves it open.
   const two = page.getByRole('complementary', { name: 'Question 2 of 3' });
   await expect(two.getByRole('heading', { level: 2, name: 'Can a person book more than one class a week?' })).toBeVisible();
-  await expect(two).toContainText('Why I ask: It decides whether the studio needs limits per person.');
+  await expect(two).toContainText('It decides whether the studio needs limits per person.');
   await expect(two).toContainText('It shapes part of the design.');
-  // The answer given is on the left, confirmed.
+  // The answer given is in the main column, confirmed.
   const answers = page.getByRole('region', { name: 'Your answers' });
   await expect(answers).toContainText('People who book a class, and the teachers who publish them.');
-  await expect(answers.locator('[data-mark]').first()).toHaveAttribute('data-mark', 'confirmed');
+  await expect(answers.locator('[data-status]').first()).toHaveAttribute('data-status', 'confirmed');
   await two.getByRole('button', { name: 'Skip' }).click();
 
-  // 3 of 3: Not now parks it with a reason.
+  // 3 of 3: Park keeps it for later, with a reason (one vocabulary: DESIGN.md §4.4).
   const three = page.getByRole('complementary', { name: 'Question 3 of 3' });
   await expect(three.getByRole('heading', { level: 2, name: 'Do teachers get paid through the app?' })).toBeVisible();
-  await three.getByRole('button', { name: 'Not now' }).click();
-  const park = page.getByRole('dialog', { name: 'Not now' });
+  await three.getByRole('button', { name: 'Park', exact: true }).click();
+  const park = page.getByRole('dialog', { name: 'Park this question' });
   await park.getByLabel('Reason').fill('Payments come later.');
-  await park.getByRole('button', { name: 'Park it' }).click();
+  await park.getByRole('button', { name: 'Park', exact: true }).click();
 
   // The end: what happened to each question, and the way to ask for decisions.
   const end = page.getByRole('complementary', { name: 'Questions done' });
@@ -189,7 +249,7 @@ test('AC-INT-001-09 Day 1 asks its questions one at a time and each answer confi
 
   const after = await detailOf(person, projectId, explorationId);
   const stateOf = (id: string | undefined) => after.questions.find((q) => q.id === id);
-  expect(stateOf(asked?.id)).toMatchObject({
+  expect(stateOf(first)).toMatchObject({
     state: 'confirmed',
     conclusion: 'People who book a class, and the teachers who publish them.',
   });
@@ -202,10 +262,9 @@ test('AC-INT-001-01 after the questions DEMIURGO proposes a decision and the day
   person,
 }) => {
   test.setTimeout(150_000);
-  // The open legend sits over the bottom left of the batch page, where its actions are.
-  await legendFolded(page);
-  const { projectId, explorationId } = await startDay(person, 'Club Activities', IDEA);
+  const { projectId, explorationId } = await startDay(person, 'Club Activities', IDEA, { stages: false });
   await runsSettled(person, projectId, explorationId);
+  await person.command(projectId, 'question.raise', { exploration_id: explorationId, question: 'Who can sign up?' });
 
   await page.goto(`/p/${projectId}/start/${explorationId}/questions`);
   const one = page.getByRole('complementary', { name: 'Question 1 of 1' });
@@ -230,7 +289,7 @@ test('AC-INT-001-01 after the questions DEMIURGO proposes a decision and the day
   await expect(numbers).toContainText('1decision proposed');
   await expect(page.getByText(/^Today · \d+ minutes?$/)).toBeVisible();
   const waiting = page.getByRole('complementary', { name: 'What happens now' });
-  await expect(waiting.locator('[data-needs]').first()).toHaveAttribute('data-needs', '1');
+  await expect(waiting.locator('[data-count]').first()).toHaveAttribute('data-count', '1');
   await expect(waiting.locator('[data-waiting-decision]')).toHaveCount(1);
   await expect(waiting).toContainText('You can close DEMIURGO');
   await expect(waiting).toContainText("Everything is saved. When you come back, I'll show you what changed while you were away.");
@@ -282,7 +341,7 @@ test('AC-INT-001-10 Day 1 shows the rust card when DEMIURGO cannot read the idea
   await expect(failed).toBeVisible({ timeout: 45_000 });
   await expect(failed).toContainText("I couldn't finish reading your idea");
   await expect(failed).toContainText('The agent answered with an error. Nothing was changed.');
-  await expect(failed.locator('[data-mark="problem"]')).toHaveCount(1);
+  await expect(failed.locator('[data-status="problem"]')).toHaveCount(1);
   await expectAccessible(page, 'Day 1 when the reading failed');
 
   await failed.getByRole('button', { name: 'Retry', exact: true }).click();
@@ -363,8 +422,10 @@ test('AC-INT-001-02 with no projects DEMIURGO opens on "What do you want to buil
   await expect(page).toHaveURL(/\/new$/);
   await expect(page.getByRole('link', { name: 'Your projects' })).toBeVisible();
 
+  // Inside a project, New project is in the project switcher.
   await page.goto(`/p/${projectId}`);
-  await page.getByRole('banner').getByRole('link', { name: 'New project' }).click();
+  await page.getByRole('button', { name: /^Project: Entry points/ }).click();
+  await page.getByRole('menuitem', { name: 'New project' }).click();
   await expect(page).toHaveURL(/\/new$/);
 });
 
@@ -384,15 +445,37 @@ test('AC-WEB-001-03 the onboarding works with the keyboard only', async ({ page,
   await expect(understood).toBeVisible({ timeout: 45_000 });
   await tabTo(page, understood);
   await page.keyboard.press('Enter');
-  const answer = page.getByRole('link', { name: 'Answer the questions' }).last();
+  // The focus is not lost when the view swaps: it is on the new title, and the next Tab stops go on.
+  await expect(page.getByRole('heading', { level: 1, name: 'Ride Notes' })).toBeFocused();
+  const answer = page.getByRole('link', { name: 'Answer in the thread' });
   await tabTo(page, answer);
   await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(new RegExp(`/threads/${explorationId}$`));
 
-  const one = page.getByRole('complementary', { name: 'Question 1 of 1' });
-  await tabTo(page, one.getByLabel('Your answer'));
-  await page.keyboard.type('Only me, after each ride.');
-  await tabTo(page, one.getByRole('button', { name: 'Answer', exact: true }));
-  await page.keyboard.press('Enter');
+  // The one-question walk, by its URL (D-007).
+  await page.goto(`/p/${projectId}/start/${explorationId}/questions`);
+
+  // Each question by keyboard: the first answer (a radio, picked with Space) or the person's own words.
+  await expect(page.getByRole('complementary', { name: /^Question 1 of \d+$/ })).toBeVisible();
+  const walked: string[] = [];
+  for (let i = 0; i < 12; i++) {
+    const aside = page.getByRole('complementary', { name: /^Question \d+ of \d+$/ });
+    if ((await aside.count()) === 0) break;
+    const title = (await aside.getByRole('heading', { level: 2 }).textContent()) ?? '';
+    walked.push(title);
+    const option = aside.getByRole('radio').first();
+    if ((await option.count()) > 0) {
+      await tabTo(page, option);
+      await page.keyboard.press('Space');
+    } else {
+      await tabTo(page, aside.getByLabel('Your answer'));
+      await page.keyboard.type('Only me, after each ride.');
+    }
+    await tabTo(page, aside.getByRole('button', { name: 'Answer', exact: true }));
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('heading', { level: 2, name: title, exact: true })).toHaveCount(0);
+  }
+  expect(walked.length).toBeGreaterThan(0);
 
   const end = page.getByRole('complementary', { name: 'Questions done' });
   await tabTo(page, end.getByRole('button', { name: 'Ask DEMIURGO to propose decisions' }));
@@ -414,7 +497,7 @@ test('AC-WEB-001-03 the onboarding works with the keyboard only', async ({ page,
   await page.keyboard.press('Enter');
   await expect(page.getByText('Accepted', { exact: true }).first()).toBeVisible();
   const detail = await detailOf(person, projectId, explorationId);
-  expect(detail.questions.map((q) => q.state)).toEqual(['confirmed']);
+  for (const title of walked) expect(detail.questions.find((q) => q.question === title)?.state).toBe('confirmed');
 });
 
 test('screens of the onboarding: what do you want to build, DEMIURGO reading live, its first reading, what it understood, correcting it, one question, the end of the questions, the starting point and a failed reading', async ({
@@ -422,7 +505,6 @@ test('screens of the onboarding: what do you want to build, DEMIURGO reading liv
   person,
 }) => {
   test.setTimeout(200_000);
-  await legendFolded(page);
 
   // 1 · What do you want to build?
   await page.goto('/new');
@@ -430,13 +512,17 @@ test('screens of the onboarding: what do you want to build, DEMIURGO reading liv
   await screenshot(page, 8, '01-what-do-you-want-to-build');
 
   // 2 · DEMIURGO reads it live: the amber card while it works (a slow run, cancelled afterwards).
-  const slow = await startDay(person, 'Club Activities', IDEA, `${IDEA} [slow]`);
+  const slow = await startDay(person, 'Club Activities', IDEA, { purpose: `${IDEA} [slow]` });
   await page.goto(`/p/${slow.projectId}/start/${slow.explorationId}`);
   const working = page.locator('[data-reading="working"]');
   await expect(working).toBeVisible({ timeout: 45_000 });
   await expect(working.getByRole('heading', { name: 'Reading your idea…' })).toBeVisible();
   await screenshot(page, 8, '02-reading-live');
+  // Cancel asks first and says what is kept.
   await working.getByRole('button', { name: 'Cancel' }).click();
+  const cancel = page.getByRole('alertdialog', { name: 'Cancel this run?' });
+  await expect(cancel).toContainText('Nothing is applied');
+  await cancel.getByRole('button', { name: 'Cancel the run' }).click();
   await expect(page.locator('[data-reading="cancelled"]')).toBeVisible({ timeout: 30_000 });
 
   // 3 · Its first reading, through the page that started it.
@@ -454,7 +540,8 @@ test('screens of the onboarding: what do you want to build, DEMIURGO reading liv
   for (const question of ['Can anyone sign up, or only members?', 'Is there a limit on places?']) {
     await person.command(projectId, 'question.raise', { exploration_id: explorationId, question, impact: 'medium' });
   }
-  await expect(page.getByRole('heading', { name: "Then I'll ask you 3 questions, one at a time" })).toBeVisible();
+  const shown = shownOpen(await detailOf(person, projectId, explorationId));
+  await expect(page.getByRole('heading', { name: willAsk(shown.length) })).toBeVisible();
   await screenshot(page, 8, '04-what-i-understood');
 
   // 5 · Correct something: the person says what's wrong (not sent here).
@@ -463,16 +550,11 @@ test('screens of the onboarding: what do you want to build, DEMIURGO reading liv
   await screenshot(page, 8, '05-correct-something');
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
 
-  // 6 · One question at a time.
-  await page.getByRole('link', { name: 'Answer the questions' }).first().click();
-  const one = page.getByRole('complementary', { name: 'Question 1 of 3' });
-  await one.getByLabel('Your answer').fill('Organizers who publish activities and members who sign up.');
+  // 6 · One question at a time (by its URL, D-007): two answered, the rest skipped.
+  await page.goto(`/p/${projectId}/start/${explorationId}/questions`);
+  await expect(page.getByRole('complementary', { name: /^Question 1 of \d+$/ })).toBeVisible();
   await screenshot(page, 8, '06-one-question');
-  await one.getByRole('button', { name: 'Answer', exact: true }).click();
-  const two = page.getByRole('complementary', { name: 'Question 2 of 3' });
-  await two.getByLabel('Your answer').fill('Only members.');
-  await two.getByRole('button', { name: 'Answer', exact: true }).click();
-  await page.getByRole('complementary', { name: 'Question 3 of 3' }).getByRole('button', { name: 'Skip' }).click();
+  await walk(page, { answer: 2, words: 'Organizers who publish activities and members who sign up.' });
 
   // 7 · The end of the questions, once DEMIURGO proposed its decisions.
   const end = page.getByRole('complementary', { name: 'Questions done' });
@@ -486,12 +568,9 @@ test('screens of the onboarding: what do you want to build, DEMIURGO reading liv
   await screenshot(page, 8, '08-starting-point');
 
   // 9 · A reading that failed: the rust card with Retry.
-  const failing = await startDay(
-    person,
-    'Flat List',
-    'A shared shopping list for our flat.',
-    'A shared shopping list for our flat. [fail-once]',
-  );
+  const failing = await startDay(person, 'Flat List', 'A shared shopping list for our flat.', {
+    purpose: 'A shared shopping list for our flat. [fail-once]',
+  });
   await page.goto(`/p/${failing.projectId}/start/${failing.explorationId}`);
   await expect(page.locator('[data-reading="failed"]')).toBeVisible({ timeout: 45_000 });
   await screenshot(page, 8, '09-reading-failed');

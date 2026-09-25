@@ -1,7 +1,7 @@
-// Pure logic of Day 1 (canvas step 4, adapted to H1): the idea becomes a project and its first
-// thread, DEMIURGO reads it in an exploration_chat run, the person answers its questions one at a
-// time and asks it to propose decisions. Everything here is derived from the thread, its runs and
-// their batches: H1 has no entities for the product's purpose, users, rules or features (S6).
+// Pure logic of Day 1 (canvas step 4, adapted to H1; DESIGN.md §3.9): the idea becomes a project
+// and its first thread, DEMIURGO reads it in an exploration_chat run, the person answers its
+// questions and asks it to propose decisions. Everything here is derived from the thread, its runs
+// and their batches: H1 has no entities for the product's purpose, users, rules or features (S6).
 
 import type { BatchDetail, Message, Question, RunListItem } from '../../api/types.ts';
 import { shortDate } from '../../lib/time.ts';
@@ -208,6 +208,52 @@ export const IMPACT_WORDS: Record<string, string> = {
   low: 'It settles a detail.',
 };
 
+export const IMPACT_LEVEL: Record<string, string> = { high: 'High impact', medium: 'Medium impact', low: 'Low impact' };
+
+// The choices of the one-question walk: DEMIURGO's inferred answer, a predefined option or the
+// person's own words. Keys, so a radio or checkbox group can hold them.
+export const INFERRED = 'inferred';
+export const OWN = 'own';
+export const optionKey = (index: number): string => `option-${index}`;
+const optionIndex = (key: string): number => (key.startsWith('option-') ? Number(key.slice(7)) : -1);
+
+type Choosable = Pick<Question, 'options' | 'multiple' | 'conclusion'>;
+
+/** An exclusive choice stands alone: DEMIURGO's inferred answer, or an option marked exclusive. */
+function isExclusive(q: Choosable, key: string): boolean {
+  return key === INFERRED || q.options?.[optionIndex(key)]?.exclusive === true;
+}
+
+/**
+ * The choices after the person changed them (`after` is what the group now holds). A single-choice
+ * question keeps one; on a multiple one an exclusive choice clears the others, and any other choice
+ * clears the exclusive ones — as the thread does.
+ */
+export function togglePicked(q: Choosable, before: readonly string[], after: readonly string[]): string[] {
+  if (!q.multiple) return after.slice(-1);
+  const added = after.find((k) => !before.includes(k));
+  if (!added) return [...after];
+  if (isExclusive(q, added)) return [added];
+  return after.filter((k) => !isExclusive(q, k));
+}
+
+/**
+ * The answer the choices record. A multiple choice joins every option picked in their order, and
+ * the person's own words last, with " · " (the thread's format).
+ */
+export function conclusionOf(q: Choosable, picked: readonly string[], own: string): string {
+  const answer = (k: string): string =>
+    k === INFERRED ? (q.conclusion ?? '') : k === OWN ? own.trim() : (q.options?.[optionIndex(k)]?.answer ?? '');
+  if (!q.multiple) return picked[0] ? answer(picked[0]).trim() : '';
+  const rank = (k: string) => (k === INFERRED ? -1 : k === OWN ? Number.MAX_SAFE_INTEGER : optionIndex(k));
+  return [...picked]
+    .sort((a, b) => rank(a) - rank(b))
+    .map(answer)
+    .map((a) => a.trim())
+    .filter(Boolean)
+    .join(' · ');
+}
+
 /** "Today" for something of today, its date otherwise. */
 export function dayLabel(iso: string, now = Date.now()): string {
   const d = new Date(iso);
@@ -217,6 +263,16 @@ export function dayLabel(iso: string, now = Date.now()): string {
 }
 
 export type WaitingDecision = { batchId: string; proposalId: string; title: string };
+
+/**
+ * Where "Review the decisions" goes: the batch that holds every waiting decision, or Needs you when
+ * they are spread over several batches (the first batch alone would hide the others).
+ */
+export function reviewTarget(waiting: readonly WaitingDecision[]): { batchId: string } | 'needs-you' | null {
+  const batches = [...new Set(waiting.map((w) => w.batchId))];
+  if (batches.length === 0) return null;
+  return batches.length === 1 ? { batchId: batches[0] ?? '' } : 'needs-you';
+}
 
 export type DaySummary = {
   day: string;

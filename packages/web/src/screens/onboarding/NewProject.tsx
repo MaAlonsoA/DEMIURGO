@@ -1,53 +1,103 @@
-// "What do you want to build?" (canvas S4A): the first thing a new person sees of DEMIURGO. One
-// question, the idea in the person's words and a name for the project (project.create needs one,
-// and it can be renamed later from the person's menu). Start creates the project, opens its first thread with the idea as
-// its purpose and posts the idea for DEMIURGO to read (the durable response runs exploration_chat).
-// Nothing is decided here: the reassurances say so.
+// "What do you want to build?" (DESIGN.md §1 J5, §3.9): the first thing a new person sees of
+// DEMIURGO, in the workspace frame (so Sign out is at hand). One question: the idea in the person's
+// words and a name for the project. Start creates the project, opens its first thread with the idea
+// as its purpose and posts the idea for DEMIURGO to read (the durable response runs
+// exploration_chat with the onboarding agent). What was already created is remembered in this tab,
+// with what was written: trying again — also after choosing an engine in Models & providers — never
+// creates a second project (INVENTORY §10). Nothing is decided here: the reassurances say so.
 
-import { Chip, Icon } from '@demiurgo/design-system';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate } from '@tanstack/react-router';
-import { type FormEvent, useId, useRef, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
+import { type FormEvent, useEffect, useId, useRef, useState } from 'react';
 import { request } from '../../api/client.ts';
 import { runCommand } from '../../api/commands.ts';
 import { projectsQuery } from '../../api/queries.ts';
 import { canCreate } from '../../api/tables.ts';
+import { Button } from '../../components/Button.tsx';
+import { Field, TextArea, TextInput } from '../../components/Field.tsx';
+import { ArrowRightIcon, PencilIcon, ShieldIcon } from '../../components/icons.tsx';
+import { ErrorNotice, Notice } from '../../components/Notice.tsx';
+import { usePageTitle } from '../../components/Page.tsx';
+import { StateIcon } from '../../components/status.tsx';
+import { cn } from '../../lib/cn.ts';
 import { useTables } from '../../lib/hooks.ts';
-import { Button } from '../../ui/Button.tsx';
-import { ArrowRight, LockIcon } from '../../ui/icons.tsx';
-import { MarkGlyph } from '../../ui/marks.tsx';
-import { Reasons } from '../../ui/Reasons.tsx';
+import { WorkspaceFrame } from '../../shell/WorkspaceFrame.tsx';
 import { IDEA_EXAMPLES, MESSAGE_MAX, purposeOf } from './day.ts';
 import { live } from './live.ts';
+
+const NAME_MAX = 120;
+const DRAFT = 'dm-new-project';
+
+type Draft = { idea: string; name: string; projectId?: string; explorationId?: string };
+
+function readDraft(): Draft {
+  try {
+    const raw = sessionStorage.getItem(DRAFT);
+    const d = raw ? (JSON.parse(raw) as Partial<Draft>) : {};
+    return {
+      idea: typeof d.idea === 'string' ? d.idea : '',
+      name: typeof d.name === 'string' ? d.name : '',
+      ...(typeof d.projectId === 'string' ? { projectId: d.projectId } : {}),
+      ...(typeof d.explorationId === 'string' ? { explorationId: d.explorationId } : {}),
+    };
+  } catch {
+    return { idea: '', name: '' };
+  }
+}
+
+function writeDraft(d: Draft | null): void {
+  try {
+    if (d) sessionStorage.setItem(DRAFT, JSON.stringify(d));
+    else sessionStorage.removeItem(DRAFT);
+  } catch {
+    // Storage may be unavailable: the draft then lasts for this visit only.
+  }
+}
 
 type Missing = null | 'idea' | 'name';
 
 export function NewProjectScreen() {
+  usePageTitle(['New project']);
   const client = useQueryClient();
   const navigate = useNavigate();
   const tables = useTables();
-  const projects = useQuery(projectsQuery).data ?? [];
-  const [idea, setIdea] = useState('');
-  const [name, setName] = useState('');
-  const [example, setExample] = useState<string | null>(null);
+  const [draft] = useState(readDraft);
+  const [idea, setIdea] = useState(draft.idea);
+  const [name, setName] = useState(draft.name);
   const [missing, setMissing] = useState<Missing>(null);
   const [error, setError] = useState<unknown>(null);
   const [pending, setPending] = useState(false);
   // What already exists if a step failed: trying again does not create a second project or thread.
-  const done = useRef<{ projectId?: string; explorationId?: string }>({});
+  const done = useRef<{ projectId?: string; explorationId?: string }>({
+    ...(draft.projectId ? { projectId: draft.projectId } : {}),
+    ...(draft.explorationId ? { explorationId: draft.explorationId } : {}),
+  });
+  const [created, setCreated] = useState(Boolean(draft.projectId));
   const ideaRef = useRef<HTMLTextAreaElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
-  const ideaId = useId();
-  const nameId = useId();
-  const hintId = useId();
+  const examplesId = useId();
   const allowed =
     !tables ||
     (canCreate(tables, 'project.create') && canCreate(tables, 'exploration.open') && canCreate(tables, 'message.post'));
+  // A known project still in the list: a restored draft of one that is gone starts over.
+  const projects = useQuery(projectsQuery).data;
+  useEffect(() => {
+    if (!projects || !done.current.projectId) return;
+    if (!projects.some((p) => p.id === done.current.projectId)) {
+      done.current = {};
+      setCreated(false);
+    }
+  }, [projects]);
+
+  // What was written stays in this tab (a trip to Models & providers, a reload), until it starts.
+  useEffect(() => {
+    if (pending) return;
+    writeDraft(idea || name || done.current.projectId ? { idea, name, ...done.current } : null);
+  }, [idea, name, created, pending]);
 
   const fill = (e: (typeof IDEA_EXAMPLES)[number]) => {
     setIdea(e.idea);
-    if (!name.trim() || name === example) setName(e.name);
-    setExample(e.name);
+    if (!created && (!name.trim() || IDEA_EXAMPLES.some((x) => x.name === name))) setName(e.name);
     setMissing(null);
     ideaRef.current?.focus();
   };
@@ -73,6 +123,7 @@ export function NewProjectScreen() {
       if (!projectId) {
         projectId = (await request<{ project_id: string }>('POST', '/api/projects', { name: name.trim() })).project_id;
         done.current.projectId = projectId;
+        setCreated(true);
       }
       if (!explorationId) {
         explorationId = (await runCommand(projectId, { command: 'exploration.open', data: { purpose: purposeOf(idea) } }))
@@ -85,10 +136,12 @@ export function NewProjectScreen() {
         data: { exploration_id: explorationId, text: idea.trim(), respond: true, agent: 'onboarding' },
       });
       live.start(explorationId);
+      writeDraft(null);
       // The project's area checks the project exists: the list is fetched again first.
       await client.fetchQuery({ ...projectsQuery, staleTime: 0 });
       await navigate({ to: '/p/$projectId/start/$explorationId', params: { projectId, explorationId } });
     } catch (err) {
+      writeDraft({ idea, name, ...done.current });
       setError(err);
       setPending(false);
       // The project may already exist (the message is what failed): it shows in Your projects.
@@ -97,117 +150,128 @@ export function NewProjectScreen() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="flex h-14 shrink-0 items-center justify-between px-7">
-        <span className="dm-text-wordmark">DEMIURGO</span>
-        <nav aria-label="Workspace" className="dm-text-body flex items-center gap-5 font-medium text-ink-3">
-          <Link to="/models" className="hover:text-ink">
-            Models &amp; providers
-          </Link>
-          {projects.length > 0 && (
-            <Link to="/projects" className="hover:text-ink">
-              Your projects
-            </Link>
-          )}
-        </nav>
-      </header>
-      <main id="main" className="flex flex-1 justify-center px-6 pt-[92px] pb-24">
-        <form onSubmit={(e) => void start(e)} className="flex w-[760px] flex-col gap-[22px]" aria-labelledby={`${ideaId}-title`}>
-          <div className="flex flex-col gap-2.5">
-            <span className="dm-text-small font-semibold text-muted">New project</span>
-            <h1 id={`${ideaId}-title`} className="dm-text-display">
-              What do you want to build?
-            </h1>
-            <p className="dm-text-heading text-ink-2 font-normal">
-              Describe it in your own words, like you would to a friend. DEMIURGO turns it into a plan you can see, correct and
-              build.
+    <WorkspaceFrame current="new">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 pt-10 pb-16 sm:px-6 sm:pt-16">
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-medium text-accent-text">New project</p>
+          <h1 id="page-title" tabIndex={-1} className="text-3xl font-semibold text-fg outline-none">
+            What do you want to build?
+          </h1>
+          <p className="max-w-2xl text-md text-fg-2">
+            Describe it in your own words, like you would to a friend. DEMIURGO turns it into a plan you can see, correct and
+            build.
+          </p>
+        </div>
+
+        <form noValidate onSubmit={(e) => void start(e)} aria-labelledby="page-title" className="flex flex-col gap-6">
+          <Field
+            label="Describe your idea"
+            error={missing === 'idea' ? 'Describe your idea to start.' : undefined}
+            count={idea.length > MESSAGE_MAX * 0.9 ? [idea.length, MESSAGE_MAX] : undefined}
+          >
+            {(p) => (
+              <TextArea
+                {...p}
+                ref={ideaRef}
+                rows={5}
+                autoGrow
+                maxRows={16}
+                maxLength={MESSAGE_MAX}
+                value={idea}
+                placeholder="An app where… It helps… People use it to…"
+                className="px-4 py-3 text-md"
+                onChange={(e) => {
+                  setIdea(e.target.value);
+                  if (missing === 'idea') setMissing(null);
+                }}
+              />
+            )}
+          </Field>
+
+          <div className="flex flex-col gap-2">
+            <p id={examplesId} className="text-sm text-fg-2">
+              Or start from an example:
             </p>
+            <div role="group" aria-labelledby={examplesId} className="flex flex-wrap gap-2">
+              {IDEA_EXAMPLES.map((e) => {
+                const on = idea === e.idea;
+                return (
+                  <button
+                    key={e.label}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => fill(e)}
+                    className={cn(
+                      'inline-flex h-8 cursor-pointer items-center rounded-full border px-3 text-sm font-medium transition-colors duration-[var(--m-fast)]',
+                      on
+                        ? 'border-accent bg-accent-soft text-accent-text'
+                        : 'border-edge-strong bg-panel text-fg-2 hover:border-edge-control hover:text-fg',
+                    )}
+                  >
+                    {e.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          {/* The idea box is the design system's panel, lifted; writing in it draws the selection outline. */}
-          <div className="dm-panel border-line-strong px-5 pt-5 pb-3.5 shadow-raised has-[textarea:focus-visible]:border-needs has-[textarea:focus-visible]:shadow-selected">
-            <label htmlFor={ideaId} className="sr-only">
-              Describe your idea
-            </label>
-            <textarea
-              ref={ideaRef}
-              id={ideaId}
-              value={idea}
-              onChange={(e) => {
-                setIdea(e.target.value);
-                if (missing === 'idea') setMissing(null);
-              }}
-              rows={5}
-              maxLength={MESSAGE_MAX}
-              placeholder="An app where… It helps… People use it to…"
-              aria-invalid={missing === 'idea' || undefined}
-              className="dm-text-heading w-full resize-none bg-transparent font-normal text-ink outline-none placeholder:text-muted"
-            />
-            <div className="flex items-center justify-between gap-3 border-t border-line-soft pt-2.5">
-              <div className="flex min-w-0 items-center gap-2.5">
-                <label htmlFor={nameId} className="dm-text-small font-semibold text-ink-2">
-                  Name
-                </label>
-                <input
+          <div className="flex flex-col gap-4 border-t border-edge pt-6 sm:flex-row sm:items-start">
+            <Field
+              label="Name"
+              className="sm:w-80"
+              hint={created ? 'The project already exists with this name. You can rename it later.' : 'You can rename it later.'}
+              error={missing === 'name' ? 'Give the project a name to start.' : undefined}
+            >
+              {(p) => (
+                <TextInput
+                  {...p}
                   ref={nameRef}
-                  id={nameId}
                   value={name}
+                  maxLength={NAME_MAX}
+                  autoComplete="off"
+                  placeholder="A short name"
+                  readOnly={created}
+                  className={cn('h-10', created && 'bg-sunken text-fg-2')}
                   onChange={(e) => {
                     setName(e.target.value);
                     if (missing === 'name') setMissing(null);
                   }}
-                  maxLength={120}
-                  autoComplete="off"
-                  placeholder="A short name"
-                  aria-describedby={hintId}
-                  aria-invalid={missing === 'name' || undefined}
-                  className="dm-text-body h-9 w-[220px] rounded-control border border-line-strong bg-surface px-2.5 text-ink placeholder:text-muted focus:border-needs focus:outline-none"
                 />
-                <span id={hintId} className="dm-text-caption text-muted">
-                  You can rename it later.
-                </span>
-              </div>
-              <Button type="submit" variant="primary" disabled={pending || !allowed}>
-                {pending ? 'Starting…' : 'Start'}
-                <ArrowRight size={16} />
-              </Button>
-            </div>
+              )}
+            </Field>
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              disabled={!allowed}
+              pending={pending}
+              pendingLabel="Starting…"
+              trailing={<ArrowRightIcon size={16} />}
+              className="sm:mt-6 sm:ml-auto"
+            >
+              Start
+            </Button>
           </div>
 
-          {missing && (
-            <p role="alert" className="dm-text-small -mt-2 font-medium text-problem">
-              {missing === 'idea' ? 'Describe your idea to start.' : 'Give the project a name to start.'}
-            </p>
-          )}
-          {error ? <Reasons error={error} className="-mt-2" /> : null}
-          {!allowed && <p className="dm-text-small -mt-2 text-ink-2">Only a person can start a project.</p>}
-
-          <div className="flex flex-wrap items-center gap-2.5">
-            <span className="dm-text-small text-muted">Or start from an example:</span>
-            {IDEA_EXAMPLES.map((e) => (
-              // A short choice: the design system's Chip, ink while the idea is that example.
-              <Chip key={e.label} pressed={idea === e.idea} onClick={() => fill(e)}>
-                {e.label}
-              </Chip>
-            ))}
-          </div>
-
-          <ul className="dm-text-small mt-[18px] flex gap-7 text-ink-3">
-            <li className="flex items-center gap-2">
-              <MarkGlyph kind="proposed" />
-              Nothing is decided until you confirm it
-            </li>
-            <li className="flex items-center gap-2">
-              <Icon name="needs-review" size={14} stroke={2} />
-              You can change anything later
-            </li>
-            <li className="flex items-center gap-2">
-              <LockIcon size={14} />
-              Everything stays here, saved
-            </li>
-          </ul>
+          {error ? <ErrorNotice error={error} modelsHref="/models" /> : null}
+          {allowed ? null : <Notice tone="neutral">Only a person can start a project.</Notice>}
         </form>
-      </main>
-    </div>
+
+        <ul aria-label="Before you start" className="flex flex-col gap-3 text-sm text-fg-2 sm:flex-row sm:flex-wrap sm:gap-x-8">
+          <li className="flex items-center gap-2">
+            <StateIcon kind="proposed" size={15} />
+            Nothing is decided until you confirm it
+          </li>
+          <li className="flex items-center gap-2">
+            <PencilIcon size={15} className="shrink-0 text-fg-3" />
+            You can change anything later
+          </li>
+          <li className="flex items-center gap-2">
+            <ShieldIcon size={15} className="shrink-0 text-fg-3" />
+            Everything stays here, saved
+          </li>
+        </ul>
+      </div>
+    </WorkspaceFrame>
   );
 }

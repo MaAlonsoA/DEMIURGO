@@ -1,31 +1,37 @@
-// DEMIURGO reading the idea (canvas S4B): the idea as written and the card of what DEMIURGO is
-// doing. It waits while the durable response waits for the knowledge, it is amber while the run
-// works (with its time and Cancel), and its sections fill in as the stream brings the reading, all
-// Proposed, Unknown or Open. A failed run is the rust card with its reason and Retry.
-// The compact card says the same inside the other screens of the day.
+// DEMIURGO reading the idea (DESIGN.md §3.9, §4.2): the idea as written and the card of what
+// DEMIURGO is doing. It waits while the durable response waits for the knowledge; while the run
+// works it shows the run's state (Working, or Stalled when this tab hears nothing for 90 s), the
+// live progress («Thinking… 1,240 tokens · 0:12»), the elapsed time and Cancel — which asks first
+// and says what is kept. Its steps fill in as the stream brings the reading, every item with its
+// real state in words. A reading that stopped is a card with the reason in product words and
+// Retry. The compact status says the same inside the other screens of the day.
 
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import type { ReactNode } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
-import { useRunProgress } from '../../api/progress.ts';
-import { LiveProgress } from '../run/Engine.tsx';
+import { progressText, useRunProgress } from '../../api/progress.ts';
 import { batchQuery } from '../../api/queries.ts';
 import { canCreate } from '../../api/tables.ts';
 import type { Message, Question, RunListItem } from '../../api/types.ts';
+import { ActionBar } from '../../components/actions.tsx';
+import { announce } from '../../components/announce.tsx';
+import { Button, type ButtonSize } from '../../components/Button.tsx';
+import { Card } from '../../components/Card.tsx';
+import { ConfirmDialog } from '../../components/Dialog.tsx';
+import { ArrowRightIcon, ChevronRightIcon, RetryIcon } from '../../components/icons.tsx';
+import { ErrorNotice } from '../../components/Notice.tsx';
+import { RunStateBadge } from '../../components/runState.tsx';
+import { EntityState, StateIcon, StatusBadge } from '../../components/status.tsx';
+import { Elapsed, RelativeTime, useNow } from '../../components/Time.tsx';
+import { WhoAvatar } from '../../components/Who.tsx';
 import { cn } from '../../lib/cn.ts';
 import { useTables } from '../../lib/hooks.ts';
-import { ago, dayTime } from '../../lib/time.ts';
-import { ActionBar } from '../../ui/ActionBar.tsx';
-import { Button } from '../../ui/Button.tsx';
-import { ArrowRight, ChevronRight, TickIcon } from '../../ui/icons.tsx';
-import { Mark, WorkingMark } from '../../ui/marks.tsx';
-import { Reasons } from '../../ui/Reasons.tsx';
-import { WhoGlyph } from '../../ui/signals.tsx';
-import { OBSERVATION_WORDS, failureWord } from '../../words.ts';
+import { between, dayTime } from '../../lib/time.ts';
+import { failureWord } from '../../words.ts';
 import { proposalTitle } from '../batch/model.ts';
-import { runDuration } from '../run/runs.ts';
 import type { Reading } from './day.ts';
+import { ObservationList } from './parts.tsx';
 
 export type Subject = 'idea' | 'correction' | 'decisions';
 
@@ -63,39 +69,65 @@ export type ReadingContent = {
   model: string | null;
 };
 
-const stopped = (r: Reading) => r.phase === 'failed' || r.phase === 'cancelled' || r.phase === 'unanswered';
+export const stopped = (r: Reading) => r.phase === 'failed' || r.phase === 'cancelled' || r.phase === 'unanswered';
+const waitingFor = (r: Reading) => r.phase === 'waiting' || r.phase === 'catching_up';
 
-/** The idea and DEMIURGO reading it, full size: the first moment of a new product. */
+/** Says out loud when the reading this screen waits for ends: finished, or stopped (R80). */
+function useAnnounceEnd(reading: Reading, subject: Subject) {
+  const was = useRef(reading.phase);
+  useEffect(() => {
+    const before = was.current;
+    was.current = reading.phase;
+    const busy = before === 'working' || before === 'waiting' || before === 'catching_up';
+    if (!busy || reading.phase === before) return;
+    if (reading.phase === 'read') announce(subject === 'decisions' ? 'DEMIURGO answered.' : 'DEMIURGO has read it.');
+    else if (stopped(reading)) announce(`${WORDS[subject][reading.phase === 'failed' ? 'failed' : 'cancelled']}.`);
+  }, [reading, subject]);
+}
+
+/**
+ * The idea and DEMIURGO reading it, full size: the first moment of a new product. The section is
+ * labelled by the page's h1, "DEMIURGO reads your idea".
+ */
 export function LiveReading({
   projectId,
   explorationId,
+  name,
   idea,
   reading,
   content,
-  now,
   onSee,
 }: {
   projectId: string;
   explorationId: string;
+  name: string | undefined;
   idea: Message;
   reading: Reading;
   content: ReadingContent | null;
-  now: number;
   onSee: () => void;
 }) {
+  useAnnounceEnd(reading, 'idea');
   return (
-    <section aria-label="DEMIURGO reads your idea" className="flex flex-col gap-6">
-      <div className="flex items-start gap-3">
-        <WhoGlyph kind="you" size={26} />
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="dm-text-caption text-muted">Your idea · {ago(idea.created_at, now)}</span>
-          <p className="dm-text-body leading-relaxed whitespace-pre-wrap text-ink-2">“{idea.body}”</p>
-        </div>
+    <section aria-labelledby="page-title" className="mx-auto flex w-full max-w-3xl flex-col gap-7 px-4 pt-10 pb-16 sm:px-6">
+      <div className="flex flex-col gap-1.5">
+        <p className="text-sm text-fg-2">{name ?? 'Your new product'}</p>
+        <h1 id="page-title" tabIndex={-1} className="text-2xl font-semibold text-fg outline-none">
+          DEMIURGO reads your idea
+        </h1>
       </div>
+      <figure className="flex items-start gap-3">
+        <WhoAvatar kind="you" size={28} />
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <figcaption className="text-sm text-fg-2">
+            <span className="font-medium text-fg">Your idea</span> · <RelativeTime iso={idea.created_at} />
+          </figcaption>
+          <blockquote className="text-md break-words whitespace-pre-wrap text-fg-2">“{idea.body}”</blockquote>
+        </div>
+      </figure>
       {stopped(reading) ? (
         <StoppedCard projectId={projectId} explorationId={explorationId} reading={reading} subject="idea" />
       ) : (
-        <ReadingCard projectId={projectId} reading={reading} content={content} now={now} onSee={onSee} />
+        <ReadingCard projectId={projectId} reading={reading} content={content} onSee={onSee} />
       )}
     </section>
   );
@@ -103,40 +135,53 @@ export function LiveReading({
 
 type StepState = 'done' | 'active' | 'pending';
 
+const STEP_WORD: Record<StepState, string> = { done: 'Done', active: 'In progress', pending: 'Not yet' };
+
 function Step({ state, title, children }: { state: StepState; title: string; children?: ReactNode }) {
   return (
-    <div data-step={state} className="flex gap-3.5 border-t border-line-soft py-3">
-      <span className="flex h-[22px] w-5 shrink-0 items-center justify-center">
-        {state === 'done' && (
-          <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-ink text-surface">
-            <TickIcon size={10} />
-          </span>
-        )}
-        {state === 'active' && <Mark kind="working" label="Working" />}
-        {state === 'pending' && <span className="dm-dot border-[1.5px] border-inactive-soft" />}
+    <li data-step={state} className="flex gap-3.5 border-t border-edge-subtle px-5 py-4 first:border-t-0 sm:px-6">
+      <span className="flex h-6 w-5 shrink-0 items-center justify-center">
+        <StateIcon kind={state === 'done' ? 'done' : state === 'active' ? 'working' : 'open'} size={18} />
       </span>
-      <div className="flex min-w-0 flex-1 flex-col gap-2.5">
-        <h3 className={cn('dm-text-heading font-semibold', state === 'pending' && 'font-medium text-muted')}>{title}</h3>
+      <div className="flex min-w-0 flex-1 flex-col gap-3">
+        <h3 className={cn('text-base', state === 'pending' ? 'font-medium text-fg-2' : 'font-semibold text-fg')}>
+          {title}
+          <span className="sr-only"> · {STEP_WORD[state]}</span>
+        </h3>
         {children}
       </div>
-    </div>
+    </li>
   );
 }
 
-const chip =
-  'dm-text-small inline-flex max-w-full items-start gap-[7px] rounded-sm border border-line bg-surface-soft px-2.5 py-[5px]';
+/** The run at work: its state (Working, Stalled…), the engine's live progress and the elapsed time. */
+function RunLive({ run }: { run: RunListItem }) {
+  const progress = useRunProgress(run.id);
+  const now = useNow(true);
+  return (
+    <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <RunStateBadge run={run} withDetail />
+      {progress ? (
+        <span data-run-progress className="text-sm text-info-text tabular-nums">
+          {progressText(progress, now)}
+        </span>
+      ) : null}
+      <span data-run-timer className="text-sm text-fg-2 tabular-nums">
+        <Elapsed start={run.started_at ?? run.created_at} />
+      </span>
+    </span>
+  );
+}
 
 function ReadingCard({
   projectId,
   reading,
   content,
-  now,
   onSee,
 }: {
   projectId: string;
   reading: Reading;
   content: ReadingContent | null;
-  now: number;
   onSee: () => void;
 }) {
   const run = reading.run;
@@ -151,100 +196,83 @@ function ReadingCard({
   const first: StepState = finished ? 'done' : working ? 'active' : 'pending';
   const rest: StepState = finished ? 'done' : 'pending';
   return (
-    <div data-reading={reading.phase} className="dm-panel gap-0 px-6 py-[22px]">
-      <div className="flex items-center justify-between gap-4 pb-3">
-        <span className="flex items-center gap-2.5">
-          <WhoGlyph kind="demiurgo" size={26} />
-          <h2 className="dm-text-heading">{headline}</h2>
-        </span>
-        <span className="flex items-center gap-3">
-          {working && run && <RunProgressLine runId={run.id} now={now} />}
-          {working && run && (
-            <WorkingMark>
-              <span data-run-timer>{runDuration(run, now)}</span>
-            </WorkingMark>
-          )}
-          {finished && run && (
-            <span className="dm-text-small text-muted">
-              {runDuration(run)}
+    <Card padding="none" data-reading={reading.phase} className="overflow-hidden">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-edge px-5 py-4 sm:px-6">
+        <div className="flex min-w-0 flex-1 basis-64 items-center gap-3">
+          <WhoAvatar kind="demiurgo" size={28} />
+          <h2 className="min-w-0 text-lg font-semibold text-fg">{headline}</h2>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          {working && run ? <RunLive run={run} /> : null}
+          {waitingFor(reading) ? <StatusBadge kind="working" word="Waiting" /> : null}
+          {finished && run ? (
+            <span className="text-sm text-fg-2 tabular-nums">
+              {between(run.started_at ?? run.created_at, run.finished_at)}
               {run.model ? ` · ${run.model}` : ''}
             </span>
-          )}
-          {working && run && <CancelRun projectId={projectId} run={run} />}
-        </span>
+          ) : null}
+          {working && run ? <CancelRun projectId={projectId} run={run} /> : null}
+        </div>
       </div>
-      {(reading.phase === 'waiting' || reading.phase === 'catching_up') && (
-        <p className="dm-text-small pb-3 text-ink-3">It starts as soon as its knowledge is up to date with your idea.</p>
-      )}
-      <Step state={first} title="What I understood">
-        {shown && (
-          <>
-            {shown.reply && <p className="dm-text-body leading-relaxed text-ink-2">{shown.reply.body}</p>}
-            {shown.observations.length > 0 && (
-              <ul className="flex flex-wrap gap-2">
-                {shown.observations.map((o) => {
-                  const w = OBSERVATION_WORDS[o.kind ?? 'unknown'] ?? { word: o.kind ?? '', mark: 'unknown' as const };
-                  return (
-                    <li key={o.id} data-observation={o.kind} className={chip}>
-                      <span className="mt-[3px] flex">
-                        <Mark kind={w.mark} label={w.word} />
-                      </span>
-                      <span>{o.body}</span>
-                    </li>
-                  );
-                })}
+      {waitingFor(reading) ? (
+        <p className="border-b border-edge-subtle bg-sunken px-5 py-2.5 text-sm text-fg-2 sm:px-6">
+          It starts as soon as its knowledge is up to date with your idea.
+        </p>
+      ) : null}
+      <ol aria-label="What DEMIURGO does" aria-busy={!finished || undefined}>
+        <Step state={first} title="What I understood">
+          {shown ? (
+            <>
+              {shown.reply ? <p className="text-md break-words whitespace-pre-wrap text-fg">{shown.reply.body}</p> : null}
+              <ObservationList observations={shown.observations} compact />
+            </>
+          ) : null}
+        </Step>
+        <Step state={rest} title="What I still need to ask you">
+          {shown ? (
+            shown.questions.length > 0 ? (
+              <ul className="flex flex-col gap-2">
+                {shown.questions.map((q) => (
+                  <li key={q.id} data-reading-question={q.id} className="flex items-start gap-2.5 text-base text-fg">
+                    <EntityState entity="question" state={q.state} className="mt-px" />
+                    <span className="min-w-0 break-words">{q.question}</span>
+                  </li>
+                ))}
               </ul>
-            )}
-          </>
-        )}
-      </Step>
-      <Step state={rest} title="What I still need to ask you">
-        {shown &&
-          (shown.questions.length > 0 ? (
-            <ul className="flex flex-wrap gap-2">
-              {shown.questions.map((q) => (
-                <li key={q.id} data-reading-question={q.id} className={chip}>
-                  <span className="mt-[3px] flex">
-                    <Mark kind="open" label="Open" />
-                  </span>
-                  <span>{q.question}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="dm-text-small text-muted">Nothing for now.</p>
-          ))}
-      </Step>
-      {shown?.batchId && <ProposedStep projectId={projectId} batchId={shown.batchId} />}
-      <div className="flex items-center justify-between gap-4 border-t border-line-soft pt-3.5">
-        <span className="dm-text-small text-ink-3">
+            ) : (
+              <p className="text-sm text-fg-2">Nothing for now.</p>
+            )
+          ) : null}
+        </Step>
+        {shown?.batchId ? <ProposedStep projectId={projectId} batchId={shown.batchId} /> : null}
+      </ol>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-t border-edge bg-sunken px-5 py-3.5 sm:px-6">
+        <p className="min-w-0 flex-1 basis-64 text-sm text-fg-2">
           {finished
             ? 'Everything above is only proposed. You will review it before anything is decided.'
             : 'DEMIURGO is only reading. Nothing is decided without you.'}
-        </span>
-        {finished && (
-          <Button variant="primary" onClick={onSee}>
+        </p>
+        {finished ? (
+          <Button variant="primary" trailing={<ArrowRightIcon size={15} />} onClick={onSee}>
             See what I understood
-            <ArrowRight size={16} />
           </Button>
-        )}
+        ) : null}
       </div>
-    </div>
+    </Card>
   );
 }
 
-/** What the reading proposed (decisions, threads…): each waits for the person on its batch page. */
+/** What the reading proposed (decisions, threads…), each with its real state; they wait on their batch page. */
 function ProposedStep({ projectId, batchId }: { projectId: string; batchId: string }) {
-  const batch = useQuery(batchQuery(projectId, batchId)).data;
+  const batch = useQuery(batchQuery(projectId, batchId));
   return (
     <Step state="done" title="What I propose">
-      <ul className="flex flex-wrap gap-2">
-        {(batch?.proposals ?? []).map((p) => (
-          <li key={p.id} data-reading-proposal={p.id} className={chip}>
-            <span className="mt-[3px] flex">
-              <Mark kind="proposed" label="Proposed" />
-            </span>
-            <span>{proposalTitle(p)}</span>
+      {batch.error ? <ErrorNotice error={batch.error} compact focus={false} onRetry={() => void batch.refetch()} /> : null}
+      <ul className="flex flex-col gap-2">
+        {(batch.data?.proposals ?? []).map((p) => (
+          <li key={p.id} data-reading-proposal={p.id} className="flex items-start gap-2.5 text-base text-fg">
+            <EntityState entity="proposal" state={p.state} className="mt-px" />
+            <span className="min-w-0 break-words">{proposalTitle(p)}</span>
           </li>
         ))}
       </ul>
@@ -252,27 +280,54 @@ function ProposedStep({ projectId, batchId }: { projectId: string; batchId: stri
   );
 }
 
-function CancelRun({ projectId, run }: { projectId: string; run: RunListItem }) {
+/** Cancel a run that works, after saying what is kept (R27): nothing is applied. */
+export function CancelRun({ projectId, run, size }: { projectId: string; run: RunListItem; size?: ButtonSize }) {
   const command = useCommand(projectId);
+  const [open, setOpen] = useState(false);
   return (
     <>
       <ActionBar
         entity="ai_run"
         state={run.state}
+        {...(size ? { size } : {})}
         handlers={{
           'run.cancel': {
+            label: 'Cancel',
             variant: 'secondary',
-            disabled: command.isPending,
-            run: () => command.mutate({ command: 'run.cancel', entityId: run.id }),
+            run: () => {
+              command.reset();
+              setOpen(true);
+            },
           },
         }}
       />
-      {command.error ? <Reasons error={command.error} /> : null}
+      <ConfirmDialog
+        open={open}
+        onOpenChange={setOpen}
+        title="Cancel this run?"
+        description="DEMIURGO stops here. Nothing is applied; what it already wrote in the thread stays."
+        confirm="Cancel the run"
+        pendingLabel="Cancelling…"
+        tone="danger"
+        pending={command.isPending}
+        error={open ? command.error : null}
+        onConfirm={() =>
+          command.mutate(
+            { command: 'run.cancel', entityId: run.id },
+            {
+              onSuccess: () => {
+                setOpen(false);
+                announce('Cancelled. Nothing was applied.');
+              },
+            },
+          )
+        }
+      />
     </>
   );
 }
 
-/** A reading that stopped: rust when it failed, grey when it was cancelled or never came. */
+/** A reading that stopped: tinted when it failed, neutral when it was cancelled or never came. */
 function StoppedCard({
   projectId,
   explorationId,
@@ -297,128 +352,118 @@ function StoppedCard({
     : 'Nothing was lost: what you wrote is in the thread.';
   const canRetry = !!run && !!tables && canCreate(tables, 'run.retry');
   const canAsk = !run && !!tables && canCreate(tables, 'run.request');
+  const H = compact ? 'h3' : 'h2';
+  const size: ButtonSize = compact ? 'sm' : 'md';
   return (
-    <div
+    <Card
       data-reading={reading.phase}
-      className={cn(
-        // A failure is the rust box: the card's shape on problem-tint, without a line.
-        compact ? 'dm-card gap-3 px-4 py-3' : 'dm-panel px-6 py-[22px]',
-        failed && 'border-transparent bg-problem-tint text-problem',
-      )}
+      {...(failed ? { tone: 'danger' as const } : {})}
+      padding="none"
+      className={cn('flex flex-col gap-3', compact ? 'px-4 py-3' : 'px-5 py-4 sm:px-6')}
     >
-      <div className="flex items-start gap-3">
-        <span className="flex h-6 w-5 shrink-0 items-center justify-center">
-          <Mark kind={failed ? 'problem' : 'inactive'} label={failed ? 'Failed' : 'Stopped'} />
-        </span>
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <h2 className={cn('font-semibold', compact ? 'dm-text-body' : 'dm-text-heading', failed ? 'text-problem' : 'text-ink')}>
-            {title}
-          </h2>
-          <p className={cn('dm-text-body', failed ? 'text-problem' : 'text-ink-2')}>{reason}</p>
-          {run && (
-            <p className={cn('dm-text-caption', failed ? 'text-problem' : 'text-muted')}>
+      <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
+        <div className="flex min-w-0 flex-1 basis-72 flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            {run ? <EntityState entity="ai_run" state={run.state} /> : null}
+            <H className={cn('font-semibold text-fg', compact ? 'text-base' : 'text-lg')}>{title}</H>
+          </div>
+          <p className={cn('text-base', failed ? 'text-danger-text' : 'text-fg-2')}>{reason}</p>
+          {run ? (
+            <p className="text-sm text-fg-2">
               Conversation · {dayTime(run.finished_at ?? run.created_at)}
               {run.model ? ` · ${run.model}` : ''}
             </p>
-          )}
+          ) : null}
         </div>
-        <div className="flex shrink-0 items-center gap-3">
-          {run && (
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {run ? (
             <Link
               to="/p/$projectId/runs/$runId"
               params={{ projectId, runId: run.id }}
               aria-label="Details of the conversation run"
-              className={cn(
-                'dm-text-small inline-flex items-center gap-0.5 font-semibold hover:underline',
-                failed ? 'text-problem' : 'text-ink-2',
-              )}
+              className="inline-flex h-8 items-center gap-0.5 rounded-md px-2 text-sm font-medium text-fg-2 hover:bg-hover hover:text-fg"
             >
               Details
-              <ChevronRight size={12} />
+              <ChevronRightIcon size={13} />
             </Link>
-          )}
-          {canRetry && run && (
+          ) : null}
+          {canRetry && run ? (
             <Button
-              variant="secondary"
+              size={size}
+              variant={compact ? 'secondary' : 'primary'}
+              icon={<RetryIcon size={14} />}
               data-command="run.retry"
-              disabled={command.isPending}
-              onClick={() => command.mutate({ command: 'run.retry', data: { run_id: run.id } })}
-            >
-              {command.isPending ? 'Retrying…' : 'Retry'}
-            </Button>
-          )}
-          {canAsk && (
-            <Button
-              variant="secondary"
-              data-command="run.request"
-              disabled={command.isPending}
+              pending={command.isPending}
+              pendingLabel="Retrying…"
               onClick={() =>
-                command.mutate({
-                  command: 'run.request',
-                  data: { action: 'exploration_chat', agent: 'onboarding', scope: { type: 'exploration', id: explorationId } },
-                })
+                command.mutate(
+                  { command: 'run.retry', data: { run_id: run.id } },
+                  { onSuccess: () => announce('Retrying. DEMIURGO reads it again.') },
+                )
               }
             >
-              {command.isPending ? 'Asking…' : 'Ask DEMIURGO'}
+              Retry
             </Button>
-          )}
+          ) : null}
+          {canAsk ? (
+            <Button
+              size={size}
+              variant={compact ? 'secondary' : 'primary'}
+              data-command="run.request"
+              pending={command.isPending}
+              pendingLabel="Asking…"
+              onClick={() =>
+                command.mutate(
+                  {
+                    command: 'run.request',
+                    data: { action: 'exploration_chat', agent: 'onboarding', scope: { type: 'exploration', id: explorationId } },
+                  },
+                  { onSuccess: () => announce('Asked. DEMIURGO reads it.') },
+                )
+              }
+            >
+              Ask DEMIURGO
+            </Button>
+          ) : null}
         </div>
       </div>
-      {command.error ? <Reasons error={command.error} /> : null}
-    </div>
+      {command.error ? <ErrorNotice error={command.error} compact /> : null}
+    </Card>
   );
 }
 
-/** The same, compact, inside the other screens of the day: waiting, amber while it works, or stopped. */
+/** The same, compact, inside the other screens of the day: waiting, working (with Cancel), or stopped. */
 export function ReadingStatus({
   projectId,
   explorationId,
   reading,
   subject,
-  now,
 }: {
   projectId: string;
   explorationId: string;
   reading: Reading;
   subject: Subject;
-  now: number;
 }) {
+  useAnnounceEnd(reading, subject);
   if (reading.phase === 'read') return null;
   if (stopped(reading)) {
     return <StoppedCard projectId={projectId} explorationId={explorationId} reading={reading} subject={subject} compact />;
   }
   const run = reading.run;
   const working = reading.phase === 'working';
-  // DEMIURGO at work is the design system's Working: its amber dot and what it is doing, with the
-  // time ("Reading your correction… · 0:42") and Cancel next to it.
   return (
-    <div data-reading={reading.phase} className="dm-card flex-row items-center gap-3 px-4 py-3">
-      <WhoGlyph kind="demiurgo" size={18} />
-      <span className="min-w-0 flex-1">
-        <WorkingMark label={working ? 'Working' : 'Waiting'}>
-          <span>
-            {reading.phase === 'catching_up' ? CATCHING_UP : WORDS[subject][working ? 'working' : 'waiting']}
-            {working && run && (
-              <>
-                {' · '}
-                <span data-run-timer>{runDuration(run, now)}</span>
-              </>
-            )}
-          </span>
-        </WorkingMark>
-      </span>
-      {working && run && <RunProgressLine runId={run.id} now={now} />}
-      {working && run && <CancelRun projectId={projectId} run={run} />}
-    </div>
+    <Card tone="info" padding="none" data-reading={reading.phase} className="flex flex-col gap-2 px-4 py-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <WhoAvatar kind="demiurgo" size={20} />
+        <p className="min-w-0 flex-1 basis-48 text-base font-medium text-fg">
+          {reading.phase === 'catching_up' ? CATCHING_UP : WORDS[subject][working ? 'working' : 'waiting']}
+        </p>
+        {working && run ? <RunLive run={run} /> : <StatusBadge kind="working" word="Waiting" />}
+        {working && run ? <CancelRun projectId={projectId} run={run} size="sm" /> : null}
+      </div>
+      {waitingFor(reading) ? (
+        <p className="text-sm text-fg-2">It starts as soon as its knowledge is up to date with what you wrote.</p>
+      ) : null}
+    </Card>
   );
-}
-
-/** What the engine is doing right now («Thinking… 1,240 tokens · 0:12»), from the live stream. */
-function RunProgressLine({ runId, now }: { runId: string; now: number }) {
-  const progress = useRunProgress(runId);
-  return progress ? (
-    <span className="dm-text-small text-working-text">
-      <LiveProgress progress={progress} now={now} />
-    </span>
-  ) : null;
 }

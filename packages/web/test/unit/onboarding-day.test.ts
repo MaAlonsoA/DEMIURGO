@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { BatchDetail, Message, Proposal, Question, RunListItem } from '../../src/api/types.ts';
 import {
   IDEA_EXAMPLES,
+  INFERRED,
+  OWN,
   answerOf,
   answersOf,
+  conclusionOf,
   dayLabel,
   daySummary,
   decisionRequest,
@@ -11,9 +14,12 @@ import {
   pendingInOrder,
   personMessages,
   promptOf,
+  optionKey,
   purposeOf,
   readingOf,
   readingsOf,
+  reviewTarget,
+  togglePicked,
   understandingOf,
   walkSummary,
   writtenBy,
@@ -269,6 +275,43 @@ describe('the questions of the day', () => {
     expect(decisionRequest([{ question: 'Q?', conclusion: 'x'.repeat(30_000) }]).length).toBe(20_000);
   });
 
+  it("records the answer picked: an option, DEMIURGO's inferred one or the person's own words", () => {
+    const q = question('q1', 'inferred', 1, {
+      conclusion: 'Members only.',
+      options: [
+        { answer: 'Anyone', implies: 'Open sign-up.' },
+        { answer: 'Members', implies: 'A members list.' },
+      ],
+    });
+    expect(conclusionOf(q, [optionKey(1)], '')).toBe('Members');
+    expect(conclusionOf(q, [INFERRED], '')).toBe('Members only.');
+    expect(conclusionOf(q, [OWN], '  Only people who paid.  ')).toBe('Only people who paid.');
+    expect(conclusionOf(q, [OWN], '   ')).toBe('');
+    expect(conclusionOf(q, [], '')).toBe('');
+    // A single choice keeps only the last one picked.
+    expect(togglePicked(q, [optionKey(0)], [optionKey(1)])).toEqual([optionKey(1)]);
+  });
+
+  it('joins several answers in their order, and an exclusive option stands alone, as the thread does', () => {
+    const q = question('q1', 'pending', 1, {
+      multiple: true,
+      options: [
+        { answer: 'Trips', implies: 'Transport.' },
+        { answer: 'Workshops', implies: 'Rooms.' },
+        { answer: 'None of these', implies: 'Something else.', exclusive: true },
+      ],
+    });
+    const two = togglePicked(q, [optionKey(1)], [optionKey(1), optionKey(0)]);
+    expect(two).toEqual([optionKey(1), optionKey(0)]);
+    expect(conclusionOf(q, two, '')).toBe('Trips · Workshops');
+    expect(conclusionOf(q, [...two, OWN], 'Meetings')).toBe('Trips · Workshops · Meetings');
+    // Picking the exclusive one clears the others; picking another clears the exclusive one.
+    expect(togglePicked(q, two, [...two, optionKey(2)])).toEqual([optionKey(2)]);
+    expect(togglePicked(q, [optionKey(2)], [optionKey(2), optionKey(0)])).toEqual([optionKey(0)]);
+    // Unpicking keeps the rest.
+    expect(togglePicked(q, two, [optionKey(0)])).toEqual([optionKey(0)]);
+  });
+
   it('recognises that request among the messages of the thread', () => {
     expect(isDecisionRequest(message('m1', 'human:ana', 1, { body: 'I decide: members only.' }))).toBe(true);
     expect(isDecisionRequest(message('m2', 'human:ana', 1, { body: 'We want an app.' }))).toBe(false);
@@ -303,6 +346,24 @@ describe('the summary of the day', () => {
     expect(summary.waiting.map((w) => [w.batchId, w.proposalId, w.title])).toEqual([['b1', 'p1', 'title p1']]);
     expect(summary.open.map((q) => q.id)).toEqual(['q2']);
     expect(summary.parked.map((q) => q.id)).toEqual(['q3']);
+  });
+
+  it('reviews the decisions on their batch, or in Needs you when they are spread over several', () => {
+    expect(reviewTarget([])).toBeNull();
+    expect(
+      reviewTarget([
+        { batchId: 'b1', proposalId: 'p1', title: 'A' },
+        { batchId: 'b1', proposalId: 'p2', title: 'B' },
+      ]),
+    ).toEqual({
+      batchId: 'b1',
+    });
+    expect(
+      reviewTarget([
+        { batchId: 'b1', proposalId: 'p1', title: 'A' },
+        { batchId: 'b2', proposalId: 'p2', title: 'B' },
+      ]),
+    ).toBe('needs-you');
   });
 
   it('never says less than a minute', () => {

@@ -1,49 +1,86 @@
-// One question at a time (canvas S4D, adapted to H1): on the right the question in big type, why
-// DEMIURGO asks it and what it affects, and the person's answer; Answer confirms it with that
-// conclusion, Skip leaves it open and Not now parks it with a reason. On the left, the answers
-// given so far and what DEMIURGO understood. After the last one, DEMIURGO is asked to propose
+// Day 1, one question at a time (DESIGN.md §3.9; unlinked since patch 4af77f1 — answering happens
+// in the thread — and kept reachable by URL). The side column holds the walk: the question, why it
+// matters and what it affects, and the answer — DEMIURGO's inferred one, a predefined option (one
+// or several, exclusive options standing alone, as in the thread) or the person's own words.
+// Answer confirms it; Skip leaves it open; Park keeps it for later with a reason (DESIGN.md §4.4).
+// The walk survives a reload in this tab. After the last one, DEMIURGO is asked to propose
 // decisions from the answers ("I decide: …"); it only proposes them.
 
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { useEffect, useId, useRef, useState } from 'react';
-import { ApiError } from '../../api/client.ts';
+import { useEffect, useRef, useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
 import { batchQuery, stagesQuery } from '../../api/queries.ts';
 import { canCreate } from '../../api/tables.ts';
 import type { Message, Question } from '../../api/types.ts';
-import { cn } from '../../lib/cn.ts';
+import { useAllows } from '../../components/actions.tsx';
+import { announce } from '../../components/announce.tsx';
+import { Button, buttonClass } from '../../components/Button.tsx';
+import { KeyValue } from '../../components/Card.tsx';
+import { isNotFound } from '../../components/explain.ts';
+import { type Choice, ChoiceGroup, Field, TextArea } from '../../components/Field.tsx';
+import { ChevronRightIcon } from '../../components/icons.tsx';
+import { Meter } from '../../components/Meter.tsx';
+import { ErrorNotice } from '../../components/Notice.tsx';
+import { PageBody, PageHeader, Section, WithAside, usePageTitle } from '../../components/Page.tsx';
+import { QuestionActions } from '../../components/QuestionActions.tsx';
+import { Bone } from '../../components/Spinner.tsx';
+import { EntityState } from '../../components/status.tsx';
+import { TypeIcon } from '../../components/types.tsx';
 import { useRouteParams, useTables } from '../../lib/hooks.ts';
-import { useAllows } from '../../ui/ActionBar.tsx';
-import { Button, buttonClass } from '../../ui/Button.tsx';
-import { TextDialog } from '../../ui/dialogs.tsx';
-import { TypeIcon } from '../../ui/icons.tsx';
-import { Mark, StateMark } from '../../ui/marks.tsx';
-import { Reasons } from '../../ui/Reasons.tsx';
-import { stateWord } from '../../words.ts';
 import { proposalTitle } from '../batch/model.ts';
 import { NotFound } from '../not-found/NotFound.tsx';
 import {
+  IMPACT_LEVEL,
   IMPACT_WORDS,
+  INFERRED,
+  OWN,
   type Reading,
   answersOf,
+  conclusionOf,
   decisionRequest,
   isDecisionRequest,
+  optionKey,
   pendingInOrder,
+  togglePicked,
   understandingOf,
   walkSummary,
   writtenBy,
 } from './day.ts';
 import { useDay, useSend } from './hooks.ts';
-import { AnswerRow, DayFrame, DaySkeleton, Eyebrow, FromYourIdea, ObservationRow, ProductTitle } from './parts.tsx';
+import { AnswerRow, DayError, DaySkeleton, FromYourIdea, ObservationList, Reply } from './parts.tsx';
 import { ReadingStatus } from './Reading.tsx';
+
+type Walk = { ids: string[]; index: number };
+
+const walkKey = (explorationId: string) => `dm-day1-walk:${explorationId}`;
+
+function readWalk(explorationId: string): Walk | null {
+  try {
+    const raw = sessionStorage.getItem(walkKey(explorationId));
+    const w = raw ? (JSON.parse(raw) as Walk) : null;
+    return w && Array.isArray(w.ids) && Number.isInteger(w.index) ? w : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveWalk(explorationId: string, walk: Walk): void {
+  try {
+    sessionStorage.setItem(walkKey(explorationId), JSON.stringify(walk));
+  } catch {
+    // Storage may be unavailable: the walk then lasts for this visit only.
+  }
+}
 
 export function QuestionsScreen() {
   const { projectId, explorationId = '' } = useRouteParams();
   const day = useDay(projectId, explorationId);
-  const [walk, setWalk] = useState<string[] | null>(null);
-  const [index, setIndex] = useState(0);
+  const [walk, setWalk] = useState<Walk | null>(() => readWalk(explorationId));
   const thread = day.thread;
+  const index = walk?.index ?? 0;
+  const question = walk && index < walk.ids.length ? thread?.questions.find((q) => q.id === walk.ids[index]) : undefined;
+  usePageTitle([question ? `Question ${index + 1} of ${walk?.ids.length ?? 0}` : 'Questions', day.project?.name]);
 
   // The questions walked are the open ones when the screen opens, plus any DEMIURGO raises while
   // the person is still walking them. Once the walk ends it no longer grows.
@@ -51,88 +88,87 @@ export function QuestionsScreen() {
     if (!thread) return;
     const ids = pendingInOrder(thread.questions).map((q) => q.id);
     setWalk((w) => {
-      if (w === null) return day.latest && isDecisionRequest(day.latest) ? [] : ids;
-      if (index >= w.length) return w;
-      const missing = ids.filter((id) => !w.includes(id));
-      return missing.length ? [...w, ...missing] : w;
+      if (w === null) return { ids: day.latest && isDecisionRequest(day.latest) ? [] : ids, index: 0 };
+      if (w.index >= w.ids.length) return w;
+      const missing = ids.filter((id) => !w.ids.includes(id));
+      return missing.length ? { ...w, ids: [...w.ids, ...missing] } : w;
     });
-  }, [thread, index, day.latest]);
+  }, [thread, day.latest]);
+  useEffect(() => {
+    if (walk) saveWalk(explorationId, walk);
+  }, [walk, explorationId]);
 
-  if (day.error instanceof ApiError && day.error.status === 404) {
-    return <NotFound thing="these questions">They may belong to another project.</NotFound>;
-  }
+  if (isNotFound(day.error)) return <NotFound thing="these questions">They may belong to another project.</NotFound>;
   if (!thread || !day.runs || walk === null) {
     return day.error ? (
-      <main id="main" className="mx-auto max-w-[760px] px-6 pt-14">
-        <Reasons error={day.error} />
-      </main>
+      <DayError title="Your questions" error={day.error} onRetry={day.retry} />
     ) : (
       <DaySkeleton label="Loading the questions" />
     );
   }
 
-  const question = index < walk.length ? thread.questions.find((q) => q.id === walk[index]) : undefined;
-  const walked = walk.length
-    ? walk.map((id) => thread.questions.find((q) => q.id === id)).filter((q): q is Question => !!q)
+  const walked = walk.ids.length
+    ? walk.ids.map((id) => thread.questions.find((q) => q.id === id)).filter((q): q is Question => !!q)
     : thread.questions;
   const understanding = understandingOf(thread.messages, day.runs);
   const request = day.latest && isDecisionRequest(day.latest) ? day.latest : null;
-  const next = () => setIndex((i) => i + 1);
+  const next = () => setWalk((w) => (w ? { ...w, index: w.index + 1 } : w));
+  const total = walk.ids.length;
 
   return (
-    <DayFrame
-      wide
-      asideLabel={question ? `Question ${index + 1} of ${walk.length}` : 'Questions done'}
-      aside={
-        question ? (
-          <Ask
-            key={question.id}
-            projectId={projectId}
-            explorationId={explorationId}
-            question={question}
-            position={index + 1}
-            total={walk.length}
-            onNext={next}
-          />
-        ) : (
-          <End
-            projectId={projectId}
-            explorationId={explorationId}
-            walked={walked}
-            questions={thread.questions}
-            total={walk.length}
-            request={request}
-            reading={day.reading}
-            now={day.now}
-          />
-        )
-      }
-    >
-      <FromYourIdea projectId={projectId} explorationId={explorationId} idea={day.idea?.body ?? thread.purpose} />
-      <ProductTitle name={day.project?.name} className="text-muted" />
-      <Answers questions={thread.questions} />
-      {understanding && <Understood messages={thread.messages} runId={understanding.id} />}
-    </DayFrame>
+    <>
+      <PageHeader
+        eyebrow="The product"
+        title={day.project?.name ?? <Bone className="h-7 w-56" />}
+        meta={total > 0 ? `${total} ${total === 1 ? 'question' : 'questions'} to walk, one at a time` : null}
+      />
+      <PageBody>
+        <WithAside
+          asideWidth="lg"
+          asideLabel={question ? `Question ${index + 1} of ${total}` : 'Questions done'}
+          aside={
+            <div className="flex flex-col gap-5 rounded-lg border border-edge-strong bg-panel p-5">
+              {question ? (
+                <Ask
+                  key={question.id}
+                  projectId={projectId}
+                  explorationId={explorationId}
+                  question={question}
+                  position={index + 1}
+                  total={total}
+                  onNext={next}
+                />
+              ) : (
+                <End
+                  projectId={projectId}
+                  explorationId={explorationId}
+                  walked={walked}
+                  questions={thread.questions}
+                  total={total}
+                  request={request}
+                  reading={day.reading}
+                />
+              )}
+            </div>
+          }
+        >
+          <div className="flex flex-col gap-10">
+            <FromYourIdea projectId={projectId} explorationId={explorationId} idea={day.idea?.body ?? thread.purpose} />
+            <Answers questions={thread.questions} />
+            {understanding ? (
+              <Understood messages={thread.messages} runId={understanding.id} model={understanding.model} />
+            ) : null}
+          </div>
+        </WithAside>
+      </PageBody>
+    </>
   );
 }
 
-/** "1 of 3" and its track: ink for the questions walked, the design system's empty track for the
-    rest (blue is only for what needs you). */
+/** "1 of 3" with its bar: the text carries the value. */
 function Progress({ position, total }: { position: number; total: number }) {
-  return (
-    <span className="dm-text-caption flex items-center gap-2 font-semibold text-ink-2">
-      {position} of {total}
-      <span aria-hidden="true" className="flex gap-[3px]">
-        {Array.from({ length: Math.min(total, 10) }, (_, i) => (
-          <span key={i} className={cn('h-1 w-4 rounded-bar', i < position ? 'bg-ink' : 'bg-track')} />
-        ))}
-      </span>
-    </span>
-  );
+  return <Meter value={position} max={total} label={`${position} of ${total}`} className="w-32" />;
 }
-
-/** The answer picked: one of the predefined options, DEMIURGO's inference, or the person's own words. */
-type Choice = { kind: 'option'; index: number } | { kind: 'inferred' } | { kind: 'own' };
 
 function Ask({
   projectId,
@@ -155,212 +191,165 @@ function Ask({
   const stage = q.stage_id ? stages?.find((s) => s.id === q.stage_id) : undefined;
   const options = q.options ?? [];
   const inferred = q.state === 'inferred' && q.conclusion ? q.conclusion : null;
-  const [choice, setChoice] = useState<Choice>(
-    inferred ? { kind: 'inferred' } : options.length ? { kind: 'option', index: -1 } : { kind: 'own' },
-  );
-  const [text, setText] = useState('');
-  const [parking, setParking] = useState(false);
+  const picking = options.length > 0 || !!inferred;
+  const [picked, setPicked] = useState<string[]>(inferred ? [INFERRED] : picking ? [] : [OWN]);
+  const [own, setOwn] = useState('');
   const heading = useRef<HTMLHeadingElement>(null);
-  const answerId = useId();
+  const ownField = useRef<HTMLTextAreaElement>(null);
   useEffect(() => heading.current?.focus(), []);
 
-  const conclusion =
-    choice.kind === 'own' ? text.trim() : choice.kind === 'inferred' ? (inferred ?? '') : (options[choice.index]?.answer ?? '');
+  const conclusion = conclusionOf(q, picked, own);
   const answer = () =>
-    command.mutate({ command: 'question.confirm', entityId: q.id, data: { conclusion } }, { onSuccess: onNext });
-  const park = (reason: string) =>
     command.mutate(
-      { command: 'question.postpone', entityId: q.id, data: { reason } },
+      { command: 'question.confirm', entityId: q.id, data: { conclusion } },
       {
         onSuccess: () => {
-          setParking(false);
+          announce('Answered.');
           onNext();
         },
       },
     );
   const canAnswer = allows('question.confirm');
-  const picking = options.length > 0 || !!inferred;
+  const choices: Choice[] = [
+    ...(inferred
+      ? [
+          {
+            value: INFERRED,
+            label: inferred,
+            detail: q.reasoning ? `DEMIURGO inferred it: ${q.reasoning}` : 'DEMIURGO inferred it from the conversation.',
+          },
+        ]
+      : []),
+    ...options.map((o, i) => ({
+      value: optionKey(i),
+      label: o.answer,
+      detail: o.exclusive && q.multiple ? `${o.implies} Only this one.` : o.implies,
+    })),
+    { value: OWN, label: 'Something else', detail: 'Write it in your own words.' },
+  ];
+  const writing = picked.includes(OWN);
 
   return (
     <>
-      <div className="flex items-center justify-between gap-3">
-        <span className="dm-label flex items-center gap-1.5">
-          <TypeIcon kind="question" size={14} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span className="flex flex-wrap items-center gap-2 text-sm text-fg-2">
+          <TypeIcon type="question" size={15} className="text-fg-3" />
           {stage ? `${stage.title} · mandatory` : 'Question'}
-          <span className="dm-sep" aria-hidden="true">
-            ·
-          </span>
-          <span className="tracking-normal normal-case">
-            <StateMark entity="question" state={q.state} />
-          </span>
+          <EntityState entity="question" state={q.state} />
         </span>
         <Progress position={position} total={total} />
       </div>
-      <h2 ref={heading} tabIndex={-1} className="dm-text-title outline-none">
+      <h2 ref={heading} tabIndex={-1} className="text-xl font-semibold break-words text-fg outline-none">
         {q.question}
       </h2>
-      {(q.reason || q.impact) && (
-        <dl className="flex flex-col gap-2 rounded-sm border border-line bg-surface-soft px-3.5 py-3">
-          {q.reason && (
-            <div className="flex flex-col gap-0.5">
-              <dt className="dm-label">Why it matters</dt>
-              <dd className="dm-text-small text-ink-2">{q.reason}</dd>
-            </div>
-          )}
-          {q.impact && (
-            <div className="flex flex-col gap-0.5">
-              <dt className="dm-label">What it affects</dt>
-              <dd className="dm-text-small text-ink-2">
-                <span className="font-semibold text-ink">{IMPACT_LEVEL[q.impact] ?? q.impact}.</span>{' '}
-                {IMPACT_WORDS[q.impact] ?? ''}
-              </dd>
-            </div>
-          )}
-        </dl>
-      )}
-      {canAnswer && (
+      {q.reason || q.impact ? (
+        <KeyValue
+          className="rounded-lg border border-edge bg-sunken px-3.5 py-3"
+          items={[
+            ...(q.reason ? [{ key: 'why', label: 'Why it matters', value: q.reason }] : []),
+            ...(q.impact
+              ? [
+                  {
+                    key: 'impact',
+                    label: 'What it affects',
+                    value: (
+                      <>
+                        <span className="font-medium">{IMPACT_LEVEL[q.impact] ?? q.impact}.</span> {IMPACT_WORDS[q.impact] ?? ''}
+                      </>
+                    ),
+                  },
+                ]
+              : []),
+          ]}
+        />
+      ) : null}
+      {canAnswer ? (
         <form
-          id={`${answerId}-form`}
-          className="flex flex-col gap-2"
+          id={`answer-${q.id}`}
+          className="flex flex-col gap-3"
           onSubmit={(e) => {
             e.preventDefault();
             if (conclusion && !command.isPending) answer();
           }}
         >
-          <span className="dm-text-caption font-semibold text-ink-2">{picking ? 'Pick an answer' : 'Your answer'}</span>
-          {picking && (
-            <div role="radiogroup" aria-label="Answers" className="flex flex-col gap-1.5">
-              {inferred && (
-                <OptionButton
-                  selected={choice.kind === 'inferred'}
-                  onSelect={() => setChoice({ kind: 'inferred' })}
-                  answer={inferred}
-                  implies={q.reasoning ? `DEMIURGO inferred it: ${q.reasoning}` : 'DEMIURGO inferred it from the conversation.'}
+          {picking ? (
+            <ChoiceGroup
+              legend={q.multiple ? 'Pick one or more answers' : 'Pick an answer'}
+              multiple={!!q.multiple}
+              value={picked}
+              onChange={(value) => {
+                const nextPicked = togglePicked(q, picked, value);
+                setPicked(nextPicked);
+                if (nextPicked.includes(OWN) && !picked.includes(OWN)) requestAnimationFrame(() => ownField.current?.focus());
+              }}
+              choices={choices}
+            />
+          ) : null}
+          {writing ? (
+            <Field label="Your answer" labelHidden={picking} count={own.length > 2700 ? [own.length, 3000] : undefined}>
+              {(p) => (
+                <TextArea
+                  {...p}
+                  ref={ownField}
+                  rows={4}
+                  autoGrow
+                  maxLength={3000}
+                  value={own}
+                  placeholder="Answer in your own words"
+                  onChange={(e) => setOwn(e.target.value)}
                 />
               )}
-              {options.map((o, i) => (
-                <OptionButton
-                  key={i}
-                  selected={choice.kind === 'option' && choice.index === i}
-                  onSelect={() => setChoice({ kind: 'option', index: i })}
-                  answer={o.answer}
-                  implies={o.implies}
-                />
-              ))}
-              <OptionButton
-                selected={choice.kind === 'own'}
-                onSelect={() => setChoice({ kind: 'own' })}
-                answer="Something else"
-                implies="Write it in your own words."
-              />
-            </div>
-          )}
-          {choice.kind === 'own' && (
-            <textarea
-              aria-label="Your answer"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              rows={4}
-              maxLength={3000}
-              autoFocus={picking}
-              placeholder="Answer in your own words"
-              className="dm-text-body w-full resize-y rounded-control border border-line-strong bg-surface px-3 py-2 leading-relaxed text-ink placeholder:text-muted focus:border-needs focus:outline-none"
-            />
-          )}
+            </Field>
+          ) : null}
         </form>
-      )}
-      {!parking && command.error ? <Reasons error={command.error} /> : null}
-      <div className="mt-auto flex flex-col gap-2.5">
-        {canAnswer && (
-          <Button
-            type="submit"
-            form={`${answerId}-form`}
-            variant="primary"
-            className="w-full"
-            disabled={!conclusion || command.isPending}
-          >
-            {command.isPending && !parking ? 'Answering…' : 'Answer'}
-          </Button>
-        )}
-        <div className="flex gap-2">
+      ) : null}
+      {command.error ? <ErrorNotice error={command.error} /> : null}
+      <div className="flex flex-col gap-2.5">
+        {canAnswer ? (
+          <>
+            <Button
+              type="submit"
+              form={`answer-${q.id}`}
+              variant="primary"
+              size="lg"
+              className="w-full"
+              disabled={!conclusion}
+              pending={command.isPending}
+              pendingLabel="Answering…"
+            >
+              Answer
+            </Button>
+            {!conclusion ? (
+              <p className="text-center text-xs text-fg-2">
+                {picking ? 'Pick an answer, or write your own, first.' : 'Write your answer first.'}
+              </p>
+            ) : null}
+          </>
+        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="secondary" className="flex-1" onClick={onNext}>
             {q.state === 'pending' ? 'Skip' : 'Next'}
           </Button>
-          {allows('question.postpone') && (
-            <Button
-              variant="secondary"
-              className="flex-1"
-              onClick={() => {
-                command.reset();
-                setParking(true);
-              }}
-            >
-              Not now
-            </Button>
-          )}
+          {/* Park keeps it for later with a reason: the same words and dialog as everywhere (§4.4). */}
+          <QuestionActions
+            projectId={projectId}
+            question={q}
+            hide={['answer', 'confirm', 'change', 'drop', 'reopen']}
+            onDone={onNext}
+          />
         </div>
-        <p className="dm-text-caption text-muted">
+        <p className="text-sm text-fg-2">
           Talk it through with DEMIURGO instead:{' '}
           <Link
             to="/p/$projectId/threads/$explorationId"
             params={{ projectId, explorationId }}
-            className="font-semibold text-needs hover:text-needs-strong"
+            className="font-medium text-accent-text hover:underline"
           >
             Open the thread
           </Link>
         </p>
       </div>
-      <TextDialog
-        open={parking}
-        onOpenChange={(o) => !o && setParking(false)}
-        title="Not now"
-        description="The question stays for later, parked. Say why."
-        label="Reason"
-        submit="Park it"
-        required
-        maxLength={1000}
-        pending={command.isPending}
-        error={parking ? command.error : null}
-        onSubmit={park}
-      />
     </>
-  );
-}
-
-const IMPACT_LEVEL: Record<string, string> = { high: 'High impact', medium: 'Medium impact', low: 'Low impact' };
-
-/** One predefined answer: the answer and, quieter, what choosing it implies. */
-function OptionButton({
-  selected,
-  onSelect,
-  answer,
-  implies,
-}: {
-  selected: boolean;
-  onSelect: () => void;
-  answer: string;
-  implies: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      onClick={onSelect}
-      className={cn(
-        'flex w-full items-start gap-2.5 rounded-control border bg-surface px-3 py-2.5 text-left',
-        selected ? 'border-needs' : 'border-line hover:border-line-strong',
-      )}
-    >
-      <span
-        aria-hidden="true"
-        className={cn('mt-[5px] size-3 shrink-0 rounded-full border', selected ? 'border-needs bg-needs' : 'border-line-strong')}
-      />
-      <span className="flex flex-col gap-0.5">
-        <span className="dm-text-body font-semibold text-ink">{answer}</span>
-        <span className="dm-text-small text-ink-3">{implies}</span>
-      </span>
-    </button>
   );
 }
 
@@ -373,7 +362,6 @@ function End({
   total,
   request,
   reading,
-  now,
 }: {
   projectId: string;
   explorationId: string;
@@ -382,7 +370,6 @@ function End({
   total: number;
   request: Message | null;
   reading: Reading;
-  now: number;
 }) {
   const tables = useTables();
   const { send, pending, error } = useSend(projectId, explorationId);
@@ -400,78 +387,86 @@ function End({
 
   return (
     <>
-      <div className="flex items-center justify-between gap-3">
-        <span className="dm-label flex items-center gap-1.5">
-          <TypeIcon kind="question" size={14} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span className="flex items-center gap-2 text-sm text-fg-2">
+          <TypeIcon type="question" size={15} className="text-fg-3" />
           Questions
         </span>
-        {total > 0 && <Progress position={total} total={total} />}
+        {total > 0 ? <Progress position={total} total={total} /> : null}
       </div>
       <div className="flex flex-col gap-1.5">
-        <h2 ref={heading} tabIndex={-1} className="dm-text-title outline-none">
+        <h2 ref={heading} tabIndex={-1} className="text-xl font-semibold text-fg outline-none">
           That&apos;s all my questions for now
         </h2>
-        <p className="dm-text-body text-ink-2">{walkSummary(walked)}</p>
+        <p className="text-base text-fg-2">{walkSummary(walked)}</p>
       </div>
-      {showAsk && (
-        <p className="dm-text-small text-ink-3">
+      {showAsk ? (
+        <p className="text-sm text-fg-2">
           DEMIURGO can turn your answers into decisions. It only proposes them: you accept, change or reject each one.
         </p>
-      )}
-      {showAsk && answers.length === 0 && (
-        <p className="dm-text-small text-muted">Answer at least one question to ask for decisions.</p>
-      )}
-      {request && (
-        <ReadingStatus projectId={projectId} explorationId={explorationId} reading={reading} subject="decisions" now={now} />
-      )}
-      {read && batchId && batch.data && (
-        <section data-proposed-decisions className="flex flex-col gap-2">
-          <p className="dm-text-heading font-semibold">
+      ) : null}
+      {showAsk && answers.length === 0 ? (
+        <p className="text-sm text-fg-2">Answer at least one question to ask for decisions.</p>
+      ) : null}
+      {request ? (
+        <ReadingStatus projectId={projectId} explorationId={explorationId} reading={reading} subject="decisions" />
+      ) : null}
+      {read && batchId && batch.error ? (
+        <ErrorNotice error={batch.error} focus={false} onRetry={() => void batch.refetch()} />
+      ) : null}
+      {read && batchId && batch.data ? (
+        <section data-proposed-decisions aria-labelledby="proposed-decisions" className="flex flex-col gap-2.5">
+          <p id="proposed-decisions" className="text-base font-semibold text-fg">
             DEMIURGO proposed {decisions} {decisions === 1 ? 'decision' : 'decisions'}.
           </p>
-          <ul className="flex flex-col gap-1.5">
+          <ul className="flex flex-col gap-2">
             {proposed.map((p) => (
               <li
                 key={p.id}
-                className="dm-text-small flex items-start gap-2.5 rounded-sm border border-line bg-surface-soft px-3 py-2 text-ink"
+                className="flex items-start gap-2.5 rounded-lg border border-edge bg-panel px-3 py-2 text-sm text-fg"
               >
-                <span className="mt-[4px] flex shrink-0">
-                  <Mark kind={stateWord('proposal', p.state).mark} label={stateWord('proposal', p.state).word} />
-                </span>
-                <span className="line-clamp-3">{proposalTitle(p)}</span>
+                <EntityState entity="proposal" state={p.state} className="mt-px" />
+                <span className="min-w-0 break-words">{proposalTitle(p)}</span>
               </li>
             ))}
           </ul>
-          {decisions > 0 && (
-            <p className="dm-text-caption text-muted">
-              They wait for you: accept, change or reject each one. Nothing is decided yet.
-            </p>
-          )}
+          {decisions > 0 ? (
+            <p className="text-sm text-fg-2">They wait for you: accept, change or reject each one. Nothing is decided yet.</p>
+          ) : null}
         </section>
-      )}
-      {read && !batchId && (
-        <p data-proposed-decisions className="dm-text-body text-ink-2">
+      ) : null}
+      {read && !batchId ? (
+        <p data-proposed-decisions className="text-base text-fg-2">
           DEMIURGO didn&apos;t propose a decision this time. You can ask again in the thread.
         </p>
-      )}
-      {error ? <Reasons error={error} /> : null}
-      <div className="mt-auto flex flex-col gap-2.5">
-        {showAsk && (
+      ) : null}
+      {error ? <ErrorNotice error={error} /> : null}
+      <div className="flex flex-col gap-2.5">
+        {showAsk ? (
           <Button
             variant="primary"
+            size="lg"
             className="w-full"
-            disabled={answers.length === 0 || pending}
-            onClick={() => send(decisionRequest(answers), () => setAsked(true))}
+            disabled={answers.length === 0}
+            pending={pending}
+            pendingLabel="Asking…"
+            onClick={() =>
+              send(decisionRequest(answers), () => {
+                setAsked(true);
+                announce('Asked. DEMIURGO proposes decisions from your answers.');
+              })
+            }
           >
-            {pending ? 'Asking…' : 'Ask DEMIURGO to propose decisions'}
+            Ask DEMIURGO to propose decisions
           </Button>
-        )}
+        ) : null}
         <Link
           to="/p/$projectId/start/$explorationId/done"
           params={{ projectId, explorationId }}
-          className={buttonClass('secondary', 'w-full')}
+          className={buttonClass({ variant: 'secondary', size: 'lg', className: 'w-full' })}
         >
           See your starting point
+          <ChevronRightIcon size={15} />
         </Link>
       </div>
     </>
@@ -480,46 +475,31 @@ function End({
 
 /** The person's answers so far, confirmed. */
 function Answers({ questions }: { questions: Question[] }) {
-  const headingId = useId();
   const confirmed = questions
     .filter((q) => q.state === 'confirmed')
     .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
   return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-2">
-      <Eyebrow id={headingId}>Your answers</Eyebrow>
+    <Section id="your-answers" title="Your answers">
       {confirmed.length > 0 ? (
-        <ul className="flex flex-col gap-1.5">
+        <ul className="flex flex-col gap-2">
           {confirmed.map((q) => (
             <AnswerRow key={q.id} question={q} />
           ))}
         </ul>
       ) : (
-        <p className="dm-text-small text-muted">Your answers appear here as you give them.</p>
+        <p className="text-base text-fg-2">Your answers appear here as you give them.</p>
       )}
-    </section>
+    </Section>
   );
 }
 
 /** What DEMIURGO understood, quieter: the context of the questions. */
-function Understood({ messages, runId }: { messages: Message[]; runId: string }) {
-  const headingId = useId();
+function Understood({ messages, runId, model }: { messages: Message[]; runId: string; model: string | null }) {
   const { reply, observations } = writtenBy(messages, runId);
   return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-2">
-      <Eyebrow id={headingId}>What I understood</Eyebrow>
-      <ReplyText reply={reply} />
-      {observations.length > 0 && (
-        <ul className="flex flex-col gap-1.5">
-          {observations.map((o) => (
-            <ObservationRow key={o.id} observation={o} compact />
-          ))}
-        </ul>
-      )}
-    </section>
+    <Section id="understood" title="What I understood">
+      <Reply reply={reply} model={model} muted />
+      <ObservationList observations={observations} compact />
+    </Section>
   );
-}
-
-function ReplyText({ reply }: { reply: Message | null }) {
-  if (!reply) return null;
-  return <p className="dm-text-body leading-relaxed text-muted">{reply.body}</p>;
 }

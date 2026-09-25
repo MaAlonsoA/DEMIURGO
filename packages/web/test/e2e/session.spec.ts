@@ -23,12 +23,19 @@ test('AC-INT-001-02 an internal route without a session goes to Sign in, comes b
   await expect(page).toHaveURL(/\/sign-in\?next=/);
   await expectAccessible(page, 'Sign in');
 
+  // A missing field is explained in words, next to it, and the focus goes there.
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByText('Write your user to sign in.')).toBeVisible();
+  await expect(page.getByText('Write your password to sign in.')).toBeVisible();
+  await expect(page.getByLabel('User')).toBeFocused();
+
   // A wrong password says so and keeps the user.
   await page.getByLabel('User').fill(USER);
   await page.getByLabel('Password').fill('not-the-password');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByText('Wrong user or password.')).toBeVisible();
   await expect(page.getByLabel('User')).toHaveValue(USER);
+  await expect(page.getByLabel('Password')).toHaveValue('');
 
   await signInThroughUi(page);
   await expect(page).toHaveURL(`${BASE_URL}/p/${projectId}/threads`);
@@ -40,6 +47,19 @@ test('AC-INT-001-02 an internal route without a session goes to Sign in, comes b
   const after = await page.request.get(`/api/projects/${projectId}/state`);
   expect(after.status()).toBe(401);
   await context.close();
+});
+
+test('AC-INT-001-02 Sign out is at hand outside a project too: on Your projects and on New project', async ({ page, person }) => {
+  await person.createProject('Outside one');
+  await person.createProject('Outside two');
+  await page.goto('/projects');
+  await expect(page.getByRole('heading', { level: 1, name: 'Your projects' })).toBeVisible();
+  await page.getByRole('link', { name: 'New project' }).click();
+  await expect(page).toHaveURL(/\/new$/);
+  await page.getByRole('button', { name: `Signed in as ${USER}` }).click();
+  await page.getByRole('menuitem', { name: 'Sign out' }).click();
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+  expect((await page.request.get('/api/projects')).status()).toBe(401);
 });
 
 test('AC-INT-001-02 a reloaded page keeps the session and can still write', async ({ page, person }) => {
@@ -61,9 +81,8 @@ test('AC-WEB-001-03 signing in and moving between the tabs works with the keyboa
   const page = await context.newPage();
   await page.goto(`/p/${projectId}`);
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
-  // The first stop is "Skip to content"; then the form.
+  // The focus starts on "User": nothing to Tab past.
   const user = page.getByLabel('User');
-  for (let i = 0; i < 5 && !(await user.evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press('Tab');
   await expect(user).toBeFocused();
   await page.keyboard.type(USER);
   await page.keyboard.press('Tab');
@@ -71,7 +90,7 @@ test('AC-WEB-001-03 signing in and moving between the tabs works with the keyboa
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(`${BASE_URL}/p/${projectId}`);
 
-  // Reach the "Threads" tab with Tab alone and open it with Enter.
+  // Reach the "Threads" section with Tab alone and open it with Enter.
   const threads = page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Threads' });
   for (let i = 0; i < 20 && !(await threads.evaluate((el) => el === document.activeElement)); i++) {
     await page.keyboard.press('Tab');
@@ -83,7 +102,11 @@ test('AC-WEB-001-03 signing in and moving between the tabs works with the keyboa
   await context.close();
 });
 
-test('screens of cut 0: sign in, the header with the legend, and not found', async ({ browser, page, person }) => {
+test('screens of cut 0: sign in, the project shell, and not found — never linking back to a project that is not there', async ({
+  browser,
+  page,
+  person,
+}) => {
   const projectId = await person.createProject('Cut 0');
   const anonymous = await anonymousContext(browser);
   const signIn = await anonymous.newPage();
@@ -95,8 +118,18 @@ test('screens of cut 0: sign in, the header with the legend, and not found', asy
   await page.goto(`/p/${projectId}/threads`);
   await expect(page.getByRole('navigation', { name: 'Sections' })).toBeVisible();
   await screenshot(page, 0, '02-header-and-shell');
+
+  // An unknown page of a known project leads back to its product.
   await page.goto(`/p/${projectId}/does-not-exist`);
-  await expect(page.getByRole('heading', { name: /We couldn.t find/ })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: /We couldn.t find this page/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Back to the product' })).toHaveAttribute('href', `/p/${projectId}`);
   await expectAccessible(page, 'Not found');
   await screenshot(page, 0, '03-not-found');
+
+  // An unknown project never links back to itself: the way back is DEMIURGO.
+  await page.goto('/p/00000000-0000-4000-8000-000000000000/threads');
+  await expect(page.getByRole('heading', { level: 1, name: /We couldn.t find this page/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Back to DEMIURGO' })).toHaveAttribute('href', '/');
+  await expect(page.getByRole('main')).toHaveCount(1);
+  await expectAccessible(page, 'Not found, an unknown project');
 });

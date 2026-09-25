@@ -1,12 +1,14 @@
-// The data of a Day 1: its thread, the thread's runs, the project and where DEMIURGO's answer to
-// the person's last message stands; and sending a message that DEMIURGO answers.
+// The data of a Day 1 (DESIGN.md §3.9): its thread, the thread's runs, the project and where
+// DEMIURGO's answer to the person's last message stands; and sending a message that DEMIURGO
+// answers. The stream keeps it live; while the answer waits for knowledge, the thread and its runs
+// are also asked again every 2.5 s (the message's own state is what moves then).
 
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
 import { explorationQuery, projectsQuery, runsQuery, stagesQuery } from '../../api/queries.ts';
-import { useNow } from '../run/hooks.ts';
-import { isActive } from '../thread/timeline.ts';
+import { isActive } from '../../components/runState.tsx';
+import { useNow } from '../../components/Time.tsx';
 import { personMessages, readingOf } from './day.ts';
 
 export function useDay(projectId: string, explorationId: string) {
@@ -30,7 +32,7 @@ export function useDay(projectId: string, explorationId: string) {
   const people = thread.data ? personMessages(thread.data.messages) : [];
   const idea = people[0];
   const latest = people.at(-1);
-  const now = useNow(waiting || (runs.data ?? []).some(isActive));
+  const now = useNow(waiting || (runs.data ?? []).some((r) => isActive(r.state)));
   const reading = readingOf(runs.data ?? [], latest);
   useEffect(() => setWaiting(reading.phase === 'waiting' || reading.phase === 'catching_up'), [reading.phase]);
   return {
@@ -42,6 +44,10 @@ export function useDay(projectId: string, explorationId: string) {
     reading,
     now,
     error: thread.error ?? runs.error,
+    retry: () => {
+      void thread.refetch();
+      void runs.refetch();
+    },
   };
 }
 

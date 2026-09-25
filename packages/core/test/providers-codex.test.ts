@@ -239,6 +239,15 @@ describe('Codex provider', () => {
     expect(parseCodexModels('not json')).toEqual([]);
   });
 
+  it('AC-AGE-002-08 when the models cannot be listed, discovery says so instead of offering none', async () => {
+    const { launcher } = scriptedLauncher((c) => {
+      if (c.args.includes('--version')) return { stdout: fixture('codex/version.txt') };
+      if (c.args.includes('login')) return { stderr: fixture('codex/login-status.txt') };
+      return { stderr: 'error: failed to refresh the models', code: 1 };
+    });
+    expect(await provider(launcher).discover()).toMatchObject({ installed: true, ready: true, models: [], listed: false });
+  });
+
   it('AC-AGE-002-01 signed out, discovery says so', async () => {
     const { launcher } = scriptedLauncher((c) => {
       if (c.args.includes('--version')) return { stdout: fixture('codex/version.txt') };

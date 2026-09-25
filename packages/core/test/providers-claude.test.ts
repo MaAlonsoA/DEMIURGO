@@ -187,6 +187,15 @@ describe('Claude provider', () => {
     expect(CLAUDE_MODELS).toHaveLength(4);
   });
 
+  it('AC-AGE-002-08 when the efforts cannot be read, discovery says so instead of offering none', async () => {
+    const { launcher } = scriptedLauncher((c) => {
+      if (c.args.includes('--version')) return { stdout: fixture('claude/version.txt') };
+      if (c.args.includes('auth')) return { stdout: fixture('claude/auth-status.json') };
+      return { stderr: 'boom', code: 1 };
+    });
+    expect(await provider(launcher).discover()).toMatchObject({ installed: true, ready: true, listed: false });
+  });
+
   it('AC-AGE-002-01 signed out, discovery says so and the provider is not ready', async () => {
     const { launcher } = scriptedLauncher((c) => {
       if (c.args.includes('--version')) return { stdout: fixture('claude/version.txt') };

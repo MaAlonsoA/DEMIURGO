@@ -204,6 +204,7 @@ export function createClaudeProvider(options: CliProviderOptions = {}): Provider
         ready: signedIn,
         message: signedIn ? null : "Claude isn't signed in: run `claude auth login`.",
         models,
+        ...(help?.code === 0 && efforts.length > 0 ? {} : { listed: false }),
       };
     },
 

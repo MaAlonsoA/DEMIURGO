@@ -93,6 +93,11 @@ export type ProviderCatalog = {
   /** Whether it can resume a conversation. */
   sessions: boolean;
   models: readonly ProviderModel[];
+  /**
+   * False when the provider answered but its models (or their efforts) couldn't be listed this
+   * time: that says nothing about what it offers, so the last models found are kept.
+   */
+  listed?: boolean;
 };
 
 export interface Provider {

@@ -70,6 +70,18 @@ export async function catalogOf(db: Db | Tx, provider: string): Promise<StoredCa
   return row ? stored(row) : null;
 }
 
+/**
+ * A discovery that couldn't list the models says nothing about what the provider offers: the last
+ * models found are kept, so an assignment doesn't become unavailable over a slow or failed listing.
+ */
+async function keepListedModels(db: Db, c: ProviderCatalog): Promise<ProviderCatalog> {
+  if (c.listed !== false) return c;
+  const previous = await catalogOf(db, c.provider);
+  if (!previous || previous.models.length === 0) return c;
+  const kept = "Couldn't list its models this time: the last ones found are kept.";
+  return { ...c, models: previous.models, message: c.message ? `${c.message} ${kept}` : kept };
+}
+
 /** Discovers every registered provider again and stores what each one offers now. */
 export async function refreshCatalogs(deps: SettingsDeps, actor: Actor): Promise<StoredCatalog[]> {
   requireSetting('providers.refresh', actor);
@@ -87,11 +99,12 @@ export async function refreshCatalogs(deps: SettingsDeps, actor: Actor): Promise
           message: `Discovery failed: ${e instanceof Error ? e.message : String(e)}`,
           sessions: p.sessions,
           models: [],
+          listed: false,
         };
       }
     }),
   );
-  for (const c of found) {
+  for (const c of await Promise.all(found.map((f) => keepListedModels(deps.db, f)))) {
     await deps.db
       .insertInto('provider_catalogs')
       .values({

@@ -38,7 +38,7 @@ import { useEnvironment } from './support/env.ts';
 const environment = useEnvironment({ seedAssignments: false });
 const ana = human('ana');
 
-function fakeProvider(id: ProviderId, models: ProviderCatalog['models'], fail = false): Provider {
+function fakeProvider(id: ProviderId, models: ProviderCatalog['models'], fail = false, listed = true): Provider {
   return {
     id,
     label: id === 'codex' ? 'Codex' : 'Claude',
@@ -54,6 +54,7 @@ function fakeProvider(id: ProviderId, models: ProviderCatalog['models'], fail = 
         message: null,
         sessions: true,
         models,
+        ...(listed ? {} : { listed: false }),
       };
     },
     async run() {
@@ -221,6 +222,22 @@ describe('assignments', () => {
     // Back in the catalog: available again.
     await refreshCatalogs(deps, ana);
     expect(await resolveEngine(deps.db, deps.providers, { projectId, agent: 'designer' })).toMatchObject({ status: 'ok' });
+  });
+
+  it('AC-AGE-002-08 a discovery that could not list the models keeps the last ones found, so the assignment still runs', async () => {
+    await assignAgent(deps, ana, { agent: 'designer', scope: 'global', provider: 'codex', model: 'gpt-6-sol', effort: 'medium' });
+    const unlisted = createProviderRegistry([fakeProvider('codex', [], false, false), createSimulatedProvider()]);
+    await refreshCatalogs({ db: deps.db, providers: unlisted }, ana);
+    expect((await currentCatalogs(deps.db)).find((c) => c.provider === 'codex')).toMatchObject({
+      models: [SOL, LUNA],
+      message: expect.stringContaining("Couldn't list its models"),
+    });
+    expect(await resolveEngine(deps.db, unlisted, { projectId, agent: 'designer' })).toMatchObject({ status: 'ok' });
+    // A discovery that throws keeps them too.
+    const broken = createProviderRegistry([fakeProvider('codex', [SOL], true), createSimulatedProvider()]);
+    await refreshCatalogs({ db: deps.db, providers: broken }, ana);
+    expect((await currentCatalogs(deps.db)).find((c) => c.provider === 'codex')?.models).toEqual([SOL, LUNA]);
+    await refreshCatalogs(deps, ana);
   });
 
   it('AC-AGE-002-08 a provider this process does not run is unavailable', async () => {

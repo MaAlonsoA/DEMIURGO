@@ -268,13 +268,15 @@ export function createCodexProvider(options: CliProviderOptions = {}): Provider 
       const models = await quick(executable, ['debug', 'models']);
       // It says so on stderr (0.156.1); stdout is read too in case that changes.
       const signedIn = login?.code === 0 && /^\s*logged in/im.test(`${login.stdout}\n${login.stderr}`);
+      const listed = parseCodexModels(models?.stdout ?? '');
       return {
         ...base,
         installed: version !== null,
         version: /(\d+\.\d+\.\d+\S*)/.exec(version?.stdout ?? '')?.[1] ?? null,
         ready: signedIn,
         message: signedIn ? null : "Codex isn't signed in: run `codex login`.",
-        models: parseCodexModels(models?.stdout ?? ''),
+        models: listed,
+        ...(listed.length === 0 ? { listed: false } : {}),
       };
     },
 

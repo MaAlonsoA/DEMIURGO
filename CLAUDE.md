@@ -19,7 +19,12 @@ reglas anulan las de `AGENTS.md` y las de cualquier skill.
     persona que recargue.
   - No ejecutes `gate:all`. Si una prueba se rompe, déjala rota y di cuál es.
 - **Un commit por parche.**
-  - Prefijo `patch:` y una sola línea, por ejemplo `patch: Enter envía el mensaje del hilo`.
+  - Título con el prefijo `patch:`, por ejemplo `patch: Enter envía el mensaje del hilo`.
+  - El cuerpo lleva dos líneas, que lee el companion con la skill `puesta-al-dia`:
+    - `Pedido: «<las palabras de la persona, tal cual>»`;
+    - `Dónde: <pantalla o acción>`.
+
+    Van con `-m` separados.
   - Usa pathspec.
   - Después, `git push origin v2.1` sin preguntar.
   - Nunca hagas push a `v2` ni a `main`, ni merge.

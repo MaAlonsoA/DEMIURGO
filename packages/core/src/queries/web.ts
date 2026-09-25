@@ -19,6 +19,7 @@ export async function explorationsList(db: Db, projectId: string) {
     .select(['exploration_id', (eb) => eb.fn.countAll<string>().as('n')])
     .where('project_id', '=', projectId)
     .where('state', 'in', ['pending', 'postponed', 'inferred'])
+    .where('shown_at', 'is not', null)
     .groupBy('exploration_id')
     .execute();
   const last = await db

@@ -38,10 +38,20 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
 
   async exploration(ctx, { proposalId, payload }) {
     const c = PAYLOADS.exploration.parse(payload);
+    // A fork: when DEMIURGO proposed it from a thread, the new thread hangs from that thread.
+    const from = await ctx.trx
+      .selectFrom('proposals')
+      .innerJoin('proposal_batches', 'proposal_batches.id', 'proposals.batch_id')
+      .innerJoin('ai_runs', 'ai_runs.id', 'proposal_batches.run_id')
+      .select('ai_runs.scope')
+      .where('proposals.id', '=', proposalId)
+      .executeTakeFirst();
+    const scope = from?.scope as { type?: string; id?: string } | undefined;
+    const parent = scope?.type === 'exploration' && scope.id ? scope.id : undefined;
     const r = await ctx.execute({
       command: 'exploration.open',
       actor: ctx.actor,
-      data: { purpose: c.purpose, origin: { type: 'proposal', id: proposalId } },
+      data: { purpose: c.purpose, ...(parent ? { parent_id: parent } : {}), origin: { type: 'proposal', id: proposalId } },
     });
     return { type: 'exploration', id: r.entityId };
   },

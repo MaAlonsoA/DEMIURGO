@@ -1,12 +1,13 @@
 // Agent tokens, explorations, conversation, sources and questions (Pillar 1).
 
-import { DomainError, VALID_AGENT_NAME, formatActor, fingerprint, questionOption } from '@demiurgo/domain';
+import { DomainError, STAGES, VALID_AGENT_NAME, formatActor, fingerprint, questionOption, system } from '@demiurgo/domain';
 import { sql } from 'kysely';
 import { z } from 'zod';
 import { trimmed, field, registerGuards } from '../bus/guards.ts';
 import { DEFAULT_AGENTS } from '../agents/catalog.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
 import { requireEngine } from './runs.ts';
+import type { Tx } from '../db/connection.ts';
 import { AGENT_TOKEN_PREFIX, secretFingerprint, newSecret } from '../secrets.ts';
 
 const text = (max: number) => z.string().trim().min(1).max(max);
@@ -76,6 +77,56 @@ registerGuards({
   },
 });
 
+/** Guided thread: at most this many questions are open (shown and not answered) in a thread. */
+export const MAX_OPEN_QUESTIONS = 2;
+
+/**
+ * Shows the next questions of the thread's reserve while it has room (once DEMIURGO has answered
+ * in the thread at least once): the stage's in their order,
+ * then DEMIURGO's. `leaving` is a question about to stop being open (its state changes after this).
+ */
+export async function revealQuestions(trx: Tx, explorationId: string, leaving?: string): Promise<void> {
+  if (!explorationId) return;
+  // DEMIURGO first reads and answers what the person wrote; only then do its questions start.
+  const answered = await trx
+    .selectFrom('messages')
+    .select('id')
+    .where('exploration_id', '=', explorationId)
+    .where('author', 'like', 'agent:run%')
+    .executeTakeFirst();
+  if (!answered) return;
+  let open = trx
+    .selectFrom('questions')
+    .select((eb) => eb.fn.countAll<string>().as('n'))
+    .where('exploration_id', '=', explorationId)
+    .where('shown_at', 'is not', null)
+    .where('state', 'in', ['pending', 'inferred']);
+  if (leaving) open = open.where('id', '<>', leaving);
+  const room = MAX_OPEN_QUESTIONS - Number((await open.executeTakeFirst())?.n ?? 0);
+  if (room <= 0) return;
+  const next = await trx
+    .selectFrom('questions')
+    .select('id')
+    .where('exploration_id', '=', explorationId)
+    .where('shown_at', 'is', null)
+    .where('state', 'in', ['pending', 'inferred'])
+    .orderBy(sql`stage_key is null`)
+    .orderBy('created_at')
+    .orderBy('id')
+    .limit(room)
+    .execute();
+  if (next.length === 0) return;
+  await trx
+    .updateTable('questions')
+    .set({ shown_at: new Date() })
+    .where(
+      'id',
+      'in',
+      next.map((n) => n.id),
+    )
+    .execute();
+}
+
 registerHandlers({
   'agent_token.issue': handler({
     data: z.object({ name: z.string() }).strict(),
@@ -126,6 +177,17 @@ registerHandlers({
         })
         .returning('id')
         .executeTakeFirstOrThrow();
+      // The first root thread a person opens is the product's main thread: the design stages start there.
+      if (ctx.actor.type === 'human' && !data.parent_id) {
+        const started = await ctx.trx.selectFrom('stages').select('id').where('project_id', '=', ctx.projectId).executeTakeFirst();
+        if (!started)
+          await ctx.execute({
+            command: 'stage.open',
+            actor: system('design'),
+            projectId: ctx.projectId,
+            data: { stage: STAGES[0]?.key ?? '', exploration_id: id },
+          });
+      }
       return {
         entityId: id,
         after: { purpose: data.purpose, origin: data.origin ?? null, parent: data.parent_id ?? null },
@@ -282,6 +344,7 @@ registerHandlers({
         stage_id: uuid.optional(),
         stage_key: text(60).optional(),
         options: z.array(questionOption).max(4).optional(),
+        multiple: z.boolean().optional(),
       })
       .strict(),
     async apply(ctx, data, _e, to) {
@@ -300,9 +363,13 @@ registerHandlers({
           stage_id: data.stage_id ?? null,
           stage_key: data.stage_key ?? null,
           options: JSON.stringify(data.options ?? []),
+          multiple: data.multiple ?? false,
+          // A person's question shows at once; DEMIURGO's wait in the reserve for their turn.
+          shown_at: ctx.actor.type === 'human' ? new Date() : null,
         })
         .returning('id')
         .executeTakeFirstOrThrow();
+      await revealQuestions(ctx.trx, data.exploration_id);
       return {
         entityId: id,
         after: { question: data.question, impact: data.impact ?? null, stage_key: data.stage_key ?? null },
@@ -314,6 +381,7 @@ registerHandlers({
     data: z
       .object({
         options: z.array(questionOption).max(4),
+        multiple: z.boolean().optional(),
         // The same question in the person's language; the stage key keeps which one it is.
         question: text(1000).optional(),
         reason: z.string().trim().max(1000).optional(),
@@ -324,6 +392,7 @@ registerHandlers({
         .updateTable('questions')
         .set({
           options: JSON.stringify(data.options),
+          ...(data.multiple === undefined ? {} : { multiple: data.multiple }),
           ...(data.question ? { question: data.question } : {}),
           ...(data.reason ? { reason: data.reason } : {}),
         })
@@ -358,6 +427,7 @@ registerHandlers({
         .set({ conclusion, state_reason: null })
         .where('id', '=', e?.id ?? '')
         .execute();
+      await revealQuestions(ctx.trx, String(e?.row.exploration_id ?? ''), e?.id);
       return { entityId: e?.id ?? '', before: { conclusion: e?.row.conclusion ?? null }, after: { conclusion } };
     },
   }),
@@ -370,6 +440,7 @@ registerHandlers({
         .set({ state_reason: data.reason })
         .where('id', '=', e?.id ?? '')
         .execute();
+      await revealQuestions(ctx.trx, String(e?.row.exploration_id ?? ''), e?.id);
       return { entityId: e?.id ?? '', after: { reason: data.reason } };
     },
   }),
@@ -382,6 +453,7 @@ registerHandlers({
         .set({ state_reason: data.reason })
         .where('id', '=', e?.id ?? '')
         .execute();
+      await revealQuestions(ctx.trx, String(e?.row.exploration_id ?? ''), e?.id);
       return { entityId: e?.id ?? '', after: { reason: data.reason } };
     },
   }),
@@ -393,7 +465,7 @@ registerHandlers({
       // pending with no conclusion: confirming it again requires a new one.
       await ctx.trx
         .updateTable('questions')
-        .set({ state_reason: data.reason ?? null, conclusion: null })
+        .set({ state_reason: data.reason ?? null, conclusion: null, shown_at: (e?.row.shown_at as Date | null | undefined) ?? new Date() })
         .where('id', '=', e?.id ?? '')
         .execute();
       return {

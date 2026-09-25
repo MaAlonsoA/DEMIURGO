@@ -218,7 +218,9 @@ export type QuestionsTable = {
   raised_by: string;
   stage_id: string | null;
   stage_key: string | null;
-  options: ColumnType<{ answer: string; implies: string }[], string | undefined, string>;
+  options: ColumnType<{ answer: string; implies: string; exclusive?: boolean }[], string | undefined, string>;
+  multiple: Generated<boolean>;
+  shown_at: ColumnType<Date | null, Date | string | null | undefined, Date | string | null>;
   created_at: Generated<Timestamp>;
 };
 

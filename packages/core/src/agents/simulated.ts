@@ -71,9 +71,9 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
         .filter((q) => typeof q.id === 'string')
         .slice(0, 8)
         .map((q) => ({ question_id: q.id, options: [
-          { answer: 'Yes', implies: 'It becomes a requirement of the first version.' },
-          { answer: 'Not for now', implies: 'It stays out of scope; it can come back later.' },
-        ], question: null, reason: null })),
+          { answer: 'Yes', implies: 'It becomes a requirement of the first version.', exclusive: false },
+          { answer: 'Not for now', implies: 'It stays out of scope; it can come back later.', exclusive: false },
+        ], multiple: false, question: null, reason: null })),
       inferences: [],
       proposals: [],
     };
@@ -98,9 +98,10 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
         question: 'Who will use the product first, and what do they need to do?',
         reason: 'Defines the scope of the first design.',
         impact: 'high',
+        multiple: false,
         options: [
-          { answer: 'Only me, to design my own products', implies: 'A single-user app: no accounts, roles or sharing yet.' },
-          { answer: 'A small team', implies: 'Accounts and shared projects are needed from the start.' },
+          { answer: 'Only me, to design my own products', implies: 'A single-user app: no accounts, roles or sharing yet.', exclusive: false },
+          { answer: 'A small team', implies: 'Accounts and shared projects are needed from the start.', exclusive: false },
         ],
       });
     }

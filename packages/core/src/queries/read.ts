@@ -155,8 +155,11 @@ export async function inbox(db: Db, projectId: string) {
       .selectAll()
       .where('batch_id', '=', l.id)
       .where('state', '=', 'pending')
+      // A new thread DEMIURGO suggests (a fork) waits in its thread, not in Needs you.
+      .where('type', '<>', 'exploration')
       .orderBy('position')
       .execute();
+    if (proposals.length === 0) continue;
     const withWarning = [];
     for (const p of proposals) {
       const deps = [...((l.dependencies ?? []) as Dependency[]), ...((p.dependencies ?? []) as Dependency[])];
@@ -189,6 +192,8 @@ export async function inbox(db: Db, projectId: string) {
     .select(['id', 'exploration_id', 'question', 'state', 'conclusion', 'reasoning', 'raised_by'])
     .where('project_id', '=', projectId)
     .where('state', '=', 'inferred')
+    // Questions still in the reserve don't need the person yet.
+    .where('shown_at', 'is not', null)
     .orderBy('created_at')
     .execute();
   // What is waiting for the person even when it doesn't come from an agent: open questions and unapproved drafts.
@@ -197,6 +202,7 @@ export async function inbox(db: Db, projectId: string) {
     .select(['id', 'exploration_id', 'question', 'state', 'state_reason', 'raised_by'])
     .where('project_id', '=', projectId)
     .where('state', 'in', ['pending', 'postponed'])
+    .where('shown_at', 'is not', null)
     .orderBy('created_at')
     .execute();
   const drafts = await db

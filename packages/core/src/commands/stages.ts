@@ -41,17 +41,28 @@ registerGuards({
 
 registerHandlers({
   'stage.open': handler({
-    data: z.object({ stage: z.string().trim().min(1).max(40) }).strict(),
+    // The stages live in the product's main thread: the one given, else the project's first root
+    // thread, else a thread of their own (opened by the system, so it doesn't start the stages again).
+    data: z.object({ stage: z.string().trim().min(1).max(40), exploration_id: z.string().uuid().optional() }).strict(),
     async apply(ctx, data, _e, to) {
       const def = stageDefinition(data.stage);
       if (!def) throw new Error(`Unknown stage ${data.stage}`);
       const actor = system('design');
-      const thread = await ctx.execute({
-        command: 'exploration.open',
-        actor: ctx.actor.type === 'human' ? ctx.actor : actor,
-        projectId: ctx.projectId,
-        data: { purpose: def.purpose },
-      });
+      const main =
+        data.exploration_id ??
+        (
+          await ctx.trx
+            .selectFrom('explorations')
+            .select('id')
+            .where('project_id', '=', ctx.projectId)
+            .where('parent_id', 'is', null)
+            .where('state', '=', 'active')
+            .orderBy('created_at')
+            .executeTakeFirst()
+        )?.id;
+      const thread = main
+        ? { entityId: main }
+        : await ctx.execute({ command: 'exploration.open', actor, projectId: ctx.projectId, data: { purpose: def.purpose } });
       const { id } = await ctx.trx
         .insertInto('stages')
         .values({
@@ -88,6 +99,7 @@ registerHandlers({
     async apply(ctx, _d, e) {
       const id = e?.id ?? '';
       const stage = String(e?.row.stage ?? '');
+      const thread = String(e?.row.exploration_id ?? '');
       await ctx.trx
         .updateTable('stages')
         .set({ passed_by: formatActor(ctx.actor), passed_at: new Date() })
@@ -99,7 +111,7 @@ registerHandlers({
           command: 'stage.open',
           actor: system('design'),
           projectId: ctx.projectId,
-          data: { stage: next.key },
+          data: { stage: next.key, ...(thread ? { exploration_id: thread } : {}) },
         });
       return { entityId: id, after: { stage, next: next?.key ?? null } };
     },

@@ -6,6 +6,7 @@ import { COVERED_QUESTION_STATES, DomainError, stageDefinition, system } from '@
 import { registerBuilder } from '../context/build.ts';
 import { knowledgeForContext } from '../context/knowledge.ts';
 import { registerApplier } from './appliers.ts';
+import { revealQuestions } from '../commands/exploration.ts';
 
 const BUDGET = { messages: 12_000, decisions: 4_000, sources: 6_000, knowledge: 4_000 };
 
@@ -41,7 +42,7 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
   const chosen = trimByBudget(messages, (m) => m.body.length, BUDGET.messages).toReversed();
   const questions = await trx
     .selectFrom('questions')
-    .select(['id', 'question', 'reason', 'state', 'conclusion', 'impact', 'options'])
+    .select(['id', 'question', 'reason', 'state', 'conclusion', 'impact', 'options', 'multiple', 'shown_at'])
     .where('exploration_id', '=', exploration.id)
     .where('state', '<>', 'discarded')
     .orderBy('created_at')
@@ -59,7 +60,7 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
   const stageQuestions = stage
     ? await trx
         .selectFrom('questions')
-        .select(['id', 'question', 'reason', 'state', 'conclusion', 'impact', 'options'])
+        .select(['id', 'question', 'reason', 'state', 'conclusion', 'impact', 'options', 'multiple', 'shown_at'])
         .where('stage_id', '=', stage.id)
         .where('stage_key', 'is not', null)
         .where('state', 'not in', [...COVERED_QUESTION_STATES])
@@ -133,6 +134,9 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
         conclusion: q.conclusion,
         impact: q.impact,
         has_options: q.options.length > 0,
+        multiple: q.multiple,
+        // Not shown yet: it waits in the reserve for its turn (don't ask it again).
+        shown: q.shown_at !== null,
       })),
       design_stage: stage
         ? {
@@ -200,7 +204,14 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
       ...base,
       command: 'question.raise',
       actor: system('exploration'),
-      data: { exploration_id: scope.id, question: q.question, reason: q.reason, impact: q.impact, options: q.options },
+      data: {
+        exploration_id: scope.id,
+        question: q.question,
+        reason: q.reason,
+        impact: q.impact,
+        options: q.options,
+        multiple: q.multiple,
+      },
     });
   }
   for (const suggestion of output.question_options) {
@@ -214,6 +225,7 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
       entityId: suggestion.question_id,
       data: {
         options: suggestion.options,
+        multiple: suggestion.multiple,
         ...(suggestion.question ? { question: suggestion.question } : {}),
         ...(suggestion.reason ? { reason: suggestion.reason } : {}),
       },
@@ -233,6 +245,8 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
       data: { conclusion: inference.conclusion, reasoning: inference.reasoning },
     });
   }
+  // After DEMIURGO's reply, the reserve shows the next questions while the thread has room.
+  await revealQuestions(trx, scope.id);
   if (output.proposals.length > 0) {
     await execute({
       ...base,

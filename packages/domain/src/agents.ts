@@ -124,7 +124,8 @@ export const proposedCriterion = z
   .strict();
 
 /** A predefined answer to a question and what choosing it implies for the design. */
-export const questionOption = z.object({ answer: text(300), implies: text(300) }).strict();
+// `exclusive`: in a multiple-choice question, choosing it clears the others (e.g. "None for now").
+export const questionOption = z.object({ answer: text(300), implies: text(300), exclusive: z.boolean() }).strict();
 
 export const explorationChatOutput = z
   .object({
@@ -139,6 +140,8 @@ export const explorationChatOutput = z
             question: text(500),
             reason: text(500),
             impact: z.enum(['high', 'medium', 'low']),
+            // Whether the person may pick several options (e.g. what is out of scope).
+            multiple: z.boolean(),
             // 2 to 4 likely answers the person can pick with one click; empty when none fits.
             options: z.array(questionOption).max(4),
           })
@@ -153,6 +156,7 @@ export const explorationChatOutput = z
           .object({
             question_id: z.string().uuid(),
             options: z.array(questionOption).max(4),
+            multiple: z.boolean(),
             question: text(500).nullable(),
             reason: text(500).nullable(),
           })

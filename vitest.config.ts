@@ -25,7 +25,7 @@ export default defineConfig({
       {
         test: {
           name: 'integration',
-          include: ['packages/{core,api,mcp}/test/**/*.test.ts'],
+          include: ['packages/{core,api,mcp,evidence}/test/**/*.test.ts'],
           exclude: ['**/invariants/**', '**/node_modules/**'],
           globalSetup: ['packages/core/test/support/global-setup.ts'],
           testTimeout: 60_000,

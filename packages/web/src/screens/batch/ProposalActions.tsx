@@ -131,11 +131,13 @@ export function ProposalActions({
 
   if (!canAccept && !canChange && !canReject) return null;
 
+  // With both, say the difference: a draft can still change; approved is what the rest builds on.
+  const acceptLabel = labels.accept ?? (canApprove ? 'Accept as draft' : 'Accept');
   return (
     <div className={cn('flex flex-wrap items-center gap-2.5', className)}>
       {canAccept && (
         <Button variant="primary" data-command="proposal.accept" onClick={() => open('accept')}>
-          {labels.accept ?? 'Accept'}
+          {acceptLabel}
         </Button>
       )}
       {canApprove && (
@@ -158,12 +160,18 @@ export function ProposalActions({
         </Button>
       )}
 
+      {canAccept && canApprove && (
+        <p className="dm-text-caption w-full text-muted">
+          As draft: it is recorded and you can still change it before approving. Approve: it becomes the approved
+          version the rest of the design builds on.
+        </p>
+      )}
       <ConfirmDialog
         open={dialog === 'accept' || dialog === 'approve'}
         onOpenChange={(o) => !o && close()}
-        title={dialog === 'approve' ? `Accept and approve “${title}”?` : `Accept “${title}”?`}
+        title={dialog === 'approve' ? `Accept and approve “${title}”?` : `${acceptLabel}: “${title}”?`}
         description={acceptEffects(p, dialog === 'approve')}
-        confirm={dialog === 'approve' ? 'Accept and approve' : (labels.accept ?? 'Accept')}
+        confirm={dialog === 'approve' ? 'Accept and approve' : acceptLabel}
         pending={command.isPending}
         error={command.error}
         onConfirm={() => run('proposal.accept', dialog === 'approve' ? { approve: true } : {})}

@@ -103,6 +103,10 @@ function textOfIdea(type: string, payload: Record<string, unknown>): string {
   if (type === 'decision') return `${t('title')}. ${t('decision')} ${t('context')}`;
   if (type === 'exploration') return t('purpose');
   if (type === 'fdr') return `${t('title')}. ${t('goal')} ${t('behavior')}`;
+  if (type === 'design_record') {
+    const sections = Array.isArray(payload.sections) ? (payload.sections as { content?: unknown }[]) : [];
+    return `${t('title')}. ${sections.map((x) => (typeof x.content === 'string' ? x.content : '')).join(' ')}`.slice(0, 4000);
+  }
   return '';
 }
 
@@ -130,10 +134,13 @@ type CalculatedAssessment = {
 export async function calculateAssessments(s: Services, batchId: string, projectId: string): Promise<CalculatedAssessment[]> {
   const proposals = await s.db
     .selectFrom('proposals')
-    .select(['id', 'type', 'payload'])
-    .where('batch_id', '=', batchId)
-    .where('type', 'in', ['decision', 'exploration', 'fdr'])
-    .orderBy('position')
+    .leftJoin('idea_assessments', 'idea_assessments.proposal_id', 'proposals.id')
+    .select(['proposals.id', 'proposals.type', 'proposals.payload'])
+    .where('proposals.batch_id', '=', batchId)
+    .where('proposals.type', 'in', ['decision', 'exploration', 'fdr', 'design_record'])
+    // Only the ones not assessed yet: a later run of the same batch completes it.
+    .where('idea_assessments.id', 'is', null)
+    .orderBy('proposals.position')
     .execute();
   const graph = await loadGraph(s.db, projectId);
   const classifier = await s.classifierFor(projectId);
@@ -221,7 +228,7 @@ export async function recordAssessmentFailure(s: Services, batchId: string, proj
     .leftJoin('idea_assessments', 'idea_assessments.proposal_id', 'proposals.id')
     .select('proposals.id')
     .where('proposals.batch_id', '=', batchId)
-    .where('proposals.type', 'in', ['decision', 'exploration', 'fdr'])
+    .where('proposals.type', 'in', ['decision', 'exploration', 'fdr', 'design_record'])
     .where('idea_assessments.id', 'is', null)
     .execute();
   for (const p of unassessed) {
@@ -268,7 +275,17 @@ async function assessWorkflow(batchId: string, projectId: string): Promise<numbe
 const assessRegistered = DBOS.registerWorkflow(assessWorkflow, { name: 'demiurgo.ideas' });
 
 registerAssessmentStarter(async (batchId, projectId) => {
-  await DBOS.startWorkflow(assessRegistered, { workflowID: `ideas:${batchId}` })(batchId, projectId);
+  // A batch whose first assessment already ran (e.g. before a proposal type was assessable) gets
+  // another workflow for the rest; the id stays deterministic.
+  const assessed = await engineServices()
+    .db.selectFrom('idea_assessments')
+    .innerJoin('proposals', 'proposals.id', 'idea_assessments.proposal_id')
+    .select((eb) => eb.fn.countAll<string>().as('n'))
+    .where('proposals.batch_id', '=', batchId)
+    .executeTakeFirst();
+  const n = Number(assessed?.n ?? 0);
+  const workflowID = n > 0 ? `ideas:${batchId}:+${n}` : `ideas:${batchId}`;
+  await DBOS.startWorkflow(assessRegistered, { workflowID })(batchId, projectId);
 });
 
 // On startup: updates without a workflow and agent batches without an assessment (the gap between confirm and start).
@@ -286,7 +303,7 @@ registerReconciler(async (s) => {
     .select(['proposal_batches.id as batchId', 'proposal_batches.project_id as projectId'])
     // Batches from external agents and from runs (also design_proposal packages).
     .where((eb) => eb.or([eb('proposal_batches.kind', '=', 'agent'), eb('proposal_batches.run_id', 'is not', null)]))
-    .where('proposals.type', 'in', ['decision', 'exploration', 'fdr'])
+    .where('proposals.type', 'in', ['decision', 'exploration', 'fdr', 'design_record'])
     .where('idea_assessments.id', 'is', null)
     .groupBy(['proposal_batches.id', 'proposal_batches.project_id'])
     .execute();

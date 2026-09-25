@@ -100,7 +100,16 @@ function record(s: Spec): { row: ProductRow; detail: RecordDetail } {
   };
   return {
     row,
-    detail: { id: `rec-${s.code}`, code: s.code, type: s.type, domain: 'x', current: row.current, implementation: '', versions },
+    detail: {
+      id: `rec-${s.code}`,
+      code: s.code,
+      type: s.type,
+      domain: 'x',
+      current: row.current,
+      implementation: '',
+      versions,
+      incoming: [],
+    },
   };
 }
 

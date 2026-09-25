@@ -4,7 +4,7 @@
 
 import { Link } from '@tanstack/react-router';
 import { type ReactNode, useId } from 'react';
-import type { Readiness, RecordDetail, RecordVersion } from '../../api/types.ts';
+import type { IncomingLink, Readiness, RecordDetail, RecordVersion } from '../../api/types.ts';
 import { cn } from '../../lib/cn.ts';
 import { dayTime, shortDate } from '../../lib/time.ts';
 import { Code } from '../../ui/Card.tsx';
@@ -16,6 +16,7 @@ import { ReadinessReasons } from '../../ui/Reasons.tsx';
 import { STAGE_WORDS, type Stage, WhoMark } from '../../ui/signals.tsx';
 import { Tip } from '../../ui/Tip.tsx';
 import { PRODUCT_WORDS, stateWord, whoOf } from '../../words.ts';
+import { IncomingLinks } from './Incoming.tsx';
 import { LINK_WORDS, type VersionRef } from './logic.ts';
 import { ReviewArea } from './Review.tsx';
 
@@ -148,6 +149,7 @@ export function ContextPanel({
   version,
   thread,
   targets,
+  incoming = [],
 }: {
   projectId: string;
   version: RecordVersion;
@@ -155,7 +157,10 @@ export function ContextPanel({
   thread: string | null;
   /** Records the links point to; undefined while the product state loads. */
   targets: Map<string, VersionRef> | undefined;
+  /** What connects to the record (the other way). */
+  incoming?: readonly IncomingLink[];
 }) {
+  const connected = incoming.some((l) => l.relation !== null);
   return (
     <Panel
       title="Context"
@@ -236,7 +241,7 @@ export function ContextPanel({
       <div className="flex flex-col gap-1.5">
         <Sub>What it touches</Sub>
         {version.links.length === 0 ? (
-          <p className="text-[13px] text-ink-3">It has no links to other records.</p>
+          !connected && <p className="text-[13px] text-ink-3">It has no links to other records.</p>
         ) : (
           <ul className="flex flex-col gap-1">
             {version.links.map((l) => {
@@ -279,6 +284,7 @@ export function ContextPanel({
             })}
           </ul>
         )}
+        <IncomingLinks projectId={projectId} links={incoming} />
       </div>
     </Panel>
   );

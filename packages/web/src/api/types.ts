@@ -264,6 +264,22 @@ export type RecordDetail = {
   current: number | null;
   implementation: string;
   versions: RecordVersion[];
+  /** What connects to it: links of the other records' shown version that point to one of its versions. */
+  incoming: IncomingLink[];
+};
+
+export type IncomingLink = {
+  id: string;
+  type: string;
+  state: string;
+  from_code: string;
+  from_type: RecordType;
+  from_n: number;
+  from_title: string;
+  /** The version of this record it points to. */
+  to_n: number;
+  /** What the map draws for it; null for links the map doesn't draw (origin, covers). */
+  relation: 'needs' | 'follows' | 'conflicts' | 'affects' | null;
 };
 
 export type Message = {

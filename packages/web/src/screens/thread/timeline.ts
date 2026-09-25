@@ -1,7 +1,8 @@
-// A thread in one order (spec §4.7): its messages and its runs by time. DEMIURGO's messages of the
-// same run go together (its reply and its observations). A run shows only while it works, when it
-// failed or was cancelled, and when it left a draft ready; a finished conversation speaks through
-// its messages.
+// A thread in one order (DESIGN.md §3.3): its messages, the questions DEMIURGO showed and its runs,
+// by time. DEMIURGO's messages of the same run go together (its reply and its observations). A run
+// shows only while it works, when it failed or was cancelled, and when it left a draft ready; a
+// finished conversation speaks through its messages. Also: the approved decisions Draft it starts
+// from, and the live progress of a run in words without a second clock.
 
 import type { Message, ProductRow, Question, RunListItem } from '../../api/types.ts';
 import { whoOf } from '../../words.ts';
@@ -34,10 +35,12 @@ export function buildTimeline(
   questions: readonly Question[] = [],
 ): TimelineItem[] {
   const items: TimelineItem[] = [];
+  const side = sideRuns(messages);
   let group: Extract<TimelineItem, { type: 'demiurgo' }> | null = null;
   for (const m of messages) {
-    // What was said about one question lives in its "Go deeper" side conversation.
-    if (m.question_id) continue;
+    // What was said about one question lives in its "Go deeper" side conversation, and so does
+    // everything the run that answered there wrote (its observations carry no question).
+    if (m.question_id || (m.run_id && side.has(m.run_id))) continue;
     const kind = whoOf(m.author).kind;
     if (kind === 'demiurgo') {
       if (!group || group.runId !== m.run_id) {
@@ -84,4 +87,27 @@ export function draftableDecisions(rows: readonly ProductRow[], explorationId: s
       bornHere: r.origin_exploration === explorationId,
     }))
     .sort((a, b) => Number(b.bornHere) - Number(a.bornHere) || a.code.localeCompare(b.code));
+}
+
+/**
+ * The live progress of a run without its own clock ("Thinking… 1,240 tokens"): the card already
+ * shows the run's elapsed time, and two clocks that disagree read as a fault (INVENTORY Part C).
+ */
+export function progressWords(text: string): string {
+  return text.replace(/(?:\s·)?\s\d+:\d{2}(?::\d{2})?$/, '').trim();
+}
+
+/** The runs that answered in a "Go deeper" side conversation, with the question each one was about. */
+export function sideRuns(messages: readonly Message[]): Map<string, string> {
+  const side = new Map<string, string>();
+  for (const m of messages) if (m.question_id && m.run_id) side.set(m.run_id, m.question_id);
+  return side;
+}
+
+/** The side conversation ("Go deeper") about one question, oldest first, with all its runs wrote. */
+export function sideMessages(messages: readonly Message[], questionId: string): Message[] {
+  const side = sideRuns(messages);
+  return messages
+    .filter((m) => m.question_id === questionId || (m.run_id !== null && side.get(m.run_id) === questionId))
+    .sort((a, b) => time(a.created_at) - time(b.created_at));
 }

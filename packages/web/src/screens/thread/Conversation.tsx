@@ -15,6 +15,7 @@ import { ago, dayTime } from '../../lib/time.ts';
 import { Button } from '../../ui/Button.tsx';
 import { ChevronRight, TypeIcon } from '../../ui/icons.tsx';
 import { Skeleton } from '../../ui/layout.tsx';
+import { Markdown } from '../../ui/Markdown.tsx';
 import { ObservationChip, StateMark } from '../../ui/marks.tsx';
 import { Reasons } from '../../ui/Reasons.tsx';
 import { WhoMark } from '../../ui/signals.tsx';
@@ -204,11 +205,11 @@ function DemiurgoMessage({
         <span aria-hidden="true">·</span>
         <When at={first.created_at} />
       </header>
-      {reply && <p className="dm-text-body leading-relaxed whitespace-pre-wrap text-ink">{reply.body}</p>}
+      {reply && <Markdown className="dm-text-body leading-relaxed text-ink">{reply.body}</Markdown>}
       {more.map((m) => (
-        <p key={m.id} className="dm-text-body leading-relaxed whitespace-pre-wrap text-ink">
+        <Markdown key={m.id} className="dm-text-body leading-relaxed text-ink">
           {m.body}
-        </p>
+        </Markdown>
       ))}
       {observed.length > 0 && (
         <div className={cn('flex flex-col gap-2', (reply || more.length > 0) && 'border-t border-line-soft pt-2.5')}>

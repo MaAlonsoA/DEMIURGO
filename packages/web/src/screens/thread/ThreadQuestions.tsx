@@ -14,6 +14,7 @@ import { cn } from '../../lib/cn.ts';
 import { useAllows } from '../../ui/ActionBar.tsx';
 import { Button } from '../../ui/Button.tsx';
 import { TypeIcon } from '../../ui/icons.tsx';
+import { Markdown } from '../../ui/Markdown.tsx';
 import { Reasons } from '../../ui/Reasons.tsx';
 import { WhoMark } from '../../ui/signals.tsx';
 import { readingOf } from '../onboarding/day.ts';
@@ -177,6 +178,14 @@ export function SendDrafts({ state, onDiscard }: { state: ReturnType<typeof useS
   );
 }
 
+/** A reply of DEMIURGO as plain text: without the marks of its markdown. */
+const plain = (body: string) =>
+  body
+    .replace(/\*\*|__/g, '')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/`/g, '')
+    .trim();
+
 /** The answer a multiple choice records: every option picked, in their order. */
 const joined = (q: Question, picked: number[]) =>
   [...picked]
@@ -271,7 +280,7 @@ export function QuestionCard({
       )}
       {canAnswer && ownWords && (
         <p className="dm-text-small flex items-baseline gap-2 rounded-sm bg-surface-soft px-3 py-2 text-ink">
-          <span className="min-w-0 flex-1 whitespace-pre-wrap">
+          <span className="line-clamp-4 min-w-0 flex-1 whitespace-pre-wrap" title={draft}>
             <span className="text-ink-3">Your answer: </span>
             {draft}
           </span>
@@ -340,11 +349,15 @@ function SettledQuestion({ question: q }: { question: Question }) {
     <div
       data-question={q.id}
       data-state={q.state}
-      className="dm-text-small flex max-w-[680px] flex-wrap items-baseline gap-x-2.5 gap-y-1 self-start rounded-sm border border-line-soft bg-surface-soft px-3 py-2"
+      className="dm-text-small flex max-w-[680px] items-start gap-2.5 self-start rounded-sm border border-line-soft bg-surface-soft px-3 py-2"
     >
-      <span aria-hidden="true" className={cn('size-2 shrink-0 rounded-pill', word ? 'bg-inactive' : 'bg-ink')} />
-      <span className="text-ink-3">{q.question}</span>
-      <span className="font-semibold text-ink">{word ?? q.conclusion}</span>
+      <span aria-hidden="true" className={cn('mt-1.5 size-2 shrink-0 rounded-pill', word ? 'bg-inactive' : 'bg-ink')} />
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="text-ink-3">{q.question}</span>
+        <span className="line-clamp-3 font-semibold text-ink" title={q.conclusion ?? undefined}>
+          {word ?? q.conclusion}
+        </span>
+      </span>
     </div>
   );
 }
@@ -394,7 +407,7 @@ export function DeeperPanel({
     );
   };
   const takeReply = (body: string) => {
-    setOwn(body.trim().slice(0, MAX_ANSWER));
+    setOwn(plain(body).slice(0, MAX_ANSWER));
     requestAnimationFrame(() => ownRef.current?.focus());
   };
 
@@ -425,10 +438,12 @@ export function DeeperPanel({
               {m.body}
             </p>
           ) : (
-            <div key={m.id} className="dm-text-small flex gap-2 leading-relaxed text-ink">
-              <WhoMark actor={m.author} size={16} />
+            <div key={m.id} className="dm-text-small flex items-start gap-2 leading-relaxed text-ink">
+              <span className="mt-0.5 flex shrink-0">
+                <WhoMark actor={m.author} size={16} />
+              </span>
               <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="whitespace-pre-wrap">{m.body}</span>
+                <Markdown>{m.body}</Markdown>
                 {!m.kind && drafts && (
                   <Button variant="text" className="self-start" onClick={() => takeReply(m.body)}>
                     Use this reply as the answer

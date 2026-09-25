@@ -4,7 +4,7 @@
 
 import { Link, type LinkProps } from '@tanstack/react-router';
 import { Tabs as T } from 'radix-ui';
-import type { ReactNode } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 import { cn } from '../lib/cn.ts';
 
 export type LinkTab = {
@@ -134,9 +134,20 @@ export function Segmented<V extends string>({
   options: { value: V; label: ReactNode; count?: number }[];
   className?: string;
 }) {
+  // APG radio group: one tab stop (the checked option); arrows move the choice and the focus.
+  const onKey = (e: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const next = options[(index + step + options.length) % options.length];
+    if (!next) return;
+    onChange(next.value);
+    const group = e.currentTarget.parentElement;
+    requestAnimationFrame(() => group?.querySelector<HTMLButtonElement>(`[data-value="${next.value}"]`)?.focus());
+  };
   return (
     <div role="radiogroup" aria-label={label} className={cn('inline-flex flex-wrap gap-1.5', className)}>
-      {options.map((o) => {
+      {options.map((o, index) => {
         const on = o.value === value;
         return (
           <button
@@ -144,7 +155,10 @@ export function Segmented<V extends string>({
             type="button"
             role="radio"
             aria-checked={on}
+            tabIndex={on ? 0 : -1}
+            data-value={o.value}
             onClick={() => onChange(o.value)}
+            onKeyDown={(e) => onKey(e, index)}
             className={cn(
               'inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-colors duration-[var(--m-fast)]',
               on ? 'border-fg bg-fg text-panel' : 'border-edge-strong bg-panel text-fg-2 hover:border-edge-control hover:text-fg',

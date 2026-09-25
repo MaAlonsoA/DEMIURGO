@@ -155,9 +155,13 @@ export const ideaAssessmentsQuery = (p: string) =>
     queryFn: () => get<IdeaAssessment[]>(`${P(p)}/knowledge/idea-assessments`),
   });
 
+/**
+ * Keyed apart from 'knowledge' on purpose: rebuilding is expensive, so knowledge events don't
+ * recompute it; "Rebuild again" and the person's own commands do.
+ */
 export const rebuildQuery = (p: string) =>
   queryOptions({
-    queryKey: [...keys.knowledge(p), 'rebuild'] as const,
+    queryKey: ['p', p, 'knowledge-rebuild'] as const,
     queryFn: () =>
       get<{ live: string; rebuilt: string | null; equal: boolean; drift: string | null }>(`${P(p)}/knowledge/rebuild`),
     staleTime: 60_000,

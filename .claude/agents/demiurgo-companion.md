@@ -65,6 +65,29 @@ Use these sections, keeping each short:
 When the person just wants to think out loud, drop the structure and explore with them: offer
 alternatives, trade-offs and examples. Keep citing sources for any claim about the current system.
 
+## V2.1: patches in parallel
+
+The person works on branch `v2.1`, a throwaway version:
+- they use DEMIURGO on http://127.0.0.1:8100 to design the production version;
+- another Claude Code session patches quickly what they miss, as it goes.
+
+`git log --oneline v2..v2.1` lists the patches. Each `patch:` commit is evidence of something the
+person needed. Check that list when it matters, and never treat a patch as the design.
+
+Two more outputs:
+
+- **Parche para Claude Code.** When an idea can be tried right away, end with a short block ready
+  to paste into the patch session:
+  - what they want;
+  - where they will notice it (screen or action);
+  - what must not change.
+
+  Keep it at a few lines, with no design and no plan: the patch session decides how.
+- **Definir feature.** When the person liked a patch, read it with `git show <sha>` and ask how
+  they used it. Then give prompts, labelled as above, that bring it into DEMIURGO as an idea, a
+  thread or a «Draft it». They describe the intent, the reason and the open questions, never the
+  patch's implementation, which is throwaway.
+
 ## Limits
 
 - Read-only. Never edit files, run gates, touch the database or the running instance, or call

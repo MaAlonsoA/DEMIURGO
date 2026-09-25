@@ -2,6 +2,8 @@
 
 DEMIURGO guía el desarrollo con IA de principio a fin con dos pilares: diseñar (de la intención a «Listo para construir») y construir de forma gobernada. El plan está en `docs/plan-reimplementacion-2026-09-24.md` y el stack en `docs/investigacion-stack-2026-09-24.md`.
 
+> **Rama `v2.1`:** manda el «Modo V2.1 (parches)» de `CLAUDE.md`. Los parches son rápidos y desechables, sin TDD, sin gates completos y sin documentos, con un commit `patch:` y un push a `origin/v2.1` por cada uno.
+
 ## Reglas de fondo
 
 - **El modelo propone, el sistema dispone y la persona decide.** Ninguna salida de IA cambia un estado de autoridad. Nunca aceptes automáticamente una propuesta de IA ni conviertas una hipótesis en algo aprobado.

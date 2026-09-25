@@ -1,5 +1,53 @@
 # CLAUDE.md
 
+## Modo V2.1 (parches): manda en la rama `v2.1` sobre todo lo demás
+
+La V2.1 es desechable. La persona usa DEMIURGO en la instancia 8100 para diseñar la versión
+productiva, y aquí se parchea en caliente lo que echa en falta. La regla es que funcione, no que
+sea perfecto: rápido antes que bonito. Ningún parche llega tal cual a la versión productiva. Estas
+reglas anulan las de `AGENTS.md` y las de cualquier skill.
+
+- **Sin proceso.**
+  - No se usan brainstorming, specs, planes, TDD, revisión final ni ninguna skill de superpowers.
+  - No se escriben documentos en `docs/` ni en `design/`, ni artifacts.
+  - No se mantiene la trazabilidad AC → prueba.
+- **Sin preguntas.** Confirma en una línea lo que has entendido y hazlo. Pregunta solo si hay dos
+  lecturas que cambien el resultado.
+- **Comprobación mínima.**
+  - Pasa `pnpm gate:types`.
+  - Míralo funcionar en http://127.0.0.1:8100: con Playwright si compensa; si no, pide a la
+    persona que recargue.
+  - No ejecutes `gate:all`. Si una prueba se rompe, déjala rota y di cuál es.
+- **Un commit por parche.**
+  - Prefijo `patch:` y una sola línea, por ejemplo `patch: Enter envía el mensaje del hilo`.
+  - Usa pathspec.
+  - Después, `git push origin v2.1` sin preguntar.
+  - Nunca hagas push a `v2` ni a `main`, ni merge.
+  - `git log --oneline v2..v2.1` es el registro de parches.
+- **Instancia 8100.**
+  - Se recarga sola:
+    - el API con `node --watch packages/api/src/main.ts`;
+    - la web con `pnpm --filter @demiurgo/web exec vite build --watch`.
+  - Si no corre, relánzala así, con `DEMIURGO_DATABASE_URL` de `demiurgo_v2` en el puerto 55433,
+    `DEMIURGO_PORT=8100`, `DEMIURGO_ORIGINS` para 127.0.0.1 y localhost:8100, y
+    `DEMIURGO_DEV_TOOLS=1`.
+- **Los datos de la instancia no son desechables**: contienen el diseño real.
+  - Antes de un parche con migración, un cambio en `design/data/` o `pnpm gen`, guarda una
+    instantánea con `pnpm snap save antes-<parche>`, o desde el panel de dev tools de la web.
+  - Una migración se añade siempre nueva. Nunca edites una ya aplicada: tiene checksum.
+- **Cuota.** No guardes código del servidor mientras corre una ejecución con Claude o Codex: el
+  reinicio la repite.
+- **Siguen en pie estas reglas:**
+  - no tocar `demiurgo-stable`, el puerto 8000 ni `%LOCALAPPDATA%\Demiurgo\stable`;
+  - nunca aceptar ni ratificar nada en nombre de la persona;
+  - ninguna llamada real a Claude o Codex salvo que se pida;
+  - no repetir secretos;
+  - código en inglés; conversación y commits en español.
+- **El companion** (`claude --agent demiurgo-companion`) corre en otra terminal, en solo lectura.
+  Sus bloques «Parche para Claude Code» se pegan aquí.
+
+## Reglas de la v2
+
 Lee primero `AGENTS.md`: reglas de fondo de la v2 (aceptación solo humana, actor fijado por el servidor, tablas como datos, diario append-only), prohibiciones de entorno (`demiurgo-stable`, puerto 8000) e idioma. El código va en inglés: identificadores, comentarios, pruebas, API, textos de producto, errores y prompts. La documentación, la prosa de `design/`, los commits y la conversación van en español.
 
 ## Comandos (Windows; `pnpm` vía corepack)

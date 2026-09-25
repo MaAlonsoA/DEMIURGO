@@ -162,8 +162,8 @@ export function ProposalActions({
 
       {canAccept && canApprove && (
         <p className="dm-text-caption w-full text-muted">
-          As draft: it is recorded but doesn&apos;t count yet; you can discard it or make a new version. Approve: it
-          becomes settled: agents take it as decided, features can build on it, and changing it takes a new version.
+          As draft: it is recorded but doesn&apos;t count yet; you can discard it or make a new version. Approve: it becomes
+          settled: agents take it as decided, features can build on it, and changing it takes a new version.
         </p>
       )}
       <ConfirmDialog

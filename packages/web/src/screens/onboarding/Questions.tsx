@@ -165,11 +165,7 @@ function Ask({
   useEffect(() => heading.current?.focus(), []);
 
   const conclusion =
-    choice.kind === 'own'
-      ? text.trim()
-      : choice.kind === 'inferred'
-        ? (inferred ?? '')
-        : (options[choice.index]?.answer ?? '');
+    choice.kind === 'own' ? text.trim() : choice.kind === 'inferred' ? (inferred ?? '') : (options[choice.index]?.answer ?? '');
   const answer = () =>
     command.mutate({ command: 'question.confirm', entityId: q.id, data: { conclusion } }, { onSuccess: onNext });
   const park = (reason: string) =>

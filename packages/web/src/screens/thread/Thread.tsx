@@ -186,7 +186,7 @@ function PurposeHistory({ projectId, explorationId }: { projectId: string; explo
   const events = useQuery(entityEventsQuery(projectId, explorationId)).data;
   const versions = (events ?? [])
     .filter((e) => e.entity_id === explorationId && PURPOSE_COMMANDS.has(e.command))
-    .map((e) => ({ id: e.id, at: e.at, purpose: String((e.after as { purpose?: string } | null)?.purpose ?? '') }))
+    .map((e) => ({ id: e.id, at: e.at, purpose: (e.after as { purpose?: string } | null)?.purpose ?? '' }))
     .filter((v) => v.purpose)
     .toReversed();
   if (versions.length < 2) return null;

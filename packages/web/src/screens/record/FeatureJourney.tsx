@@ -50,7 +50,10 @@ export function FeatureJourney({ version, readiness }: { version: RecordVersion;
         {steps.map((s, i) => (
           <li
             key={s.label}
-            className={cn('flex flex-col gap-1 rounded-card-md border px-3.5 py-3', s.done ? 'border-line' : 'border-line-strong bg-surface')}
+            className={cn(
+              'flex flex-col gap-1 rounded-card-md border px-3.5 py-3',
+              s.done ? 'border-line' : 'border-line-strong bg-surface',
+            )}
           >
             <span className="dm-label">
               {i + 1} · {s.done ? 'Done' : 'To do'}

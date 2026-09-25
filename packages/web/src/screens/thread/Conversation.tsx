@@ -7,7 +7,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useLayoutEffect, useRef, useState } from 'react';
-import { useCommand } from '../../api/commands.ts';
 import { batchQuery } from '../../api/queries.ts';
 import type { ExplorationDetail, Message, Question, RunListItem } from '../../api/types.ts';
 import { cn } from '../../lib/cn.ts';
@@ -17,7 +16,6 @@ import { ChevronRight, TypeIcon } from '../../ui/icons.tsx';
 import { Skeleton } from '../../ui/layout.tsx';
 import { Markdown } from '../../ui/Markdown.tsx';
 import { ObservationChip, StateMark } from '../../ui/marks.tsx';
-import { Reasons } from '../../ui/Reasons.tsx';
 import { WhoMark } from '../../ui/signals.tsx';
 import { Tip } from '../../ui/Tip.tsx';
 import { whoOf } from '../../words.ts';
@@ -276,7 +274,8 @@ function ForkIcon() {
 function ForkSuggestion({ proposal }: { proposal: { id: string; state: string; payload: unknown } }) {
   const drafts = useDrafts();
   const choice = drafts?.forks[proposal.id];
-  const purpose = String((proposal.payload as { purpose?: unknown } | null)?.purpose ?? '');
+  const raw = (proposal.payload as { purpose?: unknown } | null)?.purpose;
+  const purpose = typeof raw === 'string' ? raw : '';
   if (proposal.state !== 'pending') {
     return (
       <p className="dm-text-caption text-muted">

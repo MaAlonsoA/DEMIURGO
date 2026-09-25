@@ -35,7 +35,8 @@ const HINTS: Record<RecordType, string> = {
   fdr: 'A feature: what it is for, what it covers and how it behaves, with the checks that prove it.',
   adr: 'A technical choice: the options weighed, the one taken and its consequences, with its checks.',
   bug: 'Something that does not work: how to reproduce it, what was expected and what happened.',
-  requirement: 'A requirement in EARS form ("When <trigger>, the system shall <response>"), with the measurable criterion that shows it is met.',
+  requirement:
+    'A requirement in EARS form ("When <trigger>, the system shall <response>"), with the measurable criterion that shows it is met.',
   quality_requirement: 'A quality target (performance, availability, usability…) as a scenario with its measure.',
   threat_model: 'What is protected, from whom, the STRIDE threats and the mitigation for each one.',
   production_readiness: 'How it rolls out and back, how it is monitored, how it fails and scales, and who supports it.',

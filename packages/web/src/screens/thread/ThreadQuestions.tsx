@@ -388,7 +388,7 @@ export function DeeperPanel({
   const ownRef = useRef<HTMLTextAreaElement>(null);
   const messages = thread.messages.filter((m) => m.question_id === q.id);
   // DEMIURGO is writing while the run that answers the last message of the person has not ended.
-  const lastAsked = [...messages].reverse().find((m) => m.author.startsWith('human:'));
+  const lastAsked = messages.toReversed().find((m) => m.author.startsWith('human:'));
   const phase = lastAsked ? readingOf(runs, lastAsked).phase : 'read';
   const writing = phase === 'catching_up' || phase === 'waiting' || phase === 'working';
   const failed = phase === 'failed' || phase === 'cancelled';

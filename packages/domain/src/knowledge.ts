@@ -338,20 +338,56 @@ export function ideaCandidates(g: Graph, idea: string, limit = 8): Candidate[] {
     }));
 }
 
-/** Knowledge selection for a context pack: lexical relevance, with reason and budget. */
-export function selectForContext(g: Graph, queryText: string, budget: number): { node: Node; reason: string }[] {
+export type ContextChoice = { node: Node; reason: string; score: number };
+
+/** Why a candidate ended where it did: it entered, the budget was full, or it matched nothing. */
+export type ContextCandidateReason = 'chosen' | 'budget' | 'below_threshold';
+
+export type ContextCandidate = { node: Node; score: number; reason: ContextCandidateReason };
+
+export type ContextSelection = {
+  chosen: ContextChoice[];
+  /** Every candidate (confirmed, not a criterion) with its similarity, in the order they were weighed. */
+  considered: ContextCandidate[];
+};
+
+/** Where the pack cuts a node's text. */
+export const CONTEXT_NODE_TEXT_CHARS = 600;
+
+/** Cost of a node in the knowledge budget: its label plus its text, capped where the pack cuts it. */
+export function contextNodeCost(node: Node): number {
+  return node.label.length + Math.min(node.text.length, CONTEXT_NODE_TEXT_CHARS);
+}
+
+/**
+ * Knowledge selection for a context pack: lexical relevance, with reason and budget. Every
+ * candidate is reported (observability §9.2): the ones that entered, the ones the budget left out
+ * once it was full, and the ones with no lexical match at all (`below_threshold`).
+ */
+export function selectForContext(g: Graph, queryText: string, budget: number): ContextSelection {
   const scored = currentNodes(g)
     .filter((n) => n.epistemic === 'confirmed' && n.type !== 'criterion')
     .map((n) => ({ node: n, sim: similarity(queryText, `${n.label}. ${n.text}`) }))
-    .filter(({ sim }) => sim > 0)
     .sort((a, b) => b.sim - a.sim || (a.node.ref < b.node.ref ? -1 : 1));
-  const chosen: { node: Node; reason: string }[] = [];
+  const chosen: ContextChoice[] = [];
+  const considered: ContextCandidate[] = [];
   let used = 0;
+  let full = false;
   for (const { node, sim } of scored) {
-    const cost = node.label.length + Math.min(node.text.length, 600);
-    if (used + cost > budget) break;
+    if (sim <= 0) {
+      considered.push({ node, score: sim, reason: 'below_threshold' });
+      continue;
+    }
+    const cost = contextNodeCost(node);
+    // The first node that does not fit closes the budget: the order is by relevance, not by size.
+    if (full || used + cost > budget) {
+      full = true;
+      considered.push({ node, score: sim, reason: 'budget' });
+      continue;
+    }
     used += cost;
-    chosen.push({ node, reason: `topic relevance (${sim.toFixed(2)})` });
+    chosen.push({ node, reason: `topic relevance (${sim.toFixed(2)})`, score: sim });
+    considered.push({ node, score: sim, reason: 'chosen' });
   }
-  return chosen;
+  return { chosen, considered };
 }

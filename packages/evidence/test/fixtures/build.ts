@@ -7,8 +7,17 @@
 import { writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { createMemoryObserver } from '@demiurgo/core';
-import { ATTR, GEN_AI_PROVIDER_NAMES, LOG, SPAN, normalizeUsage, sha256Hex, usageAttributes } from '@demiurgo/domain';
-import { IDS, TEXTS } from './ids.ts';
+import {
+  ATTR,
+  GEN_AI_PROVIDER_NAMES,
+  LOG,
+  type Manifest,
+  SPAN,
+  normalizeUsage,
+  sha256Hex,
+  usageAttributes,
+} from '@demiurgo/domain';
+import { IDS, MANIFESTS, TEXTS } from './ids.ts';
 
 export const FIXTURE_PATH = fileURLToPath(new URL('./interaction.otlp.json', import.meta.url));
 
@@ -38,6 +47,24 @@ export async function buildInteractionFixture(): Promise<{ traces: unknown; logs
         [ATTR.projectId]: IDS.project,
       },
       { before, after },
+    );
+
+  // The manifest of the pack a run got (§9.1), inside the run.request command that built it.
+  const manifestNote = (runId: string, packId: string, packHash: string, manifest: Manifest, reused: boolean) =>
+    o.event(
+      LOG.contextManifest,
+      {
+        [ATTR.packHash]: packHash,
+        [ATTR.packId]: packId,
+        [ATTR.packBuilder]: manifest.builder,
+        [ATTR.packRole]: 'explore',
+        [ATTR.graphVersion]: manifest.graphVersion,
+        [ATTR.packBudget]: JSON.stringify(manifest.budget),
+        ...(reused ? { [ATTR.packReused]: true } : {}),
+        [ATTR.projectId]: IDS.project,
+        [ATTR.runId]: runId,
+      },
+      manifest,
     );
 
   const call = async (opts: { runId: string; callId: string; mode: 'fresh' | 'resumed'; usage: Record<string, number> }) => {
@@ -150,6 +177,7 @@ export async function buildInteractionFixture(): Promise<{ traces: unknown; logs
                 context_pack: IDS.pack1,
                 answers_message: IDS.message,
               });
+              manifestNote(IDS.run1, IDS.packId1, IDS.pack1, MANIFESTS.run1, false);
             },
           );
         },
@@ -231,8 +259,9 @@ export async function buildInteractionFixture(): Promise<{ traces: unknown; logs
             agent: 'explorer',
             engine: { provider: 'claude', model: 'claude-sonnet-4-5', effort: 'medium' },
             scope: { exploration: 'x1' },
-            context_pack: 'b'.repeat(64),
+            context_pack: IDS.pack2,
           });
+          manifestNote(IDS.run2, IDS.packId2, IDS.pack2, MANIFESTS.run2, false);
         },
       );
       await runSteps(IDS.run2, IDS.call2, 'resumed', {

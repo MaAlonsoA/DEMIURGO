@@ -1,23 +1,32 @@
 // Integrates knowledge with the rest of the core: selection for context packs, idea
 // assessment after each agent batch, and its share of the inbox.
 
-import { selectForContext } from '@demiurgo/domain';
+import { CONTEXT_NODE_TEXT_CHARS, selectForContext } from '@demiurgo/domain';
 import { registerInboxExtension } from '../queries/read.ts';
 import { registerKnowledgeSelector } from '../context/knowledge.ts';
 import { loadGraph } from './graph-pg.ts';
 
 registerKnowledgeSelector(async (trx, projectId, queryName, budget) => {
   const g = await loadGraph(trx, projectId);
-  const chosen = selectForContext(g, queryName, budget);
+  const { chosen, considered } = selectForContext(g, queryName, budget);
   return {
     nodes: chosen.map(({ node, reason }) => ({
       ref: node.ref,
       type: node.type,
       title: node.label,
-      text: node.text.slice(0, 600),
+      text: node.text.slice(0, CONTEXT_NODE_TEXT_CHARS),
       reason,
     })),
     dependencies: chosen.map(({ node }) => ({ type: 'knowledge_node', id: node.ref, version: g.version })),
+    considered: considered.map(({ node, score, reason }) => ({
+      ref: node.ref,
+      title: node.label,
+      text: node.text.slice(0, CONTEXT_NODE_TEXT_CHARS),
+      originalChars: node.label.length + node.text.length,
+      score,
+      reason,
+    })),
+    graphVersion: g.version,
   };
 });
 

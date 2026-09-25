@@ -236,7 +236,7 @@ test('AC-INT-001-10 Activity lists the runs with their state and filters them; a
 
   await page.getByRole('tab', { name: 'Context' }).click();
   await expect(page.locator('[data-context-hash]')).toHaveText(bad?.context_pack_hash ?? '');
-  await expect(page.locator('[data-context]')).toContainText('exploration_chat@1');
+  await expect(page.locator('[data-context]')).toContainText('exploration_chat@2');
   const content = page.locator('[data-context-content]');
   await expect(content).not.toHaveAttribute('open');
   await content.locator('summary').first().click();

@@ -46,12 +46,12 @@
             "spans": [
               {
                 "traceId": "0199a100000070008000000000000001",
-                "spanId": "74f3a67a4a09e356",
-                "parentSpanId": "dc25ed1c958fea93",
+                "spanId": "73973f46271eb8ce",
+                "parentSpanId": "e31ef39833cd9518",
                 "name": "command run.request",
                 "kind": 1,
-                "startTimeUnixNano": "1790377201958000000",
-                "endTimeUnixNano": "1790377201958160800",
+                "startTimeUnixNano": "1790379224693000000",
+                "endTimeUnixNano": "1790379224693231100",
                 "attributes": [
                   {
                     "key": "demiurgo.command",
@@ -120,12 +120,12 @@
               },
               {
                 "traceId": "0199a100000070008000000000000001",
-                "spanId": "dc25ed1c958fea93",
-                "parentSpanId": "5249ca3a0034d5cd",
+                "spanId": "e31ef39833cd9518",
+                "parentSpanId": "73fea7035ca6467e",
                 "name": "command message.send",
                 "kind": 1,
-                "startTimeUnixNano": "1790377201957000000",
-                "endTimeUnixNano": "1790377201957860300",
+                "startTimeUnixNano": "1790379224693000000",
+                "endTimeUnixNano": "1790379224693885200",
                 "attributes": [
                   {
                     "key": "demiurgo.command",
@@ -194,12 +194,12 @@
               },
               {
                 "traceId": "0199a100000070008000000000000001",
-                "spanId": "5817eccd10207204",
-                "parentSpanId": "5249ca3a0034d5cd",
+                "spanId": "19a8889afa346b89",
+                "parentSpanId": "73fea7035ca6467e",
                 "name": "run.prepare",
                 "kind": 1,
-                "startTimeUnixNano": "1790377201958000000",
-                "endTimeUnixNano": "1790377201958027400",
+                "startTimeUnixNano": "1790379224694000000",
+                "endTimeUnixNano": "1790379224694020600",
                 "attributes": [
                   {
                     "key": "demiurgo.run.id",
@@ -232,12 +232,12 @@
               },
               {
                 "traceId": "0199a100000070008000000000000001",
-                "spanId": "4cc56db2bcdfe359",
-                "parentSpanId": "c92443025cadb50b",
+                "spanId": "668f26719d04d421",
+                "parentSpanId": "b56886adeb7d2348",
                 "name": "invoke_agent explorer",
                 "kind": 1,
-                "startTimeUnixNano": "1790377201959000000",
-                "endTimeUnixNano": "1790377201959721500",
+                "startTimeUnixNano": "1790379224694000000",
+                "endTimeUnixNano": "1790379224694745300",
                 "attributes": [
                   {
                     "key": "gen_ai.operation.name",
@@ -501,12 +501,12 @@
               },
               {
                 "traceId": "0199a100000070008000000000000001",
-                "spanId": "c92443025cadb50b",
-                "parentSpanId": "5249ca3a0034d5cd",
+                "spanId": "b56886adeb7d2348",
+                "parentSpanId": "73fea7035ca6467e",
                 "name": "run.invoke",
                 "kind": 1,
-                "startTimeUnixNano": "1790377201958000000",
-                "endTimeUnixNano": "1790377201959344800",
+                "startTimeUnixNano": "1790379224694000000",
+                "endTimeUnixNano": "1790379224695084200",
                 "attributes": [
                   {
                     "key": "demiurgo.run.id",
@@ -539,12 +539,12 @@
               },
               {
                 "traceId": "0199a100000070008000000000000001",
-                "spanId": "c1c85a63823c33fe",
-                "parentSpanId": "5249ca3a0034d5cd",
+                "spanId": "8527c2fd94678318",
+                "parentSpanId": "73fea7035ca6467e",
                 "name": "run.apply",
                 "kind": 1,
-                "startTimeUnixNano": "1790377201960000000",
-                "endTimeUnixNano": "1790377201960024800",
+                "startTimeUnixNano": "1790379224695000000",
+                "endTimeUnixNano": "1790379224695028400",
                 "attributes": [
                   {
                     "key": "demiurgo.run.id",
@@ -583,12 +583,12 @@
               },
               {
                 "traceId": "0199a100000070008000000000000001",
-                "spanId": "5ce915492c92e4ac",
-                "parentSpanId": "de07873b263e6af4",
+                "spanId": "458e7035d1f3d437",
+                "parentSpanId": "d0deb5838fb91b96",
                 "name": "command proposal.create",
                 "kind": 1,
-                "startTimeUnixNano": "1790377201960000000",
-                "endTimeUnixNano": "1790377201960053400",
+                "startTimeUnixNano": "1790379224695000000",
+                "endTimeUnixNano": "1790379224695073900",
                 "attributes": [
                   {
                     "key": "demiurgo.command",
@@ -663,12 +663,12 @@
               },
               {
                 "traceId": "0199a100000070008000000000000001",
-                "spanId": "de07873b263e6af4",
-                "parentSpanId": "5249ca3a0034d5cd",
+                "spanId": "d0deb5838fb91b96",
+                "parentSpanId": "73fea7035ca6467e",
                 "name": "command batch.submit",
                 "kind": 1,
-                "startTimeUnixNano": "1790377201960000000",
-                "endTimeUnixNano": "1790377201960174800",
+                "startTimeUnixNano": "1790379224695000000",
+                "endTimeUnixNano": "1790379224695191100",
                 "attributes": [
                   {
                     "key": "demiurgo.command",
@@ -743,11 +743,11 @@
               },
               {
                 "traceId": "0199a100000070008000000000000001",
-                "spanId": "5249ca3a0034d5cd",
+                "spanId": "73fea7035ca6467e",
                 "name": "interaction message.send",
                 "kind": 1,
-                "startTimeUnixNano": "1790377201957000000",
-                "endTimeUnixNano": "1790377201959971800",
+                "startTimeUnixNano": "1790379224692000000",
+                "endTimeUnixNano": "1790379224694747500",
                 "attributes": [
                   {
                     "key": "demiurgo.interaction.id",
@@ -804,12 +804,12 @@
               },
               {
                 "traceId": "0199a100000070008000000000000002",
-                "spanId": "91b22db43786e879",
-                "parentSpanId": "d15c83429ae62ace",
+                "spanId": "63634e1f753a7249",
+                "parentSpanId": "5e667d943294f77a",
                 "name": "command proposal.accept",
                 "kind": 1,
-                "startTimeUnixNano": "1790377201960000000",
-                "endTimeUnixNano": "1790377201960069200",
+                "startTimeUnixNano": "1790379224695000000",
+                "endTimeUnixNano": "1790379224695047100",
                 "attributes": [
                   {
                     "key": "demiurgo.command",
@@ -884,11 +884,11 @@
               },
               {
                 "traceId": "0199a100000070008000000000000002",
-                "spanId": "d15c83429ae62ace",
+                "spanId": "5e667d943294f77a",
                 "name": "interaction proposal.accept",
                 "kind": 1,
-                "startTimeUnixNano": "1790377201960000000",
-                "endTimeUnixNano": "1790377201960170300",
+                "startTimeUnixNano": "1790379224695000000",
+                "endTimeUnixNano": "1790379224695139000",
                 "attributes": [
                   {
                     "key": "demiurgo.interaction.id",
@@ -951,12 +951,12 @@
               },
               {
                 "traceId": "0199a100000070008000000000000003",
-                "spanId": "5ed54e5a0a68731e",
-                "parentSpanId": "a855761cdb8b1c88",
+                "spanId": "e087b544ccdea94f",
+                "parentSpanId": "c97471be8be88e6f",
                 "name": "command run.request",
                 "kind": 1,
-                "startTimeUnixNano": "1790377201960000000",
-                "endTimeUnixNano": "1790377201960039800",
+                "startTimeUnixNano": "1790379224696000000",
+                "endTimeUnixNano": "1790379224696056500",
                 "attributes": [
                   {
                     "key": "demiurgo.command",
@@ -1025,12 +1025,12 @@
               },
               {
                 "traceId": "0199a100000070008000000000000003",
-                "spanId": "d5ef6102cc57be27",
-                "parentSpanId": "a855761cdb8b1c88",
+                "spanId": "273e961626b4cb9a",
+                "parentSpanId": "c97471be8be88e6f",
                 "name": "run.prepare",
                 "kind": 1,
-                "startTimeUnixNano": "1790377201960000000",
-                "endTimeUnixNano": "1790377201960004400",
+                "startTimeUnixNano": "1790379224696000000",
+                "endTimeUnixNano": "1790379224696004100",
                 "attributes": [
                   {
                     "key": "demiurgo.run.id",
@@ -1063,12 +1063,12 @@
               },
               {
                 "traceId": "0199a100000070008000000000000003",
-                "spanId": "a4bdf0825bbe9541",
-                "parentSpanId": "ba63e3475fa67c53",
+                "spanId": "e18597d87f5dd417",
+                "parentSpanId": "9884c932953db456",
                 "name": "invoke_agent explorer",
                 "kind": 1,
-                "startTimeUnixNano": "1790377201960000000",
-                "endTimeUnixNano": "1790377201960159300",
+                "startTimeUnixNano": "1790379224696000000",
+                "endTimeUnixNano": "1790379224696090900",
                 "attributes": [
                   {
                     "key": "gen_ai.operation.name",
@@ -1350,12 +1350,12 @@
               },
               {
                 "traceId": "0199a100000070008000000000000003",
-                "spanId": "ba63e3475fa67c53",
-                "parentSpanId": "a855761cdb8b1c88",
+                "spanId": "9884c932953db456",
+                "parentSpanId": "c97471be8be88e6f",
                 "name": "run.invoke",
                 "kind": 1,
-                "startTimeUnixNano": "1790377201960000000",
-                "endTimeUnixNano": "1790377201960287500",
+                "startTimeUnixNano": "1790379224696000000",
+                "endTimeUnixNano": "1790379224696195700",
                 "attributes": [
                   {
                     "key": "demiurgo.run.id",
@@ -1388,12 +1388,12 @@
               },
               {
                 "traceId": "0199a100000070008000000000000003",
-                "spanId": "b1ee249da0466c94",
-                "parentSpanId": "a855761cdb8b1c88",
+                "spanId": "d1dcf89e9724a273",
+                "parentSpanId": "c97471be8be88e6f",
                 "name": "run.apply",
                 "kind": 1,
-                "startTimeUnixNano": "1790377201961000000",
-                "endTimeUnixNano": "1790377201961006600",
+                "startTimeUnixNano": "1790379224696000000",
+                "endTimeUnixNano": "1790379224696007000",
                 "attributes": [
                   {
                     "key": "demiurgo.run.id",
@@ -1432,11 +1432,11 @@
               },
               {
                 "traceId": "0199a100000070008000000000000003",
-                "spanId": "a855761cdb8b1c88",
+                "spanId": "c97471be8be88e6f",
                 "name": "interaction message.send",
                 "kind": 1,
-                "startTimeUnixNano": "1790377201960000000",
-                "endTimeUnixNano": "1790377201960428700",
+                "startTimeUnixNano": "1790379224696000000",
+                "endTimeUnixNano": "1790379224696350800",
                 "attributes": [
                   {
                     "key": "demiurgo.interaction.id",
@@ -1537,8 +1537,8 @@
             },
             "logRecords": [
               {
-                "timeUnixNano": "1790377201957000000",
-                "observedTimeUnixNano": "1790377201957000000",
+                "timeUnixNano": "1790379224693000000",
+                "observedTimeUnixNano": "1790379224693000000",
                 "severityNumber": 9,
                 "body": {
                   "stringValue": "{\"before\":null,\"after\":{\"body\":\"What is the purpose of the project?\"}}"
@@ -1585,11 +1585,11 @@
                 "droppedAttributesCount": 0,
                 "flags": 1,
                 "traceId": "0199a100000070008000000000000001",
-                "spanId": "dc25ed1c958fea93"
+                "spanId": "e31ef39833cd9518"
               },
               {
-                "timeUnixNano": "1790377201958000000",
-                "observedTimeUnixNano": "1790377201958000000",
+                "timeUnixNano": "1790379224693000000",
+                "observedTimeUnixNano": "1790379224693000000",
                 "severityNumber": 9,
                 "body": {
                   "stringValue": "{\"before\":null,\"after\":{\"action\":\"exploration_chat\",\"agent\":\"explorer\",\"engine\":{\"provider\":\"claude\",\"model\":\"claude-sonnet-4-5\",\"effort\":\"medium\"},\"scope\":{\"exploration\":\"x1\"},\"context_pack\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"answers_message\":\"0199a000-0000-7000-8000-00000000bb01\"}}"
@@ -1636,11 +1636,80 @@
                 "droppedAttributesCount": 0,
                 "flags": 1,
                 "traceId": "0199a100000070008000000000000001",
-                "spanId": "74f3a67a4a09e356"
+                "spanId": "73973f46271eb8ce"
               },
               {
-                "timeUnixNano": "1790377201959000000",
-                "observedTimeUnixNano": "1790377201959000000",
+                "timeUnixNano": "1790379224693000000",
+                "observedTimeUnixNano": "1790379224693000000",
+                "severityNumber": 9,
+                "body": {
+                  "stringValue": "{\"builder\":\"exploration_chat@2\",\"graphVersion\":2,\"budget\":{\"messages\":12000,\"decisions\":4000,\"sources\":6000,\"knowledge\":4000},\"candidates\":5,\"fragments\":[{\"seq\":1,\"section\":\"purpose\",\"source\":{\"type\":\"exploration\",\"id\":\"0199a000-0000-7000-8000-00000000ab01\",\"version\":null,\"eventSeq\":null},\"textHash\":\"c2ae3b4732ac81d52f7faa7a83c0e358f00538881931cd8292dcbbe979fa863f\",\"chars\":28,\"originalChars\":28,\"decision\":\"included\",\"reason\":\"scope\",\"score\":null,\"position\":0},{\"seq\":2,\"section\":\"messages\",\"source\":{\"type\":\"message\",\"id\":\"0199a000-0000-7000-8000-00000000bb01\",\"version\":null,\"eventSeq\":1},\"textHash\":\"08ff1846cdfcb03344eb283b27d1a9ef4d6549a4293a141ecf4fb945380e734c\",\"chars\":35,\"originalChars\":35,\"decision\":\"included\",\"reason\":\"recent\",\"score\":null,\"position\":1},{\"seq\":3,\"section\":\"decisions\",\"source\":{\"type\":\"record\",\"id\":\"0199a000-0000-7000-8000-00000000bc01\",\"version\":1,\"eventSeq\":null},\"textHash\":\"d1b676b2c85438d5895b3fc265cf1a93c0c89d4f1e3f0ceb7b2d556cae143875\",\"chars\":32,\"originalChars\":32,\"decision\":\"included\",\"reason\":\"approved\",\"score\":null,\"position\":2},{\"seq\":4,\"section\":\"knowledge\",\"source\":{\"type\":\"knowledge_node\",\"id\":\"DEC-PRO-001@1\",\"version\":2,\"eventSeq\":null},\"textHash\":\"560a0bc464d0f5087534c1a172611aa9fa51db7dfea9471b3fe9f43348cf8f2f\",\"chars\":48,\"originalChars\":48,\"decision\":\"included\",\"reason\":\"relevance:0.31\",\"score\":0.31,\"position\":3},{\"seq\":5,\"section\":\"knowledge\",\"source\":{\"type\":\"knowledge_node\",\"id\":\"DEC-ZZZ-001@1\",\"version\":2,\"eventSeq\":null},\"textHash\":\"354c4bd3487ce15147ffc639bacb60588f81cb56e6efc4f2b313f2839b254aad\",\"chars\":33,\"originalChars\":33,\"decision\":\"dropped\",\"reason\":\"below_threshold\",\"score\":0,\"position\":null}]}"
+                },
+                "eventName": "demiurgo.context.manifest",
+                "attributes": [
+                  {
+                    "key": "event.name",
+                    "value": {
+                      "stringValue": "demiurgo.context.manifest"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.pack.hash",
+                    "value": {
+                      "stringValue": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.pack.id",
+                    "value": {
+                      "stringValue": "0199a000-0000-7000-8000-00000000a001"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.pack.builder",
+                    "value": {
+                      "stringValue": "exploration_chat@2"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.pack.role",
+                    "value": {
+                      "stringValue": "explore"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.graph.version",
+                    "value": {
+                      "intValue": 2
+                    }
+                  },
+                  {
+                    "key": "demiurgo.pack.budget",
+                    "value": {
+                      "stringValue": "{\"messages\":12000,\"decisions\":4000,\"sources\":6000,\"knowledge\":4000}"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199a000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.run.id",
+                    "value": {
+                      "stringValue": "0199a000-0000-7000-8000-00000000c001"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "flags": 1,
+                "traceId": "0199a100000070008000000000000001",
+                "spanId": "73973f46271eb8ce"
+              },
+              {
+                "timeUnixNano": "1790379224694000000",
+                "observedTimeUnixNano": "1790379224694000000",
                 "severityNumber": 9,
                 "body": {
                   "stringValue": "You are the explorer of DEMIURGO. Answer with a proposal."
@@ -1681,11 +1750,11 @@
                 "droppedAttributesCount": 0,
                 "flags": 1,
                 "traceId": "0199a100000070008000000000000001",
-                "spanId": "4cc56db2bcdfe359"
+                "spanId": "668f26719d04d421"
               },
               {
-                "timeUnixNano": "1790377201959000000",
-                "observedTimeUnixNano": "1790377201959000000",
+                "timeUnixNano": "1790379224694000000",
+                "observedTimeUnixNano": "1790379224694000000",
                 "severityNumber": 9,
                 "body": {
                   "stringValue": "What is the purpose of the project?"
@@ -1726,11 +1795,11 @@
                 "droppedAttributesCount": 0,
                 "flags": 1,
                 "traceId": "0199a100000070008000000000000001",
-                "spanId": "4cc56db2bcdfe359"
+                "spanId": "668f26719d04d421"
               },
               {
-                "timeUnixNano": "1790377201959000000",
-                "observedTimeUnixNano": "1790377201959000000",
+                "timeUnixNano": "1790379224694000000",
+                "observedTimeUnixNano": "1790379224694000000",
                 "severityNumber": 9,
                 "body": {
                   "stringValue": "{\"answer\":\"To design itself.\"}"
@@ -1771,11 +1840,11 @@
                 "droppedAttributesCount": 0,
                 "flags": 1,
                 "traceId": "0199a100000070008000000000000001",
-                "spanId": "4cc56db2bcdfe359"
+                "spanId": "668f26719d04d421"
               },
               {
-                "timeUnixNano": "1790377201959000000",
-                "observedTimeUnixNano": "1790377201959000000",
+                "timeUnixNano": "1790379224695000000",
+                "observedTimeUnixNano": "1790379224695000000",
                 "severityNumber": 9,
                 "body": {
                   "stringValue": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"4d3c2b1a-0f9e-4d7c-8b6a-5f4e3d2c1b0a\"}"
@@ -1821,18 +1890,18 @@
                   {
                     "key": "demiurgo.event.received_at",
                     "value": {
-                      "stringValue": "2026-09-25T23:00:01.959Z"
+                      "stringValue": "2026-09-25T23:33:44.694Z"
                     }
                   }
                 ],
                 "droppedAttributesCount": 0,
                 "flags": 1,
                 "traceId": "0199a100000070008000000000000001",
-                "spanId": "4cc56db2bcdfe359"
+                "spanId": "668f26719d04d421"
               },
               {
-                "timeUnixNano": "1790377201959000000",
-                "observedTimeUnixNano": "1790377201959000000",
+                "timeUnixNano": "1790379224695000000",
+                "observedTimeUnixNano": "1790379224695000000",
                 "severityNumber": 9,
                 "body": {
                   "stringValue": "{\"type\":\"result\",\"usage\":{\"input_tokens\":9000,\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":1000,\"output_tokens\":400},\"total_cost_usd\":0.042}"
@@ -1878,18 +1947,18 @@
                   {
                     "key": "demiurgo.event.received_at",
                     "value": {
-                      "stringValue": "2026-09-25T23:00:01.959Z"
+                      "stringValue": "2026-09-25T23:33:44.695Z"
                     }
                   }
                 ],
                 "droppedAttributesCount": 0,
                 "flags": 1,
                 "traceId": "0199a100000070008000000000000001",
-                "spanId": "4cc56db2bcdfe359"
+                "spanId": "668f26719d04d421"
               },
               {
-                "timeUnixNano": "1790377201960000000",
-                "observedTimeUnixNano": "1790377201960000000",
+                "timeUnixNano": "1790379224695000000",
+                "observedTimeUnixNano": "1790379224695000000",
                 "severityNumber": 9,
                 "body": {
                   "stringValue": "{\"before\":null,\"after\":{\"type\":\"agent\",\"resolution\":\"item\",\"proposals\":1,\"producer\":\"agent:run:0199a000-0000-7000-8000-00000000c001\"}}"
@@ -1936,11 +2005,11 @@
                 "droppedAttributesCount": 0,
                 "flags": 1,
                 "traceId": "0199a100000070008000000000000001",
-                "spanId": "de07873b263e6af4"
+                "spanId": "d0deb5838fb91b96"
               },
               {
-                "timeUnixNano": "1790377201960000000",
-                "observedTimeUnixNano": "1790377201960000000",
+                "timeUnixNano": "1790379224695000000",
+                "observedTimeUnixNano": "1790379224695000000",
                 "severityNumber": 9,
                 "body": {
                   "stringValue": "{\"before\":null,\"after\":{\"batch\":\"0199a000-0000-7000-8000-00000000e001\",\"type\":\"answer\",\"dependencies\":[]}}"
@@ -1987,11 +2056,11 @@
                 "droppedAttributesCount": 0,
                 "flags": 1,
                 "traceId": "0199a100000070008000000000000001",
-                "spanId": "5ce915492c92e4ac"
+                "spanId": "458e7035d1f3d437"
               },
               {
-                "timeUnixNano": "1790377201960000000",
-                "observedTimeUnixNano": "1790377201960000000",
+                "timeUnixNano": "1790379224695000000",
+                "observedTimeUnixNano": "1790379224695000000",
                 "severityNumber": 9,
                 "body": {
                   "stringValue": "{\"before\":null,\"after\":{\"effect\":{\"kind\":\"answer\"},\"approve\":false}}"
@@ -2038,11 +2107,11 @@
                 "droppedAttributesCount": 0,
                 "flags": 1,
                 "traceId": "0199a100000070008000000000000002",
-                "spanId": "91b22db43786e879"
+                "spanId": "63634e1f753a7249"
               },
               {
-                "timeUnixNano": "1790377201960000000",
-                "observedTimeUnixNano": "1790377201960000000",
+                "timeUnixNano": "1790379224696000000",
+                "observedTimeUnixNano": "1790379224696000000",
                 "severityNumber": 9,
                 "body": {
                   "stringValue": "{\"before\":null,\"after\":{\"action\":\"exploration_chat\",\"agent\":\"explorer\",\"engine\":{\"provider\":\"claude\",\"model\":\"claude-sonnet-4-5\",\"effort\":\"medium\"},\"scope\":{\"exploration\":\"x1\"},\"context_pack\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}}"
@@ -2089,11 +2158,80 @@
                 "droppedAttributesCount": 0,
                 "flags": 1,
                 "traceId": "0199a100000070008000000000000003",
-                "spanId": "5ed54e5a0a68731e"
+                "spanId": "e087b544ccdea94f"
               },
               {
-                "timeUnixNano": "1790377201960000000",
-                "observedTimeUnixNano": "1790377201960000000",
+                "timeUnixNano": "1790379224696000000",
+                "observedTimeUnixNano": "1790379224696000000",
+                "severityNumber": 9,
+                "body": {
+                  "stringValue": "{\"builder\":\"exploration_chat@2\",\"graphVersion\":2,\"budget\":{\"messages\":12000,\"decisions\":4000,\"sources\":6000,\"knowledge\":4000},\"candidates\":6,\"fragments\":[{\"seq\":1,\"section\":\"purpose\",\"source\":{\"type\":\"exploration\",\"id\":\"0199a000-0000-7000-8000-00000000ab01\",\"version\":null,\"eventSeq\":null},\"textHash\":\"c2ae3b4732ac81d52f7faa7a83c0e358f00538881931cd8292dcbbe979fa863f\",\"chars\":28,\"originalChars\":28,\"decision\":\"included\",\"reason\":\"scope\",\"score\":null,\"position\":0},{\"seq\":2,\"section\":\"messages\",\"source\":{\"type\":\"message\",\"id\":\"0199a000-0000-7000-8000-00000000bb01\",\"version\":null,\"eventSeq\":1},\"textHash\":\"08ff1846cdfcb03344eb283b27d1a9ef4d6549a4293a141ecf4fb945380e734c\",\"chars\":35,\"originalChars\":35,\"decision\":\"included\",\"reason\":\"recent\",\"score\":null,\"position\":1},{\"seq\":3,\"section\":\"messages\",\"source\":{\"type\":\"message\",\"id\":\"0199a000-0000-7000-8000-00000000bb02\",\"version\":null,\"eventSeq\":7},\"textHash\":\"9f945ff63fe549bbca30e77605966f44be6c26258a638b15b9c0d6d189c330ff\",\"chars\":42,\"originalChars\":42,\"decision\":\"included\",\"reason\":\"recent\",\"score\":null,\"position\":2},{\"seq\":4,\"section\":\"decisions\",\"source\":{\"type\":\"record\",\"id\":\"0199a000-0000-7000-8000-00000000bc01\",\"version\":2,\"eventSeq\":null},\"textHash\":\"96b3014a0c89a0d9d7a9710db896cc96dd4d59954f5221769c1b315745c13bdf\",\"chars\":408,\"originalChars\":717,\"decision\":\"truncated\",\"reason\":\"excerpt:400\",\"score\":null,\"position\":3},{\"seq\":5,\"section\":\"knowledge\",\"source\":{\"type\":\"knowledge_node\",\"id\":\"DEC-PRO-001@1\",\"version\":2,\"eventSeq\":null},\"textHash\":\"560a0bc464d0f5087534c1a172611aa9fa51db7dfea9471b3fe9f43348cf8f2f\",\"chars\":48,\"originalChars\":48,\"decision\":\"dropped\",\"reason\":\"budget:knowledge\",\"score\":0.12,\"position\":null},{\"seq\":6,\"section\":\"knowledge\",\"source\":{\"type\":\"knowledge_node\",\"id\":\"DEC-ZZZ-001@1\",\"version\":2,\"eventSeq\":null},\"textHash\":\"354c4bd3487ce15147ffc639bacb60588f81cb56e6efc4f2b313f2839b254aad\",\"chars\":33,\"originalChars\":33,\"decision\":\"dropped\",\"reason\":\"below_threshold\",\"score\":0,\"position\":null}]}"
+                },
+                "eventName": "demiurgo.context.manifest",
+                "attributes": [
+                  {
+                    "key": "event.name",
+                    "value": {
+                      "stringValue": "demiurgo.context.manifest"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.pack.hash",
+                    "value": {
+                      "stringValue": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.pack.id",
+                    "value": {
+                      "stringValue": "0199a000-0000-7000-8000-00000000a002"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.pack.builder",
+                    "value": {
+                      "stringValue": "exploration_chat@2"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.pack.role",
+                    "value": {
+                      "stringValue": "explore"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.graph.version",
+                    "value": {
+                      "intValue": 2
+                    }
+                  },
+                  {
+                    "key": "demiurgo.pack.budget",
+                    "value": {
+                      "stringValue": "{\"messages\":12000,\"decisions\":4000,\"sources\":6000,\"knowledge\":4000}"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.project.id",
+                    "value": {
+                      "stringValue": "0199a000-0000-7000-8000-00000000aa01"
+                    }
+                  },
+                  {
+                    "key": "demiurgo.run.id",
+                    "value": {
+                      "stringValue": "0199a000-0000-7000-8000-00000000c002"
+                    }
+                  }
+                ],
+                "droppedAttributesCount": 0,
+                "flags": 1,
+                "traceId": "0199a100000070008000000000000003",
+                "spanId": "e087b544ccdea94f"
+              },
+              {
+                "timeUnixNano": "1790379224696000000",
+                "observedTimeUnixNano": "1790379224696000000",
                 "severityNumber": 9,
                 "body": {
                   "stringValue": "New message: what about the second pillar?"
@@ -2134,11 +2272,11 @@
                 "droppedAttributesCount": 0,
                 "flags": 1,
                 "traceId": "0199a100000070008000000000000003",
-                "spanId": "a4bdf0825bbe9541"
+                "spanId": "e18597d87f5dd417"
               },
               {
-                "timeUnixNano": "1790377201960000000",
-                "observedTimeUnixNano": "1790377201960000000",
+                "timeUnixNano": "1790379224696000000",
+                "observedTimeUnixNano": "1790379224696000000",
                 "severityNumber": 9,
                 "body": {
                   "stringValue": "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"4d3c2b1a-0f9e-4d7c-8b6a-5f4e3d2c1b0a\"}"
@@ -2184,18 +2322,18 @@
                   {
                     "key": "demiurgo.event.received_at",
                     "value": {
-                      "stringValue": "2026-09-25T23:00:01.960Z"
+                      "stringValue": "2026-09-25T23:33:44.696Z"
                     }
                   }
                 ],
                 "droppedAttributesCount": 0,
                 "flags": 1,
                 "traceId": "0199a100000070008000000000000003",
-                "spanId": "a4bdf0825bbe9541"
+                "spanId": "e18597d87f5dd417"
               },
               {
-                "timeUnixNano": "1790377201960000000",
-                "observedTimeUnixNano": "1790377201960000000",
+                "timeUnixNano": "1790379224696000000",
+                "observedTimeUnixNano": "1790379224696000000",
                 "severityNumber": 9,
                 "body": {
                   "stringValue": "{\"type\":\"result\",\"usage\":{\"input_tokens\":1000,\"cache_read_input_tokens\":8000,\"cache_creation_input_tokens\":500,\"output_tokens\":300},\"total_cost_usd\":0.042}"
@@ -2241,14 +2379,14 @@
                   {
                     "key": "demiurgo.event.received_at",
                     "value": {
-                      "stringValue": "2026-09-25T23:00:01.960Z"
+                      "stringValue": "2026-09-25T23:33:44.696Z"
                     }
                   }
                 ],
                 "droppedAttributesCount": 0,
                 "flags": 1,
                 "traceId": "0199a100000070008000000000000003",
-                "spanId": "a4bdf0825bbe9541"
+                "spanId": "e18597d87f5dd417"
               }
             ]
           }

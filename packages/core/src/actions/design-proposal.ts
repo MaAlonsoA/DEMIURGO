@@ -5,11 +5,15 @@
 import { DomainError } from '@demiurgo/domain';
 import { registerBuilder } from '../context/build.ts';
 import { knowledgeForContext } from '../context/knowledge.ts';
+import { ManifestBuilder, recordKnowledge } from '../context/manifest.ts';
 import { registerApplier } from './appliers.ts';
 
+const BUILDER = 'design_proposal@1';
 const BUDGET = { decision: 8_000, related: 4_000, knowledge: 4_000 };
+const CUT = { context: 3000, decision: 3000, consequences: 2000, related: 40 };
 
 registerBuilder('design_proposal', async ({ trx, projectId, scope, graphVersion }) => {
+  const manifest = new ManifestBuilder(BUILDER, graphVersion, BUDGET);
   const v = await trx
     .selectFrom('record_versions')
     .innerJoin('records', 'records.id', 'record_versions.record_id')
@@ -32,36 +36,61 @@ registerBuilder('design_proposal', async ({ trx, projectId, scope, graphVersion 
   }
   const sections = v.sections as { title: string; content: string }[];
   const text = (t: string) => sections.find((s) => s.title === t)?.content ?? '';
+  const decision = {
+    code: v.code,
+    version: v.n,
+    domain: v.domain,
+    title: v.title,
+    context: text('Context').slice(0, CUT.context),
+    decision: text('Decision').slice(0, CUT.decision),
+    consequences: text('Consequences').slice(0, CUT.consequences),
+  };
+  // The decision is one fragment: its three sections as they enter, cut where the pack cuts them.
+  const entered = `${decision.context}\n${decision.decision}\n${decision.consequences}`;
+  const wholeChars = text('Context').length + text('Decision').length + text('Consequences').length;
+  const enteredChars = decision.context.length + decision.decision.length + decision.consequences.length;
+  manifest.entered({
+    section: 'decision',
+    source: { type: 'record', id: v.recordId, version: v.n, eventSeq: null },
+    text: entered,
+    chars: enteredChars,
+    originalChars: wholeChars,
+    decision: wholeChars > enteredChars ? 'truncated' : 'included',
+    reason: wholeChars > enteredChars ? `excerpt:${CUT.context}+${CUT.decision}+${CUT.consequences}` : 'scope',
+  });
   const related = await trx
     .selectFrom('record_versions')
     .innerJoin('records', 'records.id', 'record_versions.record_id')
-    .select(['records.code', 'records.type', 'record_versions.n', 'record_versions.title'])
+    .select(['records.id as recordId', 'records.code', 'records.type', 'record_versions.n', 'record_versions.title'])
     .where('records.project_id', '=', projectId)
     .where('record_versions.state', '=', 'approved')
     .where('records.id', '<>', v.recordId)
     .orderBy('records.code')
-    .limit(40)
+    .limit(CUT.related)
     .execute();
+  for (const r of related)
+    manifest.entered({
+      section: 'related',
+      source: { type: 'record', id: r.recordId, version: r.n, eventSeq: null },
+      text: r.title,
+      reason: 'approved',
+    });
   const knowledge = await knowledgeForContext(trx, projectId, `${v.title} ${text('Decision')}`, BUDGET.knowledge);
+  recordKnowledge(manifest, knowledge);
   return {
-    role: 'design',
-    constructor: 'design_proposal@1',
-    budget: BUDGET,
-    graph_version: graphVersion,
-    dependencies: [{ type: 'record', id: v.recordId, version: v.n }, ...knowledge.dependencies],
-    content: {
-      decision: {
-        code: v.code,
-        version: v.n,
-        domain: v.domain,
-        title: v.title,
-        context: text('Context').slice(0, 3000),
-        decision: text('Decision').slice(0, 3000),
-        consequences: text('Consequences').slice(0, 2000),
+    pack: {
+      role: 'design',
+      constructor: BUILDER,
+      budget: BUDGET,
+      graph_version: graphVersion,
+      dependencies: [{ type: 'record', id: v.recordId, version: v.n }, ...knowledge.dependencies],
+      content: {
+        decision,
+        approved_records: related.map((r) => ({ code: r.code, type: r.type, version: r.n, title: r.title })),
+        knowledge: knowledge.nodes,
       },
-      approved_records: related.map((r) => ({ code: r.code, type: r.type, version: r.n, title: r.title })),
-      knowledge: knowledge.nodes,
     },
+    manifest: manifest.build(),
   };
 });
 

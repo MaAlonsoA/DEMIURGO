@@ -3,8 +3,10 @@
 
 import {
   AGENT_ACTIONS,
+  ATTR,
   DomainError,
   FAILURE_KINDS,
+  LOG,
   type AgentAction,
   composeSystem,
   formatActor,
@@ -163,7 +165,7 @@ registerHandlers({
       if (data.answers_message) await checkAnswered(ctx, data.answers_message, data.scope);
       const agent = await agentFor(action, data.agent);
       const { engine, source } = await engineFor(ctx, agent);
-      const pack = await buildContext(
+      const { pack, manifest } = await buildContext(
         ctx.trx,
         ctx.projectId,
         action,
@@ -172,6 +174,7 @@ registerHandlers({
         await graphVersion(ctx.trx, ctx.projectId),
       );
       const created = await ctx.execute({ command: 'context_pack.build', actor: system('context'), data: pack });
+      const hash = (created.result as { hash: string }).hash;
       const { id } = await ctx.trx
         .insertInto('ai_runs')
         .values({
@@ -198,7 +201,24 @@ registerHandlers({
       }
       const projectId = ctx.projectId;
       ctx.afterCommit(() => ctx.services.engine.startRun(id, projectId));
-      const hash = (created.result as { hash: string }).hash;
+      // The manifest (observability §9): what the builder weighed and what entered, as a note of
+      // this interaction. It never enters the pack's hash nor the operational base.
+      ctx.services.observer.event(
+        LOG.contextManifest,
+        {
+          [ATTR.packHash]: hash,
+          [ATTR.packId]: created.entityId,
+          [ATTR.packBuilder]: manifest.builder,
+          [ATTR.packRole]: pack.role,
+          [ATTR.graphVersion]: manifest.graphVersion,
+          [ATTR.packBudget]: JSON.stringify(manifest.budget),
+          // No journal event: the pack already existed and was not rebuilt.
+          ...(created.seq === null ? { [ATTR.packReused]: true } : {}),
+          [ATTR.projectId]: projectId,
+          [ATTR.runId]: id,
+        },
+        manifest,
+      );
       return {
         entityId: id,
         after: {

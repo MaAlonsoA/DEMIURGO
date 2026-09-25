@@ -3,11 +3,12 @@
 // derived evaluations.
 
 import { readFile } from 'node:fs/promises';
-import { ATTR, LOG, RESOURCE, SERVICE_NAME, sha256Hex } from '@demiurgo/domain';
+import { ATTR, LOG, RESOURCE, SERVICE_NAME, manifestSummary, sha256Hex } from '@demiurgo/domain';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { ask } from '../src/ask.ts';
 import { ingest } from '../src/ingest/ingest.ts';
 import { type FlatLog, type FlatSpan, parseLogs, parseTraces } from '../src/ingest/otlp.ts';
-import { IDS, TEXTS } from './fixtures/ids.ts';
+import { BUDGET, IDS, MANIFESTS, TEXTS } from './fixtures/ids.ts';
 import { count, useEvidenceDatabase } from './support/db.ts';
 
 type Fixture = { traces?: unknown; logs?: unknown };
@@ -42,6 +43,8 @@ const tableCounts = async (): Promise<Record<string, number>> => {
     'evaluations',
     'unmapped_records',
     'cli_requests',
+    'context_manifests',
+    'context_fragments',
   ])
     out[t] = await count(base().pool, t);
   return out;
@@ -352,6 +355,154 @@ describe('views', () => {
       tokens_cache_write: '1500',
       tokens_output: '700',
     });
+  });
+});
+
+describe('the context manifest (§9)', () => {
+  it('materializes one manifest per pack with its totals, and one row per fragment with its origin', async () => {
+    const { rows } = await base().pool.query<Record<string, unknown>>('select * from context_manifests order by pack_hash');
+    expect(rows).toHaveLength(2);
+    const summary = manifestSummary(MANIFESTS.run1);
+    expect(rows[0]).toMatchObject({
+      pack_hash: IDS.pack1,
+      pack_id: IDS.packId1,
+      project_id: IDS.project,
+      builder: 'exploration_chat@2',
+      role: 'explore',
+      graph_version: 2,
+      budget: BUDGET,
+      candidates: 5,
+      fragments: 5,
+      included_chars: summary.includedChars,
+      dropped_count: 1,
+      built_trace_id: IDS.interaction1.replaceAll('-', ''),
+    });
+    expect(rows[0]?.built_at).toBeInstanceOf(Date);
+    expect(rows[1]).toMatchObject({ pack_hash: IDS.pack2, candidates: 6, fragments: 6, dropped_count: 2 });
+    expect(await count(base().pool, 'context_fragments')).toBe(11);
+    const fragments = await base().pool.query<Record<string, unknown>>(
+      'select * from context_fragments where pack_hash = $1 order by seq',
+      [IDS.pack1],
+    );
+    expect(fragments.rows.map((f) => [f.section, f.decision, f.position])).toEqual([
+      ['purpose', 'included', 0],
+      ['messages', 'included', 1],
+      ['decisions', 'included', 2],
+      ['knowledge', 'included', 3],
+      ['knowledge', 'dropped', null],
+    ]);
+    expect(fragments.rows[1]).toMatchObject({
+      source_type: 'message',
+      source_id: IDS.message,
+      source_version: null,
+      source_event_seq: '1',
+      text_hash: sha256Hex(TEXTS.input),
+      chars: TEXTS.input.length,
+      reason: 'recent',
+      score: null,
+    });
+    expect(fragments.rows[4]).toMatchObject({
+      source_type: 'knowledge_node',
+      source_id: 'DEC-ZZZ-001@1',
+      source_version: 2,
+      reason: 'below_threshold',
+      score: 0,
+    });
+  });
+
+  it('v_context_budget gives, per pack and section, what entered against the budget and what fell out', async () => {
+    const { rows } = await base().pool.query<Record<string, unknown>>(
+      'select * from v_context_budget where pack_hash = $1 order by section',
+      [IDS.pack1],
+    );
+    expect(rows.map((r) => r.section)).toEqual(['decisions', 'knowledge', 'messages', 'purpose']);
+    expect(rows[0]).toMatchObject({
+      builder: 'exploration_chat@2',
+      role: 'explore',
+      candidates: 5,
+      budget_chars: 4000,
+      included_chars: 8 + TEXTS.decision1.length,
+      included_count: '1',
+      truncated_count: '0',
+      dropped_count: '0',
+    });
+    expect(rows[1]).toMatchObject({
+      budget_chars: 4000,
+      included_count: '1',
+      dropped_count: '1',
+      included_chars: TEXTS.node1.length - 1,
+    });
+    expect(rows[3]).toMatchObject({
+      section: 'purpose',
+      budget_chars: null,
+      fill_ratio: null,
+      included_chars: TEXTS.purpose.length,
+    });
+    const second = await base().pool.query<Record<string, unknown>>(
+      "select section, included_chars, truncated_count, dropped_count from v_context_budget where pack_hash = $1 and section in ('decisions', 'knowledge') order by section",
+      [IDS.pack2],
+    );
+    expect(second.rows).toEqual([
+      { section: 'decisions', included_chars: 408, truncated_count: '1', dropped_count: '0' },
+      { section: 'knowledge', included_chars: 0, truncated_count: '0', dropped_count: '2' },
+    ]);
+  });
+
+  it('context-of-run lists every fragment of the run, in order, with origin, decision and reason', async () => {
+    const r = await ask(base().pool, 'context-of-run', { run: IDS.run1 });
+    expect(r.header).toMatch(/^What exactly did this run's agent receive/);
+    expect(r.columns).toEqual([
+      'seq',
+      'section',
+      'source_type',
+      'source_id',
+      'version',
+      'event_seq',
+      'original_chars',
+      'chars',
+      'decision',
+      'reason',
+      'score',
+      'position',
+      'text_hash',
+      'builder',
+      'pack',
+    ]);
+    const col = (name: string) => r.columns.indexOf(name);
+    expect(r.rows.map((row) => row[col('seq')])).toEqual([1, 2, 3, 4, 5]);
+    expect(r.rows.map((row) => [row[col('section')], row[col('source_id')], row[col('decision')], row[col('reason')]])).toEqual([
+      ['purpose', IDS.exploration, 'included', 'scope'],
+      ['messages', IDS.message, 'included', 'recent'],
+      ['decisions', IDS.record, 'included', 'approved'],
+      ['knowledge', 'DEC-PRO-001@1', 'included', 'relevance:0.31'],
+      ['knowledge', 'DEC-ZZZ-001@1', 'dropped', 'below_threshold'],
+    ]);
+    expect(r.rows[1]?.[col('event_seq')]).toBe('1');
+    expect(r.rows[2]?.[col('version')]).toBe(1);
+    expect(r.rows[4]?.[col('position')]).toBeNull();
+    expect(r.rows[0]?.[col('builder')]).toBe('exploration_chat@2');
+    expect(await ask(base().pool, 'context-of-run', { run: IDS.batch })).toMatchObject({ rows: [] });
+  });
+
+  it('context-diff lists what is in only one of the two packs or changed decision or text', async () => {
+    const r = await ask(base().pool, 'context-diff', { run_a: IDS.run1, run_b: IDS.run2 });
+    const col = (name: string) => r.columns.indexOf(name);
+    const pick = (row: unknown[]) => [
+      row[col('section')],
+      row[col('source_id')],
+      row[col('difference')],
+      row[col('decision_a')],
+      row[col('decision_b')],
+      row[col('version_a')],
+      row[col('version_b')],
+    ];
+    expect(r.rows.map(pick)).toEqual([
+      ['decisions', IDS.record, 'decision', 'included', 'truncated', 1, 2],
+      ['knowledge', 'DEC-PRO-001@1', 'decision', 'included', 'dropped', 2, 2],
+      ['messages', IDS.message2, 'only_b', null, 'included', null, null],
+    ]);
+    // The same pack against itself: nothing differs.
+    expect((await ask(base().pool, 'context-diff', { run_a: IDS.run1, run_b: IDS.run1 })).rows).toEqual([]);
   });
 });
 

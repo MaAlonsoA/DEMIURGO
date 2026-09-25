@@ -177,10 +177,23 @@ describe('OpenCode provider', () => {
     expect(events.at(-1)?.tokens).toBe(64);
   });
 
+  it('the details carry the raw usage, the stream ids and every attempt with its outcome', async () => {
+    const { fetchImpl } = fakeFetch(['opencode/stream-tool-call.txt']);
+    const r = await createOpenCodeProvider({ configPath: CONFIG, fetch: fetchImpl }).run(invocation());
+    expect(r.details).toMatchObject({
+      rawUsage: expect.objectContaining({ prompt_tokens: 354, completion_tokens: 64 }),
+      attempts: [{ attempt: 1, model: 'qwen3.8-27b', finishReason: 'tool_calls', outcome: 'ok', usage: expect.any(Object) }],
+      // NInfer reports no system_fingerprint: absent is null, never a made-up value.
+      extra: { finishReason: 'tool_calls', systemFingerprint: null, chunkId: 'chatcmpl-c26002c377bf6b4d' },
+    });
+    expect(r.details?.cliCommand).toBeUndefined();
+  });
+
   it('a missing answer is retried with a correction, and then works', async () => {
     const { fetchImpl, sent } = fakeFetch(['opencode/stream-no-tool.synthetic.txt', 'opencode/stream-tool-call.txt']);
     const r = await createOpenCodeProvider({ configPath: CONFIG, fetch: fetchImpl }).run(invocation());
     expect(r).toMatchObject({ state: 'ok', usage: { turns: 2 } });
+    expect(r.details?.attempts?.map((a) => (a as { outcome: string }).outcome)).toEqual(['no_tool_call', 'ok']);
     const retry = sent[1]?.body.messages as { role: string; content: string }[];
     expect(retry.at(-2)).toMatchObject({ role: 'assistant' });
     expect(retry.at(-1)?.content).toMatch(/StructuredOutput tool exactly once/);
@@ -193,6 +206,7 @@ describe('OpenCode provider', () => {
     expect(r).toMatchObject({ state: 'error', failureKind: 'agent_error' });
     expect(r.state === 'error' ? r.message : '').toMatch(/didn't call StructuredOutput after 3 attempts/);
     expect(r.rawEvents.match(/data: \[DONE\]/g)).toHaveLength(3);
+    expect(r.details?.attempts).toHaveLength(3);
   });
 
   it('a model that is not in the OpenCode config is infra', async () => {

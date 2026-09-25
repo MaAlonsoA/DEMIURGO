@@ -132,6 +132,15 @@ export type GroupAssignmentsTable = {
   assigned_at: Timestamp;
 };
 
+/** Trace context of each entity a command created (observability §5.2). Not a domain table. */
+export type TraceContextsTable = {
+  entity_type: string;
+  entity_id: string;
+  project_id: string;
+  trace_parent: string;
+  created_at: Generated<Timestamp>;
+};
+
 export type AgentSessionsTable = {
   key: string;
   project_id: string;
@@ -500,6 +509,7 @@ export type DB = {
   agent_assignments: AgentAssignmentsTable;
   group_assignments: GroupAssignmentsTable;
   agent_sessions: AgentSessionsTable;
+  trace_contexts: TraceContextsTable;
   agent_calls: AgentCallsTable;
   agent_call_events: AgentCallEventsTable;
   step_completions: StepCompletionsTable;

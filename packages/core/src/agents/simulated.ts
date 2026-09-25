@@ -5,11 +5,17 @@
 import {
   type AgentAction,
   type AgentResult,
+  type AgentResultDetails,
   type Provider,
   type ProviderEvent,
+  type ProviderTrace,
   type SessionRequest,
+  type Usage,
   fingerprint,
 } from '@demiurgo/domain';
+
+/** What the simulator reports as its command line: it launches nothing. */
+export const SIMULATED_COMMAND = 'simulated';
 
 /** What a script simulates: the action and its context pack. */
 export type SimulatedTask = { action: string; context: { hash: string; content: unknown } };
@@ -21,6 +27,7 @@ export type SimulatedInvocation = SimulatedTask & {
   input?: string;
   session?: SessionRequest;
   timeMs?: number;
+  trace?: ProviderTrace;
 };
 
 export type Script = (p: SimulatedInvocation) => unknown;
@@ -200,23 +207,25 @@ export function createSimulatedProvider(options: SimulatedOptions = {}): Provide
     },
     async run(inv): Promise<AgentResult> {
       const task = inv.task ?? { action: 'echo', context: { hash: '', content: {} } };
-      const received = {
+      const received: SimulatedInvocation = {
         ...task,
         schema: inv.schema,
         system: inv.system,
         input: inv.input,
         session: inv.session,
         timeMs: inv.timeMs,
+        ...(inv.trace ? { trace: inv.trace } : {}),
       };
       options.onInvoke?.(received);
       const emit = (kind: ProviderEvent['kind'], raw: unknown) => inv.onEvent?.({ kind, raw: JSON.stringify(raw) });
       const start = Date.now();
       emit('started', { type: 'started', action: task.action, session: inv.session.mode });
+      // Like Claude, it keeps the id the engine decided for a new session; without one it makes its own.
       const sessionId =
         inv.session.mode === 'resumed'
           ? inv.session.id
           : inv.session.mode === 'fresh'
-            ? `sim-${fingerprint({ context: task.context.hash, start }).slice(0, 12)}`
+            ? (inv.session.id ?? `sim-${fingerprint({ context: task.context.hash, start }).slice(0, 12)}`)
             : undefined;
       const withSession = sessionId === undefined ? {} : { sessionId };
       if ((await delay(options.delayMs, inv.signal)) === 'aborted') {
@@ -228,6 +237,8 @@ export function createSimulatedProvider(options: SimulatedOptions = {}): Provide
         durationMs: Date.now() - start,
         provenance: { inputTokens: 'simulated:input.length', outputTokens: 'simulated:output.length' },
       };
+      // The same evidence the real adapters leave (§7.6), so the whole circuit runs in the tests.
+      const details = (u: Usage): AgentResultDetails => ({ rawUsage: u, cliCommand: [SIMULATED_COMMAND] });
       if (options.failure) {
         emit('error', { type: 'error', message: options.failure.message });
         return {
@@ -236,6 +247,7 @@ export function createSimulatedProvider(options: SimulatedOptions = {}): Provide
           message: options.failure.message,
           usage,
           rawEvents: '',
+          details: details(usage),
           ...common,
           ...withSession,
         };
@@ -244,11 +256,13 @@ export function createSimulatedProvider(options: SimulatedOptions = {}): Provide
       const raw = JSON.stringify(output);
       emit('message', { type: 'message', text: raw.slice(0, 200) });
       emit('result', { type: 'result', output });
+      const finalUsage = { ...usage, outputTokens: raw.length };
       return {
         state: 'ok',
         rawOutput: output,
-        usage: { ...usage, outputTokens: raw.length },
+        usage: finalUsage,
         rawEvents: raw,
+        details: details(finalUsage),
         ...common,
         ...withSession,
       };

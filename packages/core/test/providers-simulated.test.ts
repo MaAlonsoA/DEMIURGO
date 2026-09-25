@@ -37,10 +37,19 @@ describe('simulated provider', () => {
     expect(events.map((e) => e.kind)).toEqual(['started', 'message', 'result']);
   });
 
+  it('reports its usage and command line as details, like the real adapters', async () => {
+    const r = await createSimulatedProvider().run(invocation());
+    expect(r.details).toEqual({ rawUsage: r.usage, cliCommand: ['simulated'] });
+    const failed = await createSimulatedProvider({ failure: { failureKind: 'agent_error', message: 'x' } }).run(invocation());
+    expect(failed.details).toMatchObject({ cliCommand: ['simulated'], rawUsage: expect.objectContaining({ inputTokens: 12 }) });
+  });
+
   it('AC-AGE-002-09 a fresh session gets an id and a resumed one keeps it', async () => {
     const p = createSimulatedProvider();
     const fresh = await p.run(invocation({ session: { mode: 'fresh', directory: 'x' } }));
     expect(fresh.sessionId).toMatch(/^sim-/);
+    const decided = await p.run(invocation({ session: { mode: 'fresh', directory: 'x', id: 'our-id' } }));
+    expect(decided.sessionId).toBe('our-id');
     const resumed = await p.run(invocation({ session: { mode: 'resumed', directory: 'x', id: 'sim-abc' } }));
     expect(resumed.sessionId).toBe('sim-abc');
     expect((await p.run(invocation())).sessionId).toBeUndefined();

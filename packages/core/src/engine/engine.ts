@@ -3,14 +3,19 @@
 // "apply" is idempotent: the mark in step_completions is committed in the same transaction
 // as its effects, so a crash and resume never repeat the effect (AC-ESQ-001-07).
 
+import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
 import { DBOS } from '@dbos-inc/dbos-sdk';
 import {
+  ATTR,
   type AgentAction,
   type AgentResult,
+  ENGINE_SOURCES,
+  type EngineSource,
   OUTPUT_SCHEMAS,
   type ProviderInvocation,
+  SPAN,
   type SessionRequest,
   agentRun,
   composeInput,
@@ -19,17 +24,20 @@ import {
   normalizeOutput,
   packDelta,
   runSchemaOf,
+  sha256Hex,
   system,
 } from '@demiurgo/domain';
 import { sql } from 'kysely';
 import { APPLIERS } from '../actions/appliers.ts';
 import { DEFAULT_AGENTS, loadAgentCatalog, schemaVersion } from '../agents/catalog.ts';
-import { callProvider, closeOrphanCalls } from '../assignments/calls.ts';
+import { type CallMeta, type CallSession, callProvider, closeOrphanCalls } from '../assignments/calls.ts';
 import { previousSession, saveSession, sessionDirectory, sessionKey } from '../assignments/sessions.ts';
 import { executeCommand, inTransaction } from '../bus/bus.ts';
 import { graphUpToDate } from '../context/graph.ts';
-import type { Tx } from '../db/connection.ts';
+import type { Db, Tx } from '../db/connection.ts';
+import { traceParentOf } from '../observe/trace-contexts.ts';
 import type { WorkflowEngine, Services } from '../services.ts';
+import { stepSpan, systemInteraction } from './observe.ts';
 import { starters, reconcilers, setEngineServices, engineServices } from './registry.ts';
 
 export {
@@ -67,7 +75,7 @@ function startOutsideWorkflow(startup: () => Promise<void>): Promise<void> {
   return Promise.resolve();
 }
 
-async function dispatchDeferred(): Promise<void> {
+async function drainDeferred(): Promise<void> {
   while (deferred.length > 0) {
     const next = deferred.shift();
     try {
@@ -77,6 +85,14 @@ async function dispatchDeferred(): Promise<void> {
     }
   }
 }
+
+/** The deferred starts run from a timer, outside any interaction: they get a system root (§7.2). */
+async function dispatchDeferred(): Promise<void> {
+  if (deferred.length === 0) return;
+  const s = engineServices();
+  if (s.observer.currentInteractionId() !== null) return drainDeferred();
+  return systemInteraction(s, 'dispatchDeferred', drainDeferred);
+}
 let onStepComplete: ((step: string, id: string) => void | Promise<void>) | undefined;
 
 function requireServices(): Services {
@@ -85,14 +101,62 @@ function requireServices(): Services {
 
 export const workflowRunId = (runId: string): string => `run:${runId}`;
 
+const runEntity = (runId: string) => ({ type: 'ai_run', id: runId }) as const;
+
 async function prepare(runId: string, projectId: string): Promise<string> {
   const s = requireServices();
-  const run = await s.db.selectFrom('ai_runs').select('state').where('id', '=', runId).executeTakeFirstOrThrow();
-  if (run.state === 'queued') {
-    await executeCommand(s, { command: 'run.begin', actor: ENGINE, projectId, entityId: runId, data: {} });
-    return 'running';
+  return stepSpan(
+    s,
+    SPAN.runPrepare,
+    runEntity(runId),
+    { [ATTR.runId]: runId, [ATTR.projectId]: projectId },
+    async (span) => {
+      const run = await s.db
+        .selectFrom('ai_runs')
+        .select(['state', 'retry_of'])
+        .where('id', '=', runId)
+        .executeTakeFirstOrThrow();
+      if (run.retry_of) {
+        // A retry is another interaction, linked to the run it retries (§5.1).
+        span.setAttributes({ [ATTR.retryOf]: run.retry_of });
+        const original = await traceParentOf(s.db, 'ai_run', run.retry_of);
+        if (original) span.addLink(original, { [ATTR.runId]: run.retry_of });
+      }
+      if (run.state === 'queued') {
+        await executeCommand(s, { command: 'run.begin', actor: ENGINE, projectId, entityId: runId, data: {} });
+        return 'running';
+      }
+      return run.state;
+    },
+    (state) => state,
+  );
+}
+
+/**
+ * Where the run's engine came from (`override`, `agent`, `group`): the journal is its only source,
+ * in the `after` of the request or retry that created the run (§7.4).
+ */
+async function engineSourceOf(db: Db, runId: string): Promise<EngineSource | null> {
+  const row = await db
+    .selectFrom('events')
+    .select('after')
+    .where('entity_id', '=', runId)
+    .where('command', 'in', ['run.request', 'run.retry'])
+    .orderBy('seq', 'desc')
+    .executeTakeFirst();
+  const after = row?.after;
+  const source = typeof after === 'object' && after !== null ? (after as { engine_source?: unknown }).engine_source : undefined;
+  return typeof source === 'string' && (ENGINE_SOURCES as readonly string[]).includes(source) ? (source as EngineSource) : null;
+}
+
+/** The text of a raw output, whatever the adapter delivered, for the `output_raw` note. */
+function rawOutputText(rawOutput: unknown): string {
+  if (typeof rawOutput === 'string') return rawOutput;
+  try {
+    return JSON.stringify(rawOutput) ?? 'undefined';
+  } catch {
+    return String(rawOutput);
   }
-  return run.state;
 }
 
 /** How a run talked to its provider: recorded with the run, and the session kept for the thread. */
@@ -111,8 +175,25 @@ export type InvokeResult = AgentResult & { session?: SessionOutcome };
  * delta, if the agent keeps one per thread, this is not a retry, the conversation's last run
  * completed and the new pack only appends to its pack. Otherwise it starts over with the whole pack.
  */
-async function invoke(runId: string): Promise<InvokeResult> {
+async function invoke(runId: string, projectId: string): Promise<InvokeResult> {
   const s = requireServices();
+  return stepSpan(
+    s,
+    SPAN.runInvoke,
+    runEntity(runId),
+    { [ATTR.runId]: runId, [ATTR.projectId]: projectId },
+    () => invokeInSpan(s, runId),
+    (r) => (r.state === 'ok' ? 'ok' : r.failureKind),
+  );
+}
+
+/** The scope's id (the thread) or the run's, shortened, for the visible name of a session (§5.4). */
+function shortScopeOf(scope: unknown, runId: string): string {
+  const id = typeof scope === 'object' && scope !== null ? (scope as { id?: unknown }).id : undefined;
+  return (typeof id === 'string' && id.length > 0 ? id : runId).slice(0, 8);
+}
+
+async function invokeInSpan(s: Services, runId: string): Promise<InvokeResult> {
   const run = await s.db.selectFrom('ai_runs').selectAll().where('id', '=', runId).executeTakeFirstOrThrow();
   const pack = await s.db
     .selectFrom('context_packs')
@@ -137,15 +218,22 @@ async function invoke(runId: string): Promise<InvokeResult> {
   const model = run.requested_model ?? '';
   const { system: systemPrompt, promptHash } = composeSystem(agent, agent.skillDefinitions);
   const full = composeInput({ action, packHash: pack.hash, content: pack.content });
+  const engineSource = await engineSourceOf(s.db, runId);
 
   let session: SessionRequest = { mode: 'none' };
   let key: string | null = null;
   let input = full;
   let deltaHash: string | null = null;
+  // The session as the evidence sees it: our id, the base run and pack, the delta text's hash.
+  let sessionSeen: CallSession = { id: null, mode: 'none', baseRunId: null, basePackHash: null, deltaHash: null, keyHash: null };
   if (agent.session === 'thread' && provider.sessions) {
     key = sessionKey({ scope: run.scope, agent: agent.id, version: agent.version, provider: provider.id, model });
+    const keyHash = sha256Hex(key);
+    const name = `demiurgo ${agent.id} ${shortScopeOf(run.scope, runId)}`;
     const directory = sessionDirectory(s.agentSessionsDir, provider.id, key);
-    session = { mode: 'fresh', directory };
+    // The engine decides the id of a new session (§5.4); adapters that can fix it use it as is.
+    session = { mode: 'fresh', directory, id: randomUUID(), name };
+    sessionSeen = { id: session.id ?? null, mode: 'fresh', baseRunId: null, basePackHash: null, deltaHash: null, keyHash, name };
     const previous = run.retry_of ? null : await previousSession(s.db, key);
     const last = previous
       ? await s.db
@@ -161,6 +249,15 @@ async function invoke(runId: string): Promise<InvokeResult> {
         session = { mode: 'resumed', directory, id: previous.providerSessionId };
         input = composeInput({ action, packHash: pack.hash, content: delta.added, continuation: { basePackHash: last.hash } });
         deltaHash = delta.hash;
+        sessionSeen = {
+          id: previous.providerSessionId,
+          mode: 'resumed',
+          baseRunId: previous.lastRunId,
+          basePackHash: last.hash,
+          deltaHash: s.observer.text('delta', JSON.stringify(delta.added)),
+          keyHash,
+          name,
+        };
       }
     }
   }
@@ -168,25 +265,57 @@ async function invoke(runId: string): Promise<InvokeResult> {
   const control = new AbortController();
   controllers.set(runId, control);
   try {
-    const meta = { projectId: run.project_id, runId, agent: agent.id, agentVersion: agent.version, promptHash };
+    const schema = runSchemaOf(action, pack.content);
+    // The texts as sent, with their full hashes (§5.5), before the call.
+    s.observer.text('system_prompt', systemPrompt);
+    const inputHash = s.observer.text('input', input);
+    const schemaHash = s.observer.text('schema', JSON.stringify(schema));
+    const meta: CallMeta = {
+      projectId: run.project_id,
+      runId,
+      updateId: null,
+      agent: agent.id,
+      agentVersion: agent.version,
+      promptHash,
+      engineSource,
+      session: sessionSeen,
+      attempt: 1,
+      inputHash,
+      schemaHash,
+      schemaVersion: run.schema_version,
+      packHash: pack.hash,
+      retryOf: run.retry_of,
+    };
     const base: Omit<ProviderInvocation, 'input' | 'session'> = {
       system: systemPrompt,
-      schema: runSchemaOf(action, pack.content),
+      schema,
       model,
       effort: run.effort,
       timeMs: agent.timeLimitSeconds * 1000,
       signal: control.signal,
       task: { action, context: { hash: pack.hash, content: pack.content } },
     };
-    let result = await callProvider(s.db, provider, meta, { ...base, input, session });
+    let result = await callProvider(s, provider, meta, { ...base, input, session });
     let mode = session.mode;
     if (session.mode === 'resumed' && result.state === 'error' && result.failureKind === 'agent_error') {
-      // The provider may have lost the session: once more from scratch, on the same engine and model.
-      result = await callProvider(s.db, provider, meta, {
-        ...base,
-        input: full,
-        session: { mode: 'fresh', directory: session.directory },
-      });
+      // The provider may have lost the session: once more from scratch, on the same engine and
+      // model, with a new session of ours (plan B, attempt 2).
+      const again: SessionRequest = { mode: 'fresh', directory: session.directory, id: randomUUID(), name: sessionSeen.name };
+      const seen: CallSession = {
+        id: again.id ?? null,
+        mode: 'fresh',
+        baseRunId: null,
+        basePackHash: null,
+        deltaHash: null,
+        keyHash: sessionSeen.keyHash,
+        name: sessionSeen.name,
+      };
+      result = await callProvider(
+        s,
+        provider,
+        { ...meta, attempt: 2, session: seen, inputHash: s.observer.text('input', full) },
+        { ...base, input: full, session: again },
+      );
       mode = 'fresh';
       deltaHash = null;
     }
@@ -216,6 +345,21 @@ function summarizeErrors(issues: readonly { path: readonly PropertyKey[]; messag
 
 async function apply(runId: string, projectId: string, r: InvokeResult, workflow: string): Promise<string> {
   const s = requireServices();
+  return stepSpan(
+    s,
+    SPAN.runApply,
+    runEntity(runId),
+    { [ATTR.runId]: runId, [ATTR.projectId]: projectId },
+    async (span) => {
+      // The raw output, whole, before validation: an invalid_output still leaves it (§7.4).
+      if (r.state === 'ok') span.setAttributes({ [ATTR.outputHash]: s.observer.text('output_raw', rawOutputText(r.rawOutput)) });
+      return applyInSpan(s, runId, projectId, r, workflow);
+    },
+    (state) => state,
+  );
+}
+
+async function applyInSpan(s: Services, runId: string, projectId: string, r: InvokeResult, workflow: string): Promise<string> {
   const final = await inTransaction(s, async (execute, trx) => {
     // Same lock order as the bus (project, then entity): no deadlocks.
     await sql`select 1 from projects where id = ${projectId}::uuid for update`.execute(trx);
@@ -327,7 +471,7 @@ async function runWorkflow(runId: string, projectId: string): Promise<string> {
   const workflow = DBOS.workflowID ?? workflowRunId(runId);
   const state = await DBOS.runStep(() => prepare(runId, projectId), { name: 'prepare', ...RETRIES });
   if (state !== 'running') return state;
-  const result = await DBOS.runStep(() => invoke(runId), { name: 'invoke' });
+  const result = await DBOS.runStep(() => invoke(runId, projectId), { name: 'invoke' });
   try {
     return await DBOS.runStep(() => apply(runId, projectId, result, workflow), { name: 'apply', ...RETRIES });
   } catch (e) {
@@ -339,15 +483,25 @@ async function runWorkflow(runId: string, projectId: string): Promise<string> {
 /** A system error while applying leaves the run failed (infra), never stuck. */
 async function failForInfrastructure(runId: string, projectId: string, e: unknown): Promise<void> {
   const s = requireServices();
-  const run = await s.db.selectFrom('ai_runs').select('state').where('id', '=', runId).executeTakeFirstOrThrow();
-  if (run.state !== 'running') return;
-  await executeCommand(s, {
-    command: 'run.fail',
-    actor: ENGINE,
-    projectId,
-    entityId: runId,
-    data: { failure_kind: 'infra', error: `Error applying the output: ${String(e).slice(0, 3000)}` },
-  });
+  await stepSpan(
+    s,
+    SPAN.runFail,
+    runEntity(runId),
+    { [ATTR.runId]: runId, [ATTR.projectId]: projectId },
+    async () => {
+      const run = await s.db.selectFrom('ai_runs').select('state').where('id', '=', runId).executeTakeFirstOrThrow();
+      if (run.state !== 'running') return run.state;
+      await executeCommand(s, {
+        command: 'run.fail',
+        actor: ENGINE,
+        projectId,
+        entityId: runId,
+        data: { failure_kind: 'infra', error: `Error applying the output: ${String(e).slice(0, 3000)}` },
+      });
+      return 'failed';
+    },
+    (state) => state,
+  );
 }
 
 const runWorkflowRegistered = DBOS.registerWorkflow(runWorkflow, { name: 'demiurgo.run' });
@@ -364,6 +518,24 @@ async function requestResponse(
   agent: string | null,
 ): Promise<'requested' | 'stale'> {
   const s = requireServices();
+  return stepSpan(
+    s,
+    SPAN.responseRequest,
+    messageEntity(workflow),
+    { [ATTR.projectId]: projectId, [ATTR.entityId]: messageOf(workflow) },
+    () => requestResponseInSpan(s, workflow, projectId, explorationId, questionId, agent),
+    (r) => r,
+  );
+}
+
+async function requestResponseInSpan(
+  s: Services,
+  workflow: string,
+  projectId: string,
+  explorationId: string,
+  questionId: string | null,
+  agent: string | null,
+): Promise<'requested' | 'stale'> {
   return inTransaction(s, async (execute, trx) => {
     await sql`select 1 from projects where id = ${projectId}::uuid for update`.execute(trx);
     const done = await trx
@@ -419,6 +591,12 @@ let responsePatienceMs = RESPONSE_PATIENCE_MS;
 /** The message a response workflow answers: its id is `response:<messageId>`. */
 const messageOf = (workflow: string): string | null => (workflow.startsWith('response:') ? workflow.slice(9) : null);
 
+/** The entity of a response flow, for the spans of its steps (§7.4). */
+function messageEntity(workflow: string): { type: 'message'; id: string } | null {
+  const id = messageOf(workflow);
+  return id ? { type: 'message', id } : null;
+}
+
 /** The same, inside the request's transaction (the run could not be requested). */
 async function abandonIn(
   execute: (p: Parameters<typeof executeCommand>[1]) => Promise<unknown>,
@@ -445,15 +623,38 @@ async function abandonResponse(projectId: string, workflow: string, reason: stri
   const messageId = messageOf(workflow);
   if (!messageId) return;
   const s = requireServices();
-  const m = await s.db.selectFrom('messages').select('response').where('id', '=', messageId).executeTakeFirst();
-  if (m?.response !== 'waiting') return;
-  await executeCommand(s, {
-    command: 'message.abandon_response',
-    actor: system('conversation'),
-    projectId,
-    entityId: messageId,
-    data: { reason },
-  });
+  await stepSpan(
+    s,
+    SPAN.responseAbandon,
+    { type: 'message', id: messageId },
+    { [ATTR.projectId]: projectId, [ATTR.entityId]: messageId },
+    async () => {
+      const m = await s.db.selectFrom('messages').select('response').where('id', '=', messageId).executeTakeFirst();
+      if (m?.response !== 'waiting') return m?.response ?? 'none';
+      await executeCommand(s, {
+        command: 'message.abandon_response',
+        actor: system('conversation'),
+        projectId,
+        entityId: messageId,
+        data: { reason },
+      });
+      return 'abandoned';
+    },
+    (state) => state,
+  );
+}
+
+/** Whether the project's knowledge is up to date, inside the `response.freshness` step span. */
+async function freshness(workflow: string, projectId: string): Promise<{ upToDate: boolean }> {
+  const s = requireServices();
+  return stepSpan(
+    s,
+    SPAN.responseFreshness,
+    messageEntity(workflow),
+    { [ATTR.projectId]: projectId, [ATTR.entityId]: messageOf(workflow) },
+    () => s.db.transaction().execute((trx) => graphUpToDate(trx, projectId)),
+    (r) => (r.upToDate ? 'up_to_date' : 'stale'),
+  );
 }
 
 async function respondWorkflow(
@@ -466,15 +667,7 @@ async function respondWorkflow(
   let waited = 0;
   for (;;) {
     for (;;) {
-      const upToDate = await DBOS.runStep(
-        () =>
-          requireServices()
-            .db.transaction()
-            .execute((trx) => graphUpToDate(trx, projectId)),
-        {
-          name: 'freshness',
-        },
-      );
+      const upToDate = await DBOS.runStep(() => freshness(workflow, projectId), { name: 'freshness' });
       if (upToDate.upToDate || waited >= responsePatienceMs) break;
       const pause = waited < 60_000 ? 500 : 5000;
       await DBOS.sleepms(pause);
@@ -545,6 +738,10 @@ export type StartedEngine = { services: Services; stop(): Promise<void> };
  * the person can retry it with the same context pack. Never left stuck.
  */
 async function reconcileRuns(s: Services): Promise<void> {
+  await systemInteraction(s, 'reconcileRuns', () => reconcileRunsIn(s));
+}
+
+async function reconcileRunsIn(s: Services): Promise<void> {
   const liveRuns = await s.db
     .selectFrom('ai_runs')
     .select(['id', 'project_id', 'state'])
@@ -577,6 +774,10 @@ async function reconcileRuns(s: Services): Promise<void> {
  * can ask again. Never waiting forever.
  */
 async function reconcileResponses(s: Services): Promise<void> {
+  await systemInteraction(s, 'reconcileResponses', () => reconcileResponsesIn(s));
+}
+
+async function reconcileResponsesIn(s: Services): Promise<void> {
   const waiting = await s.db.selectFrom('messages').select(['id', 'project_id']).where('response', '=', 'waiting').execute();
   for (const m of waiting) {
     const workflow = await DBOS.getWorkflowStatus(`response:${m.id}`);
@@ -624,7 +825,7 @@ export async function startEngine(
   }, 50);
   await reconcileRuns(s);
   await reconcileResponses(s);
-  for (const c of reconcilers) await c(s);
+  for (const c of reconcilers) await systemInteraction(s, c.name, () => c.run(s));
   return {
     services: s,
     async stop() {

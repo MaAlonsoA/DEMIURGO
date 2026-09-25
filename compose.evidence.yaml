@@ -1,0 +1,73 @@
+# Evidence stack of the observability engine (docs/superpowers/specs/2026-09-26-motor-observabilidad-design.md §4.2).
+# Its own compose project, demiurgo-evidence, with its own volumes: `pnpm snap`, `pnpm db:down -v` and
+# `docker compose down -v` of the other projects never touch it. Never demiurgo-stable nor port 8000.
+# The ingester (`pnpm evidence serve`, 127.0.0.1:4319) runs on the host; the collector reaches it through
+# host.docker.internal.
+name: demiurgo-evidence
+services:
+  postgres:
+    image: postgres:18.6@sha256:86c951e05bf56c93d95d397747fb8820ac76cc3bedb78f43abd83eedbe3666ae
+    environment:
+      POSTGRES_USER: evidence
+      POSTGRES_PASSWORD: evidence-local
+      POSTGRES_DB: demiurgo_evidence
+    ports:
+      - "127.0.0.1:55434:5432"
+    volumes:
+      - evidence-data:/var/lib/postgresql
+      # Creates the `phoenix` database and the read-only role `evidence_reader` on the first start only.
+      - ./packages/evidence/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evidence -d demiurgo_evidence"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  collector:
+    image: otel/opentelemetry-collector-contrib:0.161.0@sha256:fd328de2552466ad78385e1b1289c3f2402b1c45f265b252aab1955b42845ac1
+    # The image runs as uid 10001 over a scratch filesystem and named volumes are created root-owned, so the
+    # archive and the persistent queue would be unwritable. Local single-user stack: run it as root.
+    user: "0:0"
+    ports:
+      - "127.0.0.1:4317:4317" # OTLP gRPC
+      - "127.0.0.1:4318:4318" # OTLP HTTP
+      - "127.0.0.1:13133:13133" # health_check extension
+    volumes:
+      - evidence-archive:/archive
+      - evidence-queue:/queue
+      - ./packages/evidence/collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # No healthcheck: the contrib image is built on scratch (no shell, curl or wget), so nothing can run
+    # inside it. Check from the host instead: curl -s http://127.0.0.1:13133/ (health_check extension).
+    restart: unless-stopped
+
+  # phoenix (phase 4): arizephoenix/phoenix pinned by digest, 127.0.0.1:6006, PHOENIX_SQL_DATABASE_URL to the
+  # `phoenix` database of this postgres; the collector's otlp_grpc/phoenix exporter sends it traces only.
+  # phoenix:
+  #   image: arizephoenix/phoenix:<tag>@sha256:<digest>
+  #   environment:
+  #     PHOENIX_SQL_DATABASE_URL: postgresql://evidence:evidence-local@postgres:5432/phoenix
+  #   ports:
+  #     - "127.0.0.1:6006:6006"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+
+  # metabase (phase 5): pinned by digest, 127.0.0.1:3300, own volume evidence-metabase, reads demiurgo_evidence
+  # as evidence_reader.
+  # metabase:
+  #   image: metabase/metabase:<tag>@sha256:<digest>
+  #   ports:
+  #     - "127.0.0.1:3300:3000"
+  #   volumes:
+  #     - evidence-metabase:/metabase-data
+  #   restart: unless-stopped
+
+volumes:
+  evidence-data:
+  evidence-archive:
+  evidence-queue:
+  # evidence-metabase:

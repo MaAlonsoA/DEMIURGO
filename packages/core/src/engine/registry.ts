@@ -12,7 +12,8 @@ export const starters: { update: WorkflowStarter; assessment: WorkflowStarter } 
   assessment: async () => undefined,
 };
 
-export const reconcilers: Reconciler[] = [];
+/** Each reconciler with its name: the system interaction that wraps it at startup is named after it. */
+export const reconcilers: { name: string; run: Reconciler }[] = [];
 
 export function registerUpdateStarter(f: WorkflowStarter): void {
   starters.update = f;
@@ -22,8 +23,8 @@ export function registerAssessmentStarter(f: WorkflowStarter): void {
   starters.assessment = f;
 }
 
-export function registerReconciler(c: Reconciler): void {
-  reconcilers.push(c);
+export function registerReconciler(c: Reconciler, name = 'reconciler'): void {
+  reconcilers.push({ name, run: c });
 }
 
 // Services of the running engine, for the workflows registered by other modules.

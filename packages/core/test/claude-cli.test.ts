@@ -217,6 +217,21 @@ describe('claude-cli agent adapter', () => {
     expect(env).toEqual({ Path: 'C:\\bin', MY_PROXY: 'http://proxy', CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' });
   });
 
+  it("the fixed variables of a call are merged last, and the parent's OTEL_* and TRACEPARENT never pass, even as extra", () => {
+    const origin = {
+      Path: 'C:\\bin',
+      OTEL_EXPORTER_OTLP_ENDPOINT: 'http://parent',
+      otel_resource_attributes: 'x=y',
+      TRACEPARENT: '00-aa-bb-01',
+      TRACESTATE: 'k=v',
+    };
+    const env = allowedEnv(origin, ['OTEL_EXPORTER_OTLP_ENDPOINT', 'TRACEPARENT', 'TRACESTATE', 'otel_resource_attributes'], {
+      TRACEPARENT: '00-cc-dd-01',
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '0',
+    });
+    expect(env).toEqual({ Path: 'C:\\bin', TRACEPARENT: '00-cc-dd-01', CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '0' });
+  });
+
   it('AC-AGE-001-01 invokes claude -p with stream-json output, --json-schema, the model and no ANTHROPIC_API_KEY', async () => {
     Object.assign(process.env, SENSITIVE_VARIABLES);
     const { launcher, calls } = fakeLauncher({ stdout: fixture('echo-success.json') });

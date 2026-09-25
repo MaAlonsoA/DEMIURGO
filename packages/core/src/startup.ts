@@ -10,11 +10,12 @@ import { agentClassifiers } from './assignments/classifiers.ts';
 import type { Config } from './config.ts';
 import { type Connection, connect } from './db/connection.ts';
 import { migrate } from './db/migrator.ts';
-import { type StartedEngine, startEngine } from './engine/engine.ts';
+import { type StartedEngine, WORKFLOWS_VERSION, startEngine } from './engine/engine.ts';
 import { engineServices } from './engine/registry.ts';
 import { createClaudeProvider } from './providers/claude.ts';
 import { createCodexProvider } from './providers/codex.ts';
 import { createOpenCodeProvider } from './providers/opencode.ts';
+import { createObserver } from './observe/index.ts';
 import { type ProviderRegistry, createProviderRegistry } from './providers/registry.ts';
 import { type Logger, consoleLogger } from './services.ts';
 
@@ -37,6 +38,7 @@ export async function startCore(config: Config, logger: Logger = consoleLogger):
   const seeded = await seedDefaultEngines(connection.db);
   if (seeded.length) logger.info('Default engines assigned', { agents: seeded });
   const providers = createProviders(config);
+  const observer = createObserver({ ...config.observe, workflowsVersion: WORKFLOWS_VERSION }, logger);
   const engine = await startEngine(
     {
       db: connection.db,
@@ -46,6 +48,7 @@ export async function startCore(config: Config, logger: Logger = consoleLogger):
       classifierFor: agentClassifiers(engineServices),
       agentSessionsDir: config.agentSessionsDir,
       logger,
+      observer,
     },
     config.databaseUrl,
   );
@@ -61,6 +64,9 @@ export async function startCore(config: Config, logger: Logger = consoleLogger):
     connection,
     async stop() {
       await engine.stop();
+      // What is still queued goes out before the process ends (§14.1).
+      await observer.flush(5000);
+      await observer.shutdown(1000);
       await connection.close();
     },
   };

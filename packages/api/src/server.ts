@@ -7,14 +7,17 @@ import fastifyStatic from '@fastify/static';
 import {
   type Actor,
   CAPABILITIES,
+  CHANNEL_HEADER,
+  type Channel,
   DomainError,
   type QueryName,
   TRANSITIONS,
+  formatActor,
   isCommand,
   isDomainError,
   allowedForQuery,
 } from '@demiurgo/domain';
-import { HANDLERS, type Services, executeCommand, runProgress } from '@demiurgo/core';
+import { HANDLERS, type InteractionRoot, type Services, executeCommand, runProgress } from '@demiurgo/core';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
@@ -61,6 +64,31 @@ function actorOf(req: FastifyRequest): Actor {
   const c = req.credential;
   if (c.type === 'none') throw new DomainError('unauthenticated', 'A session or an agent token is required.');
   return c.actor;
+}
+
+/** `mcp` when the MCP server's thin client says so in its header; any other request is `api`. */
+function channelOf(req: FastifyRequest): Channel {
+  const header = req.headers[CHANNEL_HEADER];
+  return (Array.isArray(header) ? header[0] : header) === 'mcp' ? 'mcp' : 'api';
+}
+
+function interactionRoot(
+  req: FastifyRequest,
+  actor: Actor,
+  command: string,
+  httpRoute: string,
+  projectId?: string,
+  entityId?: string,
+): InteractionRoot {
+  return {
+    channel: channelOf(req),
+    actor: formatActor(actor),
+    actorType: actor.type,
+    command,
+    projectId: projectId ?? null,
+    entityId: entityId ?? null,
+    httpRoute,
+  };
 }
 
 /** Checks the query against the capability matrix and the agent token's scope. */
@@ -162,14 +190,20 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
     return { ok: true };
   });
 
+  // Every command that enters through the API is an interaction (observability spec §7.2): the root
+  // of its trace, whose id is the journal's correlation. Queries and the SSE emit nothing.
   app.post('/api/projects', async (req) => {
     const actor = actorOf(req);
     const body = z
       .object({ name: z.unknown() })
       .passthrough()
       .parse(req.body ?? {});
-    const r = await executeCommand(services, { command: 'project.create', actor, data: { name: body.name } });
-    return { project_id: r.projectId, state: r.state, seq: r.seq };
+    const root = interactionRoot(req, actor, 'project.create', '/api/projects');
+    const { r, interactionId } = await services.observer.interaction(root, async (ctx) => ({
+      r: await executeCommand(services, { command: 'project.create', actor, data: { name: body.name } }),
+      interactionId: ctx.id,
+    }));
+    return { project_id: r.projectId, state: r.state, seq: r.seq, interaction_id: interactionId };
   });
 
   app.post('/api/projects/:projectId/commands/:command', async (req) => {
@@ -179,14 +213,25 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
     checkAgentScope(req, projectId);
     // Any other field in the body (e.g. "actor") is ignored: the actor comes from the credential.
     const body = commandBody.parse(req.body ?? {});
-    const r = await executeCommand(services, {
-      command,
-      actor,
-      projectId,
-      ...(body.entity_id ? { entityId: body.entity_id } : {}),
-      data: body.data ?? {},
-    });
-    return { entity: r.entity, entity_id: r.entityId, state: r.state, seq: r.seq, result: r.result ?? null };
+    const root = interactionRoot(req, actor, command, '/api/projects/:projectId/commands/:command', projectId, body.entity_id);
+    const { r, interactionId } = await services.observer.interaction(root, async (ctx) => ({
+      r: await executeCommand(services, {
+        command,
+        actor,
+        projectId,
+        ...(body.entity_id ? { entityId: body.entity_id } : {}),
+        data: body.data ?? {},
+      }),
+      interactionId: ctx.id,
+    }));
+    return {
+      entity: r.entity,
+      entity_id: r.entityId,
+      state: r.state,
+      seq: r.seq,
+      result: r.result ?? null,
+      interaction_id: interactionId,
+    };
   });
 
   app.get('/api/tables', async (req) => {

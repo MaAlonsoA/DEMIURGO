@@ -3,15 +3,18 @@
 
 import { DBOS, WorkflowQueue } from '@dbos-inc/dbos-sdk';
 import {
+  ATTR,
   IDEA_QUESTION,
   type Candidate,
   IDEA_FINDINGS,
   type ItemChoice,
   type ChoiceResponse,
+  SPAN,
   ideaCandidates,
   fingerprint,
 } from '@demiurgo/domain';
 import { executeCommand } from '../bus/bus.ts';
+import { stepSpan } from '../engine/observe.ts';
 import type { Services } from '../services.ts';
 import { registerUpdateStarter, registerAssessmentStarter, registerReconciler, engineServices } from '../engine/registry.ts';
 import { UPDATER } from './commands.ts';
@@ -131,7 +134,21 @@ type CalculatedAssessment = {
   toSave: ToSave | null;
 };
 
+const batchEntity = (batchId: string) => ({ type: 'batch', id: batchId }) as const;
+const batchAttributes = (batchId: string, projectId: string) => ({ [ATTR.batchId]: batchId, [ATTR.projectId]: projectId });
+
 export async function calculateAssessments(s: Services, batchId: string, projectId: string): Promise<CalculatedAssessment[]> {
+  return stepSpan(
+    s,
+    SPAN.ideasAssess,
+    batchEntity(batchId),
+    batchAttributes(batchId, projectId),
+    () => calculateAssessmentsInSpan(s, batchId, projectId),
+    () => 'assessed',
+  );
+}
+
+async function calculateAssessmentsInSpan(s: Services, batchId: string, projectId: string): Promise<CalculatedAssessment[]> {
   const proposals = await s.db
     .selectFrom('proposals')
     .leftJoin('idea_assessments', 'idea_assessments.proposal_id', 'proposals.id')
@@ -199,7 +216,25 @@ function reasonsForIdea(candidates: readonly Candidate[], responses: readonly Ch
   return invalid;
 }
 
-export async function recordAssessments(s: Services, projectId: string, assessments: CalculatedAssessment[]): Promise<void> {
+/** Records the assessments; `batchId` names the flow's entity for the step's span. */
+export async function recordAssessments(
+  s: Services,
+  projectId: string,
+  assessments: CalculatedAssessment[],
+  batchId: string | null = null,
+): Promise<void> {
+  // The vocabulary has one span for the ideas flow: recording is its second step, told by the result.
+  await stepSpan(
+    s,
+    SPAN.ideasAssess,
+    batchId ? batchEntity(batchId) : null,
+    { [ATTR.batchId]: batchId, [ATTR.projectId]: projectId },
+    () => recordAssessmentsInSpan(s, projectId, assessments),
+    () => 'recorded',
+  );
+}
+
+async function recordAssessmentsInSpan(s: Services, projectId: string, assessments: CalculatedAssessment[]): Promise<void> {
   await saveToCache(
     s.db,
     assessments.map((e) => e.toSave),
@@ -223,6 +258,17 @@ export async function recordAssessments(s: Services, projectId: string, assessme
 
 /** If the assessment fails after its retries, each unassessed idea is left with the error recorded. */
 export async function recordAssessmentFailure(s: Services, batchId: string, projectId: string, e: unknown): Promise<void> {
+  await stepSpan(
+    s,
+    SPAN.ideasAssess,
+    batchEntity(batchId),
+    batchAttributes(batchId, projectId),
+    () => recordAssessmentFailureInSpan(s, batchId, projectId, e),
+    () => 'failed',
+  );
+}
+
+async function recordAssessmentFailureInSpan(s: Services, batchId: string, projectId: string, e: unknown): Promise<void> {
   const unassessed = await s.db
     .selectFrom('proposals')
     .leftJoin('idea_assessments', 'idea_assessments.proposal_id', 'proposals.id')
@@ -257,7 +303,7 @@ async function assessWorkflow(batchId: string, projectId: string): Promise<numbe
       name: 'assess',
       ...RETRIES,
     });
-    await DBOS.runStep(() => recordAssessments(engineServices(), projectId, assessments), {
+    await DBOS.runStep(() => recordAssessments(engineServices(), projectId, assessments, batchId), {
       name: 'register',
       ...RETRIES,
     });
@@ -308,7 +354,7 @@ registerReconciler(async (s) => {
     .groupBy(['proposal_batches.id', 'proposal_batches.project_id'])
     .execute();
   for (const l of unassessed) await s.engine.startAssessment(l.batchId, l.projectId);
-});
+}, 'reconcileKnowledge');
 
 /** Waits for a batch's idea assessment (tests). */
 export async function waitForAssessment(batchId: string): Promise<void> {

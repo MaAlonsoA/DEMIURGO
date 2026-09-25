@@ -5,6 +5,7 @@
 import { execFile } from 'node:child_process';
 import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
+import { ATTR, CHANNEL_HEADER, SPAN } from '@demiurgo/domain';
 import { type CallToolResult, Client, InMemoryTransport } from '@modelcontextprotocol/client';
 import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/client/stdio';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -229,6 +230,25 @@ describe('MCP server for the agent channel', () => {
       expect(r.structuredContent).toMatchObject({ error: 'unauthenticated', http_status: 401 });
       expect(textOf(r)).toMatch(/^Authentication error \(HTTP 401\): Invalid or revoked agent token/);
     }
+  });
+
+  it('every request carries the channel header, and the API records the interaction as mcp', async () => {
+    const seen: (string | null)[] = [];
+    const client = await connect(token, async (input, init) => {
+      seen.push(new Headers(init?.headers).get(CHANNEL_HEADER));
+      return fetch(input, init);
+    });
+    const mcpInteractions = () =>
+      api()
+        .environment.observer.spans()
+        .filter((s) => s.name === `${SPAN.interaction} message.post` && s.attributes[ATTR.channel] === 'mcp');
+    const before = mcpInteractions().length;
+    data(await call(client, 'read_exploration', { exploration_id: explorationId }));
+    data(await call(client, 'converse', { exploration_id: explorationId, text: 'Which channel am I on?' }));
+    expect(seen).toEqual(['mcp', 'mcp']);
+    const after = mcpInteractions();
+    expect(after).toHaveLength(before + 1);
+    expect(after.at(-1)?.attributes[ATTR.actor]).toBe(`agent:claude-code:${tokenId}`);
   });
 
   it('invalid arguments are rejected without calling the API', async () => {

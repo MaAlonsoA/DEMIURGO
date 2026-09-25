@@ -19,6 +19,7 @@ import {
   snapshotName,
   snapshotTarget,
 } from '../src/dev/snapshots.ts';
+import { noopObserver } from '../src/observe/noop.ts';
 import { inertEngine, silentLogger } from '../src/services.ts';
 import { useEphemeralDatabase } from './support/ephemeral-db.ts';
 
@@ -50,6 +51,7 @@ async function createProject(name: string): Promise<void> {
       agentSessionsDir: '',
       logger: silentLogger,
       engine: inertEngine(),
+      observer: noopObserver,
     };
     await executeCommand(services, { command: 'project.create', actor: human('ana'), data: { name } });
   } finally {

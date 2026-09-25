@@ -5,12 +5,13 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { type ProviderEvent, type ProviderInvocation, jsonSchemaOf } from '@demiurgo/domain';
+import { CLI_ENV, type ProviderEvent, type ProviderInvocation, type ProviderTrace, jsonSchemaOf } from '@demiurgo/domain';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { LaunchCommand } from '../src/agents/process.ts';
 import {
   CODEX_DISABLED_FEATURES,
   codexArguments,
+  codexOtelConfig,
   createCodexProvider,
   parseCodexModels,
   tomlString,
@@ -61,7 +62,63 @@ const environment = {
 const provider = (launcher: ReturnType<typeof scriptedLauncher>['launcher']) =>
   createCodexProvider({ launcher, executable: 'codex', environment });
 
+const TRACE: ProviderTrace = {
+  traceParent: '00-0199a2130000700080000000000000ab-00f067aa0ba902b7-01',
+  resourceAttributes: { 'demiurgo.call.id': 'call-1', 'deployment.environment.name': 'qa' },
+  otlpEndpoint: 'http://127.0.0.1:4318',
+  environment: 'qa',
+};
+
 describe('Codex provider', () => {
+  it('with a trace it gets -c otel=… to the collector and the resource attributes; without one, nothing', async () => {
+    expect(codexOtelConfig(TRACE)).toEqual([
+      '-c',
+      'otel={ exporter = { "otlp-http" = { endpoint = "http://127.0.0.1:4318", protocol = "json" } }, log_user_prompt = false, environment = "qa" }',
+    ]);
+    expect(codexOtelConfig(undefined)).toEqual([]);
+    expect(codexOtelConfig({ ...TRACE, otlpEndpoint: null })).toEqual([]);
+    const { answer } = codexAnswer('codex/exec-ok.synthetic.jsonl', fixture('codex/last-message.json'));
+    const { launcher, calls } = scriptedLauncher(answer);
+    await provider(launcher).run(invocation({ trace: TRACE }));
+    const traced = calls[0]?.command ?? { args: [], env: {} };
+    expect(valuesOf(traced.args, '-c')).toContain(codexOtelConfig(TRACE)[1]);
+    expect(traced.env).toMatchObject({
+      [CLI_ENV.traceParent]: TRACE.traceParent,
+      [CLI_ENV.resourceAttributes]: 'demiurgo.call.id=call-1,deployment.environment.name=qa',
+    });
+    await provider(launcher).run(invocation());
+    const plain = calls[1]?.command ?? { args: [], env: {} };
+    expect(valuesOf(plain.args, '-c').some((c) => c.startsWith('otel='))).toBe(false);
+    expect(Object.keys(plain.env).filter((key) => key.toUpperCase().startsWith('OTEL_'))).toEqual([]);
+    expect(plain.env).not.toHaveProperty(CLI_ENV.traceParent);
+  });
+
+  it('the details carry argv, cwd, exit code, stderr, the raw turn usage, the thread and the raw -o file', async () => {
+    const { answer } = codexAnswer('codex/exec-ok.synthetic.jsonl', fixture('codex/last-message.json'));
+    const { launcher, calls } = scriptedLauncher(answer);
+    const r = await provider(launcher).run(invocation({ session: { mode: 'fresh', directory: folder() } }));
+    expect(r.details).toMatchObject({
+      cliCommand: calls[0]?.command.args,
+      cliCwd: calls[0]?.command.cwd,
+      exitCode: 0,
+      stderr: '',
+      rawUsage: {
+        type: 'turn.completed',
+        usage: { input_tokens: 2451, cached_input_tokens: 1920, output_tokens: 84, reasoning_output_tokens: 40 },
+      },
+      extra: { lastMessageRaw: fixture('codex/last-message.json'), threadId: '0199a213-81c0-7800-8aa1-bbab2a035a53' },
+    });
+    // Even when the answer is not JSON, the raw file stays.
+    const broken = codexAnswer('codex/exec-ok.synthetic.jsonl', 'not json at all');
+    const { launcher: brokenLauncher } = scriptedLauncher(broken.answer);
+    const e = await provider(brokenLauncher).run(invocation());
+    expect(e).toMatchObject({
+      state: 'error',
+      failureKind: 'agent_error',
+      details: { extra: { lastMessageRaw: 'not json at all' } },
+    });
+  });
+
   it('AC-AGE-002-06 invokes codex exec with JSON events, output schema, model, effort, instructions and no tools', async () => {
     const { answer, schemas } = codexAnswer('codex/exec-ok.synthetic.jsonl', fixture('codex/last-message.json'));
     const { launcher, calls } = scriptedLauncher(answer);

@@ -4,6 +4,7 @@ export * from './classifier.ts';
 export * from './errors.ts';
 export * from './fingerprint.ts';
 export * from './metrics.ts';
+export * from './observe.ts';
 export * from './tables.ts';
 export * from './tables/schemas.ts';
 export * from './proposals.ts';

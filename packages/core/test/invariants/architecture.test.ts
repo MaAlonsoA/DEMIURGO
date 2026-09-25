@@ -44,6 +44,8 @@ const ENV_READERS = new Set([
   'packages/core/src/runner/probe.ts',
   // MCP server startup: a separate process that only reads its URL, its token and its project.
   'packages/mcp/src/main.ts',
+  // The evidence ingester runs outside the application and reads only its own variables.
+  'packages/evidence/src/config.ts',
 ]);
 
 describe('architecture', () => {

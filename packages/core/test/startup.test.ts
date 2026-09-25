@@ -24,7 +24,7 @@ registerReconciler(async (s) => {
 
 beforeAll(async () => {
   core = await startCore(
-    readConfig({ DEMIURGO_DATABASE_URL: base().url, DEMIURGO_OPENCODE_CONFIG: 'missing-opencode.json' }),
+    readConfig({ DEMIURGO_DATABASE_URL: base().url, DEMIURGO_OPENCODE_CONFIG: 'missing-opencode.json', DEMIURGO_OBSERVE: 'off' }),
     silentLogger,
   );
 });

@@ -41,6 +41,9 @@ export async function startRuntime(config: Config, logger: Logger = consoleLogge
     get logger() {
       return core.services.logger;
     },
+    get observer() {
+      return core.services.observer;
+    },
   };
   return {
     services,

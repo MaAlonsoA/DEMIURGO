@@ -1,0 +1,14 @@
+{
+  "name": "@demiurgo/evidence",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@demiurgo/domain": "workspace:*",
+    "kysely": "0.29.6",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@demiurgo/core": "workspace:*",
+    "@types/pg": "8.23.1"
+  }
+}

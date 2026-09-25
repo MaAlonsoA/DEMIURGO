@@ -2,6 +2,8 @@
 // the database or imports the core: everything goes through the API, which fixes the actor
 // from the token (`agent:<name>:<session>`). This way an MCP tool can never do more than the token.
 
+import { CHANNEL_HEADER } from '@demiurgo/domain';
+
 /** Commands the agent channel can request: converse, register sources and propose. */
 export const AGENT_COMMANDS = ['message.post', 'source.register', 'batch.submit'] as const;
 export type AgentCommand = (typeof AGENT_COMMANDS)[number];
@@ -40,7 +42,12 @@ export function createApiClient(op: ApiClientOptions): ApiClient {
   const time = op.maximumTimeMs ?? MAXIMUM_TIME_MS;
 
   async function request(method: 'GET' | 'POST', path: string, body?: unknown): Promise<ApiResponse> {
-    const headers: Record<string, string> = { authorization: `Bearer ${op.token}`, accept: 'application/json' };
+    // The channel header lets the API record what comes through MCP as such (observability §7.2).
+    const headers: Record<string, string> = {
+      authorization: `Bearer ${op.token}`,
+      accept: 'application/json',
+      [CHANNEL_HEADER]: 'mcp',
+    };
     if (body !== undefined) headers['content-type'] = 'application/json';
     let response: Response;
     try {

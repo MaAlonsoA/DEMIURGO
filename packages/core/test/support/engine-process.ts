@@ -9,6 +9,7 @@ import { createSimulatedProvider } from '../../src/agents/simulated.ts';
 import { createSimulatedClassifier } from '../../src/classifier/simulated.ts';
 import { connect } from '../../src/db/connection.ts';
 import { waitForRun, startEngine } from '../../src/engine/engine.ts';
+import { noopObserver } from '../../src/observe/noop.ts';
 import { createProviderRegistry } from '../../src/providers/registry.ts';
 import { silentLogger } from '../../src/services.ts';
 
@@ -26,6 +27,7 @@ const engine = await startEngine(
     classifierFor: async () => createSimulatedClassifier(),
     agentSessionsDir: tmpdir(),
     logger: silentLogger,
+    observer: noopObserver,
   },
   url,
   mode === 'cut-after-apply'

@@ -5,10 +5,16 @@
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { type ProviderEvent, type ProviderInvocation, jsonSchemaOf } from '@demiurgo/domain';
+import { CLI_ENV, type ProviderEvent, type ProviderInvocation, type ProviderTrace, jsonSchemaOf } from '@demiurgo/domain';
 import { afterAll, describe, expect, it } from 'vitest';
 import { schemaForCli } from '../src/agents/claude-cli.ts';
-import { CLAUDE_MODELS, claudeArguments, createClaudeProvider, parseClaudeEfforts } from '../src/providers/claude.ts';
+import {
+  CLAUDE_MODELS,
+  claudeArguments,
+  claudeTelemetryEnv,
+  createClaudeProvider,
+  parseClaudeEfforts,
+} from '../src/providers/claude.ts';
 import { SENSITIVE_VARIABLES, fixture, scriptedLauncher, valueOf } from './support/launchers.ts';
 
 const folders: string[] = [];
@@ -34,11 +40,90 @@ const invocation = (over: Partial<ProviderInvocation> = {}): ProviderInvocation 
   ...over,
 });
 
-const environment = { PATH: 'C:\\bin', USERPROFILE: 'C:\\Users\\ana', ...SENSITIVE_VARIABLES };
+/** The parent's own telemetry: it must never reach the child. */
+const PARENT_TELEMETRY = {
+  OTEL_EXPORTER_OTLP_ENDPOINT: 'http://parent:4318',
+  OTEL_RESOURCE_ATTRIBUTES: 'service.name=parent',
+  TRACEPARENT: '00-11111111111111111111111111111111-2222222222222222-01',
+};
+const environment = { PATH: 'C:\\bin', USERPROFILE: 'C:\\Users\\ana', ...SENSITIVE_VARIABLES, ...PARENT_TELEMETRY };
 const provider = (launcher: ReturnType<typeof scriptedLauncher>['launcher']) =>
   createClaudeProvider({ launcher, executable: 'claude', environment });
 
+const TRACE: ProviderTrace = {
+  traceParent: '00-0199a2130000700080000000000000ab-00f067aa0ba902b7-01',
+  resourceAttributes: { 'demiurgo.call.id': 'call-1', 'demiurgo.run.id': 'run-1', 'deployment.environment.name': 'test' },
+  otlpEndpoint: 'http://127.0.0.1:4318',
+  environment: 'test',
+};
+
 describe('Claude provider', () => {
+  it('a fresh session uses the id and name the engine decided', async () => {
+    const directory = sessionFolder();
+    const { launcher, calls } = scriptedLauncher(() => ({ stdout: fixture('claude/stream-ok.synthetic.jsonl') }));
+    const id = '0199a213-81c0-4800-8aa1-bbab2a035a53';
+    const r = await provider(launcher).run(
+      invocation({ session: { mode: 'fresh', directory, id, name: 'demiurgo explorer 0199a213' } }),
+    );
+    const args = calls[0]?.command.args ?? [];
+    expect(valueOf(args, '--session-id')).toBe(id);
+    expect(valueOf(args, '--name')).toBe('demiurgo explorer 0199a213');
+    expect(r.sessionId).toBe(id);
+    expect(claudeArguments(invocation({ session: { mode: 'fresh', directory, id } }), id)).not.toContain('--name');
+  });
+
+  it("with a trace the child gets the OTel variables per call; without one, none, and never the parent's", async () => {
+    const { launcher, calls } = scriptedLauncher(() => ({ stdout: fixture('claude/stream-ok.synthetic.jsonl') }));
+    await provider(launcher).run(invocation({ trace: TRACE }));
+    const traced = calls[0]?.command.env ?? {};
+    expect(traced).toMatchObject({
+      [CLI_ENV.traceParent]: TRACE.traceParent,
+      [CLI_ENV.resourceAttributes]: 'demiurgo.call.id=call-1,demiurgo.run.id=run-1,deployment.environment.name=test',
+      [CLI_ENV.otlpEndpoint]: 'http://127.0.0.1:4318',
+      [CLI_ENV.otlpProtocol]: 'http/protobuf',
+      [CLI_ENV.tracesExporter]: 'otlp',
+      [CLI_ENV.logsExporter]: 'otlp',
+      [CLI_ENV.metricsExporter]: 'none',
+      [CLI_ENV.claudeTelemetry]: '1',
+      [CLI_ENV.claudeEnhancedTelemetry]: '1',
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+    });
+    expect(traced[CLI_ENV.resourceAttributes]).not.toContain('parent');
+
+    await provider(launcher).run(invocation());
+    const plain = calls[1]?.command.env ?? {};
+    expect(Object.keys(plain).filter((key) => key.toUpperCase().startsWith('OTEL_'))).toEqual([]);
+    expect(plain).not.toHaveProperty(CLI_ENV.traceParent);
+    expect(plain).not.toHaveProperty(CLI_ENV.claudeTelemetry);
+    expect(claudeTelemetryEnv(undefined)).toEqual({});
+    expect(claudeTelemetryEnv({ ...TRACE, otlpEndpoint: null })).not.toHaveProperty(CLI_ENV.otlpEndpoint);
+  });
+
+  it('the details carry what the stream says: version, argv, cwd, exit code, times, stop reason and the raw result', async () => {
+    const { launcher, calls } = scriptedLauncher(() => ({ stdout: fixture('claude/stream-ok.synthetic.jsonl'), stderr: 'warn' }));
+    const r = await provider(launcher).run(invocation());
+    expect(r.state).toBe('ok');
+    expect(r.details).toMatchObject({
+      cliVersion: '2.1.282',
+      cliCommand: calls[0]?.command.args,
+      cliCwd: calls[0]?.command.cwd,
+      exitCode: 0,
+      stderr: 'warn',
+      durationApiMs: 3610,
+      ttftMs: 3267,
+      stopReason: 'tool_use',
+      rawUsage: expect.objectContaining({ type: 'result', usage: expect.objectContaining({ input_tokens: 1500 }) }),
+      extra: expect.objectContaining({
+        modelUsage: expect.any(Object),
+        permission_denials: [],
+        cache_creation: expect.any(Object),
+      }),
+    });
+    const failed = scriptedLauncher(() => ({ stdout: fixture('claude/stream-error.synthetic.jsonl'), code: 1 }));
+    const e = await provider(failed.launcher).run(invocation());
+    expect(e.details).toMatchObject({ exitCode: 1, cliCommand: expect.arrayContaining(['-p']) });
+  });
+
   it('AC-AGE-001-01 AC-AGE-002-06 invokes claude -p with stream-json, --json-schema, model, effort and full isolation', async () => {
     const { launcher, calls } = scriptedLauncher(() => ({ stdout: fixture('claude/stream-ok.synthetic.jsonl') }));
     await provider(launcher).run(invocation());

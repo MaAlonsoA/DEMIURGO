@@ -3,7 +3,9 @@
 
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { ENVIRONMENTS } from '@demiurgo/domain';
 import { z } from 'zod';
+import type { ObserveOptions } from './observe/observer.ts';
 
 const schema = z.object({
   DEMIURGO_DATABASE_URL: z.string().url(),
@@ -17,6 +19,11 @@ const schema = z.object({
   DEMIURGO_OPENCODE_CONFIG: z.string().min(1).optional(),
   // Stable folders of the conversations that keep a provider session.
   DEMIURGO_AGENT_SESSIONS_DIR: z.string().min(1).optional(),
+  // Observation notes (spec §7.1): where they go, and how every note is labelled (§5.6).
+  DEMIURGO_OBSERVE: z.enum(['otlp', 'off']).default('otlp'),
+  DEMIURGO_OTLP_ENDPOINT: z.string().url().default('http://127.0.0.1:4318'),
+  DEMIURGO_ENVIRONMENT: z.enum(ENVIRONMENTS).default('dev'),
+  DEMIURGO_SERVICE_VERSION: z.string().min(1).default('unknown'),
 });
 
 export type Config = {
@@ -29,6 +36,7 @@ export type Config = {
   /** OpenCode's `opencode.json`: the local models the person configured. */
   openCodeConfig: string;
   agentSessionsDir: string;
+  observe: ObserveOptions;
 };
 
 /** Ports reserved for v1: v2 never uses them. */
@@ -80,6 +88,13 @@ export function readConfig(environment: Readonly<Record<string, string | undefin
     devTools: e.DEMIURGO_DEV_TOOLS === '1',
     openCodeConfig: e.DEMIURGO_OPENCODE_CONFIG ?? join(configHome(environment), 'opencode', 'opencode.json'),
     agentSessionsDir: e.DEMIURGO_AGENT_SESSIONS_DIR ?? join(environment.LOCALAPPDATA ?? tmpdir(), 'Demiurgo', 'agent-sessions'),
+    observe: {
+      mode: e.DEMIURGO_OBSERVE,
+      endpoint: e.DEMIURGO_OTLP_ENDPOINT,
+      environment: e.DEMIURGO_ENVIRONMENT,
+      serviceVersion: e.DEMIURGO_SERVICE_VERSION,
+      instance: String(e.DEMIURGO_PORT),
+    },
   };
 }
 

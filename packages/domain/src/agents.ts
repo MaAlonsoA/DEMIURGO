@@ -25,9 +25,48 @@ export type Usage = {
   provenance?: Readonly<Record<string, string>>;
 };
 
-/** `sessionId`: the provider's conversation id, when it ran with a session. */
+/**
+ * What an adapter knows about the call beyond the product's `Usage`, for the observability engine
+ * (docs/superpowers/specs/2026-09-26-motor-observabilidad-design.md §7.6). Every field is optional
+ * and none of them changes the run's behaviour: they are evidence, not input to any decision.
+ */
+export type AgentResultDetails = {
+  /** Version the CLI reported (e.g. `claude_code_version`, `codex --version`). */
+  cliVersion?: string;
+  /** argv of the child process, without its environment. */
+  cliCommand?: readonly string[];
+  cliCwd?: string;
+  /** Exit code of the child process; null when it ended by signal. */
+  exitCode?: number | null;
+  /** Whole stderr; the span carries only its hash and the text travels apart. */
+  stderr?: string;
+  /** Time the provider reports its own API took, when it reports it. */
+  durationApiMs?: number;
+  /** Time to first token, when the provider reports it. */
+  ttftMs?: number;
+  stopReason?: string;
+  /** The provider's usage object as it came, before any normalization. */
+  rawUsage?: unknown;
+  /** The CLI's transcript file after the call, when the adapter located it. */
+  transcriptPath?: string;
+  /** Attempts made by the adapter (e.g. OpenCode retries) with their reasons. */
+  attempts?: readonly unknown[];
+  /** Anything else the adapter wants kept (Claude's `modelUsage`, Codex's raw `-o` file…). */
+  extra?: Readonly<Record<string, unknown>>;
+};
+
+/** `sessionId`: the provider's conversation id, when it ran with a session. `details`: evidence only. */
 export type AgentResult =
-  | { state: 'ok'; rawOutput: unknown; usage: Usage; rawEvents: string; provider: string; model: string; sessionId?: string }
+  | {
+      state: 'ok';
+      rawOutput: unknown;
+      usage: Usage;
+      rawEvents: string;
+      provider: string;
+      model: string;
+      sessionId?: string;
+      details?: AgentResultDetails;
+    }
   | {
       state: 'error';
       failureKind: Exclude<FailureKind, 'invalid_output'>;
@@ -37,6 +76,7 @@ export type AgentResult =
       provider: string;
       model: string;
       sessionId?: string;
+      details?: AgentResultDetails;
     };
 
 // Provider port (ADR-AGE-001 v2): each engine (Claude, Codex, OpenCode, simulated) behind the same
@@ -52,11 +92,28 @@ export type ProviderEventKind = (typeof PROVIDER_EVENT_KINDS)[number];
 /** One event of the provider's stream: its normalized kind and the raw line it came from. */
 export type ProviderEvent = { kind: ProviderEventKind; raw: string; tokens?: number };
 
-/** Conversation with the provider: none, a new one, or one resumed by its id (in its stable folder). */
+/**
+ * Conversation with the provider: none, a new one, or one resumed by its id (in its stable folder).
+ * A fresh session may carry the `id` DEMIURGO decided (adapters that can fix the id, like Claude's
+ * `--session-id`, use it as is; the rest generate their own and return it) and a visible `name` for
+ * the CLI's own session listing (§5.4).
+ */
 export type SessionRequest =
   | { mode: 'none' }
-  | { mode: 'fresh'; directory: string }
+  | { mode: 'fresh'; directory: string; id?: string; name?: string }
   | { mode: 'resumed'; directory: string; id: string };
+
+/**
+ * What the child CLI needs to join its own telemetry to DEMIURGO's trace (spec §7.6): the
+ * traceparent of the provider-call span, the resource attributes that identify the call, and the
+ * collector. Only present while observation is on; adapters pass it per call, never inherited.
+ */
+export type ProviderTrace = {
+  traceParent: string;
+  resourceAttributes: Readonly<Record<string, string>>;
+  otlpEndpoint: string | null;
+  environment: string;
+};
 
 export type ProviderInvocation = {
   system: string;
@@ -71,6 +128,8 @@ export type ProviderInvocation = {
   onEvent?: (event: ProviderEvent) => void;
   /** Only the simulated provider reads it: the task it simulates. */
   task?: { action: string; context: { hash: string; content: unknown } };
+  /** Telemetry for the child CLI, when observation is on. */
+  trace?: ProviderTrace;
 };
 
 export type ProviderModel = {

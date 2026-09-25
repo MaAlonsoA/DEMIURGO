@@ -28,7 +28,12 @@ beforeAll(async () => {
   await seedSimulated(seed.db);
   await seed.close();
   runtime = await startRuntime(
-    readConfig({ DEMIURGO_DATABASE_URL: base().url, DEMIURGO_DEV_TOOLS: '1', DEMIURGO_OPENCODE_CONFIG: 'missing-opencode.json' }),
+    readConfig({
+      DEMIURGO_DATABASE_URL: base().url,
+      DEMIURGO_DEV_TOOLS: '1',
+      DEMIURGO_OPENCODE_CONFIG: 'missing-opencode.json',
+      DEMIURGO_OBSERVE: 'off',
+    }),
     silentLogger,
   );
 });

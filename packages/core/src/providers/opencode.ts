@@ -8,7 +8,15 @@
 
 import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import type { AgentResult, FailureKind, Provider, ProviderEvent, ProviderModel, Usage } from '@demiurgo/domain';
+import type {
+  AgentResult,
+  AgentResultDetails,
+  FailureKind,
+  Provider,
+  ProviderEvent,
+  ProviderModel,
+  Usage,
+} from '@demiurgo/domain';
 import { type ClaudeExecutable, resolveExecutable } from '../agents/claude-cli.ts';
 import { type Launcher, nodeLauncher } from '../agents/process.ts';
 import { allowedEnv, processEnv } from '../env.ts';
@@ -124,11 +132,23 @@ type Attempt = {
   toolArguments: string | null;
   model: string | null;
   usage: Record<string, unknown> | null;
+  finishReason: string | null;
+  systemFingerprint: string | null;
+  chunkId: string | null;
 };
 
 /** Reads the SSE stream of one chat completion, emitting normalized events as it goes. */
 async function readStream(response: Response, emit: (e: ProviderEvent) => void): Promise<Attempt> {
-  const attempt: Attempt = { raw: '', content: '', toolArguments: null, model: null, usage: null };
+  const attempt: Attempt = {
+    raw: '',
+    content: '',
+    toolArguments: null,
+    model: null,
+    usage: null,
+    finishReason: null,
+    systemFingerprint: null,
+    chunkId: null,
+  };
   const decoder = new TextDecoder('utf-8');
   let pending = '';
   let thinkingTokens = 0;
@@ -147,7 +167,10 @@ async function readStream(response: Response, emit: (e: ProviderEvent) => void):
     if (!isObject(chunk)) return;
     if (typeof chunk.model === 'string') attempt.model = chunk.model;
     if (isObject(chunk.usage)) attempt.usage = chunk.usage;
+    if (typeof chunk.system_fingerprint === 'string') attempt.systemFingerprint = chunk.system_fingerprint;
+    if (typeof chunk.id === 'string') attempt.chunkId = chunk.id;
     const choice = Array.isArray(chunk.choices) && isObject(chunk.choices[0]) ? chunk.choices[0] : null;
+    if (typeof choice?.finish_reason === 'string') attempt.finishReason = choice.finish_reason;
     const delta = choice && isObject(choice.delta) ? choice.delta : {};
     if (typeof delta.reasoning_content === 'string' && delta.reasoning_content) {
       thinkingTokens++;
@@ -208,6 +231,32 @@ function outputOf(attempt: Attempt): { ok: true; value: unknown } | { ok: false 
 }
 
 const details = (u: Record<string, unknown>, key: string): Record<string, unknown> => (isObject(u[key]) ? u[key] : {});
+
+/** How each attempt ended: the tool was called with valid JSON, not called, or called with broken JSON. */
+function attemptOutcome(a: Attempt): 'ok' | 'no_tool_call' | 'invalid_json' {
+  if (a.toolArguments === null) return 'no_tool_call';
+  return outputOf(a).ok ? 'ok' : 'invalid_json';
+}
+
+/** The evidence of the call (§7.6): the last usage as it came, the attempts with their reasons, and the stream's ids. */
+function detailsOf(attempts: readonly Attempt[]): AgentResultDetails {
+  const last = attempts.at(-1);
+  return {
+    ...(last?.usage ? { rawUsage: last.usage } : {}),
+    attempts: attempts.map((a, i) => ({
+      attempt: i + 1,
+      model: a.model,
+      finishReason: a.finishReason,
+      usage: a.usage,
+      outcome: attemptOutcome(a),
+    })),
+    extra: {
+      finishReason: last?.finishReason ?? null,
+      systemFingerprint: last?.systemFingerprint ?? null,
+      chunkId: last?.chunkId ?? null,
+    },
+  };
+}
 
 const from = (v: number | null, field: string): string => (v === null ? 'not_reported' : `opencode:usage.${field}`);
 
@@ -319,6 +368,7 @@ export function createOpenCodeProvider(options: OpenCodeOptions): Provider {
     },
 
     async run(inv) {
+      const attempts: Attempt[] = [];
       const error = (
         failureKind: Exclude<FailureKind, 'invalid_output'>,
         message: string,
@@ -332,6 +382,7 @@ export function createOpenCodeProvider(options: OpenCodeOptions): Provider {
         provider: OPENCODE_PROVIDER,
         model: inv.model,
         ...(usage ? { usage } : {}),
+        ...(attempts.length > 0 ? { details: detailsOf(attempts) } : {}),
       });
       if (inv.signal?.aborted) return error('cancelled', 'Run cancelled before calling the local model.');
       const config = await readConfig();
@@ -354,7 +405,6 @@ export function createOpenCodeProvider(options: OpenCodeOptions): Provider {
       };
       inv.signal?.addEventListener('abort', onAbort, { once: true });
       const emit = (e: ProviderEvent) => inv.onEvent?.(e);
-      const attempts: Attempt[] = [];
       const history: { role: string; content: string }[] = [];
       const start = Date.now();
       const raw = () => attempts.map((a) => a.raw).join('\n');
@@ -395,6 +445,7 @@ export function createOpenCodeProvider(options: OpenCodeOptions): Provider {
               rawEvents: raw(),
               provider: OPENCODE_PROVIDER,
               model: attempt.model ?? entry.modelKey,
+              details: detailsOf(attempts),
             };
           }
           history.push(

@@ -25,10 +25,14 @@ import {
   verifyCategories,
   verifyVerdicts,
 } from '@demiurgo/domain';
+import { ATTR, SPAN } from '@demiurgo/domain';
 import { sql } from 'kysely';
+import { withUpdateScope } from '../assignments/calls.ts';
 import { inTransaction, executeCommand } from '../bus/bus.ts';
 import type { Request, Result } from '../bus/types.ts';
+import { SIMULATED_CLASSIFIER_ID } from '../classifier/simulated.ts';
 import type { Db, Tx } from '../db/connection.ts';
+import { stepSpan } from '../engine/observe.ts';
 import type { Services } from '../services.ts';
 import { UPDATER } from './commands.ts';
 import { DISCARD_TRIGGER, type AuthorityObject, deriveChange, deriveRemoval } from './derive.ts';
@@ -187,7 +191,34 @@ export type ClassifyStepResult =
   | { type: 'removal'; refs: string[] }
   | { type: 'classified'; data: Classified };
 
+const updateEntity = (updateId: string) => ({ type: 'knowledge_update', id: updateId }) as const;
+
+/** Where the verdicts came from (§7.8): the simulator, the verdict cache, or a provider call. */
+function classifySourceOf(classifier: Classifier, data: Classified): 'cache' | 'simulated' | 'provider' {
+  if (classifier.id === SIMULATED_CLASSIFIER_ID) return 'simulated';
+  return data.toSave.some((t) => t.responses.length > 0) ? 'provider' : 'cache';
+}
+
 export async function classifyStep(s: Services, updateId: string, projectId: string): Promise<ClassifyStepResult> {
+  return withUpdateScope(updateId, () =>
+    stepSpan(
+      s,
+      SPAN.knowledgeClassify,
+      updateEntity(updateId),
+      { [ATTR.updateId]: updateId, [ATTR.projectId]: projectId },
+      async (span) => {
+        const r = await classifyInSpan(s, updateId, projectId);
+        if (r.type === 'classified') {
+          span.setAttributes({ [ATTR.classifySource]: classifySourceOf(await s.classifierFor(projectId), r.data) });
+        }
+        return r;
+      },
+      (r) => r.type,
+    ),
+  );
+}
+
+async function classifyInSpan(s: Services, updateId: string, projectId: string): Promise<ClassifyStepResult> {
   const u = await s.db
     .selectFrom('knowledge_updates')
     .select(['state', 'trigger'])
@@ -298,6 +329,17 @@ const operationsOf = (plan: Plan) => ({
 
 /** Verifies and applies (or rejects) in a single transaction; idempotent if interrupted. */
 export async function applyStep(s: Services, updateId: string, projectId: string, r: ClassifyStepResult): Promise<string> {
+  return stepSpan(
+    s,
+    SPAN.knowledgeApply,
+    updateEntity(updateId),
+    { [ATTR.updateId]: updateId, [ATTR.projectId]: projectId },
+    () => applyInSpan(s, updateId, projectId, r),
+    (state) => state,
+  );
+}
+
+async function applyInSpan(s: Services, updateId: string, projectId: string, r: ClassifyStepResult): Promise<string> {
   return inTransaction(s, async (executeBase, trx) => {
     await sql`select 1 from projects where id = ${projectId}::uuid for update`.execute(trx);
     const u = await trx
@@ -405,15 +447,26 @@ export async function applyStep(s: Services, updateId: string, projectId: string
  * with the reason: it never stays in progress blocking freshness.
  */
 export async function rejectOnError(s: Services, updateId: string, projectId: string, e: unknown): Promise<void> {
-  const u = await s.db.selectFrom('knowledge_updates').select('state').where('id', '=', updateId).executeTakeFirstOrThrow();
-  if (!['queued', 'classifying', 'verifying'].includes(u.state)) return;
-  const base = { actor: UPDATER, projectId, entityId: updateId } as const;
-  if (u.state === 'queued') await executeCommand(s, { ...base, command: 'knowledge_update.classify', data: {} });
-  await executeCommand(s, {
-    ...base,
-    command: 'knowledge_update.reject',
-    data: { reasons: [`System error while processing the update: ${String(e).slice(0, 1500)}`] },
-  });
+  // The vocabulary has no `knowledge.reject`: the rejection is the end of the apply step, with its result.
+  await stepSpan(
+    s,
+    SPAN.knowledgeApply,
+    updateEntity(updateId),
+    { [ATTR.updateId]: updateId, [ATTR.projectId]: projectId },
+    async () => {
+      const u = await s.db.selectFrom('knowledge_updates').select('state').where('id', '=', updateId).executeTakeFirstOrThrow();
+      if (!['queued', 'classifying', 'verifying'].includes(u.state)) return u.state;
+      const base = { actor: UPDATER, projectId, entityId: updateId } as const;
+      if (u.state === 'queued') await executeCommand(s, { ...base, command: 'knowledge_update.classify', data: {} });
+      await executeCommand(s, {
+        ...base,
+        command: 'knowledge_update.reject',
+        data: { reasons: [`System error while processing the update: ${String(e).slice(0, 1500)}`] },
+      });
+      return 'rejected';
+    },
+    (state) => state,
+  );
 }
 
 type ReviewProposal = {

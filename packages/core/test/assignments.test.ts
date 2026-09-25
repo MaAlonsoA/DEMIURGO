@@ -17,6 +17,7 @@ import {
 import { sql } from 'kysely';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createSimulatedProvider } from '../src/agents/simulated.ts';
+import { type CallMeta, noCallSession } from '../src/assignments/calls.ts';
 import {
   assignAgent,
   callProvider,
@@ -253,13 +254,31 @@ describe('assignments', () => {
   });
 });
 
+/** The metadata of a call with nothing but the agent: no run, no session, no hashes computed ahead. */
+const callMeta = (): CallMeta => ({
+  projectId,
+  runId: null,
+  updateId: null,
+  agent: 'echo',
+  agentVersion: 'abc',
+  promptHash: 'h',
+  engineSource: null,
+  session: noCallSession(),
+  attempt: 1,
+  inputHash: null,
+  schemaHash: null,
+  schemaVersion: null,
+  packHash: null,
+  retryOf: null,
+});
+
 describe('provider calls', () => {
   it('AC-AGE-002-10 a call is recorded with its events in order and its outcome', async () => {
     const seen: ProviderEvent[] = [];
     const r = await callProvider(
-      deps.db,
+      { db: deps.db, observer: environment().services.observer },
       createSimulatedProvider(),
-      { projectId, runId: null, agent: 'echo', agentVersion: 'abc', promptHash: 'h' },
+      callMeta(),
       {
         system: 's',
         input: 'hello',
@@ -305,12 +324,15 @@ describe('provider calls', () => {
 
   it('a provider that throws is recorded as an infra failure', async () => {
     const broken = { ...createSimulatedProvider(), run: async () => Promise.reject(new Error('boom')) } satisfies Provider;
-    const r = await callProvider(
-      deps.db,
-      broken,
-      { projectId, runId: null, agent: 'echo', agentVersion: 'abc', promptHash: 'h' },
-      { system: 's', input: 'i', schema: {}, model: 'simulated', effort: null, session: { mode: 'none' }, timeMs: 5000 },
-    );
+    const r = await callProvider({ db: deps.db, observer: environment().services.observer }, broken, callMeta(), {
+      system: 's',
+      input: 'i',
+      schema: {},
+      model: 'simulated',
+      effort: null,
+      session: { mode: 'none' },
+      timeMs: 5000,
+    });
     expect(r).toMatchObject({ state: 'error', failureKind: 'infra', message: expect.stringContaining('boom') });
     const call = await deps.db.selectFrom('agent_calls').selectAll().where('state', '=', 'error').executeTakeFirstOrThrow();
     expect(call.failure_kind).toBe('infra');

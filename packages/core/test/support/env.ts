@@ -11,6 +11,7 @@ import { type Connection, connect } from '../../src/db/connection.ts';
 import { type EngineOptions, type StartedEngine, startEngine } from '../../src/engine/engine.ts';
 import { createSimulatedClassifier } from '../../src/classifier/simulated.ts';
 import { createInlineEngine } from '../../src/engine/inline.ts';
+import { type MemoryObserver, createMemoryObserver } from '../../src/observe/memory.ts';
 import { createProviderRegistry } from '../../src/providers/registry.ts';
 import { type WorkflowEngine, type Services, silentLogger } from '../../src/services.ts';
 import { useEphemeralDatabase } from './ephemeral-db.ts';
@@ -24,6 +25,8 @@ export type Environment = {
   connection: Connection;
   url: string;
   engine: WorkflowEngine;
+  /** What the core emitted: every span and log record, as the OTLP exporter would send them. */
+  observer: MemoryObserver;
 };
 
 type Options = {
@@ -32,6 +35,8 @@ type Options = {
   /** Providers this process runs (the simulated one by default). */
   providers?: () => Provider[];
   classifier?: () => Classifier;
+  /** The classifier per project, built over the services (e.g. `agentClassifiers`); wins over `classifier`. */
+  classifierFor?: (services: () => Services) => Services['classifierFor'];
   /** Assigns every agent to the simulated provider (true by default). */
   seedAssignments?: boolean;
   /** Options of the durable engine (its test hooks). */
@@ -48,25 +53,32 @@ export function useEnvironment(options: Options = {}): () => Environment {
     const connection = connect(url);
     if (options.seedAssignments !== false) await seedSimulated(connection.db);
     const classifier = (options.classifier ?? (() => createSimulatedClassifier()))();
+    const observer = createMemoryObserver();
+    const current = (): Services => {
+      if (!environment) throw new Error('The environment is not ready yet.');
+      return environment.services;
+    };
     const common = {
       db: connection.db,
       clock: () => new Date(),
       providers: createProviderRegistry((options.providers ?? (() => [createSimulatedProvider()]))()),
-      classifierFor: async () => classifier,
+      classifierFor: options.classifierFor ? options.classifierFor(current) : async () => classifier,
       agentSessionsDir: mkdtempSync(join(tmpdir(), 'dmg-sessions-')),
       logger: silentLogger,
+      observer,
     };
     if (options.durable) {
       started = await startEngine(common, url, options.engineOptions);
-      environment = { services: started.services, connection, url, engine: started.services.engine };
+      environment = { services: started.services, connection, url, engine: started.services.engine, observer };
     } else {
       // Without DBOS: knowledge updates and assessments are processed in place; runs are only recorded.
       const services: Services = { ...common, engine: createInlineEngine(() => services) };
-      environment = { services, connection, url, engine: services.engine };
+      environment = { services, connection, url, engine: services.engine, observer };
     }
   });
   afterAll(async () => {
     await started?.stop();
+    await environment?.observer.shutdown(1000);
     await environment?.connection.close();
   });
   return () => {

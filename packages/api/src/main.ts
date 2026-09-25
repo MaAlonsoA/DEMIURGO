@@ -28,6 +28,8 @@ consoleLogger.info('DEMIURGO v2 listening', {
   url: `http://${config.host}:${config.port}`,
   web: existsSync(webRoot) ? webRoot : null,
   dev_tools: config.devTools,
+  observe: config.observe.mode === 'off' ? 'off' : config.observe.endpoint,
+  environment: config.observe.environment,
 });
 
 async function shutdown(): Promise<void> {

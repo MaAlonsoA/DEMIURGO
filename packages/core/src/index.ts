@@ -13,6 +13,7 @@ export * from './db/schema.ts';
 export * from './db/migrator.ts';
 export * from './engine/engine.ts';
 export * from './services.ts';
+export * from './observe/index.ts';
 export * from './runner/index.ts';
 export * from './agents/index.ts';
 export * from './classifier/index.ts';

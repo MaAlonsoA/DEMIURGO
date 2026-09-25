@@ -9,13 +9,15 @@
 //   node packages/api/src/cli.ts export-design <projectId> [--check dir | --out dir | dir]
 
 import {
+  type Observer,
   type Partition,
   IMPORTER,
   startCore,
   compareExport,
   exportDesign,
-  createAgentClassifier,
+  classifierOnProvider,
   createProviders,
+  createObserver,
   createSimulatedClassifier,
   evaluateClassifier,
   loadAgentCatalog,
@@ -29,11 +31,19 @@ import {
   inertEngine,
 } from '@demiurgo/core';
 import { readTree, replaceTree } from '@demiurgo/design';
-import { composeSystem, human, system } from '@demiurgo/domain';
+import { type Actor, formatActor, human, system } from '@demiurgo/domain';
 import { createPerson, verifyPerson } from './credentials.ts';
 
 const [command, ...args] = process.argv.slice(2);
 const config = readConfig();
+
+/** Every order that executes commands is an interaction with channel `cli` (observability spec §7.2). */
+function interaction<T>(observer: Observer, actor: Actor, projectId: string | null, fn: () => Promise<T>): Promise<T> {
+  return observer.interaction(
+    { channel: 'cli', actor: formatActor(actor), actorType: actor.type, command: command ?? '', projectId },
+    fn,
+  );
+}
 
 async function readInput(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -76,7 +86,10 @@ const commands: Record<string, () => Promise<void>> = {
     if (!name) throw new Error('Usage: create-project <name>');
     const core = await startCore(config, consoleLogger);
     try {
-      const r = await executeCommand(core.services, { command: 'project.create', actor: system('cli'), data: { name } });
+      const actor = system('cli');
+      const r = await interaction(core.services.observer, actor, null, () =>
+        executeCommand(core.services, { command: 'project.create', actor, data: { name } }),
+      );
       console.log(JSON.stringify({ project_id: r.projectId }));
     } finally {
       await core.stop();
@@ -102,13 +115,12 @@ const commands: Record<string, () => Promise<void>> = {
         agentSessionsDir: config.agentSessionsDir,
         engine: inertEngine(),
         logger: consoleLogger,
+        observer: createObserver(config.observe, consoleLogger),
       };
-      const r = await executeCommand(services, {
-        command: 'agent_token.issue',
-        actor: human(username),
-        projectId,
-        data: { name },
-      });
+      const actor = human(username);
+      const r = await interaction(services.observer, actor, projectId, () =>
+        executeCommand(services, { command: 'agent_token.issue', actor, projectId, data: { name } }),
+      );
       const result = r.result as { token: string; actor: string };
       console.log(JSON.stringify({ token: result.token, actor: result.actor, issued_by: `human:${username}` }));
     });
@@ -119,12 +131,15 @@ const commands: Record<string, () => Promise<void>> = {
     if (!projectId || !action || !scope) throw new Error('Usage: real-run <projectId> <action> <json-scope> [json-input]');
     const core = await startCore(config, consoleLogger);
     try {
-      const r = await executeCommand(core.services, {
-        command: 'run.request',
-        actor: system('cli'),
-        projectId,
-        data: { action, scope: JSON.parse(scope) as unknown, input: input ? (JSON.parse(input) as unknown) : {} },
-      });
+      const actor = system('cli');
+      const r = await interaction(core.services.observer, actor, projectId, () =>
+        executeCommand(core.services, {
+          command: 'run.request',
+          actor,
+          projectId,
+          data: { action, scope: JSON.parse(scope) as unknown, input: input ? (JSON.parse(input) as unknown) : {} },
+        }),
+      );
       const state = await waitForRun(r.entityId);
       const run = await core.services.db.selectFrom('ai_runs').selectAll().where('id', '=', r.entityId).executeTakeFirstOrThrow();
       console.log(JSON.stringify({ state, run }, null, 2));
@@ -143,24 +158,13 @@ commands['evaluate-classifier'] = async () => {
     throw new Error('Usage: evaluate-classifier <claude|codex|opencode|simulated> <model> [effort|-] [test|dev|all]');
   }
   const effort = effortArg === '-' ? null : effortArg;
-  const classifier =
-    provider.id === 'simulated'
-      ? createSimulatedClassifier()
-      : createAgentClassifier({
-          id: `agent:knowledge_classifier@${agent.version}/${provider.id}/${model}/${effort ?? 'default'}`,
-          system: (_primitive, rules) => composeSystem(agent, agent.skillDefinitions, rules).system,
-          invoke: (call) =>
-            provider.run({
-              system: call.system,
-              input: call.input,
-              schema: call.schema,
-              model,
-              effort,
-              session: { mode: 'none' },
-              timeMs: agent.timeLimitSeconds * 1000,
-            }),
-        });
   await withDatabase(async (c) => {
+    // Through callProvider, so the evaluation's calls leave their trace like any other (spec §7.8).
+    const observer = createObserver(config.observe, consoleLogger);
+    const classifier =
+      provider.id === 'simulated'
+        ? createSimulatedClassifier()
+        : classifierOnProvider({ db: c.db, observer }, provider, agent, { model, effort, source: 'override' }, null);
     const report = await evaluateClassifier({
       classifier,
       partition,
@@ -170,6 +174,7 @@ commands['evaluate-classifier'] = async () => {
     });
     console.log(evaluationSummary(report));
     console.log(`Result saved to ${report.file ?? '(no file)'}`);
+    await observer.flush(5000);
   });
 };
 
@@ -179,12 +184,14 @@ commands['import-design'] = async () => {
   const core = await startCore(config, consoleLogger);
   try {
     const tree = await readTree(dir);
-    const r = await executeCommand(core.services, {
-      command: 'design.import',
-      actor: IMPORTER,
-      projectId,
-      data: { tree: Object.fromEntries(tree), origin: dir },
-    });
+    const r = await interaction(core.services.observer, IMPORTER, projectId, () =>
+      executeCommand(core.services, {
+        command: 'design.import',
+        actor: IMPORTER,
+        projectId,
+        data: { tree: Object.fromEntries(tree), origin: dir },
+      }),
+    );
     console.log(JSON.stringify({ batch_id: r.entityId, state: r.state, ...(r.result as object) }, null, 2));
   } finally {
     await core.stop();

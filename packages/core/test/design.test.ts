@@ -910,10 +910,12 @@ describe('batches and proposals', () => {
     const expected = ['proposal.accept', 'record.create', 'record_version.create', 'record_version.approve', 'batch.close'];
     expect(expected.filter((c) => !commands.has(c))).toEqual([]);
     // The decisive part and what creates authority is done by the person; closing the batch and
-    // enqueuing "Update knowledge" is done by the system.
+    // "Update knowledge" (enqueued, classified and applied under the same correlation: the
+    // interaction that caused it, observability spec §5.1) is done by the system and its components.
+    const decisive = new Set(['proposal.accept', 'record.create', 'record_version.create', 'record_version.approve']);
     for (const e of sameCorrelationEvents) {
-      const fromSystem = ['batch.close', 'knowledge_update.enqueue'].includes(e.command);
-      expect({ command: e.command, ofItsActor: e.actor.startsWith(fromSystem ? 'system:' : 'human:') }).toEqual({
+      const ofItsActor = decisive.has(e.command) ? e.actor.startsWith('human:') : !e.actor.startsWith('human:');
+      expect({ command: e.command, ofItsActor }).toEqual({
         command: e.command,
         ofItsActor: true,
       });

@@ -12,7 +12,7 @@ import {
 } from '@demiurgo/domain';
 import { z } from 'zod';
 import { DEFAULT_AGENTS, type LoadedAgent, loadAgentCatalog, schemaVersion } from '../agents/catalog.ts';
-import { type Engine, resolutionProblem, resolveEngine } from '../assignments/assignments.ts';
+import { type AssignmentSource, type Engine, resolutionProblem, resolveEngine } from '../assignments/assignments.ts';
 import { trimmed, field, registerGuards } from '../bus/guards.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
 import type { CommandContext } from '../bus/types.ts';
@@ -59,11 +59,15 @@ async function agentFor(action: AgentAction, requested: string | undefined): Pro
 }
 
 /**
- * The engine this run uses (Retry with… → the agent's own → its group's), or a 409 that tells the
- * person what to do: the run is not created. An override outside the catalog is a 422, like an
- * assignment.
+ * The engine this run uses (Retry with… → the agent's own → its group's) and where it came from, or
+ * a 409 that tells the person what to do: the run is not created. An override outside the catalog
+ * is a 422, like an assignment.
  */
-async function engineFor(ctx: CommandContext, agent: LoadedAgent, override?: Engine): Promise<Engine> {
+async function engineFor(
+  ctx: CommandContext,
+  agent: LoadedAgent,
+  override?: Engine,
+): Promise<{ engine: Engine; source: AssignmentSource }> {
   const r = await resolveEngine(ctx.trx, ctx.services.providers, {
     agent: agent.id,
     ...(override ? { override } : {}),
@@ -73,7 +77,7 @@ async function engineFor(ctx: CommandContext, agent: LoadedAgent, override?: Eng
     if (override) throw new DomainError('validation', 'That engine is not available.', [problem ?? '']);
     throw new DomainError('guard', `The conditions for "${ctx.command}" are not met.`, [problem ?? '']);
   }
-  return { provider: r.provider, model: r.model, effort: r.effort };
+  return { engine: { provider: r.provider, model: r.model, effort: r.effort }, source: r.source };
 }
 
 /** Throws the visible 409 when an agent has no engine: used before posting a message that asks for an answer. */
@@ -158,7 +162,7 @@ registerHandlers({
       const action: AgentAction = data.action;
       if (data.answers_message) await checkAnswered(ctx, data.answers_message, data.scope);
       const agent = await agentFor(action, data.agent);
-      const engine = await engineFor(ctx, agent);
+      const { engine, source } = await engineFor(ctx, agent);
       const pack = await buildContext(
         ctx.trx,
         ctx.projectId,
@@ -201,6 +205,8 @@ registerHandlers({
           action,
           agent: agent.id,
           engine,
+          // Where the engine came from: the journal is the only record of it (observability §7.4).
+          engine_source: source,
           scope: data.scope,
           context_pack: hash,
           ...(data.answers_message ? { answers_message: data.answers_message } : {}),
@@ -218,7 +224,7 @@ registerHandlers({
       const action = o.action as AgentAction;
       // Runs from before the agents had none: they retry with the action's default agent.
       const agent = await agentFor(action, o.agent ?? undefined);
-      const engine = await engineFor(ctx, agent, data.override);
+      const { engine, source } = await engineFor(ctx, agent, data.override);
       const { id } = await ctx.trx
         .insertInto('ai_runs')
         .values({
@@ -240,7 +246,7 @@ registerHandlers({
       ctx.afterCommit(() => ctx.services.engine.startRun(id, projectId));
       return {
         entityId: id,
-        after: { retry_of: o.id, engine, override: data.override ?? null },
+        after: { retry_of: o.id, engine, engine_source: source, override: data.override ?? null },
         result: { runId: id, contextPackId: o.context_pack_id },
       };
     },

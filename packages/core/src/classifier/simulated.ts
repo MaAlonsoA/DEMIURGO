@@ -90,9 +90,12 @@ function category(item: ItemChoice): ChoiceResponse {
   return choose(item, best.code, confidence, `Matches the description of "${best.code}".`);
 }
 
+/** The simulated classifier's id: what its classifications and cache entries record. */
+export const SIMULATED_CLASSIFIER_ID = 'simulated@1';
+
 export function createSimulatedClassifier(): Classifier {
   return {
-    id: 'simulated@1',
+    id: SIMULATED_CLASSIFIER_ID,
     async choice(items) {
       return items.map((item) => {
         const task = obj(item.state).task;

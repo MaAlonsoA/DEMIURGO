@@ -7,18 +7,21 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type {
-  AgentResult,
-  FailureKind,
-  Provider,
-  ProviderEvent,
-  ProviderInvocation,
-  ProviderModel,
-  Usage,
+import {
+  type AgentResult,
+  type AgentResultDetails,
+  CLI_ENV,
+  type FailureKind,
+  type Provider,
+  type ProviderEvent,
+  type ProviderInvocation,
+  type ProviderModel,
+  type ProviderTrace,
+  type Usage,
 } from '@demiurgo/domain';
 import { type ClaudeExecutable, lineLength, resolveExecutable } from '../agents/claude-cli.ts';
 import { type ProcessEnd, isExecutableNotFound, nodeLauncher } from '../agents/process.ts';
-import { allowedEnv, processEnv } from '../env.ts';
+import { allowedEnv, otelResourceAttributes, processEnv } from '../env.ts';
 import type { CliProviderOptions } from './claude.ts';
 import { strictSchema } from './schema-variants.ts';
 import { lineSplitter, messageOf, waitForOutcome } from './stream.ts';
@@ -57,6 +60,26 @@ export function tomlString(text: string): string {
   return JSON.stringify(text).replaceAll('\u007f', '\\u007f');
 }
 
+/**
+ * Codex's own telemetry to the collector (§7.6), as one inline TOML table: OTLP over HTTP with JSON
+ * encoding, no prompts in its logs, and the environment. Unverified against the real CLI (§18): it
+ * only goes out while observation is on. Nothing when there is no collector.
+ */
+export function codexOtelConfig(trace: ProviderTrace | undefined): string[] {
+  if (!trace?.otlpEndpoint) return [];
+  const exporter = `{ "otlp-http" = { endpoint = ${tomlString(trace.otlpEndpoint)}, protocol = "json" } }`;
+  return ['-c', `otel={ exporter = ${exporter}, log_user_prompt = false, environment = ${tomlString(trace.environment)} }`];
+}
+
+/** Codex may or may not read `TRACEPARENT` (§18); its notes are joined by the resource attributes anyway. */
+export function codexTelemetryEnv(trace: ProviderTrace | undefined): Record<string, string> {
+  if (!trace) return {};
+  return {
+    [CLI_ENV.traceParent]: trace.traceParent,
+    [CLI_ENV.resourceAttributes]: otelResourceAttributes(trace.resourceAttributes),
+  };
+}
+
 export function codexArguments(inv: ProviderInvocation, files: { schema: string; last: string }, cwd: string): string[] {
   const options = [
     '--json',
@@ -73,6 +96,7 @@ export function codexArguments(inv: ProviderInvocation, files: { schema: string;
     'sandbox_mode="read-only"',
     '-c',
     'web_search="live"',
+    ...codexOtelConfig(inv.trace),
     '--ignore-user-config',
     '--ignore-rules',
     '--skip-git-repo-check',
@@ -123,6 +147,8 @@ type Summary = {
   reasoning: number;
   reported: { input: boolean; cached: boolean; output: boolean; reasoning: boolean };
   turns: number;
+  /** The last `turn.completed` line as it came: the raw usage of the call. */
+  lastTurn?: Record<string, unknown>;
   lastMessage?: string;
   error?: string;
 };
@@ -142,6 +168,7 @@ function summarize(lines: readonly string[]): Summary {
     if (e.type === 'thread.started' && typeof e.thread_id === 'string') s.threadId = e.thread_id;
     if (e.type === 'turn.completed') {
       s.turns++;
+      s.lastTurn = e;
       const u = isObject(e.usage) ? e.usage : {};
       const add = (field: string, key: 'input' | 'cached' | 'output' | 'reasoning') => {
         if (typeof u[field] === 'number') {
@@ -281,6 +308,8 @@ export function createCodexProvider(options: CliProviderOptions = {}): Provider 
     },
 
     async run(inv) {
+      // What is known of the launch so far: it travels with every outcome, even a failed one.
+      let details: AgentResultDetails | undefined;
       const error = (
         failureKind: Exclude<FailureKind, 'invalid_output'>,
         message: string,
@@ -294,6 +323,7 @@ export function createCodexProvider(options: CliProviderOptions = {}): Provider 
         provider: CODEX_PROVIDER,
         model: inv.model,
         ...(usage ? { usage } : {}),
+        ...(details ? { details } : {}),
       });
       if (inv.signal?.aborted) return error('cancelled', 'Run cancelled before launching Codex.');
       let temporary: string | undefined;
@@ -309,16 +339,20 @@ export function createCodexProvider(options: CliProviderOptions = {}): Provider 
         if (process.platform === 'win32' && lineLength(executable.executable, args) > WINDOWS_LINE_LIMIT) {
           return error('infra', 'The Codex command line exceeds the Windows limit: shorten the agent.');
         }
+        details = { cliCommand: [...args], cliCwd: cwd };
         const start = Date.now();
         const proc = launcher({
           executable: executable.executable,
           args,
           cwd,
-          env: allowedEnv(origin()),
+          env: allowedEnv(origin(), [], codexTelemetryEnv(inv.trace)),
           input: inv.input,
           onStdout: lineSplitter((line) => inv.onEvent?.(normalizeCodexEvent(line))),
         });
         const outcome = await waitForOutcome(proc, inv.timeMs, inv.signal, options.terminationWaitMs);
+        if (outcome.type !== 'failure' && outcome.end) {
+          details = { ...details, exitCode: outcome.end.code, stderr: outcome.end.stderr };
+        }
         if (outcome.type === 'cutoff') {
           return error(
             outcome.reason,
@@ -342,6 +376,12 @@ export function createCodexProvider(options: CliProviderOptions = {}): Provider 
         const usage = usageOf(summary, Date.now() - start);
         const last = await readFile(files.last, 'utf8').catch(() => '');
         const text = last.trim() || summary.lastMessage?.trim() || '';
+        // The raw `-o` file is kept whole, whether or not it validates (§7.6), and the thread id.
+        details = {
+          ...details,
+          ...(summary.lastTurn ? { rawUsage: summary.lastTurn } : {}),
+          extra: { lastMessageRaw: last, ...(summary.threadId ? { threadId: summary.threadId } : {}) },
+        };
         const withSession = (r: AgentResult): AgentResult => {
           const id = inv.session.mode === 'resumed' ? inv.session.id : summary.threadId;
           return inv.session.mode === 'none' || !id ? r : { ...r, sessionId: id };
@@ -359,7 +399,15 @@ export function createCodexProvider(options: CliProviderOptions = {}): Provider 
         if (end.code !== 0 && summary.error) {
           return withSession(error('agent_error', `Codex returned an error: ${truncate(summary.error)}`, end.stdout, usage));
         }
-        return withSession({ state: 'ok', rawOutput, usage, rawEvents: end.stdout, provider: CODEX_PROVIDER, model: inv.model });
+        return withSession({
+          state: 'ok',
+          rawOutput,
+          usage,
+          rawEvents: end.stdout,
+          provider: CODEX_PROVIDER,
+          model: inv.model,
+          details,
+        });
       } catch (e) {
         return isExecutableNotFound(e)
           ? error('infra', 'Codex (`codex`) was not found.')

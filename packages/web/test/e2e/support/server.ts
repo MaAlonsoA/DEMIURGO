@@ -26,6 +26,7 @@ import {
   createSimulatedClassifier,
   createSimulatedProvider,
   migrate,
+  noopObserver,
   silentLogger,
   startEngine,
 } from '@demiurgo/core';
@@ -133,6 +134,8 @@ const engine = await startEngine(
     classifierFor: async () => classifier,
     agentSessionsDir: tmpdir(),
     logger: silentLogger,
+    // Playwright does not observe (spec §16): nothing reaches a collector from the e2e instance.
+    observer: noopObserver,
   },
   url,
 );

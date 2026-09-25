@@ -8,7 +8,17 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { AgentResult, FailureKind, Provider, ProviderEvent, ProviderInvocation, ProviderModel } from '@demiurgo/domain';
+import {
+  type AgentResult,
+  type AgentResultDetails,
+  CLI_ENV,
+  type FailureKind,
+  type Provider,
+  type ProviderEvent,
+  type ProviderInvocation,
+  type ProviderModel,
+  type ProviderTrace,
+} from '@demiurgo/domain';
 import {
   type ClaudeExecutable,
   lineLength,
@@ -17,7 +27,7 @@ import {
   schemaForCli,
 } from '../agents/claude-cli.ts';
 import { type Launcher, type ProcessEnd, isExecutableNotFound, nodeLauncher } from '../agents/process.ts';
-import { allowedEnv, processEnv } from '../env.ts';
+import { allowedEnv, otelResourceAttributes, processEnv } from '../env.ts';
 import { lineSplitter, messageOf, waitForOutcome } from './stream.ts';
 
 export const CLAUDE_PROVIDER = 'claude';
@@ -82,9 +92,72 @@ export function claudeArguments(inv: ProviderInvocation, sessionId: string | nul
   if (inv.effort) args.push('--effort', inv.effort);
   args.push('--system-prompt', inv.system);
   if (inv.session.mode === 'resumed') args.push('--resume', inv.session.id);
-  else if (inv.session.mode === 'fresh' && sessionId) args.push('--session-id', sessionId);
-  else args.push('--no-session-persistence');
+  else if (inv.session.mode === 'fresh' && sessionId) {
+    args.push('--session-id', sessionId);
+    // The visible name in the CLI's own session listing (§5.4).
+    if (inv.session.name) args.push('--name', inv.session.name);
+  } else args.push('--no-session-persistence');
   return args;
+}
+
+/**
+ * The telemetry of the child (§7.6), computed per call and never inherited: Claude Code reads
+ * `TRACEPARENT` and exports its own traces and logs to the collector, tagged with the call.
+ */
+export function claudeTelemetryEnv(trace: ProviderTrace | undefined): Record<string, string> {
+  if (!trace) return {};
+  return {
+    [CLI_ENV.traceParent]: trace.traceParent,
+    [CLI_ENV.resourceAttributes]: otelResourceAttributes(trace.resourceAttributes),
+    [CLI_ENV.claudeTelemetry]: '1',
+    [CLI_ENV.claudeEnhancedTelemetry]: '1',
+    [CLI_ENV.tracesExporter]: 'otlp',
+    [CLI_ENV.logsExporter]: 'otlp',
+    [CLI_ENV.metricsExporter]: 'none',
+    [CLI_ENV.otlpProtocol]: 'http/protobuf',
+    ...(trace.otlpEndpoint ? { [CLI_ENV.otlpEndpoint]: trace.otlpEndpoint } : {}),
+  };
+}
+
+const numberOf = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+const stringOf = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
+
+/**
+ * What the stream says beyond the product's `Usage` (§7.6): the CLI's version from `init`, the
+ * whole `result` line as the raw usage, its times and stop reason, and the pieces that were thrown
+ * away until now (`modelUsage`, `permission_denials`, the cache creation by TTL).
+ */
+export function claudeDetails(
+  objects: readonly Record<string, unknown>[],
+  command: { args: readonly string[]; cwd: string },
+  end: ProcessEnd | undefined,
+): AgentResultDetails {
+  const init = objects.find((o) => o.type === 'system' && o.subtype === 'init');
+  const result = objects.findLast((o) => o.type === 'result');
+  const lastMessage = objects.findLast((o) => o.type === 'assistant' && isObject(o.message))?.message as
+    | Record<string, unknown>
+    | undefined;
+  const usage = result && isObject(result.usage) ? result.usage : undefined;
+  const extra: Record<string, unknown> = {};
+  if (result?.modelUsage !== undefined) extra.modelUsage = result.modelUsage;
+  if (result?.permission_denials !== undefined) extra.permission_denials = result.permission_denials;
+  if (usage?.cache_creation !== undefined) extra.cache_creation = usage.cache_creation;
+  const details: AgentResultDetails = {
+    cliCommand: [...command.args],
+    cliCwd: command.cwd,
+    ...(end ? { exitCode: end.code, stderr: end.stderr } : {}),
+    ...(Object.keys(extra).length > 0 ? { extra } : {}),
+  };
+  const cliVersion = stringOf(init?.claude_code_version);
+  if (cliVersion !== undefined) details.cliVersion = cliVersion;
+  if (result !== undefined) details.rawUsage = result;
+  const durationApiMs = numberOf(result?.duration_api_ms);
+  if (durationApiMs !== undefined) details.durationApiMs = durationApiMs;
+  const ttftMs = numberOf(result?.ttft_ms);
+  if (ttftMs !== undefined) details.ttftMs = ttftMs;
+  const stopReason = stringOf(result?.stop_reason) ?? stringOf(lastMessage?.stop_reason);
+  if (stopReason !== undefined) details.stopReason = stopReason;
+  return details;
 }
 
 /** Levels of `--effort` as `claude --help` lists them: "(low, medium, high, xhigh, max)". */
@@ -219,6 +292,8 @@ export function createClaudeProvider(options: CliProviderOptions = {}): Provider
     },
 
     async run(inv) {
+      // What is known of the launch so far: it travels with every outcome, even a failed one.
+      let details: AgentResultDetails | undefined;
       const error = (failureKind: Exclude<FailureKind, 'invalid_output'>, message: string, rawEvents = ''): AgentResult => ({
         state: 'error',
         failureKind,
@@ -226,13 +301,15 @@ export function createClaudeProvider(options: CliProviderOptions = {}): Provider
         rawEvents,
         provider: CLAUDE_PROVIDER,
         model: inv.model,
+        ...(details ? { details } : {}),
       });
       if (inv.signal?.aborted) return error('cancelled', 'Run cancelled before launching the Claude CLI.');
       let temporary: string | undefined;
       try {
         const executable = await resolve();
         if (!executable) return error('infra', 'The Claude CLI (`claude`) was not found on the PATH.');
-        const ownSession = inv.session.mode === 'fresh' ? randomUUID() : null;
+        // The engine decides the id of a new session (§5.4); without one, the adapter does.
+        const ownSession = inv.session.mode === 'fresh' ? (inv.session.id ?? randomUUID()) : null;
         const args = [...executable.previousArgs, ...claudeArguments(inv, ownSession)];
         if (process.platform === 'win32' && lineLength(executable.executable, args) > WINDOWS_LINE_LIMIT) {
           return error('infra', 'The Claude CLI command line exceeds the Windows limit: shorten the agent or the schema.');
@@ -245,13 +322,14 @@ export function createClaudeProvider(options: CliProviderOptions = {}): Provider
           cwd = inv.session.directory;
           await mkdir(cwd, { recursive: true });
         }
+        details = claudeDetails([], { args, cwd }, undefined);
         const lines: string[] = [];
         const start = Date.now();
         const proc = launcher({
           executable: executable.executable,
           args,
           cwd,
-          env: allowedEnv(origin()),
+          env: allowedEnv(origin(), [], claudeTelemetryEnv(inv.trace)),
           input: inv.input,
           onStdout: lineSplitter((line) => {
             lines.push(line);
@@ -261,8 +339,21 @@ export function createClaudeProvider(options: CliProviderOptions = {}): Provider
         const outcome = await waitForOutcome(proc, inv.timeMs, inv.signal, options.terminationWaitMs);
         // What the process printed (partial if it was cut off), or what arrived line by line.
         const rawEvents = () => (outcome.type === 'failure' ? lines.join('\n') : (outcome.end?.stdout ?? lines.join('\n')));
+        const objectsOf = (stdout: string) =>
+          stdout
+            .split('\n')
+            .map((l) => l.trim())
+            .flatMap((l) => {
+              const o = parse(l);
+              return o ? [{ line: l, object: o }] : [];
+            });
         switch (outcome.type) {
           case 'cutoff':
+            details = claudeDetails(
+              objectsOf(rawEvents()).map((x) => x.object),
+              { args, cwd },
+              outcome.end,
+            );
             return error(
               outcome.reason,
               outcome.reason === 'timeout'
@@ -276,20 +367,21 @@ export function createClaudeProvider(options: CliProviderOptions = {}): Provider
               : error('infra', `Could not launch the Claude CLI: ${messageOf(outcome.error)}`);
           case 'end': {
             // The whole stdout (not only the streamed lines): the last line may have no newline.
-            const all = outcome.end.stdout
-              .split('\n')
-              .map((l) => l.trim())
-              .filter((l) => parse(l) !== null);
-            const result = normalizeClaudeOutput(
-              { ...outcome.end, stdout: `[${all.join(',')}]` },
-              inv.model,
-              Date.now() - start,
-              {
+            const parsed = objectsOf(outcome.end.stdout);
+            const all = parsed.map((x) => x.line);
+            details = claudeDetails(
+              parsed.map((x) => x.object),
+              { args, cwd },
+              outcome.end,
+            );
+            const result: AgentResult = {
+              ...normalizeClaudeOutput({ ...outcome.end, stdout: `[${all.join(',')}]` }, inv.model, Date.now() - start, {
                 provider: CLAUDE_PROVIDER,
                 detailed: true,
                 rawEvents: outcome.end.stdout,
-              },
-            );
+              }),
+              details,
+            };
             const sessionId = inv.session.mode === 'resumed' ? inv.session.id : (ownSession ?? sessionOf(all));
             return inv.session.mode === 'none' || !sessionId ? result : { ...result, sessionId };
           }

@@ -30,6 +30,31 @@ describe('configuration', () => {
     expect(readConfig({ ...home, DEMIURGO_OPENCODE_CONFIG: '/oc.json' }).openCodeConfig).toBe('/oc.json');
   });
 
+  it('observes over OTLP to the local collector by default, labelled as dev on this port', () => {
+    expect(readConfig(BASE).observe).toEqual({
+      mode: 'otlp',
+      endpoint: 'http://127.0.0.1:4318',
+      environment: 'dev',
+      serviceVersion: 'unknown',
+      instance: '8100',
+    });
+    expect(
+      readConfig({
+        ...BASE,
+        DEMIURGO_OBSERVE: 'off',
+        DEMIURGO_OTLP_ENDPOINT: 'http://collector:4318',
+        DEMIURGO_ENVIRONMENT: 'qa',
+        DEMIURGO_SERVICE_VERSION: 'abc123',
+        DEMIURGO_PORT: '8101',
+      }).observe,
+    ).toEqual({ mode: 'off', endpoint: 'http://collector:4318', environment: 'qa', serviceVersion: 'abc123', instance: '8101' });
+  });
+
+  it('rejects an environment outside real, qa, dev and test, and an observe mode it does not know', () => {
+    expect(() => readConfig({ ...BASE, DEMIURGO_ENVIRONMENT: 'prod' })).toThrow(/DEMIURGO_ENVIRONMENT/);
+    expect(() => readConfig({ ...BASE, DEMIURGO_OBSERVE: 'memory' })).toThrow(/DEMIURGO_OBSERVE/);
+  });
+
   it('rejects a variable that was renamed instead of silently ignoring it', () => {
     expect(() => readConfig({ ...BASE, DEMIURGO_PUERTO: '8200' })).toThrow(/DEMIURGO_PUERTO → DEMIURGO_PORT/);
   });

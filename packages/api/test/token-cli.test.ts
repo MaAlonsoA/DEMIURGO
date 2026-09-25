@@ -15,7 +15,7 @@ function cli(args: string[], input = '') {
   const r = spawnSync(process.execPath, [CLI, ...args], {
     input,
     encoding: 'utf8',
-    env: { ...process.env, DEMIURGO_DATABASE_URL: base().url },
+    env: { ...process.env, DEMIURGO_DATABASE_URL: base().url, DEMIURGO_OBSERVE: 'off' },
   });
   return { code: r.status ?? -1, stdout: r.stdout, stderr: r.stderr };
 }

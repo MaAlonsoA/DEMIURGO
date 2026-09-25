@@ -38,7 +38,7 @@ export function createInlineEngine(services: () => Services): InlineEngine {
     async startAssessment(batchId, projectId) {
       const s = services();
       try {
-        await recordAssessments(s, projectId, await calculateAssessments(s, batchId, projectId));
+        await recordAssessments(s, projectId, await calculateAssessments(s, batchId, projectId), batchId);
       } catch (e) {
         await recordAssessmentFailure(s, batchId, projectId, e);
       }

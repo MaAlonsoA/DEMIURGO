@@ -1,0 +1,105 @@
+# OpenTelemetry Collector of the evidence stack (compose.evidence.yaml, service `collector`).
+# Spec: docs/superpowers/specs/2026-09-26-motor-observabilidad-design.md §12.
+# Pinned to otel/opentelemetry-collector-contrib 0.161.0: every key below was validated against that
+# version (`otelcol-contrib validate`). Everything points at localhost or at the compose network.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+        max_recv_msg_size_mib: 64
+      http:
+        endpoint: 0.0.0.0:4318
+        # 64 MiB: notes that carry long texts (raw provider events, transcript chunks).
+        max_request_body_size: 67108864
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+  batch:
+    timeout: 2s
+    send_batch_size: 512
+  # Phoenix pipeline only (phase 4): the raw usage payload is for the evidence base, not for the viewer.
+  attributes/phoenix:
+    actions:
+      - key: demiurgo.usage.raw
+        action: delete
+  # Phoenix pipeline only (phase 4): keep every attribute under 64 000 characters.
+  transform/phoenix:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          - truncate_all(attributes, 64000)
+          - truncate_all(resource.attributes, 64000)
+
+exporters:
+  # The ingester (`pnpm evidence serve`) on the host, OTLP/JSON. It answers 200 only after committing;
+  # anything else is retried from the persistent queue, forever (max_elapsed_time: 0).
+  # In 0.161.0 the component is `otlp_http` (`otlphttp` is a deprecated alias).
+  otlp_http/evidence:
+    endpoint: http://host.docker.internal:4319
+    encoding: json
+    # Loopback traffic: no gzip, so the ingester reads plain JSON bodies.
+    compression: none
+    timeout: 30s
+    sending_queue:
+      enabled: true
+      storage: file_storage/queue
+      queue_size: 5000
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 0
+  # Raw permanent copy, one JSON object (an OTLP/JSON export request) per line. Replayable with
+  # `pnpm evidence replay`. Rotated by size only; max_days 0 and max_backups 0 mean nothing is ever deleted.
+  # Not compressed: this version's file exporter only offers zstd, which switches the file to a
+  # length-prefixed binary framing instead of JSON lines.
+  file/archive:
+    path: /archive/otlp.jsonl
+    format: json
+    rotation:
+      max_megabytes: 256
+      max_days: 0
+      max_backups: 0
+  # Troubleshooting only; not wired into any pipeline.
+  debug:
+    verbosity: basic
+  # Phoenix (phase 4): traces only, over the compose network.
+  # otlp_grpc/phoenix:
+  #   endpoint: phoenix:4317
+  #   tls:
+  #     insecure: true
+
+extensions:
+  file_storage/queue:
+    directory: /queue
+    create_directory: true
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [file_storage/queue, health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp_http/evidence, file/archive]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp_http/evidence, file/archive]
+    # In case a CLI sends metrics: archived only.
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [file/archive]
+    # Phoenix (phase 4): traces only, trimmed.
+    # traces/phoenix:
+    #   receivers: [otlp]
+    #   processors: [memory_limiter, attributes/phoenix, transform/phoenix, batch]
+    #   exporters: [otlp_grpc/phoenix]

@@ -92,7 +92,8 @@ describe('agent runs', () => {
       model: 'simulated',
       prompt_hash: composeSystem(onboarding, onboarding.skillDefinitions).promptHash,
       session_mode: 'fresh',
-      provider_session_id: expect.stringMatching(/^sim-/),
+      // The engine decides the id of a new session (observability §5.4); the simulator keeps it.
+      provider_session_id: expect.stringMatching(/^[0-9a-f-]{36}$/),
       delta_hash: null,
     });
     const last = received.at(-1);

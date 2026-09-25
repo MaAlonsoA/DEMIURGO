@@ -2,6 +2,7 @@
 
 import type { Classifier } from '@demiurgo/domain';
 import type { Db } from './db/connection.ts';
+import type { Observer } from './observe/observer.ts';
 import type { ProviderRegistry } from './providers/registry.ts';
 
 export type WorkflowEngine = {
@@ -28,6 +29,8 @@ export type Services = {
   agentSessionsDir: string;
   engine: WorkflowEngine;
   logger: Logger;
+  /** Observation notes (spans and log records); never throws, off with `DEMIURGO_OBSERVE=off`. */
+  observer: Observer;
 };
 
 export const silentLogger: Logger = { info: () => undefined, error: () => undefined };

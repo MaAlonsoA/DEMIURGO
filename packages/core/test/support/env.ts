@@ -8,7 +8,7 @@ import type { Classifier, Provider } from '@demiurgo/domain';
 import { afterAll, beforeAll } from 'vitest';
 import { createSimulatedProvider } from '../../src/agents/simulated.ts';
 import { type Connection, connect } from '../../src/db/connection.ts';
-import { type StartedEngine, startEngine } from '../../src/engine/engine.ts';
+import { type EngineOptions, type StartedEngine, startEngine } from '../../src/engine/engine.ts';
 import { createSimulatedClassifier } from '../../src/classifier/simulated.ts';
 import { createInlineEngine } from '../../src/engine/inline.ts';
 import { createProviderRegistry } from '../../src/providers/registry.ts';
@@ -34,6 +34,8 @@ type Options = {
   classifier?: () => Classifier;
   /** Assigns every agent to the simulated provider (true by default). */
   seedAssignments?: boolean;
+  /** Options of the durable engine (its test hooks). */
+  engineOptions?: EngineOptions;
 };
 
 /** Registers, for the test file, an ephemeral database and the core services. */
@@ -55,7 +57,7 @@ export function useEnvironment(options: Options = {}): () => Environment {
       logger: silentLogger,
     };
     if (options.durable) {
-      started = await startEngine(common, url);
+      started = await startEngine(common, url, options.engineOptions);
       environment = { services: started.services, connection, url, engine: started.services.engine };
     } else {
       // Without DBOS: knowledge updates and assessments are processed in place; runs are only recorded.

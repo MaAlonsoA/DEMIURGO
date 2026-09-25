@@ -2,7 +2,7 @@
 // what's on record; the applier turns the validated output into messages, questions,
 // inferences and a batch of proposals. None of this touches authority.
 
-import { DomainError, system } from '@demiurgo/domain';
+import { COVERED_QUESTION_STATES, DomainError, stageDefinition, system } from '@demiurgo/domain';
 import { registerBuilder } from '../context/build.ts';
 import { knowledgeForContext } from '../context/knowledge.ts';
 import { registerApplier } from './appliers.ts';
@@ -47,6 +47,26 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
     .orderBy('created_at')
     .orderBy('id')
     .execute();
+  // Design engine: the project's open stage and its mandatory questions not covered yet. They go
+  // with the questions so the agent can infer them from any thread.
+  const stage = await trx
+    .selectFrom('stages')
+    .select(['id', 'stage', 'exploration_id'])
+    .where('project_id', '=', projectId)
+    .where('state', '=', 'open')
+    .orderBy('position')
+    .executeTakeFirst();
+  const stageQuestions = stage
+    ? await trx
+        .selectFrom('questions')
+        .select(['id', 'question', 'state', 'conclusion', 'impact'])
+        .where('stage_id', '=', stage.id)
+        .where('stage_key', 'is not', null)
+        .where('state', 'not in', [...COVERED_QUESTION_STATES])
+        .orderBy('created_at')
+        .execute()
+    : [];
+  for (const q of stageQuestions) if (!questions.some((x) => x.id === q.id)) questions.push(q);
   const decisions = await trx
     .selectFrom('record_versions')
     .innerJoin('records', 'records.id', 'record_versions.record_id')
@@ -112,6 +132,14 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
         conclusion: q.conclusion,
         impact: q.impact,
       })),
+      design_stage: stage
+        ? {
+            stage: stage.stage,
+            title: stageDefinition(stage.stage)?.title ?? stage.stage,
+            is_this_thread: stage.exploration_id === exploration.id,
+            uncovered_mandatory_questions: stageQuestions.map((q) => ({ id: q.id, question: q.question, state: q.state })),
+          }
+        : null,
       confirmed_decisions: decisionsSummary,
       untrusted_sources: chosenSources,
       knowledge: knowledge.nodes,
@@ -142,7 +170,11 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
     },
   });
   if (output.purpose) {
-    const current = await trx.selectFrom('explorations').select(['purpose', 'state']).where('id', '=', scope.id).executeTakeFirst();
+    const current = await trx
+      .selectFrom('explorations')
+      .select(['purpose', 'state'])
+      .where('id', '=', scope.id)
+      .executeTakeFirst();
     if (current?.state === 'active' && current.purpose !== output.purpose) {
       await execute({
         ...base,

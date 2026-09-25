@@ -1,0 +1,35 @@
+{
+  "projectId": "6773c160-cf8e-4bde-a056-b9ac015a6e23",
+  "shape": "package",
+  "pkg": "@demiurgo/design-system",
+  "globalName": "Demiurgo",
+  "buildCmd": "node .design-sync/source/build.mjs",
+  "entry": ".design-sync/source/dist/index.js",
+  "cssEntry": "demiurgo.css",
+  "extraFonts": [
+    "fonts.css"
+  ],
+  "docsDir": "docs",
+  "guidelinesGlob": [
+    "guides/*.md"
+  ],
+  "readmeHeader": ".design-sync/conventions.md",
+  "overrides": {
+    "Legend": {
+      "cardMode": "column"
+    },
+    "Choice": {
+      "cardMode": "column"
+    },
+    "Header": {
+      "cardMode": "column"
+    },
+    "CheckRow": {
+      "cardMode": "column"
+    }
+  },
+  "dtsPropsFor": {
+    "Button": "variant?: \"primary\" | \"secondary\" | \"quiet\" | \"text\"; children?: React.ReactNode; onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void; disabled?: boolean; type?: \"button\" | \"submit\" | \"reset\"; className?: string; style?: React.CSSProperties; \"aria-label\"?: string;",
+    "Chip": "pressed?: boolean; children?: React.ReactNode; onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void; disabled?: boolean; className?: string; style?: React.CSSProperties;"
+  }
+}

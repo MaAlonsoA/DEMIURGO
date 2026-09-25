@@ -1,0 +1,19 @@
+{
+  "name": "@demiurgo/design-system",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "DEMIURGO design system: the visual language agreed in the canvas «DEMIURGO · UX», as tokens, dm-* classes and React components.",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./demiurgo.css": "./demiurgo.css"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  }
+}

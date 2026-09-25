@@ -31,3 +31,10 @@ __pycache__/
 /tests/
 # Worktrees locales de agentes.
 .claude/worktrees/
+
+# design-sync (estado local, no se sube)
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules

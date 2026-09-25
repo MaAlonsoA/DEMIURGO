@@ -1,24 +1,34 @@
 // Pure logic of the knowledge page: the graph grouped by taxonomy area, the relations of a node
-// in words, the verdicts of the idea checks and the freshness of the knowledge.
+// in words, the verdicts of the idea checks and the freshness of the knowledge. Icons come from
+// components/types.tsx (iconOf); this module only names and orders the kinds of node.
 
 import type { GraphNode, Knowledge, KnowledgeGraph, ProductRow, Taxonomy } from '../../api/types.ts';
-import type { IconKind } from '../../ui/icons.tsx';
 import { type Axis, parseAxes } from './taxonomy.ts';
 
-/** Node types of the graph: the record types and their criteria (checks). */
-export const NODE_TYPES: Record<string, { word: string; plural: string; icon: IconKind; order: number }> = {
-  decision: { word: 'Decision', plural: 'Decisions', icon: 'decision', order: 0 },
-  adr: { word: 'Tech decision', plural: 'Tech decisions', icon: 'tech', order: 1 },
-  fdr: { word: 'Feature', plural: 'Features', icon: 'feature', order: 2 },
-  bug: { word: 'Bug', plural: 'Bugs', icon: 'bug', order: 3 },
-  criterion: { word: 'Check', plural: 'Checks', icon: 'check', order: 4 },
+export type NodeKind = { word: string; plural: string; order: number };
+
+/**
+ * Node types of the graph: every record type and its criteria (checks), then what search also
+ * finds (threads and parked ideas). Every record type has its word, so none falls back to the raw
+ * type string (INVENTORY Part B, Knowledge UX problems).
+ */
+export const NODE_TYPES: Record<string, NodeKind> = {
+  decision: { word: 'Decision', plural: 'Decisions', order: 0 },
+  adr: { word: 'Tech decision', plural: 'Tech decisions', order: 1 },
+  fdr: { word: 'Feature', plural: 'Features', order: 2 },
+  bug: { word: 'Bug', plural: 'Bugs', order: 3 },
+  requirement: { word: 'Requirement', plural: 'Requirements', order: 4 },
+  quality_requirement: { word: 'Quality requirement', plural: 'Quality requirements', order: 5 },
+  threat_model: { word: 'Threat model', plural: 'Threat models', order: 6 },
+  production_readiness: { word: 'Production readiness', plural: 'Production readiness', order: 7 },
+  criterion: { word: 'Check', plural: 'Checks', order: 8 },
   // Search results that are not in the graph: the project's threads and its parked ideas.
-  thread: { word: 'Thread', plural: 'Threads', icon: 'thread', order: 5 },
-  idea: { word: 'Idea', plural: 'Ideas', icon: 'idea', order: 6 },
+  thread: { word: 'Thread', plural: 'Threads', order: 9 },
+  idea: { word: 'Idea', plural: 'Ideas', order: 10 },
 };
 
-export function nodeType(type: string): { word: string; plural: string; icon: IconKind; order: number } {
-  return NODE_TYPES[type] ?? { word: type, plural: type, icon: 'knowledge', order: 9 };
+export function nodeType(type: string): NodeKind {
+  return NODE_TYPES[type] ?? { word: type, plural: type, order: 99 };
 }
 
 /** Relations of the graph in both directions: from the node (out) and towards it (in). */
@@ -102,7 +112,7 @@ export function groupByArea(nodes: readonly GraphNode[], axis: AreaAxis | null):
 export function recordOfRef(ref: string, graph: KnowledgeGraph | undefined): { code: string; version: number } | null {
   const fromGraph = graph?.nodes.find((n) => n.ref === ref)?.record;
   if (fromGraph) return fromGraph;
-  const m = /^((?:DEC|FDR|ADR|BUG)-[A-Z]{3}-\d{3})@(\d+)$/.exec(ref);
+  const m = /^((?:DEC|FDR|ADR|BUG|REQ|NFR|THR|PRR)-[A-Z0-9]+-\d{3})@(\d+)$/.exec(ref);
   return m?.[1] ? { code: m[1], version: Number(m[2]) } : null;
 }
 
@@ -124,7 +134,7 @@ export function verdictWord(verdict: string): { word: string; symbol: string; co
 
 export type Freshness = 'current' | 'updating' | 'behind';
 
-/** Ink when up to date, amber while updating, rust when an update failed (spec §3). */
+/** Up to date, updating (changes still to apply) or behind (an update failed and waits for a retry). */
 export function freshnessOf(k: Knowledge): Freshness {
   if (k.updates.some((u) => u.state === 'rejected')) return 'behind';
   return k.updates_in_progress > 0 || !k.up_to_date ? 'updating' : 'current';

@@ -1,4 +1,8 @@
-import { foldLegend, threadToFeature } from './knowledge-data.ts';
+// Origins (AC-INT-001-04): the tree from a thread to its decision and the feature drafted from it,
+// each with its state in words and why it exists. The trace is pinned on click or Enter and cleared
+// with Esc or "Clear trace" (DESIGN.md §3.7): it no longer follows the pointer or the focus.
+
+import { threadToFeature } from './knowledge-data.ts';
 import { expect, expectAccessible, screenshot, test } from './support/fixtures.ts';
 
 test('AC-INT-001-04 Origins goes from a thread to its decision and to the feature drafted from it, each with its mark, and says why it exists', async ({
@@ -15,31 +19,36 @@ test('AC-INT-001-04 Origins goes from a thread to its decision and to the featur
     'page',
   );
   const tree = page.getByRole('list', { name: 'Origins' });
-  const thread = tree.getByRole('link', { name: new RegExp(`Thread.*${walk.purpose}`) });
-  const decision = tree.getByRole('link', { name: new RegExp(`Decision.*${escape(walk.decision.title)}`) });
-  const feature = tree.getByRole('link', { name: new RegExp(`Feature.*${escape(walk.feature.title)}`) });
+  const thread = tree.getByRole('button', { name: new RegExp(`Thread.*${escape(walk.purpose)}`) });
+  const decision = tree.getByRole('button', { name: new RegExp(`Decision.*${escape(walk.decision.title)}`) });
+  const feature = tree.getByRole('button', { name: new RegExp(`Feature.*${escape(walk.feature.title)}`) });
   await expect(thread).toBeVisible();
   // The decision was approved by the person (Confirmed); the drafted feature is only proposed.
-  await expect(decision.getByRole('img', { name: 'Confirmed' })).toBeVisible();
-  await expect(feature.getByRole('img', { name: 'Proposed' })).toBeVisible();
-  await expect(feature.getByRole('img', { name: 'Confirmed' })).toHaveCount(0);
+  await expect(decision.locator('[data-status="confirmed"]')).toHaveText('Confirmed');
+  await expect(feature.locator('[data-status="proposed"]')).toHaveText('Proposed');
+  await expect(feature.locator('[data-status="confirmed"]')).toHaveCount(0);
   // Each branch carries why it exists: the thread's conclusion.
   await expect(decision).toContainText(walk.conclusion);
   await expectAccessible(page, 'Origins');
 
-  // Pointing at the feature lights its trace and says why it exists.
-  await feature.hover();
+  // Selecting the feature pins its trace and says why it exists.
+  await feature.click();
   const why = page.getByRole('region', { name: 'Why does this exist?' });
   await expect(why).toContainText(`“${walk.feature.title}” is a feature that follows the decision “${walk.decision.title}”`);
   await expect(why).toContainText(`which came from the thread “${walk.purpose}”`);
   await expect(why).toContainText(walk.conclusion);
   for (const n of [thread, decision, feature]) await expect(n).toHaveAttribute('data-traced', 'true');
+  await expect(feature).toHaveAttribute('aria-pressed', 'true');
+  // The pointer crossing another node on its way does not move the trace.
+  await thread.hover();
+  await expect(feature).toHaveAttribute('aria-pressed', 'true');
+  await expect(why).toContainText(`“${walk.feature.title}” is a feature`);
   await expectAccessible(page, 'Origins with a trace');
   await why.getByRole('link', { name: `“${walk.decision.title}”` }).click();
   await expect(page).toHaveURL(new RegExp(`/records/${walk.decision.code}$`));
 });
 
-test('AC-WEB-001-03 Origins can be walked with the keyboard: focus lights the trace and Enter opens the node', async ({
+test('AC-WEB-001-03 Origins can be walked with the keyboard: Enter pins the trace, Esc and Clear trace clear it, and the node opens from the Why panel', async ({
   page,
   person,
 }) => {
@@ -47,17 +56,32 @@ test('AC-WEB-001-03 Origins can be walked with the keyboard: focus lights the tr
   const walk = await threadToFeature(person, projectId);
   await page.goto(`/p/${projectId}/origins`);
   const tree = page.getByRole('list', { name: 'Origins' });
-  const feature = tree.getByRole('link', { name: new RegExp(`Feature.*${escape(walk.feature?.title ?? '')}`) });
+  const feature = tree.getByRole('button', { name: new RegExp(`Feature.*${escape(walk.feature?.title ?? '')}`) });
   await expect(feature).toBeVisible();
   for (let i = 0; i < 40 && !(await feature.evaluate((el) => el === document.activeElement)); i++)
     await page.keyboard.press('Tab');
   await expect(feature).toBeFocused();
+  // Focus alone does not trace: Enter pins it.
+  await expect(feature).not.toHaveAttribute('data-traced', 'true');
+  await page.keyboard.press('Enter');
   await expect(feature).toHaveAttribute('data-traced', 'true');
-  await expect(page.getByRole('region', { name: 'Why does this exist?' })).toContainText(`“${walk.feature?.title}”`);
-  await page.getByRole('button', { name: 'Clear trace' }).focus();
+  const why = page.getByRole('region', { name: 'Why does this exist?' });
+  await expect(why).toContainText(`“${walk.feature?.title}”`);
+  // Esc clears it where the focus is.
+  await page.keyboard.press('Escape');
+  await expect(feature).not.toHaveAttribute('data-traced', 'true');
+  await expect(feature).toBeFocused();
+  // "Clear trace" clears it too, and keeps the focus in the Why panel.
+  await page.keyboard.press('Enter');
+  await expect(feature).toHaveAttribute('data-traced', 'true');
+  await why.getByRole('button', { name: 'Clear trace' }).focus();
   await page.keyboard.press('Enter');
   await expect(feature).not.toHaveAttribute('data-traced', 'true');
+  await expect(why).toBeFocused();
+  // Traced again, the node opens from the Why panel.
   await feature.focus();
+  await page.keyboard.press('Enter');
+  await why.getByRole('link', { name: 'Open the feature' }).focus();
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(new RegExp(`/records/${walk.feature?.code}$`));
 });
@@ -76,12 +100,11 @@ test('screens of cut 7: origins', async ({ page, person }) => {
   await person.command(projectId, 'exploration.open', { purpose: 'Guest passes for non-members' });
   await page.goto(`/p/${projectId}/origins`);
   const tree = page.getByRole('list', { name: 'Origins' });
-  await expect(tree.getByRole('link', { name: /FDR-DIS-001/ })).toBeVisible();
-  await foldLegend(page);
+  await expect(tree.getByRole('button', { name: /FDR-DIS-001/ })).toBeVisible();
   await screenshot(page, 7, '28-origins');
-  await tree.getByRole('link', { name: new RegExp(`Feature.*${escape(walk.feature?.title ?? '')}`) }).hover();
+  await tree.getByRole('button', { name: new RegExp(`Feature.*${escape(walk.feature?.title ?? '')}`) }).click();
   await expect(page.getByRole('region', { name: 'Why does this exist?' })).toContainText('is a feature');
-  // The trace stays when the pointer leaves, until "Clear trace".
+  // The trace stays when the pointer leaves, until "Clear trace" or Esc.
   await screenshot(page, 7, '29-origins-trace');
 });
 

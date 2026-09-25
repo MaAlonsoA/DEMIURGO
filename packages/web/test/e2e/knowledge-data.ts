@@ -2,18 +2,8 @@
 // same path as walkthrough-s1): a ratified design/, an idea from an external agent, and a thread
 // that ends in a decision and the feature drafted from it.
 
-import type { Page } from '@playwright/test';
 import type { Inbox, Knowledge, ProductState, RecordDetail, Taxonomy } from '../../src/api/types.ts';
 import type { PersonApi } from './support/fixtures.ts';
-
-/** The legend opens by itself on a first visit; for a screenshot of the page it is folded ("Got it"). */
-export async function foldLegend(page: Page): Promise<void> {
-  const gotIt = page.getByRole('button', { name: 'Got it' });
-  if (!(await gotIt.isVisible())) return;
-  await gotIt.click();
-  // The notice that follows goes away by itself.
-  await page.getByText('The legend stays here.').waitFor({ state: 'hidden', timeout: 8_000 });
-}
 
 const api = (projectId: string, path: string) => `/api/projects/${projectId}${path}`;
 

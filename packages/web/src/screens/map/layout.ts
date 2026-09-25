@@ -44,8 +44,26 @@ export function relationWord(kind: Relation, end: 'from' | 'to'): string {
   return WORDS[kind][end];
 }
 
-/** How each relation is drawn: rust for conflicts, dashed while the link waits for review. */
-export function relationStroke(r: MapRelation): { color: string; dash: string | undefined; width: number } {
-  const color = r.kind === 'conflicts' ? 'var(--problem-fill)' : r.kind === 'follows' ? 'var(--inactive)' : 'var(--ink-3)';
-  return { color, dash: r.under_review || r.kind === 'affects' ? '5 4' : undefined, width: r.kind === 'needs' ? 1.75 : 1.25 };
-}
+/**
+ * How each relation is drawn (DESIGN.md §3.7): every kind has its own pattern *and* its own name in
+ * the legend, so no two kinds differ by color alone. The color only reinforces the pattern.
+ * `stroke` and `fill` are theme classes (the arrowhead takes the fill).
+ */
+export type LineStyle = { label: string; stroke: string; fill: string; dash: string | undefined; width: number };
+
+export const LINE_STYLES: Record<Relation, LineStyle> = {
+  needs: { label: 'Needs another feature', stroke: 'stroke-fg-2', fill: 'fill-fg-2', dash: undefined, width: 2 },
+  follows: { label: 'Follows a rule', stroke: 'stroke-fg-3', fill: 'fill-fg-3', dash: '1 4', width: 1.75 },
+  conflicts: { label: 'Conflicts', stroke: 'stroke-danger', fill: 'fill-danger', dash: '10 3 2 3', width: 2 },
+  affects: { label: 'Affects (derived from)', stroke: 'stroke-info', fill: 'fill-info', dash: '6 4', width: 1.5 },
+};
+
+/** A link that waits for the person's review: a wide amber band under the line, whatever its kind. */
+export const UNDER_REVIEW = {
+  label: 'Under review: its link waits for your review',
+  stroke: 'stroke-warning',
+  width: 8,
+  opacity: 0.35,
+} as const;
+
+export const RELATION_KINDS: readonly Relation[] = ['needs', 'follows', 'conflicts', 'affects'];

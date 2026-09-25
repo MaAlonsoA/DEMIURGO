@@ -1,126 +1,171 @@
-// Sources (spec §4.11, with the brief's correction: a source has a name, a content hash, who
-// registered it and when). An agent's source is untrusted input, and says so. "Add a source"
-// is the form of source.register, built from its JSON Schema.
+// Sources (DESIGN.md §3.8, spec §4.11): what the person and agents give DEMIURGO to read — a name, a
+// content hash, who registered it and when. An agent's source is untrusted input, and the page says
+// what that means in text. Times show their absolute value and every hash can be read in full, with
+// no hover needed. "Add a source" is the form of source.register built from its JSON Schema; its
+// success message stays until the next change (INV-SRC-01…04).
 
 import { useQuery } from '@tanstack/react-query';
-import { type FormEvent, useEffect, useId, useState } from 'react';
+import { type FormEvent, useId, useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
-import { sourcesQuery } from '../../api/queries.ts';
+import { projectsQuery, sourcesQuery } from '../../api/queries.ts';
 import { canCreate } from '../../api/tables.ts';
 import type { JsonSchema, Source } from '../../api/types.ts';
-import { cn } from '../../lib/cn.ts';
+import { announce } from '../../components/announce.tsx';
+import { Button } from '../../components/Button.tsx';
+import { EmptyState } from '../../components/EmptyState.tsx';
+import { Field, TextArea, TextInput } from '../../components/Field.tsx';
+import { AlertTriangleIcon, ChevronRightIcon, SourcesIcon } from '../../components/icons.tsx';
+import { ErrorNotice, Notice } from '../../components/Notice.tsx';
+import { PageBody, PageHeader, WithAside, usePageTitle } from '../../components/Page.tsx';
+import { Bone, RowsSkeleton, Skeleton } from '../../components/Spinner.tsx';
+import { DayTime, RelativeTime } from '../../components/Time.tsx';
+import { Who } from '../../components/Who.tsx';
 import { useCatalog, useProjectId, useTables } from '../../lib/hooks.ts';
-import { ago, dayTime } from '../../lib/time.ts';
-import { Button } from '../../ui/Button.tsx';
-import { TypeIcon } from '../../ui/icons.tsx';
-import { EmptyState, Page, PageTitle, Skeleton } from '../../ui/layout.tsx';
-import { Reasons } from '../../ui/Reasons.tsx';
-import { WhoMark } from '../../ui/signals.tsx';
-import { Tip } from '../../ui/Tip.tsx';
 import { whoOf } from '../../words.ts';
+
+const UNTRUSTED = 'An agent registered it. DEMIURGO reads it as input to check, never as something you decided.';
 
 export function SourcesScreen() {
   const projectId = useProjectId();
+  const project = (useQuery(projectsQuery).data ?? []).find((p) => p.id === projectId);
+  usePageTitle(['Sources', project?.name]);
   const sources = useQuery(sourcesQuery(projectId));
   const tables = useTables();
   const canAdd = tables ? canCreate(tables, 'source.register') : false;
+  // Newest first: the API lists them oldest first.
   const rows = (sources.data ?? []).toReversed();
+  const untrusted = rows.some((s) => whoOf(s.registered_by).kind === 'agent');
+
+  const list = sources.error ? (
+    <ErrorNotice error={sources.error} onRetry={() => void sources.refetch()} />
+  ) : sources.isPending ? (
+    <RowsSkeleton label="Loading the sources" rows={4} />
+  ) : rows.length === 0 ? (
+    <EmptyState icon={<SourcesIcon size={28} />} title="No sources yet" size="spacious">
+      Add notes, rules or anything else DEMIURGO should read.
+    </EmptyState>
+  ) : (
+    <div className="flex flex-col gap-3">
+      {untrusted ? (
+        <p className="flex items-start gap-2 text-sm text-fg-2">
+          <AlertTriangleIcon size={15} className="mt-0.5 shrink-0 text-warning-text" />
+          <span>
+            <strong className="font-medium text-fg">Untrusted input:</strong> {UNTRUSTED}
+          </span>
+        </p>
+      ) : null}
+      <div className="relative overflow-x-auto rounded-lg border border-edge">
+        <table className="w-full min-w-[600px] border-collapse text-left text-sm">
+          <caption className="sr-only">Sources</caption>
+          <thead className="bg-sunken text-xs text-fg-2">
+            <tr className="border-b border-edge">
+              <th scope="col" className="px-4 py-2.5 font-medium">
+                Name
+              </th>
+              <th scope="col" className="w-44 px-4 py-2.5 font-medium">
+                Registered by
+              </th>
+              <th scope="col" className="w-32 px-4 py-2.5 font-medium">
+                When
+              </th>
+              <th scope="col" className="w-40 px-4 py-2.5 font-medium">
+                Content hash
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-edge-subtle">
+            {rows.map((s) => (
+              <SourceRow key={s.id} source={s} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
   return (
-    <Page aside={canAdd ? <AddSource projectId={projectId} /> : undefined}>
-      <PageTitle
+    <>
+      <PageHeader
         title="Sources"
-        subtitle="What you and your agents give DEMIURGO to read. A source is input for its work, never a decision."
+        meta="What you and your agents give DEMIURGO to read. A source is input for its work, never a decision."
       />
-      {sources.error ? (
-        <Reasons error={sources.error} />
-      ) : sources.isPending ? (
-        <div role="status" aria-label="Loading the sources" className="flex flex-col gap-2">
-          {[0, 1, 2].map((i) => (
-            <Skeleton key={i} className="h-12 w-full" />
-          ))}
-        </div>
-      ) : rows.length === 0 ? (
-        <EmptyState>No sources yet. Add notes, rules or anything else DEMIURGO should read.</EmptyState>
-      ) : (
-        <div className="overflow-hidden rounded-card-md border border-line bg-surface">
-          <table className="dm-text-small w-full border-collapse text-left">
-            <caption className="sr-only">Sources</caption>
-            <thead>
-              <tr className="dm-label border-b border-line bg-surface-soft">
-                <th scope="col" className="px-4 py-2.5 font-semibold">
-                  Name
-                </th>
-                <th scope="col" className="w-[230px] px-4 py-2.5 font-semibold">
-                  Registered by
-                </th>
-                <th scope="col" className="w-[140px] px-4 py-2.5 font-semibold">
-                  When
-                </th>
-                <th scope="col" className="w-[170px] px-4 py-2.5 font-semibold">
-                  Content hash
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line-soft">
-              {rows.map((s) => (
-                <SourceRow key={s.id} source={s} />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </Page>
+      <PageBody>
+        {canAdd ? (
+          <WithAside asideLabel="New source" aside={<AddSource projectId={projectId} />} asideWidth="md">
+            {list}
+          </WithAside>
+        ) : (
+          list
+        )}
+      </PageBody>
+    </>
   );
 }
 
 function SourceRow({ source: s }: { source: Source }) {
-  const who = whoOf(s.registered_by);
-  const untrusted = who.kind === 'agent';
+  const untrusted = whoOf(s.registered_by).kind === 'agent';
   return (
-    <tr className="align-middle">
+    <tr data-source={s.id} className="align-top">
       <td className="px-4 py-3">
-        <span className="flex items-center gap-2">
-          <TypeIcon kind="source" size={14} className="shrink-0 text-muted" />
-          <span className="font-semibold text-ink">{s.name}</span>
-          {untrusted && (
-            <Tip text="An agent registered it. DEMIURGO reads it as input to check, never as something you decided.">
-              <span className="dm-text-caption shrink-0 rounded-pill border border-line-strong px-2 py-px font-medium text-ink-2">
+        <span className="flex items-start gap-2">
+          <SourcesIcon size={15} className="mt-0.5 shrink-0 text-fg-3" />
+          <span className="flex min-w-0 flex-col items-start gap-1">
+            <span className="font-medium break-words text-fg">{s.name}</span>
+            {untrusted ? (
+              <span className="inline-flex items-center gap-1 rounded-full border border-warning-edge bg-warning-soft px-2 text-xs leading-5 font-medium whitespace-nowrap text-warning-text">
+                <AlertTriangleIcon size={12} />
                 Untrusted input
               </span>
-            </Tip>
-          )}
+            ) : null}
+          </span>
         </span>
       </td>
       <td className="px-4 py-3">
-        <span className="dm-text-small flex items-center gap-1.5">
-          <WhoMark actor={s.registered_by} size={18} withName />
-          {untrusted && <span className="text-muted">· agent</span>}
-        </span>
+        <Who actor={s.registered_by} size={18} />
       </td>
-      <td className="px-4 py-3 text-ink-2">
-        <time dateTime={s.created_at} title={dayTime(s.created_at)}>
-          {ago(s.created_at)}
-        </time>
+      <td className="px-4 py-3 text-fg-2">
+        <span className="flex flex-col">
+          <RelativeTime iso={s.created_at} className="text-fg" />
+          <DayTime iso={s.created_at} className="text-xs text-fg-3" />
+        </span>
       </td>
       <td className="px-4 py-3">
-        <span className="dm-code text-muted" title={s.content_hash}>
-          {s.content_hash.slice(0, 12)}…
-        </span>
+        <details className="group">
+          <summary className="inline-flex min-h-6 cursor-pointer list-none items-center gap-1 rounded-xs font-code text-xs text-fg-2 hover:text-fg">
+            <ChevronRightIcon size={12} className="shrink-0 transition-transform group-open:rotate-90" />
+            {s.content_hash.slice(0, 12)}…<span className="sr-only"> Show the full hash</span>
+          </summary>
+          <code className="mt-1 block font-code text-xs break-all text-fg">{s.content_hash}</code>
+        </details>
       </td>
     </tr>
   );
 }
 
-type Field = { key: string; label: string; required: boolean; maxLength: number | undefined; long: boolean };
+type FormField = {
+  key: string;
+  label: string;
+  hint: string | undefined;
+  required: boolean;
+  maxLength: number | undefined;
+  long: boolean;
+};
+
+/** Written words for the fields the command has today; any other string field gets its key as label. */
+const COPY: Record<string, { label: string; hint: string }> = {
+  name: { label: 'Name', hint: 'How you will recognise it: "Meeting notes, 12 Sep".' },
+  content: { label: 'Content', hint: 'Paste it as it is. DEMIURGO reads it; it never becomes a decision.' },
+};
 
 /** The fields of a command from its JSON Schema: strings, long ones as a text area. */
-function fieldsOf(schema: JsonSchema | null | undefined): Field[] {
+function fieldsOf(schema: JsonSchema | null | undefined): FormField[] {
   const required = new Set(schema?.required ?? []);
   return Object.entries(schema?.properties ?? {})
     .filter(([, p]) => p.type === 'string')
     .map(([key, p]) => ({
       key,
-      label: key.charAt(0).toUpperCase() + key.slice(1).replaceAll('_', ' '),
+      label: COPY[key]?.label ?? key.charAt(0).toUpperCase() + key.slice(1).replaceAll('_', ' '),
+      hint: COPY[key]?.hint,
       required: required.has(key),
       maxLength: p.maxLength,
       long: (p.maxLength ?? 0) > 1000,
@@ -132,75 +177,89 @@ function AddSource({ projectId }: { projectId: string }) {
   const fields = fieldsOf(catalog?.['source.register']?.data);
   const command = useCommand(projectId);
   const [values, setValues] = useState<Record<string, string>>({});
+  // The confirmation stays until the person changes something again (DESIGN.md §3.8).
   const [added, setAdded] = useState<string | null>(null);
   const id = useId();
-  useEffect(() => {
-    if (!added) return;
-    const t = setTimeout(() => setAdded(null), 5000);
-    return () => clearTimeout(t);
-  }, [added]);
   const complete = fields.length > 0 && fields.every((f) => !f.required || (values[f.key] ?? '').trim() !== '');
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (!complete) return;
+    if (!complete || command.isPending) return;
     const data = Object.fromEntries(fields.map((f) => [f.key, values[f.key] ?? '']).filter(([, v]) => v !== ''));
     command.mutate(
       { command: 'source.register', data },
       {
         onSuccess: () => {
-          setAdded(String(data.name ?? 'The source'));
+          const name = String(data.name ?? 'The source');
+          setAdded(name);
           setValues({});
+          announce(`Added “${name}”.`);
         },
       },
     );
   };
+  const change = (key: string, value: string) => {
+    setAdded(null);
+    setValues((v) => ({ ...v, [key]: value }));
+  };
   return (
-    <form aria-labelledby={`${id}-title`} onSubmit={submit} className="flex flex-col gap-3">
-      <div>
-        <h2 id={`${id}-title`} className="dm-text-heading font-semibold">
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-0.5">
+        <h2 id={`${id}-title`} className="text-lg font-semibold text-fg">
           Add a source
         </h2>
-        <p className="dm-text-caption mt-0.5 text-muted">Paste what DEMIURGO should read: notes, rules, a survey.</p>
+        <p className="text-sm text-fg-2">Paste what DEMIURGO should read: notes, rules, a survey.</p>
       </div>
-      {!catalog ? (
-        <div className="flex flex-col gap-3">
-          <Skeleton className="h-9 w-full" />
-          <Skeleton className="h-40 w-full" />
-        </div>
-      ) : (
-        fields.map((f) => {
-          const common = {
-            id: `${id}-${f.key}`,
-            value: values[f.key] ?? '',
-            maxLength: f.maxLength,
-            onChange: (e: { target: { value: string } }) => setValues((v) => ({ ...v, [f.key]: e.target.value })),
-            className:
-              'dm-text-body w-full rounded-control border border-line-strong bg-surface px-3 text-ink placeholder:text-muted focus:border-needs focus:outline-none',
-          };
-          return (
-            <div key={f.key} className="flex flex-col gap-1">
-              <label htmlFor={`${id}-${f.key}`} className="dm-text-caption font-semibold text-ink-2">
-                {f.label}
-                {!f.required && <span className="font-normal text-muted"> · optional</span>}
-              </label>
-              {f.long ? (
-                <textarea {...common} rows={10} className={cn(common.className, 'resize-y py-2 leading-relaxed')} />
-              ) : (
-                <input {...common} className={cn(common.className, 'h-9')} />
-              )}
-            </div>
-          );
-        })
-      )}
-      {command.error ? <Reasons error={command.error} /> : null}
-      <div className="flex items-center justify-between gap-3">
-        <span role="status" className="dm-text-caption text-muted">
-          {added ? `Added “${added}”.` : ''}
-        </span>
-        <Button type="submit" variant="secondary" disabled={!complete || command.isPending}>
-          {command.isPending ? 'Adding…' : 'Add a source'}
+      <form aria-labelledby={`${id}-title`} onSubmit={submit} className="flex flex-col gap-4">
+        {!catalog ? (
+          <Skeleton label="Loading the form" className="flex flex-col gap-3">
+            <Bone className="h-9 w-full rounded-md" />
+            <Bone className="h-40 w-full rounded-md" />
+          </Skeleton>
+        ) : (
+          fields.map((f) => {
+            const value = values[f.key] ?? '';
+            return (
+              <Field
+                key={f.key}
+                label={f.label}
+                hint={f.hint}
+                optional={!f.required}
+                {...(f.maxLength && f.long ? { count: [value.length, f.maxLength] as [number, number] } : {})}
+              >
+                {(p) =>
+                  f.long ? (
+                    <TextArea
+                      {...p}
+                      rows={10}
+                      value={value}
+                      maxLength={f.maxLength}
+                      onChange={(e) => change(f.key, e.target.value)}
+                    />
+                  ) : (
+                    <TextInput {...p} value={value} maxLength={f.maxLength} onChange={(e) => change(f.key, e.target.value)} />
+                  )
+                }
+              </Field>
+            );
+          })
+        )}
+        {command.error ? <ErrorNotice error={command.error} /> : null}
+        {added ? (
+          <Notice tone="success" title={`Added “${added}”.`}>
+            It is at the top of the list.
+          </Notice>
+        ) : null}
+        <Button
+          type="submit"
+          variant="primary"
+          disabled={!complete}
+          pending={command.isPending}
+          pendingLabel="Adding…"
+          className="self-end"
+        >
+          Add a source
         </Button>
-      </div>
-    </form>
+      </form>
+    </div>
   );
 }

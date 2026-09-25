@@ -2,8 +2,8 @@
 // product state, the threads and the links of each record's shown version (based_on and origin).
 // It places the nodes left to right, finds the trace of a node and says why it exists.
 
-import type { Exploration, ProductRow, ProductState, RecordDetail, RecordVersion } from '../../api/types.ts';
-import { TYPE_WORDS } from '../../words.ts';
+import type { Exploration, ProductRow, ProductState, RecordDetail, RecordType, RecordVersion } from '../../api/types.ts';
+import { TYPE_WORDS, TYPE_WORDS_PLURAL } from '../../words.ts';
 
 export type ThreadNode = {
   key: string;
@@ -287,6 +287,18 @@ export type Segment = { text: string; to?: { kind: 'record'; code: string } | { 
 export type Why = { sentence: Segment[]; phrases: { label: string; text: string }[] };
 
 const quoted = (s: string) => `“${s}”`;
+/** The order in which "It led to …" lists what came from a thread. */
+const LED_TO_ORDER: RecordType[] = [
+  'decision',
+  'fdr',
+  'adr',
+  'bug',
+  'requirement',
+  'quality_requirement',
+  'threat_model',
+  'production_readiness',
+];
+
 const typeWord = (row: ProductRow) => TYPE_WORDS[row.type].toLowerCase();
 
 function linkTo(n: ThreadNode | RecordNode): Segment {
@@ -320,10 +332,10 @@ export function whyOf(tree: OriginsTree, key: string): Why {
     }
     if (node.fromRecord) sentence.push({ text: `, opened from ${node.fromRecord.code} v${node.fromRecord.n}` });
     const records = tree.nodes.filter((n): n is RecordNode => n.kind === 'record' && descends(tree, n.key, key));
-    const kinds = (['decision', 'fdr', 'adr', 'bug'] as const)
-      .map((t) => ({ t, n: records.filter((r) => r.row.type === t).length }))
+    // Every record type counts, requirements and stage records included (not only the first four).
+    const kinds = LED_TO_ORDER.map((t) => ({ t, n: records.filter((r) => r.row.type === t).length }))
       .filter((x) => x.n > 0)
-      .map((x) => count(x.n, TYPE_WORDS[x.t].toLowerCase(), `${TYPE_WORDS[x.t].toLowerCase()}s`));
+      .map((x) => count(x.n, TYPE_WORDS[x.t].toLowerCase(), TYPE_WORDS_PLURAL[x.t].toLowerCase()));
     sentence.push({ text: kinds.length ? `. It led to ${listed(kinds)}.` : '. Nothing has come from it yet.' });
   } else {
     sentence.push({ text: ` is a ${typeWord(node.row)}` });

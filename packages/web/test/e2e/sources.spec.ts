@@ -1,5 +1,8 @@
+// Sources (AC-INT-001-17): what the person and agents give DEMIURGO to read, with who registered it.
+// An agent's source is untrusted input and the page says what that means in text; the full hash and
+// the absolute time are readable without hovering; the success message stays until the next change.
+
 import type { Source } from '../../src/api/types.ts';
-import { foldLegend } from './knowledge-data.ts';
 import { expect, expectAccessible, screenshot, test } from './support/fixtures.ts';
 
 test('AC-INT-001-17 the person registers a source from the UI and it appears in the list, with who registered it', async ({
@@ -17,8 +20,15 @@ test('AC-INT-001-17 the person registers a source from the UI and it appears in 
   await expect(page.getByRole('heading', { name: 'Sources', level: 1 })).toBeVisible();
   const table = page.getByRole('table', { name: 'Sources' });
   const fromAgent = table.getByRole('row', { name: /Notas de la reunión con el club/ });
-  await expect(fromAgent.getByRole('img', { name: 'Agent · claude-code' })).toBeVisible();
+  await expect(fromAgent).toContainText('Agent · claude-code');
   await expect(fromAgent).toContainText('Untrusted input');
+  // What "untrusted input" means is written on the page, not only in a tooltip.
+  await expect(page.getByText(/An agent registered it\. DEMIURGO reads it as input to check/)).toBeVisible();
+  // The full hash is one click away, as text.
+  const stored = await person.get<Source[]>(`/api/projects/${projectId}/sources`);
+  const notes = stored.find((s) => s.name === 'Notas de la reunión con el club');
+  await fromAgent.locator('summary').click();
+  await expect(fromAgent).toContainText(notes?.content_hash ?? '-');
   await expectAccessible(page, 'Sources');
 
   // The form comes from the command's schema: a name and the content.
@@ -30,11 +40,17 @@ test('AC-INT-001-17 the person registers a source from the UI and it appears in 
   await add.click();
   const mine = table.getByRole('row', { name: /Reglamento del club/ });
   await expect(mine).toBeVisible();
-  await expect(mine.getByRole('img', { name: 'You' })).toBeVisible();
+  await expect(mine).toContainText('You');
   await expect(mine).not.toContainText('Untrusted input');
   await expect(form.getByLabel('Name')).toHaveValue('');
-  const stored = await person.get<Source[]>(`/api/projects/${projectId}/sources`);
-  const registered = stored.find((s) => s.name === 'Reglamento del club');
+  // The confirmation stays (no 5 s timeout) until the person writes again.
+  await expect(form).toContainText('Added “Reglamento del club”.');
+  await page.waitForTimeout(5_500);
+  await expect(form).toContainText('Added “Reglamento del club”.');
+  await form.getByLabel('Name').fill('Otra');
+  await expect(form).not.toContainText('Added “Reglamento del club”.');
+  const after = await person.get<Source[]>(`/api/projects/${projectId}/sources`);
+  const registered = after.find((s) => s.name === 'Reglamento del club');
   expect(registered?.registered_by).toBe('human:ana');
   await expect(mine).toContainText(registered?.content_hash.slice(0, 12) ?? '-');
 });
@@ -56,6 +72,5 @@ test('screens of cut 7: sources', async ({ page, person }) => {
   });
   await page.goto(`/p/${projectId}/sources`);
   await expect(page.getByRole('table', { name: 'Sources' }).getByRole('row')).toHaveCount(4);
-  await foldLegend(page);
   await screenshot(page, 7, '27-sources');
 });

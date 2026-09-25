@@ -1,23 +1,28 @@
-// Knowledge (spec §4.10): the graph version and its freshness, the latest updates (a failed one
-// can be retried), and five tabs: the graph by taxonomy area, search, idea checks, the taxonomy
-// and the rebuild fingerprint. The tab lives in the URL (?tab=).
+// Knowledge (DESIGN.md §3.8, spec §4.10): what DEMIURGO derives from what the person decided. The
+// header says its freshness in words ("Up to date", "Updating · 2 to go", "Behind · 1 failed") and
+// the graph version; five APG tabs (Graph, Search, Idea checks, Taxonomy, Rebuild) live in ?tab=
+// without piling history entries; the side column lists the latest updates, and a failed one can be
+// retried where it is shown (INV-KNOW-01…05).
 
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { Tabs } from 'radix-ui';
 import { useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
-import { knowledgeQuery, stateQuery } from '../../api/queries.ts';
+import { knowledgeQuery, projectsQuery, stateQuery } from '../../api/queries.ts';
 import type { Knowledge, KnowledgeUpdate } from '../../api/types.ts';
+import { ActionBar } from '../../components/actions.tsx';
+import { announce } from '../../components/announce.tsx';
+import { Code } from '../../components/Badge.tsx';
+import { Button } from '../../components/Button.tsx';
+import { AlertCircleIcon, ChevronDownIcon, RetryIcon } from '../../components/icons.tsx';
+import { ErrorNotice } from '../../components/Notice.tsx';
+import { PageBody, PageHeader, Section, WithAside, usePageTitle } from '../../components/Page.tsx';
+import { Bone, RowsSkeleton } from '../../components/Spinner.tsx';
+import { EntityState, StatusBadge } from '../../components/status.tsx';
+import { TabPanel, Tabs } from '../../components/Tabs.tsx';
+import { RelativeTime } from '../../components/Time.tsx';
 import { cn } from '../../lib/cn.ts';
 import { useProjectId } from '../../lib/hooks.ts';
-import { ago } from '../../lib/time.ts';
-import { ActionBar } from '../../ui/ActionBar.tsx';
-import { WarningIcon } from '../../ui/icons.tsx';
-import { Page, PageTitle, Skeleton } from '../../ui/layout.tsx';
-import { useLegendMark } from '../../ui/legend-store.ts';
-import { StateMark, WorkingMark } from '../../ui/marks.tsx';
-import { Reasons } from '../../ui/Reasons.tsx';
 import { GraphTab } from './GraphTab.tsx';
 import { type Freshness, describeTrigger, freshnessOf } from './graph.ts';
 import { IdeaChecksTab } from './IdeaChecksTab.tsx';
@@ -37,100 +42,101 @@ export type KnowledgeTab = (typeof TABS)[number]['value'];
 
 export function KnowledgeScreen() {
   const projectId = useProjectId();
+  const project = (useQuery(projectsQuery).data ?? []).find((p) => p.id === projectId);
+  usePageTitle(['Knowledge', project?.name]);
   const search = useSearch({ strict: false }) as { tab?: string };
   const tab: KnowledgeTab = TABS.find((t) => t.value === search.tab)?.value ?? 'graph';
   const navigate = useNavigate();
   const knowledge = useQuery(knowledgeQuery(projectId));
+  // A tab is a view of the same page: it replaces the URL, so Back leaves the page (not the tab).
   const show = (value: string) =>
-    void navigate({ to: '/p/$projectId/knowledge', params: { projectId }, search: value === 'graph' ? {} : { tab: value } });
+    void navigate({
+      to: '/p/$projectId/knowledge',
+      params: { projectId },
+      search: value === 'graph' ? {} : { tab: value },
+      replace: true,
+    });
 
   return (
-    <Page aside={<LatestUpdates projectId={projectId} knowledge={knowledge.data} />}>
-      <PageTitle
+    <>
+      <PageHeader
         title="Knowledge"
-        subtitle={knowledge.data ? <FreshnessLine k={knowledge.data} /> : <Skeleton className="mt-1 h-4 w-96" />}
-        className="mb-5"
+        meta={knowledge.data ? <FreshnessLine k={knowledge.data} /> : knowledge.isPending ? <Bone className="h-4 w-80" /> : null}
       />
-      <Tabs.Root value={tab} onValueChange={show}>
-        <Tabs.List aria-label="Knowledge views" className="mb-6 flex gap-6 border-b border-line">
-          {TABS.map((t) => (
-            <Tabs.Trigger
-              key={t.value}
-              value={t.value}
-              className="dm-text-body -mb-px border-b-2 border-transparent px-0.5 pb-2 font-medium text-muted hover:text-ink data-[state=active]:border-ink data-[state=active]:font-semibold data-[state=active]:text-ink"
-            >
-              {t.label}
-            </Tabs.Trigger>
-          ))}
-        </Tabs.List>
-        <Tabs.Content value="graph" className="outline-none">
-          <GraphTab projectId={projectId} onTaxonomy={() => show('taxonomy')} />
-        </Tabs.Content>
-        <Tabs.Content value="search" className="outline-none">
-          <SearchTab projectId={projectId} />
-        </Tabs.Content>
-        <Tabs.Content value="ideas" className="outline-none">
-          <IdeaChecksTab projectId={projectId} />
-        </Tabs.Content>
-        <Tabs.Content value="taxonomy" className="outline-none">
-          <TaxonomyTab projectId={projectId} />
-        </Tabs.Content>
-        <Tabs.Content value="rebuild" className="outline-none">
-          <RebuildTab projectId={projectId} />
-        </Tabs.Content>
-      </Tabs.Root>
-    </Page>
+      <PageBody>
+        <WithAside
+          asideLabel="Updates"
+          aside={
+            <LatestUpdates projectId={projectId} knowledge={knowledge.data} error={knowledge.error} retry={knowledge.refetch} />
+          }
+        >
+          <Tabs label="Knowledge views" value={tab} onChange={show} tabs={TABS.map((t) => ({ value: t.value, label: t.label }))}>
+            <TabPanel value="graph">
+              <GraphTab projectId={projectId} onTaxonomy={() => show('taxonomy')} />
+            </TabPanel>
+            <TabPanel value="search">
+              <SearchTab projectId={projectId} />
+            </TabPanel>
+            <TabPanel value="ideas">
+              <IdeaChecksTab projectId={projectId} />
+            </TabPanel>
+            <TabPanel value="taxonomy">
+              <TaxonomyTab projectId={projectId} />
+            </TabPanel>
+            <TabPanel value="rebuild">
+              <RebuildTab projectId={projectId} />
+            </TabPanel>
+          </Tabs>
+        </WithAside>
+      </PageBody>
+    </>
   );
 }
 
-const FRESHNESS_WORDS: Record<Freshness, string> = { current: 'Up to date', updating: 'Updating', behind: 'Behind' };
-
-/** The dot of the header: ink when up to date, the design system's Working dot while updating,
-    rust when an update failed. */
-export function FreshnessDot({ state }: { state: Freshness }) {
-  if (state === 'updating') return <span aria-hidden="true" className="dm-working-dot shrink-0" />;
-  return <span aria-hidden="true" className={cn('dm-dot dm-dot--sm', state === 'current' ? 'bg-ink' : 'bg-problem-fill')} />;
-}
-
+/** The freshness in words and the graph's size (INV-KNOW-02): "Behind · 1 failed · Graph v12 · …". */
 function FreshnessLine({ k }: { k: Knowledge }) {
   const state = freshnessOf(k);
   const failed = k.updates.filter((u) => u.state === 'rejected').length;
-  useLegendMark(state === 'behind' ? 'mark:problem' : null);
-  const parts = [
-    state === 'updating' && `${k.updates_in_progress} ${k.updates_in_progress === 1 ? 'change' : 'changes'} to go`,
-    state === 'behind' && `${failed} ${failed === 1 ? 'update' : 'updates'} failed`,
-    `Graph version ${k.graph_version}`,
-    `${k.current_nodes} nodes`,
-    `${k.current_edges} relations`,
-  ].filter((p): p is string => typeof p === 'string');
+  const badge: Record<Freshness, { kind: 'done' | 'working' | 'problem'; word: string; title: string }> = {
+    current: { kind: 'done', word: 'Up to date', title: `Knowledge is up to date (version ${k.graph_version}).` },
+    updating: {
+      kind: 'working',
+      word: `Updating · ${k.updates_in_progress} to go`,
+      title: `DEMIURGO is updating its knowledge: ${k.updates_in_progress} ${k.updates_in_progress === 1 ? 'change' : 'changes'} to go.`,
+    },
+    behind: {
+      kind: 'problem',
+      word: `Behind · ${failed} failed`,
+      title: `Knowledge is behind: ${failed} ${failed === 1 ? 'update' : 'updates'} failed. Retry it in Latest updates.`,
+    },
+  };
+  const b = badge[state];
   return (
-    <p data-knowledge-freshness={state} className="dm-text-body flex flex-wrap items-center gap-x-2 text-ink-2">
-      {state === 'updating' ? (
-        // An update in progress is the design system's Working, with its tooltip and legend entry.
-        <WorkingMark label={FRESHNESS_WORDS.updating}>{FRESHNESS_WORDS.updating}</WorkingMark>
-      ) : (
-        <>
-          <FreshnessDot state={state} />
-          <strong className={cn('font-semibold', state === 'current' ? 'text-ink' : 'text-problem')}>
-            {FRESHNESS_WORDS[state]}
-          </strong>
-        </>
-      )}
-      {parts.map((p) => (
-        <span key={p} className="flex items-center gap-x-2">
-          <span className="dm-sep" aria-hidden="true">
-            ·
-          </span>
-          {p}
-        </span>
-      ))}
-    </p>
+    <span data-knowledge-freshness={state} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <StatusBadge kind={b.kind} word={b.word} size="md" title={b.title} />
+      <span className="tabular-nums">
+        Graph v{k.graph_version} · {k.current_nodes} {k.current_nodes === 1 ? 'node' : 'nodes'} · {k.current_edges}{' '}
+        {k.current_edges === 1 ? 'relation' : 'relations'}
+      </span>
+      {state === 'behind' ? <span className="text-danger-text">Retry the failed update in Latest updates.</span> : null}
+    </span>
   );
 }
 
 const SHOWN = 8;
 
-function LatestUpdates({ projectId, knowledge }: { projectId: string; knowledge: Knowledge | undefined }) {
+/** Latest updates (INV-KNOW-04, 05): the newest eight plus every failed one, which can be retried. */
+function LatestUpdates({
+  projectId,
+  knowledge,
+  error,
+  retry,
+}: {
+  projectId: string;
+  knowledge: Knowledge | undefined;
+  error: unknown;
+  retry: () => unknown;
+}) {
   const rows = useQuery(stateQuery(projectId)).data;
   const products = [...(rows?.decisions ?? []), ...(rows?.designs ?? [])];
   const [all, setAll] = useState(false);
@@ -138,38 +144,34 @@ function LatestUpdates({ projectId, knowledge }: { projectId: string; knowledge:
   // A failed update is always in view: it is the one that asks for something.
   const shown = all ? updates : updates.filter((u, i) => i < SHOWN || u.state === 'rejected');
   return (
-    <section aria-labelledby="updates-title" className="flex flex-col gap-3">
-      <div>
-        <h2 id="updates-title" className="dm-text-heading font-semibold">
-          Latest updates
-        </h2>
-        <p className="dm-text-caption mt-0.5 text-muted">What you approve, accept or discard updates what DEMIURGO knows.</p>
-      </div>
-      {!knowledge ? (
-        <div className="flex flex-col gap-3">
-          {[0, 1, 2].map((i) => (
-            <Skeleton key={i} className="h-10 w-full" />
-          ))}
-        </div>
+    <Section id="updates" title="Latest updates" note="What you approve, accept or discard updates what DEMIURGO knows.">
+      {error && !knowledge ? (
+        <ErrorNotice error={error} compact onRetry={() => void retry()} />
+      ) : !knowledge ? (
+        <RowsSkeleton label="Loading the latest updates" rows={3} />
       ) : updates.length === 0 ? (
-        <p className="dm-text-small text-ink-3">Nothing has changed the knowledge yet.</p>
+        <p className="text-sm text-fg-2">Nothing has changed the knowledge yet.</p>
       ) : (
-        <ul className="flex flex-col divide-y divide-line-soft border-y border-line-soft">
+        <ul id="knowledge-updates" className="flex flex-col divide-y divide-edge-subtle border-y border-edge-subtle">
           {shown.map((u) => (
             <UpdateRow key={u.id} projectId={projectId} update={u} what={describeTrigger(u.trigger, products)} />
           ))}
         </ul>
       )}
-      {updates.length > shown.length || all ? (
-        <button
-          type="button"
+      {updates.length > SHOWN ? (
+        <Button
+          size="sm"
+          variant="quiet"
+          aria-expanded={all}
+          aria-controls="knowledge-updates"
           onClick={() => setAll((v) => !v)}
-          className="dm-text-caption self-start font-semibold text-needs hover:text-needs-strong"
+          trailing={<ChevronDownIcon size={14} className={cn('transition-transform', all && 'rotate-180')} />}
+          className="self-start"
         >
           {all ? 'Show fewer' : `Show all ${updates.length}`}
-        </button>
+        </Button>
       ) : null}
-    </section>
+    </Section>
   );
 }
 
@@ -177,41 +179,50 @@ function UpdateRow({ projectId, update: u, what }: { projectId: string; update: 
   const command = useCommand(projectId);
   const before = u.graph_version_before;
   const after = u.graph_version_after;
+  const failed = u.state === 'rejected';
   return (
     <li className="flex flex-col gap-1 py-2.5" data-update={u.state}>
       <div className="flex items-center justify-between gap-2">
-        <StateMark entity="knowledge_update" state={u.state} />
-        <span className="dm-text-caption text-muted">{ago(u.created_at)}</span>
+        <EntityState entity="knowledge_update" state={u.state} />
+        <RelativeTime iso={u.created_at} className="text-xs text-fg-3" />
       </div>
-      <p className="dm-text-small text-ink">{what}</p>
-      {before !== null && after !== null && before !== after && (
-        <p className="dm-code text-muted">
-          v{before} → v{after}
-        </p>
-      )}
-      {u.state === 'rejected' && (
+      <p className="flex flex-wrap items-baseline justify-between gap-x-2 text-sm text-fg">
+        <span>{what}</span>
+        {before !== null && after !== null && before !== after ? (
+          <Code>
+            v{before} → v{after}
+          </Code>
+        ) : null}
+      </p>
+      {failed ? (
         <>
-          {u.failure && (
-            <p className="dm-text-small flex items-start gap-1.5 rounded-control bg-problem-tint px-3 py-2 text-problem">
-              <WarningIcon size={14} className="mt-[3px] shrink-0" />
-              <span className="min-w-0">{u.failure}</span>
+          {u.failure ? (
+            <p className="flex items-start gap-1.5 text-sm text-danger-text">
+              <AlertCircleIcon size={14} className="mt-0.5 shrink-0" />
+              <span className="min-w-0 break-words">{u.failure}</span>
             </p>
-          )}
+          ) : null}
           <ActionBar
             entity="knowledge_update"
             state={u.state}
-            className="mt-1"
+            size="sm"
             handlers={{
               'knowledge_update.retry': {
                 variant: 'secondary',
-                disabled: command.isPending,
-                run: () => command.mutate({ command: 'knowledge_update.retry', entityId: u.id }),
+                icon: <RetryIcon size={14} />,
+                pending: command.isPending,
+                pendingLabel: 'Retrying…',
+                run: () =>
+                  command.mutate(
+                    { command: 'knowledge_update.retry', entityId: u.id },
+                    { onSuccess: () => announce(`${what}: sent to update again.`) },
+                  ),
               },
             }}
           />
-          {command.error ? <Reasons error={command.error} /> : null}
+          {command.error ? <ErrorNotice error={command.error} compact /> : null}
         </>
-      )}
+      ) : null}
     </li>
   );
 }

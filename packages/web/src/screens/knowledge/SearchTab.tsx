@@ -1,23 +1,28 @@
-// Search over the current nodes of the knowledge (…/knowledge/search). Each result links to its
-// record at the version it comes from; a check goes to the record that contains it.
+// The Search tab (DESIGN.md §3.8, INV-KNOW-12…14): a full search over the current knowledge
+// (…/knowledge/search), run on submit. Each result says what it is and how sure it is; its title
+// opens its record at the version it comes from (a check opens the record that holds it), or its
+// thread. A result with no page says so instead of being an inert card.
 
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { type FormEvent, useId, useState } from 'react';
+import { type FormEvent, useEffect, useState } from 'react';
 import { graphQuery, knowledgeSearchQuery } from '../../api/queries.ts';
-import { Button } from '../../ui/Button.tsx';
-import { Code } from '../../ui/Card.tsx';
-import { SearchIcon, TypeIcon } from '../../ui/icons.tsx';
-import { EmptyState, Skeleton } from '../../ui/layout.tsx';
-import { EpistemicMark } from '../../ui/marks.tsx';
-import { Reasons } from '../../ui/Reasons.tsx';
+import { announce } from '../../components/announce.tsx';
+import { Code } from '../../components/Badge.tsx';
+import { Button } from '../../components/Button.tsx';
+import { EmptyState } from '../../components/EmptyState.tsx';
+import { Field, TextInput } from '../../components/Field.tsx';
+import { SearchIcon } from '../../components/icons.tsx';
+import { ErrorNotice } from '../../components/Notice.tsx';
+import { RowsSkeleton } from '../../components/Spinner.tsx';
+import { Certainty } from '../../components/status.tsx';
+import { TypeIcon } from '../../components/types.tsx';
 import { nodeType, recordOfRef } from './graph.ts';
 
 /** A result as the API gives it (packages/core/src/knowledge/graph-pg.ts). */
 type Hit = { ref: string; type: string; title: string; excerpt: string; epistemic_status: string };
 
 export function SearchTab({ projectId }: { projectId: string }) {
-  const id = useId();
   const [text, setText] = useState('');
   const [q, setQ] = useState('');
   const search = useQuery(knowledgeSearchQuery(projectId, q));
@@ -27,96 +32,117 @@ export function SearchTab({ projectId }: { projectId: string }) {
     e.preventDefault();
     setQ(text.trim());
   };
+  const done = !!q && !!search.data;
+  useEffect(() => {
+    if (done) announce(`${hits.length} ${hits.length === 1 ? 'result' : 'results'} for “${q}”.`);
+  }, [done, hits.length, q]);
+
   return (
     <div className="flex flex-col gap-5">
-      <form role="search" onSubmit={submit} className="flex flex-col gap-1.5">
-        <label htmlFor={id} className="dm-text-caption font-semibold text-ink-2">
-          Search the knowledge
-        </label>
-        <div className="flex items-center gap-2">
-          <div className="relative w-[520px]">
-            <SearchIcon size={14} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted" />
-            <input
-              id={id}
-              type="search"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="A word or a phrase, as it was written"
-              className="dm-text-body h-9 w-full rounded-control border border-line-strong bg-surface pr-3 pl-8 text-ink placeholder:text-muted focus:border-needs focus:outline-none"
-            />
-          </div>
-          <Button type="submit" variant="secondary" disabled={text.trim() === ''}>
-            Search
-          </Button>
-        </div>
+      <form role="search" onSubmit={submit} className="max-w-2xl">
+        <Field label="Search the knowledge">
+          {(p) => (
+            <div className="flex items-center gap-2">
+              <div className="relative min-w-0 flex-1">
+                <SearchIcon size={15} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-fg-3" />
+                <TextInput
+                  {...p}
+                  type="search"
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  placeholder="A word or a phrase, as it was written"
+                  className="pl-9"
+                />
+              </div>
+              <Button type="submit" variant="primary" disabled={text.trim() === ''}>
+                Search
+              </Button>
+            </div>
+          )}
+        </Field>
       </form>
       {!q ? (
-        <p className="dm-text-small text-ink-3">
+        <p className="text-sm text-fg-2">
           Search what DEMIURGO knows: decisions, features, tech decisions and their checks, as they were written.
         </p>
-      ) : search.isPending ? (
-        <div role="status" aria-label="Searching" className="flex flex-col gap-2">
-          {[0, 1, 2].map((i) => (
-            <Skeleton key={i} className="h-[72px] w-full rounded-card-md" />
-          ))}
-        </div>
       ) : search.error ? (
-        <Reasons error={search.error} />
+        <ErrorNotice error={search.error} onRetry={() => void search.refetch()} />
+      ) : search.isPending ? (
+        <RowsSkeleton label="Searching" rows={3} />
       ) : hits.length === 0 ? (
-        <EmptyState>Nothing matches “{q}”.</EmptyState>
+        <EmptyState
+          icon={<SearchIcon size={24} />}
+          title={`Nothing matches “${q}”`}
+          action={
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setText('');
+                setQ('');
+              }}
+            >
+              Clear the search
+            </Button>
+          }
+        >
+          Try another word, or fewer words.
+        </EmptyState>
       ) : (
         <div className="flex flex-col gap-2">
-          <p className="dm-text-caption text-muted" aria-live="polite">
+          <p className="text-sm text-fg-2">
             {hits.length} {hits.length === 1 ? 'result' : 'results'} for “{q}”
           </p>
           <ul aria-label="Results" className="flex flex-col gap-2">
-            {hits.map((h) => {
-              const record = recordOfRef(h.ref, graph);
-              const thread = h.ref.startsWith('exploration:') ? h.ref.slice('exploration:'.length) : null;
-              const type = nodeType(h.type);
-              const body = (
-                <>
-                  <span className="dm-label flex items-center gap-1.5">
-                    <TypeIcon kind={type.icon} size={13} />
-                    {type.word}
-                    <span className="tracking-normal normal-case">
-                      <EpistemicMark status={h.epistemic_status} withWord />
-                    </span>
-                    {!thread && <Code className="ml-auto tracking-normal normal-case">{h.ref}</Code>}
-                  </span>
-                  <strong className="dm-text-body leading-snug font-semibold">{h.title}</strong>
-                  {h.excerpt && <span className="dm-text-small line-clamp-2 text-ink-3">{h.excerpt}</span>}
-                </>
-              );
-              const cls = 'dm-card px-4 py-3 text-left';
-              return (
-                <li key={h.ref}>
-                  {thread ? (
-                    <Link
-                      to="/p/$projectId/threads/$explorationId"
-                      params={{ projectId, explorationId: thread }}
-                      className={`${cls} hover:border-line-strong`}
-                    >
-                      {body}
-                    </Link>
-                  ) : record ? (
-                    <Link
-                      to="/p/$projectId/records/$code"
-                      params={{ projectId, code: record.code }}
-                      search={{ v: record.version }}
-                      className={`${cls} hover:border-line-strong`}
-                    >
-                      {body}
-                    </Link>
-                  ) : (
-                    <div className={cls}>{body}</div>
-                  )}
-                </li>
-              );
-            })}
+            {hits.map((h) => (
+              <Result key={h.ref} projectId={projectId} hit={h} record={recordOfRef(h.ref, graph)} />
+            ))}
           </ul>
         </div>
       )}
     </div>
+  );
+}
+
+function Result({
+  projectId,
+  hit: h,
+  record,
+}: {
+  projectId: string;
+  hit: Hit;
+  record: { code: string; version: number } | null;
+}) {
+  const thread = h.ref.startsWith('exploration:') ? h.ref.slice('exploration:'.length) : null;
+  const type = nodeType(h.type);
+  const title = 'text-base font-medium text-fg underline-offset-2 hover:text-accent-text hover:underline';
+  return (
+    <li data-search-hit={h.ref} className="flex flex-col gap-1.5 rounded-lg border border-edge bg-panel px-4 py-3">
+      <div className="flex flex-wrap items-center gap-2 text-sm text-fg-2">
+        <TypeIcon type={h.type} size={15} className="text-fg-3" />
+        <span>{type.word}</span>
+        <Certainty status={h.epistemic_status} />
+        {!thread ? <Code className="ml-auto">{h.ref}</Code> : null}
+      </div>
+      {thread ? (
+        <Link to="/p/$projectId/threads/$explorationId" params={{ projectId, explorationId: thread }} className={title}>
+          {h.title}
+        </Link>
+      ) : record ? (
+        <Link
+          to="/p/$projectId/records/$code"
+          params={{ projectId, code: record.code }}
+          search={{ v: record.version }}
+          className={title}
+        >
+          {h.title}
+        </Link>
+      ) : (
+        <span className="flex flex-wrap items-baseline gap-x-2">
+          <span className="text-base font-medium text-fg">{h.title}</span>
+          <span className="text-xs text-fg-3">It has no page of its own to open.</span>
+        </span>
+      )}
+      {h.excerpt ? <p className="line-clamp-3 text-sm text-fg-2">{h.excerpt}</p> : null}
+    </li>
   );
 }

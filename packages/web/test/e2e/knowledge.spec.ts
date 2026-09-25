@@ -1,5 +1,9 @@
+// Knowledge (AC-INT-001-17): its freshness in words in the sidebar and in the page header, the graph
+// as a grouped list whose nodes open a Preview sheet, search, idea checks, the taxonomy (approve and
+// propose), the rebuild fingerprints, and a failed update retried from Latest updates.
+
 import type { EventRow, IdeaAssessment, Knowledge, KnowledgeGraph, RecordDetail, Taxonomy } from '../../src/api/types.ts';
-import { agentIdeas, approveRecord, approveTaxonomy, foldLegend, ratifiedProject, settled } from './knowledge-data.ts';
+import { agentIdeas, approveRecord, approveTaxonomy, ratifiedProject, settled } from './knowledge-data.ts';
 import { expect, expectAccessible, screenshot, test } from './support/fixtures.ts';
 
 const api = (projectId: string, path: string) => `/api/projects/${projectId}${path}`;
@@ -19,12 +23,16 @@ test('AC-INT-001-17 the header and the page show the graph version and its fresh
   const batchId = ideas.batchId;
 
   await page.goto(`/p/${projectId}/knowledge`);
-  // The header: graph version and a dot that says it is up to date.
-  await expect(page.getByRole('link', { name: `Knowledge version ${knowledge.graph_version}: up to date` })).toBeVisible();
+  // The sidebar says in words that the knowledge is up to date, with its version.
+  const sections = page.getByRole('navigation', { name: 'Sections' });
+  await expect(
+    sections.getByRole('link', { name: new RegExp(`^Knowledge\\s*:\\s*Up to date \\(version ${knowledge.graph_version}\\)`) }),
+  ).toBeVisible();
+  // The page header: the freshness badge in words, then the graph version and its size.
   const line = page.locator('[data-knowledge-freshness]');
   await expect(line).toHaveAttribute('data-knowledge-freshness', 'current');
   await expect(line).toContainText('Up to date');
-  await expect(line).toContainText(`Graph version ${knowledge.graph_version}`);
+  await expect(line).toContainText(`Graph v${knowledge.graph_version}`);
   await expect(line).toContainText(`${knowledge.current_nodes} nodes`);
 
   await page.getByRole('tab', { name: 'Idea checks' }).click();
@@ -36,7 +44,7 @@ test('AC-INT-001-17 the header and the page show the graph version and its fresh
   const citation = check.getByRole('listitem').filter({ hasText: 'Duplicates' }).getByRole('link');
   await expect(citation).toContainText(finding.label);
   await expect(citation).toContainText(finding.citation);
-  // The idea that contradicts a record takes the conflict look.
+  // The idea that contradicts a record says "Conflict" in words.
   const conflict = page.getByRole('article', { name: `Idea check: ${ideas.contradiction}` });
   await expect(conflict.getByText('Conflict', { exact: true })).toBeVisible();
   await expect(conflict.getByText('Contradicts', { exact: true })).toBeVisible();
@@ -108,7 +116,7 @@ test('AC-INT-001-17 the person proposes a new taxonomy version from the current 
   ]);
 });
 
-test('AC-INT-001-17 the graph groups the nodes by taxonomy area and a node shows its relations in the peek', async ({
+test('AC-INT-001-17 the graph groups the nodes by taxonomy area and a node shows its relations in its preview', async ({
   page,
   person,
 }) => {
@@ -132,20 +140,31 @@ test('AC-INT-001-17 the graph groups the nodes by taxonomy area and a node shows
   await expect(page.getByRole('region', { name: 'Not classified yet' })).toBeVisible();
   await expectAccessible(page, 'Knowledge · Graph');
 
-  // Focus shows the peek at once: the relations of the node, both ways, with the other node.
+  // Its Preview shows the relations of the node, both ways, each one a link to the other node.
   const node = section.getByRole('link', { name: `Feature: ${fdr.label} (FDR-DIS-001@1)` });
+  await section
+    .locator('[data-graph-node="FDR-DIS-001@1"]')
+    .getByRole('button', { name: /^Preview/ })
+    .click();
+  const preview = page.getByRole('dialog');
+  await expect(preview).toContainText('Based on');
+  await expect(preview).toContainText('DEC-PLN-001@1');
+  await expect(preview).toContainText('Contains');
+  await expect(preview.locator('[data-relation-group="Based on"]').getByRole('link').first()).toHaveAttribute(
+    'href',
+    /\/records\/DEC-PLN-001\?v=1$/,
+  );
+  await expectAccessible(page, 'Knowledge · Graph with a preview');
+  // Esc closes it; the node's title opens its record, by keyboard too.
+  await page.keyboard.press('Escape');
+  await expect(preview).toBeHidden();
   await node.focus();
-  const peek = page.getByRole('dialog');
-  await expect(peek).toContainText('Based on');
-  await expect(peek).toContainText('DEC-PLN-001@1');
-  await expect(peek).toContainText('Contains');
-  await expectAccessible(page, 'Knowledge · Graph with a peek');
   await page.keyboard.press('Enter');
-  await expect(page).toHaveURL(new RegExp(`/records/FDR-DIS-001\\?v=1$`));
+  await expect(page).toHaveURL(/\/records\/FDR-DIS-001\?v=1$/);
 
   // The filter keeps only one type.
   await page.goBack();
-  await page.getByRole('button', { name: /^Features/ }).click();
+  await page.getByRole('radio', { name: /^Features/ }).click();
   await expect(page.getByRole('link', { name: /^Check: / })).toHaveCount(0);
   await expect(page.getByRole('link', { name: /^Feature: / }).first()).toBeVisible();
 });
@@ -223,8 +242,10 @@ test('AC-INT-001-17 an update that failed puts the header behind, says why, and 
   await person.until<Knowledge>(api(projectId, '/knowledge'), (k) => k.updates.some((u) => u.state === 'rejected'), 60_000);
 
   await page.goto(`/p/${projectId}/knowledge`);
-  await expect(page.getByRole('link', { name: /Knowledge version \d+: behind/ })).toBeVisible();
+  const sections = page.getByRole('navigation', { name: 'Sections' });
+  await expect(sections.getByRole('link', { name: /^Knowledge\s*:\s*Behind: 1 update failed/ })).toBeVisible();
   await expect(page.locator('[data-knowledge-freshness]')).toHaveAttribute('data-knowledge-freshness', 'behind');
+  await expect(page.locator('[data-knowledge-freshness]')).toContainText('Behind · 1 failed');
   const updates = page.getByRole('region', { name: 'Latest updates' });
   const failed = updates.getByRole('listitem').filter({ hasText: 'Failed' });
   await expect(failed).toContainText('Approval of DEC-CLU-001 v1');
@@ -242,7 +263,7 @@ test('AC-INT-001-17 an update that failed puts the header behind, says why, and 
     );
     if (finished(events, 'knowledge_update.apply') > 0) break;
   }
-  await expect(page.getByRole('link', { name: /Knowledge version \d+: up to date/ })).toBeVisible();
+  await expect(sections.getByRole('link', { name: /^Knowledge\s*:\s*Up to date/ })).toBeVisible();
   await expect(page.locator('[data-knowledge-freshness]')).toHaveAttribute('data-knowledge-freshness', 'current');
   await expect(updates.getByRole('listitem').filter({ hasText: 'Failed' })).toHaveCount(0);
   await expect(updates.getByRole('listitem').filter({ hasText: 'Approval of DEC-CLU-001 v1' })).toContainText('Applied');
@@ -261,13 +282,16 @@ test('screens of cut 7: knowledge graph, search, idea checks, taxonomy and rebui
 
   await page.goto(`/p/${projectId}/knowledge`);
   await expect(page.getByRole('region', { name: 'Not classified yet' })).toBeVisible();
-  await foldLegend(page);
   await screenshot(page, 7, '20-knowledge-graph');
   const record = await person.get<RecordDetail>(api(projectId, '/records/FDR-DIS-001'));
+  await expect(
+    page.getByRole('link', { name: `Feature: ${record.versions[0]?.title ?? ''} (FDR-DIS-001@1)` }).first(),
+  ).toBeVisible();
   await page
-    .getByRole('link', { name: `Feature: ${record.versions[0]?.title ?? ''} (FDR-DIS-001@1)` })
+    .locator('[data-graph-node="FDR-DIS-001@1"]')
     .first()
-    .focus();
+    .getByRole('button', { name: /^Preview/ })
+    .click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await screenshot(page, 7, '21-knowledge-graph-peek');
   await page.keyboard.press('Escape');

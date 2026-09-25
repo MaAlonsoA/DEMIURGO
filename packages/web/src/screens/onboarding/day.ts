@@ -47,21 +47,13 @@ export function personMessages(messages: readonly Message[]): Message[] {
   return messages.filter(isPerson).sort(byTime);
 }
 
-export type ReadingPhase = 'waiting' | 'working' | 'failed' | 'cancelled' | 'read' | 'unanswered';
+export type ReadingPhase = 'catching_up' | 'waiting' | 'working' | 'failed' | 'cancelled' | 'read' | 'unanswered';
 export type Reading = { phase: ReadingPhase; run: RunListItem | null };
-
-/**
- * The durable response waits for the knowledge (up to a minute) before it requests the run: past
- * this, a message without a run will not be answered by itself.
- */
-export const ANSWER_GRACE_MS = 2 * 60_000;
 
 const isChat = (r: RunListItem) => r.action === 'exploration_chat';
 
-/** The run that answers a message: the first conversation requested after it, through its retries. */
-export function answerOf(runs: readonly RunListItem[], at: string): RunListItem | null {
-  const first = runs.filter((r) => isChat(r) && !r.retry_of && time(r.created_at) >= time(at)).sort(byTime)[0];
-  if (!first) return null;
+/** A run followed through its retries, to the last one. */
+function latestRetry(runs: readonly RunListItem[], first: RunListItem): RunListItem {
   let current = first;
   for (;;) {
     const next = runs.find((r) => r.retry_of === current.id);
@@ -70,19 +62,32 @@ export function answerOf(runs: readonly RunListItem[], at: string): RunListItem 
   }
 }
 
-/** Where the reading of a message stands. `expecting` is true for a message this screen just sent. */
+/** The run that answers a message: the first conversation requested after it, through its retries. */
+export function answerOf(runs: readonly RunListItem[], at: string): RunListItem | null {
+  const first = runs.filter((r) => isChat(r) && !r.retry_of && time(r.created_at) >= time(at)).sort(byTime)[0];
+  return first ? latestRetry(runs, first) : null;
+}
+
+/**
+ * Where the reading of a message stands, from what the server says about its answer: waiting for
+ * knowledge (catching up), requested (the run it links to) or abandoned. Never from the clock.
+ */
 export function readingOf(
   runs: readonly RunListItem[],
-  message: Pick<Message, 'created_at'> | undefined,
-  now: number,
-  expecting = false,
+  message: Pick<Message, 'created_at' | 'response' | 'response_run'> | undefined,
 ): Reading {
   if (!message) return { phase: 'unanswered', run: null };
-  const run = answerOf(runs, message.created_at);
-  if (!run) {
-    const recent = now - time(message.created_at) < ANSWER_GRACE_MS;
-    return { phase: expecting || recent ? 'waiting' : 'unanswered', run: null };
+  if (message.response === 'waiting') return { phase: 'catching_up', run: null };
+  if (message.response === 'abandoned') return { phase: 'unanswered', run: null };
+  let run: RunListItem | null;
+  if (message.response === 'requested') {
+    const linked = runs.find((r) => r.id === message.response_run);
+    if (!linked) return { phase: 'waiting', run: null };
+    run = latestRetry(runs, linked);
+  } else {
+    run = answerOf(runs, message.created_at);
   }
+  if (!run) return { phase: 'unanswered', run: null };
   switch (run.state) {
     case 'queued':
     case 'running':

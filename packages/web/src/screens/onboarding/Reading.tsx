@@ -29,6 +29,8 @@ import type { Reading } from './day.ts';
 
 export type Subject = 'idea' | 'correction' | 'decisions';
 
+const CATCHING_UP = 'DEMIURGO is catching up on what you just decided…';
+
 const WORDS: Record<Subject, { waiting: string; working: string; failed: string; cancelled: string; unanswered: string }> = {
   idea: {
     waiting: 'Waiting for DEMIURGO…',
@@ -140,7 +142,11 @@ function ReadingCard({
   const run = reading.run;
   const finished = reading.phase === 'read';
   const working = reading.phase === 'working';
-  const headline = finished ? "Here's a first reading of your idea" : WORDS.idea[working ? 'working' : 'waiting'];
+  const headline = finished
+    ? "Here's a first reading of your idea"
+    : reading.phase === 'catching_up'
+      ? CATCHING_UP
+      : WORDS.idea[working ? 'working' : 'waiting'];
   const shown = finished ? content : null;
   const first: StepState = finished ? 'done' : working ? 'active' : 'pending';
   const rest: StepState = finished ? 'done' : 'pending';
@@ -167,7 +173,7 @@ function ReadingCard({
           {working && run && <CancelRun projectId={projectId} run={run} />}
         </span>
       </div>
-      {reading.phase === 'waiting' && (
+      {(reading.phase === 'waiting' || reading.phase === 'catching_up') && (
         <p className="dm-text-small pb-3 text-ink-3">It starts as soon as its knowledge is up to date with your idea.</p>
       )}
       <Step state={first} title="What I understood">
@@ -391,7 +397,7 @@ export function ReadingStatus({
       <span className="min-w-0 flex-1">
         <WorkingMark label={working ? 'Working' : 'Waiting'}>
           <span>
-            {WORDS[subject][working ? 'working' : 'waiting']}
+            {reading.phase === 'catching_up' ? CATCHING_UP : WORDS[subject][working ? 'working' : 'waiting']}
             {working && run && (
               <>
                 {' · '}

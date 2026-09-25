@@ -207,6 +207,7 @@ registerHandlers({
           kind: data.type ?? null,
           body: data.text,
           state: to,
+          response: answers ? 'waiting' : null,
         })
         .returning('id')
         .executeTakeFirstOrThrow();
@@ -224,6 +225,20 @@ registerHandlers({
           length: data.text.length,
         },
       };
+    },
+  }),
+
+  'message.abandon_response': handler({
+    data: z.object({ reason: text(2000) }).strict(),
+    async apply(ctx, data, e) {
+      const id = e?.id ?? '';
+      await ctx.trx
+        .updateTable('messages')
+        .set({ response: 'abandoned' })
+        .where('id', '=', id)
+        .where('response', '=', 'waiting')
+        .execute();
+      return { entityId: id, after: { response: 'abandoned', reason: data.reason } };
     },
   }),
 

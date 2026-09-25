@@ -27,6 +27,7 @@ import { callProvider } from '../assignments/calls.ts';
 import { previousSession, saveSession, sessionDirectory, sessionKey } from '../assignments/sessions.ts';
 import { executeCommand, inTransaction } from '../bus/bus.ts';
 import { graphUpToDate } from '../context/graph.ts';
+import type { Tx } from '../db/connection.ts';
 import type { WorkflowEngine, Services } from '../services.ts';
 import { starters, reconcilers, setEngineServices, engineServices } from './registry.ts';
 
@@ -384,6 +385,7 @@ async function requestResponse(
             ...(agent ? { agent } : {}),
             scope: { type: 'exploration', id: explorationId },
             input: questionId ? { question_id: questionId } : {},
+            ...(messageOf(workflow) ? { answers_message: messageOf(workflow) } : {}),
           },
         });
       } catch (e) {
@@ -392,7 +394,10 @@ async function requestResponse(
         // asks again) instead of retrying the workflow forever.
         if (!isDomainError(e) || !['guard', 'validation'].includes(e.type)) throw e;
         s.logger.error('The answer to a message was not requested', { exploration: explorationId, reason: e.reasons.join(' ') });
+        await abandonIn(execute, trx, projectId, workflow, e.reasons.join(' ') || e.message);
       }
+    } else {
+      await abandonIn(execute, trx, projectId, workflow, 'The thread is no longer active.');
     }
     await trx
       .insertInto('step_completions')
@@ -408,6 +413,47 @@ async function requestResponse(
  * 0.5 s during the first minute and every 5 s after.
  */
 const RESPONSE_PATIENCE_MS = 30 * 60_000;
+let responsePatienceMs = RESPONSE_PATIENCE_MS;
+
+/** The message a response workflow answers: its id is `response:<messageId>`. */
+const messageOf = (workflow: string): string | null => (workflow.startsWith('response:') ? workflow.slice(9) : null);
+
+/** The same, inside the request's transaction (the run could not be requested). */
+async function abandonIn(
+  execute: (p: Parameters<typeof executeCommand>[1]) => Promise<unknown>,
+  trx: Tx,
+  projectId: string,
+  workflow: string,
+  reason: string,
+): Promise<void> {
+  const messageId = messageOf(workflow);
+  if (!messageId) return;
+  const m = await trx.selectFrom('messages').select('response').where('id', '=', messageId).executeTakeFirst();
+  if (m?.response !== 'waiting') return;
+  await execute({
+    command: 'message.abandon_response',
+    actor: system('conversation'),
+    projectId,
+    entityId: messageId,
+    data: { reason: reason.slice(0, 2000) },
+  });
+}
+
+/** Leaves the message's answer abandoned, with its event, so the web can offer to ask again. */
+async function abandonResponse(projectId: string, workflow: string, reason: string): Promise<void> {
+  const messageId = messageOf(workflow);
+  if (!messageId) return;
+  const s = requireServices();
+  const m = await s.db.selectFrom('messages').select('response').where('id', '=', messageId).executeTakeFirst();
+  if (m?.response !== 'waiting') return;
+  await executeCommand(s, {
+    command: 'message.abandon_response',
+    actor: system('conversation'),
+    projectId,
+    entityId: messageId,
+    data: { reason },
+  });
+}
 
 async function respondWorkflow(
   projectId: string,
@@ -428,7 +474,7 @@ async function respondWorkflow(
           name: 'freshness',
         },
       );
-      if (upToDate.upToDate || waited >= RESPONSE_PATIENCE_MS) break;
+      if (upToDate.upToDate || waited >= responsePatienceMs) break;
       const pause = waited < 60_000 ? 500 : 5000;
       await DBOS.sleepms(pause);
       waited += pause;
@@ -439,10 +485,14 @@ async function respondWorkflow(
       ...RETRIES,
     });
     if (requested === 'requested') return;
-    if (waited >= RESPONSE_PATIENCE_MS) {
+    if (waited >= responsePatienceMs) {
       requireServices().logger.error('The answer to a message was not requested: knowledge stayed out of date', {
         exploration: explorationId,
       });
+      await DBOS.runStep(
+        () => abandonResponse(projectId, workflow, 'Knowledge stayed out of date for too long; ask DEMIURGO again.'),
+        { name: 'abandon', ...RETRIES },
+      );
       return;
     }
   }
@@ -482,6 +532,8 @@ export const dbosEngine: WorkflowEngine = {
 export type EngineOptions = {
   /** Only for durability tests: called right after a step is committed. */
   onStepComplete?: (step: string, id: string) => void | Promise<void>;
+  /** Only for tests: how long an answer waits for knowledge before it is abandoned. */
+  responsePatienceMs?: number;
 };
 
 export type StartedEngine = { services: Services; stop(): Promise<void> };
@@ -530,6 +582,7 @@ export async function startEngine(
   const s: Services = { ...base, engine: dbosEngine };
   setEngineServices(s);
   onStepComplete = options.onStepComplete;
+  responsePatienceMs = options.responsePatienceMs ?? RESPONSE_PATIENCE_MS;
   DBOS.setConfig({
     name: 'demiurgo',
     systemDatabaseUrl: baseUrl,

@@ -8,7 +8,7 @@ import { type PersonApi, expect, expectAccessible, screenshot, test } from './su
 
 type Detail = {
   purpose: string;
-  messages: { author: string; kind: string | null; body: string; run_id: string | null }[];
+  messages: { author: string; kind: string | null; body: string; run_id: string | null; response: string | null }[];
   questions: { id: string; state: string; question: string; conclusion: string | null; state_reason: string | null }[];
 };
 type Run = { id: string; state: string; action: string; batch_id: string | null; retry_of: string | null };
@@ -290,6 +290,57 @@ test('AC-INT-001-10 Day 1 shows the rust card when DEMIURGO cannot read the idea
   const runs = await person.get<Run[]>(`/api/projects/${projectId}/runs?exploration=${explorationId}`);
   expect(runs.map((r) => r.state).sort()).toEqual(['completed', 'failed']);
   expect(runs.find((r) => r.state === 'completed')?.retry_of).toBe(runs.find((r) => r.state === 'failed')?.id);
+});
+
+test('a correction sent while knowledge catches up says so, is answered once, and never offers to ask again', async ({
+  page,
+  person,
+}) => {
+  test.setTimeout(150_000);
+  const { projectId, explorationId } = await startDay(person, 'Catching Up', IDEA);
+  await runsSettled(person, projectId, explorationId);
+  // A taxonomy makes the classifier run, and the marker makes each of its calls take 8 s: the
+  // approval below keeps knowledge busy while the correction is sent.
+  const taxonomy = await person.command(projectId, 'taxonomy.propose', {
+    code: 'TAX-001',
+    title: 'Areas',
+    axes: [
+      {
+        code: 'area',
+        name: 'Area',
+        categories: [
+          { code: 'design', name: 'Design', description: 'Decisions and features.' },
+          { code: 'other', name: 'Other', description: 'Nothing else fits.' },
+        ],
+      },
+    ],
+  });
+  await person.command(projectId, 'taxonomy.approve', {}, taxonomy.entity_id);
+
+  await page.goto(`/p/${projectId}/start/${explorationId}`);
+  await page.getByRole('button', { name: 'Correct something' }).click();
+  await page.getByLabel("What's wrong?").fill('Visitors can see the activities too, only members sign up.');
+  const created = await person.command<{ versionId: string }>(projectId, 'record.create', {
+    type: 'decision',
+    domain: 'club',
+    title: 'Sign-ups are instant [slow-knowledge]',
+    sections: [
+      { title: 'Context', content: 'Members sign up for activities.' },
+      { title: 'Decision', content: 'Signing up needs no approval.' },
+      { title: 'Consequences', content: 'Organizers see sign-ups at once.' },
+    ],
+  });
+  await person.command(projectId, 'record_version.approve', {}, created.result?.versionId);
+  await page.getByRole('button', { name: 'Send and read again' }).click();
+
+  await expect(page.getByText('DEMIURGO is catching up on what you just decided…')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('button', { name: 'Ask DEMIURGO' })).toHaveCount(0);
+  await expect(page.getByText('This is my new reading, with your corrections.')).toBeVisible({ timeout: 90_000 });
+  const runs = await person.get<Run[]>(`/api/projects/${projectId}/runs?exploration=${explorationId}`);
+  expect(runs.filter((r) => r.action === 'exploration_chat')).toHaveLength(2);
+  const detail = await detailOf(person, projectId, explorationId);
+  const correction = detail.messages.find((m) => m.body.startsWith('Visitors can see'));
+  expect(correction).toMatchObject({ response: 'requested' });
 });
 
 test('AC-INT-001-02 with no projects DEMIURGO opens on "What do you want to build?", and New project is at hand on the projects page and in the header', async ({

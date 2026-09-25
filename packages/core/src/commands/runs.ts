@@ -126,6 +126,8 @@ registerHandlers({
           .object({ type: z.string().min(1), id: z.string().uuid().optional(), version: z.number().int().positive().optional() })
           .strict(),
         input: z.record(z.string(), z.unknown()).default({}),
+        // The person's message this run answers (the durable response): the message links to it.
+        answers_message: z.string().uuid().optional(),
       })
       .strict(),
     async apply(ctx, data, _e, to) {
@@ -157,6 +159,14 @@ registerHandlers({
         })
         .returning('id')
         .executeTakeFirstOrThrow();
+      if (data.answers_message) {
+        await ctx.trx
+          .updateTable('messages')
+          .set({ response: 'requested', response_run: id })
+          .where('id', '=', data.answers_message)
+          .where('project_id', '=', ctx.projectId)
+          .execute();
+      }
       const projectId = ctx.projectId;
       ctx.afterCommit(() => ctx.services.engine.startRun(id, projectId));
       const hash = (created.result as { hash: string }).hash;

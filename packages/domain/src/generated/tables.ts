@@ -86,6 +86,14 @@ export const CAPABILITIES = {
       "decisive": false,
       "description": "Post a message in a thread with the actor as author."
     },
+    "message.abandon_response": {
+      "entity": "message",
+      "allowed": [
+        "system"
+      ],
+      "decisive": false,
+      "description": "Give up the answer to a message whose knowledge stayed out of date."
+    },
     "source.register": {
       "entity": "source",
       "allowed": [
@@ -971,6 +979,13 @@ export const TRANSITIONS = {
           "guards": [
             "exploration_active"
           ]
+        },
+        {
+          "command": "message.abandon_response",
+          "from": [
+            "recorded"
+          ],
+          "to": "recorded"
         }
       ]
     },

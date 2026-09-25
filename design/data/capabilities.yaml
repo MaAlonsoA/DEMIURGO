@@ -25,6 +25,7 @@ commands:
   exploration.resume: { entity: exploration, allowed: [human], decisive: false, description: "Resume a concluded or set-aside exploration." }
 
   message.post: { entity: message, allowed: [human, agent_external, agent_run], decisive: false, description: "Post a message in a thread with the actor as author." }
+  message.abandon_response: { entity: message, allowed: [system], decisive: false, description: "Give up the answer to a message whose knowledge stayed out of date." }
   source.register: { entity: source, allowed: [human, agent_external], decisive: false, description: "Register a source as untrusted input." }
 
   question.raise: { entity: question, allowed: [human, system], decisive: false, description: "Raise a question in an exploration (the agent's are raised by the system from its validated output)." }

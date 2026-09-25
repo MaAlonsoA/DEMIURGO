@@ -43,6 +43,7 @@ entities:
     authority: []
     transitions:
       - { command: message.post, from: new, to: recorded, guards: [exploration_active] }
+      - { command: message.abandon_response, from: [recorded], to: recorded }
 
   source:
     label: Source

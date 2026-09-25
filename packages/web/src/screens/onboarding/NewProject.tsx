@@ -79,13 +79,12 @@ export function NewProjectScreen() {
           .entity_id;
         done.current.explorationId = explorationId;
       }
-      const posted = await runCommand(projectId, {
+      await runCommand(projectId, {
         command: 'message.post',
         // Day 1: the onboarding agent reads the idea (FDR-AGE-002).
         data: { exploration_id: explorationId, text: idea.trim(), respond: true, agent: 'onboarding' },
       });
       live.start(explorationId);
-      live.sent(posted.entity_id);
       // The project's area checks the project exists: the list is fetched again first.
       await client.fetchQuery({ ...projectsQuery, staleTime: 0 });
       await navigate({ to: '/p/$projectId/start/$explorationId', params: { projectId, explorationId } });

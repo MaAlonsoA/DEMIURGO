@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BatchDetail, Message, Proposal, Question, RunListItem } from '../../src/api/types.ts';
 import {
-  ANSWER_GRACE_MS,
   IDEA_EXAMPLES,
   answerOf,
   answersOf,
@@ -37,6 +36,8 @@ function message(id: string, author: string, s: number, extra: Partial<Message> 
     state: 'recorded',
     created_at: at(s),
     epistemic_status: null,
+    response: null,
+    response_run: null,
     ...extra,
   };
 }
@@ -163,16 +164,24 @@ describe('the reading of a message', () => {
     expect(answerOf([before, draft], idea.created_at)).toBeNull();
   });
 
-  it('waits for DEMIURGO while no run answers it yet, and says so when it never came', () => {
-    expect(readingOf([], idea, T(12))).toEqual({ phase: 'waiting', run: null });
-    expect(readingOf([], idea, T(10) + ANSWER_GRACE_MS + 1000)).toEqual({ phase: 'unanswered', run: null });
-    // A message this screen just sent is always expected to be answered.
-    expect(readingOf([], idea, T(10) + ANSWER_GRACE_MS + 1000, true).phase).toBe('waiting');
-    expect(readingOf([], undefined, T(12)).phase).toBe('unanswered');
+  it('says where the answer stands from the message itself, never from the clock', () => {
+    // The server says it is waiting for knowledge: DEMIURGO is catching up, however long it takes.
+    expect(readingOf([], message('m1', 'human:ana', 10, { response: 'waiting' }))).toEqual({ phase: 'catching_up', run: null });
+    // Requested: the run the message links to, even before the run list brings it.
+    expect(readingOf([], message('m1', 'human:ana', 10, { response: 'requested', response_run: 'r9' })).phase).toBe('waiting');
+    const linked = message('m1', 'human:ana', 10, { response: 'requested', response_run: 'r1' });
+    const failed = run('r1', 'failed', 12, { failure_kind: 'agent_error' });
+    const retry = run('r2', 'running', 20, { retry_of: 'r1' });
+    expect(readingOf([failed, retry], linked)).toEqual({ phase: 'working', run: retry });
+    // Abandoned: only then is it offered to ask again.
+    expect(readingOf([], message('m1', 'human:ana', 10, { response: 'abandoned' })).phase).toBe('unanswered');
+    // No answer asked for, and nothing after it.
+    expect(readingOf([], idea).phase).toBe('unanswered');
+    expect(readingOf([], undefined).phase).toBe('unanswered');
   });
 
   it('follows the state of the run that answers it', () => {
-    const phase = (state: string) => readingOf([run('r1', state, 12)], idea, T(13)).phase;
+    const phase = (state: string) => readingOf([run('r1', state, 12)], idea).phase;
     expect(phase('queued')).toBe('working');
     expect(phase('running')).toBe('working');
     expect(phase('failed')).toBe('failed');

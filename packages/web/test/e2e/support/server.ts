@@ -11,6 +11,8 @@
 //   [classifier-fails]  the classifier fails the first three calls about the text that carries
 //                       the marker: each call is one attempt of its knowledge update, which is
 //                       rejected; the fourth attempt (the third retry) goes through.
+//   [slow-knowledge]    each classifier call about the text that carries it takes 8 s, so an
+//                       answer waits for knowledge long enough to be seen catching up.
 
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -106,6 +108,7 @@ function scriptedClassifier(): Classifier {
     id: base.id,
     async choice(items) {
       const text = JSON.stringify(items);
+      if (text.includes('[slow-knowledge]')) await new Promise((r) => setTimeout(r, 8000));
       // Counted by the marked text itself: the rest of the input changes as the graph grows.
       const marked = /"[^"]*\[classifier-fails\][^"]*"/.exec(text)?.[0];
       if (marked) {

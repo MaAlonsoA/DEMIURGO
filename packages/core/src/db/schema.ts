@@ -229,6 +229,8 @@ export type MessagesTable = {
   kind: string | null;
   body: string;
   state: string;
+  response: string | null;
+  response_run: string | null;
   created_at: Generated<Timestamp>;
 };
 

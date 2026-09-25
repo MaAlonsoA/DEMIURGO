@@ -293,6 +293,10 @@ export type Message = {
   state: string;
   created_at: string;
   epistemic_status: Epistemic | null;
+  /** Where DEMIURGO's answer stands; null when the message asked for none. */
+  response: 'waiting' | 'requested' | 'abandoned' | null;
+  /** The run that answers it, once requested. */
+  response_run: string | null;
 };
 
 export type Question = {

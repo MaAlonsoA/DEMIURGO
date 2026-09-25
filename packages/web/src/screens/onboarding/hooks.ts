@@ -8,11 +8,11 @@ import { explorationQuery, projectsQuery, runsQuery } from '../../api/queries.ts
 import { useNow } from '../run/hooks.ts';
 import { isActive } from '../thread/timeline.ts';
 import { personMessages, readingOf } from './day.ts';
-import { live } from './live.ts';
 
 export function useDay(projectId: string, explorationId: string) {
-  const thread = useQuery(explorationQuery(projectId, explorationId));
   const [waiting, setWaiting] = useState(false);
+  // While DEMIURGO waits for knowledge, the message's own state is what moves: ask for it now and then.
+  const thread = useQuery({ ...explorationQuery(projectId, explorationId), refetchInterval: waiting ? 2500 : false });
   // The stream brings the run; while DEMIURGO has not requested it yet, the list is also asked again
   // now and then, in case its first event arrived before the stream was open.
   const runs = useQuery({ ...runsQuery(projectId, { exploration: explorationId }), refetchInterval: waiting ? 2500 : false });
@@ -21,8 +21,8 @@ export function useDay(projectId: string, explorationId: string) {
   const idea = people[0];
   const latest = people.at(-1);
   const now = useNow(waiting || (runs.data ?? []).some(isActive));
-  const reading = readingOf(runs.data ?? [], latest, now, live.expects(latest?.id));
-  useEffect(() => setWaiting(reading.phase === 'waiting'), [reading.phase]);
+  const reading = readingOf(runs.data ?? [], latest);
+  useEffect(() => setWaiting(reading.phase === 'waiting' || reading.phase === 'catching_up'), [reading.phase]);
   return {
     thread: thread.data,
     runs: runs.data,
@@ -41,12 +41,7 @@ export function useSend(projectId: string, explorationId: string) {
   const send = (text: string, onSent?: () => void) =>
     command.mutate(
       { command: 'message.post', data: { exploration_id: explorationId, text, respond: true, agent: 'onboarding' } },
-      {
-        onSuccess: (r) => {
-          live.sent(r.entity_id);
-          onSent?.();
-        },
-      },
+      { onSuccess: () => onSent?.() },
     );
   return { send, pending: command.isPending, error: command.error, reset: command.reset };
 }

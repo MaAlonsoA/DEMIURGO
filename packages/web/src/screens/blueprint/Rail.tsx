@@ -24,7 +24,7 @@ export function BlueprintFrame({ projectId, code, children }: { projectId: strin
 }
 
 const ITEM =
-  'flex flex-col gap-0.5 rounded-[var(--radius-control)] border border-transparent px-2.5 py-1.5 text-[13px] text-ink hover:bg-line-soft';
+  'dm-text-small flex flex-col gap-0.5 rounded-control border border-transparent px-2.5 py-1.5 text-ink hover:bg-line-soft';
 const CURRENT = 'border-needs bg-surface hover:bg-surface';
 /** A feature: its status on the right (canvas B2), under its title while the rail is narrow. */
 const FEATURE = 'min-[1400px]:flex-row min-[1400px]:items-start min-[1400px]:justify-between min-[1400px]:gap-2';
@@ -33,17 +33,17 @@ function Status({ status }: { status: FeatureStatus }) {
   switch (status.kind) {
     case 'needs':
       return (
-        <span className="flex items-center gap-1.5 text-xs font-semibold text-needs-hover">
+        <span className="dm-text-caption flex items-center gap-1.5 font-semibold text-needs-strong">
           {status.word}
-          <NeedsBubble count={status.count} detail={status.detail} size="sm" />
+          <NeedsBubble count={status.count} detail={status.detail} />
         </span>
       );
     case 'ready':
-      return <span className="text-xs font-semibold text-ink">{status.word}</span>;
+      return <span className="dm-text-caption font-semibold text-ink">{status.word}</span>;
     case 'doubt':
-      return <span className="text-xs font-semibold text-problem">{status.word}</span>;
+      return <span className="dm-text-caption font-semibold text-problem">{status.word}</span>;
     default:
-      return <span className="text-xs text-muted">{status.word}</span>;
+      return <span className="dm-text-caption text-muted">{status.word}</span>;
   }
 }
 
@@ -51,7 +51,7 @@ function Group({ label, children }: { label: string; children: ReactNode }) {
   const id = useId();
   return (
     <div className="flex flex-col gap-1">
-      <span id={id} className="px-2.5 text-xs font-semibold text-muted">
+      <span id={id} className="dm-text-caption px-2.5 font-semibold text-muted">
         {label}
       </span>
       <ul aria-labelledby={id} className="flex flex-col gap-0.5">
@@ -105,7 +105,7 @@ export function BlueprintRail({ projectId, code }: { projectId: string; code: st
         to="/p/$projectId"
         params={{ projectId }}
         activeOptions={{ exact: true }}
-        className="flex items-center gap-1.5 rounded-[var(--radius-control)] px-2.5 py-1 text-[13px] font-semibold text-ink hover:bg-line-soft"
+        className="dm-text-small flex items-center gap-1.5 rounded-control px-2.5 py-1 font-semibold text-ink hover:bg-line-soft"
       >
         <ChevronLeft size={13} className="shrink-0 text-muted" />
         <span className="truncate">{rail.project || 'The product'}</span>
@@ -120,7 +120,7 @@ export function BlueprintRail({ projectId, code }: { projectId: string; code: st
       ) : (
         <>
           <Group label="Features">
-            {rail.features.length === 0 && <li className="px-2.5 text-xs text-muted">No features yet.</li>}
+            {rail.features.length === 0 && <li className="dm-text-caption px-2.5 text-muted">No features yet.</li>}
             {rail.features.map((f) => (
               <li key={f.code}>
                 <Link
@@ -154,10 +154,10 @@ export function BlueprintRail({ projectId, code }: { projectId: string; code: st
             </Group>
           )}
           <div className="flex flex-col gap-1">
-            <span className="px-2.5 text-xs font-semibold text-muted">Rules for the whole product</span>
+            <span className="dm-text-caption px-2.5 font-semibold text-muted">Rules for the whole product</span>
             <p
               data-later
-              className="mx-1 rounded-[var(--radius-control)] border border-dashed border-line-strong px-2.5 py-2 text-xs text-muted"
+              className="dm-text-caption mx-1 rounded-control border border-dashed border-line-strong px-2.5 py-2 text-muted"
             >
               <span className="font-semibold text-ink-3">Later</span> · Rules that every feature follows come in a later
               increment.

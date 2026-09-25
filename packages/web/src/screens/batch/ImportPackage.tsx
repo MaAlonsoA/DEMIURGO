@@ -2,6 +2,7 @@
 // design/'s, what ratifying does, and its documents, each one opened in place. Ratify accepts the
 // whole package (a decisive command: it asks first); Reject package asks for a reason.
 
+import { Signal } from '@demiurgo/design-system';
 import { Link } from '@tanstack/react-router';
 import { useId, useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
@@ -9,14 +10,15 @@ import type { BatchDetail, Proposal } from '../../api/types.ts';
 import { cn } from '../../lib/cn.ts';
 import { ago, dayTime } from '../../lib/time.ts';
 import { useAllows } from '../../ui/ActionBar.tsx';
-import { Button, buttonStyles } from '../../ui/Button.tsx';
+import { Button, buttonClass } from '../../ui/Button.tsx';
 import { Code } from '../../ui/Card.tsx';
 import { ConfirmDialog, TextDialog } from '../../ui/dialogs.tsx';
 import { ArrowRight, ChevronDown, ChevronRight, TypeIcon } from '../../ui/icons.tsx';
 import { Breadcrumbs, Page, Panel } from '../../ui/layout.tsx';
 import { stateWord } from '../../words.ts';
-import { Mark, StateMark } from '../../ui/marks.tsx';
+import { Mark, MarkGlyph, StateMark } from '../../ui/marks.tsx';
 import { WhoMark } from '../../ui/signals.tsx';
+import { Tip } from '../../ui/Tip.tsx';
 import {
   acceptedRecord,
   countRows,
@@ -37,19 +39,19 @@ export function ImportPackage({ projectId, batch }: { projectId: string; batch: 
         items={[{ label: 'Needs you', to: '/p/$projectId/needs-you', params: { projectId } }, { label: 'Imported from design/' }]}
       />
       <header className="mb-6 flex items-start gap-3.5">
-        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] border-[1.5px] border-ink bg-surface">
+        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-control border-[1.5px] border-ink bg-surface">
           <TypeIcon kind="package" size={20} />
         </span>
         <div className="flex min-w-0 flex-col gap-1">
           <Eyebrow>
             Package <Dot /> {n} proposals
           </Eyebrow>
-          <h1 className="text-2xl leading-tight font-semibold">Imported from design/</h1>
-          <p className="flex flex-wrap items-center gap-2 text-sm text-ink-2">
+          <h1 className="dm-text-page-title leading-tight font-semibold">Imported from design/</h1>
+          <p className="dm-text-body flex flex-wrap items-center gap-2 text-ink-2">
             <WhoMark actor={batch.producer} size={18} withName />
             <Code>{batch.producer.replace(/^system:/, '')}</Code>
             <Dot />
-            <StateMark entity="batch" state={batch.state} className="text-sm" />
+            <StateMark entity="batch" state={batch.state} className="dm-text-body" />
             <Dot />
             <span className="text-muted">imported {dayTime(batch.created_at)}</span>
           </p>
@@ -74,10 +76,10 @@ function Counts({ batch }: { batch: BatchDetail }) {
   return (
     <Panel className="p-0">
       <div className="flex items-baseline justify-between px-5 pt-4 pb-2">
-        <h2 id={id} className="text-[15px] font-semibold">
+        <h2 id={id} className="dm-text-heading font-semibold">
           What&apos;s inside
         </h2>
-        <span className={cn('text-xs', differ ? 'font-semibold text-problem' : 'text-muted')}>
+        <span className={cn('dm-text-caption', differ ? 'font-semibold text-problem' : 'text-muted')}>
           {batch.import_counts.origin === null
             ? 'design/ gave no counts'
             : differ
@@ -85,9 +87,9 @@ function Counts({ batch }: { batch: BatchDetail }) {
               : 'Everything in design/ is here'}
         </span>
       </div>
-      <table aria-labelledby={id} className="w-full text-[13.5px] tabular-nums">
+      <table aria-labelledby={id} className="dm-text-small w-full tabular-nums">
         <thead>
-          <tr className="border-y border-line-soft text-left text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">
+          <tr className="dm-label border-y border-line-soft text-left">
             <th scope="col" className="px-5 py-2 font-semibold">
               Kind
             </th>
@@ -101,7 +103,10 @@ function Counts({ batch }: { batch: BatchDetail }) {
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.kind} className={cn('border-b border-line-soft last:border-b-0', !r.same && 'bg-problem-bg text-problem')}>
+            <tr
+              key={r.kind}
+              className={cn('border-b border-line-soft last:border-b-0', !r.same && 'bg-problem-tint text-problem')}
+            >
               <th scope="row" className="px-5 py-2 text-left font-medium">
                 {r.kind}
               </th>
@@ -110,16 +115,8 @@ function Counts({ batch }: { batch: BatchDetail }) {
                 <span className="inline-flex items-center justify-end gap-2">
                   {r.inPackage}
                   {r.same ? (
-                    <span role="img" aria-label="Same as design/" className="inline-flex w-3.5 justify-center text-ink">
-                      <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-                        <path
-                          d="M2.5 6.5l2.3 2.3L9.5 3.8"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                          strokeLinecap="round"
-                        />
-                      </svg>
+                    <span role="img" aria-label="Same as design/" className="inline-flex w-3.5 justify-center">
+                      <MarkGlyph kind="done" />
                     </span>
                   ) : (
                     <span role="img" aria-label="Differs from design/" className="inline-flex w-3.5 justify-center">
@@ -166,21 +163,21 @@ function Ratification({
   if (batch.state === 'accepted') {
     return (
       <Panel className="flex flex-col gap-3">
-        <h2 className="flex items-center gap-2 text-[15px] font-semibold">
+        <h2 className="dm-text-heading flex items-center gap-2 font-semibold">
           <Mark kind="confirmed" label="Ratified" /> Ratified
         </h2>
-        <p className="text-sm text-ink-2">
+        <p className="dm-text-body text-ink-2">
           DEMIURGO is now the home of your design{batch.resolved_at ? ` (${ago(batch.resolved_at)})` : ''}. From now on, design/
           is an export. Each record keeps the state it had in design/: approve the versions you agree with.
         </p>
         <div className="flex flex-wrap items-center gap-3">
-          <Link to="/p/$projectId" params={{ projectId }} className={buttonStyles({ variant: 'ink', size: 'lg' })}>
+          <Link to="/p/$projectId" params={{ projectId }} className={buttonClass('secondary')}>
             Open the product <ArrowRight size={14} />
           </Link>
           <Link
             to="/p/$projectId/needs-you"
             params={{ projectId }}
-            className="text-[13px] font-semibold text-needs hover:text-needs-hover"
+            className="dm-text-small font-semibold text-needs-strong hover:underline"
           >
             What needs you
           </Link>
@@ -192,18 +189,18 @@ function Ratification({
     const reason = batch.proposals.find((p) => typeof p.resolution?.reason === 'string')?.resolution?.reason;
     return (
       <Panel className="flex flex-col gap-2">
-        <h2 className="flex items-center gap-2 text-[15px] font-semibold">
+        <h2 className="dm-text-heading flex items-center gap-2 font-semibold">
           <Mark kind="dropped" label="Rejected" /> Rejected
         </h2>
-        <p className="text-sm text-ink-2">Nothing was imported. design/ stays as it is.</p>
-        {typeof reason === 'string' && <p className="text-[13px] text-muted">Reason: {reason}</p>}
+        <p className="dm-text-body text-ink-2">Nothing was imported. design/ stays as it is.</p>
+        {typeof reason === 'string' && <p className="dm-text-small text-muted">Reason: {reason}</p>}
       </Panel>
     );
   }
   return (
     <Panel className="flex flex-col gap-3">
-      <h2 className="text-[15px] font-semibold">What ratifying does</h2>
-      <p className="text-sm leading-relaxed text-ink-2">
+      <h2 className="dm-text-heading font-semibold">What ratifying does</h2>
+      <p className="dm-text-body leading-relaxed text-ink-2">
         Everything becomes DEMIURGO&apos;s, as it is in design/. What is proposed stays proposed:{' '}
         {approvedInDesign === 0
           ? 'ratifying approves nothing.'
@@ -212,12 +209,12 @@ function Ratification({
       </p>
       <div className="flex flex-wrap items-center gap-2.5 pt-1">
         {allows('batch.accept_package') && (
-          <Button size="lg" variant="needs" data-command="batch.accept_package" onClick={() => open('ratify')}>
+          <Button variant="primary" data-command="batch.accept_package" onClick={() => open('ratify')}>
             Ratify
           </Button>
         )}
         {allows('batch.reject_package') && (
-          <Button size="lg" variant="ghost" data-command="batch.reject_package" onClick={() => open('reject')}>
+          <Button variant="text" data-command="batch.reject_package" onClick={() => open('reject')}>
             Reject package
           </Button>
         )}
@@ -258,15 +255,15 @@ function Documents({ projectId, proposals }: { projectId: string; proposals: Pro
   return (
     <section aria-labelledby={id} className="flex flex-col gap-2.5">
       <div className="flex items-baseline justify-between">
-        <h2 id={id} className="text-[15px] font-semibold">
+        <h2 id={id} className="dm-text-heading font-semibold">
           Documents
         </h2>
-        <span className="text-xs text-muted">Names first; open one to read it here.</span>
+        <span className="dm-text-caption text-muted">Names first; open one to read it here.</span>
       </div>
-      <div className="flex flex-col rounded-[var(--radius-panel)] border border-line bg-surface">
+      <div className="flex flex-col rounded-card border border-line bg-surface">
         {groups.map((g) => (
           <div key={g.key} className="grid grid-cols-[180px_minmax(0,1fr)] border-b border-line-soft last:border-b-0">
-            <h3 className="px-5 pt-3.5 text-[13px] font-semibold text-ink-2">
+            <h3 className="dm-text-small px-5 pt-3.5 font-semibold text-ink-2">
               {g.label} <span className="font-normal text-muted">({g.items.length})</span>
             </h3>
             <ul className="flex flex-col divide-y divide-line-soft">
@@ -295,15 +292,18 @@ function DocumentRow({ projectId, proposal: p }: { projectId: string; proposal: 
       <div className="flex min-h-11 items-center gap-3 py-2 pr-4 pl-1">
         <StateMarkOnly state={p.state} />
         <span className="flex min-w-0 flex-1 items-baseline gap-2">
-          <strong className="truncate text-[14px] font-semibold">{title}</strong>
+          <strong className="dm-text-body truncate font-semibold">{title}</strong>
           <Code className="shrink-0">{code}</Code>
         </span>
-        <span className="flex shrink-0 items-center gap-3 text-xs text-muted">
+        <span className="dm-text-caption flex shrink-0 items-center gap-3 text-muted">
           <span>v{version}</span>
           {doc && doc.criteria.length > 0 && (
-            <span>
-              {doc.criteria.length} {doc.criteria.length === 1 ? 'check' : 'checks'}
-            </span>
+            <Tip text={`${doc.criteria.length} ${doc.criteria.length === 1 ? 'check' : 'checks'}`}>
+              <span className="inline-flex tabular-nums">
+                <Signal kind="checks" value={doc.criteria.length} />
+                <span className="sr-only">{doc.criteria.length === 1 ? ' check' : ' checks'}</span>
+              </span>
+            </Tip>
           )}
           {doc && doc.state === 'approved' && <span className="font-semibold text-ink-2">approved in design/</span>}
           {effect && (
@@ -311,15 +311,14 @@ function DocumentRow({ projectId, proposal: p }: { projectId: string; proposal: 
               to="/p/$projectId/records/$code"
               params={{ projectId, code: effect.code }}
               search={{ v: effect.version }}
-              className="font-semibold text-needs hover:text-needs-hover"
+              className="font-semibold text-needs-strong hover:underline"
             >
               {effect.approved ? 'Open the record' : 'Open the draft'}
             </Link>
           )}
         </span>
         <Button
-          size="sm"
-          variant="ghost"
+          variant="text"
           aria-expanded={open}
           aria-controls={panel}
           aria-label={`${open ? 'Close' : 'Open'} ${title}`}
@@ -330,7 +329,7 @@ function DocumentRow({ projectId, proposal: p }: { projectId: string; proposal: 
         </Button>
       </div>
       {open && (
-        <div id={panel} className="mr-4 mb-3 flex flex-col gap-4 rounded-[10px] bg-surface-2 px-5 py-4">
+        <div id={panel} className="mr-4 mb-3 flex flex-col gap-4 rounded-control bg-surface-soft px-5 py-4">
           {doc && <DocumentBody doc={doc} />}
           {tax && <TaxonomyBody tax={tax} />}
         </div>
@@ -355,12 +354,12 @@ function DocumentBody({ doc }: { doc: ImportedDocument }) {
       <Sections sections={doc.sections} />
       {doc.criteria.length > 0 && (
         <section className="flex flex-col gap-2">
-          <h3 className="text-[13px] font-semibold text-ink-2">Checks ({doc.criteria.length})</h3>
+          <h3 className="dm-text-small font-semibold text-ink-2">Checks ({doc.criteria.length})</h3>
           <ChecksList checks={doc.criteria} />
         </section>
       )}
       {(doc.links.length > 0 || doc.annexes.length > 0) && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-ink-2">
+        <div className="dm-text-small flex flex-wrap items-center gap-x-4 gap-y-1 text-ink-2">
           {doc.links.map((l) => (
             <span key={`${l.type}-${l.target.code}`}>
               <span className="text-muted">{l.type === 'based_on' ? 'Based on' : l.type.replace('_', ' ')}</span>{' '}
@@ -385,12 +384,12 @@ function TaxonomyBody({ tax }: { tax: ImportedTaxonomy }) {
     <>
       {tax.axes.map((axis) => (
         <section key={axis.code} className="flex flex-col gap-2">
-          <h3 className="text-[13px] font-semibold text-ink-2">
+          <h3 className="dm-text-small font-semibold text-ink-2">
             {axis.name} <Code>{axis.code}</Code>
           </h3>
           <ul className="grid grid-cols-2 gap-x-6 gap-y-1.5">
             {axis.categories.map((c) => (
-              <li key={c.code} className="text-[13px]">
+              <li key={c.code} className="dm-text-small">
                 <strong className="font-semibold">{c.name}</strong>
                 {c.description && <span className="text-ink-3"> · {c.description}</span>}
               </li>

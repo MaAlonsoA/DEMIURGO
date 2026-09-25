@@ -42,14 +42,15 @@ function BatchSkeleton({ projectId }: { projectId: string }) {
       <Breadcrumbs items={[{ label: 'Needs you', to: '/p/$projectId/needs-you', params: { projectId } }, { label: 'Package' }]} />
       <div role="status" aria-label="Loading the package" className="flex max-w-[860px] flex-col gap-4">
         <div className="flex items-start gap-3.5">
-          <Skeleton className="h-10 w-10 rounded-[11px]" />
+          <Skeleton className="h-10 w-10 rounded-control" />
           <div className="flex flex-1 flex-col gap-2">
             <Skeleton className="h-3 w-40" />
             <Skeleton className="h-7 w-2/3" />
             <Skeleton className="h-3 w-1/2" />
           </div>
         </div>
-        <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface px-[22px] py-[18px]">
+        {/* The shape of the design system's Proposal: its panel. */}
+        <div className="dm-panel">
           <Skeleton className="h-3 w-48" />
           <Skeleton className="h-6 w-3/5" />
           <Skeleton className="h-20 w-full" />

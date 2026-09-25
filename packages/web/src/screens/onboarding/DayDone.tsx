@@ -9,10 +9,9 @@ import { type ReactNode, useId } from 'react';
 import { ApiError } from '../../api/client.ts';
 import { batchQuery, stateQuery } from '../../api/queries.ts';
 import type { Question } from '../../api/types.ts';
-import { cn } from '../../lib/cn.ts';
 import { useRouteParams } from '../../lib/hooks.ts';
-import { buttonStyles } from '../../ui/Button.tsx';
-import { ChevronRight } from '../../ui/icons.tsx';
+import { buttonClass } from '../../ui/Button.tsx';
+import { ArrowRight, ChevronRight } from '../../ui/icons.tsx';
 import { Mark } from '../../ui/marks.tsx';
 import { Reasons } from '../../ui/Reasons.tsx';
 import { NeedsBubble } from '../../ui/signals.tsx';
@@ -65,7 +64,7 @@ export function DayDoneScreen() {
       aside={
         <>
           <section className="flex flex-col gap-2">
-            <h2 className="flex items-center gap-2 text-[15px] font-semibold">
+            <h2 className="dm-text-heading flex items-center gap-2 font-semibold">
               Needs you
               <NeedsBubble count={needs} />
             </h2>
@@ -75,39 +74,39 @@ export function DayDoneScreen() {
                 to="/p/$projectId/batches/$batchId"
                 params={{ projectId, batchId: w.batchId }}
                 data-waiting-decision={w.proposalId}
-                className="flex flex-col gap-0.5 rounded-[10px] border border-transparent bg-needs-bg px-3.5 py-3 text-ink hover:border-needs-ring"
+                className="flex flex-col gap-0.5 rounded-card-md border border-transparent bg-needs-soft px-3.5 py-3 text-ink hover:border-needs-ring focus-visible:border-needs"
               >
-                <span className="flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">
+                <span className="dm-label flex items-center gap-1.5">
                   <Mark kind="proposed" size={9} label="Proposed" />
                   Decision
                 </span>
-                <strong className="line-clamp-2 text-[14px] leading-snug font-semibold">{w.title}</strong>
-                <span className="text-xs text-ink-3">DEMIURGO proposes it. Accept, change or reject it.</span>
+                <strong className="dm-text-body line-clamp-2 leading-snug font-semibold">{w.title}</strong>
+                <span className="dm-text-caption text-ink-3">DEMIURGO proposes it. Accept, change or reject it.</span>
               </Link>
             ))}
             {s.open.map((q) => (
               <QuestionLink key={q.id} question={q} {...toThread} />
             ))}
-            {needs === 0 && <p className="text-[13px] text-ink-2">Nothing from today waits for you.</p>}
+            {needs === 0 && <p className="dm-text-small text-ink-2">Nothing from today waits for you.</p>}
           </section>
 
           <section data-whats-next className="flex flex-col gap-2">
-            <h2 className="text-xs font-semibold text-muted">What&apos;s next</h2>
+            <h2 className="dm-text-caption font-semibold text-muted">What&apos;s next</h2>
             {approved.length > 0 ? (
               approved.map((r) => (
-                <p key={r.code} className="text-[13px] text-ink">
+                <p key={r.code} className="dm-text-small text-ink">
                   <span className="font-semibold">Draft it:</span> DEMIURGO drafts a feature with its checks from “{r.title}”.
                 </p>
               ))
             ) : (
-              <p className="text-[13px] text-ink">
+              <p className="dm-text-small text-ink">
                 Accept and approve a decision, then <span className="font-semibold">Draft it</span>: DEMIURGO drafts a feature
                 with its checks from it.
               </p>
             )}
-            <p className="text-xs text-muted">
+            <p className="dm-text-caption text-muted">
               Draft it lives in the thread.{' '}
-              <Link {...toThread} className="font-semibold text-needs hover:text-needs-hover">
+              <Link {...toThread} className="font-semibold text-needs hover:text-needs-strong">
                 Open the thread
               </Link>
             </p>
@@ -115,29 +114,29 @@ export function DayDoneScreen() {
 
           {s.parked.length > 0 && (
             <section className="flex flex-col gap-2">
-              <h2 className="text-xs font-semibold text-muted">Parked for later</h2>
+              <h2 className="dm-text-caption font-semibold text-muted">Parked for later</h2>
               {s.parked.map((q) => (
                 <QuestionLink key={q.id} question={q} {...toThread} />
               ))}
             </section>
           )}
 
-          <div className="mt-auto flex flex-col gap-1.5 rounded-[12px] bg-surface-2 px-4 py-3.5">
-            <strong className="text-[13px] font-semibold">You can close DEMIURGO</strong>
-            <span className="text-[13px] text-ink-3">
+          <div className="mt-auto flex flex-col gap-1.5 rounded-card-md bg-surface-soft px-4 py-3.5">
+            <strong className="dm-text-small font-semibold">You can close DEMIURGO</strong>
+            <span className="dm-text-small text-ink-3">
               Everything is saved. When you come back, I&apos;ll show you what changed while you were away.
             </span>
           </div>
         </>
       }
     >
-      <section className="flex items-center justify-between gap-8 rounded-2xl border border-line bg-surface px-[26px] py-[22px]">
+      <section className="dm-panel flex-row items-center justify-between gap-8 px-[26px] py-[22px]">
         <div className="flex flex-col gap-3.5">
           <div className="flex flex-col gap-0.5">
-            <span className="text-xs font-semibold text-muted">
+            <span className="dm-text-caption font-semibold text-muted">
               {s.day} · {minutes}
             </span>
-            <h1 className="text-[26px] leading-tight font-semibold">Your starting point is ready</h1>
+            <h1 className="dm-text-page-title">Your starting point is ready</h1>
           </div>
           <div data-day-numbers className="flex items-center gap-6">
             <Figure n={1} label="idea" />
@@ -152,16 +151,12 @@ export function DayDoneScreen() {
             <Link
               to="/p/$projectId/batches/$batchId"
               params={{ projectId, batchId: firstWaiting.batchId }}
-              className={cn(buttonStyles({ variant: 'needs', size: 'lg' }), 'rounded-[10px]')}
+              className={buttonClass('primary')}
             >
               Review the decisions
             </Link>
           )}
-          <Link
-            to="/p/$projectId"
-            params={{ projectId }}
-            className={cn(buttonStyles({ variant: firstWaiting ? 'outline' : 'ink', size: 'lg' }), 'rounded-[10px]')}
-          >
+          <Link to="/p/$projectId" params={{ projectId }} className={buttonClass('secondary')}>
             Go to the product
           </Link>
         </div>
@@ -181,7 +176,7 @@ export function DayDoneScreen() {
                 ))}
             </ul>
           ) : (
-            <p className="text-[13px] text-muted">No answers yet. The questions wait in the thread.</p>
+            <p className="dm-text-small text-muted">No answers yet. The questions wait in the thread.</p>
           )}
         </Column>
       </div>
@@ -197,29 +192,14 @@ export function DayDoneScreen() {
 function Figure({ n, label }: { n: number; label: string }) {
   return (
     <span className="flex flex-col">
-      <strong className="text-2xl leading-[1.1] font-semibold tabular-nums">{n}</strong>
-      <span className="text-xs text-ink-3">{label}</span>
+      <strong className="dm-text-page-title tabular-nums">{n}</strong>
+      <span className="dm-text-caption text-ink-3">{label}</span>
     </span>
   );
 }
 
 function Arrow() {
-  return (
-    <svg
-      width="22"
-      height="12"
-      viewBox="0 0 22 12"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className="text-inactive"
-    >
-      <path d="M1 6h19M15 1l5 5-5 5" />
-    </svg>
-  );
+  return <ArrowRight size={18} className="shrink-0 text-inactive" />;
 }
 
 function Column({ title, children }: { title: string; children: ReactNode }) {
@@ -234,7 +214,7 @@ function Column({ title, children }: { title: string; children: ReactNode }) {
 
 function Observations({ messages, runId }: { messages: Parameters<typeof writtenBy>[0]; runId: string }) {
   const { observations } = writtenBy(messages, runId);
-  if (observations.length === 0) return <p className="text-[13px] text-muted">Nothing noted.</p>;
+  if (observations.length === 0) return <p className="dm-text-small text-muted">Nothing noted.</p>;
   return (
     <ul className="flex flex-col gap-1.5">
       {observations.map((o) => (
@@ -260,7 +240,7 @@ function QuestionLink({
       to={to}
       params={params}
       data-waiting-question={q.id}
-      className="flex items-start gap-2.5 rounded-[10px] px-1 py-1 text-[13px] text-ink hover:bg-line-soft"
+      className="dm-text-small flex items-start gap-2.5 rounded-control px-1 py-1 text-ink hover:bg-line-soft"
     >
       <span className="mt-[5px] flex shrink-0">
         <Mark kind={w.mark} label={w.word} />
@@ -268,7 +248,7 @@ function QuestionLink({
       <span className="min-w-0 flex-1">
         {q.question}
         {q.state === 'inferred' && q.conclusion && (
-          <span className="line-clamp-2 text-xs text-ink-3">Assumed: {q.conclusion}</span>
+          <span className="dm-text-caption line-clamp-2 text-ink-3">Assumed: {q.conclusion}</span>
         )}
       </span>
       <ChevronRight size={12} className="mt-1 shrink-0 text-muted" />

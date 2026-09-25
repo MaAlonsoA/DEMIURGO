@@ -31,7 +31,7 @@ export function TaxonomyTab({ projectId }: { projectId: string }) {
   if (list.isPending) {
     return (
       <div role="status" aria-label="Loading the taxonomy" className="flex flex-col gap-3">
-        <Skeleton className="h-64 w-full rounded-[var(--radius-card)]" />
+        <Skeleton className="h-64 w-full rounded-card-md" />
       </div>
     );
   }
@@ -45,12 +45,12 @@ export function TaxonomyTab({ projectId }: { projectId: string }) {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-start justify-between gap-6">
-        <p className="max-w-[640px] text-[13px] text-ink-2">
+        <p className="dm-text-small max-w-[640px] text-ink-2">
           The taxonomy organizes what DEMIURGO knows. Only the approved version is used to classify, and only what changes after
           approving it is classified with it.
         </p>
         {canPropose && !draft && (
-          <Button variant="outline" onClick={() => setDraft({ draft: draftFrom(base), base })} className="shrink-0">
+          <Button variant="secondary" onClick={() => setDraft({ draft: draftFrom(base), base })} className="shrink-0">
             <PlusIcon size={13} />
             {base ? 'Propose a new version' : 'Propose a taxonomy'}
           </Button>
@@ -70,7 +70,7 @@ export function TaxonomyTab({ projectId }: { projectId: string }) {
       )}
       {replaced.length > 0 && (
         <details className="group">
-          <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[13px] font-semibold text-ink-2 hover:text-ink">
+          <summary className="dm-text-small flex cursor-pointer list-none items-center gap-1.5 font-semibold text-ink-2 hover:text-ink">
             <ChevronRight size={12} className="transition-transform group-open:rotate-90" />
             Replaced · {replaced.length}
           </summary>
@@ -88,7 +88,7 @@ export function TaxonomyTab({ projectId }: { projectId: string }) {
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-2.5">
-      <h3 className="text-[13px] font-semibold text-ink-2">{title}</h3>
+      <h3 className="dm-text-small font-semibold text-ink-2">{title}</h3>
       {children}
     </div>
   );
@@ -101,16 +101,13 @@ function TaxonomyCard({ projectId, taxonomy: t, current }: { projectId: string; 
   const approve = () =>
     command.mutate({ command: 'taxonomy.approve', entityId: t.id }, { onSuccess: () => setConfirming(false) });
   return (
-    <article
-      aria-label={`${t.code} v${t.version} · ${t.title}`}
-      className="flex flex-col gap-4 rounded-[var(--radius-card)] border border-line bg-surface px-[18px] py-4"
-    >
+    <article aria-label={`${t.code} v${t.version} · ${t.title}`} className="dm-card gap-4 px-[18px] py-4">
       <header className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-1">
-          <span className="flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">
+          <span className="dm-label flex items-center gap-1.5">
             <TypeIcon kind="taxonomy" size={14} />
             Taxonomy
-            <span className="text-inactive-light" aria-hidden="true">
+            <span className="dm-sep" aria-hidden="true">
               ·
             </span>
             <span className="tracking-normal normal-case">
@@ -120,8 +117,8 @@ function TaxonomyCard({ projectId, taxonomy: t, current }: { projectId: string; 
               {t.code} v{t.version}
             </Code>
           </span>
-          <h3 className="text-[17px] leading-snug font-semibold">{t.title}</h3>
-          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+          <h3 className="dm-text-heading leading-snug font-semibold">{t.title}</h3>
+          <p className="dm-text-caption flex flex-wrap items-center gap-x-3 gap-y-1 text-muted">
             <span className="flex items-center gap-1.5">
               Proposed by <WhoMark actor={t.author} size={16} withName /> · {shortDate(t.created_at)}
             </span>
@@ -152,7 +149,7 @@ function TaxonomyCard({ projectId, taxonomy: t, current }: { projectId: string; 
         {axes.map((a) => (
           <section key={a.code} aria-labelledby={`${t.id}-${a.code}`} className="flex flex-col gap-2">
             <div className="flex items-baseline justify-between gap-2 border-b border-line-soft pb-1.5">
-              <h4 id={`${t.id}-${a.code}`} className="text-[13px] font-semibold">
+              <h4 id={`${t.id}-${a.code}`} className="dm-text-small font-semibold">
                 {a.name}
               </h4>
               <Code>{a.code}</Code>
@@ -161,10 +158,10 @@ function TaxonomyCard({ projectId, taxonomy: t, current }: { projectId: string; 
               {a.categories.map((c) => (
                 <li key={c.code} className="flex flex-col">
                   <span className="flex items-baseline gap-2">
-                    <span className="text-[13px] font-medium text-ink">{c.name}</span>
+                    <span className="dm-text-small font-medium text-ink">{c.name}</span>
                     <Code>{c.code}</Code>
                   </span>
-                  <span className="text-xs text-ink-3">{c.description}</span>
+                  <span className="dm-text-caption text-ink-3">{c.description}</span>
                 </li>
               ))}
             </ul>
@@ -173,14 +170,14 @@ function TaxonomyCard({ projectId, taxonomy: t, current }: { projectId: string; 
       </div>
       {t.sections.length > 0 && (
         <details className="group border-t border-line-soft pt-3">
-          <summary className="flex cursor-pointer list-none items-center gap-1.5 text-xs font-semibold text-ink-2 hover:text-ink">
+          <summary className="dm-text-caption flex cursor-pointer list-none items-center gap-1.5 font-semibold text-ink-2 hover:text-ink">
             <ChevronRight size={12} className="transition-transform group-open:rotate-90" />
             Its text · {t.sections.map((s) => s.title).join(' · ')}
           </summary>
           <div className="mt-3 flex flex-col gap-3">
             {t.sections.map((s) => (
               <div key={s.title}>
-                <h5 className="mb-1 text-[13px] font-semibold">{s.title}</h5>
+                <h5 className="dm-text-small mb-1 font-semibold">{s.title}</h5>
                 <Markdown>{s.content}</Markdown>
               </div>
             ))}

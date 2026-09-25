@@ -16,8 +16,8 @@ import { useTables } from '../../lib/hooks.ts';
 import { ago, dayTime } from '../../lib/time.ts';
 import { ActionBar } from '../../ui/ActionBar.tsx';
 import { Button } from '../../ui/Button.tsx';
-import { ArrowRight, ChevronRight } from '../../ui/icons.tsx';
-import { Mark } from '../../ui/marks.tsx';
+import { ArrowRight, ChevronRight, TickIcon } from '../../ui/icons.tsx';
+import { Mark, WorkingMark } from '../../ui/marks.tsx';
 import { Reasons } from '../../ui/Reasons.tsx';
 import { WhoGlyph } from '../../ui/signals.tsx';
 import { OBSERVATION_WORDS, failureWord } from '../../words.ts';
@@ -84,8 +84,8 @@ export function LiveReading({
       <div className="flex items-start gap-3">
         <WhoGlyph kind="you" size={26} />
         <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-xs text-muted">Your idea · {ago(idea.created_at, now)}</span>
-          <p className="text-[16px] leading-relaxed whitespace-pre-wrap text-ink-2">“{idea.body}”</p>
+          <span className="dm-text-caption text-muted">Your idea · {ago(idea.created_at, now)}</span>
+          <p className="dm-text-body leading-relaxed whitespace-pre-wrap text-ink-2">“{idea.body}”</p>
         </div>
       </div>
       {stopped(reading) ? (
@@ -104,27 +104,15 @@ function Step({ state, title, children }: { state: StepState; title: string; chi
     <div data-step={state} className="flex gap-3.5 border-t border-line-soft py-3">
       <span className="flex h-[22px] w-5 shrink-0 items-center justify-center">
         {state === 'done' && (
-          <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-ink text-white">
-            <svg
-              width="10"
-              height="10"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M5 12l5 5L20 7" />
-            </svg>
+          <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-ink text-surface">
+            <TickIcon size={10} />
           </span>
         )}
         {state === 'active' && <Mark kind="working" label="Working" />}
-        {state === 'pending' && <span className="h-3 w-3 rounded-full border-[1.5px] border-inactive-light" />}
+        {state === 'pending' && <span className="dm-dot border-[1.5px] border-inactive-soft" />}
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-2.5">
-        <h3 className={cn('text-[15px] font-semibold', state === 'pending' && 'font-medium text-muted')}>{title}</h3>
+        <h3 className={cn('dm-text-heading font-semibold', state === 'pending' && 'font-medium text-muted')}>{title}</h3>
         {children}
       </div>
     </div>
@@ -132,7 +120,7 @@ function Step({ state, title, children }: { state: StepState; title: string; chi
 }
 
 const chip =
-  'inline-flex max-w-full items-start gap-[7px] rounded-[8px] border border-line bg-surface-2 px-2.5 py-[5px] text-[13px]';
+  'dm-text-small inline-flex max-w-full items-start gap-[7px] rounded-sm border border-line bg-surface-soft px-2.5 py-[5px]';
 
 function ReadingCard({
   projectId,
@@ -155,20 +143,20 @@ function ReadingCard({
   const first: StepState = finished ? 'done' : working ? 'active' : 'pending';
   const rest: StepState = finished ? 'done' : 'pending';
   return (
-    <div data-reading={reading.phase} className="flex flex-col rounded-2xl border border-line bg-surface px-6 py-[22px]">
+    <div data-reading={reading.phase} className="dm-panel gap-0 px-6 py-[22px]">
       <div className="flex items-center justify-between gap-4 pb-3">
         <span className="flex items-center gap-2.5">
           <WhoGlyph kind="demiurgo" size={26} />
-          <h2 className="text-[17px] font-semibold">{headline}</h2>
+          <h2 className="dm-text-heading">{headline}</h2>
         </span>
         <span className="flex items-center gap-3">
           {working && run && (
-            <span data-run-timer className="text-[13px] font-semibold text-working-text tabular-nums">
-              {runDuration(run, now)}
-            </span>
+            <WorkingMark>
+              <span data-run-timer>{runDuration(run, now)}</span>
+            </WorkingMark>
           )}
           {finished && run && (
-            <span className="text-[13px] text-muted">
+            <span className="dm-text-small text-muted">
               {runDuration(run)}
               {run.model ? ` · ${run.model}` : ''}
             </span>
@@ -177,12 +165,12 @@ function ReadingCard({
         </span>
       </div>
       {reading.phase === 'waiting' && (
-        <p className="pb-3 text-[13px] text-ink-3">It starts as soon as its knowledge is up to date with your idea.</p>
+        <p className="dm-text-small pb-3 text-ink-3">It starts as soon as its knowledge is up to date with your idea.</p>
       )}
       <Step state={first} title="What I understood">
         {shown && (
           <>
-            {shown.reply && <p className="text-[14px] leading-relaxed text-ink-2">{shown.reply.body}</p>}
+            {shown.reply && <p className="dm-text-body leading-relaxed text-ink-2">{shown.reply.body}</p>}
             {shown.observations.length > 0 && (
               <ul className="flex flex-wrap gap-2">
                 {shown.observations.map((o) => {
@@ -215,18 +203,18 @@ function ReadingCard({
               ))}
             </ul>
           ) : (
-            <p className="text-[13px] text-muted">Nothing for now.</p>
+            <p className="dm-text-small text-muted">Nothing for now.</p>
           ))}
       </Step>
       {shown?.batchId && <ProposedStep projectId={projectId} batchId={shown.batchId} />}
       <div className="flex items-center justify-between gap-4 border-t border-line-soft pt-3.5">
-        <span className="text-[13px] text-ink-3">
+        <span className="dm-text-small text-ink-3">
           {finished
             ? 'Everything above is only proposed. You will review it before anything is decided.'
             : 'DEMIURGO is only reading. Nothing is decided without you.'}
         </span>
         {finished && (
-          <Button variant="needs" size="lg" onClick={onSee} className="h-[42px] rounded-[10px] px-[18px]">
+          <Button variant="primary" onClick={onSee}>
             See what I understood
             <ArrowRight size={16} />
           </Button>
@@ -262,10 +250,9 @@ function CancelRun({ projectId, run }: { projectId: string; run: RunListItem }) 
       <ActionBar
         entity="ai_run"
         state={run.state}
-        size="sm"
         handlers={{
           'run.cancel': {
-            variant: 'working',
+            variant: 'secondary',
             disabled: command.isPending,
             run: () => command.mutate({ command: 'run.cancel', entityId: run.id }),
           },
@@ -305,9 +292,9 @@ function StoppedCard({
     <div
       data-reading={reading.phase}
       className={cn(
-        'flex flex-col gap-3 border',
-        compact ? 'rounded-[12px] px-4 py-3' : 'rounded-2xl px-6 py-[22px]',
-        failed ? 'border-problem-line bg-problem-bg' : 'border-line bg-surface',
+        // A failure is the rust box: the card's shape on problem-tint, without a line.
+        compact ? 'dm-card gap-3 px-4 py-3' : 'dm-panel px-6 py-[22px]',
+        failed && 'border-transparent bg-problem-tint text-problem',
       )}
     >
       <div className="flex items-start gap-3">
@@ -315,12 +302,12 @@ function StoppedCard({
           <Mark kind={failed ? 'problem' : 'inactive'} label={failed ? 'Failed' : 'Stopped'} />
         </span>
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <h2 className={cn('font-semibold', compact ? 'text-[14px]' : 'text-[17px]', failed ? 'text-problem' : 'text-ink')}>
+          <h2 className={cn('font-semibold', compact ? 'dm-text-body' : 'dm-text-heading', failed ? 'text-problem' : 'text-ink')}>
             {title}
           </h2>
-          <p className={cn('text-[14px]', failed ? 'text-problem' : 'text-ink-2')}>{reason}</p>
+          <p className={cn('dm-text-body', failed ? 'text-problem' : 'text-ink-2')}>{reason}</p>
           {run && (
-            <p className={cn('text-xs', failed ? 'text-problem' : 'text-muted')}>
+            <p className={cn('dm-text-caption', failed ? 'text-problem' : 'text-muted')}>
               Conversation · {dayTime(run.finished_at ?? run.created_at)}
               {run.model ? ` · ${run.model}` : ''}
             </p>
@@ -333,7 +320,7 @@ function StoppedCard({
               params={{ projectId, runId: run.id }}
               aria-label="Details of the conversation run"
               className={cn(
-                'inline-flex items-center gap-0.5 text-[13px] font-semibold hover:underline',
+                'dm-text-small inline-flex items-center gap-0.5 font-semibold hover:underline',
                 failed ? 'text-problem' : 'text-ink-2',
               )}
             >
@@ -343,8 +330,7 @@ function StoppedCard({
           )}
           {canRetry && run && (
             <Button
-              size={compact ? 'sm' : 'md'}
-              variant="ink"
+              variant="secondary"
               data-command="run.retry"
               disabled={command.isPending}
               onClick={() => command.mutate({ command: 'run.retry', data: { run_id: run.id } })}
@@ -354,8 +340,7 @@ function StoppedCard({
           )}
           {canAsk && (
             <Button
-              size={compact ? 'sm' : 'md'}
-              variant="ink"
+              variant="secondary"
               data-command="run.request"
               disabled={command.isPending}
               onClick={() =>
@@ -395,26 +380,25 @@ export function ReadingStatus({
   }
   const run = reading.run;
   const working = reading.phase === 'working';
+  // DEMIURGO at work is the design system's Working: its amber dot and what it is doing, with the
+  // time ("Reading your correction… · 0:42") and Cancel next to it.
   return (
-    <div
-      data-reading={reading.phase}
-      className="flex items-center gap-3 rounded-[12px] border border-working/45 bg-working-bg px-4 py-3"
-    >
-      <span className="flex w-4 justify-center">
-        <Mark kind="working" label={working ? 'Working' : 'Waiting'} />
-      </span>
+    <div data-reading={reading.phase} className="dm-card flex-row items-center gap-3 px-4 py-3">
       <WhoGlyph kind="demiurgo" size={18} />
-      <p className="min-w-0 flex-1 text-[14px] font-semibold text-working-text">
-        {WORDS[subject][working ? 'working' : 'waiting']}
-      </p>
-      {working && run && (
-        <>
-          <span data-run-timer className="text-[13px] font-semibold text-working-text tabular-nums">
-            {runDuration(run, now)}
+      <span className="min-w-0 flex-1">
+        <WorkingMark label={working ? 'Working' : 'Waiting'}>
+          <span>
+            {WORDS[subject][working ? 'working' : 'waiting']}
+            {working && run && (
+              <>
+                {' · '}
+                <span data-run-timer>{runDuration(run, now)}</span>
+              </>
+            )}
           </span>
-          <CancelRun projectId={projectId} run={run} />
-        </>
-      )}
+        </WorkingMark>
+      </span>
+      {working && run && <CancelRun projectId={projectId} run={run} />}
     </div>
   );
 }

@@ -141,7 +141,7 @@ test('AC-INT-001-09 a new thread opens from the list, Send writes in it, and a t
   await expect(provenance.getByRole('link', { name: 'Decide how the runner reports evidence' })).toBeVisible();
 
   // The list nests the child under its parent.
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Threads' }).click();
+  await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Threads' }).click();
   const rows = page.locator('[data-thread-row]');
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0)).toContainText('Decide how the runner reports evidence');

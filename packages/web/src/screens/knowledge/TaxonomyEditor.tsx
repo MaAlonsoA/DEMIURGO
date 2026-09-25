@@ -22,8 +22,8 @@ import {
 } from './taxonomy.ts';
 
 const FIELD =
-  'h-8 w-full rounded-[var(--radius-control)] border border-line-strong bg-surface px-2.5 text-[13px] text-ink placeholder:text-muted focus:border-needs focus:outline-none';
-const MONO = 'font-mono text-[12px]';
+  'dm-text-small h-8 w-full rounded-control border border-line-strong bg-surface px-2.5 text-ink placeholder:text-muted focus:border-needs focus:outline-none';
+const MONO = 'dm-text-caption font-mono';
 
 export function TaxonomyEditor({
   projectId,
@@ -45,27 +45,23 @@ export function TaxonomyEditor({
     command.mutate({ command: 'taxonomy.propose', data: toProposal(draft) }, { onSuccess: onClose });
   };
   return (
-    <form
-      aria-label={`New version of ${draft.code}`}
-      onSubmit={submit}
-      className="flex flex-col gap-5 rounded-[var(--radius-card)] border-2 border-needs bg-surface px-[18px] py-4"
-    >
+    <form aria-label={`New version of ${draft.code}`} onSubmit={submit} className="dm-card dm-selected gap-5 px-[18px] py-4">
       <header className="flex flex-col gap-1">
-        <span className="text-[11px] font-semibold tracking-[0.05em] text-needs-hover uppercase">
+        <span className="dm-label text-needs-strong">
           {base ? `New version of ${base.code} · from v${base.version}` : `New taxonomy · ${draft.code}`}
         </span>
-        <p className="text-[13px] text-ink-3">
+        <p className="dm-text-small text-ink-3">
           Each axis is a closed set of categories. The server checks the rules: every axis keeps an “other” category, with code{' '}
-          <code className="font-mono text-[12px]">other</code>, and no code repeats.
+          <code className="dm-text-caption font-mono">other</code>, and no code repeats.
         </p>
       </header>
       <label className="flex max-w-[560px] flex-col gap-1">
-        <span className="text-xs font-semibold text-ink-2">Title</span>
+        <span className="dm-text-caption font-semibold text-ink-2">Title</span>
         <input
           value={draft.title}
           onChange={(e) => setDraft({ ...draft, title: e.target.value })}
           maxLength={200}
-          className={cn(FIELD, 'h-9 text-sm')}
+          className={cn(FIELD, 'dm-text-body h-9')}
         />
       </label>
       {draft.axes.map((a) => {
@@ -74,11 +70,11 @@ export function TaxonomyEditor({
           <fieldset
             key={a.key}
             aria-label={a.name.trim() || 'New axis'}
-            className="flex flex-col gap-2 rounded-[10px] border border-line bg-surface-2 px-3.5 pt-3 pb-3.5"
+            className="flex flex-col gap-2 rounded-control border border-line bg-surface-soft px-3.5 pt-3 pb-3.5"
           >
             <div className="grid grid-cols-[minmax(0,1fr)_200px_auto] items-end gap-2">
               <label className="flex flex-col gap-1">
-                <span className="text-xs font-semibold text-ink-2">Axis name</span>
+                <span className="dm-text-caption font-semibold text-ink-2">Axis name</span>
                 <input
                   value={a.name}
                   onChange={(e) => setDraft(updateAxis(draft, a.key, { name: e.target.value }))}
@@ -86,21 +82,18 @@ export function TaxonomyEditor({
                 />
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-xs font-semibold text-ink-2">Axis code</span>
+                <span className="dm-text-caption font-semibold text-ink-2">Axis code</span>
                 <input
                   value={a.code}
                   onChange={(e) => setDraft(updateAxis(draft, a.key, { code: e.target.value }))}
                   className={cn(FIELD, MONO)}
                 />
               </label>
-              <Button variant="ghost" size="md" onClick={() => setDraft(removeAxis(draft, a.key))}>
+              <Button variant="text" onClick={() => setDraft(removeAxis(draft, a.key))}>
                 Remove axis
               </Button>
             </div>
-            <div
-              aria-hidden="true"
-              className="mt-1 grid grid-cols-[200px_170px_minmax(0,1fr)_28px] gap-2 text-[11px] font-semibold tracking-[0.05em] text-muted uppercase"
-            >
+            <div aria-hidden="true" className="dm-label mt-1 grid grid-cols-[200px_170px_minmax(0,1fr)_28px] gap-2">
               <span>Category</span>
               <span>Code</span>
               <span>Description</span>
@@ -132,7 +125,7 @@ export function TaxonomyEditor({
                       type="button"
                       aria-label={`Remove ${c.name.trim() || 'the new category'}`}
                       onClick={() => setDraft(removeCategory(draft, a.key, c.key))}
-                      className="flex h-7 w-7 items-center justify-center rounded-md text-muted hover:bg-line-soft hover:text-ink"
+                      className="flex h-7 w-7 items-center justify-center rounded-tab text-muted hover:bg-line-soft hover:text-ink"
                     >
                       <CloseIcon size={13} />
                     </button>
@@ -141,8 +134,7 @@ export function TaxonomyEditor({
               })}
             </ul>
             <Button
-              variant="ghost"
-              size="sm"
+              variant="text"
               className="self-start"
               aria-label="Add a category"
               title={`Add a category to ${axisName}`}
@@ -154,27 +146,27 @@ export function TaxonomyEditor({
           </fieldset>
         );
       })}
-      <Button variant="outline" size="sm" className="self-start" onClick={() => setDraft(addAxis(draft))}>
+      <Button variant="secondary" className="self-start" onClick={() => setDraft(addAxis(draft))}>
         <PlusIcon size={12} />
         Add an axis
       </Button>
       {draft.sections.length > 0 && (
-        <p className="text-xs text-muted">
+        <p className="dm-text-caption text-muted">
           Its text ({draft.sections.map((s) => s.title).join(' · ')}) is kept as it is{base ? ` in v${base.version}` : ''}.
         </p>
       )}
       {command.error ? <Reasons error={command.error} /> : null}
       <footer className="flex items-center justify-end gap-3 border-t border-line-soft pt-3">
         {gaps.length > 0 && (
-          <p className="mr-auto text-xs text-muted" aria-live="polite">
+          <p className="dm-text-caption mr-auto text-muted" aria-live="polite">
             {gaps[0]}
             {gaps.length > 1 ? ` And ${gaps.length - 1} more.` : ''}
           </p>
         )}
-        <Button variant="ghost" onClick={onClose}>
+        <Button variant="text" onClick={onClose}>
           Not now
         </Button>
-        <Button type="submit" variant="ink" disabled={gaps.length > 0 || command.isPending}>
+        <Button type="submit" variant="secondary" disabled={gaps.length > 0 || command.isPending}>
           {command.isPending ? 'Proposing…' : 'Propose'}
         </Button>
       </footer>

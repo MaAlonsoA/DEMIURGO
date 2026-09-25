@@ -64,15 +64,15 @@ export function QuestionItem({
   const handlers: Record<string, ActionHandler> = assumed
     ? {
         // Confirming is decisive: it asks before turning DEMIURGO's assumption into the person's answer.
-        'question.confirm': { run: () => open('confirm'), label: 'Confirm', variant: 'needs' },
-        'question.postpone': { run: () => open('park'), label: 'Park', variant: 'ghost' },
-        'question.discard': { run: () => open('drop'), label: 'Drop', variant: 'ghost' },
+        'question.confirm': { run: () => open('confirm'), label: 'Confirm', variant: 'primary' },
+        'question.postpone': { run: () => open('park'), label: 'Park', variant: 'text' },
+        'question.discard': { run: () => open('drop'), label: 'Drop', variant: 'text' },
       }
     : {
-        'question.confirm': { run: () => open('answer'), label: 'Answer', variant: 'needs' },
-        'question.postpone': { run: () => open('park'), label: 'Park', variant: 'ghost' },
-        'question.discard': { run: () => open('drop'), label: 'Drop', variant: 'ghost' },
-        'question.reopen': { run: () => open('reopen'), label: 'Reopen', variant: 'outline' },
+        'question.confirm': { run: () => open('answer'), label: 'Answer', variant: 'primary' },
+        'question.postpone': { run: () => open('park'), label: 'Park', variant: 'text' },
+        'question.discard': { run: () => open('drop'), label: 'Drop', variant: 'text' },
+        'question.reopen': { run: () => open('reopen'), label: 'Reopen', variant: 'secondary' },
       };
 
   const dialogError = dialog ? command.error : null;
@@ -84,21 +84,21 @@ export function QuestionItem({
           <Mark kind={word.mark} label={word.word} />
         </span>
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <p className={cn('text-[14px] leading-snug text-ink', compact && 'text-[13px]')}>{q.question}</p>
+          <p className={cn('dm-text-body leading-snug text-ink', compact && 'dm-text-small')}>{q.question}</p>
           {q.conclusion && (
-            <p className="text-[13px] text-ink-2">
+            <p className="dm-text-small text-ink-2">
               <span className="font-semibold">{assumed ? 'Assumed: ' : 'Answer: '}</span>
               {q.conclusion}
             </p>
           )}
-          {!compact && assumed && q.reasoning && <p className="text-xs text-muted">Why: {q.reasoning}</p>}
+          {!compact && assumed && q.reasoning && <p className="dm-text-caption text-muted">Why: {q.reasoning}</p>}
           {q.state_reason && ['postponed', 'discarded'].includes(q.state) && (
-            <p className="text-xs text-muted">Reason: {q.state_reason}</p>
+            <p className="dm-text-caption text-muted">Reason: {q.state_reason}</p>
           )}
-          <ActionBar entity="question" state={q.state} size="sm" handlers={handlers} className="mt-1">
+          <ActionBar entity="question" state={q.state} handlers={handlers} className="mt-1">
             {/* "Change" confirms the assumed answer with the person's own words: the same command. */}
             {assumed && allows('question.confirm') && (
-              <Button size="sm" variant="outline" data-command="question.confirm" onClick={() => open('change')}>
+              <Button variant="secondary" data-command="question.confirm" onClick={() => open('change')}>
                 Change
               </Button>
             )}
@@ -133,7 +133,7 @@ export function QuestionItem({
         required
         initial={dialog === 'change' ? (q.conclusion ?? '') : ''}
         maxLength={3000}
-        variant="needs"
+        variant="primary"
         pending={command.isPending}
         error={dialogError}
         onSubmit={(text) => run('question.confirm', { conclusion: text }, true)}

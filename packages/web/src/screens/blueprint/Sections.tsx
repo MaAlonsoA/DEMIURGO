@@ -59,7 +59,7 @@ export function RecordSectionTabs({
           data-section={i.tab}
           aria-current={tab === i.tab ? 'page' : undefined}
           className={cn(
-            'border-b-2 px-1 pb-2 text-[13px] font-medium',
+            'dm-text-small border-b-2 px-1 pb-2 font-medium',
             tab === i.tab ? 'border-ink text-ink' : 'border-transparent text-muted hover:text-ink',
           )}
         >

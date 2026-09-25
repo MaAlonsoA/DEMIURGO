@@ -216,6 +216,8 @@ test("AC-INT-001-04 the blueprint rail lists the product's features and decision
   const parked = await person.command(projectId, 'exploration.open', { purpose: 'Guest passes for trips' });
   await person.command(projectId, 'exploration.set_aside', { reason: 'After the pilot.' }, parked.entity_id);
 
+  // The open legend sits over the bottom of the rail, in the same corner.
+  await foldLegend(page);
   await page.goto(`/p/${projectId}/records/${signUp.code}`);
   const rail = railOf(page);
   await expect(rail.getByRole('link', { name: 'Club Activities' })).toHaveAttribute('href', `/p/${projectId}`);
@@ -256,8 +258,8 @@ test("AC-INT-001-04 the blueprint rail lists the product's features and decision
   await expect(page.getByRole('complementary')).toBeVisible();
   await noHorizontalScroll(page);
   // The header keeps one line: the search is its magnifier until it has the focus.
-  const needsTab = page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /Needs you/ });
-  expect((await needsTab.boundingBox())?.height).toBeLessThanOrEqual(32);
+  const needsYou = page.getByRole('banner').getByRole('link', { name: /Needs you/ });
+  expect((await needsYou.boundingBox())?.height).toBeLessThanOrEqual(36);
   await page.keyboard.press('Control+k');
   await expect(searchOf(page)).toBeFocused();
   await expect.poll(async () => (await searchOf(page).boundingBox())?.width ?? 0).toBeGreaterThan(200);

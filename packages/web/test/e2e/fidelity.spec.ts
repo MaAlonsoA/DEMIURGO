@@ -128,7 +128,8 @@ test('AC-INT-001-09 capturing an idea from the overview saves it as a thread wit
 
   // A thread set aside is a parked idea, with the way back to it; who uses it and the rules wait for later.
   const parked = main.locator(`[data-parked="${later.entity_id}"]`);
-  await expect(parked).toContainText('Parked idea');
+  await expect(parked.locator('[data-mark="parked"]')).toBeVisible();
+  await expect(parked).toContainText('Parked');
   await expect(parked).toContainText('Guest passes for open activities');
   await expect(parked).toContainText('After the pilot.');
   await expect(parked).toHaveAttribute('href', `/p/${projectId}/threads/${later.entity_id}`);
@@ -437,8 +438,9 @@ test('screens of the fidelity pass: the overview as the blueprint, Ask DEMIURGO,
   );
   await page.goto(`/p/${projectId}`);
   const main = page.getByRole('main');
-  await expect(main.locator('[data-feature-pill="ready"]').first()).toBeVisible();
-  await expect(main.locator('[data-feature-pill="working"]')).toBeVisible();
+  // Where each feature is, without a pill: the first bar full when ready, the amber Working signal while DEMIURGO works.
+  await expect(main.locator('[data-record] [data-stage="ready"]').first()).toBeVisible();
+  await expect(main.locator('[data-feature-working]')).toBeVisible();
   await expect(main.locator('[data-drafting]')).toBeVisible();
   await screenshot(page, 8, '01-overview');
   await expectAccessible(page, 'the overview as the blueprint');

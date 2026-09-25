@@ -1,7 +1,8 @@
-// Header, always visible (spec §3): DEMIURGO and the project, the tabs with the blue count of
-// "Needs you", the freshness of the knowledge and the person's menu with "Sign out" (and, with the
-// dev tools on, "Snapshots…").
+// Header, always visible (spec §3): the design system's Header with DEMIURGO and the project, the
+// sections, and Needs you on the right with its blue count; before it, search, the freshness of
+// the knowledge and the person's menu with "Sign out" (and, with the dev tools on, "Snapshots…").
 
+import { Header as DsHeader, type LinkRenderer } from '@demiurgo/design-system';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
 import { DropdownMenu } from 'radix-ui';
@@ -10,21 +11,23 @@ import { inboxQuery, knowledgeQuery, projectsQuery, sessionQuery } from '../../a
 import { cn } from '../../lib/cn.ts';
 import { useProjectId, usePerson } from '../../lib/hooks.ts';
 import { ChevronDown } from '../../ui/icons.tsx';
-import { NeedsBubble, WhoGlyph } from '../../ui/signals.tsx';
-import { Tip } from '../../ui/Tip.tsx';
 import { useLegendMark } from '../../ui/legend-store.ts';
+import { WhoGlyph } from '../../ui/signals.tsx';
+import { Tip } from '../../ui/Tip.tsx';
 import { hasDevTools, openDevPanel } from '../dev/snapshots.ts';
 import { Search } from './Search.tsx';
 
-type Tab = { label: string; to: string; match: RegExp; needs?: boolean };
+type Section = { label: string; to: string; match: RegExp };
 
-const TABS: Tab[] = [
+const NEEDS_YOU = 'Needs you';
+
+const SECTIONS: Section[] = [
   { label: 'Product', to: '/p/$projectId', match: /^\/p\/[^/]+(\/(origins|records)(\/.*)?)?\/?$/ },
   { label: 'Threads', to: '/p/$projectId/threads', match: /^\/p\/[^/]+\/threads/ },
-  { label: 'Needs you', to: '/p/$projectId/needs-you', match: /^\/p\/[^/]+\/(needs-you|batches)/, needs: true },
   { label: 'Knowledge', to: '/p/$projectId/knowledge', match: /^\/p\/[^/]+\/knowledge/ },
   { label: 'Sources', to: '/p/$projectId/sources', match: /^\/p\/[^/]+\/sources/ },
   { label: 'Activity', to: '/p/$projectId/activity', match: /^\/p\/[^/]+\/(activity|runs)/ },
+  { label: NEEDS_YOU, to: '/p/$projectId/needs-you', match: /^\/p\/[^/]+\/(needs-you|batches)/ },
 ];
 
 export function Header() {
@@ -32,52 +35,47 @@ export function Header() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const projects = useQuery(projectsQuery).data ?? [];
   const project = projects.find((p) => p.id === projectId);
-  const inbox = useQuery(inboxQuery(projectId)).data;
+  const needs = useQuery(inboxQuery(projectId)).data?.total ?? 0;
+  useLegendMark(needs > 0 ? 'needs' : null);
+  const current = SECTIONS.find((s) => s.match.test(pathname))?.label ?? '';
+
+  // Each section, and Needs you, is a link of the router; Needs you carries its count (data-needs).
+  const link: LinkRenderer = (target, props) => {
+    const section = SECTIONS.find((s) => s.label === target);
+    if (!section) return null;
+    const count = target === NEEDS_YOU && needs > 0 ? { 'data-needs': needs } : {};
+    return <Link to={section.to as '/p/$projectId'} params={{ projectId }} {...props} {...count} />;
+  };
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-7 border-b border-line bg-surface px-6">
-      <div className="flex items-center gap-6">
-        <Link to="/p/$projectId" params={{ projectId }} className="text-[13px] font-bold tracking-[0.14em] text-ink">
-          DEMIURGO
-        </Link>
-        <span className="flex items-center gap-2 text-[15px] font-semibold">
-          {project?.name ?? ''}
-          {projects.length > 1 && (
-            <Link to="/projects" className="text-xs font-medium text-muted hover:text-ink">
-              Switch
+    <div className="sticky top-0 z-30">
+      <DsHeader
+        project={
+          <span className="flex items-center gap-2">
+            <span className="max-w-[220px] truncate">{project?.name ?? ''}</span>
+            {projects.length > 1 && (
+              <Link to="/projects" className="dm-text-caption font-medium text-muted hover:text-ink">
+                Switch
+              </Link>
+            )}
+            <Link to="/new" className="dm-text-caption font-medium text-muted hover:text-ink">
+              New project
             </Link>
-          )}
-          <Link to="/new" className="text-xs font-medium text-muted hover:text-ink">
-            New project
-          </Link>
-        </span>
-      </div>
-      <nav aria-label="Main" className="flex items-center gap-1">
-        {TABS.map((t) => {
-          const active = t.match.test(pathname);
-          return (
-            <Link
-              key={t.label}
-              to={t.to as '/p/$projectId'}
-              params={{ projectId }}
-              aria-current={active ? 'page' : undefined}
-              className={cn(
-                'flex h-8 items-center gap-2 rounded-[var(--radius-control)] px-3 text-[14px] text-ink-2 hover:text-ink',
-                active && 'bg-line-soft font-semibold text-ink',
-              )}
-            >
-              {t.label}
-              {t.needs && inbox ? <NeedsBubble count={inbox.total} size="sm" /> : null}
-            </Link>
-          );
-        })}
-      </nav>
-      <div className="ml-auto flex items-center gap-5">
-        <Search projectId={projectId} />
-        <Freshness projectId={projectId} />
-        <PersonMenu />
-      </div>
-    </header>
+          </span>
+        }
+        tabs={SECTIONS.filter((s) => s.label !== NEEDS_YOU).map((s) => s.label)}
+        current={current}
+        needs={needs}
+        link={link}
+        actions={
+          <>
+            <Search projectId={projectId} />
+            <Freshness projectId={projectId} />
+            <PersonMenu />
+          </>
+        }
+      />
+    </div>
   );
 }
 
@@ -101,17 +99,15 @@ function Freshness({ projectId }: { projectId: string }) {
         params={{ projectId }}
         aria-label={`Knowledge version ${k.graph_version}: ${state === 'current' ? 'up to date' : state}`}
         data-freshness={state}
-        className="flex items-center gap-2 rounded-[var(--radius-control)] px-2 py-1 text-[13px] text-ink-2 hover:bg-line-soft"
+        className="dm-text-small flex items-center gap-2 rounded-tab px-2 py-1 text-ink-2 hover:bg-line-soft"
       >
-        <span
-          className={cn(
-            'h-2 w-2 rounded-full',
-            state === 'current' && 'bg-ink',
-            state === 'updating' && 'animate-pulse-soft bg-working shadow-[0_0_0_3px_var(--color-working-bg)]',
-            state === 'behind' && 'bg-problem-fill',
-          )}
-        />
-        Knowledge <span className="font-mono text-xs text-muted">v{k.graph_version}</span>
+        {/* Ink when up to date, the design system's Working dot while updating, rust when behind. */}
+        {state === 'updating' ? (
+          <span className="dm-working-dot" />
+        ) : (
+          <span className={cn('dm-dot dm-dot--sm', state === 'current' ? 'bg-ink' : 'bg-problem-fill')} />
+        )}
+        Knowledge <span className="dm-code">v{k.graph_version}</span>
       </Link>
     </Tip>
   );
@@ -134,7 +130,7 @@ function PersonMenu() {
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger
-        className="flex h-8 items-center gap-2 rounded-[var(--radius-control)] px-2 text-[13px] font-medium text-ink hover:bg-line-soft"
+        className="dm-text-small flex h-8 items-center gap-2 rounded-control px-2 font-medium text-ink hover:bg-line-soft"
         aria-label={`Signed in as ${person ?? ''}`}
       >
         <WhoGlyph kind="you" size={20} />
@@ -145,21 +141,21 @@ function PersonMenu() {
         <DropdownMenu.Content
           align="end"
           sideOffset={6}
-          className="z-50 min-w-48 animate-fade-in rounded-[var(--radius-control)] border border-line bg-surface p-1 shadow-[0_12px_32px_rgba(29,28,26,0.12)]"
+          className="z-50 min-w-48 animate-fade-in rounded-control border border-line bg-surface p-1 shadow-float"
         >
-          <DropdownMenu.Label className="px-2.5 py-1.5 text-xs text-muted">Signed in as {person}</DropdownMenu.Label>
+          <DropdownMenu.Label className="dm-text-caption px-2.5 py-1.5 text-muted">Signed in as {person}</DropdownMenu.Label>
           {devTools ? (
             <DropdownMenu.Item
               // Once the menu has closed and given the focus back: then the dialog takes it.
               onSelect={() => setTimeout(openDevPanel, 0)}
-              className="cursor-pointer rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none data-[highlighted]:bg-line-soft"
+              className="dm-text-small cursor-pointer rounded-tab px-2.5 py-1.5 text-ink outline-none data-[highlighted]:bg-line-soft"
             >
               Snapshots…
             </DropdownMenu.Item>
           ) : null}
           <DropdownMenu.Item
             onSelect={() => void signOut()}
-            className="cursor-pointer rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none data-[highlighted]:bg-line-soft"
+            className="dm-text-small cursor-pointer rounded-tab px-2.5 py-1.5 text-ink outline-none data-[highlighted]:bg-line-soft"
           >
             Sign out
           </DropdownMenu.Item>
@@ -178,7 +174,7 @@ export function ProductTabs({ active }: { active: 'overview' | 'origins' }) {
       params={{ projectId }}
       aria-current={active === key ? 'page' : undefined}
       className={cn(
-        'border-b-2 px-1 pb-2 text-[13px] font-medium',
+        'dm-text-small border-b-2 px-1 pb-2 font-medium',
         active === key ? 'border-ink text-ink' : 'border-transparent text-muted hover:text-ink',
       )}
     >

@@ -1,75 +1,35 @@
-// One check of the new version: Keep, Change or Drop for those of the base version; a new one is
-// edited right away. Leaving the statement field checks how verifiable it is, without blocking.
+// One check of the new version: Keep, Change or Drop for those of the base version, as the design
+// system's Choice (each option says what it changes); a new one is edited right away. Who checks it
+// is two of its Chips. Leaving the statement field checks how verifiable it is, without blocking.
 
+import { Chip, Choice } from '@demiurgo/design-system';
 import { useId, useState } from 'react';
 import { cn } from '../../lib/cn.ts';
 import { Button } from '../../ui/Button.tsx';
 import { Code } from '../../ui/Card.tsx';
 import { TypeIcon, WarningIcon } from '../../ui/icons.tsx';
 import { VerificationMark } from '../record/Checks.tsx';
-import type { CheckDraft, Choice, Verification } from './form.ts';
+import type { CheckDraft, Choice as Carry, Verification } from './form.ts';
 import { statementWarnings } from './verifiability.ts';
 
-type Option<T extends string> = { value: T; label: string };
-
-/** Radio buttons drawn as a segmented control: real inputs, so the keyboard and screen readers work as usual. */
-export function Segmented<T extends string>({
-  label,
-  value,
-  options,
-  onChange,
-  size = 'md',
-}: {
-  label: string;
-  value: T | null;
-  options: Option<T>[];
-  onChange: (v: T) => void;
-  size?: 'sm' | 'md';
-}) {
-  const name = useId();
-  return (
-    <div
-      role="radiogroup"
-      aria-label={label}
-      className="inline-flex shrink-0 rounded-[var(--radius-control)] border border-line-strong bg-surface p-0.5"
-    >
-      {options.map((o) => (
-        <label key={o.value} className="relative inline-flex">
-          <input
-            type="radio"
-            name={name}
-            value={o.value}
-            checked={value === o.value}
-            onChange={() => onChange(o.value)}
-            className="peer absolute inset-0 cursor-pointer appearance-none rounded-[6px]"
-          />
-          <span
-            className={cn(
-              'pointer-events-none relative rounded-[6px] font-medium text-ink-2 peer-checked:bg-ink peer-checked:text-white peer-hover:text-ink peer-checked:peer-hover:text-white',
-              size === 'sm' ? 'px-2.5 py-0.5 text-xs' : 'px-3 py-1 text-[13px]',
-            )}
-          >
-            {o.label}
-          </span>
-        </label>
-      ))}
-    </div>
-  );
-}
-
-const CHOICES: Option<Choice>[] = [
-  { value: 'keep', label: 'Keep' },
-  { value: 'change', label: 'Change' },
-  { value: 'drop', label: 'Drop' },
+/** What happens to a check of the base version, and what choosing it changes. */
+const CARRY: { value: Carry; label: string; effect: string }[] = [
+  { value: 'keep', label: 'Keep', effect: 'It goes into the new version as it is.' },
+  { value: 'change', label: 'Change', effect: 'You edit it here, under the same code.' },
+  { value: 'drop', label: 'Drop', effect: 'It leaves the new version and stays in the earlier ones.' },
 ];
 
-const WHO: Option<Verification>[] = [
+const WHO: { value: Verification; label: string }[] = [
   { value: 'automatic', label: 'Automatic' },
   { value: 'manual', label: 'You' },
 ];
 
-export const field =
-  'w-full rounded-[var(--radius-control)] border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-needs focus:outline-none';
+const FRAME =
+  'w-full rounded-control border border-line-strong bg-surface px-3 py-2 text-ink placeholder:text-muted focus:border-needs focus:outline-none';
+/** A text field in the body style. */
+export const field = `dm-text-body ${FRAME}`;
+/** The title field, in the heading style. */
+export const titleField = `dm-text-heading ${FRAME}`;
 
 function Editor({ check, onChange }: { check: CheckDraft; onChange: (c: CheckDraft) => void }) {
   const id = useId();
@@ -79,7 +39,7 @@ function Editor({ check, onChange }: { check: CheckDraft; onChange: (c: CheckDra
   return (
     <div className="flex flex-col gap-3 border-t border-line-soft pt-3">
       <div className="flex flex-col gap-1">
-        <label htmlFor={`${id}-title`} className="text-xs font-semibold text-ink-2">
+        <label htmlFor={`${id}-title`} className="dm-text-caption font-semibold text-ink-2">
           Title
         </label>
         <input
@@ -91,7 +51,7 @@ function Editor({ check, onChange }: { check: CheckDraft; onChange: (c: CheckDra
         />
       </div>
       <div className="flex flex-col gap-1">
-        <label htmlFor={`${id}-statement`} className="text-xs font-semibold text-ink-2">
+        <label htmlFor={`${id}-statement`} className="dm-text-caption font-semibold text-ink-2">
           Statement <span className="font-normal text-muted">· given…, when…, then…</span>
         </label>
         <textarea
@@ -109,7 +69,7 @@ function Editor({ check, onChange }: { check: CheckDraft; onChange: (c: CheckDra
             id={`${id}-warnings`}
             data-verifiability
             role="status"
-            className="rounded-[var(--radius-control)] border border-problem-line bg-problem-bg px-3 py-2 text-xs text-problem"
+            className="dm-text-caption rounded-control bg-problem-tint px-3 py-2 text-problem"
           >
             <p className="flex items-center gap-1.5 font-semibold">
               <WarningIcon size={13} className="shrink-0" />
@@ -125,7 +85,7 @@ function Editor({ check, onChange }: { check: CheckDraft; onChange: (c: CheckDra
       </div>
       <div className="flex items-end gap-4">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <label htmlFor={`${id}-check`} className="text-xs font-semibold text-ink-2">
+          <label htmlFor={`${id}-check`} className="dm-text-caption font-semibold text-ink-2">
             How it is checked
           </label>
           <input
@@ -137,15 +97,20 @@ function Editor({ check, onChange }: { check: CheckDraft; onChange: (c: CheckDra
           />
         </div>
         <div className="flex shrink-0 flex-col gap-1">
-          <span className="text-xs font-semibold text-ink-2" aria-hidden="true">
+          <span id={`${id}-who`} className="dm-text-caption font-semibold text-ink-2">
             Who checks it
           </span>
-          <Segmented
-            label="Who checks it"
-            value={check.verification}
-            options={WHO}
-            onChange={(v) => onChange({ ...check, verification: v })}
-          />
+          <div role="group" aria-labelledby={`${id}-who`} className="flex items-center gap-2 py-1">
+            {WHO.map((o) => (
+              <Chip
+                key={o.value}
+                pressed={check.verification === o.value}
+                onClick={() => onChange({ ...check, verification: o.value })}
+              >
+                {o.label}
+              </Chip>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -169,39 +134,30 @@ export function CheckEditor({
     <li
       data-criterion={check.key}
       className={cn(
-        'flex flex-col gap-2 rounded-[var(--radius-card)] border bg-surface px-4 py-3',
+        'flex flex-col gap-3 rounded-card-md border bg-surface px-4 py-3',
         isNew ? 'border-needs-ring' : check.choice === null ? 'border-line-strong border-dashed' : 'border-line',
       )}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-1">
-          <span className="flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">
+          <span className="dm-label flex items-center gap-1.5">
             <TypeIcon kind="check" size={13} />
             {isNew ? 'New check' : `Check ${index + 1}`}
             {check.code && <Code className="tracking-normal normal-case">{check.code}</Code>}
           </span>
           {!isNew && (
-            <strong className={cn('text-[14px] leading-snug font-semibold', dropped && 'text-muted line-through')}>
-              {check.title}
-            </strong>
+            <strong className={cn('dm-text-body font-semibold', dropped && 'text-muted line-through')}>{check.title}</strong>
           )}
         </div>
-        {isNew ? (
-          <Button variant="ghost" size="sm" onClick={onRemove}>
+        {isNew && (
+          <Button variant="text" onClick={onRemove}>
             Remove
           </Button>
-        ) : (
-          <Segmented
-            label={`What to do with ${check.title} (${check.code})`}
-            value={check.choice}
-            options={CHOICES}
-            onChange={(choice) => onChange({ ...check, choice })}
-          />
         )}
       </div>
       {!isNew && check.choice !== 'change' && (
-        <div className="flex items-start justify-between gap-3">
-          <p className={cn('text-[13px] leading-relaxed text-ink-2', dropped && 'text-muted line-through')}>{check.statement}</p>
+        <div className="-mt-1 flex items-start justify-between gap-3">
+          <p className={cn('dm-text-small text-ink-2', dropped && 'text-muted line-through')}>{check.statement}</p>
           {!dropped && (
             <span className="shrink-0">
               <VerificationMark verification={check.verification} />
@@ -209,7 +165,17 @@ export function CheckEditor({
           )}
         </div>
       )}
-      {dropped && <p className="text-xs text-muted">It is dropped from the new version and stays in the earlier ones.</p>}
+      {!isNew && (
+        <Choice
+          aria-label={`What to do with ${check.title} (${check.code})`}
+          options={CARRY.map(({ label, effect }) => ({ label, effect }))}
+          {...(check.choice ? { value: CARRY.find((c) => c.value === check.choice)?.label ?? '' } : {})}
+          onChange={(label) => {
+            const choice = CARRY.find((c) => c.label === label)?.value;
+            if (choice) onChange({ ...check, choice });
+          }}
+        />
+      )}
       {(isNew || check.choice === 'change') && <Editor check={check} onChange={onChange} />}
     </li>
   );

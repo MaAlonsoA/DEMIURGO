@@ -52,7 +52,6 @@ export function ProposalActions({
   proposal: p,
   blocked = false,
   labels = {},
-  size = 'lg',
   className,
   onResolved,
 }: {
@@ -61,7 +60,6 @@ export function ProposalActions({
   /** The server already says its dependencies changed: accepting would fail, so only Reject is offered. */
   blocked?: boolean;
   labels?: { accept?: string; reject?: string };
-  size?: 'md' | 'lg';
   className?: string;
   onResolved?: () => void;
 }) {
@@ -136,19 +134,18 @@ export function ProposalActions({
   return (
     <div className={cn('flex flex-wrap items-center gap-2.5', className)}>
       {canAccept && (
-        <Button size={size} variant="needs" data-command="proposal.accept" onClick={() => open('accept')}>
+        <Button variant="primary" data-command="proposal.accept" onClick={() => open('accept')}>
           {labels.accept ?? 'Accept'}
         </Button>
       )}
       {canApprove && (
-        <Button size={size} variant="outline" data-command="proposal.accept" onClick={() => open('approve')}>
+        <Button variant="secondary" data-command="proposal.accept" onClick={() => open('approve')}>
           Accept and approve
         </Button>
       )}
       {canChange && (
         <Button
-          size={size}
-          variant="outline"
+          variant="secondary"
           data-command="proposal.accept_edited"
           onClick={() => setDraft(Object.fromEntries(fields.map((f) => [f.key, textOf(p.payload[f.key])])))}
         >
@@ -156,7 +153,7 @@ export function ProposalActions({
         </Button>
       )}
       {canReject && (
-        <Button size={size} variant="outline" data-command="proposal.reject" onClick={() => open('reject')}>
+        <Button variant="secondary" data-command="proposal.reject" onClick={() => open('reject')}>
           {labels.reject ?? 'Reject'}
         </Button>
       )}
@@ -214,7 +211,7 @@ function ChangeForm({
       ? 'Change something to accept your version.'
       : null;
   const field =
-    'w-full rounded-[10px] border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-needs focus:outline-none';
+    'dm-text-body w-full rounded-control border border-line-strong bg-surface px-3 py-2 text-ink placeholder:text-muted focus:border-needs focus:outline-none';
   return (
     <form
       className={cn('flex flex-col gap-3 border-t border-line-soft pt-3', className)}
@@ -223,9 +220,9 @@ function ChangeForm({
         if (!why) onSubmit();
       }}
     >
-      <p className="text-[13px] font-semibold">Your version</p>
+      <p className="dm-text-small font-semibold">Your version</p>
       {fields.map((f) => (
-        <label key={f.key} htmlFor={`${id}-${f.key}`} className="flex flex-col gap-1 text-xs font-semibold text-ink-2">
+        <label key={f.key} htmlFor={`${id}-${f.key}`} className="dm-text-caption flex flex-col gap-1 font-semibold text-ink-2">
           {f.label}
           {f.multiline ? (
             <textarea
@@ -246,13 +243,13 @@ function ChangeForm({
         </label>
       ))}
       <div className="flex flex-wrap items-center gap-2.5">
-        <Button type="submit" size="lg" variant="needs" disabled={!!why}>
+        <Button type="submit" variant="primary" disabled={!!why}>
           Accept my version
         </Button>
-        <Button size="lg" variant="ghost" onClick={onCancel}>
+        <Button variant="text" onClick={onCancel}>
           Cancel
         </Button>
-        {why && <span className="text-xs text-muted">{why}</span>}
+        {why && <span className="dm-text-caption text-muted">{why}</span>}
       </div>
       {children}
     </form>

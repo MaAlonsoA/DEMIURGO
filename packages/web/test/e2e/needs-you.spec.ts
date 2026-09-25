@@ -12,10 +12,11 @@ import {
   tabTo,
   threadWithQuestions,
 } from './needs-data.ts';
+import { foldLegend } from './record-setup.ts';
 import { expect, expectAccessible, screenshot, test } from './support/fixtures.ts';
 
 /** The blue count of the header. */
-const headerCount = (page: Page) => page.getByRole('navigation', { name: 'Main' }).locator('[data-needs]');
+const headerCount = (page: Page) => page.getByRole('banner').locator('[data-needs]');
 
 async function countGoesDown(page: Page, from: number, action: () => Promise<void>): Promise<number> {
   await expect(headerCount(page)).toHaveAttribute('data-needs', String(from));
@@ -34,6 +35,8 @@ test('AC-INT-001-11 every kind of thing in the inbox appears in Needs you and is
   test.setTimeout(150_000);
   const projectId = await person.createProject('Every kind');
   const inbox = await everyKind(person, projectId);
+  // The open legend sits over the bottom left, where the items' actions pass while resolving them.
+  await foldLegend(page);
   await page.goto(`/p/${projectId}/needs-you`);
   await expect(page.getByRole('heading', { level: 1, name: /Needs you/ })).toBeVisible();
   for (const name of [

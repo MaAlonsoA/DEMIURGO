@@ -4,6 +4,7 @@
 // its purpose and posts the idea for DEMIURGO to read (the durable response runs exploration_chat).
 // Nothing is decided here: the reassurances say so.
 
+import { Chip, Icon } from '@demiurgo/design-system';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { type FormEvent, useId, useRef, useState } from 'react';
@@ -13,7 +14,7 @@ import { projectsQuery } from '../../api/queries.ts';
 import { canCreate } from '../../api/tables.ts';
 import { useTables } from '../../lib/hooks.ts';
 import { Button } from '../../ui/Button.tsx';
-import { ArrowRight } from '../../ui/icons.tsx';
+import { ArrowRight, LockIcon } from '../../ui/icons.tsx';
 import { MarkGlyph } from '../../ui/marks.tsx';
 import { Reasons } from '../../ui/Reasons.tsx';
 import { IDEA_EXAMPLES, MESSAGE_MAX, purposeOf } from './day.ts';
@@ -96,9 +97,9 @@ export function NewProjectScreen() {
   return (
     <div className="flex min-h-screen flex-col">
       <header className="flex h-14 shrink-0 items-center justify-between px-7">
-        <span className="text-xs font-bold tracking-[0.14em]">DEMIURGO</span>
+        <span className="dm-text-wordmark">DEMIURGO</span>
         {projects.length > 0 && (
-          <Link to="/projects" className="text-[14px] font-medium text-ink-3 hover:text-ink">
+          <Link to="/projects" className="dm-text-body font-medium text-ink-3 hover:text-ink">
             Your projects
           </Link>
         )}
@@ -106,17 +107,18 @@ export function NewProjectScreen() {
       <main id="main" className="flex flex-1 justify-center px-6 pt-[92px] pb-24">
         <form onSubmit={(e) => void start(e)} className="flex w-[760px] flex-col gap-[22px]" aria-labelledby={`${ideaId}-title`}>
           <div className="flex flex-col gap-2.5">
-            <span className="text-[13px] font-semibold text-muted">New project</span>
-            <h1 id={`${ideaId}-title`} className="text-[44px] leading-[1.1] font-semibold tracking-[-0.01em]">
+            <span className="dm-text-small font-semibold text-muted">New project</span>
+            <h1 id={`${ideaId}-title`} className="dm-text-display">
               What do you want to build?
             </h1>
-            <p className="text-[17px] text-ink-2">
+            <p className="dm-text-heading text-ink-2 font-normal">
               Describe it in your own words, like you would to a friend. DEMIURGO turns it into a plan you can see, correct and
               build.
             </p>
           </div>
 
-          <div className="flex flex-col gap-3 rounded-2xl border border-line-strong bg-surface px-5 pt-5 pb-3.5 shadow-[0_6px_24px_rgba(29,28,26,0.06)] has-[textarea:focus-visible]:border-needs has-[textarea:focus-visible]:shadow-[0_0_0_3px_var(--color-needs-ring)]">
+          {/* The idea box is the design system's panel, lifted; writing in it draws the selection outline. */}
+          <div className="dm-panel border-line-strong px-5 pt-5 pb-3.5 shadow-raised has-[textarea:focus-visible]:border-needs has-[textarea:focus-visible]:shadow-selected">
             <label htmlFor={ideaId} className="sr-only">
               Describe your idea
             </label>
@@ -132,11 +134,11 @@ export function NewProjectScreen() {
               maxLength={MESSAGE_MAX}
               placeholder="An app where… It helps… People use it to…"
               aria-invalid={missing === 'idea' || undefined}
-              className="w-full resize-none bg-transparent text-[17px] leading-[1.55] text-ink outline-none placeholder:text-muted"
+              className="dm-text-heading w-full resize-none bg-transparent font-normal text-ink outline-none placeholder:text-muted"
             />
             <div className="flex items-center justify-between gap-3 border-t border-line-soft pt-2.5">
               <div className="flex min-w-0 items-center gap-2.5">
-                <label htmlFor={nameId} className="text-[13px] font-semibold text-ink-2">
+                <label htmlFor={nameId} className="dm-text-small font-semibold text-ink-2">
                   Name
                 </label>
                 <input
@@ -152,18 +154,13 @@ export function NewProjectScreen() {
                   placeholder="A short name"
                   aria-describedby={hintId}
                   aria-invalid={missing === 'name' || undefined}
-                  className="h-9 w-[220px] rounded-[var(--radius-control)] border border-line-strong bg-surface px-2.5 text-[14px] text-ink placeholder:text-muted focus:border-needs focus:outline-none"
+                  className="dm-text-body h-9 w-[220px] rounded-control border border-line-strong bg-surface px-2.5 text-ink placeholder:text-muted focus:border-needs focus:outline-none"
                 />
-                <span id={hintId} className="text-xs text-muted">
+                <span id={hintId} className="dm-text-caption text-muted">
                   You can&apos;t rename it yet.
                 </span>
               </div>
-              <Button
-                type="submit"
-                variant="needs"
-                disabled={pending || !allowed}
-                className="h-[42px] rounded-[10px] px-5 text-[14px]"
-              >
+              <Button type="submit" variant="primary" disabled={pending || !allowed}>
                 {pending ? 'Starting…' : 'Start'}
                 <ArrowRight size={16} />
               </Button>
@@ -171,64 +168,34 @@ export function NewProjectScreen() {
           </div>
 
           {missing && (
-            <p role="alert" className="-mt-2 text-[13px] font-medium text-problem">
+            <p role="alert" className="dm-text-small -mt-2 font-medium text-problem">
               {missing === 'idea' ? 'Describe your idea to start.' : 'Give the project a name to start.'}
             </p>
           )}
           {error ? <Reasons error={error} className="-mt-2" /> : null}
-          {!allowed && <p className="-mt-2 text-[13px] text-ink-2">Only a person can start a project.</p>}
+          {!allowed && <p className="dm-text-small -mt-2 text-ink-2">Only a person can start a project.</p>}
 
           <div className="flex flex-wrap items-center gap-2.5">
-            <span className="text-[13px] text-muted">Or start from an example:</span>
+            <span className="dm-text-small text-muted">Or start from an example:</span>
             {IDEA_EXAMPLES.map((e) => (
-              <button
-                key={e.label}
-                type="button"
-                onClick={() => fill(e)}
-                className="rounded-full border border-line bg-surface px-3 py-[5px] text-[13px] text-ink hover:border-line-strong"
-              >
+              // A short choice: the design system's Chip, ink while the idea is that example.
+              <Chip key={e.label} pressed={idea === e.idea} onClick={() => fill(e)}>
                 {e.label}
-              </button>
+              </Chip>
             ))}
           </div>
 
-          <ul className="mt-[18px] flex gap-7 text-[13px] text-ink-3">
+          <ul className="dm-text-small mt-[18px] flex gap-7 text-ink-3">
             <li className="flex items-center gap-2">
               <MarkGlyph kind="proposed" />
               Nothing is decided until you confirm it
             </li>
             <li className="flex items-center gap-2">
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M20 11a8 8 0 1 0-2.3 5.7" />
-                <path d="M20 4v7h-7" />
-              </svg>
+              <Icon name="needs-review" size={14} stroke={2} />
               You can change anything later
             </li>
             <li className="flex items-center gap-2">
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <rect x="4" y="10" width="16" height="11" rx="2" />
-                <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-              </svg>
+              <LockIcon size={14} />
               Everything stays here, saved
             </li>
           </ul>

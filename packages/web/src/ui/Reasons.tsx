@@ -2,6 +2,7 @@
 // that failed. Never a generic "Error": each status says what happened, with the server's reasons
 // as they come. The focus goes to the first reason (spec §7.1).
 
+import { Readiness, type ReadinessItem } from '@demiurgo/design-system';
 import { useEffect, useRef } from 'react';
 import { ApiError } from '../api/client.ts';
 import { cn } from '../lib/cn.ts';
@@ -58,10 +59,7 @@ export function Reasons({ error, className }: { error: unknown; className?: stri
       role="alert"
       tabIndex={-1}
       data-reasons
-      className={cn(
-        'rounded-[var(--radius-control)] border border-problem-line bg-problem-bg px-3 py-2 text-[13px] text-problem outline-none',
-        className,
-      )}
+      className={cn('dm-text-small rounded-control bg-problem-tint px-3 py-2 text-problem outline-none', className)}
     >
       <p className="flex items-start gap-1.5 font-semibold">
         <WarningIcon size={14} className="mt-[3px] shrink-0" />
@@ -78,30 +76,24 @@ export function Reasons({ error, className }: { error: unknown; className?: stri
   );
 }
 
-/** Readiness reasons: as the server gives them, with warnings apart (spec §4.5). */
-export function ReadinessReasons({ reasons, warnings }: { reasons: string[]; warnings: string[] }) {
-  return (
-    <div className="flex flex-col gap-2">
-      {reasons.length > 0 && (
-        <ul className="flex flex-col gap-1.5" data-readiness-reasons>
-          {reasons.map((r) => (
-            <li key={r} className="flex items-start gap-2 text-[13px] text-ink">
-              <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-ink-3" />
-              <span>{r}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-      {warnings.length > 0 && (
-        <ul className="flex flex-col gap-1.5" data-readiness-warnings>
-          {warnings.map((w) => (
-            <li key={w} className="flex items-start gap-2 text-[13px] text-problem">
-              <WarningIcon size={14} className="mt-[3px] shrink-0" />
-              <span>{w}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
+/** Readiness as the design system's Readiness: the server's reasons as they come, each on its line
+    (data-kind="reason"), and the warnings apart (data-kind="warning"), which never block (spec §4.5). */
+export function ReadinessBox({
+  reasons,
+  warnings,
+  next,
+  track,
+}: {
+  reasons: string[];
+  warnings: string[];
+  /** What to do next once it is ready. */
+  next?: string;
+  /** The ready track: false when the screen shows the stage elsewhere. */
+  track?: false;
+}) {
+  const items: ReadinessItem[] = [
+    ...reasons.map((text) => ({ text, kind: 'reason' as const })),
+    ...warnings.map((text) => ({ text, kind: 'warning' as const })),
+  ];
+  return <Readiness items={items} width="100%" {...(next ? { next } : {})} {...(track === false ? { track } : {})} />;
 }

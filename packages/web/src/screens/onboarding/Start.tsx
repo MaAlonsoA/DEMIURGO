@@ -3,6 +3,7 @@
 // a quiet "Later" for what H1 cannot give yet (who uses it, rules, features: S6). The person answers
 // the questions one at a time, or corrects something and DEMIURGO reads it again.
 
+import { Node } from '@demiurgo/design-system';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
@@ -10,10 +11,9 @@ import { ApiError } from '../../api/client.ts';
 import { batchQuery } from '../../api/queries.ts';
 import { canCreate } from '../../api/tables.ts';
 import type { Message, Question, RunListItem } from '../../api/types.ts';
-import { cn } from '../../lib/cn.ts';
 import { useRouteParams, useTables } from '../../lib/hooks.ts';
-import { Button, buttonStyles } from '../../ui/Button.tsx';
-import { ChevronRight, TypeIcon } from '../../ui/icons.tsx';
+import { Button, buttonClass } from '../../ui/Button.tsx';
+import { ChevronRight, DashIcon } from '../../ui/icons.tsx';
 import { Mark, MarkGlyph } from '../../ui/marks.tsx';
 import { Reasons } from '../../ui/Reasons.tsx';
 import { NeedsBubble } from '../../ui/signals.tsx';
@@ -67,12 +67,14 @@ export function StartScreen() {
     return (
       <main id="main" className="flex justify-center px-6 pt-14 pb-28">
         <div className="flex w-[760px] flex-col items-start gap-3">
-          <h1 className="text-[26px] leading-tight font-semibold">{thread.purpose}</h1>
-          <p className="text-[15px] text-ink-2">Nothing was written in this thread yet, so DEMIURGO has nothing to read.</p>
+          <h1 className="dm-text-page-title">{thread.purpose}</h1>
+          <p className="dm-text-heading text-ink-2 font-normal">
+            Nothing was written in this thread yet, so DEMIURGO has nothing to read.
+          </p>
           <Link
             to="/p/$projectId/threads/$explorationId"
             params={{ projectId, explorationId }}
-            className={buttonStyles({ variant: 'ink', size: 'md' })}
+            className={buttonClass('secondary')}
           >
             Open the thread
           </Link>
@@ -156,7 +158,7 @@ function Understood({
       band={
         <Band
           action={
-            <Link to={next.to} params={{ projectId, explorationId }} className={buttonStyles({ variant: 'needs', size: 'md' })}>
+            <Link to={next.to} params={{ projectId, explorationId }} className={buttonClass('primary')}>
               {next.label}
             </Link>
           }
@@ -176,62 +178,38 @@ function Understood({
       }
       aside={
         <>
-          <h2 className="text-base font-semibold">What happens now</h2>
+          <h2 className="dm-text-body font-semibold">What happens now</h2>
           <section className="flex flex-col gap-2">
-            <h3 className="text-xs font-semibold text-muted">Nothing is decided yet</h3>
-            <p className="flex gap-2.5 text-[13px]">
+            <h3 className="dm-text-caption font-semibold text-muted">Nothing is decided yet</h3>
+            <p className="dm-text-small flex gap-2.5">
               <span className="mt-[5px] flex">
                 <MarkGlyph kind="proposed" />
               </span>
               Everything on the left is only proposed. You decide on each thing.
             </p>
-            <p className="flex gap-2.5 text-[13px]">
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                aria-hidden="true"
-                className="mt-1 shrink-0 text-muted"
-              >
-                <path d="M5 12h14" />
-              </svg>
+            <p className="dm-text-small flex gap-2.5">
+              <DashIcon size={12} className="mt-1 shrink-0 text-muted" />
               Nothing is built. Each feature will get its own details and checks.
             </p>
           </section>
           <section className="flex flex-col gap-2">
-            <h3 className="text-xs font-semibold text-muted">
+            <h3 className="dm-text-caption font-semibold text-muted">
               {n > 0 ? `Then I'll ask you ${n} ${n === 1 ? 'question' : 'questions'}, one at a time` : 'No questions for now'}
             </h3>
             {questions.map((q) => (
-              <div
-                key={q.id}
-                data-question={q.id}
-                className="flex min-h-10 items-center gap-2.5 rounded-[10px] border border-dashed border-inactive bg-surface px-3 py-2 text-[13px] font-semibold"
-              >
-                <span className="flex shrink-0 text-muted">
-                  <TypeIcon kind="question" size={14} />
-                </span>
-                <Mark kind="open" label="Open" />
-                <span className="min-w-0 leading-snug">{q.question}</span>
+              <div key={q.id} data-question={q.id}>
+                <Node type="question" state="open" mark={<Mark kind="open" label="Open" />} title={q.question} />
               </div>
             ))}
-            <p className="text-xs text-muted">
+            <p className="dm-text-caption text-muted">
               Smaller things I&apos;ll decide on my own and mark as assumed, so you can check them later.
             </p>
           </section>
           <div className="mt-auto flex flex-col gap-2">
-            <Link
-              to={next.to}
-              params={{ projectId, explorationId }}
-              className={cn(buttonStyles({ variant: 'needs', size: 'lg' }), 'h-11 w-full rounded-[10px]')}
-            >
+            <Link to={next.to} params={{ projectId, explorationId }} className={buttonClass('primary', 'w-full')}>
               {next.label}
             </Link>
-            <Button size="lg" variant="outline" className="h-11 w-full rounded-[10px]" onClick={() => setCorrecting(true)}>
+            <Button variant="secondary" className="w-full" onClick={() => setCorrecting(true)}>
               Correct something
             </Button>
           </div>
@@ -279,9 +257,9 @@ function Correction({ projectId, explorationId, onDone }: { projectId: string; e
         e.preventDefault();
         if (text.trim()) send(text.trim(), onDone);
       }}
-      className="flex flex-col gap-2 rounded-[12px] border border-line-strong bg-surface p-3.5 shadow-[0_8px_24px_rgba(29,28,26,0.06)] focus-within:border-needs"
+      className="dm-card gap-2 border-line-strong p-3.5 shadow-raised focus-within:border-needs"
     >
-      <label htmlFor={id} className="text-[13px] font-semibold text-ink-2">
+      <label htmlFor={id} className="dm-text-small font-semibold text-ink-2">
         What&apos;s wrong?
       </label>
       <textarea
@@ -292,14 +270,14 @@ function Correction({ projectId, explorationId, onDone }: { projectId: string; e
         rows={3}
         maxLength={20_000}
         placeholder="Say it in your own words: DEMIURGO reads your idea again with it."
-        className="w-full resize-y bg-transparent text-[14px] leading-relaxed text-ink outline-none placeholder:text-muted"
+        className="dm-text-body w-full resize-y bg-transparent leading-relaxed text-ink outline-none placeholder:text-muted"
       />
       {error ? <Reasons error={error} /> : null}
       <div className="flex items-center justify-end gap-2">
-        <Button variant="ghost" onClick={onDone}>
+        <Button variant="text" onClick={onDone}>
           Cancel
         </Button>
-        <Button type="submit" variant="ink" disabled={!canPost || pending || !text.trim()}>
+        <Button type="submit" variant="secondary" disabled={!canPost || pending || !text.trim()}>
           {pending ? 'Sending…' : 'Send and read again'}
         </Button>
       </div>
@@ -320,18 +298,20 @@ function Proposed({ projectId, batchId }: { projectId: string; batchId: string }
           <li
             key={p.id}
             data-proposal={p.id}
-            className="flex items-center gap-3 rounded-[8px] border border-line bg-surface px-3 py-2 text-[14px]"
+            className="dm-text-body flex items-center gap-3 rounded-sm border border-line bg-surface px-3 py-2"
           >
             <Mark
               kind={p.state === 'pending' ? 'proposed' : 'confirmed'}
               label={p.state === 'pending' ? 'Proposed' : 'Accepted'}
             />
-            <span className="w-[72px] shrink-0 text-xs font-semibold text-muted">{PROPOSAL_TYPE_WORDS[p.type] ?? p.type}</span>
+            <span className="dm-text-caption w-[72px] shrink-0 font-semibold text-muted">
+              {PROPOSAL_TYPE_WORDS[p.type] ?? p.type}
+            </span>
             <span className="min-w-0 flex-1 truncate">{proposalTitle(p)}</span>
             <Link
               to="/p/$projectId/batches/$batchId"
               params={{ projectId, batchId: batch.id }}
-              className="inline-flex shrink-0 items-center gap-0.5 text-[13px] font-semibold text-needs hover:text-needs-hover"
+              className="dm-text-small inline-flex shrink-0 items-center gap-0.5 font-semibold text-needs hover:text-needs-strong"
             >
               Review
               <ChevronRight size={12} />

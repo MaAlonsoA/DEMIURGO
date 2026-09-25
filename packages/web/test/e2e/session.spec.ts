@@ -32,7 +32,7 @@ test('AC-INT-001-02 an internal route without a session goes to Sign in, comes b
 
   await signInThroughUi(page);
   await expect(page).toHaveURL(`${BASE_URL}/p/${projectId}/threads`);
-  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Sections' })).toBeVisible();
 
   await page.getByRole('button', { name: `Signed in as ${USER}` }).click();
   await page.getByRole('menuitem', { name: 'Sign out' }).click();
@@ -46,7 +46,7 @@ test('AC-INT-001-02 a reloaded page keeps the session and can still write', asyn
   const projectId = await person.createProject('Reload');
   await page.goto(`/p/${projectId}`);
   await page.reload();
-  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Sections' })).toBeVisible();
   const session = (await (await page.request.get('/api/session')).json()) as { csrf: string };
   const write = await page.request.post(`/api/projects/${projectId}/commands/exploration.open`, {
     data: { data: { purpose: 'After a reload' } },
@@ -72,7 +72,7 @@ test('AC-WEB-001-03 signing in and moving between the tabs works with the keyboa
   await expect(page).toHaveURL(`${BASE_URL}/p/${projectId}`);
 
   // Reach the "Threads" tab with Tab alone and open it with Enter.
-  const threads = page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Threads' });
+  const threads = page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Threads' });
   for (let i = 0; i < 20 && !(await threads.evaluate((el) => el === document.activeElement)); i++) {
     await page.keyboard.press('Tab');
   }
@@ -93,7 +93,7 @@ test('screens of cut 0: sign in, the header with the legend, and not found', asy
   await anonymous.close();
 
   await page.goto(`/p/${projectId}/threads`);
-  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Sections' })).toBeVisible();
   await screenshot(page, 0, '02-header-and-shell');
   await page.goto(`/p/${projectId}/does-not-exist`);
   await expect(page.getByRole('heading', { name: /We couldn.t find/ })).toBeVisible();

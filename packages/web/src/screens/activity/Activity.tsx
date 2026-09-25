@@ -41,7 +41,7 @@ export function ActivityScreen() {
             : 'What DEMIURGO did and is doing, run by run.'
         }
       />
-      <nav aria-label="Filter by state" className="mb-4 flex flex-wrap items-center gap-1">
+      <nav aria-label="Filter by state" className="mb-4 flex flex-wrap items-center gap-2">
         <FilterLink projectId={projectId} label="All" count={all.data?.length} current={!filter} />
         {RUN_STATES.map((s) => (
           <FilterLink
@@ -58,10 +58,10 @@ export function ActivityScreen() {
       {runs.isPending ? (
         <TableSkeleton />
       ) : runs.data && runs.data.length > 0 ? (
-        <div className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface">
+        <div className="overflow-hidden rounded-card-md border border-line bg-surface">
           <table className="w-full border-collapse text-left">
             <thead>
-              <tr className="border-b border-line text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">
+              <tr className="dm-label border-b border-line">
                 <th scope="col" className="w-[150px] py-2.5 pr-4 pl-5 font-semibold">
                   State
                 </th>
@@ -100,6 +100,7 @@ export function ActivityScreen() {
   );
 }
 
+/** A filter by state: the design system's chip, as a link (it changes the address); the chosen one is ink. */
 function FilterLink({
   projectId,
   state,
@@ -120,13 +121,13 @@ function FilterLink({
       search={state ? { state } : {}}
       aria-current={current ? 'page' : undefined}
       className={cn(
-        'flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium',
-        current ? 'border-ink bg-ink text-white' : 'border-line bg-surface text-ink-2 hover:border-line-strong hover:text-ink',
+        'dm-chip inline-flex items-center gap-1.5',
+        current ? 'border-ink bg-ink text-surface' : 'hover:bg-line-soft',
       )}
     >
       {label}
       {count !== undefined && count > 0 && (
-        <span aria-hidden="true" className={cn('text-xs tabular-nums', current ? 'text-white' : 'text-muted')}>
+        <span aria-hidden="true" className={cn('dm-text-caption tabular-nums', current ? 'text-surface' : 'text-muted')}>
           {count}
         </span>
       )}
@@ -137,7 +138,7 @@ function FilterLink({
 function RunRow({ projectId, run: r, purpose, now }: { projectId: string; run: RunListItem; purpose?: string; now: number }) {
   const failed = r.state === 'failed' || r.state === 'interrupted';
   return (
-    <tr data-run-row={r.id} className="border-b border-line-soft align-baseline last:border-b-0 hover:bg-surface-2">
+    <tr data-run-row={r.id} className="border-b border-line-soft align-baseline last:border-b-0 hover:bg-surface-soft">
       <td className="pt-[13px] pr-4 pb-3 pl-5 align-top">
         <StateMark entity="ai_run" state={r.state} />
       </td>
@@ -147,16 +148,16 @@ function RunRow({ projectId, run: r, purpose, now }: { projectId: string; run: R
             <Link
               to="/p/$projectId/runs/$runId"
               params={{ projectId, runId: r.id }}
-              className="text-[14px] font-semibold text-ink underline-offset-2 hover:underline"
+              className="dm-text-body font-semibold text-ink underline-offset-2 hover:underline"
             >
               {ACTION_WORDS[r.action] ?? r.action}
             </Link>
-            {r.model && <span className="text-xs text-muted">{r.model}</span>}
+            {r.model && <span className="dm-text-caption text-muted">{r.model}</span>}
             {r.retry_of && (
-              <span className="rounded-full border border-line px-1.5 text-[11px] font-medium text-ink-2">Retry</span>
+              <span className="dm-text-caption rounded-pill border border-line px-1.5 font-medium text-ink-2">Retry</span>
             )}
           </span>
-          {failed && <span className="text-xs text-problem">{failureWord(r.failure_kind, r.state)}</span>}
+          {failed && <span className="dm-text-caption text-problem">{failureWord(r.failure_kind, r.state)}</span>}
         </span>
       </td>
       <td className="max-w-[320px] px-4 py-3">
@@ -164,24 +165,24 @@ function RunRow({ projectId, run: r, purpose, now }: { projectId: string; run: R
           <Link
             to="/p/$projectId/threads/$explorationId"
             params={{ projectId, explorationId: r.exploration_id }}
-            className="line-clamp-2 text-[13px] text-ink-2 underline-offset-2 hover:text-ink hover:underline"
+            className="dm-text-small line-clamp-2 text-ink-2 underline-offset-2 hover:text-ink hover:underline"
           >
             {purpose}
           </Link>
         ) : (
-          <span className="text-[13px] text-muted">—</span>
+          <span className="dm-text-small text-muted">—</span>
         )}
       </td>
-      <td className="px-4 py-3 text-[13px] text-ink-2">
+      <td className="dm-text-small px-4 py-3 text-ink-2">
         <span className="flex items-center gap-1.5">
           <WhoMark actor={r.requested_by} size={16} />
           <span className="truncate">{askedBy(r.requested_by)}</span>
         </span>
       </td>
-      <td className="px-4 py-3 text-[13px] whitespace-nowrap text-ink-2">
+      <td className="dm-text-small px-4 py-3 whitespace-nowrap text-ink-2">
         <time dateTime={r.created_at}>{dayTime(r.created_at, now)}</time>
       </td>
-      <td className="py-3 pr-5 pl-4 text-right text-[13px] whitespace-nowrap text-ink-2 tabular-nums">
+      <td className="dm-text-small py-3 pr-5 pl-4 text-right whitespace-nowrap text-ink-2 tabular-nums">
         {runDuration(r, now) || '—'}
       </td>
     </tr>
@@ -190,7 +191,7 @@ function RunRow({ projectId, run: r, purpose, now }: { projectId: string; run: R
 
 function TableSkeleton() {
   return (
-    <div role="status" aria-label="Loading the runs" className="rounded-[var(--radius-card)] border border-line bg-surface">
+    <div role="status" aria-label="Loading the runs" className="rounded-card-md border border-line bg-surface">
       {[0, 1, 2, 3, 4].map((i) => (
         <div key={i} className="flex items-center gap-6 border-b border-line-soft px-5 py-3.5 last:border-b-0">
           <Skeleton className="h-3 w-20" />

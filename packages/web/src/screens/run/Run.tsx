@@ -17,11 +17,12 @@ import { ActionBar } from '../../ui/ActionBar.tsx';
 import { Button } from '../../ui/Button.tsx';
 import { ChevronRight, TypeIcon } from '../../ui/icons.tsx';
 import { Breadcrumbs, Page, SectionTitle, Skeleton } from '../../ui/layout.tsx';
-import { Mark, StateMark } from '../../ui/marks.tsx';
+import { Mark, MarkGlyph, StateMark } from '../../ui/marks.tsx';
 import { Reasons } from '../../ui/Reasons.tsx';
 import { WhoMark } from '../../ui/signals.tsx';
 import { ACTION_WORDS, failureWord } from '../../words.ts';
 import { NotFound } from '../not-found/NotFound.tsx';
+import { RunWorking } from '../thread/RunCards.tsx';
 import { isActive } from '../thread/timeline.ts';
 import { runEventsQuery, useNow } from './hooks.ts';
 import { EVENT_WORDS, requestedBy, retriesOf, runDuration } from './runs.ts';
@@ -57,17 +58,17 @@ export function RunScreen() {
         {r.context_pack ? (
           <ContextSection projectId={projectId} pack={r.context_pack} />
         ) : (
-          <p className="text-[13px] text-muted">This run has no context pack.</p>
+          <p className="dm-text-small text-muted">This run has no context pack.</p>
         )}
         {r.output !== null && r.output !== undefined && (
-          <details className="group rounded-[var(--radius-card)] border border-line bg-surface">
-            <summary className="cursor-pointer list-none px-5 py-3 text-[13px] font-semibold text-ink-2 hover:text-ink">
+          <details className="group rounded-card-md border border-line bg-surface">
+            <summary className="dm-text-small cursor-pointer list-none px-5 py-3 font-semibold text-ink-2 hover:text-ink">
               <span className="inline-flex items-center gap-1.5">
                 <ChevronRight size={12} className="transition-transform group-open:rotate-90" />
                 What it answered
               </span>
             </summary>
-            <pre className="max-h-[420px] overflow-auto border-t border-line-soft px-5 py-3 font-mono text-[12px] leading-relaxed text-ink-2">
+            <pre className="dm-code max-h-[420px] overflow-auto border-t border-line-soft px-5 py-3 leading-relaxed text-ink-2">
               {JSON.stringify(r.output, null, 2)}
             </pre>
           </details>
@@ -107,10 +108,10 @@ function RunHeader({ projectId, run: r, item }: { projectId: string; run: RunDet
           { label: `${actionWord(r.action)} · ${dayTime(r.created_at)}` },
         ]}
       />
-      <div className="flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">
+      <div className="dm-label flex items-center gap-1.5">
         <TypeIcon kind="run" size={14} />
         Run
-        <span className="text-inactive-light" aria-hidden="true">
+        <span className="dm-sep" aria-hidden="true">
           ·
         </span>
         <span className="tracking-normal normal-case">
@@ -118,7 +119,7 @@ function RunHeader({ projectId, run: r, item }: { projectId: string; run: RunDet
         </span>
       </div>
       <div className="flex items-start justify-between gap-6">
-        <h1 className="text-[26px] leading-tight font-semibold">
+        <h1 className="dm-text-page-title leading-tight font-semibold">
           {r.action === 'design_proposal' ? 'Draft a feature' : actionWord(r.action)}
         </h1>
         <ActionBar
@@ -127,20 +128,20 @@ function RunHeader({ projectId, run: r, item }: { projectId: string; run: RunDet
           className="shrink-0 pt-1"
           handlers={{
             'run.cancel': {
-              variant: 'working',
+              variant: 'secondary',
               disabled: command.isPending,
               run: () => command.mutate({ command: 'run.cancel', entityId: r.id }),
             },
           }}
         >
           {canRetry && (
-            <Button variant="ink" data-command="run.retry" disabled={command.isPending} onClick={retry}>
+            <Button variant="secondary" data-command="run.retry" disabled={command.isPending} onClick={retry}>
               {command.isPending ? 'Retrying…' : 'Retry'}
             </Button>
           )}
         </ActionBar>
       </div>
-      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted">
+      <p className="dm-text-small flex flex-wrap items-center gap-x-2 gap-y-1 text-muted">
         {decision && (
           <>
             <span>
@@ -148,7 +149,7 @@ function RunHeader({ projectId, run: r, item }: { projectId: string; run: RunDet
               <Link to="/p/$projectId/records/$code" params={{ projectId, code: decision.code }} className={link}>
                 {decision.title}
               </Link>{' '}
-              <span className="font-mono text-[11px]">{decision.code}</span>
+              <span className="dm-code">{decision.code}</span>
             </span>
             <Dot />
           </>
@@ -175,12 +176,13 @@ function RunHeader({ projectId, run: r, item }: { projectId: string; run: RunDet
 }
 
 const Dot = () => (
-  <span className="text-inactive-light" aria-hidden="true">
+  <span className="dm-sep" aria-hidden="true">
     ·
   </span>
 );
 
-/** What happened, in product words: working, finished, failed (and why) or cancelled. */
+/** What happened, in product words: working (the design system's Working, with its time), finished,
+    failed (the rust box, and why) or cancelled. */
 function Status({
   projectId,
   run: r,
@@ -192,29 +194,26 @@ function Status({
   item: RunListItem | undefined;
   now: number;
 }) {
-  const box = 'flex items-start gap-3 rounded-[12px] border px-4 py-3.5';
+  const box = 'flex items-start gap-3 rounded-card-md px-4 py-3.5';
   if (isActive(r)) {
     return (
-      <div data-run-status className={cn(box, 'items-center border-working/45 bg-working-bg text-working-text')}>
-        <span className="flex w-4 justify-center">
-          <Mark kind="working" label={r.state === 'queued' ? 'Queued' : 'Working'} />
-        </span>
-        <p className="flex-1 text-[14px] font-semibold">{r.state === 'queued' ? 'Waiting to start…' : 'DEMIURGO is working…'}</p>
-        <span data-run-timer className="text-[13px] font-semibold tabular-nums">
-          {runDuration(r, now)}
-        </span>
+      <div data-run-status className={cn(box, 'items-center border border-line bg-surface')}>
+        <p className="dm-text-body flex-1 font-semibold text-ink">
+          {r.state === 'queued' ? 'Waiting to start…' : 'DEMIURGO is working…'}
+        </p>
+        <RunWorking run={r} now={now} />
       </div>
     );
   }
   if (r.state === 'completed') {
     return (
-      <div data-run-status className={cn(box, 'border-line bg-surface')}>
+      <div data-run-status className={cn(box, 'border border-line bg-surface')}>
         <span className="flex h-5 w-4 items-center justify-center">
           <Mark kind="done" label="Completed" />
         </span>
         <div className="flex flex-1 flex-col gap-0.5">
-          <p className="text-[14px] font-semibold text-ink">Finished in {runDuration(r) || '0:00'}.</p>
-          <p className="text-[13px] text-ink-2">
+          <p className="dm-text-body font-semibold text-ink">Finished in {runDuration(r) || '0:00'}.</p>
+          <p className="dm-text-small text-ink-2">
             {item?.batch_id
               ? 'It proposed what it found: it waits for you before anything changes.'
               : 'What it wrote is in its thread.'}
@@ -224,7 +223,7 @@ function Status({
           <Link
             to="/p/$projectId/batches/$batchId"
             params={{ projectId, batchId: item.batch_id }}
-            className="inline-flex shrink-0 items-center gap-0.5 self-center text-[13px] font-semibold text-needs hover:text-needs-hover"
+            className="dm-text-small inline-flex shrink-0 items-center gap-0.5 self-center font-semibold text-needs-strong hover:underline"
           >
             Review
             <ChevronRight size={12} />
@@ -237,20 +236,21 @@ function Status({
   return (
     <div
       data-run-status
-      className={cn(box, cancelled ? 'border-dashed border-line-strong bg-surface-2' : 'border-problem-line bg-problem-bg')}
+      className={cn(box, cancelled ? 'border border-dashed border-line-strong bg-surface-soft' : 'bg-problem-tint text-problem')}
     >
       <span className="flex h-5 w-4 items-center justify-center">
+        {/* Grey when cancelled; the design system's Conflict icon when it failed. */}
         <Mark
           kind={cancelled ? 'inactive' : 'problem'}
           label={cancelled ? 'Cancelled' : r.state === 'interrupted' ? 'Interrupted' : 'Failed'}
         />
       </span>
       <div className="flex flex-1 flex-col gap-1">
-        <p className={cn('text-[14px] font-semibold', cancelled ? 'text-ink-2' : 'text-problem')}>
+        <p className={cn('dm-text-body font-semibold', cancelled && 'text-ink-2')}>
           {failureWord(r.failure_kind ?? (cancelled ? 'cancelled' : null), r.state)}
         </p>
         {r.error && (
-          <p className={cn('text-[13px]', cancelled ? 'text-muted' : 'text-problem')}>
+          <p className={cn('dm-text-small', cancelled && 'text-muted')}>
             <span className="font-semibold">What it said: </span>
             <span className="break-words">{r.error}</span>
           </p>
@@ -265,29 +265,29 @@ function ContextSection({ projectId, pack }: { projectId: string; pack: ContextP
   const threads = useQuery(explorationsQuery(projectId)).data;
   const budget = Object.entries(pack.budget ?? {});
   return (
-    <section data-context aria-labelledby="run-context" className="rounded-[var(--radius-card)] border border-line bg-surface">
+    <section data-context aria-labelledby="run-context" className="rounded-card-md border border-line bg-surface">
       <header className="flex items-baseline justify-between gap-3 border-b border-line-soft px-5 py-3">
-        <h2 id="run-context" className="text-[15px] font-semibold">
+        <h2 id="run-context" className="dm-text-heading font-semibold">
           Context
         </h2>
-        <span className="text-xs text-muted">What DEMIURGO was given. A retry reuses it as it is.</span>
+        <span className="dm-text-caption text-muted">What DEMIURGO was given. A retry reuses it as it is.</span>
       </header>
-      <dl className="grid grid-cols-[150px_1fr] items-baseline gap-x-5 gap-y-3 px-5 py-4 text-[13px]">
+      <dl className="dm-text-small grid grid-cols-[150px_1fr] items-baseline gap-x-5 gap-y-3 px-5 py-4">
         <Term>Role</Term>
         <dd className="text-ink">{pack.role}</dd>
         <Term>Builder</Term>
-        <dd className="font-mono text-[12px] text-ink">{pack.builder}</dd>
+        <dd className="dm-code text-ink">{pack.builder}</dd>
         <Term>Budget</Term>
         <dd className="flex flex-wrap gap-1.5">
           {budget.length === 0 && <span className="text-muted">None</span>}
           {budget.map(([k, v]) => (
-            <span key={k} className="rounded-md border border-line-soft bg-surface-2 px-2 py-0.5 text-[12px] text-ink-2">
-              {k} <span className="font-mono text-ink">{typeof v === 'number' ? v.toLocaleString('en-GB') : String(v)}</span>
+            <span key={k} className="dm-text-caption rounded-tab border border-line-soft bg-surface-soft px-2 py-0.5 text-ink-2">
+              {k} <span className="dm-code text-ink">{typeof v === 'number' ? v.toLocaleString('en-GB') : String(v)}</span>
             </span>
           ))}
         </dd>
         <Term>Graph version</Term>
-        <dd className="font-mono text-[12px] text-ink">v{pack.graph_version}</dd>
+        <dd className="dm-code text-ink">v{pack.graph_version}</dd>
         <Term>Dependencies</Term>
         <dd>
           {pack.dependencies.length === 0 ? (
@@ -296,7 +296,7 @@ function ContextSection({ projectId, pack }: { projectId: string; pack: ContextP
             <ul className="flex flex-col gap-1">
               {pack.dependencies.map((d, i) => (
                 <li key={`${d.type}-${d.id}-${i}`} className="flex items-baseline gap-2 text-ink-2">
-                  <span className="w-[92px] shrink-0 text-xs text-muted">{d.type.replace('_', ' ')}</span>
+                  <span className="dm-text-caption w-[92px] shrink-0 text-muted">{d.type.replace('_', ' ')}</span>
                   <DependencyName projectId={projectId} dependency={d} threads={threads} />
                 </li>
               ))}
@@ -305,19 +305,19 @@ function ContextSection({ projectId, pack }: { projectId: string; pack: ContextP
         </dd>
         <Term>Hash</Term>
         <dd>
-          <code data-context-hash className="font-mono text-[12px] break-all text-ink">
+          <code data-context-hash className="dm-code break-all text-ink">
             {pack.hash}
           </code>
         </dd>
       </dl>
       <details data-context-content className="group border-t border-line-soft">
-        <summary className="cursor-pointer list-none px-5 py-3 text-[13px] font-semibold text-ink-2 hover:text-ink">
+        <summary className="dm-text-small cursor-pointer list-none px-5 py-3 font-semibold text-ink-2 hover:text-ink">
           <span className="inline-flex items-center gap-1.5">
             <ChevronRight size={12} className="transition-transform group-open:rotate-90" />
             What it read
           </span>
         </summary>
-        <pre className="max-h-[480px] overflow-auto border-t border-line-soft px-5 py-3 font-mono text-[12px] leading-relaxed text-ink-2">
+        <pre className="dm-code max-h-[480px] overflow-auto border-t border-line-soft px-5 py-3 leading-relaxed text-ink-2">
           {JSON.stringify(pack.content, null, 2)}
         </pre>
       </details>
@@ -325,7 +325,9 @@ function ContextSection({ projectId, pack }: { projectId: string; pack: ContextP
   );
 }
 
-const Term = ({ children }: { children: ReactNode }) => <dt className="pt-px text-xs font-semibold text-muted">{children}</dt>;
+const Term = ({ children }: { children: ReactNode }) => (
+  <dt className="dm-text-caption pt-px font-semibold text-muted">{children}</dt>
+);
 
 function DependencyName({
   projectId,
@@ -353,18 +355,14 @@ function DependencyName({
   }
   if (d.code) {
     return (
-      <Link
-        to="/p/$projectId/records/$code"
-        params={{ projectId, code: d.code }}
-        className="font-mono text-[12px] text-ink hover:underline"
-      >
+      <Link to="/p/$projectId/records/$code" params={{ projectId, code: d.code }} className="dm-code text-ink hover:underline">
         {d.code}
         {version}
       </Link>
     );
   }
   return (
-    <span className="min-w-0 truncate font-mono text-[12px] text-muted">
+    <span className="dm-code min-w-0 truncate">
       {d.id}
       {version}
     </span>
@@ -383,11 +381,11 @@ function RunAside({ projectId, run: r, runs, now }: { projectId: string; run: Ru
         <SectionTitle>
           <span id="run-facts">Details</span>
         </SectionTitle>
-        <dl className="grid grid-cols-[108px_1fr] items-baseline gap-x-3 gap-y-2 text-[13px]">
+        <dl className="dm-text-small grid grid-cols-[108px_1fr] items-baseline gap-x-3 gap-y-2">
           <Fact term="Model">{r.model ?? <span className="text-muted">Not known yet</span>}</Fact>
           <Fact term="Provider">{r.provider}</Fact>
           <Fact term="Method">
-            <span className="font-mono text-[12px]">{r.method}</span>
+            <span className="dm-code text-ink">{r.method}</span>
           </Fact>
           <Fact term="Requested">{dayTime(r.created_at)}</Fact>
           {r.started_at && <Fact term="Started">{dayTime(r.started_at)}</Fact>}
@@ -412,13 +410,13 @@ function RunAside({ projectId, run: r, runs, now }: { projectId: string; run: Ru
           </SectionTitle>
           {r.retry_of && (
             <div data-run-retry-of className="mb-3 flex flex-col gap-1">
-              <span className="text-xs text-muted">Retry of</span>
+              <span className="dm-text-caption text-muted">Retry of</span>
               <RunLink projectId={projectId} runId={r.retry_of} run={original} />
             </div>
           )}
           {retries.length > 0 && (
             <div data-run-retries className="flex flex-col gap-1">
-              <span className="text-xs text-muted">{retries.length === 1 ? 'Retried as' : 'Retried as, in order'}</span>
+              <span className="dm-text-caption text-muted">{retries.length === 1 ? 'Retried as' : 'Retried as, in order'}</span>
               <ul className="flex flex-col gap-1">
                 {retries.map((x) => (
                   <li key={x.id}>
@@ -443,18 +441,17 @@ function RunAside({ projectId, run: r, runs, now }: { projectId: string; run: Ru
         ) : (
           <ol data-run-events className="relative flex flex-col gap-2.5 border-l border-line pl-4">
             {(events.data ?? []).map((e) => (
-              <li key={e.id} className="relative flex flex-col gap-0.5 text-[13px]">
-                <span
-                  aria-hidden="true"
-                  className="absolute top-[7px] -left-[19.5px] h-[7px] w-[7px] rounded-full bg-inactive-light"
-                />
+              <li key={e.id} className="dm-text-small relative flex flex-col gap-0.5">
+                <span aria-hidden="true" className="absolute top-1 -left-[21.5px] flex">
+                  <MarkGlyph kind="inactive" />
+                </span>
                 <span className="flex items-center gap-2">
                   <span className="font-semibold text-ink">{EVENT_WORDS[e.command] ?? e.command}</span>
                   <WhoMark actor={e.actor} size={14} />
                 </span>
-                <span className="text-xs text-muted">
+                <span className="dm-text-caption text-muted">
                   <time dateTime={e.at}>{new Date(e.at).toLocaleTimeString('en-GB')}</time>
-                  <span className="font-mono"> · {e.command}</span>
+                  <span className="dm-code"> · {e.command}</span>
                 </span>
               </li>
             ))}
@@ -468,8 +465,8 @@ function RunAside({ projectId, run: r, runs, now }: { projectId: string; run: Ru
 function Fact({ term, children }: { term: string; children: ReactNode }) {
   return (
     <>
-      <dt className="text-xs font-semibold text-muted">{term}</dt>
-      <dd className="min-w-0 text-[13px] text-ink">{children}</dd>
+      <dt className="dm-text-caption font-semibold text-muted">{term}</dt>
+      <dd className="dm-text-small min-w-0 text-ink">{children}</dd>
     </>
   );
 }
@@ -479,11 +476,11 @@ function RunLink({ projectId, runId, run }: { projectId: string; runId: string; 
     <Link
       to="/p/$projectId/runs/$runId"
       params={{ projectId, runId }}
-      className="flex items-center gap-2 rounded-md px-1.5 py-1 text-[13px] hover:bg-line-soft"
+      className="dm-text-small flex items-center gap-2 rounded-tab px-1.5 py-1 hover:bg-line-soft"
     >
       {run ? <StateMark entity="ai_run" state={run.state} /> : null}
       <span className="font-semibold text-ink">{run ? actionWord(run.action) : 'Run'}</span>
-      {run && <span className="text-xs text-muted">{dayTime(run.created_at)}</span>}
+      {run && <span className="dm-text-caption text-muted">{dayTime(run.created_at)}</span>}
       <ChevronRight size={12} className="ml-auto text-muted" />
     </Link>
   );

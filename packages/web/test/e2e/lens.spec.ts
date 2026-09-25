@@ -90,13 +90,13 @@ test('AC-INT-001-16 after changes by an agent, the overview highlights only what
   await expect(summary).toBeVisible();
 
   // One line per thing, in the order the API groups them.
-  const lines = summary.locator('[data-lens-line]');
+  const lines = summary.locator('[data-id]');
   await expect(lines).toHaveCount(body.things.length);
-  const keys = await lines.evaluateAll((els) => els.map((e) => e.getAttribute('data-lens-line')));
+  const keys = await lines.evaluateAll((els) => els.map((e) => e.getAttribute('data-id')));
   expect(keys).toEqual(body.things.map((t) => `${t.kind}:${t.key}`));
-  await expect(summary.locator(`[data-lens-line="exploration:${thread}"]`)).toContainText('Guests at activities');
-  await expect(summary.locator(`[data-lens-line="exploration:${thread}"] [data-who]`)).toHaveAttribute('data-who', 'agent');
-  const batchLine = summary.locator(`[data-lens-line="batch:${batchId}"]`);
+  await expect(summary.locator(`[data-id="exploration:${thread}"]`)).toContainText('Guests at activities');
+  await expect(summary.locator(`[data-id="exploration:${thread}"] [data-who]`)).toHaveAttribute('data-who', 'agent');
+  const batchLine = summary.locator(`[data-id="batch:${batchId}"]`);
   await expect(batchLine).toContainText('An agent proposed 2 changes');
   await expect(batchLine).toContainText('FDR-INT-001');
   await expect(summary).toContainText('Nothing you confirmed was changed.');
@@ -151,7 +151,7 @@ test('screens of cut 6: coming back with the lens on, the peek of what changed, 
 
   await page.goto(`/p/${projectId}`);
   const summary = page.getByRole('region', { name: 'While you were away' });
-  await expect(summary.locator('[data-lens-line]').first()).toBeVisible();
+  await expect(summary.locator('[data-id]').first()).toBeVisible();
   await expect(page.getByRole('main').locator('[data-record="FDR-INT-001"] [data-card]')).toHaveAttribute('data-changed', 'true');
   await screenshot(page, 6, '01-lens-on');
 
@@ -176,7 +176,7 @@ test('AC-INT-001-16 coming back after an agent changed things: the lens tells wh
   const { projectId, batchId } = await comingBack(page, person, 'Back and catch up');
   await page.goto(`/p/${projectId}`);
   const summary = page.getByRole('region', { name: 'While you were away' });
-  await expect(summary.locator(`[data-lens-line="batch:${batchId}"]`)).toContainText('An agent proposed 2 changes');
+  await expect(summary.locator(`[data-id="batch:${batchId}"]`)).toContainText('An agent proposed 2 changes');
   await expect(page.getByRole('main').locator('[data-record="FDR-INT-001"] [data-card]')).toHaveAttribute('data-changed', 'true');
 
   // From the overview, catch up one thing at a time.
@@ -198,6 +198,6 @@ test('AC-INT-001-16 coming back after an agent changed things: the lens tells wh
   await band.getByRole('button', { name: 'Leave' }).click();
   await expect(page).not.toHaveURL(/catch-up/);
   await expect(page.getByRole('main').locator(`[data-need][data-kind="${first}"]`).first()).toBeVisible();
-  const header = page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /Needs you/ });
-  await expect(header.locator('[data-needs]')).toHaveAttribute('data-needs', String(total));
+  const header = page.getByRole('banner').getByRole('link', { name: /Needs you/ });
+  await expect(header).toHaveAttribute('data-needs', String(total));
 });

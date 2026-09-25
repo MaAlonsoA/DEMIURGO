@@ -30,7 +30,7 @@ export function SearchTab({ projectId }: { projectId: string }) {
   return (
     <div className="flex flex-col gap-5">
       <form role="search" onSubmit={submit} className="flex flex-col gap-1.5">
-        <label htmlFor={id} className="text-xs font-semibold text-ink-2">
+        <label htmlFor={id} className="dm-text-caption font-semibold text-ink-2">
           Search the knowledge
         </label>
         <div className="flex items-center gap-2">
@@ -42,22 +42,22 @@ export function SearchTab({ projectId }: { projectId: string }) {
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder="A word or a phrase, as it was written"
-              className="h-9 w-full rounded-[var(--radius-control)] border border-line-strong bg-surface pr-3 pl-8 text-sm text-ink placeholder:text-muted focus:border-needs focus:outline-none"
+              className="dm-text-body h-9 w-full rounded-control border border-line-strong bg-surface pr-3 pl-8 text-ink placeholder:text-muted focus:border-needs focus:outline-none"
             />
           </div>
-          <Button type="submit" variant="ink" size="lg" disabled={text.trim() === ''}>
+          <Button type="submit" variant="secondary" disabled={text.trim() === ''}>
             Search
           </Button>
         </div>
       </form>
       {!q ? (
-        <p className="text-[13px] text-ink-3">
+        <p className="dm-text-small text-ink-3">
           Search what DEMIURGO knows: decisions, features, tech decisions and their checks, as they were written.
         </p>
       ) : search.isPending ? (
         <div role="status" aria-label="Searching" className="flex flex-col gap-2">
           {[0, 1, 2].map((i) => (
-            <Skeleton key={i} className="h-[72px] w-full rounded-[var(--radius-card)]" />
+            <Skeleton key={i} className="h-[72px] w-full rounded-card-md" />
           ))}
         </div>
       ) : search.error ? (
@@ -66,7 +66,7 @@ export function SearchTab({ projectId }: { projectId: string }) {
         <EmptyState>Nothing matches “{q}”.</EmptyState>
       ) : (
         <div className="flex flex-col gap-2">
-          <p className="text-xs text-muted" aria-live="polite">
+          <p className="dm-text-caption text-muted" aria-live="polite">
             {hits.length} {hits.length === 1 ? 'result' : 'results'} for “{q}”
           </p>
           <ul aria-label="Results" className="flex flex-col gap-2">
@@ -75,7 +75,7 @@ export function SearchTab({ projectId }: { projectId: string }) {
               const type = nodeType(h.type);
               const body = (
                 <>
-                  <span className="flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">
+                  <span className="dm-label flex items-center gap-1.5">
                     <TypeIcon kind={type.icon} size={13} />
                     {type.word}
                     <span className="tracking-normal normal-case">
@@ -83,11 +83,11 @@ export function SearchTab({ projectId }: { projectId: string }) {
                     </span>
                     <Code className="ml-auto tracking-normal normal-case">{h.ref}</Code>
                   </span>
-                  <strong className="text-[14px] leading-snug font-semibold">{h.title}</strong>
-                  {h.excerpt && <span className="line-clamp-2 text-[13px] text-ink-3">{h.excerpt}</span>}
+                  <strong className="dm-text-body leading-snug font-semibold">{h.title}</strong>
+                  {h.excerpt && <span className="dm-text-small line-clamp-2 text-ink-3">{h.excerpt}</span>}
                 </>
               );
-              const cls = 'flex flex-col gap-1 rounded-[var(--radius-card)] border border-line bg-surface px-4 py-3 text-left';
+              const cls = 'dm-card px-4 py-3 text-left';
               return (
                 <li key={h.ref}>
                   {record ? (

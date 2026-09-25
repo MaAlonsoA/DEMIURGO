@@ -42,11 +42,11 @@ export function SourcesScreen() {
       ) : rows.length === 0 ? (
         <EmptyState>No sources yet. Add notes, rules or anything else DEMIURGO should read.</EmptyState>
       ) : (
-        <div className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface">
-          <table className="w-full border-collapse text-left text-[13px]">
+        <div className="overflow-hidden rounded-card-md border border-line bg-surface">
+          <table className="dm-text-small w-full border-collapse text-left">
             <caption className="sr-only">Sources</caption>
             <thead>
-              <tr className="border-b border-line bg-surface-2 text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">
+              <tr className="dm-label border-b border-line bg-surface-soft">
                 <th scope="col" className="px-4 py-2.5 font-semibold">
                   Name
                 </th>
@@ -84,7 +84,7 @@ function SourceRow({ source: s }: { source: Source }) {
           <span className="font-semibold text-ink">{s.name}</span>
           {untrusted && (
             <Tip text="An agent registered it. DEMIURGO reads it as input to check, never as something you decided.">
-              <span className="shrink-0 rounded-full border border-line-strong px-2 py-px text-[11px] font-medium text-ink-2">
+              <span className="dm-text-caption shrink-0 rounded-pill border border-line-strong px-2 py-px font-medium text-ink-2">
                 Untrusted input
               </span>
             </Tip>
@@ -92,7 +92,7 @@ function SourceRow({ source: s }: { source: Source }) {
         </span>
       </td>
       <td className="px-4 py-3">
-        <span className="flex items-center gap-1.5 text-[13px]">
+        <span className="dm-text-small flex items-center gap-1.5">
           <WhoMark actor={s.registered_by} size={18} withName />
           {untrusted && <span className="text-muted">· agent</span>}
         </span>
@@ -103,7 +103,7 @@ function SourceRow({ source: s }: { source: Source }) {
         </time>
       </td>
       <td className="px-4 py-3">
-        <span className="font-mono text-[11px] text-muted" title={s.content_hash}>
+        <span className="dm-code text-muted" title={s.content_hash}>
           {s.content_hash.slice(0, 12)}…
         </span>
       </td>
@@ -157,10 +157,10 @@ function AddSource({ projectId }: { projectId: string }) {
   return (
     <form aria-labelledby={`${id}-title`} onSubmit={submit} className="flex flex-col gap-3">
       <div>
-        <h2 id={`${id}-title`} className="text-[15px] font-semibold">
+        <h2 id={`${id}-title`} className="dm-text-heading font-semibold">
           Add a source
         </h2>
-        <p className="mt-0.5 text-xs text-muted">Paste what DEMIURGO should read: notes, rules, a survey.</p>
+        <p className="dm-text-caption mt-0.5 text-muted">Paste what DEMIURGO should read: notes, rules, a survey.</p>
       </div>
       {!catalog ? (
         <div className="flex flex-col gap-3">
@@ -175,11 +175,11 @@ function AddSource({ projectId }: { projectId: string }) {
             maxLength: f.maxLength,
             onChange: (e: { target: { value: string } }) => setValues((v) => ({ ...v, [f.key]: e.target.value })),
             className:
-              'w-full rounded-[var(--radius-control)] border border-line-strong bg-surface px-3 text-sm text-ink placeholder:text-muted focus:border-needs focus:outline-none',
+              'dm-text-body w-full rounded-control border border-line-strong bg-surface px-3 text-ink placeholder:text-muted focus:border-needs focus:outline-none',
           };
           return (
             <div key={f.key} className="flex flex-col gap-1">
-              <label htmlFor={`${id}-${f.key}`} className="text-xs font-semibold text-ink-2">
+              <label htmlFor={`${id}-${f.key}`} className="dm-text-caption font-semibold text-ink-2">
                 {f.label}
                 {!f.required && <span className="font-normal text-muted"> · optional</span>}
               </label>
@@ -194,10 +194,10 @@ function AddSource({ projectId }: { projectId: string }) {
       )}
       {command.error ? <Reasons error={command.error} /> : null}
       <div className="flex items-center justify-between gap-3">
-        <span role="status" className="text-xs text-muted">
+        <span role="status" className="dm-text-caption text-muted">
           {added ? `Added “${added}”.` : ''}
         </span>
-        <Button type="submit" variant="ink" disabled={!complete || command.isPending}>
+        <Button type="submit" variant="secondary" disabled={!complete || command.isPending}>
           {command.isPending ? 'Adding…' : 'Add a source'}
         </Button>
       </div>

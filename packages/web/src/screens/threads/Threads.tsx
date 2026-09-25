@@ -1,22 +1,24 @@
-// Threads (spec §4.7): each thread with its state, the open questions that wait for the person and
-// its last activity, nested under its parent. "New thread" opens one with its purpose.
+// Threads (spec §4.7): each thread as the design system's Node, with its state, the open questions
+// that wait for the person and its last activity, nested under its parent. "New thread" opens one
+// with its purpose.
 
+import { type Certainty, Node as DsNode } from '@demiurgo/design-system';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
 import { explorationsQuery } from '../../api/queries.ts';
 import { canCreate } from '../../api/tables.ts';
-import { cn } from '../../lib/cn.ts';
 import { useProjectId, useTables } from '../../lib/hooks.ts';
 import { ago, dayTime } from '../../lib/time.ts';
 import { Button } from '../../ui/Button.tsx';
 import { TextDialog } from '../../ui/dialogs.tsx';
-import { PlusIcon, TypeIcon } from '../../ui/icons.tsx';
+import { PlusIcon } from '../../ui/icons.tsx';
 import { EmptyState, Page, PageTitle, Skeleton } from '../../ui/layout.tsx';
-import { StateMark } from '../../ui/marks.tsx';
+import { Mark } from '../../ui/marks.tsx';
 import { NeedsBubble } from '../../ui/signals.tsx';
 import { Tip } from '../../ui/Tip.tsx';
+import { type MarkKind, stateWord } from '../../words.ts';
 import { type ThreadRow, threadTree } from './tree.ts';
 
 export function ThreadsScreen() {
@@ -40,7 +42,7 @@ export function ThreadsScreen() {
         }
         actions={
           allowed ? (
-            <Button variant="ink" onClick={() => setOpening(true)}>
+            <Button variant="secondary" onClick={() => setOpening(true)}>
               <PlusIcon size={14} />
               New thread
             </Button>
@@ -51,7 +53,7 @@ export function ThreadsScreen() {
       {threads.isPending ? (
         <ListSkeleton />
       ) : rows && rows.length > 0 ? (
-        <ThreadTable projectId={projectId} rows={rows} />
+        <ThreadList projectId={projectId} rows={rows} />
       ) : (
         <EmptyState>No threads yet.{allowed ? ' Open one to explore something with DEMIURGO.' : ''}</EmptyState>
       )}
@@ -61,94 +63,90 @@ export function ThreadsScreen() {
   );
 }
 
-function ThreadTable({ projectId, rows }: { projectId: string; rows: ThreadRow[] }) {
+/** A thread as the design system's Node: what it is, its state's mark, its purpose, and at the end what
+    waits for the person and when it last moved. The whole row is the link to the thread. */
+export function ThreadNode({
+  projectId,
+  thread: t,
+  trailing,
+}: {
+  projectId: string;
+  thread: { id: string; purpose: string; state: string };
+  trailing?: ReactNode;
+}) {
+  const w = stateWord('exploration', t.state);
   return (
-    <div className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface">
-      <table className="w-full border-collapse text-left">
-        <thead>
-          <tr className="border-b border-line text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">
-            <th scope="col" className="py-2.5 pr-4 pl-5 font-semibold">
-              Thread
-            </th>
-            <th scope="col" className="w-[150px] px-4 py-2.5 font-semibold">
-              State
-            </th>
-            <th scope="col" className="w-[150px] px-4 py-2.5 font-semibold">
-              Open questions
-            </th>
-            <th scope="col" className="w-[150px] py-2.5 pr-5 pl-4 font-semibold">
-              Last activity
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(({ thread: t, depth }) => (
-            <tr
-              key={t.id}
-              data-thread-row={t.id}
-              data-depth={depth}
-              className="group border-b border-line-soft last:border-b-0 hover:bg-surface-2"
-            >
-              <td className="py-3 pr-4 pl-5">
-                <span className="flex min-w-0 items-center gap-2.5" style={{ paddingLeft: depth * 26 }}>
-                  {depth > 0 && (
-                    <span
-                      aria-hidden="true"
-                      className="-mt-2.5 h-3 w-3 shrink-0 rounded-bl-[4px] border-b border-l border-line-strong"
-                    />
-                  )}
-                  <span className={cn('flex shrink-0', t.state === 'active' ? 'text-ink-2' : 'text-inactive')}>
-                    <TypeIcon kind="thread" size={15} />
-                  </span>
-                  <Link
-                    to="/p/$projectId/threads/$explorationId"
-                    params={{ projectId, explorationId: t.id }}
-                    className={cn(
-                      'min-w-0 truncate text-[14px] font-semibold underline-offset-2 hover:underline',
-                      t.state === 'active' ? 'text-ink' : 'text-ink-2',
-                    )}
-                  >
-                    {t.purpose}
-                  </Link>
+    <Link
+      to="/p/$projectId/threads/$explorationId"
+      params={{ projectId, explorationId: t.id }}
+      className="block min-w-0 flex-1 rounded-control hover:[&>.dm-node]:border-ink-3"
+    >
+      <DsNode
+        type="thread"
+        state={NODE_STATE[w.mark] ?? 'unknown'}
+        mark={<Mark kind={w.mark} label={w.word} />}
+        title={t.purpose}
+        trailing={trailing}
+      />
+    </Link>
+  );
+}
+
+/** The node's state follows the thread's mark: open while active, confirmed when concluded, parked when set aside. */
+const NODE_STATE: Partial<Record<MarkKind, Certainty | 'parked'>> = {
+  open: 'open',
+  confirmed: 'confirmed',
+  parked: 'parked',
+};
+
+function ThreadList({ projectId, rows }: { projectId: string; rows: ThreadRow[] }) {
+  return (
+    <ul aria-label="Threads" className="flex flex-col gap-2">
+      {rows.map(({ thread: t, depth }) => (
+        <li
+          key={t.id}
+          data-thread-row={t.id}
+          data-depth={depth}
+          className="flex items-center gap-2"
+          style={{ paddingLeft: depth * 26 }}
+        >
+          {/* The elbow reaches up to the row above, down to the middle of its own. */}
+          {depth > 0 && (
+            <span aria-hidden="true" className="-mt-7.5 h-7.5 w-3 shrink-0 rounded-bl-tag border-b border-l border-line-strong" />
+          )}
+          <ThreadNode
+            projectId={projectId}
+            thread={t}
+            trailing={
+              <span className="flex shrink-0 items-center gap-3">
+                <NeedsBubble
+                  count={t.open_questions}
+                  detail={`${t.open_questions} open ${t.open_questions === 1 ? 'question waits' : 'questions wait'} for you.`}
+                />
+                <span className="dm-text-caption text-muted">
+                  {t.state !== 'active' && `${stateWord('exploration', t.state).word} · `}
+                  <Tip text={dayTime(t.last_activity)}>
+                    <time dateTime={t.last_activity}>{ago(t.last_activity)}</time>
+                  </Tip>
                 </span>
-              </td>
-              <td className="px-4 py-3">
-                <StateMark entity="exploration" state={t.state} />
-              </td>
-              <td className="px-4 py-3">
-                {t.open_questions > 0 ? (
-                  <NeedsBubble
-                    count={t.open_questions}
-                    size="sm"
-                    detail={`${t.open_questions} open ${t.open_questions === 1 ? 'question waits' : 'questions wait'} for you.`}
-                  />
-                ) : (
-                  <span className="text-xs text-muted">None</span>
-                )}
-              </td>
-              <td className="py-3 pr-5 pl-4 text-[13px] text-ink-2">
-                <Tip text={dayTime(t.last_activity)}>
-                  <time dateTime={t.last_activity}>{ago(t.last_activity)}</time>
-                </Tip>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+              </span>
+            }
+          />
+        </li>
+      ))}
+    </ul>
   );
 }
 
 function ListSkeleton() {
   return (
-    <div role="status" aria-label="Loading the threads" className="rounded-[var(--radius-card)] border border-line bg-surface">
+    <div role="status" aria-label="Loading the threads" className="flex flex-col gap-2">
       {[0, 1, 2, 3].map((i) => (
-        <div key={i} className="flex items-center gap-4 border-b border-line-soft px-5 py-3.5 last:border-b-0">
-          <Skeleton className="h-4 w-4" />
+        <div key={i} className="flex h-11 items-center gap-3 rounded-control border border-line bg-surface px-3">
+          <Skeleton className="h-3.5 w-3.5" />
+          <Skeleton className="h-3 w-3" />
           <Skeleton className="h-4 w-2/5" />
           <Skeleton className="ml-auto h-3 w-20" />
-          <Skeleton className="h-3 w-16" />
-          <Skeleton className="h-3 w-20" />
         </div>
       ))}
     </div>

@@ -99,7 +99,9 @@ test('AC-INT-001-07 a check with a vague term shows the verifiability warning wh
   const warning = added.locator('[data-verifiability]');
   await expect(warning).toContainText('"fast" is vague; state a measure or a checkable result.');
   await added.getByLabel('How it is checked').fill('You open the catalog and time it.');
-  await added.getByRole('radio', { name: 'You' }).check();
+  const you = added.getByRole('button', { name: 'You', exact: true });
+  await you.click();
+  await expect(you).toHaveAttribute('aria-pressed', 'true');
 
   const save = page.getByRole('button', { name: 'Save draft' });
   await expect(save).toBeEnabled();
@@ -114,7 +116,9 @@ test('AC-INT-001-07 a check with a vague term shows the verifiability warning wh
   // The record keeps saying it, next to the check and apart in its readiness.
   const saved = page.locator('[data-check="AC-CAT-001-04"]');
   await expect(saved).toContainText('"fast" is vague');
-  await expect(page.locator('[data-readiness-warnings]')).toContainText('AC-CAT-001-04: "fast" is vague');
+  await expect(
+    page.getByRole('complementary').locator('[data-kind="warning"]').filter({ hasText: '"fast" is vague' }),
+  ).toContainText('AC-CAT-001-04: "fast" is vague');
 });
 
 test('AC-INT-001-06 a rejected save keeps what was written and shows the server reasons next to it', async ({ page, person }) => {

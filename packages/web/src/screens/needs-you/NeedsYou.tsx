@@ -1,5 +1,6 @@
 // Needs you (spec §4.8): everything that waits for the person, grouped in the order Catch up walks
-// it, each thing resolved in place. With ?catch-up=1 it becomes Catch up: one thing at a time.
+// it, each thing resolved in place, on the blue ground of what needs you (needs-soft, needs-line).
+// With ?catch-up=1 it becomes Catch up: one thing at a time.
 
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearch } from '@tanstack/react-router';
@@ -7,7 +8,7 @@ import { useId } from 'react';
 import { explorationsQuery, inboxQuery, stateQuery, taxonomiesQuery } from '../../api/queries.ts';
 import type { ProductRow } from '../../api/types.ts';
 import { useProjectId } from '../../lib/hooks.ts';
-import { buttonStyles } from '../../ui/Button.tsx';
+import { buttonClass } from '../../ui/Button.tsx';
 import { WarningIcon } from '../../ui/icons.tsx';
 import { Page, PageTitle, Skeleton } from '../../ui/layout.tsx';
 import { Reasons } from '../../ui/Reasons.tsx';
@@ -84,14 +85,14 @@ function GroupSection({ group, ctx }: { group: Group; ctx: NeedContext }) {
   return (
     <section aria-labelledby={id} data-group={group.key}>
       <div className="mb-2.5 flex items-baseline justify-between gap-4">
-        <h2 id={id} className="flex items-center gap-2 text-[13px] font-semibold text-ink-2">
+        <h2 id={id} className="dm-text-small flex items-center gap-2 font-semibold text-ink-2">
           {group.key === 'conflicts' && <WarningIcon size={13} className="text-problem" />}
           {group.title}
           <span className="font-normal text-muted">({group.items.length})</span>
         </h2>
-        <span className="text-xs text-muted">{HINTS[group.key]}</span>
+        <span className="dm-text-caption text-muted">{HINTS[group.key]}</span>
       </div>
-      <ul className="flex flex-col divide-y divide-line-soft rounded-[var(--radius-panel)] border border-line bg-surface">
+      <ul className="flex flex-col divide-y divide-needs-line rounded-card border border-needs-line bg-needs-soft">
         {group.items.map((item) => (
           <li key={item.key}>
             <NeedView item={item} ctx={ctx} mode="row" />
@@ -110,42 +111,42 @@ function InOrder({ ctx, items }: { ctx: NeedContext; items: NeedItem[] }) {
   return (
     <section aria-label="Catch up" className="flex flex-col gap-2.5">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-[15px] font-semibold">In this order</h2>
-        <span className="text-xs text-muted">about {minutesOf(items)} min in all</span>
+        <h2 className="dm-text-heading font-semibold">In this order</h2>
+        <span className="dm-text-caption text-muted">about {minutesOf(items)} min in all</span>
       </div>
-      <p className="text-[13px] text-ink-3">What unblocks the most comes first.</p>
+      <p className="dm-text-small text-ink-3">What unblocks the most comes first.</p>
       <ol className="flex flex-col gap-2">
         {first.map((item, i) => (
           <li
             key={item.key}
-            className="flex flex-col gap-0.5 rounded-xl border border-needs-ring bg-needs-bg px-[13px] py-2.5"
+            className="flex flex-col gap-0.5 rounded-card-md border border-needs-line bg-needs-soft px-[13px] py-2.5"
             data-order={item.key}
           >
-            <span className="flex items-center justify-between text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">
+            <span className="dm-label flex items-center justify-between">
               <span className={item.kind === 'conflict' ? 'text-problem' : ''}>
                 {i + 1} · {KIND_WORDS[item.kind].word}
               </span>
               <span className="font-medium tracking-normal normal-case">{item.minutes} min</span>
             </span>
-            <strong className="line-clamp-2 text-[14px] leading-snug font-semibold">{needTitle(item, ctx.rows)}</strong>
+            <strong className="dm-text-body line-clamp-2 leading-snug font-semibold">{needTitle(item, ctx.rows)}</strong>
             {item.unblocks.length > 0 && (
-              <span className="truncate text-xs text-ink-3">
+              <span className="dm-text-caption truncate text-ink-3">
                 Unblocks: {item.unblocks.map((c) => ctx.rows.find((r) => r.code === c)?.title ?? c).join(', ')}
               </span>
             )}
           </li>
         ))}
       </ol>
-      {more > 0 && <p className="text-xs text-muted">and {more} more</p>}
+      {more > 0 && <p className="dm-text-caption text-muted">and {more} more</p>}
       <Link
         to="/p/$projectId/needs-you"
         params={{ projectId: ctx.projectId }}
         search={{ 'catch-up': 1 }}
-        className={buttonStyles({ variant: 'needs', size: 'lg', className: 'mt-1 w-full' })}
+        className={buttonClass('primary')}
       >
         Catch up
       </Link>
-      <p className="text-center text-xs text-muted">One at a time, in this order. What you skip stays here.</p>
+      <p className="dm-text-caption text-center text-muted">One at a time, in this order. What you skip stays here.</p>
     </section>
   );
 }
@@ -156,7 +157,7 @@ function ListSkeleton() {
       {[3, 2].map((n) => (
         <div key={n} className="flex flex-col gap-2.5">
           <Skeleton className="h-3 w-40" />
-          <div className="flex flex-col divide-y divide-line-soft rounded-[var(--radius-panel)] border border-line bg-surface">
+          <div className="flex flex-col divide-y divide-needs-line rounded-card border border-needs-line bg-needs-soft">
             {Array.from({ length: n }, (_, i) => (
               <div key={i} className="flex flex-col gap-2 px-[18px] py-3.5">
                 <Skeleton className="h-2.5 w-32" />

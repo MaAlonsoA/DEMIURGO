@@ -1,20 +1,22 @@
-// The graph tab: current nodes grouped by the area of the approved taxonomy, each with its type
-// and its mark; the invalidated ones greyed out. Pointing at a node (or focusing it) shows its
-// relations in the peek; Enter or "Open" goes to its record.
+// The graph tab: current nodes grouped by the area of the approved taxonomy, each the design
+// system's Node with its type and its mark; the invalidated ones faded. Pointing at a node (or
+// focusing it) shows its relations in the peek; Enter or "Open" goes to its record.
 
+import { type Certainty, Chip, Node as DsNode } from '@demiurgo/design-system';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import { graphQuery, taxonomiesQuery } from '../../api/queries.ts';
 import type { GraphNode, KnowledgeGraph, Taxonomy } from '../../api/types.ts';
 import { cn } from '../../lib/cn.ts';
-import { buttonStyles } from '../../ui/Button.tsx';
-import { Code, Detail, Node } from '../../ui/Card.tsx';
-import { TypeIcon } from '../../ui/icons.tsx';
+import { buttonClass } from '../../ui/Button.tsx';
+import { Code, Detail } from '../../ui/Card.tsx';
+import { ITEM_TYPE, TypeIcon } from '../../ui/icons.tsx';
 import { EmptyState, Skeleton } from '../../ui/layout.tsx';
-import { EpistemicMark, Mark } from '../../ui/marks.tsx';
+import { EpistemicMark, Mark, MarkWord } from '../../ui/marks.tsx';
 import { Peek } from '../../ui/Peek.tsx';
 import { Reasons } from '../../ui/Reasons.tsx';
+import { EPISTEMIC_MARK } from '../../words.ts';
 import { type AreaAxis, NODE_TYPES, areaAxis, groupByArea, groupRelations, nodeType, relationsOf } from './graph.ts';
 import { parseAxes } from './taxonomy.ts';
 
@@ -43,7 +45,7 @@ export function GraphTab({ projectId, onTaxonomy }: { projectId: string; onTaxon
   return (
     <div className="flex flex-col gap-7">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-[13px] text-ink-2">
+        <p className="dm-text-small text-ink-2">
           {axis ? (
             <>
               Grouped by {axis.name} ({axis.taxonomy.code} v{axis.taxonomy.version})
@@ -51,13 +53,13 @@ export function GraphTab({ projectId, onTaxonomy }: { projectId: string; onTaxon
           ) : (
             <>
               No taxonomy is approved yet, so nothing is classified.{' '}
-              <button type="button" onClick={onTaxonomy} className="font-semibold text-needs hover:text-needs-hover">
+              <button type="button" onClick={onTaxonomy} className="font-semibold text-needs hover:text-needs-strong">
                 Open the taxonomy
               </button>
             </>
           )}
         </p>
-        <div className="flex items-center gap-1 rounded-[var(--radius-control)] bg-line-soft p-[3px]">
+        <div className="flex flex-wrap items-center gap-2">
           <FilterButton active={filter === 'all'} onClick={() => setFilter('all')} label="All" n={nodes.length} />
           {counts.map((c) => (
             <FilterButton
@@ -73,11 +75,11 @@ export function GraphTab({ projectId, onTaxonomy }: { projectId: string; onTaxon
       {groups.map((g) => (
         <section key={g.key || 'none'} aria-labelledby={`area-${g.key || 'none'}`}>
           <div className="mb-2.5 flex items-baseline gap-2">
-            <h3 id={`area-${g.key || 'none'}`} className="text-[13px] font-semibold text-ink">
+            <h3 id={`area-${g.key || 'none'}`} className="dm-text-small font-semibold text-ink">
               {g.name}
             </h3>
-            <span className="text-xs text-muted tabular-nums">{g.nodes.length}</span>
-            {g.description && <span className="truncate text-xs text-muted">· {g.description}</span>}
+            <span className="dm-text-caption text-muted tabular-nums">{g.nodes.length}</span>
+            {g.description && <span className="dm-text-caption truncate text-muted">· {g.description}</span>}
           </div>
           <ul className="grid grid-cols-3 gap-2">
             {g.nodes.map((n) => (
@@ -92,22 +94,17 @@ export function GraphTab({ projectId, onTaxonomy }: { projectId: string; onTaxon
   );
 }
 
+/** A type filter: the design system's Chip, ink while it is the one shown. */
 function FilterButton({ active, onClick, label, n }: { active: boolean; onClick: () => void; label: string; n: number }) {
   return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={cn(
-        'flex h-7 items-center gap-1.5 rounded-[6px] px-2.5 text-xs font-medium text-ink-3 hover:text-ink',
-        active && 'bg-surface font-semibold text-ink shadow-[0_1px_2px_rgba(29,28,26,0.1)]',
-      )}
-    >
-      {label}
-      <span className="text-muted tabular-nums">{n}</span>
-    </button>
+    <Chip pressed={active} onClick={onClick}>
+      {label} <span className="font-normal tabular-nums">{n}</span>
+    </Chip>
   );
 }
+
+/** Pointing at a node strengthens its line, unless it is the kept (selected) one. */
+const NODE_HOVER = 'rounded-control hover:[&_.dm-node:not(.dm-selected)]:border-line-strong';
 
 function GraphNodeCard({
   projectId,
@@ -134,26 +131,28 @@ function GraphNodeCard({
         search: { v: record.version },
       });
   };
+  const item = ITEM_TYPE[type.icon];
+  const state = invalidated ? 'parked' : ((EPISTEMIC_MARK[node.epistemic_status] ?? 'unknown') as Certainty);
+  const mark = invalidated ? <Mark kind="replaced" label="Invalidated" /> : <EpistemicMark status={node.epistemic_status} />;
   return (
     <Peek
       label={`${type.word}: ${node.label} (${node.ref})`}
       onOpen={open}
-      className="rounded-[10px]"
+      className={NODE_HOVER}
       content={<NodePeek projectId={projectId} node={node} graph={graph} axis={axis} taxonomies={taxonomies} />}
     >
-      <Node
-        icon={type.icon}
-        type={type.word}
-        title={node.label}
-        line={
-          <>
-            {type.word} · <Code>{node.ref}</Code>
-          </>
-        }
-        status={invalidated ? <Mark kind="replaced" label="Invalidated" /> : <EpistemicMark status={node.epistemic_status} />}
-        shape={invalidated ? 'faded' : 'solid'}
-        className="hover:border-line-strong"
-      />
+      {(kept) =>
+        item ? (
+          <DsNode type={item} state={state} mark={mark} title={node.label} selected={kept} />
+        ) : (
+          // A kind the design system has no type for: its node class, with the app's icon.
+          <div className={cn('dm-node', invalidated && 'dm-faded', kept && 'dm-selected')}>
+            <TypeIcon kind={type.icon} size={14} className="shrink-0" />
+            {mark}
+            <span className="dm-text-body min-w-0 flex-1 truncate">{node.label}</span>
+          </div>
+        )
+      }
     </Peek>
   );
 }
@@ -183,7 +182,7 @@ function NodePeek({
       type={type.word}
       status={
         node.state === 'invalidated' ? (
-          <span className="text-muted">Invalidated</span>
+          <MarkWord kind="replaced" word="Invalidated" />
         ) : (
           <EpistemicMark status={node.epistemic_status} withWord />
         )
@@ -196,7 +195,7 @@ function NodePeek({
             to="/p/$projectId/records/$code"
             params={{ projectId, code: node.record.code }}
             search={{ v: node.record.version }}
-            className={buttonStyles({ variant: 'ink', size: 'sm' })}
+            className={buttonClass('secondary')}
           >
             Open {node.record.code}
           </Link>
@@ -210,29 +209,31 @@ function NodePeek({
         )
       }
     >
-      {node.excerpt && <p className="line-clamp-3 text-[13px] whitespace-pre-line text-ink-3">{node.excerpt}</p>}
+      {node.excerpt && <p className="dm-text-small line-clamp-3 whitespace-pre-line text-ink-3">{node.excerpt}</p>}
       {relations.length > 0 ? (
         <div className="flex flex-col gap-2.5">
           {groupRelations(relations).map((g) => (
             <div key={g.word} className="flex flex-col gap-1">
-              <h4 className="text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">
+              <h4 className="dm-label">
                 {g.word} · {g.relations.length}
               </h4>
               <ul className="flex flex-col gap-1">
                 {g.relations.slice(0, PER_GROUP).map((r) => (
-                  <li key={r.key} className="flex items-center gap-2 text-[13px]">
+                  <li key={r.key} className="dm-text-small flex items-center gap-2">
                     {r.node && <TypeIcon kind={nodeType(r.node.type).icon} size={12} className="shrink-0 text-muted" />}
                     <span className="min-w-0 flex-1 truncate text-ink">{r.node?.label ?? r.ref}</span>
                     <Code className="shrink-0">{r.ref}</Code>
                   </li>
                 ))}
               </ul>
-              {g.relations.length > PER_GROUP && <p className="text-xs text-muted">and {g.relations.length - PER_GROUP} more</p>}
+              {g.relations.length > PER_GROUP && (
+                <p className="dm-text-caption text-muted">and {g.relations.length - PER_GROUP} more</p>
+              )}
             </div>
           ))}
         </div>
       ) : (
-        <p className="text-xs text-muted">No relations yet.</p>
+        <p className="dm-text-caption text-muted">No relations yet.</p>
       )}
     </Detail>
   );
@@ -262,12 +263,9 @@ function GraphSkeleton() {
           <Skeleton className="h-3.5 w-40" />
           <div className="grid grid-cols-3 gap-2">
             {[0, 1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="flex h-[52px] items-center gap-2.5 rounded-[10px] border border-line bg-surface px-3">
+              <div key={i} className="dm-node">
                 <Skeleton className="h-3.5 w-3.5" />
-                <div className="flex flex-1 flex-col gap-1.5">
-                  <Skeleton className="h-3 w-3/4" />
-                  <Skeleton className="h-2.5 w-1/2" />
-                </div>
+                <Skeleton className="h-3 w-3/4" />
               </div>
             ))}
           </div>

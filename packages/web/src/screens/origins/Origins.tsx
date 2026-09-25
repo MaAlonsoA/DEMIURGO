@@ -1,7 +1,10 @@
 // Origins (spec §4.4, canvas S2B): a left-to-right tree, thread → decision → feature or tech
-// decision, with their based_on and origin links. Pointing at a node (or focusing it) lights its
-// trace and says why it exists; the trace stays until "Clear trace". Static HTML and SVG.
+// decision, with their based_on and origin links. Each element is the design system's Node (the
+// size of the card template for trees) with its mark, and under it who, when and why it exists.
+// Pointing at a node (or focusing it) lights its trace and says why it exists; the trace stays
+// until "Clear trace". Static HTML and SVG.
 
+import { type Certainty, Node } from '@demiurgo/design-system';
 import { type UseQueryResult, useQueries, useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -12,12 +15,12 @@ import { useProjectId } from '../../lib/hooks.ts';
 import { shortDate } from '../../lib/time.ts';
 import { Button } from '../../ui/Button.tsx';
 import { Code } from '../../ui/Card.tsx';
-import { RECORD_ICON, TypeIcon } from '../../ui/icons.tsx';
+import { RECORD_TYPE } from '../../ui/icons.tsx';
 import { EmptyState, Page, Skeleton } from '../../ui/layout.tsx';
-import { EpistemicMark, StateMark } from '../../ui/marks.tsx';
+import { Mark } from '../../ui/marks.tsx';
 import { Reasons } from '../../ui/Reasons.tsx';
 import { StageBars } from '../../ui/signals.tsx';
-import { TYPE_WORDS, whoOf } from '../../words.ts';
+import { EPISTEMIC_MARK, type MarkKind, TYPE_WORDS, stateWord, whoOf } from '../../words.ts';
 import { ProductTabs } from '../shell/Header.tsx';
 import {
   type Box,
@@ -74,8 +77,8 @@ export function OriginsScreen() {
       <ProductTabs active="origins" />
       <div className="-mx-10 min-h-[calc(100vh-150px)] px-10 pb-16" style={DOTS}>
         <div className="flex items-baseline gap-3 pt-1 pb-4">
-          <h1 className="text-[22px] leading-tight font-semibold">Origins</h1>
-          <p className="text-[14px] text-ink-3">Where each decision, feature and tech decision comes from.</p>
+          <h1 className="dm-text-title leading-tight font-semibold">Origins</h1>
+          <p className="dm-text-body text-ink-3">Where each decision, feature and tech decision comes from.</p>
         </div>
         {tree && tree.nodes.length > 0 && (
           <WhyPanel projectId={projectId} tree={tree} traced={current} onClear={() => setTraced(null)} />
@@ -112,7 +115,7 @@ function combineRecords(results: UseQueryResult<RecordDetail>[]): {
 }
 
 const DOTS = {
-  backgroundImage: 'radial-gradient(var(--color-line-strong) 1px, transparent 1px)',
+  backgroundImage: 'radial-gradient(var(--line-strong) 1px, transparent 1px)',
   backgroundSize: '20px 20px',
 };
 
@@ -140,7 +143,11 @@ function Tree({
     <div className="relative" style={{ width: tree.width }}>
       <div className="relative mb-3 h-5" aria-hidden="true">
         {HEADERS.map((h, i) => (
-          <span key={h} className="absolute top-0 text-xs font-semibold text-muted" style={{ left: g.columns[i]?.x ?? 0 }}>
+          <span
+            key={h}
+            className="dm-text-caption absolute top-0 font-semibold text-muted"
+            style={{ left: g.columns[i]?.x ?? 0 }}
+          >
             {h}
           </span>
         ))}
@@ -160,12 +167,12 @@ function Tree({
                 <path
                   key={e.key}
                   d={e.d}
-                  stroke="var(--color-inactive-light)"
+                  stroke="var(--inactive-soft)"
                   strokeDasharray={e.type === 'link_origin' || e.type === 'start' ? '5 4' : undefined}
                 />
               ))}
           </g>
-          <g fill="none" strokeWidth="2.5" stroke="var(--color-needs)">
+          <g fill="none" strokeWidth="2.5" stroke="var(--needs)">
             {drawn
               .filter((e) => e.lit)
               .map((e) => (
@@ -178,7 +185,7 @@ function Tree({
             const b = box(n.key);
             if (!b) return null;
             return (
-              <li key={n.key} className="absolute" style={{ left: b.x, top: b.y, width: b.w, height: b.h }}>
+              <li key={n.key} className="absolute" style={{ left: b.x, top: b.y, width: b.w, height: b.h + g.noteHeight }}>
                 <OriginCard
                   projectId={projectId}
                   node={n}
@@ -195,8 +202,20 @@ function Tree({
   );
 }
 
-const CARD =
-  'flex h-full w-full flex-col justify-center gap-[3px] rounded-[10px] bg-surface text-left text-ink outline-none transition-[border-color,box-shadow] duration-100';
+/** The node's own mark decides its border (the design system's rule): dashed when open, faded when parked. */
+const nodeState = (kind: MarkKind): Certainty | 'parked' =>
+  kind === 'parked' || kind === 'confirmed' || kind === 'assumed' || kind === 'proposed' || kind === 'open' ? kind : 'unknown';
+
+/** The lit trace: a 2px needs border on each of its nodes; the pointed one is also selected (its ring). */
+const lit = (traced: boolean) =>
+  traced ? '[&_.dm-node]:border-2 [&_.dm-node]:border-needs' : 'hover:[&_.dm-node]:border-line-strong';
+
+/** An element of the tree: its Node, then its lines. */
+const ELEMENT =
+  'flex h-full w-full flex-col gap-1 text-left text-ink outline-none [&_.dm-node]:transition [&_.dm-node]:duration-100';
+
+/** The lines under a node, aligned with its title and clear of the lines that run down a column. */
+const NOTE = 'dm-text-caption flex min-w-0 flex-col pl-14 text-muted';
 
 function OriginCard({
   projectId,
@@ -211,16 +230,17 @@ function OriginCard({
   focused: boolean;
   onTrace: () => void;
 }) {
-  const shape = traced
-    ? cn('border-2 border-needs px-[11px]', focused && 'shadow-[0_0_0_4px_var(--color-needs-ring)]')
-    : 'border border-line px-3 hover:border-line-strong';
   const events = { onPointerEnter: onTrace, onFocus: onTrace, 'data-traced': traced ? 'true' : undefined };
 
   if (node.kind === 'start') {
     return (
-      <div className={cn(CARD, 'border border-dashed border-inactive-light bg-surface/70 px-3')}>
-        <span className="text-[13px] leading-[17px] font-semibold text-ink-2">Not from a thread</span>
-        <span className="truncate text-xs text-ink-3">What follows doesn’t come from a conversation.</span>
+      <div className={ELEMENT}>
+        <div className="dm-node dm-faded">
+          <span className="font-semibold">Not from a thread</span>
+        </div>
+        <span className={cn(NOTE, 'pl-3')}>
+          <span className="truncate text-ink-3">What follows doesn’t come from a conversation.</span>
+        </span>
       </div>
     );
   }
@@ -228,23 +248,30 @@ function OriginCard({
   if (node.kind === 'thread') {
     const e = node.exploration;
     const who = whoOf(e.opened_by);
+    const state = stateWord('exploration', e.state);
     return (
       <Link
         to="/p/$projectId/threads/$explorationId"
         params={{ projectId, explorationId: e.id }}
-        className={cn(CARD, shape)}
+        className={cn(ELEMENT, lit(traced))}
         {...events}
       >
-        <span className="flex items-center gap-1.5 text-[11px] text-muted">
-          <TypeIcon kind="thread" size={13} />
+        {/* The icon says what it is; the word is for whoever doesn't see it. */}
+        <span className="sr-only">Thread</span>
+        <Node
+          type="thread"
+          state={nodeState(state.mark)}
+          mark={<Mark kind={state.mark} label={state.word} />}
+          title={e.purpose}
+          selected={focused}
+        />
+        <span className={NOTE}>
           <span className="truncate">
-            Thread · {who.kind === 'you' ? 'you' : who.name}, {shortDate(e.created_at)}
+            {who.kind === 'you' ? 'you' : who.name}, {shortDate(e.created_at)}
             {node.parent ? ' · inside a thread' : ''}
           </span>
-          <StateMark entity="exploration" state={e.state} className="ml-auto shrink-0 text-[11px]" />
+          {node.phrase && <Phrase text={node.phrase} />}
         </span>
-        <span className="line-clamp-2 text-[13px] leading-[17px] font-semibold">{e.purpose}</span>
-        {node.phrase && <Phrase text={node.phrase} />}
       </Link>
     );
   }
@@ -252,24 +279,33 @@ function OriginCard({
   const row = node.row;
   const who = whoOf(row.updated_by);
   const n = node.version?.n ?? row.latest.n;
+  const kind = EPISTEMIC_MARK[row.epistemic_status] ?? 'unknown';
   return (
-    <Link to="/p/$projectId/records/$code" params={{ projectId, code: row.code }} className={cn(CARD, shape)} {...events}>
-      <span className="flex items-center gap-1.5 text-[11px] text-muted">
-        <TypeIcon kind={RECORD_ICON[row.type] ?? 'feature'} size={13} />
-        <span className="truncate">
-          {TYPE_WORDS[row.type]} · {who.kind === 'you' ? 'you' : who.name}, {shortDate(row.updated_at)}
+    <Link
+      to="/p/$projectId/records/$code"
+      params={{ projectId, code: row.code }}
+      className={cn(ELEMENT, lit(traced))}
+      {...events}
+    >
+      <span className="sr-only">{TYPE_WORDS[row.type]}</span>
+      <Node
+        type={RECORD_TYPE[row.type] ?? 'feature'}
+        state={nodeState(kind)}
+        mark={<Mark kind={kind} />}
+        title={row.title}
+        trailing={row.type === 'fdr' ? <StageBars stage={row.readiness?.ready ? 'ready' : 'not-ready'} /> : undefined}
+        selected={focused}
+      />
+      <span className={NOTE}>
+        <span className="flex items-baseline gap-3">
+          <span className="min-w-0 flex-1 truncate">
+            {who.kind === 'you' ? 'you' : who.name}, {shortDate(row.updated_at)}
+          </span>
+          <Code className="shrink-0">
+            {row.code} v{n}
+          </Code>
         </span>
-        <span className="ml-auto flex shrink-0 items-center gap-2">
-          {row.type === 'fdr' && <StageBars stage={row.readiness?.ready ? 'ready' : 'not-ready'} />}
-          <EpistemicMark status={row.epistemic_status} withWord />
-        </span>
-      </span>
-      <span className="line-clamp-2 text-[13px] leading-[17px] font-semibold">{row.title}</span>
-      <span className="flex items-baseline gap-3">
-        {node.phrase ? <Phrase text={node.phrase} /> : <span className="flex-1" />}
-        <Code className="shrink-0">
-          {row.code} v{n}
-        </Code>
+        {node.phrase && <Phrase text={node.phrase} />}
       </span>
     </Link>
   );
@@ -277,7 +313,7 @@ function OriginCard({
 
 function Phrase({ text }: { text: string }) {
   return (
-    <span className="min-w-0 flex-1 truncate text-xs text-ink-3" title={text}>
+    <span className="truncate text-ink-3" title={text}>
       “{text}”
     </span>
   );
@@ -305,17 +341,17 @@ function WhyPanel({
       aria-labelledby="why-title"
       className={cn(
         'outline-none',
-        'sticky top-[68px] z-10 flex h-[120px] items-center justify-between gap-6 overflow-hidden rounded-[var(--radius-card)] border bg-surface px-5 py-2.5 shadow-[0_4px_16px_rgba(29,28,26,0.06)]',
+        'sticky top-[68px] z-10 flex h-[120px] items-center justify-between gap-6 overflow-hidden rounded-card-md border bg-surface px-5 py-2.5 shadow-raised',
         why ? 'border-needs-ring' : 'border-line',
       )}
     >
       <div className="flex min-w-0 flex-col gap-1">
-        <h2 id="why-title" className={cn('text-xs font-semibold', why ? 'text-needs-hover' : 'text-muted')}>
+        <h2 id="why-title" className={cn('dm-text-caption font-semibold', why ? 'text-needs-strong' : 'text-muted')}>
           Why does this exist?
         </h2>
         {why ? (
           <>
-            <p className="line-clamp-2 text-[14px] leading-5" aria-live="polite">
+            <p className="dm-text-body line-clamp-2 leading-5" aria-live="polite">
               {why.sentence.map((s, i) => (
                 <SegmentText key={`${i}-${s.text}`} projectId={projectId} segment={s} />
               ))}
@@ -323,25 +359,24 @@ function WhyPanel({
             {why.phrases.length > 0 ? (
               <ul className="flex flex-col">
                 {why.phrases.slice(0, 2).map((p) => (
-                  <li key={p.label} className="truncate text-[13px] leading-[18px] text-ink-2" title={p.text}>
+                  <li key={p.label} className="dm-text-small truncate text-ink-2" title={p.text}>
                     <span className="font-semibold text-muted">{p.label}:</span> “{p.text}”
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-[13px] text-muted">No thread conclusion or change note says why yet.</p>
+              <p className="dm-text-small text-muted">No thread conclusion or change note says why yet.</p>
             )}
           </>
         ) : (
-          <p className="text-[14px] text-ink-3">
+          <p className="dm-text-body text-ink-3">
             Point at a thread, a decision or a feature to trace where it comes from and why it exists.
           </p>
         )}
       </div>
       {why && (
         <Button
-          variant="outline"
-          size="lg"
+          variant="secondary"
           className="shrink-0"
           onClick={() => {
             // The button goes away with the trace: the focus stays on the panel.
@@ -359,7 +394,7 @@ function WhyPanel({
 function SegmentText({ projectId, segment }: { projectId: string; segment: Segment }) {
   const to = segment.to;
   if (!to) return <>{segment.text}</>;
-  const cls = 'font-semibold text-needs underline underline-offset-2 hover:text-needs-hover';
+  const cls = 'font-semibold text-needs-strong underline underline-offset-2 hover:no-underline';
   return to.kind === 'record' ? (
     <Link to="/p/$projectId/records/$code" params={{ projectId, code: to.code }} className={cls}>
       {segment.text}
@@ -373,6 +408,7 @@ function SegmentText({ projectId, segment }: { projectId: string; segment: Segme
 
 function TreeSkeleton() {
   const g = geometryFor(1360);
+  const step = g.nodeHeight + g.noteHeight + g.gap;
   return (
     <div role="status" aria-label="Loading the origins" className="relative h-[420px]">
       {[0, 1, 2, 3].map((row) =>
@@ -380,11 +416,13 @@ function TreeSkeleton() {
           col <= row % 3 || row === 0 ? (
             <div
               key={`${row}-${c.x}`}
-              className="absolute flex flex-col justify-center gap-2 rounded-[10px] border border-line bg-surface px-3"
-              style={{ left: `${(c.x / g.width) * 100}%`, width: `${(c.w / g.width) * 100}%`, top: row * 92, height: 80 }}
+              className="absolute flex flex-col gap-2"
+              style={{ left: `${(c.x / g.width) * 100}%`, width: `${(c.w / g.width) * 100}%`, top: row * step }}
             >
-              <Skeleton className="h-2.5 w-2/5" />
-              <Skeleton className="h-3.5 w-4/5" />
+              <div className="dm-node">
+                <Skeleton className="h-3.5 w-4/5" />
+              </div>
+              <Skeleton className="ml-14 h-2.5 w-2/5" />
             </div>
           ) : null,
         ),

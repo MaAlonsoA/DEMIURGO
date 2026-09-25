@@ -1,7 +1,8 @@
-// Right column of a record (canvas S5A and S5D): "Before it can be built" with the server's
-// reasons as they come, the context (where it comes from, what it changes, what it touches) and
-// its versions.
+// Right column of a record (canvas S5A and S5D): "Before it can be built" as the design system's
+// Readiness, with the server's reasons as they come, the context (where it comes from, what it
+// changes, what it touches) and its versions.
 
+import { type Stage as DsStage, StageBars as DsStageBars } from '@demiurgo/design-system';
 import { Link } from '@tanstack/react-router';
 import { type ReactNode, useId } from 'react';
 import type { Readiness, RecordDetail, RecordVersion } from '../../api/types.ts';
@@ -12,19 +13,22 @@ import { Skeleton } from '../../ui/layout.tsx';
 import { ChevronRight, TypeIcon } from '../../ui/icons.tsx';
 import { useLegendMark } from '../../ui/legend-store.ts';
 import { Mark } from '../../ui/marks.tsx';
-import { ReadinessReasons } from '../../ui/Reasons.tsx';
+import { ReadinessBox } from '../../ui/Reasons.tsx';
 import { STAGE_WORDS, type Stage, WhoMark } from '../../ui/signals.tsx';
 import { Tip } from '../../ui/Tip.tsx';
 import { PRODUCT_WORDS, stateWord, whoOf } from '../../words.ts';
 import { LINK_WORDS, type VersionRef } from './logic.ts';
 import { ReviewArea } from './Review.tsx';
 
+/** A link in running text: blue words in needs-strong. */
+const TEXT_LINK = 'dm-text-caption inline-flex items-center gap-1 font-semibold text-needs-strong hover:underline';
+
 function Panel({ title, children, aside }: { title: string; children: ReactNode; aside?: ReactNode }) {
   const id = useId();
   return (
     <section aria-labelledby={id} className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 id={id} className="text-[15px] font-semibold">
+        <h2 id={id} className="dm-text-heading">
           {title}
         </h2>
         {aside}
@@ -35,40 +39,21 @@ function Panel({ title, children, aside }: { title: string; children: ReactNode;
 }
 
 function Sub({ children }: { children: ReactNode }) {
-  return <h3 className="text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">{children}</h3>;
+  return <h3 className="dm-label">{children}</h3>;
 }
 
-/** The three bars with their names: ready · built · verified. Built and verified come with Pillar 2. */
+/** In H1 only the first bar lives: ready shows built and verified as still to come. */
+const DS_STAGE: Record<Stage, DsStage> = { 'not-ready': 'not-ready', ready: 'first-only', doubt: 'in-doubt' };
+
+/** The design system's track with its word: ready · built · verified. Built and verified come with Pillar 2. */
 function StageTrack({ stage }: { stage: Stage }) {
   useLegendMark(`bars:${stage}`);
   const w = STAGE_WORDS[stage];
   return (
     <Tip text={`${w.name} · ${w.phrase}`}>
-      <div role="img" aria-label={w.name} data-stage-track data-stage={stage} className="grid grid-cols-3 gap-1">
-        {(['ready', 'built', 'verified'] as const).map((name, i) => (
-          <span key={name} className="flex flex-col gap-1">
-            <span
-              className={cn(
-                'h-2 rounded-[3px]',
-                i > 0 && 'border border-dashed border-bar-empty',
-                i === 0 && stage === 'ready' && 'bg-ink',
-                i === 0 && stage === 'doubt' && 'bg-problem-fill',
-                i === 0 && stage === 'not-ready' && 'border border-bar-empty',
-              )}
-            />
-            <span
-              className={cn(
-                'text-[11px]',
-                i === 0 && stage === 'ready' ? 'font-semibold text-ink' : '',
-                i === 0 && stage === 'doubt' ? 'font-semibold text-problem' : '',
-                (i > 0 || stage === 'not-ready') && 'font-medium text-muted',
-              )}
-            >
-              {name}
-            </span>
-          </span>
-        ))}
-      </div>
+      <span data-stage-track data-stage={stage} className="inline-flex min-w-0">
+        <DsStageBars stage={DS_STAGE[stage]} label title="" />
+      </span>
     </Tip>
   );
 }
@@ -88,42 +73,48 @@ export function ReadinessPanel({
   if (!readiness) return null;
   const left = readiness.reasons.length;
   const thread = version.origin_exploration;
+  // Ready with nothing to list, the track says it; otherwise the design system's Readiness lists the
+  // reasons as they come and the warnings apart, under its own "Before it can be built" (without a
+  // second track: the stage is the one above).
+  const listed = left > 0 || readiness.warnings.length > 0;
   // The guided review walks its assumed answers as a part of their own; the rest steps back.
   return (
     <section aria-labelledby={id} className="flex flex-col gap-3">
-      <ReviewArea part="readiness" className="flex flex-col gap-3">
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 id={id} className="text-[15px] font-semibold">
-            {readiness.ready ? PRODUCT_WORDS.readyToBuild : 'Before it can be built'}
-          </h2>
-          <span className={cn('text-xs font-semibold', left ? 'text-needs-hover' : 'text-ink-3')}>
-            {left === 0 ? 'Nothing left' : `${left} ${left === 1 ? 'thing' : 'things'} left`}
-          </span>
+      <h2 id={id} className="sr-only">
+        {readiness.ready ? PRODUCT_WORDS.readyToBuild : 'Before it can be built'}
+      </h2>
+      <ReviewArea part="readiness" className="flex flex-col gap-2.5">
+        <div className="flex items-center justify-between gap-3">
+          <StageTrack stage={stage} />
+          {left > 0 && (
+            <span className="dm-text-caption shrink-0 font-semibold text-needs-strong">
+              {left} {left === 1 ? 'thing' : 'things'} left
+            </span>
+          )}
         </div>
-        <StageTrack stage={stage} />
         {readiness.ready ? (
-          <p className="text-[13px] text-ink-2">Nothing blocks it. Nothing is built yet.</p>
+          <p className="dm-text-small text-ink-2">Nothing blocks it. Nothing is built yet.</p>
         ) : stage === 'doubt' ? (
-          <p className="text-[13px] text-problem">It was ready to build, and now something blocks it.</p>
+          <p className="dm-text-small text-problem">It was ready to build, and now something blocks it.</p>
         ) : null}
-        <ReadinessReasons reasons={readiness.reasons} warnings={readiness.warnings} />
+        {listed && <ReadinessBox reasons={readiness.reasons} warnings={readiness.warnings} track={false} />}
       </ReviewArea>
       {thread && version.inferred_questions.length > 0 && (
         <ReviewArea part="assumed" className="flex flex-col gap-2 border-t border-line-soft pt-3">
           <Sub>Assumed in its thread</Sub>
           <ul className="flex flex-col gap-2.5">
             {version.inferred_questions.map((q) => (
-              <li key={q.id} data-inferred-question={q.id} className="flex items-start gap-2 text-[13px]">
+              <li key={q.id} data-inferred-question={q.id} className="dm-text-small flex items-start gap-2">
                 <span className="mt-[5px] flex">
                   <Mark kind="assumed" size={9} />
                 </span>
                 <span className="flex min-w-0 flex-col gap-0.5">
                   <span className="text-ink">{q.question}</span>
-                  {q.conclusion && <span className="text-xs text-ink-3">Assumed: {q.conclusion}</span>}
+                  {q.conclusion && <span className="dm-text-caption text-ink-3">Assumed: {q.conclusion}</span>}
                   <Link
                     to="/p/$projectId/threads/$explorationId"
                     params={{ projectId, explorationId: thread }}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-needs hover:text-needs-hover"
+                    className={TEXT_LINK}
                   >
                     Confirm it in the thread
                     <ChevronRight size={11} />
@@ -160,11 +151,7 @@ export function ContextPanel({
     <Panel
       title="Context"
       aside={
-        <Link
-          to="/p/$projectId/origins"
-          params={{ projectId }}
-          className="text-xs font-semibold text-needs hover:text-needs-hover"
-        >
+        <Link to="/p/$projectId/origins" params={{ projectId }} className={TEXT_LINK}>
           Open in Origins
         </Link>
       }
@@ -179,12 +166,12 @@ export function ContextPanel({
                   <TypeIcon kind="thread" size={13} />
                 </span>
               </span>
-              <span className="flex min-w-0 flex-col text-[13px]">
-                <span className="text-xs text-muted">A thread</span>
+              <span className="dm-text-small flex min-w-0 flex-col">
+                <span className="dm-text-caption text-muted">A thread</span>
                 <Link
                   to="/p/$projectId/threads/$explorationId"
                   params={{ projectId, explorationId: version.origin_exploration }}
-                  className="font-semibold text-ink hover:text-needs"
+                  className="font-semibold text-ink hover:text-needs-strong"
                 >
                   {thread ?? 'Open the thread'}
                 </Link>
@@ -198,14 +185,14 @@ export function ContextPanel({
                   <TypeIcon kind="package" size={13} />
                 </span>
               </span>
-              <span className="text-[13px] text-ink-2">A proposal, accepted by {byWords(version.author)}</span>
+              <span className="dm-text-small text-ink-2">A proposal, accepted by {byWords(version.author)}</span>
             </li>
           )}
           <li className="relative flex gap-2.5">
             <span className="flex w-4 shrink-0 justify-center">
               <WhoMark actor={version.author} size={16} />
             </span>
-            <span className="text-[13px]">
+            <span className="dm-text-small">
               <span className="font-semibold">This version</span>
               <span className="text-muted">
                 {' '}
@@ -218,7 +205,7 @@ export function ContextPanel({
               <span className="flex w-4 shrink-0 justify-center">
                 <WhoMark actor={version.approved_by} size={16} />
               </span>
-              <span className="text-[13px]">
+              <span className="dm-text-small">
                 <span className="font-semibold">Approved by {byWords(version.approved_by)}</span>
                 <span className="text-muted"> · {dayTime(version.approved_at)}</span>
               </span>
@@ -228,7 +215,7 @@ export function ContextPanel({
       </div>
       <div className="flex flex-col gap-1.5">
         <Sub>What it changes</Sub>
-        <p className="text-[13px] leading-relaxed text-ink">
+        <p className="dm-text-small leading-relaxed text-ink">
           {version.change_note ??
             (version.n === 1 ? "It's the first version: it doesn't change an earlier one." : 'This version has no change note.')}
         </p>
@@ -236,7 +223,7 @@ export function ContextPanel({
       <div className="flex flex-col gap-1.5">
         <Sub>What it touches</Sub>
         {version.links.length === 0 ? (
-          <p className="text-[13px] text-ink-3">It has no links to other records.</p>
+          <p className="dm-text-small text-ink-3">It has no links to other records.</p>
         ) : (
           <ul className="flex flex-col gap-1">
             {version.links.map((l) => {
@@ -247,7 +234,7 @@ export function ContextPanel({
               const replaced = l.to_code != null && l.to_current === false && l.to_state === 'superseded';
               const w = stateWord('link', l.state);
               return (
-                <li key={l.id} data-link-target={target?.code ?? ''} className="flex items-start gap-2 text-[13px]">
+                <li key={l.id} data-link-target={target?.code ?? ''} className="dm-text-small flex items-start gap-2">
                   <span className="mt-[5px] flex">
                     <Mark kind={w.mark} size={9} label={`Link: ${w.word}`} />
                   </span>
@@ -259,7 +246,7 @@ export function ContextPanel({
                           to="/p/$projectId/records/$code"
                           params={{ projectId, code: target.code }}
                           search={{ v: target.n }}
-                          className="font-medium text-ink hover:text-needs"
+                          className="font-medium text-ink hover:text-needs-strong"
                         >
                           {target.title}
                         </Link>
@@ -299,17 +286,17 @@ export function VersionsPanel({ projectId, record, shown }: { projectId: string;
                 search={{ v: v.n }}
                 aria-current={selected ? 'page' : undefined}
                 className={cn(
-                  'flex items-center gap-2 rounded-[var(--radius-control)] px-2 py-1.5 text-[13px] hover:bg-line-soft',
+                  'dm-text-small flex items-center gap-2 rounded-control px-2 py-1.5 hover:bg-line-soft',
                   selected && 'bg-line-soft',
                 )}
               >
                 <Mark kind={w.mark} size={9} label={w.word} />
-                <span className="font-mono text-xs font-semibold">v{v.n}</span>
+                <span className="dm-text-caption font-mono font-semibold">v{v.n}</span>
                 <span className={cn(selected ? 'font-semibold text-ink' : 'text-ink-2')}>
                   {w.word}
                   {v.current && <span className="font-normal text-muted"> · current</span>}
                 </span>
-                <span className="ml-auto flex items-center gap-1.5 text-xs text-muted">
+                <span className="dm-text-caption ml-auto flex items-center gap-1.5 text-muted">
                   <WhoMark actor={v.author} size={16} />
                   {shortDate(v.created_at)}
                 </span>

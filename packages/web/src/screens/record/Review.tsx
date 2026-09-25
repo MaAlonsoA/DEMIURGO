@@ -9,7 +9,7 @@ import { useCommand } from '../../api/commands.ts';
 import type { RecordDetail, RecordVersion } from '../../api/types.ts';
 import { cn } from '../../lib/cn.ts';
 import type { AskBarHandle } from '../../ui/AskBar.tsx';
-import { Button, buttonStyles } from '../../ui/Button.tsx';
+import { Button, buttonClass } from '../../ui/Button.tsx';
 import { ConfirmDialog } from '../../ui/dialogs.tsx';
 import { ChevronRight } from '../../ui/icons.tsx';
 import { NeedsBubble } from '../../ui/signals.tsx';
@@ -36,7 +36,7 @@ export function ReviewArea({ part, children, className }: { part: PartKey; child
       data-review-active={active ? 'true' : undefined}
       data-dimmed={on && !active ? 'true' : undefined}
       className={cn(
-        'rounded-xl transition-opacity duration-200',
+        'rounded-card-md transition-opacity duration-200',
         part === 'context' || part === 'checks' || part === 'what' || part === 'how' ? 'scroll-mt-[196px]' : '',
         active && 'outline-2 outline-offset-8 outline-needs',
         on && !active && 'opacity-35',
@@ -134,14 +134,14 @@ export function ReviewBand({
     return (
       <div
         data-review-banner
-        className="mb-5 flex items-center gap-4 rounded-[var(--radius-panel)] border border-needs-ring bg-needs-bg py-3 pr-3.5 pl-[18px]"
+        className="mb-5 flex items-center gap-4 rounded-card border border-needs-line bg-needs-soft py-3 pr-3.5 pl-[18px]"
       >
         <NeedsBubble count={1} detail="Needs you: this version waits for your review." />
         <span className="flex min-w-0 flex-1 flex-col">
-          <strong className="text-[15px] font-semibold">{banner.title}</strong>
-          <span className="text-[13px] text-ink-3">{banner.detail}</span>
+          <strong className="dm-text-heading">{banner.title}</strong>
+          <span className="dm-text-small text-ink-3">{banner.detail}</span>
         </span>
-        <Button ref={start} variant="needs" size="lg" onClick={() => review.setStep(1)}>
+        <Button ref={start} variant="primary" onClick={() => review.setStep(1)}>
           Start review
         </Button>
       </div>
@@ -177,10 +177,11 @@ function Steps({ parts, step, go }: { parts: ReviewPart[]; step: number; go: (n:
               aria-label={`Part ${p.n}: ${p.name}`}
               title={p.name}
               className={cn(
-                'inline-flex h-6 w-6 items-center justify-center rounded-full border-[1.5px] text-xs font-bold transition-colors',
-                state === 'now' && 'border-needs bg-needs text-white',
-                state === 'done' && 'border-ink bg-ink text-white',
-                state === 'next' && 'border-inactive-light bg-surface text-muted hover:border-ink-3',
+                'dm-text-caption inline-flex h-6 w-6 items-center justify-center rounded-full border-[1.5px] font-bold transition-colors',
+                // The part on screen has the selection outline: a blue fill would read as the Needs you counter.
+                state === 'now' && 'border-2 border-needs bg-surface text-needs-strong',
+                state === 'done' && 'border-ink bg-ink text-surface',
+                state === 'next' && 'border-inactive-soft bg-surface text-muted hover:border-ink-3',
               )}
             >
               {p.n}
@@ -242,36 +243,35 @@ function ReviewBar({
   return (
     <section
       aria-label="Review"
-      className="sticky top-[68px] z-20 mb-5 flex flex-col gap-2.5 rounded-[var(--radius-panel)] border border-needs-ring bg-needs-bg py-3 pr-3.5 pl-[18px] shadow-[0_10px_28px_rgba(29,28,26,0.08)]"
+      className="sticky top-[68px] z-20 mb-5 flex flex-col gap-2.5 rounded-card border border-needs-line bg-needs-soft py-3 pr-3.5 pl-[18px] shadow-raised"
     >
       <div className="flex items-center gap-[18px]">
         <Steps parts={parts} step={step} go={go} />
-        <span className="w-px self-stretch bg-needs-ring" aria-hidden="true" />
+        <span className="w-px self-stretch bg-needs-line" aria-hidden="true" />
         <div className="flex min-w-0 flex-1 flex-col" aria-live="polite">
-          <span data-review-label className="text-xs font-semibold text-needs-hover">
+          <span data-review-label className="dm-text-caption font-semibold text-needs-strong">
             {words.label}
           </span>
-          <strong className="text-[15px] leading-snug font-semibold">{words.question}</strong>
-          <span className="text-[13px] leading-snug text-ink-3">{words.hint}</span>
+          <strong className="dm-text-heading">{words.question}</strong>
+          <span className="dm-text-small leading-snug text-ink-3">{words.hint}</span>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          <Button variant="ghost" onClick={onLeave}>
+          <Button variant="text" onClick={onLeave}>
             Leave review
           </Button>
           {step > 1 && (
-            <Button variant="ghost" onClick={() => go(step - 1)}>
+            <Button variant="text" onClick={() => go(step - 1)}>
               Back
             </Button>
           )}
           {words.final ? (
             <>
-              <Button variant="outline" size="lg" onClick={() => go(1)}>
+              <Button variant="secondary" onClick={() => go(1)}>
                 Review again
               </Button>
               <Button
                 ref={confirm}
-                variant="needs"
-                size="lg"
+                variant="primary"
                 onClick={() => {
                   command.reset();
                   setConfirming(true);
@@ -282,10 +282,10 @@ function ReviewBar({
             </>
           ) : (
             <>
-              <Button variant="outline" size="lg" onClick={change}>
+              <Button variant="secondary" onClick={change}>
                 Change something
               </Button>
-              <Button ref={ok} variant="needs" size="lg" onClick={() => go(step + 1)}>
+              <Button ref={ok} variant="primary" onClick={() => go(step + 1)}>
                 Looks right
               </Button>
             </>
@@ -293,7 +293,7 @@ function ReviewBar({
         </div>
       </div>
       {changing && part && (
-        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-needs-ring pt-2.5 text-[13px] text-ink-2">
+        <p className="dm-text-small flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-needs-line pt-2.5 text-ink-2">
           <span>
             Tell DEMIURGO what to change in <strong className="font-semibold">{part.name}</strong>: it is written on the right.
           </span>
@@ -303,7 +303,7 @@ function ReviewBar({
               <Link
                 to="/p/$projectId/records/$code/new-version"
                 params={{ projectId, code: record.code }}
-                className={buttonStyles({ variant: 'outline', size: 'sm' })}
+                className={buttonClass('secondary')}
               >
                 New version
                 <ChevronRight size={11} />

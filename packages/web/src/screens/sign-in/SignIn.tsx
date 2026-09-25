@@ -52,23 +52,23 @@ export function SignInScreen() {
   };
 
   const field =
-    'h-10 w-full rounded-[var(--radius-control)] border border-line-strong bg-surface px-3 text-sm text-ink focus:border-needs focus:outline-none';
+    'dm-text-body h-10 w-full rounded-control border border-line-strong bg-surface px-3 text-ink focus:border-needs focus:outline-none';
 
   return (
     <main id="main" className="flex min-h-screen items-center justify-center bg-paper px-4">
       <form
         onSubmit={(e) => void submit(e)}
-        className="flex w-[380px] flex-col gap-5 rounded-[var(--radius-panel)] border border-line bg-surface p-8 shadow-[0_12px_40px_rgba(29,28,26,0.06)]"
+        className="flex w-[380px] flex-col gap-5 rounded-card border border-line bg-surface p-8 shadow-raised"
         aria-labelledby="sign-in-title"
       >
         <div className="flex flex-col gap-1">
-          <span className="text-[13px] font-bold tracking-[0.14em]">DEMIURGO</span>
-          <h1 id="sign-in-title" className="text-2xl font-semibold">
+          <span className="dm-text-wordmark">DEMIURGO</span>
+          <h1 id="sign-in-title" className="dm-text-page-title font-semibold">
             Sign in
           </h1>
         </div>
         <div className="flex flex-col gap-1.5">
-          <label htmlFor={userId} className="text-xs font-semibold text-ink-2">
+          <label htmlFor={userId} className="dm-text-caption font-semibold text-ink-2">
             User
           </label>
           <input
@@ -82,7 +82,7 @@ export function SignInScreen() {
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <label htmlFor={passwordId} className="text-xs font-semibold text-ink-2">
+          <label htmlFor={passwordId} className="dm-text-caption font-semibold text-ink-2">
             Password
           </label>
           <input
@@ -96,11 +96,11 @@ export function SignInScreen() {
             className={field}
           />
         </div>
-        <Button type="submit" variant="ink" size="lg" disabled={pending || !username || !password}>
+        <Button type="submit" variant="secondary" disabled={pending || !username || !password}>
           {pending ? 'Signing in…' : 'Sign in'}
         </Button>
         {wrong && (
-          <p role="alert" className="text-[13px] font-medium text-problem">
+          <p role="alert" className="dm-text-small font-medium text-problem">
             Wrong user or password.
           </p>
         )}

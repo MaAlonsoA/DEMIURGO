@@ -92,7 +92,7 @@ export function Composer({
       <form
         onSubmit={onSubmit}
         aria-label="Write in the thread"
-        className="flex flex-col rounded-[14px] border border-line-strong bg-surface shadow-[0_8px_24px_rgba(29,28,26,0.06)] has-[textarea:focus-visible]:border-needs has-[textarea:focus-visible]:shadow-[0_0_0_3px_var(--color-needs-ring)]"
+        className="flex flex-col rounded-control border border-line-strong bg-surface shadow-raised has-[textarea:focus-visible]:border-needs"
       >
         <label htmlFor={id} className="sr-only">
           Message
@@ -107,17 +107,17 @@ export function Composer({
           maxLength={20_000}
           placeholder={active ? 'Write to the thread…' : ''}
           className={cn(
-            'w-full rounded-t-[14px] bg-transparent px-4 pt-3 pb-1 text-[14px] leading-relaxed text-ink outline-none placeholder:text-muted disabled:cursor-not-allowed disabled:bg-surface-2',
+            'dm-text-body w-full rounded-t-control bg-transparent px-4 pt-3 pb-1 leading-relaxed text-ink outline-none placeholder:text-muted disabled:cursor-not-allowed disabled:bg-surface-soft',
             active ? 'min-h-[76px] resize-y' : 'h-10 resize-none',
           )}
         />
         <div className="flex items-center gap-2 border-t border-line-soft px-3 py-2">
-          <p className="min-w-0 flex-1 text-xs text-muted">
+          <p className="dm-text-caption min-w-0 flex-1 text-muted">
             {!active ? (
               <span className="flex items-center gap-2">
                 <span className="font-medium text-ink-2">{inactiveNote}</span>
                 {onResume && (
-                  <Button type="button" size="sm" variant="outline" onClick={onResume}>
+                  <Button type="button" variant="secondary" onClick={onResume}>
                     Resume
                   </Button>
                 )}
@@ -129,7 +129,7 @@ export function Composer({
             )}
           </p>
           {canPost && (
-            <Button type="submit" size="sm" variant="ghost" disabled={!active || empty || busy}>
+            <Button type="submit" variant="text" disabled={!active || empty || busy}>
               {sending === 'send' ? 'Sending…' : 'Send'}
             </Button>
           )}
@@ -142,7 +142,7 @@ export function Composer({
             />
           )}
           {canRequest && (
-            <Button type="button" size="sm" variant="ink" disabled={!active || busy} onClick={ask} data-command="run.request">
+            <Button type="button" variant="secondary" disabled={!active || busy} onClick={ask} data-command="run.request">
               {sending === 'ask' ? 'Asking…' : 'Ask DEMIURGO'}
             </Button>
           )}
@@ -166,7 +166,7 @@ function DraftIt({
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild disabled={disabled}>
-        <Button type="button" size="sm" variant="outline" disabled={disabled}>
+        <Button type="button" variant="secondary" disabled={disabled}>
           {pending ? 'Asking…' : 'Draft it'}
           <ChevronDown size={12} />
         </Button>
@@ -177,27 +177,27 @@ function DraftIt({
           align="end"
           sideOffset={8}
           collisionPadding={16}
-          className="z-50 w-[400px] animate-fade-in rounded-[var(--radius-panel)] border border-line bg-surface p-1.5 shadow-[0_16px_40px_rgba(29,28,26,0.14)]"
+          className="z-50 w-[400px] animate-fade-in rounded-card border border-line bg-surface p-1.5 shadow-float"
         >
-          <DropdownMenu.Label className="px-2.5 pt-1.5 pb-2 text-xs text-muted">
+          <DropdownMenu.Label className="dm-text-caption px-2.5 pt-1.5 pb-2 text-muted">
             DEMIURGO drafts a feature with its checks from an approved decision. You review it before anything changes.
           </DropdownMenu.Label>
           {decisions.map((d) => (
             <DropdownMenu.Item
               key={d.versionId}
               onSelect={() => onPick(d)}
-              className="flex cursor-pointer items-start gap-2.5 rounded-md px-2.5 py-2 outline-none data-[highlighted]:bg-line-soft"
+              className="flex cursor-pointer items-start gap-2.5 rounded-tab px-2.5 py-2 outline-none data-[highlighted]:bg-line-soft"
             >
               <span className="mt-0.5 flex text-muted">
                 <TypeIcon kind="decision" size={14} />
               </span>
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="line-clamp-2 text-[13px] font-semibold text-ink">{d.title}</span>
+                <span className="dm-text-small line-clamp-2 font-semibold text-ink">{d.title}</span>
                 <span className="flex items-center gap-2">
                   <Code>
                     {d.code} v{d.version}
                   </Code>
-                  {d.bornHere && <span className="text-[11px] font-semibold text-ink-2">From this thread</span>}
+                  {d.bornHere && <span className="dm-text-caption font-semibold text-ink-2">From this thread</span>}
                 </span>
               </span>
             </DropdownMenu.Item>

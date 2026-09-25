@@ -13,9 +13,10 @@ import { cn } from '../../lib/cn.ts';
 import { useProjectId } from '../../lib/hooks.ts';
 import { ago } from '../../lib/time.ts';
 import { ActionBar } from '../../ui/ActionBar.tsx';
+import { WarningIcon } from '../../ui/icons.tsx';
 import { Page, PageTitle, Skeleton } from '../../ui/layout.tsx';
 import { useLegendMark } from '../../ui/legend-store.ts';
-import { StateMark } from '../../ui/marks.tsx';
+import { StateMark, WorkingMark } from '../../ui/marks.tsx';
 import { Reasons } from '../../ui/Reasons.tsx';
 import { GraphTab } from './GraphTab.tsx';
 import { type Freshness, describeTrigger, freshnessOf } from './graph.ts';
@@ -56,7 +57,7 @@ export function KnowledgeScreen() {
             <Tabs.Trigger
               key={t.value}
               value={t.value}
-              className="-mb-px border-b-2 border-transparent px-0.5 pb-2 text-[14px] font-medium text-muted hover:text-ink data-[state=active]:border-ink data-[state=active]:font-semibold data-[state=active]:text-ink"
+              className="dm-text-body -mb-px border-b-2 border-transparent px-0.5 pb-2 font-medium text-muted hover:text-ink data-[state=active]:border-ink data-[state=active]:font-semibold data-[state=active]:text-ink"
             >
               {t.label}
             </Tabs.Trigger>
@@ -84,25 +85,17 @@ export function KnowledgeScreen() {
 
 const FRESHNESS_WORDS: Record<Freshness, string> = { current: 'Up to date', updating: 'Updating', behind: 'Behind' };
 
-/** The dot of the header: ink when up to date, amber while updating, rust when an update failed. */
+/** The dot of the header: ink when up to date, the design system's Working dot while updating,
+    rust when an update failed. */
 export function FreshnessDot({ state }: { state: Freshness }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={cn(
-        'inline-block h-2 w-2 shrink-0 rounded-full',
-        state === 'current' && 'bg-ink',
-        state === 'updating' && 'animate-pulse-soft bg-working shadow-[0_0_0_3px_var(--color-working-bg)]',
-        state === 'behind' && 'bg-problem-fill',
-      )}
-    />
-  );
+  if (state === 'updating') return <span aria-hidden="true" className="dm-working-dot shrink-0" />;
+  return <span aria-hidden="true" className={cn('dm-dot dm-dot--sm', state === 'current' ? 'bg-ink' : 'bg-problem-fill')} />;
 }
 
 function FreshnessLine({ k }: { k: Knowledge }) {
   const state = freshnessOf(k);
   const failed = k.updates.filter((u) => u.state === 'rejected').length;
-  useLegendMark(state === 'updating' ? 'mark:working' : state === 'behind' ? 'mark:problem' : null);
+  useLegendMark(state === 'behind' ? 'mark:problem' : null);
   const parts = [
     state === 'updating' && `${k.updates_in_progress} ${k.updates_in_progress === 1 ? 'change' : 'changes'} to go`,
     state === 'behind' && `${failed} ${failed === 1 ? 'update' : 'updates'} failed`,
@@ -111,21 +104,21 @@ function FreshnessLine({ k }: { k: Knowledge }) {
     `${k.current_edges} relations`,
   ].filter((p): p is string => typeof p === 'string');
   return (
-    <p data-knowledge-freshness={state} className="flex flex-wrap items-center gap-x-2 text-[14px] text-ink-2">
-      <FreshnessDot state={state} />
-      <strong
-        className={cn(
-          'font-semibold',
-          state === 'current' && 'text-ink',
-          state === 'updating' && 'text-working-text',
-          state === 'behind' && 'text-problem',
-        )}
-      >
-        {FRESHNESS_WORDS[state]}
-      </strong>
+    <p data-knowledge-freshness={state} className="dm-text-body flex flex-wrap items-center gap-x-2 text-ink-2">
+      {state === 'updating' ? (
+        // An update in progress is the design system's Working, with its tooltip and legend entry.
+        <WorkingMark label={FRESHNESS_WORDS.updating}>{FRESHNESS_WORDS.updating}</WorkingMark>
+      ) : (
+        <>
+          <FreshnessDot state={state} />
+          <strong className={cn('font-semibold', state === 'current' ? 'text-ink' : 'text-problem')}>
+            {FRESHNESS_WORDS[state]}
+          </strong>
+        </>
+      )}
       {parts.map((p) => (
         <span key={p} className="flex items-center gap-x-2">
-          <span className="text-inactive" aria-hidden="true">
+          <span className="dm-sep" aria-hidden="true">
             ·
           </span>
           {p}
@@ -147,10 +140,10 @@ function LatestUpdates({ projectId, knowledge }: { projectId: string; knowledge:
   return (
     <section aria-labelledby="updates-title" className="flex flex-col gap-3">
       <div>
-        <h2 id="updates-title" className="text-[15px] font-semibold">
+        <h2 id="updates-title" className="dm-text-heading font-semibold">
           Latest updates
         </h2>
-        <p className="mt-0.5 text-xs text-muted">What you approve, accept or discard updates what DEMIURGO knows.</p>
+        <p className="dm-text-caption mt-0.5 text-muted">What you approve, accept or discard updates what DEMIURGO knows.</p>
       </div>
       {!knowledge ? (
         <div className="flex flex-col gap-3">
@@ -159,7 +152,7 @@ function LatestUpdates({ projectId, knowledge }: { projectId: string; knowledge:
           ))}
         </div>
       ) : updates.length === 0 ? (
-        <p className="text-[13px] text-ink-3">Nothing has changed the knowledge yet.</p>
+        <p className="dm-text-small text-ink-3">Nothing has changed the knowledge yet.</p>
       ) : (
         <ul className="flex flex-col divide-y divide-line-soft border-y border-line-soft">
           {shown.map((u) => (
@@ -171,7 +164,7 @@ function LatestUpdates({ projectId, knowledge }: { projectId: string; knowledge:
         <button
           type="button"
           onClick={() => setAll((v) => !v)}
-          className="self-start text-xs font-semibold text-needs hover:text-needs-hover"
+          className="dm-text-caption self-start font-semibold text-needs hover:text-needs-strong"
         >
           {all ? 'Show fewer' : `Show all ${updates.length}`}
         </button>
@@ -188,25 +181,29 @@ function UpdateRow({ projectId, update: u, what }: { projectId: string; update: 
     <li className="flex flex-col gap-1 py-2.5" data-update={u.state}>
       <div className="flex items-center justify-between gap-2">
         <StateMark entity="knowledge_update" state={u.state} />
-        <span className="text-xs text-muted">{ago(u.created_at)}</span>
+        <span className="dm-text-caption text-muted">{ago(u.created_at)}</span>
       </div>
-      <p className="text-[13px] text-ink">{what}</p>
+      <p className="dm-text-small text-ink">{what}</p>
       {before !== null && after !== null && before !== after && (
-        <p className="font-mono text-[11px] text-muted">
+        <p className="dm-code text-muted">
           v{before} → v{after}
         </p>
       )}
       {u.state === 'rejected' && (
         <>
-          {u.failure && <p className="text-[13px] text-problem">{u.failure}</p>}
+          {u.failure && (
+            <p className="dm-text-small flex items-start gap-1.5 rounded-control bg-problem-tint px-3 py-2 text-problem">
+              <WarningIcon size={14} className="mt-[3px] shrink-0" />
+              <span className="min-w-0">{u.failure}</span>
+            </p>
+          )}
           <ActionBar
             entity="knowledge_update"
             state={u.state}
-            size="sm"
             className="mt-1"
             handlers={{
               'knowledge_update.retry': {
-                variant: 'problem',
+                variant: 'secondary',
                 disabled: command.isPending,
                 run: () => command.mutate({ command: 'knowledge_update.retry', entityId: u.id }),
               },

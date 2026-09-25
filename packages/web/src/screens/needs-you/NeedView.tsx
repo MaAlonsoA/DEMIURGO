@@ -1,25 +1,26 @@
 // One thing that needs the person, in two sizes: a row of the list and the focus of Catch up. Each
 // says what it is, where it comes from and what it unblocks, and has its actions in place. The
-// buttons come from the tables; decisive commands ask first.
+// buttons come from the tables; decisive commands ask first; a category is a short choice (the
+// design system's Chip).
 
+import { Chip } from '@demiurgo/design-system';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { ApiError } from '../../api/client.ts';
 import { useCommand } from '../../api/commands.ts';
 import { keys } from '../../api/queries.ts';
 import type { Exploration, ProductRow, Taxonomy } from '../../api/types.ts';
-import { cn } from '../../lib/cn.ts';
 import { dayTime } from '../../lib/time.ts';
 import { stateWord, TYPE_WORDS } from '../../words.ts';
 import { ActionBar, useAllows } from '../../ui/ActionBar.tsx';
-import { Button, buttonStyles } from '../../ui/Button.tsx';
+import { Button, buttonClass } from '../../ui/Button.tsx';
 import { Code } from '../../ui/Card.tsx';
 import { ConfirmDialog, TextDialog } from '../../ui/dialogs.tsx';
 import { ArrowRight, RECORD_ICON, TypeIcon, WarningIcon } from '../../ui/icons.tsx';
 import { MarkWord } from '../../ui/marks.tsx';
 import { QuestionItem } from '../../ui/QuestionItem.tsx';
-import { Reasons } from '../../ui/Reasons.tsx';
+import { ReadinessBox, Reasons } from '../../ui/Reasons.tsx';
 import { WhoMark } from '../../ui/signals.tsx';
 import { proposalTitle, PROPOSAL_TYPE_WORDS, rowOf, rowOfVersion } from '../batch/model.ts';
 import { Dot, IdeaCheck } from '../batch/parts.tsx';
@@ -151,13 +152,8 @@ function QuestionNeed({ item, ctx, mode }: { item: Extract<NeedItem, { kind: 'qu
         projectId={ctx.projectId}
         question={{ ...q }}
         compact={mode === 'row'}
-        className={cn(
-          // The frame already says the question and its mark; its buttons take the size of the rest.
-          '[&>div>div>p:first-child]:hidden [&>div>span:first-child]:hidden',
-          mode === 'row'
-            ? '[&_button]:h-8 [&_button]:px-3 [&_button]:text-[13px]'
-            : '[&_button]:h-10 [&_button]:px-4 [&_button]:text-sm',
-        )}
+        // The frame already says the question and its mark.
+        className="[&>div>div>p:first-child]:hidden [&>div>span:first-child]:hidden"
       />
     </Frame>
   );
@@ -188,11 +184,7 @@ function PackageNeed({ item, ctx, mode }: { item: Extract<NeedItem, { kind: 'pac
         </>
       }
     >
-      <Link
-        to="/p/$projectId/batches/$batchId"
-        params={{ projectId: ctx.projectId, batchId: b.id }}
-        className={buttonStyles({ variant: mode === 'focus' ? 'needs' : 'outline', size: mode === 'focus' ? 'lg' : 'md' })}
-      >
+      <Link to="/p/$projectId/batches/$batchId" params={{ projectId: ctx.projectId, batchId: b.id }} className={buttonClass()}>
         Open the package <ArrowRight size={13} />
       </Link>
     </Frame>
@@ -251,11 +243,11 @@ function ProposalNeed({ item, ctx, mode }: { item: Extract<NeedItem, { kind: 'pr
     >
       {findings && <IdeaCheck projectId={ctx.projectId} assessment={p.assessment} rows={ctx.rows} />}
       {p.obsolescence.length > 0 && (
-        <p className="flex items-start gap-1.5 text-[13px] text-problem">
+        <p className="dm-text-small flex items-start gap-1.5 text-problem">
           <WarningIcon size={13} className="mt-[3px]" /> {p.obsolescence.join(' ')}
         </p>
       )}
-      <ProposalActions projectId={ctx.projectId} proposal={p} blocked={p.obsolescence.length > 0} size="md" className="mt-1" />
+      <ProposalActions projectId={ctx.projectId} proposal={p} blocked={p.obsolescence.length > 0} className="mt-1" />
     </Frame>
   );
 }
@@ -278,7 +270,6 @@ function VersionNeed({ item, ctx, mode }: { item: Extract<NeedItem, { kind: 'ver
   };
   const run = (name: string, data: Record<string, unknown>) =>
     command.mutate({ command: name, entityId: v.id, data }, { onSuccess: () => setDialog(null) });
-  const size = mode === 'focus' ? 'lg' : 'md';
   return (
     <Frame
       mode={mode}
@@ -307,28 +298,19 @@ function VersionNeed({ item, ctx, mode }: { item: Extract<NeedItem, { kind: 'ver
       }
     >
       {mode === 'focus' && row?.readiness && row.readiness.reasons.length > 0 && (
-        <div className="mb-3 flex flex-col gap-1 rounded-[10px] bg-surface-2 px-3.5 py-2.5">
-          <span className="text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">Before it can be built</span>
-          <ul className="flex flex-col gap-0.5 text-[13px]">
-            {row.readiness.reasons.map((r) => (
-              <li key={r} className="flex items-start gap-2">
-                <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-ink-3" />
-                {r}
-              </li>
-            ))}
-          </ul>
+        <div className="mb-3">
+          <ReadinessBox reasons={row.readiness.reasons} warnings={[]} />
         </div>
       )}
       <div className="flex flex-wrap items-center gap-2.5">
         {v.approvable && allows('record_version.approve') && (
-          <Button size={size} variant="needs" data-command="record_version.approve" onClick={() => open('approve')}>
+          <Button variant="primary" data-command="record_version.approve" onClick={() => open('approve')}>
             Approve
           </Button>
         )}
         {allows('record_version.discard') && (
           <Button
-            size={size}
-            variant={v.approvable ? 'ghost' : 'outline'}
+            variant={v.approvable ? 'text' : 'secondary'}
             data-command="record_version.discard"
             onClick={() => open('discard')}
           >
@@ -336,7 +318,9 @@ function VersionNeed({ item, ctx, mode }: { item: Extract<NeedItem, { kind: 'ver
           </Button>
         )}
         {!v.approvable && (
-          <span className="text-xs text-muted">A later version is already approved: this draft can only be discarded.</span>
+          <span className="dm-text-caption text-muted">
+            A later version is already approved: this draft can only be discarded.
+          </span>
         )}
       </div>
       <ConfirmDialog
@@ -398,9 +382,8 @@ function LinkNeed({ item, ctx, mode }: { item: Extract<NeedItem, { kind: 'link' 
       <ActionBar
         entity="link"
         state={l.state}
-        size={mode === 'focus' ? 'lg' : 'md'}
         handlers={{
-          'link.keep': { run: (a) => run(a.command), label: 'Keep', variant: 'needs', hint: 'It still holds.' },
+          'link.keep': { run: (a) => run(a.command), label: 'Keep', variant: 'primary', hint: 'It still holds.' },
           'link.change': { run: (a) => run(a.command), label: 'Mark as changed', hint: 'It holds, with changes.' },
           'link.obsolete': { run: (a) => run(a.command), label: 'Out of date', hint: 'It no longer holds.' },
         }}
@@ -434,7 +417,6 @@ function ClassificationNeed({
   const categories = axis?.categories ?? [{ code: c.category, name: c.category }];
   const [chosen, setChosen] = useState(c.category);
   const allows = useAllows('classification', 'pending_review');
-  const name = useId();
   const proposed = categories.find((x) => x.code === c.category)?.name ?? c.category;
   const code = c.node_ref.split('@');
   const w = stateWord('classification', 'pending_review');
@@ -464,31 +446,13 @@ function ClassificationNeed({
         >
           <fieldset className="flex flex-wrap items-center gap-2">
             <legend className="sr-only">Category</legend>
+            {/* One category, the chosen one pressed; DEMIURGO's comes chosen. */}
             {categories.map((cat) => (
-              <label key={cat.code} className="relative">
-                <input
-                  type="radio"
-                  name={name}
-                  value={cat.code}
-                  checked={chosen === cat.code}
-                  onChange={() => setChosen(cat.code)}
-                  className="peer sr-only"
-                />
-                <span
-                  title={cat.description}
-                  className="inline-flex cursor-pointer items-center rounded-full border border-line-strong bg-surface px-3 py-1 text-[13px] font-semibold text-ink-2 peer-checked:border-needs peer-checked:bg-needs-bg peer-checked:text-needs-hover peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-needs hover:border-ink-3"
-                >
-                  {cat.name}
-                </span>
-              </label>
+              <Chip key={cat.code} pressed={chosen === cat.code} title={cat.description} onClick={() => setChosen(cat.code)}>
+                {cat.name}
+              </Chip>
             ))}
-            <Button
-              type="submit"
-              size={mode === 'focus' ? 'lg' : 'md'}
-              variant="needs"
-              data-command="classification.resolve"
-              disabled={command.isPending}
-            >
+            <Button type="submit" variant="primary" data-command="classification.resolve" disabled={command.isPending}>
               Resolve
             </Button>
           </fieldset>
@@ -519,12 +483,11 @@ function UpdateNeed({ item, ctx, mode }: { item: Extract<NeedItem, { kind: 'upda
       <ActionBar
         entity="knowledge_update"
         state="rejected"
-        size={mode === 'focus' ? 'lg' : 'md'}
         handlers={{
           'knowledge_update.retry': {
             run: () => command.mutate({ command: 'knowledge_update.retry', entityId: u.id, data: {} }),
             label: 'Retry',
-            variant: 'outline',
+            variant: 'secondary',
           },
         }}
       />

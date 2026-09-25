@@ -7,12 +7,12 @@ import { commandsQuery, tablesQuery } from '../api/queries.ts';
 import { type Action, actionsFor } from '../api/tables.ts';
 import { cn } from '../lib/cn.ts';
 import { commandWord } from '../words.ts';
-import { Button, type ButtonProps } from './Button.tsx';
+import { Button, type ButtonVariant } from './Button.tsx';
 
 export type ActionHandler = {
   run: (action: Action) => void;
   label?: string;
-  variant?: ButtonProps['variant'];
+  variant?: ButtonVariant;
   disabled?: boolean;
   hint?: string;
 };
@@ -34,13 +34,11 @@ export function useAllows(entity: string, state: string | undefined): (command: 
 export function ActionButtons({
   actions,
   handlers,
-  size = 'md',
   className,
   children,
 }: {
   actions: Action[];
   handlers: Record<string, ActionHandler | undefined>;
-  size?: ButtonProps['size'];
   className?: string;
   children?: ReactNode;
 }) {
@@ -51,8 +49,7 @@ export function ActionButtons({
     return [
       <Button
         key={command}
-        size={size}
-        variant={h.variant ?? (action.decisive ? 'needs' : 'outline')}
+        variant={h.variant ?? (action.decisive ? 'primary' : 'secondary')}
         disabled={h.disabled}
         title={h.hint}
         data-command={command}
@@ -76,20 +73,18 @@ export function ActionBar({
   entity,
   state,
   handlers,
-  size,
   className,
   children,
 }: {
   entity: string;
   state: string;
   handlers: Record<string, ActionHandler | undefined>;
-  size?: ButtonProps['size'];
   className?: string;
   children?: ReactNode;
 }) {
   const actions = useActions(entity, state);
   return (
-    <ActionButtons actions={actions} handlers={handlers} {...(size ? { size } : {})} {...(className ? { className } : {})}>
+    <ActionButtons actions={actions} handlers={handlers} {...(className ? { className } : {})}>
       {children}
     </ActionButtons>
   );

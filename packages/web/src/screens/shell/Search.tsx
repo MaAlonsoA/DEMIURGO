@@ -24,7 +24,7 @@ function Highlighted({ text, query }: { text: string; query: string }) {
       {highlight(text, query).map((s, i) =>
         s.match ? (
           // biome-ignore lint/suspicious/noArrayIndexKey: segments of one text, in order
-          <mark key={i} className="rounded-[3px] bg-needs-ring px-px text-ink">
+          <mark key={i} className="rounded-tag bg-needs-ring px-px text-ink">
             {s.text}
           </mark>
         ) : (
@@ -110,13 +110,13 @@ export function Search({ projectId }: { projectId: string }) {
     }
   };
 
-  // Under 1400 px the header has no room for the whole box: it is its magnifier, and it opens over
+  // Under 1600 px the header has no room for the whole box: it is its magnifier, and it opens over
   // the tabs while it has the focus or a text.
   return (
-    <div className="relative h-8 w-8 shrink-0 min-[1400px]:w-[280px]">
+    <div className="relative h-8 w-8 shrink-0 min-[1600px]:w-[280px]">
       <div
         className={cn(
-          'absolute top-0 right-0 z-40 h-8 min-[1400px]:w-[280px]',
+          'absolute top-0 right-0 z-40 h-8 min-[1600px]:w-[280px]',
           text ? 'w-[280px]' : 'w-8 focus-within:w-[280px]',
         )}
       >
@@ -142,23 +142,23 @@ export function Search({ projectId }: { projectId: string }) {
           onFocus={() => setOpen(true)}
           onBlur={() => setOpen(false)}
           onKeyDown={onKeyDown}
-          className="h-8 w-full cursor-pointer rounded-[var(--radius-control)] border border-line-strong bg-surface pr-2.5 pl-8 text-[13px] text-ink placeholder:text-transparent focus:cursor-text focus:border-needs focus:outline-none focus:placeholder:text-muted min-[1400px]:cursor-text min-[1400px]:placeholder:text-muted"
+          className="dm-text-small h-8 w-full cursor-pointer rounded-control border border-line-strong bg-surface pr-2.5 pl-8 text-ink placeholder:text-transparent focus:cursor-text focus:border-needs focus:outline-none focus:placeholder:text-muted min-[1600px]:cursor-text min-[1600px]:placeholder:text-muted"
         />
       </div>
       {showing && (
         <div
           // Keeps the focus in the field while choosing with the pointer.
           onMouseDown={(e) => e.preventDefault()}
-          className="absolute top-full right-0 z-40 mt-1.5 w-[440px] animate-fade-in rounded-[var(--radius-control)] border border-line bg-surface p-1 shadow-[0_12px_32px_rgba(29,28,26,0.12)]"
+          className="absolute top-full right-0 z-40 mt-1.5 w-[440px] animate-fade-in rounded-card border border-line-strong bg-surface p-1 shadow-float"
         >
           {search.error ? (
             <Reasons error={search.error} className="m-1" />
           ) : waiting ? (
-            <p role="status" className="px-3 py-2.5 text-[13px] text-muted">
+            <p role="status" className="dm-text-small px-3 py-2.5 text-muted">
               Searching…
             </p>
           ) : results.length === 0 ? (
-            <p role="status" className="px-3 py-2.5 text-[13px] text-muted">
+            <p role="status" className="dm-text-small px-3 py-2.5 text-muted">
               No matches
             </p>
           ) : (
@@ -176,7 +176,7 @@ export function Search({ projectId }: { projectId: string }) {
                     onClick={() => go(target)}
                     onMouseMove={() => setActive(i)}
                     className={cn(
-                      'flex items-start gap-2.5 rounded-md px-2.5 py-2',
+                      'flex items-start gap-2.5 rounded-tab px-2.5 py-2',
                       target ? 'cursor-pointer' : 'cursor-default',
                       i === active && 'bg-line-soft',
                     )}
@@ -185,16 +185,16 @@ export function Search({ projectId }: { projectId: string }) {
                       <TypeIcon kind={type.icon} size={14} />
                     </span>
                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                      <span className="text-[13px] font-semibold text-ink">
+                      <span className="dm-text-small font-semibold text-ink">
                         <span className="sr-only">{type.word}: </span>
                         <Highlighted text={hit.title} query={query} />
                       </span>
                       {hit.excerpt && (
-                        <span className="line-clamp-2 text-xs text-ink-3">
+                        <span className="dm-text-caption line-clamp-2 text-ink-3">
                           <Highlighted text={snippet(hit.excerpt, query)} query={query} />
                         </span>
                       )}
-                      {!target && <span className="text-[11px] text-muted">It has no page of its own.</span>}
+                      {!target && <span className="dm-text-caption text-muted">It has no page of its own.</span>}
                     </span>
                     <span className="mt-[3px] flex shrink-0">
                       <EpistemicMark status={hit.epistemic_status} />

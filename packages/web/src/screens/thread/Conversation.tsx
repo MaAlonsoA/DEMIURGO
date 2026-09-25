@@ -40,7 +40,7 @@ export function Conversation({
 
   if (items.length === 0) {
     return (
-      <p className="rounded-[12px] border border-dashed border-line-strong px-5 py-6 text-center text-[13px] text-muted">
+      <p className="dm-text-small rounded-card-md border border-dashed border-line-strong px-5 py-6 text-center text-muted">
         {active ? 'Nothing written yet. Write below, then Send it or ask DEMIURGO.' : 'Nothing was written in this thread.'}
       </p>
     );
@@ -99,7 +99,7 @@ function When({ at }: { at: string }) {
 
 function About({ question }: { question: Question | undefined }) {
   if (!question) return null;
-  return <span className="text-xs text-muted">On the question “{question.question}”</span>;
+  return <span className="dm-text-caption text-muted">On the question “{question.question}”</span>;
 }
 
 /** A person (right), an external agent or an automatic rule (left). */
@@ -107,14 +107,14 @@ function PersonMessage({ message: m, by, about }: { message: Message; by: 'you' 
   if (by === 'you') {
     return (
       <article data-message-by="you" data-message={m.id} className="flex max-w-[580px] flex-col items-end gap-1 self-end">
-        <span className="flex items-center gap-1.5 text-xs text-muted">
+        <span className="dm-text-caption flex items-center gap-1.5 text-muted">
           <span className="font-semibold text-ink-2">You</span>
           <span aria-hidden="true">·</span>
           <When at={m.created_at} />
           <WhoMark actor={m.author} size={16} />
         </span>
         <About question={about} />
-        <div className="rounded-[12px_12px_4px_12px] bg-line-soft px-3.5 py-2.5 text-[14px] leading-relaxed whitespace-pre-wrap text-ink">
+        <div className="dm-text-body rounded-card-md rounded-br-tag bg-line-soft px-3.5 py-2.5 leading-relaxed whitespace-pre-wrap text-ink">
           {m.body}
         </div>
       </article>
@@ -123,7 +123,7 @@ function PersonMessage({ message: m, by, about }: { message: Message; by: 'you' 
   const who = whoOf(m.author);
   return (
     <article data-message-by={by} data-message={m.id} className="flex max-w-[640px] flex-col gap-1 self-start">
-      <span className="flex items-center gap-1.5 text-xs text-muted">
+      <span className="dm-text-caption flex items-center gap-1.5 text-muted">
         <WhoMark actor={m.author} size={16} />
         <span className="font-semibold text-ink-2">{by === 'agent' ? who.name : 'Automatic'}</span>
         <span>{by === 'agent' ? 'Agent' : who.detail}</span>
@@ -131,7 +131,7 @@ function PersonMessage({ message: m, by, about }: { message: Message; by: 'you' 
         <When at={m.created_at} />
       </span>
       <About question={about} />
-      <div className="rounded-[4px_12px_12px_12px] border border-line bg-surface px-3.5 py-2.5 text-[14px] leading-relaxed whitespace-pre-wrap">
+      <div className="dm-text-body rounded-card-md rounded-tl-tag border border-line bg-surface px-3.5 py-2.5 leading-relaxed whitespace-pre-wrap">
         {m.body}
       </div>
     </article>
@@ -161,27 +161,27 @@ function DemiurgoMessage({
     <article
       data-message-by="demiurgo"
       data-message={first.id}
-      className="flex max-w-[640px] flex-col gap-2.5 self-start rounded-[12px] border border-line bg-surface px-4 py-3.5"
+      className="flex max-w-[640px] flex-col gap-2.5 self-start rounded-card-md border border-line bg-surface px-4 py-3.5"
     >
-      <header className="flex items-center gap-1.5 text-xs text-muted">
+      <header className="dm-text-caption flex items-center gap-1.5 text-muted">
         <WhoMark actor={first.author} model={model} size={18} />
         <span className="font-semibold text-ink-2">DEMIURGO</span>
         {model && <span>{model}</span>}
         <span aria-hidden="true">·</span>
         <When at={first.created_at} />
       </header>
-      {reply && <p className="text-[14px] leading-relaxed whitespace-pre-wrap text-ink">{reply.body}</p>}
+      {reply && <p className="dm-text-body leading-relaxed whitespace-pre-wrap text-ink">{reply.body}</p>}
       {more.map((m) => (
-        <p key={m.id} className="text-[14px] leading-relaxed whitespace-pre-wrap text-ink">
+        <p key={m.id} className="dm-text-body leading-relaxed whitespace-pre-wrap text-ink">
           {m.body}
         </p>
       ))}
       {observed.length > 0 && (
         <div className={cn('flex flex-col gap-2', (reply || more.length > 0) && 'border-t border-line-soft pt-2.5')}>
-          <h3 className="text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">What it observed</h3>
+          <h3 className="dm-label">What it observed</h3>
           <ul className="flex flex-col gap-2">
             {observed.map((o) => (
-              <li key={o.id} data-observation={o.kind} className="flex items-start gap-2.5 text-[13px] leading-snug">
+              <li key={o.id} data-observation={o.kind} className="dm-text-small flex items-start gap-2.5 leading-snug">
                 <span className="mt-px shrink-0">
                   <ObservationChip kind={o.kind ?? 'unknown'} />
                 </span>
@@ -196,7 +196,7 @@ function DemiurgoMessage({
   );
 }
 
-/** What the conversation proposed: it waits in Needs you until the person resolves it. */
+/** What the conversation proposed: it waits in Needs you, on its ground, until the person resolves it. */
 function Proposed({ projectId, batchId }: { projectId: string; batchId: string }) {
   const batch = useQuery(batchQuery(projectId, batchId)).data;
   if (!batch) return <Skeleton className="h-4 w-1/2" />;
@@ -205,8 +205,8 @@ function Proposed({ projectId, batchId }: { projectId: string; batchId: string }
     <div
       data-proposed={batch.id}
       className={cn(
-        'flex items-center gap-2.5 rounded-[10px] px-3 py-2 text-[13px]',
-        pending ? 'bg-needs-bg text-ink' : 'bg-surface-2 text-ink-2',
+        'dm-text-small flex items-center gap-2.5 rounded-sm border px-3 py-2',
+        pending ? 'border-needs-line bg-needs-soft text-ink' : 'border-transparent bg-surface-soft text-ink-2',
       )}
     >
       <span className="flex text-muted">
@@ -222,7 +222,7 @@ function Proposed({ projectId, batchId }: { projectId: string; batchId: string }
         params={{ projectId, batchId: batch.id }}
         className={cn(
           'inline-flex shrink-0 items-center gap-0.5 font-semibold',
-          pending ? 'text-needs hover:text-needs-hover' : 'text-ink-2 hover:text-ink',
+          pending ? 'text-needs-strong hover:underline' : 'text-ink-2 hover:text-ink',
         )}
       >
         {pending ? 'Review' : 'Open'}

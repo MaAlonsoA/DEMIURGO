@@ -54,8 +54,8 @@ export function DemiurgoPackage({ projectId, batch }: { projectId: string; batch
               <StateMark entity="batch" state={batch.state} />
             </EyebrowWord>
           </Eyebrow>
-          <h1 className="text-2xl leading-tight font-semibold">{title}</h1>
-          {batch.summary && <p className="text-sm text-ink-3">{batch.summary} It is accepted or rejected whole.</p>}
+          <h1 className="dm-text-page-title leading-tight font-semibold">{title}</h1>
+          {batch.summary && <p className="dm-text-body text-ink-3">{batch.summary} It is accepted or rejected whole.</p>}
         </div>
       </header>
       {batch.run_id && <RunLine projectId={projectId} runId={batch.run_id} />}
@@ -71,9 +71,10 @@ export function DemiurgoPackage({ projectId, batch }: { projectId: string; batch
 /** The run that produced the package, with DEMIURGO's model. */
 function RunLine({ projectId, runId }: { projectId: string; runId: string }) {
   const run = useQuery(runQuery(projectId, runId)).data;
-  if (!run) return <div className="mb-6 h-[52px] max-w-[860px] rounded-xl border border-line bg-surface" aria-hidden="true" />;
+  if (!run)
+    return <div className="mb-6 h-[52px] max-w-[860px] rounded-card-md border border-line bg-surface" aria-hidden="true" />;
   return (
-    <div className="mb-6 flex max-w-[860px] items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3 text-[13px]">
+    <div className="dm-text-small mb-6 flex max-w-[860px] items-center gap-3 rounded-card-md border border-line bg-surface px-4 py-3">
       <WhoMark actor={`agent:run:${run.id}`} model={run.model} size={22} />
       <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 text-ink-2">
         <strong className="font-semibold text-ink">
@@ -91,7 +92,7 @@ function RunLine({ projectId, runId }: { projectId: string; runId: string }) {
       <Link
         to="/p/$projectId/runs/$runId"
         params={{ projectId, runId: run.id }}
-        className="inline-flex shrink-0 items-center gap-1 font-semibold text-needs hover:text-needs-hover"
+        className="inline-flex shrink-0 items-center gap-1 font-semibold text-needs-strong hover:underline"
       >
         Open the run <ArrowRight size={12} />
       </Link>
@@ -123,7 +124,7 @@ function ProposedRecord({
           </EyebrowWord>
         </Eyebrow>
         {based?.code && (
-          <div className="flex items-center gap-2 text-[13px] text-muted">
+          <div className="dm-text-small flex items-center gap-2 text-muted">
             Based on <RecordChip projectId={projectId} code={based.code} version={based.version ?? null} rows={rows} />
           </div>
         )}
@@ -134,20 +135,20 @@ function ProposedRecord({
           {SECTIONS.map(([key, label]) =>
             str(p.payload[key]) ? (
               <section key={key} className="flex flex-col gap-1">
-                <h2 className="text-[13px] font-semibold text-ink-2">{label}</h2>
+                <h2 className="dm-text-small font-semibold text-ink-2">{label}</h2>
                 <Markdown>{str(p.payload[key])}</Markdown>
               </section>
             ) : null,
           )}
         </div>
       ) : (
-        <p className="text-sm text-ink-2">{str(p.payload.decision) || str(p.payload.purpose)}</p>
+        <p className="dm-text-body text-ink-2">{str(p.payload.decision) || str(p.payload.purpose)}</p>
       )}
       {criteria.length > 0 && (
         <section className="flex flex-col gap-2.5">
           <div className="flex items-baseline justify-between">
-            <h2 className="text-[13px] font-semibold text-ink-2">Checks ({criteria.length})</h2>
-            <span className="text-xs text-muted">Codes are given when it is accepted</span>
+            <h2 className="dm-text-small font-semibold text-ink-2">Checks ({criteria.length})</h2>
+            <span className="dm-text-caption text-muted">Codes are given when it is accepted</span>
           </div>
           <CheckCards checks={criteria} />
         </section>
@@ -191,7 +192,7 @@ function PackageActions({
   return (
     <>
       <section className="flex flex-col gap-3" aria-label="Decide the package">
-        <h2 className="flex items-center gap-2 text-[15px] font-semibold">
+        <h2 className="dm-text-heading flex items-center gap-2 font-semibold">
           {batch.state === 'pending' ? (
             'Accept it whole'
           ) : (
@@ -202,12 +203,12 @@ function PackageActions({
         </h2>
         {batch.state === 'pending' ? (
           <>
-            <p className="text-[13px] text-ink-2">
+            <p className="dm-text-small text-ink-2">
               Accepting records {what} as a draft. <strong className="font-semibold">Accept and approve</strong> also approves it:
               it becomes the current version. Nothing changes until you decide.
             </p>
             {warnings.length > 0 && (
-              <ul className="list-disc rounded-[10px] border border-problem-line bg-problem-bg py-2 pr-3 pl-7 text-[13px] text-problem">
+              <ul className="dm-text-small list-disc rounded-control bg-problem-tint py-2 pr-3 pl-7 text-problem">
                 {warnings.map((r) => (
                   <li key={r}>{r}</li>
                 ))}
@@ -216,25 +217,25 @@ function PackageActions({
             <div className="flex flex-col gap-2">
               {allows('batch.accept_package') && warnings.length === 0 && (
                 <>
-                  <Button size="lg" variant="needs" data-command="batch.accept_package" onClick={() => open('accept')}>
+                  <Button variant="primary" data-command="batch.accept_package" onClick={() => open('accept')}>
                     Accept package
                   </Button>
-                  <Button size="lg" variant="outline" data-command="batch.accept_package" onClick={() => open('approve')}>
+                  <Button variant="secondary" data-command="batch.accept_package" onClick={() => open('approve')}>
                     Accept and approve
                   </Button>
                 </>
               )}
               {allows('batch.reject_package') && (
-                <Button size="lg" variant="ghost" data-command="batch.reject_package" onClick={() => open('reject')}>
+                <Button variant="text" data-command="batch.reject_package" onClick={() => open('reject')}>
                   Reject package
                 </Button>
               )}
             </div>
           </>
         ) : batch.state === 'superseded' ? (
-          <p className="text-[13px] text-ink-2">What it was based on changed. It can&apos;t be accepted any more.</p>
+          <p className="dm-text-small text-ink-2">What it was based on changed. It can&apos;t be accepted any more.</p>
         ) : (
-          <div className="flex flex-col gap-2 text-[13px] text-ink-2">
+          <div className="dm-text-small flex flex-col gap-2 text-ink-2">
             {effects.map((e) => (
               <p key={e.code} className="flex flex-wrap items-center gap-2">
                 <RecordChip projectId={projectId} code={e.code} version={e.version} rows={rows} />
@@ -246,14 +247,16 @@ function PackageActions({
         )}
       </section>
       {batch.dependencies.length > 0 && (
-        <section className="flex flex-col gap-2 text-[13px]" aria-label="Starts from">
-          <h2 className="text-xs font-semibold text-muted">Starts from</h2>
+        <section className="dm-text-small flex flex-col gap-2" aria-label="Starts from">
+          <h2 className="dm-text-caption font-semibold text-muted">Starts from</h2>
           <div className="flex flex-wrap gap-2">
             {batch.dependencies.map((d) =>
               d.code ? <RecordChip key={d.id} projectId={projectId} code={d.code} version={d.version} rows={rows} /> : null,
             )}
           </div>
-          <p className="text-xs text-muted">If it gets a newer version before you decide, the package goes out of date.</p>
+          <p className="dm-text-caption text-muted">
+            If it gets a newer version before you decide, the package goes out of date.
+          </p>
         </section>
       )}
       <ConfirmDialog

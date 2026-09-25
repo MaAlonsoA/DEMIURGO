@@ -5,7 +5,8 @@
 import { Link } from '@tanstack/react-router';
 import { useId } from 'react';
 import type { Inbox, ProductState, RunListItem } from '../../api/types.ts';
-import { buttonStyles } from '../../ui/Button.tsx';
+import { cn } from '../../lib/cn.ts';
+import { buttonClass } from '../../ui/Button.tsx';
 import { Skeleton } from '../../ui/layout.tsx';
 import { Mark } from '../../ui/marks.tsx';
 import { NeedsBubble, StageBars } from '../../ui/signals.tsx';
@@ -25,18 +26,18 @@ function Item({ projectId, item, index }: { projectId: string; item: NeedsItem; 
         params={{ projectId, ...item.target.params } as never}
         search={('search' in item.target ? item.target.search : undefined) as never}
         data-needs-item={item.kind}
-        className="flex flex-col gap-0.5 rounded-[var(--radius-card)] border border-transparent bg-needs-bg px-3 py-2.5 text-ink hover:border-needs-ring focus-visible:border-needs"
+        className="flex flex-col gap-0.5 rounded-card-md border border-needs-line bg-surface px-3 py-2.5 text-ink hover:border-needs focus-visible:border-needs"
       >
-        <span className="flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">
+        <span className="dm-label flex items-center gap-1.5">
           <span className="tabular-nums">{index + 1}</span>
-          <span className="text-inactive-light" aria-hidden="true">
+          <span className="dm-sep" aria-hidden="true">
             ·
           </span>
-          <Mark kind={item.mark} size={9} />
+          <Mark kind={item.mark} />
           <span className={item.mark === 'conflict' || item.mark === 'problem' ? 'text-problem' : ''}>{item.label}</span>
         </span>
-        <strong className="line-clamp-2 text-[14px] leading-snug font-semibold">{item.title}</strong>
-        <span className="truncate text-xs text-ink-3">{item.from}</span>
+        <strong className="dm-text-body line-clamp-2 leading-snug font-semibold">{item.title}</strong>
+        <span className="dm-text-caption truncate text-ink-3">{item.from}</span>
       </Link>
     </li>
   );
@@ -69,33 +70,37 @@ export function NeedsColumn({
 
   return (
     <>
-      <section aria-labelledby={needsId} className="flex flex-col gap-2.5">
+      {/* What needs you sits on its band (needs-soft, needs-line); with nothing waiting it is plain. */}
+      <section
+        aria-labelledby={needsId}
+        className={cn('flex flex-col gap-2.5', total > 0 && 'rounded-card border border-needs-line bg-needs-soft p-4')}
+      >
         <div className="flex flex-col gap-0.5">
-          <h2 className="flex items-center gap-2 text-[15px] font-semibold">
+          <h2 className="dm-text-heading flex items-center gap-2 font-semibold">
             <span id={needsId}>{PRODUCT_WORDS.needsYou}</span>
             <NeedsBubble count={total} />
           </h2>
           {total > 0 && (
-            <span className="text-xs text-muted" data-needs-summary>
+            <span className="dm-text-caption text-muted" data-needs-summary>
               {total} {total === 1 ? 'item' : 'items'} · about {minutes} {minutes === 1 ? 'minute' : 'minutes'}
             </span>
           )}
         </div>
         {!inbox ? (
           <div className="flex flex-col gap-2" aria-hidden="true">
-            <Skeleton className="h-16 w-full rounded-[var(--radius-card)]" />
-            <Skeleton className="h-16 w-full rounded-[var(--radius-card)]" />
+            <Skeleton className="h-16 w-full rounded-card-md" />
+            <Skeleton className="h-16 w-full rounded-card-md" />
           </div>
         ) : total === 0 ? (
-          <p className="text-[13px] text-ink-2">{PRODUCT_WORDS.nothingNeedsYou}</p>
+          <p className="dm-text-small text-ink-2">{PRODUCT_WORDS.nothingNeedsYou}</p>
         ) : (
           <>
             {ratified ? (
-              <p className="text-[13px] text-ink-3">
+              <p className="dm-text-small text-ink-3">
                 Everything is proposed: nothing is approved yet. Start with what you agree with.
               </p>
             ) : (
-              <p className="text-[13px] text-ink-3">In this order: what blocks more goes first.</p>
+              <p className="dm-text-small text-ink-3">In this order: what blocks more goes first.</p>
             )}
             <ol className="flex flex-col gap-2">
               {items.slice(0, SHOWN).map((item, i) => (
@@ -106,7 +111,7 @@ export function NeedsColumn({
               <Link
                 to="/p/$projectId/needs-you"
                 params={{ projectId }}
-                className="text-xs font-semibold text-needs hover:text-needs-hover"
+                className="dm-text-caption font-semibold text-needs-strong hover:underline"
               >
                 And {items.length - SHOWN} more in Needs you
               </Link>
@@ -117,7 +122,7 @@ export function NeedsColumn({
                   to="/p/$projectId/records/$code"
                   params={{ projectId, code: firstVersion.code }}
                   search={{ v: firstVersion.n }}
-                  className={buttonStyles({ variant: 'needs', size: 'lg', className: 'mt-1 w-full' })}
+                  className={buttonClass('primary')}
                 >
                   Start with the versions to approve
                 </Link>
@@ -125,7 +130,7 @@ export function NeedsColumn({
                   to="/p/$projectId/needs-you"
                   params={{ projectId }}
                   search={{ 'catch-up': 1 }}
-                  className="text-center text-xs font-semibold text-needs hover:text-needs-hover"
+                  className="dm-text-caption text-center font-semibold text-needs-strong hover:underline"
                 >
                   Or catch up with everything, one at a time
                 </Link>
@@ -136,11 +141,11 @@ export function NeedsColumn({
                   to="/p/$projectId/needs-you"
                   params={{ projectId }}
                   search={{ 'catch-up': 1 }}
-                  className={buttonStyles({ variant: 'needs', size: 'lg', className: 'mt-1 w-full' })}
+                  className={buttonClass('primary')}
                 >
                   Catch up
                 </Link>
-                <p className="text-center text-xs text-muted">One at a time. What you skip stays here.</p>
+                <p className="dm-text-caption text-center text-muted">One at a time. What you skip stays here.</p>
               </>
             )}
           </>
@@ -150,11 +155,11 @@ export function NeedsColumn({
       <RunningNow projectId={projectId} runs={runs} threads={threads} now={now} />
 
       <section aria-labelledby={readyId} className="flex flex-col gap-2">
-        <h2 id={readyId} className="text-xs font-semibold text-muted">
+        <h2 id={readyId} className="dm-text-caption font-semibold text-muted">
           {PRODUCT_WORDS.readyToBuild}
         </h2>
         {ready.length === 0 ? (
-          <p className="text-[13px] text-ink-3">Nothing is ready to build yet.</p>
+          <p className="dm-text-small text-ink-3">Nothing is ready to build yet.</p>
         ) : (
           <ul className="flex flex-col gap-0.5">
             {ready.map((r) => (
@@ -162,9 +167,9 @@ export function NeedsColumn({
                 <Link
                   to="/p/$projectId/records/$code"
                   params={{ projectId, code: r.code }}
-                  className="-mx-2 flex items-center gap-2.5 rounded-[var(--radius-control)] px-2 py-1.5 text-[13px] hover:bg-line-soft"
+                  className="dm-text-small -mx-2 flex items-center gap-2.5 rounded-control px-2 py-1.5 hover:bg-line-soft"
                 >
-                  <Mark kind="confirmed" size={9} />
+                  <Mark kind="confirmed" />
                   <span className="min-w-0 flex-1 truncate font-medium">{r.title}</span>
                   <StageBars stage="ready" />
                 </Link>

@@ -8,6 +8,7 @@ import {
   newApprovedVersion,
   tabTo,
 } from './needs-data.ts';
+import { foldLegend } from './record-setup.ts';
 import { BASE_URL, designTree, expect, expectAccessible, screenshot, test } from './support/fixtures.ts';
 
 type Batch = { state: string; proposals: { id: string; state: string; resolution: Record<string, unknown> | null }[] };
@@ -134,6 +135,8 @@ test('AC-INT-001-12 an agent batch is resolved one proposal at a time with its a
     decisionProposal('Weather for outdoor activities', 'Outdoor activities show the forecast for their day.'),
   ]);
   await assessed(person, projectId, batchId);
+  // The open legend sits over the bottom left of the batch page, where its actions are.
+  await foldLegend(page);
   await page.goto(`/p/${projectId}/batches/${batchId}`);
 
   await expect(page.getByRole('heading', { level: 1 })).toContainText('claude-code');
@@ -213,7 +216,8 @@ test('AC-INT-001-13 a proposal based on a version shows Out of date with the rec
   await expect(stale).toContainText(d.code);
   await expect(stale).toContainText('v1');
   await expect(card.getByRole('button', { name: /^Accept/ })).toHaveCount(0);
-  await expect(card.locator('[data-mark="stale"]').first()).toBeVisible();
+  // The grey clock of Out of date, drawn by the design system's Proposal.
+  await expect(stale.locator('[data-mark="stale"]')).toBeVisible();
   await expectAccessible(page, 'an out-of-date proposal');
 });
 

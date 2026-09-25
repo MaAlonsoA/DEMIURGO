@@ -7,8 +7,9 @@ import { Button } from './Button.tsx';
 import { Reasons } from './Reasons.tsx';
 
 const overlay = 'fixed inset-0 z-50 bg-ink/25 animate-fade-in';
+/** A dialog floats like a peek: the design system's panel, with its float shadow. */
 const panel =
-  'fixed top-1/2 left-1/2 z-50 w-[480px] max-w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 animate-fade-in rounded-[var(--radius-panel)] border border-line bg-surface p-6 shadow-[0_24px_64px_rgba(29,28,26,0.18)]';
+  'dm-panel dm-float fixed top-1/2 left-1/2 z-50 w-[480px] max-w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 animate-fade-in p-6';
 
 /** Confirmation of a decisive command: says what it does before doing it. */
 export function ConfirmDialog({
@@ -37,18 +38,18 @@ export function ConfirmDialog({
       <AlertDialog.Portal>
         <AlertDialog.Overlay className={overlay} />
         <AlertDialog.Content className={panel}>
-          <AlertDialog.Title className="text-lg font-semibold">{title}</AlertDialog.Title>
+          <AlertDialog.Title className="dm-text-title font-normal">{title}</AlertDialog.Title>
           <AlertDialog.Description asChild>
-            <div className="mt-2 text-sm text-ink-2">{description}</div>
+            <div className="dm-text-body text-ink-2">{description}</div>
           </AlertDialog.Description>
           {children}
-          {error ? <Reasons error={error} className="mt-4" /> : null}
-          <div className="mt-6 flex justify-end gap-2">
+          {error ? <Reasons error={error} /> : null}
+          <div className="mt-3 flex justify-end gap-2">
             <AlertDialog.Cancel asChild>
-              <Button variant="ghost">Not now</Button>
+              <Button variant="text">Not now</Button>
             </AlertDialog.Cancel>
             <Button
-              variant="needs"
+              variant="primary"
               disabled={pending}
               onClick={(e) => {
                 e.preventDefault();
@@ -79,7 +80,7 @@ export function TextDialog({
   onSubmit,
   pending,
   error,
-  variant = 'ink',
+  variant = 'secondary',
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -94,7 +95,7 @@ export function TextDialog({
   onSubmit: (text: string) => void;
   pending?: boolean;
   error?: unknown;
-  variant?: 'ink' | 'needs';
+  variant?: 'secondary' | 'primary';
 }) {
   const [text, setText] = useState(initial);
   const id = useId();
@@ -108,22 +109,22 @@ export function TextDialog({
     onSubmit(text.trim());
   };
   const field =
-    'w-full rounded-[var(--radius-control)] border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-needs focus:outline-none';
+    'dm-text-body w-full rounded-control border border-line-strong bg-surface px-3 py-2 text-ink placeholder:text-muted focus:border-needs focus:outline-none';
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className={overlay} />
         <Dialog.Content className={panel}>
-          <Dialog.Title className="text-lg font-semibold">{title}</Dialog.Title>
+          <Dialog.Title className="dm-text-title font-normal">{title}</Dialog.Title>
           {description ? (
             <Dialog.Description asChild>
-              <div className="mt-1 text-sm text-ink-2">{description}</div>
+              <div className="dm-text-body text-ink-2">{description}</div>
             </Dialog.Description>
           ) : (
             <Dialog.Description className="sr-only">{label}</Dialog.Description>
           )}
-          <form onSubmit={send} className="mt-4 flex flex-col gap-2">
-            <label htmlFor={id} className="text-xs font-semibold text-ink-2">
+          <form onSubmit={send} className="mt-1 flex flex-col gap-2">
+            <label htmlFor={id} className="dm-text-caption font-semibold text-ink-2">
               {label}
               {!required && <span className="font-normal text-muted"> · optional</span>}
             </label>
@@ -141,9 +142,9 @@ export function TextDialog({
             )}
             {error ? <Reasons error={error} className="mt-2" /> : null}
             <div className="mt-4 flex items-center justify-end gap-2">
-              {required && empty && <span className="mr-auto text-xs text-muted">Write something to continue.</span>}
+              {required && empty && <span className="dm-text-caption mr-auto text-muted">Write something to continue.</span>}
               <Dialog.Close asChild>
-                <Button variant="ghost">Not now</Button>
+                <Button variant="text">Not now</Button>
               </Dialog.Close>
               <Button type="submit" variant={variant} disabled={pending || (required && empty)}>
                 {pending ? 'Working…' : submit}

@@ -23,7 +23,7 @@ import { Reasons } from '../../ui/Reasons.tsx';
 import { WhoMark } from '../../ui/signals.tsx';
 import { whoOf } from '../../words.ts';
 import { NotFound } from '../not-found/NotFound.tsx';
-import { OpenThreadDialog } from '../threads/Threads.tsx';
+import { OpenThreadDialog, ThreadNode } from '../threads/Threads.tsx';
 import { Composer } from './Composer.tsx';
 import { Conversation } from './Conversation.tsx';
 import { buildTimeline, draftableDecisions } from './timeline.ts';
@@ -127,10 +127,10 @@ function ThreadHeader({
   return (
     <header data-thread-header className="mb-7 flex flex-col gap-2.5">
       <Breadcrumbs items={crumbs} />
-      <div className="flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">
+      <div className="dm-label flex items-center gap-1.5">
         <TypeIcon kind="thread" size={14} />
         Thread
-        <span className="text-inactive-light" aria-hidden="true">
+        <span className="dm-sep" aria-hidden="true">
           ·
         </span>
         <span className="tracking-normal normal-case">
@@ -138,17 +138,17 @@ function ThreadHeader({
         </span>
       </div>
       <div className="flex items-start justify-between gap-6">
-        <h1 className="text-[26px] leading-tight font-semibold text-balance">{t.purpose}</h1>
+        <h1 className="dm-text-page-title leading-tight font-semibold text-balance">{t.purpose}</h1>
         <ActionBar
           entity="exploration"
           state={t.state}
           className="shrink-0 pt-1"
           handlers={{
-            'exploration.conclude': { run: () => open('conclude'), variant: 'outline' },
-            'exploration.set_aside': { run: () => open('set_aside'), variant: 'ghost' },
+            'exploration.conclude': { run: () => open('conclude'), variant: 'secondary' },
+            'exploration.set_aside': { run: () => open('set_aside'), variant: 'text' },
             'exploration.resume': {
               run: () => run('exploration.resume', {}),
-              variant: 'ink',
+              variant: 'secondary',
               disabled: command.isPending,
             },
           }}
@@ -157,18 +157,21 @@ function ThreadHeader({
       <Provenance projectId={projectId} thread={t} parent={parent} products={products} />
       {!dialog && command.error ? <Reasons error={command.error} /> : null}
       {t.state === 'concluded' && t.state_reason && (
-        <div data-thread-conclusion className="mt-1 flex flex-col gap-0.5 rounded-[12px] border border-line bg-surface px-4 py-3">
-          <span className="text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">Conclusion</span>
-          <p className="text-[14px] leading-relaxed whitespace-pre-wrap">{t.state_reason}</p>
+        <div
+          data-thread-conclusion
+          className="mt-1 flex flex-col gap-0.5 rounded-card-md border border-line bg-surface px-4 py-3"
+        >
+          <span className="dm-label">Conclusion</span>
+          <p className="dm-text-body leading-relaxed whitespace-pre-wrap">{t.state_reason}</p>
         </div>
       )}
       {t.state === 'set_aside' && (
         <div
           data-thread-conclusion
-          className="mt-1 flex flex-col gap-0.5 rounded-[12px] border border-dashed border-line-strong px-4 py-3"
+          className="mt-1 flex flex-col gap-0.5 rounded-card-md border border-dashed border-line-strong px-4 py-3"
         >
-          <span className="text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">Why it was set aside</span>
-          <p className="text-[14px] leading-relaxed whitespace-pre-wrap text-ink-2">{t.state_reason || 'No reason given.'}</p>
+          <span className="dm-label">Why it was set aside</span>
+          <p className="dm-text-body leading-relaxed whitespace-pre-wrap text-ink-2">{t.state_reason || 'No reason given.'}</p>
         </div>
       )}
 
@@ -242,11 +245,11 @@ function Provenance({
     </span>,
   );
   return (
-    <p data-thread-provenance className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted">
+    <p data-thread-provenance className="dm-text-small flex flex-wrap items-center gap-x-2 gap-y-1 text-muted">
       {parts.map((p, i) => (
         <span key={i} className="inline-flex items-center gap-2">
           {i > 0 && (
-            <span className="text-inactive-light" aria-hidden="true">
+            <span className="dm-sep" aria-hidden="true">
               ·
             </span>
           )}
@@ -296,7 +299,7 @@ function originOf(
           <Link to="/p/$projectId/records/$code" params={{ projectId, code: row.code }} search={{ v: n }} className={link}>
             {row.title}
           </Link>{' '}
-          <span className="font-mono text-[11px]">
+          <span className="dm-code">
             {row.code} v{n}
           </span>
         </>
@@ -326,12 +329,12 @@ function ThreadAside({ projectId, thread: t }: { projectId: string; thread: Expl
           <span id="thread-questions">Questions</span>
         </SectionTitle>
         {t.questions.length === 0 && (
-          <p className="text-[13px] text-muted">No questions yet. DEMIURGO raises them as the thread goes on.</p>
+          <p className="dm-text-small text-muted">No questions yet. DEMIURGO raises them as the thread goes on.</p>
         )}
         <QuestionList projectId={projectId} questions={waiting} />
         {settled.length > 0 && (
           <>
-            <h3 className="mt-4 mb-1 text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">Settled</h3>
+            <h3 className="dm-label mt-4 mb-1">Settled</h3>
             <QuestionList projectId={projectId} questions={settled} />
           </>
         )}
@@ -342,28 +345,18 @@ function ThreadAside({ projectId, thread: t }: { projectId: string; thread: Expl
           <span id="thread-children">Threads inside</span>
         </SectionTitle>
         {t.children.length > 0 ? (
-          <ul className="mb-3 flex flex-col gap-1.5">
+          <ul className="mb-3 flex flex-col gap-2">
             {t.children.map((c) => (
-              <li key={c.id} className="flex items-center gap-2">
-                <span className="flex text-muted">
-                  <TypeIcon kind="thread" size={14} />
-                </span>
-                <Link
-                  to="/p/$projectId/threads/$explorationId"
-                  params={{ projectId, explorationId: c.id }}
-                  className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink underline-offset-2 hover:underline"
-                >
-                  {c.purpose}
-                </Link>
-                <StateMark entity="exploration" state={c.state} />
+              <li key={c.id} className="flex">
+                <ThreadNode projectId={projectId} thread={c} />
               </li>
             ))}
           </ul>
         ) : (
-          <p className="mb-3 text-[13px] text-muted">None yet.</p>
+          <p className="dm-text-small mb-3 text-muted">None yet.</p>
         )}
         {canOpen && (
-          <Button size="sm" variant="outline" className="self-start" onClick={() => setOpening(true)}>
+          <Button variant="secondary" className="self-start" onClick={() => setOpening(true)}>
             <PlusIcon size={12} />
             New thread inside
           </Button>

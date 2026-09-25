@@ -1,12 +1,12 @@
 // Version selector of the record header ("v1 draft ▾"): each version with its mark, its author
-// and who approved it.
+// and who approved it, in a popover that floats like a peek (the design system's floating panel).
 
 import { useNavigate } from '@tanstack/react-router';
 import { DropdownMenu } from 'radix-ui';
 import type { RecordDetail, RecordVersion } from '../../api/types.ts';
 import { cn } from '../../lib/cn.ts';
 import { shortDate } from '../../lib/time.ts';
-import { buttonStyles } from '../../ui/Button.tsx';
+import { buttonClass } from '../../ui/Button.tsx';
 import { ChevronDown } from '../../ui/icons.tsx';
 import { MarkGlyph } from '../../ui/marks.tsx';
 import { WhoGlyph, whoLabel } from '../../ui/signals.tsx';
@@ -29,11 +29,11 @@ export function VersionPicker({ projectId, record, shown }: { projectId: string;
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger
-        className={buttonStyles({ variant: 'outline', className: 'gap-2' })}
+        className={buttonClass('secondary')}
         aria-label={`Version ${shown.n} of ${record.versions.length} · choose another`}
       >
         <MarkGlyph kind={w.mark} size={9} />
-        <span className="font-mono text-xs">v{shown.n}</span>
+        <span className="dm-text-caption font-mono">v{shown.n}</span>
         <span className="font-medium text-ink-2">{w.word.toLowerCase()}</span>
         <ChevronDown size={12} />
       </DropdownMenu.Trigger>
@@ -41,11 +41,9 @@ export function VersionPicker({ projectId, record, shown }: { projectId: string;
         <DropdownMenu.Content
           align="end"
           sideOffset={6}
-          className="z-50 min-w-72 animate-fade-in rounded-[var(--radius-control)] border border-line bg-surface p-1 shadow-[0_12px_32px_rgba(29,28,26,0.12)]"
+          className="dm-panel dm-float z-50 min-w-72 animate-fade-in gap-0 rounded-card p-1.5"
         >
-          <DropdownMenu.Label className="px-2.5 py-1.5 text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">
-            Versions
-          </DropdownMenu.Label>
+          <DropdownMenu.Label className="dm-label px-2.5 py-1.5">Versions</DropdownMenu.Label>
           {record.versions.toReversed().map((v) => {
             const vw = stateWord('record_version', v.state);
             return (
@@ -59,18 +57,18 @@ export function VersionPicker({ projectId, record, shown }: { projectId: string;
                   })
                 }
                 className={cn(
-                  'flex cursor-pointer flex-col gap-0.5 rounded-md px-2.5 py-2 text-[13px] text-ink outline-none data-[highlighted]:bg-line-soft',
-                  v.n === shown.n && 'bg-surface-2',
+                  'dm-text-small flex cursor-pointer flex-col gap-0.5 rounded-tab px-2.5 py-2 text-ink outline-none data-[highlighted]:bg-line-soft',
+                  v.n === shown.n && 'bg-surface-soft',
                 )}
               >
                 <span className="flex items-center gap-2">
                   <MarkGlyph kind={vw.mark} size={9} />
-                  <span className="font-mono text-xs font-semibold">v{v.n}</span>
+                  <span className="dm-text-caption font-mono font-semibold">v{v.n}</span>
                   <span className="font-medium">{vw.word}</span>
                   {v.current && <span className="text-muted">· current</span>}
-                  <span className="ml-auto text-xs text-muted">{shortDate(v.created_at)}</span>
+                  <span className="dm-text-caption ml-auto text-muted">{shortDate(v.created_at)}</span>
                 </span>
-                <span className="flex flex-wrap items-center gap-x-3 pl-[17px] text-xs text-muted">
+                <span className="dm-text-caption flex flex-wrap items-center gap-x-3 pl-[17px] text-muted">
                   <By actor={v.author} verb="by" />
                   {v.approved_by && <By actor={v.approved_by} verb="approved by" />}
                 </span>

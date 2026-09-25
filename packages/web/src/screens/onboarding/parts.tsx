@@ -51,15 +51,16 @@ export function DayFrame({
   );
 }
 
-/** The blue band under the header (canvas S4C): what the screen asks of the person, and its action. */
+/** The Needs you band under the header (canvas S4C): what the screen asks of the person, and its
+    action, on the design system's needs-soft ground with its needs-line border. */
 export function Band({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
     <div className="sticky top-14 z-20 bg-surface">
       <div
         data-band
-        className="flex h-[58px] items-center justify-between gap-6 border-b border-needs-ring bg-needs-ring/60 px-6 text-needs-hover"
+        className="flex h-[58px] items-center justify-between gap-6 border-b border-needs-line bg-needs-soft px-6 text-needs-strong"
       >
-        <div className="flex min-w-0 items-center gap-3 text-[14px]">{children}</div>
+        <div className="dm-text-body flex min-w-0 items-center gap-3">{children}</div>
         {action}
       </div>
     </div>
@@ -69,13 +70,13 @@ export function Band({ children, action }: { children: ReactNode; action?: React
 /** "From your idea: …" and the way to the thread where everything is. */
 export function FromYourIdea({ projectId, explorationId, idea }: { projectId: string; explorationId: string; idea: string }) {
   return (
-    <div className="flex items-center gap-2.5 text-[13px] text-ink-3">
+    <div className="dm-text-small flex items-center gap-2.5 text-ink-3">
       <WhoGlyph kind="you" size={20} />
       <span className="min-w-0 truncate">From your idea: “{idea}”</span>
       <Link
         to="/p/$projectId/threads/$explorationId"
         params={{ projectId, explorationId }}
-        className="shrink-0 font-semibold text-needs hover:text-needs-hover"
+        className="shrink-0 font-semibold text-needs hover:text-needs-strong"
       >
         Open the thread
       </Link>
@@ -86,8 +87,8 @@ export function FromYourIdea({ projectId, explorationId, idea }: { projectId: st
 export function ProductTitle({ name, className }: { name: string | undefined; className?: string }) {
   return (
     <section className={cn('flex flex-col gap-1.5', className)}>
-      <span className="text-xs font-semibold text-muted">The product</span>
-      {name ? <h1 className="text-[30px] leading-tight font-semibold">{name}</h1> : <Skeleton className="h-9 w-64" />}
+      <span className="dm-text-caption font-semibold text-muted">The product</span>
+      {name ? <h1 className="dm-text-display">{name}</h1> : <Skeleton className="h-9 w-64" />}
     </section>
   );
 }
@@ -95,7 +96,7 @@ export function ProductTitle({ name, className }: { name: string | undefined; cl
 /** A small heading of a section, as the canvas writes them: 12px, muted. */
 export function Eyebrow({ id, children, className }: { id?: string; children: ReactNode; className?: string }) {
   return (
-    <h2 id={id} className={cn('text-xs font-semibold text-muted', className)}>
+    <h2 id={id} className={cn('dm-text-caption font-semibold text-muted', className)}>
       {children}
     </h2>
   );
@@ -109,11 +110,9 @@ export function Later({ id, title, children }: { id: string; title: string; chil
       <Eyebrow id={headingId}>{title}</Eyebrow>
       <div
         data-later={id}
-        className="flex items-start gap-2.5 rounded-[10px] border border-dashed border-line-strong px-3.5 py-3 text-[13px] text-muted"
+        className="dm-text-small flex items-start gap-2.5 rounded-control border border-dashed border-line-strong px-3.5 py-3 text-muted"
       >
-        <span className="shrink-0 rounded-[5px] border border-line-strong px-1.5 text-[11px] leading-[18px] font-semibold tracking-[0.05em] uppercase">
-          Later
-        </span>
+        <span className="dm-label shrink-0 rounded-tag border border-line-strong px-1.5 py-0.5">Later</span>
         <span>{children}</span>
       </div>
     </section>
@@ -146,7 +145,7 @@ export function LaterOfTheProduct({ features = true }: { features?: boolean }) {
 export function ReplyLine({ reply, model, className }: { reply: Message | null; model: string | null; className?: string }) {
   if (!reply) return null;
   return (
-    <p className={cn('flex items-start gap-2.5 text-[16px] leading-relaxed text-ink-2', className)}>
+    <p className={cn('dm-text-body flex items-start gap-2.5 leading-relaxed text-ink-2', className)}>
       <span className="mt-[3px] shrink-0">
         <WhoMark actor={reply.author} model={model} size={20} />
       </span>
@@ -162,8 +161,8 @@ export function ObservationRow({ observation: o, compact = false }: { observatio
     <li
       data-observation={o.kind}
       className={cn(
-        'flex items-start gap-3 rounded-[8px] border border-line bg-surface',
-        compact ? 'px-2.5 py-1.5 text-[13px]' : 'px-3 py-2 text-[14px]',
+        'flex items-start gap-3 rounded-sm border border-line bg-surface',
+        compact ? 'dm-text-small px-2.5 py-1.5' : 'dm-text-body px-3 py-2',
       )}
     >
       <span className={cn('flex shrink-0 items-center', compact ? 'w-[92px] pt-px' : 'w-[104px] pt-0.5')}>
@@ -177,13 +176,13 @@ export function ObservationRow({ observation: o, compact = false }: { observatio
 /** The person's answer to a question: confirmed, with the question it answers. */
 export function AnswerRow({ question: q }: { question: Question }) {
   return (
-    <li data-answer={q.id} className="flex items-start gap-2.5 rounded-[8px] border border-line bg-surface px-3 py-2">
+    <li data-answer={q.id} className="flex items-start gap-2.5 rounded-sm border border-line bg-surface px-3 py-2">
       <span className="mt-[5px] shrink-0">
         <Mark kind="confirmed" label="Confirmed" />
       </span>
       <span className="flex min-w-0 flex-col">
-        <span className="text-xs text-muted">{q.question}</span>
-        <span className="text-[14px] text-ink">{q.conclusion}</span>
+        <span className="dm-text-caption text-muted">{q.question}</span>
+        <span className="dm-text-body text-ink">{q.conclusion}</span>
       </span>
     </li>
   );

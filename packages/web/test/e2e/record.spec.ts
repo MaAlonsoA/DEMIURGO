@@ -119,9 +119,10 @@ test('AC-INT-001-08 a version with readiness reasons shows each one as the serve
     await page.goto(`/p/${projectId}/records/${f.code}`);
     const panel = page.getByRole('region', { name: 'Before it can be built' });
     await expect(panel).toBeVisible();
-    const shown = panel.locator('[data-readiness-reasons] li');
+    // The design system's Readiness: one line per reason, exactly as the server gives it.
+    const shown = panel.locator('[data-kind="reason"]');
     await expect(shown).toHaveText(readiness.reasons);
-    await expect(page.getByText('Ready to build', { exact: true })).toHaveCount(0);
+    await expect(page.getByText(/^Ready to build/)).toHaveCount(0);
     await expect(page.locator('[data-record-header] [data-stage]')).toHaveAttribute('data-stage', 'not-ready');
   }
   const reasons = (await readinessOf(person, projectId, fdr.versionId)).reasons;
@@ -168,10 +169,12 @@ test('AC-INT-001-08 without reasons it says Ready to build with the first bar fu
 
   await page.goto(`/p/${projectId}/records/${fdr.code}`);
   const aside = page.getByRole('complementary');
-  await expect(aside.getByRole('heading', { name: 'Ready to build' })).toBeVisible();
-  await expect(aside.locator('[data-readiness-reasons]')).toHaveCount(0);
+  await expect(aside.getByRole('heading', { name: 'Ready to build' })).toBeAttached();
+  const track = aside.getByRole('region', { name: 'Ready to build' }).locator('[data-stage-track]');
+  await expect(track).toContainText('Ready to build');
+  await expect(aside.locator('[data-kind="reason"]')).toHaveCount(0);
   await expect(page.locator('[data-record-header] [data-stage]')).toHaveAttribute('data-stage', 'ready');
-  await expect(aside.locator('[data-stage-track]')).toHaveAttribute('data-stage', 'ready');
+  await expect(track).toHaveAttribute('data-stage', 'ready');
   // What it touches: the decision it is based on, with its mark.
   const context = page.getByRole('region', { name: 'Context' });
   await expect(context.locator(`[data-link-target="${dec.code}"]`)).toContainText('Activities are public');
@@ -189,10 +192,15 @@ test('AC-INT-001-08 without reasons it says Ready to build with the first bar fu
   const readiness = await readinessOf(person, projectId, fdr.versionId);
   expect(readiness.ready).toBe(false);
   await expect(page.locator('[data-record-header] [data-stage]')).toHaveAttribute('data-stage', 'doubt');
-  await expect(aside.getByRole('heading', { name: 'Before it can be built' })).toBeVisible();
-  await expect(aside.locator('[data-readiness-reasons] li')).toHaveText(readiness.reasons);
+  await expect(aside.getByRole('region', { name: 'Before it can be built' })).toBeVisible();
+  await expect(aside.locator('[data-kind="reason"]')).toHaveText(readiness.reasons);
   // Not on the record itself nor on its line of the blueprint rail, which also shows the project (named Ready to build).
-  await expect(page.getByRole('main').or(aside).getByText('Ready to build', { exact: true })).toHaveCount(0);
+  await expect(
+    page
+      .getByRole('main')
+      .or(aside)
+      .getByText(/^Ready to build/),
+  ).toHaveCount(0);
   const inRail = page.getByRole('navigation', { name: 'Blueprint' }).locator(`[data-rail-record="${fdr.code}"]`);
   await expect(inRail).toContainText('Needs you');
   await expect(inRail).not.toContainText('Ready to build');

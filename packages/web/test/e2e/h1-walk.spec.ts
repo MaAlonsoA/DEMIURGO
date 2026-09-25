@@ -51,11 +51,14 @@ async function settleNeedsYou(page: Page, person: PersonApi, projectId: string):
     switch (kind) {
       case 'version': {
         const approve = item.getByRole('button', { name: 'Approve', exact: true });
+        const discard = item.getByRole('button', { name: 'Discard', exact: true });
+        // Its actions come from the tables: wait for them before choosing (an earlier draft only offers Discard).
+        await expect(approve.or(discard).first()).toBeVisible();
         if (await approve.isVisible()) {
           await approve.click();
           await confirmIn(page, 'Approve');
         } else {
-          await item.getByRole('button', { name: 'Discard', exact: true }).click();
+          await discard.click();
           await confirmIn(page, 'Discard');
         }
         break;
@@ -105,6 +108,9 @@ test('AC-INT-001-01 the H1 walk in the browser: ratify, a thread, a draft, accep
   await page.goto(`/p/${projectId}/needs-you`);
   await signInThroughUi(page);
   await expect(page).toHaveURL(`${BASE_URL}/p/${projectId}/needs-you`);
+  // The legend opens on the first screens; the person reads it and folds it: it sits over the
+  // bottom left, where the batch pages keep their actions.
+  await page.getByRole('button', { name: 'Got it' }).click();
   await page.locator(`[data-need="package:${batchId}"]`).getByRole('link').first().click();
   await expect(page).toHaveURL(new RegExp(`/batches/${batchId}$`));
 
@@ -117,7 +123,7 @@ test('AC-INT-001-01 the H1 walk in the browser: ratify, a thread, a draft, accep
 
   // 2. Approve what is right: whatever the ratification left in Needs you.
   await page
-    .getByRole('navigation', { name: 'Main' })
+    .getByRole('banner')
     .getByRole('link', { name: /Needs you/ })
     .click();
   const settled = await settleNeedsYou(page, person, projectId);
@@ -125,7 +131,7 @@ test('AC-INT-001-01 the H1 walk in the browser: ratify, a thread, a draft, accep
   await expectAccessible(page, 'Needs you, empty');
 
   // 3. A thread: the person decides and DEMIURGO proposes the decision.
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Threads' }).click();
+  await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Threads' }).click();
   await page.getByRole('button', { name: 'New thread' }).click();
   await page.getByRole('dialog').getByLabel('Purpose').fill('Design S3: change set and frozen tests');
   await page.getByRole('dialog').getByRole('button', { name: 'Open thread' }).click();
@@ -171,19 +177,19 @@ test('AC-INT-001-01 the H1 walk in the browser: ratify, a thread, a draft, accep
 
   // Whatever the approval brought (a conflict, a link) is settled; then Needs you is empty.
   await page
-    .getByRole('navigation', { name: 'Main' })
+    .getByRole('banner')
     .getByRole('link', { name: /Needs you/ })
     .click();
   await settleNeedsYou(page, person, projectId);
   await expect(page.getByText('Nothing needs you. You can close DEMIURGO.')).toBeVisible();
-  await expect(page.getByRole('navigation', { name: 'Main' }).locator('[data-needs]')).toHaveCount(0);
+  await expect(page.getByRole('banner').locator('[data-needs]')).toHaveCount(0);
   await screenshot(page, 8, 'h1-01-needs-you-empty');
 
   // The feature is Ready to build: no reasons and the first bar full.
   await page.goto(`/p/${projectId}/records/${fdr?.code}`);
   await expect(page.getByText('Ready to build').first()).toBeVisible();
   await expect(page.locator('[data-stage="ready"]').first()).toBeVisible();
-  await expect(page.locator('[data-readiness-reasons]')).toHaveCount(0);
+  await expect(page.getByRole('complementary').locator('[data-kind="reason"]')).toHaveCount(0);
   await screenshot(page, 8, 'h1-02-feature-ready');
   await context.close();
 });

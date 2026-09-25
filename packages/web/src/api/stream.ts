@@ -142,7 +142,7 @@ export function ConnectionBanner() {
     {
       role: 'status',
       className:
-        'sticky top-14 z-20 border-b border-working bg-working-bg px-6 py-1.5 text-center text-[13px] font-medium text-working-text',
+        'dm-text-small sticky top-14 z-20 border-b border-working bg-working-soft px-6 py-1.5 text-center font-medium text-working-text',
     },
     PRODUCT_WORDS.cantReach,
   );

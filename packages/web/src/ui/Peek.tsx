@@ -1,6 +1,7 @@
 // "Point, peek, keep" (design doc §4): pointing at a card for ~0.4 s shows its detail beside it,
 // chained instantly if another one was open; a click keeps it; "Open" goes to the full page.
-// With the keyboard, focusing the card shows the peek and Enter opens the page.
+// With the keyboard, focusing the card shows the peek and Enter opens the page. The kept one is the
+// selected card: the children can draw it so (the design system's `selected`).
 
 import { Popover } from 'radix-ui';
 import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from 'react';
@@ -17,7 +18,7 @@ export function Peek({
   label,
   className,
 }: {
-  children: ReactNode;
+  children: ReactNode | ((kept: boolean) => ReactNode);
   content: ReactNode;
   onOpen: () => void;
   label: string;
@@ -86,10 +87,7 @@ export function Peek({
           tabIndex={0}
           aria-label={label}
           data-kept={kept && open ? 'true' : undefined}
-          className={cn(
-            'block rounded-[var(--radius-card)] outline-none focus-visible:ring-2 focus-visible:ring-needs',
-            className,
-          )}
+          className={cn('block rounded-card-md', className)}
           onPointerEnter={() => show()}
           onPointerLeave={hide}
           onFocus={() => show(true)}
@@ -103,7 +101,7 @@ export function Peek({
           onDoubleClick={onOpen}
           onKeyDown={onKeyDown}
         >
-          {children}
+          {typeof children === 'function' ? children(kept && open) : children}
         </div>
       </Popover.Anchor>
       <Popover.Portal>
@@ -123,7 +121,7 @@ export function Peek({
             inside.current = false;
             hide();
           }}
-          className="z-40 w-[380px] animate-fade-in drop-shadow-[0_12px_28px_rgba(29,28,26,0.14)]"
+          className="z-40 w-[380px] animate-fade-in"
         >
           {content}
           {kept && <span className="sr-only">Kept open. Press Escape to close.</span>}

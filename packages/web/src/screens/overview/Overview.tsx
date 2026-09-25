@@ -4,6 +4,7 @@
 // right what needs the person, what runs and what was decided; at the bottom, "Ask DEMIURGO"
 // about the whole product. Coming back, the "What changed" lens dims what did not change.
 
+import { Node } from '@demiurgo/design-system';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { type ReactNode, useId } from 'react';
@@ -11,11 +12,11 @@ import { explorationsQuery, inboxQuery, runsQuery, stateQuery } from '../../api/
 import type { ExplorationSummary, ProductRow } from '../../api/types.ts';
 import { cn } from '../../lib/cn.ts';
 import { useProjectId } from '../../lib/hooks.ts';
-import { Node } from '../../ui/Card.tsx';
 import { EyeIcon } from '../../ui/icons.tsx';
 import { CardSkeleton, EmptyState, Page, PageTitle, Skeleton } from '../../ui/layout.tsx';
 import { Reasons } from '../../ui/Reasons.tsx';
 import { Mark } from '../../ui/marks.tsx';
+import { NeedsBubble } from '../../ui/signals.tsx';
 import { AskBar } from '../../ui/AskBar.tsx';
 import { Button } from '../../ui/Button.tsx';
 import { TYPE_WORDS_PLURAL } from '../../words.ts';
@@ -27,13 +28,13 @@ import { WhileAway } from './lens/WhileAway.tsx';
 import { NeedsColumn } from './NeedsColumn.tsx';
 import { CaptureIdea, DraftingCard, LaterRows, ParkedCard, ProgressLine } from './Blueprint.tsx';
 import { draftingRuns, featureStatus, productProgress, workingRuns } from './progress.ts';
-import { FeatureCard, type LensMark, RecordNode, UNDIM } from './RecordCard.tsx';
+import { FeatureCard, LensFrame, type LensMark, RecordNode, UNDIM } from './RecordCard.tsx';
 
 function Section({ title, count, children }: { title: string; count: number; children: ReactNode }) {
   const id = useId();
   return (
     <section aria-labelledby={id} className="mb-8">
-      <h2 id={id} className="mb-2.5 text-xs font-semibold text-muted">
+      <h2 id={id} className="dm-text-caption mb-2.5 font-semibold text-muted">
         {title}
         {count > 0 && <span className="font-normal"> · {count}</span>}
       </h2>
@@ -66,24 +67,24 @@ function ThreadNode({
       params={{ projectId, explorationId: thread.id }}
       data-thread={thread.id}
       data-dimmed={lens.dimmed ? 'true' : undefined}
-      className={cn('block min-w-0 rounded-[10px] hover:[&>[data-card]]:border-line-strong', lens.dimmed && UNDIM)}
+      className={cn('block min-w-0 rounded-control hover:[&_.dm-node]:border-line-strong', lens.dimmed && UNDIM)}
     >
-      <Node
-        icon="thread"
-        type="Thread"
-        title={thread.purpose}
-        line={lens.changed && lens.note ? `Since ${lens.since ?? 'your last visit'}: ${lens.note}` : undefined}
-        status={
-          <span className="flex items-center gap-1.5 text-xs text-ink-2">
-            <Mark kind="open" label={`${open} open ${open === 1 ? 'question' : 'questions'}`} />
-            {open} {open === 1 ? 'question' : 'questions'}
-          </span>
-        }
-        needs={waiting}
-        dimmed={lens.dimmed}
-        changed={lens.changed}
-        className="h-full"
-      />
+      <LensFrame lens={lens}>
+        <Node
+          type="thread"
+          state="open"
+          mark={<Mark kind="open" label={`${open} open ${open === 1 ? 'question' : 'questions'}`} />}
+          title={thread.purpose}
+          trailing={
+            <span className="flex items-center gap-2.5">
+              <span className="dm-text-caption text-ink-2">
+                {open} {open === 1 ? 'question' : 'questions'}
+              </span>
+              <NeedsBubble count={waiting} />
+            </span>
+          }
+        />
+      </LensFrame>
     </Link>
   );
 }
@@ -103,10 +104,10 @@ function OverviewSkeleton() {
         <CardSkeleton />
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <Skeleton className="h-11 rounded-[10px]" />
-        <Skeleton className="h-11 rounded-[10px]" />
-        <Skeleton className="h-11 rounded-[10px]" />
-        <Skeleton className="h-11 rounded-[10px]" />
+        <Skeleton className="h-11 rounded-control" />
+        <Skeleton className="h-11 rounded-control" />
+        <Skeleton className="h-11 rounded-control" />
+        <Skeleton className="h-11 rounded-control" />
       </div>
     </div>
   );
@@ -162,7 +163,7 @@ function Overview({ projectId }: { projectId: string }) {
           className="mb-4"
           actions={
             lens.available && !lens.on ? (
-              <Button variant="outline" size="sm" className="rounded-full" onClick={() => lens.setOn(true)}>
+              <Button variant="secondary" className="rounded-full" onClick={() => lens.setOn(true)}>
                 <EyeIcon size={14} />
                 Show what changed · {lens.lines.length}
               </Button>
@@ -176,7 +177,7 @@ function Overview({ projectId }: { projectId: string }) {
         {empty && (
           <EmptyState className="mb-8">
             Nothing here yet. Import design/ or open a thread to start designing.{' '}
-            <Link to="/p/$projectId/threads" params={{ projectId }} className="font-semibold text-needs hover:text-needs-hover">
+            <Link to="/p/$projectId/threads" params={{ projectId }} className="font-semibold text-needs hover:text-needs-strong">
               Go to Threads
             </Link>
           </EmptyState>

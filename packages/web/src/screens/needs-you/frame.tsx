@@ -47,7 +47,7 @@ export function Unblocks({
   if (codes.length === 0) return null;
   return (
     <div
-      className={cn('flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-3', className)}
+      className={cn('dm-text-caption flex flex-wrap items-center gap-x-2 gap-y-1 text-ink-3', className)}
       data-unblocks={codes.join(' ')}
     >
       <span>Unblocks</span>
@@ -58,7 +58,7 @@ export function Unblocks({
             key={code}
             to="/p/$projectId/records/$code"
             params={{ projectId, code }}
-            className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface px-1.5 py-px font-semibold text-ink hover:border-line-strong"
+            className="inline-flex items-center gap-1.5 rounded-tab border border-line bg-surface px-1.5 py-px font-semibold text-ink hover:border-line-strong"
           >
             {row && <TypeIcon kind={RECORD_ICON[row.type] ?? 'feature'} size={12} />}
             {row?.title ?? code}
@@ -101,7 +101,7 @@ export function Frame({
       className={cn('flex flex-col', mode === 'row' ? 'gap-1 px-[18px] py-3.5' : 'max-w-[860px] gap-3.5')}
     >
       <div className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">
+        <div className="dm-label flex flex-wrap items-center gap-1.5">
           {item.kind === 'conflict' ? (
             <span className="inline-flex items-center gap-1.5 text-problem">
               <WarningIcon size={13} />
@@ -121,16 +121,14 @@ export function Frame({
           )}
         </div>
         <div className="flex min-w-0 items-baseline gap-2">
-          <Title className={cn('font-semibold', mode === 'focus' ? 'text-2xl leading-tight' : 'text-[14.5px] leading-snug')}>
-            {title}
-          </Title>
+          <Title className={mode === 'focus' ? 'dm-text-page-title' : 'dm-text-body leading-snug font-semibold'}>{title}</Title>
           {code && <Code className="shrink-0">{code}</Code>}
         </div>
         {line && (
-          <div className={cn(mode === 'focus' ? 'text-sm text-ink-2' : 'line-clamp-2 text-[13px] text-ink-3')}>{line}</div>
+          <div className={cn(mode === 'focus' ? 'dm-text-body text-ink-2' : 'dm-text-small line-clamp-2 text-ink-3')}>{line}</div>
         )}
       </div>
-      {from && <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted">{from}</div>}
+      {from && <div className="dm-text-caption flex flex-wrap items-center gap-1.5 text-muted">{from}</div>}
       {mode === 'row' && <Unblocks projectId={ctx.projectId} codes={item.unblocks} rows={ctx.rows} />}
       {children && <div className={mode === 'row' ? 'mt-1.5' : ''}>{children}</div>}
     </div>

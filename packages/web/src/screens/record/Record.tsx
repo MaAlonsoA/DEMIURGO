@@ -14,7 +14,7 @@ import { useRouteParams, useTables } from '../../lib/hooks.ts';
 import { dayTime } from '../../lib/time.ts';
 import { ActionButtons, useActions, useAllows } from '../../ui/ActionBar.tsx';
 import { AskBar, type AskBarHandle } from '../../ui/AskBar.tsx';
-import { buttonStyles } from '../../ui/Button.tsx';
+import { buttonClass } from '../../ui/Button.tsx';
 import { Code } from '../../ui/Card.tsx';
 import { ConfirmDialog, TextDialog } from '../../ui/dialogs.tsx';
 import { ChevronRight, InfoIcon, RECORD_ICON, TypeIcon } from '../../ui/icons.tsx';
@@ -62,10 +62,10 @@ function Header({ projectId, record, version }: { projectId: string; record: Rec
   return (
     <header data-record-header className="mb-5 flex items-start justify-between gap-6">
       <div className="flex min-w-0 flex-col gap-1.5">
-        <span className="flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">
+        <span className="dm-label flex items-center gap-1.5">
           <TypeIcon kind={RECORD_ICON[record.type] ?? 'feature'} size={14} />
           {TYPE_WORDS[record.type]}
-          <span className="text-inactive-light" aria-hidden="true">
+          <span className="dm-sep" aria-hidden="true">
             ·
           </span>
           <span data-status className="tracking-normal normal-case">
@@ -78,8 +78,8 @@ function Header({ projectId, record, version }: { projectId: string; record: Rec
             </span>
           )}
         </span>
-        <h1 className="text-[28px] leading-tight font-semibold text-balance">{version.title}</h1>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+        <h1 className="dm-text-page-title text-balance">{version.title}</h1>
+        <div className="dm-text-caption mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-muted">
           <Code className="text-ink-3">
             {record.code} · v{version.n}
           </Code>
@@ -102,7 +102,7 @@ function Header({ projectId, record, version }: { projectId: string; record: Rec
           <Link
             to="/p/$projectId/records/$code/new-version"
             params={{ projectId, code: record.code }}
-            className={buttonStyles({ variant: 'outline' })}
+            className={buttonClass('secondary')}
           >
             New version
           </Link>
@@ -110,7 +110,7 @@ function Header({ projectId, record, version }: { projectId: string; record: Rec
         <ActionButtons
           actions={actions}
           handlers={{
-            'record_version.discard': { run: () => open('discard'), variant: 'ghost' },
+            'record_version.discard': { run: () => open('discard'), variant: 'text' },
             // A draft older than the current version can only be discarded (the server says so in its readiness).
             'record_version.approve': earlier ? undefined : { run: () => open('approve') },
           }}
@@ -153,7 +153,7 @@ function Notice({ children }: { children: ReactNode }) {
   return (
     <p
       role="note"
-      className="mb-5 flex items-center gap-2 rounded-[var(--radius-control)] border border-line bg-surface px-3.5 py-2.5 text-[13px] text-ink-2"
+      className="dm-text-small mb-5 flex items-center gap-2 rounded-control border border-line bg-surface px-3.5 py-2.5 text-ink-2"
     >
       <InfoIcon size={15} className="shrink-0 text-muted" />
       <span className="min-w-0 flex-1">{children}</span>
@@ -164,22 +164,17 @@ function Notice({ children }: { children: ReactNode }) {
 /** Ready to build (canvas S5D): says so, and points at the next thing that needs the person. */
 function ReadyBanner({ projectId, version, next }: { projectId: string; version: RecordVersion; next: NeedsItem | undefined }) {
   return (
-    <div
-      data-ready-banner
-      className="mb-5 flex items-center gap-4 rounded-[var(--radius-panel)] border border-line bg-surface py-3 pr-3.5 pl-5"
-    >
+    <div data-ready-banner className="mb-5 flex items-center gap-4 rounded-card border border-line bg-surface py-3 pr-3.5 pl-5">
       <span className="flex min-w-0 flex-1 flex-col">
-        <strong className="text-[15px] font-semibold">{version.title} is ready to build</strong>
-        <span className="text-[13px] text-ink-3">
+        <strong className="dm-text-heading">{version.title} is ready to build</strong>
+        <span className="dm-text-small text-ink-3">
           Nothing is built yet. When it is, the next bar fills and each check shows when it passes.
         </span>
       </span>
-      <Link to="/p/$projectId" params={{ projectId }} className={buttonStyles({ variant: 'outline' })}>
+      <Link to="/p/$projectId" params={{ projectId }} className={buttonClass('secondary')}>
         Back to the product
       </Link>
-      {next && (
-        <NextLink projectId={projectId} next={next} className={buttonStyles({ variant: 'needs', className: 'max-w-72' })} />
-      )}
+      {next && <NextLink projectId={projectId} next={next} className={buttonClass('primary')} />}
     </div>
   );
 }
@@ -200,12 +195,12 @@ function NextLink({ projectId, next, className }: { projectId: string; next: Nee
 /** Approved, and something else waits for the person: the way on, so approving one by one keeps flowing. */
 function NextStrip({ projectId, next }: { projectId: string; next: NeedsItem }) {
   return (
-    <p className="mb-5 flex items-center gap-2.5 rounded-[var(--radius-control)] border border-needs-ring bg-needs-bg px-3.5 py-2 text-[13px] text-ink-2">
+    <p className="dm-text-small mb-5 flex items-center gap-2.5 rounded-control border border-needs-line bg-needs-soft px-3.5 py-2 text-ink-2">
       <span className="shrink-0">Approved. What needs you next:</span>
       <NextLink
         projectId={projectId}
         next={next}
-        className="inline-flex min-w-0 items-center font-semibold text-needs hover:text-needs-hover"
+        className="inline-flex min-w-0 items-center font-semibold text-needs-strong hover:underline"
       />
     </p>
   );
@@ -219,7 +214,7 @@ function VersionNotice({ projectId, record, version }: { projectId: string; reco
       to="/p/$projectId/records/$code"
       params={{ projectId, code: record.code }}
       search={{ v: n }}
-      className="inline-flex items-center gap-1 font-semibold text-needs hover:text-needs-hover"
+      className="inline-flex items-center gap-1 font-semibold text-needs-strong hover:underline"
     >
       {label}
       <ChevronRight size={11} />
@@ -255,7 +250,7 @@ function RecordSkeleton() {
       <Skeleton className="h-3 w-40" />
       <Skeleton className="h-8 w-2/3" />
       <Skeleton className="h-3 w-1/3" />
-      <div className="mt-4 flex flex-col gap-3 rounded-[var(--radius-panel)] border border-line bg-surface p-6">
+      <div className="mt-4 flex flex-col gap-3 rounded-card border border-line bg-surface p-6">
         <Skeleton className="h-3 w-20" />
         <Skeleton className="h-4 w-full" />
         <Skeleton className="h-4 w-5/6" />
@@ -389,11 +384,11 @@ function RecordPage({
         ) : (
           <VersionNotice projectId={projectId} record={record} version={version} />
         )}
-        <article className="mb-8 flex flex-col gap-6 rounded-[var(--radius-panel)] border border-line bg-surface px-7 py-6">
+        <article className="mb-8 flex flex-col gap-6 rounded-card border border-line bg-surface px-7 py-6">
           <ReviewSections sections={version.sections} parts={review.parts}>
             {(s) => (
               <section key={s.title} className="flex flex-col gap-1.5">
-                <h2 className="text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">{s.title}</h2>
+                <h2 className="dm-label">{s.title}</h2>
                 <Markdown>{s.content}</Markdown>
               </section>
             )}
@@ -407,11 +402,11 @@ function RecordPage({
         {version.annexes.length > 0 && (
           <ReviewArea part="annexes">
             <section className="mt-8 flex flex-col gap-2">
-              <h2 className="text-xs font-semibold text-muted">Annexes · {version.annexes.length}</h2>
+              <h2 className="dm-text-caption font-semibold text-muted">Annexes · {version.annexes.length}</h2>
               {version.annexes.map((a) => (
-                <details key={a.path} className="rounded-[var(--radius-card)] border border-line bg-surface px-4 py-2.5">
-                  <summary className="cursor-pointer font-mono text-xs text-ink-2">{a.path}</summary>
-                  <pre className="mt-2 max-h-96 overflow-auto rounded-md bg-surface-2 p-3 font-mono text-[11px] leading-relaxed">
+                <details key={a.path} className="rounded-card-md border border-line bg-surface px-4 py-2.5">
+                  <summary className="dm-text-caption cursor-pointer font-mono text-ink-2">{a.path}</summary>
+                  <pre className="dm-code mt-2 max-h-96 overflow-auto rounded-tab bg-surface-soft p-3 leading-relaxed">
                     {a.content}
                   </pre>
                 </details>

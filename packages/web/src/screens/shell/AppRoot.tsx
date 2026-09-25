@@ -31,7 +31,7 @@ export function AppRoot() {
       <LegendContext.Provider value={legend}>
         <a
           href="#main"
-          className="sr-only rounded bg-ink px-3 py-2 text-sm text-white focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50"
+          className="sr-only dm-text-body rounded-tag bg-ink px-3 py-2 text-surface focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50"
         >
           Skip to content
         </a>

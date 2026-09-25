@@ -24,7 +24,7 @@ pnpm snap list|save|restore|drop|reset   # instantáneas de la base de dev (DEMI
 
 ## Arquitectura
 
-Monorepo con cinco paquetes:
+Monorepo con siete paquetes:
 
 - `packages/domain`: TypeScript puro sin E/S. Actores, tablas generadas (`generated/tables.ts` desde `design/data/*.yaml`) con sus invariantes en código, errores, huellas, plantillas y readiness, puertos de agentes (`agents.ts`) y del clasificador (`classifier.ts`), el núcleo puro del conocimiento (`knowledge.ts`: candidatos, verificación, plan, huella) y las métricas de evaluación.
 - `packages/design`: formato fijo de `design/` (parse/render canónico), validador, derivación de tablas y trazabilidad AC → prueba por JUnit.
@@ -38,5 +38,7 @@ Monorepo con cinco paquetes:
   - `runner/`: broker de contenedores endurecidos con JobSpec cerrado y sonda.
 - `packages/api`: Fastify. Sesión humana con cookie httpOnly + CSRF, tokens de agente (`Bearer dmg_agent_…`), ruta genérica `POST /api/projects/:projectId/commands/:command`, consultas por la matriz (`query.*`) y SSE del diario. `main.ts` arranca el servidor (puerto 8100 por defecto) y `cli.ts` las órdenes de operación.
 - `packages/mcp`: servidor MCP por stdio, cliente fino de la API con el token del agente (leer, conversar, registrar fuentes y proponer).
+- `packages/design-system`: el sistema de diseño de DEMIURGO (`@demiurgo/design-system`, publicado en Claude Design): tokens y clases `dm-*` en `demiurgo.css`, fuentes, 22 componentes React en `src/index.tsx` y las guías (`guides/`). Es la única fuente del aspecto; `.design-sync/` lo sincroniza con Claude Design.
+- `packages/web`: la interfaz (Vite, React 19, TanStack, Radix). Usa el sistema de diseño entero: sus componentes, sus clases `dm-*` y sus tokens (Tailwind solo lee esos tokens), sin colores, radios, sombras ni tamaños de letra propios; `test/unit/design-system.test.ts` lo vigila.
 
 Flujo de autoridad: la IA solo produce propuestas (`proposal_batches`/`proposals`); una persona las acepta (`proposal.accept`, `batch.accept_package`) y eso crea la autoridad con su actor `human`. El conocimiento derivado se actualiza tras cada evento de autoridad y lo que afecta a la autoridad vuelve como propuesta de revisión.

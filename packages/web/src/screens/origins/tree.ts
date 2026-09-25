@@ -44,7 +44,10 @@ export type OriginsTree = {
 
 export type Geometry = {
   columns: { x: number; w: number }[];
+  /** The node itself, the design system's 44px row: edges meet it at its middle. */
   nodeHeight: number;
+  /** The lines under a node: who and when, its code and why it exists. */
+  noteHeight: number;
   gap: number;
   laneGap: number;
   width: number;
@@ -61,8 +64,9 @@ export function geometryFor(width: number): Geometry {
       { x: a + gap, w: b },
       { x: w - c, w: c },
     ],
-    nodeHeight: 80,
-    gap: 12,
+    nodeHeight: 44,
+    noteHeight: 38,
+    gap: 10,
     laneGap: 28,
     width: w,
   };
@@ -186,7 +190,7 @@ export function buildOrigins(input: OriginsInput, g: Geometry = GEOMETRY): Origi
   const order: OriginNode[] = [];
   const visited = new Set<string>();
   let y = 0;
-  const step = g.nodeHeight + g.gap;
+  const step = g.nodeHeight + g.noteHeight + g.gap;
   const box = (n: OriginNode, top: number): Box => {
     const c = g.columns[columnOf(n)] ?? { x: 0, w: g.width };
     return { x: c.x, y: top, w: c.w, h: g.nodeHeight };
@@ -267,7 +271,8 @@ export function traceOf(tree: OriginsTree, key: string): { nodes: Set<string>; e
   return { nodes, edges };
 }
 
-/** A curve from the right side of one node to the left side of the next, or a line down a column. */
+/** A curve from the right side of one node to the left side of the next, or a line down a column
+    (left of the lines under the nodes it passes). */
 export function edgePath(from: Box, to: Box): string {
   if (to.x <= from.x) return `M${from.x + 20} ${from.y + from.h} V${to.y}`;
   const x1 = from.x + from.w;

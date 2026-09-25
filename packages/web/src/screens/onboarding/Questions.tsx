@@ -15,7 +15,7 @@ import type { Message, Question } from '../../api/types.ts';
 import { cn } from '../../lib/cn.ts';
 import { useRouteParams, useTables } from '../../lib/hooks.ts';
 import { useAllows } from '../../ui/ActionBar.tsx';
-import { Button, buttonStyles } from '../../ui/Button.tsx';
+import { Button, buttonClass } from '../../ui/Button.tsx';
 import { TextDialog } from '../../ui/dialogs.tsx';
 import { TypeIcon } from '../../ui/icons.tsx';
 import { Mark, StateMark } from '../../ui/marks.tsx';
@@ -116,14 +116,15 @@ export function QuestionsScreen() {
   );
 }
 
-/** "1 of 3" and its bars. */
+/** "1 of 3" and its track: ink for the questions walked, the design system's empty track for the
+    rest (blue is only for what needs you). */
 function Progress({ position, total }: { position: number; total: number }) {
   return (
-    <span className="flex items-center gap-2 text-xs font-semibold text-ink-2">
+    <span className="dm-text-caption flex items-center gap-2 font-semibold text-ink-2">
       {position} of {total}
       <span aria-hidden="true" className="flex gap-[3px]">
         {Array.from({ length: Math.min(total, 10) }, (_, i) => (
-          <span key={i} className={cn('h-1 w-4 rounded-[2px]', i < position ? 'bg-needs' : 'bg-line-strong')} />
+          <span key={i} className={cn('h-1 w-4 rounded-bar', i < position ? 'bg-ink' : 'bg-track')} />
         ))}
       </span>
     </span>
@@ -169,10 +170,10 @@ function Ask({
   return (
     <>
       <div className="flex items-center justify-between gap-3">
-        <span className="flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">
+        <span className="dm-label flex items-center gap-1.5">
           <TypeIcon kind="question" size={14} />
           Question
-          <span className="text-inactive-light" aria-hidden="true">
+          <span className="dm-sep" aria-hidden="true">
             ·
           </span>
           <span className="tracking-normal normal-case">
@@ -182,11 +183,11 @@ function Ask({
         <Progress position={position} total={total} />
       </div>
       <div className="flex flex-col gap-1.5">
-        <h2 ref={heading} tabIndex={-1} className="text-[21px] leading-[1.3] font-semibold outline-none">
+        <h2 ref={heading} tabIndex={-1} className="dm-text-title outline-none">
           {q.question}
         </h2>
-        {q.reason && <p className="text-[13px] text-ink-3">Why I ask: {q.reason}</p>}
-        {q.impact && <p className="text-[13px] text-ink-3">{IMPACT_WORDS[q.impact] ?? q.impact}</p>}
+        {q.reason && <p className="dm-text-small text-ink-3">Why I ask: {q.reason}</p>}
+        {q.impact && <p className="dm-text-small text-ink-3">{IMPACT_WORDS[q.impact] ?? q.impact}</p>}
       </div>
       {allows('question.confirm') && (
         <form
@@ -197,7 +198,7 @@ function Ask({
             if (text.trim() && !command.isPending) answer();
           }}
         >
-          <label htmlFor={answerId} className="text-xs font-semibold text-ink-2">
+          <label htmlFor={answerId} className="dm-text-caption font-semibold text-ink-2">
             Your answer
           </label>
           <textarea
@@ -207,7 +208,7 @@ function Ask({
             rows={5}
             maxLength={3000}
             placeholder="Answer in your own words"
-            className="w-full resize-y rounded-[var(--radius-control)] border border-line-strong bg-surface px-3 py-2 text-[14px] leading-relaxed text-ink placeholder:text-muted focus:border-needs focus:outline-none"
+            className="dm-text-body w-full resize-y rounded-control border border-line-strong bg-surface px-3 py-2 leading-relaxed text-ink placeholder:text-muted focus:border-needs focus:outline-none"
           />
         </form>
       )}
@@ -217,22 +218,21 @@ function Ask({
           <Button
             type="submit"
             form={`${answerId}-form`}
-            variant="needs"
-            size="lg"
-            className="h-11 w-full rounded-[10px]"
+            variant="primary"
+            className="w-full"
             disabled={!text.trim() || command.isPending}
           >
             {command.isPending && !parking ? 'Answering…' : 'Answer'}
           </Button>
         )}
         <div className="flex gap-2">
-          <Button variant="outline" className="h-9 flex-1" onClick={onNext}>
+          <Button variant="secondary" className="flex-1" onClick={onNext}>
             {q.state === 'pending' ? 'Skip' : 'Next'}
           </Button>
           {allows('question.postpone') && (
             <Button
-              variant="outline"
-              className="h-9 flex-1"
+              variant="secondary"
+              className="flex-1"
               onClick={() => {
                 command.reset();
                 setParking(true);
@@ -242,12 +242,12 @@ function Ask({
             </Button>
           )}
         </div>
-        <p className="text-xs text-muted">
+        <p className="dm-text-caption text-muted">
           Talk it through with DEMIURGO instead:{' '}
           <Link
             to="/p/$projectId/threads/$explorationId"
             params={{ projectId, explorationId }}
-            className="font-semibold text-needs hover:text-needs-hover"
+            className="font-semibold text-needs hover:text-needs-strong"
           >
             Open the thread
           </Link>
@@ -307,39 +307,39 @@ function End({
   return (
     <>
       <div className="flex items-center justify-between gap-3">
-        <span className="flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">
+        <span className="dm-label flex items-center gap-1.5">
           <TypeIcon kind="question" size={14} />
           Questions
         </span>
         {total > 0 && <Progress position={total} total={total} />}
       </div>
       <div className="flex flex-col gap-1.5">
-        <h2 ref={heading} tabIndex={-1} className="text-[21px] leading-[1.3] font-semibold outline-none">
+        <h2 ref={heading} tabIndex={-1} className="dm-text-title outline-none">
           That&apos;s all my questions for now
         </h2>
-        <p className="text-[14px] text-ink-2">{walkSummary(walked)}</p>
+        <p className="dm-text-body text-ink-2">{walkSummary(walked)}</p>
       </div>
       {showAsk && (
-        <p className="text-[13px] text-ink-3">
+        <p className="dm-text-small text-ink-3">
           DEMIURGO can turn your answers into decisions. It only proposes them: you accept, change or reject each one.
         </p>
       )}
       {showAsk && answers.length === 0 && (
-        <p className="text-[13px] text-muted">Answer at least one question to ask for decisions.</p>
+        <p className="dm-text-small text-muted">Answer at least one question to ask for decisions.</p>
       )}
       {request && (
         <ReadingStatus projectId={projectId} explorationId={explorationId} reading={reading} subject="decisions" now={now} />
       )}
       {read && batchId && batch.data && (
         <section data-proposed-decisions className="flex flex-col gap-2">
-          <p className="text-[15px] font-semibold">
+          <p className="dm-text-heading font-semibold">
             DEMIURGO proposed {decisions} {decisions === 1 ? 'decision' : 'decisions'}.
           </p>
           <ul className="flex flex-col gap-1.5">
             {proposed.map((p) => (
               <li
                 key={p.id}
-                className="flex items-start gap-2.5 rounded-[8px] border border-line bg-surface-2 px-3 py-2 text-[13px] text-ink"
+                className="dm-text-small flex items-start gap-2.5 rounded-sm border border-line bg-surface-soft px-3 py-2 text-ink"
               >
                 <span className="mt-[4px] flex shrink-0">
                   <Mark kind={stateWord('proposal', p.state).mark} label={stateWord('proposal', p.state).word} />
@@ -349,12 +349,14 @@ function End({
             ))}
           </ul>
           {decisions > 0 && (
-            <p className="text-xs text-muted">They wait for you: accept, change or reject each one. Nothing is decided yet.</p>
+            <p className="dm-text-caption text-muted">
+              They wait for you: accept, change or reject each one. Nothing is decided yet.
+            </p>
           )}
         </section>
       )}
       {read && !batchId && (
-        <p data-proposed-decisions className="text-[14px] text-ink-2">
+        <p data-proposed-decisions className="dm-text-body text-ink-2">
           DEMIURGO didn&apos;t propose a decision this time. You can ask again in the thread.
         </p>
       )}
@@ -362,9 +364,8 @@ function End({
       <div className="mt-auto flex flex-col gap-2.5">
         {showAsk && (
           <Button
-            variant="needs"
-            size="lg"
-            className="h-11 w-full rounded-[10px]"
+            variant="primary"
+            className="w-full"
             disabled={answers.length === 0 || pending}
             onClick={() => send(decisionRequest(answers), () => setAsked(true))}
           >
@@ -374,7 +375,7 @@ function End({
         <Link
           to="/p/$projectId/start/$explorationId/done"
           params={{ projectId, explorationId }}
-          className={cn(buttonStyles({ variant: read ? 'needs' : 'outline', size: 'lg' }), 'h-11 w-full rounded-[10px]')}
+          className={buttonClass('secondary', 'w-full')}
         >
           See your starting point
         </Link>
@@ -399,7 +400,7 @@ function Answers({ questions }: { questions: Question[] }) {
           ))}
         </ul>
       ) : (
-        <p className="text-[13px] text-muted">Your answers appear here as you give them.</p>
+        <p className="dm-text-small text-muted">Your answers appear here as you give them.</p>
       )}
     </section>
   );
@@ -426,5 +427,5 @@ function Understood({ messages, runId }: { messages: Message[]; runId: string })
 
 function ReplyText({ reply }: { reply: Message | null }) {
   if (!reply) return null;
-  return <p className="text-[14px] leading-relaxed text-muted">{reply.body}</p>;
+  return <p className="dm-text-body leading-relaxed text-muted">{reply.body}</p>;
 }

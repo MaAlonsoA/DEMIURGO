@@ -1,89 +1,49 @@
-// Marks of the visual language (canvas S3A): the dots say how sure, the grey marks say it is not
-// active, rust says there is a problem. Every mark has its tooltip, with the legend's phrase, and
-// registers itself so the legend shows only what is on screen.
+// Marks of the visual language, drawn by the design system: CertaintyDot says how sure, StatusMark
+// says it is not active (grey) or clashes (rust), Working says someone is on it. Every mark has its
+// Tooltip with the legend's phrase, and registers itself so the legend shows only what is on screen.
 
+import { CertaintyDot, type Certainty, type Status, StatusMark, Working } from '@demiurgo/design-system';
 import type { ReactNode } from 'react';
 import { cn } from '../lib/cn.ts';
 import { EPISTEMIC_MARK, MARKS, type MarkKind, OBSERVATION_WORDS, stateWord } from '../words.ts';
 import { useLegendMark } from './legend-store.ts';
 import { Tip } from './Tip.tsx';
 
-const px = (n: number) => ({ width: n, height: n });
+const CERTAINTY: Partial<Record<MarkKind, Certainty>> = {
+  confirmed: 'confirmed',
+  assumed: 'assumed',
+  proposed: 'proposed',
+  open: 'open',
+  unknown: 'unknown',
+};
 
-/** The glyph alone, without tooltip or legend (the legend draws its entries with it). */
+const STATUS: Partial<Record<MarkKind, Status>> = {
+  parked: 'parked',
+  dropped: 'dropped',
+  replaced: 'replaced',
+  stale: 'out-of-date',
+  conflict: 'conflict',
+  problem: 'conflict',
+};
+
+/** The glyph alone, without tooltip or legend (the legend draws its entries with it). The design
+    system's dots come in two sizes: 12px, and 10px inside cards and lists. */
 export function MarkGlyph({ kind, size = 10 }: { kind: MarkKind; size?: number }): ReactNode {
+  const certainty = CERTAINTY[kind];
+  if (certainty) return <CertaintyDot state={certainty} size={size >= 12 ? 'md' : 'sm'} title="" />;
+  const status = STATUS[kind];
+  if (status) return <StatusMark status={status} title="" />;
   switch (kind) {
-    case 'confirmed':
-      return <span className="inline-block shrink-0 rounded-full bg-ink" style={px(size)} />;
-    case 'assumed':
-      return (
-        <span
-          className="inline-block shrink-0 rounded-full border-[1.5px] border-ink"
-          style={{ ...px(size), background: 'linear-gradient(90deg, var(--color-ink) 50%, transparent 50%)' }}
-        />
-      );
-    case 'proposed':
-      return <span className="inline-block shrink-0 rounded-full border-2 border-needs" style={px(size)} />;
-    case 'open':
-      return <span className="inline-block shrink-0 rounded-full border-[1.5px] border-dashed border-ink-2" style={px(size)} />;
-    case 'unknown':
-      return (
-        <span
-          className="inline-flex shrink-0 items-center justify-center text-[12px] leading-none font-bold text-ink-2"
-          style={px(size + 2)}
-        >
-          ?
-        </span>
-      );
-    case 'parked':
-      return (
-        <svg width={size + 2} height={size + 2} viewBox="0 0 12 12" aria-hidden="true" className="shrink-0">
-          <rect x="2" y="1.5" width="3" height="9" rx="1" fill="var(--color-inactive)" />
-          <rect x="7" y="1.5" width="3" height="9" rx="1" fill="var(--color-inactive)" />
-        </svg>
-      );
-    case 'dropped':
-      return (
-        <svg width={size + 2} height={size + 2} viewBox="0 0 12 12" aria-hidden="true" className="shrink-0">
-          <circle cx="6" cy="6" r="5" fill="none" stroke="var(--color-inactive)" strokeWidth="1.5" />
-          <path d="M2.6 9.4l6.8-6.8" stroke="var(--color-inactive)" strokeWidth="1.5" />
-        </svg>
-      );
-    case 'replaced':
-      return (
-        <svg width={size + 3} height={size + 3} viewBox="0 0 12 12" aria-hidden="true" className="shrink-0">
-          <circle cx="4.4" cy="7.2" r="3.4" fill="var(--color-inactive-light)" />
-          <circle cx="7.6" cy="4.8" r="3.4" fill="#FFFFFF" stroke="var(--color-inactive)" strokeWidth="1.2" />
-        </svg>
-      );
-    case 'stale':
-      return (
-        <svg width={size + 3} height={size + 3} viewBox="0 0 24 24" aria-hidden="true" className="shrink-0">
-          <circle cx="12" cy="12" r="9" fill="none" stroke="var(--color-inactive)" strokeWidth="2" />
-          <path d="M12 7v5l3 2" fill="none" stroke="var(--color-inactive)" strokeWidth="2" strokeLinecap="round" />
-        </svg>
-      );
-    case 'conflict':
-    case 'problem':
-      return (
-        <svg width={size + 4} height={size + 4} viewBox="0 0 24 24" aria-hidden="true" className="shrink-0">
-          <path d="M12 3l9.5 17h-19z" fill="none" stroke="var(--color-problem)" strokeWidth="2" strokeLinejoin="round" />
-          <path d="M12 10v4M12 17.5v.01" stroke="var(--color-problem)" strokeWidth="2" strokeLinecap="round" />
-        </svg>
-      );
     case 'working':
-      return (
-        <span
-          className="inline-block shrink-0 animate-pulse-soft rounded-full bg-working"
-          style={{ ...px(size - 2), boxShadow: '0 0 0 3px var(--color-working-bg)' }}
-        />
-      );
+      return <Working />;
     case 'inactive':
-      return <span className="inline-block shrink-0 rounded-full bg-inactive-light" style={px(size)} />;
-    case 'done':
+      // Finished or stopped (a cancelled run): the design system's dot in its inactive grey.
+      return <span className="dm-dot dm-dot--sm bg-inactive-soft" />;
+    default:
+      // Done: a quiet ink tick.
       return (
-        <svg width={size + 2} height={size + 2} viewBox="0 0 12 12" aria-hidden="true" className="shrink-0">
-          <path d="M2.5 6.5l2.3 2.3L9.5 3.8" fill="none" stroke="var(--color-ink)" strokeWidth="1.6" strokeLinecap="round" />
+        <svg width={12} height={12} viewBox="0 0 12 12" aria-hidden="true" className="shrink-0">
+          <path d="M2.5 6.5l2.3 2.3L9.5 3.8" fill="none" stroke="var(--ink)" strokeWidth="1.6" strokeLinecap="round" />
         </svg>
       );
   }
@@ -102,8 +62,23 @@ export function Mark({ kind, size = 10, label }: { kind: MarkKind; size?: number
   );
 }
 
+/** Someone is working on it now: the design system's Working (amber dot, halo and what is
+    happening), with the Working tooltip and its place in the legend. */
+export function WorkingMark({ label = MARKS.working.name, children }: { label?: string; children: ReactNode }) {
+  useLegendMark('mark:working');
+  return (
+    <Tip text={`${label} · ${MARKS.working.phrase}`}>
+      <span data-mark="working" className="inline-flex shrink-0 tabular-nums">
+        <Working>{children}</Working>
+      </span>
+    </Tip>
+  );
+}
+
+/** The word's color follows its mark: blue for Proposed, grey when not active, rust for a problem,
+    amber while working (brand book, Color). */
 const WORD_TONE: Partial<Record<MarkKind, string>> = {
-  proposed: 'text-needs-hover',
+  proposed: 'text-needs-strong',
   stale: 'text-muted',
   parked: 'text-muted',
   dropped: 'text-muted',
@@ -117,7 +92,9 @@ const WORD_TONE: Partial<Record<MarkKind, string>> = {
 /** Mark and word together, as in zone 2 of the card: "○ Proposed". */
 export function MarkWord({ kind, word, className }: { kind: MarkKind; word: string; className?: string }) {
   return (
-    <span className={cn('inline-flex items-center gap-1.5 text-xs font-medium', WORD_TONE[kind] ?? 'text-ink', className)}>
+    <span
+      className={cn('dm-text-caption inline-flex items-center gap-1.5 font-medium', WORD_TONE[kind] ?? 'text-ink', className)}
+    >
       <Mark kind={kind} label={word} />
       <span>{word}</span>
     </span>
@@ -146,12 +123,12 @@ export function EpistemicMark({ status, withWord = false }: { status: string | n
   return withWord ? <MarkWord kind={kind} word={MARKS[kind].name} /> : <Mark kind={kind} />;
 }
 
-/** Chip of an observation of DEMIURGO: claim or hypothesis (Proposed), unknown (?). */
+/** Tag of an observation of DEMIURGO: claim or hypothesis (Proposed), unknown (?). */
 export function ObservationChip({ kind }: { kind: string }) {
   const w = OBSERVATION_WORDS[kind] ?? { word: kind, mark: 'unknown' as const };
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-line bg-surface px-2 py-0.5 text-[11px] font-medium text-ink-2">
-      <Mark kind={w.mark} size={8} label={w.word} />
+    <span className="dm-text-caption inline-flex items-center gap-1.5 rounded-pill border border-line bg-surface px-2 font-medium text-ink-2">
+      <Mark kind={w.mark} label={w.word} />
       {w.word.toLowerCase()}
     </span>
   );

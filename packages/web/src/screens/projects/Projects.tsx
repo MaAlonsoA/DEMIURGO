@@ -1,10 +1,10 @@
-// Choose a project (only shown with more than one).
+// Choose a project (only shown with more than one): each one on the design system's card.
 
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { projectsQuery } from '../../api/queries.ts';
 import { shortDate } from '../../lib/time.ts';
-import { buttonStyles } from '../../ui/Button.tsx';
+import { buttonClass } from '../../ui/Button.tsx';
 import { ChevronRight } from '../../ui/icons.tsx';
 import { EmptyState, Loading } from '../../ui/layout.tsx';
 
@@ -14,10 +14,10 @@ export function ProjectsScreen() {
     <main id="main" className="mx-auto flex min-h-screen w-[640px] flex-col gap-6 py-16">
       <div className="flex items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <span className="text-[13px] font-bold tracking-[0.14em]">DEMIURGO</span>
-          <h1 className="text-[28px] font-semibold">Your projects</h1>
+          <span className="dm-text-wordmark">DEMIURGO</span>
+          <h1 className="dm-text-page-title font-semibold">Your projects</h1>
         </div>
-        <Link to="/new" className={buttonStyles({ variant: 'ink', size: 'md' })}>
+        <Link to="/new" className={buttonClass('secondary')}>
           New project
         </Link>
       </div>
@@ -32,11 +32,11 @@ export function ProjectsScreen() {
               <Link
                 to="/p/$projectId"
                 params={{ projectId: p.id }}
-                className="flex items-center justify-between rounded-[var(--radius-card)] border border-line bg-surface px-4 py-3 hover:border-line-strong"
+                className="dm-card flex-row items-center justify-between hover:border-line-strong"
               >
                 <span className="flex flex-col">
-                  <strong className="text-[15px] font-semibold">{p.name}</strong>
-                  <span className="text-xs text-muted">Created {shortDate(p.created_at)}</span>
+                  <strong className="dm-text-heading font-semibold">{p.name}</strong>
+                  <span className="dm-text-caption text-muted">Created {shortDate(p.created_at)}</span>
                 </span>
                 <ChevronRight size={14} className="text-muted" />
               </Link>

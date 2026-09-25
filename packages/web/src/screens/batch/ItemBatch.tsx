@@ -69,8 +69,8 @@ export function ItemBatch({ projectId, batch }: { projectId: string; batch: Batc
         <>
           <section className="flex flex-col gap-2" aria-label="In this batch">
             <div className="flex items-baseline justify-between">
-              <h2 className="text-[15px] font-semibold">In this batch</h2>
-              <span className="text-xs text-muted">{left === 0 ? 'All decided' : `${left} to decide`}</span>
+              <h2 className="dm-text-heading font-semibold">In this batch</h2>
+              <span className="dm-text-caption text-muted">{left === 0 ? 'All decided' : `${left} to decide`}</span>
             </div>
             <ol className="flex flex-col gap-0.5">
               {proposals.map((p, i) => {
@@ -82,23 +82,27 @@ export function ItemBatch({ projectId, batch }: { projectId: string; batch: Batc
                       aria-current={i === index ? 'step' : undefined}
                       onClick={() => go(i)}
                       className={cn(
-                        'flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left hover:bg-paper',
-                        i === index && 'bg-needs-bg hover:bg-needs-bg',
+                        'flex w-full items-center gap-2.5 rounded-control border border-transparent px-2.5 py-2 text-left hover:bg-paper',
+                        i === index && 'border-needs-line bg-needs-soft hover:bg-needs-soft',
                       )}
                     >
+                      {/* Its place in the batch; the one on screen has the selection outline (a blue
+                          fill would read as the Needs you counter). */}
                       <span
                         className={cn(
-                          'inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border-[1.5px] text-[11px] font-bold',
-                          i === index ? 'border-needs bg-needs text-white' : 'border-line-strong text-ink-2',
+                          'dm-text-caption inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-surface font-bold',
+                          i === index
+                            ? 'border-2 border-needs text-needs-strong'
+                            : 'border-[1.5px] border-line-strong text-ink-2',
                         )}
                       >
                         {i + 1}
                       </span>
                       <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="text-xs text-muted">{PROPOSAL_TYPE_WORDS[p.type] ?? p.type}</span>
-                        <strong className="truncate text-[13px] font-semibold">{proposalTitle(p)}</strong>
+                        <span className="dm-text-caption text-muted">{PROPOSAL_TYPE_WORDS[p.type] ?? p.type}</span>
+                        <strong className="dm-text-small truncate font-semibold">{proposalTitle(p)}</strong>
                       </span>
-                      <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted">
+                      <span className="dm-text-caption flex shrink-0 items-center gap-1.5 text-muted">
                         <Mark kind={w.mark} label={w.word} />
                         {w.word}
                       </span>
@@ -108,13 +112,13 @@ export function ItemBatch({ projectId, batch }: { projectId: string; batch: Batc
               })}
             </ol>
           </section>
-          <section className="flex items-start gap-3 rounded-xl border border-line px-3.5 py-3" aria-label="Who proposes">
+          <section className="flex items-start gap-3 rounded-card-md border border-line px-3.5 py-3" aria-label="Who proposes">
             <WhoMark actor={batch.producer} size={28} />
-            <div className="flex flex-col text-[13px]">
+            <div className="dm-text-small flex flex-col">
               <strong className="font-semibold">
                 {whoOf(batch.producer).kind === 'automatic' ? "DEMIURGO's knowledge" : whoOf(batch.producer).name}
               </strong>
-              <span className="text-xs text-muted">
+              <span className="dm-text-caption text-muted">
                 {whoOf(batch.producer).kind === 'agent'
                   ? 'An agent from outside. It only proposes: nothing changes until you accept.'
                   : whoOf(batch.producer).kind === 'automatic'
@@ -131,8 +135,8 @@ export function ItemBatch({ projectId, batch }: { projectId: string; batch: Batc
         <WhoMark actor={batch.producer} size={40} />
         <div className="flex flex-col gap-0.5">
           <Eyebrow>{eyebrow}</Eyebrow>
-          <h1 className="text-2xl leading-tight font-semibold">{title}</h1>
-          <p className="text-sm text-ink-3">
+          <h1 className="dm-text-page-title leading-tight font-semibold">{title}</h1>
+          <p className="dm-text-body text-ink-3">
             {dayTime(batch.created_at)}
             {batch.summary ? ` · ${batch.summary}` : ''} Nothing changes until you accept. Decide each one: accept it, change it
             or reject it.
@@ -162,13 +166,13 @@ export function ItemBatch({ projectId, batch }: { projectId: string; batch: Batc
       )}
 
       <nav aria-label="Proposals" className="mt-3 flex max-w-[860px] items-center justify-between">
-        <Button variant="ghost" aria-label="Previous proposal" disabled={index === 0} onClick={() => go(index - 1)}>
+        <Button variant="text" aria-label="Previous proposal" disabled={index === 0} onClick={() => go(index - 1)}>
           <ChevronLeft size={14} /> Previous
         </Button>
-        <span className="text-xs text-muted">
+        <span className="dm-text-caption text-muted">
           {index + 1} of {n}
         </span>
-        <Button variant="ghost" aria-label="Next proposal" disabled={index >= n - 1} onClick={() => go(index + 1)}>
+        <Button variant="text" aria-label="Next proposal" disabled={index >= n - 1} onClick={() => go(index + 1)}>
           Next <ChevronRight size={14} />
         </Button>
       </nav>

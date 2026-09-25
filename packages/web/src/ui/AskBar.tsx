@@ -24,7 +24,7 @@ import { cn } from '../lib/cn.ts';
 import { useTables } from '../lib/hooks.ts';
 import { type AskSubject, askPlaceholder, askProgress, openThreadData, subjectWords, threadFor } from './ask.ts';
 import { Button } from './Button.tsx';
-import { ArrowRight, ChevronRight } from './icons.tsx';
+import { ChevronRight } from './icons.tsx';
 import { Mark } from './marks.tsx';
 import { Reasons } from './Reasons.tsx';
 import { WhoGlyph } from './signals.tsx';
@@ -128,8 +128,6 @@ export function AskBar({
     }
   };
   const label = `Ask DEMIURGO about ${subjectWords(subject)}`;
-  const focusRing =
-    'has-[textarea:focus-visible]:border-needs has-[textarea:focus-visible]:shadow-[0_0_0_3px_var(--color-needs-ring)]';
 
   return (
     <div className={cn('flex flex-col gap-2', className)}>
@@ -138,19 +136,17 @@ export function AskBar({
         aria-label={label}
         onSubmit={onSubmit}
         className={cn(
-          'flex rounded-xl border border-line-strong bg-surface transition-shadow',
-          variant === 'bar'
-            ? 'items-center gap-2.5 py-2 pr-2 pl-3.5 shadow-[0_8px_24px_rgba(29,28,26,0.06)]'
-            : 'items-end gap-2.5 py-2.5 pr-2.5 pl-3',
-          focusRing,
+          // An input of the design system: control radius and border, blue while it is being written in.
+          'flex rounded-control border border-line-strong bg-surface has-[textarea:focus-visible]:border-needs',
+          variant === 'bar' ? 'items-center gap-2.5 py-2 pr-2 pl-3.5 shadow-raised' : 'items-end gap-2.5 py-2.5 pr-2.5 pl-3',
         )}
       >
         {variant === 'bar' ? (
-          <span className="shrink-0 rounded-md bg-line-soft px-2 py-[3px] text-xs font-semibold text-ink-3">
+          <span className="dm-text-caption shrink-0 rounded-tab bg-line-soft px-2 py-[3px] font-semibold text-ink-3">
             About: whole product
           </span>
         ) : (
-          <span className="mb-[7px] flex shrink-0" aria-hidden="true">
+          <span className="mb-2.5 flex shrink-0" aria-hidden="true">
             <WhoGlyph kind="demiurgo" size={20} />
           </span>
         )}
@@ -168,26 +164,12 @@ export function AskBar({
           placeholder={askPlaceholder(subject)}
           className={cn(
             'min-w-0 flex-1 resize-none bg-transparent text-ink outline-none placeholder:text-muted',
-            variant === 'bar' ? 'py-1.5 text-[14px] leading-snug' : 'py-1 text-[13px] leading-relaxed',
+            variant === 'bar' ? 'dm-text-body py-1.5 leading-snug' : 'dm-text-small py-1 leading-relaxed',
           )}
         />
-        {variant === 'bar' ? (
-          <Button type="submit" variant="ink" disabled={send.isPending}>
-            {send.isPending ? 'Sending…' : 'Send'}
-          </Button>
-        ) : (
-          <button
-            type="submit"
-            aria-label="Send"
-            disabled={send.isPending}
-            className={cn(
-              'inline-flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed',
-              empty ? 'bg-line-soft text-ink-3' : 'bg-ink text-white hover:bg-ink-2',
-            )}
-          >
-            <ArrowRight size={16} />
-          </button>
-        )}
+        <Button type="submit" variant="secondary" disabled={send.isPending}>
+          {send.isPending ? 'Sending…' : 'Send'}
+        </Button>
       </form>
       {sent && <AskStatus projectId={projectId} sent={sent} />}
     </div>
@@ -213,11 +195,11 @@ function AskStatus({ projectId, sent }: { projectId: string; sent: Sent }) {
       Open the thread
       <ChevronRight size={11} />
     </>,
-    'inline-flex items-center gap-0.5 font-semibold whitespace-nowrap text-needs hover:text-needs-hover',
+    'inline-flex items-center gap-0.5 font-semibold whitespace-nowrap text-needs-strong hover:underline',
   );
-  const where = toThread(sent.purpose, 'font-semibold text-ink hover:text-needs');
+  const where = toThread(sent.purpose, 'font-semibold text-ink hover:text-needs-strong');
   const dot = (
-    <span className="text-inactive-light" aria-hidden="true">
+    <span className="dm-sep" aria-hidden="true">
       {' · '}
     </span>
   );
@@ -225,7 +207,7 @@ function AskStatus({ projectId, sent }: { projectId: string; sent: Sent }) {
     <p
       role="status"
       data-ask-status={progress.state}
-      className={cn('flex items-start gap-2 px-1 text-[13px] text-ink-2', progress.state === 'failed' && 'text-problem')}
+      className={cn('dm-text-small flex items-start gap-2 px-1 text-ink-2', progress.state === 'failed' && 'text-problem')}
     >
       <span className="flex h-5 shrink-0 items-center">
         {progress.state === 'answering' && <Mark kind="working" size={9} label="Working" />}

@@ -1,6 +1,8 @@
 // Small pieces of the package and batch page (canvas S7B and S5A): the eyebrow, the "What it
-// changes" box, chips, checks, sections, the idea check and the out-of-date box.
+// changes" box, chips, checks (the design system's CheckRow), sections, the idea check and the
+// out-of-date box.
 
+import { CheckRow } from '@demiurgo/design-system';
 import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import type { IdeaAssessmentSummary, ProductRow } from '../../api/types.ts';
@@ -8,27 +10,18 @@ import { cn } from '../../lib/cn.ts';
 import { Code } from '../../ui/Card.tsx';
 import { TypeIcon, type IconKind, WarningIcon } from '../../ui/icons.tsx';
 import { Markdown } from '../../ui/Markdown.tsx';
-import { Mark } from '../../ui/marks.tsx';
+import { Mark, WorkingMark } from '../../ui/marks.tsx';
 import { WhoMark } from '../../ui/signals.tsx';
 import { citedRecord, FINDING_WORDS, rowOf } from './model.ts';
 
 /** Small uppercase line above a title: "1 OF 4 · NEW CHECK · ○ Proposed". */
 export function Eyebrow({ children, className }: { children: ReactNode; className?: string }) {
-  return (
-    <div
-      className={cn(
-        'flex flex-wrap items-center gap-1.5 text-[11px] font-semibold tracking-[0.05em] text-muted uppercase',
-        className,
-      )}
-    >
-      {children}
-    </div>
-  );
+  return <div className={cn('dm-label flex flex-wrap items-center gap-1.5', className)}>{children}</div>;
 }
 
 export function Dot() {
   return (
-    <span className="text-inactive-light" aria-hidden="true">
+    <span className="dm-sep" aria-hidden="true">
       ·
     </span>
   );
@@ -48,11 +41,11 @@ export function TypeLabel({ icon, children }: { icon: IconKind; children: ReactN
   );
 }
 
-/** The warm box of "What it changes". */
+/** The quiet box of "What it changes". */
 export function ChangeBox({ title = 'What it changes', children }: { title?: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-2 rounded-[10px] bg-surface-2 px-3.5 py-2.5">
-      <span className="text-[11px] font-semibold tracking-[0.05em] text-muted uppercase">{title}</span>
+    <div className="flex flex-col gap-2 rounded-sm bg-surface-soft px-3.5 py-2.5">
+      <span className="dm-label">{title}</span>
       {children}
     </div>
   );
@@ -61,7 +54,7 @@ export function ChangeBox({ title = 'What it changes', children }: { title?: str
 /** A field of a proposal as it came: its label and its text. */
 export function Field({ label, children, mark = true }: { label: string; children: ReactNode; mark?: boolean }) {
   return (
-    <div className="flex items-start gap-2 text-[13.5px] leading-[1.45]">
+    <div className="dm-text-small flex items-start gap-2">
       <span className="flex w-3.5 shrink-0 justify-center pt-[5px]">{mark ? <Mark kind="proposed" size={9} /> : null}</span>
       <div className="min-w-0 flex-1">
         <span className="text-muted">{label}: </span>
@@ -92,7 +85,7 @@ export function RecordChip({
       params={{ projectId, code }}
       search={version ? { v: version } : {}}
       className={cn(
-        'inline-flex max-w-full items-center gap-1.5 rounded-lg border border-line bg-surface px-2 py-0.5 text-[12.5px] font-semibold text-ink hover:border-line-strong',
+        'dm-text-small inline-flex max-w-full items-center gap-1.5 rounded-sm border border-line bg-surface px-2 py-0.5 font-semibold text-ink hover:border-line-strong',
         className,
       )}
     >
@@ -111,30 +104,34 @@ export type CheckLike = { code?: string; title: string; statement: string; verif
 export function Verification({ verification }: { verification: string }) {
   const automatic = verification === 'automatic';
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-ink-2">
+    <span className="dm-text-caption inline-flex items-center gap-1.5 text-ink-2">
       <WhoMark actor={automatic ? 'system:test' : 'human:you'} size={16} />
       {automatic ? 'Automatic' : 'You'}
     </span>
   );
 }
 
+/** A check as the design system's CheckRow: what must be true, how it is checked and who verifies it. */
+function Check({ check: c }: { check: CheckLike }) {
+  return (
+    <CheckRow
+      title={c.title}
+      statement={c.statement}
+      how={`Check: ${c.check}`}
+      verifiedBy={c.verification === 'automatic' ? 'automatic' : 'you'}
+      code={c.code}
+      whoMark={<Verification verification={c.verification} />}
+    />
+  );
+}
+
 /** Checks as a dense list (imported documents can have many). */
 export function ChecksList({ checks }: { checks: CheckLike[] }) {
   return (
-    <ol className="flex flex-col divide-y divide-line-soft rounded-[10px] border border-line bg-surface">
+    <ol className="flex flex-col divide-y divide-line-soft rounded-control border border-line bg-surface">
       {checks.map((c, i) => (
-        <li key={c.code ?? `${c.title}-${i}`} className="flex flex-col gap-1 px-3.5 py-2.5">
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="flex min-w-0 items-baseline gap-2">
-              <strong className="text-[13.5px] font-semibold">{c.title}</strong>
-              {c.code ? <Code>{c.code}</Code> : <span className="text-xs text-muted">Check {i + 1}</span>}
-            </span>
-            <Verification verification={c.verification} />
-          </div>
-          <p className="text-[13px] leading-snug text-ink-2">{c.statement}</p>
-          <p className="text-xs text-muted">
-            <span className="font-semibold">Check:</span> {c.check}
-          </p>
+        <li key={c.code ?? `${c.title}-${i}`} className="px-3.5 py-2.5">
+          <Check check={c} />
         </li>
       ))}
     </ol>
@@ -146,22 +143,8 @@ export function CheckCards({ checks }: { checks: CheckLike[] }) {
   return (
     <ol className="grid grid-cols-2 gap-3">
       {checks.map((c, i) => (
-        <li
-          key={c.code ?? `${c.title}-${i}`}
-          className="flex flex-col gap-1.5 rounded-[var(--radius-card)] border border-line bg-surface px-4 py-3"
-        >
-          <Eyebrow>
-            <TypeLabel icon="check">Check {i + 1}</TypeLabel>
-            {c.code && <Code className="tracking-normal normal-case">{c.code}</Code>}
-          </Eyebrow>
-          <strong className="text-[14px] leading-snug font-semibold">{c.title}</strong>
-          <p className="text-[13px] leading-snug text-ink-2">{c.statement}</p>
-          <p className="text-xs text-muted">
-            <span className="font-semibold">Check:</span> {c.check}
-          </p>
-          <div className="mt-auto border-t border-line-soft pt-2">
-            <Verification verification={c.verification} />
-          </div>
+        <li key={c.code ?? `${c.title}-${i}`} className="rounded-card-md border border-line bg-surface px-4 py-3">
+          <Check check={c} />
         </li>
       ))}
     </ol>
@@ -175,7 +158,7 @@ export function Sections({ sections, level = 3 }: { sections: { title: string; c
     <div className="flex flex-col gap-4">
       {sections.map((s) => (
         <section key={s.title} className="flex flex-col gap-1">
-          <H className="text-[13px] font-semibold text-ink-2">{s.title}</H>
+          <H className="dm-text-small font-semibold text-ink-2">{s.title}</H>
           <Markdown>{s.content}</Markdown>
         </section>
       ))}
@@ -204,15 +187,13 @@ export function IdeaCheck({
     <div className="flex items-start gap-2.5" data-idea-check>
       <WhoMark actor="system:knowledge" size={22} />
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="text-xs text-muted">Checked against what DEMIURGO knows</span>
+        <span className="dm-text-caption text-muted">Checked against what DEMIURGO knows</span>
         {pending ? (
-          <span className="inline-flex items-center gap-2 text-[13.5px] text-working-text">
-            <Mark kind="working" /> Checking it…
-          </span>
+          <WorkingMark>Checking it…</WorkingMark>
         ) : error ? (
-          <span className="text-[13.5px] text-problem">The check couldn't run: {error}</span>
+          <span className="dm-text-small text-problem">The check couldn't run: {error}</span>
         ) : findings.length === 0 ? (
-          <span className="text-[13.5px] text-ink-2">It doesn't repeat or contradict anything DEMIURGO knows.</span>
+          <span className="dm-text-small text-ink-2">It doesn't repeat or contradict anything DEMIURGO knows.</span>
         ) : (
           <ul className="flex flex-col gap-1">
             {findings.map((f) => {
@@ -220,7 +201,7 @@ export function IdeaCheck({
               const cited = f.citation ? citedRecord(f.citation, codes) : null;
               const urgent = verdict === 'conflicts' || verdict === 'duplicates' || verdict === 'inconsistent';
               return (
-                <li key={`${verdict}-${f.citation}`} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13.5px]">
+                <li key={`${verdict}-${f.citation}`} className="dm-text-small flex flex-wrap items-center gap-x-2 gap-y-1">
                   <span className={cn('inline-flex items-center gap-1.5 font-semibold', urgent ? 'text-problem' : 'text-ink')}>
                     {urgent && <WarningIcon size={13} />}
                     {FINDING_WORDS[verdict] ?? verdict}
@@ -230,7 +211,7 @@ export function IdeaCheck({
                   ) : (
                     <Code>{f.citation}</Code>
                   )}
-                  {f.justification && <span className="text-xs text-muted">{f.justification}</span>}
+                  {f.justification && <span className="dm-text-caption text-muted">{f.justification}</span>}
                 </li>
               );
             })}
@@ -244,12 +225,15 @@ export function IdeaCheck({
 /** The out-of-date box: the clock, the words and why (the server's reason, as it came). */
 export function OutOfDate({ title = 'Out of date', children }: { title?: string; children?: ReactNode }) {
   return (
-    <div className="flex flex-col gap-1.5 rounded-xl border border-dashed border-bar-empty bg-paper px-3.5 py-3" data-out-of-date>
-      <span className="flex items-center gap-2 text-sm font-semibold">
+    <div
+      className="flex flex-col gap-1.5 rounded-card-md border border-dashed border-track bg-paper px-3.5 py-3"
+      data-out-of-date
+    >
+      <span className="dm-text-body flex items-center gap-2 font-semibold">
         <Mark kind="stale" size={12} />
         {title}
       </span>
-      {children && <div className="text-[13.5px] text-ink-2">{children}</div>}
+      {children && <div className="dm-text-small text-ink-2">{children}</div>}
     </div>
   );
 }
@@ -258,7 +242,7 @@ export function OutOfDate({ title = 'Out of date', children }: { title?: string;
 export function MayBeOutOfDate({ reasons }: { reasons: string[] }) {
   if (reasons.length === 0) return null;
   return (
-    <div className="flex flex-col gap-1 rounded-xl border border-problem-line bg-problem-bg px-3.5 py-3 text-[13.5px] text-problem">
+    <div className="dm-text-small flex flex-col gap-1 rounded-card-md bg-problem-tint px-3.5 py-3 text-problem">
       <span className="flex items-center gap-2 font-semibold">
         <WarningIcon size={14} /> It can't be accepted as it is
       </span>

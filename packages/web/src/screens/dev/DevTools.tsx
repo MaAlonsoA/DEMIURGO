@@ -3,6 +3,7 @@
 // tab on the bottom edge opens it on every screen, including a fresh Day 1 after a reset, and so
 // does "Snapshots…" in the person menu.
 
+import { Working } from '@demiurgo/design-system';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Dialog } from 'radix-ui';
 import { type FormEvent, useEffect, useId, useState } from 'react';
@@ -22,10 +23,11 @@ import { visits } from '../overview/lens/visit.ts';
 import { hasDevTools, onOpenDevPanel, sizeOf, summaryOf } from './snapshots.ts';
 
 const overlay = 'fixed inset-0 z-50 bg-ink/25 animate-fade-in';
+/** The panel floats like a dialog: the design system's panel, with its float shadow. */
 const panel =
-  'fixed top-1/2 left-1/2 z-50 w-[560px] max-w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 animate-fade-in rounded-[var(--radius-panel)] border border-line bg-surface p-6 shadow-[0_24px_64px_rgba(29,28,26,0.18)]';
+  'dm-panel dm-float fixed top-1/2 left-1/2 z-50 w-[560px] max-w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 animate-fade-in gap-0 p-6';
 const field =
-  'w-full rounded-[var(--radius-control)] border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-needs focus:outline-none';
+  'dm-text-body w-full rounded-control border border-line-strong bg-surface px-3 py-2 text-ink placeholder:text-muted focus:border-needs focus:outline-none';
 
 type Action =
   | { kind: 'save'; label: string }
@@ -95,7 +97,7 @@ function DevPanel() {
       <Dialog.Trigger asChild>
         <button
           type="button"
-          className="fixed bottom-0 left-1/2 z-40 -translate-x-1/2 rounded-t-md border border-b-0 border-working bg-working-bg px-3 py-0.5 font-mono text-[11px] font-semibold text-working-text hover:bg-surface"
+          className="dm-code fixed bottom-0 left-1/2 z-40 -translate-x-1/2 rounded-t-tab border border-b-0 border-line-strong bg-surface px-3 py-0.5 font-semibold text-ink-2 hover:bg-line-soft hover:text-ink"
         >
           Dev
         </button>
@@ -103,14 +105,14 @@ function DevPanel() {
       <Dialog.Portal>
         <Dialog.Overlay className={overlay} />
         <Dialog.Content className={panel}>
-          <Dialog.Title className="text-lg font-semibold">Snapshots</Dialog.Title>
-          <Dialog.Description className="mt-1 text-sm text-ink-2">
+          <Dialog.Title className="dm-text-heading font-semibold">Snapshots</Dialog.Title>
+          <Dialog.Description className="dm-text-body mt-1 text-ink-2">
             Copies of the whole database ({database}): projects, conversations, runs and knowledge. Development only.
           </Dialog.Description>
 
           <form onSubmit={save} className="mt-5 flex items-end gap-2">
             <div className="flex-1">
-              <label htmlFor={labelId} className="text-xs font-semibold text-ink-2">
+              <label htmlFor={labelId} className="dm-text-caption font-semibold text-ink-2">
                 Label
               </label>
               <input
@@ -123,26 +125,26 @@ function DevPanel() {
                 disabled={busy}
               />
             </div>
-            <Button type="submit" variant="ink" disabled={busy}>
+            <Button type="submit" variant="secondary" disabled={busy}>
               Save snapshot
             </Button>
           </form>
 
           <ul className="mt-5 flex max-h-[320px] flex-col divide-y divide-line-soft overflow-y-auto border-y border-line-soft">
-            {list.isPending ? <li className="py-3 text-sm text-muted">Loading…</li> : null}
-            {list.data?.snapshots.length === 0 ? <li className="py-3 text-sm text-muted">No snapshots yet.</li> : null}
+            {list.isPending ? <li className="dm-text-body py-3 text-muted">Loading…</li> : null}
+            {list.data?.snapshots.length === 0 ? <li className="dm-text-body py-3 text-muted">No snapshots yet.</li> : null}
             {list.data?.snapshots.map((s) => (
               <li key={s.name} className="flex items-center gap-3 py-2.5">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold">{s.label}</p>
-                  <p className="truncate text-xs text-ink-2">
+                  <p className="dm-text-body truncate font-semibold">{s.label}</p>
+                  <p className="dm-text-caption truncate text-ink-2">
                     {dayTime(s.created_at)} · {summaryOf(s)} · {sizeOf(s.size_bytes)}
                   </p>
                 </div>
-                <Button size="sm" disabled={busy} onClick={() => restore(s)}>
+                <Button disabled={busy} onClick={() => restore(s)}>
                   Restore
                 </Button>
-                <Button size="sm" variant="ghost" disabled={busy} onClick={() => drop(s)}>
+                <Button variant="text" disabled={busy} onClick={() => drop(s)}>
                   Delete
                 </Button>
               </li>
@@ -151,15 +153,17 @@ function DevPanel() {
           {list.error ? <Reasons error={list.error} className="mt-3" /> : null}
 
           <div className="mt-5 flex items-center gap-3">
-            <p className="flex-1 text-xs text-ink-2">Reset: an empty database with the same people, ready for a new Day 1.</p>
-            <Button size="sm" variant="problem" disabled={busy} onClick={reset}>
+            <p className="dm-text-caption flex-1 text-ink-2">
+              Reset: an empty database with the same people, ready for a new Day 1.
+            </p>
+            <Button variant="secondary" disabled={busy} onClick={reset}>
               Reset
             </Button>
           </div>
 
           {busy ? (
-            <p role="status" className="mt-4 text-sm text-working-text">
-              {action.variables?.kind === 'drop' ? 'Deleting…' : 'Restarting the API…'}
+            <p role="status" className="mt-4">
+              <Working>{action.variables?.kind === 'drop' ? 'Deleting…' : 'Restarting the API…'}</Working>
             </p>
           ) : null}
           {action.error ? <Reasons error={action.error} className="mt-4" /> : null}

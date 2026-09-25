@@ -47,7 +47,7 @@ export function HistoryTab({ projectId, record }: { projectId: string; record: R
   return (
     <div className="flex flex-col gap-8">
       <section aria-labelledby={happened} className="flex flex-col gap-2.5">
-        <h2 id={happened} className="text-xs font-semibold text-muted">
+        <h2 id={happened} className="dm-text-caption font-semibold text-muted">
           What happened
         </h2>
         {error ? (
@@ -59,14 +59,14 @@ export function HistoryTab({ projectId, record }: { projectId: string; record: R
             <Skeleton className="h-4 w-60" />
           </div>
         ) : (
-          <ol className="flex flex-col rounded-[var(--radius-card)] border border-line bg-surface px-4 py-1.5">
+          <ol className="flex flex-col rounded-card-md border border-line bg-surface px-4 py-1.5">
             {lines.map((l) => (
               <li
                 key={l.id}
                 data-history-line
-                className="flex items-center gap-2.5 border-b border-line-soft py-2 text-[13px] last:border-b-0"
+                className="dm-text-small flex items-center gap-2.5 border-b border-line-soft py-2 last:border-b-0"
               >
-                <WhoMark actor={l.actor} size={18} withName className="text-xs font-medium" />
+                <WhoMark actor={l.actor} size={18} withName className="dm-text-caption font-medium" />
                 <span className="font-semibold text-ink">{l.words}</span>
                 <span className="text-muted">· {dayTime(l.at)}</span>
               </li>
@@ -76,33 +76,33 @@ export function HistoryTab({ projectId, record }: { projectId: string; record: R
       </section>
 
       <section aria-labelledby={every} className="flex flex-col gap-2.5">
-        <h2 id={every} className="text-xs font-semibold text-muted">
+        <h2 id={every} className="dm-text-caption font-semibold text-muted">
           Every version
         </h2>
-        <ol className="flex flex-col divide-y divide-line-soft rounded-[var(--radius-card)] border border-line bg-surface">
+        <ol className="flex flex-col divide-y divide-line-soft rounded-card-md border border-line bg-surface">
           {record.versions.toReversed().map((v) => {
             const w = stateWord('record_version', v.state);
             return (
               <li key={v.id} data-history-version={v.n} className="flex flex-col gap-1 px-4 py-3">
-                <span className="flex items-center gap-2 text-[13px]">
+                <span className="dm-text-small flex items-center gap-2">
                   <Mark kind={w.mark} size={9} label={w.word} />
-                  <span className="font-mono text-xs font-semibold">v{v.n}</span>
+                  <span className="dm-text-caption font-mono font-semibold">v{v.n}</span>
                   <span className="font-semibold">{w.word}</span>
                   {v.current && <span className="text-muted">· current</span>}
                   <Link
                     to="/p/$projectId/records/$code"
                     params={{ projectId, code: record.code }}
                     search={{ v: v.n }}
-                    className="ml-auto inline-flex items-center gap-1 text-xs font-semibold text-needs hover:text-needs-hover"
+                    className="dm-text-caption ml-auto inline-flex items-center gap-1 font-semibold text-needs-strong hover:underline"
                   >
                     Open v{v.n}
                     <ChevronRight size={11} />
                   </Link>
                 </span>
-                <span className="text-[13px] text-ink-2">
+                <span className="dm-text-small text-ink-2">
                   {v.change_note ?? (v.n === 1 ? 'The first version.' : 'No change note.')}
                 </span>
-                <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
+                <span className="dm-text-caption flex flex-wrap items-center gap-x-4 gap-y-1 text-muted">
                   <span className="flex items-center gap-1.5">
                     <WhoMark actor={v.author} size={16} />
                     Written by {by(v.author)} · {dayTime(v.created_at)}

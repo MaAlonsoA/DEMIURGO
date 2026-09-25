@@ -3,9 +3,12 @@ import type { Catalog } from '../../src/api/models.ts';
 import { type RunProgress, progressText } from '../../src/api/progress.ts';
 import {
   agentOrder,
+  agentSection,
+  changeWords,
   choosableProviders,
   effortsOf,
   engineLabel,
+  failureKindsText,
   firstEngine,
   formatTokens,
   resolutionLine,
@@ -114,6 +117,31 @@ describe('choosing an engine', () => {
     expect(formatTokens(0)).toBe('0');
     expect(formatTokens(1240)).toBe('1,240');
     expect(formatTokens(1_250_000)).toBe('1.25M');
+  });
+});
+
+describe('saying what changed', () => {
+  it('AC-AGE-002-02 a change of engine is said in words once it applies, with where it applies', () => {
+    const sol = { provider: 'codex', model: 'gpt-6-sol', effort: 'medium' };
+    expect(changeWords('Explorer', { scope: 'global', engine: sol }, CATALOGS)).toBe(
+      'Explorer now uses Codex · GPT-6-Sol · medium everywhere.',
+    );
+    expect(changeWords('Explorer', { scope: 'project', engine: sol }, CATALOGS)).toBe(
+      'Explorer now uses Codex · GPT-6-Sol · medium in this project.',
+    );
+    expect(changeWords('Explorer', { scope: 'project', engine: null }, CATALOGS)).toBe(
+      "Explorer uses everywhere's engine in this project again.",
+    );
+    expect(changeWords('Explorer', { scope: 'global', engine: null }, CATALOGS)).toBe('Explorer has no engine everywhere now.');
+  });
+
+  it('AC-AGE-002-02 names a part of DEMIURGO as the agents table does, and every failure kind in words', () => {
+    const agents = [{ id: 'knowledge_classifier', section: 'Knowledge classifier' }];
+    expect(agentSection('knowledge_classifier', agents)).toBe('Knowledge classifier');
+    expect(agentSection('unknown_agent', agents)).toBe('unknown_agent');
+    expect(agentSection('explorer', undefined)).toBe('explorer');
+    expect(failureKindsText({ invalid_output: 2, stale_knowledge: 1, timeout: 0 })).toBe('2 invalid output, 1 stale knowledge');
+    expect(failureKindsText({})).toBe('');
   });
 });
 

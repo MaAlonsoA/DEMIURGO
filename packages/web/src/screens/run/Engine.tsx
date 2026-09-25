@@ -1,98 +1,38 @@
-// How a run was run (FDR-AGE-002): its agent and engine, the session with the provider, the
-// normalized metrics (each with where it comes from), and every call to the provider with its events.
+// What the engine did for a run (DESIGN.md §3.4 "Engine calls", FDR-AGE-002): every call to the
+// provider with its events as they arrived, polled while the run works, with a "Pause live
+// updates" control so the list stops moving under the reader (R79). Failures are in product
+// words (words.ts), never raw codes. `LiveProgress` is the one-line live reading shared with the
+// thread and Day 1 ("Thinking… 1,240 tokens · 0:12", INV-RUN-19).
 
 import { useQuery } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
-import { type RunCall, type RunUsage, providersQuery, runCallsQuery } from '../../api/models.ts';
+import { useState } from 'react';
+import { type RunCall, providersQuery, runCallsQuery } from '../../api/models.ts';
 import { type RunProgress, progressText } from '../../api/progress.ts';
-import type { RunDetail } from '../../api/types.ts';
+import { Button } from '../../components/Button.tsx';
+import { EmptyState } from '../../components/EmptyState.tsx';
+import { PauseCircleIcon, PlayIcon } from '../../components/icons.tsx';
+import { ErrorNotice } from '../../components/Notice.tsx';
+import { RowsSkeleton } from '../../components/Spinner.tsx';
+import { StatusBadge } from '../../components/status.tsx';
 import { cn } from '../../lib/cn.ts';
-import { ChevronRight } from '../../ui/icons.tsx';
-import { Skeleton } from '../../ui/layout.tsx';
+import { failureWord } from '../../words.ts';
 import { engineLabel, formatTokens } from '../models/engines.ts';
-
-const SESSION_WORDS: Record<string, string> = {
-  none: 'None: the whole context',
-  fresh: 'New conversation, whole context',
-  resumed: 'Continued: only what was added',
-};
-
-const KIND_WORDS: Record<string, string> = {
-  started: 'Started',
-  thinking: 'Thinking',
-  message: 'Wrote',
-  usage: 'Counted usage',
-  result: 'Answered',
-  error: 'Error',
-};
-
-/** The facts of the run's engine, for the side panel. */
-export function EngineFacts({ run: r, Fact }: { run: RunDetail; Fact: (p: { term: string; children: ReactNode }) => ReactNode }) {
-  const catalogs = useQuery(providersQuery).data?.catalogs ?? [];
-  const [agent, version] = r.method.split('@');
-  const engine = r.requested_model ? { provider: r.provider, model: r.requested_model, effort: r.effort ?? null } : null;
-  return (
-    <>
-      <Fact term="Agent">
-        <span className="dm-code text-ink">
-          {r.agent ?? agent}
-          {version && <span className="text-muted">@{version}</span>}
-        </span>
-      </Fact>
-      <Fact term="Engine">{engine ? engineLabel(engine, catalogs) : r.provider}</Fact>
-      <Fact term="Answered by">{r.model ?? <span className="text-muted">Not known yet</span>}</Fact>
-      {r.session_mode && <Fact term="Conversation">{SESSION_WORDS[r.session_mode] ?? r.session_mode}</Fact>}
-      {r.prompt_hash && (
-        <Fact term="Prompt">
-          <span className="dm-code text-ink" title="Fingerprint of the agent's system prompt">
-            {r.prompt_hash}
-          </span>
-        </Fact>
-      )}
-    </>
-  );
-}
-
-/** Tokens and cost, each with its provenance on hover. */
-export function UsageFacts({
-  usage: u,
-  Fact,
-}: {
-  usage: RunUsage;
-  Fact: (p: { term: string; children: ReactNode }) => ReactNode;
-}) {
-  const from = (field: string) => u.provenance?.[field] ?? 'not reported';
-  return (
-    <>
-      <Fact term="Tokens in">
-        <span className="tabular-nums" title={`From ${from('inputTokens')}`}>
-          {formatTokens(u.inputTokens)}
-          {u.cachedInputTokens ? <span className="text-muted"> · {formatTokens(u.cachedInputTokens)} cached</span> : null}
-        </span>
-      </Fact>
-      <Fact term="Tokens out">
-        <span className="tabular-nums" title={`From ${from('outputTokens')}`}>
-          {formatTokens(u.outputTokens)}
-          {u.reasoningTokens ? <span className="text-muted"> · {formatTokens(u.reasoningTokens)} thinking</span> : null}
-        </span>
-      </Fact>
-      {u.turns ? <Fact term="Turns">{u.turns}</Fact> : null}
-      {u.declaredCostUsd ? (
-        <Fact term="Cost">
-          <span className="tabular-nums" title={`From ${from('declaredCostUsd')}`}>
-            ${u.declaredCostUsd.toFixed(4)}
-          </span>
-        </Fact>
-      ) : null}
-    </>
-  );
-}
+import { RawJson } from './Readable.tsx';
+import { CALL_EVENT_WORDS, SESSION_WORDS, clockTime } from './runs.ts';
 
 /** «Thinking… 1,240 tokens · 0:12» while the provider works. */
-export function LiveProgress({ progress, now }: { progress: RunProgress | undefined; now: number }) {
+export function LiveProgress({
+  progress,
+  now,
+  className,
+}: {
+  progress: RunProgress | undefined;
+  now: number;
+  className?: string;
+}) {
   if (!progress) return null;
   return (
-    <span data-run-progress className="dm-text-small font-medium tabular-nums">
+    <span data-run-progress className={cn('text-sm font-medium text-info-text tabular-nums', className)}>
       {progressText(progress, now)}
     </span>
   );
@@ -103,69 +43,116 @@ function offset(call: RunCall, at: string): string {
   return `+${s.toFixed(1)} s`;
 }
 
-/** Each call to the provider (a run can take more than one), with its events in order. */
-export function CallsSection({ projectId, runId, active }: { projectId: string; runId: string; active: boolean }) {
-  const calls = useQuery({ ...runCallsQuery(projectId, runId), refetchInterval: active ? 2000 : false });
+const eventCount = (calls: readonly RunCall[] | undefined) => (calls ?? []).reduce((n, c) => n + c.events.length, 0);
+
+/** The calls of a run: the engine calls tab of the run page. */
+export function CallsPanel({ projectId, runId, active }: { projectId: string; runId: string; active: boolean }) {
+  const [paused, setPaused] = useState<RunCall[] | null>(null);
+  const live = active && paused === null;
+  const calls = useQuery({ ...runCallsQuery(projectId, runId), refetchInterval: live ? 2000 : false });
   const catalogs = useQuery(providersQuery).data?.catalogs ?? [];
-  if (calls.isPending) return <Skeleton className="h-24 w-full" />;
-  const list = calls.data ?? [];
-  if (list.length === 0) return null;
+
+  if (calls.isPending) return <RowsSkeleton label="Loading the engine calls" rows={3} />;
+  if (calls.error && !calls.data) return <ErrorNotice error={calls.error} onRetry={() => void calls.refetch()} />;
+  const latest = calls.data ?? [];
+  // While paused (and the run still works), the list is the one the person froze.
+  const shown = active && paused ? paused : latest;
+  const unseen = active && paused ? eventCount(latest) - eventCount(paused) : 0;
+
   return (
-    <section data-run-calls aria-labelledby="run-calls" className="rounded-card border border-line bg-surface">
-      <header className="flex items-baseline justify-between gap-3 border-b border-line-soft px-5 py-3">
-        <h2 id="run-calls" className="dm-text-heading">
-          What the engine did
-        </h2>
-        <span className="dm-text-caption text-muted">Every event as it arrived</span>
-      </header>
-      <ol className="flex flex-col">
-        {list.map((c, i) => (
-          <li key={c.id} className="border-b border-line-soft px-5 py-3 last:border-b-0">
-            <div className="dm-text-small flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <span className="font-semibold text-ink">{list.length > 1 ? `Call ${i + 1}` : 'Call'}</span>
-              <span className="text-ink-2">
-                {engineLabel({ provider: c.provider, model: c.requested_model, effort: c.effort }, catalogs)}
-              </span>
-              <span className="text-muted">{SESSION_WORDS[c.session_mode]}</span>
-              <span
-                className={cn(
-                  'dm-text-caption ml-auto font-semibold',
-                  c.state === 'error' ? 'text-problem' : c.state === 'running' ? 'text-working-text' : 'text-ink-2',
-                )}
-              >
-                {c.state === 'error'
-                  ? (c.failure_kind ?? 'failed').replace('_', ' ')
-                  : c.state === 'running'
-                    ? 'working'
-                    : 'answered'}
-              </span>
-            </div>
-            {c.error && <p className="dm-text-small mt-1 text-problem">{c.error}</p>}
-            <ol className="mt-2 flex flex-col gap-1 border-l border-line pl-3">
-              {c.events.map((e) => (
-                <li key={e.seq} className="dm-text-caption flex items-baseline gap-2">
-                  <span className="w-14 shrink-0 font-mono text-muted tabular-nums">{offset(c, e.received_at)}</span>
-                  <span className={cn('font-semibold', e.kind === 'error' ? 'text-problem' : 'text-ink')}>
-                    {KIND_WORDS[e.kind] ?? e.kind}
-                  </span>
-                  {e.tokens !== null && <span className="text-muted tabular-nums">{formatTokens(e.tokens)} tokens</span>}
-                </li>
-              ))}
-            </ol>
-            <details className="group mt-2">
-              <summary className="dm-text-caption cursor-pointer list-none font-semibold text-ink-2 hover:text-ink">
-                <span className="inline-flex items-center gap-1">
-                  <ChevronRight size={11} className="transition-transform group-open:rotate-90" />
-                  Raw events
+    <div data-run-calls className="flex flex-col gap-4">
+      {active ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-fg-2">
+            {/* Only the switch is announced, never each new event (R80). */}
+            <span role="status">{paused ? 'Live updates paused.' : 'Every event as it arrives.'}</span>
+            {paused && unseen > 0 ? (
+              <span className="font-medium text-fg"> {`${unseen} new ${unseen === 1 ? 'event' : 'events'} since.`}</span>
+            ) : null}
+          </p>
+          <Button
+            size="sm"
+            variant="secondary"
+            aria-pressed={paused !== null}
+            icon={paused ? <PlayIcon size={14} /> : <PauseCircleIcon size={14} />}
+            onClick={() => setPaused((p) => (p ? null : latest))}
+          >
+            {paused ? 'Resume live updates' : 'Pause live updates'}
+          </Button>
+        </div>
+      ) : (
+        <p className="text-sm text-fg-2">Every event as it arrived.</p>
+      )}
+      {shown.length === 0 ? (
+        <EmptyState title={active ? 'No engine call yet' : 'No engine calls'} headingLevel={3}>
+          {active
+            ? 'The engine is called once the run starts. Its events appear here as they arrive.'
+            : 'This run ended before it called an engine.'}
+        </EmptyState>
+      ) : (
+        <ol className="flex flex-col gap-3">
+          {shown.map((c, i) => (
+            <li key={c.id} className="rounded-lg border border-edge bg-panel">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-edge-subtle px-4 py-2.5">
+                <h3 className="text-base font-semibold text-fg">{shown.length > 1 ? `Call ${i + 1}` : 'Call'}</h3>
+                <span className="text-sm text-fg-2">
+                  {engineLabel({ provider: c.provider, model: c.requested_model, effort: c.effort }, catalogs)}
                 </span>
-              </summary>
-              <pre className="dm-code mt-2 max-h-[320px] overflow-auto rounded-control bg-surface-soft p-3 leading-relaxed text-ink-2">
-                {c.events.map((e) => e.raw).join('\n')}
-              </pre>
-            </details>
-          </li>
-        ))}
-      </ol>
-    </section>
+                <span className="text-sm text-fg-3">{SESSION_WORDS[c.session_mode] ?? c.session_mode}</span>
+                <span className="ml-auto">
+                  {c.state === 'error' ? (
+                    <StatusBadge kind="problem" word="Failed" />
+                  ) : c.state === 'running' ? (
+                    <StatusBadge kind="working" word="Working" />
+                  ) : (
+                    <StatusBadge kind="done" word="Answered" />
+                  )}
+                </span>
+              </div>
+              <div className="flex flex-col gap-2 px-4 py-3">
+                {c.state === 'error' ? (
+                  <p className="text-sm text-danger-text">
+                    {failureWord(c.failure_kind)}
+                    {c.error ? <span className="block break-words text-fg-2">What it said: {c.error}</span> : null}
+                  </p>
+                ) : null}
+                {c.events.length === 0 ? (
+                  <p className="text-sm text-fg-3">{c.state === 'running' ? 'No events yet.' : 'It recorded no events.'}</p>
+                ) : (
+                  <ol aria-label={`Events of ${shown.length > 1 ? `call ${i + 1}` : 'the call'}`} className="flex flex-col">
+                    {c.events.map((e) => (
+                      <li
+                        key={e.seq}
+                        className="flex min-h-8 items-center gap-3 border-b border-edge-subtle text-sm last:border-b-0"
+                      >
+                        <span className="w-16 shrink-0 font-code text-xs text-fg-3 tabular-nums">{offset(c, e.received_at)}</span>
+                        <span className={cn('font-medium', e.kind === 'error' ? 'text-danger-text' : 'text-fg')}>
+                          {CALL_EVENT_WORDS[e.kind] ?? e.kind}
+                        </span>
+                        {e.tokens !== null ? (
+                          <span className="text-fg-2 tabular-nums">{formatTokens(e.tokens)} tokens</span>
+                        ) : null}
+                        <time dateTime={e.received_at} className="ml-auto text-xs text-fg-3 tabular-nums">
+                          {clockTime(e.received_at)}
+                        </time>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+                {c.events.length > 0 ? <RawJson label="Raw events" value={c.events.map((e) => safeParse(e.raw))} /> : null}
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
   );
+}
+
+function safeParse(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return raw;
+  }
 }

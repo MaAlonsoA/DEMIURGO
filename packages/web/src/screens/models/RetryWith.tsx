@@ -1,13 +1,18 @@
-// «Retry with…» (FDR-AGE-002): the same context pack, once, on another engine chosen from what the
-// providers offer. The agent's assignment doesn't change.
+// «Retry with…» (FDR-AGE-002, INV-RUN-08, INV-MODELS-21): the same context pack, once, on another
+// engine chosen from what the providers offer; what runs the agent next time doesn't change. A
+// non-modal popover by its trigger (components/Menu Popover): the engine starts on the run's own,
+// the error stays inside (without taking the focus, which would close it) and is cleared each time
+// it opens. Used on the run page and on the thread's failed run cards: the export and its props
+// stay as they are.
 
 import { useQuery } from '@tanstack/react-query';
-import { Popover } from 'radix-ui';
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
 import { type Engine, providersQuery } from '../../api/models.ts';
-import { Button } from '../../ui/Button.tsx';
-import { Reasons } from '../../ui/Reasons.tsx';
+import { Button } from '../../components/Button.tsx';
+import { RetryIcon } from '../../components/icons.tsx';
+import { Popover } from '../../components/Menu.tsx';
+import { ErrorNotice } from '../../components/Notice.tsx';
 import { EngineSelect } from './EngineSelect.tsx';
 import { choosableProviders, firstEngine } from './engines.ts';
 
@@ -26,7 +31,6 @@ export function RetryWith({
   const command = useCommand<{ runId: string }>(projectId);
   const [open, setOpen] = useState(false);
   const [engine, setEngine] = useState<Engine | null>(null);
-  const titleId = useId();
   const initial = (): Engine | null =>
     run.requested_model
       ? { provider: run.provider, model: run.requested_model, effort: run.effort ?? null }
@@ -44,7 +48,7 @@ export function RetryWith({
     );
   };
   return (
-    <Popover.Root
+    <Popover
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
@@ -53,39 +57,46 @@ export function RetryWith({
           command.reset();
         }
       }}
-    >
-      <Popover.Trigger asChild>
+      align="end"
+      label="Retry with another engine"
+      className="w-96"
+      trigger={
         <Button variant="secondary" data-retry-with>
           Retry with…
         </Button>
-      </Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Content
-          align="end"
-          sideOffset={6}
-          aria-labelledby={titleId}
-          className="dm-panel dm-float z-50 w-[440px] animate-fade-in"
-        >
-          <div className="flex flex-col gap-0.5">
-            <p id={titleId} className="dm-text-heading">
-              Retry with another engine
-            </p>
-            <p className="dm-text-small text-ink-2">
-              Same context, just this once. What runs this agent next time doesn’t change.
-            </p>
-          </div>
-          <EngineSelect label="Retry with" catalogs={catalogs} value={engine} onChange={setEngine} disabled={command.isPending} />
-          {command.error ? <Reasons error={command.error} /> : null}
-          <div className="flex justify-end gap-2">
-            <Popover.Close asChild>
-              <Button variant="text">Not now</Button>
-            </Popover.Close>
-            <Button variant="primary" data-command="run.retry" disabled={!engine || command.isPending} onClick={retry}>
-              {command.isPending ? 'Retrying…' : 'Retry'}
-            </Button>
-          </div>
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <p className="text-base font-semibold text-fg">Retry with another engine</p>
+          <p className="text-sm text-fg-2">Same context, just this once. What runs this agent next time doesn’t change.</p>
+        </div>
+        <EngineSelect
+          label="Retry with"
+          layout="stack"
+          catalogs={catalogs}
+          value={engine}
+          onChange={setEngine}
+          disabled={command.isPending}
+        />
+        {command.error ? <ErrorNotice error={command.error} compact focus={false} /> : null}
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="quiet" onClick={() => setOpen(false)}>
+            Not now
+          </Button>
+          <Button
+            variant="primary"
+            icon={<RetryIcon size={14} />}
+            data-command="run.retry"
+            disabled={!engine}
+            pending={command.isPending}
+            pendingLabel="Retrying…"
+            onClick={retry}
+          >
+            Retry
+          </Button>
+        </div>
+      </div>
+    </Popover>
   );
 }

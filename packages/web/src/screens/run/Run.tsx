@@ -1,512 +1,275 @@
-// A run (spec §4.9): its state and why it failed in product words, Cancel, Retry and Retry with…,
-// what it retries and its retries, the agent and engine that ran it with its metrics and live
-// progress (FDR-AGE-002), what the engine did, its context (role, builder, budget, graph version,
-// dependencies and hash, with the content folded) and its events.
+// The page of one run (DESIGN.md §3.4 "Run page", J3; INV-RUN-01…21): summary first, then detail
+// (R28, R05, R04). The header names the action, its state (Late and Stalled included, §4.2), the
+// agent and engine, who asked and where from, and the actions the tables allow: Cancel — which
+// confirms and says what is kept (R27, R11) — Retry and Retry with… Under it, the status card and
+// the phase strip; then the tabs Engine calls, Context, Output and Events; the facts and the
+// attempts in the side column.
 
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
-import type { ReactNode } from 'react';
-import { ApiError } from '../../api/client.ts';
+import { useRef, useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
-import { explorationsQuery, runQuery, runsQuery, stateQuery } from '../../api/queries.ts';
+import { providersQuery } from '../../api/models.ts';
+import { explorationsQuery, projectsQuery, runQuery, runsQuery, stateQuery } from '../../api/queries.ts';
 import { canCreate } from '../../api/tables.ts';
-import type { ContextPack, Dependency, RunDetail, RunListItem } from '../../api/types.ts';
-import { cn } from '../../lib/cn.ts';
+import type { RunDetail, RunListItem } from '../../api/types.ts';
+import { useAllows } from '../../components/actions.tsx';
+import { announce } from '../../components/announce.tsx';
+import { Code } from '../../components/Badge.tsx';
+import { Button, buttonClass } from '../../components/Button.tsx';
+import { ConfirmDialog } from '../../components/Dialog.tsx';
+import { EmptyState } from '../../components/EmptyState.tsx';
+import { isNotFound } from '../../components/explain.ts';
+import { ArrowLeftIcon, PlayIcon, RetryIcon, StopIcon } from '../../components/icons.tsx';
+import { ErrorNotice } from '../../components/Notice.tsx';
+import { PageBody, PageHeader, WithAside, usePageTitle } from '../../components/Page.tsx';
+import { RunStateBadge, useRunView } from '../../components/runState.tsx';
+import { PageSkeleton } from '../../components/Spinner.tsx';
+import { DayTime } from '../../components/Time.tsx';
+import { WhoAvatar } from '../../components/Who.tsx';
 import { useRouteParams, useTables } from '../../lib/hooks.ts';
 import { dayTime } from '../../lib/time.ts';
-import { ActionBar } from '../../ui/ActionBar.tsx';
-import { Button } from '../../ui/Button.tsx';
-import { ChevronRight, TypeIcon } from '../../ui/icons.tsx';
-import { Breadcrumbs, Page, SectionTitle, Skeleton } from '../../ui/layout.tsx';
-import { Mark, MarkGlyph, StateMark } from '../../ui/marks.tsx';
-import { Reasons } from '../../ui/Reasons.tsx';
-import { WhoMark } from '../../ui/signals.tsx';
-import { ACTION_WORDS, failureWord } from '../../words.ts';
-import { NotFound } from '../not-found/NotFound.tsx';
-import { RunWorking } from '../thread/RunCards.tsx';
-import { isActive } from '../thread/timeline.ts';
-import { useRunProgress } from '../../api/progress.ts';
+import { ACTION_WORDS, whoOf } from '../../words.ts';
+import { engineLabel } from '../models/engines.ts';
 import { RetryWith } from '../models/RetryWith.tsx';
-import { CallsSection, EngineFacts, LiveProgress, UsageFacts } from './Engine.tsx';
-import { runEventsQuery, useNow } from './hooks.ts';
-import { EVENT_WORDS, requestedBy, retriesOf, runDuration } from './runs.ts';
+import { Attempts, RunFacts } from './Aside.tsx';
+import { RunDetailTabs } from './Detail.tsx';
+import { requestedBy, runTitle } from './runs.ts';
+import { PhaseStrip, StatusCard } from './Status.tsx';
 
 const RETRIABLE = ['failed', 'interrupted', 'cancelled'];
 const actionWord = (a: string) => ACTION_WORDS[a] ?? a;
+const link = 'font-medium text-fg underline decoration-edge-strong underline-offset-2 hover:decoration-fg';
+
+const activityCrumb = (projectId: string) => ({
+  label: 'Activity',
+  link: { to: '/p/$projectId/activity' as const, params: { projectId } },
+});
 
 export function RunScreen() {
   const { projectId, runId = '' } = useRouteParams();
   const run = useQuery(runQuery(projectId, runId));
   const runs = useQuery(runsQuery(projectId));
-  const now = useNow(!!run.data && isActive(run.data));
-
-  if (run.error instanceof ApiError && run.error.status === 404) {
-    return <NotFound thing="this run">It may belong to another project.</NotFound>;
-  }
+  const project = (useQuery(projectsQuery).data ?? []).find((p) => p.id === projectId);
   const r = run.data;
-  if (!r && run.error) {
-    return (
-      <Page>
-        <Reasons error={run.error} className="max-w-[860px]" />
-      </Page>
-    );
-  }
-  if (!r) return <RunSkeleton />;
-  const item = runs.data?.find((x) => x.id === r.id);
+  usePageTitle([r ? `${runTitle(r.action, ACTION_WORDS)} run` : 'Run', project?.name]);
 
-  return (
-    <Page aside={<RunAside projectId={projectId} run={r} runs={runs.data ?? []} now={now} />}>
-      <div className="flex max-w-[860px] flex-col gap-6">
-        <RunHeader projectId={projectId} run={r} item={item} />
-        <Status projectId={projectId} run={r} item={item} now={now} />
-        <CallsSection projectId={projectId} runId={r.id} active={isActive(r)} />
-        {r.context_pack ? (
-          <ContextSection projectId={projectId} pack={r.context_pack} />
-        ) : (
-          <p className="dm-text-small text-muted">This run has no context pack.</p>
-        )}
-        {r.output !== null && r.output !== undefined && (
-          <details className="group rounded-card-md border border-line bg-surface">
-            <summary className="dm-text-small cursor-pointer list-none px-5 py-3 font-semibold text-ink-2 hover:text-ink">
-              <span className="inline-flex items-center gap-1.5">
-                <ChevronRight size={12} className="transition-transform group-open:rotate-90" />
-                What it answered
-              </span>
-            </summary>
-            <pre className="dm-code max-h-[420px] overflow-auto border-t border-line-soft px-5 py-3 leading-relaxed text-ink-2">
-              {JSON.stringify(r.output, null, 2)}
-            </pre>
-          </details>
-        )}
-      </div>
-    </Page>
-  );
+  if (isNotFound(run.error))
+    return (
+      <>
+        <PageHeader crumbs={[activityCrumb(projectId), { label: 'Run' }]} title="We couldn't find this run" />
+        <PageBody width="reading">
+          <EmptyState
+            title="It isn't in this project"
+            action={
+              <Link to="/p/$projectId/activity" params={{ projectId }} className={buttonClass({ variant: 'secondary' })}>
+                <ArrowLeftIcon size={14} />
+                Back to Activity
+              </Link>
+            }
+          >
+            It may belong to another project.
+          </EmptyState>
+        </PageBody>
+      </>
+    );
+  if (!r)
+    return (
+      <>
+        <PageHeader crumbs={[activityCrumb(projectId), { label: 'Run' }]} title="Run" />
+        <PageBody>
+          {run.error ? (
+            <ErrorNotice error={run.error} onRetry={() => void run.refetch()} />
+          ) : (
+            <PageSkeleton label="Loading the run" />
+          )}
+        </PageBody>
+      </>
+    );
+  return <RunPage key={r.id} projectId={projectId} run={r} runs={runs.data ?? []} />;
 }
 
-function RunHeader({ projectId, run: r, item }: { projectId: string; run: RunDetail; item: RunListItem | undefined }) {
+function RunPage({ projectId, run: r, runs }: { projectId: string; run: RunDetail; runs: RunListItem[] }) {
+  const view = useRunView(r);
+  const item = runs.find((x) => x.id === r.id);
   const tables = useTables();
-  const command = useCommand<{ runId: string }>(projectId);
+  const allows = useAllows('ai_run', r.state);
   const navigate = useNavigate();
+  const cancel = useCommand(projectId);
+  const retry = useCommand<{ runId: string }>(projectId);
+  const [confirming, setConfirming] = useState(false);
+  const status = useRef<HTMLElement>(null);
   const threads = useQuery(explorationsQuery(projectId)).data;
-  const products = useQuery(stateQuery(projectId)).data;
+  const product = useQuery(stateQuery(projectId)).data;
+  const catalogs = useQuery(providersQuery).data?.catalogs ?? [];
+
   const thread = item?.exploration_id ? threads?.find((t) => t.id === item.exploration_id) : undefined;
   const decision =
     r.scope.type === 'record_version'
-      ? products?.decisions.find((d) => d.current_id === r.scope.id || d.latest_id === r.scope.id)
+      ? product?.decisions.find((d) => d.current_id === r.scope.id || d.latest_id === r.scope.id)
       : undefined;
+  const engine = r.requested_model
+    ? engineLabel({ provider: r.provider, model: r.requested_model, effort: r.effort ?? null }, catalogs)
+    : r.provider;
+  const agent = r.agent ?? r.method.split('@')[0];
   const canRetry = !!tables && canCreate(tables, 'run.retry') && RETRIABLE.includes(r.state);
-  const retry = () =>
-    command.mutate(
+  const who = whoOf(r.requested_by);
+
+  const openRun = (runId: string) => void navigate({ to: '/p/$projectId/runs/$runId', params: { projectId, runId } });
+  const doRetry = () =>
+    retry.mutate(
       { command: 'run.retry', data: { run_id: r.id } },
       {
-        onSuccess: (res) =>
-          void navigate({ to: '/p/$projectId/runs/$runId', params: { projectId, runId: res.result?.runId ?? res.entity_id } }),
+        onSuccess: (res) => {
+          announce('Retried: a new attempt started.');
+          openRun(res.result?.runId ?? res.entity_id);
+        },
       },
     );
-  const link = 'font-medium text-ink-2 underline-offset-2 hover:text-ink hover:underline';
+  const doCancel = () =>
+    cancel.mutate(
+      { command: 'run.cancel', entityId: r.id },
+      {
+        onSuccess: () => {
+          setConfirming(false);
+          announce('Cancelled. Nothing was applied.');
+          // The Cancel button is gone: the focus goes to what happened, not to the page's end.
+          setTimeout(() => status.current?.focus(), 60);
+        },
+      },
+    );
 
   return (
-    <header data-run-header className="flex flex-col gap-2.5">
-      <Breadcrumbs
-        items={[
-          { label: 'Activity', to: '/p/$projectId/activity', params: { projectId } },
-          { label: `${actionWord(r.action)} · ${dayTime(r.created_at)}` },
-        ]}
-      />
-      <div className="dm-label flex items-center gap-1.5">
-        <TypeIcon kind="run" size={14} />
-        Run
-        <span className="dm-sep" aria-hidden="true">
-          ·
-        </span>
-        <span className="tracking-normal normal-case">
-          <StateMark entity="ai_run" state={r.state} />
-        </span>
-      </div>
-      <div className="flex items-start justify-between gap-6">
-        <h1 className="dm-text-page-title leading-tight font-semibold">
-          {r.action === 'design_proposal' ? 'Draft a feature' : actionWord(r.action)}
-        </h1>
-        <ActionBar
-          entity="ai_run"
-          state={r.state}
-          className="shrink-0 pt-1"
-          handlers={{
-            'run.cancel': {
-              variant: 'secondary',
-              disabled: command.isPending,
-              run: () => command.mutate({ command: 'run.cancel', entityId: r.id }),
-            },
-          }}
-        >
-          {canRetry && (
+    <>
+      <div data-run-header>
+        <PageHeader
+          crumbs={[activityCrumb(projectId), { label: `${actionWord(r.action)} · ${dayTime(r.created_at)}` }]}
+          eyebrow={
             <>
-              <RetryWith
-                projectId={projectId}
-                run={r}
-                onRetried={(runId) => void navigate({ to: '/p/$projectId/runs/$runId', params: { projectId, runId } })}
-              />
-              <Button variant="secondary" data-command="run.retry" disabled={command.isPending} onClick={retry}>
-                {command.isPending ? 'Retrying…' : 'Retry'}
-              </Button>
+              <span className="inline-flex items-center gap-1.5">
+                <PlayIcon size={14} className="text-fg-3" />
+                Run
+              </span>
+              <RunStateBadge run={r} size="md" withDetail />
             </>
-          )}
-        </ActionBar>
-      </div>
-      <p className="dm-text-small flex flex-wrap items-center gap-x-2 gap-y-1 text-muted">
-        {decision && (
-          <>
-            <span>
-              From{' '}
-              <Link to="/p/$projectId/records/$code" params={{ projectId, code: decision.code }} className={link}>
-                {decision.title}
-              </Link>{' '}
-              <span className="dm-code">{decision.code}</span>
-            </span>
-            <Dot />
-          </>
-        )}
-        {thread && (
-          <>
-            <span>
-              In the thread{' '}
-              <Link to="/p/$projectId/threads/$explorationId" params={{ projectId, explorationId: thread.id }} className={link}>
-                {thread.purpose}
-              </Link>
-            </span>
-            <Dot />
-          </>
-        )}
-        <span className="inline-flex items-center gap-1.5">
-          <WhoMark actor={r.requested_by} size={16} />
-          {requestedBy(r.requested_by)} · {dayTime(r.created_at)}
-        </span>
-      </p>
-      {command.error ? <Reasons error={command.error} /> : null}
-    </header>
-  );
-}
-
-const Dot = () => (
-  <span className="dm-sep" aria-hidden="true">
-    ·
-  </span>
-);
-
-/** What happened, in product words: working (the design system's Working, with its time), finished,
-    failed (the rust box, and why) or cancelled. */
-function Status({
-  projectId,
-  run: r,
-  item,
-  now,
-}: {
-  projectId: string;
-  run: RunDetail;
-  item: RunListItem | undefined;
-  now: number;
-}) {
-  const box = 'flex items-start gap-3 rounded-card-md px-4 py-3.5';
-  const progress = useRunProgress(r.id);
-  if (isActive(r)) {
-    return (
-      <div data-run-status className={cn(box, 'items-center border border-line bg-surface')}>
-        <p className="dm-text-body flex flex-1 flex-col font-semibold text-ink">
-          {r.state === 'queued' ? 'Waiting to start…' : 'DEMIURGO is working…'}
-          <LiveProgress progress={progress} now={now} />
-        </p>
-        <RunWorking run={r} now={now} />
-      </div>
-    );
-  }
-  if (r.state === 'completed') {
-    return (
-      <div data-run-status className={cn(box, 'border border-line bg-surface')}>
-        <span className="flex h-5 w-4 items-center justify-center">
-          <Mark kind="done" label="Completed" />
-        </span>
-        <div className="flex flex-1 flex-col gap-0.5">
-          <p className="dm-text-body font-semibold text-ink">Finished in {runDuration(r) || '0:00'}.</p>
-          <p className="dm-text-small text-ink-2">
-            {item?.batch_id
-              ? 'It proposed what it found: it waits for you before anything changes.'
-              : 'What it wrote is in its thread.'}
-          </p>
-        </div>
-        {item?.batch_id && (
-          <Link
-            to="/p/$projectId/batches/$batchId"
-            params={{ projectId, batchId: item.batch_id }}
-            className="dm-text-small inline-flex shrink-0 items-center gap-0.5 self-center font-semibold text-needs-strong hover:underline"
-          >
-            Review
-            <ChevronRight size={12} />
-          </Link>
-        )}
-      </div>
-    );
-  }
-  const cancelled = r.state === 'cancelled';
-  return (
-    <div
-      data-run-status
-      className={cn(box, cancelled ? 'border border-dashed border-line-strong bg-surface-soft' : 'bg-problem-tint text-problem')}
-    >
-      <span className="flex h-5 w-4 items-center justify-center">
-        {/* Grey when cancelled; the design system's Conflict icon when it failed. */}
-        <Mark
-          kind={cancelled ? 'inactive' : 'problem'}
-          label={cancelled ? 'Cancelled' : r.state === 'interrupted' ? 'Interrupted' : 'Failed'}
-        />
-      </span>
-      <div className="flex flex-1 flex-col gap-1">
-        <p className={cn('dm-text-body font-semibold', cancelled && 'text-ink-2')}>
-          {failureWord(r.failure_kind ?? (cancelled ? 'cancelled' : null), r.state)}
-        </p>
-        {r.error && (
-          <p className={cn('dm-text-small', cancelled && 'text-muted')}>
-            <span className="font-semibold">What it said: </span>
-            <span className="break-words">{r.error}</span>
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/** The context pack: what DEMIURGO was given, the same one a retry reuses. */
-function ContextSection({ projectId, pack }: { projectId: string; pack: ContextPack }) {
-  const threads = useQuery(explorationsQuery(projectId)).data;
-  const budget = Object.entries(pack.budget ?? {});
-  return (
-    <section data-context aria-labelledby="run-context" className="rounded-card-md border border-line bg-surface">
-      <header className="flex items-baseline justify-between gap-3 border-b border-line-soft px-5 py-3">
-        <h2 id="run-context" className="dm-text-heading font-semibold">
-          Context
-        </h2>
-        <span className="dm-text-caption text-muted">What DEMIURGO was given. A retry reuses it as it is.</span>
-      </header>
-      <dl className="dm-text-small grid grid-cols-[150px_1fr] items-baseline gap-x-5 gap-y-3 px-5 py-4">
-        <Term>Role</Term>
-        <dd className="text-ink">{pack.role}</dd>
-        <Term>Builder</Term>
-        <dd className="dm-code text-ink">{pack.builder}</dd>
-        <Term>Budget</Term>
-        <dd className="flex flex-wrap gap-1.5">
-          {budget.length === 0 && <span className="text-muted">None</span>}
-          {budget.map(([k, v]) => (
-            <span key={k} className="dm-text-caption rounded-tab border border-line-soft bg-surface-soft px-2 py-0.5 text-ink-2">
-              {k} <span className="dm-code text-ink">{typeof v === 'number' ? v.toLocaleString('en-GB') : String(v)}</span>
-            </span>
-          ))}
-        </dd>
-        <Term>Graph version</Term>
-        <dd className="dm-code text-ink">v{pack.graph_version}</dd>
-        <Term>Dependencies</Term>
-        <dd>
-          {pack.dependencies.length === 0 ? (
-            <span className="text-muted">None</span>
-          ) : (
-            <ul className="flex flex-col gap-1">
-              {pack.dependencies.map((d, i) => (
-                <li key={`${d.type}-${d.id}-${i}`} className="flex items-baseline gap-2 text-ink-2">
-                  <span className="dm-text-caption w-[92px] shrink-0 text-muted">{d.type.replace('_', ' ')}</span>
-                  <DependencyName projectId={projectId} dependency={d} threads={threads} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </dd>
-        <Term>Hash</Term>
-        <dd>
-          <code data-context-hash className="dm-code break-all text-ink">
-            {pack.hash}
-          </code>
-        </dd>
-      </dl>
-      <details data-context-content className="group border-t border-line-soft">
-        <summary className="dm-text-small cursor-pointer list-none px-5 py-3 font-semibold text-ink-2 hover:text-ink">
-          <span className="inline-flex items-center gap-1.5">
-            <ChevronRight size={12} className="transition-transform group-open:rotate-90" />
-            What it read
-          </span>
-        </summary>
-        <pre className="dm-code max-h-[480px] overflow-auto border-t border-line-soft px-5 py-3 leading-relaxed text-ink-2">
-          {JSON.stringify(pack.content, null, 2)}
-        </pre>
-      </details>
-    </section>
-  );
-}
-
-const Term = ({ children }: { children: ReactNode }) => (
-  <dt className="dm-text-caption pt-px font-semibold text-muted">{children}</dt>
-);
-
-function DependencyName({
-  projectId,
-  dependency: d,
-  threads,
-}: {
-  projectId: string;
-  dependency: Dependency;
-  threads: { id: string; purpose: string }[] | undefined;
-}) {
-  const version = d.version !== null && d.version !== undefined ? ` v${d.version}` : '';
-  if (d.type === 'exploration') {
-    const t = threads?.find((x) => x.id === d.id);
-    if (t) {
-      return (
-        <Link
-          to="/p/$projectId/threads/$explorationId"
-          params={{ projectId, explorationId: t.id }}
-          className="min-w-0 truncate text-ink underline-offset-2 hover:underline"
+          }
+          title={runTitle(r.action, ACTION_WORDS)}
+          meta={
+            <>
+              <span>
+                <Code className="text-sm">{agent}</Code>
+                <span className="text-fg-3"> · </span>
+                {engine}
+              </span>
+              {decision ? (
+                <span>
+                  From{' '}
+                  <Link to="/p/$projectId/records/$code" params={{ projectId, code: decision.code }} className={link}>
+                    {decision.title}
+                  </Link>{' '}
+                  <Code>{decision.code}</Code>
+                </span>
+              ) : null}
+              {thread ? (
+                <span className="min-w-0">
+                  In the thread{' '}
+                  <Link
+                    to="/p/$projectId/threads/$explorationId"
+                    params={{ projectId, explorationId: thread.id }}
+                    className={link}
+                  >
+                    {thread.purpose}
+                  </Link>
+                </span>
+              ) : null}
+              <span className="inline-flex items-center gap-1.5">
+                <WhoAvatar kind={who.kind} size={16} />
+                {requestedBy(r.requested_by)} · <DayTime iso={r.created_at} />
+              </span>
+            </>
+          }
+          actions={
+            allows('run.cancel') || canRetry ? (
+              <>
+                {allows('run.cancel') ? (
+                  <Button
+                    variant="secondary"
+                    icon={<StopIcon size={14} />}
+                    data-command="run.cancel"
+                    onClick={() => {
+                      cancel.reset();
+                      setConfirming(true);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                ) : null}
+                {canRetry ? (
+                  <>
+                    <Button
+                      variant={r.failure_kind === 'invalid_output' ? 'secondary' : 'primary'}
+                      icon={<RetryIcon size={14} />}
+                      data-command="run.retry"
+                      pending={retry.isPending}
+                      pendingLabel="Retrying…"
+                      onClick={doRetry}
+                    >
+                      Retry
+                    </Button>
+                    <RetryWith
+                      projectId={projectId}
+                      run={r}
+                      onRetried={(runId) => {
+                        announce('Retried on another engine: a new attempt started.');
+                        openRun(runId);
+                      }}
+                    />
+                  </>
+                ) : null}
+              </>
+            ) : null
+          }
         >
-          {t.purpose}
-        </Link>
-      );
-    }
-  }
-  if (d.code) {
-    return (
-      <Link to="/p/$projectId/records/$code" params={{ projectId, code: d.code }} className="dm-code text-ink hover:underline">
-        {d.code}
-        {version}
-      </Link>
-    );
-  }
-  return (
-    <span className="dm-code min-w-0 truncate">
-      {d.id}
-      {version}
-    </span>
-  );
-}
-
-/** The right column: the facts of the run, its retries and its events. */
-function RunAside({ projectId, run: r, runs, now }: { projectId: string; run: RunDetail; runs: RunListItem[]; now: number }) {
-  const original = r.retry_of ? runs.find((x) => x.id === r.retry_of) : undefined;
-  const retries = retriesOf(r.id, runs);
-  const events = useQuery(runEventsQuery(projectId, r));
-  const usage = r.usage;
-  return (
-    <>
-      <section aria-labelledby="run-facts">
-        <SectionTitle>
-          <span id="run-facts">Details</span>
-        </SectionTitle>
-        <dl className="dm-text-small grid grid-cols-[108px_1fr] items-baseline gap-x-3 gap-y-2">
-          <EngineFacts run={r} Fact={Fact} />
-          <Fact term="Requested">{dayTime(r.created_at)}</Fact>
-          {r.started_at && <Fact term="Started">{dayTime(r.started_at)}</Fact>}
-          {r.finished_at && <Fact term="Finished">{dayTime(r.finished_at)}</Fact>}
-          <Fact term="Duration">
-            <span className="tabular-nums">{runDuration(r, now) || '—'}</span>
-          </Fact>
-          {usage && <UsageFacts usage={usage} Fact={Fact} />}
-        </dl>
-      </section>
-
-      {(original || r.retry_of || retries.length > 0) && (
-        <section aria-labelledby="run-retries" className="border-t border-line-soft pt-5">
-          <SectionTitle>
-            <span id="run-retries">Retries</span>
-          </SectionTitle>
-          {r.retry_of && (
-            <div data-run-retry-of className="mb-3 flex flex-col gap-1">
-              <span className="dm-text-caption text-muted">Retry of</span>
-              <RunLink projectId={projectId} runId={r.retry_of} run={original} />
-            </div>
-          )}
-          {retries.length > 0 && (
-            <div data-run-retries className="flex flex-col gap-1">
-              <span className="dm-text-caption text-muted">{retries.length === 1 ? 'Retried as' : 'Retried as, in order'}</span>
-              <ul className="flex flex-col gap-1">
-                {retries.map((x) => (
-                  <li key={x.id}>
-                    <RunLink projectId={projectId} runId={x.id} run={x} />
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </section>
-      )}
-
-      <section aria-labelledby="run-events" className="border-t border-line-soft pt-5">
-        <SectionTitle>
-          <span id="run-events">Events</span>
-        </SectionTitle>
-        {events.isPending ? (
-          <div aria-hidden="true" className="flex flex-col gap-2">
-            <Skeleton className="h-3 w-full" />
-            <Skeleton className="h-3 w-4/5" />
-          </div>
-        ) : (
-          <ol data-run-events className="relative flex flex-col gap-2.5 border-l border-line pl-4">
-            {(events.data ?? []).map((e) => (
-              <li key={e.id} className="dm-text-small relative flex flex-col gap-0.5">
-                <span aria-hidden="true" className="absolute top-1 -left-[21.5px] flex">
-                  <MarkGlyph kind="inactive" />
-                </span>
-                <span className="flex items-center gap-2">
-                  <span className="font-semibold text-ink">{EVENT_WORDS[e.command] ?? e.command}</span>
-                  <WhoMark actor={e.actor} size={14} />
-                </span>
-                <span className="dm-text-caption text-muted">
-                  <time dateTime={e.at}>{new Date(e.at).toLocaleTimeString('en-GB')}</time>
-                  <span className="dm-code"> · {e.command}</span>
-                </span>
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
-    </>
-  );
-}
-
-function Fact({ term, children }: { term: string; children: ReactNode }) {
-  return (
-    <>
-      <dt className="dm-text-caption font-semibold text-muted">{term}</dt>
-      <dd className="dm-text-small min-w-0 text-ink">{children}</dd>
-    </>
-  );
-}
-
-function RunLink({ projectId, runId, run }: { projectId: string; runId: string; run: RunListItem | undefined }) {
-  return (
-    <Link
-      to="/p/$projectId/runs/$runId"
-      params={{ projectId, runId }}
-      className="dm-text-small flex items-center gap-2 rounded-tab px-1.5 py-1 hover:bg-line-soft"
-    >
-      {run ? <StateMark entity="ai_run" state={run.state} /> : null}
-      <span className="font-semibold text-ink">{run ? actionWord(run.action) : 'Run'}</span>
-      {run && <span className="dm-text-caption text-muted">{dayTime(run.created_at)}</span>}
-      <ChevronRight size={12} className="ml-auto text-muted" />
-    </Link>
-  );
-}
-
-function RunSkeleton() {
-  return (
-    <Page
-      aside={
-        <div role="status" aria-label="Loading the details" className="flex flex-col gap-3">
-          <Skeleton className="h-3 w-20" />
-          <Skeleton className="h-3 w-full" />
-          <Skeleton className="h-3 w-4/5" />
-        </div>
-      }
-    >
-      <div role="status" aria-label="Loading the run" className="flex max-w-[860px] flex-col gap-4">
-        <Skeleton className="h-3 w-40" />
-        <Skeleton className="h-8 w-1/3" />
-        <Skeleton className="h-16 w-full" />
-        <Skeleton className="h-48 w-full" />
+          {retry.error ? <ErrorNotice error={retry.error} /> : null}
+        </PageHeader>
       </div>
-    </Page>
+      <PageBody>
+        <WithAside
+          asideLabel="Details"
+          aside={
+            <>
+              <RunFacts run={r} active={view.active} />
+              <Attempts projectId={projectId} run={r} runs={runs} />
+            </>
+          }
+        >
+          <div className="flex flex-col gap-8">
+            <StatusCard ref={status} projectId={projectId} run={r} item={item} view={view} />
+            <PhaseStrip projectId={projectId} run={r} />
+            <RunDetailTabs projectId={projectId} run={r} active={view.active} />
+          </div>
+        </WithAside>
+      </PageBody>
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title="Cancel this run?"
+        description={
+          <p>
+            {r.action === 'exploration_chat'
+              ? 'It stops now. Nothing is applied; what it already wrote in the thread stays.'
+              : 'It stops now. Nothing is applied.'}{' '}
+            You can retry it afterwards on the same context.
+          </p>
+        }
+        confirm="Cancel the run"
+        cancel="Keep it running"
+        tone="danger"
+        pending={cancel.isPending}
+        pendingLabel="Cancelling…"
+        error={cancel.error}
+        onConfirm={doCancel}
+      />
+    </>
   );
 }

@@ -1,7 +1,7 @@
 // Pure logic of Models & providers: which engines can be chosen (only what discovery found), how
 // choosing a provider or a model moves the rest of the choice, and the words for an engine.
 
-import type { Catalog, Engine, ProviderModel, Resolution } from '../../api/models.ts';
+import type { AgentInfo, Catalog, Engine, ProviderModel, Resolution } from '../../api/models.ts';
 
 const PROVIDER_ORDER = ['claude', 'codex', 'opencode', 'simulated'];
 const AGENT_ORDER = ['onboarding', 'explorer', 'designer', 'knowledge_classifier', 'knowledge_reviewer', 'echo'];
@@ -73,4 +73,33 @@ export function agentOrder(a: string, b: string): number {
 export function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${Number((n / 1_000_000).toFixed(2))}M`;
   return n.toLocaleString('en-GB');
+}
+
+/** The part of DEMIURGO an agent is, by its id: "Explorer" (the id itself when it isn't known). */
+export function agentSection(id: string, agents: readonly Pick<AgentInfo, 'id' | 'section'>[] | undefined): string {
+  return agents?.find((a) => a.id === id)?.section ?? id;
+}
+
+/** The failures of an engine by kind, in words: "2 invalid output, 1 timeout" (every "_" a space). */
+export function failureKindsText(failures: Record<string, number>): string {
+  return Object.entries(failures)
+    .filter(([, n]) => n > 0)
+    .map(([kind, n]) => `${n} ${kind.replaceAll('_', ' ')}`)
+    .join(', ');
+}
+
+/**
+ * What a change of engine did, said once it applied (DESIGN.md §3.9): "Explorer now uses Codex ·
+ * GPT-6 · medium everywhere", "Explorer uses everywhere's engine in this project again".
+ */
+export function changeWords(
+  section: string,
+  change: { scope: 'global' | 'project'; engine: Engine | null },
+  catalogs: readonly Catalog[],
+): string {
+  const where = change.scope === 'global' ? 'everywhere' : 'in this project';
+  if (change.engine) return `${section} now uses ${engineLabel(change.engine, catalogs)} ${where}.`;
+  return change.scope === 'global'
+    ? `${section} has no engine everywhere now.`
+    : `${section} uses everywhere's engine in this project again.`;
 }

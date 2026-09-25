@@ -175,6 +175,9 @@ describe('the reading of a message', () => {
     expect(readingOf([failed, retry], linked)).toEqual({ phase: 'working', run: retry });
     // Abandoned: only then is it offered to ask again.
     expect(readingOf([], message('m1', 'human:ana', 10, { response: 'abandoned' })).phase).toBe('unanswered');
+    // Asked again after it was abandoned: the run requested after it answers it, once.
+    const again = run('r5', 'completed', 40);
+    expect(readingOf([again], message('m1', 'human:ana', 10, { response: 'abandoned' }))).toEqual({ phase: 'read', run: again });
     // No answer asked for, and nothing after it.
     expect(readingOf([], idea).phase).toBe('unanswered');
     expect(readingOf([], undefined).phase).toBe('unanswered');

@@ -70,7 +70,8 @@ export function answerOf(runs: readonly RunListItem[], at: string): RunListItem 
 
 /**
  * Where the reading of a message stands, from what the server says about its answer: waiting for
- * knowledge (catching up), requested (the run it links to) or abandoned. Never from the clock.
+ * knowledge (catching up) or requested (the run it links to). Abandoned, or never asked for, it is
+ * answered by the first conversation requested after it, if any. Never from the clock.
  */
 export function readingOf(
   runs: readonly RunListItem[],
@@ -78,7 +79,6 @@ export function readingOf(
 ): Reading {
   if (!message) return { phase: 'unanswered', run: null };
   if (message.response === 'waiting') return { phase: 'catching_up', run: null };
-  if (message.response === 'abandoned') return { phase: 'unanswered', run: null };
   let run: RunListItem | null;
   if (message.response === 'requested') {
     const linked = runs.find((r) => r.id === message.response_run);

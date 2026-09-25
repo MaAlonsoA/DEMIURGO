@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ProductRow } from '../../src/api/types.ts';
-import { MANUAL_LINK_TYPES, addLink, linkTargets, removeLink } from '../../src/screens/new-version/links.ts';
+import { MANUAL_LINK_TYPES, addLink, linkTargets, mergeLinks, removeLink } from '../../src/screens/new-version/links.ts';
 
 const row = (code: string, type: ProductRow['type'], current: number | null, latest: number): ProductRow =>
   ({
@@ -35,5 +35,17 @@ describe('links written by hand', () => {
     const [based, conflict] = two;
     if (!based) throw new Error('no link');
     expect(removeLink(two, based)).toEqual([conflict]);
+  });
+
+  it('a link the person adds replaces the carried one of the same type and record, at the version chosen', () => {
+    const carried = [
+      { type: 'based_on', target: { code: 'DEC-CLU-001', version: 2 } },
+      { type: 'covers', target: { code: 'FDR-CLU-001', version: 1 } },
+    ];
+    const added = [{ type: 'based_on', target: { code: 'DEC-CLU-001', version: 3 } }];
+    expect(mergeLinks(carried, added)).toEqual([
+      { type: 'covers', target: { code: 'FDR-CLU-001', version: 1 } },
+      { type: 'based_on', target: { code: 'DEC-CLU-001', version: 3 } },
+    ]);
   });
 });

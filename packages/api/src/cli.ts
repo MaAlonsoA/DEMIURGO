@@ -26,6 +26,7 @@ import {
   readConfig,
   migrate,
   consoleLogger,
+  inertEngine,
 } from '@demiurgo/core';
 import { readTree, replaceTree } from '@demiurgo/design';
 import { composeSystem, human, system } from '@demiurgo/domain';
@@ -83,16 +84,26 @@ const commands: Record<string, () => Promise<void>> = {
   },
 
   // An agent key is a person's act (agent_token.issue): the person's password is checked first.
+  // It only needs the bus: no durable engine, so it never touches what a running server has in
+  // flight (its provider calls, its pending workflows).
   async 'issue-agent-token'() {
     const [projectId, name, username] = args;
     if (!projectId || !name || !username) {
       throw new Error("Usage: issue-agent-token <projectId> <agentName> <username> (the person's password is read from stdin)");
     }
     const password = await readInput();
-    const core = await startCore(config, consoleLogger);
-    try {
-      await verifyPerson(core.services.db, username, password);
-      const r = await executeCommand(core.services, {
+    await withDatabase(async (c) => {
+      await verifyPerson(c.db, username, password);
+      const services = {
+        db: c.db,
+        clock: () => new Date(),
+        providers: createProviders(config),
+        classifierFor: () => Promise.reject(new Error('Issuing an agent key classifies nothing.')),
+        agentSessionsDir: config.agentSessionsDir,
+        engine: inertEngine(),
+        logger: consoleLogger,
+      };
+      const r = await executeCommand(services, {
         command: 'agent_token.issue',
         actor: human(username),
         projectId,
@@ -100,9 +111,7 @@ const commands: Record<string, () => Promise<void>> = {
       });
       const result = r.result as { token: string; actor: string };
       console.log(JSON.stringify({ token: result.token, actor: result.actor, issued_by: `human:${username}` }));
-    } finally {
-      await core.stop();
-    }
+    });
   },
 
   async 'real-run'() {

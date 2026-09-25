@@ -30,7 +30,7 @@ import {
   missing,
   toCommand,
 } from './form.ts';
-import { addLink, linkTargets } from './links.ts';
+import { linkTargets, mergeLinks } from './links.ts';
 import { LinksEditor } from './LinksEditor.tsx';
 
 export function NewVersionScreen() {
@@ -130,7 +130,7 @@ function NewVersionForm({
   const save = () => {
     if (!ready || !links) return;
     command.mutate(
-      { command: 'record_version.create', data: toCommand(record.id, form, added.reduce(addLink, links.carried)) },
+      { command: 'record_version.create', data: toCommand(record.id, form, mergeLinks(links.carried, added)) },
       {
         onSuccess: (r) =>
           void navigate({

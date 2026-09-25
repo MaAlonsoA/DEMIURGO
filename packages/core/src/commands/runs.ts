@@ -116,6 +116,30 @@ registerGuards({
   },
 });
 
+/**
+ * The message a run answers belongs to the thread the run reads. Only the durable response links a
+ * message still waiting; a person links one only to ask again after its answer was abandoned.
+ */
+async function checkAnswered(
+  ctx: CommandContext,
+  messageId: string,
+  scope: { type: string; id?: string | undefined },
+): Promise<void> {
+  const m = await ctx.trx
+    .selectFrom('messages')
+    .select(['exploration_id', 'response'])
+    .where('id', '=', messageId)
+    .where('project_id', '=', ctx.projectId)
+    .executeTakeFirst();
+  if (!m || scope.type !== 'exploration' || m.exploration_id !== scope.id) {
+    throw new DomainError('validation', 'The message this run answers is not in the thread it reads.');
+  }
+  const allowed = ctx.actor.type === 'system' ? ['waiting', 'abandoned'] : ['abandoned'];
+  if (!m.response || !allowed.includes(m.response)) {
+    throw new DomainError('validation', 'That message is not waiting for someone to ask again.');
+  }
+}
+
 registerHandlers({
   'run.request': handler({
     data: z
@@ -132,6 +156,7 @@ registerHandlers({
       .strict(),
     async apply(ctx, data, _e, to) {
       const action: AgentAction = data.action;
+      if (data.answers_message) await checkAnswered(ctx, data.answers_message, data.scope);
       const agent = await agentFor(action, data.agent);
       const engine = await engineFor(ctx, agent);
       const pack = await buildContext(
@@ -172,7 +197,14 @@ registerHandlers({
       const hash = (created.result as { hash: string }).hash;
       return {
         entityId: id,
-        after: { action, agent: agent.id, engine, scope: data.scope, context_pack: hash },
+        after: {
+          action,
+          agent: agent.id,
+          engine,
+          scope: data.scope,
+          context_pack: hash,
+          ...(data.answers_message ? { answers_message: data.answers_message } : {}),
+        },
         result: { runId: id, contextPackId: created.entityId, contextPackHash: hash },
       };
     },

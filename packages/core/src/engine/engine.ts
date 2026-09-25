@@ -571,8 +571,32 @@ async function reconcileRuns(s: Services): Promise<void> {
 }
 
 /**
+ * Reconciles at startup the answers still waiting: a message whose response workflow is missing
+ * (a crash before it started) or ended without requesting a run is left abandoned, so the person
+ * can ask again. Never waiting forever.
+ */
+async function reconcileResponses(s: Services): Promise<void> {
+  const waiting = await s.db.selectFrom('messages').select(['id', 'project_id']).where('response', '=', 'waiting').execute();
+  for (const m of waiting) {
+    const workflow = await DBOS.getWorkflowStatus(`response:${m.id}`);
+    if (workflow && ['PENDING', 'ENQUEUED'].includes(workflow.status)) continue;
+    await executeCommand(s, {
+      command: 'message.abandon_response',
+      actor: system('conversation'),
+      projectId: m.project_id,
+      entityId: m.id,
+      data: {
+        reason: workflow
+          ? `The answer's workflow ended in ${workflow.status} without asking DEMIURGO; ask again.`
+          : 'DEMIURGO stopped before it could ask for the answer; ask again.',
+      },
+    });
+  }
+}
+
+/**
  * Configures and launches DBOS on the application's database (`dbos` schema). On launch, DBOS
- * resumes pending workflows; runs and updates are then reconciled.
+ * resumes pending workflows; runs, answers and updates are then reconciled.
  */
 export async function startEngine(
   base: Omit<Services, 'engine'>,
@@ -598,6 +622,7 @@ export async function startEngine(
     void dispatchDeferred();
   }, 50);
   await reconcileRuns(s);
+  await reconcileResponses(s);
   for (const c of reconcilers) await c(s);
   return {
     services: s,

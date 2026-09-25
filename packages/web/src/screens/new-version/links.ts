@@ -30,3 +30,8 @@ export function addLink(links: readonly LinkInput[], link: LinkInput): LinkInput
 export function removeLink(links: readonly LinkInput[], link: LinkInput): LinkInput[] {
   return links.filter((l) => !same(l, link));
 }
+
+/** The links of a new version: the ones it carries, where a link the person adds takes the place of the same one. */
+export function mergeLinks(carried: readonly LinkInput[], added: readonly LinkInput[]): LinkInput[] {
+  return [...carried.filter((c) => !added.some((a) => same(a, c))), ...added];
+}

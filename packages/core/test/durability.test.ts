@@ -169,4 +169,29 @@ describe('durable engine', () => {
     const r = await executeCommand(s, { command: 'run.retry', actor: ana, projectId, data: { run_id: orphan.entityId } });
     expect(r.state).toBe('queued');
   });
+
+  it('on startup, a message left waiting with no workflow to answer it is abandoned, so the person can ask again', async () => {
+    const { services: s, url } = environment();
+    const ana = human('ana');
+    const { projectId } = await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Lost answer' } });
+    const thread = (await executeCommand(s, { command: 'exploration.open', actor: ana, projectId, data: { purpose: 'x' } }))
+      .entityId;
+    // A crash between the message's commit and the start of its workflow: waiting, with nothing behind it.
+    const message = (
+      await executeCommand(s, { command: 'message.post', actor: ana, projectId, data: { exploration_id: thread, text: 'Hi' } })
+    ).entityId;
+    await s.db.updateTable('messages').set({ response: 'waiting' }).where('id', '=', message).execute();
+    const child = launch([url, 'reconcile']);
+    await child.wait('RECONCILED', 90_000);
+    await waitForExit(child.child);
+    const row = await s.db.selectFrom('messages').select('response').where('id', '=', message).executeTakeFirstOrThrow();
+    expect(row.response).toBe('abandoned');
+    const events = await s.db
+      .selectFrom('events')
+      .select('command')
+      .where('entity_id', '=', message)
+      .where('command', '=', 'message.abandon_response')
+      .execute();
+    expect(events).toHaveLength(1);
+  });
 });

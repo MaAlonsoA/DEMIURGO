@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Inbox, ProductRow, ProductState } from '../../src/api/types.ts';
-import { featureStatus, railOf } from '../../src/screens/blueprint/rail.ts';
+import { featureStatus, navigatorOf, railOf } from '../../src/screens/blueprint/rail.ts';
 
 const emptyInbox = (): Inbox => ({
   total: 0,
@@ -145,5 +145,47 @@ describe('the blueprint rail', () => {
     });
     const rail = railOf(state([row('FDR-SIG-001')]), undefined, 'FDR-SIG-001');
     expect(rail.features[0]?.status.kind).toBe('draft');
+  });
+});
+
+describe('the records navigator', () => {
+  it('AC-INT-001-04 covers every record type — bugs and the stage records too — in the product order, marking the one on screen', () => {
+    const s = state([
+      row('FDR-CAT-001'),
+      row('DEC-EVE-001'),
+      row('ADR-STK-001'),
+      row('BUG-CAT-001'),
+      row('REQ-CAT-001', { type: 'requirement' }),
+      row('NFR-CAT-001', { type: 'quality_requirement' }),
+      row('THR-CAT-001', { type: 'threat_model' }),
+      row('PRR-CAT-001', { type: 'production_readiness' }),
+    ]);
+    const nav = navigatorOf(s, emptyInbox(), 'BUG-CAT-001');
+    expect(nav.groups.map((g) => [g.title, g.records.map((r) => r.code)])).toEqual([
+      ['Features', ['FDR-CAT-001']],
+      ['Decisions', ['DEC-EVE-001']],
+      ['Tech decisions', ['ADR-STK-001']],
+      ['Requirements', ['REQ-CAT-001']],
+      ['Quality requirements', ['NFR-CAT-001']],
+      ['Threat models', ['THR-CAT-001']],
+      ['Production readiness', ['PRR-CAT-001']],
+      ['Bugs', ['BUG-CAT-001']],
+    ]);
+    expect(
+      nav.groups
+        .flatMap((g) => g.records)
+        .filter((r) => r.current)
+        .map((r) => r.code),
+    ).toEqual(['BUG-CAT-001']);
+    expect(nav.groups[0]?.records[0]?.status?.kind).toBe('draft');
+    expect(nav.groups[1]?.records[0]?.status).toBeUndefined();
+  });
+
+  it('AC-INT-001-04 keeps the Features group when there is none, and hides the other empty groups', () => {
+    expect(navigatorOf(state([row('DEC-EVE-001')]), undefined, '').groups.map((g) => [g.title, g.records.length])).toEqual([
+      ['Features', 0],
+      ['Decisions', 1],
+    ]);
+    expect(navigatorOf(undefined, undefined, '')).toEqual({ project: '', groups: [], parked: [] });
   });
 });

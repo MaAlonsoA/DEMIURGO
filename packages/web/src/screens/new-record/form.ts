@@ -1,6 +1,7 @@
-// A record written by hand (decision, FDR, ADR or bug): its type's template sections, a title,
-// the area it belongs to and, for the types that need them, its checks. What is missing is said in
-// words; the command is record.create, which creates version 1 as a draft.
+// A record written by hand (any of the eight types): its type's template sections, a title, the
+// area it belongs to and, for the types that need them, its checks. What is missing is said in
+// words; the command is record.create, which creates version 1 as a draft. Switching the type
+// keeps what was written in sections the new template doesn't have (DESIGN.md §3.6).
 
 import { RECORD_TEMPLATES, type RecordType } from '../../../../domain/src/records.ts';
 import type { Section } from '../../api/types.ts';
@@ -29,6 +30,8 @@ export type RecordForm = {
   added: number;
   /** What it is linked to, born with version 1. */
   links: LinkInput[];
+  /** Text of sections the current type doesn't have, kept from an earlier type (never sent). */
+  kept: Section[];
 };
 
 export function blankRecord(type: RecordType): RecordForm {
@@ -40,17 +43,40 @@ export function blankRecord(type: RecordType): RecordForm {
     checks: [],
     added: 0,
     links: [],
+    kept: [],
   };
 }
 
-/** Another type keeps what was written in the sections both templates share. */
+/**
+ * Another type keeps what was written in the sections both templates share; what was written in
+ * the others is kept apart (shown as "Kept from the previous type") and comes back if a type with
+ * that section is chosen again.
+ */
 export function withType(form: RecordForm, type: RecordType): RecordForm {
-  const written = new Map(form.sections.map((s) => [s.title, s.content]));
+  const written = new Map([...(form.kept ?? []), ...form.sections].map((s) => [s.title, s.content]));
+  const titles = RECORD_TEMPLATES[type].sections;
   return {
     ...form,
     type,
-    sections: RECORD_TEMPLATES[type].sections.map((title) => ({ title, content: written.get(title) ?? '' })),
+    sections: titles.map((title) => ({ title, content: written.get(title) ?? '' })),
+    kept: [...written]
+      .filter(([title, content]) => !titles.includes(title) && content.trim() !== '')
+      .map(([title, content]) => ({ title, content })),
   };
+}
+
+/** Anything written: leaving the page would lose it (DESIGN.md §3.6). */
+const some = (s: string) => s.trim() !== '';
+
+export function recordDirty(form: RecordForm): boolean {
+  return (
+    some(form.title) ||
+    some(form.domain) ||
+    form.sections.some((s) => some(s.content)) ||
+    (form.kept ?? []).length > 0 ||
+    form.checks.length > 0 ||
+    form.links.length > 0
+  );
 }
 
 const blank = (s: string) => s.trim() === '';

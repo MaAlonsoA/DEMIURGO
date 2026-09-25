@@ -61,3 +61,45 @@ export function railOf(state: ProductState | undefined, inbox: Inbox | undefined
     parked: state.explorations.filter((e) => e.state === 'set_aside').map((e) => ({ id: e.id, purpose: e.purpose })),
   };
 }
+
+export type NavRecord = { code: string; title: string; current: boolean; mark: MarkKind; status?: FeatureStatus };
+export type NavGroup = { key: string; title: string; records: NavRecord[] };
+export type Navigator = { project: string; groups: NavGroup[]; parked: { id: string; purpose: string }[] };
+
+/** The groups of the records navigator, in the order of the product: features first, bugs last. */
+const NAV_GROUPS: { key: ProductRow['type']; title: string }[] = [
+  { key: 'fdr', title: 'Features' },
+  { key: 'decision', title: 'Decisions' },
+  { key: 'adr', title: 'Tech decisions' },
+  { key: 'requirement', title: 'Requirements' },
+  { key: 'quality_requirement', title: 'Quality requirements' },
+  { key: 'threat_model', title: 'Threat models' },
+  { key: 'production_readiness', title: 'Production readiness' },
+  { key: 'bug', title: 'Bugs' },
+];
+
+/**
+ * Every record of the product grouped by type — bugs, requirements, quality, threat models and
+ * production readiness included, which the old rail left out (INVENTORY INV-BP, UX problem) — the
+ * features with their status and the rest with their certainty, and the threads set aside. Only
+ * non-empty groups, except Features, which says when there is none.
+ */
+export function navigatorOf(state: ProductState | undefined, inbox: Inbox | undefined, current: string): Navigator {
+  if (!state) return { project: '', groups: [], parked: [] };
+  const rows = [...state.designs, ...state.decisions];
+  const groups = NAV_GROUPS.map((g) => ({
+    key: g.key,
+    title: g.title,
+    records: rows
+      .filter((r) => r.type === g.key)
+      .map((r) => ({
+        ...node(r, current),
+        ...(r.type === 'fdr' ? { status: featureStatus(r, waitingFor(r.code, inbox, r.origin_exploration)) } : {}),
+      })),
+  })).filter((g) => g.key === 'fdr' || g.records.length > 0);
+  return {
+    project: state.project.name,
+    groups,
+    parked: state.explorations.filter((e) => e.state === 'set_aside').map((e) => ({ id: e.id, purpose: e.purpose })),
+  };
+}

@@ -1,20 +1,26 @@
 // Data for the product, record, new-version and lens specs, prepared with commands through the API
 // (the same path as walkthrough-s1): a ratified import of design/, and records built by hand.
 
+import { join } from 'node:path';
 import type { Page } from '@playwright/test';
 import type { RecordDetail, Readiness } from '../../src/api/types.ts';
-import type { PersonApi } from './support/fixtures.ts';
+import { type PersonApi, SCREENS_DIR } from './support/fixtures.ts';
 
-/** A person who already folded the legend (it stays in its ⓘ): the screenshots show the screen itself. */
-export async function foldLegend(page: Page): Promise<void> {
-  await page.addInitScript(() => {
-    try {
-      localStorage.setItem('demiurgo:legend', JSON.stringify({ dismissed: true, seen: [] }));
-    } catch {
-      // about:blank has no storage.
-    }
-  });
+/**
+ * A screenshot for the visual check of the rebuild (brief: shots of the main screens), in
+ * E2E_SHOTS when set, otherwise with the other screens under reports/screens/rebuild.
+ */
+export async function shot(page: Page, name: string, fullPage = false): Promise<void> {
+  const dir = process.env.E2E_SHOTS ?? join(SCREENS_DIR, 'rebuild');
+  await page.mouse.move(0, 0);
+  await page.screenshot({ path: join(dir, `${name}.png`), fullPage });
 }
+
+/**
+ * The old self-opening legend is gone (D-014): nothing to fold any more. Kept so the specs that
+ * still call it before their screenshots keep working.
+ */
+export async function foldLegend(_page: Page): Promise<void> {}
 
 /** A project with the repository's design/ imported and ratified: every record is a draft. */
 export async function ratifiedProject(person: PersonApi, name: string): Promise<string> {
@@ -116,4 +122,37 @@ export async function settled(person: PersonApi, projectId: string): Promise<voi
     (k) => k.up_to_date && k.updates_in_progress === 0,
     60_000,
   );
+}
+
+/**
+ * No horizontal scroll at this width (WCAG 1.4.10); on failure it names the elements that stick out.
+ * The old stylesheet still pins the page at 1280 px (styles.css, `min-width: 1280px`, INVENTORY §2
+ * #4) until the last screen moves (D-017): the check lifts that one rule to see the new screens reflow.
+ */
+export async function expectNoSideScroll(page: Page, what: string): Promise<void> {
+  await page.addStyleTag({ content: 'html, body { min-width: 0 !important; }' });
+  const viewport = page.viewportSize()?.width ?? 0;
+  // The new width has reached the media queries and the lifted rule is in force.
+  await page.waitForFunction(
+    (w) => getComputedStyle(document.body).minWidth === '0px' && matchMedia(`(max-width: ${w}px)`).matches,
+    viewport,
+  );
+  await page.waitForTimeout(100);
+  const out = await page.evaluate(() => {
+    if (document.documentElement.scrollWidth <= window.innerWidth) return [];
+    const width = window.innerWidth;
+    return [...document.querySelectorAll('body *')]
+      .filter((el) => {
+        const r = el.getBoundingClientRect();
+        const p = el.parentElement?.getBoundingClientRect();
+        // The outermost element that sticks out, not every descendant of it.
+        return r.width > 0 && r.right > width + 1 && (!p || p.right <= width + 1 || r.right > p.right + 1);
+      })
+      .slice(0, 12)
+      .map((el) => {
+        const r = el.getBoundingClientRect();
+        return `${el.tagName.toLowerCase()}.${(el.getAttribute('class') ?? '').slice(0, 80)} [${Math.round(r.left)}–${Math.round(r.right)}] ${(el.textContent ?? '').slice(0, 60)}`;
+      });
+  });
+  if (out.length > 0) throw new Error(`${what} scrolls sideways:\n${out.join('\n')}`);
 }

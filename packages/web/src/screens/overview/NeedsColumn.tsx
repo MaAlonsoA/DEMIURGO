@@ -1,21 +1,22 @@
-// Right column of the overview (canvas B1 and S6A): what needs the person, in the order "Catch
-// up" walks it and about how long it takes, what DEMIURGO is running now, the features ready to
-// build and what was decided most recently.
+// "Needs you" at the top of the overview's side column (DESIGN.md §3.5, INV-OVW-22…26): how much
+// waits and about how long it takes, the first four things in the same order Catch up walks them
+// (one order everywhere, INVENTORY §2 #7), and the way into Catch up — or, right after ratifying,
+// into the versions to approve. A failed inbox says so instead of a skeleton forever.
 
 import { Link } from '@tanstack/react-router';
+import type { UseQueryResult } from '@tanstack/react-query';
 import { useId } from 'react';
-import type { Inbox, ProductState, RunListItem } from '../../api/types.ts';
+import type { Inbox, ProductState } from '../../api/types.ts';
+import { Count } from '../../components/Badge.tsx';
+import { buttonClass } from '../../components/Button.tsx';
+import { ArrowRightIcon } from '../../components/icons.tsx';
+import { ErrorNotice } from '../../components/Notice.tsx';
+import { Bone, Skeleton } from '../../components/Spinner.tsx';
+import { StateText } from '../../components/status.tsx';
 import { cn } from '../../lib/cn.ts';
-import { buttonClass } from '../../ui/Button.tsx';
-import { Skeleton } from '../../ui/layout.tsx';
-import { Mark } from '../../ui/marks.tsx';
-import { NeedsBubble, StageBars } from '../../ui/signals.tsx';
 import { PRODUCT_WORDS } from '../../words.ts';
 import { minutesOf, needsOf } from '../needs-you/order.ts';
-import { RecentlyDecided, RunningNow } from './Blueprint.tsx';
-import { type NeedsItem, justRatified, needsItems } from './needs.ts';
-import { recentlyDecided } from './progress.ts';
-import { TaxonomyHint } from '../knowledge/TaxonomyHint.tsx';
+import { type NeedsItem, justRatified, needsItems, packagesNote } from './needs.ts';
 
 const SHOWN = 4;
 
@@ -27,162 +28,128 @@ function Item({ projectId, item, index }: { projectId: string; item: NeedsItem; 
         params={{ projectId, ...item.target.params } as never}
         search={('search' in item.target ? item.target.search : undefined) as never}
         data-needs-item={item.kind}
-        className="flex flex-col gap-0.5 rounded-card-md border border-needs-line bg-surface px-3 py-2.5 text-ink hover:border-needs focus-visible:border-needs"
+        className="flex flex-col gap-1 rounded-md border border-edge bg-panel px-3 py-2.5 transition-colors duration-[var(--m-fast)] hover:border-accent-edge"
       >
-        <span className="dm-label flex items-center gap-1.5">
-          <span className="tabular-nums">{index + 1}</span>
-          <span className="dm-sep" aria-hidden="true">
-            ·
-          </span>
-          <Mark kind={item.mark} />
-          <span className={item.mark === 'conflict' || item.mark === 'problem' ? 'text-problem' : ''}>{item.label}</span>
+        <span className="flex items-center gap-2 text-xs">
+          <span className="w-4 shrink-0 font-medium text-fg-2 tabular-nums">{index + 1}</span>
+          <StateText kind={item.mark} word={item.label} className="text-xs" />
         </span>
-        <strong className="dm-text-body line-clamp-2 leading-snug font-semibold">{item.title}</strong>
-        <span className="dm-text-caption truncate text-ink-3">{item.from}</span>
+        <span className="line-clamp-2 text-sm leading-snug font-medium text-fg">{item.title}</span>
+        <span className="truncate pl-6 text-xs text-fg-2">{item.from}</span>
       </Link>
     </li>
   );
 }
 
-export function NeedsColumn({
+export function NeedsSummary({
   projectId,
   state,
   inbox,
-  runs,
-  now,
 }: {
   projectId: string;
   state: ProductState | undefined;
-  inbox: Inbox | undefined;
-  /** Runs working now. */
-  runs: RunListItem[];
-  now: number;
+  inbox: UseQueryResult<Inbox>;
 }) {
-  const needsId = useId();
-  const readyId = useId();
-  const items = inbox ? needsItems(inbox, state) : [];
-  const ratified = justRatified(state, inbox);
-  const firstVersion = inbox?.versions_to_approve.find((v) => v.approvable);
-  const total = inbox?.total ?? 0;
-  const ready = [...(state?.designs ?? [])].filter((r) => r.type === 'fdr' && state?.ready_to_build.includes(r.code));
+  const id = useId();
+  const data = inbox.data;
+  const items = data ? needsItems(data, state) : [];
+  const total = data?.total ?? 0;
   const rows = [...(state?.designs ?? []), ...(state?.decisions ?? [])];
-  const minutes = inbox ? minutesOf(needsOf(inbox, rows)) : 0;
-  const threads = new Map((state?.explorations ?? []).map((e) => [e.id, e.purpose]));
+  const minutes = data ? minutesOf(needsOf(data, rows)) : 0;
+  const ratified = justRatified(state, data);
+  const firstVersion = data?.versions_to_approve.find((v) => v.approvable);
+  const packages = data ? packagesNote(data) : null;
+  const waiting = total > 0;
 
   return (
-    <>
-      {/* What needs you sits on its band (needs-soft, needs-line); with nothing waiting it is plain. */}
-      <section
-        aria-labelledby={needsId}
-        className={cn('flex flex-col gap-2.5', total > 0 && 'rounded-card border border-needs-line bg-needs-soft p-4')}
-      >
-        <div className="flex flex-col gap-0.5">
-          <h2 className="dm-text-heading flex items-center gap-2 font-semibold">
-            <span id={needsId}>{PRODUCT_WORDS.needsYou}</span>
-            <NeedsBubble count={total} />
-          </h2>
-          {total > 0 && (
-            <span className="dm-text-caption text-muted" data-needs-summary>
-              {total} {total === 1 ? 'item' : 'items'} · about {minutes} {minutes === 1 ? 'minute' : 'minutes'}
-            </span>
-          )}
-        </div>
-        {!inbox ? (
-          <div className="flex flex-col gap-2" aria-hidden="true">
-            <Skeleton className="h-16 w-full rounded-card-md" />
-            <Skeleton className="h-16 w-full rounded-card-md" />
+    <section
+      aria-labelledby={id}
+      className={cn(
+        'flex flex-col gap-3 rounded-lg border p-4',
+        waiting ? 'border-accent-edge bg-accent-soft' : 'border-edge bg-panel',
+      )}
+    >
+      <div className="flex flex-col gap-0.5">
+        <h2 className="flex items-center gap-2 text-base font-semibold text-fg">
+          <span id={id}>{PRODUCT_WORDS.needsYou}</span>
+          <Count n={total} label={`${total} ${total === 1 ? 'thing needs' : 'things need'} you`} />
+        </h2>
+        {waiting ? (
+          <p className="text-xs text-fg-2" data-needs-summary>
+            {total} {total === 1 ? 'thing' : 'things'}
+            {packages && items.length !== total
+              ? ` in ${items.length} ${items.length === 1 ? 'decision' : 'decisions'} (${packages})`
+              : ''}{' '}
+            · about {minutes} {minutes === 1 ? 'minute' : 'minutes'}
+          </p>
+        ) : null}
+      </div>
+      {inbox.error ? (
+        <ErrorNotice error={inbox.error} compact focus={false} onRetry={() => void inbox.refetch()} />
+      ) : !data ? (
+        <Skeleton label="Loading what needs you">
+          <div className="flex flex-col gap-2">
+            <Bone className="h-16 w-full rounded-md" />
+            <Bone className="h-16 w-full rounded-md" />
           </div>
-        ) : total === 0 ? (
-          <p className="dm-text-small text-ink-2">{PRODUCT_WORDS.nothingNeedsYou}</p>
-        ) : (
-          <>
-            {ratified ? (
-              <p className="dm-text-small text-ink-3">
-                Everything is proposed: nothing is approved yet. Start with what you agree with.
-              </p>
-            ) : (
-              <p className="dm-text-small text-ink-3">In this order: what blocks more goes first.</p>
-            )}
-            <ol className="flex flex-col gap-2">
-              {items.slice(0, SHOWN).map((item, i) => (
-                <Item key={`${item.kind}-${item.id}`} projectId={projectId} item={item} index={i} />
-              ))}
-            </ol>
-            {items.length > SHOWN && (
+        </Skeleton>
+      ) : !waiting ? (
+        <p className="text-sm text-fg-2">{PRODUCT_WORDS.nothingNeedsYou}</p>
+      ) : (
+        <>
+          <p className="text-sm text-fg-2">
+            {ratified
+              ? 'Everything is proposed: nothing is approved yet. Start with what you agree with.'
+              : 'In the order Catch up walks them: what unblocks more goes first.'}
+          </p>
+          <ol className="flex flex-col gap-2">
+            {items.slice(0, SHOWN).map((item, i) => (
+              <Item key={item.key} projectId={projectId} item={item} index={i} />
+            ))}
+          </ol>
+          {items.length > SHOWN ? (
+            <Link
+              to="/p/$projectId/needs-you"
+              params={{ projectId }}
+              className="inline-flex items-center gap-1 self-start text-sm font-medium text-accent-text hover:underline"
+            >
+              And {items.length - SHOWN} more in Needs you <ArrowRightIcon size={12} />
+            </Link>
+          ) : null}
+          {ratified && firstVersion ? (
+            <div className="flex flex-col gap-2">
+              <Link
+                to="/p/$projectId/records/$code"
+                params={{ projectId, code: firstVersion.code }}
+                search={{ v: firstVersion.n }}
+                className={buttonClass({ variant: 'primary' })}
+              >
+                Start with the versions to approve
+              </Link>
               <Link
                 to="/p/$projectId/needs-you"
                 params={{ projectId }}
-                className="dm-text-caption font-semibold text-needs-strong hover:underline"
+                search={{ 'catch-up': 1 }}
+                className="text-center text-sm font-medium text-accent-text hover:underline"
               >
-                And {items.length - SHOWN} more in Needs you
+                Or catch up with everything, one at a time
               </Link>
-            )}
-            {ratified && firstVersion ? (
-              <>
-                <Link
-                  to="/p/$projectId/records/$code"
-                  params={{ projectId, code: firstVersion.code }}
-                  search={{ v: firstVersion.n }}
-                  className={buttonClass('primary')}
-                >
-                  Start with the versions to approve
-                </Link>
-                <Link
-                  to="/p/$projectId/needs-you"
-                  params={{ projectId }}
-                  search={{ 'catch-up': 1 }}
-                  className="dm-text-caption text-center font-semibold text-needs-strong hover:underline"
-                >
-                  Or catch up with everything, one at a time
-                </Link>
-              </>
-            ) : (
-              <>
-                <Link
-                  to="/p/$projectId/needs-you"
-                  params={{ projectId }}
-                  search={{ 'catch-up': 1 }}
-                  className={buttonClass('primary')}
-                >
-                  Catch up
-                </Link>
-                <p className="dm-text-caption text-center text-muted">One at a time. What you skip stays here.</p>
-              </>
-            )}
-          </>
-        )}
-      </section>
-
-      <TaxonomyHint projectId={projectId} />
-
-      <RunningNow projectId={projectId} runs={runs} threads={threads} now={now} />
-
-      <section aria-labelledby={readyId} className="flex flex-col gap-2">
-        <h2 id={readyId} className="dm-text-caption font-semibold text-muted">
-          {PRODUCT_WORDS.readyToBuild}
-        </h2>
-        {ready.length === 0 ? (
-          <p className="dm-text-small text-ink-3">Nothing is ready to build yet.</p>
-        ) : (
-          <ul className="flex flex-col gap-0.5">
-            {ready.map((r) => (
-              <li key={r.code}>
-                <Link
-                  to="/p/$projectId/records/$code"
-                  params={{ projectId, code: r.code }}
-                  className="dm-text-small -mx-2 flex items-center gap-2.5 rounded-control px-2 py-1.5 hover:bg-line-soft"
-                >
-                  <Mark kind="confirmed" />
-                  <span className="min-w-0 flex-1 truncate font-medium">{r.title}</span>
-                  <StageBars stage="ready" />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <RecentlyDecided projectId={projectId} rows={recentlyDecided(rows)} />
-    </>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              <Link
+                to="/p/$projectId/needs-you"
+                params={{ projectId }}
+                search={{ 'catch-up': 1 }}
+                className={buttonClass({ variant: 'primary' })}
+              >
+                Catch up
+              </Link>
+              <p className="text-center text-xs text-fg-2">One at a time. What you skip stays here.</p>
+            </div>
+          )}
+        </>
+      )}
+    </section>
   );
 }

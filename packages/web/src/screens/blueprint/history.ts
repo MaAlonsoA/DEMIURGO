@@ -12,6 +12,11 @@ const WORDS: Record<string, (n: number) => string> = {
   'record_version.approve': (n) => `Approved v${n}`,
   'record_version.supersede': (n) => `v${n} was replaced`,
   'record_version.discard': (n) => `Discarded v${n}`,
+  // Link verdicts, in sentences rather than raw command words (INVENTORY INV-BP, UX problem).
+  'link.flag_review': (n) => `A link of v${n} needs a review`,
+  'link.keep': (n) => `Kept a link of v${n}`,
+  'link.change': (n) => `Marked a link of v${n} as changed`,
+  'link.obsolete': (n) => `Marked a link of v${n} out of date`,
 };
 
 export function historyLines(

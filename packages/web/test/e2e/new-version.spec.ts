@@ -1,4 +1,8 @@
-import { createDecision, createFeature, foldLegend, readinessOf, recordOf } from './record-setup.ts';
+// New version of a record (DESIGN.md §3.6, INV-NEWVER-*): a note and a choice per check before it can
+// be saved, edits under Change that survive trying Keep, the verifiability warning that doesn't
+// block and is shown again on the saved version's page, and a rejected save that keeps the text.
+
+import { createDecision, createFeature, readinessOf, recordOf, shot } from './record-setup.ts';
 import { BASE_URL, expect, expectAccessible, screenshot, test } from './support/fixtures.ts';
 
 async function approvedFeature(person: Parameters<typeof createDecision>[0], name: string) {
@@ -17,7 +21,6 @@ test('AC-INT-001-06 a new version cannot be saved without a note or a choice per
 }) => {
   const { projectId, fdr } = await approvedFeature(person, 'New version');
   await page.goto(`/p/${projectId}/records/${fdr.code}`);
-  // The project is called New version too: its link in the blueprint rail is not the one.
   await page.locator('[data-record-actions]').getByRole('link', { name: 'New version' }).click();
   await expect(page).toHaveURL(`${BASE_URL}/p/${projectId}/records/${fdr.code}/new-version`);
   await expect(page.getByRole('heading', { level: 1, name: /New version of Activity catalog/ })).toBeVisible();
@@ -33,15 +36,24 @@ test('AC-INT-001-06 a new version cannot be saved without a note or a choice per
   await expect(missing).not.toContainText('Say what changed.');
   await expect(save).toBeDisabled();
 
-  const check = (code: string) => page.getByRole('radiogroup', { name: new RegExp(code) });
-  await check('AC-CAT-001-01').getByRole('radio', { name: 'Keep' }).check();
+  const check = (code: string) => page.getByRole('group', { name: new RegExp(code) });
+  await check('AC-CAT-001-01').getByRole('radio', { name: /^Keep/ }).check();
   await expect(missing).toContainText('Choose Keep, Change or Drop for 2 checks.');
-  await check('AC-CAT-001-02').getByRole('radio', { name: 'Change' }).check();
+  await check('AC-CAT-001-02')
+    .getByRole('radio', { name: /^Change/ })
+    .check();
   const edited = page.locator('[data-criterion="AC-CAT-001-02"]');
-  await edited
-    .getByLabel('Statement')
-    .fill('When a member opens an activity, then it shows its date, its place and how many places are left.');
-  await check('AC-CAT-001-03').getByRole('radio', { name: 'Drop' }).check();
+  const newStatement = 'When a member opens an activity, then it shows its date, its place and how many places are left.';
+  await edited.getByLabel('Statement').fill(newStatement);
+  // Trying Keep shows the check as it was, and keeps the edits for when Change comes back.
+  await check('AC-CAT-001-02').getByRole('radio', { name: /^Keep/ }).check();
+  await expect(edited).toContainText('Your edits are kept');
+  await expect(edited).not.toContainText(newStatement);
+  await check('AC-CAT-001-02')
+    .getByRole('radio', { name: /^Change/ })
+    .check();
+  await expect(edited.getByLabel('Statement')).toHaveValue(newStatement);
+  await check('AC-CAT-001-03').getByRole('radio', { name: /^Drop/ }).check();
   await expect(save).toBeEnabled();
 
   await page.getByRole('button', { name: 'Add a check' }).click();
@@ -57,7 +69,7 @@ test('AC-INT-001-06 a new version cannot be saved without a note or a choice per
   await save.click();
   await expect(page).toHaveURL(`${BASE_URL}/p/${projectId}/records/${fdr.code}?v=2`);
   await expect(page.locator('[data-record-header]')).toContainText('Draft');
-  await expect(page.getByRole('button', { name: 'Approve' })).toBeInViewport();
+  await expect(page.locator('[data-record-actions]').getByRole('button', { name: 'Approve' })).toBeInViewport();
 
   const r = await recordOf(person, projectId, fdr.code);
   const v2 = r.versions.find((v) => v.n === 2);
@@ -68,9 +80,7 @@ test('AC-INT-001-06 a new version cannot be saved without a note or a choice per
     ['AC-CAT-001-02', 'modified'],
     ['AC-CAT-001-04', 'new'],
   ]);
-  expect(v2?.criteria[1]?.statement).toBe(
-    'When a member opens an activity, then it shows its date, its place and how many places are left.',
-  );
+  expect(v2?.criteria[1]?.statement).toBe(newStatement);
   // Its links come along as they were: it is still based on the decision.
   const readiness = await readinessOf(person, projectId, v2?.id ?? '');
   expect(readiness.reasons).not.toContain('It is not based on any decision.');
@@ -85,8 +95,8 @@ test('AC-INT-001-07 a check with a vague term shows the verifiability warning wh
   await page.getByLabel('What changed').fill('The catalog has to be quick.');
   for (const code of ['AC-CAT-001-01', 'AC-CAT-001-02', 'AC-CAT-001-03']) {
     await page
-      .getByRole('radiogroup', { name: new RegExp(code) })
-      .getByRole('radio', { name: 'Keep' })
+      .getByRole('group', { name: new RegExp(code) })
+      .getByRole('radio', { name: /^Keep/ })
       .check();
   }
   await page.getByRole('button', { name: 'Add a check' }).click();
@@ -99,9 +109,9 @@ test('AC-INT-001-07 a check with a vague term shows the verifiability warning wh
   const warning = added.locator('[data-verifiability]');
   await expect(warning).toContainText('"fast" is vague; state a measure or a checkable result.');
   await added.getByLabel('How it is checked').fill('You open the catalog and time it.');
-  const you = added.getByRole('button', { name: 'You', exact: true });
-  await you.click();
-  await expect(you).toHaveAttribute('aria-pressed', 'true');
+  const you = added.getByRole('radio', { name: /^You/ });
+  await you.check();
+  await expect(you).toBeChecked();
 
   const save = page.getByRole('button', { name: 'Save draft' });
   await expect(save).toBeEnabled();
@@ -113,6 +123,11 @@ test('AC-INT-001-07 a check with a vague term shows the verifiability warning wh
     statement: 'The catalog is fast.',
     verification: 'manual',
   });
+  // What the save said is shown once on the new version's page (the old form dropped it).
+  const notices = page.locator('[data-record-notices]');
+  await expect(notices).toContainText('Saved, with warnings');
+  await expect(notices).toContainText('AC-CAT-001-04: "fast" is vague');
+  await shot(page, 'record-saved-with-warnings');
   // The record keeps saying it, next to the check and apart in its readiness.
   const saved = page.locator('[data-check="AC-CAT-001-04"]');
   await expect(saved).toContainText('"fast" is vague');
@@ -127,8 +142,8 @@ test('AC-INT-001-06 a rejected save keeps what was written and shows the server 
   await page.getByLabel('What changed').fill('A note that must survive.');
   for (const code of ['AC-CAT-001-01', 'AC-CAT-001-02', 'AC-CAT-001-03']) {
     await page
-      .getByRole('radiogroup', { name: new RegExp(code) })
-      .getByRole('radio', { name: 'Keep' })
+      .getByRole('group', { name: new RegExp(code) })
+      .getByRole('radio', { name: /^Keep/ })
       .check();
   }
   // Meanwhile someone saves another version with one more check: this form no longer covers them all.
@@ -166,21 +181,23 @@ test('screens of cut 4: the new version form, with a check changed, one dropped 
   person,
 }) => {
   const { projectId, fdr } = await approvedFeature(person, 'Club Activities');
-  await foldLegend(page);
   await page.goto(`/p/${projectId}/records/${fdr.code}`);
-  await page.getByRole('link', { name: 'New version' }).click();
+  await page.locator('[data-record-actions]').getByRole('link', { name: 'New version' }).click();
   await expect(page.getByRole('heading', { level: 1, name: /New version of Activity catalog/ })).toBeVisible();
   await screenshot(page, 4, '01-new-version-form');
+  await shot(page, 'new-version');
 
   await page.getByLabel('What changed').fill('Past activities go to their own tab, so last year is easy to find.');
-  const check = (code: string) => page.getByRole('radiogroup', { name: new RegExp(code) });
-  await check('AC-CAT-001-01').getByRole('radio', { name: 'Keep' }).check();
-  await check('AC-CAT-001-02').getByRole('radio', { name: 'Change' }).check();
+  const check = (code: string) => page.getByRole('group', { name: new RegExp(code) });
+  await check('AC-CAT-001-01').getByRole('radio', { name: /^Keep/ }).check();
+  await check('AC-CAT-001-02')
+    .getByRole('radio', { name: /^Change/ })
+    .check();
   await page
     .locator('[data-criterion="AC-CAT-001-02"]')
     .getByLabel('Statement')
     .fill('When a member opens an activity, then it shows its date, its place and how many places are left.');
-  await check('AC-CAT-001-03').getByRole('radio', { name: 'Drop' }).check();
+  await check('AC-CAT-001-03').getByRole('radio', { name: /^Drop/ }).check();
   await page.getByRole('button', { name: 'Add a check' }).click();
   const added = page.locator('[data-criterion="new-1"]');
   await added.getByLabel('Title').fill('Past is easy to find');
@@ -189,4 +206,6 @@ test('screens of cut 4: the new version form, with a check changed, one dropped 
   await expect(added.locator('[data-verifiability]')).toBeVisible();
   await check('AC-CAT-001-02').scrollIntoViewIfNeeded();
   await screenshot(page, 4, '02-new-version-checks');
+  await shot(page, 'new-version-checks');
+  await shot(page, 'new-version-full', true);
 });

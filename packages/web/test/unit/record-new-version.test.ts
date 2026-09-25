@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Link, RecordVersion } from '../../src/api/types.ts';
-import { addCheck, carriedLinks, initialForm, missing, toCommand } from '../../src/screens/new-version/form.ts';
+import { addCheck, carriedLinks, initialForm, missing, toCommand, versionDirty } from '../../src/screens/new-version/form.ts';
 import { statementWarnings } from '../../src/screens/new-version/verifiability.ts';
 
 const base = {
@@ -139,5 +139,18 @@ describe('the new version form', () => {
     ]);
     expect(statementWarnings('When a member opens Activities, then they see the upcoming ones.')).toEqual([]);
     expect(statementWarnings('  ')).toEqual([]);
+  });
+});
+
+describe('leaving the new version form', () => {
+  it('asks first only when something was written or chosen: a note, a title, a section, a choice or a new check', () => {
+    const form = initialForm(base);
+    expect(versionDirty(form, base)).toBe(false);
+    expect(versionDirty({ ...form, note: 'Why.' }, base)).toBe(true);
+    expect(versionDirty({ ...form, title: `${base.title}!` }, base)).toBe(true);
+    expect(versionDirty({ ...form, checks: form.checks.map((c, i) => (i === 0 ? { ...c, choice: 'keep' } : c)) }, base)).toBe(
+      true,
+    );
+    expect(versionDirty(addCheck(form), base)).toBe(true);
   });
 });

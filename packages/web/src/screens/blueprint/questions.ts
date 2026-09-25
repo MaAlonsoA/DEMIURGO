@@ -1,5 +1,5 @@
-// Pure logic of the Questions tab (canvas B2): the questions of the thread a version comes from,
-// open first; the short answer of the Confirm button; and whether the readiness of the version
+// Pure logic of the Questions tab (canvas B2): the questions of the thread a version comes from
+// that were shown in it, open first; the short answer of the Confirm button; and whether the readiness of the version
 // cites a question, in the words the server gives.
 
 import { questionReason } from '../../../../domain/src/records.ts';
@@ -16,7 +16,9 @@ export type QuestionGroups = {
 const byCreation = (a: Question, b: Question) => a.created_at.localeCompare(b.created_at);
 
 export function questionGroups(questions: readonly Question[]): QuestionGroups {
-  const sorted = questions.toSorted(byCreation);
+  // Questions still in the thread's reserve (not shown yet) aren't asked yet: Needs you doesn't
+  // show them either (INVENTORY INV-REC, UX problem: mismatch with Needs you).
+  const sorted = questions.filter((q) => q.shown_at !== null).toSorted(byCreation);
   const inState = (...states: string[]) => sorted.filter((q) => states.includes(q.state));
   return {
     open: [...inState('pending'), ...inState('inferred')],

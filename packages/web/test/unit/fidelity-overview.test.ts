@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { ProductRow, RunListItem } from '../../src/api/types.ts';
+import type { Inbox, ProductRow, RunListItem } from '../../src/api/types.ts';
+import { needsItems, packagesNote } from '../../src/screens/overview/needs.ts';
+import { catchUpOrder, needsOf } from '../../src/screens/needs-you/order.ts';
 import {
   draftingRuns,
   featureStatus,
@@ -109,5 +111,74 @@ describe('the overview, closer to the product blueprint', () => {
     ];
     expect(workingRuns(runs).map((r) => r.id)).toEqual(['chat', 'draft']);
     expect(draftingRuns(runs).map((r) => r.id)).toEqual(['draft']);
+  });
+});
+
+describe('what needs you on the overview', () => {
+  const inbox = (): Inbox => ({
+    total: 3,
+    batches: [
+      {
+        id: 'b1',
+        type: 'agent',
+        producer: 'agent:claude-code:s1',
+        resolution: 'item',
+        summary: 'Guests',
+        run_id: null,
+        created: at(0),
+        dependencies: [],
+        proposals: [
+          {
+            id: 'p1',
+            type: 'decision',
+            payload: { title: 'Two guests per member' },
+            state: 'pending',
+            epistemic_status: 'proposed',
+            obsolescence: [],
+            assessment: null,
+            dependencies: [],
+          },
+        ],
+      },
+    ],
+    questions_to_confirm: [],
+    open_questions: [
+      {
+        id: 'q1',
+        exploration_id: 't',
+        question: 'How many guests?',
+        state: 'pending',
+        raised_by: 'human:ana',
+        epistemic_status: 'pending',
+      },
+    ],
+    versions_to_approve: [
+      { id: 'v1', code: 'B', type: 'fdr', n: 1, title: 'Title B', approvable: true, epistemic_status: 'proposed' },
+    ],
+    links_under_review: [],
+    classifications_to_review: [],
+    rejected_updates: [],
+  });
+
+  it('lists it in the one order Catch up walks, each thing with its kind in words and where it opens', () => {
+    const items = needsItems(inbox(), undefined);
+    expect(items.map((i) => i.key)).toEqual(catchUpOrder(needsOf(inbox(), [])).map((n) => n.key));
+    expect(items.map((i) => [i.label, i.title])).toEqual([
+      ['Proposal', 'Two guests per member'],
+      ['Version to approve', 'Title B'],
+      ['Question', 'How many guests?'],
+    ]);
+    expect(items[0]?.from).toBe('From an agent · claude-code · 1 of 1 in its batch');
+    expect(items[1]?.target).toEqual({ to: '/p/$projectId/records/$code', params: { code: 'B' }, search: { v: 1 } });
+    expect(items[1]?.code).toBe('B');
+  });
+
+  it('says how a package makes the count differ from the rows', () => {
+    const i = inbox();
+    const b = i.batches[0];
+    const p = b?.proposals[0];
+    if (b && p) i.batches = [{ ...b, resolution: 'package', proposals: [p, { ...p, id: 'p2' }] }];
+    expect(packagesNote(i)).toBe('1 package of 2 proposals');
+    expect(packagesNote(inbox())).toBeNull();
   });
 });

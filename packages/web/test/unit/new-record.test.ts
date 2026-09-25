@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { addCheck } from '../../src/screens/new-version/form.ts';
-import { blankRecord, recordMissing, toCreateCommand, withType } from '../../src/screens/new-record/form.ts';
+import { blankRecord, recordDirty, recordMissing, toCreateCommand, withType } from '../../src/screens/new-record/form.ts';
 
 describe('a record written by hand', () => {
   it("starts from its type's template, with no checks", () => {
@@ -84,5 +84,32 @@ describe('a record written by hand', () => {
       ],
       links: [],
     });
+  });
+});
+
+describe('switching the type of a record written by hand', () => {
+  it('keeps the text of the sections the new type has not, and gives it back when a type with them comes again', () => {
+    const f = blankRecord('decision');
+    const written = { ...f, sections: f.sections.map((s) => ({ ...s, content: `about ${s.title}` })) };
+    const fdr = withType(written, 'fdr');
+    expect(fdr.sections.every((s) => s.content === '')).toBe(true);
+    expect(fdr.kept.map((k) => [k.title, k.content])).toEqual([
+      ['Context', 'about Context'],
+      ['Decision', 'about Decision'],
+      ['Consequences', 'about Consequences'],
+    ]);
+    // The kept text is never sent.
+    expect(toCreateCommand(fdr).sections.map((s) => s.title)).toEqual(['Goal', 'Scope', 'Out of scope', 'Behavior']);
+    const back = withType(fdr, 'decision');
+    expect(back.sections.map((s) => s.content)).toEqual(['about Context', 'about Decision', 'about Consequences']);
+    expect(back.kept).toEqual([]);
+    // An adr shares Context, Decision and Consequences: only nothing is left apart.
+    expect(withType(fdr, 'adr').kept).toEqual([]);
+  });
+
+  it('knows when leaving would lose something', () => {
+    expect(recordDirty(blankRecord('decision'))).toBe(false);
+    expect(recordDirty({ ...blankRecord('decision'), title: 'x' })).toBe(true);
+    expect(recordDirty(addCheck(blankRecord('adr')))).toBe(true);
   });
 });

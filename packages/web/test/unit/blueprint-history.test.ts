@@ -57,3 +57,10 @@ describe('the history of a record', () => {
     expect(historyLines([], [])).toEqual([]);
   });
 });
+
+describe('the words of what happened to a link of a version', () => {
+  it('are sentences, not command names', () => {
+    const lines = historyLines([{ id: 'v1', n: 1 }], [[event(4, 'link.keep', 'v1', 'human:ana', 1)]]);
+    expect(lines.map((l) => l.words)).toEqual(['Kept a link of v1']);
+  });
+});

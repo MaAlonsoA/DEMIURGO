@@ -2,7 +2,7 @@
 // bar, which version is shown, what waits for the person, and the records a link points to.
 
 import type { Inbox, ProductRow, ProductState, Readiness, RecordDetail, RecordVersion } from '../../api/types.ts';
-import type { Stage } from '../../ui/signals.tsx';
+import type { Stage } from '../../components/Meter.tsx';
 
 /** First bar: full when ready, rust when an approved current version stopped being ready, else empty. */
 export function stageOf(readiness: Readiness | null | undefined, approvedCurrent: boolean): Stage {

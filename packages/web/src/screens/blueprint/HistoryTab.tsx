@@ -1,29 +1,32 @@
-// The History of a record: what happened to each of its versions, from the diary (one query per
-// version), and every version with who wrote it, who approved it and what it changed.
+// The History of a record (DESIGN.md §3.6, INV-BP-26/27, INV-REC-30/31): what happened to each of
+// its versions, from the event journal (one query per version, live for these versions), as a
+// timeline "who · what · when"; then every version with who wrote it, who approved it and what it
+// changed, each opening that version.
 
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { useEffect, useId } from 'react';
+import { useEffect } from 'react';
 import { entityEventsQuery } from '../../api/queries.ts';
 import { onProjectEvent } from '../../api/stream.ts';
 import type { RecordDetail } from '../../api/types.ts';
-import { dayTime } from '../../lib/time.ts';
-import { ChevronRight } from '../../ui/icons.tsx';
-import { Skeleton } from '../../ui/layout.tsx';
-import { Mark } from '../../ui/marks.tsx';
-import { Reasons } from '../../ui/Reasons.tsx';
-import { WhoMark, whoLabel } from '../../ui/signals.tsx';
-import { stateWord, whoOf } from '../../words.ts';
+import { Code } from '../../components/Badge.tsx';
+import { Timeline } from '../../components/Card.tsx';
+import { ArrowRightIcon } from '../../components/icons.tsx';
+import { ErrorNotice } from '../../components/Notice.tsx';
+import { Section } from '../../components/Page.tsx';
+import { RowsSkeleton } from '../../components/Spinner.tsx';
+import { EntityState } from '../../components/status.tsx';
+import { DayTime } from '../../components/Time.tsx';
+import { WhoAvatar, whoName } from '../../components/Who.tsx';
+import { whoOf } from '../../words.ts';
 import { historyLines } from './history.ts';
 
 function by(actor: string): string {
   const who = whoOf(actor);
-  return who.kind === 'you' ? 'you' : whoLabel(who);
+  return who.kind === 'you' ? 'you' : whoName(who);
 }
 
 export function HistoryTab({ projectId, record }: { projectId: string; record: RecordDetail }) {
-  const happened = useId();
-  const every = useId();
   const client = useQueryClient();
   const results = useQueries({ queries: record.versions.map((v) => entityEventsQuery(projectId, v.id)) });
   const ids = record.versions.map((v) => v.id).join(',');
@@ -37,7 +40,7 @@ export function HistoryTab({ projectId, record }: { projectId: string; record: R
     });
   }, [client, projectId, ids]);
 
-  const error = results.find((r) => r.error)?.error;
+  const failed = results.find((r) => r.error);
   const loading = results.some((r) => !r.data);
   const lines = historyLines(
     record.versions,
@@ -45,80 +48,69 @@ export function HistoryTab({ projectId, record }: { projectId: string; record: R
   );
 
   return (
-    <div className="flex flex-col gap-8">
-      <section aria-labelledby={happened} className="flex flex-col gap-2.5">
-        <h2 id={happened} className="dm-text-caption font-semibold text-muted">
-          What happened
-        </h2>
-        {error ? (
-          <Reasons error={error} />
+    <div className="flex flex-col gap-10">
+      <Section id="what-happened" title="What happened">
+        {failed ? (
+          <ErrorNotice error={failed.error} onRetry={() => void Promise.all(results.map((r) => r.refetch()))} />
         ) : loading ? (
-          <div role="status" aria-label="Loading the history" className="flex flex-col gap-2">
-            <Skeleton className="h-4 w-64" />
-            <Skeleton className="h-4 w-56" />
-            <Skeleton className="h-4 w-60" />
-          </div>
+          <RowsSkeleton label="Loading the history" rows={4} />
         ) : (
-          <ol className="flex flex-col rounded-card-md border border-line bg-surface px-4 py-1.5">
-            {lines.map((l) => (
-              <li
-                key={l.id}
-                data-history-line
-                className="dm-text-small flex items-center gap-2.5 border-b border-line-soft py-2 last:border-b-0"
-              >
-                <WhoMark actor={l.actor} size={18} withName className="dm-text-caption font-medium" />
-                <span className="font-semibold text-ink">{l.words}</span>
-                <span className="text-muted">· {dayTime(l.at)}</span>
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
-
-      <section aria-labelledby={every} className="flex flex-col gap-2.5">
-        <h2 id={every} className="dm-text-caption font-semibold text-muted">
-          Every version
-        </h2>
-        <ol className="flex flex-col divide-y divide-line-soft rounded-card-md border border-line bg-surface">
-          {record.versions.toReversed().map((v) => {
-            const w = stateWord('record_version', v.state);
-            return (
-              <li key={v.id} data-history-version={v.n} className="flex flex-col gap-1 px-4 py-3">
-                <span className="dm-text-small flex items-center gap-2">
-                  <Mark kind={w.mark} size={9} label={w.word} />
-                  <span className="dm-text-caption font-mono font-semibold">v{v.n}</span>
-                  <span className="font-semibold">{w.word}</span>
-                  {v.current && <span className="text-muted">· current</span>}
-                  <Link
-                    to="/p/$projectId/records/$code"
-                    params={{ projectId, code: record.code }}
-                    search={{ v: v.n }}
-                    className="dm-text-caption ml-auto inline-flex items-center gap-1 font-semibold text-needs-strong hover:underline"
-                  >
-                    Open v{v.n}
-                    <ChevronRight size={11} />
-                  </Link>
-                </span>
-                <span className="dm-text-small text-ink-2">
-                  {v.change_note ?? (v.n === 1 ? 'The first version.' : 'No change note.')}
-                </span>
-                <span className="dm-text-caption flex flex-wrap items-center gap-x-4 gap-y-1 text-muted">
-                  <span className="flex items-center gap-1.5">
-                    <WhoMark actor={v.author} size={16} />
-                    Written by {by(v.author)} · {dayTime(v.created_at)}
-                  </span>
-                  {v.approved_by && (
-                    <span className="flex items-center gap-1.5">
-                      <WhoMark actor={v.approved_by} size={16} />
-                      Approved by {by(v.approved_by)} · {dayTime(v.approved_at)}
+          <Timeline
+            label="What happened"
+            items={lines.map((l) => {
+              const who = whoOf(l.actor);
+              return {
+                key: l.id,
+                icon: <WhoAvatar kind={who.kind} size={18} />,
+                body: (
+                  <span data-history-line className="flex flex-wrap items-baseline gap-x-2">
+                    <span data-who={who.kind} className="text-fg-2">
+                      {whoName(who)}
                     </span>
-                  )}
+                    <span className="font-medium text-fg">{l.words}</span>
+                  </span>
+                ),
+                meta: <DayTime iso={l.at} />,
+              };
+            })}
+          />
+        )}
+      </Section>
+
+      <Section id="every-version" title="Every version">
+        <ol className="flex flex-col divide-y divide-edge-subtle rounded-lg border border-edge bg-panel">
+          {record.versions.toReversed().map((v) => (
+            <li key={v.id} data-history-version={v.n} className="flex flex-col gap-1.5 px-4 py-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Code className="font-semibold text-fg">v{v.n}</Code>
+                <EntityState entity="record_version" state={v.state} />
+                {v.current ? <span className="text-sm text-fg-2">current</span> : null}
+                <Link
+                  to="/p/$projectId/records/$code"
+                  params={{ projectId, code: record.code }}
+                  search={{ v: v.n }}
+                  className="ml-auto inline-flex items-center gap-1 text-sm font-medium text-accent-text hover:underline"
+                >
+                  Open v{v.n} <ArrowRightIcon size={12} />
+                </Link>
+              </div>
+              <p className="text-sm text-fg">{v.change_note ?? (v.n === 1 ? 'The first version.' : 'No change note.')}</p>
+              <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-fg-2">
+                <span className="inline-flex items-center gap-1.5">
+                  <WhoAvatar kind={whoOf(v.author).kind} size={16} />
+                  Written by {by(v.author)} · <DayTime iso={v.created_at} />
                 </span>
-              </li>
-            );
-          })}
+                {v.approved_by ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <WhoAvatar kind={whoOf(v.approved_by).kind} size={16} />
+                    Approved by {by(v.approved_by)} · <DayTime iso={v.approved_at} />
+                  </span>
+                ) : null}
+              </p>
+            </li>
+          ))}
         </ol>
-      </section>
+      </Section>
     </div>
   );
 }

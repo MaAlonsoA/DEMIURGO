@@ -1,119 +1,49 @@
-// Overview (spec §4.3, canvas B1 and S6A): the product at a glance. The progress line under the
-// title, features as cards with where each one is (and those DEMIURGO drafts, the parked ideas and
-// capturing a new one), decisions and tech decisions as nodes, threads with open questions; on the
-// right what needs the person, what runs and what was decided; at the bottom, "Ask DEMIURGO"
-// about the whole product. Coming back, the "What changed" lens dims what did not change.
+// Product overview (DESIGN.md §3.5, INV-OVW-*, INV-LENS-*): an operational dashboard of where the
+// product stands. The header says how many features are ready to build, with a bar and its text
+// legend; coming back, "While you were away" tells what changed, as links, and marks the changed
+// things. Then the design stages, one section per kind of thing (every title opens it, Preview
+// shows its facts beside the page), and on the side what needs you in Catch up's order, what runs,
+// what is ready and what was decided — with "Ask DEMIURGO about the whole product" at the bottom.
 
-import { Node } from '@demiurgo/design-system';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { type ReactNode, useId } from 'react';
-import { explorationsQuery, inboxQuery, runsQuery, stateQuery } from '../../api/queries.ts';
+import { type ReactNode, useState } from 'react';
+import { explorationsQuery, inboxQuery, projectsQuery, runsQuery, stateQuery } from '../../api/queries.ts';
+import { canCreate } from '../../api/tables.ts';
 import type { ExplorationSummary, ProductRow } from '../../api/types.ts';
+import { AskBox } from '../../components/AskBox.tsx';
+import { buttonClass } from '../../components/Button.tsx';
+import { EmptyState } from '../../components/EmptyState.tsx';
+import { EyeIcon, PlusIcon, ProductIcon } from '../../components/icons.tsx';
+import { ErrorNotice } from '../../components/Notice.tsx';
+import { PageBody, PageHeader, Section, usePageTitle, WithAside } from '../../components/Page.tsx';
+import { Bone, Skeleton } from '../../components/Spinner.tsx';
+import { Tag } from '../../components/Badge.tsx';
 import { cn } from '../../lib/cn.ts';
-import { useProjectId } from '../../lib/hooks.ts';
-import { EyeIcon } from '../../ui/icons.tsx';
-import { CardSkeleton, EmptyState, Page, PageTitle, Skeleton } from '../../ui/layout.tsx';
-import { Reasons } from '../../ui/Reasons.tsx';
-import { Mark } from '../../ui/marks.tsx';
-import { NeedsBubble } from '../../ui/signals.tsx';
-import { AskBar } from '../../ui/AskBar.tsx';
-import { Button } from '../../ui/Button.tsx';
+import { useProjectId, useTables } from '../../lib/hooks.ts';
 import { TYPE_WORDS_PLURAL } from '../../words.ts';
-import { versionIndex, waitingCount, waitingFor } from '../record/logic.ts';
-import { useNow } from '../run/hooks.ts';
 import { ProductTabs } from '../../shell/ProductTabs.tsx';
-import { useLens, type Lens } from './lens/useLens.ts';
+import { TaxonomyHint } from '../knowledge/TaxonomyHint.tsx';
+import { versionIndex, waitingFor } from '../record/logic.ts';
+import { ProgressLine, ReadyToBuild, RecentlyDecided, RunningNow } from './Blueprint.tsx';
+import { type ChangeMark, DraftingCard, FeatureCard, ParkedIdeas, RecordRow, RowList, ThreadRow, UNCHANGED } from './Cards.tsx';
+import { type Lens, useLens } from './lens/useLens.ts';
 import { WhileAway } from './lens/WhileAway.tsx';
-import { NeedsColumn } from './NeedsColumn.tsx';
+import { NeedsSummary } from './NeedsColumn.tsx';
+import { DraftPreview, type PreviewTarget, RecordPreview } from './Previews.tsx';
+import { draftingRuns, featureStatus, productProgress, recentlyDecided, workingRuns } from './progress.ts';
 import { DesignStages } from './Stages.tsx';
-import { CaptureIdea, DraftingCard, LaterRows, NewRecordLink, ParkedCard, ProgressLine } from './Blueprint.tsx';
-import { draftingRuns, featureStatus, productProgress, workingRuns } from './progress.ts';
-import { FeatureCard, LensFrame, type LensMark, RecordNode, UNDIM } from './RecordCard.tsx';
+import { useReturnFocus } from '../record/returnFocus.ts';
 
 const STAGE_RECORD_TYPES = new Set(['requirement', 'quality_requirement', 'threat_model', 'production_readiness']);
 
-function Section({ title, count, children }: { title: string; count: number; children: ReactNode }) {
-  const id = useId();
-  return (
-    <section aria-labelledby={id} className="mb-8">
-      <h2 id={id} className="dm-text-caption mb-2.5 font-semibold text-muted">
-        {title}
-        {count > 0 && <span className="font-normal"> · {count}</span>}
-      </h2>
-      {children}
-    </section>
-  );
+function changeOf(lens: Lens, changed: Map<string, string | null>, key: string): ChangeMark {
+  if (!lens.on || !changed.has(key)) return UNCHANGED;
+  return { changed: true, note: changed.get(key) ?? null, since: lens.since };
 }
 
-function lensOf(lens: Lens, changed: Map<string, string | null>, key: string): LensMark {
-  if (!lens.on) return { dimmed: false, changed: false, note: null, since: null };
-  const is = changed.has(key);
-  return { dimmed: !is, changed: is, note: changed.get(key) ?? null, since: lens.since };
-}
-
-function ThreadNode({
-  projectId,
-  thread,
-  waiting,
-  lens,
-}: {
-  projectId: string;
-  thread: ExplorationSummary;
-  waiting: number;
-  lens: LensMark;
-}) {
-  const open = thread.open_questions;
-  return (
-    <Link
-      to="/p/$projectId/threads/$explorationId"
-      params={{ projectId, explorationId: thread.id }}
-      data-thread={thread.id}
-      data-dimmed={lens.dimmed ? 'true' : undefined}
-      className={cn('block min-w-0 rounded-control hover:[&_.dm-node]:border-line-strong', lens.dimmed && UNDIM)}
-    >
-      <LensFrame lens={lens}>
-        <Node
-          type="thread"
-          state="open"
-          mark={<Mark kind="open" label={`${open} open ${open === 1 ? 'question' : 'questions'}`} />}
-          title={thread.purpose}
-          trailing={
-            <span className="flex items-center gap-2.5">
-              <span className="dm-text-caption text-ink-2">
-                {open} {open === 1 ? 'question' : 'questions'}
-              </span>
-              <NeedsBubble count={waiting} />
-            </span>
-          }
-        />
-      </LensFrame>
-    </Link>
-  );
-}
-
-function OverviewSkeleton() {
-  return (
-    <div role="status" aria-label="Loading the product" className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <Skeleton className="h-3 w-24" />
-        <Skeleton className="h-8 w-1/3" />
-        <Skeleton className="h-4 w-1/4" />
-      </div>
-      <div className="grid grid-cols-4 gap-4">
-        <CardSkeleton />
-        <CardSkeleton />
-        <CardSkeleton />
-        <CardSkeleton />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <Skeleton className="h-11 rounded-control" />
-        <Skeleton className="h-11 rounded-control" />
-        <Skeleton className="h-11 rounded-control" />
-        <Skeleton className="h-11 rounded-control" />
-      </div>
-    </div>
-  );
+function Count({ n }: { n: number }) {
+  return n > 0 ? <span className="font-normal text-fg-2"> · {n}</span> : null;
 }
 
 export function OverviewScreen() {
@@ -121,161 +51,378 @@ export function OverviewScreen() {
   return <Overview key={projectId} projectId={projectId} />;
 }
 
+function OverviewSkeleton() {
+  return (
+    <Skeleton label="Loading the product" className="flex flex-col gap-6">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {[0, 1, 2, 3, 4].map((i) => (
+          <Bone key={i} className="h-28 rounded-lg" />
+        ))}
+      </div>
+      <Bone className="h-5 w-40" />
+      <div className="grid gap-4 sm:grid-cols-2">
+        {[0, 1, 2, 3].map((i) => (
+          <Bone key={i} className="h-44 rounded-lg" />
+        ))}
+      </div>
+      <Bone className="h-5 w-56" />
+      <Bone className="h-32 w-full rounded-lg" />
+    </Skeleton>
+  );
+}
+
+/** What comes later (INV-OVW-09): quiet, at the end, so it doesn't take the space of what can be done now. */
+function LaterRows() {
+  return (
+    <section aria-labelledby="later-title" data-later className="flex flex-col gap-2">
+      <h2 id="later-title" className="text-base font-semibold text-fg">
+        Coming later
+      </h2>
+      <ul className="flex flex-col gap-1.5 rounded-lg border border-dashed border-edge-strong px-4 py-3 text-sm text-fg-2">
+        {['Who uses it', 'Rules for the whole product'].map((t) => (
+          <li key={t} className="flex flex-wrap items-center gap-2">
+            <Tag>Later</Tag>
+            <span className="font-medium text-fg">{t}</span>
+            <span>In a later increment, DEMIURGO will read them from your idea.</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function Overview({ projectId }: { projectId: string }) {
+  const project = (useQuery(projectsQuery).data ?? []).find((p) => p.id === projectId);
   const state = useQuery(stateQuery(projectId));
   const inbox = useQuery(inboxQuery(projectId));
-  const runs = useQuery(runsQuery(projectId)).data ?? [];
-  const explorations = useQuery(explorationsQuery(projectId)).data ?? [];
+  const runsQ = useQuery(runsQuery(projectId));
+  const explorationsQ = useQuery(explorationsQuery(projectId));
+  const tables = useTables();
   const lens = useLens(projectId, state.data);
-  const working = workingRuns(runs);
-  const now = useNow(working.length > 0);
-  const aside = <NeedsColumn projectId={projectId} state={state.data} inbox={inbox.data} runs={working} now={now} />;
+  const [preview, setPreviewState] = useState<PreviewTarget>(null);
+  const focus = useReturnFocus();
+  const setPreview = (t: PreviewTarget) => {
+    if (t) focus.capture();
+    setPreviewState(t);
+  };
+  const closePreview = (o: boolean) => {
+    if (o) return;
+    setPreviewState(null);
+    focus.restore();
+  };
+  const name = state.data?.project.name ?? project?.name ?? 'The product';
+  usePageTitle(['Product', name]);
 
-  if (!state.data) {
-    return <Page aside={aside}>{state.error ? <Reasons error={state.error} /> : <OverviewSkeleton />}</Page>;
-  }
-  const s = state.data;
-  const threads = new Map(s.explorations.map((e) => [e.id, e.purpose]));
-  const features = s.designs.filter((r) => r.type === 'fdr');
-  const bugs = s.designs.filter((r) => r.type === 'bug');
-  const stageRecords = s.designs.filter((r) => STAGE_RECORD_TYPES.has(r.type));
-  const decisions = [...s.decisions, ...s.designs.filter((r) => r.type === 'adr')];
-  const open = s.explorations.filter((e) => e.open_questions > 0);
-  const parked = explorations.filter((e) => e.state === 'set_aside');
+  const runs = runsQ.data ?? [];
+  const working = workingRuns(runs);
   const drafting = draftingRuns(runs);
-  const versions = versionIndex(s);
-  const rows = [...s.designs, ...s.decisions];
+  const s = state.data;
+  const rows: ProductRow[] = s ? [...s.designs, ...s.decisions] : [];
+  const threads = new Map((s?.explorations ?? []).map((e) => [e.id, e.purpose]));
   const waitingOf = (row: ProductRow) => waitingFor(row.code, inbox.data, row.origin_exploration);
-  const props = (row: ProductRow) => ({
-    projectId,
-    row,
-    waiting: waitingOf(row),
-    thread: row.origin_exploration ? (threads.get(row.origin_exploration) ?? null) : null,
-    lens: lensOf(lens, lens.records, row.code),
-  });
-  const waitingByCode = new Map(rows.map((r) => [r.code, waitingCount(waitingOf(r))]));
-  const progress = productProgress(rows, (code) => waitingByCode.get(code) ?? 0, runs, drafting.length);
-  const empty = features.length + decisions.length + bugs.length + stageRecords.length === 0;
+  const waitingByCode = new Map(rows.map((r) => [r.code, waitingOf(r)]));
+  const countOf = (code: string) => {
+    const w = waitingByCode.get(code);
+    return w ? w.versions + w.proposals + w.links + w.questions : 0;
+  };
+  const progress = productProgress(rows, countOf, runs, drafting.length);
+  const empty = !!s && rows.length === 0;
+  const versions = s ? versionIndex(s) : new Map();
+  const newRecord = !!tables && canCreate(tables, 'record.create');
+
+  const actions: ReactNode = (
+    <>
+      {lens.available ? (
+        <button
+          type="button"
+          aria-pressed={lens.on}
+          onClick={() => lens.setOn(!lens.on)}
+          className={cn(buttonClass(), lens.on && 'border-accent-edge bg-accent-soft text-accent-text hover:bg-accent-soft')}
+        >
+          <EyeIcon size={15} />
+          What changed · {lens.lines.length}
+        </button>
+      ) : null}
+      {newRecord ? (
+        <Link to="/p/$projectId/records/new" params={{ projectId }} className={buttonClass({ variant: 'secondary' })}>
+          <PlusIcon size={15} />
+          New record
+        </Link>
+      ) : null}
+    </>
+  );
+
+  const previewRow = preview?.kind === 'record' ? rows.find((r) => r.code === preview.code) : undefined;
+  const previewRun = preview?.kind === 'draft' ? runs.find((r) => r.id === preview.runId) : undefined;
+  const previewFrom = previewRun?.scope.id ? versions.get(previewRun.scope.id) : undefined;
+
+  const aside = (
+    <>
+      <NeedsSummary projectId={projectId} state={s} inbox={inbox} />
+      <RunningNow
+        projectId={projectId}
+        runs={working}
+        threads={threads}
+        error={runsQ.error}
+        onRetry={() => void runsQ.refetch()}
+      />
+      <ReadyToBuild projectId={projectId} rows={(s?.designs ?? []).filter((r) => s?.ready_to_build.includes(r.code))} />
+      <RecentlyDecided projectId={projectId} rows={recentlyDecided(rows)} />
+      <TaxonomyHint projectId={projectId} />
+      <AskBox projectId={projectId} subject={{ kind: 'product', name }} className="border-t border-edge pt-5" />
+    </>
+  );
 
   return (
-    <Page aside={aside} className="flex flex-col pb-0">
-      <div>
-        <PageTitle
-          eyebrow="The product"
-          title={s.project.name}
-          subtitle={empty ? undefined : <ProgressLine progress={progress} />}
-          className="mb-4"
-          actions={
-            <span className="flex items-center gap-2">
-              {lens.available && !lens.on && (
-                <Button variant="secondary" className="rounded-full" onClick={() => lens.setOn(true)}>
-                  <EyeIcon size={14} />
-                  Show what changed · {lens.lines.length}
-                </Button>
+    <>
+      <PageHeader
+        eyebrow={
+          <>
+            <ProductIcon size={15} className="text-fg-3" />
+            The product
+          </>
+        }
+        title={name}
+        actions={actions}
+        tabs={<ProductTabs active="overview" />}
+      >
+        {s && !empty ? <ProgressLine progress={progress} drafting={drafting.length} /> : null}
+      </PageHeader>
+      <PageBody>
+        <WithAside aside={aside} asideLabel="What needs you and what runs" asideWidth="md">
+          {!s ? (
+            state.error ? (
+              <ErrorNotice error={state.error} onRetry={() => void state.refetch()} />
+            ) : (
+              <OverviewSkeleton />
+            )
+          ) : (
+            <div className="flex flex-col gap-10">
+              {lens.on ? <WhileAway projectId={projectId} lens={lens} /> : null}
+              <DesignStages projectId={projectId} />
+              {empty ? (
+                <EmptyState
+                  title="Nothing here yet"
+                  action={
+                    <>
+                      <Link to="/p/$projectId/threads" params={{ projectId }} className={buttonClass({ variant: 'primary' })}>
+                        Go to Threads
+                      </Link>
+                      {newRecord ? (
+                        <Link to="/p/$projectId/records/new" params={{ projectId }} className={buttonClass()}>
+                          New record
+                        </Link>
+                      ) : null}
+                    </>
+                  }
+                >
+                  Write a record yourself or open a thread to design it with DEMIURGO.
+                </EmptyState>
+              ) : (
+                <ProductSections
+                  projectId={projectId}
+                  rows={rows}
+                  lens={lens}
+                  waitingOf={(r) => waitingByCode.get(r.code) ?? waitingOf(r)}
+                  statusOf={(r) => featureStatus(r, countOf(r.code), runs)}
+                  onPreview={setPreview}
+                  explorations={s.explorations}
+                  questionsWaiting={(id) =>
+                    inbox.data
+                      ? [...inbox.data.open_questions, ...inbox.data.questions_to_confirm].filter((q) => q.exploration_id === id)
+                          .length
+                      : 0
+                  }
+                />
               )}
-              <NewRecordLink projectId={projectId} />
-            </span>
-          }
-        />
-        <ProductTabs active="overview" />
-        {lens.on && <WhileAway lens={lens} />}
-        <DesignStages projectId={projectId} />
-        <LaterRows />
+              {drafting.length > 0 ? (
+                <Section
+                  id="drafting"
+                  title={
+                    <>
+                      Being drafted
+                      <Count n={drafting.length} />
+                    </>
+                  }
+                  note="Features DEMIURGO is writing from an approved decision."
+                >
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {drafting.map((run) => {
+                      const from = run.scope.id ? versions.get(run.scope.id) : undefined;
+                      return (
+                        <DraftingCard
+                          key={run.id}
+                          projectId={projectId}
+                          run={run}
+                          from={from ? rows.find((r) => r.code === from.code) : undefined}
+                          onPreview={() => setPreview({ kind: 'draft', runId: run.id })}
+                        />
+                      );
+                    })}
+                  </div>
+                </Section>
+              ) : null}
+              {explorationsQ.error ? (
+                <ErrorNotice error={explorationsQ.error} compact focus={false} onRetry={() => void explorationsQ.refetch()} />
+              ) : (
+                <ParkedIdeas
+                  projectId={projectId}
+                  threads={(explorationsQ.data ?? []).filter((e) => e.state === 'set_aside')}
+                  changeOf={(id) => changeOf(lens, lens.threads, id)}
+                />
+              )}
+              <LaterRows />
+            </div>
+          )}
+        </WithAside>
+      </PageBody>
+      <RecordPreview
+        projectId={projectId}
+        row={previewRow}
+        waiting={previewRow ? waitingOf(previewRow) : { versions: 0, proposals: 0, links: 0, questions: 0 }}
+        thread={previewRow?.origin_exploration ? (threads.get(previewRow.origin_exploration) ?? null) : null}
+        open={preview?.kind === 'record'}
+        onOpenChange={closePreview}
+      />
+      <DraftPreview
+        projectId={projectId}
+        run={previewRun}
+        from={previewFrom ? rows.find((r) => r.code === previewFrom.code) : undefined}
+        open={preview?.kind === 'draft'}
+        onOpenChange={closePreview}
+      />
+    </>
+  );
+}
 
-        {empty && (
-          <EmptyState className="mb-8">
-            Nothing here yet. Write a record yourself or open a thread to design it with DEMIURGO.{' '}
-            <Link to="/p/$projectId/threads" params={{ projectId }} className="font-semibold text-needs hover:text-needs-strong">
-              Go to Threads
-            </Link>
-          </EmptyState>
-        )}
-
-        <Section title={TYPE_WORDS_PLURAL.fdr} count={features.length}>
-          <div className="grid grid-cols-4 gap-4 max-[1439px]:grid-cols-3">
+/** One section per kind of record, and the threads with open questions (INV-OVW-11…19). */
+function ProductSections({
+  projectId,
+  rows,
+  lens,
+  waitingOf,
+  statusOf,
+  onPreview,
+  explorations,
+  questionsWaiting,
+}: {
+  projectId: string;
+  rows: ProductRow[];
+  lens: Lens;
+  waitingOf: (row: ProductRow) => ReturnType<typeof waitingFor>;
+  statusOf: (row: ProductRow) => ReturnType<typeof featureStatus>;
+  onPreview: (t: PreviewTarget) => void;
+  explorations: ExplorationSummary[];
+  questionsWaiting: (threadId: string) => number;
+}) {
+  const features = rows.filter((r) => r.type === 'fdr');
+  const decisions = rows.filter((r) => r.type === 'decision' || r.type === 'adr');
+  const stageRecords = rows.filter((r) => STAGE_RECORD_TYPES.has(r.type));
+  const bugs = rows.filter((r) => r.type === 'bug');
+  const open = explorations.filter((e) => e.open_questions > 0);
+  const recordRow = (row: ProductRow) => (
+    <RecordRow
+      key={row.code}
+      projectId={projectId}
+      row={row}
+      waiting={waitingOf(row)}
+      change={changeOf(lens, lens.records, row.code)}
+      onPreview={() => onPreview({ kind: 'record', code: row.code })}
+    />
+  );
+  return (
+    <>
+      <Section
+        id="features"
+        title={
+          <>
+            {TYPE_WORDS_PLURAL.fdr}
+            <Count n={features.length} />
+          </>
+        }
+      >
+        {features.length === 0 ? (
+          <p className="text-sm text-fg-2">
+            No features yet. DEMIURGO drafts one from an approved decision, or you can write one yourself.
+          </p>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
             {features.map((row) => (
               <FeatureCard
                 key={row.code}
-                {...props(row)}
-                status={featureStatus(row, waitingByCode.get(row.code) ?? 0, runs)}
-                now={now}
+                projectId={projectId}
+                row={row}
+                waiting={waitingOf(row)}
+                status={statusOf(row)}
+                change={changeOf(lens, lens.records, row.code)}
+                onPreview={() => onPreview({ kind: 'record', code: row.code })}
               />
             ))}
-            {drafting.map((run) => {
-              const from = run.scope.id ? versions.get(run.scope.id) : undefined;
-              return (
-                <DraftingCard
-                  key={run.id}
-                  projectId={projectId}
-                  run={run}
-                  from={from ? rows.find((r) => r.code === from.code) : undefined}
-                  now={now}
-                />
-              );
-            })}
-            {parked.map((t) => (
-              <ParkedCard key={t.id} projectId={projectId} thread={t} dimmed={lens.on && !lens.threads.has(t.id)} />
-            ))}
-            <CaptureIdea projectId={projectId} />
           </div>
+        )}
+      </Section>
+      {decisions.length > 0 ? (
+        <Section
+          id="decisions"
+          title={
+            <>
+              Decisions and tech decisions
+              <Count n={decisions.length} />
+            </>
+          }
+        >
+          <RowList label="Decisions and tech decisions">{decisions.map(recordRow)}</RowList>
         </Section>
-
-        {decisions.length > 0 && (
-          <Section title="Decisions and tech decisions" count={decisions.length}>
-            <div className="grid grid-cols-2 gap-2.5">
-              {decisions.map((row) => (
-                <RecordNode key={row.code} {...props(row)} />
-              ))}
-            </div>
-          </Section>
-        )}
-
-        {stageRecords.length > 0 && (
-          <Section title="Requirements, quality, security and production" count={stageRecords.length}>
-            <div className="grid grid-cols-2 gap-2.5">
-              {stageRecords.map((row) => (
-                <RecordNode key={row.code} {...props(row)} />
-              ))}
-            </div>
-          </Section>
-        )}
-
-        {bugs.length > 0 && (
-          <Section title={TYPE_WORDS_PLURAL.bug} count={bugs.length}>
-            <div className="grid grid-cols-2 gap-2.5">
-              {bugs.map((row) => (
-                <RecordNode key={row.code} {...props(row)} />
-              ))}
-            </div>
-          </Section>
-        )}
-
-        {open.length > 0 && (
-          <Section title="Threads with open questions" count={open.length}>
-            <div className="grid grid-cols-2 gap-2.5">
-              {open.map((t) => (
-                <ThreadNode
-                  key={t.id}
-                  projectId={projectId}
-                  thread={t}
-                  waiting={
-                    inbox.data
-                      ? [...inbox.data.open_questions, ...inbox.data.questions_to_confirm].filter(
-                          (q) => q.exploration_id === t.id,
-                        ).length
-                      : 0
-                  }
-                  lens={lensOf(lens, lens.threads, t.id)}
-                />
-              ))}
-            </div>
-          </Section>
-        )}
-      </div>
-      {/* Room below for the legend's ⓘ, which lives in the bottom-left corner. */}
-      <div className="sticky bottom-0 z-10 mt-auto -mx-10 bg-linear-to-t from-paper from-75% to-transparent px-10 pt-8 pb-[60px]">
-        <AskBar projectId={projectId} subject={{ kind: 'product', name: s.project.name }} />
-      </div>
-    </Page>
+      ) : null}
+      {stageRecords.length > 0 ? (
+        <Section
+          id="stage-records"
+          title={
+            <>
+              Requirements, quality, security and production
+              <Count n={stageRecords.length} />
+            </>
+          }
+        >
+          <RowList label="Requirements, quality, security and production">{stageRecords.map(recordRow)}</RowList>
+        </Section>
+      ) : null}
+      {bugs.length > 0 ? (
+        <Section
+          id="bugs"
+          title={
+            <>
+              {TYPE_WORDS_PLURAL.bug}
+              <Count n={bugs.length} />
+            </>
+          }
+        >
+          <RowList label={TYPE_WORDS_PLURAL.bug}>{bugs.map(recordRow)}</RowList>
+        </Section>
+      ) : null}
+      {open.length > 0 ? (
+        <Section
+          id="open-threads"
+          title={
+            <>
+              Threads with open questions
+              <Count n={open.length} />
+            </>
+          }
+        >
+          <RowList label="Threads with open questions">
+            {open.map((t) => (
+              <ThreadRow
+                key={t.id}
+                projectId={projectId}
+                thread={t}
+                waiting={questionsWaiting(t.id)}
+                change={changeOf(lens, lens.threads, t.id)}
+              />
+            ))}
+          </RowList>
+        </Section>
+      ) : null}
+    </>
   );
 }

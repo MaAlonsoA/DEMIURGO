@@ -94,3 +94,14 @@ describe('the sections of a record', () => {
     expect(tabSearch(undefined, 'overview')).toEqual({});
   });
 });
+
+describe('questions still in the reserve', () => {
+  it('are not listed: only the questions shown in the thread, as Needs you does', () => {
+    const groups = questionGroups([
+      q('a', 'pending', 1, { shown_at: '2026-09-24T10:01:00Z' }),
+      q('b', 'pending', 2, { shown_at: null }),
+      q('c', 'pending', 3),
+    ]);
+    expect(groups.open.map((x) => x.id)).toEqual(['a', 'c']);
+  });
+});

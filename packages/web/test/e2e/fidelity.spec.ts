@@ -1,22 +1,11 @@
-// The fidelity pass (canvas B1, S5A–S5D, S6A and S6C): "Ask DEMIURGO about this" tied to what is on
-// screen, the guided review of a draft feature over its own page, "You're up to date" when nothing
-// is left, and the overview closer to the product blueprint.
+// The fidelity pass (DESIGN.md §3.5, §3.6): "Ask DEMIURGO about this" tied to what is on screen, the
+// guided review of a draft feature over its own page, "You're up to date" when nothing is left, and
+// the overview as an operational dashboard.
 
-import { AxeBuilder } from '@axe-core/playwright';
-import type { Page } from '@playwright/test';
 import type { Exploration, ExplorationDetail, RecordDetail, RunListItem } from '../../src/api/types.ts';
 import { tabTo } from './needs-data.ts';
-import { createDecision, createFeature, foldLegend, ratifiedProject, recordOf, settled } from './record-setup.ts';
+import { createDecision, createFeature, ratifiedProject, recordOf, settled, shot } from './record-setup.ts';
 import { type PersonApi, expect, expectAccessible, screenshot, test } from './support/fixtures.ts';
-
-/** axe with the review on: what the review dims on purpose is left out, like the lens does. */
-async function expectAccessibleInReview(page: Page, what: string): Promise<void> {
-  const results = await new AxeBuilder({ page }).exclude('[data-dimmed="true"]').analyze();
-  const serious = results.violations
-    .filter((v) => v.impact === 'serious' || v.impact === 'critical')
-    .map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(' | ')}`);
-  expect(serious, `axe on ${what}`).toEqual([]);
-}
 
 const threadsOf = (person: PersonApi, projectId: string) => person.get<Exploration[]>(`/api/projects/${projectId}/explorations`);
 
@@ -24,13 +13,12 @@ const threadsOf = (person: PersonApi, projectId: string) => person.get<Explorati
 async function featureWithAssumption(person: PersonApi, projectId: string) {
   const dec = await createDecision(person, projectId, 'Activities are public', { approve: true });
   const thread = await person.command(projectId, 'exploration.open', { purpose: 'Guest passes for open activities' });
-  const q = await person.command(projectId, 'question.raise', { exploration_id: thread.entity_id, question: 'How many guests?' });
+  const url = `/api/projects/${projectId}/explorations/${thread.entity_id}`;
+  // DEMIURGO asks the first stage's questions; what the person says next lets it assume an answer.
+  await person.command(projectId, 'message.post', { exploration_id: thread.entity_id, text: 'Members bring guests.' });
+  await person.until<ExplorationDetail>(url, (e) => e.questions.some((x) => x.state === 'pending'), 60_000);
   await person.command(projectId, 'message.post', { exploration_id: thread.entity_id, text: "Let's go with two guests." });
-  await person.until<ExplorationDetail>(
-    `/api/projects/${projectId}/explorations/${thread.entity_id}`,
-    (e) => e.questions.some((x) => x.id === q.entity_id && x.state === 'inferred'),
-    60_000,
-  );
+  await person.until<ExplorationDetail>(url, (e) => e.questions.some((x) => x.state === 'inferred'), 60_000);
   return createFeature(person, projectId, 'Guest passes', {
     basedOn: { code: dec.code, version: 1 },
     origin: { type: 'exploration', id: thread.entity_id },
@@ -46,7 +34,7 @@ test('AC-INT-001-09 Ask DEMIURGO about a feature opens its thread and DEMIURGO a
   const field = ask.getByRole('textbox');
   await expect(field).toHaveAttribute('placeholder', 'Ask about this feature, or suggest a change…');
   await field.fill('How do members find past activities?');
-  await ask.getByRole('button', { name: 'Send' }).click();
+  await ask.getByRole('button', { name: 'Ask' }).click();
   const status = page.locator('[data-ask-status]');
   await expect(status).toContainText('About Activity catalog');
   await expect(status).toHaveAttribute('data-ask-status', 'answered', { timeout: 60_000 });
@@ -81,7 +69,7 @@ test('AC-INT-001-09 Ask DEMIURGO about the whole product from the overview: its 
   await page.goto(`/p/${projectId}`);
 
   const ask = page.getByRole('form', { name: 'Ask DEMIURGO about the whole product' });
-  await expect(ask).toContainText('About: whole product');
+  await expect(page.getByRole('heading', { name: 'Ask DEMIURGO about the whole product' })).toBeVisible();
   const field = ask.getByRole('textbox');
   await expect(field).toHaveAttribute('placeholder', 'Ask or tell DEMIURGO anything about Club Activities');
   await field.fill('What should we design first?');
@@ -93,12 +81,11 @@ test('AC-INT-001-09 Ask DEMIURGO about the whole product from the overview: its 
   expect(about).toHaveLength(1);
   expect(about[0]?.origin_type).toBeNull();
 
-  // While its run works, the amber dot says DEMIURGO is answering; the same thread is used.
+  // While its run works, the status says DEMIURGO is answering; the same thread is used.
   await field.fill('[slow] Look at every activity before answering.');
-  await ask.getByRole('button', { name: 'Send' }).click();
+  await ask.getByRole('button', { name: 'Ask' }).click();
   await expect(status).toHaveAttribute('data-ask-status', 'answering');
   await expect(status).toContainText('Sent to About the whole product · DEMIURGO is answering…');
-  await expect(status.locator('[data-mark="working"]')).toHaveCount(1);
   await expectAccessible(page, 'the overview while DEMIURGO answers');
   const threadId = about[0]?.id ?? '';
   const [working] = await person
@@ -126,13 +113,18 @@ test('AC-INT-001-09 capturing an idea from the overview saves it as a thread wit
   await page.goto(`/p/${projectId}`);
   const main = page.getByRole('main');
 
-  // A thread set aside is a parked idea, with the way back to it; who uses it and the rules wait for later.
+  // A thread set aside is a parked idea, with its state in words and the way back to it; who uses it
+  // and the rules wait for later.
+  await expect(main.getByRole('heading', { name: /^Parked ideas/ })).toBeVisible();
   const parked = main.locator(`[data-parked="${later.entity_id}"]`);
-  await expect(parked.locator('[data-mark="parked"]')).toBeVisible();
-  await expect(parked).toContainText('Parked');
+  await expect(parked.locator('[data-status="parked"]')).toBeVisible();
+  await expect(parked).toContainText('Set aside');
   await expect(parked).toContainText('Guest passes for open activities');
   await expect(parked).toContainText('After the pilot.');
-  await expect(parked).toHaveAttribute('href', `/p/${projectId}/threads/${later.entity_id}`);
+  await expect(parked.getByRole('link', { name: 'Guest passes for open activities' })).toHaveAttribute(
+    'href',
+    `/p/${projectId}/threads/${later.entity_id}`,
+  );
   await expect(main.locator('[data-later]')).toContainText('Who uses it');
   await expect(main.locator('[data-later]')).toContainText('Later');
 
@@ -174,7 +166,6 @@ test('AC-INT-001-05 the guided review walks the five parts of a draft feature an
 
   const bar = page.getByRole('region', { name: 'Review' });
   const label = bar.locator('[data-review-label]');
-  const parts = page.locator('[data-review-part]');
   const walk: [string, string | null][] = [
     ['Part 1 of 5 · Context', 'context'],
     ["Part 2 of 5 · What it's for", 'what'],
@@ -182,19 +173,18 @@ test('AC-INT-001-05 the guided review walks the five parts of a draft feature an
     ['Part 4 of 5 · Checks', 'checks'],
     ['Part 5 of 5 · What DEMIURGO assumed', null],
   ];
-  const total = await parts.count();
-  expect(total).toBeGreaterThanOrEqual(5);
   for (const [text, key] of walk) {
     await expect(label).toHaveText(text);
+    // The part under review is outlined and labelled; nothing else is dimmed (INVENTORY §2 #16).
+    await expect(page.locator('[data-dimmed]')).toHaveCount(0);
     if (key) {
       const active = page.locator(`[data-review-part="${key}"]`);
       await expect(active).toHaveAttribute('data-review-active', 'true');
-      await expect(active).not.toHaveAttribute('data-dimmed', 'true');
-      // The part under review stays; the rest steps back.
-      await expect(page.locator('[data-review-part][data-dimmed="true"]')).toHaveCount(total - 1);
+      await expect(active.locator('[data-review-flag]')).toHaveText(text);
+      await expect(page.locator('[data-review-active="true"]')).toHaveCount(1);
     } else {
       await expect(bar).toContainText('Nothing assumed');
-      await expect(page.locator('[data-review-part][data-dimmed="true"]')).toHaveCount(total);
+      await expect(page.locator('[data-review-active="true"]')).toHaveCount(0);
     }
     await bar.getByRole('button', { name: 'Looks right' }).click();
   }
@@ -202,16 +192,20 @@ test('AC-INT-001-05 the guided review walks the five parts of a draft feature an
   // At the end, the whole page again and Confirm, which asks first and says what it means.
   await expect(label).toHaveText('All 5 parts reviewed');
   await expect(bar).toContainText('Confirm Activity catalog?');
-  await expect(page.locator('[data-dimmed="true"]')).toHaveCount(0);
+  await expect(page.locator('[data-review-active="true"]')).toHaveCount(0);
   await bar.getByRole('button', { name: 'Confirm', exact: true }).click();
+  // The dialog's button says the same word as the bar's (INVENTORY INV-REC, label mismatch).
   const dialog = page.getByRole('alertdialog');
   await expect(dialog).toContainText('It becomes the current version. It is Ready to build if nothing else blocks it.');
-  await dialog.getByRole('button', { name: 'Approve' }).click();
+  await dialog.getByRole('button', { name: 'Confirm', exact: true }).click();
   await expect(dialog).toBeHidden();
 
   // Ready to build (canvas S5D): approved, current, and no new version.
   await expect(bar).toBeHidden();
-  await expect(page.locator('[data-record-header] [data-status] [data-mark]')).toHaveAttribute('data-mark', 'confirmed');
+  await expect(page.locator('[data-record-header] [data-version-state] [data-status]')).toHaveAttribute(
+    'data-status',
+    'confirmed',
+  );
   await expect(page.locator('[data-ready-banner]')).toContainText('Activity catalog is ready to build');
   await expect(page.getByRole('region', { name: 'Versions' }).locator('[data-version]')).toHaveCount(1);
   const after: RecordDetail = await recordOf(person, projectId, fdr.code);
@@ -253,7 +247,7 @@ test('AC-INT-001-09 in the review, Change something asks DEMIURGO in the thread 
   await bar.getByRole('button', { name: 'Leave review' }).click();
   await expect(bar).toBeHidden();
   await expect(page.locator('[data-review-banner]')).toBeVisible();
-  await expect(page.locator('[data-dimmed="true"]')).toHaveCount(0);
+  await expect(page.locator('[data-review-active="true"]')).toHaveCount(0);
   expect((await recordOf(person, projectId, fdr.code)).versions.map((v) => v.state)).toEqual(['draft']);
 });
 
@@ -289,7 +283,8 @@ test('AC-WEB-001-03 the guided review works with the keyboard only', async ({ pa
   ] as const) {
     await expect(label).toContainText(`Part ${n} of 5`);
     await expect(page.locator(`[data-review-part="${key}"]`)).toHaveAttribute('data-review-active', 'true');
-    await expectAccessibleInReview(page, `part ${n} of the review`);
+    // Nothing is dimmed, so axe checks the whole page as it is.
+    await expectAccessible(page, `part ${n} of the review`);
     await page.keyboard.press('Enter');
   }
   // What DEMIURGO assumed was a real part: its assumed answer was on screen.
@@ -299,11 +294,16 @@ test('AC-WEB-001-03 the guided review works with the keyboard only', async ({ pa
   await page.keyboard.press('Enter');
   const dialog = page.getByRole('alertdialog');
   await expect(dialog).toBeVisible();
-  await tabTo(page, dialog.getByRole('button', { name: 'Approve' }), 5);
+  await tabTo(page, dialog.getByRole('button', { name: 'Confirm', exact: true }), 5);
   await expectAccessible(page, 'the confirmation of the review');
   await page.keyboard.press('Enter');
   await expect(dialog).toBeHidden();
-  await expect(page.locator('[data-record-header] [data-status] [data-mark]')).toHaveAttribute('data-mark', 'confirmed');
+  await expect(page.locator('[data-record-header] [data-version-state] [data-status]')).toHaveAttribute(
+    'data-status',
+    'confirmed',
+  );
+  // The bar is gone: the focus is on the page's title, never lost to the body.
+  await expect(page.locator('#page-title')).toBeFocused();
   expect((await recordOf(person, projectId, fdr.code)).versions.map((v) => [v.n, v.state])).toEqual([[1, 'approved']]);
   await expectAccessible(page, 'the feature after the review');
 });
@@ -313,7 +313,6 @@ test('screens of the fidelity pass: the overview as the blueprint, Ask DEMIURGO,
   person,
 }) => {
   test.setTimeout(240_000);
-  await foldLegend(page);
   const projectId = await ratifiedProject(person, 'DEMIURGO');
   for (const code of ['DEC-PLN-001', 'FDR-INT-001']) {
     const r = await recordOf(person, projectId, code);
@@ -330,7 +329,7 @@ test('screens of the fidelity pass: the overview as the blueprint, Ask DEMIURGO,
   await page.goto(`/p/${projectId}`);
   const ask = page.getByRole('form', { name: 'Ask DEMIURGO about the whole product' });
   await ask.getByRole('textbox').fill('Which feature should we review first?');
-  await ask.getByRole('button', { name: 'Send' }).click();
+  await ask.getByRole('button', { name: 'Ask' }).click();
   await expect(page.locator('[data-ask-status]')).toHaveAttribute('data-ask-status', 'answered', { timeout: 60_000 });
   await screenshot(page, 8, '02-overview-asked');
 
@@ -341,27 +340,32 @@ test('screens of the fidelity pass: the overview as the blueprint, Ask DEMIURGO,
   const bar = page.getByRole('region', { name: 'Review' });
   await expect(bar.locator('[data-review-label]')).toHaveText('Part 1 of 5 · Context');
   await screenshot(page, 8, '04-review-context');
+  await shot(page, 'review-context');
   await bar.getByRole('button', { name: 'Looks right' }).click();
   await expect(bar.locator('[data-review-label]')).toHaveText("Part 2 of 5 · What it's for");
   await screenshot(page, 8, '05-review-what');
+  await shot(page, 'review-what');
   await bar.getByRole('button', { name: 'Change something' }).click();
   await screenshot(page, 8, '06-review-change');
+  await shot(page, 'review-change');
   for (let i = 0; i < 2; i++) await bar.getByRole('button', { name: 'Looks right' }).click();
   await expect(bar.locator('[data-review-label]')).toHaveText('Part 4 of 5 · Checks');
   await screenshot(page, 8, '07-review-checks');
   for (let i = 0; i < 2; i++) await bar.getByRole('button', { name: 'Looks right' }).click();
   await expect(bar.locator('[data-review-label]')).toHaveText('All 5 parts reviewed');
   await screenshot(page, 8, '08-review-confirm');
+  await shot(page, 'review-final');
   await bar.getByRole('button', { name: 'Confirm', exact: true }).click();
   await expect(page.getByRole('alertdialog')).toBeVisible();
   await screenshot(page, 8, '09-review-confirm-dialog');
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Approve' }).click();
+  await shot(page, 'review-confirm-dialog');
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Confirm', exact: true }).click();
   await expect(bar).toBeHidden();
   await screenshot(page, 8, '10-record-after-review');
 
   const fdrAsk = page.getByRole('form', { name: 'Ask DEMIURGO about this feature' });
   await fdrAsk.getByRole('textbox').fill('What does it need before it can be built?');
-  await fdrAsk.getByRole('button', { name: 'Send' }).click();
+  await fdrAsk.getByRole('button', { name: 'Ask' }).click();
   await expect(page.locator('[data-ask-status]')).toHaveAttribute('data-ask-status', 'answered', { timeout: 60_000 });
   await screenshot(page, 8, '11-record-asked');
 
@@ -400,6 +404,7 @@ test('screens of the fidelity pass: the overview as the blueprint, Ask DEMIURGO,
   await expect(main.locator('[data-feature-working]')).toBeVisible();
   await expect(main.locator('[data-drafting]')).toBeVisible();
   await screenshot(page, 8, '01-overview');
+  await shot(page, 'overview-working');
   await expectAccessible(page, 'the overview as the blueprint');
 
   const quiet = await person.createProject('Club Activities');
@@ -410,6 +415,6 @@ test('screens of the fidelity pass: the overview as the blueprint, Ask DEMIURGO,
   await person.until<{ total: number }>(`/api/projects/${quiet}/inbox`, (i) => i.total === 0, 45_000);
   await page.goto(`/p/${quiet}/needs-you`);
   await expect(page.getByText('Nothing needs you. You can close DEMIURGO.')).toBeVisible();
-  await expect(page.getByRole('region', { name: 'In progress' }).locator('[data-running]')).toHaveCount(1);
+  await expect(page.getByRole('region', { name: 'In progress' }).locator('[data-run], [data-running]')).toHaveCount(1);
   await screenshot(page, 8, '12-up-to-date');
 });

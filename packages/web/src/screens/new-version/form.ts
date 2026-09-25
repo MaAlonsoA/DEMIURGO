@@ -109,3 +109,10 @@ export function toCommand(recordId: string, form: VersionForm, links: LinkInput[
     links,
   };
 }
+
+/** Anything written or chosen that the base version doesn't have: leaving would lose it (DESIGN.md §3.6). */
+export function versionDirty(form: VersionForm, base: RecordVersion): boolean {
+  if (form.note.trim() !== '' || form.title !== base.title) return true;
+  if (form.sections.some((s, i) => s.content !== (base.sections[i]?.content ?? ''))) return true;
+  return form.checks.some((c) => c.code === null || c.choice !== null);
+}

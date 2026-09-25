@@ -1,22 +1,22 @@
-// The guided review of a draft over its own page (canvas S5A banner and S5B bar, design doc §6):
-// the part under review is outlined in blue and the rest steps back; "Looks right" goes on,
-// "Change something" hands over to "Ask DEMIURGO about this" (or a new version), and Confirm
-// approves the whole version, asking first. It can be left at any time.
+// The guided review of a draft over its own page (DESIGN.md §3.6, INV-REC-10/11): five parts —
+// context, what it is for (or why it's needed), how it works (or what it decides), the checks and
+// what DEMIURGO assumed. The part under review gets an accent outline and a "Part 2 of 5" label;
+// the others keep their full contrast (INVENTORY §2 #16). "Looks right" goes on, "Change something"
+// hands over to "Ask DEMIURGO about this" (or a new version), and Confirm approves the whole
+// version, asking first with a button that says the same word. It can be left at any time.
 
 import { Link } from '@tanstack/react-router';
 import { createContext, type ReactNode, type RefObject, useContext, useEffect, useRef, useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
 import type { RecordDetail, RecordVersion } from '../../api/types.ts';
+import type { AskBoxHandle } from '../../components/AskBox.tsx';
+import { announce } from '../../components/announce.tsx';
+import { Count } from '../../components/Badge.tsx';
+import { Button, buttonClass } from '../../components/Button.tsx';
+import { ConfirmDialog } from '../../components/Dialog.tsx';
+import { ArrowRightIcon, CheckIcon } from '../../components/icons.tsx';
 import { cn } from '../../lib/cn.ts';
-import type { AskBarHandle } from '../../ui/AskBar.tsx';
-import { Button, buttonClass } from '../../ui/Button.tsx';
-import { ConfirmDialog } from '../../ui/dialogs.tsx';
-import { ChevronRight } from '../../ui/icons.tsx';
-import { NeedsBubble } from '../../ui/signals.tsx';
 import { type ReviewPart, type ReviewPartKey, reviewBanner, reviewParts, reviewStep } from './review.ts';
-
-/** Keys of what the review dims: its five parts and the rest of the page. */
-type PartKey = ReviewPartKey | 'readiness' | 'versions' | 'annexes';
 
 const reducedMotion = (): ScrollBehavior =>
   typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
@@ -24,25 +24,27 @@ const reducedMotion = (): ScrollBehavior =>
 type ReviewState = { step: number; parts: ReviewPart[] };
 const ReviewContext = createContext<ReviewState>({ step: 0, parts: [] });
 
-/** A piece of the page the review walks: outlined when under review, dimmed when another part is. */
-export function ReviewArea({ part, children, className }: { part: PartKey; children: ReactNode; className?: string }) {
+/** A piece of the page the review walks: outlined and labelled while it is the part under review. */
+export function ReviewArea({ part, children, className }: { part: ReviewPartKey; children: ReactNode; className?: string }) {
   const { step, parts } = useContext(ReviewContext);
   const current = step >= 1 && step <= parts.length ? parts[step - 1] : undefined;
-  const on = current !== undefined;
-  const active = on && !current.quiet && current.key === part;
+  const active = current !== undefined && !current.quiet && current.key === part;
   return (
     <div
       data-review-part={part}
       data-review-active={active ? 'true' : undefined}
-      data-dimmed={on && !active ? 'true' : undefined}
       className={cn(
-        'rounded-card-md transition-opacity duration-200',
-        part === 'context' || part === 'checks' || part === 'what' || part === 'how' ? 'scroll-mt-[196px]' : '',
-        active && 'outline-2 outline-offset-8 outline-needs',
-        on && !active && 'opacity-35',
+        'relative scroll-mt-44 rounded-lg transition-colors duration-[var(--m-fast)]',
+        active && 'outline-2 outline-offset-8 outline-accent',
         className,
       )}
     >
+      {active && current ? (
+        // The label sits on the outline's top edge, in the gap above the part, so nothing moves.
+        <p data-review-flag className="absolute -top-7 left-0 text-xs font-medium text-accent-text">
+          Part {current.n} of {parts.length} · {current.name}
+        </p>
+      ) : null}
       {children}
     </div>
   );
@@ -104,7 +106,7 @@ export function ReviewProvider({ review, children }: { review: Review; children:
   return <ReviewContext.Provider value={{ step: review.step, parts: review.parts }}>{children}</ReviewContext.Provider>;
 }
 
-/** The banner of a draft that waits for its review (S5A), or the bar of the review in progress (S5B). */
+/** The banner of a draft that waits for its review, or the bar of the review in progress. */
 export function ReviewBand({
   projectId,
   record,
@@ -112,13 +114,15 @@ export function ReviewBand({
   review,
   ask,
   canNewVersion,
+  onApproved,
 }: {
   projectId: string;
   record: RecordDetail;
   version: RecordVersion;
   review: Review;
-  ask: RefObject<AskBarHandle | null>;
+  ask: RefObject<AskBoxHandle | null>;
   canNewVersion: boolean;
+  onApproved: () => void;
 }) {
   const start = useRef<HTMLButtonElement>(null);
   const focusStart = useRef(false);
@@ -134,13 +138,13 @@ export function ReviewBand({
     return (
       <div
         data-review-banner
-        className="mb-5 flex items-center gap-4 rounded-card border border-needs-line bg-needs-soft py-3 pr-3.5 pl-[18px]"
+        className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border border-accent-edge bg-accent-soft px-4 py-3"
       >
-        <NeedsBubble count={1} detail="Needs you: this version waits for your review." />
-        <span className="flex min-w-0 flex-1 flex-col">
-          <strong className="dm-text-heading">{banner.title}</strong>
-          <span className="dm-text-small text-ink-3">{banner.detail}</span>
-        </span>
+        <Count n={1} label="Needs you: this version waits for your review." />
+        <div className="flex min-w-0 flex-1 basis-60 flex-col">
+          <p className="text-base font-semibold text-fg">{banner.title}</p>
+          <p className="text-sm text-fg-2">{banner.detail}</p>
+        </div>
         <Button ref={start} variant="primary" onClick={() => review.setStep(1)}>
           Start review
         </Button>
@@ -155,6 +159,7 @@ export function ReviewBand({
       review={review}
       ask={ask}
       canNewVersion={canNewVersion}
+      onApproved={onApproved}
       onLeave={() => {
         focusStart.current = true;
         review.setStep(0);
@@ -174,17 +179,16 @@ function Steps({ parts, step, go }: { parts: ReviewPart[]; step: number; go: (n:
               type="button"
               onClick={() => go(p.n)}
               aria-current={state === 'now' ? 'step' : undefined}
-              aria-label={`Part ${p.n}: ${p.name}`}
+              aria-label={`Part ${p.n}: ${p.name}${state === 'done' ? ', reviewed' : ''}`}
               title={p.name}
               className={cn(
-                'dm-text-caption inline-flex h-6 w-6 items-center justify-center rounded-full border-[1.5px] font-bold transition-colors',
-                // The part on screen has the selection outline: a blue fill would read as the Needs you counter.
-                state === 'now' && 'border-2 border-needs bg-surface text-needs-strong',
-                state === 'done' && 'border-ink bg-ink text-surface',
-                state === 'next' && 'border-inactive-soft bg-surface text-muted hover:border-ink-3',
+                'inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border text-xs font-semibold tabular-nums transition-colors duration-[var(--m-fast)]',
+                state === 'now' && 'border-2 border-accent bg-panel text-accent-text',
+                state === 'done' && 'border-success-edge bg-success-soft text-success-text',
+                state === 'next' && 'border-edge-strong bg-panel text-fg-2 hover:border-edge-control',
               )}
             >
-              {p.n}
+              {state === 'done' ? <CheckIcon size={13} /> : p.n}
             </button>
           </li>
         );
@@ -200,14 +204,16 @@ function ReviewBar({
   review,
   ask,
   canNewVersion,
+  onApproved,
   onLeave,
 }: {
   projectId: string;
   record: RecordDetail;
   version: RecordVersion;
   review: Review;
-  ask: RefObject<AskBarHandle | null>;
+  ask: RefObject<AskBoxHandle | null>;
   canNewVersion: boolean;
+  onApproved: () => void;
   onLeave: () => void;
 }) {
   const command = useCommand(projectId);
@@ -224,14 +230,17 @@ function ReviewBar({
     if (words.final) confirm.current?.focus();
     else if (document.activeElement === document.body || !document.activeElement) ok.current?.focus();
   }, [words.final]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only when the review starts
   useEffect(() => {
     if (step === 1) ok.current?.focus();
   }, []);
-  // The part under review comes into view when it is in the main column.
+  // The part under review comes into view when it isn't.
   useEffect(() => {
     setChanging(false);
-    const el = document.querySelector('main [data-review-active="true"]');
-    el?.scrollIntoView({ block: 'start', behavior: reducedMotion() });
+    const el = document.querySelector('[data-review-active="true"]');
+    if (!el) return;
+    const box = el.getBoundingClientRect();
+    if (box.top < 160 || box.top > window.innerHeight - 80) el.scrollIntoView({ block: 'start', behavior: reducedMotion() });
   }, [step]);
 
   const go = (n: number) => setStep(Math.max(1, Math.min(parts.length + 1, n)));
@@ -243,32 +252,29 @@ function ReviewBar({
   return (
     <section
       aria-label="Review"
-      className="sticky top-[68px] z-20 mb-5 flex flex-col gap-2.5 rounded-card border border-needs-line bg-needs-soft py-3 pr-3.5 pl-[18px] shadow-raised"
+      className="sticky top-14 z-20 flex flex-col gap-3 rounded-lg border border-accent-edge bg-panel px-4 py-3 shadow-popover lg:top-3"
     >
-      <div className="flex items-center gap-[18px]">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
         <Steps parts={parts} step={step} go={go} />
-        <span className="w-px self-stretch bg-needs-line" aria-hidden="true" />
-        <div className="flex min-w-0 flex-1 flex-col" aria-live="polite">
-          <span data-review-label className="dm-text-caption font-semibold text-needs-strong">
+        <div className="flex min-w-0 flex-1 basis-64 flex-col gap-0.5" aria-live="polite">
+          <span data-review-label className="text-xs font-medium text-accent-text">
             {words.label}
           </span>
-          <strong className="dm-text-heading">{words.question}</strong>
-          <span className="dm-text-small leading-snug text-ink-3">{words.hint}</span>
+          <p className="text-base font-semibold text-fg">{words.question}</p>
+          <p className="text-sm text-fg-2">{words.hint}</p>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <Button variant="text" onClick={onLeave}>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="quiet" onClick={onLeave}>
             Leave review
           </Button>
-          {step > 1 && (
-            <Button variant="text" onClick={() => go(step - 1)}>
+          {step > 1 ? (
+            <Button variant="quiet" onClick={() => go(step - 1)}>
               Back
             </Button>
-          )}
+          ) : null}
           {words.final ? (
             <>
-              <Button variant="secondary" onClick={() => go(1)}>
-                Review again
-              </Button>
+              <Button onClick={() => go(1)}>Review again</Button>
               <Button
                 ref={confirm}
                 variant="primary"
@@ -282,9 +288,7 @@ function ReviewBar({
             </>
           ) : (
             <>
-              <Button variant="secondary" onClick={change}>
-                Change something
-              </Button>
+              <Button onClick={change}>Change something</Button>
               <Button ref={ok} variant="primary" onClick={() => go(step + 1)}>
                 Looks right
               </Button>
@@ -292,52 +296,63 @@ function ReviewBar({
           )}
         </div>
       </div>
-      {changing && part && (
-        <p className="dm-text-small flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-needs-line pt-2.5 text-ink-2">
+      {changing && part ? (
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1.5 border-t border-edge pt-3 text-sm text-fg-2">
           <span>
-            Tell DEMIURGO what to change in <strong className="font-semibold">{part.name}</strong>: it is written on the right.
+            Tell DEMIURGO what to change in <strong className="font-semibold text-fg">{part.name}</strong>: the box "Ask DEMIURGO
+            about this" has it ready.
           </span>
-          {canNewVersion && (
+          {canNewVersion ? (
             <>
               <span>Or change it yourself:</span>
               <Link
                 to="/p/$projectId/records/$code/new-version"
                 params={{ projectId, code: record.code }}
-                className={buttonClass('secondary')}
+                className={buttonClass({ size: 'sm' })}
               >
-                New version
-                <ChevronRight size={11} />
+                New version <ArrowRightIcon size={12} />
               </Link>
             </>
-          )}
+          ) : null}
         </p>
-      )}
+      ) : null}
 
       <ConfirmDialog
         open={confirming}
-        onOpenChange={setConfirming}
+        onOpenChange={(o) => {
+          setConfirming(o);
+          // Not now: back to Confirm, where the review was.
+          if (!o) setTimeout(() => confirm.current?.focus(), 50);
+        }}
         title={`Confirm ${version.title}?`}
         description={
           <>
             <p>
               This approves version {version.n}. It becomes the current version. It is Ready to build if nothing else blocks it.
             </p>
-            <p className="mt-2 text-muted">Approving does not create a new version.</p>
+            <p>Approving does not create a new version.</p>
           </>
         }
-        confirm="Approve"
+        confirm="Confirm"
+        pendingLabel="Confirming…"
         pending={command.isPending}
         error={confirming ? command.error : null}
         onConfirm={() =>
-          command.mutate(
-            { command: 'record_version.approve', entityId: version.id, data: {} },
-            {
-              onSuccess: () => {
-                setConfirming(false);
-                setStep(0);
-              },
-            },
-          )
+          // mutateAsync: the answer may come after the approval's own event has already ended the
+          // review (this bar unmounts), and what follows must still happen.
+          void command
+            .mutateAsync({ command: 'record_version.approve', entityId: version.id, data: {} })
+            .then(() => {
+              setConfirming(false);
+              setStep(0);
+              announce(`Confirmed. Version ${version.n} is the current version.`);
+              onApproved();
+              // The bar is gone: the focus goes to the top of the page, which now says what it is.
+              setTimeout(() => document.getElementById('page-title')?.focus({ preventScroll: true }), 50);
+            })
+            .catch(() => {
+              // The error stays in the dialog (command.error), next to the action.
+            })
         }
       />
     </section>

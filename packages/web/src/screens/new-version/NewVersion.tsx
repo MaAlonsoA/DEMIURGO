@@ -1,25 +1,34 @@
-// New version of a record (spec §4.6, canvas S5C): what changed, the template's sections in
-// markdown, and an explicit Keep, Change or Drop for every check of the base version, plus new
-// ones. "Save draft" runs record_version.create and goes back to the record with the draft on screen.
+// New version of a record (DESIGN.md §3.6, INV-NEWVER-*): what changed (required), the title and
+// the template's sections in Markdown, an explicit Keep, Change or Drop for every check of the base
+// version plus new ones, and its links — the carried ones can be removed. The summary and "Save
+// draft" stay in a sticky footer near the fields; leaving with unsaved text asks first; the
+// warnings the save returns are shown on the new version's page.
 
 import { useQuery } from '@tanstack/react-query';
-import { Link, useNavigate } from '@tanstack/react-router';
-import { useId, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
 import { ApiError } from '../../api/client.ts';
 import { useCommand } from '../../api/commands.ts';
 import { inboxQuery, recordQuery, stateQuery } from '../../api/queries.ts';
 import type { ProductState, RecordDetail, RecordVersion } from '../../api/types.ts';
+import { announce } from '../../components/announce.tsx';
+import { Code } from '../../components/Badge.tsx';
+import { Button } from '../../components/Button.tsx';
+import { Field, TextArea, TextInput } from '../../components/Field.tsx';
+import { PlusIcon } from '../../components/icons.tsx';
+import { ErrorNotice, Notice } from '../../components/Notice.tsx';
+import { PageBody, PageHeader, usePageTitle } from '../../components/Page.tsx';
+import { PageSkeleton } from '../../components/Spinner.tsx';
+import { StatusBadge } from '../../components/status.tsx';
+import { TypeIcon } from '../../components/types.tsx';
 import { useRouteParams } from '../../lib/hooks.ts';
-import { Button, buttonClass } from '../../ui/Button.tsx';
-import { Code } from '../../ui/Card.tsx';
-import { PlusIcon, RECORD_ICON, TypeIcon, WarningIcon } from '../../ui/icons.tsx';
-import { Breadcrumbs, Page, Skeleton } from '../../ui/layout.tsx';
-import { Mark } from '../../ui/marks.tsx';
-import { Reasons } from '../../ui/Reasons.tsx';
 import { TYPE_WORDS } from '../../words.ts';
 import { NotFound } from '../not-found/NotFound.tsx';
-import { LINK_WORDS, type VersionRef, baseVersion, versionIndex } from '../record/logic.ts';
-import { CheckEditor, field, titleField } from './CheckEditor.tsx';
+import { recordCrumbs } from '../record/Header.tsx';
+import { type VersionRef, baseVersion, versionIndex } from '../record/logic.ts';
+import { leaveSaveWarnings } from '../record/saved.ts';
+import { CheckEditor } from './CheckEditor.tsx';
+import { FormPanel, MissingList, SaveFooter, SectionField, useLeaveGuard } from './FormParts.tsx';
 import {
   type CheckDraft,
   type LinkInput,
@@ -29,8 +38,9 @@ import {
   initialForm,
   missing,
   toCommand,
+  versionDirty,
 } from './form.ts';
-import { linkTargets, mergeLinks } from './links.ts';
+import { linkTargets } from './links.ts';
 import { LinksEditor } from './LinksEditor.tsx';
 
 export function NewVersionScreen() {
@@ -38,23 +48,23 @@ export function NewVersionScreen() {
   const record = useQuery(recordQuery(projectId, code));
   const state = useQuery(stateQuery(projectId));
   const inbox = useQuery(inboxQuery(projectId));
+  usePageTitle(['New version', code, state.data?.project.name]);
   if (record.error instanceof ApiError && record.error.status === 404) return <NotFound thing={`the record ${code}`} />;
   const r = record.data;
   const base = r ? baseVersion(r) : undefined;
   if (r && !base) return <NotFound thing={`a version of ${code} to start from`} />;
   if (!r || !base) {
     return (
-      <Page>
-        {record.error ? (
-          <Reasons error={record.error} />
-        ) : (
-          <div role="status" aria-label="Loading the record" className="flex max-w-[900px] flex-col gap-3">
-            <Skeleton className="h-3 w-40" />
-            <Skeleton className="h-8 w-2/3" />
-            <Skeleton className="mt-4 h-28 w-full rounded-card-md" />
-          </div>
-        )}
-      </Page>
+      <>
+        <PageHeader title="New version" />
+        <PageBody width="reading">
+          {record.error ? (
+            <ErrorNotice error={record.error} onRetry={() => void record.refetch()} />
+          ) : (
+            <PageSkeleton label="Loading the record" />
+          )}
+        </PageBody>
+      </>
     );
   }
   // Keyed by the record: what the person writes is kept even if the record changes meanwhile.
@@ -67,16 +77,6 @@ export function NewVersionScreen() {
       index={state.data ? versionIndex(state.data, inbox.data) : undefined}
       state={state.data}
     />
-  );
-}
-
-function Count({ n, word }: { n: number; word: string }) {
-  if (n === 0) return null;
-  return (
-    <li className="dm-text-small flex items-baseline justify-between">
-      <span className="text-ink-2">{word}</span>
-      <span className="font-semibold tabular-nums">{n}</span>
-    </li>
   );
 }
 
@@ -94,30 +94,42 @@ function NewVersionForm({
   state: ProductState | undefined;
 }) {
   const navigate = useNavigate();
-  const [added, setAdded] = useState<LinkInput[]>([]);
   const command = useCommand<{ versionId: string; version: number; warnings: string[] }>(projectId);
+  // The base is frozen when the form opens.
   const [base] = useState(current);
   const [form, setForm] = useState<VersionForm>(() => initialForm(base));
-  const noteId = useId();
-  const titleId = useId();
+  /** Edits made under Change, kept while the person tries Keep or Drop (INVENTORY INV-NEWVER, UX problem). */
+  const [edits, setEdits] = useState<Record<string, CheckDraft>>({});
+  const carried = index ? carriedLinks(base.links, index) : null;
+  const [links, setLinks] = useState<LinkInput[] | null>(null);
+  useEffect(() => {
+    if (links === null && carried) setLinks(carried.carried);
+  }, [links, carried]);
   const originals = new Map(base.criteria.map((c) => [c.code, c]));
+  const next = (record.versions.at(-1)?.n ?? 0) + 1;
 
-  const update = (next: CheckDraft) =>
-    setForm((f) => ({
-      ...f,
-      checks: f.checks.map((c) => {
-        if (c.key !== next.key) return c;
-        // Keep and Drop carry the check as it was: an edit only lives while "Change" is chosen.
-        const o = next.code ? originals.get(next.code) : undefined;
-        if (o && next.choice !== 'change' && c.choice === 'change') {
-          return { ...next, title: o.title, statement: o.statement, check: o.check, verification: next.verification };
-        }
-        return next;
-      }),
-    }));
+  const update = (changed: CheckDraft) => {
+    const was = form.checks.find((c) => c.key === changed.key);
+    const o = changed.code ? originals.get(changed.code) : undefined;
+    let result = changed;
+    if (was && o && was.choice === 'change' && changed.choice !== 'change') {
+      // Leaving Change: the check goes as it was, and the edits wait to come back.
+      setEdits((e) => ({ ...e, [was.key]: was }));
+      result = {
+        ...changed,
+        title: o.title,
+        statement: o.statement,
+        check: o.check,
+        verification: o.verification === 'manual' ? 'manual' : 'automatic',
+      };
+    } else if (was && o && was.choice !== 'change' && changed.choice === 'change' && edits[was.key]) {
+      // Back to Change: the edits come back.
+      result = { ...(edits[was.key] as CheckDraft), choice: 'change' };
+    }
+    setForm((f) => ({ ...f, checks: f.checks.map((c) => (c.key === changed.key ? result : c)) }));
+  };
   const remove = (key: string) => setForm((f) => ({ ...f, checks: f.checks.filter((c) => c.key !== key) }));
 
-  const links = index ? carriedLinks(base.links, index) : null;
   const miss = missing(form);
   const ready = miss.length === 0 && links !== null;
   const counts = {
@@ -126,212 +138,189 @@ function NewVersionForm({
     dropped: form.checks.filter((c) => c.choice === 'drop').length,
     added: form.checks.filter((c) => c.code === null).length,
   };
+  const dirty = versionDirty(form, base) || (links !== null && carried !== null && links.length !== carried.carried.length);
+  const guard = useLeaveGuard(dirty && !command.isSuccess);
 
+  const back = () => void navigate({ to: '/p/$projectId/records/$code', params: { projectId, code: record.code } });
   const save = () => {
     if (!ready || !links) return;
     command.mutate(
-      { command: 'record_version.create', data: toCommand(record.id, form, mergeLinks(links.carried, added)) },
+      { command: 'record_version.create', data: toCommand(record.id, form, links) },
       {
-        onSuccess: (r) =>
+        onSuccess: (r) => {
+          guard.release();
+          const n = r.result?.version ?? next;
+          leaveSaveWarnings(record.code, n, r.result?.warnings ?? []);
+          announce(`Saved: v${n} is a draft.`);
           void navigate({
             to: '/p/$projectId/records/$code',
             params: { projectId, code: record.code },
-            search: r.result ? { v: r.result.version } : {},
-          }),
+            search: { v: n },
+          });
+        },
       },
     );
   };
 
-  const aside = (
+  const choices = [
+    counts.kept ? `${counts.kept} kept` : '',
+    counts.changed ? `${counts.changed} changed` : '',
+    counts.dropped ? `${counts.dropped} dropped` : '',
+    counts.added ? `${counts.added} new` : '',
+  ].filter(Boolean);
+
+  return (
     <>
-      <section aria-labelledby={`${titleId}-summary`} className="flex flex-col gap-3">
-        <h2 id={`${titleId}-summary`} className="dm-text-heading">
-          This new version
-        </h2>
-        <p className="dm-text-small flex items-center gap-2 text-ink-2">
-          <Mark kind="proposed" size={9} label="Draft" />
-          <span>
-            <span className="dm-text-caption font-mono font-semibold text-ink">v{(record.versions.at(-1)?.n ?? 0) + 1}</span>{' '}
-            draft, from v{base.n}. Nothing changes until you approve it.
-          </span>
-        </p>
-        <ul className="flex flex-col gap-1 border-t border-line-soft pt-3">
-          <Count n={counts.kept} word="Kept" />
-          <Count n={counts.changed} word="Changed" />
-          <Count n={counts.dropped} word="Dropped" />
-          <Count n={counts.added} word="New" />
-          {counts.kept + counts.changed + counts.dropped + counts.added === 0 && (
-            <li className="dm-text-small text-ink-3">No check has a choice yet.</li>
-          )}
-        </ul>
-        {base.links.length > 0 && (
-          <div className="flex flex-col gap-1.5 border-t border-line-soft pt-3">
-            <h3 className="dm-label">Links, carried as they are</h3>
-            {links === null ? (
-              <Skeleton className="h-3.5 w-48" />
-            ) : (
-              <ul className="flex flex-col gap-1">
-                {links.carried.map((l) => (
-                  <li key={`${l.type}-${l.target.code}`} className="dm-text-small flex items-center gap-2">
-                    <span className="text-muted">{LINK_WORDS[l.type] ?? l.type}</span>
-                    <Code className="ml-auto">
-                      {l.target.code} v{l.target.version}
-                    </Code>
-                  </li>
-                ))}
-                {links.unknown.length > 0 && (
-                  <li className="dm-text-caption flex items-start gap-1.5 text-problem">
-                    <WarningIcon size={13} className="mt-[2px] shrink-0" />
-                    {links.unknown.length} {links.unknown.length === 1 ? 'link points' : 'links point'} to a version that is no
-                    longer shown: {links.unknown.length === 1 ? 'it is' : 'they are'} not carried.
-                  </li>
+      <PageHeader
+        crumbs={recordCrumbs(projectId, record, base.title, [{ label: 'New version' }])}
+        eyebrow={
+          <>
+            <span className="inline-flex items-center gap-1.5">
+              <TypeIcon type={record.type} size={15} className="text-fg-3" />
+              {TYPE_WORDS[record.type]}
+            </span>
+            <Code>
+              {record.code} · from v{base.n}
+            </Code>
+          </>
+        }
+        title={`New version of ${base.title}`}
+        meta={<span>Say what changes, then choose what happens to each check.</span>}
+      />
+      <PageBody className="pb-0">
+        <div className="flex flex-col gap-8 xl:flex-row xl:items-start">
+          <div className="flex min-w-0 flex-1 flex-col gap-6">
+            <FormPanel title="Change note">
+              <Field
+                label="What changed"
+                hint="Required. It tells whoever reads this version what it changes and why."
+                count={[form.note.length, 2000]}
+              >
+                {(p) => (
+                  <TextArea
+                    {...p}
+                    aria-required="true"
+                    autoGrow
+                    rows={3}
+                    maxLength={2000}
+                    value={form.note}
+                    onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
+                  />
                 )}
-              </ul>
-            )}
-          </div>
-        )}
-      </section>
-      <section aria-label="Save" className="flex flex-col gap-3">
-        {miss.length > 0 && (
-          <div data-missing className="dm-text-small rounded-control border border-line bg-surface-soft px-3 py-2.5">
-            <p className="font-semibold text-ink">To save it:</p>
-            <ul className="mt-1 flex list-disc flex-col gap-0.5 pl-5 text-ink-2 marker:text-muted">
-              {miss.map((m) => (
-                <li key={m}>{m}</li>
+              </Field>
+            </FormPanel>
+
+            <FormPanel title="Content">
+              <Field label="Title" count={[form.title.length, 200]}>
+                {(p) => (
+                  <TextInput
+                    {...p}
+                    value={form.title}
+                    maxLength={200}
+                    className="text-md font-medium"
+                    onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                  />
+                )}
+              </Field>
+              {form.sections.map((s, i) => (
+                <SectionField
+                  key={s.title}
+                  title={s.title}
+                  content={s.content}
+                  onChange={(content) =>
+                    setForm((f) => ({ ...f, sections: f.sections.map((x, j) => (j === i ? { ...x, content } : x)) }))
+                  }
+                />
               ))}
-            </ul>
+            </FormPanel>
+
+            {form.checks.length > 0 || record.type !== 'decision' ? (
+              <FormPanel
+                title={
+                  <>
+                    Checks <span className="font-normal text-fg-2">· {form.checks.length}</span>
+                  </>
+                }
+                note="A changed check keeps its code; a dropped one stays in earlier versions."
+              >
+                <ol className="flex flex-col gap-3">
+                  {form.checks.map((c, i) => (
+                    <CheckEditor
+                      key={c.key}
+                      check={c}
+                      index={i}
+                      onChange={update}
+                      onRemove={() => remove(c.key)}
+                      editsKept={!!edits[c.key]}
+                    />
+                  ))}
+                </ol>
+                <Button className="self-start" icon={<PlusIcon size={14} />} onClick={() => setForm(addCheck)}>
+                  Add a check
+                </Button>
+              </FormPanel>
+            ) : null}
+
+            {carried && carried.unknown.length > 0 ? (
+              <Notice tone="warning">
+                {carried.unknown.length} {carried.unknown.length === 1 ? 'link points' : 'links point'} to a version that is no
+                longer shown: {carried.unknown.length === 1 ? 'it is' : 'they are'} not carried.
+              </Notice>
+            ) : null}
+            <LinksEditor
+              targets={linkTargets(state, record.code)}
+              links={links ?? []}
+              carried={carried?.carried ?? []}
+              onChange={setLinks}
+              note="The links of the base version are carried as they are; remove any that no longer holds, or add new ones."
+            />
           </div>
-        )}
-        {command.error ? <Reasons error={command.error} /> : null}
-        <Button variant="secondary" disabled={!ready || command.isPending} onClick={save}>
-          {command.isPending ? 'Saving…' : 'Save draft'}
-        </Button>
-        <Link to="/p/$projectId/records/$code" params={{ projectId, code: record.code }} className={buttonClass('text')}>
-          Cancel
-        </Link>
-      </section>
+          <aside aria-label="This new version" className="flex w-full shrink-0 flex-col gap-4 xl:sticky xl:top-4 xl:w-80">
+            <section className="flex flex-col gap-3 rounded-lg border border-edge bg-panel p-4">
+              <h2 className="text-base font-semibold text-fg">This new version</h2>
+              <p className="flex flex-wrap items-center gap-2 text-sm text-fg-2">
+                <StatusBadge kind="proposed" word="Draft" />
+                <span>
+                  <Code className="text-fg">v{next}</Code>, from v{base.n}. Nothing changes until you approve it.
+                </span>
+              </p>
+              <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 border-t border-edge-subtle pt-3 text-sm">
+                {(
+                  [
+                    ['Kept', counts.kept],
+                    ['Changed', counts.changed],
+                    ['Dropped', counts.dropped],
+                    ['New', counts.added],
+                  ] as const
+                )
+                  .filter(([, n]) => n > 0)
+                  .map(([word, n]) => (
+                    <div key={word} className="contents">
+                      <dt className="text-fg-2">{word}</dt>
+                      <dd className="font-medium text-fg tabular-nums">{n}</dd>
+                    </div>
+                  ))}
+              </dl>
+              {choices.length === 0 ? <p className="text-sm text-fg-2">No check has a choice yet.</p> : null}
+            </section>
+            <MissingList missing={miss} />
+          </aside>
+        </div>
+        <SaveFooter
+          summary={
+            <>
+              v{next} as a draft{choices.length > 0 ? ` · checks: ${choices.join(', ')}` : ''}
+            </>
+          }
+          missing={miss}
+          error={command.error}
+          pending={command.isPending}
+          canSave={ready}
+          onSave={save}
+          onCancel={back}
+        />
+      </PageBody>
+      {guard.dialog}
     </>
-  );
-
-  return (
-    <Page aside={aside} className="[&>*]:max-w-[900px]">
-      <Breadcrumbs
-        items={[
-          { label: 'Product', to: '/p/$projectId', params: { projectId } },
-          { label: base.title, to: '/p/$projectId/records/$code', params: { projectId, code: record.code } },
-          { label: 'New version' },
-        ]}
-      />
-      <header className="mb-6 flex flex-col gap-1.5">
-        <span className="dm-label flex items-center gap-1.5">
-          <TypeIcon kind={RECORD_ICON[record.type] ?? 'feature'} size={14} />
-          {TYPE_WORDS[record.type]}
-          <span className="dm-sep" aria-hidden="true">
-            ·
-          </span>
-          <Code className="tracking-normal normal-case">
-            {record.code} · from v{base.n}
-          </Code>
-        </span>
-        <h1 className="dm-text-page-title text-balance">New version of {base.title}</h1>
-        <p className="dm-text-body text-ink-3">Say what changes, then choose what happens to each check.</p>
-      </header>
-
-      <div className="flex flex-col gap-6">
-        <section className="flex flex-col gap-1.5 rounded-card border border-line bg-surface px-6 py-5">
-          <label htmlFor={noteId} className="dm-text-heading">
-            What changed
-          </label>
-          <p id={`${noteId}-hint`} className="dm-text-small text-ink-3">
-            Required. It tells whoever reads this version what it changes and why.
-          </p>
-          <textarea
-            id={noteId}
-            value={form.note}
-            rows={3}
-            maxLength={2000}
-            aria-describedby={`${noteId}-hint`}
-            aria-required="true"
-            onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
-            className={`${field} mt-1`}
-          />
-        </section>
-
-        <section className="flex flex-col gap-4 rounded-card border border-line bg-surface px-6 py-5">
-          <div className="flex flex-col gap-1">
-            <label htmlFor={titleId} className="dm-label">
-              Title
-            </label>
-            <input
-              id={titleId}
-              value={form.title}
-              maxLength={200}
-              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-              className={titleField}
-            />
-          </div>
-          {form.sections.map((s, i) => (
-            <Section
-              key={s.title}
-              title={s.title}
-              content={s.content}
-              onChange={(content) =>
-                setForm((f) => ({ ...f, sections: f.sections.map((x, j) => (j === i ? { ...x, content } : x)) }))
-              }
-            />
-          ))}
-        </section>
-
-        {(form.checks.length > 0 || record.type !== 'decision') && (
-          <section aria-labelledby={`${titleId}-checks`} className="flex flex-col gap-2.5">
-            <div className="flex items-baseline justify-between gap-3">
-              <h2 id={`${titleId}-checks`} className="dm-text-caption font-semibold text-muted">
-                Checks <span className="font-normal">· {form.checks.length}</span>
-              </h2>
-              <span className="dm-text-caption text-muted">
-                A changed check keeps its code; a dropped one stays in earlier versions.
-              </span>
-            </div>
-            <ol className="flex flex-col gap-2.5">
-              {form.checks.map((c, i) => (
-                <CheckEditor key={c.key} check={c} index={i} onChange={update} onRemove={() => remove(c.key)} />
-              ))}
-            </ol>
-            <Button variant="secondary" className="self-start" onClick={() => setForm(addCheck)}>
-              <PlusIcon size={14} />
-              Add a check
-            </Button>
-          </section>
-        )}
-
-        <LinksEditor targets={linkTargets(state, record.code)} links={added} onChange={setAdded} />
-      </div>
-    </Page>
-  );
-}
-
-/** A template section in markdown (also used by New record). */
-export function Section({ title, content, onChange }: { title: string; content: string; onChange: (content: string) => void }) {
-  const id = useId();
-  const rows = Math.min(18, Math.max(3, content.split('\n').length + 1));
-  return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-baseline justify-between">
-        <label htmlFor={id} className="dm-label">
-          {title}
-        </label>
-        <span id={`${id}-hint`} className="dm-text-caption text-muted">
-          Markdown
-        </span>
-      </div>
-      <textarea
-        id={id}
-        value={content}
-        rows={rows}
-        aria-describedby={`${id}-hint`}
-        onChange={(e) => onChange(e.target.value)}
-        className={`${field} leading-relaxed`}
-      />
-    </div>
   );
 }

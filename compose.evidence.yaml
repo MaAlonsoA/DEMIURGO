@@ -2,7 +2,8 @@
 # Its own compose project, demiurgo-evidence, with its own volumes: `pnpm snap`, `pnpm db:down -v` and
 # `docker compose down -v` of the other projects never touch it. Never demiurgo-stable nor port 8000.
 # The ingester (`pnpm evidence serve`, 127.0.0.1:4319) runs on the host; the collector reaches it through
-# host.docker.internal.
+# host.docker.internal. Start it with `pnpm evidence:up` (packages/evidence/src/up.ts): it generates the
+# untracked `packages/evidence/.env` with the Phoenix secrets and passes it to compose as --env-file.
 name: demiurgo-evidence
 services:
   postgres:
@@ -37,24 +38,37 @@ services:
       - evidence-archive:/archive
       - evidence-queue:/queue
       - ./packages/evidence/collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    environment:
+      # The bearer token of the Phoenix exporter (config.yaml reads it as ${env:PHOENIX_SYSTEM_KEY}).
+      PHOENIX_SYSTEM_KEY: ${PHOENIX_SYSTEM_KEY:?set in packages/evidence/.env (pnpm evidence:up creates it)}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     # No healthcheck: the contrib image is built on scratch (no shell, curl or wget), so nothing can run
     # inside it. Check from the host instead: curl -s http://127.0.0.1:13133/ (health_check extension).
     restart: unless-stopped
 
-  # phoenix (phase 4): arizephoenix/phoenix pinned by digest, 127.0.0.1:6006, PHOENIX_SQL_DATABASE_URL to the
-  # `phoenix` database of this postgres; the collector's otlp_grpc/phoenix exporter sends it traces only.
-  # phoenix:
-  #   image: arizephoenix/phoenix:<tag>@sha256:<digest>
-  #   environment:
-  #     PHOENIX_SQL_DATABASE_URL: postgresql://evidence:evidence-local@postgres:5432/phoenix
-  #   ports:
-  #     - "127.0.0.1:6006:6006"
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #   restart: unless-stopped
+  # Phoenix (phase 4, spec §12): the trace viewer, on the `phoenix` database of this postgres. It only
+  # receives traces, from the collector's otlp_grpc/phoenix exporter over the compose network (its gRPC
+  # port 4317 is not published on the host). Authentication is on: the secrets come from the untracked
+  # packages/evidence/.env (see .env.example); sign in as admin@localhost with PHOENIX_ADMIN_PASSWORD.
+  # The collector ingests with the admin secret as its bearer token (Phoenix accepts it on the OTLP
+  # receivers), so no API key has to be created by hand after the first start.
+  phoenix:
+    image: arizephoenix/phoenix:version-20.16.0@sha256:d55a4ffac8c670e2d0bf72e44e81e32a73e832b7ce449e6e4567487adfa9d8d6
+    environment:
+      PHOENIX_SQL_DATABASE_URL: postgresql://evidence:evidence-local@postgres:5432/phoenix
+      PHOENIX_ENABLE_AUTH: "true"
+      PHOENIX_SECRET: ${PHOENIX_SECRET:?set in packages/evidence/.env (pnpm evidence:up creates it)}
+      PHOENIX_ADMIN_SECRET: ${PHOENIX_SYSTEM_KEY:?set in packages/evidence/.env (pnpm evidence:up creates it)}
+      PHOENIX_DEFAULT_ADMIN_INITIAL_PASSWORD: ${PHOENIX_ADMIN_PASSWORD:?set in packages/evidence/.env (pnpm evidence:up creates it)}
+      # Nothing leaves the machine: Phoenix's own usage analytics are off.
+      PHOENIX_TELEMETRY_ENABLED: "false"
+    ports:
+      - "127.0.0.1:6006:6006"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
 
   # metabase (phase 5): pinned by digest, 127.0.0.1:3300, own volume evidence-metabase, reads demiurgo_evidence
   # as evidence_reader.

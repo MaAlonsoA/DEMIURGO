@@ -28,6 +28,7 @@ import {
 } from '../agents/claude-cli.ts';
 import { type Launcher, type ProcessEnd, isExecutableNotFound, nodeLauncher } from '../agents/process.ts';
 import { allowedEnv, otelResourceAttributes, processEnv } from '../env.ts';
+import { claudeConfigDir, findClaudeTranscript } from '../observe/transcripts.ts';
 import { lineSplitter, messageOf, waitForOutcome } from './stream.ts';
 
 export const CLAUDE_PROVIDER = 'claude';
@@ -383,7 +384,14 @@ export function createClaudeProvider(options: CliProviderOptions = {}): Provider
               details,
             };
             const sessionId = inv.session.mode === 'resumed' ? inv.session.id : (ownSession ?? sessionOf(all));
-            return inv.session.mode === 'none' || !sessionId ? result : { ...result, sessionId };
+            if (inv.session.mode === 'none' || !sessionId) return result;
+            // The transcript the CLI left for this session (§5.4), when it can be found; never a failure.
+            const transcriptPath = await findClaudeTranscript(claudeConfigDir(origin()), cwd, sessionId).catch(() => null);
+            return {
+              ...result,
+              sessionId,
+              ...(transcriptPath ? { details: { ...details, transcriptPath } } : {}),
+            };
           }
         }
       } catch (e) {

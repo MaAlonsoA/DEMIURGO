@@ -22,12 +22,12 @@ processors:
   batch:
     timeout: 2s
     send_batch_size: 512
-  # Phoenix pipeline only (phase 4): the raw usage payload is for the evidence base, not for the viewer.
+  # Phoenix pipeline only: the raw usage payload is for the evidence base, not for the viewer.
   attributes/phoenix:
     actions:
       - key: demiurgo.usage.raw
         action: delete
-  # Phoenix pipeline only (phase 4): keep every attribute under 64 000 characters.
+  # Phoenix pipeline only: keep every attribute under 64 000 characters.
   transform/phoenix:
     error_mode: ignore
     trace_statements:
@@ -35,6 +35,13 @@ processors:
         statements:
           - truncate_all(attributes, 64000)
           - truncate_all(resource.attributes, 64000)
+  # Phoenix pipeline only: one Phoenix project per environment (§12). Phoenix reads the resource
+  # attribute `openinference.project.name`; the environment (`real`, `qa`, `dev`) is copied into it.
+  resource/phoenix:
+    attributes:
+      - key: openinference.project.name
+        from_attribute: deployment.environment.name
+        action: insert
 
 exporters:
   # The ingester (`pnpm evidence serve`) on the host, OTLP/JSON. It answers 200 only after committing;
@@ -69,11 +76,18 @@ exporters:
   # Troubleshooting only; not wired into any pipeline.
   debug:
     verbosity: basic
-  # Phoenix (phase 4): traces only, over the compose network.
-  # otlp_grpc/phoenix:
-  #   endpoint: phoenix:4317
-  #   tls:
-  #     insecure: true
+  # Phoenix: traces only, over the compose network. Phoenix runs with authentication on and accepts
+  # its admin secret as the bearer token of the OTLP ingest; compose passes it to this container as
+  # PHOENIX_SYSTEM_KEY from the untracked packages/evidence/.env.
+  otlp_grpc/phoenix:
+    endpoint: phoenix:4317
+    tls:
+      insecure: true
+    headers:
+      authorization: Bearer ${env:PHOENIX_SYSTEM_KEY}
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 300s
 
 extensions:
   file_storage/queue:
@@ -98,8 +112,8 @@ service:
       receivers: [otlp]
       processors: [memory_limiter, batch]
       exporters: [file/archive]
-    # Phoenix (phase 4): traces only, trimmed.
-    # traces/phoenix:
-    #   receivers: [otlp]
-    #   processors: [memory_limiter, attributes/phoenix, transform/phoenix, batch]
-    #   exporters: [otlp_grpc/phoenix]
+    # Phoenix: traces only, trimmed, one project per environment. Logs never go to Phoenix.
+    traces/phoenix:
+      receivers: [otlp]
+      processors: [memory_limiter, attributes/phoenix, transform/phoenix, resource/phoenix, batch]
+      exporters: [otlp_grpc/phoenix]

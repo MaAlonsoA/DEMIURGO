@@ -25,6 +25,7 @@ import {
 import type { Db } from '../db/connection.ts';
 import { uuidV7 } from '../observe/ids.ts';
 import type { Attributes, Observer } from '../observe/observer.ts';
+import { type TranscriptCapture, captureTranscript } from '../observe/transcripts.ts';
 import { OPENCODE_PROVIDER } from '../providers/opencode.ts';
 
 /** The session as DEMIURGO sees it (§5.4): the id it decided, the mode, the base and the delta. */
@@ -120,7 +121,12 @@ function traceFor(observer: Observer, traceParent: string, meta: CallMeta, callI
 }
 
 /** The attributes of the call known once it ended (§6.2): usage, model, times, what the CLI reported, failure. */
-function closingAttributes(observer: Observer, provider: Provider, result: AgentResult): Attributes {
+function closingAttributes(
+  observer: Observer,
+  provider: Provider,
+  result: AgentResult,
+  transcript: TranscriptCapture | null,
+): Attributes {
   const details = result.details;
   const rawUsage = details?.rawUsage ?? result.usage;
   const attrs: Attributes = {
@@ -136,6 +142,8 @@ function closingAttributes(observer: Observer, provider: Provider, result: Agent
     [ATTR.cliStopReason]: details?.stopReason,
     [ATTR.cliStderrHash]: details?.stderr ? observer.text('stderr', details.stderr) : undefined,
     [ATTR.transcriptPath]: details?.transcriptPath,
+    [ATTR.transcriptSize]: transcript?.size,
+    [ATTR.transcriptHash]: transcript?.hash,
   };
   // Codex never says which model answered: the observed model is the requested one (§6.2).
   if (provider.id === 'codex') attrs[ATTR.modelObservedProvenance] = NOT_REPORTED;
@@ -258,6 +266,7 @@ export async function callProvider(
       };
     }
     await writing;
+    const transcript = await recordTranscript(observer, id, meta, result);
     await db
       .updateTable('agent_calls')
       .set({
@@ -271,10 +280,40 @@ export async function callProvider(
       })
       .where('id', '=', id)
       .execute();
-    span.setAttributes(closingAttributes(observer, provider, result));
+    span.setAttributes(closingAttributes(observer, provider, result, transcript));
     if (result.state === 'error') span.setStatus('error', { type: result.failureKind, message: result.message });
     return result;
   });
+}
+
+/**
+ * The transcript of the CLI after the call (§5.4): what the file holds now, and what it gained since
+ * the last call of that session in this process, emitted as a `transcript_chunk` text tagged with the
+ * session and the byte offset. Nothing here fails the call: without a readable file, nothing is
+ * recorded. After a restart the chunk starts at offset 0 again; the ingester deduplicates it.
+ */
+async function recordTranscript(
+  observer: Observer,
+  callId: string,
+  meta: CallMeta,
+  result: AgentResult,
+): Promise<TranscriptCapture | null> {
+  const path = result.details?.transcriptPath;
+  if (!path) return null;
+  try {
+    const transcript = await captureTranscript(path);
+    if (transcript && transcript.chunk.length > 0) {
+      observer.text('transcript_chunk', transcript.chunk, {
+        [ATTR.sessionId]: meta.session.id ?? result.sessionId ?? null,
+        [ATTR.transcriptOffset]: transcript.offset,
+        [ATTR.transcriptPath]: path,
+        [ATTR.callId]: callId,
+      });
+    }
+    return transcript;
+  } catch {
+    return null;
+  }
 }
 
 /**

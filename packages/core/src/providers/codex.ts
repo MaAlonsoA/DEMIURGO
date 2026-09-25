@@ -22,6 +22,7 @@ import {
 import { type ClaudeExecutable, lineLength, resolveExecutable } from '../agents/claude-cli.ts';
 import { type ProcessEnd, isExecutableNotFound, nodeLauncher } from '../agents/process.ts';
 import { allowedEnv, otelResourceAttributes, processEnv } from '../env.ts';
+import { codexHome, findCodexTranscript } from '../observe/transcripts.ts';
 import type { CliProviderOptions } from './claude.ts';
 import { strictSchema } from './schema-variants.ts';
 import { lineSplitter, messageOf, waitForOutcome } from './stream.ts';
@@ -382,9 +383,17 @@ export function createCodexProvider(options: CliProviderOptions = {}): Provider 
           ...(summary.lastTurn ? { rawUsage: summary.lastTurn } : {}),
           extra: { lastMessageRaw: last, ...(summary.threadId ? { threadId: summary.threadId } : {}) },
         };
+        // The rollout Codex left for this thread (§5.4), when it can be found; never a failure.
+        const threadId = inv.session.mode === 'resumed' ? inv.session.id : summary.threadId;
+        const transcriptPath =
+          inv.session.mode !== 'none' && threadId
+            ? await findCodexTranscript(codexHome(origin()), threadId).catch(() => null)
+            : null;
+        if (transcriptPath) details = { ...details, transcriptPath };
         const withSession = (r: AgentResult): AgentResult => {
           const id = inv.session.mode === 'resumed' ? inv.session.id : summary.threadId;
-          return inv.session.mode === 'none' || !id ? r : { ...r, sessionId: id };
+          if (inv.session.mode === 'none' || !id) return r;
+          return { ...r, sessionId: id, ...(details ? { details } : {}) };
         };
         if (!text) {
           const detail = summary.error ?? (end.stderr.trim() || `it ended with code ${end.code ?? 'unknown'}`);

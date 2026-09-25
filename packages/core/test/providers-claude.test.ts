@@ -2,7 +2,7 @@
 // fixtures in `fixtures/claude/` (the stream ones are built from a recorded result: see their
 // `synthetic` suffix): the real CLI is never called.
 
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CLI_ENV, type ProviderEvent, type ProviderInvocation, type ProviderTrace, jsonSchemaOf } from '@demiurgo/domain';
@@ -163,6 +163,32 @@ describe('Claude provider', () => {
     expect(second?.args).not.toContain('--session-id');
     expect(second?.cwd).toBe(directory);
     expect(resumed.sessionId).toBe('abc-123');
+  });
+
+  it('after a call with a session the details name the transcript Claude Code left under its config folder', async () => {
+    const directory = sessionFolder();
+    const config = sessionFolder();
+    const id = '0199a213-81c0-4800-8aa1-bbab2a035a53';
+    const { launcher } = scriptedLauncher(() => ({ stdout: fixture('claude/stream-ok.synthetic.jsonl') }));
+    const withConfig = createClaudeProvider({
+      launcher,
+      executable: 'claude',
+      environment: { ...environment, CLAUDE_CONFIG_DIR: config },
+    });
+    // Not written yet (the CLI did not persist anything): no path.
+    const before = await withConfig.run(invocation({ session: { mode: 'fresh', directory, id } }));
+    expect(before.details).not.toHaveProperty('transcriptPath');
+    // What the CLI writes: projects/<cwd with every non-alphanumeric character as a dash>/<session id>.jsonl.
+    const project = join(config, 'projects', directory.replace(/[^A-Za-z0-9]/g, '-'));
+    mkdirSync(project, { recursive: true });
+    writeFileSync(join(project, `${id}.jsonl`), '{"type":"user"}\n');
+    const fresh = await withConfig.run(invocation({ session: { mode: 'fresh', directory, id } }));
+    expect(fresh.details?.transcriptPath).toBe(join(project, `${id}.jsonl`));
+    const resumed = await withConfig.run(invocation({ session: { mode: 'resumed', directory, id } }));
+    expect(resumed.details?.transcriptPath).toBe(join(project, `${id}.jsonl`));
+    // Without a session there is no transcript to look for.
+    const none = await withConfig.run(invocation());
+    expect(none.details).not.toHaveProperty('transcriptPath');
   });
 
   it('AC-AGE-001-02 AC-AGE-002-10 the stream fixture gives ok with usage, provenance, observed model and ordered events', async () => {

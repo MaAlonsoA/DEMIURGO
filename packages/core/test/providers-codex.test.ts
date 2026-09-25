@@ -2,7 +2,7 @@
 // in `fixtures/codex/` (models.json is recorded; the event streams are built from Codex's documented
 // JSONL: see their `synthetic` suffix): the real CLI is never called.
 
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CLI_ENV, type ProviderEvent, type ProviderInvocation, type ProviderTrace, jsonSchemaOf } from '@demiurgo/domain';
@@ -117,6 +117,28 @@ describe('Codex provider', () => {
       failureKind: 'agent_error',
       details: { extra: { lastMessageRaw: 'not json at all' } },
     });
+  });
+
+  it('after a call with a session the details name the rollout Codex left under CODEX_HOME/sessions', async () => {
+    const home = folder();
+    const thread = '0199a213-81c0-7800-8aa1-bbab2a035a53';
+    const { answer } = codexAnswer('codex/exec-ok.synthetic.jsonl', fixture('codex/last-message.json'));
+    const { launcher } = scriptedLauncher(answer);
+    const withHome = createCodexProvider({ launcher, executable: 'codex', environment: { ...environment, CODEX_HOME: home } });
+    const before = await withHome.run(invocation({ session: { mode: 'fresh', directory: folder() } }));
+    expect(before.details).not.toHaveProperty('transcriptPath');
+    // What Codex writes: sessions/YYYY/MM/DD/rollout-YYYY-MM-DDTHH-MM-SS-<thread id>.jsonl.
+    const day = join(home, 'sessions', '2026', '09', '26');
+    mkdirSync(day, { recursive: true });
+    const rollout = join(day, `rollout-2026-09-26T10-00-00-${thread}.jsonl`);
+    writeFileSync(rollout, '{"type":"session_meta"}\n');
+    const fresh = await withHome.run(invocation({ session: { mode: 'fresh', directory: folder() } }));
+    expect(fresh.sessionId).toBe(thread);
+    expect(fresh.details?.transcriptPath).toBe(rollout);
+    const resumed = await withHome.run(invocation({ session: { mode: 'resumed', directory: folder(), id: thread } }));
+    expect(resumed.details?.transcriptPath).toBe(rollout);
+    const none = await withHome.run(invocation());
+    expect(none.details).not.toHaveProperty('transcriptPath');
   });
 
   it('AC-AGE-002-06 invokes codex exec with JSON events, output schema, model, effort, instructions and no tools', async () => {

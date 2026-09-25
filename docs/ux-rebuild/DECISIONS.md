@@ -332,3 +332,46 @@ Format: **D-NNN · title**, then *Decision*, *Alternatives*, *Why* and *Source*.
   R82). What the person already typed is never asked for again (R87), and a second project created by
   a retry is lost work (INVENTORY §2 #10).
 - *Source:* DESIGN §3.9; report g6.
+
+**D-023 · Needs you as a queue and a detail, and the batch pages (group g1)**
+- *Decision:*
+  - Needs you is a split view: the queue on the left is a single-select listbox, and the detail on
+    the right holds the decision bar. Under 1280 px it is one column with "Back to Needs you".
+  - The queue never reorders under the person: new items join the end of their group.
+  - After a decision the item leaves, the result is announced ("… n left in Needs you"), and focus
+    moves to the next item. Needs you follows successful commands in the mutation cache, because the
+    component that ran the command has already unmounted.
+  - Catch up keeps its walk in sessionStorage for 2 hours. The Catch up button, Leave and "Back to
+    Needs you" reset it; any other entry resumes it, so a package opened from Catch up leads back.
+  - A blocked Accept stays visible and inactive, with its reason. Only the link verdict "Out of date"
+    asks first; Keep and Mark as changed run at once. "Accept my version" keeps a single confirmation
+    that lists the changed fields.
+  - After a decision on a batch page, the page moves to the next pending proposal. An unsaved Change
+    is guarded, both in the page and on route change.
+  - The 4-item "In this order" preview is dropped (INV-NEED-05, PARTIAL): Catch up's walk shows the
+    order.
+- *Alternatives:* keep the dense list with inline buttons; a separate triage screen.
+- *Why:* the inbox and triage pattern from Linear, GitHub and the LangChain Agent Inbox (R19, R30,
+  R33). Results are status messages (R80), and the listbox follows the keyboard interface (R93). A
+  control that vanishes explains nothing; an inactive one with its reason does.
+- *Source:* DESIGN §3.1, §3.2; report g1.
+
+**D-024 · Threads and the thread (group g2)**
+- *Decision:*
+  - The Threads list is a treegrid with a state filter. The filter keeps the threads a match sits
+    inside, so the nesting still reads. With no threads, "New thread" lives only in the empty state.
+  - "Confirm and send" tries every item and reports each one; what fails stays as a draft
+    (INV-THR-41 changed).
+  - While the composer answers a question, Ask DEMIURGO is hidden and Ctrl+Enter keeps the answer. A
+    picked radio option can't be clicked off, so a Clear button removes the draft.
+  - A Go deeper run's observations stay in its side conversation. Go deeper stays open, with a notice,
+    when its question is settled elsewhere.
+  - The working card shows one clock, the run's. Cancel confirms as on the run page (D-020). The
+    failed card puts the fitting retry first.
+  - Under 1024 px, the side column and Go deeper open as sheets.
+  - Drafts sync across tabs, and are dropped when their question or suggestion is settled elsewhere.
+- *Alternatives:* a flat list with indentation only; stop "Confirm and send" at the first failure.
+- *Why:* the tree follows the treegrid pattern (R98), and the conversation is a log whose additions
+  are announced (R92). What the person wrote is never lost or asked for again (R87). Draft review
+  before sending follows Gerrit's drafts (R68).
+- *Source:* DESIGN §3.3; report g2.

@@ -41,7 +41,7 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
   const chosen = trimByBudget(messages, (m) => m.body.length, BUDGET.messages).toReversed();
   const questions = await trx
     .selectFrom('questions')
-    .select(['id', 'question', 'state', 'conclusion', 'impact', 'options'])
+    .select(['id', 'question', 'reason', 'state', 'conclusion', 'impact', 'options'])
     .where('exploration_id', '=', exploration.id)
     .where('state', '<>', 'discarded')
     .orderBy('created_at')
@@ -59,7 +59,7 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
   const stageQuestions = stage
     ? await trx
         .selectFrom('questions')
-        .select(['id', 'question', 'state', 'conclusion', 'impact', 'options'])
+        .select(['id', 'question', 'reason', 'state', 'conclusion', 'impact', 'options'])
         .where('stage_id', '=', stage.id)
         .where('stage_key', 'is not', null)
         .where('state', 'not in', [...COVERED_QUESTION_STATES])
@@ -128,6 +128,7 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
       questions: questions.map((q) => ({
         id: q.id,
         question: q.question,
+        reason: q.reason,
         state: q.state,
         conclusion: q.conclusion,
         impact: q.impact,
@@ -203,7 +204,7 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
     });
   }
   for (const suggestion of output.question_options) {
-    if (suggestion.options.length === 0) continue;
+    if (suggestion.options.length === 0 && !suggestion.question) continue;
     const q = await trx.selectFrom('questions').select(['state', 'exploration_id']).where('id', '=', suggestion.question_id).executeTakeFirst();
     if (q?.state !== 'pending') continue;
     await execute({
@@ -211,7 +212,11 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
       command: 'question.suggest_options',
       actor: system('exploration'),
       entityId: suggestion.question_id,
-      data: { options: suggestion.options },
+      data: {
+        options: suggestion.options,
+        ...(suggestion.question ? { question: suggestion.question } : {}),
+        ...(suggestion.reason ? { reason: suggestion.reason } : {}),
+      },
     });
   }
   // Only pending questions that were in this run's context pack get inferred.

@@ -30,3 +30,4 @@ Predefined answers (`options`): the person should be able to answer with one cli
 - The `reason` of a question says why its answer matters now, in plain words, not a methodology name.
 - Don't add "Other": the person can always write their own answer.
 
+Language: write every question, reason and option in the language the person writes in. The design engine's mandatory questions come in English: when a pending question in the context is in another language than the person's, give it in `question_options` with `question` and `reason` rewritten in the person's language, same meaning (null when it is already in their language).

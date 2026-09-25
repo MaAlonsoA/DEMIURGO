@@ -311,14 +311,29 @@ registerHandlers({
   }),
 
   'question.suggest_options': handler({
-    data: z.object({ options: z.array(questionOption).max(4) }).strict(),
+    data: z
+      .object({
+        options: z.array(questionOption).max(4),
+        // The same question in the person's language; the stage key keeps which one it is.
+        question: text(1000).optional(),
+        reason: z.string().trim().max(1000).optional(),
+      })
+      .strict(),
     async apply(ctx, data, e) {
       await ctx.trx
         .updateTable('questions')
-        .set({ options: JSON.stringify(data.options) })
+        .set({
+          options: JSON.stringify(data.options),
+          ...(data.question ? { question: data.question } : {}),
+          ...(data.reason ? { reason: data.reason } : {}),
+        })
         .where('id', '=', e?.id ?? '')
         .execute();
-      return { entityId: e?.id ?? '', before: { options: e?.row.options ?? [] }, after: data };
+      return {
+        entityId: e?.id ?? '',
+        before: { options: e?.row.options ?? [], question: e?.row.question, reason: e?.row.reason },
+        after: data,
+      };
     },
   }),
 

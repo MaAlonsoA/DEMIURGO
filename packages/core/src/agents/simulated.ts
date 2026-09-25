@@ -73,7 +73,7 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
         .map((q) => ({ question_id: q.id, options: [
           { answer: 'Yes', implies: 'It becomes a requirement of the first version.' },
           { answer: 'Not for now', implies: 'It stays out of scope; it can come back later.' },
-        ] })),
+        ], question: null, reason: null })),
       inferences: [],
       proposals: [],
     };

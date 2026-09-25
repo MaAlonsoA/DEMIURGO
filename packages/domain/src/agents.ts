@@ -145,9 +145,19 @@ export const explorationChatOutput = z
           .strict(),
       )
       .max(5),
-    // Likely answers for questions already pending in the context pack (e.g. a stage's mandatory ones).
+    // Likely answers for questions already pending in the context pack (e.g. a stage's mandatory ones),
+    // and their wording in the person's language when they were written in another (null keeps it).
     question_options: z
-      .array(z.object({ question_id: z.string().uuid(), options: z.array(questionOption).max(4) }).strict())
+      .array(
+        z
+          .object({
+            question_id: z.string().uuid(),
+            options: z.array(questionOption).max(4),
+            question: text(500).nullable(),
+            reason: text(500).nullable(),
+          })
+          .strict(),
+      )
       .max(8),
     inferences: z
       .array(z.object({ question_id: z.string().uuid(), conclusion: text(1500), reasoning: text(1500) }).strict())

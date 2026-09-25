@@ -2,6 +2,7 @@
 // knowledge classifier per project (whatever engine the person assigned), and the durable engine
 // running. The providers' catalogs are discovered again in the background, without spending quota.
 
+import { seedDefaultEngines } from './assignments/defaults.ts';
 import { system } from '@demiurgo/domain';
 import { createSimulatedProvider } from './agents/simulated.ts';
 import { refreshCatalogs } from './assignments/catalogs.ts';
@@ -33,6 +34,8 @@ export async function startCore(config: Config, logger: Logger = consoleLogger):
   const connection = connect(config.databaseUrl);
   const applied = await migrate(connection.pool);
   if (applied.length) logger.info('Migrations applied', { applied });
+  const seeded = await seedDefaultEngines(connection.db);
+  if (seeded.length) logger.info('Default engines assigned', { agents: seeded });
   const providers = createProviders(config);
   const engine = await startEngine(
     {

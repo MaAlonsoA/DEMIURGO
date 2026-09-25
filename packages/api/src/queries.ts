@@ -22,6 +22,7 @@ import {
   changesSince,
   productJourneys,
   productMap,
+  projectUsage,
 } from '@demiurgo/core';
 import type { Credential } from './credentials.ts';
 
@@ -232,6 +233,12 @@ registerQueries([
     path: '/api/projects/:projectId/knowledge/idea-assessments',
     queryName: 'query.knowledge',
     respond: ({ services, params }) => ideaAssessments(services.db, uuid(params.projectId, 'project')),
+  },
+  {
+    // What the project's agents consumed, per agent (observability).
+    path: '/api/projects/:projectId/usage',
+    queryName: 'query.runs',
+    respond: ({ services, params }) => projectUsage(services.db, uuid(params.projectId, 'project')),
   },
   {
     // Design stages: the fixed catalog with, for each opened stage, its thread and the coverage

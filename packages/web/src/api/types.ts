@@ -580,3 +580,13 @@ export type StageRow = {
   covered: number;
   questions: { id: string; key: string; question: string; state: string }[];
 };
+
+export type ProjectUsageRow = {
+  agent: string;
+  calls: number;
+  failures: number;
+  inputTokens: number;
+  outputTokens: number;
+  declaredCostUsd: number;
+  avgDurationMs: number | null;
+};

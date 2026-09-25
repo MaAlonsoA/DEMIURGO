@@ -15,6 +15,7 @@ import { ACTION_WORDS, STATE_WORDS, failureWord } from '../../words.ts';
 import { useNow } from '../run/hooks.ts';
 import { RUN_STATES, askedBy, runDuration } from '../run/runs.ts';
 import { isActive } from '../thread/timeline.ts';
+import { ProjectUsage } from './Usage.tsx';
 
 type RunState = (typeof RUN_STATES)[number];
 const isRunState = (s: string | undefined): s is RunState => !!s && (RUN_STATES as readonly string[]).includes(s);
@@ -41,6 +42,7 @@ export function ActivityScreen() {
             : 'What DEMIURGO did and is doing, run by run.'
         }
       />
+      <ProjectUsage projectId={projectId} />
       <nav aria-label="Filter by state" className="mb-4 flex flex-wrap items-center gap-2">
         <FilterLink projectId={projectId} label="All" count={all.data?.length} current={!filter} />
         {RUN_STATES.map((s) => (

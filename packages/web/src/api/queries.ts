@@ -19,6 +19,7 @@ import type {
   Project,
   Readiness,
   StageRow,
+  ProjectUsageRow,
   RecordDetail,
   RunDetail,
   RunListItem,
@@ -182,3 +183,7 @@ export const entityEventsQuery = (p: string, entityId: string) =>
 /** The design stages of the project (design engine) with the coverage of their mandatory questions. */
 export const stagesQuery = (p: string) =>
   queryOptions({ queryKey: ['p', p, 'stages'] as const, queryFn: () => get<StageRow[]>(`${P(p)}/stages`) });
+
+/** What the project's agents consumed, per agent. Under 'runs' so every run event refreshes it. */
+export const usageQuery = (p: string) =>
+  queryOptions({ queryKey: ['p', p, 'runs', 'usage'] as const, queryFn: () => get<ProjectUsageRow[]>(`${P(p)}/usage`) });

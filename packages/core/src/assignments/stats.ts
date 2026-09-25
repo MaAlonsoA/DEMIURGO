@@ -108,6 +108,45 @@ export async function consumption(db: Db, now: Date): Promise<Consumption> {
   };
 }
 
+export type ProjectUsageRow = {
+  agent: string;
+  calls: number;
+  failures: number;
+  inputTokens: number;
+  outputTokens: number;
+  declaredCostUsd: number;
+  avgDurationMs: number | null;
+};
+
+/** What the project's agents consumed, per agent, all time: calls, failures, tokens, cost and duration. */
+export async function projectUsage(db: Db, projectId: string): Promise<ProjectUsageRow[]> {
+  const { rows } = await sql<{
+    agent: string;
+    calls: string;
+    failures: string;
+    input: string;
+    output: string;
+    cost: string;
+    avg_duration: string | null;
+  }>`
+    select agent, count(*) as calls, count(*) filter (where state = 'error') as failures,
+      coalesce(sum((usage->>'inputTokens')::numeric), 0) as input,
+      coalesce(sum((usage->>'outputTokens')::numeric), 0) as output,
+      coalesce(sum((usage->>'declaredCostUsd')::numeric), 0) as cost,
+      avg((usage->>'durationMs')::numeric) as avg_duration
+    from agent_calls where project_id = ${projectId}::uuid
+    group by agent order by agent`.execute(db);
+  return rows.map((r) => ({
+    agent: r.agent,
+    calls: Number(r.calls),
+    failures: Number(r.failures),
+    inputTokens: Number(r.input),
+    outputTokens: Number(r.output),
+    declaredCostUsd: Number(r.cost),
+    avgDurationMs: num(r.avg_duration),
+  }));
+}
+
 /** The provider calls of a run (each attempt), with their events in order. */
 export async function runCalls(db: Db, projectId: string, runId: string) {
   const calls = await db

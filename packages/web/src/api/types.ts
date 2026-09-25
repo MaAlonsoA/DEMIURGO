@@ -148,6 +148,11 @@ export type InboxQuestion = {
   id: string;
   exploration_id: string;
   question: string;
+  reason?: string | null;
+  /** Predefined answers proposed by the agent, with what each one implies. */
+  options?: { answer: string; implies: string; exclusive?: boolean }[];
+  /** Several options may be picked. */
+  multiple?: boolean;
   state: string;
   conclusion?: string | null;
   reasoning?: string | null;

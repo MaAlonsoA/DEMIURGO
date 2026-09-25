@@ -129,9 +129,11 @@ test('AC-INT-001-11 every kind of thing in the inbox appears in Needs you and is
   });
   d = await pick(page, questions.getByRole('option', { name: /Can guests sign up/ }));
   await resolvesInPlace(page, person, projectId, d, async () => {
+    // Answered right here, as in its thread: one click on an option, and Answer. No dialog.
+    await expect(d.getByRole('link', { name: 'Continue in the thread' })).toHaveAttribute('href', /[?&]question=/);
+    await expect(d.getByRole('button', { name: 'Answer', exact: true })).toBeDisabled();
+    await d.getByRole('radio', { name: /Only members sign up/ }).check();
     await d.getByRole('button', { name: 'Answer', exact: true }).click();
-    await page.getByRole('dialog').getByLabel('Your answer').fill('Only members sign up; guests only look.');
-    await page.getByRole('dialog').getByRole('button', { name: 'Answer' }).click();
   });
 
   // The agent's proposal, rejected with its author visible.

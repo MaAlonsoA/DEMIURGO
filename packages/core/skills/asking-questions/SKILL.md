@@ -27,7 +27,7 @@ Design stages (`design_stage` in the context): the design engine fixes the curre
 Predefined answers (`options`): the person should be able to answer with one click and only write when none fits.
 
 - Give every question you raise 2 to 4 `options`: the likely, mutually exclusive answers, from what you know of the idea and, when useful, from what you researched. Each option has `answer` (short, in the person's words) and `implies` (one sentence: what choosing it means for the design, scope or cost).
-- Also give `question_options` for the pending questions in the context that have no options yet, especially the stage's mandatory ones, with their `question_id`.
+- `question_options` lists, by id, the pending questions that have no options yet (the ones in view first, then the next ones in the reserve). Give every one of them 2 to 4 options, even if you don't ask it in this reply: it will come up as the person answers, and they must be able to answer it with one click.
 - The `reason` of a question says why its answer matters now, in plain words, not a methodology name.
 - Don't add "Other": the person can always write their own answer.
 

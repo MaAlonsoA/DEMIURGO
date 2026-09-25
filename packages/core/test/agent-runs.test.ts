@@ -124,6 +124,32 @@ describe('agent runs', () => {
     expect(call.state).toBe('ok');
   });
 
+  it('the run asks the options of every pending question without them, the reserve included, and they arrive', async () => {
+    const thread = await openThread('Questions with answers');
+    await cmd('message.post', { exploration_id: thread, text: 'A diary app.', respond: false });
+    const raise = async (question: string, options: unknown[] = []) =>
+      (await cmd('question.raise', { exploration_id: thread, question, options })).entityId;
+    const bare = [await raise('Who writes in it?'), await raise('Is it private?'), await raise('Does it sync?')];
+    const withOptions = await raise('Mobile or web?', [
+      { answer: 'Mobile', implies: 'An app first.', exclusive: false },
+      { answer: 'Web', implies: 'A site first.', exclusive: false },
+    ]);
+    await ask(thread);
+    const schema = received.at(-1)?.schema as { properties: { question_options: { type: string; required: string[] } } };
+    expect(schema.properties.question_options.type).toBe('object');
+    // The project's stage questions without options may come too.
+    const required = schema.properties.question_options.required;
+    expect(required).toEqual(expect.arrayContaining(bare));
+    expect(required).not.toContain(withOptions);
+    const rows = await environment()
+      .services.db.selectFrom('questions')
+      .select(['id', 'options'])
+      .where('id', 'in', [...bare, withOptions])
+      .execute();
+    expect(rows).toHaveLength(4);
+    for (const r of rows) expect(r.options).toHaveLength(2);
+  });
+
   it('AC-AGE-002-09 the thread resumes with only the delta while the pack only appends, and starts over otherwise', async () => {
     const thread = await openThread('Pricing');
     await cmd('message.post', { exploration_id: thread, text: 'Who pays for this?', respond: false });

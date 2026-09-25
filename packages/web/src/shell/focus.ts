@@ -1,6 +1,7 @@
 // After a navigation, the focus goes to the new page's title and its name is announced (DESIGN.md
 // §2.3, R93): it never stays on a link that is gone, nor falls to <body>. Only path changes move it;
-// a search parameter (a tab, a filter) leaves the focus where the person put it.
+// a search parameter (a tab, a filter) leaves the focus where the person put it. A page opened on
+// one thing (a thread on a question) moves the focus there itself, marked with data-route-target.
 
 import { useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef } from 'react';
@@ -20,7 +21,8 @@ export function useRouteFocus(): void {
     const attempt = () => {
       const title = document.getElementById('page-title');
       if (title) {
-        if (!title.contains(document.activeElement) && document.activeElement?.closest('[role="dialog"]') == null) {
+        const active = document.activeElement;
+        if (!title.contains(active) && active?.closest('[role="dialog"], [data-route-target]') == null) {
           title.focus({ preventScroll: true });
         }
         announce(title.textContent ?? '');

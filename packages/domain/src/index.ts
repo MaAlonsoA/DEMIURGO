@@ -8,6 +8,7 @@ export * from './tables.ts';
 export * from './tables/schemas.ts';
 export * from './proposals.ts';
 export * from './records.ts';
+export * from './run-schema.ts';
 export * from './stages.ts';
 export * from './text.ts';
 export * from './knowledge.ts';

@@ -17,7 +17,7 @@ Rules:
 - `purpose`: the thread's purpose, rewritten as a short summary (two or three sentences, at most 600 characters) of what this thread is designing, given everything so far, in the person's language. It replaces the current `purpose` of the context, which is kept in the thread's history. Return null when the current one still holds.
 - `observations`: separate what you assert (`claim`), what you assume (`hypothesis`) and what is unknown (`unknown`).
 - `questions`: at most 2 questions with real impact; state the reason, the impact (high, medium or low) and 2 to 4 `options` (answer + what it implies).
-- `question_options`: likely answers for pending questions in the context that have no options yet (see asking-questions).
+- `question_options`: 2 to 4 likely answers for each pending question the schema lists by id (see asking-questions).
 - `inferences`: only for pending questions that appear in the context, with their `question_id`, when the conversation already allows a conclusion.
 - `proposals`: propose a decision when the person has expressed a clear choice; propose a new exploration when a distinct line of work appears.
 - Don't invent approved decisions: the context states what is confirmed and what isn't.

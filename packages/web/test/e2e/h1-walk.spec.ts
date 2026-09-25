@@ -102,9 +102,11 @@ async function settleOne(page: Page, item: Locator, kind: string, key: string): 
         await click('Confirm');
         await confirmIn(page, 'Confirm');
       } else {
+        // Answered in place, in their own words when DEMIURGO proposed options.
+        const own = item.getByRole('button', { name: 'Answer in my own words' });
+        if (await own.isVisible()) await own.click();
+        await item.getByLabel('Your answer').fill('Settled while walking H1.');
         await click('Answer');
-        await page.getByRole('dialog').getByLabel('Your answer').fill('Settled while walking H1.');
-        await confirmIn(page, 'Answer');
       }
       break;
     }

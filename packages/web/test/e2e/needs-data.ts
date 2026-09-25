@@ -161,6 +161,10 @@ export async function threadWithQuestions(person: PersonApi, projectId: string, 
   const open = await person.command(projectId, 'question.raise', {
     exploration_id: e.entity_id,
     question: 'Can guests sign up without an account?',
+    options: [
+      { answer: 'Yes, as guests', implies: 'Sign-up works without an account.', exclusive: false },
+      { answer: 'Only members sign up', implies: 'Guests only look.', exclusive: false },
+    ],
   });
   return { exploration: e.entity_id, assumed, open: open.entity_id };
 }

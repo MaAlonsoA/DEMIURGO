@@ -141,7 +141,16 @@ const newVersionRoute = createRoute({
   component: NewVersionScreen,
 });
 const threadsRoute = createRoute({ getParentRoute: () => projectRoute, path: '/threads', component: ThreadsScreen });
-const threadRoute = createRoute({ getParentRoute: () => projectRoute, path: '/threads/$explorationId', component: ThreadScreen });
+const threadRoute = createRoute({
+  getParentRoute: () => projectRoute,
+  path: '/threads/$explorationId',
+  // ?question=ID opens the thread on that question (from Needs you).
+  validateSearch: (s: Record<string, unknown>): { question?: string } => {
+    const question = text(s.question);
+    return question ? { question } : {};
+  },
+  component: ThreadScreen,
+});
 const needsYouRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: '/needs-you',

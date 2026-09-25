@@ -44,6 +44,11 @@ function truncate(t: string, n: number): string {
   return clean.length > n ? `${clean.slice(0, n - 1)}…` : clean;
 }
 
+const SIMULATED_OPTIONS = [
+  { answer: 'Yes', implies: 'It becomes a requirement of the first version.', exclusive: false },
+  { answer: 'Not for now', implies: 'It stays out of scope; it can come back later.', exclusive: false },
+];
+
 export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
   echo(p) {
     const text = txt(obj(obj(p.context.content).input).text);
@@ -58,6 +63,9 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
     const pending = list(c.questions)
       .map(obj)
       .filter((q) => q.state === 'pending');
+    // The run's schema asks for the options of some questions by id: answer in that shape.
+    const asked = obj(obj(p.schema?.properties).question_options);
+    const narrowed = asked.type === 'object' ? list(asked.required).filter((id): id is string => typeof id === 'string') : null;
     const wantsToDecide =
       /\b(decid|elegimos|elijo|quiero|vamos a|usaremos|decide|chosen|choose|i want|we'll use|let's go with|going with)/i.test(
         text,
@@ -67,13 +75,14 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
       reply: `Got it: "${truncate(text, 300)}". ${wantsToDecide ? 'I suggest recording it as a decision.' : 'I need to pin down something more.'}`,
       observations: [{ type: 'hypothesis', text: `The main intent is: ${truncate(text, 200)}` }],
       questions: [],
-      question_options: pending
-        .filter((q) => typeof q.id === 'string')
-        .slice(0, 8)
-        .map((q) => ({ question_id: q.id, options: [
-          { answer: 'Yes', implies: 'It becomes a requirement of the first version.', exclusive: false },
-          { answer: 'Not for now', implies: 'It stays out of scope; it can come back later.', exclusive: false },
-        ], multiple: false, question: null, reason: null })),
+      question_options: narrowed
+        ? Object.fromEntries(
+            narrowed.map((id) => [id, { options: SIMULATED_OPTIONS, multiple: false, question: null, reason: null }]),
+          )
+        : pending
+            .filter((q) => typeof q.id === 'string')
+            .slice(0, 8)
+            .map((q) => ({ question_id: q.id, options: SIMULATED_OPTIONS, multiple: false, question: null, reason: null })),
       inferences: [],
       proposals: [],
     };
@@ -100,7 +109,11 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
         impact: 'high',
         multiple: false,
         options: [
-          { answer: 'Only me, to design my own products', implies: 'A single-user app: no accounts, roles or sharing yet.', exclusive: false },
+          {
+            answer: 'Only me, to design my own products',
+            implies: 'A single-user app: no accounts, roles or sharing yet.',
+            exclusive: false,
+          },
           { answer: 'A small team', implies: 'Accounts and shared projects are needed from the start.', exclusive: false },
         ],
       });

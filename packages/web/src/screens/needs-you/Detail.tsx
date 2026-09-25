@@ -30,6 +30,7 @@ import { proposalTitle, rowOf, rowOfVersion } from '../batch/model.ts';
 import { DecisionBar, linkClass, RecordChip } from '../batch/parts.tsx';
 import { kindWord } from '../batch/proposal.ts';
 import { ProposalView } from '../batch/ProposalView.tsx';
+import { AnswerHere } from './AnswerHere.tsx';
 import { Conflict } from './Conflict.tsx';
 import { DetailFrame, type NeedContext, stageOf, ThreadLink, Unblocks } from './frame.tsx';
 import type { NeedItem } from './order.ts';
@@ -72,6 +73,9 @@ function QuestionDetail({ item, ctx, titleId, top }: DetailProps<'question'>) {
   const q = item.question;
   const assumed = q.state === 'inferred';
   const parked = q.state === 'postponed';
+  // An open or parked question is answered right here, as in its thread.
+  const allows = useAllows('question', q.state);
+  const answerHere = !assumed && allows('question.confirm');
   const line = assumed
     ? 'DEMIURGO assumed an answer from what you said. Confirm it, change it, or park it.'
     : parked
@@ -98,7 +102,7 @@ function QuestionDetail({ item, ctx, titleId, top }: DetailProps<'question'>) {
       decision={
         <DecisionBar>
           {/* Answer or Confirm, then Change; the ones that set it aside after them (§4.4). */}
-          <QuestionActions projectId={ctx.projectId} question={q} hide={['park', 'drop', 'reopen']} />
+          {answerHere ? null : <QuestionActions projectId={ctx.projectId} question={q} hide={['park', 'drop', 'reopen']} />}
           <QuestionActions projectId={ctx.projectId} question={q} hide={['answer', 'confirm', 'change']} className="sm:ml-auto" />
         </DecisionBar>
       }
@@ -116,6 +120,7 @@ function QuestionDetail({ item, ctx, titleId, top }: DetailProps<'question'>) {
         </Card>
       ) : null}
       {!assumed ? <QuestionOutcome question={q} /> : null}
+      {answerHere ? <AnswerHere key={q.id} projectId={ctx.projectId} question={q} /> : null}
     </DetailFrame>
   );
 }

@@ -189,7 +189,18 @@ export async function inbox(db: Db, projectId: string) {
   }
   const questions = await db
     .selectFrom('questions')
-    .select(['id', 'exploration_id', 'question', 'state', 'conclusion', 'reasoning', 'raised_by'])
+    .select([
+      'id',
+      'exploration_id',
+      'question',
+      'reason',
+      'options',
+      'multiple',
+      'state',
+      'conclusion',
+      'reasoning',
+      'raised_by',
+    ])
     .where('project_id', '=', projectId)
     .where('state', '=', 'inferred')
     // Questions still in the reserve don't need the person yet.
@@ -199,7 +210,7 @@ export async function inbox(db: Db, projectId: string) {
   // What is waiting for the person even when it doesn't come from an agent: open questions and unapproved drafts.
   const open = await db
     .selectFrom('questions')
-    .select(['id', 'exploration_id', 'question', 'state', 'state_reason', 'raised_by'])
+    .select(['id', 'exploration_id', 'question', 'reason', 'options', 'multiple', 'state', 'state_reason', 'raised_by'])
     .where('project_id', '=', projectId)
     .where('state', 'in', ['pending', 'postponed'])
     .where('shown_at', 'is not', null)

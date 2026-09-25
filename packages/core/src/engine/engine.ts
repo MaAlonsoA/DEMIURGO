@@ -16,8 +16,9 @@ import {
   composeInput,
   composeSystem,
   isDomainError,
-  jsonSchemaOf,
+  normalizeOutput,
   packDelta,
+  runSchemaOf,
   system,
 } from '@demiurgo/domain';
 import { sql } from 'kysely';
@@ -170,7 +171,7 @@ async function invoke(runId: string): Promise<InvokeResult> {
     const meta = { projectId: run.project_id, runId, agent: agent.id, agentVersion: agent.version, promptHash };
     const base: Omit<ProviderInvocation, 'input' | 'session'> = {
       system: systemPrompt,
-      schema: jsonSchemaOf(action),
+      schema: runSchemaOf(action, pack.content),
       model,
       effort: run.effort,
       timeMs: agent.timeLimitSeconds * 1000,
@@ -272,7 +273,7 @@ async function apply(runId: string, projectId: string, r: InvokeResult, workflow
         });
         state = 'failed';
       } else {
-        const v = OUTPUT_SCHEMAS[action].safeParse(r.rawOutput);
+        const v = OUTPUT_SCHEMAS[action].safeParse(normalizeOutput(action, r.rawOutput));
         if (!v.success) {
           // Output outside the schema: no effect besides the run's own failure (I7).
           await execute({

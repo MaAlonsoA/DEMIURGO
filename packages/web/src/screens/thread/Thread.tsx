@@ -8,7 +8,7 @@
 // thread: moving to another one starts clean (INVENTORY Part C).
 
 import { useQueries, useQuery } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
+import { Link, useSearch } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client.ts';
 import { useCommand } from '../../api/commands.ts';
@@ -153,6 +153,25 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
   useEffect(() => {
     if (deeperId && wide) deeperHeading.current?.focus();
   }, [deeperId, wide]);
+
+  // Opened on a question (?question=ID, from Needs you): once it is on screen, it takes the focus.
+  const { question: focusId } = useSearch({ strict: false }) as { question?: string };
+  const focused = useRef<string | null>(null);
+  const focusShown = !!focusId && !!t?.questions.some((q) => q.id === focusId && isShown(q));
+  useEffect(() => {
+    if (!focusId || !focusShown || focused.current === focusId) return;
+    focused.current = focusId;
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const el = document.getElementById(`question-${focusId}`);
+        if (!el) return;
+        el.dataset.routeTarget = '';
+        el.scrollIntoView({ block: 'center' });
+        el.focus({ preventScroll: true });
+        el.addEventListener('blur', () => delete el.dataset.routeTarget, { once: true });
+      }),
+    );
+  }, [focusId, focusShown]);
 
   if (thread.error instanceof ApiError && thread.error.status === 404) return <Missing projectId={projectId} />;
   if (!t) {

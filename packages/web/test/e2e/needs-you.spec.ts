@@ -270,26 +270,29 @@ test('AC-INT-001-16 Catch up walks Needs you one at a time in the defined order,
   await expectAccessible(page, 'Catch up');
   await band.getByRole('button', { name: 'Skip' }).click();
 
+  // Both questions of its thread block the design: the answer DEMIURGO assumed, then the open one.
   await expect(progress).toContainText('2 of 5');
+  await expect(focus).toHaveAttribute('data-kind', 'question');
+  await expect(focus).toContainText('Who will use the product first');
+  await expect(page.getByRole('region', { name: 'What it unblocks' })).toContainText('Design:');
+  await band.getByRole('button', { name: 'Skip' }).click();
+
+  await expect(progress).toContainText('3 of 5');
   await expect(focus).toHaveAttribute('data-kind', 'question');
   await expect(focus).toContainText('Can guests sign up without an account?');
   await expect(page.getByRole('region', { name: 'What it unblocks' })).toContainText('Design:');
   await band.getByRole('button', { name: 'Skip' }).click();
 
-  await expect(progress).toContainText('3 of 5');
+  await expect(progress).toContainText('4 of 5');
   await expect(focus).toHaveAttribute('data-kind', 'proposal');
   await expect(focus).toContainText('Guests see the catalog');
   await focus.getByRole('button', { name: 'Reject' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Reject' }).click();
 
-  await expect(progress).toContainText('4 of 5');
+  await expect(progress).toContainText('5 of 5');
   await expect(focus).toHaveAttribute('data-kind', 'version');
   await focus.getByRole('button', { name: 'Approve' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Approve' }).click();
-
-  await expect(progress).toContainText('5 of 5');
-  await expect(focus).toHaveAttribute('data-kind', 'question');
-  await expect(focus).toContainText('Who will use the product first');
 
   // Leave at any time: what was skipped (and not reached) is still in Needs you.
   await band.getByRole('button', { name: 'Leave' }).click();

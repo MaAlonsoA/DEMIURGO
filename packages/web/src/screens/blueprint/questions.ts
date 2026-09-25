@@ -2,7 +2,8 @@
 // open first; the short answer of the Confirm button; and whether the readiness of the version
 // cites a question, in the words the server gives.
 
-import type { Question, Readiness, RecordVersion } from '../../api/types.ts';
+import { questionReason } from '../../../../domain/src/records.ts';
+import type { Question, Readiness } from '../../api/types.ts';
 
 export type QuestionGroups = {
   /** Pending, then assumed (inferred): what can still be answered here. */
@@ -39,31 +40,21 @@ export const IMPACT_WORDS: Record<string, string> = { high: 'High', medium: 'Med
 
 export type Citation = { cited: boolean; text: string; reason: string | null };
 
-const PENDING = /pending question/i;
-const POSTPONED = /postponed question/i;
-
 /**
- * Whether "Before it can be built" cites the question. The server counts the pending and
- * postponed questions of the origin thread among its reasons, and lists the assumed ones apart.
- * A decision has no readiness: null.
+ * Whether "Before it can be built" cites the question: the server names each pending, postponed
+ * or assumed question of the origin thread in a reason of its own. A decision has no readiness: null.
  */
 export function readinessCitation(
-  question: Pick<Question, 'id' | 'state'>,
-  inferred: RecordVersion['inferred_questions'],
+  question: Pick<Question, 'id' | 'state' | 'question'>,
   readiness: Readiness | null,
 ): Citation | null {
   if (!readiness) return null;
-  const pattern = question.state === 'pending' ? PENDING : question.state === 'postponed' ? POSTPONED : null;
-  const reason = pattern ? (readiness.reasons.find((r) => pattern.test(r)) ?? null) : null;
-  if (reason) {
-    return { cited: true, text: 'Yes. It waits on the open questions of its thread, this one among them.', reason };
-  }
-  if (question.state === 'inferred' && inferred.some((i) => i.id === question.id)) {
-    return {
-      cited: true,
-      text: "It doesn't block it, but it is listed as an assumed answer until you confirm it.",
-      reason: null,
-    };
-  }
-  return { cited: false, text: "Its readiness doesn't cite it.", reason: null };
+  const expected = questionReason(question.state, question.question);
+  const reason = readiness.reasons.find((r) => r === expected) ?? null;
+  if (!reason) return { cited: false, text: "Its readiness doesn't cite it.", reason: null };
+  const text =
+    question.state === 'inferred'
+      ? 'Yes. It waits until you confirm the answer DEMIURGO assumed.'
+      : 'Yes. It waits on this question of its thread.';
+  return { cited: true, text, reason };
 }

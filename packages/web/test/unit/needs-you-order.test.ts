@@ -166,7 +166,8 @@ const rows: ProductRow[] = [
     [
       'Version 1 is not approved.',
       'The decision it is based on, DEC-PRO-004, is not approved.',
-      'There are 1 pending question(s) in the origin exploration.',
+      'A question of its thread is open: “Can guests sign up?”',
+      'DEMIURGO assumed an answer you have not confirmed: “Who signs up?”',
       'There are 1 pending proposal(s) affecting it.',
     ],
     { origin_exploration: THREAD },
@@ -182,6 +183,7 @@ describe('Needs you and Catch up', () => {
     const order = catchUpOrder(needsOf(inbox(), rows)).map((n) => n.key);
     expect(order).toEqual([
       'conflict:r-approved',
+      'question:q-assumed',
       'question:q-open',
       'conflict:r-old',
       'proposal:p1',
@@ -190,7 +192,6 @@ describe('Needs you and Catch up', () => {
       'version:v2',
       'link:l1',
       'classification:c1',
-      'question:q-assumed',
       'question:q-elsewhere',
       'update:u1',
     ]);
@@ -200,7 +201,7 @@ describe('Needs you and Catch up', () => {
     const byKey = new Map(needsOf(inbox(), rows).map((n) => [n.key, n.unblocks]));
     expect(byKey.get('question:q-open')).toEqual(['FDR-PRO-003']);
     expect(byKey.get('question:q-elsewhere')).toEqual([]);
-    expect(byKey.get('question:q-assumed')).toEqual([]);
+    expect(byKey.get('question:q-assumed')).toEqual(['FDR-PRO-003']);
     expect(byKey.get('version:v1')).toEqual(['FDR-PRO-003']);
     expect(byKey.get('version:v2')).toEqual(['FDR-PRO-003']);
     expect(byKey.get('link:l1')).toEqual(['FDR-PRO-005']);
@@ -212,7 +213,7 @@ describe('Needs you and Catch up', () => {
     const groups = groupsOf(needsOf(inbox(), rows));
     expect(groups.map((g) => [g.title, g.items.map((i) => i.key)])).toEqual([
       ['Conflicts', ['conflict:r-old', 'conflict:r-approved']],
-      ['Questions', ['question:q-open', 'question:q-assumed', 'question:q-elsewhere']],
+      ['Questions', ['question:q-assumed', 'question:q-open', 'question:q-elsewhere']],
       ['Proposals', ['proposal:p1', 'package:pkg']],
       ['Versions to approve', ['version:v1', 'version:v2']],
       ['Links to review', ['link:l1']],

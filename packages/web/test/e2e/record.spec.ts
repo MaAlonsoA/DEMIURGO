@@ -130,8 +130,9 @@ test('AC-INT-001-08 a version with readiness reasons shows each one as the serve
     expect.arrayContaining([
       'Version 1 is not approved.',
       `The decision it is based on, ${dec.code}, is not approved.`,
-      'There are 1 pending question(s) in the origin exploration.',
-      'There are 1 postponed question(s) in the origin exploration.',
+      'A question of its thread is open: “Can a guest come twice?”',
+      'A question of its thread was left for later: “Do guests pay?”',
+      'DEMIURGO assumed an answer you have not confirmed: “How many guests?”',
       'There are 1 pending proposal(s) affecting it.',
     ]),
   );

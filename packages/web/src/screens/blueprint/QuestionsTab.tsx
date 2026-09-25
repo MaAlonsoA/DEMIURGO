@@ -254,7 +254,7 @@ function Block({ label, children }: { label: string; children: ReactNode }) {
 /** "If you confirm" (canvas B2, aside), with only what H1 knows and does. */
 function IfYouConfirm({ q, version, readiness }: { q: Question; version: RecordVersion; readiness: Readiness | null }) {
   const id = useId();
-  const citation = readinessCitation(q, version.inferred_questions, readiness);
+  const citation = readinessCitation(q, readiness);
   const checkMark = stateWord('record_version', version.state).mark;
   return (
     <section
@@ -288,7 +288,7 @@ function IfYouConfirm({ q, version, readiness }: { q: Question; version: RecordV
       {citation && (
         <Block label="Before it can be built">
           <span className="dm-text-body">{citation.text}</span>
-          {citation.reason && <span className="dm-text-small text-ink-3">“{citation.reason}”</span>}
+          {citation.reason && <span className="dm-text-small text-ink-3">{citation.reason}</span>}
         </Block>
       )}
       <div className="h-px bg-line" />

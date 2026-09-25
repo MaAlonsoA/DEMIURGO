@@ -2,6 +2,7 @@
 // the order of Catch up (FDR-INT-001, behavior 10). "What it unblocks" is read from the readiness
 // reasons the server gives (packages/domain/src/records.ts, readiness()): nothing is invented.
 
+import { questionReason } from '../../../../domain/src/records.ts';
 import type { Inbox, InboxBatch, InboxLink, InboxProposal, InboxQuestion, InboxVersion, ProductRow } from '../../api/types.ts';
 
 export type Classification = Inbox['classifications_to_review'][number];
@@ -60,10 +61,9 @@ export function unblocksOf(need: Need, rows: readonly ProductRow[]): string[] {
   switch (need.kind) {
     case 'question': {
       const q = need.question;
-      const state = q.state === 'postponed' ? 'postponed' : q.state === 'pending' ? 'pending' : null;
-      if (!state) return [];
-      const reason = new RegExp(`^There are \\d+ ${state} question\\(s\\) in the origin exploration\\.$`);
-      return blockedBy(rows, (text, r) => r.origin_exploration === q.exploration_id && reason.test(text));
+      if (!['pending', 'postponed', 'inferred'].includes(q.state)) return [];
+      const reason = questionReason(q.state, q.question);
+      return blockedBy(rows, (text, r) => r.origin_exploration === q.exploration_id && text === reason);
     }
     case 'version': {
       const v = need.version;

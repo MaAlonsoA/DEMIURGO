@@ -86,13 +86,26 @@ export type ReadinessInput = {
   basedOn: { code: string; version: number; versionState: string; current: number | null; linkState: string }[];
   /** Other links of this version that are pending review. */
   linksUnderReview: string[];
-  /** Pending or postponed questions in the origin exploration. */
+  /** Pending, postponed or assumed (inferred, not confirmed) questions in the origin exploration. */
   openQuestions: { question: string; state: string }[];
   /** Pending proposals that depend on this record. */
   pendingProposals: number;
 };
 
 export type Readiness = { ready: boolean; reasons: string[]; warnings: string[] };
+
+const QUESTION_REASONS: Record<string, string> = {
+  pending: 'A question of its thread is open',
+  postponed: 'A question of its thread was left for later',
+  inferred: 'DEMIURGO assumed an answer you have not confirmed',
+};
+
+/** The readiness reason for a question of its thread, naming it (trimmed to a line). */
+export function questionReason(state: string, question: string): string {
+  const clean = question.replace(/\s+/g, ' ').trim();
+  const shown = clean.length > 120 ? `${clean.slice(0, 119).trimEnd()}…` : clean;
+  return `${QUESTION_REASONS[state] ?? 'A question of its thread is open'}: “${shown}”`;
+}
 
 export function readiness(e: ReadinessInput): Readiness {
   const reasons: string[] = [];
@@ -121,10 +134,11 @@ export function readiness(e: ReadinessInput): Readiness {
     }
   }
   for (const linkRef of e.linksUnderReview) reasons.push(`The link with ${linkRef} is pending review.`);
-  const pending = e.openQuestions.filter((p) => p.state === 'pending').length;
-  const postponed = e.openQuestions.filter((p) => p.state === 'postponed').length;
-  if (pending > 0) reasons.push(`There are ${pending} pending question(s) in the origin exploration.`);
-  if (postponed > 0) reasons.push(`There are ${postponed} postponed question(s) in the origin exploration.`);
+  // Every question of its thread still open is named; an answer DEMIURGO assumed blocks too, until
+  // the person confirms it: nothing is ready to build on an answer no person gave.
+  for (const state of ['pending', 'postponed', 'inferred']) {
+    for (const q of e.openQuestions) if (q.state === state) reasons.push(questionReason(state, q.question));
+  }
   if (e.pendingProposals > 0) reasons.push(`There are ${e.pendingProposals} pending proposal(s) affecting it.`);
   const warnings = e.criteria.flatMap((c) => verifiabilityWarnings(c.code, c.statement));
   return { ready: reasons.length === 0, reasons, warnings };

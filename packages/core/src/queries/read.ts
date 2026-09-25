@@ -107,7 +107,8 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
         .selectFrom('questions')
         .select(['question as question', 'state as state'])
         .where('exploration_id', '=', origin)
-        .where('state', 'in', ['pending', 'postponed'])
+        .where('state', 'in', ['pending', 'postponed', 'inferred'])
+        .orderBy('created_at')
         .execute()
     : [];
   // A proposal affects it if it depends on the record, either by itself or through its batch.

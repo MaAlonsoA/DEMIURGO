@@ -50,30 +50,33 @@ describe('the questions of a record', () => {
   it('AC-INT-001-08 says whether the readiness of the version cites the question, with the reason as the server gives it', () => {
     const readiness: Readiness = {
       ready: false,
-      reasons: ['Version 1 is not approved.', 'There are 2 pending question(s) in the origin exploration.'],
+      reasons: [
+        'Version 1 is not approved.',
+        'A question of its thread is open: “Question b?”',
+        'DEMIURGO assumed an answer you have not confirmed: “Question a?”',
+      ],
       warnings: [],
     };
-    const inferred = [{ id: 'a', question: 'Question a?', conclusion: 'Answer a' }];
-    expect(readinessCitation(q('b', 'pending', 0), inferred, readiness)).toEqual({
+    expect(readinessCitation(q('b', 'pending', 0), readiness)).toEqual({
       cited: true,
-      text: 'Yes. It waits on the open questions of its thread, this one among them.',
-      reason: 'There are 2 pending question(s) in the origin exploration.',
+      text: 'Yes. It waits on this question of its thread.',
+      reason: 'A question of its thread is open: “Question b?”',
     });
-    expect(readinessCitation(q('a', 'inferred', 0), inferred, readiness)).toEqual({
+    expect(readinessCitation(q('a', 'inferred', 0), readiness)).toEqual({
       cited: true,
-      text: "It doesn't block it, but it is listed as an assumed answer until you confirm it.",
-      reason: null,
+      text: 'Yes. It waits until you confirm the answer DEMIURGO assumed.',
+      reason: 'DEMIURGO assumed an answer you have not confirmed: “Question a?”',
     });
-    expect(readinessCitation(q('z', 'inferred', 0), [], readiness)).toEqual({
+    expect(readinessCitation(q('z', 'inferred', 0), readiness)).toEqual({
       cited: false,
       text: "Its readiness doesn't cite it.",
       reason: null,
     });
     expect(
-      readinessCitation(q('b', 'pending', 0), [], { ready: false, reasons: ['Version 1 is not approved.'], warnings: [] }),
+      readinessCitation(q('b', 'pending', 0), { ready: false, reasons: ['Version 1 is not approved.'], warnings: [] }),
     ).toMatchObject({ cited: false });
     // A decision has no readiness.
-    expect(readinessCitation(q('b', 'pending', 0), [], null)).toBeNull();
+    expect(readinessCitation(q('b', 'pending', 0), null)).toBeNull();
   });
 });
 

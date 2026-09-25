@@ -472,15 +472,15 @@ describe('readiness', () => {
     expect(reasons).toContain(`It is based on ${d2.code} v1, but the current one is v2.`);
     expect(reasons).toContain(`The link with ${d2.code} is pending review.`);
 
-    // Pending or postponed questions in the origin exploration.
+    // Pending or postponed questions in the origin exploration, each one named.
     const e = await newExploration(s, projectId);
     await cmd('question.raise', { exploration_id: e, question: '¿Hay invitados?' });
     const q2 = (await cmd('question.raise', { exploration_id: e, question: '¿Cuotas reducidas?' })).entityId;
     await cmd('question.postpone', { reason: 'Luego.' }, q2);
     const withQuestions = await fdrOn(decision, { approve: true, origin: { type: 'exploration', id: e } });
     const mp = (await versionReadiness(s.db, projectId, withQuestions.versionId)).reasons;
-    expect(mp).toContain('There are 1 pending question(s) in the origin exploration.');
-    expect(mp).toContain('There are 1 postponed question(s) in the origin exploration.');
+    expect(mp).toContain('A question of its thread is open: “¿Hay invitados?”');
+    expect(mp).toContain('A question of its thread was left for later: “¿Cuotas reducidas?”');
 
     // Pending proposals affecting it.
     const affected = await fdrOn(decision, { approve: true });
@@ -540,8 +540,21 @@ describe('readiness', () => {
     const [proposal] = (batch.result as { proposals: string[] }).proposals;
     const effect = (await cmd('proposal.accept', { approve: true }, proposal)).result as { versionId: string };
     expect((await versionReadiness(s.db, projectId, effect.versionId)).reasons).toEqual([
-      'There are 1 pending question(s) in the origin exploration.',
+      'A question of its thread is open: “¿Hay cuota familiar?”',
     ]);
+  });
+
+  it('an answer DEMIURGO assumed blocks "Ready to build" until the person confirms it', async () => {
+    const decision = await newDecision(s, projectId, true);
+    const e = await newExploration(s, projectId);
+    const q = (await cmd('question.raise', { exploration_id: e, question: '¿Pueden venir invitados?' })).entityId;
+    await cmd('question.infer', { conclusion: 'Sí, uno por socio.', reasoning: 'Lo sugiere la idea.' }, q, system('exploration'));
+    const fdr = await fdrOn(decision, { approve: true, origin: { type: 'exploration', id: e } });
+    const blocked = await versionReadiness(s.db, projectId, fdr.versionId);
+    expect(blocked.ready).toBe(false);
+    expect(blocked.reasons).toEqual(['DEMIURGO assumed an answer you have not confirmed: “¿Pueden venir invitados?”']);
+    await cmd('question.confirm', {}, q);
+    expect(await versionReadiness(s.db, projectId, fdr.versionId)).toMatchObject({ ready: true, reasons: [] });
   });
 
   it('AC-DIS-001-14 a non-observable criterion gets a warning, never a block', async () => {

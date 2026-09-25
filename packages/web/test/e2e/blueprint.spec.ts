@@ -94,14 +94,14 @@ test("AC-INT-001-09 on a feature the Questions tab answers the questions of its 
   // "If you confirm" follows the question in hand: the first open one, then the one chosen.
   const aside = page.getByRole('region', { name: 'If you confirm' });
   await expect(aside).toContainText('Do guests pay for an activity?');
-  await expect(aside).toContainText('There are 2 pending question(s) in the origin exploration.');
+  await expect(aside).toContainText('A question of its thread is open: “Do guests pay for an activity?”');
   await expect(aside.locator('[data-later]')).toContainText('Later');
   await expect(aside.locator('[data-later]')).toContainText('Becomes a decision and adds checks on its own');
   await expectAccessible(page, 'the Questions tab of a feature');
   await assumed.getByRole('heading').click();
   await expect(aside).toContainText('Who will use the product first');
   await expect(aside).toContainText("Let's go with members and organizers first");
-  await expect(aside).toContainText("It doesn't block it, but it is listed as an assumed answer until you confirm it.");
+  await expect(aside).toContainText('Yes. It waits until you confirm the answer DEMIURGO assumed.');
   for (const c of CHECKS) await expect(aside.locator('[data-aside-check]').filter({ hasText: c.title })).toHaveCount(1);
   await expect(aside).not.toContainText('Becomes a decision:');
 

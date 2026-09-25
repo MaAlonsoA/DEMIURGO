@@ -21,7 +21,7 @@ import { Mark } from '../../ui/marks.tsx';
 import { Reasons } from '../../ui/Reasons.tsx';
 import { StageBars } from '../../ui/signals.tsx';
 import { EPISTEMIC_MARK, type MarkKind, TYPE_WORDS, stateWord, whoOf } from '../../words.ts';
-import { ProductTabs } from '../shell/Header.tsx';
+import { ProductTabs } from '../../shell/ProductTabs.tsx';
 import {
   type Box,
   type OriginNode,

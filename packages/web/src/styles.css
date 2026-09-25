@@ -13,7 +13,6 @@
    is var(--radius-card), shadow-float is var(--shadow-float). There are no other colors, radii or
    shadows; typography uses the dm-text-* classes. */
 @theme inline reference {
-  --color-*: initial;
   --color-transparent: transparent;
   --color-current: currentColor;
   --color-paper: var(--paper);
@@ -48,11 +47,9 @@
   --color-problem-soft: var(--problem-soft);
   --color-problem-tint: var(--problem-tint);
 
-  --font-*: initial;
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
 
-  --radius-*: initial;
   --radius-bar: var(--radius-bar);
   --radius-tag: var(--radius-tag);
   --radius-mark: var(--radius-mark);
@@ -64,7 +61,6 @@
   --radius-panel: var(--radius-panel);
   --radius-pill: var(--radius-pill);
 
-  --shadow-*: initial;
   --shadow-raised: var(--shadow-raised);
   --shadow-float: var(--shadow-float);
   --shadow-selected: var(--ring-selected);

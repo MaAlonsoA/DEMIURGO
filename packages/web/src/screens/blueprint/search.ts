@@ -9,7 +9,7 @@ import type { ProductRow } from '../../api/types.ts';
 /** A record at a version (its Checks for a check), or a thread (a thread or a parked idea). */
 export type SearchTarget = { code: string; v: number; tab?: 'checks' } | { thread: string };
 
-const RECORD_REF = /^((?:DEC|FDR|ADR|BUG)-[A-Z0-9]{3}-\d{3})@(\d+)$/;
+const RECORD_REF = /^((?:DEC|FDR|ADR|BUG|REQ|NFR|THR|PRR)-[A-Z0-9]{3}-\d{3})@(\d+)$/;
 const CHECK_REF = /^AC-([A-Z0-9]{3}-\d{3})-\d+@(\d+)$/;
 const THREAD_REF = /^exploration:([0-9a-f-]{36})$/;
 

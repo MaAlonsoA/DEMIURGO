@@ -4,6 +4,12 @@
    variables: the utilities point straight at the tokens. */
 
 @theme inline reference {
+  /* Nothing of Tailwind's own palette, faces, radii or shadows: only what is declared here. */
+  --color-*: initial;
+  --font-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+
   /* Surfaces, lines and text. */
   --color-app: var(--c-app);
   --color-panel: var(--c-panel);

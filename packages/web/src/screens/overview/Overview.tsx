@@ -22,7 +22,7 @@ import { Button } from '../../ui/Button.tsx';
 import { TYPE_WORDS_PLURAL } from '../../words.ts';
 import { versionIndex, waitingCount, waitingFor } from '../record/logic.ts';
 import { useNow } from '../run/hooks.ts';
-import { ProductTabs } from '../shell/Header.tsx';
+import { ProductTabs } from '../../shell/ProductTabs.tsx';
 import { useLens, type Lens } from './lens/useLens.ts';
 import { WhileAway } from './lens/WhileAway.tsx';
 import { NeedsColumn } from './NeedsColumn.tsx';

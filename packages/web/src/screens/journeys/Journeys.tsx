@@ -17,7 +17,7 @@ import { EmptyState, Page, Skeleton } from '../../ui/layout.tsx';
 import { MarkWord } from '../../ui/marks.tsx';
 import { Reasons } from '../../ui/Reasons.tsx';
 import { EPISTEMIC_MARK, MARKS } from '../../words.ts';
-import { ProductTabs } from '../shell/Header.tsx';
+import { ProductTabs } from '../../shell/ProductTabs.tsx';
 
 function summaryOf(j: Journey): string {
   if (j.gaps.length > 0) return `${j.gaps.length} ${j.gaps.length === 1 ? 'path waits' : 'paths wait'} on you`;

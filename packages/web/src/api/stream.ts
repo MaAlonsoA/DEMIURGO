@@ -1,39 +1,49 @@
-// Real time (spec §8): one EventSource per open project on …/events/stream. Each event
-// invalidates the queries of its entity and the aggregated ones; the page is never reloaded.
-// The browser sends Last-Event-ID back when it reconnects.
+// Real time (spec §8, DESIGN.md §4.5): one EventSource per open project on …/events/stream. Each
+// event invalidates the queries of its entity and the aggregated ones; the page is never reloaded.
+// The browser sends Last-Event-ID back when it reconnects. The connection has four states: while
+// it is down the shell says so and offers "Retry now"; when the browser gives up for good (the
+// stream was refused, e.g. a 401), it says so instead of "retrying" forever (DESIGN.md §4.6).
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { createElement, useEffect, useState, useSyncExternalStore } from 'react';
-import { PRODUCT_WORDS } from '../words.ts';
+import { useEffect, useSyncExternalStore } from 'react';
 import { type RunProgress, recordProgress } from './progress.ts';
 import { tablesQuery } from './queries.ts';
 import type { EventRow } from './types.ts';
 
-/** Queries (third part of the key) each entity of an event invalidates. */
+/**
+ * Queries (third part of the key) each entity of an event invalidates. `map`, `journeys` and the
+ * lens' `changes` follow what they are built from (they were never live before the rebuild).
+ */
 export const INVALIDATES: Record<string, string[]> = {
-  proposal: ['inbox', 'batch', 'state', 'record', 'readiness'],
-  batch: ['inbox', 'batch', 'state', 'runs'],
-  record: ['record', 'state'],
-  record_version: ['record', 'readiness', 'state', 'inbox'],
-  criterion: ['record'],
-  link: ['record', 'readiness', 'inbox', 'state'],
-  question: ['exploration', 'inbox', 'state', 'readiness', 'explorations', 'stages'],
-  stage: ['stages', 'explorations', 'state'],
-  message: ['exploration', 'explorations'],
-  exploration: ['exploration', 'explorations', 'state', 'events'],
-  ai_run: ['run', 'runs', 'exploration', 'events'],
+  proposal: ['inbox', 'batch', 'state', 'record', 'readiness', 'changes'],
+  batch: ['inbox', 'batch', 'state', 'runs', 'changes'],
+  record: ['record', 'state', 'map', 'journeys', 'changes'],
+  record_version: ['record', 'readiness', 'state', 'inbox', 'map', 'journeys', 'changes'],
+  criterion: ['record', 'journeys', 'changes'],
+  link: ['record', 'readiness', 'inbox', 'state', 'map', 'changes'],
+  question: ['exploration', 'inbox', 'state', 'readiness', 'explorations', 'stages', 'map', 'journeys', 'changes'],
+  stage: ['stages', 'explorations', 'state', 'changes'],
+  message: ['exploration', 'explorations', 'changes'],
+  exploration: ['exploration', 'explorations', 'state', 'events', 'map', 'changes'],
+  ai_run: ['run', 'runs', 'exploration', 'events', 'changes'],
   context_pack: ['run'],
-  knowledge_update: ['knowledge', 'inbox'],
+  knowledge_update: ['knowledge', 'inbox', 'changes'],
   knowledge_node: ['knowledge'],
   knowledge_edge: ['knowledge'],
-  classification: ['knowledge', 'inbox'],
-  taxonomy: ['knowledge', 'inbox'],
-  idea_assessment: ['knowledge', 'inbox', 'batch'],
-  source: ['sources'],
-  agent_token: ['tokens'],
+  classification: ['knowledge', 'inbox', 'changes'],
+  taxonomy: ['knowledge', 'inbox', 'changes'],
+  idea_assessment: ['knowledge', 'inbox', 'batch', 'changes'],
+  source: ['sources', 'changes'],
+  agent_token: ['tokens', 'changes'],
+  project: ['changes'],
 };
 
-export type Connection = 'connecting' | 'open' | 'down';
+/** Entities whose events also refresh queries outside the project (the projects list). */
+const GLOBAL_INVALIDATES: Record<string, string[][]> = {
+  project: [['projects']],
+};
+
+export type Connection = 'connecting' | 'open' | 'down' | 'closed';
 
 type Listener = (event: EventRow) => void;
 const listeners = new Set<Listener>();
@@ -60,30 +70,59 @@ function setLatest(projectId: string, id: string): void {
 }
 
 let connection: Connection = 'connecting';
+/** When the connection went down (ms), for "reconnecting since …". */
+let downSince: number | null = null;
 const connectionListeners = new Set<() => void>();
 function setConnection(c: Connection): void {
   if (c === connection) return;
   connection = c;
+  downSince = c === 'down' || c === 'closed' ? (downSince ?? Date.now()) : null;
   for (const l of connectionListeners) l();
+}
+function subscribeConnection(l: () => void) {
+  connectionListeners.add(l);
+  return () => {
+    connectionListeners.delete(l);
+  };
 }
 
 export function useConnection(): Connection {
+  return useSyncExternalStore(subscribeConnection, () => connection);
+}
+
+export function connectionDownSince(): number | null {
+  return downSince;
+}
+
+// "Retry now": a new EventSource replaces the one that is down or closed.
+let attempt = 0;
+const attemptListeners = new Set<() => void>();
+export function reconnect(): void {
+  attempt += 1;
+  setConnection('connecting');
+  for (const l of attemptListeners) l();
+}
+function useAttempt(): number {
   return useSyncExternalStore(
     (l) => {
-      connectionListeners.add(l);
-      return () => connectionListeners.delete(l);
+      attemptListeners.add(l);
+      return () => {
+        attemptListeners.delete(l);
+      };
     },
-    () => connection,
+    () => attempt,
   );
 }
 
 export function useProjectStream(projectId: string): void {
   const client = useQueryClient();
   const tables = useQuery(tablesQuery).data;
+  const tries = useAttempt();
 
   useEffect(() => {
     if (!projectId || !tables || typeof EventSource === 'undefined') return;
     const pending = new Set<string>();
+    const globals = new Set<string>();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const flush = () => {
       timer = undefined;
@@ -92,9 +131,11 @@ export function useProjectStream(projectId: string): void {
       void client.invalidateQueries({
         predicate: (q) => q.queryKey[0] === 'p' && q.queryKey[1] === projectId && names.has(String(q.queryKey[2])),
       });
+      for (const key of globals) void client.invalidateQueries({ queryKey: JSON.parse(key) as string[] });
+      globals.clear();
     };
     const source = new EventSource(`/api/projects/${projectId}/events/stream?from=latest`);
-    let wasDown = false;
+    let wasDown = tries > 0;
     source.addEventListener('open', () => {
       setConnection('open');
       // After a cut, whatever happened meanwhile is fetched again.
@@ -103,7 +144,8 @@ export function useProjectStream(projectId: string): void {
     });
     source.addEventListener('error', () => {
       wasDown = true;
-      setConnection('down');
+      // CLOSED: the browser will not retry (the stream was refused). CONNECTING: it retries itself.
+      setConnection(source.readyState === EventSource.CLOSED ? 'closed' : 'down');
     });
     source.addEventListener('ready', (e) => {
       const data = JSON.parse((e as MessageEvent<string>).data) as { latest: string };
@@ -113,6 +155,7 @@ export function useProjectStream(projectId: string): void {
       const row = JSON.parse((e as MessageEvent<string>).data) as EventRow;
       setLatest(projectId, row.id);
       for (const name of INVALIDATES[row.entity_type] ?? []) pending.add(name);
+      for (const key of GLOBAL_INVALIDATES[row.entity_type] ?? []) globals.add(JSON.stringify(key));
       if (!timer) timer = setTimeout(flush, 60);
       for (const l of listeners) l(row);
     };
@@ -129,29 +172,5 @@ export function useProjectStream(projectId: string): void {
       source.close();
       setConnection('connecting');
     };
-  }, [projectId, tables, client]);
-}
-
-/** Amber band while the stream reconnects (spec §7.1). */
-export function ConnectionBanner() {
-  const c = useConnection();
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    if (c !== 'down') {
-      setVisible(false);
-      return;
-    }
-    const t = setTimeout(() => setVisible(true), 1500);
-    return () => clearTimeout(t);
-  }, [c]);
-  if (!visible) return null;
-  return createElement(
-    'div',
-    {
-      role: 'status',
-      className:
-        'dm-text-small sticky top-14 z-20 border-b border-working bg-working-soft px-6 py-1.5 text-center font-medium text-working-text',
-    },
-    PRODUCT_WORDS.cantReach,
-  );
+  }, [projectId, tables, client, tries]);
 }

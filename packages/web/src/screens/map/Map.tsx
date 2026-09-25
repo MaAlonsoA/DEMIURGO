@@ -22,7 +22,7 @@ import { Reasons } from '../../ui/Reasons.tsx';
 import { NeedsBubble, StageBars, WhoMark } from '../../ui/signals.tsx';
 import { EPISTEMIC_MARK, MARKS, TYPE_WORDS, whoOf } from '../../words.ts';
 import { rowStage } from '../record/logic.ts';
-import { ProductTabs } from '../shell/Header.tsx';
+import { ProductTabs } from '../../shell/ProductTabs.tsx';
 import { connectedTo, lanesOf, relationStroke, relationWord, waitingOn } from './layout.ts';
 
 const SCALES = [0.5, 0.6, 0.75, 0.9, 1, 1.15, 1.3];

@@ -8,6 +8,9 @@ describe('where a result of the header search goes', () => {
   it('AC-INT-001-17 a record result opens its record at the version it comes from', () => {
     expect(searchTarget({ ref: 'FDR-CAT-001@2', type: 'fdr' }, rows)).toEqual({ code: 'FDR-CAT-001', v: 2 });
     expect(searchTarget({ ref: 'DEC-EVE-001@1', type: 'decision' }, undefined)).toEqual({ code: 'DEC-EVE-001', v: 1 });
+    // Every record type has a page: requirements, quality, threat models and production readiness too.
+    for (const code of ['REQ-EVE-001', 'NFR-EVE-002', 'THR-EVE-003', 'PRR-EVE-004'])
+      expect(searchTarget({ ref: `${code}@1`, type: 'record' }, undefined)).toEqual({ code, v: 1 });
     expect(searchTarget({ ref: 'ADR-ST1-004@3', type: 'adr' }, [])).toEqual({ code: 'ADR-ST1-004', v: 3 });
   });
 

@@ -16,13 +16,18 @@ export type RunProgress = {
 };
 
 const byRun = new Map<string, RunProgress>();
+/** When this tab last heard from each run's provider (for "Stalled", DESIGN.md §4.2). */
+const seenAt = new Map<string, number>();
+/** When this tab started listening: a run with no message yet counts its silence from here. */
+export const listeningSince = Date.now();
 const listeners = new Set<() => void>();
 
 /**
  * Keeps the progress of a run, never going back within one call: a message that arrives late (fewer
  * events) is dropped, and the tokens shown only grow. A new call of the run (a fresh retry) starts again.
  */
-export function recordProgress(p: RunProgress): void {
+export function recordProgress(p: RunProgress, at = Date.now()): void {
+  seenAt.set(p.run_id, at);
   const shown = byRun.get(p.run_id);
   if (shown && shown.call_id === p.call_id) {
     if (p.events < shown.events) return;
@@ -36,6 +41,11 @@ export function recordProgress(p: RunProgress): void {
 
 export function progressOf(runId: string): RunProgress | undefined {
   return byRun.get(runId);
+}
+
+/** When this tab last received progress of a run, or null if it never did. */
+export function lastProgressAt(runId: string): number | null {
+  return seenAt.get(runId) ?? null;
 }
 
 export function useRunProgress(runId: string | undefined): RunProgress | undefined {

@@ -86,3 +86,4 @@ Van en una FDR nueva, **FDR-INT-002 «Vistas del producto: mapa y recorridos»**
 5. Cada FDR con *Behavior* tiene un recorrido: sus pasos son los puntos numerados en orden y sus caminos, sus criterios.
 6. Las preguntas abiertas del hilo de una FDR aparecen en su recorrido como huecos «Not defined yet» con **Answer**, y el resumen cuenta caminos definidos y huecos.
 7. Mapa y recorridos se usan solo con teclado y pasan axe.
+8. En la página de un registro, «What it touches» muestra también lo que conecta con él. Son los registros cuya versión mostrada enlaza con él, con las palabras del mapa vistas desde este lado: «Needed by», «Followed by», «Conflicts with» y «Affected by». Lo que una versión nueva dejó de enlazar ya no aparece. Cubre el hueco del informe de H1 «el detalle de un registro no trae los enlaces entrantes».

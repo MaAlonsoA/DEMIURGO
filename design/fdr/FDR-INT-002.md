@@ -35,6 +35,7 @@ El detalle está en `docs/superpowers/specs/2026-09-25-mapa-y-recorridos-design.
   - las relaciones que declaran los enlaces, con su tipo;
   - selección con panel, zoom y las ideas aparcadas.
 - **Recorridos:** uno por funcionalidad con comportamiento escrito, con sus pasos, sus caminos y sus huecos.
+- **Lo que conecta con un registro:** en su página, «What it touches» muestra también lo que se basa en él, con las palabras del mapa.
 - **Consultas:** una por vista, para no pedir cada registro por separado.
 
 ## Out of scope
@@ -49,7 +50,7 @@ El detalle está en `docs/superpowers/specs/2026-09-25-mapa-y-recorridos-design.
 
 1. **Pestañas.** «Product» tiene cuatro vistas: Overview, Map, Origins y Journeys.
 2. **Áreas del mapa.**
-   - Cada registro va en la columna de su dominio. Las columnas van de la que tiene más registros a la que menos.
+   - Cada registro va en la columna de su dominio. Las columnas van de la que tiene más funcionalidades a la que menos; a igualdad, la que tiene más reglas.
    - En cada columna van primero las funcionalidades, como tarjetas con su marca, y después las decisiones y decisiones técnicas, como reglas.
 3. **Relaciones.**
    - Solo se dibujan los enlaces que existen, con su tipo:
@@ -72,7 +73,10 @@ El detalle está en `docs/superpowers/specs/2026-09-25-mapa-y-recorridos-design.
 8. **Huecos.**
    - Las preguntas abiertas del hilo del que viene la funcionalidad aparecen en su recorrido como «Not defined yet», con «Answer» hacia ese hilo.
    - El resumen cuenta los caminos, los definidos, los que esperan a la persona y los pasos.
-9. **Vacío.** Sin registros, el mapa lo dice; sin funcionalidades con comportamiento, los recorridos explican de dónde salen.
+9. **Lo que conecta con un registro.**
+   - En la página de un registro, «What it touches» muestra además los registros cuya versión mostrada (la vigente o, si no la hay, la última) enlaza con él: «Needed by», «Followed by», «Conflicts with» o «Affected by».
+   - Un enlace que una versión nueva del otro registro ya no tiene deja de conectar.
+10. **Vacío.** Sin registros, el mapa lo dice; sin funcionalidades con comportamiento, los recorridos explican de dónde salen.
 
 ## Acceptance criteria
 
@@ -124,3 +128,10 @@ Dada una funcionalidad que viene de un hilo con preguntas abiertas, cuando la pe
 - Check: Los E2E del mapa y de los recorridos eligen con el teclado y pasan axe.
 
 Dados el mapa y los recorridos, cuando la persona los usa solo con el teclado, entonces puede elegir cada elemento y cada recorrido, y las dos pantallas pasan la revisión de accesibilidad sin infracciones.
+
+### AC-INT-002-08 · Lo que conecta con un registro
+
+- Verification: automatic
+- Check: Pruebas de la consulta del detalle sobre `design/` ratificado y con una versión que quita un enlace, y un E2E que abre una decisión técnica.
+
+Dado un registro con el que enlazan otros, cuando la persona abre su página, entonces «What it touches» muestra cada registro cuya versión mostrada enlaza con él, con su relación y un enlace a su página, y no muestra los que una versión nueva dejó de enlazar.

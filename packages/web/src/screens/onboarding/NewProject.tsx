@@ -1,6 +1,6 @@
 // "What do you want to build?" (canvas S4A): the first thing a new person sees of DEMIURGO. One
 // question, the idea in the person's words and a name for the project (project.create needs one,
-// and there is no rename yet). Start creates the project, opens its first thread with the idea as
+// and it can be renamed later from the person's menu). Start creates the project, opens its first thread with the idea as
 // its purpose and posts the idea for DEMIURGO to read (the durable response runs exploration_chat).
 // Nothing is decided here: the reassurances say so.
 
@@ -164,7 +164,7 @@ export function NewProjectScreen() {
                   className="dm-text-body h-9 w-[220px] rounded-control border border-line-strong bg-surface px-2.5 text-ink placeholder:text-muted focus:border-needs focus:outline-none"
                 />
                 <span id={hintId} className="dm-text-caption text-muted">
-                  You can&apos;t rename it yet.
+                  You can rename it later.
                 </span>
               </div>
               <Button type="submit" variant="primary" disabled={pending || !allowed}>

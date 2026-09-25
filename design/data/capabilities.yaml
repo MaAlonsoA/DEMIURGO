@@ -15,6 +15,7 @@ actors:
 commands:
   project.create: { entity: project, allowed: [human, system], decisive: false, description: "Create a project." }
   project.archive: { entity: project, allowed: [human], decisive: false, description: "Archive a project instead of deleting it." }
+  project.rename: { entity: project, allowed: [human], decisive: false, description: "Rename a project." }
 
   agent_token.issue: { entity: agent_token, allowed: [human], decisive: false, description: "Issue a token for an external agent with its name." }
   agent_token.revoke: { entity: agent_token, allowed: [human], decisive: false, description: "Revoke an external agent's token." }

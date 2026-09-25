@@ -69,7 +69,7 @@ test('AC-INT-001-01 a new product from a blank page: the idea becomes a project 
   await expect(page.getByText('Nothing is decided until you confirm it')).toBeVisible();
   await expect(page.getByText('You can change anything later')).toBeVisible();
   await expect(page.getByText('Everything stays here, saved')).toBeVisible();
-  await expect(page.getByText("You can't rename it yet")).toBeVisible();
+  await expect(page.getByText('You can rename it later.')).toBeVisible();
   await expectAccessible(page, 'what do you want to build');
 
   // An example fills the idea and a name for the project.

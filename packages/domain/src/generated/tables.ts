@@ -28,6 +28,14 @@ export const CAPABILITIES = {
       "decisive": false,
       "description": "Archive a project instead of deleting it."
     },
+    "project.rename": {
+      "entity": "project",
+      "allowed": [
+        "human"
+      ],
+      "decisive": false,
+      "description": "Rename a project."
+    },
     "agent_token.issue": {
       "entity": "agent_token",
       "allowed": [
@@ -890,6 +898,13 @@ export const TRANSITIONS = {
             "active"
           ],
           "to": "archived"
+        },
+        {
+          "command": "project.rename",
+          "from": [
+            "active"
+          ],
+          "to": "active"
         }
       ]
     },

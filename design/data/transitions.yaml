@@ -15,6 +15,7 @@ entities:
     transitions:
       - { command: project.create, from: new, to: active }
       - { command: project.archive, from: [active], to: archived }
+      - { command: project.rename, from: [active], to: active }
 
   agent_token:
     label: Agent token

@@ -56,6 +56,7 @@ export const RECIPES: Partial<Record<EntityName, Recipe>> = {
       const r = await executeCommand(s, { command: 'project.create', actor: human('ana'), data: { name: unique('P') } });
       return r.entityId;
     },
+    data: { 'project.rename': () => ({ name: unique('Renamed') }) },
   },
   context_pack: {
     async create(s, projectId) {

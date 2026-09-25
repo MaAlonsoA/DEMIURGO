@@ -6,8 +6,10 @@
 import { Header as DsHeader, type LinkRenderer } from '@demiurgo/design-system';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
+import { useState } from 'react';
 import { DropdownMenu } from 'radix-ui';
 import { request, setCsrf } from '../../api/client.ts';
+import { useCommand } from '../../api/commands.ts';
 import { inboxQuery, knowledgeQuery, projectsQuery, sessionQuery } from '../../api/queries.ts';
 import { cn } from '../../lib/cn.ts';
 import { useProjectId, usePerson } from '../../lib/hooks.ts';
@@ -15,6 +17,7 @@ import { ChevronDown } from '../../ui/icons.tsx';
 import { useLegendMark } from '../../ui/legend-store.ts';
 import { WhoGlyph } from '../../ui/signals.tsx';
 import { Tip } from '../../ui/Tip.tsx';
+import { TextDialog } from '../../ui/dialogs.tsx';
 import { hasDevTools, openDevPanel } from '../dev/snapshots.ts';
 import { Search } from './Search.tsx';
 
@@ -114,12 +117,56 @@ function Freshness({ projectId }: { projectId: string }) {
   );
 }
 
+/** "Rename the project…": the project's name, changed by the person (project.rename). */
+function RenameProject({
+  projectId,
+  name,
+  open,
+  setOpen,
+}: {
+  projectId: string;
+  name: string;
+  open: boolean;
+  setOpen: (open: boolean) => void;
+}) {
+  const command = useCommand(projectId);
+  const client = useQueryClient();
+  return (
+    <TextDialog
+      open={open}
+      onOpenChange={setOpen}
+      title="Rename the project"
+      label="Name"
+      submit="Rename"
+      required
+      multiline={false}
+      initial={name}
+      maxLength={120}
+      pending={command.isPending}
+      error={open ? command.error : null}
+      onSubmit={(next) =>
+        command.mutate(
+          { command: 'project.rename', entityId: projectId, data: { name: next } },
+          {
+            onSuccess: () => {
+              void client.invalidateQueries({ queryKey: projectsQuery.queryKey });
+              setOpen(false);
+            },
+          },
+        )
+      }
+    />
+  );
+}
+
 function PersonMenu() {
   const person = usePerson();
   const projectId = useProjectId();
   const devTools = hasDevTools(useQuery(sessionQuery).data);
   const client = useQueryClient();
   const navigate = useNavigate();
+  const project = (useQuery(projectsQuery).data ?? []).find((p) => p.id === projectId);
+  const [renaming, setRenaming] = useState(false);
   const signOut = async () => {
     try {
       await request('DELETE', '/api/session');
@@ -130,52 +177,62 @@ function PersonMenu() {
     }
   };
   return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger
-        className="dm-text-small flex h-8 items-center gap-2 rounded-control px-2 font-medium text-ink hover:bg-line-soft"
-        aria-label={`Signed in as ${person ?? ''}`}
-      >
-        <WhoGlyph kind="you" size={20} />
-        {person}
-        <ChevronDown size={12} />
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content
-          align="end"
-          sideOffset={6}
-          className="z-50 min-w-48 animate-fade-in rounded-control border border-line bg-surface p-1 shadow-float"
+    <>
+      {project && <RenameProject projectId={projectId} name={project.name} open={renaming} setOpen={setRenaming} />}
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger
+          className="dm-text-small flex h-8 items-center gap-2 rounded-control px-2 font-medium text-ink hover:bg-line-soft"
+          aria-label={`Signed in as ${person ?? ''}`}
         >
-          <DropdownMenu.Label className="dm-text-caption px-2.5 py-1.5 text-muted">Signed in as {person}</DropdownMenu.Label>
-          <DropdownMenu.Item
-            onSelect={() => void navigate({ to: '/p/$projectId/models', params: { projectId } })}
-            className="dm-text-small cursor-pointer rounded-tab px-2.5 py-1.5 text-ink outline-none data-[highlighted]:bg-line-soft"
+          <WhoGlyph kind="you" size={20} />
+          {person}
+          <ChevronDown size={12} />
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content
+            align="end"
+            sideOffset={6}
+            className="z-50 min-w-48 animate-fade-in rounded-control border border-line bg-surface p-1 shadow-float"
           >
-            Models &amp; providers
-          </DropdownMenu.Item>
-          <DropdownMenu.Item
-            onSelect={() => void navigate({ to: '/p/$projectId/agent-keys', params: { projectId } })}
-            className="dm-text-small cursor-pointer rounded-tab px-2.5 py-1.5 text-ink outline-none data-[highlighted]:bg-line-soft"
-          >
-            Agent keys
-          </DropdownMenu.Item>
-          {devTools ? (
+            <DropdownMenu.Label className="dm-text-caption px-2.5 py-1.5 text-muted">Signed in as {person}</DropdownMenu.Label>
             <DropdownMenu.Item
-              // Once the menu has closed and given the focus back: then the dialog takes it.
-              onSelect={() => setTimeout(openDevPanel, 0)}
+              onSelect={() => void navigate({ to: '/p/$projectId/models', params: { projectId } })}
               className="dm-text-small cursor-pointer rounded-tab px-2.5 py-1.5 text-ink outline-none data-[highlighted]:bg-line-soft"
             >
-              Snapshots…
+              Models &amp; providers
             </DropdownMenu.Item>
-          ) : null}
-          <DropdownMenu.Item
-            onSelect={() => void signOut()}
-            className="dm-text-small cursor-pointer rounded-tab px-2.5 py-1.5 text-ink outline-none data-[highlighted]:bg-line-soft"
-          >
-            Sign out
-          </DropdownMenu.Item>
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
+            <DropdownMenu.Item
+              // Once the menu has closed and given the focus back: then the dialog takes it.
+              onSelect={() => setTimeout(() => setRenaming(true), 0)}
+              className="dm-text-small cursor-pointer rounded-tab px-2.5 py-1.5 text-ink outline-none data-[highlighted]:bg-line-soft"
+            >
+              Rename the project…
+            </DropdownMenu.Item>
+            <DropdownMenu.Item
+              onSelect={() => void navigate({ to: '/p/$projectId/agent-keys', params: { projectId } })}
+              className="dm-text-small cursor-pointer rounded-tab px-2.5 py-1.5 text-ink outline-none data-[highlighted]:bg-line-soft"
+            >
+              Agent keys
+            </DropdownMenu.Item>
+            {devTools ? (
+              <DropdownMenu.Item
+                // Once the menu has closed and given the focus back: then the dialog takes it.
+                onSelect={() => setTimeout(openDevPanel, 0)}
+                className="dm-text-small cursor-pointer rounded-tab px-2.5 py-1.5 text-ink outline-none data-[highlighted]:bg-line-soft"
+              >
+                Snapshots…
+              </DropdownMenu.Item>
+            ) : null}
+            <DropdownMenu.Item
+              onSelect={() => void signOut()}
+              className="dm-text-small cursor-pointer rounded-tab px-2.5 py-1.5 text-ink outline-none data-[highlighted]:bg-line-soft"
+            >
+              Sign out
+            </DropdownMenu.Item>
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
+    </>
   );
 }
 

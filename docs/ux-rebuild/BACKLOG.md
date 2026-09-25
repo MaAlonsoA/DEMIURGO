@@ -25,6 +25,9 @@ it today.
 | B-11 | A proposal of a change to an existing record carries the base version's content | A rendered before/after diff needs the base text [R67] | The proposal shows the proposed content, and "Starts from" links to the base version |
 | B-12 | Usage per period (today, 7 days) for the project, like the workspace consumption | Activity's usage is all-time and says so [R14] | The panel title states the period: "All time · counts engine calls" |
 | B-13 | `project` entity events carrying the new name | The project name was never refreshed live | The stream now invalidates `['projects']` on any `project` event |
+| B-14 | `BatchDetail` carries the batch's own reject reason | A rejected import shows the reason taken from its proposals | The page shows the proposals' reasons |
+| B-15 | A thread's `last_activity` counts runs and answers | The Threads list sorts and dates threads by messages only | Unchanged: "Last activity" is the last message |
+| B-16 | Day 1 time spent, measured by the server | "Today · n minutes" measures the thread's span of activity, not the person's time | Unchanged wording |
 
 ## New features suggested by the research (not built: no new product features)
 

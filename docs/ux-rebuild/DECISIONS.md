@@ -375,3 +375,48 @@ Format: **D-NNN · title**, then *Decision*, *Alternatives*, *Why* and *Source*.
   are announced (R92). What the person wrote is never lost or asked for again (R87). Draft review
   before sending follows Gerrit's drafts (R68).
 - *Source:* DESIGN §3.3; report g2.
+
+**D-025 · Overview, the lens and the record page (group g4)**
+- *Decision:*
+  - The design stages are a stepper that follows the APG tabs pattern. The default step is the open
+    stage, otherwise the first not started. Pass stage asks first, and a stage that may not pass says
+    why in words.
+  - "While you were away" leaves out an event only when its actor is the signed-in person and it came
+    after this app started. What the person did elsewhere, or before a reload, is still told.
+  - The records navigator is open by default from 1440 px, a collapsed strip below that, and an "All
+    records" disclosure under 1024 px. The person's choice is remembered.
+  - On the record page, the side column goes beside the content when the content area is at least
+    56 rem wide, so the layout holds with the navigator open or closed.
+  - A question card is chosen by a click or by keyboard focus, not by mouse focus: on mousedown it
+    reflowed the column and swallowed the click. Questions still in the thread's reserve are not
+    listed, the same as Needs you.
+  - The guided review stays limited to features and tech decisions; extending it would be a new
+    feature.
+  - "Open in Origins" opens Origins with the record's trace pinned (`?record=CODE`).
+- *Alternatives:* a separate stages page; dimming what is not under review; a navigator always open.
+- *Why:* tabs follow R96. Nothing is dimmed, so contrast holds everywhere (R89). Reflow at every width
+  (R82). The lens tells what others did, not the person's own actions (R19, R30).
+- *Source:* DESIGN §3.5–3.7; report g4.
+
+**D-026 · Shared fixes after integration, and the end of the old stylesheet**
+- *Decision:*
+  - Dialogs and the preview sheet remember what opened them and return the focus there. When that
+    element is gone (Approve disappears once approved), the page title takes the focus.
+  - The command menu renders its listbox only when there are options; otherwise only the result line
+    shows.
+  - Link tabs mark only the exact route as active: sibling views share a path prefix.
+  - The question actions announce their result even when the card unmounts first (a promise instead
+    of mutate's callbacks), and Change sits right after Confirm.
+  - `/sign-in` with a session goes straight to `safeNext(next)`. Pages outside a project reflow on a
+    phone.
+  - `src/ui/*`, the `@demiurgo/design-system` stylesheet and fonts, and the `class-variance-authority`
+    dependency are gone from the web. The lockfile was edited by hand, without `pnpm install`. The
+    `packages/design-system` package itself stays in the monorepo (it syncs with Claude Design), but
+    the web no longer uses it.
+  - The `min-width: 1280px` of the old stylesheet went with it, so every page reflows.
+- *Known:* TanStack Router sets `data-status="active"` on active links, the same attribute the status
+  badges use. Tests scope their selectors (`span[data-status]`, `[data-thread-state] [data-status]`).
+  Renaming the badge hook would touch every group's tests, so it is left for later.
+- *Why:* focus return is part of the dialog pattern (R95); an empty listbox is invalid ARIA (R93).
+  One source of the look (DESIGN §6).
+- *Source:* the requests in the reports of groups g1, g2, g4 and g6.

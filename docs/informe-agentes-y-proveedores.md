@@ -1,6 +1,14 @@
 # Informe: agentes y proveedores (FDR-AGE-002)
 
-Fecha: 25-09-2026. Rama `v2-agentes`, fusionada en local en `v2-frontend-h1`. No se ha subido nada.
+Fecha: 25-09-2026. Rama `v2-agentes`, en el worktree `D:\Dev\Demiurgo-agentes`. No se ha subido nada.
+
+**Sin fusionar a propósito.** En `D:\Dev\Demiurgo` hay otra sesión migrando la web al design system: 92 ficheros sin commit y `packages/design-system/` nuevo. 11 de esos ficheros también los toca esta rama (`Header.tsx`, `Reasons.tsx`, `stream.ts`, `NewProject.tsx`, `Projects.tsx`, `Run.tsx`, `RunCards.tsx`, `Reading.tsx`, `CLAUDE.md` y dos e2e). Fusionar ahora habría chocado con ese trabajo. Cuando esté commiteado:
+
+```
+git merge v2-agentes     # desde v2-frontend-h1
+```
+
+Tras fusionar, la API en 8200 aplica la migración 0005 al reiniciarse.
 
 Documentos relacionados:
 - **Spec:** `docs/superpowers/specs/2026-09-25-agentes-y-proveedores-design.md`.
@@ -40,7 +48,7 @@ Documentos relacionados:
 4. Asigna un motor a cada parte de DEMIURGO, en «Everywhere» o solo en «This project». Para el Día 1 basta con asignar `onboarding`, `explorer`, `designer` y `knowledge_classifier`. `knowledge_reviewer` es opcional (sin él no hay cascada) y `echo` es solo para pruebas.
 5. Si una ejecución falla, **Retry with…** permite elegir otro motor para ese reintento.
 
-**Base de desarrollo.** Tras la fusión, la API en 8200 (`node --watch`) aplica la migración 0005 y descubre los proveedores al arrancar. **No hay asignaciones**, así que el Día 1 y los hilos dan el 409 hasta que elijas los motores. Con `DEMIURGO_DEV_TOOLS=1` también aparece el proveedor *Simulated*. Si quieres repetir el Día 1 de DEMIURGO desde cero, guarda antes una instantánea (`pnpm snap save`).
+**Base de desarrollo.** Tras fusionar, la API en 8200 (`node --watch`) aplica la migración 0005 y descubre los proveedores al arrancar. **No hay asignaciones**, así que el Día 1 y los hilos dan el 409 hasta que elijas los motores. Con `DEMIURGO_DEV_TOOLS=1` también aparece el proveedor *Simulated*. Si quieres repetir el Día 1 de DEMIURGO desde cero, guarda antes una instantánea (`pnpm snap save`).
 
 **Evaluar el clasificador con un motor real** (gasta cuota):
 

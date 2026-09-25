@@ -77,7 +77,7 @@ export const GEOMETRY = geometryFor(1360);
 export type OriginsInput = { state: ProductState; explorations: readonly Exploration[]; records: readonly RecordDetail[] };
 
 const threadKey = (id: string) => `t:${id}`;
-const recordKey = (code: string) => `r:${code}`;
+export const recordKey = (code: string) => `r:${code}`;
 
 function shownVersion(detail: RecordDetail | undefined): RecordVersion | null {
   if (!detail) return null;

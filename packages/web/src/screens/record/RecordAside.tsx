@@ -156,12 +156,15 @@ function byWords(actor: string): string {
 
 export function ContextPanel({
   projectId,
+  code,
   version,
   thread,
   targets,
   incoming = [],
 }: {
   projectId: string;
+  /** The record's code: Origins opens with its trace pinned. */
+  code: string;
   version: RecordVersion;
   /** Purpose of the thread it comes from. */
   thread: string | null;
@@ -227,7 +230,7 @@ export function ContextPanel({
     <AsidePanel
       title="Context"
       actions={
-        <Link to="/p/$projectId/origins" params={{ projectId }} className={cn(LINK, 'text-sm')}>
+        <Link to="/p/$projectId/origins" params={{ projectId }} search={{ record: code }} className={cn(LINK, 'text-sm')}>
           Open in Origins
         </Link>
       }

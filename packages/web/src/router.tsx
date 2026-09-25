@@ -97,7 +97,16 @@ const projectRoute = createRoute({
 });
 
 const overviewRoute = createRoute({ getParentRoute: () => projectRoute, path: '/', component: OverviewScreen });
-const originsRoute = createRoute({ getParentRoute: () => projectRoute, path: '/origins', component: OriginsScreen });
+const originsRoute = createRoute({
+  getParentRoute: () => projectRoute,
+  path: '/origins',
+  // ?record=CODE opens Origins with that record's trace pinned (from the record page).
+  validateSearch: (s: Record<string, unknown>): { record?: string } => {
+    const record = text(s.record);
+    return record ? { record } : {};
+  },
+  component: OriginsScreen,
+});
 const mapRoute = createRoute({ getParentRoute: () => projectRoute, path: '/map', component: MapScreen });
 const journeysRoute = createRoute({
   getParentRoute: () => projectRoute,

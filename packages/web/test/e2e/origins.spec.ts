@@ -46,6 +46,12 @@ test('AC-INT-001-04 Origins goes from a thread to its decision and to the featur
   await expectAccessible(page, 'Origins with a trace');
   await why.getByRole('link', { name: `“${walk.decision.title}”` }).click();
   await expect(page).toHaveURL(new RegExp(`/records/${walk.decision.code}$`));
+
+  // Back from the record: "Open in Origins" opens with that record's trace pinned (INV-REC-21).
+  await page.getByRole('link', { name: 'Open in Origins' }).click();
+  await expect(page).toHaveURL(new RegExp(`/origins\\?record=${walk.decision.code}$`));
+  await expect(decision).toHaveAttribute('aria-pressed', 'true');
+  await expect(why).toContainText(`“${walk.decision.title}”`);
 });
 
 test('AC-WEB-001-03 Origins can be walked with the keyboard: Enter pins the trace, Esc and Clear trace clear it, and the node opens from the Why panel', async ({

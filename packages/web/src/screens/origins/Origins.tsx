@@ -6,7 +6,7 @@
 // a record that fails shows an inline error instead of blanking the tree (INV-ORIG-01…12).
 
 import { type UseQueryResult, useQueries, useQuery } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
+import { Link, useSearch } from '@tanstack/react-router';
 import { type KeyboardEvent, type Ref, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { explorationsQuery, projectsQuery, recordQuery, stateQuery } from '../../api/queries.ts';
 import type { RecordDetail } from '../../api/types.ts';
@@ -35,6 +35,7 @@ import {
   buildOrigins,
   edgePath,
   geometryFor,
+  recordKey,
   traceOf,
   whyOf,
 } from './tree.ts';
@@ -101,7 +102,9 @@ export function OriginsScreen() {
     [state.data, explorations.data, records.details, g],
   );
 
-  const [traced, setTraced] = useState<string | null>(null);
+  // From a record page (?record=CODE) the trace starts pinned on that record.
+  const { record: from } = useSearch({ strict: false }) as { record?: string };
+  const [traced, setTraced] = useState<string | null>(() => (from ? recordKey(from) : null));
   const current = traced && tree?.nodes.some((n) => n.key === traced) ? traced : null;
   const trace = useMemo(() => (tree && current ? traceOf(tree, current) : null), [tree, current]);
   const why = useRef<HTMLElement>(null);

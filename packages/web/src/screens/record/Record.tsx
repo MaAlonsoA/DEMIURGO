@@ -158,6 +158,7 @@ function RecordPage({
         <ReviewArea part="context">
           <ContextPanel
             projectId={projectId}
+            code={record.code}
             version={version}
             thread={thread}
             targets={state ? versionIndex(state, inbox) : undefined}

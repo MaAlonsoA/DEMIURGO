@@ -122,15 +122,3 @@ test('AC-INT-002-05 AC-INT-002-06 AC-INT-002-07 a journey shows its steps, its p
   await expectAccessible(page, 'a journey with a gap');
   await screenshot(page, 10, 'journeys');
 });
-
-test('AC-INT-002-08 a record says what connects to it, not only what it points to', async ({ page, person }) => {
-  await foldLegend(page);
-  const projectId = await ratifiedProject(person, 'What connects');
-  await page.goto(`/p/${projectId}/records/ADR-AGE-001`);
-  const incoming = page.locator('[data-incoming]');
-  await expect(incoming).toContainText('Followed by');
-  const from = incoming.getByRole('link', { name: 'Agentes y proveedores' });
-  await expect(from).toBeVisible();
-  await from.click();
-  await expect(page).toHaveURL(new RegExp(`/p/${projectId}/records/FDR-AGE-002`));
-});

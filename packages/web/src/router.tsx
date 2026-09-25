@@ -22,7 +22,7 @@ import { OverviewScreen } from './screens/overview/Overview.tsx';
 import { ProjectsScreen } from './screens/projects/Projects.tsx';
 import { RecordScreen } from './screens/record/Record.tsx';
 import { RunScreen } from './screens/run/Run.tsx';
-import { SignInScreen } from './screens/sign-in/SignIn.tsx';
+import { SignInScreen, safeNext } from './screens/sign-in/SignIn.tsx';
 import { AppRoot } from './shell/AppRoot.tsx';
 import { ProjectShell } from './shell/ProjectShell.tsx';
 import { JourneysScreen } from './screens/journeys/Journeys.tsx';
@@ -47,6 +47,11 @@ const signInRoute = createRoute({
   validateSearch: (s: Record<string, unknown>): { next?: string } => {
     const next = text(s.next);
     return next ? { next } : {};
+  },
+  // Already signed in: straight on to where the person was going, not the form again.
+  beforeLoad: async ({ context, search }) => {
+    const session = await context.queryClient.ensureQueryData(sessionQuery).catch(() => null);
+    if (session) throw redirect({ href: safeNext(search.next) });
   },
   component: SignInScreen,
 });

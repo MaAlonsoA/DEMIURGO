@@ -14,7 +14,16 @@ import { usePerson } from '../lib/hooks.ts';
 import { hasDevTools, openDevPanel } from '../screens/dev/snapshots.ts';
 import { type ThemeChoice, setTheme, useTheme } from './theme.ts';
 
-export function PersonMenu({ compact, className }: { compact?: boolean; className?: string }) {
+export function PersonMenu({
+  compact,
+  className,
+  side = 'top',
+}: {
+  compact?: boolean;
+  className?: string;
+  /** Where the menu opens: above in the sidebar, below in the top bar. */
+  side?: 'top' | 'bottom';
+}) {
   const person = usePerson();
   const devTools = hasDevTools(useQuery(sessionQuery).data);
   const client = useQueryClient();
@@ -33,8 +42,8 @@ export function PersonMenu({ compact, className }: { compact?: boolean; classNam
 
   return (
     <Menu
-      side="top"
-      align="start"
+      side={side}
+      align={side === 'top' ? 'start' : 'end'}
       label="Your menu"
       trigger={
         <button

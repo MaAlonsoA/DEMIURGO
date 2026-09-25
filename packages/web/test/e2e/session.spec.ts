@@ -54,7 +54,7 @@ test('AC-INT-001-02 Sign out is at hand outside a project too: on Your projects 
   await person.createProject('Outside two');
   await page.goto('/projects');
   await expect(page.getByRole('heading', { level: 1, name: 'Your projects' })).toBeVisible();
-  await page.getByRole('link', { name: 'New project' }).click();
+  await page.getByRole('main').getByRole('link', { name: 'New project' }).click();
   await expect(page).toHaveURL(/\/new$/);
   await page.getByRole('button', { name: `Signed in as ${USER}` }).click();
   await page.getByRole('menuitem', { name: 'Sign out' }).click();
@@ -132,4 +132,17 @@ test('screens of cut 0: sign in, the project shell, and not found — never link
   await expect(page.getByRole('link', { name: 'Back to DEMIURGO' })).toHaveAttribute('href', '/');
   await expect(page.getByRole('main')).toHaveCount(1);
   await expectAccessible(page, 'Not found, an unknown project');
+});
+
+test('AC-INT-001-02 Sign in with a session already open goes straight on, and never to an outside address', async ({
+  page,
+  person,
+}) => {
+  await person.createProject('Already in');
+  await page.goto('/sign-in?next=%2Fprojects');
+  await expect(page).toHaveURL(/\/projects$/);
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toHaveCount(0);
+  await page.goto('/sign-in?next=%2F%2Fexample.com');
+  await expect(page).not.toHaveURL(/example\.com/);
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toHaveCount(0);
 });

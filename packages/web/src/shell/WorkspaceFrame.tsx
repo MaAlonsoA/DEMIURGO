@@ -26,7 +26,7 @@ export function Wordmark({ className }: { className?: string }) {
 
 const linkClass = (active: boolean) =>
   cn(
-    'inline-flex h-8 items-center rounded-md px-2.5 text-base',
+    'inline-flex h-8 shrink-0 items-center rounded-md px-2.5 text-base whitespace-nowrap',
     active ? 'bg-selected font-medium text-fg' : 'text-fg-2 hover:bg-hover hover:text-fg',
   );
 
@@ -35,9 +35,12 @@ export function WorkspaceFrame({ children, current }: { children: ReactNode; cur
   const projects = useQuery(projectsQuery).data ?? [];
   return (
     <div className="flex min-h-screen flex-col bg-app font-ui text-fg">
-      <header className="flex h-14 items-center gap-2 px-4 sm:px-6">
+      <header className="flex min-h-14 flex-wrap items-center gap-x-2 gap-y-1 px-4 py-2 sm:px-6">
         <Wordmark />
-        <nav aria-label="Workspace" className="ml-4 flex items-center gap-1">
+        <nav
+          aria-label="Workspace"
+          className="order-last -mx-1 flex w-full items-center gap-1 overflow-x-auto sm:order-none sm:mx-0 sm:ml-4 sm:w-auto"
+        >
           {projects.length > 0 ? (
             <Link
               to="/projects"
@@ -65,8 +68,9 @@ export function WorkspaceFrame({ children, current }: { children: ReactNode; cur
               <HelpIcon size={17} />
             </button>
           </Tooltip>
-          <div className="w-44">
-            <PersonMenu />
+          <PersonMenu side="bottom" compact className="sm:hidden" />
+          <div className="hidden w-44 sm:block">
+            <PersonMenu side="bottom" />
           </div>
         </div>
       </header>

@@ -263,3 +263,72 @@ Format: **D-NNN · title**, then *Decision*, *Alternatives*, *Why* and *Source*.
   because `fidelity.spec.ts` covers both.
 - *Why:* the shell needs buttons, menus, dialogs and tooltips. Pieces used by several groups are
   built once, so there is one vocabulary: the question verbs, and one Ask box in one place (R88).
+
+**D-019 · Security finding on uncommitted v2.1 work, outside this rebuild (not acted on)**
+- *Found:* an automated security review flagged the uncommitted changes described in D-003:
+  - `packages/core/src/providers/claude.ts` now runs `--tools WebSearch,WebFetch --allowedTools WebSearch,WebFetch`;
+  - `packages/core/src/providers/codex.ts` now runs `web_search="live"`.
+
+  Agents can therefore fetch arbitrary URLs from this machine, including loopback and private
+  addresses: the API on 8100, Postgres on 55432/55433, and cloud metadata. Fetched pages can also
+  carry prompt injection.
+- *Decision:* not touched. It is someone else's work in progress, outside the frontend scope, and
+  neither staged nor committed here.
+- *Suggested:* keep only `WebSearch`, or restrict `WebFetch` with an allowlist or an egress proxy
+  that denies loopback, RFC1918, link-local and metadata addresses. Enable it per invocation rather
+  than as a global default.
+- *Source:* the automated security review during this run.
+
+**D-020 · Activity and the run page (group g3)**
+- *Decision:*
+  - Cancel on the run page asks first ("Cancel this run?"). It says the run stops now, nothing is
+    applied, and what it wrote in the thread stays. The buttons are "Cancel the run" and "Keep it
+    running".
+  - The run's events move to their own tab; the side column keeps Details and Attempts.
+  - Retry is the primary next step, except after `invalid_output`, where the page suggests Retry with….
+  - The phase strip stops where the failure happened: `agent_error` and `timeout` at Model;
+    `invalid_output` and `stale_knowledge` at Result; an interrupted or cancelled run at Result if an
+    engine call answered, otherwise at Model.
+  - Attempt numbers follow the retry chain.
+- *Alternatives:* cancel with no confirmation (the old behaviour); events in the side column.
+- *Why:* cancelling loses the running work, so it is a destructive step that says what is kept, in a
+  modal dialog (R95); the person stays in control of what the agent does (R24). One primary action per
+  view (DESIGN §6). A long event list in a narrow column pushed Details out of sight.
+- *Source:* DESIGN §3.4, §4; report g3.
+
+**D-021 · Map, Origins and Knowledge (group g5)**
+- *Decision:*
+  - On the map, pointing at or focusing a card lights its connections in the accent tint. Nothing is
+    dimmed.
+  - Each relation line has its own pattern and an arrowhead, so colour is never the only cue: needs
+    solid, follows dotted, conflicts dash-dot in danger, affects dashed in info, and "under review" a
+    wide amber band.
+  - The keys + − 0 zoom; Fit can enlarge up to 130 %.
+  - In Origins, tracing and opening are separate: a click or Enter pins the trace, and the Why panel
+    opens the record or thread. The trace never follows the pointer.
+  - Knowledge's tabs replace history instead of adding to it. The type filter is a radio group.
+- *Alternatives:* dimming the rest of the map; opening on click in Origins (the old behaviour).
+- *Why:* colour is never the only cue, and the lines keep their contrast (R90); everything works from
+  the keyboard (R93), and what appears on hover or focus stays put (R91). A trace that follows the
+  pointer cannot be used with a keyboard, and a click that both traces and navigates loses the trace.
+- *Source:* DESIGN §3.6–3.8; report g5.
+
+**D-022 · Sign in, Your projects and Day 1 (group g6)**
+- *Decision:*
+  - Sign in validates on submit and explains a missing field under it, instead of a silently disabled
+    button.
+  - With a session already open, `/sign-in` goes straight on to `safeNext(next)`.
+  - Cancelling a Day 1 reading confirms first, like the run page (D-020).
+  - The one-question walk uses Park from the shared vocabulary (§4.4).
+  - Multi-select answers follow the thread's rule: the options joined with " · " in their order, and
+    the person's own words last. An exclusive option stands alone.
+  - New project keeps its draft, and the ids already created, per tab in sessionStorage. Once the
+    project exists, the name is read-only with a hint.
+  - "Review the decisions" opens Needs you when the waiting decisions span several batches.
+  - Pages outside a project use a top bar that reflows on a phone: the links go to a second line and
+    the person's menu shrinks to its avatar.
+- *Alternatives:* keep the disabled button; a separate Day 1 cancel rule.
+- *Why:* errors are identified and explained in text, and the page reflows at 320 CSS px (WCAG 2.2,
+  R82). What the person already typed is never asked for again (R87), and a second project created by
+  a retry is lost work (INVENTORY §2 #10).
+- *Source:* DESIGN §3.9; report g6.

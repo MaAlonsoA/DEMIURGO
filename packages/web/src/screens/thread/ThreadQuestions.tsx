@@ -4,15 +4,16 @@
 // conversation about one question, and "Use as answer" settles it in the main thread. When the
 // thread has nothing left to answer, DEMIURGO reads the answers and goes on.
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
-import type { ExplorationDetail, Question, StageRow } from '../../api/types.ts';
+import type { ExplorationDetail, Question, RunListItem, StageRow } from '../../api/types.ts';
 import { cn } from '../../lib/cn.ts';
 import { useAllows } from '../../ui/ActionBar.tsx';
 import { Button } from '../../ui/Button.tsx';
 import { TypeIcon } from '../../ui/icons.tsx';
 import { Reasons } from '../../ui/Reasons.tsx';
 import { WhoMark } from '../../ui/signals.tsx';
+import { readingOf } from '../onboarding/day.ts';
 
 const OPEN = new Set(['pending', 'inferred']);
 export const isOpenQuestion = (q: Question) => OPEN.has(q.state);
@@ -205,11 +206,13 @@ export function DeeperPanel({
   projectId,
   thread,
   question: q,
+  runs,
   onClose,
 }: {
   projectId: string;
   thread: ExplorationDetail;
   question: Question;
+  runs: RunListItem[];
   onClose: () => void;
 }) {
   const command = useCommand(projectId);
@@ -218,7 +221,16 @@ export function DeeperPanel({
   const [picked, setPicked] = useState<number[]>([]);
   const [own, setOwn] = useState<string | null>(null);
   const messages = thread.messages.filter((m) => m.question_id === q.id);
-  const writing = messages.some((m) => m.response === 'waiting' || m.response === 'requested');
+  // DEMIURGO is writing while the run that answers the last message of the person has not ended.
+  const lastAsked = [...messages].reverse().find((m) => m.author.startsWith('human:'));
+  const phase = lastAsked ? readingOf(runs, lastAsked).phase : 'read';
+  const writing = phase === 'catching_up' || phase === 'waiting' || phase === 'working';
+  const failed = phase === 'failed' || phase === 'cancelled';
+  const scroller = useRef<HTMLDivElement>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: scroll to the bottom when the conversation grows
+  useEffect(() => {
+    scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
+  }, [messages.length, writing]);
   const options = q.options ?? [];
   const conclusion = own !== null ? own.trim() : q.multiple ? joined(q, picked) : (options[picked[0] ?? -1]?.answer ?? '');
   const send = () => {
@@ -230,7 +242,7 @@ export function DeeperPanel({
   };
 
   return (
-    <section aria-label="Going deeper" className="flex flex-col gap-4">
+    <section aria-label="Going deeper" className="flex min-h-0 flex-1 flex-col gap-4">
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
           <span className="dm-label">Going deeper</span>
@@ -241,7 +253,7 @@ export function DeeperPanel({
         <h2 className="dm-text-heading text-ink">{q.question}</h2>
         <span className="dm-text-caption text-muted">The main thread waits here. Nothing is lost.</span>
       </div>
-      <div className="flex flex-col gap-3">
+      <div ref={scroller} className="-mx-1 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-1">
         {messages.length === 0 && !writing && (
           <p className="dm-text-small text-muted">Ask anything about this question: what each option means, examples, what others do.</p>
         )}
@@ -261,6 +273,7 @@ export function DeeperPanel({
           ),
         )}
         {writing && <p className="dm-text-caption text-working-text">DEMIURGO is writing…</p>}
+        {failed && <p className="dm-text-caption text-muted">DEMIURGO couldn't answer this time. Send it again.</p>}
       </div>
       <div className="flex flex-col gap-2">
         <label className="sr-only" htmlFor={`deeper-${q.id}`}>
@@ -326,9 +339,12 @@ export function DeeperPanel({
             className="dm-text-small w-full resize-y rounded-control border border-line-strong bg-surface px-3 py-2 text-ink outline-none focus:border-needs"
           />
         )}
-        <Button variant="primary" className="self-start" disabled={!conclusion || pending} onClick={() => answer(q, conclusion, onClose)}>
-          Use as answer
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button variant="primary" disabled={!conclusion || pending} onClick={() => answer(q, conclusion, onClose)}>
+            {pending ? 'Answering…' : 'Use as answer'}
+          </Button>
+          {!conclusion && <span className="dm-text-caption text-muted">Pick an option or write your own words first.</span>}
+        </div>
         {error ? <Reasons error={error} /> : null}
       </div>
     </section>

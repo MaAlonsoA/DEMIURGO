@@ -3,7 +3,7 @@
 // the card, never a full-screen spinner (spec §7.1).
 
 import { Link } from '@tanstack/react-router';
-import type { ReactNode } from 'react';
+import { type KeyboardEvent, type PointerEvent, type ReactNode, useState } from 'react';
 import { cn } from '../lib/cn.ts';
 import { ChevronLeft } from './icons.tsx';
 
@@ -11,12 +11,15 @@ export function Page({
   children,
   aside,
   asideFooter,
+  asidePanel = false,
   className,
 }: {
   children: ReactNode;
   aside?: ReactNode;
   /** Kept at the bottom of the right column while the page scrolls ("Ask DEMIURGO about this"). */
   asideFooter?: ReactNode;
+  /** The right column as a panel: the height of the window, its own scroll, and resizable. */
+  asidePanel?: boolean;
   className?: string;
 }) {
   return (
@@ -24,7 +27,8 @@ export function Page({
       <main id="main" className={cn('min-w-0 flex-1 px-10 pt-7 pb-24', className)}>
         {children}
       </main>
-      {aside && (
+      {aside && asidePanel && <AsidePanel>{aside}</AsidePanel>}
+      {aside && !asidePanel && (
         <aside
           className={cn(
             'w-[var(--aside-width)] shrink-0 border-l border-line bg-surface px-5 pt-7',
@@ -37,6 +41,78 @@ export function Page({
         </aside>
       )}
     </div>
+  );
+}
+
+const WIDTH_KEY = 'dm-aside-panel-width';
+const MIN_WIDTH = 320;
+const maxWidth = () => Math.max(MIN_WIDTH, Math.round(window.innerWidth * 0.6));
+const clampWidth = (w: number) => Math.min(maxWidth(), Math.max(MIN_WIDTH, Math.round(w)));
+
+function storedWidth(): number {
+  try {
+    const n = Number(window.localStorage.getItem(WIDTH_KEY));
+    return n > 0 ? clampWidth(n) : 480;
+  } catch {
+    return 480;
+  }
+}
+
+/** The right column that scrolls on its own and is dragged wider or narrower from its left edge. */
+function AsidePanel({ children }: { children: ReactNode }) {
+  const [width, setWidth] = useState(storedWidth);
+  const keep = (w: number) => {
+    const next = clampWidth(w);
+    setWidth(next);
+    try {
+      window.localStorage.setItem(WIDTH_KEY, String(next));
+    } catch {
+      // Remembering the width is a convenience.
+    }
+  };
+  const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = width;
+    const handle = e.currentTarget;
+    handle.setPointerCapture(e.pointerId);
+    const move = (ev: globalThis.PointerEvent) => keep(startWidth + (startX - ev.clientX));
+    const up = () => {
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', up);
+      handle.removeEventListener('pointercancel', up);
+    };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', up);
+    handle.addEventListener('pointercancel', up);
+  };
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'ArrowLeft') keep(width + 32);
+    else if (e.key === 'ArrowRight') keep(width - 32);
+    else return;
+    e.preventDefault();
+  };
+  return (
+    <aside
+      style={{ width }}
+      className="sticky top-14 flex h-[calc(100vh-56px)] shrink-0 flex-col self-start border-l border-line bg-surface"
+      aria-label="Side panel"
+    >
+      {/* biome-ignore lint/a11y/useSemanticElements: a vertical splitter has no native element */}
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize the side panel"
+        aria-valuenow={width}
+        aria-valuemin={MIN_WIDTH}
+        tabIndex={0}
+        onPointerDown={onPointerDown}
+        onKeyDown={onKeyDown}
+        onDoubleClick={() => keep(480)}
+        className="absolute inset-y-0 -left-1 z-20 w-2 cursor-col-resize touch-none outline-none hover:bg-needs-line focus-visible:bg-needs-line"
+      />
+      <div className="flex min-h-0 flex-1 flex-col px-5 pt-7 pb-5">{children}</div>
+    </aside>
   );
 }
 

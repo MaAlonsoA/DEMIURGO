@@ -74,9 +74,17 @@ export function ThreadScreen() {
   return (
     <Page
       className="pb-0"
+      asidePanel
       aside={
         deeperQuestion ? (
-          <DeeperPanel projectId={projectId} thread={t} question={deeperQuestion} onClose={() => setDeeper(null)} />
+          <DeeperPanel
+            key={deeperQuestion.id}
+            projectId={projectId}
+            thread={t}
+            question={deeperQuestion}
+            runs={runs.data ?? []}
+            onClose={() => setDeeper(null)}
+          />
         ) : (
           <ThreadAside projectId={projectId} thread={t} />
         )
@@ -420,7 +428,7 @@ function ThreadAside({ projectId, thread: t }: { projectId: string; thread: Expl
   const canOpen = !!tables && canCreate(tables, 'exploration.open');
 
   return (
-    <section aria-labelledby="thread-children" className="flex flex-col">
+    <section aria-labelledby="thread-children" className="flex min-h-0 flex-col overflow-y-auto">
       <SectionTitle>
         <span id="thread-children">Threads inside</span>
       </SectionTitle>

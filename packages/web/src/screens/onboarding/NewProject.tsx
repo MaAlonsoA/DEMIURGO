@@ -91,6 +91,8 @@ export function NewProjectScreen() {
     } catch (err) {
       setError(err);
       setPending(false);
+      // The project may already exist (the message is what failed): it shows in Your projects.
+      void client.invalidateQueries({ queryKey: projectsQuery.queryKey });
     }
   };
 
@@ -98,11 +100,16 @@ export function NewProjectScreen() {
     <div className="flex min-h-screen flex-col">
       <header className="flex h-14 shrink-0 items-center justify-between px-7">
         <span className="text-xs font-bold tracking-[0.14em]">DEMIURGO</span>
-        {projects.length > 0 && (
-          <Link to="/projects" className="text-[14px] font-medium text-ink-3 hover:text-ink">
-            Your projects
+        <nav aria-label="Workspace" className="flex items-center gap-5 text-[14px] font-medium text-ink-3">
+          <Link to="/models" className="hover:text-ink">
+            Models &amp; providers
           </Link>
-        )}
+          {projects.length > 0 && (
+            <Link to="/projects" className="hover:text-ink">
+              Your projects
+            </Link>
+          )}
+        </nav>
       </header>
       <main id="main" className="flex flex-1 justify-center px-6 pt-[92px] pb-24">
         <form onSubmit={(e) => void start(e)} className="flex w-[760px] flex-col gap-[22px]" aria-labelledby={`${ideaId}-title`}>

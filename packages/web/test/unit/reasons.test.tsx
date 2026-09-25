@@ -16,6 +16,13 @@ describe('reasons of a rejected action', () => {
     ).not.toContain('href=');
   });
 
+  it('AC-AGE-002-03 outside a project (starting the first one), a missing engine links to Models & providers of the workspace', () => {
+    const error = new ApiError(409, 'guard', 'The conditions for "message.post" are not met.', [
+      'Choose a model for onboarding in Settings → Models & providers.',
+    ]);
+    expect(renderToStaticMarkup(<Reasons error={error} />)).toContain('href="/models"');
+  });
+
   it('AC-INT-001-14 a 409 shows the server reasons as they come, never a generic "Error"', () => {
     const e = explain(
       new ApiError(409, 'guard', 'The command cannot be run.', ['Version 2 is not approved.', 'It has no acceptance criteria.']),

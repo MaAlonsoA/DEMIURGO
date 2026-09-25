@@ -23,7 +23,7 @@ import { RunScreen } from './screens/run/Run.tsx';
 import { AppRoot } from './screens/shell/AppRoot.tsx';
 import { ProjectShell } from './screens/shell/ProjectShell.tsx';
 import { SignInScreen } from './screens/sign-in/SignIn.tsx';
-import { ModelsScreen } from './screens/models/ModelsAndProviders.tsx';
+import { ModelsScreen, WorkspaceModelsScreen } from './screens/models/ModelsAndProviders.tsx';
 import { SourcesScreen } from './screens/sources/Sources.tsx';
 import { ThreadScreen } from './screens/thread/Thread.tsx';
 import { ThreadsScreen } from './screens/threads/Threads.tsx';
@@ -70,6 +70,12 @@ const indexRoute = createRoute({
 
 const projectsRoute = createRoute({ getParentRoute: () => authedRoute, path: '/projects', component: ProjectsScreen });
 const newProjectRoute = createRoute({ getParentRoute: () => authedRoute, path: '/new', component: NewProjectScreen });
+// Models & providers outside any project: the first project needs an engine before it exists.
+const workspaceModelsRoute = createRoute({
+  getParentRoute: () => authedRoute,
+  path: '/models',
+  component: WorkspaceModelsScreen,
+});
 
 const projectRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -150,6 +156,7 @@ const routeTree = rootRoute.addChildren([
     indexRoute,
     projectsRoute,
     newProjectRoute,
+    workspaceModelsRoute,
     projectRoute.addChildren([
       overviewRoute,
       originsRoute,

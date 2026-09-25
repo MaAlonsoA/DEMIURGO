@@ -48,11 +48,13 @@ export function explain(error: unknown): Explained {
 /** A reason that asks the person to choose an engine (FDR-AGE-002): it links to Models & providers. */
 const ENGINE_REASON = /Choose (a|another) model for /;
 
-/** Models & providers of the open project, taken from the address (Reasons lives outside the router). */
-function modelsOfCurrentProject(): string | undefined {
-  if (typeof window === 'undefined') return undefined;
-  const m = /^\/p\/([^/]+)/.exec(window.location.pathname);
-  return m ? `/p/${m[1]}/models` : undefined;
+/**
+ * Models & providers of the open project, taken from the address (Reasons lives outside the router);
+ * outside a project (starting the first one), the workspace's.
+ */
+function modelsOfCurrentProject(): string {
+  const m = typeof window === 'undefined' ? null : /^\/p\/([^/]+)/.exec(window.location.pathname);
+  return m ? `/p/${m[1]}/models` : '/models';
 }
 
 export function Reasons({ error, className, modelsHref }: { error: unknown; className?: string; modelsHref?: string }) {

@@ -37,6 +37,30 @@ test('AC-AGE-002-02 the person opens Models & providers from the menu, sees the 
   await expect(explorer.locator('[data-effective]')).toContainText('(everywhere)');
 });
 
+test('AC-AGE-002-02 before any project, Models & providers is reachable from New project and from Your projects', async ({
+  page,
+  person,
+}) => {
+  await legendFolded(page);
+  await person.createProject('Somewhere');
+  await page.goto('/new');
+  await page.getByRole('link', { name: 'Models & providers' }).click();
+  await expect(page).toHaveURL(/\/models$/);
+  await expect(page.getByRole('heading', { name: 'Models & providers' })).toBeVisible();
+  await expect(page.locator('[data-provider="simulated"]')).toContainText('Ready');
+  // Only the choice for everywhere: there is no project here.
+  const onboarding = page.locator('[data-agent="onboarding"]');
+  await expect(onboarding.locator('[data-effective]')).toContainText('(everywhere)');
+  await expect(onboarding.getByRole('group', { name: /everywhere/ })).toBeVisible();
+  await expect(onboarding.getByRole('button', { name: 'Use another here' })).toHaveCount(0);
+  await expectAccessible(page, 'Models & providers of the workspace');
+
+  await page.getByRole('link', { name: 'Your projects' }).click();
+  await expect(page).toHaveURL(/\/projects$/);
+  await page.getByRole('link', { name: 'Models & providers' }).click();
+  await expect(page).toHaveURL(/\/models$/);
+});
+
 test('AC-AGE-002-11 a failed run offers Retry with… and runs again on the chosen engine', async ({ page, person }) => {
   await legendFolded(page);
   const projectId = await person.createProject('Retry with');

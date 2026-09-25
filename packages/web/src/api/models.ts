@@ -109,7 +109,7 @@ export type RunCall = {
 
 export const modelKeys = {
   providers: ['models', 'providers'] as const,
-  agents: (projectId: string) => ['models', 'agents', projectId] as const,
+  agents: (projectId?: string) => ['models', 'agents', projectId ?? 'everywhere'] as const,
   calls: (projectId: string, runId: string) => ['p', projectId, 'run', runId, 'calls'] as const,
 };
 
@@ -118,10 +118,11 @@ export const providersQuery = queryOptions({
   queryFn: () => get<ProvidersResponse>('/api/providers'),
 });
 
-export const agentsQuery = (projectId: string) =>
+/** The agents with their engines: of a project, or only everywhere's outside any project. */
+export const agentsQuery = (projectId?: string) =>
   queryOptions({
     queryKey: modelKeys.agents(projectId),
-    queryFn: () => get<AgentsResponse>(`/api/agents?project=${encodeURIComponent(projectId)}`),
+    queryFn: () => get<AgentsResponse>(projectId ? `/api/agents?project=${encodeURIComponent(projectId)}` : '/api/agents'),
   });
 
 export const runCallsQuery = (projectId: string, runId: string) =>

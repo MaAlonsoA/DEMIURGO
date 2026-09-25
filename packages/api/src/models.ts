@@ -73,7 +73,7 @@ export function registerModelRoutes(app: FastifyInstance, r: ModelRoutes): void 
         version: a.version,
         global: assignments.find((x) => x.agent === a.id && x.scope === 'global') ?? null,
         project: projectId ? (assignments.find((x) => x.agent === a.id && x.scope === 'project') ?? null) : null,
-        effective: projectId ? await resolveEngine(db, providers, { projectId, agent: a.id }) : null,
+        effective: await resolveEngine(db, providers, { ...(projectId ? { projectId } : {}), agent: a.id }),
       })),
     );
     return { agents, skills: catalog.skills.map((s) => ({ id: s.id, description: s.description })) };

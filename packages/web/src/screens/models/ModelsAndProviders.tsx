@@ -1,8 +1,10 @@
 // Settings → Models & providers (FDR-AGE-002): what each provider offers now, which engine runs each
 // agent (everywhere, and this project's overrides), and what they have spent. Only discovered models
-// can be chosen; nothing here switches engine on its own.
+// can be chosen; nothing here switches engine on its own. It also lives outside any project
+// (/models), so a first project that can't start because no engine is chosen has somewhere to go.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { type ReactNode, useState } from 'react';
 import {
   type AgentInfo,
@@ -26,8 +28,38 @@ import { Reasons } from '../../ui/Reasons.tsx';
 import { EngineSelect } from './EngineSelect.tsx';
 import { agentOrder, engineLabel, firstEngine, choosableProviders, formatTokens, resolutionLine } from './engines.ts';
 
+/** Inside a project: everywhere and this project's overrides. */
 export function ModelsScreen() {
-  const projectId = useProjectId();
+  return (
+    <Page>
+      <ModelsAndProviders projectId={useProjectId()} />
+    </Page>
+  );
+}
+
+/** Outside any project: only the choice for everywhere. */
+export function WorkspaceModelsScreen() {
+  return (
+    <div className="flex min-h-screen flex-col">
+      <header className="flex h-14 shrink-0 items-center justify-between px-7">
+        <span className="text-xs font-bold tracking-[0.14em]">DEMIURGO</span>
+        <nav aria-label="Workspace" className="flex items-center gap-5 text-[14px] font-medium text-ink-3">
+          <Link to="/projects" className="hover:text-ink">
+            Your projects
+          </Link>
+          <Link to="/new" className="hover:text-ink">
+            New project
+          </Link>
+        </nav>
+      </header>
+      <main id="main" className="px-7 pt-6 pb-16">
+        <ModelsAndProviders />
+      </main>
+    </div>
+  );
+}
+
+function ModelsAndProviders({ projectId }: { projectId?: string }) {
   const client = useQueryClient();
   const providers = useQuery(providersQuery);
   const agents = useQuery(agentsQuery(projectId));
@@ -38,61 +70,59 @@ export function ModelsScreen() {
   const catalogs = providers.data?.catalogs ?? [];
 
   return (
-    <Page>
-      <div className="flex max-w-[1080px] flex-col gap-9">
-        <PageTitle
-          eyebrow="Settings"
-          title="Models & providers"
-          subtitle="Which engine runs each part of DEMIURGO. You choose from what each provider offers right now; DEMIURGO never switches on its own."
-          actions={
-            <Button data-refresh-providers disabled={refresh.isPending} onClick={() => refresh.mutate()}>
-              {refresh.isPending ? 'Looking…' : 'Refresh'}
-            </Button>
-          }
-          className="mb-0"
-        />
-        {refresh.error ? <Reasons error={refresh.error} /> : null}
-        {providers.error ? <Reasons error={providers.error} /> : null}
+    <div className="flex max-w-[1080px] flex-col gap-9">
+      <PageTitle
+        eyebrow="Settings"
+        title="Models & providers"
+        subtitle="Which engine runs each part of DEMIURGO. You choose from what each provider offers right now; DEMIURGO never switches on its own."
+        actions={
+          <Button data-refresh-providers disabled={refresh.isPending} onClick={() => refresh.mutate()}>
+            {refresh.isPending ? 'Looking…' : 'Refresh'}
+          </Button>
+        }
+        className="mb-0"
+      />
+      {refresh.error ? <Reasons error={refresh.error} /> : null}
+      {providers.error ? <Reasons error={providers.error} /> : null}
 
-        <section aria-labelledby="providers-title">
-          <SectionTitle aside="Discovered without spending quota">
-            <span id="providers-title">Providers</span>
-          </SectionTitle>
-          {providers.isPending ? (
-            <div className="grid grid-cols-3 gap-3">
-              <Skeleton className="h-36" />
-              <Skeleton className="h-36" />
-              <Skeleton className="h-36" />
-            </div>
-          ) : (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-3">
-              {catalogs.map((c) => (
-                <ProviderCard key={c.provider} catalog={c} />
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section aria-labelledby="agents-title">
-          <SectionTitle aside="A change applies to the next run, never to one already asked for">
-            <span id="agents-title">Who does what</span>
-          </SectionTitle>
-          {agents.error ? <Reasons error={agents.error} /> : null}
-          {agents.isPending || providers.isPending ? (
-            <Skeleton className="h-64" />
-          ) : (
-            <AgentTable agents={agents.data?.agents ?? []} catalogs={catalogs} projectId={projectId} />
-          )}
-        </section>
-
-        {providers.data && (
-          <>
-            <UsageSection consumption={providers.data.consumption} catalogs={catalogs} />
-            <StatsSection stats={providers.data.stats} catalogs={catalogs} />
-          </>
+      <section aria-labelledby="providers-title">
+        <SectionTitle aside="Discovered without spending quota">
+          <span id="providers-title">Providers</span>
+        </SectionTitle>
+        {providers.isPending ? (
+          <div className="grid grid-cols-3 gap-3">
+            <Skeleton className="h-36" />
+            <Skeleton className="h-36" />
+            <Skeleton className="h-36" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-3">
+            {catalogs.map((c) => (
+              <ProviderCard key={c.provider} catalog={c} />
+            ))}
+          </div>
         )}
-      </div>
-    </Page>
+      </section>
+
+      <section aria-labelledby="agents-title">
+        <SectionTitle aside="A change applies to the next run, never to one already asked for">
+          <span id="agents-title">Who does what</span>
+        </SectionTitle>
+        {agents.error ? <Reasons error={agents.error} /> : null}
+        {agents.isPending || providers.isPending ? (
+          <Skeleton className="h-64" />
+        ) : (
+          <AgentTable agents={agents.data?.agents ?? []} catalogs={catalogs} projectId={projectId} />
+        )}
+      </section>
+
+      {providers.data && (
+        <>
+          <UsageSection consumption={providers.data.consumption} catalogs={catalogs} />
+          <StatsSection stats={providers.data.stats} catalogs={catalogs} />
+        </>
+      )}
+    </div>
   );
 }
 
@@ -163,14 +193,25 @@ function ProviderCard({ catalog: c }: { catalog: Catalog }) {
   );
 }
 
-function AgentTable({ agents, catalogs, projectId }: { agents: AgentInfo[]; catalogs: Catalog[]; projectId: string }) {
+/** One column per scope: everywhere, and this project when there is one. */
+const agentColumns = (projectId?: string) =>
+  projectId
+    ? 'grid-cols-[minmax(220px,1.2fr)_minmax(400px,2fr)_minmax(400px,2fr)]'
+    : 'grid-cols-[minmax(220px,1.2fr)_minmax(400px,2fr)]';
+
+function AgentTable({ agents, catalogs, projectId }: { agents: AgentInfo[]; catalogs: Catalog[]; projectId?: string }) {
   const sorted = agents.toSorted((a, b) => agentOrder(a.id, b.id));
   return (
     <div className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface">
-      <div className="grid grid-cols-[minmax(220px,1.2fr)_minmax(400px,2fr)_minmax(400px,2fr)] border-b border-line-soft bg-surface-2 px-4 py-2 text-xs font-semibold text-muted">
+      <div
+        className={cn(
+          'grid border-b border-line-soft bg-surface-2 px-4 py-2 text-xs font-semibold text-muted',
+          agentColumns(projectId),
+        )}
+      >
         <span>Part of DEMIURGO</span>
         <span>Everywhere</span>
-        <span>This project</span>
+        {projectId && <span>This project</span>}
       </div>
       <ul>
         {sorted.map((a) => (
@@ -181,7 +222,7 @@ function AgentTable({ agents, catalogs, projectId }: { agents: AgentInfo[]; cata
   );
 }
 
-function AgentRow({ agent: a, catalogs, projectId }: { agent: AgentInfo; catalogs: Catalog[]; projectId: string }) {
+function AgentRow({ agent: a, catalogs, projectId }: { agent: AgentInfo; catalogs: Catalog[]; projectId?: string }) {
   const client = useQueryClient();
   const [overriding, setOverriding] = useState(false);
   const done = () => client.invalidateQueries({ queryKey: ['models'] });
@@ -203,7 +244,7 @@ function AgentRow({ agent: a, catalogs, projectId }: { agent: AgentInfo; catalog
   return (
     <li
       data-agent={a.id}
-      className="grid grid-cols-[minmax(220px,1.2fr)_minmax(400px,2fr)_minmax(400px,2fr)] items-start gap-y-2 border-b border-line-soft px-4 py-3.5 last:border-b-0"
+      className={cn('grid items-start gap-y-2 border-b border-line-soft px-4 py-3.5 last:border-b-0', agentColumns(projectId))}
     >
       <div className="flex min-w-0 flex-col gap-0.5 pr-4">
         <span className="text-[14px] font-semibold text-ink">{a.section}</span>
@@ -238,44 +279,46 @@ function AgentRow({ agent: a, catalogs, projectId }: { agent: AgentInfo; catalog
           <span className="text-xs font-semibold text-problem">No model yet</span>
         )}
       </Cell>
-      <Cell>
-        {a.project || overriding ? (
-          <>
-            <EngineSelect
-              label={`${a.section}, this project`}
-              catalogs={catalogs}
-              value={a.project?.engine ?? null}
-              disabled={busy}
-              onChange={(engine) => assign.mutate({ scope: 'project', engine })}
-            />
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={busy}
-              onClick={() => (a.project ? unassign.mutate('project') : setOverriding(false))}
-            >
-              {a.project ? 'Use everywhere’s' : 'Cancel'}
-            </Button>
-          </>
-        ) : (
-          <>
-            <span className="text-[13px] text-muted">Same as everywhere</span>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={busy || !fallback}
-              onClick={() => {
-                if (fallback) assign.mutate({ scope: 'project', engine: fallback });
-                else setOverriding(true);
-              }}
-            >
-              Use another here
-            </Button>
-          </>
-        )}
-      </Cell>
+      {projectId && (
+        <Cell>
+          {a.project || overriding ? (
+            <>
+              <EngineSelect
+                label={`${a.section}, this project`}
+                catalogs={catalogs}
+                value={a.project?.engine ?? null}
+                disabled={busy}
+                onChange={(engine) => assign.mutate({ scope: 'project', engine })}
+              />
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={busy}
+                onClick={() => (a.project ? unassign.mutate('project') : setOverriding(false))}
+              >
+                {a.project ? 'Use everywhere’s' : 'Cancel'}
+              </Button>
+            </>
+          ) : (
+            <>
+              <span className="text-[13px] text-muted">Same as everywhere</span>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy || !fallback}
+                onClick={() => {
+                  if (fallback) assign.mutate({ scope: 'project', engine: fallback });
+                  else setOverriding(true);
+                }}
+              >
+                Use another here
+              </Button>
+            </>
+          )}
+        </Cell>
+      )}
       {(assign.error || unassign.error) && (
-        <div className="col-span-3">
+        <div className="col-span-full">
           <Reasons error={assign.error ?? unassign.error} />
         </div>
       )}

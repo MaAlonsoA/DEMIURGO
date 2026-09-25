@@ -165,7 +165,8 @@ export async function currentAssignments(db: Db | Tx, projectId?: string): Promi
 export async function resolveEngine(
   db: Db | Tx,
   providers: ProviderRegistry,
-  p: { projectId: string; agent: string; override?: Engine },
+  /** Without a project, only the global assignment counts (the workspace's Models & providers). */
+  p: { projectId?: string; agent: string; override?: Engine },
 ): Promise<Resolution> {
   let chosen: { source: 'override' | 'project' | 'global'; engine: Engine } | null = null;
   if (p.override) chosen = { source: 'override', engine: p.override };

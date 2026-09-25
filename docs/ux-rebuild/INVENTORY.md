@@ -4412,10 +4412,604 @@ Loading, 404, no base, validation, pending save, a server 409/422, unknown link 
 
 ## 4. Parity status
 
-Filled in when the rebuild ends. Each status comes from checking the item against the new frontend.
+Checked against the rebuilt frontend at the end of the run. The notes say where each capability
+lives now, or why it is partial or missing.
 
-- **DONE**: the capability exists.
-- **PARTIAL**: it exists, but differently or incompletely; the note says how.
-- **MISSING**: it is not there; the note says why.
+**594 items: 584 DONE · 10 PARTIAL · 0 MISSING.**
 
-*(pending)*
+| ID | Status | Note |
+| --- | --- | --- |
+| INV-ACT-01 | DONE | Header line with the counts, or the explanation when there are no runs (activity/summary.ts) |
+| INV-ACT-02 | DONE | Usage panel "Usage · All time", with totals, a per-part table, loading and inline error with Retry |
+| INV-ACT-03 | DONE | SegmentedLinks "Filter by state": All plus 6 states, visible counts, ?state=, aria-current |
+| INV-ACT-04 | DONE | Table with State, Run, Thread, Requested by, When, Duration; data-run-row |
+| INV-ACT-05 | DONE | Run cell: action link, agent · model, "Attempt n" linking to the original, failure words |
+| INV-ACT-06 | DONE | Thread purpose link, or "—" |
+| INV-ACT-07 | DONE | Who: You / Agent · name / Automatic |
+| INV-ACT-08 | DONE | DayTime, and a duration that ticks while the run is active |
+| INV-ACT-09 | DONE | Empty states with or without a filter, with a way on |
+| INV-ACT-10 | DONE | RowsSkeleton "Loading the runs" |
+| INV-ACT-11 | DONE | Sidebar Activity and the run page breadcrumb |
+| INV-AUTH-01 | DONE | Unchanged: session guard in the router, 401 in AppRoot, Sign out in PersonMenu and WorkspaceFrame |
+| INV-AUTH-02 | DONE | Unchanged: session guard in the router, 401 in AppRoot, Sign out in PersonMenu and WorkspaceFrame |
+| INV-AUTH-03 | DONE | Unchanged: session guard in the router, 401 in AppRoot, Sign out in PersonMenu and WorkspaceFrame |
+| INV-AUTH-04 | DONE | Unchanged: session guard in the router, 401 in AppRoot, Sign out in PersonMenu and WorkspaceFrame |
+| INV-AUTH-05 | DONE | SignIn: autofocus, autocomplete, Signing in…, 401 alert that keeps the user and clears the password, ErrorNotice, safeNext |
+| INV-AUTH-06 | DONE | Changed: missing fields are explained under the field and focused instead of a silently disabled button |
+| INV-AUTH-07 | DONE | SignIn: autofocus, autocomplete, Signing in…, 401 alert that keeps the user and clears the password, ErrorNotice, safeNext |
+| INV-AUTH-08 | DONE | SignIn: autofocus, autocomplete, Signing in…, 401 alert that keeps the user and clears the password, ErrorNotice, safeNext |
+| INV-AUTH-09 | DONE | SignIn: autofocus, autocomplete, Signing in…, 401 alert that keeps the user and clears the password, ErrorNotice, safeNext |
+| INV-AUTH-10 | DONE | SignIn: autofocus, autocomplete, Signing in…, 401 alert that keeps the user and clears the password, ErrorNotice, safeNext |
+| INV-BATCH-01 | DONE | Batch pages: breadcrumbs from the origin, not-found, error with Retry, skeleton |
+| INV-BATCH-02 | DONE | Batch pages: breadcrumbs from the origin, not-found, error with Retry, skeleton |
+| INV-BATCH-03 | DONE | Batch pages: breadcrumbs from the origin, not-found, error with Retry, skeleton |
+| INV-BATCH-04 | DONE | Batch pages: breadcrumbs from the origin, not-found, error with Retry, skeleton |
+| INV-BATCH-05 | DONE | Batch pages: breadcrumbs from the origin, not-found, error with Retry, skeleton |
+| INV-BATCH-06 | DONE | Batch pages: breadcrumbs from the origin, not-found, error with Retry, skeleton |
+| INV-BATCH-07 | DONE | Changed: after a decision the page jumps to the next pending proposal |
+| INV-BATCH-08 | DONE | Package decision at the top and in a sticky footer; import counts with a Compared column; "Ratify N documents?" |
+| INV-BATCH-09 | DONE | Package decision at the top and in a sticky footer; import counts with a Compared column; "Ratify N documents?" |
+| INV-BATCH-10 | DONE | Package decision at the top and in a sticky footer; import counts with a Compared column; "Ratify N documents?" |
+| INV-BATCH-11 | DONE | Package decision at the top and in a sticky footer; import counts with a Compared column; "Ratify N documents?" |
+| INV-BATCH-12 | DONE | Package decision at the top and in a sticky footer; import counts with a Compared column; "Ratify N documents?" |
+| INV-BATCH-13 | DONE | Package decision at the top and in a sticky footer; import counts with a Compared column; "Ratify N documents?" |
+| INV-BATCH-14 | DONE | Package decision at the top and in a sticky footer; import counts with a Compared column; "Ratify N documents?" |
+| INV-BATCH-15 | DONE | Package decision at the top and in a sticky footer; import counts with a Compared column; "Ratify N documents?" |
+| INV-BATCH-16 | DONE | Package decision at the top and in a sticky footer; import counts with a Compared column; "Ratify N documents?" |
+| INV-BATCH-17 | DONE | Package decision at the top and in a sticky footer; import counts with a Compared column; "Ratify N documents?" |
+| INV-BATCH-18 | DONE | Package decision at the top and in a sticky footer; import counts with a Compared column; "Ratify N documents?" |
+| INV-BATCH-19 | DONE | Package decision at the top and in a sticky footer; import counts with a Compared column; "Ratify N documents?" |
+| INV-BATCH-20 | DONE | Package decision at the top and in a sticky footer; import counts with a Compared column; "Ratify N documents?" |
+| INV-BATCH-21 | DONE | Package decision at the top and in a sticky footer; import counts with a Compared column; "Ratify N documents?" |
+| INV-BATCH-22 | DONE | Package decision at the top and in a sticky footer; import counts with a Compared column; "Ratify N documents?" |
+| INV-BP-01 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-02 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-03 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-04 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-05 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-06 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-07 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-08 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-09 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-10 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-11 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-12 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-13 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-14 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-15 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-16 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-17 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-18 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-19 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-20 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-21 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-22 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-23 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-24 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-25 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-26 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-27 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-28 | DONE | Records navigator with every type and an error state; record tabs keep ?v; Questions tab with the shared vocabulary |
+| INV-BP-29 | DONE | Search lives in the command menu (Ctrl K) and uses blueprint/search.ts |
+| INV-BP-30 | DONE | Search lives in the command menu (Ctrl K) and uses blueprint/search.ts |
+| INV-BP-31 | DONE | Search lives in the command menu (Ctrl K) and uses blueprint/search.ts |
+| INV-BP-32 | DONE | Search lives in the command menu (Ctrl K) and uses blueprint/search.ts |
+| INV-BP-33 | DONE | Search lives in the command menu (Ctrl K) and uses blueprint/search.ts |
+| INV-CATCH-01 | DONE | Catch up walk in words, region next to the item, persisted in sessionStorage, focus moves on, finished view |
+| INV-CATCH-02 | DONE | Catch up walk in words, region next to the item, persisted in sessionStorage, focus moves on, finished view |
+| INV-CATCH-03 | DONE | Catch up walk in words, region next to the item, persisted in sessionStorage, focus moves on, finished view |
+| INV-CATCH-04 | DONE | Catch up walk in words, region next to the item, persisted in sessionStorage, focus moves on, finished view |
+| INV-CATCH-05 | DONE | Catch up walk in words, region next to the item, persisted in sessionStorage, focus moves on, finished view |
+| INV-CATCH-06 | DONE | Catch up walk in words, region next to the item, persisted in sessionStorage, focus moves on, finished view |
+| INV-CATCH-07 | DONE | Catch up walk in words, region next to the item, persisted in sessionStorage, focus moves on, finished view |
+| INV-CATCH-08 | DONE | Catch up walk in words, region next to the item, persisted in sessionStorage, focus moves on, finished view |
+| INV-CATCH-09 | DONE | Catch up walk in words, region next to the item, persisted in sessionStorage, focus moves on, finished view |
+| INV-CATCH-10 | DONE | Catch up walk in words, region next to the item, persisted in sessionStorage, focus moves on, finished view |
+| INV-CATCH-11 | DONE | Catch up walk in words, region next to the item, persisted in sessionStorage, focus moves on, finished view |
+| INV-CATCH-12 | DONE | Catch up walk in words, region next to the item, persisted in sessionStorage, focus moves on, finished view |
+| INV-CATCH-13 | DONE | Catch up walk in words, region next to the item, persisted in sessionStorage, focus moves on, finished view |
+| INV-CATCH-14 | DONE | Catch up walk in words, region next to the item, persisted in sessionStorage, focus moves on, finished view |
+| INV-DEEP-01 | DONE | Deeper.tsx with the kit ResizablePanel, a sheet under 1024 px, Esc and focus return |
+| INV-DEEP-02 | DONE | Deeper.tsx with the kit ResizablePanel, a sheet under 1024 px, Esc and focus return |
+| INV-DEEP-03 | DONE | Deeper.tsx with the kit ResizablePanel, a sheet under 1024 px, Esc and focus return |
+| INV-DEEP-04 | DONE | Deeper.tsx with the kit ResizablePanel, a sheet under 1024 px, Esc and focus return |
+| INV-DEEP-05 | DONE | Deeper.tsx with the kit ResizablePanel, a sheet under 1024 px, Esc and focus return |
+| INV-DEEP-06 | DONE | Deeper.tsx with the kit ResizablePanel, a sheet under 1024 px, Esc and focus return |
+| INV-DEEP-07 | DONE | Deeper.tsx with the kit ResizablePanel, a sheet under 1024 px, Esc and focus return |
+| INV-DEEP-08 | DONE | Deeper.tsx with the kit ResizablePanel, a sheet under 1024 px, Esc and focus return |
+| INV-DEEP-09 | DONE | Deeper.tsx with the kit ResizablePanel, a sheet under 1024 px, Esc and focus return |
+| INV-DEEP-10 | DONE | Deeper.tsx with the kit ResizablePanel, a sheet under 1024 px, Esc and focus return |
+| INV-DEEP-11 | DONE | Deeper.tsx with the kit ResizablePanel, a sheet under 1024 px, Esc and focus return |
+| INV-DEEP-12 | DONE | Deeper.tsx with the kit ResizablePanel, a sheet under 1024 px, Esc and focus return |
+| INV-DEEP-13 | DONE | Changed: stays open with a notice when its question is settled elsewhere |
+| INV-DEEP-14 | DONE | Deeper.tsx |
+| INV-DEV-01 | DONE | Only with dev_tools in the session |
+| INV-DEV-02 | DONE | The floating "Dev" tab moved to a sidebar footer button (no overlap with content) |
+| INV-DEV-03 | DONE | "Snapshots…" in the person menu (in and outside a project) |
+| INV-DEV-04 | DONE | Same dialog text with the database name |
+| INV-DEV-05 | DONE | Label (max 60) + Save snapshot; reloads after the API restarts |
+| INV-DEV-06 | DONE | List with label, day time, summary and size; loading, empty and error states |
+| INV-DEV-07 | DONE | Restore asks with the app's ConfirmDialog (was window.confirm), forgets visits, goes to / |
+| INV-DEV-08 | DONE | Delete asks with ConfirmDialog, then refreshes the list |
+| INV-DEV-09 | DONE | Reset asks with ConfirmDialog, forgets visits, goes to / |
+| INV-DEV-10 | DONE | Busy state "Restarting the API…" / "Deleting…"; the dialog can't close while busy |
+| INV-DEV-11 | DONE | ErrorNotice for the list and the action |
+| INV-FORK-01 | DONE | Messages.tsx and Aside.tsx; a resolved suggestion links to its thread |
+| INV-FORK-02 | DONE | Messages.tsx and Aside.tsx; a resolved suggestion links to its thread |
+| INV-FORK-03 | DONE | Messages.tsx and Aside.tsx; a resolved suggestion links to its thread |
+| INV-FORK-04 | DONE | Messages.tsx and Aside.tsx; a resolved suggestion links to its thread |
+| INV-FORK-05 | DONE | Messages.tsx and Aside.tsx; a resolved suggestion links to its thread |
+| INV-FORK-06 | DONE | Messages.tsx and Aside.tsx; a resolved suggestion links to its thread |
+| INV-FORK-07 | DONE | Messages.tsx and Aside.tsx; a resolved suggestion links to its thread |
+| INV-FORK-08 | DONE | Messages.tsx and Aside.tsx; a resolved suggestion links to its thread |
+| INV-JRN-01 | DONE | ?j replaces history; the first journey shows by default |
+| INV-JRN-02 | DONE | Changed: an APG single-select listbox; each option says what waits on you |
+| INV-JRN-03 | DONE | Journey title (h2), certainty, link to "CODE vN" |
+| INV-JRN-04 | DONE | Step cards; "Show all n details" instead of a dead "+n more" |
+| INV-JRN-05 | DONE | Paths If / When / → outcome, no longer clamped |
+| INV-JRN-06 | DONE | Gaps "Not defined yet", with Answer links |
+| INV-JRN-07 | DONE | Summary (data-journey-summary) and "Answer N questions" |
+| INV-JRN-08 | DONE | Skeleton, error with Retry, empty state |
+| INV-KEYS-01 | DONE | Sidebar Settings → Agent keys |
+| INV-KEYS-02 | DONE | Title and subtitle; eyebrow "Settings" |
+| INV-KEYS-03 | DONE | PromptDialog "New agent key", same texts, max 40 |
+| INV-KEYS-04 | DONE | Issued panel, role=status, data-issued-key |
+| INV-KEYS-05 | DONE | Secret with Copy that says "Copied" or explains a failure |
+| INV-KEYS-06 | DONE | The MCP line verbatim, with its own Copy |
+| INV-KEYS-07 | DONE | "I have saved it" hides the secret and moves the focus to the key's row |
+| INV-KEYS-08 | DONE | Key list with the Active/Revoked badge, data-agent-key, data-key-state |
+| INV-KEYS-09 | DONE | Revoke with a danger ConfirmDialog; the error resets |
+| INV-KEYS-10 | DONE | Skeleton; error with Retry and no empty state under it; empty state |
+| INV-KEYS-11 | DONE | Live refresh through the stream (tokens) |
+| INV-KNOW-01 | DONE | Changed: APG tabs in ?tab=; switching replaces history |
+| INV-KNOW-02 | DONE | Freshness badge in words, then "Graph vN · nodes · relations" |
+| INV-KNOW-03 | DONE | The sidebar Knowledge signal (shell) |
+| INV-KNOW-04 | DONE | Latest updates in the side column: 8, every failed one, "Show all" |
+| INV-KNOW-05 | DONE | Failed update: the failure text, Retry, an error notice, announced |
+| INV-KNOW-06 | DONE | Grouping line, or "Open the taxonomy" |
+| INV-KNOW-07 | DONE | Type filter as a Segmented radiogroup |
+| INV-KNOW-08 | DONE | Area regions with count and description |
+| INV-KNOW-09 | DONE | Changed: the title links to the record; a Preview button replaces the peek |
+| INV-KNOW-10 | DONE | Preview sheet with relations grouped, rows as links, "Show all n", "Open CODE" |
+| INV-KNOW-11 | DONE | Skeleton, error with Retry, empty state |
+| INV-KNOW-12 | DONE | Search form (role=search), on submit |
+| INV-KNOW-13 | DONE | Idle, searching, error, "Nothing matches" with "Clear the search", count announced |
+| INV-KNOW-14 | DONE | Result cards; one without a page says so |
+| INV-KNOW-15 | DONE | Intro, one article per idea check |
+| INV-KNOW-16 | DONE | Conflict badge, idea type and state, title, "Checked against graph vN", "Open its batch" |
+| INV-KNOW-17 | DONE | Findings: verdict word, citation link, certainty, % sure, justification |
+| INV-KNOW-18 | DONE | Skeleton, error with Retry, empty state |
+| INV-KNOW-19 | DONE | Intro and "Propose a new version" / "Propose a taxonomy" |
+| INV-KNOW-20 | DONE | Setup card (data-taxonomy-setup): template or blank |
+| INV-KNOW-21 | DONE | Current, Proposed, "Replaced · N" (collapsed) |
+| INV-KNOW-22 | DONE | Taxonomy card: axes, Proposed by / Approved by, "Its text" |
+| INV-KNOW-23 | DONE | Approve with the same confirmation texts |
+| INV-KNOW-24 | DONE | Editor: lists every gap, asks before removing an axis, column headers |
+| INV-KNOW-25 | DONE | Skeleton, error with Retry |
+| INV-KNOW-26 | DONE | Rebuild card: fingerprints, "They match" / "They don't match" with the drift |
+| INV-LENS-01 | DONE | What changed: lines and codes as links, "Changed" badge with no dimming, live from the stream, own actions left out |
+| INV-LENS-02 | DONE | What changed: lines and codes as links, "Changed" badge with no dimming, live from the stream, own actions left out |
+| INV-LENS-03 | DONE | What changed: lines and codes as links, "Changed" badge with no dimming, live from the stream, own actions left out |
+| INV-LENS-04 | DONE | What changed: lines and codes as links, "Changed" badge with no dimming, live from the stream, own actions left out |
+| INV-LENS-05 | DONE | What changed: lines and codes as links, "Changed" badge with no dimming, live from the stream, own actions left out |
+| INV-LENS-06 | DONE | What changed: lines and codes as links, "Changed" badge with no dimming, live from the stream, own actions left out |
+| INV-LENS-07 | DONE | What changed: lines and codes as links, "Changed" badge with no dimming, live from the stream, own actions left out |
+| INV-LENS-08 | DONE | What changed: lines and codes as links, "Changed" badge with no dimming, live from the stream, own actions left out |
+| INV-LENS-09 | DONE | What changed: lines and codes as links, "Changed" badge with no dimming, live from the stream, own actions left out |
+| INV-LENS-10 | DONE | What changed: lines and codes as links, "Changed" badge with no dimming, live from the stream, own actions left out |
+| INV-LENS-11 | DONE | What changed: lines and codes as links, "Changed" badge with no dimming, live from the stream, own actions left out |
+| INV-LENS-12 | DONE | What changed: lines and codes as links, "Changed" badge with no dimming, live from the stream, own actions left out |
+| INV-LIVE-01 | DONE | ProjectShell opens the stream once the tables are loaded |
+| INV-LIVE-02 | DONE | Same server contract (ready, one event per command, run.progress, heartbeat, Last-Event-ID) |
+| INV-LIVE-03 | DONE | Listens to every command name, ready and run.progress |
+| INV-LIVE-04 | DONE | Same batched invalidation, extended to map, journeys, the lens' changes and the projects list |
+| INV-LIVE-05 | DONE | onProjectEvent kept |
+| INV-LIVE-06 | DONE | latestEventId/onLatestEvent kept; the visits memory is unchanged (lens) |
+| INV-LIVE-07 | DONE | Run progress store kept, plus when each message arrived (for Stalled) |
+| INV-LIVE-08 | DONE | connecting / open / down, plus closed when the browser gives up |
+| INV-LIVE-09 | DONE | Banner after 1.5 s: "Live updates paused — reconnecting…" with Retry now; "Live" / "Reconnecting…" / "Offline" in the sidebar |
+| INV-LIVE-10 | DONE | After a cut or a manual retry every project query is refetched |
+| INV-LIVE-11 | DONE | useCommand invalidates the project on 2xx (unchanged) |
+| INV-LIVE-12 | DONE | Kept where the screens keep them (Day 1 polling, run calls polling) |
+| INV-LIVE-13 | DONE | Leaving the project closes the source |
+| INV-MAP-01 | DONE | ProductTabs in the page header |
+| INV-MAP-02 | DONE | Header summary: records, areas, relations, questions waiting on you |
+| INV-MAP-03 | DONE | Canvas with lanes per area; features first, then "Rules it follows"; the canvas scrolls with the arrow keys |
+| INV-MAP-04 | DONE | Feature card: type, certainty, readiness word, open questions, title, summary, who, when, checks |
+| INV-MAP-05 | DONE | Rule node: type, state icon (word in its accessible name), title, count |
+| INV-MAP-06 | DONE | Relation lines, each kind with its own pattern and an arrowhead; "under review" is a separate band |
+| INV-MAP-07 | DONE | Changed: pointing or focusing lights the connections without dimming the rest |
+| INV-MAP-08 | DONE | Toggle buttons (aria-pressed); the selection survives zoom; Esc clears it |
+| INV-MAP-09 | DONE | Selection panel (data-map-panel) with the relations as links |
+| INV-MAP-10 | DONE | Legend always visible, naming every line style, "Under review" and the keys |
+| INV-MAP-11 | DONE | − / % / + / Fit, and the keys + − 0; Fit can enlarge up to 130 % |
+| INV-MAP-12 | DONE | Parked ideas column, with links to the threads |
+| INV-MAP-13 | DONE | Skeleton, error with Retry, empty state; never error and empty together |
+| INV-MODELS-01 | DONE | Sidebar Settings, the WorkspaceFrame top bar, the ErrorNotice link |
+| INV-MODELS-02 | DONE | WorkspaceFrame: Your projects, New project, Models & providers, Sign out; Everywhere column only |
+| INV-MODELS-03 | DONE | Eyebrow Settings, h1, subtitle |
+| INV-MODELS-04 | DONE | Refresh ("Looking…"), announced; error under the header |
+| INV-MODELS-05 | DONE | Providers section with its note; empty state |
+| INV-MODELS-06 | DONE | StatusBadge Ready / Not ready / Not installed, version, message; data-provider |
+| INV-MODELS-07 | DONE | Models with effort tags; the default effort in text |
+| INV-MODELS-08 | DONE | Footer: whether it keeps a conversation, and when it was checked |
+| INV-MODELS-09 | DONE | "Who does what" as a stacked list with Everywhere and This project labels |
+| INV-MODELS-10 | DONE | Name, description, id@version · skills, plus Skills and limits |
+| INV-MODELS-11 | DONE | data-effective, with an icon and text |
+| INV-MODELS-12 | DONE | Changes apply at once, and are announced and written in the row |
+| INV-MODELS-13 | DONE | Remove; "No model yet" |
+| INV-MODELS-14 | DONE | "Same as everywhere" / "Use another here", with the reason when disabled |
+| INV-MODELS-15 | DONE | Project selects and "Use everywhere’s" |
+| INV-MODELS-16 | DONE | An error notice per row; the row is disabled while busy |
+| INV-MODELS-17 | DONE | EngineSelect with the same behaviour and visible labels |
+| INV-MODELS-18 | DONE | Period segments and the two spend tables |
+| INV-MODELS-19 | DONE | Stats table with part names and ids, and failure kinds in words |
+| INV-MODELS-20 | DONE | Skeletons, errors with Retry, empty states |
+| INV-MODELS-21 | DONE | RetryWith.tsx: same export and props |
+| INV-NEED-01 | DONE | Header count reconciled; queue listbox groups; row plus detail; "What it unblocks" |
+| INV-NEED-02 | DONE | Header count reconciled; queue listbox groups; row plus detail; "What it unblocks" |
+| INV-NEED-03 | DONE | Header count reconciled; queue listbox groups; row plus detail; "What it unblocks" |
+| INV-NEED-04 | DONE | Header count reconciled; queue listbox groups; row plus detail; "What it unblocks" |
+| INV-NEED-05 | PARTIAL | Minutes and Catch up in the header; the 4-item "In this order" preview is dropped (Catch up's walk shows the order) |
+| INV-NEED-06 | DONE | A detail for every kind; assumed answers show Why; "Out of date" asks first; skeleton, errors with Retry |
+| INV-NEED-07 | DONE | A detail for every kind; assumed answers show Why; "Out of date" asks first; skeleton, errors with Retry |
+| INV-NEED-08 | DONE | A detail for every kind; assumed answers show Why; "Out of date" asks first; skeleton, errors with Retry |
+| INV-NEED-09 | DONE | A detail for every kind; assumed answers show Why; "Out of date" asks first; skeleton, errors with Retry |
+| INV-NEED-10 | DONE | A detail for every kind; assumed answers show Why; "Out of date" asks first; skeleton, errors with Retry |
+| INV-NEED-11 | DONE | A detail for every kind; assumed answers show Why; "Out of date" asks first; skeleton, errors with Retry |
+| INV-NEED-12 | DONE | A detail for every kind; assumed answers show Why; "Out of date" asks first; skeleton, errors with Retry |
+| INV-NEED-13 | DONE | A detail for every kind; assumed answers show Why; "Out of date" asks first; skeleton, errors with Retry |
+| INV-NEED-14 | DONE | A detail for every kind; assumed answers show Why; "Out of date" asks first; skeleton, errors with Retry |
+| INV-NEED-15 | DONE | A detail for every kind; assumed answers show Why; "Out of date" asks first; skeleton, errors with Retry |
+| INV-NEED-16 | DONE | A detail for every kind; assumed answers show Why; "Out of date" asks first; skeleton, errors with Retry |
+| INV-NEED-17 | DONE | A detail for every kind; assumed answers show Why; "Out of date" asks first; skeleton, errors with Retry |
+| INV-NEED-18 | DONE | A detail for every kind; assumed answers show Why; "Out of date" asks first; skeleton, errors with Retry |
+| INV-NEED-19 | DONE | A detail for every kind; assumed answers show Why; "Out of date" asks first; skeleton, errors with Retry |
+| INV-NEED-20 | DONE | A detail for every kind; assumed answers show Why; "Out of date" asks first; skeleton, errors with Retry |
+| INV-NEED-21 | DONE | You're up to date: Today lines as links, product progress, runs in progress, third person |
+| INV-NEED-22 | DONE | You're up to date: Today lines as links, product progress, runs in progress, third person |
+| INV-NEED-23 | DONE | You're up to date: Today lines as links, product progress, runs in progress, third person |
+| INV-NEED-24 | DONE | You're up to date: Today lines as links, product progress, runs in progress, third person |
+| INV-NEED-25 | DONE | You're up to date: Today lines as links, product progress, runs in progress, third person |
+| INV-NEWREC-01 | DONE | New record: type radio cards, sticky Save draft, leave guard, text kept across type switches |
+| INV-NEWREC-02 | DONE | New record: type radio cards, sticky Save draft, leave guard, text kept across type switches |
+| INV-NEWREC-03 | DONE | New record: type radio cards, sticky Save draft, leave guard, text kept across type switches |
+| INV-NEWREC-04 | DONE | New record: type radio cards, sticky Save draft, leave guard, text kept across type switches |
+| INV-NEWREC-05 | DONE | New record: type radio cards, sticky Save draft, leave guard, text kept across type switches |
+| INV-NEWREC-06 | DONE | New record: type radio cards, sticky Save draft, leave guard, text kept across type switches |
+| INV-NEWREC-07 | DONE | New record: type radio cards, sticky Save draft, leave guard, text kept across type switches |
+| INV-NEWREC-08 | DONE | New record: type radio cards, sticky Save draft, leave guard, text kept across type switches |
+| INV-NEWREC-09 | DONE | New record: type radio cards, sticky Save draft, leave guard, text kept across type switches |
+| INV-NEWREC-10 | DONE | New record: type radio cards, sticky Save draft, leave guard, text kept across type switches |
+| INV-NEWREC-11 | DONE | New record: type radio cards, sticky Save draft, leave guard, text kept across type switches |
+| INV-NEWREC-12 | DONE | New record: type radio cards, sticky Save draft, leave guard, text kept across type switches |
+| INV-NEWREC-13 | DONE | New record: type radio cards, sticky Save draft, leave guard, text kept across type switches |
+| INV-NEWREC-14 | DONE | New record: type radio cards, sticky Save draft, leave guard, text kept across type switches |
+| INV-NEWVER-01 | DONE | New version: Keep/Change/Drop radio groups, removable carried links, edits kept, "Saved, with warnings" |
+| INV-NEWVER-02 | DONE | New version: Keep/Change/Drop radio groups, removable carried links, edits kept, "Saved, with warnings" |
+| INV-NEWVER-03 | DONE | New version: Keep/Change/Drop radio groups, removable carried links, edits kept, "Saved, with warnings" |
+| INV-NEWVER-04 | DONE | New version: Keep/Change/Drop radio groups, removable carried links, edits kept, "Saved, with warnings" |
+| INV-NEWVER-05 | DONE | New version: Keep/Change/Drop radio groups, removable carried links, edits kept, "Saved, with warnings" |
+| INV-NEWVER-06 | DONE | New version: Keep/Change/Drop radio groups, removable carried links, edits kept, "Saved, with warnings" |
+| INV-NEWVER-07 | DONE | New version: Keep/Change/Drop radio groups, removable carried links, edits kept, "Saved, with warnings" |
+| INV-NEWVER-08 | DONE | New version: Keep/Change/Drop radio groups, removable carried links, edits kept, "Saved, with warnings" |
+| INV-NEWVER-09 | DONE | New version: Keep/Change/Drop radio groups, removable carried links, edits kept, "Saved, with warnings" |
+| INV-NEWVER-10 | DONE | New version: Keep/Change/Drop radio groups, removable carried links, edits kept, "Saved, with warnings" |
+| INV-NEWVER-11 | DONE | New version: Keep/Change/Drop radio groups, removable carried links, edits kept, "Saved, with warnings" |
+| INV-NEWVER-12 | DONE | New version: Keep/Change/Drop radio groups, removable carried links, edits kept, "Saved, with warnings" |
+| INV-NEWVER-13 | DONE | New version: Keep/Change/Drop radio groups, removable carried links, edits kept, "Saved, with warnings" |
+| INV-NEWVER-14 | DONE | New version: Keep/Change/Drop radio groups, removable carried links, edits kept, "Saved, with warnings" |
+| INV-ONB-01 | DONE | New project: visible label, aria-pressed examples, errors on the fields, retry never creates a second project, draft kept |
+| INV-ONB-02 | DONE | New project: visible label, aria-pressed examples, errors on the fields, retry never creates a second project, draft kept |
+| INV-ONB-03 | DONE | New project: visible label, aria-pressed examples, errors on the fields, retry never creates a second project, draft kept |
+| INV-ONB-04 | DONE | New project: visible label, aria-pressed examples, errors on the fields, retry never creates a second project, draft kept |
+| INV-ONB-05 | DONE | New project: visible label, aria-pressed examples, errors on the fields, retry never creates a second project, draft kept |
+| INV-ONB-06 | DONE | New project: visible label, aria-pressed examples, errors on the fields, retry never creates a second project, draft kept |
+| INV-ONB-07 | DONE | New project: visible label, aria-pressed examples, errors on the fields, retry never creates a second project, draft kept |
+| INV-ONB-08 | DONE | New project: visible label, aria-pressed examples, errors on the fields, retry never creates a second project, draft kept |
+| INV-ONB-09 | DONE | New project: visible label, aria-pressed examples, errors on the fields, retry never creates a second project, draft kept |
+| INV-ONB-10 | DONE | New project: visible label, aria-pressed examples, errors on the fields, retry never creates a second project, draft kept |
+| INV-ONB-11 | DONE | New project: visible label, aria-pressed examples, errors on the fields, retry never creates a second project, draft kept |
+| INV-ONB-12 | DONE | New project: visible label, aria-pressed examples, errors on the fields, retry never creates a second project, draft kept |
+| INV-ONB-13 | DONE | Start and live reading: RunStateBadge, live progress, timer, Cancel with confirmation, the real state of every item, data hooks kept |
+| INV-ONB-14 | DONE | Start and live reading: RunStateBadge, live progress, timer, Cancel with confirmation, the real state of every item, data hooks kept |
+| INV-ONB-15 | DONE | Start and live reading: RunStateBadge, live progress, timer, Cancel with confirmation, the real state of every item, data hooks kept |
+| INV-ONB-16 | DONE | Start and live reading: RunStateBadge, live progress, timer, Cancel with confirmation, the real state of every item, data hooks kept |
+| INV-ONB-17 | DONE | Start and live reading: RunStateBadge, live progress, timer, Cancel with confirmation, the real state of every item, data hooks kept |
+| INV-ONB-18 | DONE | Start and live reading: RunStateBadge, live progress, timer, Cancel with confirmation, the real state of every item, data hooks kept |
+| INV-ONB-19 | DONE | Start and live reading: RunStateBadge, live progress, timer, Cancel with confirmation, the real state of every item, data hooks kept |
+| INV-ONB-20 | DONE | Start and live reading: RunStateBadge, live progress, timer, Cancel with confirmation, the real state of every item, data hooks kept |
+| INV-ONB-21 | DONE | Start and live reading: RunStateBadge, live progress, timer, Cancel with confirmation, the real state of every item, data hooks kept |
+| INV-ONB-22 | DONE | Start and live reading: RunStateBadge, live progress, timer, Cancel with confirmation, the real state of every item, data hooks kept |
+| INV-ONB-23 | DONE | Start and live reading: RunStateBadge, live progress, timer, Cancel with confirmation, the real state of every item, data hooks kept |
+| INV-ONB-24 | DONE | Start and live reading: RunStateBadge, live progress, timer, Cancel with confirmation, the real state of every item, data hooks kept |
+| INV-ONB-25 | DONE | Start and live reading: RunStateBadge, live progress, timer, Cancel with confirmation, the real state of every item, data hooks kept |
+| INV-ONB-26 | DONE | Start and live reading: RunStateBadge, live progress, timer, Cancel with confirmation, the real state of every item, data hooks kept |
+| INV-ONB-27 | DONE | Start and live reading: RunStateBadge, live progress, timer, Cancel with confirmation, the real state of every item, data hooks kept |
+| INV-ONB-28 | DONE | Start and live reading: RunStateBadge, live progress, timer, Cancel with confirmation, the real state of every item, data hooks kept |
+| INV-ONB-29 | DONE | Changed: Correct something is in the What I understood header |
+| INV-ONB-30 | DONE | Start and live reading: RunStateBadge, live progress, timer, Cancel with confirmation, the real state of every item, data hooks kept |
+| INV-ONB-31 | DONE | One question at a time: Question i of N, Meter, Why it matters, ChoiceGroup with multi-select and exclusive options |
+| INV-ONB-32 | DONE | One question at a time: Question i of N, Meter, Why it matters, ChoiceGroup with multi-select and exclusive options |
+| INV-ONB-33 | DONE | One question at a time: Question i of N, Meter, Why it matters, ChoiceGroup with multi-select and exclusive options |
+| INV-ONB-34 | DONE | One question at a time: Question i of N, Meter, Why it matters, ChoiceGroup with multi-select and exclusive options |
+| INV-ONB-35 | DONE | One question at a time: Question i of N, Meter, Why it matters, ChoiceGroup with multi-select and exclusive options |
+| INV-ONB-36 | DONE | One question at a time: Question i of N, Meter, Why it matters, ChoiceGroup with multi-select and exclusive options |
+| INV-ONB-37 | DONE | One question at a time: Question i of N, Meter, Why it matters, ChoiceGroup with multi-select and exclusive options |
+| INV-ONB-38 | DONE | One question at a time: Question i of N, Meter, Why it matters, ChoiceGroup with multi-select and exclusive options |
+| INV-ONB-39 | DONE | Renamed: Not now is Park, through QuestionActions |
+| INV-ONB-40 | DONE | One question at a time: Question i of N, Meter, Why it matters, ChoiceGroup with multi-select and exclusive options |
+| INV-ONB-41 | DONE | One question at a time: Question i of N, Meter, Why it matters, ChoiceGroup with multi-select and exclusive options |
+| INV-ONB-42 | DONE | One question at a time: Question i of N, Meter, Why it matters, ChoiceGroup with multi-select and exclusive options |
+| INV-ONB-43 | DONE | One question at a time: Question i of N, Meter, Why it matters, ChoiceGroup with multi-select and exclusive options |
+| INV-ONB-44 | DONE | One question at a time: Question i of N, Meter, Why it matters, ChoiceGroup with multi-select and exclusive options |
+| INV-ONB-45 | DONE | Your starting point: data hooks, the Needs you count, Parked for later, You can close DEMIURGO |
+| INV-ONB-46 | DONE | Your starting point: data hooks, the Needs you count, Parked for later, You can close DEMIURGO |
+| INV-ONB-47 | DONE | Changed: Review the decisions opens Needs you when they span several batches |
+| INV-ONB-48 | DONE | Your starting point: data hooks, the Needs you count, Parked for later, You can close DEMIURGO |
+| INV-ONB-49 | DONE | Your starting point: data hooks, the Needs you count, Parked for later, You can close DEMIURGO |
+| INV-ONB-50 | DONE | Your starting point: data hooks, the Needs you count, Parked for later, You can close DEMIURGO |
+| INV-ONB-51 | DONE | Your starting point: data hooks, the Needs you count, Parked for later, You can close DEMIURGO |
+| INV-ONB-52 | DONE | Your starting point: data hooks, the Needs you count, Parked for later, You can close DEMIURGO |
+| INV-ONB-53 | DONE | Your starting point: data hooks, the Needs you count, Parked for later, You can close DEMIURGO |
+| INV-ORIG-01 | DONE | Tabs, h1 Origins, the sentence |
+| INV-ORIG-02 | DONE | Three columns; the third is relabelled "Features and other records" |
+| INV-ORIG-03 | DONE | Edges as before |
+| INV-ORIG-04 | DONE | Layout from buildOrigins |
+| INV-ORIG-05 | DONE | Changed: the thread node toggles the trace; it opens from the Why panel |
+| INV-ORIG-06 | DONE | Changed: the record node toggles the trace; readiness includes In doubt |
+| INV-ORIG-07 | DONE | "Not from a thread" start node |
+| INV-ORIG-08 | DONE | Changed: the trace is pinned on click or Enter and never follows the pointer |
+| INV-ORIG-09 | DONE | Why panel grows with its text; links; announced only on a click |
+| INV-ORIG-10 | DONE | Clear trace (and Esc) moves the focus to the panel |
+| INV-ORIG-11 | DONE | Changed: Tab walks the nodes, Enter pins the trace, opening is from the Why panel |
+| INV-ORIG-12 | DONE | Progressive loading with a meter; a record that fails shows an inline error with Retry |
+| INV-OVW-01 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-02 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-03 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-04 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-05 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-06 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-07 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-08 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-09 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-10 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-11 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-12 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-13 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-14 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-15 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-16 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-17 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-18 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-19 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-20 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-21 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-22 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-23 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-24 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-25 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-26 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-27 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-28 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-29 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-OVW-30 | DONE | Overview: readiness line with SegmentedBar and text legend, stages stepper, sections per type, title links plus Preview sheet, side column (Needs you in Catch up order, Running now, TaxonomyHint, AskBox), own states per part |
+| INV-PROJ-01 | DONE | Your projects in WorkspaceFrame; New project primary; state badge from the tables; skeleton, error with Retry; rename in ProjectSwitcher |
+| INV-PROJ-02 | DONE | Your projects in WorkspaceFrame; New project primary; state badge from the tables; skeleton, error with Retry; rename in ProjectSwitcher |
+| INV-PROJ-03 | DONE | Your projects in WorkspaceFrame; New project primary; state badge from the tables; skeleton, error with Retry; rename in ProjectSwitcher |
+| INV-PROJ-04 | DONE | Your projects in WorkspaceFrame; New project primary; state badge from the tables; skeleton, error with Retry; rename in ProjectSwitcher |
+| INV-PROJ-05 | DONE | Your projects in WorkspaceFrame; New project primary; state badge from the tables; skeleton, error with Retry; rename in ProjectSwitcher |
+| INV-PROJ-06 | DONE | Your projects in WorkspaceFrame; New project primary; state badge from the tables; skeleton, error with Retry; rename in ProjectSwitcher |
+| INV-PROJ-07 | DONE | Your projects in WorkspaceFrame; New project primary; state badge from the tables; skeleton, error with Retry; rename in ProjectSwitcher |
+| INV-PROJ-08 | DONE | Your projects in WorkspaceFrame; New project primary; state badge from the tables; skeleton, error with Retry; rename in ProjectSwitcher |
+| INV-PROP-01 | DONE | Proposal view in batch/ProposalView.tsx: allowed actions, dialogs with effects, errors, people marks, record chips, body by type |
+| INV-PROP-02 | DONE | Proposal view in batch/ProposalView.tsx: allowed actions, dialogs with effects, errors, people marks, record chips, body by type |
+| INV-PROP-03 | DONE | Proposal view in batch/ProposalView.tsx: allowed actions, dialogs with effects, errors, people marks, record chips, body by type |
+| INV-PROP-04 | DONE | Proposal view in batch/ProposalView.tsx: allowed actions, dialogs with effects, errors, people marks, record chips, body by type |
+| INV-PROP-05 | DONE | Proposal view in batch/ProposalView.tsx: allowed actions, dialogs with effects, errors, people marks, record chips, body by type |
+| INV-PROP-06 | DONE | Proposal view in batch/ProposalView.tsx: allowed actions, dialogs with effects, errors, people marks, record chips, body by type |
+| INV-PROP-07 | DONE | Proposal view in batch/ProposalView.tsx: allowed actions, dialogs with effects, errors, people marks, record chips, body by type |
+| INV-PROP-08 | DONE | Proposal view in batch/ProposalView.tsx: allowed actions, dialogs with effects, errors, people marks, record chips, body by type |
+| INV-PROP-09 | DONE | Proposal view in batch/ProposalView.tsx: allowed actions, dialogs with effects, errors, people marks, record chips, body by type |
+| INV-PROP-10 | DONE | Proposal view in batch/ProposalView.tsx: allowed actions, dialogs with effects, errors, people marks, record chips, body by type |
+| INV-PROP-11 | DONE | Proposal view in batch/ProposalView.tsx: allowed actions, dialogs with effects, errors, people marks, record chips, body by type |
+| INV-PROP-12 | DONE | Proposal view in batch/ProposalView.tsx: allowed actions, dialogs with effects, errors, people marks, record chips, body by type |
+| INV-PROP-13 | DONE | Changed: a blocked Accept stays visible and inactive with its reason |
+| INV-PROP-14 | DONE | Out-of-date notice, Accept as draft, Accept and approve, caption and "What's the difference?", inline Change, Reject, resolved block |
+| INV-PROP-15 | DONE | Out-of-date notice, Accept as draft, Accept and approve, caption and "What's the difference?", inline Change, Reject, resolved block |
+| INV-PROP-16 | DONE | Out-of-date notice, Accept as draft, Accept and approve, caption and "What's the difference?", inline Change, Reject, resolved block |
+| INV-PROP-17 | DONE | Out-of-date notice, Accept as draft, Accept and approve, caption and "What's the difference?", inline Change, Reject, resolved block |
+| INV-PROP-18 | DONE | Out-of-date notice, Accept as draft, Accept and approve, caption and "What's the difference?", inline Change, Reject, resolved block |
+| INV-PROP-19 | DONE | Out-of-date notice, Accept as draft, Accept and approve, caption and "What's the difference?", inline Change, Reject, resolved block |
+| INV-PROP-20 | DONE | Out-of-date notice, Accept as draft, Accept and approve, caption and "What's the difference?", inline Change, Reject, resolved block |
+| INV-PROP-21 | DONE | Out-of-date notice, Accept as draft, Accept and approve, caption and "What's the difference?", inline Change, Reject, resolved block |
+| INV-REC-01 | DONE | Record page: Approve first, stacked notices, guided review with "Part n of 5", readiness reasons with links, one-column checks |
+| INV-REC-02 | DONE | Record page: Approve first, stacked notices, guided review with "Part n of 5", readiness reasons with links, one-column checks |
+| INV-REC-03 | DONE | Record page: Approve first, stacked notices, guided review with "Part n of 5", readiness reasons with links, one-column checks |
+| INV-REC-04 | DONE | Record page: Approve first, stacked notices, guided review with "Part n of 5", readiness reasons with links, one-column checks |
+| INV-REC-05 | DONE | Record page: Approve first, stacked notices, guided review with "Part n of 5", readiness reasons with links, one-column checks |
+| INV-REC-06 | DONE | Record page: Approve first, stacked notices, guided review with "Part n of 5", readiness reasons with links, one-column checks |
+| INV-REC-07 | DONE | Record page: Approve first, stacked notices, guided review with "Part n of 5", readiness reasons with links, one-column checks |
+| INV-REC-08 | DONE | Record page: Approve first, stacked notices, guided review with "Part n of 5", readiness reasons with links, one-column checks |
+| INV-REC-09 | DONE | Record page: Approve first, stacked notices, guided review with "Part n of 5", readiness reasons with links, one-column checks |
+| INV-REC-10 | DONE | Record page: Approve first, stacked notices, guided review with "Part n of 5", readiness reasons with links, one-column checks |
+| INV-REC-11 | DONE | Record page: Approve first, stacked notices, guided review with "Part n of 5", readiness reasons with links, one-column checks |
+| INV-REC-12 | DONE | Record page: Approve first, stacked notices, guided review with "Part n of 5", readiness reasons with links, one-column checks |
+| INV-REC-13 | DONE | Record page: Approve first, stacked notices, guided review with "Part n of 5", readiness reasons with links, one-column checks |
+| INV-REC-14 | DONE | Record page: Approve first, stacked notices, guided review with "Part n of 5", readiness reasons with links, one-column checks |
+| INV-REC-15 | DONE | Record page: Approve first, stacked notices, guided review with "Part n of 5", readiness reasons with links, one-column checks |
+| INV-REC-16 | DONE | Record page: Approve first, stacked notices, guided review with "Part n of 5", readiness reasons with links, one-column checks |
+| INV-REC-17 | DONE | Record page: Approve first, stacked notices, guided review with "Part n of 5", readiness reasons with links, one-column checks |
+| INV-REC-18 | DONE | Record page: Approve first, stacked notices, guided review with "Part n of 5", readiness reasons with links, one-column checks |
+| INV-REC-19 | DONE | Record page: Approve first, stacked notices, guided review with "Part n of 5", readiness reasons with links, one-column checks |
+| INV-REC-20 | DONE | Record page: Approve first, stacked notices, guided review with "Part n of 5", readiness reasons with links, one-column checks |
+| INV-REC-21 | DONE | Changed: "Open in Origins" opens /origins?record=CODE with that record's trace pinned |
+| INV-REC-22 | DONE | Record page: history in words, versions, incoming links, "Approved. What needs you next" only after approving here |
+| INV-REC-23 | DONE | Record page: history in words, versions, incoming links, "Approved. What needs you next" only after approving here |
+| INV-REC-24 | DONE | Record page: history in words, versions, incoming links, "Approved. What needs you next" only after approving here |
+| INV-REC-25 | DONE | Record page: history in words, versions, incoming links, "Approved. What needs you next" only after approving here |
+| INV-REC-26 | DONE | Record page: history in words, versions, incoming links, "Approved. What needs you next" only after approving here |
+| INV-REC-27 | DONE | Record page: history in words, versions, incoming links, "Approved. What needs you next" only after approving here |
+| INV-REC-28 | DONE | Record page: history in words, versions, incoming links, "Approved. What needs you next" only after approving here |
+| INV-REC-29 | DONE | Record page: history in words, versions, incoming links, "Approved. What needs you next" only after approving here |
+| INV-REC-30 | DONE | Record page: history in words, versions, incoming links, "Approved. What needs you next" only after approving here |
+| INV-REC-31 | DONE | Record page: history in words, versions, incoming links, "Approved. What needs you next" only after approving here |
+| INV-RUN-01 | DONE | 404 "We couldn't find this run", error with Retry, PageSkeleton |
+| INV-RUN-02 | DONE | Breadcrumbs Activity › "Action · day time" |
+| INV-RUN-03 | DONE | Eyebrow: run icon, "Run", RunStateBadge (Late and Stalled included) |
+| INV-RUN-04 | DONE | h1 "Draft a feature" or the action word |
+| INV-RUN-05 | DONE | Cancel with a ConfirmDialog that says what is kept |
+| INV-RUN-06 | DONE | Retry, then navigate to the new run |
+| INV-RUN-07 | DONE | Retry with…, then navigate to the new run |
+| INV-RUN-08 | DONE | RetryWith popover: same texts, engine picker, error kept (data-retry-with) |
+| INV-RUN-09 | DONE | Meta line: agent · engine, From decision, In the thread, Requested by · when |
+| INV-RUN-10 | DONE | Status card: waiting or working, live progress, timer, Stalled/Late reading |
+| INV-RUN-11 | DONE | Finished: "Review →" to the batch, or "Open the thread →" |
+| INV-RUN-12 | DONE | Failed / interrupted / cancelled in words, "What it said:", a different next step for each |
+| INV-RUN-13 | DONE | Engine calls tab: polled while active, Pause/Resume live updates, FAILURE_WORDS, raw events |
+| INV-RUN-14 | DONE | Context tab: readable, with dependencies as links; hash; "What it read" with the raw JSON |
+| INV-RUN-15 | DONE | Output tab: readable view plus Raw JSON |
+| INV-RUN-16 | DONE | Details as KeyValue; where each figure comes from is visible text |
+| INV-RUN-17 | DONE | Attempts, oldest first, the current one marked; data-run-retry-of and data-run-retries |
+| INV-RUN-18 | DONE | Events tab as a Timeline, with the date when not today |
+| INV-RUN-19 | DONE | LiveProgress export kept for the thread and Day 1 |
+| INV-RUN-20 | DONE | runDuration ticks on the run page, Right now and Activity |
+| INV-RUN-21 | DONE | Entry from Activity rows, Right now, attempts, and the thread's Details |
+| INV-SHELL-01 | DONE | Skip link to #main in shell/AppRoot |
+| INV-SHELL-02 | DONE | components/Tooltip TooltipProvider; tooltips on hover and focus |
+| INV-SHELL-03 | PARTIAL | The self-opening legend became Help (? and sidebar button), which lists every symbol (D-014) |
+| INV-SHELL-04 | DONE | Dev panel reachable on every screen: sidebar footer button and person menu (shell/DevPanel) |
+| INV-SHELL-05 | DONE | Router behaviour unchanged; plus a per-route document.title with the Needs-you count (shell/title.ts) |
+| INV-SHELL-06 | DONE | Query defaults unchanged (main.tsx) |
+| INV-SHELL-07 | DONE | Not found: "We couldn't find {thing}." with one way back; its own frame at router level |
+| INV-SHELL-08 | DONE | "Back to the product" only for an existing project, otherwise "Back to DEMIURGO" |
+| INV-SHELL-09 | DONE | Wordmark (link to /) and the project name in the project switcher, at the top of the sidebar |
+| INV-SHELL-10 | DONE | Switch: the project switcher lists the projects and "All projects" |
+| INV-SHELL-11 | DONE | "New project" in the project switcher |
+| INV-SHELL-12 | DONE | Sections as sidebar links (nav "Sections", aria-current), current also on their sub-routes |
+| INV-SHELL-13 | DONE | "Needs you" with the accent count (data-count) in the sidebar, live |
+| INV-SHELL-14 | DONE | The Knowledge item shows its freshness (updating dot, "behind" alert icon), with the words in the tooltip and for screen readers; the version is in the words and on the Knowledge page |
+| INV-SHELL-15 | DONE | Person menu at the bottom of the sidebar ("Signed in as …") |
+| INV-SHELL-16 | DONE | Models & providers is a Settings item in the sidebar (and in the command menu) |
+| INV-SHELL-17 | DONE | "Rename the project…" is in the project switcher (a project setting), with the same dialog and command |
+| INV-SHELL-18 | DONE | Agent keys is a Settings item in the sidebar |
+| INV-SHELL-19 | DONE | "Snapshots…" in the person menu (dev tools only) |
+| INV-SHELL-20 | DONE | Sign out in the person menu, also outside a project (shell/WorkspaceFrame) |
+| INV-SHELL-21 | DONE | shell/ProductTabs (Overview · Map · Journeys · Origins) |
+| INV-SHELL-22 | DONE | Command menu combobox (shell/CommandMenu), 2 characters, 200 ms debounce |
+| INV-SHELL-23 | DONE | Ctrl/⌘ K from anywhere in a project; also the sidebar Search button |
+| INV-SHELL-24 | DONE | knowledgeSearchQuery + stateQuery for the owners of checks |
+| INV-SHELL-25 | DONE | Type icon with its word for screen readers, highlighted title and excerpt, certainty badge |
+| INV-SHELL-26 | DONE | ↑/↓ with aria-activedescendant, Enter opens; record, check (tab=checks) and thread targets, now for every record prefix |
+| INV-SHELL-27 | DONE | "It has no page of its own." and aria-disabled |
+| INV-SHELL-28 | DONE | "Searching…", "No matches" / "n matches", an error shown inside the menu without taking the focus |
+| INV-SHELL-29 | DONE | Esc closes the menu (the text resets); choosing a result navigates and closes |
+| INV-SHELL-30 | DONE | Replaced: the sidebar Search button is always labelled and shows "Ctrl K" (no hidden magnifier) |
+| INV-SHELL-31 | DONE | components/Page: PageBody and WithAside (labelled complementary side column) |
+| INV-SHELL-32 | DONE | components/SidePanel ResizablePanel: arrows, Shift+arrows, Home/End, double-click reset, aria-valuemax, width remembered |
+| INV-SHELL-33 | DONE | PageHeader (eyebrow, h1, meta, actions, tabs), Section, Card, Breadcrumbs |
+| INV-SHELL-34 | DONE | Skeleton, RowsSkeleton, PageSkeleton (role=status with a label, shown after 300 ms) |
+| INV-SHELL-35 | DONE | EmptyState (narrow and spacious) |
+| INV-SHELL-36 | DONE | ConfirmDialog (AlertDialog; tone danger; pending label) |
+| INV-SHELL-37 | DONE | PromptDialog: keeps text on error, required hint, character counter |
+| INV-SHELL-38 | DONE | ErrorNotice + explain(): the same titles per status and the reasons verbatim |
+| INV-SHELL-39 | DONE | "Open Models & providers" as a router link (no full reload), project or workspace scope |
+| INV-SHELL-40 | PARTIAL | Help lists every symbol, not only those on screen (D-014) |
+| INV-SHELL-41 | PARTIAL | Deliberately never opens by itself (it covered actions, INVENTORY §2 #1); Help is one click or "?" away (D-014) |
+| INV-SHELL-42 | DONE | The Help button in the sidebar footer, in the same place on every page |
+| INV-SHELL-43 | DONE | "?" opens Help from anywhere except while typing; Esc closes |
+| INV-SHELL-44 | PARTIAL | No pointing-highlights-the-marks: every badge carries its word, so no mark needs finding (D-014) |
+| INV-SHELL-45 | PARTIAL | Replaced by Help's two tabs (Symbols, Keyboard) |
+| INV-SHELL-46 | PARTIAL | No "The legend stays here" notice: nothing opens by itself any more |
+| INV-SHELL-47 | PARTIAL | No per-person seen list: nothing to fold |
+| INV-SHELL-48 | DONE | StatusBadge: symbol, shape, color and word, with the phrase as its title (data-status) |
+| INV-SHELL-49 | DONE | StatusBadge, EntityState, Certainty, StateText, WorkingDot |
+| INV-SHELL-50 | DONE | components/Meter Readiness: word plus the ready · built · verified track (data-stage) |
+| INV-SHELL-51 | DONE | components/Badge Count (hidden at zero, sr-only meaning) |
+| INV-SHELL-52 | DONE | components/Who: You / DEMIURGO / Agent · name / Automatic, distinct shapes, phrase as title |
+| INV-SHELL-53 | DONE | components/icons + components/types: every record type (incl. requirement, quality, threat, production) and thing |
+| INV-SHELL-54 | PARTIAL | No hover delay: the facts open with a visible Preview button (D-015) |
+| INV-SHELL-55 | PARTIAL | One click opens the page everywhere; Preview keeps the facts beside the page (D-015) |
+| INV-SHELL-56 | DONE | Preview by keyboard (Tab to Preview, Enter), Esc closes and returns focus (components/Preview) |
+| INV-SHELL-57 | DONE | components/AskBox, subject product or record, label and placeholder from components/ask.ts |
+| INV-SHELL-58 | DONE | Same sending sequence (fresh threads, reuse or exploration.open, message.post respond) |
+| INV-SHELL-59 | DONE | Enter asks, Shift+Enter new line (IME-safe), grows, max 20,000, "Sending…" |
+| INV-SHELL-60 | DONE | prefill() handle kept |
+| INV-SHELL-61 | DONE | Status line (role=status, data-ask-status): answering / answered / failed with links to the thread |
+| INV-SHELL-62 | DONE | ErrorNotice above the form, text kept; hidden unless the tables allow both commands |
+| INV-SRC-01 | DONE | Title and sentence |
+| INV-SRC-02 | DONE | Table: "Untrusted input" explained in text; absolute time visible; full hash in a per-row disclosure |
+| INV-SRC-03 | DONE | Skeleton, error with Retry, empty state |
+| INV-SRC-04 | DONE | Form from the schema with written labels, hints and a counter; the success notice stays until the next edit |
+| INV-THR-01 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-02 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-03 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-04 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-05 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-06 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-07 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-08 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-09 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-10 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-11 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-12 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-13 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-14 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-15 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-16 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-17 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-18 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-19 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-20 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-21 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-22 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-23 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-24 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-25 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-26 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-27 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-28 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-29 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-30 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-31 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-32 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-33 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-34 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-35 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-36 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-37 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-38 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-39 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-40 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-41 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-42 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-43 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-44 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-45 | DONE | Thread.tsx and parts: header, stage Meter, log conversation, question cards with ChoiceGroup, drafts, Confirm and send per item |
+| INV-THR-46 | DONE | Redesigned (D-013): Enter sends, Shift+Enter adds a line, Ctrl/Cmd+Enter asks DEMIURGO; hint always visible |
+| INV-THR-47 | DONE | Redesigned (D-013): Enter sends, Shift+Enter adds a line, Ctrl/Cmd+Enter asks DEMIURGO; hint always visible |
+| INV-THR-48 | DONE | Composer errors, Draft it menu, run cards (Queued, Late, Working, Stalled; Retry and Retry with…) |
+| INV-THR-49 | DONE | Composer errors, Draft it menu, run cards (Queued, Late, Working, Stalled; Retry and Retry with…) |
+| INV-THR-50 | DONE | Composer errors, Draft it menu, run cards (Queued, Late, Working, Stalled; Retry and Retry with…) |
+| INV-THR-51 | DONE | Composer errors, Draft it menu, run cards (Queued, Late, Working, Stalled; Retry and Retry with…) |
+| INV-THR-52 | DONE | Composer errors, Draft it menu, run cards (Queued, Late, Working, Stalled; Retry and Retry with…) |
+| INV-THR-53 | DONE | Composer errors, Draft it menu, run cards (Queued, Late, Working, Stalled; Retry and Retry with…) |
+| INV-THR-54 | DONE | Composer errors, Draft it menu, run cards (Queued, Late, Working, Stalled; Retry and Retry with…) |
+| INV-THR-55 | DONE | Composer errors, Draft it menu, run cards (Queued, Late, Working, Stalled; Retry and Retry with…) |
+| INV-THR-56 | DONE | Composer errors, Draft it menu, run cards (Queued, Late, Working, Stalled; Retry and Retry with…) |
+| INV-THR-57 | DONE | Composer errors, Draft it menu, run cards (Queued, Late, Working, Stalled; Retry and Retry with…) |
+| INV-THR-58 | DONE | Composer errors, Draft it menu, run cards (Queued, Late, Working, Stalled; Retry and Retry with…) |
+| INV-THR-59 | DONE | "Ask DEMIURGO about this" is the kit AskBox |
+| INV-THR-60 | DONE | Park, Drop, Reopen in each question's More actions menu (D-012) |
+| INV-THRS-01 | DONE | Treegrid list with state filter, Purpose dialog, EntityState badges, waiting count, error with Retry, empty state |
+| INV-THRS-02 | DONE | Treegrid list with state filter, Purpose dialog, EntityState badges, waiting count, error with Retry, empty state |
+| INV-THRS-03 | DONE | Treegrid list with state filter, Purpose dialog, EntityState badges, waiting count, error with Retry, empty state |
+| INV-THRS-04 | DONE | Treegrid list with state filter, Purpose dialog, EntityState badges, waiting count, error with Retry, empty state |
+| INV-THRS-05 | DONE | Treegrid list with state filter, Purpose dialog, EntityState badges, waiting count, error with Retry, empty state |
+| INV-THRS-06 | DONE | Treegrid list with state filter, Purpose dialog, EntityState badges, waiting count, error with Retry, empty state |
+| INV-THRS-07 | DONE | Treegrid list with state filter, Purpose dialog, EntityState badges, waiting count, error with Retry, empty state |
+| INV-THRS-08 | DONE | Treegrid list with state filter, Purpose dialog, EntityState badges, waiting count, error with Retry, empty state |
+| INV-THRS-09 | DONE | Treegrid list with state filter, Purpose dialog, EntityState badges, waiting count, error with Retry, empty state |
+| INV-THRS-10 | DONE | Treegrid list with state filter, Purpose dialog, EntityState badges, waiting count, error with Retry, empty state |
+| INV-THRS-11 | DONE | Treegrid list with state filter, Purpose dialog, EntityState badges, waiting count, error with Retry, empty state |
+| INV-THRS-12 | DONE | Treegrid list with state filter, Purpose dialog, EntityState badges, waiting count, error with Retry, empty state |

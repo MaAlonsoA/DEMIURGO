@@ -164,7 +164,8 @@ export const FINDING_WORDS: Record<string, string> = {
   relates: 'Relates to',
 };
 
-const RECORD_REF = /^((?:DEC|FDR|ADR|BUG)-[A-Z]{3}-\d{3})@(\d+)$/;
+// Every record prefix the product has, not only the first four (INVENTORY Part D §3, UX problem).
+const RECORD_REF = /^((?:DEC|FDR|ADR|BUG|REQ|NFR|THR|PRR)-[A-Z]{3}-\d{3})@(\d+)$/;
 const CHECK_REF = /^AC-([A-Z]{3}-\d{3})-\d{2}@(\d+)$/;
 
 /**

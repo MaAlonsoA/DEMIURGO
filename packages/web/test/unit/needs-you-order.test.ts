@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { Inbox, InboxBatch, InboxProposal, ProductRow, Readiness } from '../../src/api/types.ts';
 import { catchUpOrder, groupsOf, minutesOf, needsOf } from '../../src/screens/needs-you/order.ts';
+import { countSummary, needTitle } from '../../src/screens/needs-you/titles.ts';
+import {
+  currentStep,
+  emptyWalk,
+  extendWalk,
+  skip,
+  stepState,
+  stepsLeft,
+  walkProgress,
+} from '../../src/screens/needs-you/walk.ts';
 
 const THREAD = 'thread-1';
 
@@ -227,5 +237,53 @@ describe('Needs you and Catch up', () => {
     const items = needsOf(inbox(), rows);
     expect(minutesOf(items)).toBeGreaterThanOrEqual(items.length);
     expect(minutesOf([])).toBe(0);
+  });
+
+  it('AC-INT-001-11 the header count says how a package makes the count differ from the rows', () => {
+    const items = needsOf(inbox(), rows);
+    // Without packages counted apart, the count is the rows.
+    expect(countSummary(items, items.length)).toBe(`${items.length} things`);
+    const big = inbox();
+    const pkg = big.batches.find((b) => b.id === 'pkg');
+    if (!pkg) throw new Error('fixture');
+    pkg.proposals = ['a', 'b', 'c', 'd'].map((id) => proposal(id, 'fdr', { title: id }));
+    const withPackage = needsOf(big, rows);
+    expect(countSummary(withPackage, withPackage.length + 3)).toBe(
+      `${withPackage.length + 3} things: 1 package of 4 proposals and ${withPackage.length - 1} other things`,
+    );
+  });
+
+  it('AC-INT-001-16 the walk of Catch up keeps what it met, skips stay, what arrives joins the end and what leaves is done', () => {
+    const items = catchUpOrder(needsOf(inbox(), rows));
+    const titleOf = (i: (typeof items)[number]) => needTitle(i, rows);
+    let walk = extendWalk(emptyWalk(), items.slice(0, 3), titleOf);
+    let present = new Set(items.slice(0, 3).map((i) => i.key));
+    expect(currentStep(walk, present)?.key).toBe('conflict:r-approved');
+    expect(walkProgress(walk, present)).toEqual({ position: 1, total: 3, handled: 0 });
+
+    walk = skip(walk, 'conflict:r-approved');
+    expect(currentStep(walk, present)?.key).toBe('question:q-assumed');
+    expect(walkProgress(walk, present).position).toBe(2);
+
+    // The question is answered: it leaves Needs you and counts as done; a new thing arrives.
+    present = new Set([items[0]?.key ?? '', items[2]?.key ?? '', items[3]?.key ?? '']);
+    walk = extendWalk(
+      walk,
+      [items[0], items[2], items[3]].filter((i) => i !== undefined),
+      titleOf,
+    );
+    const [first, second, third, fourth] = walk.steps;
+    if (!first || !second || !third || !fourth) throw new Error('four steps');
+    expect(walk.steps.map((x) => x.key)).toEqual(items.slice(0, 4).map((i) => i.key));
+    const now = currentStep(walk, present)?.key;
+    expect(now).toBe('question:q-open');
+    expect([first, second, third, fourth].map((x) => stepState(x, walk, present, now))).toEqual([
+      'skipped',
+      'done',
+      'now',
+      'next',
+    ]);
+    expect(walkProgress(walk, present)).toEqual({ position: 3, total: 4, handled: 2 });
+    expect(stepsLeft(walk, present).map((x) => x.key)).toEqual(['question:q-open', 'conflict:r-old']);
   });
 });

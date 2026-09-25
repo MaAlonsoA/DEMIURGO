@@ -1,280 +1,221 @@
-// Catch up (canvas S6B, FDR-INT-001 behavior 10): Needs you one thing at a time, full width, in the
-// defined order, with Skip and Leave. What is skipped stays in Needs you; the right column says what
-// the current thing unblocks, as the design system's nodes. Resolving a thing moves on to the next one.
+// Catch up (DESIGN.md §3.1, INV-CATCH-*): the same page in focus mode. The queue becomes the walk,
+// in the order that unblocks the most, each step saying Done, Skipped, Now or Next in words (the
+// old steps were borders only). The current thing is shown in full with its decision; its step,
+// Skip and Leave sit right above it (they used to be far from the item). The walk is kept in
+// sessionStorage, so opening a package and coming back keeps the place and the skips.
 
-import { type Certainty, Node as DsNode } from '@demiurgo/design-system';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
-import type { ProductRow } from '../../api/types.ts';
+import { useEffect, useId, useRef, useState } from 'react';
+import { announce } from '../../components/announce.tsx';
+import { Button, buttonClass } from '../../components/Button.tsx';
+import { CheckIcon } from '../../components/icons.tsx';
+import { PageBody, PageHeader } from '../../components/Page.tsx';
 import { cn } from '../../lib/cn.ts';
-import { EPISTEMIC_MARK, PRODUCT_WORDS } from '../../words.ts';
-import { Button, buttonClass } from '../../ui/Button.tsx';
-import { RECORD_TYPE } from '../../ui/icons.tsx';
-import { Breadcrumbs, Page, Skeleton } from '../../ui/layout.tsx';
-import { EpistemicMark, MarkGlyph } from '../../ui/marks.tsx';
-import { type Stage, StageBars } from '../../ui/signals.tsx';
-import { KIND_WORDS, type NeedContext } from './frame.tsx';
-import { catchUpOrder, minutesOf, type NeedItem } from './order.ts';
-import { NeedView, needTitle } from './NeedView.tsx';
-import { UpToDate } from './UpToDate.tsx';
+import { useEditGuard } from '../batch/guard.tsx';
+import { NeedDetail } from './Detail.tsx';
+import type { NeedContext } from './frame.tsx';
+import { catchUpOrder, type NeedItem } from './order.ts';
+import { KIND_WORDS, needTitle } from './titles.ts';
+import {
+  clearWalk,
+  currentStep,
+  emptyWalk,
+  extendWalk,
+  loadWalk,
+  STEP_WORDS,
+  type StepState,
+  saveWalk,
+  skip,
+  stepState,
+  stepsLeft,
+  type Walk,
+  walkProgress,
+} from './walk.ts';
 
-type Seen = { key: string; kind: NeedItem['kind']; title: string };
+export const DETAIL_TITLE = 'need-detail-title';
 
-export function CatchUp({ ctx, items }: { ctx: NeedContext; items: NeedItem[] | null }) {
-  const navigate = useNavigate();
-  const ordered = items ? catchUpOrder(items) : [];
-  const present = new Set(ordered.map((i) => i.key));
-  // The walk keeps every thing seen since Catch up started, so what gets resolved still counts.
-  const [walk, setWalk] = useState<Seen[]>([]);
-  const [skipped, setSkipped] = useState<string[]>([]);
-  const fresh = ordered.filter((i) => !walk.some((w) => w.key === i.key));
-  const freshKeys = fresh.map((i) => i.key).join(' ');
-  useEffect(() => {
-    if (!freshKeys) return;
-    setWalk((w) => [
-      ...w,
-      ...fresh
-        .filter((i) => !w.some((x) => x.key === i.key))
-        .map((i) => ({ key: i.key, kind: i.kind, title: needTitle(i, ctx.rows) })),
-    ]);
-    // Keyed by the new things only: the list itself is rebuilt on every render.
-  }, [freshKeys]);
-
-  const remaining = ordered.filter((i) => !skipped.includes(i.key));
-  const current = remaining[0];
-  const handled = walk.filter((w) => skipped.includes(w.key) || !present.has(w.key)).length;
-  const total = Math.max(walk.length, ordered.length);
-  const position = Math.min(handled + 1, total);
-  const leave = () => void navigate({ to: '/p/$projectId/needs-you', params: { projectId: ctx.projectId } });
-
-  // Everything resolved (or nothing to start with): you're up to date (canvas S6C).
-  if (items && ordered.length === 0) return <UpToDate projectId={ctx.projectId} />;
-
-  return (
-    <Page
-      className="pt-4"
-      aside={
-        <div className="flex min-h-[calc(100vh-140px)] flex-col gap-6">
-          <InOrder walk={walk} present={present} skipped={skipped} current={current?.key} remaining={remaining} />
-          {current && <WhatItUnblocks ctx={ctx} item={current} />}
-          <div className="mt-auto flex flex-col gap-1 rounded-card-md bg-surface-soft px-4 py-3">
-            <strong className="dm-text-small font-semibold">Stop whenever you like</strong>
-            <span className="dm-text-small text-ink-3">What you skip stays in Needs you, in the same order.</span>
-          </div>
-        </div>
-      }
-    >
-      <Breadcrumbs
-        items={[
-          { label: 'Needs you', to: '/p/$projectId/needs-you', params: { projectId: ctx.projectId } },
-          { label: 'Catching up' },
-        ]}
-      />
-      <section
-        aria-label="Catching up"
-        className="mb-6 flex max-w-[1000px] items-center gap-4 rounded-card border border-needs-line bg-needs-soft py-3 pr-3.5 pl-[18px]"
-      >
-        <Steps walk={walk} present={present} skipped={skipped} current={current?.key} />
-        <span className="w-px self-stretch bg-needs-line" aria-hidden="true" />
-        <div className="flex min-w-0 flex-1 flex-col" aria-live="polite">
-          <span className="dm-text-caption font-semibold text-needs-strong" data-progress>
-            {current ? `${position} of ${total} · about ${current.minutes} min` : items ? 'Done' : 'Getting ready…'}
-          </span>
-          <strong className="dm-text-heading truncate font-semibold">
-            {current ? needTitle(current, ctx.rows) : items ? 'You went through everything' : ''}
-          </strong>
-        </div>
-        <Button variant="text" onClick={leave}>
-          Leave
-        </Button>
-        {current && (
-          <Button variant="secondary" onClick={() => setSkipped((s) => [...s, current.key])}>
-            Skip
-          </Button>
-        )}
-      </section>
-
-      {!items ? (
-        <div role="status" aria-label="Loading" className="flex max-w-[860px] flex-col gap-3">
-          <Skeleton className="h-3 w-40" />
-          <Skeleton className="h-7 w-2/3" />
-          <Skeleton className="h-24 w-full" />
-        </div>
-      ) : current ? (
-        <NeedView key={current.key} item={current} ctx={ctx} mode="focus" />
-      ) : (
-        <Finished projectId={ctx.projectId} skipped={skipped.filter((k) => present.has(k)).length} />
-      )}
-    </Page>
-  );
-}
-
-function stepState(key: string, present: Set<string>, skipped: string[], current: string | undefined) {
-  if (key === current) return 'now';
-  if (!present.has(key)) return 'done';
-  if (skipped.includes(key)) return 'skipped';
-  return 'next';
-}
-
-const STEP_WORDS = { now: 'Now', done: 'Done', skipped: 'Skipped', next: 'Next' } as const;
-
-/** A step of the walk: the current one has the selection outline (a blue fill would read as the
-    Needs you counter), a done one the Done tick, a skipped one a dashed outline. */
-function Circle({ n, state }: { n: number; state: keyof typeof STEP_WORDS }) {
+function StepMark({ n, state }: { n: number; state: StepState }) {
   return (
     <span
+      aria-hidden
       className={cn(
-        'dm-text-caption inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-[1.5px] bg-surface font-bold',
-        state === 'now' && 'border-2 border-needs text-needs-strong',
-        state === 'done' && 'border-ink',
-        state === 'skipped' && 'border-dashed border-inactive text-muted',
-        state === 'next' && 'border-line-strong text-ink-2',
+        'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums',
+        state === 'now' && 'bg-accent text-on-accent',
+        state === 'done' && 'bg-success-soft text-success-text',
+        state === 'skipped' && 'border border-dashed border-edge-control text-fg-2',
+        state === 'next' && 'border border-edge-strong text-fg-2',
       )}
     >
-      {state === 'done' ? <MarkGlyph kind="done" /> : n}
+      {state === 'done' ? <CheckIcon size={13} /> : n}
     </span>
   );
 }
 
-function Steps({
-  walk,
-  present,
-  skipped,
-  current,
-}: {
-  walk: Seen[];
-  present: Set<string>;
-  skipped: string[];
-  current: string | undefined;
-}) {
-  const shown = walk.slice(0, 12);
-  return (
-    <ol aria-label="Steps" className="flex items-center gap-1.5">
-      {shown.map((w, i) => {
-        const s = stepState(w.key, present, skipped, current);
-        return (
-          <li key={w.key} aria-current={s === 'now' ? 'step' : undefined} title={`${w.title} · ${STEP_WORDS[s]}`}>
-            <Circle n={i + 1} state={s} />
-            <span className="sr-only">
-              {i + 1}: {w.title}, {STEP_WORDS[s]}
-            </span>
-          </li>
-        );
-      })}
-      {walk.length > shown.length && <li className="dm-text-caption text-muted">+{walk.length - shown.length}</li>}
-    </ol>
-  );
-}
+const STATE_TEXT: Record<StepState, string> = {
+  now: 'font-semibold text-accent-text',
+  done: 'text-success-text',
+  skipped: 'text-fg-2',
+  next: 'text-fg-3',
+};
 
-function InOrder({
-  walk,
-  present,
-  skipped,
-  current,
-  remaining,
-}: {
-  walk: Seen[];
-  present: Set<string>;
-  skipped: string[];
-  current: string | undefined;
-  remaining: NeedItem[];
-}) {
-  return (
-    <section aria-label="In order" className="flex flex-col gap-2">
-      <div className="flex items-baseline justify-between">
-        <h2 className="dm-text-heading font-semibold">In order</h2>
-        <span className="dm-text-caption text-muted">
-          {remaining.length === 0 ? 'Nothing left' : `${remaining.length} left · about ${minutesOf(remaining)} min`}
-        </span>
-      </div>
-      <ol className="flex flex-col gap-0.5">
-        {walk.map((w, i) => {
-          const s = stepState(w.key, present, skipped, current);
-          return (
-            <li
-              key={w.key}
-              aria-current={s === 'now' ? 'step' : undefined}
-              className={cn(
-                'flex items-center gap-2.5 rounded-control border border-transparent px-2.5 py-2',
-                s === 'now' && 'border-needs-line bg-needs-soft',
-              )}
-            >
-              <Circle n={i + 1} state={s} />
-              <span className="flex min-w-0 flex-1 flex-col">
-                <span className={cn('dm-text-caption text-muted', w.kind === 'conflict' && 'text-problem')}>
-                  {KIND_WORDS[w.kind].word}
-                </span>
-                <strong className={cn('dm-text-small truncate font-semibold', s === 'done' && 'text-muted line-through')}>
-                  {w.title}
-                </strong>
-              </span>
-              <span className="dm-text-caption shrink-0 text-muted">{STEP_WORDS[s]}</span>
-            </li>
-          );
-        })}
-      </ol>
-    </section>
-  );
-}
+export function CatchUp({ ctx, items }: { ctx: NeedContext; items: NeedItem[] }) {
+  const navigate = useNavigate();
+  const guard = useEditGuard();
+  const listId = useId();
+  const ordered = catchUpOrder(items);
+  const present = new Set(items.map((i) => i.key));
+  const [stored, setStored] = useState<Walk>(() => loadWalk(ctx.projectId) ?? emptyWalk());
+  // Things that arrive meanwhile join the end of the walk (INV-CATCH-12).
+  const walk = extendWalk(stored, ordered, (i) => needTitle(i, ctx.rows));
+  const grew = walk.steps.length !== stored.steps.length;
+  useEffect(() => {
+    if (grew) setStored(walk);
+  }, [grew, walk]);
+  useEffect(() => saveWalk(ctx.projectId, stored), [ctx.projectId, stored]);
 
-function stageOf(row: ProductRow): Stage {
-  if (row.readiness?.ready) return 'ready';
-  return row.current !== null ? 'doubt' : 'not-ready';
-}
+  const step = currentStep(walk, present);
+  const current = step ? items.find((i) => i.key === step.key) : undefined;
+  const { position, total } = walkProgress(walk, present);
+  const left = stepsLeft(walk, present);
+  const minutes = left.reduce((n, s) => n + (items.find((i) => i.key === s.key)?.minutes ?? 0), 0);
+  const skipped = walk.skipped.filter((k) => present.has(k)).length;
 
-/** What the current thing unblocks: the records whose readiness waits for it (the design system's
-    Node, with the app's marks), and what they still need. */
-function WhatItUnblocks({ ctx, item }: { ctx: NeedContext; item: NeedItem }) {
-  const rows = item.unblocks.flatMap((c) => ctx.rows.filter((r) => r.code === c));
-  return (
-    <section aria-label="What it unblocks" className="flex flex-col gap-2">
-      <h2 className="dm-text-caption font-semibold text-muted">What it unblocks</h2>
-      {rows.length === 0 ? (
-        <p className="dm-text-small text-ink-3">Nothing waits for it directly.</p>
-      ) : (
-        rows.map((r) => {
-          const left = r.readiness?.reasons.length ?? 0;
-          return (
-            <Link
-              key={r.code}
-              to="/p/$projectId/records/$code"
-              params={{ projectId: ctx.projectId, code: r.code }}
-              className="flex flex-col gap-1 rounded-control"
-            >
-              <DsNode
-                type={RECORD_TYPE[r.type] ?? 'feature'}
-                state={(EPISTEMIC_MARK[r.epistemic_status] ?? 'unknown') as Certainty}
-                mark={<EpistemicMark status={r.epistemic_status} />}
-                title={r.title}
-                trailing={r.type === 'fdr' ? <StageBars stage={stageOf(r)} /> : undefined}
-              />
-              <span className="dm-text-caption px-3 text-muted">
-                {left === 0 ? PRODUCT_WORDS.readyToBuild : `${left} ${left === 1 ? 'thing' : 'things'} before it can be built`}
-              </span>
-            </Link>
-          );
-        })
-      )}
-    </section>
-  );
-}
+  // Entering Catch up puts the focus on the thing to decide.
+  const entered = useRef(false);
+  useEffect(() => {
+    if (entered.current) return;
+    entered.current = true;
+    const t = setTimeout(() => document.getElementById(DETAIL_TITLE)?.focus(), 60);
+    return () => clearTimeout(t);
+  }, []);
 
-/** The end of the walk with things skipped: they stay in Needs you (with nothing left, it is "You're up to date"). */
-function Finished({ projectId, skipped }: { projectId: string; skipped: number }) {
-  return (
-    <section className="flex max-w-[860px] flex-col gap-2" data-finished>
-      <h1 className="dm-text-page-title leading-tight font-semibold">You went through everything</h1>
-      <p className="dm-text-body text-ink-2">
-        {`${skipped} ${skipped === 1 ? 'thing you skipped stays' : 'things you skipped stay'} in Needs you, in the same order.`}
+  const leave = () =>
+    guard.guard(() => {
+      clearWalk(ctx.projectId);
+      void navigate({ to: '/p/$projectId/needs-you', params: { projectId: ctx.projectId } }).then(() =>
+        setTimeout(() => document.getElementById('page-title')?.focus(), 60),
+      );
+    });
+
+  const skipIt = () =>
+    guard.guard(() => {
+      if (!current) return;
+      const next = skip(walk, current.key);
+      setStored(next);
+      const after = currentStep(next, present);
+      announce(after ? `Skipped. Now: ${after.title}.` : 'Skipped. You went through everything.');
+      setTimeout(() => document.getElementById(DETAIL_TITLE)?.focus(), 60);
+    });
+
+  const bar = (
+    <section
+      aria-label="Catching up"
+      className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-accent-edge bg-accent-soft px-4 py-2"
+    >
+      <p data-progress className="text-sm font-medium text-accent-text tabular-nums">
+        {current ? `${position} of ${total} · about ${minutes} min` : `Done · ${skipped} skipped`}
       </p>
-      <div className="mt-2 flex items-center gap-3">
-        <Link to="/p/$projectId/needs-you" params={{ projectId }} className={buttonClass('secondary')}>
-          Back to Needs you
-        </Link>
-        <Link to="/p/$projectId" params={{ projectId }} className="dm-text-small font-semibold text-needs-strong hover:underline">
-          See the product
-        </Link>
-      </div>
+      <span className="flex-1" />
+      {current ? (
+        <Button size="sm" variant="secondary" onClick={skipIt}>
+          Skip
+        </Button>
+      ) : null}
+      <Button size="sm" variant="quiet" onClick={leave}>
+        Leave
+      </Button>
     </section>
+  );
+
+  return (
+    <>
+      <PageHeader
+        crumbs={[
+          { label: 'Needs you', link: { to: '/p/$projectId/needs-you', params: { projectId: ctx.projectId } } },
+          { label: 'Catching up' },
+        ]}
+        title="Catching up"
+        meta={<span>One at a time, in the order that unblocks the most. What you skip stays in Needs you.</span>}
+      />
+      <PageBody>
+        <div className="flex flex-col gap-8 xl:flex-row xl:items-start">
+          <section
+            aria-labelledby={listId}
+            className="order-2 flex w-full shrink-0 flex-col gap-3 xl:sticky xl:top-4 xl:order-1 xl:max-h-[calc(100vh-32px)] xl:w-80 xl:overflow-y-auto"
+          >
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 id={listId} className="text-base font-semibold text-fg">
+                In order
+              </h2>
+              <span className="text-sm text-fg-2 tabular-nums">
+                {left.length === 0 ? 'Nothing left' : `${left.length} left · about ${minutes} min`}
+              </span>
+            </div>
+            <ol className="flex flex-col gap-1">
+              {walk.steps.map((s, i) => {
+                const st = stepState(s, walk, present, current?.key);
+                return (
+                  <li
+                    key={s.key}
+                    aria-current={st === 'now' ? 'step' : undefined}
+                    data-step={s.key}
+                    data-step-state={st}
+                    data-step-kind={s.kind}
+                    className={cn(
+                      'flex items-start gap-2.5 rounded-md border px-2.5 py-2',
+                      st === 'now' ? 'border-accent-edge bg-selected' : 'border-transparent',
+                    )}
+                  >
+                    <StepMark n={i + 1} state={st} />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className={cn('text-xs', s.kind === 'conflict' ? 'text-danger-text' : 'text-fg-2')}>
+                        {KIND_WORDS[s.kind]}
+                      </span>
+                      <span className={cn('line-clamp-2 text-sm font-medium text-fg', st === 'done' && 'text-fg-2 line-through')}>
+                        {s.title}
+                      </span>
+                    </span>
+                    <span className={cn('shrink-0 text-xs', STATE_TEXT[st])}>{STEP_WORDS[st]}</span>
+                  </li>
+                );
+              })}
+            </ol>
+            <div className="flex flex-col gap-0.5 rounded-lg bg-sunken px-3.5 py-3 text-sm">
+              <p className="font-medium text-fg">Stop whenever you like</p>
+              <p className="text-fg-2">What you skip stays in Needs you, in the same order.</p>
+            </div>
+          </section>
+
+          <div className="order-1 flex min-w-0 max-w-3xl flex-1 flex-col gap-5 xl:order-2">
+            {current ? (
+              <NeedDetail key={current.key} item={current} ctx={ctx} titleId={DETAIL_TITLE} top={bar} />
+            ) : (
+              <section aria-labelledby={DETAIL_TITLE} className="flex flex-col gap-4" data-finished>
+                {bar}
+                <h2 id={DETAIL_TITLE} tabIndex={-1} className="text-xl font-semibold text-fg outline-none">
+                  You went through everything
+                </h2>
+                <p className="text-md text-fg-2">
+                  {`${skipped} ${skipped === 1 ? 'thing you skipped stays' : 'things you skipped stay'} in Needs you, in the same order.`}
+                </p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Link
+                    to="/p/$projectId/needs-you"
+                    params={{ projectId: ctx.projectId }}
+                    onClick={() => clearWalk(ctx.projectId)}
+                    className={buttonClass({ variant: 'primary' })}
+                  >
+                    Back to Needs you
+                  </Link>
+                  <Link to="/p/$projectId" params={{ projectId: ctx.projectId }} className={buttonClass({ variant: 'quiet' })}>
+                    See the product
+                  </Link>
+                </div>
+              </section>
+            )}
+          </div>
+        </div>
+      </PageBody>
+    </>
   );
 }

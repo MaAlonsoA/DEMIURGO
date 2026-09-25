@@ -1,144 +1,148 @@
-// A conflict (canvas S6B): knowledge found that an approved change may contradict a record. The two
-// things side by side, and DEMIURGO's recommendation in words; it never chooses. "Open a review"
-// accepts the review (a thread to review the record); "Keep it as it is" rejects it.
+// A conflict (DESIGN.md §3.1): knowledge found that an approved change may contradict a record. The
+// two sides next to each other, and DEMIURGO's recommendation in words; it never chooses. "Open a
+// review" accepts the review (a thread to review the record); "Keep it as it is" rejects it
+// (INV-NEED-12, INV-CATCH-05).
 
 import { useQuery } from '@tanstack/react-query';
 import { recordQuery } from '../../api/queries.ts';
 import type { RecordVersion } from '../../api/types.ts';
-import { dayTime } from '../../lib/time.ts';
-import { TYPE_WORDS } from '../../words.ts';
-import { Code } from '../../ui/Card.tsx';
-import { RECORD_ICON, TypeIcon } from '../../ui/icons.tsx';
-import { Skeleton } from '../../ui/layout.tsx';
-import { Markdown } from '../../ui/Markdown.tsx';
-import { EpistemicMark, Mark } from '../../ui/marks.tsx';
-import { WhoMark } from '../../ui/signals.tsx';
+import { Code } from '../../components/Badge.tsx';
+import { Card } from '../../components/Card.tsx';
+import { AlertTriangleIcon } from '../../components/icons.tsx';
+import { Markdown } from '../../components/Markdown.tsx';
+import { Bone } from '../../components/Spinner.tsx';
+import { Certainty, StatusBadge } from '../../components/status.tsx';
+import { DayTime } from '../../components/Time.tsx';
+import { TypeIcon, typeWord } from '../../components/types.tsx';
+import { WhoAvatar } from '../../components/Who.tsx';
+import { whoOf } from '../../words.ts';
 import { rowOf, rowOfVersion } from '../batch/model.ts';
-import { ProposalActions } from '../batch/ProposalActions.tsx';
-import { Frame, type Mode, type NeedContext } from './frame.tsx';
-import type { NeedItem } from './order.ts';
-
-const RECOMMEND: Record<string, string> = {
-  update: 'may need an update',
-  invalidate: 'may no longer hold',
-  add: 'may need something added',
-  other: 'may be affected',
-};
+import { BlockedNotice } from '../batch/parts.tsx';
+import { ProposalDecision } from '../batch/ProposalActions.tsx';
+import type { DetailProps } from './Detail.tsx';
+import { DetailFrame } from './frame.tsx';
+import { VERDICT_WORDS } from './titles.ts';
 
 type Review = {
   record?: { code?: string; version?: number };
   change?: { id?: string; version?: number | null };
   verdict?: string;
   reason?: string;
+  confidence?: number;
 };
 
-export function Conflict({
-  item,
-  ctx,
-  mode,
-  title,
-}: {
-  item: Extract<NeedItem, { kind: 'conflict' }>;
-  ctx: NeedContext;
-  mode: Mode;
-  title: string;
-}) {
+export function Conflict({ item, ctx, titleId, top, title }: DetailProps<'conflict'> & { title: string }) {
   const review = item.proposal.payload as Review;
   const code = review.record?.code ?? '';
   const record = rowOf(ctx.rows, code);
   const change = review.change?.id ? rowOfVersion(ctx.rows, review.change.id) : undefined;
   const changeName = change ? `“${change.title}”` : 'a newer change';
-  const recommendation = `DEMIURGO recommends reviewing ${record ? `“${record.title}”` : code}: with ${changeName} approved, it ${
-    RECOMMEND[review.verdict ?? ''] ?? 'may be affected'
-  }. It won't choose for you: nothing changes until you do.`;
+  const verdict = VERDICT_WORDS[review.verdict ?? ''] ?? 'may be affected';
+  const recommendation = `DEMIURGO recommends reviewing ${record ? `“${record.title}”` : code}: with ${changeName} approved, it ${verdict}. It won't choose for you: nothing changes until you do.`;
+  const sure = Math.round((review.confidence ?? 0) * 100);
+  const warnings = item.proposal.obsolescence;
   return (
-    <Frame
-      mode={mode}
+    <DetailFrame
       item={item}
       ctx={ctx}
-      eyebrow={<span className="text-muted">{item.approved ? 'with something you approved' : 'with an earlier version'}</span>}
+      titleId={titleId}
+      top={top}
       title={title}
       code={code ? `${code} v${review.record?.version ?? ''}` : undefined}
-      line={
-        mode === 'row' ? (
-          <span>
-            Because of {changeName}
-            {change && (
-              <Code className="ml-1">{`${change.code}${review.change?.version ? ` v${review.change.version}` : ''}`}</Code>
-            )}
-            . {review.reason}
-          </span>
-        ) : (
-          'Both sides are in DEMIURGO. It shows them together and recommends; you decide.'
-        )
+      state={<StatusBadge kind="conflict" word={item.approved ? 'With something you approved' : 'With an earlier version'} />}
+      why={
+        <>
+          <span>Because of {changeName}</span>
+          {change ? <Code>{`${change.code}${review.change?.version ? ` v${review.change.version}` : ''}`}</Code> : null}
+          {review.reason ? <span>· {review.reason}</span> : null}
+        </>
+      }
+      decision={
+        <>
+          <BlockedNotice reasons={warnings} />
+          <ProposalDecision
+            projectId={ctx.projectId}
+            proposal={item.proposal}
+            blocked={warnings}
+            labels={{ accept: 'Open a review', reject: 'Keep it as it is' }}
+            // The page says the result, with what is left in Needs you.
+            onDone={() => {}}
+          />
+        </>
       }
     >
-      {mode === 'focus' && (
-        <div className="mb-3.5 flex flex-col gap-3.5">
-          <div className="grid grid-cols-[minmax(0,1fr)_36px_minmax(0,1fr)] items-stretch gap-2">
-            <Side projectId={ctx.projectId} label="To review" code={code} version={review.record?.version ?? null} />
-            <span className="inline-flex h-8 w-8 items-center justify-center self-center rounded-full bg-problem-tint">
-              <Mark kind="conflict" label="may contradict" />
-            </span>
-            {change ? (
-              <Side projectId={ctx.projectId} label="The change" code={change.code} version={review.change?.version ?? null} />
-            ) : (
-              <div className="dm-text-small rounded-card-md border border-dashed border-line-strong px-3.5 py-3 text-muted">
-                The change that triggered it is no longer in the product&apos;s current view.
-              </div>
-            )}
+      <div className="grid items-stretch gap-3 lg:grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)]">
+        <Side projectId={ctx.projectId} label="To review" code={code} version={review.record?.version ?? null} />
+        <span className="flex items-center justify-center" role="img" aria-label="may contradict">
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-danger-edge bg-danger-soft text-danger-text">
+            <AlertTriangleIcon size={15} />
+          </span>
+        </span>
+        {change ? (
+          <Side projectId={ctx.projectId} label="The change" code={change.code} version={review.change?.version ?? null} />
+        ) : (
+          <div className="rounded-lg border border-dashed border-edge-strong px-3.5 py-3 text-sm text-fg-2">
+            <p className="font-medium text-fg">The change</p>
+            The change that triggered it is no longer in the product&apos;s current view.
           </div>
-          <div className="flex flex-col gap-1 rounded-sm bg-surface-soft px-3.5 py-2.5">
-            <span className="dm-label">What DEMIURGO recommends</span>
-            <p className="dm-text-small">{recommendation}</p>
-            {review.reason && (
-              <p className="dm-text-caption text-muted">
-                Why: {review.reason} ({Math.round(Number(item.proposal.payload.confidence ?? 0) * 100)}% sure)
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-      {mode === 'row' && <p className="dm-text-small mb-2 text-ink-2">{recommendation}</p>}
-      <ProposalActions
-        projectId={ctx.projectId}
-        proposal={item.proposal}
-        blocked={item.proposal.obsolescence.length > 0}
-        labels={{ accept: 'Open a review', reject: 'Keep it as it is' }}
-      />
-    </Frame>
+        )}
+      </div>
+      <Card padding="md" className="flex flex-col gap-1.5 bg-sunken" data-recommendation>
+        <p className="text-sm font-medium text-fg">What DEMIURGO recommends</p>
+        <p className="text-base text-fg">{recommendation}</p>
+        {review.reason ? (
+          <p className="text-sm text-fg-2">
+            Why: {review.reason} ({sure}% sure)
+          </p>
+        ) : null}
+      </Card>
+    </DetailFrame>
   );
 }
 
 /** One side of the conflict: the record, the version in question, its text and who approved it. */
 function Side({ projectId, label, code, version }: { projectId: string; label: string; code: string; version: number | null }) {
-  const detail = useQuery(recordQuery(projectId, code)).data;
+  const detail = useQuery({ ...recordQuery(projectId, code), enabled: code !== '' }).data;
   const v: RecordVersion | undefined = detail?.versions.find((x) => x.n === version) ?? detail?.versions.at(-1);
   if (!detail || !v) {
     return (
-      <div className="flex h-[140px] flex-col gap-2 rounded-card-md border border-line bg-surface px-3.5 py-3" aria-hidden="true">
-        <Skeleton className="h-3 w-32" />
-        <Skeleton className="h-4 w-2/3" />
-        <Skeleton className="h-12 w-full" />
-      </div>
+      <Card padding="md" className="flex min-h-36 flex-col gap-2">
+        <p className="text-sm font-medium text-fg-2">{label}</p>
+        <Bone className="h-4 w-2/3" />
+        <Bone className="h-12 w-full" />
+      </Card>
     );
   }
   const text = v.sections.find((s) => s.title === 'Decision')?.content ?? v.sections.find((s) => s.content.trim())?.content ?? '';
+  const by = v.approved_by ?? v.author;
   return (
-    <div className="flex min-w-0 flex-col gap-1.5 rounded-card-md border border-line bg-surface px-3.5 py-3">
-      <span className="dm-label flex items-center gap-1.5">
-        <TypeIcon kind={RECORD_ICON[detail.type] ?? 'decision'} size={12} />
-        {label} · {TYPE_WORDS[detail.type]}
-        <EpistemicMark status={v.epistemic_status} />
-      </span>
-      <strong className="dm-text-body font-semibold">
+    <Card padding="md" className="flex min-w-0 flex-col gap-2" data-side={label}>
+      <p className="flex flex-wrap items-center gap-2 text-sm text-fg-2">
+        <span className="font-medium text-fg">{label}</span>
+        <span className="inline-flex items-center gap-1">
+          <TypeIcon type={detail.type} size={13} className="text-fg-3" />
+          {typeWord(detail.type)}
+        </span>
+        <Certainty status={v.epistemic_status} />
+      </p>
+      <p className="font-medium text-fg">
         {v.title} <Code className="whitespace-nowrap">{`${detail.code} v${v.n}`}</Code>
-      </strong>
-      <Markdown className="dm-text-small line-clamp-4">{text}</Markdown>
-      <span className="dm-text-caption mt-auto flex items-center gap-1.5 text-muted">
-        <WhoMark actor={v.approved_by ?? v.author} size={16} />
-        {v.approved_by ? `Approved ${dayTime(v.approved_at)}` : `Drafted ${dayTime(v.created_at)}`}
-      </span>
-    </div>
+      </p>
+      <Markdown size="sm" className="line-clamp-4">
+        {text}
+      </Markdown>
+      <p className="mt-auto flex items-center gap-1.5 text-xs text-fg-2">
+        <WhoAvatar kind={whoOf(by).kind} size={16} />
+        {v.approved_by ? (
+          <>
+            Approved <DayTime iso={v.approved_at} />
+          </>
+        ) : (
+          <>
+            Drafted <DayTime iso={v.created_at} />
+          </>
+        )}
+      </p>
+    </Card>
   );
 }

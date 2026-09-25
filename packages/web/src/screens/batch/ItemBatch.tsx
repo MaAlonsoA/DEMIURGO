@@ -1,38 +1,33 @@
-// A batch resolved item by item (canvas S7B): an agent's, DEMIURGO's from a conversation, or the
-// reviews knowledge suggests. One proposal at a time with its author visible, Previous and Next,
-// and the whole batch on the right. Never an "accept all".
+// A batch decided one proposal at a time (DESIGN.md §3.2): an agent's, DEMIURGO's from a
+// conversation, or the reviews knowledge asks for. On the left, every proposal with its state and
+// how many are left to decide; in the middle, the one being read, in full, with its decision at
+// the bottom. Previous and Next move through them; after a decision the page goes to the next one
+// still to decide, puts the focus on its title and says so (R13, R80). Moving away from unsaved
+// "Change" edits asks first. Never an "accept all" (INV-PROP-21).
 
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { Link } from '@tanstack/react-router';
+import { useEffect, useId, useRef, useState } from 'react';
 import { inboxQuery, stateQuery } from '../../api/queries.ts';
 import type { BatchDetail, InboxProposal, ProductRow } from '../../api/types.ts';
+import { announce } from '../../components/announce.tsx';
+import { Button, buttonClass } from '../../components/Button.tsx';
+import { ChevronLeftIcon, ChevronRightIcon } from '../../components/icons.tsx';
+import { Meter } from '../../components/Meter.tsx';
+import { PageBody, PageHeader } from '../../components/Page.tsx';
+import { EntityState, StatusBadge } from '../../components/status.tsx';
+import { DayTime } from '../../components/Time.tsx';
+import { WhoAvatar } from '../../components/Who.tsx';
 import { cn } from '../../lib/cn.ts';
-import { dayTime } from '../../lib/time.ts';
-import { stateWord, whoOf } from '../../words.ts';
-import { Button } from '../../ui/Button.tsx';
-import { ChevronLeft, ChevronRight } from '../../ui/icons.tsx';
-import { Breadcrumbs, Page } from '../../ui/layout.tsx';
-import { Mark } from '../../ui/marks.tsx';
-import { WhoMark } from '../../ui/signals.tsx';
-import { proposalTitle, PROPOSAL_TYPE_WORDS } from './model.ts';
-import { Eyebrow } from './parts.tsx';
-import { NextButton, ProposalCard, type ProposalView } from './ProposalCard.tsx';
-
-function heading(producer: string, n: number): { eyebrow: string; title: string } {
-  const who = whoOf(producer);
-  const changes = n === 1 ? 'change' : 'changes';
-  if (who.kind === 'agent')
-    return { eyebrow: `${n} ${n === 1 ? 'proposal' : 'proposals'} from an agent`, title: `${who.name} proposes ${n} ${changes}` };
-  if (who.kind === 'demiurgo')
-    return { eyebrow: `${n} ${n === 1 ? 'proposal' : 'proposals'} from DEMIURGO`, title: `DEMIURGO proposes ${n} ${changes}` };
-  return {
-    eyebrow: `${n} ${n === 1 ? 'review' : 'reviews'} from knowledge`,
-    title: `DEMIURGO's knowledge asks you to review ${n === 1 ? 'a record' : `${n} records`}`,
-  };
-}
+import { whoOf } from '../../words.ts';
+import { useBatchCrumbs } from './Batch.tsx';
+import { EditGuard, useEditGuard } from './guard.tsx';
+import { PROPOSAL_TYPE_WORDS, proposalTitle } from './model.ts';
+import { batchHeading, type ProposalView as ProposalData } from './proposal.ts';
+import { ProposalView, producerName } from './ProposalView.tsx';
 
 /** The batch's proposals with what the inbox adds to the pending ones: the idea check and the warnings. */
-export function withInbox(batch: BatchDetail, inbox: InboxProposal[]): ProposalView[] {
+export function withInbox(batch: BatchDetail, inbox: InboxProposal[]): ProposalData[] {
   const extra = new Map(inbox.map((p) => [p.id, p]));
   return batch.proposals.map((p) => {
     const i = extra.get(p.id);
@@ -40,142 +35,221 @@ export function withInbox(batch: BatchDetail, inbox: InboxProposal[]): ProposalV
   });
 }
 
+const WHO_EXPLAINS: Record<string, string> = {
+  agent: 'An agent from outside. It only proposes: nothing changes until you accept.',
+  automatic: 'It found these while taking in a change. It only proposes: nothing changes until you accept.',
+  demiurgo: 'It only proposes: nothing changes until you accept.',
+  you: 'Nothing changes until you accept.',
+};
+
 export function ItemBatch({ projectId, batch }: { projectId: string; batch: BatchDetail }) {
+  return (
+    <EditGuard>
+      <ItemBatchPage projectId={projectId} batch={batch} />
+    </EditGuard>
+  );
+}
+
+function ItemBatchPage({ projectId, batch }: { projectId: string; batch: BatchDetail }) {
   const inbox = useQuery(inboxQuery(projectId)).data;
   const state = useQuery(stateQuery(projectId)).data;
   const rows: ProductRow[] = state ? [...state.decisions, ...state.designs] : [];
   const proposals = withInbox(batch, inbox?.batches.find((b) => b.id === batch.id)?.proposals ?? []);
+  const n = proposals.length;
   const firstPending = Math.max(
     0,
     proposals.findIndex((p) => p.state === 'pending'),
   );
+  // The page stays on the proposal it shows while others are decided elsewhere.
   const [chosen, setChosen] = useState<number | null>(null);
-  // The page stays on the proposal it opened with: what gets resolved meanwhile doesn't move it.
   useEffect(() => {
-    if (chosen === null && batch.proposals.length > 0) setChosen(firstPending);
-  }, [chosen, batch.proposals.length, firstPending]);
-  const index = Math.min(chosen ?? firstPending, Math.max(0, proposals.length - 1));
+    if (chosen === null && n > 0) setChosen(firstPending);
+  }, [chosen, n, firstPending]);
+  const index = Math.min(chosen ?? firstPending, Math.max(0, n - 1));
   const current = proposals[index];
-  const n = proposals.length;
-  const { eyebrow, title } = heading(batch.producer, n);
   const left = proposals.filter((p) => p.state === 'pending').length;
-  const nextPending = proposals.findIndex((p, i) => i > index && p.state === 'pending');
-  const go = (i: number) => setChosen(Math.max(0, Math.min(n - 1, i)));
+  // Out of date is not decided: it can't be accepted any more, and nobody chose that.
+  const stale = proposals.filter((p) => p.state === 'superseded').length;
+  const decided = n - left - stale;
+  const { eyebrow, title } = batchHeading(batch.producer, n);
+  const who = whoOf(batch.producer);
+  const crumbs = useBatchCrumbs(projectId, title);
+  const guard = useEditGuard();
+  const titleId = useId();
+  const focusTitle = useRef(false);
+
+  useEffect(() => {
+    if (!focusTitle.current) return;
+    focusTitle.current = false;
+    // After the dialog has closed and given its focus back.
+    const t = setTimeout(() => document.getElementById(titleId)?.focus(), 60);
+    return () => clearTimeout(t);
+  });
+
+  const go = (i: number, focus = false) =>
+    guard.guard(() => {
+      focusTitle.current = focus;
+      setChosen(Math.max(0, Math.min(n - 1, i)));
+    });
+
+  /** After a decision: the next proposal still to decide, after this one and then from the start. */
+  const onDone = (said: string) => {
+    const after = proposals.findIndex((p, i) => i > index && p.state === 'pending' && p.id !== current?.id);
+    const before = proposals.findIndex((p, i) => i < index && p.state === 'pending');
+    const next = after >= 0 ? after : before;
+    const remaining = Math.max(0, left - 1);
+    announce(`${said} ${remaining === 0 ? 'All decided.' : `${remaining} to decide.`}`);
+    focusTitle.current = true;
+    if (next >= 0) setChosen(next);
+  };
 
   return (
-    <Page
-      className="pt-4"
-      aside={
-        <>
-          <section className="flex flex-col gap-2" aria-label="In this batch">
-            <div className="flex items-baseline justify-between">
-              <h2 className="dm-text-heading font-semibold">In this batch</h2>
-              <span className="dm-text-caption text-muted">{left === 0 ? 'All decided' : `${left} to decide`}</span>
-            </div>
-            <ol className="flex flex-col gap-0.5">
-              {proposals.map((p, i) => {
-                const w = stateWord('proposal', p.state);
-                return (
+    <>
+      <PageHeader
+        crumbs={crumbs}
+        eyebrow={
+          <span className="inline-flex items-center gap-1.5">
+            <WhoAvatar kind={who.kind} size={18} />
+            {eyebrow}
+          </span>
+        }
+        title={title}
+        meta={
+          <>
+            <DayTime iso={batch.created_at} />
+            {batch.summary ? <span>{batch.summary}</span> : null}
+            <span>Nothing changes until you accept. Decide each one: accept it, change it or reject it.</span>
+          </>
+        }
+      >
+        <Meter
+          value={decided}
+          max={n}
+          label={`${decided} of ${n} decided${stale > 0 ? ` · ${stale} out of date` : ''}`}
+          tone={left === 0 && stale === 0 ? 'success' : 'accent'}
+          className="max-w-md"
+        />
+      </PageHeader>
+      <PageBody>
+        <div className="flex flex-col gap-8 xl:flex-row xl:items-start">
+          <div className="flex w-full shrink-0 flex-col gap-6 xl:sticky xl:top-4 xl:w-80">
+            <nav aria-label="Proposals in this batch" className="flex flex-col gap-2">
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className="text-base font-semibold text-fg">In this batch</h2>
+                <span className="text-sm text-fg-2" data-left={left}>
+                  {left > 0 ? `${left} to decide` : stale > 0 ? 'Nothing left to decide' : 'All decided'}
+                </span>
+              </div>
+              <ol className="flex flex-col gap-1">
+                {proposals.map((p, i) => (
                   <li key={p.id}>
                     <button
                       type="button"
-                      aria-current={i === index ? 'step' : undefined}
-                      onClick={() => go(i)}
+                      aria-current={i === index ? 'true' : undefined}
+                      onClick={() => go(i, true)}
+                      data-step={p.id}
                       className={cn(
-                        'flex w-full items-center gap-2.5 rounded-control border border-transparent px-2.5 py-2 text-left hover:bg-paper',
-                        i === index && 'border-needs-line bg-needs-soft hover:bg-needs-soft',
+                        'flex w-full cursor-pointer items-start gap-2.5 rounded-md border px-2.5 py-2 text-left transition-colors duration-[var(--m-fast)]',
+                        i === index ? 'border-accent-edge bg-selected' : 'border-transparent hover:bg-hover',
                       )}
                     >
-                      {/* Its place in the batch; the one on screen has the selection outline (a blue
-                          fill would read as the Needs you counter). */}
                       <span
+                        aria-hidden
                         className={cn(
-                          'dm-text-caption inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-surface font-bold',
-                          i === index
-                            ? 'border-2 border-needs text-needs-strong'
-                            : 'border-[1.5px] border-line-strong text-ink-2',
+                          'mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-xs font-semibold tabular-nums',
+                          i === index ? 'border-accent bg-accent text-on-accent' : 'border-edge-strong text-fg-2',
                         )}
                       >
                         {i + 1}
                       </span>
-                      <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="dm-text-caption text-muted">{PROPOSAL_TYPE_WORDS[p.type] ?? p.type}</span>
-                        <strong className="dm-text-small truncate font-semibold">{proposalTitle(p)}</strong>
-                      </span>
-                      <span className="dm-text-caption flex shrink-0 items-center gap-1.5 text-muted">
-                        <Mark kind={w.mark} label={w.word} />
-                        {w.word}
+                      <span className="flex min-w-0 flex-1 flex-col gap-1">
+                        <span className="text-xs text-fg-2">{PROPOSAL_TYPE_WORDS[p.type] ?? 'Proposal'}</span>
+                        <span className="line-clamp-2 text-sm font-medium text-fg">{proposalTitle(p)}</span>
+                        <span>
+                          {p.state === 'superseded' ? (
+                            <StatusBadge kind="stale" word="Out of date" />
+                          ) : (
+                            <EntityState entity="proposal" state={p.state} />
+                          )}
+                        </span>
                       </span>
                     </button>
                   </li>
-                );
-              })}
-            </ol>
-          </section>
-          <section className="flex items-start gap-3 rounded-card-md border border-line px-3.5 py-3" aria-label="Who proposes">
-            <WhoMark actor={batch.producer} size={28} />
-            <div className="dm-text-small flex flex-col">
-              <strong className="font-semibold">
-                {whoOf(batch.producer).kind === 'automatic' ? "DEMIURGO's knowledge" : whoOf(batch.producer).name}
-              </strong>
-              <span className="dm-text-caption text-muted">
-                {whoOf(batch.producer).kind === 'agent'
-                  ? 'An agent from outside. It only proposes: nothing changes until you accept.'
-                  : whoOf(batch.producer).kind === 'automatic'
-                    ? 'It found these while taking in a change. It only proposes: nothing changes until you accept.'
-                    : 'It only proposes: nothing changes until you accept.'}
+                ))}
+              </ol>
+            </nav>
+            <section aria-label="Who proposes" className="flex items-start gap-3 rounded-lg border border-edge px-3.5 py-3">
+              <WhoAvatar kind={who.kind} size={28} />
+              <div className="flex flex-col gap-0.5 text-sm">
+                <p className="font-medium text-fg">{producerName(batch.producer)}</p>
+                <p className="text-fg-2">{WHO_EXPLAINS[who.kind]}</p>
+              </div>
+            </section>
+          </div>
+
+          <div className="flex min-w-0 max-w-3xl flex-1 flex-col gap-4">
+            <nav aria-label="Move between proposals" className="flex items-center justify-between gap-3">
+              <Button
+                variant="quiet"
+                size="sm"
+                aria-label="Previous proposal"
+                icon={<ChevronLeftIcon size={14} />}
+                disabled={index === 0}
+                onClick={() => go(index - 1)}
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-fg-2 tabular-nums">
+                {index + 1} of {n}
               </span>
-            </div>
-          </section>
-        </>
-      }
-    >
-      <Breadcrumbs items={[{ label: 'Needs you', to: '/p/$projectId/needs-you', params: { projectId } }, { label: title }]} />
-      <div className="mb-4 flex max-w-[860px] items-start gap-3.5">
-        <WhoMark actor={batch.producer} size={40} />
-        <div className="flex flex-col gap-0.5">
-          <Eyebrow>{eyebrow}</Eyebrow>
-          <h1 className="dm-text-page-title leading-tight font-semibold">{title}</h1>
-          <p className="dm-text-body text-ink-3">
-            {dayTime(batch.created_at)}
-            {batch.summary ? ` · ${batch.summary}` : ''} Nothing changes until you accept. Decide each one: accept it, change it
-            or reject it.
-          </p>
+              <Button
+                variant="quiet"
+                size="sm"
+                aria-label="Next proposal"
+                trailing={<ChevronRightIcon size={14} />}
+                disabled={index >= n - 1}
+                onClick={() => go(index + 1)}
+              >
+                Next
+              </Button>
+            </nav>
+            {current ? (
+              <ProposalView
+                key={current.id}
+                projectId={projectId}
+                proposal={current}
+                position={index + 1}
+                count={n}
+                producer={batch.producer}
+                createdAt={batch.created_at}
+                runId={batch.run_id}
+                rows={rows}
+                titleId={titleId}
+                onDone={onDone}
+                footer={
+                  left === 0 ? (
+                    <Link to="/p/$projectId/needs-you" params={{ projectId }} className={buttonClass({ variant: 'secondary' })}>
+                      Back to Needs you
+                    </Link>
+                  ) : (
+                    <Button
+                      variant="secondary"
+                      onClick={() =>
+                        go(
+                          proposals.findIndex((p) => p.state === 'pending'),
+                          true,
+                        )
+                      }
+                    >
+                      Next to decide
+                    </Button>
+                  )
+                }
+              />
+            ) : null}
+          </div>
         </div>
-      </div>
-
-      {current && (
-        <ProposalCard
-          key={current.id}
-          projectId={projectId}
-          proposal={current}
-          position={index + 1}
-          count={n}
-          producer={batch.producer}
-          createdAt={batch.created_at}
-          rows={rows}
-          className="max-w-[860px]"
-          footer={
-            nextPending >= 0 ? (
-              <NextButton onClick={() => go(nextPending)} />
-            ) : index < n - 1 ? (
-              <NextButton onClick={() => go(index + 1)} />
-            ) : null
-          }
-        />
-      )}
-
-      <nav aria-label="Proposals" className="mt-3 flex max-w-[860px] items-center justify-between">
-        <Button variant="text" aria-label="Previous proposal" disabled={index === 0} onClick={() => go(index - 1)}>
-          <ChevronLeft size={14} /> Previous
-        </Button>
-        <span className="dm-text-caption text-muted">
-          {index + 1} of {n}
-        </span>
-        <Button variant="text" aria-label="Next proposal" disabled={index >= n - 1} onClick={() => go(index + 1)}>
-          Next <ChevronRight size={14} />
-        </Button>
-      </nav>
-    </Page>
+      </PageBody>
+    </>
   );
 }

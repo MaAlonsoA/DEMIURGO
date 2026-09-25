@@ -26,12 +26,15 @@ test('AC-INT-001-11 with nothing left, Needs you says you are up to date and you
   await expect(today).toContainText('You added and approved Members sign up themselves.');
   await expect(today).toContainText('You opened Guests at activities.');
   await expect(today.locator('[data-who]').first()).toHaveAttribute('data-who', 'you');
+  // Each line of today leads to what it touched.
+  await expect(today.getByRole('link', { name: /Members sign up themselves/ })).toHaveAttribute('href', /\/records\//);
   const running = page.getByRole('region', { name: 'In progress' });
   await expect(running).toContainText('Guests at activities');
-  await expect(running.locator('[data-mark="working"]')).toHaveCount(1);
+  await expect(running.locator('[data-status="working"], [data-status="stale"]')).toHaveCount(1);
   await expect(page.getByText('Nothing needs you. You can close DEMIURGO.')).toBeVisible();
+  // DEMIURGO speaks in the third person here too (the old page switched to "I").
   await expect(
-    page.getByText("Everything is saved. When you come back, I'll show you what changed while you were away."),
+    page.getByText('Everything is saved. When you come back, DEMIURGO shows you what changed while you were away.'),
   ).toBeVisible();
   await expectAccessible(page, 'Needs you up to date');
 
@@ -39,11 +42,13 @@ test('AC-INT-001-11 with nothing left, Needs you says you are up to date and you
   const other = await person.createProject('Up to date after catching up');
   await createDecision(person, other, 'Organizers set a limit on places');
   await page.goto(`/p/${other}/needs-you?catch-up=1`);
-  const focus = page.getByRole('main').locator('[data-need]').first();
+  const focus = page.locator('[data-detail]');
   await expect(focus).toHaveAttribute('data-kind', 'version');
   await focus.getByRole('button', { name: 'Approve' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Approve' }).click();
   await expect(page.getByRole('heading', { level: 1, name: "You're up to date" })).toBeVisible();
+  // Nothing left: the focus goes to the page title, not to <body>.
+  await expect(page.getByRole('heading', { level: 1, name: "You're up to date" })).toBeFocused();
   await expect(page.getByRole('region', { name: /^Today/ })).toContainText('Organizers set a limit on places');
   await expect(page.getByText('Nothing needs you. You can close DEMIURGO.')).toBeVisible();
   await expectAccessible(page, 'the end of Catch up');

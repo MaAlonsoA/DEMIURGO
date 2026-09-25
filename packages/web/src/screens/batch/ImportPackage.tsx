@@ -1,135 +1,137 @@
-// The package imported from design/ and its ratification (spec §4.2, stop 1): its counts next to
-// design/'s, what ratifying does, and its documents, each one opened in place. Ratify accepts the
-// whole package (a decisive command: it asks first); Reject package asks for a reason.
+// The import of design/ and its ratification (DESIGN.md §3.2): its counts next to design/'s, with
+// "Same as design/" or "Differs" written out, not an icon alone; what ratifying does, and Ratify or
+// Reject package; then its documents, each opened in place. Every document says its state in a
+// word (the old list showed only a mark). Ratify is decisive: it asks first (INV-BATCH-16…22).
 
-import { Signal } from '@demiurgo/design-system';
 import { Link } from '@tanstack/react-router';
 import { useId, useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
 import type { BatchDetail, Proposal } from '../../api/types.ts';
+import { useAllows } from '../../components/actions.tsx';
+import { announce } from '../../components/announce.tsx';
+import { Tag, Code } from '../../components/Badge.tsx';
+import { Button, buttonClass } from '../../components/Button.tsx';
+import { Card } from '../../components/Card.tsx';
+import { ConfirmDialog, PromptDialog } from '../../components/Dialog.tsx';
+import { ArrowRightIcon, ChevronDownIcon, ChevronRightIcon, PackageIcon } from '../../components/icons.tsx';
+import { PageBody, PageHeader } from '../../components/Page.tsx';
+import { EntityState, StateIcon, StatusBadge } from '../../components/status.tsx';
+import { RelativeTime } from '../../components/Time.tsx';
+import { Who } from '../../components/Who.tsx';
 import { cn } from '../../lib/cn.ts';
-import { ago, dayTime } from '../../lib/time.ts';
-import { useAllows } from '../../ui/ActionBar.tsx';
-import { Button, buttonClass } from '../../ui/Button.tsx';
-import { Code } from '../../ui/Card.tsx';
-import { ConfirmDialog, TextDialog } from '../../ui/dialogs.tsx';
-import { ArrowRight, ChevronDown, ChevronRight, TypeIcon } from '../../ui/icons.tsx';
-import { Breadcrumbs, Page, Panel } from '../../ui/layout.tsx';
-import { stateWord } from '../../words.ts';
-import { Mark, MarkGlyph, StateMark } from '../../ui/marks.tsx';
-import { WhoMark } from '../../ui/signals.tsx';
-import { Tip } from '../../ui/Tip.tsx';
+import { useBatchCrumbs } from './Batch.tsx';
 import {
   acceptedRecord,
   countRows,
   documentGroups,
-  importedDocument,
-  importedTaxonomy,
   type ImportedDocument,
   type ImportedTaxonomy,
+  importedDocument,
+  importedTaxonomy,
 } from './model.ts';
-import { ChecksList, Dot, Eyebrow, OutOfDate, Sections } from './parts.tsx';
+import { ChecksList, linkClass, OutOfDate, Sections } from './parts.tsx';
 
 export function ImportPackage({ projectId, batch }: { projectId: string; batch: BatchDetail }) {
   const n = batch.proposals.length;
   const approvedInDesign = batch.proposals.filter((p) => importedDocument(p)?.state === 'approved').length;
+  const crumbs = useBatchCrumbs(projectId, 'Imported from design/');
   return (
-    <Page className="pt-4 [&>*]:max-w-[1200px]">
-      <Breadcrumbs
-        items={[{ label: 'Needs you', to: '/p/$projectId/needs-you', params: { projectId } }, { label: 'Imported from design/' }]}
-      />
-      <header className="mb-6 flex items-start gap-3.5">
-        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-control border-[1.5px] border-ink bg-surface">
-          <TypeIcon kind="package" size={20} />
-        </span>
-        <div className="flex min-w-0 flex-col gap-1">
-          <Eyebrow>
-            Package <Dot /> {n} proposals
-          </Eyebrow>
-          <h1 className="dm-text-page-title leading-tight font-semibold">Imported from design/</h1>
-          <p className="dm-text-body flex flex-wrap items-center gap-2 text-ink-2">
-            <WhoMark actor={batch.producer} size={18} withName />
+    <>
+      <PageHeader
+        crumbs={crumbs}
+        eyebrow={
+          <>
+            <span className="inline-flex items-center gap-1.5">
+              <PackageIcon size={16} className="text-fg-3" />
+              Package
+            </span>
+            <span aria-hidden>·</span>
+            <span>
+              {n} {n === 1 ? 'document' : 'documents'}
+            </span>
+          </>
+        }
+        title="Imported from design/"
+        meta={
+          <>
+            <Who actor={batch.producer} size={18} />
             <Code>{batch.producer.replace(/^system:/, '')}</Code>
-            <Dot />
-            <StateMark entity="batch" state={batch.state} className="dm-text-body" />
-            <Dot />
-            <span className="text-muted">imported {dayTime(batch.created_at)}</span>
-          </p>
+            <EntityState entity="batch" state={batch.state} />
+            <RelativeTime iso={batch.created_at} prefix="imported" />
+          </>
+        }
+      />
+      <PageBody>
+        <div className="flex flex-col gap-8">
+          <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <Counts batch={batch} />
+            <Ratification projectId={projectId} batch={batch} approvedInDesign={approvedInDesign} />
+          </div>
+          <Documents projectId={projectId} proposals={batch.proposals} />
         </div>
-      </header>
-
-      <div className="mb-8 grid grid-cols-[minmax(0,1fr)_440px] items-start gap-5">
-        <Counts batch={batch} />
-        <Ratification projectId={projectId} batch={batch} approvedInDesign={approvedInDesign} />
-      </div>
-
-      <Documents projectId={projectId} proposals={batch.proposals} />
-    </Page>
+      </PageBody>
+    </>
   );
 }
 
+/** "What's inside": each kind in design/ and in this package, and whether they match, in words. */
 function Counts({ batch }: { batch: BatchDetail }) {
   const id = useId();
   if (!batch.import_counts) return null;
   const rows = countRows(batch.import_counts);
   const differ = rows.some((r) => !r.same);
+  const summary =
+    batch.import_counts.origin === null
+      ? 'design/ gave no counts'
+      : differ
+        ? 'Some counts differ from design/'
+        : 'Everything in design/ is here';
   return (
-    <Panel className="p-0">
-      <div className="flex items-baseline justify-between px-5 pt-4 pb-2">
-        <h2 id={id} className="dm-text-heading font-semibold">
+    <Card padding="none" as="section" aria-labelledby={id}>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 pt-4 pb-3">
+        <h2 id={id} className="text-lg font-semibold text-fg">
           What&apos;s inside
         </h2>
-        <span className={cn('dm-text-caption', differ ? 'font-semibold text-problem' : 'text-muted')}>
-          {batch.import_counts.origin === null
-            ? 'design/ gave no counts'
-            : differ
-              ? 'Some counts differ from design/'
-              : 'Everything in design/ is here'}
-        </span>
+        <span className={cn('text-sm', differ ? 'font-medium text-warning-text' : 'text-fg-2')}>{summary}</span>
       </div>
-      <table aria-labelledby={id} className="dm-text-small w-full tabular-nums">
-        <thead>
-          <tr className="dm-label border-y border-line-soft text-left">
-            <th scope="col" className="px-5 py-2 font-semibold">
-              Kind
-            </th>
-            <th scope="col" className="w-36 px-3 py-2 text-right font-semibold">
-              In design/
-            </th>
-            <th scope="col" className="w-44 px-5 py-2 text-right font-semibold">
-              In this package
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr
-              key={r.kind}
-              className={cn('border-b border-line-soft last:border-b-0', !r.same && 'bg-problem-tint text-problem')}
-            >
-              <th scope="row" className="px-5 py-2 text-left font-medium">
-                {r.kind}
+      <div className="overflow-x-auto">
+        <table aria-labelledby={id} className="w-full text-sm tabular-nums">
+          <thead>
+            <tr className="border-y border-edge bg-sunken text-left text-xs text-fg-2">
+              <th scope="col" className="px-4 py-2 font-medium">
+                Kind
               </th>
-              <td className="px-3 py-2 text-right text-ink-2">{r.origin ?? '—'}</td>
-              <td className="px-5 py-2 text-right font-semibold">
-                <span className="inline-flex items-center justify-end gap-2">
-                  {r.inPackage}
-                  {r.same ? (
-                    <span role="img" aria-label="Same as design/" className="inline-flex w-3.5 justify-center">
-                      <MarkGlyph kind="done" />
-                    </span>
-                  ) : (
-                    <span role="img" aria-label="Differs from design/" className="inline-flex w-3.5 justify-center">
-                      <Mark kind="problem" size={8} />
-                    </span>
-                  )}
-                </span>
-              </td>
+              <th scope="col" className="px-3 py-2 text-right font-medium">
+                In design/
+              </th>
+              <th scope="col" className="px-3 py-2 text-right font-medium">
+                In this package
+              </th>
+              <th scope="col" className="px-4 py-2 font-medium">
+                Compared
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </Panel>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.kind} className={cn('border-b border-edge-subtle last:border-b-0', !r.same && 'bg-warning-soft')}>
+                <th scope="row" className="px-4 py-2 text-left font-medium text-fg">
+                  {r.kind}
+                </th>
+                <td className="px-3 py-2 text-right text-fg-2">{r.origin ?? '—'}</td>
+                <td className="px-3 py-2 text-right font-medium text-fg">{r.inPackage}</td>
+                <td className="px-4 py-2">
+                  <span className={cn('inline-flex items-center gap-1.5', r.same ? 'text-success-text' : 'text-warning-text')}>
+                    <StateIcon kind={r.same ? 'done' : 'conflict'} size={14} />
+                    {r.same ? 'Same as design/' : 'Differs'}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   );
 }
 
@@ -145,13 +147,24 @@ function Ratification({
   const command = useCommand(projectId);
   const allows = useAllows('batch', batch.state);
   const [dialog, setDialog] = useState<null | 'ratify' | 'reject'>(null);
+  const headingId = useId();
   const n = batch.proposals.length;
   const open = (d: 'ratify' | 'reject') => {
     command.reset();
     setDialog(d);
   };
-  const run = (name: string, data: Record<string, unknown>) =>
-    command.mutate({ command: name, entityId: batch.id, data }, { onSuccess: () => setDialog(null) });
+  const run = (name: string, data: Record<string, unknown>, said: string) =>
+    command.mutate(
+      { command: name, entityId: batch.id, data },
+      {
+        onSuccess: () => {
+          setDialog(null);
+          announce(said);
+          // The panel changes to what happened: the focus goes to its heading.
+          setTimeout(() => document.getElementById(headingId)?.focus(), 60);
+        },
+      },
+    );
 
   if (batch.state === 'superseded') {
     return (
@@ -162,90 +175,100 @@ function Ratification({
   }
   if (batch.state === 'accepted') {
     return (
-      <Panel className="flex flex-col gap-3">
-        <h2 className="dm-text-heading flex items-center gap-2 font-semibold">
-          <Mark kind="confirmed" label="Ratified" /> Ratified
+      <Card as="section" aria-labelledby={headingId} tone="success" className="flex flex-col gap-3">
+        <h2 id={headingId} tabIndex={-1} className="flex items-center gap-2 text-lg font-semibold text-fg outline-none">
+          <StateIcon kind="confirmed" size={18} />
+          Ratified
         </h2>
-        <p className="dm-text-body text-ink-2">
-          DEMIURGO is now the home of your design{batch.resolved_at ? ` (${ago(batch.resolved_at)})` : ''}. From now on, design/
-          is an export. Each record keeps the state it had in design/: approve the versions you agree with.
+        <p className="text-fg">
+          DEMIURGO is now the home of your design
+          {batch.resolved_at ? (
+            <>
+              {' '}
+              (<RelativeTime iso={batch.resolved_at} />)
+            </>
+          ) : null}
+          . From now on, design/ is an export. Each record keeps the state it had in design/: approve the versions you agree with.
         </p>
         <div className="flex flex-wrap items-center gap-3">
-          <Link to="/p/$projectId" params={{ projectId }} className={buttonClass('secondary')}>
-            Open the product <ArrowRight size={14} />
+          <Link to="/p/$projectId" params={{ projectId }} className={buttonClass({ variant: 'secondary' })}>
+            Open the product <ArrowRightIcon size={14} />
           </Link>
-          <Link
-            to="/p/$projectId/needs-you"
-            params={{ projectId }}
-            className="dm-text-small font-semibold text-needs-strong hover:underline"
-          >
+          <Link to="/p/$projectId/needs-you" params={{ projectId }} className={cn(linkClass, 'text-sm')}>
             What needs you
           </Link>
         </div>
-      </Panel>
+      </Card>
     );
   }
   if (batch.state === 'rejected') {
-    const reason = batch.proposals.find((p) => typeof p.resolution?.reason === 'string')?.resolution?.reason;
+    const reason = batch.proposals.map((p) => p.resolution?.reason).find((r): r is string => typeof r === 'string' && r !== '');
     return (
-      <Panel className="flex flex-col gap-2">
-        <h2 className="dm-text-heading flex items-center gap-2 font-semibold">
-          <Mark kind="dropped" label="Rejected" /> Rejected
+      <Card as="section" aria-labelledby={headingId} className="flex flex-col gap-2">
+        <h2 id={headingId} tabIndex={-1} className="flex items-center gap-2 text-lg font-semibold text-fg outline-none">
+          <StateIcon kind="dropped" size={18} />
+          Rejected
         </h2>
-        <p className="dm-text-body text-ink-2">Nothing was imported. design/ stays as it is.</p>
-        {typeof reason === 'string' && <p className="dm-text-small text-muted">Reason: {reason}</p>}
-      </Panel>
+        <p className="text-fg-2">Nothing was imported. design/ stays as it is.</p>
+        {reason ? <p className="text-sm text-fg-2">Reason: {reason}</p> : null}
+      </Card>
     );
   }
   return (
-    <Panel className="flex flex-col gap-3">
-      <h2 className="dm-text-heading font-semibold">What ratifying does</h2>
-      <p className="dm-text-body leading-relaxed text-ink-2">
+    <Card as="section" aria-labelledby={headingId} className="flex flex-col gap-3">
+      <h2 id={headingId} tabIndex={-1} className="text-lg font-semibold text-fg outline-none">
+        What ratifying does
+      </h2>
+      <p className="text-fg-2">
         Everything becomes DEMIURGO&apos;s, as it is in design/. What is proposed stays proposed:{' '}
         {approvedInDesign === 0
           ? 'ratifying approves nothing.'
           : `only the ${approvedInDesign} ${approvedInDesign === 1 ? 'document' : 'documents'} design/ marks as approved stay approved.`}{' '}
         From then on, design/ is an export.
       </p>
-      <div className="flex flex-wrap items-center gap-2.5 pt-1">
-        {allows('batch.accept_package') && (
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        {allows('batch.accept_package') ? (
           <Button variant="primary" data-command="batch.accept_package" onClick={() => open('ratify')}>
             Ratify
           </Button>
-        )}
-        {allows('batch.reject_package') && (
-          <Button variant="text" data-command="batch.reject_package" onClick={() => open('reject')}>
+        ) : null}
+        {allows('batch.reject_package') ? (
+          <Button variant="quiet-danger" data-command="batch.reject_package" onClick={() => open('reject')}>
             Reject package
           </Button>
-        )}
+        ) : null}
       </div>
       <ConfirmDialog
         open={dialog === 'ratify'}
         onOpenChange={(o) => !o && setDialog(null)}
-        title={`Ratify ${n} proposals?`}
+        title={`Ratify ${n} ${n === 1 ? 'document' : 'documents'}?`}
         description={
-          <div className="flex flex-col gap-1.5">
+          <>
             <p>This makes DEMIURGO the home of your design.</p>
-            <p className="text-muted">Every document keeps the state it has in design/. You approve versions afterwards.</p>
-          </div>
+            <p>Every document keeps the state it has in design/. You approve versions afterwards.</p>
+          </>
         }
         confirm="Ratify"
+        pendingLabel="Ratifying…"
         pending={command.isPending}
-        error={command.error}
-        onConfirm={() => run('batch.accept_package', {})}
+        error={dialog === 'ratify' ? command.error : null}
+        onConfirm={() => run('batch.accept_package', {}, 'Ratified. DEMIURGO is now the home of your design.')}
       />
-      <TextDialog
+      <PromptDialog
         open={dialog === 'reject'}
         onOpenChange={(o) => !o && setDialog(null)}
         title="Reject this package?"
         description="Nothing is imported and design/ stays as it is. Say why, if you want."
         label="Reason"
         submit="Reject package"
+        pendingLabel="Rejecting…"
+        tone="danger"
+        maxLength={2000}
         pending={command.isPending}
-        error={command.error}
-        onSubmit={(text) => run('batch.reject_package', text ? { reason: text } : {})}
+        error={dialog === 'reject' ? command.error : null}
+        onSubmit={(text) => run('batch.reject_package', text ? { reason: text } : {}, 'Package rejected.')}
       />
-    </Panel>
+    </Card>
   );
 }
 
@@ -253,20 +276,23 @@ function Documents({ projectId, proposals }: { projectId: string; proposals: Pro
   const id = useId();
   const groups = documentGroups(proposals);
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-2.5">
-      <div className="flex items-baseline justify-between">
-        <h2 id={id} className="dm-text-heading font-semibold">
+    <section aria-labelledby={id} className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h2 id={id} className="text-lg font-semibold text-fg">
           Documents
         </h2>
-        <span className="dm-text-caption text-muted">Names first; open one to read it here.</span>
+        <span className="text-sm text-fg-2">Names first; open one to read it here.</span>
       </div>
-      <div className="flex flex-col rounded-card border border-line bg-surface">
+      <div className="flex flex-col rounded-lg border border-edge bg-panel">
         {groups.map((g) => (
-          <div key={g.key} className="grid grid-cols-[180px_minmax(0,1fr)] border-b border-line-soft last:border-b-0">
-            <h3 className="dm-text-small px-5 pt-3.5 font-semibold text-ink-2">
-              {g.label} <span className="font-normal text-muted">({g.items.length})</span>
+          <div
+            key={g.key}
+            className="flex flex-col border-b border-edge last:border-b-0 lg:grid lg:grid-cols-[180px_minmax(0,1fr)]"
+          >
+            <h3 className="px-4 pt-3 text-sm font-semibold text-fg-2 lg:pb-3">
+              {g.label} <span className="font-normal text-fg-3">({g.items.length})</span>
             </h3>
-            <ul className="flex flex-col divide-y divide-line-soft">
+            <ul className="flex flex-col divide-y divide-edge-subtle">
               {g.items.map((p) => (
                 <DocumentRow key={p.id} projectId={projectId} proposal={p} />
               ))}
@@ -287,82 +313,77 @@ function DocumentRow({ projectId, proposal: p }: { projectId: string; proposal: 
   const code = doc?.code ?? tax?.code ?? '';
   const version = doc?.version ?? tax?.version ?? 1;
   const effect = acceptedRecord(p);
+  const checks = doc?.criteria.length ?? 0;
   return (
     <li className="flex flex-col" data-document={code}>
-      <div className="flex min-h-11 items-center gap-3 py-2 pr-4 pl-1">
-        <StateMarkOnly state={p.state} />
-        <span className="flex min-w-0 flex-1 items-baseline gap-2">
-          <strong className="dm-text-body truncate font-semibold">{title}</strong>
+      <div className="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2">
+        {p.state === 'superseded' ? (
+          <StatusBadge kind="stale" word="Out of date" />
+        ) : (
+          <EntityState entity="proposal" state={p.state} />
+        )}
+        <span className="flex min-w-0 flex-1 basis-60 items-baseline gap-2">
+          <span className="truncate font-medium text-fg">{title}</span>
           <Code className="shrink-0">{code}</Code>
         </span>
-        <span className="dm-text-caption flex shrink-0 items-center gap-3 text-muted">
-          <span>v{version}</span>
-          {doc && doc.criteria.length > 0 && (
-            <Tip text={`${doc.criteria.length} ${doc.criteria.length === 1 ? 'check' : 'checks'}`}>
-              <span className="inline-flex tabular-nums">
-                <Signal kind="checks" value={doc.criteria.length} />
-                <span className="sr-only">{doc.criteria.length === 1 ? ' check' : ' checks'}</span>
-              </span>
-            </Tip>
-          )}
-          {doc && doc.state === 'approved' && <span className="font-semibold text-ink-2">approved in design/</span>}
-          {effect && (
+        <span className="flex shrink-0 flex-wrap items-center gap-3 text-sm text-fg-2">
+          <span className="tabular-nums">v{version}</span>
+          {checks > 0 ? (
+            <span className="tabular-nums">
+              {checks} {checks === 1 ? 'check' : 'checks'}
+            </span>
+          ) : null}
+          {doc?.state === 'approved' ? <Tag>approved in design/</Tag> : null}
+          {effect ? (
             <Link
               to="/p/$projectId/records/$code"
               params={{ projectId, code: effect.code }}
               search={{ v: effect.version }}
-              className="font-semibold text-needs-strong hover:underline"
+              className={linkClass}
             >
               {effect.approved ? 'Open the record' : 'Open the draft'}
             </Link>
-          )}
+          ) : null}
+          <Button
+            variant="quiet"
+            size="sm"
+            aria-expanded={open}
+            aria-controls={panel}
+            aria-label={`${open ? 'Close' : 'Open'} ${title}`}
+            trailing={open ? <ChevronDownIcon size={13} /> : <ChevronRightIcon size={13} />}
+            onClick={() => setOpen((o) => !o)}
+          >
+            {open ? 'Close' : 'Open'}
+          </Button>
         </span>
-        <Button
-          variant="text"
-          aria-expanded={open}
-          aria-controls={panel}
-          aria-label={`${open ? 'Close' : 'Open'} ${title}`}
-          onClick={() => setOpen((o) => !o)}
-        >
-          {open ? 'Close' : 'Open'}
-          {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-        </Button>
       </div>
-      {open && (
-        <div id={panel} className="mr-4 mb-3 flex flex-col gap-4 rounded-control bg-surface-soft px-5 py-4">
-          {doc && <DocumentBody doc={doc} />}
-          {tax && <TaxonomyBody tax={tax} />}
-        </div>
-      )}
+      <div
+        id={panel}
+        hidden={!open}
+        className="mx-4 mb-3 flex flex-col gap-4 rounded-md border border-edge-subtle bg-sunken px-4 py-4"
+      >
+        {open && doc ? <DocumentBody doc={doc} /> : null}
+        {open && tax ? <TaxonomyBody tax={tax} /> : null}
+      </div>
     </li>
-  );
-}
-
-/** The mark of a proposal's state; its word is the mark's label (the row is dense). */
-function StateMarkOnly({ state }: { state: string }) {
-  const w = stateWord('proposal', state);
-  return (
-    <span className="flex w-5 shrink-0 justify-center">
-      <Mark kind={w.mark} label={w.word} />
-    </span>
   );
 }
 
 function DocumentBody({ doc }: { doc: ImportedDocument }) {
   return (
     <>
-      <Sections sections={doc.sections} />
-      {doc.criteria.length > 0 && (
+      <Sections sections={doc.sections} level={4} />
+      {doc.criteria.length > 0 ? (
         <section className="flex flex-col gap-2">
-          <h3 className="dm-text-small font-semibold text-ink-2">Checks ({doc.criteria.length})</h3>
+          <h4 className="text-sm font-semibold text-fg-2">Checks ({doc.criteria.length})</h4>
           <ChecksList checks={doc.criteria} />
         </section>
-      )}
-      {(doc.links.length > 0 || doc.annexes.length > 0) && (
-        <div className="dm-text-small flex flex-wrap items-center gap-x-4 gap-y-1 text-ink-2">
+      ) : null}
+      {doc.links.length > 0 || doc.annexes.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-fg-2">
           {doc.links.map((l) => (
             <span key={`${l.type}-${l.target.code}`}>
-              <span className="text-muted">{l.type === 'based_on' ? 'Based on' : l.type.replace('_', ' ')}</span>{' '}
+              <span>{l.type === 'based_on' ? 'Based on' : l.type.replace('_', ' ')}</span>{' '}
               <Code>
                 {l.target.code} v{l.target.version}
               </Code>
@@ -370,11 +391,11 @@ function DocumentBody({ doc }: { doc: ImportedDocument }) {
           ))}
           {doc.annexes.map((a) => (
             <span key={a}>
-              <span className="text-muted">Annex</span> <Code>{a}</Code>
+              <span>Annex</span> <Code>{a}</Code>
             </span>
           ))}
         </div>
-      )}
+      ) : null}
     </>
   );
 }
@@ -384,20 +405,20 @@ function TaxonomyBody({ tax }: { tax: ImportedTaxonomy }) {
     <>
       {tax.axes.map((axis) => (
         <section key={axis.code} className="flex flex-col gap-2">
-          <h3 className="dm-text-small font-semibold text-ink-2">
+          <h4 className="flex items-baseline gap-2 text-sm font-semibold text-fg-2">
             {axis.name} <Code>{axis.code}</Code>
-          </h3>
-          <ul className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+          </h4>
+          <ul className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
             {axis.categories.map((c) => (
-              <li key={c.code} className="dm-text-small">
-                <strong className="font-semibold">{c.name}</strong>
-                {c.description && <span className="text-ink-3"> · {c.description}</span>}
+              <li key={c.code} className="text-sm">
+                <span className="font-medium text-fg">{c.name}</span>
+                {c.description ? <span className="text-fg-2"> · {c.description}</span> : null}
               </li>
             ))}
           </ul>
         </section>
       ))}
-      <Sections sections={tax.sections} />
+      <Sections sections={tax.sections} level={4} />
     </>
   );
 }

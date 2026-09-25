@@ -11,6 +11,7 @@ import {
   obsoleteReason,
   proposalTitle,
 } from '../../src/screens/batch/model.ts';
+import { acceptEffects, kindWord, payloadSections, proposalLine } from '../../src/screens/batch/proposal.ts';
 
 const counts = { decision: 1, adr: 7, fdr: 5, bug: 0, versions: 13, criteria: 114, links: 12, taxonomies: 1, annexes: 2 };
 
@@ -104,5 +105,34 @@ describe('the package page', () => {
       version: 1,
       approved: true,
     });
+  });
+
+  it('AC-INT-001-12 an idea check cites records of every prefix: requirements, quality, threats and production', () => {
+    expect(citedRecord('REQ-PRO-001@1', [])).toEqual({ code: 'REQ-PRO-001', version: 1 });
+    expect(citedRecord('NFR-EVE-002@3', [])).toEqual({ code: 'NFR-EVE-002', version: 3 });
+    expect(citedRecord('THR-WEB-001@1', [])).toEqual({ code: 'THR-WEB-001', version: 1 });
+    expect(citedRecord('PRR-OPS-001@2', [])).toEqual({ code: 'PRR-OPS-001', version: 2 });
+  });
+
+  it('AC-INT-001-12 a design record is named as such and shows its sections, and accepting it says what it records', () => {
+    const p = {
+      type: 'design_record',
+      payload: {
+        title: 'Keep sessions short',
+        record_type: 'adr',
+        sections: [
+          { title: 'Context', content: 'Sessions leak.' },
+          { title: 'Decision', content: 'Thirty minutes.' },
+        ],
+        criteria: [{ title: 'Expires', statement: 's', verification: 'automatic', check: 'c' }],
+      },
+    };
+    expect(kindWord('design_record')).toBe('Design record');
+    expect(payloadSections(p.payload).map((x) => x.title)).toEqual(['Context', 'Decision']);
+    expect(proposalLine(p)).toBe('Sessions leak.');
+    expect(acceptEffects(p, false)).toEqual([
+      'DEMIURGO records the record “Keep sessions short”, with its 1 check as a draft. You approve it later, on its page.',
+    ]);
+    expect(acceptEffects(p, true)).toHaveLength(2);
   });
 });

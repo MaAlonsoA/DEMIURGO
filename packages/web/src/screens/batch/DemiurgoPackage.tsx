@@ -1,264 +1,267 @@
-// A package from DEMIURGO (a design_proposal: a feature with its checks), shown like a record page,
-// with the run that produced it at the top. It is accepted or rejected whole: Accept package,
-// Accept and approve (one action, its two effects said before confirming) or Reject package.
+// A package from DEMIURGO (DESIGN.md §3.2): what it proposes, each record in full as it will be
+// recorded, decided whole. Its decision — Accept package, Accept and approve, Reject package — sits
+// above the content and again in a footer that stays at the bottom while the person reads, so it is
+// never far from what it approves (INVENTORY Part D §3, UX problem). When warnings block accepting,
+// the buttons stay, inactive, with the warning beside them (R76).
 
 import { useQuery } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
-import { useState } from 'react';
+import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
-import { inboxQuery, runQuery, stateQuery } from '../../api/queries.ts';
+import { inboxQuery, stateQuery } from '../../api/queries.ts';
 import type { BatchDetail, ProductRow } from '../../api/types.ts';
-import { between, dayTime } from '../../lib/time.ts';
-import { ACTION_WORDS, stateWord } from '../../words.ts';
-import { useAllows } from '../../ui/ActionBar.tsx';
-import { Button } from '../../ui/Button.tsx';
-import { ConfirmDialog, TextDialog } from '../../ui/dialogs.tsx';
-import { ArrowRight } from '../../ui/icons.tsx';
-import { Breadcrumbs, Page } from '../../ui/layout.tsx';
-import { Markdown } from '../../ui/Markdown.tsx';
-import { Mark, StateMark } from '../../ui/marks.tsx';
-import { WhoMark } from '../../ui/signals.tsx';
-import { acceptedRecord, obsoleteReason, PROPOSAL_TYPE_WORDS, proposalTitle } from './model.ts';
-import { CheckCards, type CheckLike, Dot, Eyebrow, EyebrowWord, IdeaCheck, OutOfDate, RecordChip, TypeLabel } from './parts.tsx';
-import { PROPOSAL_ICON, type ProposalView } from './ProposalCard.tsx';
+import { useAllows } from '../../components/actions.tsx';
+import { announce } from '../../components/announce.tsx';
+import { Button } from '../../components/Button.tsx';
+import { ConfirmDialog, PromptDialog } from '../../components/Dialog.tsx';
+import { PageBody, PageHeader, WithAside } from '../../components/Page.tsx';
+import { EntityState, StatusBadge } from '../../components/status.tsx';
+import { RelativeTime } from '../../components/Time.tsx';
+import { TypeIcon } from '../../components/types.tsx';
+import { WhoAvatar } from '../../components/Who.tsx';
+import { stateWord, whoOf } from '../../words.ts';
+import { useBatchCrumbs } from './Batch.tsx';
 import { withInbox } from './ItemBatch.tsx';
+import { acceptedRecord, obsoleteReason, proposalTitle } from './model.ts';
+import { BlockedNotice, DecisionBar, Evidence, IdeaCheck, OutOfDate, RecordChip, RunLine } from './parts.tsx';
+import { kindWord, type ProposalView as ProposalData, proposalIconType, whatItRecords } from './proposal.ts';
+import { ProposalBody } from './ProposalView.tsx';
 
-const str = (v: unknown): string => (typeof v === 'string' ? v : '');
-
-const SECTIONS: [string, string][] = [
-  ['goal', 'Goal'],
-  ['scope', 'Scope'],
-  ['out_of_scope', 'Out of scope'],
-  ['behavior', 'Behavior'],
-];
+/** True while the element is on screen (the top decision bar: the footer shows once it is not). */
+function useOnScreen(ref: React.RefObject<HTMLElement | null>): boolean {
+  const [on, setOn] = useState(true);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(([e]) => setOn(e?.isIntersecting ?? true), { threshold: 0 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [ref]);
+  return on;
+}
 
 export function DemiurgoPackage({ projectId, batch }: { projectId: string; batch: BatchDetail }) {
   const inbox = useQuery(inboxQuery(projectId)).data;
   const state = useQuery(stateQuery(projectId)).data;
   const rows: ProductRow[] = state ? [...state.decisions, ...state.designs] : [];
   const proposals = withInbox(batch, inbox?.batches.find((b) => b.id === batch.id)?.proposals ?? []);
-  const single = proposals.length === 1 ? proposals[0] : undefined;
-  const title = single ? proposalTitle(single) : 'A package from DEMIURGO';
   const n = proposals.length;
+  const single = n === 1 ? proposals[0] : undefined;
+  const title = single ? proposalTitle(single) : 'A package from DEMIURGO';
+  const crumbs = useBatchCrumbs(projectId, 'Package from DEMIURGO');
+  const top = useRef<HTMLDivElement>(null);
+  const topOnScreen = useOnScreen(top);
+  const decision = usePackageDecision(projectId, batch, proposals);
+
   return (
-    <Page className="pt-4" aside={<PackageActions projectId={projectId} batch={batch} proposals={proposals} rows={rows} />}>
-      <Breadcrumbs
-        items={[{ label: 'Needs you', to: '/p/$projectId/needs-you', params: { projectId } }, { label: 'Package from DEMIURGO' }]}
+    <>
+      <PageHeader
+        crumbs={crumbs}
+        eyebrow={
+          <>
+            <span className="inline-flex items-center gap-1.5">
+              <WhoAvatar kind={whoOf(batch.producer).kind} size={18} />
+              Package from DEMIURGO
+            </span>
+            <span aria-hidden>·</span>
+            <span>
+              {n} {n === 1 ? 'proposal' : 'proposals'}
+            </span>
+            <EntityState entity="batch" state={batch.state} />
+          </>
+        }
+        title={title}
+        meta={
+          <>
+            <RelativeTime iso={batch.created_at} />
+            <span>{batch.summary ? `${batch.summary} ` : ''}It is accepted or rejected whole.</span>
+          </>
+        }
       />
-      <header className="mb-5 flex max-w-[860px] items-start gap-3.5">
-        <WhoMark actor={batch.producer} size={40} />
-        <div className="flex min-w-0 flex-col gap-1">
-          <Eyebrow>
-            Package from DEMIURGO <Dot /> {n} {n === 1 ? 'proposal' : 'proposals'} <Dot />
-            <EyebrowWord>
-              <StateMark entity="batch" state={batch.state} />
-            </EyebrowWord>
-          </Eyebrow>
-          <h1 className="dm-text-page-title leading-tight font-semibold">{title}</h1>
-          {batch.summary && <p className="dm-text-body text-ink-3">{batch.summary} It is accepted or rejected whole.</p>}
-        </div>
-      </header>
-      {batch.run_id && <RunLine projectId={projectId} runId={batch.run_id} />}
-      <div className="flex max-w-[860px] flex-col gap-8">
-        {proposals.map((p) => (
-          <ProposedRecord key={p.id} projectId={projectId} proposal={p} rows={rows} />
-        ))}
-      </div>
-    </Page>
+      <PageBody>
+        <WithAside asideLabel="About this package" aside={<PackageAside projectId={projectId} batch={batch} rows={rows} />}>
+          <div className="flex max-w-3xl flex-col gap-8">
+            <div ref={top}>{decision.panel(false)}</div>
+            {batch.run_id ? (
+              <Evidence title="Drafted by DEMIURGO">
+                <RunLine projectId={projectId} runId={batch.run_id} />
+              </Evidence>
+            ) : null}
+            {proposals.map((p) => (
+              <ProposedRecord key={p.id} projectId={projectId} proposal={p} rows={rows} single={n === 1} />
+            ))}
+            {batch.state === 'pending' && !topOnScreen ? decision.panel(true) : null}
+          </div>
+        </WithAside>
+      </PageBody>
+      {decision.dialogs}
+    </>
   );
 }
 
-/** The run that produced the package, with DEMIURGO's model. */
-function RunLine({ projectId, runId }: { projectId: string; runId: string }) {
-  const run = useQuery(runQuery(projectId, runId)).data;
-  if (!run)
-    return <div className="mb-6 h-[52px] max-w-[860px] rounded-card-md border border-line bg-surface" aria-hidden="true" />;
-  return (
-    <div className="dm-text-small mb-6 flex max-w-[860px] items-center gap-3 rounded-card-md border border-line bg-surface px-4 py-3">
-      <WhoMark actor={`agent:run:${run.id}`} model={run.model} size={22} />
-      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 text-ink-2">
-        <strong className="font-semibold text-ink">
-          {run.action === 'design_proposal' ? 'Drafted by DEMIURGO' : `${ACTION_WORDS[run.action] ?? run.action} with DEMIURGO`}
-        </strong>
-        {run.model && <span className="text-muted">· {run.model}</span>}
-        <Dot />
-        <StateMark entity="ai_run" state={run.state} />
-        <Dot />
-        <span className="text-muted">
-          {dayTime(run.created_at)}
-          {run.started_at && run.finished_at ? ` · took ${between(run.started_at, run.finished_at)}` : ''}
-        </span>
-      </span>
-      <Link
-        to="/p/$projectId/runs/$runId"
-        params={{ projectId, runId: run.id }}
-        className="inline-flex shrink-0 items-center gap-1 font-semibold text-needs-strong hover:underline"
-      >
-        Open the run <ArrowRight size={12} />
-      </Link>
-    </div>
-  );
-}
-
-/** A proposed record, as its page will look: sections, checks and what it is based on. */
+/** A proposed record as it will be recorded: its kind and state, what it contains, the idea check. */
 function ProposedRecord({
   projectId,
   proposal: p,
   rows,
+  single,
 }: {
   projectId: string;
-  proposal: ProposalView;
+  proposal: ProposalData;
   rows: readonly ProductRow[];
+  single: boolean;
 }) {
-  const based = p.payload.based_on as { code?: string; version?: number } | undefined;
-  const criteria = Array.isArray(p.payload.criteria) ? (p.payload.criteria as CheckLike[]) : [];
+  const id = useId();
   const obsolete = obsoleteReason(p);
   return (
-    <article aria-label={proposalTitle(p)} className="flex flex-col gap-5" data-proposal={p.id}>
+    <article aria-labelledby={id} data-proposal={p.id} data-state={p.state} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
-        <Eyebrow>
-          <TypeLabel icon={PROPOSAL_ICON[p.type] ?? 'idea'}>{PROPOSAL_TYPE_WORDS[p.type] ?? p.type}</TypeLabel>
-          <Dot />
-          <EyebrowWord>
-            <StateMark entity="proposal" state={p.state} />
-          </EyebrowWord>
-        </Eyebrow>
-        {based?.code && (
-          <div className="dm-text-small flex items-center gap-2 text-muted">
-            Based on <RecordChip projectId={projectId} code={based.code} version={based.version ?? null} rows={rows} />
-          </div>
-        )}
-      </div>
-      {obsolete && <OutOfDate>{obsolete} It can&apos;t be accepted any more.</OutOfDate>}
-      {p.type === 'fdr' ? (
-        <div className="flex flex-col gap-5">
-          {SECTIONS.map(([key, label]) =>
-            str(p.payload[key]) ? (
-              <section key={key} className="flex flex-col gap-1">
-                <h2 className="dm-text-small font-semibold text-ink-2">{label}</h2>
-                <Markdown>{str(p.payload[key])}</Markdown>
-              </section>
-            ) : null,
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="inline-flex items-center gap-1.5 font-medium text-fg-2">
+            <TypeIcon type={proposalIconType(p)} size={15} className="text-fg-3" />
+            {kindWord(p.type)}
+          </span>
+          {p.state === 'superseded' ? (
+            <StatusBadge kind="stale" word="Out of date" />
+          ) : (
+            <EntityState entity="proposal" state={p.state} />
           )}
         </div>
-      ) : (
-        <p className="dm-text-body text-ink-2">{str(p.payload.decision) || str(p.payload.purpose)}</p>
-      )}
-      {criteria.length > 0 && (
-        <section className="flex flex-col gap-2.5">
-          <div className="flex items-baseline justify-between">
-            <h2 className="dm-text-small font-semibold text-ink-2">Checks ({criteria.length})</h2>
-            <span className="dm-text-caption text-muted">Codes are given when it is accepted</span>
-          </div>
-          <CheckCards checks={criteria} />
-        </section>
-      )}
+        <h2 id={id} className="text-lg font-semibold text-fg">
+          {single ? 'What it records' : proposalTitle(p)}
+        </h2>
+      </div>
+      {p.state === 'superseded' ? (
+        <OutOfDate>{`${obsolete ?? 'What it was based on changed.'} It can't be accepted any more.`}</OutOfDate>
+      ) : null}
+      <ProposalBody projectId={projectId} proposal={p} rows={rows} withGoal />
       <IdeaCheck projectId={projectId} assessment={p.assessment} rows={rows} />
     </article>
   );
 }
 
-function PackageActions({
-  projectId,
-  batch,
-  proposals,
-  rows,
-}: {
-  projectId: string;
-  batch: BatchDetail;
-  proposals: ProposalView[];
-  rows: readonly ProductRow[];
-}) {
+function PackageAside({ projectId, batch, rows }: { projectId: string; batch: BatchDetail; rows: readonly ProductRow[] }) {
+  const deps = batch.dependencies.filter((d) => d.code);
+  return (
+    <>
+      {deps.length > 0 ? (
+        <section aria-label="Starts from" className="flex flex-col gap-2">
+          <h2 className="text-base font-semibold text-fg">Starts from</h2>
+          <div className="flex flex-wrap gap-2">
+            {deps.map((d) => (
+              <RecordChip key={d.id} projectId={projectId} code={d.code ?? ''} version={d.version} rows={rows} />
+            ))}
+          </div>
+          <p className="text-sm text-fg-2">If it gets a newer version before you decide, the package goes out of date.</p>
+        </section>
+      ) : null}
+      <section aria-label="Who proposes" className="flex items-start gap-3 rounded-lg border border-edge px-3.5 py-3">
+        <WhoAvatar kind={whoOf(batch.producer).kind} size={28} />
+        <div className="flex flex-col gap-0.5 text-sm">
+          <p className="font-medium text-fg">DEMIURGO</p>
+          <p className="text-fg-2">It only proposes: nothing changes until you accept.</p>
+        </div>
+      </section>
+    </>
+  );
+}
+
+type Dialog = null | 'accept' | 'approve' | 'reject';
+
+/** The package's decision: one set of dialogs, and a panel drawn at the top and in the footer. */
+function usePackageDecision(projectId: string, batch: BatchDetail, proposals: ProposalData[]) {
   const command = useCommand(projectId);
   const allows = useAllows('batch', batch.state);
-  const [dialog, setDialog] = useState<null | 'accept' | 'approve' | 'reject'>(null);
+  const [dialog, setDialog] = useState<Dialog>(null);
+  const headingId = useId();
+  const focusHeading = useRef(false);
   const warnings = [...new Set(proposals.flatMap((p) => (p.state === 'pending' ? (p.obsolescence ?? []) : [])))];
-  const what = proposals
-    .map((p) => {
-      const checks = Array.isArray(p.payload.criteria) ? p.payload.criteria.length : 0;
-      const noun = p.type === 'fdr' ? 'the feature' : p.type === 'decision' ? 'the decision' : 'the item';
-      return `${noun} “${proposalTitle(p)}”${checks ? `, with its ${checks} ${checks === 1 ? 'check' : 'checks'}` : ''}`;
-    })
-    .join('; ');
-  const open = (d: 'accept' | 'approve' | 'reject') => {
+  const what = proposals.map(whatItRecords).join('; ');
+  const open = (d: Dialog) => {
     command.reset();
     setDialog(d);
   };
-  const run = (name: string, data: Record<string, unknown>) =>
-    command.mutate({ command: name, entityId: batch.id, data }, { onSuccess: () => setDialog(null) });
-  const effects = proposals.map(acceptedRecord).filter((e) => e !== null);
-  const w = stateWord('batch', batch.state);
+  const run = (name: string, data: Record<string, unknown>, said: string) =>
+    command.mutate(
+      { command: name, entityId: batch.id, data },
+      {
+        onSuccess: () => {
+          setDialog(null);
+          announce(said);
+          focusHeading.current = true;
+        },
+      },
+    );
 
-  return (
-    <>
-      <section className="flex flex-col gap-3" aria-label="Decide the package">
-        <h2 className="dm-text-heading flex items-center gap-2 font-semibold">
-          {batch.state === 'pending' ? (
-            'Accept it whole'
-          ) : (
-            <>
-              <Mark kind={w.mark} label={w.word} /> {w.word}
-            </>
-          )}
-        </h2>
-        {batch.state === 'pending' ? (
-          <>
-            <p className="dm-text-small text-ink-2">
-              Accepting records {what} as a draft. <strong className="font-semibold">Accept and approve</strong> also approves it:
-              it becomes the current version. Nothing changes until you decide.
-            </p>
-            {warnings.length > 0 && (
-              <ul className="dm-text-small list-disc rounded-control bg-problem-tint py-2 pr-3 pl-7 text-problem">
-                {warnings.map((r) => (
-                  <li key={r}>{r}</li>
-                ))}
-              </ul>
-            )}
-            <div className="flex flex-col gap-2">
-              {allows('batch.accept_package') && warnings.length === 0 && (
-                <>
-                  <Button variant="primary" data-command="batch.accept_package" onClick={() => open('accept')}>
-                    Accept package
-                  </Button>
-                  <Button variant="secondary" data-command="batch.accept_package" onClick={() => open('approve')}>
-                    Accept and approve
-                  </Button>
-                </>
-              )}
-              {allows('batch.reject_package') && (
-                <Button variant="text" data-command="batch.reject_package" onClick={() => open('reject')}>
-                  Reject package
-                </Button>
-              )}
-            </div>
-          </>
-        ) : batch.state === 'superseded' ? (
-          <p className="dm-text-small text-ink-2">What it was based on changed. It can&apos;t be accepted any more.</p>
-        ) : (
-          <div className="dm-text-small flex flex-col gap-2 text-ink-2">
-            {effects.map((e) => (
-              <p key={e.code} className="flex flex-wrap items-center gap-2">
-                <RecordChip projectId={projectId} code={e.code} version={e.version} rows={rows} />
-                {e.approved ? 'is approved and current.' : 'is a draft: approve it on its page.'}
+  useEffect(() => {
+    if (!focusHeading.current || batch.state === 'pending') return;
+    focusHeading.current = false;
+    const t = setTimeout(() => document.getElementById(headingId)?.focus(), 60);
+    return () => clearTimeout(t);
+  });
+
+  const canAccept = allows('batch.accept_package');
+  const canReject = allows('batch.reject_package');
+  const blocked = warnings.length > 0;
+
+  const panel = (footer: boolean): ReactNode => {
+    if (batch.state !== 'pending')
+      return footer ? null : <Decided headingId={headingId} projectId={projectId} batch={batch} proposals={proposals} />;
+    if (!canAccept && !canReject) return null;
+    return (
+      // The footer sticks along the whole column: the sticky element is this panel itself.
+      <div
+        className={footer ? 'sticky bottom-0 z-10 flex flex-col bg-panel' : 'flex flex-col gap-3'}
+        data-package-decision={footer ? 'footer' : 'top'}
+      >
+        {!footer ? <BlockedNotice reasons={warnings} /> : null}
+        <DecisionBar
+          sticky={false}
+          label="Decide the package"
+          className={footer ? undefined : 'rounded-lg border border-edge px-4 pt-3 pb-3'}
+          caption={
+            footer ? null : blocked ? (
+              <p>It can&apos;t be accepted until the warning above is resolved. You can still reject it.</p>
+            ) : (
+              <p>
+                Accepting records {what} as a draft. <strong className="font-medium text-fg">Accept and approve</strong> also
+                approves it: it becomes the current version. Nothing changes until you decide.
               </p>
-            ))}
-            {batch.state === 'rejected' && <p>Nothing was recorded.</p>}
-          </div>
-        )}
-      </section>
-      {batch.dependencies.length > 0 && (
-        <section className="dm-text-small flex flex-col gap-2" aria-label="Starts from">
-          <h2 className="dm-text-caption font-semibold text-muted">Starts from</h2>
-          <div className="flex flex-wrap gap-2">
-            {batch.dependencies.map((d) =>
-              d.code ? <RecordChip key={d.id} projectId={projectId} code={d.code} version={d.version} rows={rows} /> : null,
-            )}
-          </div>
-          <p className="dm-text-caption text-muted">
-            If it gets a newer version before you decide, the package goes out of date.
-          </p>
-        </section>
-      )}
+            )
+          }
+        >
+          {canAccept ? (
+            <>
+              <Button
+                variant="primary"
+                data-command="batch.accept_package"
+                {...(blocked ? { 'aria-disabled': 'true' as const } : {})}
+                onClick={() => !blocked && open('accept')}
+              >
+                Accept package
+              </Button>
+              <Button
+                variant="secondary"
+                data-command="batch.accept_package"
+                {...(blocked ? { 'aria-disabled': 'true' as const } : {})}
+                onClick={() => !blocked && open('approve')}
+              >
+                Accept and approve
+              </Button>
+            </>
+          ) : null}
+          {canReject ? (
+            <Button variant="quiet-danger" data-command="batch.reject_package" onClick={() => open('reject')}>
+              Reject package
+            </Button>
+          ) : null}
+          {footer && blocked ? <span className="text-sm text-warning-text">Blocked: see the warning at the top.</span> : null}
+        </DecisionBar>
+      </div>
+    );
+  };
+
+  const dialogs = (
+    <>
       <ConfirmDialog
         open={dialog === 'accept' || dialog === 'approve'}
         onOpenChange={(o) => !o && setDialog(null)}
@@ -267,7 +270,7 @@ function PackageActions({
           dialog === 'approve' ? (
             <div className="flex flex-col gap-1.5">
               <p>Two things happen:</p>
-              <ol className="list-decimal pl-5">
+              <ol className="list-decimal space-y-0.5 pl-5">
                 <li>DEMIURGO records {what}.</li>
                 <li>You approve it: it becomes the current version.</li>
               </ol>
@@ -277,21 +280,69 @@ function PackageActions({
           )
         }
         confirm={dialog === 'approve' ? 'Accept and approve' : 'Accept package'}
+        pendingLabel="Accepting…"
         pending={command.isPending}
-        error={command.error}
-        onConfirm={() => run('batch.accept_package', dialog === 'approve' ? { approve: true } : {})}
+        error={dialog === 'accept' || dialog === 'approve' ? command.error : null}
+        onConfirm={() =>
+          dialog === 'approve'
+            ? run('batch.accept_package', { approve: true }, 'Package accepted and approved.')
+            : run('batch.accept_package', {}, 'Package accepted.')
+        }
       />
-      <TextDialog
+      <PromptDialog
         open={dialog === 'reject'}
         onOpenChange={(o) => !o && setDialog(null)}
         title="Reject this package?"
         description="Nothing is recorded. Say why, if you want: the reason is kept with the package."
         label="Reason"
         submit="Reject package"
+        pendingLabel="Rejecting…"
+        tone="danger"
+        maxLength={2000}
         pending={command.isPending}
-        error={command.error}
-        onSubmit={(text) => run('batch.reject_package', text ? { reason: text } : {})}
+        error={dialog === 'reject' ? command.error : null}
+        onSubmit={(text) => run('batch.reject_package', text ? { reason: text } : {}, 'Package rejected.')}
       />
     </>
+  );
+  return { panel, dialogs };
+}
+
+/** The package once decided: its state and what it made (INV-BATCH-14). */
+function Decided({
+  headingId,
+  projectId,
+  batch,
+  proposals,
+}: {
+  headingId: string;
+  projectId: string;
+  batch: BatchDetail;
+  proposals: ProposalData[];
+}) {
+  const rows = useQuery(stateQuery(projectId)).data;
+  const all = rows ? [...rows.decisions, ...rows.designs] : [];
+  const w = stateWord('batch', batch.state);
+  const effects = proposals.map(acceptedRecord).filter((e) => e !== null);
+  const reason = proposals.map((p) => p.resolution?.reason).find((r): r is string => typeof r === 'string' && r !== '');
+  return (
+    <section aria-labelledby={headingId} className="flex flex-col gap-2 rounded-lg border border-edge px-4 py-3" data-decided>
+      <h2 id={headingId} tabIndex={-1} className="flex items-center gap-2 text-base font-semibold text-fg outline-none">
+        <StatusBadge kind={w.mark} word={w.word} size="md" />
+        <span className="sr-only">: </span>
+        {batch.state === 'superseded' ? 'It can’t be accepted any more' : 'Decided'}
+      </h2>
+      {batch.state === 'superseded' ? (
+        <p className="text-fg-2">What it was based on changed. It can&apos;t be accepted any more.</p>
+      ) : null}
+      {effects.map((e) => (
+        <p key={e.code} className="flex flex-wrap items-center gap-2 text-fg-2">
+          <RecordChip projectId={projectId} code={e.code} version={e.version} rows={all} />
+          {e.approved ? 'is approved and current.' : 'is a draft: approve it on its page.'}
+        </p>
+      ))}
+      {batch.state === 'rejected' ? <p className="text-fg-2">Nothing was recorded.</p> : null}
+      {batch.state === 'rejected' && reason ? <p className="text-sm text-fg-2">Reason: {reason}</p> : null}
+    </section>
   );
 }

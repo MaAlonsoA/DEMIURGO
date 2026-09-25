@@ -1,17 +1,32 @@
-// The frame every thing of Needs you shares, in two sizes (a row of the list and the focus of Catch
-// up): what it is, its title and one line, where it comes from, what it unblocks, and its actions.
+// The detail every thing of Needs you shares (DESIGN.md §3.1): what it is (kind, title, code), why
+// it is here (who raised it, where), the evidence, what it unblocks (records with their readiness)
+// and, at the bottom, the decision. It carries `data-need` and `data-kind` like the queue row, and
+// its title is where the focus lands after the previous thing was decided (R13, R80).
 
 import { Link } from '@tanstack/react-router';
-import type { ReactNode } from 'react';
+import type { ComponentType, ReactNode } from 'react';
+import { useId } from 'react';
 import type { Exploration, ProductRow, Taxonomy } from '../../api/types.ts';
+import { Code } from '../../components/Badge.tsx';
+import {
+  AlertTriangleIcon,
+  HelpIcon,
+  type IconProps,
+  KnowledgeIcon,
+  LinkIcon,
+  PackageIcon,
+  TagIcon,
+  ThreadsIcon,
+} from '../../components/icons.tsx';
+import { Readiness, type Stage } from '../../components/Meter.tsx';
+import { Certainty } from '../../components/status.tsx';
+import { iconOf, typeWord } from '../../components/types.tsx';
 import { cn } from '../../lib/cn.ts';
-import { Code } from '../../ui/Card.tsx';
-import { type IconKind, RECORD_ICON, TypeIcon, WarningIcon } from '../../ui/icons.tsx';
 import { rowOf } from '../batch/model.ts';
-import { Dot } from '../batch/parts.tsx';
+import { linkClass, RecordChip } from '../batch/parts.tsx';
+import { proposalIconType } from '../batch/proposal.ts';
 import type { NeedItem } from './order.ts';
-
-export type Mode = 'row' | 'focus';
+import { KIND_WORDS } from './titles.ts';
 
 export type NeedContext = {
   projectId: string;
@@ -20,117 +35,152 @@ export type NeedContext = {
   taxonomies: readonly Taxonomy[];
 };
 
-/** The words of each kind of thing, as its eyebrow says it. */
-export const KIND_WORDS: Record<NeedItem['kind'], { word: string; icon: IconKind }> = {
-  conflict: { word: 'Conflict', icon: 'knowledge' },
-  question: { word: 'Question', icon: 'question' },
-  package: { word: 'Package', icon: 'package' },
-  proposal: { word: 'Proposal', icon: 'idea' },
-  version: { word: 'Version to approve', icon: 'feature' },
-  link: { word: 'Link to review', icon: 'link' },
-  classification: { word: 'Classification', icon: 'taxonomy' },
-  update: { word: 'Knowledge update', icon: 'knowledge' },
-};
+/** The icon of a thing: its record or proposal type where it has one, else its kind. */
+export function kindIcon(item: NeedItem): ComponentType<IconProps> {
+  switch (item.kind) {
+    case 'conflict':
+      return AlertTriangleIcon;
+    case 'question':
+      return HelpIcon;
+    case 'package':
+      return PackageIcon;
+    case 'proposal':
+      return iconOf(proposalIconType(item.proposal));
+    case 'version':
+      return iconOf(item.version.type);
+    case 'link':
+      return LinkIcon;
+    case 'classification':
+      return TagIcon;
+    case 'update':
+      return KnowledgeIcon;
+  }
+}
 
-/** "Unblocks": the records whose readiness waits for this, names first. */
-export function Unblocks({
-  projectId,
-  codes,
-  rows,
-  className,
-}: {
-  projectId: string;
-  codes: string[];
-  rows: readonly ProductRow[];
-  className?: string;
-}) {
-  if (codes.length === 0) return null;
+/** A feature's readiness in three words (the track is decoration). */
+export function stageOf(row: ProductRow): Stage {
+  if (row.readiness?.ready) return 'ready';
+  return row.current !== null ? 'doubt' : 'not-ready';
+}
+
+/** A link to the thread a thing was raised in, by its purpose. */
+export function ThreadLink({ projectId, id, threads }: { projectId: string; id: string; threads: readonly Exploration[] }) {
+  const t = threads.find((x) => x.id === id);
   return (
-    <div
-      className={cn('dm-text-caption flex flex-wrap items-center gap-x-2 gap-y-1 text-ink-3', className)}
-      data-unblocks={codes.join(' ')}
+    <Link
+      to="/p/$projectId/threads/$explorationId"
+      params={{ projectId, explorationId: id }}
+      className={cn(linkClass, 'inline-flex min-h-6 items-center gap-1')}
     >
-      <span>Unblocks</span>
-      {codes.map((code) => {
-        const row = rowOf(rows, code);
-        return (
-          <Link
-            key={code}
-            to="/p/$projectId/records/$code"
-            params={{ projectId, code }}
-            className="inline-flex items-center gap-1.5 rounded-tab border border-line bg-surface px-1.5 py-px font-semibold text-ink hover:border-line-strong"
-          >
-            {row && <TypeIcon kind={RECORD_ICON[row.type] ?? 'feature'} size={12} />}
-            {row?.title ?? code}
-            <Code>{code}</Code>
-          </Link>
-        );
-      })}
-    </div>
+      <ThreadsIcon size={13} />
+      {t?.purpose ?? 'its thread'}
+    </Link>
   );
 }
 
-/** The frame both sizes share: eyebrow, title, one line, where it comes from, what it unblocks, actions. */
-export function Frame({
-  mode,
+/** "What it unblocks": the records whose readiness waits for this thing, and what they still need. */
+export function Unblocks({ ctx, item }: { ctx: NeedContext; item: NeedItem }) {
+  const id = useId();
+  const rows = item.unblocks.flatMap((c) => {
+    const r = rowOf(ctx.rows, c);
+    return r ? [r] : [];
+  });
+  return (
+    <section aria-labelledby={id} className="flex flex-col gap-2" data-unblocks={item.unblocks.join(' ')}>
+      <h3 id={id} className="text-sm font-semibold text-fg-2">
+        What it unblocks
+      </h3>
+      {rows.length === 0 ? (
+        <p className="text-sm text-fg-2">Nothing waits for it directly.</p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {rows.map((r) => (
+            <li key={r.code} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="text-xs text-fg-2">{typeWord(r.type)}</span>
+              <RecordChip projectId={ctx.projectId} code={r.code} rows={ctx.rows} />
+              {r.readiness ? (
+                <Readiness stage={stageOf(r)} blocking={r.readiness.reasons.length} track={r.type === 'fdr'} />
+              ) : (
+                <Certainty status={r.epistemic_status} />
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/** The frame of a thing's detail: its header, its evidence, what it unblocks and its decision. */
+export function DetailFrame({
   item,
   ctx,
-  eyebrow,
+  titleId,
   title,
   code,
+  state,
+  eyebrow,
+  why,
   line,
-  from,
   children,
+  decision,
+  top,
 }: {
-  mode: Mode;
   item: NeedItem;
   ctx: NeedContext;
-  eyebrow: ReactNode;
+  titleId: string;
   title: string;
   code?: string | undefined;
+  /** The state badge. */
+  state?: ReactNode;
+  /** More words after the kind ("with something you approved"). */
+  eyebrow?: ReactNode;
+  /** Who raised it and where. */
+  why?: ReactNode;
+  /** What it asks of the person, in a sentence. */
   line?: ReactNode;
-  from?: ReactNode;
   children?: ReactNode;
+  decision?: ReactNode;
+  /** Above the header: Catch up's step and its Skip and Leave. */
+  top?: ReactNode;
 }) {
-  const kind = KIND_WORDS[item.kind];
-  const Title = mode === 'focus' ? 'h1' : 'h3';
+  const Icon = kindIcon(item);
   return (
-    <div
+    <section
+      aria-labelledby={titleId}
+      data-detail
       data-need={item.key}
       data-kind={item.kind}
-      className={cn('flex flex-col', mode === 'row' ? 'gap-1 px-[18px] py-3.5' : 'max-w-[860px] gap-3.5')}
+      data-question={item.kind === 'question' ? item.question.id : undefined}
+      className="flex min-w-0 flex-col gap-5"
     >
-      <div className="flex flex-col gap-1">
-        <div className="dm-label flex flex-wrap items-center gap-1.5">
-          {item.kind === 'conflict' ? (
-            <span className="inline-flex items-center gap-1.5 text-problem">
-              <WarningIcon size={13} />
-              {kind.word}
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1.5">
-              <TypeIcon kind={kind.icon} size={13} />
-              {kind.word}
-            </span>
-          )}
-          {eyebrow && (
-            <>
-              <Dot />
-              <span className="inline-flex items-center gap-1.5 tracking-normal normal-case">{eyebrow}</span>
-            </>
-          )}
+      {top}
+      <header className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span
+            className={cn(
+              'inline-flex items-center gap-1.5 font-medium',
+              item.kind === 'conflict' ? 'text-danger-text' : 'text-fg-2',
+            )}
+          >
+            <Icon size={15} className={item.kind === 'conflict' ? undefined : 'text-fg-3'} />
+            {KIND_WORDS[item.kind]}
+          </span>
+          {eyebrow ? <span className="text-fg-2">{eyebrow}</span> : null}
+          {state}
         </div>
-        <div className="flex min-w-0 items-baseline gap-2">
-          <Title className={mode === 'focus' ? 'dm-text-page-title' : 'dm-text-body leading-snug font-semibold'}>{title}</Title>
-          {code && <Code className="shrink-0">{code}</Code>}
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h2 id={titleId} tabIndex={-1} className="text-xl font-semibold text-fg outline-none">
+            {title}
+          </h2>
+          {code ? <Code className="text-sm">{code}</Code> : null}
         </div>
-        {line && (
-          <div className={cn(mode === 'focus' ? 'dm-text-body text-ink-2' : 'dm-text-small line-clamp-2 text-ink-3')}>{line}</div>
-        )}
-      </div>
-      {from && <div className="dm-text-caption flex flex-wrap items-center gap-1.5 text-muted">{from}</div>}
-      {mode === 'row' && <Unblocks projectId={ctx.projectId} codes={item.unblocks} rows={ctx.rows} />}
-      {children && <div className={mode === 'row' ? 'mt-1.5' : ''}>{children}</div>}
-    </div>
+        {why ? <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-fg-2">{why}</div> : null}
+        {line ? <p className="max-w-prose text-md text-fg-2">{line}</p> : null}
+      </header>
+      {children}
+      <Unblocks ctx={ctx} item={item} />
+      {decision}
+    </section>
   );
 }

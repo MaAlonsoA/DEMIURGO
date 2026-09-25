@@ -15,7 +15,7 @@ DEMIURGO guía el desarrollo con IA de principio a fin con dos pilares: diseñar
 - La v1 está descartada. Solo se consulta como catálogo de lecciones con `git show v1-referencia:<ruta>`. No la arregles ni la reutilices.
 - **Prohibido tocar** el proyecto compose `demiurgo-stable`, `%LOCALAPPDATA%\Demiurgo\stable` y el puerto 8000 (son de la v1).
 - Postgres de desarrollo: proyecto compose `demiurgo-v2-dev`, puerto 55432. Las pruebas crean bases efímeras; nunca apuntes una prueba a una base en uso.
-- Antes de H1, `design/` es la autoridad de diseño y la persona la aprueba con el merge. Desde H1, `design/` es una exportación generada por la v2.
+- **Desde el 25-09-2026, D0 queda fuera y H1 no muda ficheros:** los documentos de `design/` son referencia histórica de lo construido en S0–S2 (no se aceptan, no se importan y no se exportan encima). DEMIURGO se diseña a mano, paso a paso, dentro de la propia aplicación. H1 no se cierra hasta que todos sus documentos se han creado uno a uno dentro de la aplicación y la FDR de S3 nace y se aprueba allí. `design/data/` (tablas como datos) sigue siendo fuente del código.
 
 ## Cómo trabajar
 

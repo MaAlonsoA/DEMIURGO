@@ -6,6 +6,8 @@
 > 1. **La v1 se descarta por completo.** No se usa para diseñar la v2 ni se le hacen arreglos: solo sirve como catálogo de lecciones. El diseño inicial vive en el repositorio hasta que la v2 tiene su Pilar 1 (§6).
 > 2. **Se recuperan los cuatro motores de la visión original** (`D:\Dev\Demiurgo-archive-2026-09-23\docs`, 22–23-09-2026): flujo de trabajo determinista, contexto, conocimiento y trazabilidad, y observabilidad y mejora continua. El motor de contexto y conocimiento entra en el MVP (§3 y §7).
 
+> **Cambio del 25-09-2026 (decisión de la persona).** **D0 queda fuera y H1 no muda ficheros.** No se importa `design/` ni se exporta: DEMIURGO se diseña a mano, paso a paso, dentro de la propia aplicación, desde su Día 1. `design/` queda como referencia histórica de lo construido en S0–S2. H1 no se cierra hasta que todos los documentos de DEMIURGO se han creado uno a uno dentro de la aplicación y la FDR de S3 nace y se aprueba allí. Resumen y consecuencias en `docs/pendientes-y-decisiones-2026-09-25.html`.
+
 ---
 
 ## 1. La idea en una frase y el enfoque elegido

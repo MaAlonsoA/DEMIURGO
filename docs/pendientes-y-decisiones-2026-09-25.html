@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DEMIURGO · Pendientes y decisiones</title>
+<style>
+  :root {
+    --bg: #f7f6f2; --surface: #ffffff; --ink: #1d1c1a; --ink-2: #4a4843; --muted: #77746c;
+    --line: #e2dfd6; --accent: #2f5bd3; --accent-soft: #e8eefc;
+    --ok: #2e7d4f; --ok-soft: #e4f3ea; --warn: #a96400; --warn-soft: #fbf0dc;
+    --bad: #b2402c; --bad-soft: #fae6e1; --code: #f0eee8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151514; --surface: #1e1e1c; --ink: #ecebe6; --ink-2: #c4c2ba; --muted: #929088;
+      --line: #34332f; --accent: #8aa8ff; --accent-soft: #1f2a45;
+      --ok: #6fcf97; --ok-soft: #1c3326; --warn: #f0b35a; --warn-soft: #3a2c14;
+      --bad: #f08a74; --bad-soft: #3d201a; --code: #2a2927;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 32px 16px 64px; }
+  header p { color: var(--ink-2); margin: 4px 0 0; }
+  h1 { font-size: 1.8rem; margin: 0; letter-spacing: -0.01em; }
+  h2 { font-size: 1.25rem; margin: 40px 0 12px; padding-top: 16px; border-top: 1px solid var(--line); }
+  h3 { font-size: 1.02rem; margin: 20px 0 8px; }
+  nav { margin: 20px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  nav a { font-size: .88rem; color: var(--accent); background: var(--accent-soft); padding: 4px 10px;
+    border-radius: 999px; text-decoration: none; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin: 12px 0; }
+  .answer { border-left: 4px solid var(--accent); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+  .stat b { display: block; font-size: 1.05rem; }
+  .stat span { color: var(--muted); font-size: .9rem; }
+  table { width: 100%; border-collapse: collapse; font-size: .93rem; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; font-size: .82rem; text-transform: uppercase; letter-spacing: .04em; }
+  .scroll { overflow-x: auto; }
+  code { font: .88em ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+  .tag { display: inline-block; font-size: .76rem; font-weight: 600; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+  .t-ok { color: var(--ok); background: var(--ok-soft); }
+  .t-warn { color: var(--warn); background: var(--warn-soft); }
+  .t-bad { color: var(--bad); background: var(--bad-soft); }
+  .t-info { color: var(--accent); background: var(--accent-soft); }
+  ul { padding-left: 20px; margin: 6px 0; }
+  li { margin: 4px 0; }
+  .muted { color: var(--muted); }
+  .rec { margin-top: 6px; color: var(--ink-2); }
+  .rec::before { content: "Recomendación: "; font-weight: 600; color: var(--ink); }
+  footer { margin-top: 48px; color: var(--muted); font-size: .85rem; }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Pendientes y decisiones antes de diseñar dentro de DEMIURGO</h1>
+  <p>25-09-2026 · rama <code>v2</code> en <code>67564cf</code>, ya subida a GitHub · base: plan de reimplementación del 24-09, informes de H1, del frontend, de agentes y de vistas, y el código.</p>
+  <nav>
+    <a href="#mapa">Hitos y slices</a><a href="#donde">Dónde estamos</a><a href="#pilar2">¿Pilar 2?</a><a href="#antes">Antes de diseñar</a>
+    <a href="#despues">Después</a><a href="#plan">Lo que queda del plan</a><a href="#decisiones">Tus decisiones</a>
+  </nav>
+</header>
+
+<h2 id="mapa">0. Qué es cada hito y cada slice</h2>
+<div class="card">
+  <p><b>Las palabras del plan.</b></p>
+  <ul>
+    <li><b>Pilar 1 · Diseñar:</b> de una idea a una especificación «Ready to build». Conversación con DEMIURGO, preguntas, decisiones, funcionalidades (FDR) con sus criterios de aceptación (AC) y el conocimiento del proyecto.</li>
+    <li><b>Pilar 2 · Construir:</b> de una FDR lista a código que cumple sus criterios. Los agentes escriben pruebas e implementación, y el sistema lo comprueba con gates; nadie se autocertifica.</li>
+    <li><b>Slice o incremento</b> (D0, S0…S10): un trozo del producto que se termina entero, con pruebas y una ejecución real. Cada uno añade algo que se puede usar.</li>
+    <li><b>Hito</b> (H1, H2): un momento en que cambia <i>dónde</i> se trabaja. No añade funcionalidades nuevas: cambia quién tiene la autoridad.</li>
+    <li><b>Cortes 0–8</b> (no confundir): son los trozos en que se construyó la web durante H1. No son slices del plan.</li>
+  </ul>
+  <p class="muted">Orden: <s>D0</s> → S0 → S1 → S2 → <b>H1</b> → S3 → S4 → S5 → <b>H2</b> → S6 → S7 → S8 = MVP. Después, S9 y S10.</p>
+</div>
+<div class="card answer">
+  <p><b>Decidido el 25-09-2026: cambian H1 y D0.</b></p>
+  <ul>
+    <li><b>H1 ya no muda ficheros.</b> No se importa <code>design/</code> ni se exporta. DEMIURGO se diseña a mano, paso a paso, dentro de la propia aplicación, empezando por su Día 1.</li>
+    <li><b>H1 no se cierra hasta que todos los documentos de DEMIURGO se han creado uno a uno dentro de la app</b>: los equivalentes de los 16 de <code>design/</code> (la decisión del plan, la taxonomía, los 7 ADR y las 7 FDR), y además la FDR de S3 nace y se aprueba dentro.</li>
+    <li><b>D0 queda fuera.</b> Los documentos de <code>design/</code> no se aceptan ni se importan: son referencia histórica de lo construido en S0–S2. Lo que se construyó con ellos se queda. La importación sigue en el código, sin usar.</li>
+  </ul>
+</div>
+<div class="scroll card">
+<table>
+  <thead><tr><th>Paso</th><th>Qué es, en palabras llanas</th><th>Al terminarlo, puedes…</th><th>Estado</th></tr></thead>
+  <tbody>
+    <tr><td><b>D0</b><br><span class="muted">Diseño inicial</span></td>
+      <td>Escribir en ficheros del repo (<code>design/</code>) el diseño mínimo para empezar, porque aún no existe ninguna app donde diseñar. Incluye elegir el stack y comprobar que el runner aislado es viable.</td>
+      <td>Empezar a programar sabiendo qué construir y con qué.</td>
+      <td><span class="tag t-info">fuera</span><br><span class="muted">sus ficheros quedan como referencia</span></td></tr>
+    <tr><td><b>S0</b><br><span class="muted">Esqueleto técnico</span></td>
+      <td>Las tuberías, sin funcionalidad real: comandos con permisos, máquinas de estado, diario que no se puede borrar, trabajos que sobreviven a un reinicio, un agente real y el runner aislado.</td>
+      <td>Nada visible aún; garantiza que las reglas de fondo se cumplen por construcción.</td>
+      <td><span class="tag t-ok">hecho</span></td></tr>
+    <tr><td><b>S1</b><br><span class="muted">De la intención a «Listo»</span></td>
+      <td>La versión más fina del Pilar 1: conversar sobre una idea, aceptar decisiones, pedir una FDR con sus criterios, aprobarla y ver si está lista. Incluye el canal para que un agente externo proponga.</td>
+      <td>Llevar una idea hasta una FDR «Ready to build».</td>
+      <td><span class="tag t-ok">hecho</span></td></tr>
+    <tr><td><b>S2</b><br><span class="muted">Conocimiento y contexto</span></td>
+      <td>El «motor de contexto»: un grafo del conocimiento que se actualiza solo tras cada aprobación, un clasificador (Jev o un modelo de lenguaje) y la comprobación de cada idea nueva contra lo que ya existe.</td>
+      <td>Que DEMIURGO avise de duplicados y conflictos, y que cada agente reciba el contexto justo.</td>
+      <td><span class="tag t-ok">hecho</span><br><span class="muted">sin Jev</span></td></tr>
+    <tr><td><b>H1</b><br><span class="muted">«La v2 diseña»</span></td>
+      <td>Desde aquí se diseña dentro de DEMIURGO. Sin mudar ficheros: DEMIURGO se diseña a mano, paso a paso, en la propia aplicación, desde su Día 1. Se cierra cuando todos los documentos de DEMIURGO se han creado uno a uno dentro y la FDR de S3 nace y se aprueba dentro.</td>
+      <td>Diseñar DEMIURGO con DEMIURGO.</td>
+      <td><span class="tag t-warn">abierto</span></td></tr>
+    <tr><td><b>S3</b><br><span class="muted">Change Set y pruebas</span></td>
+      <td>Primer paso del Pilar 2: convertir una FDR lista en un trabajo comprometido (Change Set) y escribir una prueba por criterio, que empieza en rojo y queda congelada. Tú aceptas qué prueba demuestra cada criterio.</td>
+      <td>Tener las pruebas de aceptación de una funcionalidad antes de escribir su código.</td>
+      <td><span class="tag t-bad">sin empezar</span></td></tr>
+    <tr><td><b>S4</b><br><span class="muted">Implementación gobernada</span></td>
+      <td>Un agente implementa en un entorno aislado; los gates del sistema dicen si pasa. Si falla, reintenta hasta 3 veces con la evidencia del fallo. Tú revisas y aceptas. Cierra el «esqueleto andante»: los dos pilares funcionan de punta a punta.</td>
+      <td>Pasar de una FDR a código verificado sin fiarte de lo que dice el agente.</td>
+      <td><span class="tag t-bad">sin empezar</span></td></tr>
+    <tr><td><b>S5</b><br><span class="muted">Ejecución robusta y bugfix</span></td>
+      <td>Aguantar trabajo real: varias tareas, fallos de infraestructura distinguidos de los del agente, cancelar, aclarar, pausar si cambia el diseño, y un procedimiento para corregir bugs.</td>
+      <td>Usar el Pilar 2 en trabajo de verdad, también para arreglar errores.</td>
+      <td><span class="tag t-bad">sin empezar</span></td></tr>
+    <tr><td><b>H2</b><br><span class="muted">«La v2 se construye a sí misma»</span></td>
+      <td>DEMIURGO ejecuta sus propios Change Sets sobre una copia de su repo. Desde aquí nada entra en <code>main</code> sin pasar por un Change Set.</td>
+      <td>Dejar de construir DEMIURGO «a mano» con Claude Code: lo construye DEMIURGO.</td>
+      <td><span class="tag t-bad">sin empezar</span></td></tr>
+    <tr><td><b>S6</b><br><span class="muted">Exploración guiada</span></td>
+      <td>Que el diseño no dependa de cuánto escribes: preguntas con impacto (máximo 3), síntesis por ronda, ramas de ideas y el propósito, usuarios y reglas del producto.</td>
+      <td>Diseñar con menos esfuerzo y mejores preguntas.</td>
+      <td><span class="tag t-bad">sin empezar</span></td></tr>
+    <tr><td><b>S7</b><br><span class="muted">Cambio con historia e impacto</span></td>
+      <td>Cambiar una decisión sin perder la historia: qué queda afectado según el grafo, qué versión está construida y cuál es la vigente.</td>
+      <td>Revisar decisiones sabiendo qué rompe cada cambio.</td>
+      <td><span class="tag t-bad">sin empezar</span><br><span class="muted">hay piezas sueltas</span></td></tr>
+    <tr><td><b>S8</b><br><span class="muted">Endurecimiento y release</span></td>
+      <td>Pulir y demostrar: capturas como evidencia, auditoría de dependencias, escenarios reales y un segundo producto (la app de la asociación) construido por una persona no técnica solo desde la web.</td>
+      <td>Declarar el MVP con evidencia.</td>
+      <td><span class="tag t-bad">sin empezar</span></td></tr>
+    <tr><td><b>S9 · S10</b><br><span class="muted">Después del MVP</span></td>
+      <td>Aprender del historial (elegir modelos, mejorar el clasificador) y planificar trabajo de varias FDR con más controles de calidad.</td>
+      <td>—</td>
+      <td><span class="tag t-info">fuera del MVP</span></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="donde">1. Dónde estamos</h2>
+<div class="grid">
+  <div class="card stat"><b>H1 abierto</b><span>«La v2 diseña». Falta su criterio de cierre: la FDR de S3 nace y se aprueba dentro.</span></div>
+  <div class="card stat"><b>Último incremento: S2</b><span>D0, S0, S1 y S2 hechos. El Pilar 2 (S3–S5) está a cero.</span></div>
+  <div class="card stat"><b>Pruebas en verde</b><span>681 unitarias e integración, 502 invariantes, 83 e2e. 121 de 135 criterios con prueba; 14 son manuales.</span></div>
+  <div class="card stat"><b>Jev en lista de espera</b><span>El clasificador del conocimiento sigue funcionando con modelos de lenguaje (agente <code>knowledge_classifier</code>).</span></div>
+</div>
+<div class="card">
+  <ul>
+    <li><b><code>design/</code> es referencia:</b> sus 16 documentos siguen en «proposed» y así se quedan, porque D0 queda fuera. El diseño se rehace dentro de la app.</li>
+    <li><b>Fuera del plan:</b> agentes y proveedores (FDR-AGE-002) y las vistas Map y Journeys (FDR-INT-002).</li>
+    <li><b>Instancia única:</b> <code>demiurgo-v2</code> en http://127.0.0.1:8100, vacía, con las devtools (instantáneas) activas.</li>
+    <li><b>Observación:</b> desde S2 crecimos en horizontal (web, motores, vistas). El plan quería evitarlo: incluso su MVP de repliegue exige S3–S5.</li>
+  </ul>
+</div>
+
+<h2 id="pilar2">2. ¿Construimos el Pilar 2 o lo diseñamos dentro?</h2>
+<div class="card answer">
+  <p><b>Las dos cosas, en este orden.</b> Según el plan, S3–S5 <b>se diseñan dentro de DEMIURGO</b>: que la FDR de S3 nazca y se apruebe en la v2 es lo que cierra H1. Después <b>se construyen fuera con el protocolo manual</b>: Claude Code escribe las pruebas y la implementación, y tú aceptas. Así hasta H2, cuando DEMIURGO se construye a sí mismo.</p>
+  <p class="muted">Decidido: nada se importa. DEMIURGO se reconstruye a mano, paso a paso, dentro de la app, hasta llegar a diseñar S3.</p>
+</div>
+
+<h2 id="antes">3. Qué falta implementar antes de diseñar dentro</h2>
+<p class="muted">Lo marcado «verificado» lo he comprobado en el código de <code>v2</code>.</p>
+<div class="scroll card">
+<table>
+  <thead><tr><th>Hueco</th><th>Por qué importa</th><th>Tamaño</th><th>Estado</th></tr></thead>
+  <tbody>
+    <tr><td><b>Respuesta pendiente visible</b></td>
+      <td>Cuando pides respuesta a DEMIURGO, antes de llamar al agente el servidor espera a que el conocimiento incorpore lo último que aceptaste o aprobaste, para que el agente no trabaje con contexto viejo. Suele tardar segundos. <b>Los 30 min son un tope de seguridad, no un retraso normal</b> (<code>RESPONSE_PATIENCE_MS</code>). El problema: esa espera no se ve. La web del Día 1 supone que a los 2 min sin ejecución la respuesta se perdió (<code>ANSWER_GRACE_MS</code>) y ofrece pedirla otra vez; si el servidor solo estaba esperando, llegan dos respuestas y se gasta cuota. Arreglo: el servidor registra que está esperando y la web lo muestra, en lugar de adivinar.</td>
+      <td>M · ½ día</td><td><span class="tag t-ok">verificado</span></td></tr>
+    <tr><td><b>Preguntas inferidas bloquean «Ready to build»</b></td>
+      <td>Una respuesta que supuso la IA y nadie ha confirmado abre hoy la puerta a S3; la web solo avisa. Cambia FDR-DIS-001: necesita tu sí.</td>
+      <td>S · 2–3 h</td><td><span class="tag t-warn">decisión tuya</span></td></tr>
+    <tr><td><b>Crear un registro a mano</b> (decisión, FDR, ADR o bug)</td>
+      <td>El back tiene <code>record.create</code> para personas, pero la web no lo ofrece. Los agentes solo proponen decisiones (<code>exploration_chat</code>) y FDR (<code>design_proposal</code>). Hoy <b>no hay forma de crear un ADR ni un bug desde la app</b>, y DEMIURGO tiene 7 ADR.</td>
+      <td>M · 1 día</td><td><span class="tag t-ok">verificado</span></td></tr>
+    <tr><td><b>Enlazar registros a mano</b></td>
+      <td>El back tiene <code>link.create</code>, pero la web no lo ofrece. Los enlaces solo nacen con las propuestas o al arrastrarse a una versión nueva. Sin ellos, el mapa y el impacto quedan pobres.</td>
+      <td>S–M · ½ día</td><td><span class="tag t-ok">verificado</span></td></tr>
+    <tr><td><b>Claves de agente para MCP</b></td>
+      <td><code>agent_token.issue</code> existe en la API, pero no hay pantalla ni orden de la CLI. Para que Claude Code proponga por el canal hay que emitirla con peticiones HTTP a mano.</td>
+      <td>S · 2–4 h</td><td><span class="tag t-ok">verificado</span></td></tr>
+    <tr><td><b>Prueba de humo con un motor real</b></td>
+      <td>Tras fusionar el design system, el Día 1 no se ha recorrido en la web con un motor real. Con Qwen en local no gasta cuota.</td>
+      <td>S · 1 h</td><td><span class="tag t-info">recomendado</span></td></tr>
+  </tbody>
+</table>
+</div>
+<div class="card">
+  <h3>Menores que también se arreglan antes de diseñar (decidido el 25-09)</h3>
+  <ul>
+    <li>Un proyecto nuevo nace sin taxonomía: el conocimiento no se agrupa por áreas hasta que apruebes una.</li>
+    <li>No se puede renombrar un proyecto.</li>
+    <li>La readiness cuenta las preguntas pendientes sin nombrarlas.</li>
+    <li>La búsqueda usa la configuración <code>spanish</code> y no encuentra ideas.</li>
+    <li>Agentes: el contador de progreso puede retroceder.</li>
+    <li>Agentes: hay llamadas que quedan en «running» tras una caída.</li>
+    <li>Agentes: los textos dicen «Settings →» aunque la web no tiene Settings.</li>
+    <li>Agentes: un agente externo puede leer rutas locales en los eventos en bruto.</li>
+  </ul>
+</div>
+
+<h2 id="despues">Después, antes de construir S3</h2>
+<div class="card">
+  <ul>
+    <li><b>Puente diseño → construcción:</b> la FDR de S3 vivirá en la app, pero la trazabilidad criterio → prueba (<code>gate:traceability</code>) lee <code>design/</code>. Hace falta exportar lo nuevo, o que la trazabilidad lea de la app.</li>
+    <li><b>Colisión de códigos:</b> un proyecto nuevo numera desde cero (por ejemplo FDR-DIS-001), igual que <code>design/</code>. Una exportación directa chocaría o sobrescribiría.</li>
+    <li><b>Paquete de construcción:</b> Claude Code leería la FDR, sus criterios, sus decisiones y sus orígenes por MCP. Falta la clave de agente (arriba) y decidir el formato del paquete.</li>
+  </ul>
+</div>
+
+<h2 id="plan">4. Lo que queda del plan</h2>
+<div class="scroll card">
+<table>
+  <thead><tr><th>Paso</th><th>Qué trae</th></tr></thead>
+  <tbody>
+    <tr><td><b>Cierre de H1</b></td><td>Crear uno a uno dentro de la app todos los documentos de DEMIURGO (decisión del plan, taxonomía, 7 ADR y 7 FDR). La FDR de S3 nace y se aprueba dentro. Validar la experiencia (AC-INT-001-18). Como H1 ya no importa ni exporta, AC-AUT-001-06 (ratificar la importación) y -08 (bloquear la edición de <code>design/</code>) dejan de aplicar.</td></tr>
+    <tr><td><b>S3</b></td><td>Change Set desde una FDR lista y aceptar el alcance. Workspace desde plantilla y agente que escribe las pruebas de aceptación. Aceptas el mapa criterio → prueba, y las pruebas quedan en rojo y congeladas (G0).</td></tr>
+    <tr><td><b>S4</b></td><td>Implementador aislado, gates G1–G5 cargados desde la release y evidencia que solo produce el sistema. Tres intentos en la misma sesión, presupuesto y vista de revisión. Cierra el esqueleto.</td></tr>
+    <tr><td><b>S5</b></td><td>Varias tareas, tipos de fallo, cancelar, Reintentar o Aclarar, y pausa si cambia el alcance. Bugfix, métrica «¿faltó contexto?» y copia con <code>git bundle</code>.</td></tr>
+    <tr><td><b>H2</b></td><td>La v2 se construye a sí misma: instancia estable propia, clon del repo y la release anterior como constructora.</td></tr>
+    <tr><td><b>S6</b></td><td>Preguntas con impacto y un máximo de tres, síntesis y ramas de ideas. Propósito, usuarios y reglas del producto, hoy «Later» en la web.</td></tr>
+    <tr><td><b>S7</b></td><td>Impacto de un cambio recorriendo el grafo, realización por versión y vista de relaciones.</td></tr>
+    <tr><td><b>S8</b></td><td>Capturas como evidencia, auditoría de dependencias y 7 escenarios reales. La app de la asociación hecha sin terminal, y la release.</td></tr>
+  </tbody>
+</table>
+</div>
+<div class="card">
+  <h3>Deuda previa a S4</h3>
+  <ul>
+    <li>Completar los spikes: DBOS con agentes, y un agente que modifica un repo dentro del runner.</li>
+    <li>Runner en Hyper-V o microVM. Ahora comparte la VM de WSL2.</li>
+    <li>Roles de Postgres separados: el rol de la aplicación podría desactivar los triggers.</li>
+    <li>Node 26. Comprobar que la CI de GitHub pasa ahora que <code>v2</code> está subida.</li>
+  </ul>
+</div>
+
+<h2 id="decisiones">5. Decisiones que te corresponden</h2>
+<div class="card"><b>Decidido (25-09):</b> H1 sin mudar ficheros, a mano dentro de la app, y D0 fuera. H1 solo se cierra cuando todos los documentos se han creado uno a uno dentro. Los 7 ADR no se aceptan: se quedan en <code>design/</code> como referencia y se rehacen dentro. Falta decidir, antes de construir S3, cómo se enlaza lo diseñado dentro con las pruebas (ver «Después»).</div>
+<div class="card"><b>Preguntas inferidas en la readiness.</b>
+  <p class="rec">Que bloqueen «Ready to build» hasta que las confirmes. Es la regla de fondo: el modelo propone y la persona decide.</p></div>
+<div class="card"><b>Roles de Postgres.</b>
+  <p class="rec">Un propietario de migraciones y una aplicación sin DDL, antes de H2.</p></div>
+<div class="card"><b>Umbral de atención de S8.</b>
+  <p class="rec">Fijarlo cuando llegue S8 con los datos de uso del ejercicio. Mientras tanto, anotar cuántas intervenciones pide cada decisión.</p></div>
+<div class="card"><b>Objetivo del ejercicio.</b>
+  <p class="rec">Del Día 1 de DEMIURGO a la FDR de S3 (Change Set) aprobada dentro. Así la reconstrucción prueba el Pilar 1 de punta a punta y además cierra H1.</p></div>
+
+<footer>Generado el 25-09-2026 a partir de <code>docs/plan-reimplementacion-2026-09-24.md</code>, <code>docs/informe-autonomo-v2-h1.md</code>, <code>docs/informe-autonomo-v2-frontend-h1.md</code>, <code>docs/informe-agentes-y-proveedores.md</code>, <code>docs/informe-vistas-del-producto.md</code> y del código de <code>v2</code>.</footer>
+</main>
+</body>
+</html>

@@ -20,11 +20,14 @@ commands:
   agent_token.issue: { entity: agent_token, allowed: [human], decisive: false, description: "Issue a token for an external agent with its name." }
   agent_token.revoke: { entity: agent_token, allowed: [human], decisive: false, description: "Revoke an external agent's token." }
 
-  exploration.open: { entity: exploration, allowed: [human], decisive: false, description: "Open an exploration with its purpose and its origin." }
+  exploration.open: { entity: exploration, allowed: [human, system], decisive: false, description: "Open an exploration with its purpose and its origin." }
   exploration.conclude: { entity: exploration, allowed: [human], decisive: false, description: "Conclude an exploration." }
   exploration.set_aside: { entity: exploration, allowed: [human], decisive: false, description: "Set aside an exploration with a reason." }
   exploration.resume: { entity: exploration, allowed: [human], decisive: false, description: "Resume a concluded or set-aside exploration." }
   exploration.revise_purpose: { entity: exploration, allowed: [system], decisive: false, description: "Rewrite the purpose of an exploration as a summary of what it has designed (the agent's, applied by the system from its validated output)." }
+
+  stage.open: { entity: stage, allowed: [human, system], decisive: false, description: "Open the next design stage: its thread and its mandatory questions." }
+  stage.pass: { entity: stage, allowed: [human], decisive: true, description: "Pass a design stage once all its mandatory questions are covered; the next one opens." }
 
   message.post: { entity: message, allowed: [human, agent_external, agent_run], decisive: false, description: "Post a message in a thread with the actor as author." }
   message.abandon_response: { entity: message, allowed: [system], decisive: false, description: "Give up the answer to a message whose knowledge stayed out of date." }

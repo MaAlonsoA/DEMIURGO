@@ -34,6 +34,7 @@ export const TABLES: Partial<Record<EntityName, string>> = {
   message: 'messages',
   source: 'sources',
   question: 'questions',
+  stage: 'stages',
   record: 'records',
   record_version: 'record_versions',
   criterion: 'criteria',

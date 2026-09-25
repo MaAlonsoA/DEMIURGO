@@ -1,6 +1,6 @@
 // Query routes (read-only). Each one declares its query from the capability matrix.
 
-import { DomainError, type QueryName, graphFingerprint } from '@demiurgo/domain';
+import { COVERED_QUESTION_STATES, DomainError, type QueryName, STAGES, graphFingerprint } from '@demiurgo/domain';
 import { sql } from 'kysely';
 import {
   type Services,
@@ -232,6 +232,40 @@ registerQueries([
     path: '/api/projects/:projectId/knowledge/idea-assessments',
     queryName: 'query.knowledge',
     respond: ({ services, params }) => ideaAssessments(services.db, uuid(params.projectId, 'project')),
+  },
+  {
+    // Design stages: the fixed catalog with, for each opened stage, its thread and the coverage
+    // of its mandatory questions.
+    path: '/api/projects/:projectId/stages',
+    queryName: 'query.explorations',
+    async respond({ services, params }) {
+      const projectId = uuid(params.projectId, 'project');
+      const opened = await services.db.selectFrom('stages').selectAll().where('project_id', '=', projectId).execute();
+      const questions = await services.db
+        .selectFrom('questions')
+        .select(['id', 'stage_id', 'stage_key', 'question', 'state', 'conclusion'])
+        .where('project_id', '=', projectId)
+        .where('stage_key', 'is not', null)
+        .orderBy('created_at')
+        .execute();
+      return STAGES.map((def, position) => {
+        const row = opened.find((s) => s.stage === def.key);
+        const qs = row ? questions.filter((q) => q.stage_id === row.id) : [];
+        return {
+          key: def.key,
+          title: def.title,
+          position,
+          id: row?.id ?? null,
+          state: row?.state ?? 'not_started',
+          exploration_id: row?.exploration_id ?? null,
+          passed_by: row?.passed_by ?? null,
+          passed_at: row?.passed_at ?? null,
+          total: row ? qs.length : def.questions.length,
+          covered: qs.filter((q) => (COVERED_QUESTION_STATES as readonly string[]).includes(q.state)).length,
+          questions: qs.map((q) => ({ id: q.id, key: q.stage_key, question: q.question, state: q.state })),
+        };
+      });
+    },
   },
   {
     path: '/api/projects/:projectId/changes',

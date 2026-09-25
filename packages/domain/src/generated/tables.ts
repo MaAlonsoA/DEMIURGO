@@ -55,7 +55,8 @@ export const CAPABILITIES = {
     "exploration.open": {
       "entity": "exploration",
       "allowed": [
-        "human"
+        "human",
+        "system"
       ],
       "decisive": false,
       "description": "Open an exploration with its purpose and its origin."
@@ -91,6 +92,23 @@ export const CAPABILITIES = {
       ],
       "decisive": false,
       "description": "Rewrite the purpose of an exploration as a summary of what it has designed (the agent's, applied by the system from its validated output)."
+    },
+    "stage.open": {
+      "entity": "stage",
+      "allowed": [
+        "human",
+        "system"
+      ],
+      "decisive": false,
+      "description": "Open the next design stage: its thread and its mandatory questions."
+    },
+    "stage.pass": {
+      "entity": "stage",
+      "allowed": [
+        "human"
+      ],
+      "decisive": true,
+      "description": "Pass a design stage once all its mandatory questions are covered; the next one opens."
     },
     "message.post": {
       "entity": "message",
@@ -991,6 +1009,37 @@ export const TRANSITIONS = {
             "active"
           ],
           "to": "active"
+        }
+      ]
+    },
+    "stage": {
+      "label": "Design stage",
+      "implemented_in": "S1",
+      "states": {
+        "open": "Open",
+        "passed": "Passed"
+      },
+      "authority": [
+        "passed"
+      ],
+      "transitions": [
+        {
+          "command": "stage.open",
+          "from": "new",
+          "to": "open",
+          "guards": [
+            "stage_in_order"
+          ]
+        },
+        {
+          "command": "stage.pass",
+          "from": [
+            "open"
+          ],
+          "to": "passed",
+          "guards": [
+            "stage_covered"
+          ]
         }
       ]
     },

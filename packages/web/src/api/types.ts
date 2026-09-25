@@ -558,3 +558,17 @@ export type AgentToken = {
   created_at: string;
   revoked_at: string | null;
 };
+
+export type StageRow = {
+  key: string;
+  title: string;
+  position: number;
+  id: string | null;
+  state: 'not_started' | 'open' | 'passed';
+  exploration_id: string | null;
+  passed_by: string | null;
+  passed_at: string | null;
+  total: number;
+  covered: number;
+  questions: { id: string; key: string; question: string; state: string }[];
+};

@@ -216,6 +216,21 @@ export type QuestionsTable = {
   state: string;
   state_reason: string | null;
   raised_by: string;
+  stage_id: string | null;
+  stage_key: string | null;
+  created_at: Generated<Timestamp>;
+};
+
+export type StagesTable = {
+  id: Generated<string>;
+  project_id: string;
+  stage: string;
+  position: number;
+  exploration_id: string;
+  state: string;
+  opened_by: string;
+  passed_by: string | null;
+  passed_at: NullableTimestamp;
   created_at: Generated<Timestamp>;
 };
 
@@ -477,6 +492,7 @@ export type DB = {
   agent_tokens: AgentTokensTable;
   explorations: ExplorationsTable;
   questions: QuestionsTable;
+  stages: StagesTable;
   messages: MessagesTable;
   sources: SourcesTable;
   records: RecordsTable;

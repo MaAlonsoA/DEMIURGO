@@ -1,5 +1,6 @@
 // Project commands.
 
+import { STAGES, system } from '@demiurgo/domain';
 import { z } from 'zod';
 import { handler, registerHandlers } from '../bus/handlers.ts';
 
@@ -12,6 +13,8 @@ registerHandlers({
         .values({ name: data.name, state: to })
         .returning('id')
         .executeTakeFirstOrThrow();
+      // The design engine starts with the first stage: its thread and its mandatory questions.
+      await ctx.execute({ command: 'stage.open', actor: system('design'), projectId: id, data: { stage: STAGES[0]?.key ?? '' } });
       return { entityId: id, projectId: id, after: { name: data.name } };
     },
   }),

@@ -278,9 +278,14 @@ registerHandlers({
         question: text(1000),
         reason: z.string().trim().max(1000).optional(),
         impact: z.enum(['high', 'medium', 'low']).optional(),
+        // A design stage's mandatory question: only the system raises them, when the stage opens.
+        stage_id: uuid.optional(),
+        stage_key: text(60).optional(),
       })
       .strict(),
     async apply(ctx, data, _e, to) {
+      if ((data.stage_id || data.stage_key) && ctx.actor.type !== 'system')
+        throw new DomainError('validation', 'Only the system raises the mandatory questions of a stage.');
       const { id } = await ctx.trx
         .insertInto('questions')
         .values({
@@ -291,10 +296,15 @@ registerHandlers({
           impact: data.impact ?? null,
           state: to,
           raised_by: formatActor(ctx.actor),
+          stage_id: data.stage_id ?? null,
+          stage_key: data.stage_key ?? null,
         })
         .returning('id')
         .executeTakeFirstOrThrow();
-      return { entityId: id, after: { question: data.question, impact: data.impact ?? null } };
+      return {
+        entityId: id,
+        after: { question: data.question, impact: data.impact ?? null, stage_key: data.stage_key ?? null },
+      };
     },
   }),
 

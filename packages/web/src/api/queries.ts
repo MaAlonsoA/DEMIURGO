@@ -18,6 +18,7 @@ import type {
   ProductState,
   Project,
   Readiness,
+  StageRow,
   RecordDetail,
   RunDetail,
   RunListItem,
@@ -177,3 +178,7 @@ export const entityEventsQuery = (p: string, entityId: string) =>
     queryKey: ['p', p, 'events', 'entity', entityId] as const,
     queryFn: () => get<EventRow[]>(`${P(p)}/events?entity=${entityId}`),
   });
+
+/** The design stages of the project (design engine) with the coverage of their mandatory questions. */
+export const stagesQuery = (p: string) =>
+  queryOptions({ queryKey: ['p', p, 'stages'] as const, queryFn: () => get<StageRow[]>(`${P(p)}/stages`) });

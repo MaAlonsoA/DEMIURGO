@@ -26,6 +26,7 @@ import { ProductTabs } from '../shell/Header.tsx';
 import { useLens, type Lens } from './lens/useLens.ts';
 import { WhileAway } from './lens/WhileAway.tsx';
 import { NeedsColumn } from './NeedsColumn.tsx';
+import { DesignStages } from './Stages.tsx';
 import { CaptureIdea, DraftingCard, LaterRows, NewRecordLink, ParkedCard, ProgressLine } from './Blueprint.tsx';
 import { draftingRuns, featureStatus, productProgress, workingRuns } from './progress.ts';
 import { FeatureCard, LensFrame, type LensMark, RecordNode, UNDIM } from './RecordCard.tsx';
@@ -175,6 +176,7 @@ function Overview({ projectId }: { projectId: string }) {
         />
         <ProductTabs active="overview" />
         {lens.on && <WhileAway lens={lens} />}
+        <DesignStages projectId={projectId} />
         <LaterRows />
 
         {empty && (

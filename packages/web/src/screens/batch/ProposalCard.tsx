@@ -57,6 +57,7 @@ export function proposalType(p: Pick<ProposalView, 'type' | 'payload'>): ItemTyp
   if (p.type === 'decision') return 'decision';
   if (p.type === 'fdr') return 'feature';
   if (p.type === 'exploration') return 'thread';
+  if (p.type === 'design_record') return p.payload.record_type === 'adr' ? 'tech-decision' : 'decision';
   if (p.type === 'review') {
     const r = p.payload.record as { code?: string } | undefined;
     return CODE_TYPE[r?.code?.slice(0, 3) ?? ''] ?? 'decision';
@@ -75,8 +76,12 @@ export function proposalLine(p: Pick<ProposalView, 'type' | 'payload'>): string 
   if (p.type === 'decision') return str(p.payload.decision);
   if (p.type === 'fdr') return str(p.payload.goal);
   if (p.type === 'review') return str(p.payload.reason);
+  if (p.type === 'design_record') return firstSection(p.payload);
   return '';
 }
+
+const firstSection = (payload: Record<string, unknown>): string =>
+  Array.isArray(payload.sections) ? str((payload.sections[0] as { content?: unknown } | undefined)?.content) : '';
 
 /** Why, in the author's own words: the context of a decision, the goal of a feature, the reason of a review. */
 export function proposalWhy(p: Pick<ProposalView, 'type' | 'payload'>): string {
@@ -124,6 +129,22 @@ export function ProposalBody({
               Based on <RecordChip projectId={projectId} code={based.code} version={based.version ?? null} rows={rows} />
             </div>
           )}
+        </ChangeBox>
+        {criteria.length > 0 && <CheckCards checks={criteria} />}
+      </div>
+    );
+  }
+  if (p.type === 'design_record') {
+    const sections = Array.isArray(p.payload.sections) ? (p.payload.sections as { title: string; content: string }[]) : [];
+    const criteria = Array.isArray(p.payload.criteria) ? (p.payload.criteria as Parameters<typeof CheckCards>[0]['checks']) : [];
+    return (
+      <div className="flex flex-col gap-3">
+        <ChangeBox>
+          {sections.map((s, i) => (
+            <Field key={s.title} label={s.title} mark={i === 0}>
+              {s.content}
+            </Field>
+          ))}
         </ChangeBox>
         {criteria.length > 0 && <CheckCards checks={criteria} />}
       </div>

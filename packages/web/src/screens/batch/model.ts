@@ -102,6 +102,7 @@ export function proposalTitle(p: { type: string; payload: Record<string, unknown
 export const PROPOSAL_TYPE_WORDS: Record<string, string> = {
   decision: 'Decision',
   fdr: 'Feature',
+  design_record: 'Design record',
   exploration: 'Thread',
   review: 'Review',
   imported_record: 'Document',
@@ -109,7 +110,7 @@ export const PROPOSAL_TYPE_WORDS: Record<string, string> = {
 };
 
 /** Which proposals can be approved in the same gesture as accepting them (they create a record). */
-export const APPROVABLE_TYPES = new Set(['decision', 'fdr']);
+export const APPROVABLE_TYPES = new Set(['decision', 'fdr', 'design_record']);
 
 export type EditableField = { key: string; label: string; max: number; multiline: boolean };
 

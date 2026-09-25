@@ -184,6 +184,10 @@ export const TYPE_WORDS: Record<RecordType, string> = {
   adr: 'Tech decision',
   decision: 'Decision',
   bug: 'Bug',
+  requirement: 'Requirement',
+  quality_requirement: 'Quality requirement',
+  threat_model: 'Threat model',
+  production_readiness: 'Production readiness',
 };
 
 export const TYPE_WORDS_PLURAL: Record<RecordType, string> = {
@@ -191,6 +195,10 @@ export const TYPE_WORDS_PLURAL: Record<RecordType, string> = {
   adr: 'Tech decisions',
   decision: 'Decisions',
   bug: 'Bugs',
+  requirement: 'Requirements',
+  quality_requirement: 'Quality requirements',
+  threat_model: 'Threat models',
+  production_readiness: 'Production readiness',
 };
 
 /** Failure kinds of a run, in product words. */

@@ -41,6 +41,23 @@ export const fdrPayload = z
   })
   .strict();
 
+/** A design-stage record (requirement, quality requirement, threat model, production readiness or ADR). */
+export const designRecordPayload = z
+  .object({
+    record_type: z.enum(['requirement', 'quality_requirement', 'threat_model', 'production_readiness', 'adr']),
+    title: text(200),
+    sections: z
+      .array(z.object({ title: text(120), content: text(10_000) }).strict())
+      .min(1)
+      .max(8),
+    criteria: z.array(proposedCriterion).min(1).max(12),
+    domain: z
+      .string()
+      .regex(/^[a-z][a-z_]*$/)
+      .optional(),
+  })
+  .strict();
+
 /** Proposal from the knowledge system: review a record with authority (never a direct change). */
 export const reviewPayload = z
   .object({
@@ -52,13 +69,14 @@ export const reviewPayload = z
   })
   .strict();
 
-export const AGENT_PROPOSAL_TYPES = ['decision', 'exploration', 'fdr'] as const;
+export const AGENT_PROPOSAL_TYPES = ['decision', 'exploration', 'fdr', 'design_record'] as const;
 
 /** Proposal types. `imported_record` and `imported_taxonomy` are only created by the design/ import. */
 export const PAYLOADS = {
   decision: decisionPayload,
   exploration: explorationPayload,
   fdr: fdrPayload,
+  design_record: designRecordPayload,
   review: reviewPayload,
   imported_record: z.object({ document: z.record(z.string(), z.unknown()), path: z.string() }).strict(),
   imported_taxonomy: z.object({ document: z.record(z.string(), z.unknown()), path: z.string() }).strict(),

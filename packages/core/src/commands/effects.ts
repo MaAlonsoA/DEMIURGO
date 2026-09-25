@@ -68,6 +68,22 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
     );
   },
 
+  async design_record(ctx, { proposalId, payload, approve }) {
+    const c = PAYLOADS.design_record.parse(payload);
+    return createRecord(
+      ctx,
+      {
+        type: c.record_type,
+        domain: c.domain ?? 'producto',
+        title: c.title,
+        sections: c.sections,
+        criteria: c.criteria.map((k) => ({ carry: 'new', ...k })),
+        origin: { type: 'proposal', id: proposalId },
+      },
+      approve,
+    );
+  },
+
   // Accepting a review proposed by knowledge doesn't change the record: it opens an
   // exploration to review it, with its origin.
   async review(ctx, { payload }) {

@@ -9,7 +9,16 @@ import type { CheckDraft, LinkInput } from '../new-version/form.ts';
 
 export type { RecordType };
 
-export const WRITABLE_TYPES: readonly RecordType[] = ['decision', 'fdr', 'adr', 'bug'];
+export const WRITABLE_TYPES: readonly RecordType[] = [
+  'decision',
+  'fdr',
+  'adr',
+  'bug',
+  'requirement',
+  'quality_requirement',
+  'threat_model',
+  'production_readiness',
+];
 
 export type RecordForm = {
   type: RecordType;

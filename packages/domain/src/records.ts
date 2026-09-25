@@ -1,16 +1,43 @@
 // Versioned records (decision, FDR, ADR, bug): templates, readiness, epistemic
 // status and verifiability warning. All pure.
 
-export const RECORD_TYPES = ['decision', 'fdr', 'adr', 'bug'] as const;
+export const RECORD_TYPES = [
+  'decision',
+  'fdr',
+  'adr',
+  'bug',
+  'requirement',
+  'quality_requirement',
+  'threat_model',
+  'production_readiness',
+] as const;
 export type RecordType = (typeof RECORD_TYPES)[number];
 
-export const RECORD_PREFIX: Record<RecordType, string> = { decision: 'DEC', fdr: 'FDR', adr: 'ADR', bug: 'BUG' };
+export const RECORD_PREFIX: Record<RecordType, string> = {
+  decision: 'DEC',
+  fdr: 'FDR',
+  adr: 'ADR',
+  bug: 'BUG',
+  requirement: 'REQ',
+  quality_requirement: 'NFR',
+  threat_model: 'THR',
+  production_readiness: 'PRR',
+};
 
 export const RECORD_TEMPLATES: Record<RecordType, { sections: readonly string[]; requiresCriteria: boolean }> = {
   decision: { sections: ['Context', 'Decision', 'Consequences'], requiresCriteria: false },
   adr: { sections: ['Context', 'Options', 'Decision', 'Consequences'], requiresCriteria: true },
   fdr: { sections: ['Goal', 'Scope', 'Out of scope', 'Behavior'], requiresCriteria: true },
   bug: { sections: ['Reproduction', 'Expected', 'Observed'], requiresCriteria: true },
+  // Design stages: a requirement in EARS with its Volere fit criterion; quality scenarios (arc42);
+  // a STRIDE threat model; the production readiness review (KEP PRR, Google SRE).
+  requirement: { sections: ['Statement', 'Rationale', 'Fit criterion'], requiresCriteria: true },
+  quality_requirement: { sections: ['Quality attribute', 'Scenario', 'Measure'], requiresCriteria: true },
+  threat_model: { sections: ['Assets', 'Actors and trust boundaries', 'Threats', 'Mitigations'], requiresCriteria: true },
+  production_readiness: {
+    sections: ['Rollout and rollback', 'Monitoring', 'Failure modes', 'Scalability', 'Support'],
+    requiresCriteria: true,
+  },
 };
 
 export type Section = { title: string; content: string };

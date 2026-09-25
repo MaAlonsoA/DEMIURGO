@@ -55,7 +55,15 @@ export type CommandResponse<R = unknown> = {
 
 export type Readiness = { ready: boolean; reasons: string[]; warnings: string[] };
 
-export type RecordType = 'decision' | 'fdr' | 'adr' | 'bug';
+export type RecordType =
+  | 'decision'
+  | 'fdr'
+  | 'adr'
+  | 'bug'
+  | 'requirement'
+  | 'quality_requirement'
+  | 'threat_model'
+  | 'production_readiness';
 
 export type ProductRow = {
   code: string;

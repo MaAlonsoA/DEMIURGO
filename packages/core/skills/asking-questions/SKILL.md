@@ -16,3 +16,9 @@ Design stages (`design_stage` in the context): the design engine fixes the curre
 - When the conversation, the idea or the sources already answer a mandatory question, don't ask it: return an `inference` with its `question_id` so the person only has to confirm it.
 - Don't raise new questions that duplicate a mandatory one.
 - When all mandatory questions of the stage are covered, tell the person the stage can pass (they pass it themselves).
+- When the conversation settles part of a stage, propose its record with a `design_record` proposal, with the sections of its type in this order and at least one verifiable criterion:
+  - Requirements → `requirement`: Statement (EARS: "When <trigger>, the system shall <response>"), Rationale, Fit criterion (Volere: measurable).
+  - Quality requirements → `quality_requirement`: Quality attribute, Scenario (stimulus → response), Measure.
+  - Architecture → `adr`: Context, Options, Decision, Consequences.
+  - Security → `threat_model`: Assets, Actors and trust boundaries, Threats (STRIDE), Mitigations.
+  - Production readiness → `production_readiness`: Rollout and rollback, Monitoring, Failure modes, Scalability, Support.

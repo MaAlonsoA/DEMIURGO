@@ -31,6 +31,8 @@ import { CaptureIdea, DraftingCard, LaterRows, NewRecordLink, ParkedCard, Progre
 import { draftingRuns, featureStatus, productProgress, workingRuns } from './progress.ts';
 import { FeatureCard, LensFrame, type LensMark, RecordNode, UNDIM } from './RecordCard.tsx';
 
+const STAGE_RECORD_TYPES = new Set(['requirement', 'quality_requirement', 'threat_model', 'production_readiness']);
+
 function Section({ title, count, children }: { title: string; count: number; children: ReactNode }) {
   const id = useId();
   return (
@@ -136,6 +138,7 @@ function Overview({ projectId }: { projectId: string }) {
   const threads = new Map(s.explorations.map((e) => [e.id, e.purpose]));
   const features = s.designs.filter((r) => r.type === 'fdr');
   const bugs = s.designs.filter((r) => r.type === 'bug');
+  const stageRecords = s.designs.filter((r) => STAGE_RECORD_TYPES.has(r.type));
   const decisions = [...s.decisions, ...s.designs.filter((r) => r.type === 'adr')];
   const open = s.explorations.filter((e) => e.open_questions > 0);
   const parked = explorations.filter((e) => e.state === 'set_aside');
@@ -152,7 +155,7 @@ function Overview({ projectId }: { projectId: string }) {
   });
   const waitingByCode = new Map(rows.map((r) => [r.code, waitingCount(waitingOf(r))]));
   const progress = productProgress(rows, (code) => waitingByCode.get(code) ?? 0, runs, drafting.length);
-  const empty = features.length + decisions.length + bugs.length === 0;
+  const empty = features.length + decisions.length + bugs.length + stageRecords.length === 0;
 
   return (
     <Page aside={aside} className="flex flex-col pb-0">
@@ -221,6 +224,16 @@ function Overview({ projectId }: { projectId: string }) {
           <Section title="Decisions and tech decisions" count={decisions.length}>
             <div className="grid grid-cols-2 gap-2.5">
               {decisions.map((row) => (
+                <RecordNode key={row.code} {...props(row)} />
+              ))}
+            </div>
+          </Section>
+        )}
+
+        {stageRecords.length > 0 && (
+          <Section title="Requirements, quality, security and production" count={stageRecords.length}>
+            <div className="grid grid-cols-2 gap-2.5">
+              {stageRecords.map((row) => (
                 <RecordNode key={row.code} {...props(row)} />
               ))}
             </div>

@@ -92,7 +92,7 @@ registerGuards({
   valid_payload: ({ ctx, data }) => {
     const type = trimmed(field(data, 'type'));
     if (!isProposalType(type)) return `Unknown proposal type: "${type}".`;
-    if (ctx.actor.type === 'agent_external' && !['decision', 'exploration', 'fdr'].includes(type)) {
+    if (ctx.actor.type === 'agent_external' && !['decision', 'exploration', 'fdr', 'design_record'].includes(type)) {
       return `An external agent cannot propose "${type}".`;
     }
     // Only the importer proposes what comes from design/: accepting it creates authority with the file's state.

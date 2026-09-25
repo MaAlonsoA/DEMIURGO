@@ -114,6 +114,15 @@ const text = (max: number) => z.string().trim().min(1).max(max);
 
 export const echoOutput = z.object({ reply: text(2000) }).strict();
 
+export const proposedCriterion = z
+  .object({
+    title: text(160),
+    statement: text(1500),
+    verification: z.enum(['automatic', 'manual']),
+    check: text(600),
+  })
+  .strict();
+
 export const explorationChatOutput = z
   .object({
     reply: text(6000),
@@ -139,18 +148,21 @@ export const explorationChatOutput = z
             })
             .strict(),
           z.object({ type: z.literal('exploration'), purpose: text(500) }).strict(),
+          z
+            .object({
+              type: z.literal('design_record'),
+              record_type: z.enum(['requirement', 'quality_requirement', 'threat_model', 'production_readiness', 'adr']),
+              title: text(160),
+              sections: z
+                .array(z.object({ title: text(120), content: text(6000) }).strict())
+                .min(1)
+                .max(8),
+              criteria: z.array(proposedCriterion).min(1).max(12),
+            })
+            .strict(),
         ]),
       )
       .max(5),
-  })
-  .strict();
-
-export const proposedCriterion = z
-  .object({
-    title: text(160),
-    statement: text(1500),
-    verification: z.enum(['automatic', 'manual']),
-    check: text(600),
   })
   .strict();
 

@@ -72,6 +72,7 @@ export function SearchTab({ projectId }: { projectId: string }) {
           <ul aria-label="Results" className="flex flex-col gap-2">
             {hits.map((h) => {
               const record = recordOfRef(h.ref, graph);
+              const thread = h.ref.startsWith('exploration:') ? h.ref.slice('exploration:'.length) : null;
               const type = nodeType(h.type);
               const body = (
                 <>
@@ -81,7 +82,7 @@ export function SearchTab({ projectId }: { projectId: string }) {
                     <span className="tracking-normal normal-case">
                       <EpistemicMark status={h.epistemic_status} withWord />
                     </span>
-                    <Code className="ml-auto tracking-normal normal-case">{h.ref}</Code>
+                    {!thread && <Code className="ml-auto tracking-normal normal-case">{h.ref}</Code>}
                   </span>
                   <strong className="dm-text-body leading-snug font-semibold">{h.title}</strong>
                   {h.excerpt && <span className="dm-text-small line-clamp-2 text-ink-3">{h.excerpt}</span>}
@@ -90,7 +91,15 @@ export function SearchTab({ projectId }: { projectId: string }) {
               const cls = 'dm-card px-4 py-3 text-left';
               return (
                 <li key={h.ref}>
-                  {record ? (
+                  {thread ? (
+                    <Link
+                      to="/p/$projectId/threads/$explorationId"
+                      params={{ projectId, explorationId: thread }}
+                      className={`${cls} hover:border-line-strong`}
+                    >
+                      {body}
+                    </Link>
+                  ) : record ? (
                     <Link
                       to="/p/$projectId/records/$code"
                       params={{ projectId, code: record.code }}

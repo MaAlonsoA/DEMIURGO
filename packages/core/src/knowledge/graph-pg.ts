@@ -45,12 +45,30 @@ export async function loadGraph(db: Db, projectId: string): Promise<Graph> {
   };
 }
 
-/** Text search (FTS "spanish") over current knowledge. */
+/**
+ * Text search over the current knowledge and the project's threads and parked ideas (by their
+ * purpose): the words as written and stemmed in English and in Spanish, most relevant first.
+ */
 export async function searchKnowledge(db: Db, projectId: string, queryText: string, limit = 10) {
   const { rows } = await sql<{ ref: string; kind: string; label: string; body: string; epistemic: string; rank: number }>`
-    select ref, kind, label, left(body, 600) as body, epistemic, ts_rank(search, q) as rank
-    from knowledge_nodes, websearch_to_tsquery('spanish', ${queryText}) q
-    where project_id = ${projectId}::uuid and valid_to is null and search @@ q
+    with q as (
+      select websearch_to_tsquery('simple', ${queryText})
+        || websearch_to_tsquery('english', ${queryText})
+        || websearch_to_tsquery('spanish', ${queryText}) as q
+    ), threads as (
+      select id, state, purpose,
+        to_tsvector('simple', purpose) || to_tsvector('english', purpose) || to_tsvector('spanish', purpose) as search
+      from explorations
+      where project_id = ${projectId}::uuid and state <> 'concluded'
+    )
+    select ref, kind, label, left(body, 600) as body, epistemic, ts_rank(search, q.q) as rank
+    from knowledge_nodes, q
+    where project_id = ${projectId}::uuid and valid_to is null and search @@ q.q
+    union all
+    select 'exploration:' || id, case when state = 'set_aside' then 'idea' else 'thread' end, purpose, left(purpose, 600),
+      'proposed', ts_rank(search, q.q)
+    from threads, q
+    where search @@ q.q
     order by rank desc, ref
     limit ${limit}`.execute(db);
   return rows.map((r) => ({

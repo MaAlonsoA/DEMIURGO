@@ -23,6 +23,12 @@ describe('where a result of the header search goes', () => {
     expect(searchTarget({ ref: 'idea:42', type: 'idea' }, rows)).toBeNull();
     expect(searchTarget({ ref: 'FDR-CAT-001', type: 'fdr' }, rows)).toBeNull();
   });
+
+  it('a thread or a parked idea opens its thread', () => {
+    const id = '01a0d82a-6ea5-7674-a3b1-d5633d6c72bb';
+    expect(searchTarget({ ref: `exploration:${id}`, type: 'idea' }, rows)).toEqual({ thread: id });
+    expect(searchTarget({ ref: `exploration:${id}`, type: 'thread' }, undefined)).toEqual({ thread: id });
+  });
 });
 
 describe('the words of a result that match', () => {

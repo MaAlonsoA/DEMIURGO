@@ -6,15 +6,19 @@
 
 import type { ProductRow } from '../../api/types.ts';
 
-export type SearchTarget = { code: string; v: number; tab?: 'checks' };
+/** A record at a version (its Checks for a check), or a thread (a thread or a parked idea). */
+export type SearchTarget = { code: string; v: number; tab?: 'checks' } | { thread: string };
 
 const RECORD_REF = /^((?:DEC|FDR|ADR|BUG)-[A-Z0-9]{3}-\d{3})@(\d+)$/;
 const CHECK_REF = /^AC-([A-Z0-9]{3}-\d{3})-\d+@(\d+)$/;
+const THREAD_REF = /^exploration:([0-9a-f-]{36})$/;
 
 export function searchTarget(
   hit: { ref: string; type: string },
   rows: readonly Pick<ProductRow, 'code'>[] | undefined,
 ): SearchTarget | null {
+  const thread = THREAD_REF.exec(hit.ref);
+  if (thread?.[1]) return { thread: thread[1] };
   const record = RECORD_REF.exec(hit.ref);
   if (record?.[1]) return { code: record[1], v: Number(record[2]) };
   const check = CHECK_REF.exec(hit.ref);

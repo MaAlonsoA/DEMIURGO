@@ -553,3 +553,22 @@ test('screens of the blueprint: a feature with its rail, its questions, its chec
   await noHorizontalScroll(page);
   await screenshot(page, 8, '07-blueprint-1280-overview');
 });
+
+test('the header search finds a parked idea by the words of its purpose, in another form, and opens its thread', async ({
+  page,
+  person,
+}) => {
+  const projectId = await person.createProject('Search ideas');
+  const idea = (await person.command(projectId, 'exploration.open', { purpose: 'Parking spots for visitors' })).entity_id;
+  await person.command(projectId, 'exploration.set_aside', { reason: 'Later.' }, idea);
+  await page.goto(`/p/${projectId}`);
+  const search = searchOf(page);
+  await search.click();
+  await search.fill('visitor');
+  const hit = page.locator(`[data-search-result="exploration:${idea}"]`);
+  await expect(hit).toContainText('Parking spots for visitors');
+  await expect(hit).toContainText('Idea');
+  await search.press('ArrowDown');
+  await search.press('Enter');
+  await expect(page).toHaveURL((u) => u.pathname.endsWith(`/threads/${idea}`));
+});

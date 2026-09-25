@@ -12,6 +12,9 @@ export const NODE_TYPES: Record<string, { word: string; plural: string; icon: Ic
   fdr: { word: 'Feature', plural: 'Features', icon: 'feature', order: 2 },
   bug: { word: 'Bug', plural: 'Bugs', icon: 'bug', order: 3 },
   criterion: { word: 'Check', plural: 'Checks', icon: 'check', order: 4 },
+  // Search results that are not in the graph: the project's threads and its parked ideas.
+  thread: { word: 'Thread', plural: 'Threads', icon: 'thread', order: 5 },
+  idea: { word: 'Idea', plural: 'Ideas', icon: 'idea', order: 6 },
 };
 
 export function nodeType(type: string): { word: string; plural: string; icon: IconKind; order: number } {

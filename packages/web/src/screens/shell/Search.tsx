@@ -83,6 +83,10 @@ export function Search({ projectId }: { projectId: string }) {
   const go = (target: SearchTarget | null) => {
     if (!target) return;
     clear();
+    if ('thread' in target) {
+      void navigate({ to: '/p/$projectId/threads/$explorationId', params: { projectId, explorationId: target.thread } });
+      return;
+    }
     void navigate({
       to: '/p/$projectId/records/$code',
       params: { projectId, code: target.code },

@@ -1,7 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '../../src/api/client.ts';
-import { Reasons, explain } from '../../src/ui/Reasons.tsx';
+import { explain } from '../../src/components/explain.ts';
+import { ErrorNotice as Reasons } from '../../src/components/Notice.tsx';
 
 describe('reasons of a rejected action', () => {
   it('AC-AGE-002-03 a missing engine names the agent and links to Models & providers', () => {

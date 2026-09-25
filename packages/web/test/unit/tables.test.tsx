@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { actionsFor, canCreate } from '../../src/api/tables.ts';
 import type { Tables } from '../../src/api/types.ts';
-import { ActionButtons } from '../../src/ui/ActionBar.tsx';
+import { ActionButtons } from '../../src/components/actions.tsx';
 
 function testTables(): Tables {
   return {

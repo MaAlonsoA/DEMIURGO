@@ -4,6 +4,8 @@
 import { defineConfig } from '@playwright/test';
 
 const port = Number(process.env.E2E_PORT ?? 8310);
+// E2E_TAG keeps parallel runs apart: their own report and results folder.
+const tag = process.env.E2E_TAG ? `-${process.env.E2E_TAG}` : '';
 
 export default defineConfig({
   testDir: 'test/e2e',
@@ -13,8 +15,8 @@ export default defineConfig({
   fullyParallel: true,
   workers: 3,
   retries: 0,
-  reporter: [['list'], ['junit', { outputFile: '../../reports/junit-e2e.xml' }]],
-  outputDir: '../../reports/e2e-results',
+  reporter: [['list'], ['junit', { outputFile: `../../reports/junit-e2e${tag}.xml` }]],
+  outputDir: `../../reports/e2e-results${tag}`,
   use: {
     baseURL: `http://127.0.0.1:${port}`,
     viewport: { width: 1440, height: 900 },
@@ -29,7 +31,7 @@ export default defineConfig({
     url: `http://127.0.0.1:${port}/api/health`,
     reuseExistingServer: false,
     timeout: 120_000,
-    env: { E2E_PORT: String(port) },
+    env: { E2E_PORT: String(port), ...(process.env.E2E_WEB_ROOT ? { E2E_WEB_ROOT: process.env.E2E_WEB_ROOT } : {}) },
     stdout: 'pipe',
     stderr: 'pipe',
   },

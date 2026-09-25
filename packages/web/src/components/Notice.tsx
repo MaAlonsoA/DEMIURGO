@@ -4,7 +4,7 @@
 // page (the old full-page link lost the New project form). A banner is page-level (degraded
 // states, R76).
 
-import { Link, useParams } from '@tanstack/react-router';
+import { Link, useRouter } from '@tanstack/react-router';
 import { type ReactNode, useEffect, useRef } from 'react';
 import { cn } from '../lib/cn.ts';
 import { Button } from './Button.tsx';
@@ -69,20 +69,28 @@ export function ErrorNotice({
   onRetry,
   focus = true,
   compact,
+  modelsHref,
 }: {
   error: unknown;
   className?: string;
   onRetry?: () => void;
   focus?: boolean;
   compact?: boolean;
+  /** Where "Open Models & providers" goes; by default the open project's, or the workspace's. */
+  modelsHref?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const params = useParams({ strict: false }) as { projectId?: string };
+  // Outside a router (a unit test) the link is a plain anchor.
+  const router = useRouter({ warn: false }) as ReturnType<typeof useRouter> | undefined;
   useEffect(() => {
     if (error && focus) ref.current?.focus();
   }, [error, focus]);
   if (!error) return null;
   const e = explain(error);
+  const path = router?.state.location.pathname ?? (typeof window === 'undefined' ? '' : window.location.pathname);
+  const project = /^\/p\/([^/]+)/.exec(path)?.[1];
+  const href = modelsHref ?? (project ? `/p/${project}/models` : '/models');
+  const linkClass = 'font-medium text-accent-text underline underline-offset-2';
   return (
     <div
       ref={ref}
@@ -106,18 +114,14 @@ export function ErrorNotice({
                 {ENGINE_REASON.test(r) ? (
                   <>
                     {' '}
-                    {params.projectId ? (
-                      <Link
-                        to="/p/$projectId/models"
-                        params={{ projectId: params.projectId }}
-                        className="font-medium text-accent-text underline underline-offset-2"
-                      >
+                    {router ? (
+                      <Link to={href as '/models'} className={linkClass}>
                         Open Models &amp; providers
                       </Link>
                     ) : (
-                      <Link to="/models" className="font-medium text-accent-text underline underline-offset-2">
+                      <a href={href} className={linkClass}>
                         Open Models &amp; providers
-                      </Link>
+                      </a>
                     )}
                   </>
                 ) : null}

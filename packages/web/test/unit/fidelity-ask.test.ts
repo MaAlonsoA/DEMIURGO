@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { Exploration, ExplorationDetail, Message, RunListItem } from '../../src/api/types.ts';
-import { type AskSubject, PRODUCT_PURPOSE, askPlaceholder, askProgress, openThreadData, threadFor } from '../../src/ui/ask.ts';
+import {
+  type AskSubject,
+  PRODUCT_PURPOSE,
+  askPlaceholder,
+  askProgress,
+  openThreadData,
+  threadFor,
+} from '../../src/components/ask.ts';
 
 const at = (m: number) => new Date(Date.UTC(2026, 8, 24, 10, m)).toISOString();
 

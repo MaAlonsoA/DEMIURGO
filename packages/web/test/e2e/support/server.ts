@@ -36,7 +36,8 @@ const adminUrl = process.env.DEMIURGO_TEST_DB_URL ?? 'postgres://demiurgo:demiur
 export const E2E_USER = 'ana';
 export const E2E_PASSWORD = 'long-test-password';
 
-const webRoot = fileURLToPath(new URL('../../../dist', import.meta.url));
+// E2E_WEB_ROOT serves another build (a check build outside dist/, which the live watcher owns).
+const webRoot = process.env.E2E_WEB_ROOT ?? fileURLToPath(new URL('../../../dist', import.meta.url));
 if (!existsSync(webRoot)) throw new Error(`There is no web build in ${webRoot}: run the web build first.`);
 
 function databaseUrl(name: string): string {

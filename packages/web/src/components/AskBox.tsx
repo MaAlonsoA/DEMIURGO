@@ -1,54 +1,39 @@
-// "Ask DEMIURGO about this" (canvas B1 bottom bar, S5A right column; design doc §2): a composer
-// tied to what is on screen. Sending finds the thread of the subject or opens it, posts the message
-// with an answer asked for, and says under the bar how the answer goes. What was written stays
-// when a command fails, with its reasons.
+// "Ask DEMIURGO about this" (DESIGN.md §3.5, §3.6): the conversation as a tool tied to what is on
+// screen — the whole product on the overview, a record on its page — always at the bottom of the
+// side column (R88). It finds the subject's active thread or opens one, posts the message and asks
+// DEMIURGO to answer; under it, how the answer goes and the way to the thread. Enter asks,
+// Shift+Enter adds a line (D-013). The text stays when sending fails.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import {
-  type FormEvent,
-  type KeyboardEvent,
-  type ReactNode,
-  type Ref,
-  useEffect,
-  useId,
-  useImperativeHandle,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react';
+import { type FormEvent, type KeyboardEvent, type Ref, useEffect, useId, useImperativeHandle, useRef, useState } from 'react';
 import { runCommand } from '../api/commands.ts';
 import { explorationQuery, explorationsQuery, keys, runsQuery } from '../api/queries.ts';
 import { canCreate } from '../api/tables.ts';
 import { cn } from '../lib/cn.ts';
 import { useTables } from '../lib/hooks.ts';
-import { type AskSubject, askPlaceholder, askProgress, openThreadData, subjectWords, threadFor } from '../components/ask.ts';
+import { type AskSubject, askPlaceholder, askProgress, openThreadData, subjectWords, threadFor } from './ask.ts';
 import { Button } from './Button.tsx';
-import { ChevronRight } from './icons.tsx';
-import { Mark } from './marks.tsx';
-import { Reasons } from './Reasons.tsx';
-import { WhoGlyph } from './signals.tsx';
+import { TextArea } from './Field.tsx';
+import { ArrowRightIcon, SendIcon } from './icons.tsx';
+import { ErrorNotice } from './Notice.tsx';
+import { StateIcon } from './status.tsx';
+import { WhoAvatar } from './Who.tsx';
 
-export type AskBarHandle = {
-  /** Writes a beginning ("In Checks: ") and puts the cursor after it. */
-  prefill: (text: string) => void;
-};
+export type AskBoxHandle = { prefill: (beginning: string) => void };
 
 type Sent = { explorationId: string; messageId: string; purpose: string };
 
-export function AskBar({
+export function AskBox({
   projectId,
   subject,
-  variant = 'bar',
   className,
   ref,
 }: {
   projectId: string;
   subject: AskSubject;
-  /** bar: one line with its subject (the overview); panel: a box in the right column (a record). */
-  variant?: 'bar' | 'panel';
   className?: string;
-  ref?: Ref<AskBarHandle>;
+  ref?: Ref<AskBoxHandle>;
 }) {
   const tables = useTables();
   const client = useQueryClient();
@@ -66,7 +51,6 @@ export function AskBar({
   };
   useImperativeHandle(ref, () => ({
     prefill(beginning: string) {
-      // The same text again only takes the focus; a new one is written first.
       if (beginning === text) return focusAtEnd();
       caretToEnd.current = true;
       setText(beginning);
@@ -76,13 +60,6 @@ export function AskBar({
     if (!caretToEnd.current) return;
     caretToEnd.current = false;
     focusAtEnd();
-  }, [text]);
-  // The field grows with what is written, up to a few lines.
-  useLayoutEffect(() => {
-    const el = field.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 132)}px`;
   }, [text]);
 
   const send = useMutation({
@@ -130,104 +107,90 @@ export function AskBar({
   const label = `Ask DEMIURGO about ${subjectWords(subject)}`;
 
   return (
-    <div className={cn('flex flex-col gap-2', className)}>
-      {send.error ? <Reasons error={send.error} /> : null}
-      <form
-        aria-label={label}
-        onSubmit={onSubmit}
-        className={cn(
-          // An input of the design system: control radius and border, blue while it is being written in.
-          'flex rounded-control border border-line-strong bg-surface has-[textarea:focus-visible]:border-needs',
-          variant === 'bar' ? 'items-center gap-2.5 py-2 pr-2 pl-3.5 shadow-raised' : 'items-end gap-2.5 py-2.5 pr-2.5 pl-3',
-        )}
-      >
-        {variant === 'bar' ? (
-          <span className="dm-text-caption shrink-0 rounded-tab bg-line-soft px-2 py-[3px] font-semibold text-ink-3">
-            About: whole product
-          </span>
-        ) : (
-          <span className="mb-2.5 flex shrink-0" aria-hidden="true">
-            <WhoGlyph kind="demiurgo" size={20} />
-          </span>
-        )}
+    <section aria-labelledby={`${id}-title`} className={cn('flex flex-col gap-2', className)} data-ask>
+      <h2 id={`${id}-title`} className="flex items-center gap-2 text-base font-semibold text-fg">
+        <WhoAvatar kind="demiurgo" size={20} />
+        {label}
+      </h2>
+      {send.error ? <ErrorNotice error={send.error} compact /> : null}
+      <form aria-label={label} onSubmit={onSubmit} className="flex flex-col gap-2">
         <label htmlFor={id} className="sr-only">
           {label}
         </label>
-        <textarea
+        <TextArea
           id={id}
           ref={field}
+          autoGrow
+          maxRows={8}
+          rows={2}
           value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={onKeyDown}
-          rows={variant === 'bar' ? 1 : 2}
           maxLength={20_000}
           placeholder={askPlaceholder(subject)}
-          className={cn(
-            'min-w-0 flex-1 resize-none bg-transparent text-ink outline-none placeholder:text-muted',
-            variant === 'bar' ? 'dm-text-body py-1.5 leading-snug' : 'dm-text-small py-1 leading-relaxed',
-          )}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={onKeyDown}
         />
-        <Button type="submit" variant="secondary" disabled={send.isPending}>
-          {send.isPending ? 'Sending…' : 'Send'}
-        </Button>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs text-fg-3">Enter asks · Shift Enter for a new line</span>
+          <Button
+            type="submit"
+            size="sm"
+            variant="primary"
+            icon={<SendIcon size={14} />}
+            disabled={empty}
+            pending={send.isPending}
+            pendingLabel="Sending…"
+          >
+            Ask
+          </Button>
+        </div>
       </form>
-      {sent && <AskStatus projectId={projectId} sent={sent} />}
-    </div>
+      {sent ? <AskStatus projectId={projectId} sent={sent} /> : null}
+    </section>
   );
 }
 
-/** How the answer goes, under the bar: amber while DEMIURGO answers, then the way to the thread. */
+/** How the answer goes: working while DEMIURGO answers, then the way to the thread. */
 function AskStatus({ projectId, sent }: { projectId: string; sent: Sent }) {
   const thread = useQuery(explorationQuery(projectId, sent.explorationId));
   const runs = useQuery(runsQuery(projectId, { exploration: sent.explorationId }));
   const progress = askProgress(thread.data, runs.data, sent.messageId);
-  const toThread = (children: ReactNode, className: string) => (
+  const where = (
     <Link
       to="/p/$projectId/threads/$explorationId"
       params={{ projectId, explorationId: sent.explorationId }}
-      className={className}
+      className="font-medium text-fg underline-offset-2 hover:underline"
     >
-      {children}
+      {sent.purpose}
     </Link>
   );
-  const open = toThread(
-    <>
-      Open the thread
-      <ChevronRight size={11} />
-    </>,
-    'inline-flex items-center gap-0.5 font-semibold whitespace-nowrap text-needs-strong hover:underline',
-  );
-  const where = toThread(sent.purpose, 'font-semibold text-ink hover:text-needs-strong');
-  const dot = (
-    <span className="dm-sep" aria-hidden="true">
-      {' · '}
-    </span>
+  const open = (
+    <Link
+      to="/p/$projectId/threads/$explorationId"
+      params={{ projectId, explorationId: sent.explorationId }}
+      className="inline-flex items-center gap-1 font-medium whitespace-nowrap text-accent-text hover:underline"
+    >
+      Open the thread <ArrowRightIcon size={12} />
+    </Link>
   );
   return (
     <p
       role="status"
       data-ask-status={progress.state}
-      className={cn('dm-text-small flex items-start gap-2 px-1 text-ink-2', progress.state === 'failed' && 'text-problem')}
+      className={cn('flex items-start gap-2 text-sm text-fg-2', progress.state === 'failed' && 'text-danger-text')}
     >
       <span className="flex h-5 shrink-0 items-center">
-        {progress.state === 'answering' && <Mark kind="working" size={9} label="Working" />}
-        {progress.state === 'answered' && <Mark kind="done" size={10} label="Answered" />}
-        {progress.state === 'failed' && <Mark kind="problem" size={9} />}
+        <StateIcon kind={progress.state === 'answering' ? 'working' : progress.state === 'answered' ? 'done' : 'problem'} />
       </span>
       <span className="min-w-0 leading-5">
         {progress.state === 'answering' && <>Sent to {where} · DEMIURGO is answering…</>}
         {progress.state === 'answered' && (
           <>
-            DEMIURGO answered in {where}
-            {dot}
-            {open}
+            DEMIURGO answered in {where} · {open}
           </>
         )}
         {progress.state === 'failed' && (
           <>
-            DEMIURGO couldn't answer: {progress.failure}
-            {dot}
-            {open}
+            DEMIURGO couldn't answer: {progress.failure} · {open}
           </>
         )}
       </span>

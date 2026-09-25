@@ -17,6 +17,8 @@ import { Reasons } from '../../ui/Reasons.tsx';
 import { TYPE_WORDS } from '../../words.ts';
 import { CheckEditor, field, titleField } from '../new-version/CheckEditor.tsx';
 import { type CheckDraft, addCheck } from '../new-version/form.ts';
+import { linkTargets } from '../new-version/links.ts';
+import { LinksEditor } from '../new-version/LinksEditor.tsx';
 import { Section } from '../new-version/NewVersion.tsx';
 import {
   type RecordForm,
@@ -193,6 +195,12 @@ export function NewRecordScreen() {
             </Button>
           </section>
         )}
+
+        <LinksEditor
+          targets={linkTargets(state.data)}
+          links={form.links}
+          onChange={(links) => setForm((f) => ({ ...f, links }))}
+        />
       </div>
     </Page>
   );

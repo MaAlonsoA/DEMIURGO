@@ -8,7 +8,7 @@ import { useId, useState } from 'react';
 import { ApiError } from '../../api/client.ts';
 import { useCommand } from '../../api/commands.ts';
 import { inboxQuery, recordQuery, stateQuery } from '../../api/queries.ts';
-import type { RecordDetail, RecordVersion } from '../../api/types.ts';
+import type { ProductState, RecordDetail, RecordVersion } from '../../api/types.ts';
 import { useRouteParams } from '../../lib/hooks.ts';
 import { Button, buttonClass } from '../../ui/Button.tsx';
 import { Code } from '../../ui/Card.tsx';
@@ -20,7 +20,18 @@ import { TYPE_WORDS } from '../../words.ts';
 import { NotFound } from '../not-found/NotFound.tsx';
 import { LINK_WORDS, type VersionRef, baseVersion, versionIndex } from '../record/logic.ts';
 import { CheckEditor, field, titleField } from './CheckEditor.tsx';
-import { type CheckDraft, type VersionForm, addCheck, carriedLinks, initialForm, missing, toCommand } from './form.ts';
+import {
+  type CheckDraft,
+  type LinkInput,
+  type VersionForm,
+  addCheck,
+  carriedLinks,
+  initialForm,
+  missing,
+  toCommand,
+} from './form.ts';
+import { addLink, linkTargets } from './links.ts';
+import { LinksEditor } from './LinksEditor.tsx';
 
 export function NewVersionScreen() {
   const { projectId, code = '' } = useRouteParams();
@@ -54,6 +65,7 @@ export function NewVersionScreen() {
       record={r}
       base={base}
       index={state.data ? versionIndex(state.data, inbox.data) : undefined}
+      state={state.data}
     />
   );
 }
@@ -73,13 +85,16 @@ function NewVersionForm({
   record,
   base: current,
   index,
+  state,
 }: {
   projectId: string;
   record: RecordDetail;
   base: RecordVersion;
   index: Map<string, VersionRef> | undefined;
+  state: ProductState | undefined;
 }) {
   const navigate = useNavigate();
+  const [added, setAdded] = useState<LinkInput[]>([]);
   const command = useCommand<{ versionId: string; version: number; warnings: string[] }>(projectId);
   const [base] = useState(current);
   const [form, setForm] = useState<VersionForm>(() => initialForm(base));
@@ -115,7 +130,7 @@ function NewVersionForm({
   const save = () => {
     if (!ready || !links) return;
     command.mutate(
-      { command: 'record_version.create', data: toCommand(record.id, form, links.carried) },
+      { command: 'record_version.create', data: toCommand(record.id, form, added.reduce(addLink, links.carried)) },
       {
         onSuccess: (r) =>
           void navigate({
@@ -288,6 +303,8 @@ function NewVersionForm({
             </Button>
           </section>
         )}
+
+        <LinksEditor targets={linkTargets(state, record.code)} links={added} onChange={setAdded} />
       </div>
     </Page>
   );

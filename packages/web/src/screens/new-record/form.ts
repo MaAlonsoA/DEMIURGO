@@ -5,7 +5,7 @@
 import { RECORD_TEMPLATES, type RecordType } from '../../../../domain/src/records.ts';
 import type { Section } from '../../api/types.ts';
 import { TYPE_WORDS } from '../../words.ts';
-import type { CheckDraft } from '../new-version/form.ts';
+import type { CheckDraft, LinkInput } from '../new-version/form.ts';
 
 export type { RecordType };
 
@@ -18,6 +18,8 @@ export type RecordForm = {
   sections: Section[];
   checks: CheckDraft[];
   added: number;
+  /** What it is linked to, born with version 1. */
+  links: LinkInput[];
 };
 
 export function blankRecord(type: RecordType): RecordForm {
@@ -28,6 +30,7 @@ export function blankRecord(type: RecordType): RecordForm {
     sections: RECORD_TEMPLATES[type].sections.map((title) => ({ title, content: '' })),
     checks: [],
     added: 0,
+    links: [],
   };
 }
 
@@ -85,5 +88,6 @@ export function toCreateCommand(form: RecordForm) {
       verification: c.verification,
       check: c.check.trim(),
     })),
+    links: form.links,
   };
 }

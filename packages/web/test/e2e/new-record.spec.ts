@@ -1,6 +1,7 @@
 // A record written by hand: a tech decision (ADR) created from the overview, with its template
 // sections and a check, approved in its page and drawn in the Map as a rule.
 
+import { createDecision } from './record-setup.ts';
 import { expect, expectAccessible, test } from './support/fixtures.ts';
 
 test('a tech decision written by hand from the overview is saved as a draft, approved, and shows in the Map', async ({
@@ -71,4 +72,50 @@ test('the new record form works with the keyboard only', async ({ page, person }
   await save.focus();
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL((u) => u.pathname.endsWith('/records/DEC-CLU-001') && u.search === '?v=1');
+});
+
+test('links written by hand are born with their version: a new feature based on a decision, and a new version that adds a conflict', async ({
+  page,
+  person,
+}) => {
+  const projectId = await person.createProject('Hand links');
+  const decision = await createDecision(person, projectId, 'Members only', { approve: true, domain: 'club' });
+  const other = await createDecision(person, projectId, 'Visitors sign up too', { approve: true, domain: 'club' });
+
+  // A new feature, based on the decision.
+  await page.goto(`/p/${projectId}/records/new?type=fdr`);
+  await page.getByLabel('Title', { exact: true }).first().fill('Sign up for an activity');
+  await page.getByLabel('Area').fill('club');
+  for (const section of ['Goal', 'Scope', 'Out of scope', 'Behavior']) {
+    await page.getByLabel(section, { exact: true }).fill(`${section} of signing up.`);
+  }
+  await page.getByRole('button', { name: 'Add a check' }).click();
+  const check = page.locator('ol > li').last();
+  await check.getByLabel('Title').fill('Members sign up');
+  await check.getByLabel(/Statement/).fill('Given a member, when they sign up, then they are on the list.');
+  await check.getByLabel('How it is checked').fill('An end-to-end test signs up a member.');
+  await page.getByLabel('Link type').selectOption({ label: 'Based on' });
+  await page.getByLabel('Links to').selectOption({ label: `${decision.code} v1 · Members only` });
+  await page.getByRole('button', { name: 'Add link' }).click();
+  await expect(page.locator(`[data-new-link="${decision.code}"]`)).toContainText('Based on');
+  await page.getByRole('button', { name: 'Save draft' }).click();
+  await expect(page).toHaveURL((u) => u.pathname.endsWith('/records/FDR-CLU-003') && u.search === '?v=1');
+  await expect(page.locator(`[data-link-target="${decision.code}"]`)).toBeVisible();
+
+  // The decision shows who follows it.
+  await page.goto(`/p/${projectId}/records/${decision.code}`);
+  await expect(page.locator('[data-incoming]')).toContainText('Followed by');
+  await expect(page.locator('[data-incoming]')).toContainText('FDR-CLU-003');
+
+  // A new version of the feature keeps its link and adds a conflict with the other decision.
+  await page.goto(`/p/${projectId}/records/FDR-CLU-003/new-version`);
+  await page.getByLabel('What changed').fill('It conflicts with letting visitors sign up.');
+  await page.getByLabel('Link type').selectOption({ label: 'Conflicts with' });
+  await page.getByLabel('Links to').selectOption({ label: `${other.code} v1 · Visitors sign up too` });
+  await page.getByRole('button', { name: 'Add link' }).click();
+  await page.getByRole('radio', { name: 'Keep' }).first().check();
+  await page.getByRole('button', { name: 'Save draft' }).click();
+  await expect(page).toHaveURL((u) => u.pathname.endsWith('/records/FDR-CLU-003') && u.search === '?v=2');
+  await expect(page.locator(`[data-link-target="${decision.code}"]`)).toBeVisible();
+  await expect(page.locator(`[data-link-target="${other.code}"]`)).toBeVisible();
 });

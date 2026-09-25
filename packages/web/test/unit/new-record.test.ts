@@ -60,6 +60,9 @@ describe('a record written by hand', () => {
         check: 'Count the databases.',
       })),
     };
+    expect(
+      toCreateCommand({ ...filled, links: [{ type: 'based_on', target: { code: 'DEC-PLA-001', version: 1 } }] }).links,
+    ).toEqual([{ type: 'based_on', target: { code: 'DEC-PLA-001', version: 1 } }]);
     expect(toCreateCommand(filled)).toEqual({
       type: 'adr',
       domain: 'platform',
@@ -79,6 +82,7 @@ describe('a record written by hand', () => {
           check: 'Count the databases.',
         },
       ],
+      links: [],
     });
   });
 });

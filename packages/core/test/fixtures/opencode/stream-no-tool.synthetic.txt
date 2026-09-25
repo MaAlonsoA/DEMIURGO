@@ -1,0 +1,46 @@
+data: {"choices":[{"delta":{"content":"","role":"assistant"},"finish_reason":null,"index":0,"logprobs":null}],"created":1790291215,"id":"chatcmpl-0110e122413eda3a","model":"qwen3.8-27b","object":"chat.completion.chunk","usage":null}
+
+: keep-alive
+
+: keep-alive
+
+data: {"choices":[{"delta":{"reasoning_content":"The"},"finish_reason":null,"index":0,"logprobs":null}],"created":1790291215,"id":"chatcmpl-0110e122413eda3a","model":"qwen3.8-27b","object":"chat.completion.chunk","usage":null}
+
+data: {"choices":[{"delta":{"reasoning_content":" user wants me to say \"hello\""},"finish_reason":null,"index":0,"logprobs":null}],"created":1790291215,"id":"chatcmpl-0110e122413eda3a","model":"qwen3.8-27b","object":"chat.completion.chunk","usage":null}
+
+data: {"choices":[{"delta":{"reasoning_content":" in exactly three words. Let"},"finish_reason":null,"index":0,"logprobs":null}],"created":1790291215,"id":"chatcmpl-0110e122413eda3a","model":"qwen3.8-27b","object":"chat.completion.chunk","usage":null}
+
+data: {"choices":[{"delta":{"reasoning_content":" me think of a"},"finish_reason":null,"index":0,"logprobs":null}],"created":1790291215,"id":"chatcmpl-0110e122413eda3a","model":"qwen3.8-27b","object":"chat.completion.chunk","usage":null}
+
+data: {"choices":[{"delta":{"reasoning_content":" simple three-word greeting.\n\n\""},"finish_reason":null,"index":0,"logprobs":null}],"created":1790291215,"id":"chatcmpl-0110e122413eda3a","model":"qwen3.8-27b","object":"chat.completion.chunk","usage":null}
+
+data: {"choices":[{"delta":{"reasoning_content":"Hello there friend"},"finish_reason":null,"index":0,"logprobs":null}],"created":1790291215,"id":"chatcmpl-0110e122413eda3a","model":"qwen3.8-27b","object":"chat.completion.chunk","usage":null}
+
+data: {"choices":[{"delta":{"reasoning_content":"\" - that's three"},"finish_reason":null,"index":0,"logprobs":null}],"created":1790291215,"id":"chatcmpl-0110e122413eda3a","model":"qwen3.8-27b","object":"chat.completion.chunk","usage":null}
+
+data: {"choices":[{"delta":{"reasoning_content":" words.\n\""},"finish_reason":null,"index":0,"logprobs":null}],"created":1790291215,"id":"chatcmpl-0110e122413eda3a","model":"qwen3.8-27b","object":"chat.completion.chunk","usage":null}
+
+data: {"choices":[{"delta":{"reasoning_content":"Hi there"},"finish_reason":null,"index":0,"logprobs":null}],"created":1790291215,"id":"chatcmpl-0110e122413eda3a","model":"qwen3.8-27b","object":"chat.completion.chunk","usage":null}
+
+data: {"choices":[{"delta":{"reasoning_content":" friend"},"finish_reason":null,"index":0,"logprobs":null}],"created":1790291215,"id":"chatcmpl-0110e122413eda3a","model":"qwen3.8-27b","object":"chat.completion.chunk","usage":null}
+
+data: {"choices":[{"delta":{"reasoning_content":"\" - three words.\n\"Hello"},"finish_reason":null,"index":0,"logprobs":null}],"created":1790291215,"id":"chatcmpl-0110e122413eda3a","model":"qwen3.8-27b","object":"chat.completion.chunk","usage":null}
+
+data: {"choices":[{"delta":{"reasoning_content":" to"},"finish_reason":null,"index":0,"logprobs":null}],"created":1790291215,"id":"chatcmpl-0110e122413eda3a","model":"qwen3.8-27b","object":"chat.completion.chunk","usage":null}
+
+data: {"choices":[{"delta":{"reasoning_content":" you"},"finish_reason":null,"index":0,"logprobs":null}],"created":1790291215,"id":"chatcmpl-0110e122413eda3a","model":"qwen3.8-27b","object":"chat.completion.chunk","usage":null}
+
+data: {"choices":[{"delta":{"reasoning_content":"\" - three words.\n\nI'll"},"finish_reason":null,"index":0,"logprobs":null}],"created":1790291215,"id":"chatcmpl-0110e122413eda3a","model":"qwen3.8-27b","object":"chat.completion.chunk","usage":null}
+
+data: {"choices":[{"delta":{"reasoning_content":" go with \"Hello there friend.\""},"finish_reason":null,"index":0,"logprobs":null}],"created":1790291215,"id":"chatcmpl-0110e122413eda3a","model":"qwen3.8-27b","object":"chat.completion.chunk","usage":null}
+
+data: {"choices":[{"delta":{"reasoning_content":"\n"},"finish_reason":null,"index":0,"logprobs":null}],"created":1790291215,"id":"chatcmpl-0110e122413eda3a","model":"qwen3.8-27b","object":"chat.completion.chunk","usage":null}
+
+data: {"choices":[{"delta":{"content":"Hello there, friend."},"finish_reason":null,"index":0,"logprobs":null}],"created":1790291215,"id":"chatcmpl-0110e122413eda3a","model":"qwen3.8-27b","object":"chat.completion.chunk","usage":null}
+
+data: {"choices":[{"delta":{},"finish_reason":"stop","index":0,"logprobs":null}],"created":1790291215,"id":"chatcmpl-0110e122413eda3a","model":"qwen3.8-27b","object":"chat.completion.chunk","usage":null}
+
+data: {"choices":[],"created":1790291215,"id":"chatcmpl-0110e122413eda3a","model":"qwen3.8-27b","object":"chat.completion.chunk","timings":{"cache_n":0,"draft_n":147,"draft_n_accepted":78,"predicted_ms":415.671872,"predicted_n":99,"predicted_per_second":235.76288558683135,"predicted_per_token_ms":4.241549714285714,"prompt_ms":88.460349,"prompt_n":338,"prompt_per_second":3820.920941652627,"prompt_per_token_ms":0.2617170088757396},"usage":{"completion_tokens":99,"completion_tokens_details":{"reasoning_tokens":68},"prompt_tokens":338,"prompt_tokens_details":{"cached_tokens":0},"total_tokens":437}}
+
+data: [DONE]
+

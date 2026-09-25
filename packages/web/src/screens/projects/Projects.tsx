@@ -17,9 +17,14 @@ export function ProjectsScreen() {
           <span className="dm-text-wordmark">DEMIURGO</span>
           <h1 className="dm-text-page-title font-semibold">Your projects</h1>
         </div>
-        <Link to="/new" className={buttonClass('secondary')}>
-          New project
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link to="/models" className="dm-text-body font-medium text-ink-3 hover:text-ink">
+            Models &amp; providers
+          </Link>
+          <Link to="/new" className={buttonClass('secondary')}>
+            New project
+          </Link>
+        </div>
       </div>
       {projects.isPending ? (
         <Loading label="Loading projects" />

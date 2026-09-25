@@ -50,6 +50,7 @@ function record(versions: RecordVersion[]): RecordDetail {
     current,
     implementation: 'not implemented',
     versions: versions.map((v) => ({ ...v, current: v.n === current })),
+    incoming: [],
   };
 }
 

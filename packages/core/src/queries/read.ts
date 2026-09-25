@@ -12,6 +12,7 @@ import {
   epistemicOfProposal,
   epistemicOfVersion,
   readiness,
+  relationOf,
 } from '@demiurgo/domain';
 import type { Db } from '../db/connection.ts';
 import { staleDependencies } from '../commands/proposals.ts';
@@ -365,7 +366,52 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
     current,
     implementation: 'not implemented',
     versions: detail,
+    incoming: await incomingLinks(db, projectId, r.id, r.type),
   };
+}
+
+/**
+ * What connects to a record (FDR-INT-002): the links that other records' shown version (the
+ * current one, or the latest if none is approved) points at any of its versions. A link that a
+ * newer version of the other record dropped no longer connects. Each says the relation the map
+ * draws for it (needs, follows, conflicts, affects), or null for links the map doesn't draw.
+ */
+async function incomingLinks(db: Db, projectId: string, recordId: string, recordType: string) {
+  const rows = await db
+    .selectFrom('links')
+    .innerJoin('record_versions as f', 'f.id', 'links.from_id')
+    .innerJoin('records as fr', 'fr.id', 'f.record_id')
+    .innerJoin('record_versions as t', 't.id', 'links.to_id')
+    .select([
+      'links.id',
+      'links.type',
+      'links.state',
+      'fr.id as from_record',
+      'fr.code as from_code',
+      'fr.type as from_type',
+      'f.n as from_n',
+      'f.title as from_title',
+      't.n as to_n',
+    ])
+    .where('links.project_id', '=', projectId)
+    .where('t.record_id', '=', recordId)
+    .where('fr.id', '<>', recordId)
+    .orderBy('fr.code')
+    .orderBy('links.id')
+    .execute();
+  const shown = new Map<string, number>();
+  for (const id of new Set(rows.map((l) => l.from_record))) {
+    const latest = await db
+      .selectFrom('record_versions')
+      .select('n')
+      .where('record_id', '=', id)
+      .orderBy('n', 'desc')
+      .executeTakeFirstOrThrow();
+    shown.set(id, (await currentOf(db, id)) ?? latest.n);
+  }
+  return rows
+    .filter((l) => shown.get(l.from_record) === l.from_n)
+    .map(({ from_record: _r, ...l }) => ({ ...l, relation: relationOf(l.type, l.from_type, recordType) }));
 }
 
 /** First paragraph of the first section with content, as plain text: the card's one line. */

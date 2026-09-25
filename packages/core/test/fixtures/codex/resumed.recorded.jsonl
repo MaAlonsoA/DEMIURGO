@@ -1,0 +1,4 @@
+{"type":"thread.started","thread_id":"01a0d5cf-6a58-7b02-b809-c7935ef0571b"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"{\"reply\":\"Segunda llamada: continúa la sesión.\"}"}}
+{"type":"turn.completed","usage":{"input_tokens":17863,"cached_input_tokens":7936,"cache_write_input_tokens":0,"output_tokens":49,"reasoning_output_tokens":0}}

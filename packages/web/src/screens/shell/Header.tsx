@@ -1,6 +1,7 @@
 // Header, always visible (spec §3): the design system's Header with DEMIURGO and the project, the
 // sections, and Needs you on the right with its blue count; before it, search, the freshness of
-// the knowledge and the person's menu with "Sign out" (and, with the dev tools on, "Snapshots…").
+// the knowledge and the person's menu with "Models & providers", "Sign out" (and, with the dev
+// tools on, "Snapshots…").
 
 import { Header as DsHeader, type LinkRenderer } from '@demiurgo/design-system';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -22,7 +23,7 @@ type Section = { label: string; to: string; match: RegExp };
 const NEEDS_YOU = 'Needs you';
 
 const SECTIONS: Section[] = [
-  { label: 'Product', to: '/p/$projectId', match: /^\/p\/[^/]+(\/(origins|records)(\/.*)?)?\/?$/ },
+  { label: 'Product', to: '/p/$projectId', match: /^\/p\/[^/]+(\/(origins|records|map|journeys)(\/.*)?)?\/?$/ },
   { label: 'Threads', to: '/p/$projectId/threads', match: /^\/p\/[^/]+\/threads/ },
   { label: 'Knowledge', to: '/p/$projectId/knowledge', match: /^\/p\/[^/]+\/knowledge/ },
   { label: 'Sources', to: '/p/$projectId/sources', match: /^\/p\/[^/]+\/sources/ },
@@ -115,6 +116,7 @@ function Freshness({ projectId }: { projectId: string }) {
 
 function PersonMenu() {
   const person = usePerson();
+  const projectId = useProjectId();
   const devTools = hasDevTools(useQuery(sessionQuery).data);
   const client = useQueryClient();
   const navigate = useNavigate();
@@ -144,6 +146,12 @@ function PersonMenu() {
           className="z-50 min-w-48 animate-fade-in rounded-control border border-line bg-surface p-1 shadow-float"
         >
           <DropdownMenu.Label className="dm-text-caption px-2.5 py-1.5 text-muted">Signed in as {person}</DropdownMenu.Label>
+          <DropdownMenu.Item
+            onSelect={() => void navigate({ to: '/p/$projectId/models', params: { projectId } })}
+            className="dm-text-small cursor-pointer rounded-tab px-2.5 py-1.5 text-ink outline-none data-[highlighted]:bg-line-soft"
+          >
+            Models &amp; providers
+          </DropdownMenu.Item>
           {devTools ? (
             <DropdownMenu.Item
               // Once the menu has closed and given the focus back: then the dialog takes it.
@@ -165,10 +173,16 @@ function PersonMenu() {
   );
 }
 
-/** Subtabs of "Product": Overview and Origins. */
-export function ProductTabs({ active }: { active: 'overview' | 'origins' }) {
+type ProductView = 'overview' | 'map' | 'origins' | 'journeys';
+
+/** Subtabs of "Product" (canvas, step 2): Overview, Map, Origins and Journeys. */
+export function ProductTabs({ active }: { active: ProductView }) {
   const projectId = useProjectId();
-  const item = (key: 'overview' | 'origins', label: string, to: '/p/$projectId' | '/p/$projectId/origins') => (
+  const item = (
+    key: ProductView,
+    label: string,
+    to: '/p/$projectId' | '/p/$projectId/map' | '/p/$projectId/origins' | '/p/$projectId/journeys',
+  ) => (
     <Link
       to={to}
       params={{ projectId }}
@@ -184,7 +198,9 @@ export function ProductTabs({ active }: { active: 'overview' | 'origins' }) {
   return (
     <nav aria-label="Product views" className="mb-6 flex gap-5 border-b border-line">
       {item('overview', 'Overview', '/p/$projectId')}
+      {item('map', 'Map', '/p/$projectId/map')}
       {item('origins', 'Origins', '/p/$projectId/origins')}
+      {item('journeys', 'Journeys', '/p/$projectId/journeys')}
     </nav>
   );
 }

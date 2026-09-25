@@ -6,10 +6,25 @@
 import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
 import { DBOS } from '@dbos-inc/dbos-sdk';
-import { type AgentAction, OUTPUT_SCHEMAS, type AgentResult, agentRun, jsonSchemaOf, system } from '@demiurgo/domain';
+import {
+  type AgentAction,
+  type AgentResult,
+  OUTPUT_SCHEMAS,
+  type ProviderInvocation,
+  type SessionRequest,
+  agentRun,
+  composeInput,
+  composeSystem,
+  isDomainError,
+  jsonSchemaOf,
+  packDelta,
+  system,
+} from '@demiurgo/domain';
 import { sql } from 'kysely';
 import { APPLIERS } from '../actions/appliers.ts';
-import { loadMethod, schemaVersion } from '../agents/methods.ts';
+import { DEFAULT_AGENTS, loadAgentCatalog, schemaVersion } from '../agents/catalog.ts';
+import { callProvider } from '../assignments/calls.ts';
+import { previousSession, saveSession, sessionDirectory, sessionKey } from '../assignments/sessions.ts';
 import { executeCommand, inTransaction } from '../bus/bus.ts';
 import { graphUpToDate } from '../context/graph.ts';
 import type { WorkflowEngine, Services } from '../services.ts';
@@ -25,7 +40,6 @@ export type { WorkflowStarter } from './registry.ts';
 
 const compress = promisify(gzip);
 const ENGINE = system('engine');
-const AGENT_TIME_MS = 180_000;
 
 /**
  * Fixed application version for DBOS: without it, DBOS derives it from the code, and a
@@ -61,7 +75,7 @@ async function dispatchDeferred(): Promise<void> {
     }
   }
 }
-let onStepComplete: ((step: string, id: string) => void) | undefined;
+let onStepComplete: ((step: string, id: string) => void | Promise<void>) | undefined;
 
 function requireServices(): Services {
   return engineServices();
@@ -79,7 +93,23 @@ async function prepare(runId: string, projectId: string): Promise<string> {
   return run.state;
 }
 
-async function invoke(runId: string): Promise<AgentResult> {
+/** How a run talked to its provider: recorded with the run, and the session kept for the thread. */
+export type SessionOutcome = {
+  mode: 'none' | 'fresh' | 'resumed';
+  key: string | null;
+  providerSessionId: string | null;
+  deltaHash: string | null;
+};
+
+export type InvokeResult = AgentResult & { session?: SessionOutcome };
+
+/**
+ * Runs the run's agent on its engine (FDR-AGE-002): composes the prompt, decides the provider
+ * session and calls the provider through the recorder. The session is resumed, sending only the
+ * delta, if the agent keeps one per thread, this is not a retry, the conversation's last run
+ * completed and the new pack only appends to its pack. Otherwise it starts over with the whole pack.
+ */
+async function invoke(runId: string): Promise<InvokeResult> {
   const s = requireServices();
   const run = await s.db.selectFrom('ai_runs').selectAll().where('id', '=', runId).executeTakeFirstOrThrow();
   const pack = await s.db
@@ -88,32 +118,91 @@ async function invoke(runId: string): Promise<AgentResult> {
     .where('id', '=', run.context_pack_id ?? '')
     .executeTakeFirstOrThrow();
   const action = run.action as AgentAction;
-  const [, version] = run.method.split('@');
-  const method = await loadMethod(action, version);
+  const fail = (failureKind: 'infra', message: string): InvokeResult => ({
+    state: 'error',
+    failureKind,
+    message,
+    rawEvents: '',
+    provider: run.provider,
+    model: run.requested_model ?? 'unknown',
+  });
+  const agent = (await loadAgentCatalog()).get(run.agent ?? DEFAULT_AGENTS[action]);
+  if (!agent || run.method !== `${agent.id}@${agent.version}`) {
+    return fail('infra', `The agent ${run.agent ?? action} changed since the run was requested: retry it.`);
+  }
+  const provider = s.providers.get(run.provider);
+  if (!provider) return fail('infra', `${run.provider} isn't available here: retry it with another engine.`);
+  const model = run.requested_model ?? '';
+  const { system: systemPrompt, promptHash } = composeSystem(agent, agent.skillDefinitions);
+  const full = composeInput({ action, packHash: pack.hash, content: pack.content });
+
+  let session: SessionRequest = { mode: 'none' };
+  let key: string | null = null;
+  let input = full;
+  let deltaHash: string | null = null;
+  if (agent.session === 'thread' && provider.sessions) {
+    key = sessionKey({ scope: run.scope, agent: agent.id, version: agent.version, provider: provider.id, model });
+    const directory = sessionDirectory(s.agentSessionsDir, provider.id, key);
+    session = { mode: 'fresh', directory };
+    const previous = run.retry_of ? null : await previousSession(s.db, key);
+    const last = previous
+      ? await s.db
+          .selectFrom('ai_runs')
+          .innerJoin('context_packs', 'context_packs.id', 'ai_runs.context_pack_id')
+          .select(['ai_runs.state', 'context_packs.hash', 'context_packs.content'])
+          .where('ai_runs.id', '=', previous.lastRunId)
+          .executeTakeFirst()
+      : undefined;
+    if (previous && last?.state === 'completed') {
+      const delta = packDelta(last.content, pack.content);
+      if (delta.appendOnly) {
+        session = { mode: 'resumed', directory, id: previous.providerSessionId };
+        input = composeInput({ action, packHash: pack.hash, content: delta.added, continuation: { basePackHash: last.hash } });
+        deltaHash = delta.hash;
+      }
+    }
+  }
+
   const control = new AbortController();
   controllers.set(runId, control);
   try {
-    return await s.agent.execute({
-      runId,
-      action,
-      method: { version: method.id, text: method.text },
-      outputSchema: jsonSchemaOf(action),
-      context: { hash: pack.hash, content: pack.content },
-      budget: { timeMs: AGENT_TIME_MS },
+    const meta = { projectId: run.project_id, runId, agent: agent.id, agentVersion: agent.version, promptHash };
+    const base: Omit<ProviderInvocation, 'input' | 'session'> = {
+      system: systemPrompt,
+      schema: jsonSchemaOf(action),
+      model,
+      effort: run.effort,
+      timeMs: agent.timeLimitSeconds * 1000,
       signal: control.signal,
-    });
-  } catch (e) {
-    return {
-      state: 'error',
-      failureKind: 'infra',
-      message: `The adapter failed: ${String(e)}`,
-      rawEvents: '',
-      provider: s.agent.provider,
-      model: 'unknown',
+      task: { action, context: { hash: pack.hash, content: pack.content } },
     };
+    let result = await callProvider(s.db, provider, meta, { ...base, input, session });
+    let mode = session.mode;
+    if (session.mode === 'resumed' && result.state === 'error' && result.failureKind === 'agent_error') {
+      // The provider may have lost the session: once more from scratch, on the same engine and model.
+      result = await callProvider(s.db, provider, meta, {
+        ...base,
+        input: full,
+        session: { mode: 'fresh', directory: session.directory },
+      });
+      mode = 'fresh';
+      deltaHash = null;
+    }
+    const resumedId = session.mode === 'resumed' && mode === 'resumed' ? session.id : null;
+    const providerSessionId = mode === 'none' ? null : (result.sessionId ?? resumedId);
+    return { ...result, session: { mode, key, providerSessionId, deltaHash } };
+  } catch (e) {
+    return fail('infra', `The adapter failed: ${String(e)}`);
   } finally {
     controllers.delete(runId);
   }
+}
+
+/** The run's session columns, as run.complete and run.fail record them. */
+function sessionData(r: InvokeResult) {
+  return r.session
+    ? { mode: r.session.mode, provider_session_id: r.session.providerSessionId, delta_hash: r.session.deltaHash }
+    : null;
 }
 
 function summarizeErrors(issues: readonly { path: readonly PropertyKey[]; message: string }[]): string {
@@ -123,7 +212,7 @@ function summarizeErrors(issues: readonly { path: readonly PropertyKey[]; messag
     .join('; ');
 }
 
-async function apply(runId: string, projectId: string, r: AgentResult, workflow: string): Promise<string> {
+async function apply(runId: string, projectId: string, r: InvokeResult, workflow: string): Promise<string> {
   const s = requireServices();
   const final = await inTransaction(s, async (execute, trx) => {
     // Same lock order as the bus (project, then entity): no deadlocks.
@@ -158,7 +247,13 @@ async function apply(runId: string, projectId: string, r: AgentResult, workflow:
         await execute({
           ...base,
           command: 'run.fail',
-          data: { failure_kind: r.failureKind, error: r.message, usage: r.usage ?? null, model: r.model },
+          data: {
+            failure_kind: r.failureKind,
+            error: r.message,
+            usage: r.usage ?? null,
+            model: r.model,
+            session: sessionData(r),
+          },
         });
         state = 'failed';
       } else if (schemaVersion(action) !== run.schema_version) {
@@ -171,6 +266,7 @@ async function apply(runId: string, projectId: string, r: AgentResult, workflow:
             error: "The action's output schema changed since the run was requested.",
             usage: r.usage,
             model: r.model,
+            session: sessionData(r),
           },
         });
         state = 'failed';
@@ -181,7 +277,13 @@ async function apply(runId: string, projectId: string, r: AgentResult, workflow:
           await execute({
             ...base,
             command: 'run.fail',
-            data: { failure_kind: 'invalid_output', error: summarizeErrors(v.error.issues), usage: r.usage, model: r.model },
+            data: {
+              failure_kind: 'invalid_output',
+              error: summarizeErrors(v.error.issues),
+              usage: r.usage,
+              model: r.model,
+              session: sessionData(r),
+            },
           });
           state = 'failed';
         } else {
@@ -190,9 +292,23 @@ async function apply(runId: string, projectId: string, r: AgentResult, workflow:
             | undefined;
           if (!applier) throw new Error(`There is no applier for "${action}".`);
           await applier({ trx, execute: (p) => execute({ cause: { run: runId }, ...p }), run, output: v.data });
-          await execute({ ...base, command: 'run.complete', data: { output: v.data, usage: r.usage, model: r.model } });
+          await execute({
+            ...base,
+            command: 'run.complete',
+            data: { output: v.data, usage: r.usage, model: r.model, session: sessionData(r) },
+          });
           state = 'completed';
         }
+      }
+      // The conversation's session now ends at this run: a later run resumes it only if this one completed.
+      if (r.session?.key && r.session.providerSessionId) {
+        await saveSession(trx, {
+          key: r.session.key,
+          projectId,
+          provider: run.provider,
+          providerSessionId: r.session.providerSessionId,
+          runId,
+        });
       }
     }
     await trx
@@ -201,7 +317,7 @@ async function apply(runId: string, projectId: string, r: AgentResult, workflow:
       .execute();
     return state;
   });
-  onStepComplete?.('apply', runId);
+  await onStepComplete?.('apply', runId);
   return final;
 }
 
@@ -235,15 +351,18 @@ async function failForInfrastructure(runId: string, projectId: string, e: unknow
 const runWorkflowRegistered = DBOS.registerWorkflow(runWorkflow, { name: 'demiurgo.run' });
 
 // Durable response to a person's message: waits for knowledge to be up to date and
-// requests the exploration_chat run exactly once (marked in step_completions).
+// requests the exploration_chat run exactly once (marked in step_completions). Knowledge that went
+// stale again since the wait (another update started) is not a reason to drop the answer: the
+// request is not marked and the workflow waits again.
 async function requestResponse(
   workflow: string,
   projectId: string,
   explorationId: string,
   questionId: string | null,
-): Promise<void> {
+  agent: string | null,
+): Promise<'requested' | 'stale'> {
   const s = requireServices();
-  await inTransaction(s, async (execute, trx) => {
+  return inTransaction(s, async (execute, trx) => {
     await sql`select 1 from projects where id = ${projectId}::uuid for update`.execute(trx);
     const done = await trx
       .selectFrom('step_completions')
@@ -251,43 +370,82 @@ async function requestResponse(
       .where('workflow_id', '=', workflow)
       .where('step', '=', 'request')
       .executeTakeFirst();
-    if (done) return;
+    if (done) return 'requested';
+    if (!(await graphUpToDate(trx, projectId)).upToDate) return 'stale';
     const exploration = await trx.selectFrom('explorations').select('state').where('id', '=', explorationId).executeTakeFirst();
     if (exploration?.state === 'active') {
-      await execute({
-        command: 'run.request',
-        actor: system('conversation'),
-        projectId,
-        data: {
-          action: 'exploration_chat',
-          scope: { type: 'exploration', id: explorationId },
-          input: questionId ? { question_id: questionId } : {},
-        },
-      });
+      try {
+        await execute({
+          command: 'run.request',
+          actor: system('conversation'),
+          projectId,
+          data: {
+            action: 'exploration_chat',
+            ...(agent ? { agent } : {}),
+            scope: { type: 'exploration', id: explorationId },
+            input: questionId ? { question_id: questionId } : {},
+          },
+        });
+      } catch (e) {
+        // Knowledge is up to date here, so what is left is the engine: it was checked when the
+        // message was posted, and if it went away since, the answer is not requested (the person
+        // asks again) instead of retrying the workflow forever.
+        if (!isDomainError(e) || !['guard', 'validation'].includes(e.type)) throw e;
+        s.logger.error('The answer to a message was not requested', { exploration: explorationId, reason: e.reasons.join(' ') });
+      }
     }
     await trx
       .insertInto('step_completions')
       .values({ workflow_id: workflow, step: 'request', result: JSON.stringify('ok') })
       .execute();
+    return 'requested';
   });
 }
 
-async function respondWorkflow(projectId: string, explorationId: string, questionId: string | null): Promise<void> {
+/**
+ * How long an answer waits for knowledge updates in flight: real classifiers take minutes (two
+ * calls and the reviewer, each with its own time limit, one update after another). Checked every
+ * 0.5 s during the first minute and every 5 s after.
+ */
+const RESPONSE_PATIENCE_MS = 30 * 60_000;
+
+async function respondWorkflow(
+  projectId: string,
+  explorationId: string,
+  questionId: string | null,
+  agent: string | null = null,
+): Promise<void> {
   const workflow = DBOS.workflowID ?? `response:${explorationId}`;
-  for (let i = 0; i < 120; i++) {
-    const upToDate = await DBOS.runStep(
-      () =>
-        requireServices()
-          .db.transaction()
-          .execute((trx) => graphUpToDate(trx, projectId)),
-      {
-        name: 'freshness',
-      },
-    );
-    if (upToDate.upToDate) break;
-    await DBOS.sleepms(500);
+  let waited = 0;
+  for (;;) {
+    for (;;) {
+      const upToDate = await DBOS.runStep(
+        () =>
+          requireServices()
+            .db.transaction()
+            .execute((trx) => graphUpToDate(trx, projectId)),
+        {
+          name: 'freshness',
+        },
+      );
+      if (upToDate.upToDate || waited >= RESPONSE_PATIENCE_MS) break;
+      const pause = waited < 60_000 ? 500 : 5000;
+      await DBOS.sleepms(pause);
+      waited += pause;
+    }
+    await onStepComplete?.('freshness', workflow);
+    const requested = await DBOS.runStep(() => requestResponse(workflow, projectId, explorationId, questionId, agent ?? null), {
+      name: 'request',
+      ...RETRIES,
+    });
+    if (requested === 'requested') return;
+    if (waited >= RESPONSE_PATIENCE_MS) {
+      requireServices().logger.error('The answer to a message was not requested: knowledge stayed out of date', {
+        exploration: explorationId,
+      });
+      return;
+    }
   }
-  await DBOS.runStep(() => requestResponse(workflow, projectId, explorationId, questionId), { name: 'request', ...RETRIES });
 }
 
 const respondWorkflowRegistered = DBOS.registerWorkflow(respondWorkflow, { name: 'demiurgo.respond' });
@@ -309,12 +467,13 @@ export const dbosEngine: WorkflowEngine = {
   async startAssessment(batchId, projectId) {
     await startOutsideWorkflow(() => starters.assessment(batchId, projectId));
   },
-  async startResponse(messageId, projectId, explorationId, questionId) {
+  async startResponse(messageId, projectId, explorationId, questionId, agent) {
     await startOutsideWorkflow(async () => {
       await DBOS.startWorkflow(respondWorkflowRegistered, { workflowID: `response:${messageId}` })(
         projectId,
         explorationId,
         questionId ?? null,
+        agent ?? null,
       );
     });
   },
@@ -322,7 +481,7 @@ export const dbosEngine: WorkflowEngine = {
 
 export type EngineOptions = {
   /** Only for durability tests: called right after a step is committed. */
-  onStepComplete?: (step: string, id: string) => void;
+  onStepComplete?: (step: string, id: string) => void | Promise<void>;
 };
 
 export type StartedEngine = { services: Services; stop(): Promise<void> };

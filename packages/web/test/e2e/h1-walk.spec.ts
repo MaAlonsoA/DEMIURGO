@@ -4,7 +4,7 @@
 // feature. Everything after the import is done through the UI; the API is only read to wait for
 // DEMIURGO's background work.
 
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import {
   BASE_URL,
   type PersonApi,
@@ -48,50 +48,66 @@ async function settleNeedsYou(page: Page, person: PersonApi, projectId: string):
     }
     const key = (await item.getAttribute('data-need')) ?? '';
     const kind = (await item.getAttribute('data-kind')) ?? '';
-    switch (kind) {
-      case 'version': {
-        const approve = item.getByRole('button', { name: 'Approve', exact: true });
-        const discard = item.getByRole('button', { name: 'Discard', exact: true });
-        // Its actions come from the tables: wait for them before choosing (an earlier draft only offers Discard).
-        await expect(approve.or(discard).first()).toBeVisible();
-        if (await approve.isVisible()) {
-          await approve.click();
-          await confirmIn(page, 'Approve');
-        } else {
-          await discard.click();
-          await confirmIn(page, 'Discard');
-        }
-        break;
-      }
-      case 'conflict':
-        await item.getByRole('button', { name: 'Keep it as it is' }).click();
-        await confirmIn(page, 'Keep it as it is');
-        break;
-      case 'link':
-        await item.getByRole('button', { name: 'Keep', exact: true }).click();
-        break;
-      case 'update':
-        await item.getByRole('button', { name: 'Retry' }).click();
-        break;
-      case 'question': {
-        const confirm = item.getByRole('button', { name: 'Confirm', exact: true });
-        if (await confirm.isVisible()) {
-          await confirm.click();
-          await confirmIn(page, 'Confirm');
-        } else {
-          await item.getByRole('button', { name: 'Answer', exact: true }).click();
-          await page.getByRole('dialog').getByLabel('Conclusion').fill('Settled while walking H1.');
-          await confirmIn(page, 'Answer');
-        }
-        break;
-      }
-      default:
-        throw new Error(`Needs you shows something the H1 walk did not expect: ${kind} (${key})`);
+    // Acts on that thing by its key, not on "the first one": knowledge can put a new conflict on top
+    // between reading it and clicking, and "the first one" would then have none of these buttons.
+    const target = page.locator(`[data-need="${key}"]`);
+    try {
+      await settleOne(page, target, kind, key);
+    } catch (e) {
+      // It went away or changed before the click: look at Needs you again.
+      if (e instanceof Error && e.name === 'TimeoutError') continue;
+      throw e;
     }
-    await expect(page.locator(`[data-need="${key}"]`)).toHaveCount(0);
+    // Under load (three workers share one serial knowledge queue) an approval can wait for the project lock.
+    await expect(target).toHaveCount(0, { timeout: 45_000 });
     done.push(kind);
   }
   throw new Error('Needs you never emptied.');
+}
+
+/** Resolves one thing of Needs you in place; a button that doesn't come in 15 s is a TimeoutError. */
+async function settleOne(page: Page, item: Locator, kind: string, key: string): Promise<void> {
+  const click = (name: string, exact = true) => item.getByRole('button', { name, exact }).click({ timeout: 15_000 });
+  switch (kind) {
+    case 'version': {
+      const approve = item.getByRole('button', { name: 'Approve', exact: true });
+      // Its actions come from the tables: wait for them before choosing (an earlier draft only offers Discard).
+      await expect(approve.or(item.getByRole('button', { name: 'Discard', exact: true })).first()).toBeVisible({
+        timeout: 15_000,
+      });
+      if (await approve.isVisible()) {
+        await click('Approve');
+        await confirmIn(page, 'Approve');
+      } else {
+        await click('Discard');
+        await confirmIn(page, 'Discard');
+      }
+      break;
+    }
+    case 'conflict':
+      await click('Keep it as it is', false);
+      await confirmIn(page, 'Keep it as it is');
+      break;
+    case 'link':
+      await click('Keep');
+      break;
+    case 'update':
+      await click('Retry');
+      break;
+    case 'question': {
+      if (await item.getByRole('button', { name: 'Confirm', exact: true }).isVisible()) {
+        await click('Confirm');
+        await confirmIn(page, 'Confirm');
+      } else {
+        await click('Answer');
+        await page.getByRole('dialog').getByLabel('Conclusion').fill('Settled while walking H1.');
+        await confirmIn(page, 'Answer');
+      }
+      break;
+    }
+    default:
+      throw new Error(`Needs you shows something the H1 walk did not expect: ${kind} (${key})`);
+  }
 }
 
 test('AC-INT-001-01 the H1 walk in the browser: ratify, a thread, a draft, accept the package and approve the feature, then it is Ready to build and Needs you is empty', async ({

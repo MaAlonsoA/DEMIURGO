@@ -28,11 +28,12 @@ export async function startRuntime(config: Config, logger: Logger = consoleLogge
     get clock() {
       return core.services.clock;
     },
-    get agent() {
-      return core.services.agent;
+    get providers() {
+      return core.services.providers;
     },
-    get classifier() {
-      return core.services.classifier;
+    classifierFor: (projectId: string) => core.services.classifierFor(projectId),
+    get agentSessionsDir() {
+      return core.services.agentSessionsDir;
     },
     get engine() {
       return core.services.engine;

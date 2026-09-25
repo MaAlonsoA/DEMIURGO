@@ -26,8 +26,6 @@ const app = await createServer({
 await app.listen({ host: config.host, port: config.port });
 consoleLogger.info('DEMIURGO v2 listening', {
   url: `http://${config.host}:${config.port}`,
-  agent: config.agent,
-  classifier: config.classifier,
   web: existsSync(webRoot) ? webRoot : null,
   dev_tools: config.devTools,
 });

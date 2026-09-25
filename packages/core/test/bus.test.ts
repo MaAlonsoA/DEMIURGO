@@ -96,7 +96,14 @@ describe('command bus', () => {
       data: { action: 'echo', scope: { type: 'project' }, input: { text: 'hello' } },
     });
     const run = await s.db.selectFrom('ai_runs').selectAll().where('id', '=', r.entityId).executeTakeFirstOrThrow();
-    expect(run).toMatchObject({ state: 'queued', action: 'echo', method: 'echo@v1', requested_by: 'human:ana' });
+    expect(run).toMatchObject({
+      state: 'queued',
+      action: 'echo',
+      agent: 'echo',
+      method: expect.stringMatching(/^echo@[0-9a-f]{12}$/),
+      provider: 'simulated',
+      requested_by: 'human:ana',
+    });
     await executeCommand(s, {
       command: 'run.fail',
       actor: system('engine'),

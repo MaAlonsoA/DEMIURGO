@@ -5,9 +5,12 @@
 import { EventEmitter } from 'node:events';
 import { Client } from 'pg';
 
+/** What a notification says: a new event of the log, or progress of a run (`progress` is its id). */
+export type Notification = { id?: string; progress?: string };
+
 export type Broadcaster = {
   /** Resolves once LISTEN is active: after that, the backlog can be read without missing notifications. */
-  subscribe(projectId: string, f: () => void): Promise<() => void>;
+  subscribe(projectId: string, f: (n: Notification) => void): Promise<() => void>;
   close(): Promise<void>;
 };
 
@@ -25,8 +28,13 @@ export function createBroadcaster(url: string): Broadcaster {
       await c.connect();
       c.on('notification', (n) => {
         try {
-          const notification = JSON.parse(n.payload ?? '{}') as { project?: string };
-          if (notification.project) emitter.emit(notification.project);
+          const notification = JSON.parse(n.payload ?? '{}') as { project?: string; id?: string | number; progress?: string };
+          if (notification.project) {
+            emitter.emit(notification.project, {
+              ...(notification.id === undefined ? {} : { id: String(notification.id) }),
+              ...(notification.progress === undefined ? {} : { progress: notification.progress }),
+            });
+          }
         } catch {
           // Unreadable notification: ignored; the client will re-read the event log on the next one.
         }

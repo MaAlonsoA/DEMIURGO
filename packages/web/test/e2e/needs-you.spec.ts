@@ -118,7 +118,7 @@ test('AC-INT-001-11 every kind of thing in the inbox appears in Needs you and is
   // The failed knowledge update, retried.
   const update = first(group(page, 'Knowledge updates that failed'));
   count = await countGoesDown(page, count, async () => {
-    await update.getByRole('button', { name: 'Retry' }).click();
+    await update.getByRole('button', { name: 'Retry', exact: true }).click();
   });
   await expect(group(page, 'Knowledge updates that failed')).toHaveCount(0);
 

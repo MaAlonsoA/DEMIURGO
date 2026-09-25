@@ -33,7 +33,8 @@ test('AC-INT-001-04 just ratified, every record on the overview is Proposed and 
   await expectAccessible(page, 'the overview just ratified');
 
   await start.click();
-  await expect(page).toHaveURL(/\/records\/[A-Z]{3}-[A-Z]{3}-\d{3}\?v=1$/);
+  // The first version to approve: most records are at v1, ADR-AGE-001 at v2.
+  await expect(page).toHaveURL(/\/records\/[A-Z]{3}-[A-Z]{3}-\d{3}\?v=\d+$/);
   await expect(page.getByRole('button', { name: 'Approve' })).toBeVisible();
 });
 

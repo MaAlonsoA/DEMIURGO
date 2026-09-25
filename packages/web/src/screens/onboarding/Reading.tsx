@@ -8,6 +8,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import { useCommand } from '../../api/commands.ts';
+import { useRunProgress } from '../../api/progress.ts';
+import { LiveProgress } from '../run/Engine.tsx';
 import { batchQuery } from '../../api/queries.ts';
 import { canCreate } from '../../api/tables.ts';
 import type { Message, Question, RunListItem } from '../../api/types.ts';
@@ -150,6 +152,7 @@ function ReadingCard({
           <h2 className="dm-text-heading">{headline}</h2>
         </span>
         <span className="flex items-center gap-3">
+          {working && run && <RunProgressLine runId={run.id} now={now} />}
           {working && run && (
             <WorkingMark>
               <span data-run-timer>{runDuration(run, now)}</span>
@@ -346,7 +349,7 @@ function StoppedCard({
               onClick={() =>
                 command.mutate({
                   command: 'run.request',
-                  data: { action: 'exploration_chat', scope: { type: 'exploration', id: explorationId } },
+                  data: { action: 'exploration_chat', agent: 'onboarding', scope: { type: 'exploration', id: explorationId } },
                 })
               }
             >
@@ -398,7 +401,18 @@ export function ReadingStatus({
           </span>
         </WorkingMark>
       </span>
+      {working && run && <RunProgressLine runId={run.id} now={now} />}
       {working && run && <CancelRun projectId={projectId} run={run} />}
     </div>
   );
+}
+
+/** What the engine is doing right now («Thinking… 1,240 tokens · 0:12»), from the live stream. */
+function RunProgressLine({ runId, now }: { runId: string; now: number }) {
+  const progress = useRunProgress(runId);
+  return progress ? (
+    <span className="dm-text-small text-working-text">
+      <LiveProgress progress={progress} now={now} />
+    </span>
+  ) : null;
 }

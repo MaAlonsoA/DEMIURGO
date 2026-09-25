@@ -75,3 +75,12 @@ export function overlap(a: string, b: string): number {
   for (const f of x) if (y.has(f)) common++;
   return common / x.size;
 }
+
+/**
+ * JSON ready to sit between delimiters: `<` and `>` are written with their JSON Unicode escape,
+ * so untrusted data can never close the tag that delimits it. It remains
+ * equivalent JSON.
+ */
+export function delimitedJson(value: unknown, indent = 2): string {
+  return (JSON.stringify(value, null, indent) ?? 'null').replaceAll('<', '\\u003c').replaceAll('>', '\\u003e');
+}

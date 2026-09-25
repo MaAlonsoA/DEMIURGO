@@ -7,6 +7,7 @@ export { CAPABILITIES, TRANSITIONS };
 
 export type CommandName = keyof typeof CAPABILITIES.commands;
 export type QueryName = keyof typeof CAPABILITIES.queries;
+export type SettingName = keyof typeof CAPABILITIES.settings;
 export type EntityName = keyof typeof TRANSITIONS.entities;
 
 type CommandDef = { entity: string; allowed: readonly string[]; decisive: boolean; description: string };
@@ -21,11 +22,13 @@ type EntityDef = {
 
 const commands = CAPABILITIES.commands as Readonly<Record<string, CommandDef>>;
 const queries = CAPABILITIES.queries as Readonly<Record<string, { allowed: readonly string[]; description: string }>>;
+const settings = CAPABILITIES.settings as Readonly<Record<string, { allowed: readonly string[]; description: string }>>;
 const entities = TRANSITIONS.entities as Readonly<Record<string, EntityDef>>;
 
 export const COMMAND_NAMES = Object.keys(commands) as CommandName[];
 export const QUERY_NAMES = Object.keys(queries) as QueryName[];
 export const ENTITY_NAMES = Object.keys(entities) as EntityName[];
+export const SETTING_NAMES = Object.keys(settings) as SettingName[];
 
 export function isCommand(name: string): name is CommandName {
   return Object.hasOwn(commands, name);
@@ -81,6 +84,11 @@ export function allowedForComponent(c: CommandName, actor: { type: string; compo
 
 export function allowedForQuery(q: QueryName, type: ActorTypeWithUnknown): boolean {
   return type !== 'unknown' && (queries[q]?.allowed.includes(type) ?? false);
+}
+
+/** Workspace settings (models and providers): who can change them. */
+export function allowedForSetting(s: SettingName, type: ActorTypeWithUnknown): boolean {
+  return type !== 'unknown' && (settings[s]?.allowed.includes(type) ?? false);
 }
 
 export function isDecisive(c: CommandName): boolean {

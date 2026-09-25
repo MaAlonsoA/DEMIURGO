@@ -285,7 +285,7 @@ test('AC-INT-001-10 Day 1 shows the rust card when DEMIURGO cannot read the idea
   await expect(failed.locator('[data-mark="problem"]')).toHaveCount(1);
   await expectAccessible(page, 'Day 1 when the reading failed');
 
-  await failed.getByRole('button', { name: 'Retry' }).click();
+  await failed.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(page.getByRole('heading', { name: "Here's a first reading of your idea" })).toBeVisible({ timeout: 45_000 });
   const runs = await person.get<Run[]>(`/api/projects/${projectId}/runs?exploration=${explorationId}`);
   expect(runs.map((r) => r.state).sort()).toEqual(['completed', 'failed']);

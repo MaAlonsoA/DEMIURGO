@@ -69,6 +69,7 @@ function minimalTables(): { cap: CapabilitiesTable; trans: TransitionsTable } {
         'doc.approve': { entity: 'doc', allowed: ['human'], decisive: true, description: 'Approve.' },
       },
       queries: {},
+      settings: { 'agent.assign': { allowed: ['human'], description: 'Assign.' } },
     },
     trans: {
       code: 'DAT-TRA-001',
@@ -246,6 +247,14 @@ describe('consistency of the tables', () => {
     const { cap, trans } = minimalTables();
     corrupt(cap, trans);
     expect(structuralInconsistencies(cap, trans)).toContainEqual(expect.stringMatching(error));
+  });
+
+  it('AC-NUC-001-01 a workspace setting can never be allowed for an agent', () => {
+    const { cap, trans } = minimalTables();
+    cap.settings['agent.assign'] = { allowed: ['human', 'agent_run'], description: 'Assign.' };
+    expect(invariantInconsistencies(cap, trans)).toContainEqual(
+      'agent.assign: only people and the system change workspace settings, never an agent.',
+    );
   });
 
   it("AC-NUC-001-01 the invariants fixed in code can't be relaxed by editing the data", () => {

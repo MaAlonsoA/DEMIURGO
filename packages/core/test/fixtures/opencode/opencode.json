@@ -1,0 +1,38 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "qwen-local": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Qwen3.8 local (NInfer)",
+      "options": {
+        "baseURL": "http://127.0.0.1:8080/v1"
+      },
+      "models": {
+        "qwen3.8-27b": {
+          "name": "Qwen3.8-27B NVFP4 (local)",
+          "limit": {
+            "context": 180224,
+            "output": 65536
+          },
+          "options": {
+            "reasoningEffort": "xhigh"
+          },
+          "variants": {
+            "high": {
+              "reasoningEffort": "xhigh"
+            },
+            "medium": {
+              "reasoningEffort": "medium"
+            },
+            "low": {
+              "reasoningEffort": "low"
+            },
+            "xhigh": {
+              "reasoningEffort": "xhigh"
+            }
+          }
+        }
+      }
+    }
+  }
+}

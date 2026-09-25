@@ -325,6 +325,7 @@ function RecordPage({
           version={version}
           thread={thread}
           targets={state ? versionIndex(state, inbox) : undefined}
+          incoming={record.incoming}
         />
       </ReviewArea>
       <ReviewArea part="versions">

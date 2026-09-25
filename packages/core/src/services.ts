@@ -1,14 +1,15 @@
 // Injected dependencies of the core. No global state outside here.
 
-import type { Classifier, AgentPort } from '@demiurgo/domain';
+import type { Classifier } from '@demiurgo/domain';
 import type { Db } from './db/connection.ts';
+import type { ProviderRegistry } from './providers/registry.ts';
 
 export type WorkflowEngine = {
   startRun(runId: string, projectId: string): Promise<void>;
   cancelRun(runId: string): Promise<void>;
   startUpdate(updateId: string, projectId: string): Promise<void>;
   startAssessment(batchId: string, projectId: string): Promise<void>;
-  startResponse(messageId: string, projectId: string, explorationId: string, questionId?: string): Promise<void>;
+  startResponse(messageId: string, projectId: string, explorationId: string, questionId?: string, agent?: string): Promise<void>;
 };
 
 export type Logger = {
@@ -19,8 +20,12 @@ export type Logger = {
 export type Services = {
   db: Db;
   clock: () => Date;
-  agent: AgentPort;
-  classifier: Classifier;
+  /** The engines this process can run: each run resolves its own (FDR-AGE-002). */
+  providers: ProviderRegistry;
+  /** The knowledge classifier of a project: the engine assigned to knowledge_classifier. */
+  classifierFor(projectId: string): Promise<Classifier>;
+  /** Where conversations with a provider session keep their stable folder. */
+  agentSessionsDir: string;
   engine: WorkflowEngine;
   logger: Logger;
 };

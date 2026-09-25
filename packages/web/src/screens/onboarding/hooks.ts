@@ -40,7 +40,7 @@ export function useSend(projectId: string, explorationId: string) {
   const command = useCommand(projectId);
   const send = (text: string, onSent?: () => void) =>
     command.mutate(
-      { command: 'message.post', data: { exploration_id: explorationId, text, respond: true } },
+      { command: 'message.post', data: { exploration_id: explorationId, text, respond: true, agent: 'onboarding' } },
       {
         onSuccess: (r) => {
           live.sent(r.entity_id);

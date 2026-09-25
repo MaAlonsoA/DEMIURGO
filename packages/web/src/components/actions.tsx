@@ -20,6 +20,8 @@ export type ActionHandler = {
   pending?: boolean;
   pendingLabel?: string;
   icon?: ReactNode;
+  /** The command it runs when the key is not one (a second button for the same command). */
+  command?: string;
 };
 
 /** Allowed actions of an entity in a state, for a person. Empty while the tables load. */
@@ -50,12 +52,13 @@ export function ActionButtons({
   size?: ButtonSize;
 }) {
   const allowed = new Map(actions.map((a) => [a.command, a]));
-  const buttons = Object.entries(handlers).flatMap(([command, h]) => {
+  const buttons = Object.entries(handlers).flatMap(([key, h]) => {
+    const command = h?.command ?? key;
     const action = allowed.get(command);
     if (!action || !h) return [];
     return [
       <Button
-        key={command}
+        key={key}
         size={size}
         variant={h.variant ?? (action.decisive ? 'primary' : 'secondary')}
         disabled={h.disabled}

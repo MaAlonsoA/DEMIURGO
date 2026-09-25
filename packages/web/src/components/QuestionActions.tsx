@@ -9,7 +9,7 @@ import { useCommand } from '../api/commands.ts';
 import { cn } from '../lib/cn.ts';
 import { type ActionHandler, ActionBar, useAllows } from './actions.tsx';
 import { announce } from './announce.tsx';
-import { Button, type ButtonSize } from './Button.tsx';
+import type { ButtonSize } from './Button.tsx';
 import { ConfirmDialog, PromptDialog } from './Dialog.tsx';
 import { MoreIcon } from './icons.tsx';
 import { Menu, MenuItem } from './Menu.tsx';
@@ -141,7 +141,7 @@ function useQuestionCommand(projectId: string, q: QuestionLike, onDone?: (what: 
 
 /**
  * The actions of a question as buttons: the main one first (Answer or Confirm), then Change, Park,
- * Drop and Reopen as the tables allow them.
+ * Drop and Reopen as the tables allow them, in that order.
  */
 export function QuestionActions({
   projectId,
@@ -160,7 +160,6 @@ export function QuestionActions({
   hide?: ('answer' | 'confirm' | 'change' | 'park' | 'drop' | 'reopen')[];
 }) {
   const { open, dialogs } = useQuestionCommand(projectId, q, onDone);
-  const allows = useAllows('question', q.state);
   const assumed = q.state === 'inferred';
   const handlers: Record<string, ActionHandler | undefined> = {
     'question.confirm': hide.includes(assumed ? 'confirm' : 'answer')
@@ -168,20 +167,18 @@ export function QuestionActions({
       : assumed
         ? { run: () => open('confirm'), label: 'Confirm', variant: 'primary' }
         : { run: () => open('answer'), label: 'Answer', variant: 'primary' },
+    // "Change" confirms the assumed answer with the person's own words: the same command, right after Confirm.
+    'question.confirm:change':
+      assumed && !hide.includes('change')
+        ? { command: 'question.confirm', run: () => open('change'), label: 'Change', variant: 'secondary' }
+        : undefined,
     'question.postpone': hide.includes('park') ? undefined : { run: () => open('park'), label: 'Park', variant: 'quiet' },
     'question.discard': hide.includes('drop') ? undefined : { run: () => open('drop'), label: 'Drop', variant: 'quiet' },
     'question.reopen': hide.includes('reopen') ? undefined : { run: () => open('reopen'), label: 'Reopen', variant: 'secondary' },
   };
   return (
     <div className={cn('flex flex-col gap-2', className)} data-question-actions={q.id}>
-      <ActionBar entity="question" state={q.state} handlers={handlers} size={size}>
-        {/* "Change" confirms the assumed answer with the person's own words: the same command. */}
-        {assumed && allows('question.confirm') && !hide.includes('change') ? (
-          <Button size={size} variant="secondary" data-command="question.confirm" onClick={() => open('change')}>
-            Change
-          </Button>
-        ) : null}
-      </ActionBar>
+      <ActionBar entity="question" state={q.state} handlers={handlers} size={size} />
       {dialogs}
     </div>
   );

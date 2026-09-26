@@ -355,6 +355,24 @@ describe('saved questions', () => {
     expect(await asked('tokens-by-engine', { since: '2999-01-01' })).toHaveLength(0);
   });
 
+  it('cache-by-provider gives each provider its cache ratio and its resumed sessions since a date', async () => {
+    const rows = await asked('cache-by-provider', { since: 'all' });
+    expect(rows.map((r) => [r.provider, r.calls, r.runs])).toEqual([
+      ['claude', '2', '2'],
+      ['codex', '1', '1'],
+    ]);
+    const claude = rows[0] ?? {};
+    expect(Number(claude.resumed)).toBe(Number(claude.reused) + Number(claude.partial) + Number(claude.lost));
+    expect(await asked('cache-by-provider', { since: '2999-01-01' })).toHaveLength(0);
+  });
+
+  it('context-budget runs per builder and section, filtered by project', async () => {
+    const rows = await asked('context-budget', { project: 'all' });
+    for (const r of rows) expect(Number(r.packs)).toBeGreaterThan(0);
+    expect(await asked('context-budget', { project: '0199b000-0000-7000-8000-00000000aa99' })).toHaveLength(0);
+    await expect(asked('context-budget')).rejects.toThrow('--project');
+  });
+
   it('interventions summarizes each thread: interactions, commands, questions and decisions', async () => {
     const rows = await asked('interventions', { project: BIZ.project });
     const by = Object.fromEntries(rows.map((r) => [r.thread_id as string, r]));

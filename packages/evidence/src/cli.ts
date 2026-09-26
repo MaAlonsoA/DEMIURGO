@@ -8,6 +8,7 @@ import { readConfig } from './config.ts';
 import { ensureMonthPartitions, migrate } from './db/migrator.ts';
 import { deriveAll } from './derive.ts';
 import { startIngestServer } from './ingest/server.ts';
+import { DEFAULT_METABASE_URL, setupMetabase } from './metabase.ts';
 import { replayFile } from './replay.ts';
 import { dropPartitions, parseMonth, rawPartitionsBefore } from './retention.ts';
 
@@ -23,10 +24,13 @@ Subcommands:
                                    without --yes it only lists them
   check --operational <url>        compare the runs of the operational base with the evidence base (read-only)
   ask <question> [--param value]   answer a stored question (packages/evidence/questions/<question>.sql)
+  metabase-setup [--url <url>]     create or update the Metabase admin (evidence@demiurgo.local), the read-only
+                                   connection, the questions and the first dashboard; idempotent
 
 Environment:
   DEMIURGO_EVIDENCE_DATABASE_URL   postgres://evidence:evidence-local@127.0.0.1:55434/demiurgo_evidence by default
   DEMIURGO_EVIDENCE_HOST, DEMIURGO_EVIDENCE_PORT
+  METABASE_URL                     ${DEFAULT_METABASE_URL} by default; the admin password comes from packages/evidence/.env
 `;
 
 export type ParsedArgs = { command: string | undefined; positional: string[]; options: Record<string, string> };
@@ -172,6 +176,17 @@ async function main(argv: string[]): Promise<number> {
         const { columns, rows, header } = await ask(pool, question, options);
         if (header) err(header);
         out(formatTable(columns, rows));
+        return 0;
+      }
+      case 'metabase-setup': {
+        const url = options.url && options.url !== 'true' ? options.url : undefined;
+        const report = await setupMetabase({ url, log: out });
+        const failed = report.cards.filter((c) => c.status !== 'completed');
+        if (failed.length > 0) {
+          err(`${failed.length} card(s) did not run: ${failed.map((c) => c.question).join(', ')}.`);
+          return 1;
+        }
+        out(`Open ${url ?? process.env.METABASE_URL ?? DEFAULT_METABASE_URL} and sign in as evidence@demiurgo.local.`);
         return 0;
       }
       default:

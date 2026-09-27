@@ -19,7 +19,13 @@ Registro de la ejecución de `docs/homelab-macmini-runbook.md` por Claude Code d
 3. **sshd.** Sesión remota activada por `launchctl enable system/com.openssh.sshd` + `bootstrap` (el `systemsetup -setremotelogin on` exige Acceso total al disco para la terminal y falla). Clave `ed25519` generada en el mini para el PC (`~/.ssh/id_ed25519_pc_to_mini`), pública en `authorized_keys`. Después, `/etc/ssh/sshd_config.d/demiurgo.conf` con `PasswordAuthentication no`, `KbdInteractiveAuthentication no`, `AllowUsers marcos`, `PermitRootLogin no`; `sshd -t` en verde y `kickstart -k`. Comprobado desde otra sesión: entra con la clave y con contraseña dice `Permission denied (publickey)`.
 4. **Energía y arranque.** `pmset -a sleep 0 disksleep 0 autorestart 1 womp 1` aplicado. FileVault está desactivado. Inicio de sesión automático de `marcos` activado (`autoLoginUser = marcos`).
 5. **Firewall.** Activado, `sshd` y `sshd-keygen-wrapper` con entrada permitida.
-6. **Cloudflare.** 🖐 Pendiente del token (abajo). `cloudflared` 2026.9.3 instalado.
+6. **Cloudflare (01:24–01:30).** La persona autorizó el dominio en el navegador (`cloudflared tunnel login` → `~/.cloudflared/cert.pem`): zona **`asterion-os.com`** (`182b3602434a727913a8ddc60cacd790`), cuenta `4d64d9faab96990e342332690cf52bad`. Con esa credencial, por CLI:
+   - túnel **`macmini`** `3e2b8c04-ae98-4d04-981e-0d07566dd267` (gestionado en local: `/etc/cloudflared/config.yml` + credenciales `.json`, copia en `~/.cloudflared/`);
+   - CNAME proxied `ssh`, `demiurgo`, `phoenix`, `metabase` y `code`.asterion-os.com → el túnel (no había registros previos con esos nombres; la zona ya tenía `asterion-n8n-docker` como otro túnel y el correo en IONOS, intactos);
+   - ruta de red privada `192.168.1.145/32` para WARP;
+   - LaunchDaemon `com.cloudflare.cloudflared` (`sudo cloudflared service install`). El plist que genera lanza `cloudflared` sin argumentos y con configuración local no arranca el túnel («use cloudflared tunnel run»): se corrigió a `cloudflared --config /etc/cloudflared/config.yml tunnel run`. Conector activo (`darwin_arm64`, borde `mad`). La clave `warp-routing: enabled` del plan no existe en esta versión y se quitó.
+   - **Access no pudo crearse con esa credencial** (`auth.forbidden` en `POST /access/apps`; tampoco lee organizaciones, gateway ni políticas de dispositivo). Como los cinco hostnames respondían ya desde Internet sin ninguna puerta (code-server sin login propio), **el ingress quedó bloqueado en `http_status:403` para todos** hasta que exista Access. 🖐 Hace falta el token de API (abajo).
+   - `.env`: `DEMIURGO_ORIGINS` incluye `https://demiurgo.asterion-os.com` y `METABASE_SITE_URL=https://metabase.asterion-os.com`; la API acepta el `Host` del dominio (401 con `Host: demiurgo.asterion-os.com`).
 7. **code-server.** `~/.config/code-server/config.yaml` (`127.0.0.1:8443`, `auth: none`, `cert: false`), `brew services start code-server`; responde 200 en `http://127.0.0.1:8443`.
 8. **tmux.** `~/.tmux.conf` con `mouse on`, `history-limit 50000`, `focus-events on`.
 9. **Termius y WARP.** 🖐 Pendiente de la persona (abajo). Esperan la organización Zero Trust, que sale del token de Cloudflare.
@@ -37,7 +43,7 @@ Registro de la ejecución de `docs/homelab-macmini-runbook.md` por Claude Code d
 
 ### Pendiente de la persona 🖐
 
-1. **Token de Cloudflare.** Crear en https://dash.cloudflare.com/profile/api-tokens → *Create Token* → *Create Custom Token*, con estos permisos y pegarlo aquí:
+1. **Token de Cloudflare** (lo que la credencial del navegador no cubre: Access, organización Zero Trust, WARP). Crear en https://dash.cloudflare.com/profile/api-tokens → *Create Token* → *Create Custom Token*, con estos permisos y pegarlo aquí:
    - Account · Cloudflare Tunnel · Edit
    - Account · Access: Apps and Policies · Edit
    - Account · Access: Organizations, Identity Providers, and Groups · Edit
@@ -45,7 +51,7 @@ Registro de la ejecución de `docs/homelab-macmini-runbook.md` por Claude Code d
    - Account · Account Settings · Read
    - Zone · DNS · Edit (en la zona del dominio)
    - Zone · Zone · Read
-2. **Correo para Access y WARP**: confirmar con qué correo se entra (será el único autorizado).
+2. **Correo para Access y WARP**: confirmado por la persona, `ma_lonso94@hotmail.com`.
 3. **Clave privada para el PC**: `~/.ssh/id_ed25519_pc_to_mini` hay que copiarla al PC (a `C:\Users\<usuario>\.ssh\id_ed25519_mini`). Mientras no haya Cloudflare, se copia desde la red de casa con `scp` **no** (sshd solo admite clave), así que se entrega por esta sesión cuando la persona lo pida, o se genera una clave nueva en el PC/Termius y se añade su pública.
 4. **Termius y WARP** en el PC y en el iPhone: instrucciones cuando exista la organización Zero Trust (después del token).
 5. **Prueba del corte de luz**: al final de la fase A.
@@ -71,7 +77,7 @@ Registro de la ejecución de `docs/homelab-macmini-runbook.md` por Claude Code d
 - `pnpm install` en el host y `pnpm gate:types` en verde.
 - `pnpm gate:test` con `DEMIURGO_TEST_DB_URL` de `.env` (Postgres real, 55433): 907 pruebas pasan, 13 fallan en 11 ficheros (`changes`, `token-cli`, `walkthrough-s1`, `agent-runs`, `classifier-adapters`, `durability`, `engine`, `providers-claude`, `providers-codex`, `runner`, `views`). Dos son claramente del entorno: la sonda del `runner` espera alcanzar `127.0.0.1:55432` (el Postgres de desarrollo del PC, que aquí no existe) y los adaptadores de proveedores comparan la salida de las versiones instaladas de las CLI. El resto (`WebSearch`, listas de eventos esperadas, el explorador simulado) no tocan nada de lo cambiado en el mini y hay que comprobarlos contra la rama en el PC antes de decidir. No se cambia ninguna prueba; quedan anotadas para revisarlas en la fase C.
 - Codex: en el host ya había sesión (ChatGPT). Dentro del contenedor `api` se reutilizó la misma sesión copiando `~/.codex/auth.json` al volumen `cli-auth`; `codex login status` dentro dice `Logged in using ChatGPT`.
-- Claude dentro del contenedor: 🖐 en marcha en la ventana `tmux` `cli-login` (`docker compose exec api claude auth login`); espera el código que devuelve el navegador.
+- Claude dentro del contenedor: la persona abrió la URL y pegó el código; `Login successful`. Tras `docker compose restart api`, la API descubre `claude: 4 models`, `codex: 7 models` y `simulated` (C.4 hecho, sin ninguna ejecución real).
 - Plugin oficial de Cloudflare para Claude Code instalado (`cloudflare@cloudflare`, skills + MCP `https://mcp.cloudflare.com/mcp`); se activa con `/reload-plugins`. El primer `cloudflared tunnel login` caducó sin autorización en el navegador (`Failed to fetch resource`); se relanza cada vez que se pide a la persona.
 - Las 9 pruebas que fallan fuera del `runner` y los proveedores fallan igual en una segunda pasada y sin ninguna variable de `.env` salvo `DEMIURGO_TEST_DB_URL`: son deterministas en este mini. Quedan para compararlas con el PC.
 - SSE (C.5): la ruta del diario ya escribe un comentario `: heartbeat` cada 15 s (`packages/api/src/server.ts`), por debajo de los 100 s del túnel. Se comprobará por el dominio cuando exista, sin cambios previstos.

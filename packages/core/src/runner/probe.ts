@@ -40,7 +40,6 @@ export const PROBE_CONFIG: ProbeConfig = Object.freeze({
   ],
   tcpTargets: [
     { host: 'host.docker.internal', port: 55432 },
-    { host: 'host.docker.internal', port: 8000 },
     { host: '192.168.65.254', port: 55432 },
     { host: '172.17.0.1', port: 5432 },
     // Docker bridge gateway with the published port of the dev and CI Postgres.

@@ -2,31 +2,20 @@
 
 Este documento lo lee Claude Code **en el mini** para ejecutar el plan de `docs/homelab-macmini-plan.md` de forma autónoma. Claude Code ya está instalado y con sesión iniciada en el mini. Todo lo que puede hacerse desde una terminal del mini o por una API lo hace Claude sin preguntar. Cloudflare se configura por su API con un token; nada se hace en el panel.
 
-## Lo único que la persona hace
+## Lo que hace la persona: dar el objetivo
 
-Antes de pegar el prompt, una vez:
+Nada más. No prepara tokens, ni `sudo`, ni valores. Pega el prompt del final de este documento y responde cuando Claude le pida algo. Claude averigua lo que pueda por sí mismo (la URL del repo con `git remote`, el dominio con la lista de zonas de Cloudflare, la IP del mini con `ipconfig`) y pide lo que no, en el momento en que lo necesita y una sola vez:
 
-1. `sudo` sin contraseña para la cuenta, para que Claude pueda instalar servicios de sistema:
+- **La contraseña de la cuenta del mini**, la primera vez que haga falta `sudo`. Con ella deja `sudo` sin contraseña para el resto (`/etc/sudoers.d/demiurgo`) y activa el inicio de sesión automático.
+- **Un acceso a Cloudflare.** Claude imprime el enlace para crear un token de API con los permisos que necesita (Cloudflare Tunnel, Access: Apps and Policies, Access: Organizations, Zero Trust, DNS de la zona), la persona lo crea con un clic y le pega el token. Si Cloudflare lo permite por enlace de autorización (`cloudflared tunnel login`), Claude lo usa para lo que cubra y pide el token solo para el resto.
+- **Su correo**, para las políticas de Access.
 
-   ```bash
-   echo "demiurgo ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/demiurgo && sudo chmod 440 /etc/sudoers.d/demiurgo
-   ```
+Y durante la ejecución, lo que un proceso en el mini no puede hacer físicamente. Claude lo pide con instrucciones exactas y sigue con lo que no dependa de ello:
 
-2. Un **token de API de Cloudflare** (Mi perfil → Tokens de API → Crear token → personalizado) con estos permisos, que se pega en el prompt y Claude guarda en `~/.config/demiurgo/cloudflare.env` con permisos `0600`:
-   - Account · Cloudflare Tunnel · Edit
-   - Account · Access: Apps and Policies · Edit
-   - Account · Access: Organizations, Identity Providers, and Groups · Edit
-   - Account · Zero Trust · Edit
-   - Zone · DNS · Edit (solo la zona del dominio)
-
-Durante la ejecución, cuatro cosas que un proceso en el mini no puede hacer. Claude las pide en su momento, con instrucciones exactas, y sigue con lo que no depende de ellas:
-
-- 🖐 **Instalar apps en tus dispositivos**: WARP y Termius en el PC y en el iPhone, e iniciar sesión en la organización Zero Trust. Claude te dice qué instalar, con qué correo entrar y qué host crear en Termius; cuando Termius tenga su clave, le pegas la pública.
-- 🖐 **Logins con código de dispositivo**: Codex en el host y las CLI de Claude y Codex dentro del contenedor. Claude imprime la URL y el código; los abres desde el móvil.
+- 🖐 **Instalar apps en sus dispositivos**: WARP y Termius en el PC y en el iPhone, e iniciar sesión en la organización Zero Trust. Claude dice qué instalar, con qué correo entrar y qué host crear en Termius; cuando Termius tenga su clave, la persona le pega la pública.
+- 🖐 **Logins con código de dispositivo**: Codex en el host y las CLI de Claude y Codex dentro del contenedor. Claude imprime la URL y el código; la persona los abre desde el móvil.
 - 🖐 **La prueba del corte de luz**: desconectar el monitor, cortar la corriente un minuto y entrar desde el móvil con datos.
-- 🖐 **Los datos del PC** (fase D): un comando que Claude te dicta para volcar las bases en Windows y copiarlas al mini, y tu confirmación explícita antes del corte.
-
-Fuera de eso, ninguna pregunta.
+- 🖐 **Los datos del PC** (fase D): un comando que Claude dicta para volcar las bases en Windows y copiarlas al mini, y la confirmación explícita antes del corte.
 
 ## Reglas para Claude durante la ejecución
 
@@ -43,12 +32,12 @@ Fuera de eso, ninguna pregunta.
 
 ## Fase A · Acceso
 
-1. Inventario: `sw_vers`, `softwareupdate -l` (instalar actualizaciones con `sudo softwareupdate -ia` si hay), IP por Ethernet (`ipconfig getifaddr en0`), nombre del equipo `macmini` (`sudo scutil --set HostName macmini` y `ComputerName`, `LocalHostName`). Comprobar `sudo -n true` funciona; si no, pedir el paso 1 de arriba.
+1. Inventario: `sw_vers`, `softwareupdate -l` (instalar actualizaciones con `sudo softwareupdate -ia` si hay), IP por Ethernet (`ipconfig getifaddr en0`), nombre del equipo `macmini` (`sudo scutil --set HostName macmini` y `ComputerName`, `LocalHostName`). Comprobar si `sudo -n true` funciona; si no, pedir la contraseña de la cuenta una vez, usarla con `sudo -S` para escribir `/etc/sudoers.d/demiurgo` (`demiurgo ALL=(ALL) NOPASSWD: ALL`, modo 440) y no volver a pedirla.
 2. Homebrew, si no está: instalar sin prompts (`NONINTERACTIVE=1`) y añadir `brew shellenv` a `~/.zprofile`. `brew install git node@24 tmux cloudflared code-server colima docker docker-compose jq`. `corepack enable`. `npm install -g @openai/codex`.
 3. `sshd` solo con claves y solo `demiurgo`: `/etc/ssh/sshd_config.d/demiurgo.conf` con `PasswordAuthentication no`, `KbdInteractiveAuthentication no`, `AllowUsers demiurgo`, `PermitRootLogin no`. **Antes** de aplicarlo, comprobar que `~/.ssh/authorized_keys` tiene al menos una clave (la del PC con la que entró la persona); si no la hay, generar un par `ed25519` en el mini, añadir la pública, y entregar la privada a la persona por la sesión actual para que la guarde en el PC. Aplicar con `sudo launchctl kickstart -k system/com.openssh.sshd` y comprobar desde otra sesión antes de cerrar la actual.
-4. Energía y arranque: `sudo pmset -a sleep 0 disksleep 0 autorestart 1 womp 1`. Comprobar FileVault desactivado (`fdesetup status`); si está activo, anotarlo: desactivarlo es decisión de la persona (`sudo fdesetup disable` lo hace). Inicio de sesión automático: `sudo sysadminctl -autologin set -userName demiurgo -password '<contraseña>'` requiere la contraseña de la cuenta; si Claude no la tiene, es la única pregunta extra de esta fase 🖐.
+4. Energía y arranque: `sudo pmset -a sleep 0 disksleep 0 autorestart 1 womp 1`. Comprobar FileVault desactivado (`fdesetup status`); si está activo, anotarlo: desactivarlo es decisión de la persona (`sudo fdesetup disable` lo hace). Inicio de sesión automático con la misma contraseña ya pedida: `sudo sysadminctl -autologin set -userName demiurgo -password '<contraseña>'`. Comprobar con `defaults read /Library/Preferences/com.apple.loginwindow autoLoginUser`.
 5. Firewall: `sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on` y `--add /usr/sbin/sshd --unblockapp /usr/sbin/sshd`.
-6. Cloudflare por API. Con el token en `CF_API_TOKEN`, obtener el `account_id` (`GET /accounts`) y el `zone_id` del dominio (`GET /zones?name=<dominio>`). Guardar ambos en `~/.config/demiurgo/cloudflare.env`.
+6. Cloudflare por API. Pedir el token a la persona con el enlace `https://dash.cloudflare.com/profile/api-tokens` y la lista exacta de permisos; guardarlo en `~/.config/demiurgo/cloudflare.env` (modo 600) como `CF_API_TOKEN`. Obtener el `account_id` (`GET /accounts`) y las zonas (`GET /zones`): si hay una sola, es el dominio; si hay varias, preguntar cuál. Guardar `account_id` y `zone_id` en el mismo fichero.
    - **Túnel:** `POST /accounts/{account_id}/cfd_tunnel` con `name: macmini` y `config_src: cloudflare`. Guardar el `id` y obtener el token del túnel (`GET /accounts/{account_id}/cfd_tunnel/{id}/token`). `sudo cloudflared service install <token>`; comprobar `sudo launchctl list | grep cloudflared` y `cloudflared tunnel info macmini` o el estado por API (`connections` no vacío).
    - **Ingress:** `PUT /accounts/{account_id}/cfd_tunnel/{id}/configurations` con las reglas: `ssh.<dominio> → ssh://localhost:22`, `demiurgo.<dominio> → http://localhost:8100`, `phoenix.<dominio> → http://localhost:6006`, `metabase.<dominio> → http://localhost:3300`, `code.<dominio> → http://localhost:8443`, y la regla final `http_status:404`.
    - **DNS:** un registro `CNAME` proxied por hostname, apuntando a `<tunnel-id>.cfargotunnel.com` (`POST /zones/{zone_id}/dns_records`).
@@ -102,10 +91,9 @@ Fuera de eso, ninguna pregunta.
 ## Prompt para pegar en Claude Code en el mini
 
 ```
-Lee docs/homelab-macmini-plan.md y docs/homelab-macmini-runbook.md y ejecuta el runbook fase por fase, empezando por la A, de forma 100% autónoma: todo lo que se pueda hacer desde este Mac mini o por la API de Cloudflare lo haces tú, sin preguntarme.
-Solo párate en los pasos 🖐 que un proceso en el mini no puede hacer (instalar apps en mis dispositivos, logins con código de dispositivo, la prueba del corte de luz, volcar los datos del PC): dime exactamente qué hacer y qué devolverte, y mientras tanto sigue con lo que no dependa de ello.
-Mi dominio es <tudominio>. La URL del repositorio es <url>. Mi correo para Cloudflare Access es <correo>. Mi token de API de Cloudflare es <token>. La contraseña de esta cuenta, para el inicio de sesión automático, es <contraseña>.
-Quiero conectarme con Termius desde el PC y el iPhone a través de WARP, y escribir a Claude Code desde la app de Claude con el control remoto: déjalo todo preparado según el runbook.
+Objetivo: convierte este Mac mini en el homelab de DEMIURGO siguiendo docs/homelab-macmini-plan.md y docs/homelab-macmini-runbook.md, fase por fase desde la A, de forma autónoma.
+Yo no configuro nada. Todo lo que se pueda hacer desde este mini o por la API de Cloudflare lo haces tú. Lo que necesites de mí (una contraseña, un token, un login desde el móvil, instalar una app en mis dispositivos, la prueba del corte de luz, los datos del PC) me lo pides en el momento, con instrucciones exactas, y mientras tanto sigues con lo que no dependa de ello.
+Quiero entrar con Termius desde el PC y el iPhone a través de WARP, y escribir a Claude Code desde la app de Claude con el control remoto. Déjalo todo preparado.
 No migres datos ni lances ninguna ejecución real con Claude o Codex sin que te lo confirme en ese momento. No toques demiurgo-stable ni el puerto 8000.
 Al cerrar cada fase, apunta en docs/homelab-macmini-bitacora.md lo que has hecho y lo que queda pendiente de mí, y commitea y sube a origin v2.2.
 ```

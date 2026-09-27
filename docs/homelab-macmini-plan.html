@@ -480,7 +480,7 @@ Destino: un disco USB cifrado en el mini **y** un almacén fuera de casa (Backbl
 
 El plan lo ejecuta **Claude Code desde el propio mini**, siguiendo `docs/homelab-macmini-runbook.md`, de forma autónoma. Claude Code ya está instalado y con sesión en el mini. Cloudflare se configura por su API con un token: túnel, ingress, DNS, red privada para WARP, aplicaciones y políticas de Access. Nada se hace en el panel.
 
-**La persona hace, una vez:** `sudo` sin contraseña para la cuenta (una línea en `sudoers.d`) y un token de API de Cloudflare con permisos de túnel, Access, Zero Trust y DNS de la zona. Los dos van en el prompt del guion, junto con el dominio, la URL del repo, el correo y la contraseña de la cuenta para el inicio de sesión automático.
+**La persona da el objetivo y nada más.** No prepara tokens ni valores: pega el prompt del guion. Claude averigua lo que puede (repo, dominio, IP) y pide en el momento, una sola vez, lo que no: la contraseña de la cuenta la primera vez que necesita `sudo`, un token de Cloudflare con el enlace y los permisos exactos para crearlo con un clic, y el correo para Access.
 
 **Lo que un proceso en el mini no puede hacer**, y Claude pide en su momento sin bloquearse:
 

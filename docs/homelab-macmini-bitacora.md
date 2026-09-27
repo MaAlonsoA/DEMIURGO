@@ -90,6 +90,35 @@ Registro de la ejecución de `docs/homelab-macmini-runbook.md` por Claude Code d
   Resultado final: un texto de `packages/api/src/server.ts` y otro de `packages/web` cambiados en el host se sirven en 8100 al segundo, y al deshacerlos vuelven igual, sin ningún `docker compose` de por medio. Ojo: un editor que escribe con «renombrar sobre el original» (como `sed -i`) no dispara el evento; VS Code y `git checkout` escriben en el sitio y sí.
 - **Navegador del mini.** La persona autorizó a Claude a manejar el navegador para crear el token de Cloudflare. No fue posible: Edge (y Chrome) ignoran `--remote-debugging-port` sobre el perfil por defecto, y macOS (TCC) impide a la terminal leer o copiar ese perfil. Se cerró y reabrió Edge una vez para probarlo (con `--restore-last-session`). El token lo crea la persona con la lista de permisos de arriba.
 
+- **Cloudflare por MCP (01:45).** La persona activó el plugin oficial (`/reload-plugins`) y autorizó el MCP en el navegador. Con él se leyó toda la configuración: la organización Zero Trust **ya existe** (`asterion-os.cloudflareaccess.com`, creada en marzo), con dos proveedores de identidad (One-time PIN y Microsoft Entra de `asterion-os.dev`), una aplicación de Access previa (`Asterion Landing`, `asterion-os.dev`, intacta), Gateway sin proxy TCP y el perfil WARP por defecto con `192.168.0.0/16` excluido del túnel. Pero la sesión OAuth del MCP **no tiene escritura en Access** (`1010 auth.forbidden` al crear aplicaciones) ni puede emitir tokens de API. Queda pendiente el token de API, que se intenta crear desde el propio Chrome de la persona (AppleScript + JavaScript de eventos de Apple, a la espera de sus dos permisos) o que ella cree con la lista de permisos de la fase A.
+- **Lo que se creará en cuanto haya permiso** (todo por API): cinco aplicaciones de Access (`demiurgo`, `phoenix`, `metabase`, `code` como `self_hosted`, `ssh` como tipo `ssh` con terminal en el navegador), cada una con `session_duration 720h`, solo el IdP One-time PIN y una política `allow` para `ma_lonso94@hotmail.com`; la aplicación de tipo `warp` (inscripción de dispositivos) con la misma política; `settings.proxy.tcp = true` en Gateway; y en el split tunnel sustituir la exclusión `192.168.0.0/16` por los 16 bloques que excluyen toda la LAN privada **salvo** `192.168.1.145/32`, para que Termius llegue al mini por WARP también desde casa sin sacar el resto de la red local del PC. Después, el ingress vuelve a los servicios reales.
+
+## Termius y WARP · instrucciones para la persona (se entregan al abrir Access)
+
+Los dos van por la misma puerta: WARP inscrito en la organización Zero Trust **`asterion-os`** con tu correo `ma_lonso94@hotmail.com` (código de un solo uso al correo), y el mini publicado en la red privada del túnel como `192.168.1.145`.
+
+### 1. WARP
+
+- **PC:** instala «Cloudflare WARP» desde https://one.one.one.one (o `winget install Cloudflare.Warp`). Abre WARP → engranaje → *Preferences* → *Account* → **Login with Cloudflare Zero Trust** → nombre de equipo `asterion-os` → se abre el navegador → correo `ma_lonso94@hotmail.com` → pega el código que te llega → *Open WARP*. El botón debe quedar en **Connected** con el texto «Zero Trust».
+- **iPhone:** instala «1.1.1.1: Faster Internet» del App Store. Ábrela → menú ≡ → *Account* → **Login with Cloudflare Zero Trust** (o «Cloudflare One») → `asterion-os` → mismo correo y código → acepta instalar el perfil VPN. Activa el interruptor: debe decir **Connected**.
+
+### 2. Termius
+
+- Instala Termius en el PC (https://termius.com/download) y en el iPhone (App Store). Con la cuenta gratuita valen ambos; la sincronización entre dispositivos es de pago, así que si no la tienes, crea el host y la clave en cada uno.
+- **Clave:** Termius → *Keychain* → *+ Key* → **Generate**: tipo `ed25519`, nombre `mini`, sin frase o con la que quieras. Copia la **clave pública** (empieza por `ssh-ed25519 AAAA…`) y pégamela aquí; la añado a `~/.ssh/authorized_keys` del mini. Si generas una en cada dispositivo, mándame las dos.
+- **Host:** *Hosts* → *+ New Host*: alias `mini`, dirección `192.168.1.145`, puerto `22`, usuario `marcos`, clave `mini`. En *Startup command* (Termius lo llama *Startup snippet* o *Command* según la versión): `tmux attach -t claude || tmux new -s claude`.
+- Con WARP en **Connected**, conecta a `mini`. Entras en la sesión tmux con Claude Code (control remoto) ya en marcha. Si estás en casa y WARP está apagado también entra, porque el mini está en tu red.
+
+### 3. Desde el navegador, sin instalar nada
+
+- `https://code.asterion-os.com`: VS Code completo con terminal (login de Cloudflare Access con tu correo).
+- `https://ssh.asterion-os.com`: terminal SSH renderizada por Cloudflare; usuario `marcos`, autenticación con la clave privada que pegues en el diálogo (Access pide una clave; la del PC, `id_ed25519_pc_to_mini`, sirve).
+- `https://demiurgo.asterion-os.com`, `https://phoenix.asterion-os.com`, `https://metabase.asterion-os.com`: las aplicaciones.
+
+### 4. App de Claude
+
+La sesión `claude --remote-control` del mini aparece en la app de Claude (iPhone) y en https://claude.ai/code como «macmini…». Escríbele desde ahí; si no aparece, en Termius: `~/bin/claude-tmux.sh` y `tmux attach -t claude`.
+
 ## Fase D · Datos — preparado lo que no toca datos
 
 - **Copias (D.4).** `~/bin/backup.sh`: `pg_dump -Fc` de `demiurgo_v2`, `demiurgo_evidence` y `phoenix` desde los contenedores a `~/backups/dumps/<fecha>/` (rotación de 14 días) y `restic` cifrado (`~/backups/restic`, contraseña en `~/.config/demiurgo/restic-password`, `0600`) del repo sin `node_modules`, `.env`, `~/.claude`, `~/.codex`, `~/.ssh`, `~/.config/demiurgo` y los volcados del día, con `keep-daily 14`. LaunchAgent `com.demiurgo.backup` a las 03:00. Primera ejecución a mano: 9 s, tres volcados (139 KB, 128 KB, 260 KB con las bases vacías).

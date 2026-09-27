@@ -12,9 +12,9 @@ Esta rama contiene la v2 hasta la preparación del Hito 1 (H1), solo el backend:
 
 Documentos clave: el plan (`docs/plan-reimplementacion-2026-09-24.md`), el stack (`docs/investigacion-stack-2026-09-24.md`) y el informe de esta fase (`docs/informe-autonomo-v2-h1.md`), con cómo arrancar y probar todo.
 
-```powershell
+```bash
 pnpm install
-pnpm db:up
+pnpm stack:up      # el compose único (compose.yaml): Postgres, API 8100, web, pila de evidencia
 pnpm gate:all
 ```
 

@@ -8,33 +8,29 @@ DEMIURGO anota todo lo que pasa: lo que hace una persona, cada comando, cada eje
 
 ## Arrancar la pila
 
-Tres cosas, en este orden:
+Desde el homelab del Mac mini la pila entera va en el compose único `compose.yaml` (servicios `evidence-db`, `ingestor`, `collector`, `phoenix` y `metabase`), junto con la instancia. Los secretos salen de `.env` en la raíz del repo.
 
-```powershell
-pnpm evidence:up            # Postgres de evidencia y Colector, proyecto compose demiurgo-evidence
-pnpm evidence migrate       # aplica las migraciones y crea las particiones del mes y del siguiente
-pnpm evidence serve         # el ingestor, en su propia terminal; se queda escuchando
+```bash
+pnpm stack:up                                          # docker compose up -d --build --wait: todo, evidencia incluida
+docker compose logs -f ingestor                        # el ingestor: una línea JSON por lote confirmado (receipt) y otra por partición creada
+docker compose exec api pnpm evidence migrate          # una migración nueva sin reiniciar el ingestor (serve migra al arrancar)
+docker compose run --rm api pnpm evidence metabase-setup   # el cuadro de mando: la primera vez y cuando cambie una pregunta guardada
 ```
 
-`serve` migra también, así que `migrate` solo hace falta suelto cuando quieras aplicar una migración nueva sin reiniciar el ingestor. El ingestor escribe una línea JSON por cada lote que confirma (`receipt`) y otra cuando crea particiones.
-
-La primera vez, y cada vez que cambie una pregunta guardada, deja también listo el cuadro de mando: `pnpm evidence metabase-setup` (ver [Metabase](#metabase)). Se puede repetir sin miedo: actualiza, no duplica.
-
-Para parar: cierra la terminal del ingestor (Ctrl+C) y `pnpm evidence:down`. Los volúmenes se quedan; `pnpm evidence:down` no borra nada.
+`metabase-setup` se puede repetir sin miedo: actualiza, no duplica. Para parar: `pnpm stack:down`. Los volúmenes se quedan; solo `docker compose down -v` los borra.
 
 ### Puertos
 
 | Puerto | Qué | Dónde |
 |---|---|---|
-| 55434 | Postgres de evidencia, base `demiurgo_evidence` | contenedor `demiurgo-evidence-postgres-1` |
-| 4317 | Colector, OTLP por gRPC | contenedor `demiurgo-evidence-collector-1` |
-| 4318 | Colector, OTLP por HTTP (lo que usa DEMIURGO y las CLI) | ídem |
-| 13133 | Salud del Colector: `curl -s http://127.0.0.1:13133/` | ídem |
-| 4319 | El ingestor (`pnpm evidence serve`) | proceso en el host |
-| 6006 | Phoenix, el visor | contenedor `demiurgo-evidence-phoenix-1` |
-| 3300 | Metabase, el cuadro de mando | contenedor `demiurgo-evidence-metabase-1` |
+| 55434 | Postgres de evidencia, bases `demiurgo_evidence` y `phoenix` | contenedor `demiurgo-evidence-db-1` |
+| 4318 | Colector, OTLP por HTTP (lo que usan las CLI del host; DEMIURGO le habla por la red del compose) | contenedor `demiurgo-collector-1` |
+| — | Colector OTLP por gRPC (4317) y salud (13133): solo en la red del compose (`docker compose exec api curl -s http://collector:13133/`) | ídem |
+| — | El ingestor (`pnpm evidence serve`), 4319 solo en la red del compose | contenedor `demiurgo-ingestor-1` |
+| 6006 | Phoenix, el visor | contenedor `demiurgo-phoenix-1` |
+| 3300 | Metabase, el cuadro de mando | contenedor `demiurgo-metabase-1` |
 
-Todo escucha solo en 127.0.0.1. La base se abre con `postgres://evidence:evidence-local@127.0.0.1:55434/demiurgo_evidence`; para mirar sin poder tocar existe el rol `evidence_reader` (contraseña `evidence-reader`), que es el que usa Metabase.
+Todo escucha solo en 127.0.0.1 del mini; desde fuera se llega por Cloudflare (`phoenix.<dominio>`, `metabase.<dominio>`). La base se abre con `postgres://evidence:<EVIDENCE_DB_PASSWORD>@127.0.0.1:55434/demiurgo_evidence`; para mirar sin poder tocar existe el rol `evidence_reader` (contraseña `EVIDENCE_READER_PASSWORD`), que es el que usa Metabase. Los valores están en `.env` y en `~/.config/demiurgo/secrets.md`.
 
 ## Variables de las instancias 8100 y 8101
 
@@ -107,8 +103,8 @@ Las vistas de detrás (`v_decision_effort`, `v_interaction_summary`, `v_session_
 El Colector no pierde nada: tiene una cola persistente y reintenta hasta que el ingestor confirma. Además guarda la copia bruta en el archivo en ficheros. Si por lo que sea hay que ponerse al día desde el archivo (una base de evidencia restaurada, una cola que se descartó), se reproduce; es idempotente, así que reproducir dos veces no duplica nada:
 
 ```powershell
-docker cp demiurgo-evidence-collector-1:/archive .\archive-copia
-pnpm evidence replay .\archive-copia\otlp.jsonl        # y los rotados: otlp-2026-09-26T…jsonl
+docker cp demiurgo-collector-1:/archive ./archive-copia
+docker compose exec api pnpm evidence replay ./archive-copia/otlp.jsonl   # y los rotados: otlp-2026-09-26T…jsonl
 ```
 
 Cada línea del archivo es una petición de exportación entera y va en su propia transacción, con su recibo `replay:<fichero>` en `ingest_receipts`.
@@ -118,7 +114,7 @@ Cada línea del archivo es una petición de exportación entera y va en su propi
 Compara las ejecuciones de la base operativa con las que describe la evidencia, sin escribir en ninguna de las dos:
 
 ```powershell
-pnpm evidence check --operational "$DEMIURGO_DATABASE_URL"   # la misma URL con la que se lanza la instancia (compose.instance.yaml: usuario demiurgo, base demiurgo_v2 en 55433)
+docker compose exec api sh -c 'pnpm evidence check --operational "$DEMIURGO_DATABASE_URL"'   # la misma URL con la que corre la instancia (servicio postgres, usuario demiurgo, base demiurgo_v2)
 ```
 
 Lista las que faltan en la evidencia (código de salida 1 si hay alguna) y las que solo están en la evidencia. Lo segundo es normal después de restaurar una instantánea de DEMIURGO: la caja negra recuerda ejecuciones que la base operativa ya no conoce.
@@ -146,27 +142,27 @@ Nunca toca spans, comandos, ejecuciones, llamadas, textos ni evaluaciones. El ar
 
 ## Copia de seguridad
 
-Dos cosas: la base y el archivo en ficheros. Con la pila arrancada, desde PowerShell:
+Dos cosas: la base y el archivo en ficheros. Con la pila arrancada, desde la terminal del mini:
 
-```powershell
+```bash
 # 1. La base de evidencia, con pg_dump desde dentro del contenedor
-docker exec demiurgo-evidence-postgres-1 pg_dump -U evidence -Fc demiurgo_evidence > .\evidencia-2026-09-26.dump
+docker exec demiurgo-evidence-db-1 pg_dump -U evidence -Fc demiurgo_evidence > ./evidencia-2026-09-26.dump
 
-# 2. El archivo en ficheros del Colector (volumen demiurgo-evidence_evidence-archive)
-docker run --rm -v demiurgo-evidence_evidence-archive:/archive -v "${PWD}:/backup" alpine tar czf /backup/evidencia-archivo-2026-09-26.tgz -C /archive .
+# 2. El archivo en ficheros del Colector (volumen demiurgo_evidence-archive)
+docker run --rm -v demiurgo_evidence-archive:/archive -v "${PWD}:/backup" alpine tar czf /backup/evidencia-archivo-2026-09-26.tgz -C /archive .
 ```
 
-Para restaurar la base en una pila nueva: `pnpm evidence:up`, y después `docker exec -i demiurgo-evidence-postgres-1 pg_restore -U evidence -d demiurgo_evidence --clean --if-exists < .\evidencia-2026-09-26.dump`. Para el archivo, el mismo `docker run` con `tar xzf` hacia `/archive`. Si solo se tiene el archivo, `pnpm evidence replay` reconstruye la base entera.
+Para restaurar la base en una pila nueva: `pnpm stack:up`, y después `docker exec -i demiurgo-evidence-db-1 pg_restore -U evidence -d demiurgo_evidence --clean --if-exists < ./evidencia-2026-09-26.dump`. Para el archivo, el mismo `docker run` con `tar xzf` hacia `/archive`. Si solo se tiene el archivo, `pnpm evidence replay` reconstruye la base entera.
 
-`pnpm snap`, `pnpm db:down -v` y los `docker compose down -v` de los otros proyectos no tocan estos volúmenes. `docker compose -f compose.evidence.yaml down -v` sí los borra: no lo uses sin copia.
+`pnpm snap` y `pnpm stack:down` no tocan estos volúmenes. `docker compose down -v` borra los nueve volúmenes del compose, la base real incluida: no lo uses sin copia.
 
 ## Phoenix
 
-En http://127.0.0.1:6006 (usuario `admin@localhost`, contraseña `PHOENIX_ADMIN_PASSWORD` de `packages/evidence/.env`). Enseña cada interacción como una línea de tiempo: la raíz del API, los comandos, los pasos del motor y dentro la llamada al modelo con sus tokens, y colgadas de ella las peticiones que Claude Code o Codex hacen por su cuenta a su API, con sus tokens de caché. Es una copia recortada (sin `usage.raw`, atributos limitados a 64 000 caracteres): sirve para mirar, no para contar. Si un día sobra, se apaga y no se pierde nada.
+En http://127.0.0.1:6006 (usuario `admin@localhost`, contraseña `PHOENIX_ADMIN_PASSWORD` de `.env`). Enseña cada interacción como una línea de tiempo: la raíz del API, los comandos, los pasos del motor y dentro la llamada al modelo con sus tokens, y colgadas de ella las peticiones que Claude Code o Codex hacen por su cuenta a su API, con sus tokens de caché. Es una copia recortada (sin `usage.raw`, atributos limitados a 64 000 caracteres): sirve para mirar, no para contar. Si un día sobra, se apaga y no se pierde nada.
 
 ## Metabase
 
-El cuadro de mando, en http://127.0.0.1:3300. Entra como `evidence@demiurgo.local` con la contraseña `METABASE_ADMIN_PASSWORD` de `packages/evidence/.env` (la genera `pnpm evidence:up`; a un `.env` anterior a esta fase se la añade sola). Metabase pidió un dominio con punto, así que la cuenta no pudo ser `evidence@localhost`.
+El cuadro de mando, en http://127.0.0.1:3300. Entra como `evidence@demiurgo.local` con la contraseña `METABASE_ADMIN_PASSWORD` de `.env`. Metabase pidió un dominio con punto, así que la cuenta no pudo ser `evidence@localhost`.
 
 Lo deja listo, y lo pone al día, un solo comando:
 
@@ -198,7 +194,7 @@ Los filtros de las preguntas (`Project`, `Since`, `Run`) son variables de la con
 
 ## Comprobado el 26-09-2026
 
-Con la pila entera arrancada (`pnpm evidence:up` con Metabase `v0.63.18.2` fijada por digest) y el ingestor en marcha, sin ninguna llamada real a Claude ni a Codex:
+Con la pila entera arrancada (entonces `pnpm evidence:up`, hoy `pnpm stack:up`; Metabase `v0.63.18.2` fijada por digest) y el ingestor en marcha, sin ninguna llamada real a Claude ni a Codex:
 
 - `pnpm evidence migrate` aplicó `0002_context_budget` y `0003_cli_telemetry` a la base de evidencia real (`0001` y `0004` ya estaban); el ingestor vació la cola del Colector (9 recibos al arrancar, sin errores).
 - `interactions` tenía 58 filas: 47 `system` y 3 `cli` de la instancia 8100 (etiqueta `dev`, porque su lanzador aún no fija `DEMIURGO_ENVIRONMENT`), 1 `cli` de `test` y 7 sin metadatos (comandos `project.create` cuyo span raíz no llegó con su registro de interacción). `spans`: 86, ninguno con padre perdido; los `command run.request` cuelgan del span `interaction create-project` y los comandos anidados de `run.prepare` y `run.apply`. `runs`: 3, `provider_calls`: 3 (todas `simulated`), `commands`: 20.

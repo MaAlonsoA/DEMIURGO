@@ -30,12 +30,11 @@ reglas anulan las de `AGENTS.md` y las de cualquier skill.
   - Nunca hagas push a `v2` ni a `main`, ni merge.
   - `git log --oneline v2..v2.1` es el registro de parches.
 - **Instancia 8100.**
-  - Se recarga sola:
-    - el API con `node --watch packages/api/src/main.ts`;
-    - la web con `pnpm --filter @demiurgo/web exec vite build --watch`.
-  - Si no corre, relánzala así, con `DEMIURGO_DATABASE_URL` de `demiurgo_v2` en el puerto 55433,
-    `DEMIURGO_PORT=8100`, `DEMIURGO_ORIGINS` para 127.0.0.1 y localhost:8100, y
-    `DEMIURGO_DEV_TOOLS=1`.
+  - Corre en `compose.yaml` y se recarga sola:
+    - el API en el contenedor `api` con `node --watch packages/api/src/main.ts`;
+    - la web en el contenedor `web-build` con `pnpm --filter @demiurgo/web exec vite build --watch`.
+  - Si no corre, relánzala con `pnpm stack:up` (`docker compose up -d --build --wait`); las variables
+    salen de `.env`. Un cambio en `.env` se aplica con `docker compose up -d api`.
 - **Los datos de la instancia no son desechables**: contienen el diseño real.
   - Antes de un parche con migración, un cambio en `design/data/` o `pnpm gen`, guarda una
     instantánea con `pnpm snap save antes-<parche>`, o desde el panel de dev tools de la web.
@@ -55,19 +54,24 @@ reglas anulan las de `AGENTS.md` y las de cualquier skill.
 
 Lee primero `AGENTS.md`: reglas de fondo de la v2 (aceptación solo humana, actor fijado por el servidor, tablas como datos, diario append-only), prohibiciones de entorno (`demiurgo-stable`, puerto 8000) e idioma. El código va en inglés: identificadores, comentarios, pruebas, API, textos de producto, errores y prompts. La documentación, la prosa de `design/`, los commits y la conversación van en español.
 
-## Comandos (Windows; `pnpm` vía corepack)
+## Comandos (Mac mini, homelab; `pnpm` vía corepack)
 
-```powershell
+La instancia vive en el Mac mini (`~/Development/DEMIURGO`, con `~/Demiurgo` como enlace), en el compose
+único `compose.yaml` (docs/homelab-macmini-plan.md y docs/homelab-macmini-bitacora.md). Los secretos están en
+`.env` (no se commitea; `.env.example` documenta los nombres).
+
+```bash
 pnpm install                      # monorepo pnpm 11 (versiones exactas, minimumReleaseAge de 3 días)
-pnpm db:up                        # Postgres 18 de desarrollo: proyecto compose demiurgo-v2-dev, 127.0.0.1:55432
+pnpm stack:up                     # docker compose up -d --build --wait: postgres 55433, api 8100, web-build, evidencia
+pnpm stack:ps                     # estado y salud de los servicios; pnpm stack:logs sigue api, web-build e ingestor
 pnpm gate:all                     # tipos, lint, formato, design/, deriva, pruebas, invariantes y trazabilidad
-pnpm gate:test                    # unit + integration (bases efímeras dmg_t_*; necesita Docker)
+pnpm gate:test                    # unit + integration (bases efímeras dmg_t_* en el Postgres de 55433; DEMIURGO_TEST_DB_URL de .env)
 pnpm gate:invariants              # 403/409 generadas desde las tablas, propiedades, arquitectura, CI
 npx vitest run --project integration packages/core/test/bus.test.ts -t "AC-ESQ-001-01"   # una prueba
-pnpm gen                          # regenera packages/domain/src/generated/tables.ts desde design/data/
+docker compose exec api pnpm gen  # regenera packages/domain/src/generated/tables.ts desde design/data/ (antes, instantánea)
 node packages/design/src/cli.ts canonicalize   # reescribe design/ en formato canónico
 pnpm cli <subcommand>             # CLI de operación (ver packages/api/src/cli.ts)
-pnpm snap list|save|restore|drop|reset   # instantáneas de la base de dev (DEMIURGO_DEV_TOOLS=1; docs/instantaneas-dev.md)
+pnpm snap list|save|restore|drop|reset   # instantáneas de la base (DEMIURGO_DEV_TOOLS=1; docs/instantaneas-dev.md)
 ```
 
 - Node 24 ejecuta TypeScript directamente (type stripping): no hay paso de build. Imports relativos con extensión `.ts`; nada de enum, namespaces, parameter properties ni decoradores (`erasableSyntaxOnly`).

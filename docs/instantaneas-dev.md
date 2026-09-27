@@ -24,7 +24,7 @@ Código: `packages/core/src/dev/snapshots.ts` (SQL), `packages/api/src/runtime.t
 Arranca el API de desarrollo con la bandera (el resto, como en `docs/informe-autonomo-v2-frontend-h1.md` §1):
 
 ```powershell
-$env:DEMIURGO_DATABASE_URL = 'postgres://demiurgo:demiurgo-dev@127.0.0.1:55432/demiurgo_web_dev'
+$env:DEMIURGO_DATABASE_URL = 'postgres://demiurgo:<DEMIURGO_DB_PASSWORD>@127.0.0.1:55433/demiurgo_web_dev'   # el Postgres de compose.yaml
 $env:DEMIURGO_PORT = '8200'
 $env:DEMIURGO_ORIGINS = 'http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:8200'
 $env:DEMIURGO_DEV_TOOLS = '1'
@@ -42,7 +42,7 @@ Restore, Delete y Reset piden confirmación.
 ## Desde la terminal
 
 ```powershell
-$env:DEMIURGO_DATABASE_URL = 'postgres://demiurgo:demiurgo-dev@127.0.0.1:55432/demiurgo_web_dev'
+$env:DEMIURGO_DATABASE_URL = 'postgres://demiurgo:<DEMIURGO_DB_PASSWORD>@127.0.0.1:55433/demiurgo_web_dev'   # el Postgres de compose.yaml
 $env:DEMIURGO_DEV_TOOLS = '1'
 pnpm snap list
 pnpm snap save "after day 1"
@@ -58,8 +58,7 @@ Con el API conectado, `save`, `restore` y `reset` se niegan y enumeran las conex
 
 ## Avisos
 
-- **`pnpm db:down -v` borra todas las instantáneas**: viven en el mismo volumen que las bases de desarrollo.
-- El volumen de desarrollo es `demiurgo-v2-dev_datos`. La clave de `compose.dev.yaml` se llama `datos` para que `pnpm db:up` no recree el contenedor sobre un volumen vacío.
+- **`docker compose down -v` borra todas las instantáneas** (y la base real): viven en el mismo volumen `demiurgo_pgdata` del servicio `postgres` de `compose.yaml`. `pnpm stack:down` (sin `-v`) no borra nada.
 - **Guarda en momentos tranquilos.** Parar el núcleo aborta una ejecución del agente en curso. Al restaurar, esa ejecución puede quedar interrumpida o repetirse.
 - **Otras pestañas abiertas** dejan de recibir eventos en vivo tras un guardado o una restauración. Hay que recargarlas.
 - **Cada instantánea es una copia completa.** El panel muestra el tamaño de cada una; borra las que ya no sirvan.

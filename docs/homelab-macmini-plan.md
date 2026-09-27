@@ -401,13 +401,17 @@ Destino: un disco USB cifrado en el mini **y** un almacén fuera de casa (Backbl
 
 ---
 
-## 22 · Cómo se ejecuta: Claude Code en el mini
+## 22 · Cómo se ejecuta: Claude Code en el mini, solo
 
-El plan se ejecuta **desde el propio mini**, con Claude Code, siguiendo el guion de `docs/homelab-macmini-runbook.md`. La persona hace una vez lo que exige pantalla o navegador; Claude hace el resto por SSH.
+El plan lo ejecuta **Claude Code desde el propio mini**, siguiendo `docs/homelab-macmini-runbook.md`, de forma autónoma. Claude Code ya está instalado y con sesión en el mini. Cloudflare se configura por su API con un token: túnel, ingress, DNS, red privada para WARP, aplicaciones y políticas de Access. Nada se hace en el panel.
 
-1. **Arranque manual (una vez):** configuración inicial de macOS con monitor prestado, Sesión remota activada, `ssh demiurgo@<ip>` desde el PC, y el bloque de instalación del guion: Homebrew, git, Node 24, pnpm, `tmux`, Claude Code, clon del repo en `~/Demiurgo`, `claude` y su login.
-2. **El prompt del guion**, pegado en Claude Code dentro de `tmux`, con el dominio, la URL del repo y el correo de Access.
-3. **Claude ejecuta las fases A → E** y para en cada paso 🖐: crear el túnel y los hostnames en el panel de Cloudflare, las políticas de Access, los logins de Codex y de los proveedores, el volcado de las bases desde el PC, la confirmación del corte. Dice exactamente qué hacer y qué devolverle.
-4. **Cada fase se cierra con su prueba** (corte de luz y entrada desde el móvil; reinicio y servicios sanos sin terminal; cambio de código visto por el dominio; restauración de una copia) y queda anotada en `docs/homelab-macmini-bitacora.md`, que se commitea y se sube.
+**La persona hace, una vez:** `sudo` sin contraseña para la cuenta (una línea en `sudoers.d`) y un token de API de Cloudflare con permisos de túnel, Access, Zero Trust y DNS de la zona. Los dos van en el prompt del guion, junto con el dominio, la URL del repo, el correo y la contraseña de la cuenta para el inicio de sesión automático.
 
-Lo que Claude no hace nunca sin confirmación en ese momento: migrar los datos reales, lanzar una ejecución real con Claude o Codex, y tocar `demiurgo-stable` o el puerto 8000.
+**Lo que un proceso en el mini no puede hacer**, y Claude pide en su momento sin bloquearse:
+
+- instalar WARP y Termius en el PC y el iPhone, entrar en la organización Zero Trust y pegarle la clave pública de Termius;
+- abrir desde el móvil las URL con código de los logins de Codex y de las CLI del contenedor;
+- la prueba del corte de luz y la entrada desde el móvil con datos;
+- volcar las bases en el PC con el comando que dicta, y confirmar el corte de la fase D.
+
+Cada fase se cierra con su prueba y queda anotada en `docs/homelab-macmini-bitacora.md`, con lo que queda pendiente de la persona, y se sube al repo. Lo que Claude no hace nunca sin confirmación en ese momento: migrar los datos reales, lanzar una ejecución real con Claude o Codex, y tocar `demiurgo-stable` o el puerto 8000.

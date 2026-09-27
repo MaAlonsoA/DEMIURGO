@@ -1,68 +1,69 @@
 # Guion de ejecución del homelab para Claude Code en el Mac mini
 
-Este documento lo lee Claude Code **en el mini** para ejecutar el plan de `docs/homelab-macmini-plan.md` de forma autónoma. La persona solo interviene en los pasos marcados con 🖐, que ocurren en su navegador o en su ordenador. Todo lo demás lo hace Claude por SSH en el mini.
+Este documento lo lee Claude Code **en el mini** para ejecutar el plan de `docs/homelab-macmini-plan.md` de forma autónoma. Claude Code ya está instalado y con sesión iniciada en el mini. Todo lo que puede hacerse desde una terminal del mini o por una API lo hace Claude sin preguntar. Cloudflare se configura por su API con un token; nada se hace en el panel.
 
-## Cómo arrancar (lo hace la persona, una vez)
+## Lo único que la persona hace
 
-1. Configuración inicial de macOS con monitor y teclado prestados: cuenta `demiurgo` como administrador (durante la instalación necesita `sudo`; al final del guion se decide si se le quita), Ethernet, Sesión remota activada en Ajustes → General → Compartir.
-2. Desde el PC, en la red de casa:
+Antes de pegar el prompt, una vez:
 
-   ```
-   ssh demiurgo@<ip-del-mini>
-   ```
-
-3. En el mini, pegar esto (instala Homebrew, git, node, pnpm y Claude Code, y clona el repo):
+1. `sudo` sin contraseña para la cuenta, para que Claude pueda instalar servicios de sistema:
 
    ```bash
-   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-   echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile && eval "$(/opt/homebrew/bin/brew shellenv)"
-   brew install git node@24 tmux
-   brew link --overwrite node@24
-   corepack enable
-   npm install -g @anthropic-ai/claude-code
-   git clone <url-del-repo> ~/Demiurgo && cd ~/Demiurgo && git checkout v2.2
-   claude
+   echo "demiurgo ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/demiurgo && sudo chmod 440 /etc/sudoers.d/demiurgo
    ```
 
-   El primer `claude` pide login: abre en el PC la URL que muestra y pega el código.
+2. Un **token de API de Cloudflare** (Mi perfil → Tokens de API → Crear token → personalizado) con estos permisos, que se pega en el prompt y Claude guarda en `~/.config/demiurgo/cloudflare.env` con permisos `0600`:
+   - Account · Cloudflare Tunnel · Edit
+   - Account · Access: Apps and Policies · Edit
+   - Account · Access: Organizations, Identity Providers, and Groups · Edit
+   - Account · Zero Trust · Edit
+   - Zone · DNS · Edit (solo la zona del dominio)
 
-4. Dentro de Claude Code, pegar el prompt del final de este documento.
+Durante la ejecución, cuatro cosas que un proceso en el mini no puede hacer. Claude las pide en su momento, con instrucciones exactas, y sigue con lo que no depende de ellas:
 
-A partir de ahí Claude sigue este guion. Se recomienda lanzar `claude` dentro de `tmux new -s setup` para que sobreviva a una desconexión.
+- 🖐 **Instalar apps en tus dispositivos**: WARP y Termius en el PC y en el iPhone, e iniciar sesión en la organización Zero Trust. Claude te dice qué instalar, con qué correo entrar y qué host crear en Termius; cuando Termius tenga su clave, le pegas la pública.
+- 🖐 **Logins con código de dispositivo**: Codex en el host y las CLI de Claude y Codex dentro del contenedor. Claude imprime la URL y el código; los abres desde el móvil.
+- 🖐 **La prueba del corte de luz**: desconectar el monitor, cortar la corriente un minuto y entrar desde el móvil con datos.
+- 🖐 **Los datos del PC** (fase D): un comando que Claude te dicta para volcar las bases en Windows y copiarlas al mini, y tu confirmación explícita antes del corte.
+
+Fuera de eso, ninguna pregunta.
 
 ## Reglas para Claude durante la ejecución
 
-- Sigue las fases del plan en orden, A → E. No empieces una fase sin cerrar la anterior con su criterio de cierre.
-- Cuando un paso lleve 🖐, para, di exactamente qué tiene que hacer la persona en el navegador o en su PC, qué valor te tiene que devolver (un token, un «hecho») y espera. No inventes tokens ni des por hecho un paso manual.
+- Sigue las fases del plan en orden, A → E. No empieces una fase sin cerrar la anterior con su criterio de cierre. Si un criterio de cierre necesita a la persona (🖐), déjalo pendiente, sigue con todo lo demás de la fase siguiente que no dependa de él, y recuérdalo al final.
+- Todo lo que sea configurable por CLI, fichero o API lo haces tú. No pidas a la persona que haga en un panel lo que puedes hacer con la API de Cloudflare. Consulta la documentación de la API (`https://developers.cloudflare.com/api/`) cuando dudes de un endpoint; no inventes campos.
+- Para lo que solo puede hacer la persona (🖐), di exactamente qué, con qué valores, y qué te tiene que devolver. No inventes tokens ni des por hecho un paso manual. No te quedes bloqueado esperando si hay trabajo que no depende de ello.
 - No hagas ninguna llamada real a Claude ni a Codex desde DEMIURGO para probar: usa el proveedor simulado (`DEMIURGO_DEV_TOOLS=1`).
-- No migres datos (fase D) sin que la persona lo confirme explícitamente en ese momento.
+- No migres datos (fase D) sin confirmación explícita de la persona en ese momento.
 - No toques nada que no sea el mini: ni el PC, ni `demiurgo-stable`, ni el puerto 8000.
-- Genera todos los secretos nuevos con `openssl rand -base64 32`; nunca reutilices los valores de ejemplo del repo. Guárdalos en `~/Demiurgo/.env` y en `~/.config/demiurgo/secrets.md` con permisos `0600`, y muéstraselos a la persona una vez.
+- Genera todos los secretos nuevos con `openssl rand -base64 32`; nunca reutilices los valores de ejemplo del repo. Guárdalos en `~/Demiurgo/.env` y en `~/.config/demiurgo/secrets.md` con permisos `0600`, y muéstraselos a la persona una vez al cerrar la fase B.
 - Cada cambio en el repo (Dockerfile, compose, CLAUDE.md, retirada de los compose viejos) va en su commit, en español, y se sube a `origin v2.2`.
-- Al cerrar cada fase, escribe en `docs/homelab-macmini-bitacora.md` qué se hizo, qué falló y cómo se resolvió. Es el registro para la persona.
+- Al cerrar cada fase, escribe en `docs/homelab-macmini-bitacora.md` qué se hizo, qué falló y cómo se resolvió, y qué queda pendiente de la persona. Es el registro para la persona. Commitea y sube.
+- Si algo falla dos veces de la misma forma, no insistas: anótalo, sigue con lo que puedas y repórtalo al cerrar la fase.
 
 ## Fase A · Acceso
 
-1. Comprobar macOS actualizado (`softwareupdate -l`), nombre del equipo `macmini`, IP por Ethernet.
-2. `sshd`: solo claves y solo `demiurgo`. Escribir `/etc/ssh/sshd_config.d/demiurgo.conf` con `PasswordAuthentication no`, `AllowUsers demiurgo`, `PermitRootLogin no`. **Antes** de reiniciar `sshd`, 🖐 pedir a la persona la clave pública de su PC y añadirla a `~/.ssh/authorized_keys`; comprobar que entra por clave desde otra ventana antes de cerrar la actual.
-3. Energía: `sudo pmset -a sleep 0 disksleep 0 autorestart 1 womp 1`. Inicio de sesión automático de `demiurgo`: 🖐 la persona lo activa en Ajustes → Usuarios y grupos → Inicio de sesión automático (macOS exige la contraseña en pantalla; puede hacerse por Screen Sharing desde el PC o en la sesión inicial con monitor). Confirmar que FileVault está desactivado (`fdesetup status`).
-4. Firewall: `sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on` y permitir `sshd`.
-5. Cloudflare: `brew install cloudflared`. 🖐 La persona, en el panel de Cloudflare Zero Trust: Networks → Tunnels → crear túnel `macmini` → copiar el token del comando de instalación. Claude ejecuta `sudo cloudflared service install <token>` y comprueba `sudo launchctl list | grep cloudflared`.
-6. 🖐 La persona crea en el túnel los public hostnames: `ssh.tudominio → ssh://localhost:22`, `demiurgo.tudominio → http://localhost:8100`, `phoenix.tudominio → http://localhost:6006`, `metabase.tudominio → http://localhost:3300`, `code.tudominio → http://localhost:8443`. Y en Access → Applications, una aplicación self-hosted por hostname con política Allow para su correo; en la de `ssh.tudominio`, activar «Browser rendering: SSH».
-7. code-server: `brew install code-server`, configurar `~/.config/code-server/config.yaml` con `bind-addr: 127.0.0.1:8443` y `auth: none` (Access ya autentica), `brew services start code-server`.
-8. `tmux` con `set -g mouse on` en `~/.tmux.conf`.
-9. Termius y WARP, para que quede todo preparado:
-   - 🖐 En Zero Trust: Networks → Tunnels → `macmini` → Private Network → añadir la IP LAN del mini con `/32`. Settings → WARP Client → Device enrollment permissions → política Allow para el correo de la persona. Settings → Network → activar Proxy (TCP).
-   - 🖐 La persona instala WARP en el PC y en el iPhone («1.1.1.1 / WARP»), entra en la organización Zero Trust con su correo y lo deja conectado.
-   - 🖐 La persona instala Termius en el PC y en el iPhone, genera una clave ed25519 en Termius (Keychain → Generate) y pega la clave pública a Claude. Claude la añade a `~/.ssh/authorized_keys`.
-   - Claude dicta el host para Termius: alias `mini`, dirección la IP LAN del mini, puerto 22, usuario `demiurgo`, la clave generada, y como comando de inicio `tmux attach -t claude || tmux new -s claude`.
-   - Prueba: desde el iPhone con datos móviles y WARP conectado, Termius entra en el mini.
-10. Control remoto de Claude Code: en el mini, `tmux new -s claude`, dentro `claude`, y `/remote-control`. 🖐 La persona abre la app de Claude en el iPhone y comprueba que ve la sesión y puede escribirle. Dejar la sesión abierta en `tmux`; anotar en la bitácora cómo se relanza tras un reinicio (`tmux new -d -s claude 'claude --remote-control'` o el comando equivalente que la versión instalada documente en `claude --help`).
-11. **Prueba de cierre** 🖐: la persona desconecta el monitor, corta la corriente un minuto, la vuelve a dar y, desde el móvil con datos (no desde casa), abre `code.tudominio`, la terminal SSH del navegador y Termius con WARP. Si entra por las tres y `uptime` es reciente, la fase A está cerrada.
+1. Inventario: `sw_vers`, `softwareupdate -l` (instalar actualizaciones con `sudo softwareupdate -ia` si hay), IP por Ethernet (`ipconfig getifaddr en0`), nombre del equipo `macmini` (`sudo scutil --set HostName macmini` y `ComputerName`, `LocalHostName`). Comprobar `sudo -n true` funciona; si no, pedir el paso 1 de arriba.
+2. Homebrew, si no está: instalar sin prompts (`NONINTERACTIVE=1`) y añadir `brew shellenv` a `~/.zprofile`. `brew install git node@24 tmux cloudflared code-server colima docker docker-compose jq`. `corepack enable`. `npm install -g @openai/codex`.
+3. `sshd` solo con claves y solo `demiurgo`: `/etc/ssh/sshd_config.d/demiurgo.conf` con `PasswordAuthentication no`, `KbdInteractiveAuthentication no`, `AllowUsers demiurgo`, `PermitRootLogin no`. **Antes** de aplicarlo, comprobar que `~/.ssh/authorized_keys` tiene al menos una clave (la del PC con la que entró la persona); si no la hay, generar un par `ed25519` en el mini, añadir la pública, y entregar la privada a la persona por la sesión actual para que la guarde en el PC. Aplicar con `sudo launchctl kickstart -k system/com.openssh.sshd` y comprobar desde otra sesión antes de cerrar la actual.
+4. Energía y arranque: `sudo pmset -a sleep 0 disksleep 0 autorestart 1 womp 1`. Comprobar FileVault desactivado (`fdesetup status`); si está activo, anotarlo: desactivarlo es decisión de la persona (`sudo fdesetup disable` lo hace). Inicio de sesión automático: `sudo sysadminctl -autologin set -userName demiurgo -password '<contraseña>'` requiere la contraseña de la cuenta; si Claude no la tiene, es la única pregunta extra de esta fase 🖐.
+5. Firewall: `sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on` y `--add /usr/sbin/sshd --unblockapp /usr/sbin/sshd`.
+6. Cloudflare por API. Con el token en `CF_API_TOKEN`, obtener el `account_id` (`GET /accounts`) y el `zone_id` del dominio (`GET /zones?name=<dominio>`). Guardar ambos en `~/.config/demiurgo/cloudflare.env`.
+   - **Túnel:** `POST /accounts/{account_id}/cfd_tunnel` con `name: macmini` y `config_src: cloudflare`. Guardar el `id` y obtener el token del túnel (`GET /accounts/{account_id}/cfd_tunnel/{id}/token`). `sudo cloudflared service install <token>`; comprobar `sudo launchctl list | grep cloudflared` y `cloudflared tunnel info macmini` o el estado por API (`connections` no vacío).
+   - **Ingress:** `PUT /accounts/{account_id}/cfd_tunnel/{id}/configurations` con las reglas: `ssh.<dominio> → ssh://localhost:22`, `demiurgo.<dominio> → http://localhost:8100`, `phoenix.<dominio> → http://localhost:6006`, `metabase.<dominio> → http://localhost:3300`, `code.<dominio> → http://localhost:8443`, y la regla final `http_status:404`.
+   - **DNS:** un registro `CNAME` proxied por hostname, apuntando a `<tunnel-id>.cfargotunnel.com` (`POST /zones/{zone_id}/dns_records`).
+   - **Red privada:** `POST /accounts/{account_id}/teamnet/routes` con `network: <ip-lan-del-mini>/32` y `tunnel_id`. Activar el proxy TCP de WARP en la configuración de la cuenta (`PATCH /accounts/{account_id}/gateway/configuration`, `settings.proxy.tcp: true`), y comprobar que la red del mini no está en la lista de exclusiones de WARP (split tunnel) del perfil de dispositivo por defecto (`GET /accounts/{account_id}/devices/policy`); si `192.168.0.0/16` o la red local está excluida, retirar esa exclusión con `PUT /accounts/{account_id}/devices/policy/exclude`.
+   - **Access:** una aplicación self-hosted por hostname (`POST /accounts/{account_id}/access/apps`) con `session_duration: 720h` y una política `allow` con `include: [{ email: { email: <correo> } }]` (`POST /accounts/{account_id}/access/apps/{app_id}/policies`). En la de `ssh.<dominio>`, `type: ssh` con browser rendering activado. Inscripción de dispositivos para WARP: la aplicación de tipo `warp` con la misma política. Comprobar que la organización Zero Trust existe (`GET /accounts/{account_id}/access/organizations`); si no, crearla con un `auth_domain` `<algo>.cloudflareaccess.com` y el proveedor de identidad One-time PIN (`POST /accounts/{account_id}/access/identity_providers`, `type: onetimepin`).
+   - Comprobación: `curl -sI https://demiurgo.<dominio>` responde con una redirección al login de Access (302 a `cloudflareaccess.com`).
+7. code-server: `~/.config/code-server/config.yaml` con `bind-addr: 127.0.0.1:8443`, `auth: none`, `cert: false`. `brew services start code-server`. `curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8443` devuelve 200 o 302.
+8. `tmux`: `~/.tmux.conf` con `set -g mouse on` y `set -g history-limit 50000`.
+9. Termius y WARP 🖐. Entregar a la persona, en un solo mensaje: qué instalar (WARP «1.1.1.1» y Termius en el PC y en el iPhone), el nombre de la organización Zero Trust para el login de WARP (`auth_domain` sin el sufijo) y su correo, y el host para Termius: alias `mini`, dirección `<ip-lan-del-mini>`, puerto 22, usuario `demiurgo`, clave `ed25519` generada en Termius (Keychain → Generate), y como comando de inicio `tmux attach -t claude || tmux new -s claude`. Pedirle la clave pública de Termius y, cuando llegue, añadirla a `authorized_keys`. No esperar bloqueado: seguir con el paso 10 y la fase B.
+10. Control remoto de Claude Code: en el mini, `tmux new -d -s claude` y dentro `claude`. Consultar en `claude --help` y en la documentación de Claude Code cómo se activa el control remoto en la versión instalada (`/remote-control` en la sesión o una opción de arranque), activarlo, y dejar en la bitácora el comando exacto para relanzarlo tras un reinicio, más un LaunchAgent `~/Library/LaunchAgents/com.demiurgo.claude-tmux.plist` que al iniciar sesión cree la sesión `tmux` con `claude` dentro. Decir a la persona que la sesión debería aparecer en su app de Claude.
+11. **Prueba de cierre** 🖐, cuando la persona pueda: desconectar el monitor, cortar la corriente un minuto, volver a darla y, desde el móvil con datos, entrar por `code.<dominio>`, por la terminal SSH del navegador y por Termius con WARP. Si entra por las tres y `uptime` es reciente, la fase A está cerrada. Mientras tanto, continuar con la fase B.
 
 ## Fase B · Plataforma
 
-1. `brew install colima docker docker-compose`. `colima start --cpu 4 --memory 8 --disk 100 --vm-type vz --mount-type virtiofs`. `brew services start colima`. `docker context use colima`. Comprobar `docker run --rm hello-world`.
+1. Colima: `colima start --cpu 4 --memory 8 --disk 100 --vm-type vz --mount-type virtiofs`. `brew services start colima`. `docker context use colima`. Comprobar `docker run --rm hello-world`.
 2. Escribir en el repo, en la raíz:
    - `Dockerfile`: `node:24-bookworm-slim`, `corepack enable`, `pnpm install --frozen-lockfile` en `/app` (con el repo montado encima en desarrollo, `node_modules` en volumen con nombre), CLI `@anthropic-ai/claude-code` y `@openai/codex` globales, cliente `docker` (`docker-ce-cli`), usuario no root.
    - `compose.yaml` con los servicios de la diapositiva 10 del plan: `postgres`, `api`, `web-build`, `evidence-db`, `collector`, `ingestor`, `phoenix`, `metabase`. Puertos solo en `127.0.0.1`. `restart: unless-stopped`, healthchecks, `depends_on: condition: service_healthy`. Volúmenes: `pgdata`, `node_modules`, `web-dist`, `agent-sessions`, `cli-auth`, `evidence-data`, `evidence-archive`, `evidence-queue`, `evidence-metabase`. Socket de Docker montado en `api`.
@@ -71,40 +72,40 @@ A partir de ahí Claude sigue este guion. Se recomienda lanzar `claude` dentro d
    - `.env.example` con todas las variables de la diapositiva 12 y `.env` real fuera de Git.
 3. Retirar `compose.dev.yaml`, `compose.instance.yaml` y `compose.evidence.yaml`, el script `db:up` y adaptar los scripts `evidence:*` de `package.json` al compose único. Cambiar el valor por defecto de `DEMIURGO_TEST_DB_URL` en `packages/core/test/support/global-setup.ts` al Postgres de 55433. Actualizar CLAUDE.md, AGENTS.md y `docs/observabilidad.md` (puertos y forma de relanzar).
 4. `docker compose up -d --build --wait`. Comprobar `docker compose ps` todo `healthy`, `curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8100/api/session` devuelve 401, `pnpm evidence migrate` y `pnpm evidence metabase-setup` con `docker compose run --rm`.
-5. **Prueba de cierre**: `sudo reboot`. Tras volver a entrar, sin abrir ninguna terminal más, `docker compose ps` muestra todos los servicios sanos y `demiurgo.tudominio` muestra la pantalla de login de DEMIURGO 🖐 (la persona lo confirma desde el navegador).
+5. **Prueba de cierre**: `sudo reboot`. Tras volver a entrar, sin abrir ninguna terminal más, `docker compose ps` muestra todos los servicios sanos, `cloudflared` y `code-server` están arriba (`launchctl list`), y `curl -sI https://demiurgo.<dominio>` responde con la redirección de Access. Si el reinicio no vuelve solo (Colima no arranca sin sesión), revisar el inicio de sesión automático del paso A.4 antes de seguir.
 
 ## Fase C · Desarrollo
 
 1. `pnpm install` en el host (para `gate:types`, `gate:test` y las herramientas). `pnpm gate:types` en verde.
 2. `pnpm gate:test` contra `DEMIURGO_TEST_DB_URL=postgres://demiurgo:<secreto>@127.0.0.1:55433/postgres`. Si alguna prueba falla por el entorno, anotarlo en la bitácora; no cambiar pruebas para que pasen.
-3. Codex interactivo: `npm install -g @openai/codex`; 🖐 `codex login --device-auth`, la persona completa en su navegador.
-4. Proveedores dentro del contenedor: `docker compose exec api claude` y `docker compose exec api codex login --device-auth`; 🖐 la persona completa ambos logins en el navegador. Comprobar que la web, en Models & providers, descubre Claude y Codex. No lanzar ninguna ejecución real.
-5. Comprobar `SSE` a través de Cloudflare: abrir el diario en vivo en `demiurgo.tudominio` y esperar dos minutos; si la conexión se corta a los 100 s, añadir un keepalive de comentario cada 30 s en la ruta SSE de `packages/api` y commitear.
-6. Comprobar `Host`/`Origin`: iniciar sesión en `demiurgo.tudominio` y ejecutar un comando cualquiera (crear un proyecto de prueba). Si la API rechaza, ajustar `DEMIURGO_ORIGINS` o el `trust proxy` de Fastify y commitear.
-7. **Prueba de cierre**: editar un texto de `packages/web` y un texto de una respuesta de `packages/api`, y verlos en `demiurgo.tudominio` sin ningún `docker compose` de por medio 🖐 (la persona lo confirma). Deshacer los dos cambios.
+3. Codex interactivo 🖐: `codex login --device-auth`; imprimir la URL y el código para que la persona los abra desde el móvil. Esperar como mucho lo que dure el código; si caduca, anotarlo y seguir.
+4. Proveedores dentro del contenedor 🖐: `docker compose exec api claude` y `docker compose exec api codex login --device-auth`, con el mismo patrón de URL y código. Comprobar que la web, en Models & providers, descubre Claude y Codex. No lanzar ninguna ejecución real.
+5. Comprobar SSE a través de Cloudflare: con una sesión de la web iniciada por `curl` (cookie y CSRF), abrir la ruta SSE del diario por el dominio y mantenerla dos minutos; si se corta a los 100 s, añadir un keepalive de comentario cada 30 s en la ruta SSE de `packages/api` y commitear.
+6. Comprobar `Host`/`Origin`: por el dominio, iniciar sesión y ejecutar un comando cualquiera (crear un proyecto de prueba y borrarlo con una instantánea previa). Si la API rechaza, ajustar `DEMIURGO_ORIGINS` o el `trust proxy` de Fastify y commitear.
+7. **Prueba de cierre**: editar un texto de `packages/web` y un texto de una respuesta de `packages/api`, y comprobar con `curl` por el dominio que ambos cambian sin ningún `docker compose` de por medio. Deshacer los dos cambios.
 
 ## Fase D · Datos
 
-1. 🖐 En el PC, con Docker Desktop arrancado, la persona ejecuta el volcado que Claude le dicta (`docker exec <postgres-55433> pg_dump -Fc -U demiurgo demiurgo_v2 > demiurgo_v2.dump`, y lo mismo para `demiurgo_evidence` y `phoenix`) y los copia al mini con `scp <fichero> mini:~/restore/`. Antes, la persona para la API 8100 y el ingestor en el PC.
+1. 🖐 Dictar a la persona el comando para el PC, con Docker Desktop arrancado y la API 8100 y el ingestor parados: `docker exec <contenedor-postgres-55433> pg_dump -Fc -U demiurgo demiurgo_v2 -f /tmp/demiurgo_v2.dump` y `docker cp` al escritorio, lo mismo para `demiurgo_evidence` y `phoenix`, y `scp` de los tres ficheros a `mini:~/restore/` (por Termius/WARP, `scp -i <clave> <fichero> demiurgo@<ip-lan>:~/restore/`). Esperar a que los ficheros existan en `~/restore/`.
 2. Ensayo: restaurar cada volcado en una base `dmg_t_restore_*`, arrancar una API temporal contra ella en otro puerto, comprobar migraciones y conteo de `events`. Tirar la base de ensayo.
 3. 🖐 Confirmación explícita de la persona para el corte. Restaurar en `demiurgo_v2`, `demiurgo_evidence` y `phoenix` reales. `docker compose restart api ingestor`. Comprobar por el dominio que los proyectos y los hilos están.
-4. Copias: script `~/bin/backup.sh` (dumps `-Fc` de las tres bases + `restic` del repo, `.env`, `~/.claude`, `~/.codex`, `~/.ssh`) y un LaunchAgent diario a las 03:00. 🖐 La persona indica el destino: disco USB cifrado y bucket remoto con sus credenciales.
+4. Copias: script `~/bin/backup.sh` (dumps `-Fc` de las tres bases + `restic` del repo, `.env`, `~/.claude`, `~/.codex`, `~/.ssh`) y un LaunchAgent diario a las 03:00, de momento a `~/backups` con rotación de 14 días. 🖐 Preguntar a la persona, sin bloquear, el destino externo (disco USB cifrado o bucket remoto con credenciales) y añadirlo cuando lo dé.
 5. **Prueba de cierre**: restaurar el último backup en una base de ensayo y arrancar contra ella. Anotar en la bitácora cuánto tarda.
 
 ## Fase E · Limpieza
 
 1. Commit final con los compose viejos borrados, CLAUDE.md y AGENTS.md actualizados (dónde vive la instancia, cómo se relanza con `docker compose`, puertos).
-2. 🖐 En el PC: parar y no volver a arrancar las instancias; desinstalar Docker Desktop si se quiere.
-3. Decidir si `demiurgo` conserva `sudo`. Si se le quita, dejar `admin` para actualizaciones.
-4. Cerrar la bitácora con la lista de hostnames, puertos, dónde están los secretos, cómo se hace un backup y una restauración, y qué pasa si el mini falla.
+2. 🖐 Decir a la persona que en el PC ya no debe arrancar las instancias y que puede desinstalar Docker Desktop.
+3. Dejar `sudo` sin contraseña solo si la persona lo pide; si no, retirar `/etc/sudoers.d/demiurgo` al final y anotarlo.
+4. Cerrar la bitácora con la lista de hostnames, puertos, dónde están los secretos, cómo se hace un backup y una restauración, cómo se relanza la sesión de Claude con control remoto, y qué pasa si el mini falla.
 
 ## Prompt para pegar en Claude Code en el mini
 
 ```
-Lee docs/homelab-macmini-plan.md y docs/homelab-macmini-runbook.md y ejecuta el runbook fase por fase, empezando por la A.
-Trabaja de forma autónoma en este Mac mini. Cuando un paso lleve 🖐, para y dime exactamente qué tengo que hacer en mi navegador o en mi PC y qué te tengo que devolver; no sigas hasta que te lo dé.
-Mi dominio es <tudominio>. La URL del repositorio es <url>. Mi correo para Cloudflare Access es <correo>.
+Lee docs/homelab-macmini-plan.md y docs/homelab-macmini-runbook.md y ejecuta el runbook fase por fase, empezando por la A, de forma 100% autónoma: todo lo que se pueda hacer desde este Mac mini o por la API de Cloudflare lo haces tú, sin preguntarme.
+Solo párate en los pasos 🖐 que un proceso en el mini no puede hacer (instalar apps en mis dispositivos, logins con código de dispositivo, la prueba del corte de luz, volcar los datos del PC): dime exactamente qué hacer y qué devolverte, y mientras tanto sigue con lo que no dependa de ello.
+Mi dominio es <tudominio>. La URL del repositorio es <url>. Mi correo para Cloudflare Access es <correo>. Mi token de API de Cloudflare es <token>. La contraseña de esta cuenta, para el inicio de sesión automático, es <contraseña>.
 Quiero conectarme con Termius desde el PC y el iPhone a través de WARP, y escribir a Claude Code desde la app de Claude con el control remoto: déjalo todo preparado según el runbook.
 No migres datos ni lances ninguna ejecución real con Claude o Codex sin que te lo confirme en ese momento. No toques demiurgo-stable ni el puerto 8000.
-Al cerrar cada fase, apunta en docs/homelab-macmini-bitacora.md lo que has hecho y commitea y sube a origin v2.2.
+Al cerrar cada fase, apunta en docs/homelab-macmini-bitacora.md lo que has hecho y lo que queda pendiente de mí, y commitea y sube a origin v2.2.
 ```

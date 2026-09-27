@@ -65,3 +65,11 @@ Registro de la ejecución de `docs/homelab-macmini-runbook.md` por Claude Code d
 ### Notas
 
 - `pnpm gate:types` en verde. `pnpm gate:lint` falla en `packages/core/src/commands/stages.ts` y `exploration.ts` (`no-base-to-string`), ficheros que no se han tocado: falla igual sobre el árbol limpio de `origin/v2.2` en este mini (oxlint-tsgolint sobre macOS ARM64). Se anota y no se corrige aquí. `pnpm gate:format` también falla ya en `origin/v2.2` en `packages/core/src/commands/exploration.ts` y `packages/domain/src/stages.ts`; los ficheros nuevos y tocados aquí están formateados.
+
+## Fase C · Desarrollo — empezada en paralelo (lo que no depende de nadie)
+
+- `pnpm install` en el host y `pnpm gate:types` en verde.
+- `pnpm gate:test` con `DEMIURGO_TEST_DB_URL` de `.env` (Postgres real, 55433): 907 pruebas pasan, 13 fallan en 11 ficheros (`changes`, `token-cli`, `walkthrough-s1`, `agent-runs`, `classifier-adapters`, `durability`, `engine`, `providers-claude`, `providers-codex`, `runner`, `views`). Dos son claramente del entorno: la sonda del `runner` espera alcanzar `127.0.0.1:55432` (el Postgres de desarrollo del PC, que aquí no existe) y los adaptadores de proveedores comparan la salida de las versiones instaladas de las CLI. El resto (`WebSearch`, listas de eventos esperadas, el explorador simulado) no tocan nada de lo cambiado en el mini y hay que comprobarlos contra la rama en el PC antes de decidir. No se cambia ninguna prueba; quedan anotadas para revisarlas en la fase C.
+- Codex: en el host ya había sesión (ChatGPT). Dentro del contenedor `api` se reutilizó la misma sesión copiando `~/.codex/auth.json` al volumen `cli-auth`; `codex login status` dentro dice `Logged in using ChatGPT`.
+- Claude dentro del contenedor: 🖐 en marcha en la ventana `tmux` `cli-login` (`docker compose exec api claude auth login`); espera el código que devuelve el navegador.
+- Plugin oficial de Cloudflare para Claude Code instalado (`cloudflare@cloudflare`, skills + MCP `https://mcp.cloudflare.com/mcp`); se activa con `/reload-plugins`. `cloudflared tunnel login` en marcha, esperando la autorización del dominio en el navegador del mini.

@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Homelab Mac mini</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/15.0.7/marked.min.js"></script>
+<style>
+:root{
+  --bg:#f4f1ea;--surface:#fffdf8;--ink:#1f2a2e;--muted:#5d6b70;--line:#d8d1c3;--accent:#a6501f;--accent-ink:#fff;--soft:#efe6d6;--code-bg:#1d2528;--code-ink:#e9e4d8;
+  --sans:"IBM Plex Sans",system-ui,sans-serif;--mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141a1d;--surface:#1c2529;--ink:#ebe6da;--muted:#a3adaf;--line:#33414a;--accent:#e08a4f;--accent-ink:#141a1d;--soft:#243036;--code-bg:#0e1416;--code-ink:#e3ded1;
+}}
+:root[data-theme="dark"]{
+  --bg:#141a1d;--surface:#1c2529;--ink:#ebe6da;--muted:#a3adaf;--line:#33414a;--accent:#e08a4f;--accent-ink:#141a1d;--soft:#243036;--code-bg:#0e1416;--code-ink:#e3ded1;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:17px;line-height:1.5;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--surface);flex-wrap:wrap}
+header h1{font-size:15px;font-weight:600;margin:0;flex:1;min-width:160px}
+header button,header a{font:inherit;font-size:13px;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer;text-decoration:none}
+header button:hover,header a:hover{border-color:var(--accent)}
+#counter{font-family:var(--mono);font-size:13px;color:var(--muted)}
+main{flex:1;display:flex;min-height:0}
+nav#toc{width:260px;border-right:1px solid var(--line);background:var(--surface);overflow:auto;padding:12px 0;display:none}
+nav#toc.open{display:block}
+nav#toc a{display:block;padding:6px 16px;font-size:13px;color:var(--muted);text-decoration:none;border-left:3px solid transparent}
+nav#toc a.current{color:var(--ink);border-left-color:var(--accent);background:var(--soft)}
+nav#toc a:hover{color:var(--ink)}
+#stage{flex:1;overflow:auto;padding:24px 16px 80px}
+.slide{display:none;max-width:980px;margin:0 auto;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:32px 36px}
+.slide.active{display:block}
+.slide h1{font-size:30px;line-height:1.2;margin:0 0 12px}
+.slide h2{font-size:26px;line-height:1.2;margin:0 0 18px;padding-bottom:12px;border-bottom:2px solid var(--accent)}
+.slide h3{font-size:18px;margin:20px 0 8px}
+.slide p{margin:0 0 12px}
+.slide ul,.slide ol{padding-left:22px;margin:0 0 12px}
+.slide li{margin:4px 0}
+.slide table{border-collapse:collapse;width:100%;margin:8px 0 16px;font-size:15px}
+.slide th,.slide td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+.slide th{background:var(--soft);font-weight:600}
+.slide code{font-family:var(--mono);font-size:.9em;background:var(--soft);padding:1px 5px;border-radius:4px}
+.slide pre{background:var(--code-bg);color:var(--code-ink);padding:14px 16px;border-radius:8px;overflow:auto;font-size:14px;line-height:1.45}
+.slide pre code{background:none;padding:0;color:inherit}
+.slide strong{font-weight:600}
+.slide a{color:var(--accent)}
+footer{position:fixed;bottom:0;left:0;right:0;display:flex;justify-content:center;gap:8px;padding:10px;background:linear-gradient(to top,var(--bg) 60%,transparent)}
+footer button{font:inherit;font-size:14px;background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;padding:8px 18px;cursor:pointer}
+footer button:disabled{opacity:.4;cursor:default}
+@media (max-width:720px){.slide{padding:20px 16px}.slide h2{font-size:22px}body{font-size:16px}nav#toc{position:absolute;top:52px;bottom:0;left:0;z-index:2;width:80%}}
+@media print{header,footer,nav#toc{display:none!important}#stage{overflow:visible;padding:0}.slide{display:block!important;page-break-after:always;border:0;border-radius:0;max-width:none}}
+</style>
+</head>
+<body>
+<header>
+  <button id="toggleToc" aria-label="Índice">☰ Índice</button>
+  <h1>Homelab Mac mini M4 para DEMIURGO</h1>
+  <span id="counter"></span>
+  <button id="theme" aria-label="Cambiar tema">Tema</button>
+  <a href="homelab-macmini-plan.md">Markdown</a>
+</header>
+<main>
+  <nav id="toc" aria-label="Diapositivas"></nav>
+  <div id="stage"></div>
+</main>
+<footer>
+  <button id="prev">← Anterior</button>
+  <button id="next">Siguiente →</button>
+</footer>
+<script type="text/markdown" id="source"># Homelab Mac mini M4 para DEMIURGO
+
+Plan de traslado de DEMIURGO desde el PC de Windows a un Mac mini M4 sin monitor, gestionado por SSH y expuesto por Cloudflare Tunnel con el dominio propio. Una sección por diapositiva. Escrito el 27 de septiembre de 2026; todavía no cambia ningún servicio ni dato.
+
+---
+
+## 01 · Objetivo
+
+**El Mac mini pasa a ser el sitio permanente del código, los datos y las herramientas.** El PC de Windows, o cualquier otro cliente, solo aporta pantalla y teclado. Se puede apagar sin detener nada.
+
+Cuatro propiedades comprobables al final:
+
+- La instancia de DEMIURGO, su Postgres y la pila de evidencia sobreviven al cierre de cualquier terminal y al reinicio del mini.
+- Claude Code y Codex trabajan sobre el repositorio del mini, con su contexto siempre en el mismo sitio.
+- Un cambio en el código se ve en la instancia sin reconstruir contenedores en cada guardado.
+- Desde casa o desde fuera se entra igual: por el dominio, con SSH y navegador, sin VPN ni puertos abiertos en el router.
+
+---
+
+## 02 · Decisión: la arquitectura más simple que cumple eso
+
+```
+   Cliente (PC, portátil, móvil)
+   VS Code Remote SSH · Termius · navegador
+              │  HTTPS / SSH sobre HTTPS
+              ▼
+   Cloudflare (dominio propio + Access)
+              │  túnel saliente, sin puertos abiertos
+              ▼
+   Mac mini M4 · macOS · cloudflared (LaunchDaemon)
+   ├── sshd de macOS               ← desarrollo, claude, codex, git
+   └── Docker (Colima) · un solo compose
+       ├── api        8100   DEMIURGO (node --watch)
+       ├── web-build         vite build --watch → dist
+       ├── postgres   55433  demiurgo_v2 + bases efímeras de pruebas
+       ├── collector  4318   OTLP
+       ├── ingestor   4319
+       ├── evidence-db 55434
+       ├── phoenix    6006
+       └── metabase   3300
+```
+
+Lo que desaparece respecto a hoy: la instancia QA 8101, el Postgres de desarrollo 55432, los tres compose separados, las terminales abiertas con watchers, y cualquier VPN. Lo que se mantiene: `demiurgo-stable` en el puerto 8000 no se toca ni se migra.
+
+---
+
+## 03 · De lo que hay a lo que queda
+
+| Hoy en el PC | En el mini |
+|---|---|
+| API 8100 en una terminal (`node --watch`) | Contenedor `api` con `restart: unless-stopped` |
+| Web con `vite build --watch` en otra terminal | Contenedor `web-build` que escribe en un volumen `dist` compartido con `api` |
+| Postgres real 55433 (`compose.instance.yaml`) | El mismo, dentro del compose único |
+| Postgres de desarrollo 55432 (`compose.dev.yaml`) | Se elimina. Las pruebas crean sus bases `dmg_t_*` en el Postgres real vía `DEMIURGO_TEST_DB_URL` |
+| Instancia QA 8101 | Se elimina. Las pruebas ya usan el motor simulado; para probar en pantalla se usa la 8100 con una instantánea previa |
+| Pila de evidencia (`compose.evidence.yaml`) | Entra en el compose único; el ingestor deja el host y pasa a contenedor |
+| Acceso: solo localhost | Cloudflare Tunnel: `demiurgo.tudominio`, `ssh.tudominio`, `phoenix.tudominio`, `metabase.tudominio` |
+
+Las pruebas solo crean y borran bases que empiezan por `dmg_t_` o `dmg_template_` (`packages/core/test/support/global-setup.ts`), así que compartir servidor con la base real es seguro. La URL se fija con `DEMIURGO_TEST_DB_URL`.
+
+---
+
+## 04 · Preparación física y macOS
+
+1. Configuración inicial con pantalla y teclado prestados una sola vez: Apple exige completar el asistente antes de ir sin monitor. Si el mini está nuevo no hace falta formatear; si ya se usó, «Borrar contenido y ajustes».
+2. Actualizar macOS a la última versión. Crear una cuenta de administración y una de desarrollo (`demiurgo`), ambas con contraseña fuerte.
+3. Ethernet, no wifi. Reservar la IP en el router por MAC. Apuntar número de serie, versión de macOS e IP.
+4. Ajustes → General → Compartir → **Sesión remota** activada solo para la cuenta de desarrollo. Probar `ssh demiurgo@ip` con clave desde el PC antes de retirar el monitor.
+5. Ajustes → Batería / Energía: impedir el reposo, **«Arrancar al conectar la alimentación: Siempre»** (Mac mini 2024+ con macOS 26.5+). Desactivar el reposo del disco. Un SAI pequeño evita reinicios por microcortes.
+6. Firewall activado con SSH permitido. Bloqueo de pantalla activado, aunque no haya pantalla.
+
+---
+
+## 05 · Arranque autónomo sin nadie en casa
+
+La decisión que más simplifica: **inicio de sesión automático de la cuenta de desarrollo y FileVault desactivado.**
+
+- Con FileVault activo el disco no se monta hasta que alguien teclea la contraseña; hay desbloqueo por SSH en macOS 26 pero exige red antes del login y no arranca Docker por sí solo. Un servidor de casa sin FileVault es una decisión de seguridad consciente: quien se lleve el mini se lleva los datos. Se compensa con disco cifrado de copias y secretos fuera del disco (diapositiva 18).
+- Con inicio automático, al volver la corriente macOS arranca, entra en la sesión, y los LaunchAgents de la cuenta levantan Docker. Los contenedores con `restart: unless-stopped` vuelven solos.
+- `cloudflared` se instala como **LaunchDaemon** (`cloudflared service install`), es decir, como proceso de sistema: el túnel está arriba incluso antes del login. Con él y `sshd`, siempre hay una vía de rescate desde fuera.
+
+Prueba obligatoria antes de dar el mini por autónomo: quitar el monitor, cortar la corriente, esperar, y entrar desde fuera de casa por `ssh.tudominio`. Comprobar `docker ps` y la web. Si algo no vuelve, se arregla antes de migrar datos.
+
+---
+
+## 06 · Acceso: Cloudflare Tunnel con el dominio propio
+
+Un solo mecanismo para todo. `cloudflared` en el mini abre una conexión saliente a Cloudflare; no se abre ningún puerto en el router ni se necesita IP fija.
+
+| Hostname público | Servicio en el mini | Protección |
+|---|---|---|
+| `ssh.tudominio` | `ssh://127.0.0.1:22` | Cloudflare Access: solo tu identidad (Google/GitHub/one-time PIN) + clave SSH |
+| `demiurgo.tudominio` | `http://127.0.0.1:8100` | Cloudflare Access con la misma política |
+| `phoenix.tudominio` | `http://127.0.0.1:6006` | Cloudflare Access |
+| `metabase.tudominio` | `http://127.0.0.1:3300` | Cloudflare Access |
+| `code.tudominio` | `http://127.0.0.1:8443` (code-server) | Cloudflare Access; para equipos donde no se puede instalar nada |
+
+Pasos:
+
+1. Dominio en Cloudflare (DNS gestionado por ellos). Zero Trust → Networks → Tunnels → crear túnel `macmini`.
+2. En el mini: `brew install cloudflared` y `sudo cloudflared service install <token>`. Queda como LaunchDaemon.
+3. En el panel, un «public hostname» por fila de la tabla. El DNS lo crea Cloudflare.
+4. Zero Trust → Access → Applications: una aplicación por hostname con una política «Allow» para tu correo. Cloudflare exige el login antes de que la petición llegue al mini.
+
+Nada escucha en `0.0.0.0` del mini; todo sigue en `127.0.0.1` y solo `cloudflared` lo alcanza.
+
+**DEMIURGO no es público.** Tener un hostname no lo hace visible: Cloudflare Access exige iniciar sesión con tu identidad antes de reenviar nada, y la política solo te permite a ti. Para cualquier otro la respuesta es la pantalla de login de Cloudflare; el mini nunca recibe una petición sin autenticar. Detrás sigue el login propio de DEMIURGO. Afinado opcional: segundo factor, país, o exigir el cliente WARP en el dispositivo. Para cerrarlo del todo en un momento, se desactiva la política y el hostname deja de responder para todos.
+
+Variante más cerrada, si no se quiere ni un hostname web: solo `ssh.tudominio` detrás de Access, y la web por reenvío de puertos dentro del SSH (`ssh -N -L 8100:127.0.0.1:8100 mini` y `http://localhost:8100`). Se pierde el acceso desde el móvil sin SSH. Se recomienda la primera: igual de cerrada y más cómoda, y el día que haya que dar acceso a alguien se añade su correo a la política.
+
+---
+
+## 07 · SSH a través de Cloudflare
+
+Cloudflare no expone el puerto 22: envuelve SSH en HTTPS. El cliente necesita `cloudflared` y un `ProxyCommand`:
+
+```
+# ~/.ssh/config en cada cliente (Windows, Mac, Linux)
+Host mini
+  HostName ssh.tudominio
+  User demiurgo
+  ProxyCommand cloudflared access ssh --hostname %h
+  IdentityFile ~/.ssh/id_ed25519_mini
+```
+
+La primera vez, `cloudflared` abre el navegador para pasar por Cloudflare Access y guarda un token corto; después `ssh mini` funciona como cualquier SSH, con reenvío de puertos incluido. VS Code Remote SSH usa este mismo `config`.
+
+Capas de seguridad, de fuera adentro:
+
+- **Cloudflare Access**: nadie llega al mini sin autenticarse con tu identidad. Puedes exigir además un dispositivo concreto o un país.
+- **sshd**: solo claves (`PasswordAuthentication no`), solo la cuenta `demiurgo` (`AllowUsers demiurgo`), una clave por dispositivo con frase de paso. Perder un portátil = borrar una línea de `authorized_keys`.
+- **Sin SSH desde la red local abierta**: opcionalmente `sshd` puede escuchar solo en `127.0.0.1`, ya que cloudflared se conecta desde dentro. En casa se entra por el mismo dominio.
+
+**Desde un equipo donde no puedes instalar nada** (el PC del trabajo, un ordenador prestado): solo con el navegador, por la misma puerta de Access.
+
+- **Terminal SSH en el navegador.** En la aplicación de Access de `ssh.tudominio` se activa «browser rendering: SSH». Entras con tu identidad, das usuario y clave, y la terminal del mini aparece en la pestaña. `tmux attach` recupera la sesión de Claude Code o Codex. No hay reenvío de puertos, pero la web ya va por `demiurgo.tudominio`.
+- **VS Code en el navegador.** `code-server` en el mini como servicio de `launchd`, publicado como `code.tudominio` detrás de Access. Editor, git y terminal integrada con `claude` y `codex`, sin instalar nada en el cliente. Es la forma cómoda de trabajar desde el trabajo.
+
+Ambas son tráfico HTTPS normal por el 443; lo único que podría cortarlas es que la red de la empresa bloquee el dominio.
+
+---
+
+## 08 · La web de DEMIURGO por el dominio
+
+La API de Fastify valida `Host` y `Origin`, y la sesión va en cookie `httpOnly` con CSRF. Para que funcione detrás del túnel:
+
+- `DEMIURGO_ORIGINS=https://demiurgo.tudominio` (y `http://localhost:8100` si se quiere seguir entrando por túnel SSH).
+- La cookie de sesión se marca `Secure` cuando el origen es `https`. Comprobar en `packages/api` que el `trust proxy` de Fastify acepta las cabeceras `X-Forwarded-*` que envía cloudflared; si no, añadirlo al arrancar el servidor.
+- SSE (el diario en vivo) atraviesa Cloudflare sin problema, pero el túnel corta conexiones inactivas a los 100 segundos: la API debe enviar un comentario `:keepalive` periódico o el cliente debe reconectar. Comprobar en la primera prueba.
+- Cloudflare Access añade su propia cookie de sesión; la de DEMIURGO va aparte. Dos logins la primera vez, el de Cloudflare dura lo que se configure (por ejemplo 30 días).
+
+Para Phoenix y Metabase no hace falta nada: son aplicaciones web normales detrás de Access.
+
+---
+
+## 09 · Motor de contenedores en macOS
+
+Docker no corre nativo en macOS: siempre hay una máquina virtual Linux ARM64 por debajo.
+
+| Motor | A favor | En contra |
+|---|---|---|
+| **Colima** (recomendado) | Libre, solo CLI, `brew services start colima` lo deja como LaunchAgent que arranca con la sesión; usa el Virtualization.framework de Apple y `virtiofs` para los bind mounts | Menos pulido que OrbStack; primer arranque lento |
+| OrbStack | El más rápido y el que mejor propaga eventos de fichero; `orb start` sin GUI | Licencia solo gratuita para uso personal; app con componente gráfico |
+| Docker Desktop | Conocido | Pesado, licencia, autoarranque ligado a la sesión gráfica |
+
+Con inicio de sesión automático (diapositiva 05) cualquiera de los dos primeros arranca solo. Se elige **uno** y no se instala otro: dos motores con dos sockets es la fuente clásica de «mis volúmenes han desaparecido».
+
+Configuración de Colima para este caso: 4 CPU, 8 GB, disco 100 GB, `--vm-type vz --mount-type virtiofs`. Después `docker context use colima`.
+
+Prueba de elección antes de seguir: levantar el compose, editar un `.ts` desde el host, y ver que `node --watch` dentro del contenedor reinicia en menos de dos segundos. Si los eventos no llegan, probar OrbStack antes de cualquier otro remedio.
+
+---
+
+## 10 · Un solo compose
+
+`compose.yaml` en la raíz del repo, proyecto `demiurgo`. Sustituye a los tres actuales.
+
+| Servicio | Imagen | Función | Persistencia |
+|---|---|---|---|
+| `postgres` | `postgres:18` | Base `demiurgo_v2`, esquema `dbos`, bases efímeras `dmg_t_*` de las pruebas y las instantáneas `dmg_snap_*` | Volumen `pgdata` |
+| `api` | Imagen propia (Node 24 + `claude` + `codex` + cliente `docker`) | `node --watch packages/api/src/main.ts` con el repo montado | Volumen `agent-sessions`, volumen `cli-auth` |
+| `web-build` | La misma imagen | `pnpm --filter @demiurgo/web exec vite build --watch` | Volumen `web-dist` (compartido con `api`) |
+| `evidence-db` | `postgres:18` | Base `demiurgo_evidence` y `phoenix` | Volumen `evidence-data` |
+| `collector` | `otel/opentelemetry-collector-contrib` | OTLP 4317/4318, exporta al ingestor | Volúmenes `evidence-archive`, `evidence-queue` |
+| `ingestor` | Imagen propia | `pnpm evidence serve` | Ninguna |
+| `phoenix` | `arizephoenix/phoenix` | Visor de trazas | En `evidence-db` |
+| `metabase` | `metabase/metabase` | Cuadro de mando | Volumen `evidence-metabase` |
+
+Todos con `restart: unless-stopped`, healthcheck, y `depends_on: condition: service_healthy`. Los servicios se hablan por nombre en la red del compose; solo `api` necesita conocer a `postgres` y `collector`. Órdenes puntuales (`pnpm gen`, `pnpm snap`, `pnpm evidence metabase-setup`, migraciones) van con `docker compose run --rm api <orden>` o `exec`.
+
+Cambios en el repo que esto exige: un `Dockerfile` en la raíz, el compose nuevo, retirar los tres viejos, y que el ingestor escuche en `0.0.0.0` dentro de su contenedor (`DEMIURGO_EVIDENCE_HOST`). El colector deja de apuntar a `host.docker.internal:4319` y apunta a `ingestor:4319`.
+
+---
+
+## 11 · Puertos en el mini
+
+Todo publicado en `127.0.0.1`; desde fuera se llega por Cloudflare o por túnel SSH.
+
+| Puerto | Servicio | Quién lo usa |
+|---|---|---|
+| 22 | sshd | cloudflared |
+| 8100 | api + web | cloudflared → `demiurgo.tudominio` |
+| 55433 | postgres | `psql`, `pnpm cli`, `pnpm snap` y las pruebas desde el host |
+| 55434 | evidence-db | `pnpm evidence check` desde el host |
+| 4318 | collector | Las CLI del host (`claude`, `codex` con telemetría) |
+| 6006 | phoenix | cloudflared → `phoenix.tudominio` |
+| 8443 | code-server (en el host, no en Docker) | cloudflared → `code.tudominio` |
+| 3300 | metabase | cloudflared → `metabase.tudominio` |
+
+No se publican 4317, 4319 ni 13133: viven en la red interna del compose. El 8000 sigue reservado para `demiurgo-stable` y no existe en el mini.
+
+---
+
+## 12 · El contenedor de la API
+
+Variables, en un `.env` en la raíz que no se commitea:
+
+| Variable | Valor |
+|---|---|
+| `DEMIURGO_PORT` | `8100` |
+| `DEMIURGO_HOST` | `0.0.0.0` dentro del contenedor; compose lo publica en `127.0.0.1:8100` |
+| `DEMIURGO_DATABASE_URL` | `postgres://demiurgo:<secreto>@postgres:5432/demiurgo_v2` |
+| `DEMIURGO_TEST_DB_URL` | `postgres://demiurgo:<secreto>@127.0.0.1:55433/postgres` (para `pnpm gate:test` desde el host) |
+| `DEMIURGO_ORIGINS` | `https://demiurgo.tudominio,http://localhost:8100` |
+| `DEMIURGO_ENVIRONMENT` | `real` |
+| `DEMIURGO_DEV_TOOLS` | `1` (instantáneas y proveedor simulado; es tu único entorno) |
+| `DEMIURGO_OTLP_ENDPOINT` | `http://collector:4318` |
+| `DEMIURGO_AGENT_SESSIONS_DIR` | `/var/lib/demiurgo/sessions` (volumen; el valor por defecto cae en `/tmp` y se pierde) |
+
+La imagen lleva Node 24, pnpm por corepack, las CLI `claude` y `codex` de Linux y el cliente `docker`. No lleva secretos ni `.env`. El runner (`packages/core/src/runner/`) necesita el socket de Docker montado en `api`: es una capacidad amplia y se acepta como primera etapa porque solo tú tienes acceso; un broker separado con el socket queda como mejora posterior.
+
+---
+
+## 13 · Desarrollo en caliente sin reiniciar contenedores
+
+El repo se **monta** en `api` y `web-build` (bind mount de `/Users/demiurgo/Demiurgo` a `/app`). `node_modules` va en un volumen con nombre, nunca compartido con el host: los binarios nativos son del Linux ARM64 del contenedor.
+
+| Cambias | Qué pasa | Tienes que hacer |
+|---|---|---|
+| Un `.ts` de `packages/api`, `core`, `domain` | `node --watch` reinicia el proceso en 1-2 s | Nada. Recargar la pestaña |
+| Un `.tsx` o CSS de `packages/web` | `vite build --watch` reescribe `dist`; la API lo sirve al momento | Recargar la pestaña |
+| Una migración SQL nueva | Se aplica al reiniciar `api` | Antes, `pnpm snap save` |
+| `design/data/*.yaml` | `pnpm gen` regenera las tablas | `docker compose exec api pnpm gen` (antes, instantánea) |
+| `package.json` o el lockfile | Faltan dependencias en el volumen | `docker compose exec api pnpm install` |
+| `Dockerfile`, versión de Node, `vite.config.ts` | La imagen o el proceso de Vite quedan desfasados | `docker compose up -d --build` |
+| `.env` | El proceso no lo relee | `docker compose up -d api` |
+
+Regla de cuota que se mantiene: `node --watch` reinicia la API al guardar, y un reinicio durante una ejecución con Claude o Codex la repite. Antes de guardar código de servidor, mirar Activity. Si molesta, un `docker compose stop web-build`/`api` temporal no borra nada.
+
+Con Colima, si un día los eventos de fichero se pierden, la alternativa es `develop.watch` de Compose (sincroniza el código dentro del contenedor). Se prueba solo si hace falta.
+
+---
+
+## 14 · Claude Code y Codex en el mini
+
+Son dos usos distintos y se instalan por separado:
+
+**Interactivo, por SSH (tú desarrollando).** `claude` y `codex` instalados en macOS con Homebrew/npm en la cuenta `demiurgo`. Login la primera vez por SSH:
+
+- Claude Code: `claude` y sigue el flujo; sin navegador en el mini, te da una URL para abrir en el cliente y un código para pegar. Sin Keychain desbloqueado guarda las credenciales en `~/.claude/.credentials.json` con permisos `0600`.
+- Codex: `codex login --device-auth`, mismo patrón.
+
+Su contexto (proyectos, memoria, historial en `~/.claude` y `~/.codex`) vive en el mini y entra en las copias. Es exactamente lo que buscabas: el mismo contexto desde cualquier cliente.
+
+**Como proveedores de DEMIURGO (la app llamando a los modelos).** Las CLI de Linux dentro de la imagen `api`, con su autenticación en el volumen `cli-auth` (`CLAUDE_CONFIG_DIR` y `CODEX_HOME` apuntando ahí). Login una vez con `docker compose exec api claude` y `docker compose exec api codex login --device-auth`. Se tratan como contraseñas.
+
+No se copian credenciales de Windows al mini: se hace login de nuevo. El historial de Windows se migra solo si se quiere, copiando `~/.claude/projects` y `~/.codex/sessions` una vez.
+
+---
+
+## 15 · Con qué te conectas
+
+No hace falta ninguna herramienta especial: **el mini es un servidor SSH normal** y los modelos se usan en su terminal. Lo que necesitas en cada cliente es SSH + `cloudflared` + un multiplexor para que la sesión sobreviva a la desconexión.
+
+| Cliente | Para qué | Notas |
+|---|---|---|
+| **VS Code + Remote SSH** | El día a día: editor, terminal, `claude`, `codex`, git | La extensión ejecuta su servidor en el mini; el `Host mini` del `.ssh/config` basta |
+| **Termius** (Windows, Mac, iOS, Android) | Terminal cómodo desde cualquier sitio, también móvil | Soporta claves y `ProxyCommand`; sincroniza hosts entre dispositivos |
+| **Blink Shell** (iOS/iPadOS) | Desde el iPad con teclado | Soporta `cloudflared`-style proxies y mosh |
+| **Terminal de Windows + OpenSSH** | Lo que ya tienes | `winget install Cloudflare.cloudflared` y el `.ssh/config` de la diapositiva 07 |
+| **code-server en `code.tudominio`** | Desde el PC del trabajo o cualquier equipo sin permisos de instalación | VS Code completo en el navegador, con terminal; detrás de Access |
+| **Terminal SSH en el navegador de Cloudflare** | Lo mismo, cuando solo hace falta una terminal | Sin reenvío de puertos |
+
+En el mini, **`tmux`** (o `zellij`): abres `tmux new -s claude`, lanzas `claude`, y si se cae la conexión la sesión sigue; vuelves con `tmux attach -t claude`. Es la pieza que hace que trabajar desde el móvil o con wifi mala no rompa una conversación con el modelo.
+
+Claude Code tiene además un modo de control remoto desde la app de Claude (`claude remote-control` o `/remote-control` en una sesión abierta) que permite seguir esa misma sesión del mini desde el móvil sin SSH. Es un complemento, no un sustituto del acceso por SSH.
+
+No conozco un cliente llamado «OCra»; si te refieres a otro, dime cuál y lo encajo. Con los de la tabla se cubre todo lo que has pedido.
+
+---
+
+## 16 · Cómo se trabaja, caso por caso
+
+| Situación | Qué haces | De qué depende |
+|---|---|---|
+| En casa, con el PC | VS Code Remote SSH a `mini`; navegador en `https://demiurgo.tudominio` | Mini e Internet de casa |
+| Fuera de casa, con el portátil | Exactamente lo mismo: el dominio es el mismo dentro y fuera | Mini e Internet de casa |
+| En el PC del trabajo, sin poder instalar nada | Navegador: `code.tudominio` para editar y `tmux attach` en su terminal; la web por `demiurgo.tudominio` | Que la red de la empresa no bloquee el dominio |
+| Solo con el móvil o el iPad | Termius/Blink → `tmux attach`; la web por el dominio | Igual |
+| PC apagado | Nada cambia: el PC nunca ejecuta nada de DEMIURGO | Ningún proceso del PC |
+| Se corta tu conexión | Reconectas; `tmux` conserva la sesión con el modelo, compose sigue | Estado del mini |
+| Se corta la luz en casa | El mini arranca solo al volver la corriente, entra en sesión, Colima y compose vuelven, cloudflared vuelve | Diapositiva 05 y su prueba |
+| Se cae Internet de casa | Los servicios siguen, pero no se llega ni los modelos responden | Internet de casa (es el punto único de fallo aceptado) |
+| Quieres probar algo destructivo | `pnpm snap save antes-<cosa>` desde el panel de dev tools y adelante; `pnpm snap restore` deshace | Instantáneas en el mismo Postgres |
+
+Parchear en caliente (modo V2.1): sigue igual, pero editando en el mini. `git push` desde allí. El companion (`claude --agent demiurgo-companion`) se abre en otra ventana de `tmux`.
+
+---
+
+## 17 · Secretos y permisos
+
+Fuera de Git y generados de nuevo al montar el mini (los valores de ejemplo del repo dejan de valer en cuanto hay un dominio público delante):
+
+- Contraseñas de `postgres` y `evidence-db`, y el rol `evidence_reader` de Metabase.
+- `.env` de la raíz y `packages/evidence/.env`.
+- Credenciales de Claude y Codex, las del host y las del volumen `cli-auth`.
+- Claves SSH de cada cliente y el token del túnel de Cloudflare.
+- Tokens de agentes (`dmg_agent_…`) que se generen desde la web.
+
+Cuentas: `admin` para `sudo` y actualizaciones; `demiurgo` para todo lo demás, sin `sudo`. El repo y los volúmenes pertenecen a `demiurgo`. Los ficheros de credenciales a `0600`.
+
+Cloudflare Access es la puerta única: si un día hay que revocar todo el acceso desde fuera, se desactiva la política y el mini queda invisible sin tocar nada dentro.
+
+---
+
+## 18 · Copias de seguridad
+
+Las instantáneas `pnpm snap` viven en el mismo Postgres: sirven para deshacer, no como copia. Copias de verdad, por `launchd` cada noche:
+
+| Qué | Cómo | Restauración a ensayar |
+|---|---|---|
+| `demiurgo_v2` y el esquema `dbos` | `pg_dump -Fc` desde `docker compose exec postgres` | Restaurar en una base `dmg_t_restore` y contar eventos |
+| `demiurgo_evidence` y `phoenix` | `pg_dump -Fc` | Abrir Phoenix contra la copia |
+| Archivo y cola del colector, H2 de Metabase | Copia de los volúmenes con los servicios parados un minuto | Reproducir con `pnpm evidence replay` |
+| Repo, `.env`, `~/.claude`, `~/.codex`, `~/.ssh` | `restic` o `borg` cifrado | Recuperar una sesión de Claude Code |
+
+Destino: un disco USB cifrado en el mini **y** un almacén fuera de casa (Backblaze B2, Cloudflare R2 o similar) con `restic`. Time Machine puede cubrir los ficheros del host pero no un Postgres vivo dentro de la VM. Prueba de restauración completa una vez al trimestre, en el calendario. Vigilar el disco: el archivo de evidencia no borra nada por antigüedad.
+
+---
+
+## 19 · Migración desde Windows, sin doble escritura
+
+1. **Inventario en el PC:** tamaño de `demiurgo_v2`, bases `dmg_snap_*` a conservar, sesiones de agentes, archivo y cola de evidencia, H2 de Metabase. Todo con Docker Desktop arrancado.
+2. **Mini listo en paralelo:** diapositivas 04 a 12 completas, compose levantado con bases vacías y probado con el proveedor simulado. La 8100 del PC sigue siendo la real.
+3. **Ensayo:** `pg_dump` de cada base en el PC, `pg_restore` en el mini, arrancar, navegar, comprobar migraciones y conteo de eventos. Tirar y repetir hasta que salga limpio.
+4. **Corte:** ventana sin ejecuciones en marcha. Parar API e ingestor en el PC. Dump final, copiar por `scp mini:`, restaurar, levantar. Comprobar por el dominio.
+5. **Después:** las instancias del PC no se vuelven a arrancar; `compose.instance.yaml`, `compose.dev.yaml` y `compose.evidence.yaml` se borran del repo en el commit del compose nuevo. Docker Desktop se puede desinstalar del PC.
+6. **Vuelta atrás:** solo antes de escribir nada nuevo en el mini. Después ya no basta con encender el PC: habría que exportar y conciliar.
+
+`demiurgo-stable`, el puerto 8000 y `%LOCALAPPDATA%\Demiurgo\stable` no se migran ni se tocan.
+
+---
+
+## 20 · Riesgos que cambian el diseño
+
+| Riesgo | Respuesta |
+|---|---|
+| El mini no vuelve solo tras un corte | Prueba de la diapositiva 05 antes de migrar; si falla, revisar auto-login y el LaunchAgent de Colima |
+| Cloudflare corta SSE a los 100 s | Keepalive en la API o reconexión del cliente; se prueba el primer día |
+| La API rechaza `Host`/`Origin` del dominio | `DEMIURGO_ORIGINS` y `trust proxy`; se prueba antes del corte |
+| Los eventos de fichero no llegan a `node --watch` con Colima | Cambiar a OrbStack, o `develop.watch` de Compose |
+| Una imagen fijada por digest no tiene ARM64 | Inspeccionar manifiestos al escribir el compose |
+| `node --watch` reinicia durante una ejecución con un modelo | Mirar Activity antes de guardar; parar `api` con un `stop` si hace falta |
+| Socket de Docker montado en `api` | Aceptado como primera etapa; broker separado como mejora |
+| Las pruebas alcanzan datos reales | Solo tocan `dmg_t_*`; está vigilado por `AC-ESQ-001-06` |
+| Sin FileVault, robo físico | Copias cifradas fuera; decisión asumida |
+| La sonda del runner lista el 8000 como destino negativo | Retirar ese destino de `packages/core/src/runner/probe.ts` antes de ejecutarla en el mini |
+
+---
+
+## 21 · Orden de ejecución y criterios de cierre
+
+**Fase A — Acceso (una tarde).** macOS, cuentas, Ethernet, SSH por clave, auto-login, cloudflared como daemon, Access, `ssh mini` desde fuera de casa. Cierra cuando entras desde el móvil con el monitor desconectado tras un corte de luz.
+
+**Fase B — Plataforma (una tarde).** Colima como servicio, `Dockerfile`, `compose.yaml` único, secretos nuevos, `docker compose up -d --wait`. Cierra cuando reinicias el mini y `docker ps` muestra todo sano sin abrir ninguna terminal.
+
+**Fase C — Desarrollo (una tarde).** Repo clonado, `claude` y `codex` con login, VS Code Remote SSH, `tmux`. Editar un `.ts` y un `.tsx` y verlos en `https://demiurgo.tudominio` sin reconstruir. `pnpm gate:types` y `pnpm gate:test` desde el mini contra el Postgres de 55433. Cierra cuando parcheas algo de la V2.1 entero desde el mini.
+
+**Fase D — Datos (un fin de semana).** Ensayo de dump y restauración, copias nocturnas con `launchd`, restauración probada. Después, corte final y activación.
+
+**Fase E — Limpieza.** Borrar los compose viejos, actualizar `CLAUDE.md` (cómo se relanza la instancia, dónde vive), desinstalar Docker Desktop del PC.
+
+**Criterio final:** el mini mantiene servicios, datos y el contexto de Claude Code y Codex; entras igual desde casa y desde fuera con `ssh mini` y el dominio; un fallo del cliente no detiene nada; y está escrito qué pasa si falla el propio mini.
+
+---
+
+## 22 · Cómo se ejecuta: Claude Code en el mini
+
+El plan se ejecuta **desde el propio mini**, con Claude Code, siguiendo el guion de `docs/homelab-macmini-runbook.md`. La persona hace una vez lo que exige pantalla o navegador; Claude hace el resto por SSH.
+
+1. **Arranque manual (una vez):** configuración inicial de macOS con monitor prestado, Sesión remota activada, `ssh demiurgo@<ip>` desde el PC, y el bloque de instalación del guion: Homebrew, git, Node 24, pnpm, `tmux`, Claude Code, clon del repo en `~/Demiurgo`, `claude` y su login.
+2. **El prompt del guion**, pegado en Claude Code dentro de `tmux`, con el dominio, la URL del repo y el correo de Access.
+3. **Claude ejecuta las fases A → E** y para en cada paso 🖐: crear el túnel y los hostnames en el panel de Cloudflare, las políticas de Access, los logins de Codex y de los proveedores, el volcado de las bases desde el PC, la confirmación del corte. Dice exactamente qué hacer y qué devolverle.
+4. **Cada fase se cierra con su prueba** (corte de luz y entrada desde el móvil; reinicio y servicios sanos sin terminal; cambio de código visto por el dominio; restauración de una copia) y queda anotada en `docs/homelab-macmini-bitacora.md`, que se commitea y se sube.
+
+Lo que Claude no hace nunca sin confirmación en ese momento: migrar los datos reales, lanzar una ejecución real con Claude o Codex, y tocar `demiurgo-stable` o el puerto 8000.
+</script>
+<script>
+(function(){
+  const src = document.getElementById('source').textContent;
+  const blocks = src.split(/\n---\n/).map(b => b.trim()).filter(Boolean);
+  const stage = document.getElementById('stage');
+  const toc = document.getElementById('toc');
+  const slides = blocks.map((b, i) => {
+    const s = document.createElement('section');
+    s.className = 'slide';
+    s.innerHTML = marked.parse(b);
+    stage.appendChild(s);
+    const h = s.querySelector('h1,h2');
+    const a = document.createElement('a');
+    a.href = '#' + (i + 1);
+    a.textContent = h ? h.textContent : 'Diapositiva ' + (i + 1);
+    toc.appendChild(a);
+    return s;
+  });
+  const links = [...toc.querySelectorAll('a')];
+  let current = 0;
+  function show(i){
+    current = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach((s, k) => s.classList.toggle('active', k === current));
+    links.forEach((a, k) => a.classList.toggle('current', k === current));
+    document.getElementById('counter').textContent = (current + 1) + ' / ' + slides.length;
+    document.getElementById('prev').disabled = current === 0;
+    document.getElementById('next').disabled = current === slides.length - 1;
+    history.replaceState(null, '', '#' + (current + 1));
+    stage.scrollTop = 0;
+    try { localStorage.setItem('deck-slide', String(current)); } catch (e) {}
+  }
+  document.getElementById('prev').onclick = () => show(current - 1);
+  document.getElementById('next').onclick = () => show(current + 1);
+  document.getElementById('toggleToc').onclick = () => toc.classList.toggle('open');
+  links.forEach((a, k) => a.onclick = (e) => { e.preventDefault(); show(k); if (innerWidth < 720) toc.classList.remove('open'); });
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); show(current + 1); }
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); show(current - 1); }
+    if (e.key === 'Home') show(0);
+    if (e.key === 'End') show(slides.length - 1);
+  });
+  const root = document.documentElement;
+  document.getElementById('theme').onclick = () => {
+    const dark = root.dataset.theme === 'dark' || (!root.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches);
+    root.dataset.theme = dark ? 'light' : 'dark';
+    try { localStorage.setItem('deck-theme', root.dataset.theme); } catch (e) {}
+  };
+  try { const t = localStorage.getItem('deck-theme'); if (t) root.dataset.theme = t; } catch (e) {}
+  let start = parseInt(location.hash.slice(1), 10) - 1;
+  if (!(start >= 0)) { try { start = parseInt(localStorage.getItem('deck-slide') || '0', 10); } catch (e) { start = 0; } }
+  addEventListener('hashchange', () => { const n = parseInt(location.hash.slice(1), 10) - 1; if (n >= 0 && n !== current) show(n); });
+  if (innerWidth >= 720) toc.classList.add('open');
+  show(start || 0);
+})();
+</script>
+</body>
+</html>

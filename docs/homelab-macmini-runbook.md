@@ -51,7 +51,14 @@ A partir de ahí Claude sigue este guion. Se recomienda lanzar `claude` dentro d
 6. 🖐 La persona crea en el túnel los public hostnames: `ssh.tudominio → ssh://localhost:22`, `demiurgo.tudominio → http://localhost:8100`, `phoenix.tudominio → http://localhost:6006`, `metabase.tudominio → http://localhost:3300`, `code.tudominio → http://localhost:8443`. Y en Access → Applications, una aplicación self-hosted por hostname con política Allow para su correo; en la de `ssh.tudominio`, activar «Browser rendering: SSH».
 7. code-server: `brew install code-server`, configurar `~/.config/code-server/config.yaml` con `bind-addr: 127.0.0.1:8443` y `auth: none` (Access ya autentica), `brew services start code-server`.
 8. `tmux` con `set -g mouse on` en `~/.tmux.conf`.
-9. **Prueba de cierre** 🖐: la persona desconecta el monitor, corta la corriente un minuto, la vuelve a dar y, desde el móvil con datos (no desde casa), abre `code.tudominio` y la terminal SSH del navegador. Si entra y `uptime` es reciente, la fase A está cerrada.
+9. Termius y WARP, para que quede todo preparado:
+   - 🖐 En Zero Trust: Networks → Tunnels → `macmini` → Private Network → añadir la IP LAN del mini con `/32`. Settings → WARP Client → Device enrollment permissions → política Allow para el correo de la persona. Settings → Network → activar Proxy (TCP).
+   - 🖐 La persona instala WARP en el PC y en el iPhone («1.1.1.1 / WARP»), entra en la organización Zero Trust con su correo y lo deja conectado.
+   - 🖐 La persona instala Termius en el PC y en el iPhone, genera una clave ed25519 en Termius (Keychain → Generate) y pega la clave pública a Claude. Claude la añade a `~/.ssh/authorized_keys`.
+   - Claude dicta el host para Termius: alias `mini`, dirección la IP LAN del mini, puerto 22, usuario `demiurgo`, la clave generada, y como comando de inicio `tmux attach -t claude || tmux new -s claude`.
+   - Prueba: desde el iPhone con datos móviles y WARP conectado, Termius entra en el mini.
+10. Control remoto de Claude Code: en el mini, `tmux new -s claude`, dentro `claude`, y `/remote-control`. 🖐 La persona abre la app de Claude en el iPhone y comprueba que ve la sesión y puede escribirle. Dejar la sesión abierta en `tmux`; anotar en la bitácora cómo se relanza tras un reinicio (`tmux new -d -s claude 'claude --remote-control'` o el comando equivalente que la versión instalada documente en `claude --help`).
+11. **Prueba de cierre** 🖐: la persona desconecta el monitor, corta la corriente un minuto, la vuelve a dar y, desde el móvil con datos (no desde casa), abre `code.tudominio`, la terminal SSH del navegador y Termius con WARP. Si entra por las tres y `uptime` es reciente, la fase A está cerrada.
 
 ## Fase B · Plataforma
 
@@ -97,6 +104,7 @@ A partir de ahí Claude sigue este guion. Se recomienda lanzar `claude` dentro d
 Lee docs/homelab-macmini-plan.md y docs/homelab-macmini-runbook.md y ejecuta el runbook fase por fase, empezando por la A.
 Trabaja de forma autónoma en este Mac mini. Cuando un paso lleve 🖐, para y dime exactamente qué tengo que hacer en mi navegador o en mi PC y qué te tengo que devolver; no sigas hasta que te lo dé.
 Mi dominio es <tudominio>. La URL del repositorio es <url>. Mi correo para Cloudflare Access es <correo>.
+Quiero conectarme con Termius desde el PC y el iPhone a través de WARP, y escribir a Claude Code desde la app de Claude con el control remoto: déjalo todo preparado según el runbook.
 No migres datos ni lances ninguna ejecución real con Claude o Codex sin que te lo confirme en ese momento. No toques demiurgo-stable ni el puerto 8000.
 Al cerrar cada fase, apunta en docs/homelab-macmini-bitacora.md lo que has hecho y commitea y sube a origin v2.2.
 ```

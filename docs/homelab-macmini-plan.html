@@ -169,6 +169,7 @@ Un solo mecanismo para todo. `cloudflared` en el mini abre una conexión salient
 | `phoenix.tudominio` | `http://127.0.0.1:6006` | Cloudflare Access |
 | `metabase.tudominio` | `http://127.0.0.1:3300` | Cloudflare Access |
 | `code.tudominio` | `http://127.0.0.1:8443` (code-server) | Cloudflare Access; para equipos donde no se puede instalar nada |
+| Red privada del túnel | IP LAN del mini `/32`, puerto 22 | Solo dispositivos con WARP inscritos en tu organización; para Termius |
 
 Pasos:
 
@@ -212,6 +213,8 @@ Capas de seguridad, de fuera adentro:
 - **VS Code en el navegador.** `code-server` en el mini como servicio de `launchd`, publicado como `code.tudominio` detrás de Access. Editor, git y terminal integrada con `claude` y `codex`, sin instalar nada en el cliente. Es la forma cómoda de trabajar desde el trabajo.
 
 Ambas son tráfico HTTPS normal por el 443; lo único que podría cortarlas es que la red de la empresa bloquee el dominio.
+
+**Desde tus propios dispositivos, con Termius:** el `ProxyCommand` no sirve para Termius ni para el iPhone. Ahí se usa la otra puerta de Cloudflare: el cliente WARP inscrito en tu organización y el mini publicado como red privada del túnel (su IP de la LAN, `/32`). Termius conecta entonces por SSH normal a esa IP. Detalle en la diapositiva 15.
 
 ---
 
@@ -343,12 +346,26 @@ No se copian credenciales de Windows al mini: se hace login de nuevo. El histori
 
 ---
 
-## 15 · Con qué te conectas
+## 15 · Con qué te conectas: Termius, WARP y la app de Claude
 
-No hace falta ninguna herramienta especial: **el mini es un servidor SSH normal** y los modelos se usan en su terminal. Lo que necesitas en cada cliente es SSH + `cloudflared` + un multiplexor para que la sesión sobreviva a la desconexión.
+**El mini es un servidor SSH normal**; los modelos se usan en su terminal. Hay dos puertas de Cloudflare y las dos van con tu identidad:
 
-| Cliente | Para qué | Notas |
+- **WARP** (el cliente «1.1.1.1 / WARP» de Cloudflare, en PC, Mac, iPhone y iPad) con login en tu organización Zero Trust: el dispositivo entra en la red privada donde está el mini y **Termius** abre SSH normal contra su IP, con tu clave. Es la puerta de tus dispositivos.
+- **El navegador** (`code.tudominio`, terminal SSH renderizada): la puerta de los equipos donde no puedes instalar nada.
+
+| Cliente | Para qué | Cómo |
 |---|---|---|
+| **Termius** (Windows, Mac, iPhone, iPad) | La terminal del día a día y desde el móvil | WARP conectado; host `mini` = IP privada del mini, usuario `demiurgo`, clave generada en Termius y añadida a `authorized_keys`. Sincroniza hosts y claves entre dispositivos (la sincronización cifrada es de pago) |
+| **App de Claude en el iPhone** | Lanzar prompts a Claude Code estando fuera, con interfaz de chat | En el mini, `claude` dentro de `tmux` con `/remote-control`; la sesión aparece en la app y en claude.ai/code. Relé de Anthropic, cifrado, ligado a tu cuenta |
+| **VS Code + Remote SSH** | Editor y terminal desde el PC | Con WARP, `Host mini` apuntando a la IP privada; sin WARP, el `ProxyCommand` de la diapositiva 07 |
+| **code-server en `code.tudominio`** | PC del trabajo o equipo prestado | VS Code completo en el navegador, detrás de Access |
+| **Terminal SSH en el navegador** | Igual, cuando basta una terminal | Sin reenvío de puertos |
+
+En el mini, **`tmux`**: `tmux new -s claude`, lanzas `claude`, y si se cae la conexión la sesión sigue; vuelves con `tmux attach -t claude` desde Termius o desde el navegador. Es lo que hace que trabajar desde el móvil no rompa una conversación con el modelo.
+
+**Seguridad de la puerta WARP:** no hay ningún puerto abierto en casa; el mini solo es alcanzable desde dispositivos inscritos en tu organización de Cloudflare con tu identidad, por un túnel WireGuard, y SSH solo admite tu clave. Quitar un dispositivo o desactivar la política lo apaga para todos.
+
+---|---|---|
 | **VS Code + Remote SSH** | El día a día: editor, terminal, `claude`, `codex`, git | La extensión ejecuta su servidor en el mini; el `Host mini` del `.ssh/config` basta |
 | **Termius** (Windows, Mac, iOS, Android) | Terminal cómodo desde cualquier sitio, también móvil | Soporta claves y `ProxyCommand`; sincroniza hosts entre dispositivos |
 | **Blink Shell** (iOS/iPadOS) | Desde el iPad con teclado | Soporta `cloudflared`-style proxies y mosh |
@@ -371,7 +388,7 @@ No conozco un cliente llamado «OCra»; si te refieres a otro, dime cuál y lo e
 | En casa, con el PC | VS Code Remote SSH a `mini`; navegador en `https://demiurgo.tudominio` | Mini e Internet de casa |
 | Fuera de casa, con el portátil | Exactamente lo mismo: el dominio es el mismo dentro y fuera | Mini e Internet de casa |
 | En el PC del trabajo, sin poder instalar nada | Navegador: `code.tudominio` para editar y `tmux attach` en su terminal; la web por `demiurgo.tudominio` | Que la red de la empresa no bloquee el dominio |
-| Solo con el móvil o el iPad | Termius/Blink → `tmux attach`; la web por el dominio | Igual |
+| Solo con el iPhone o el iPad | App de Claude para escribir a la sesión de Claude Code; Termius con WARP para la terminal (`tmux attach`); la web por el dominio | Igual |
 | PC apagado | Nada cambia: el PC nunca ejecuta nada de DEMIURGO | Ningún proceso del PC |
 | Se corta tu conexión | Reconectas; `tmux` conserva la sesión con el modelo, compose sigue | Estado del mini |
 | Se corta la luz en casa | El mini arranca solo al volver la corriente, entra en sesión, Colima y compose vuelven, cloudflared vuelve | Diapositiva 05 y su prueba |

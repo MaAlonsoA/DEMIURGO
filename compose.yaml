@@ -36,9 +36,18 @@ services:
     restart: unless-stopped
 
   # DEMIURGO: la API y la web (packages/web/dist, escrita por web-build) en el mismo origen.
+  # --watch-path: con el repo montado desde macOS (Colima, virtiofs + mountInotify) los eventos llegan a
+  # los directorios pero `--watch` a secas (un vigilante por fichero) no reinicia; vigilando los
+  # directorios de código reinicia en un segundo. Se excluye packages/web, que compila web-build.
   api:
     <<: *app-image
-    command: ["node", "--watch", "packages/api/src/main.ts"]
+    command:
+      - node
+      - --watch-path=/app/packages/api/src
+      - --watch-path=/app/packages/core
+      - --watch-path=/app/packages/domain/src
+      - --watch-path=/app/packages/design/src
+      - packages/api/src/main.ts
     environment:
       DEMIURGO_DATABASE_URL: postgres://demiurgo:${DEMIURGO_DB_PASSWORD}@postgres:5432/demiurgo_v2
       DEMIURGO_HOST: 0.0.0.0

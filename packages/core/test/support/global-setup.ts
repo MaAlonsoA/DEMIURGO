@@ -1,4 +1,5 @@
-// Global setup for the database tests: ensures the development Postgres, creates a migrated
+// Global setup for the database tests: ensures the Postgres of compose.yaml (127.0.0.1:55433; the real
+// value of DEMIURGO_TEST_DB_URL, with its password, comes from .env), creates a migrated
 // template database (one per migration content) and cleans up old ephemeral databases. It never
 // touches a database that does not start with dmg_t_ or dmg_template_.
 
@@ -8,7 +9,7 @@ import type { TestProject } from 'vitest/node';
 import { sha256 } from '@demiurgo/domain';
 import { readMigrations, migrate } from '../../src/db/migrator.ts';
 
-export const URL_ADMIN = process.env.DEMIURGO_TEST_DB_URL ?? 'postgres://demiurgo:demiurgo-dev@127.0.0.1:55432/postgres';
+export const URL_ADMIN = process.env.DEMIURGO_TEST_DB_URL ?? 'postgres://demiurgo:demiurgo-dev@127.0.0.1:55433/postgres';
 
 declare module 'vitest' {
   export interface ProvidedContext {
@@ -34,7 +35,7 @@ async function ensurePostgres(): Promise<Client> {
     return await connect();
   } catch {
     if (process.env.CI) throw new Error(`No test Postgres at ${URL_ADMIN}.`);
-    execFileSync('docker', ['compose', '-p', 'demiurgo-v2-dev', '-f', 'compose.dev.yaml', 'up', '-d', '--wait'], {
+    execFileSync('docker', ['compose', 'up', '-d', '--wait', 'postgres'], {
       stdio: 'inherit',
     });
     return await connect();

@@ -1,5 +1,5 @@
 // The pure parts of the Metabase setup (`pnpm evidence metabase-setup`, spec §12, §15.3) and of the env
-// file `pnpm evidence:up` generates: no Metabase and no database here. The live setup is checked by hand
+// file of packages/evidence/src/env-file.ts: no Metabase and no database here. The live setup is checked by hand
 // against the stack (docs/observabilidad.md).
 
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
@@ -19,7 +19,7 @@ import {
   tagId,
   toNativeQuery,
 } from '../src/metabase.ts';
-import { ensureEnvFile, missingSecretLines, parseEnvFile, renderEnvFile } from '../src/up.ts';
+import { ensureEnvFile, missingSecretLines, parseEnvFile, renderEnvFile } from '../src/env-file.ts';
 
 describe('env file', () => {
   it('parses KEY=value pairs, ignoring comments, blanks and quotes', () => {
@@ -71,7 +71,7 @@ describe('env file', () => {
     const path = join(dir, '.env');
     await writeFile(path, 'PHOENIX_SECRET=a\n', 'utf8');
     await expect(readAdminPassword(path)).rejects.toThrow(/METABASE_ADMIN_PASSWORD is missing/);
-    await expect(readAdminPassword(join(dir, 'none.env'))).rejects.toThrow(/pnpm evidence:up/);
+    await expect(readAdminPassword(join(dir, 'none.env'))).rejects.toThrow(/METABASE_ADMIN_PASSWORD/);
   });
 });
 

@@ -1,0 +1,213 @@
+# El compose único de DEMIURGO en el Mac mini (docs/homelab-macmini-plan.md, diapositiva 10). Sustituye a
+# compose.dev.yaml, compose.instance.yaml y compose.evidence.yaml. Los secretos vienen de .env (no se
+# commitea; .env.example documenta los nombres). Todo se publica solo en 127.0.0.1: desde fuera se
+# llega por Cloudflare Tunnel. Nunca demiurgo-stable ni el puerto 8000.
+#
+#   docker compose up -d --build --wait        levanta todo
+#   docker compose ps                          estado y salud
+#   docker compose exec api pnpm gen           órdenes puntuales (gen, snap, evidence …)
+#   docker compose run --rm api pnpm evidence metabase-setup
+name: demiurgo
+
+x-app-image: &app-image
+  build:
+    context: .
+    args:
+      UID: ${DEMIURGO_UID:-501}
+      GID: ${DEMIURGO_GID:-501}
+  image: demiurgo/app:local
+
+services:
+  postgres:
+    image: postgres:18.6@sha256:86c951e05bf56c93d95d397747fb8820ac76cc3bedb78f43abd83eedbe3666ae
+    environment:
+      POSTGRES_USER: demiurgo
+      POSTGRES_PASSWORD: ${DEMIURGO_DB_PASSWORD:?set in .env}
+      POSTGRES_DB: demiurgo_v2
+    ports:
+      - "127.0.0.1:55433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demiurgo -d demiurgo_v2"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  # DEMIURGO: la API y la web (packages/web/dist, escrita por web-build) en el mismo origen.
+  api:
+    <<: *app-image
+    command: ["node", "--watch", "packages/api/src/main.ts"]
+    environment:
+      DEMIURGO_DATABASE_URL: postgres://demiurgo:${DEMIURGO_DB_PASSWORD}@postgres:5432/demiurgo_v2
+      DEMIURGO_HOST: 0.0.0.0
+      DEMIURGO_PORT: "8100"
+      DEMIURGO_ORIGINS: ${DEMIURGO_ORIGINS:-http://localhost:8100,http://127.0.0.1:8100}
+      DEMIURGO_ENVIRONMENT: ${DEMIURGO_ENVIRONMENT:-real}
+      DEMIURGO_DEV_TOOLS: ${DEMIURGO_DEV_TOOLS:-1}
+      DEMIURGO_OTLP_ENDPOINT: http://collector:4318
+      DEMIURGO_AGENT_SESSIONS_DIR: /var/lib/demiurgo/sessions
+      # Para las órdenes de la pila de evidencia lanzadas con `docker compose exec api pnpm evidence …`.
+      DEMIURGO_EVIDENCE_DATABASE_URL: postgres://evidence:${EVIDENCE_DB_PASSWORD}@evidence-db:5432/demiurgo_evidence
+      DEMIURGO_EVIDENCE_READER_HOST: evidence-db
+      EVIDENCE_READER_PASSWORD: ${EVIDENCE_READER_PASSWORD:?set in .env}
+      METABASE_URL: http://metabase:3000
+      METABASE_ADMIN_PASSWORD: ${METABASE_ADMIN_PASSWORD:?set in .env}
+    ports:
+      - "127.0.0.1:8100:8100"
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+      - web-dist:/app/packages/web/dist
+      - agent-sessions:/var/lib/demiurgo/sessions
+      - cli-auth:/var/lib/demiurgo/cli-auth
+      # El runner (packages/core/src/runner) lanza contenedores: necesita el socket del motor.
+      - /var/run/docker.sock:/var/run/docker.sock
+    # Grupo propietario del socket de Docker dentro de la VM de Colima.
+    group_add:
+      - "${DOCKER_SOCKET_GID:-991}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      collector:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8100/api/session | grep -qE '^(200|401)$'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    restart: unless-stopped
+
+  # La web se compila en caliente en el volumen web-dist, que api sirve tal cual.
+  web-build:
+    <<: *app-image
+    command: ["pnpm", "--filter", "@demiurgo/web", "exec", "vite", "build", "--watch"]
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+      - web-dist:/app/packages/web/dist
+    depends_on:
+      api:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /app/packages/web/dist/index.html"]
+      interval: 5s
+      timeout: 3s
+      retries: 60
+      start_period: 30s
+    restart: unless-stopped
+
+  # ---- Pila de evidencia (docs/observabilidad.md) ----------------------------------------------
+  evidence-db:
+    image: postgres:18.6@sha256:86c951e05bf56c93d95d397747fb8820ac76cc3bedb78f43abd83eedbe3666ae
+    environment:
+      POSTGRES_USER: evidence
+      POSTGRES_PASSWORD: ${EVIDENCE_DB_PASSWORD:?set in .env}
+      POSTGRES_DB: demiurgo_evidence
+      EVIDENCE_READER_PASSWORD: ${EVIDENCE_READER_PASSWORD:?set in .env}
+    ports:
+      - "127.0.0.1:55434:5432"
+    volumes:
+      - evidence-data:/var/lib/postgresql
+      # Crea la base `phoenix` y el rol de solo lectura `evidence_reader` solo en el primer arranque.
+      - ./packages/evidence/postgres/init.sh:/docker-entrypoint-initdb.d/init.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evidence -d demiurgo_evidence"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  # El ingestor (`pnpm evidence serve`): migra y recibe OTLP/JSON del colector. Solo en la red interna.
+  ingestor:
+    <<: *app-image
+    command: ["node", "packages/evidence/src/cli.ts", "serve"]
+    environment:
+      DEMIURGO_EVIDENCE_DATABASE_URL: postgres://evidence:${EVIDENCE_DB_PASSWORD}@evidence-db:5432/demiurgo_evidence
+      DEMIURGO_EVIDENCE_HOST: 0.0.0.0
+      DEMIURGO_EVIDENCE_PORT: "4319"
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+    depends_on:
+      evidence-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -o /dev/null http://127.0.0.1:4319/v1/metrics -X POST -d '{}' -H 'content-type: application/json'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    restart: unless-stopped
+
+  collector:
+    image: otel/opentelemetry-collector-contrib:0.161.0@sha256:fd328de2552466ad78385e1b1289c3f2402b1c45f265b252aab1955b42845ac1
+    # La imagen corre como uid 10001 sobre scratch y los volúmenes nacen de root: se ejecuta como root.
+    user: "0:0"
+    ports:
+      - "127.0.0.1:4318:4318" # OTLP HTTP para las CLI del host
+    volumes:
+      - evidence-archive:/archive
+      - evidence-queue:/queue
+      - ./packages/evidence/collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    environment:
+      PHOENIX_SYSTEM_KEY: ${PHOENIX_SYSTEM_KEY:?set in .env}
+    depends_on:
+      ingestor:
+        condition: service_healthy
+      phoenix:
+        condition: service_started
+    # Sin healthcheck: la imagen no tiene shell. Desde el host: docker compose exec api curl -s http://collector:13133/
+    restart: unless-stopped
+
+  phoenix:
+    image: arizephoenix/phoenix:version-20.16.0@sha256:d55a4ffac8c670e2d0bf72e44e81e32a73e832b7ce449e6e4567487adfa9d8d6
+    environment:
+      PHOENIX_SQL_DATABASE_URL: postgresql://evidence:${EVIDENCE_DB_PASSWORD}@evidence-db:5432/phoenix
+      PHOENIX_ENABLE_AUTH: "true"
+      PHOENIX_SECRET: ${PHOENIX_SECRET:?set in .env}
+      PHOENIX_ADMIN_SECRET: ${PHOENIX_SYSTEM_KEY:?set in .env}
+      PHOENIX_DEFAULT_ADMIN_INITIAL_PASSWORD: ${PHOENIX_ADMIN_PASSWORD:?set in .env}
+      PHOENIX_TELEMETRY_ENABLED: "false"
+    ports:
+      - "127.0.0.1:6006:6006"
+    depends_on:
+      evidence-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  metabase:
+    image: metabase/metabase:v0.63.18.2@sha256:ca6d63cbedfd0a66a3c0239ac79a9df5f7ef3f2455027ab97e3bb26cbf281999
+    environment:
+      MB_DB_FILE: /metabase-data/metabase.db
+      MB_SITE_URL: ${METABASE_SITE_URL:-http://127.0.0.1:3300}
+      MB_ANON_TRACKING_ENABLED: "false"
+      MB_CHECK_FOR_UPDATES: "false"
+      MB_LOAD_SAMPLE_CONTENT: "false"
+    ports:
+      - "127.0.0.1:3300:3000"
+    volumes:
+      - evidence-metabase:/metabase-data
+    depends_on:
+      evidence-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "-s", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  node_modules:
+  web-dist:
+  agent-sessions:
+  cli-auth:
+  evidence-data:
+  evidence-archive:
+  evidence-queue:
+  evidence-metabase:

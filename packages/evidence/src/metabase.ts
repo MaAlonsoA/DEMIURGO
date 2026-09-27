@@ -1,6 +1,6 @@
-// `pnpm evidence metabase-setup` (spec §12, §15.3): leaves the Metabase of compose.evidence.yaml ready
+// `pnpm evidence metabase-setup` (spec §12, §15.3): leaves the Metabase of compose.yaml ready
 // through its REST API, idempotently. The first run creates the admin account (evidence@demiurgo.local, with
-// METABASE_ADMIN_PASSWORD from packages/evidence/.env); every run then signs in and makes sure of: the
+// METABASE_ADMIN_PASSWORD from the environment, or from packages/evidence/.env); every run then signs in and makes sure of: the
 // read-only connection "DEMIURGO evidence" to demiurgo_evidence as evidence_reader, no sample database,
 // the collection "DEMIURGO", one native SQL question per saved question of `questions/` that the
 // dashboard uses (the seven of §15.3) plus session-reuse, context-of-run and tokens-by-engine, and the
@@ -16,7 +16,7 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { QUESTIONS_DIR } from './ask.ts';
-import { ENV_FILE, parseEnvFile } from './up.ts';
+import { ENV_FILE, parseEnvFile } from './env-file.ts';
 
 export const DEFAULT_METABASE_URL = 'http://127.0.0.1:3300';
 export const ADMIN_EMAIL = 'evidence@demiurgo.local';
@@ -28,13 +28,17 @@ export const GRID_WIDTH = 24;
 /** The value of a `run` tag before the person picks one: a run that does not exist, so the card runs empty. */
 export const NO_RUN = '00000000-0000-0000-0000-000000000000';
 
-/** The connection Metabase uses: the compose network name of the postgres and the read-only role of init.sql. */
+/**
+ * The connection Metabase uses: the compose network name of the evidence postgres (`evidence-db` in
+ * compose.yaml) and the read-only role that packages/evidence/postgres/init.sh creates with the password
+ * of EVIDENCE_READER_PASSWORD. Both come from the environment that compose.yaml passes to `api`.
+ */
 export const DATABASE_DETAILS = {
-  host: 'postgres',
+  host: process.env.DEMIURGO_EVIDENCE_READER_HOST ?? 'evidence-db',
   port: 5432,
   dbname: 'demiurgo_evidence',
   user: 'evidence_reader',
-  password: 'evidence-reader',
+  password: process.env.EVIDENCE_READER_PASSWORD ?? 'evidence-reader',
   ssl: false,
   'tunnel-enabled': false,
   'advanced-options': false,
@@ -226,13 +230,20 @@ export function planDashcards(
   });
 }
 
-/** The admin password, from the env file that `pnpm evidence:up` generates. */
-export async function readAdminPassword(path = ENV_FILE): Promise<string> {
-  const text = await readFile(path, 'utf8').catch(() => {
-    throw new Error(`Cannot read ${path}: run pnpm evidence:up first (it generates METABASE_ADMIN_PASSWORD).`);
+/**
+ * The admin password: METABASE_ADMIN_PASSWORD from the environment (compose.yaml passes it to `api` from
+ * the root `.env`), else from the local env file. An explicit path always reads the file.
+ */
+export async function readAdminPassword(path?: string): Promise<string> {
+  if (path === undefined && process.env.METABASE_ADMIN_PASSWORD) return process.env.METABASE_ADMIN_PASSWORD;
+  const file = path ?? ENV_FILE;
+  const text = await readFile(file, 'utf8').catch(() => {
+    throw new Error(
+      `Cannot read ${file}: set METABASE_ADMIN_PASSWORD in .env (the root of compose.yaml) or in packages/evidence/.env.`,
+    );
   });
   const password = parseEnvFile(text).METABASE_ADMIN_PASSWORD;
-  if (!password) throw new Error(`METABASE_ADMIN_PASSWORD is missing from ${path}: run pnpm evidence:up to add it.`);
+  if (!password) throw new Error(`METABASE_ADMIN_PASSWORD is missing from ${file}: set it in .env or in packages/evidence/.env.`);
   return password;
 }
 

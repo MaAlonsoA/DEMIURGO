@@ -27,7 +27,7 @@ describe('CI', () => {
     expect(wf.jobs.unit?.needs).toBe('types-and-lint');
     expect(wf.jobs.integration?.needs).toBe('unit');
     expect(wf.jobs.invariants?.needs).toBe('integration');
-    const compose = await readFile('compose.dev.yaml', 'utf8');
+    const compose = await readFile('compose.yaml', 'utf8');
     for (const j of ['integration', 'invariants']) {
       const image = wf.jobs[j]?.services?.postgres?.image ?? '';
       expect(image).toMatch(/^postgres:18\.\d+@sha256:[0-9a-f]{64}$/);

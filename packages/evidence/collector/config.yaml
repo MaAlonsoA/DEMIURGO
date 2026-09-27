@@ -1,4 +1,4 @@
-# OpenTelemetry Collector of the evidence stack (compose.evidence.yaml, service `collector`).
+# OpenTelemetry Collector of the evidence stack (compose.yaml, service `collector`).
 # Spec: docs/superpowers/specs/2026-09-26-motor-observabilidad-design.md §12.
 # Pinned to otel/opentelemetry-collector-contrib 0.161.0: every key below was validated against that
 # version (`otelcol-contrib validate`). Everything points at localhost or at the compose network.
@@ -44,11 +44,11 @@ processors:
         action: insert
 
 exporters:
-  # The ingester (`pnpm evidence serve`) on the host, OTLP/JSON. It answers 200 only after committing;
+  # The ingester (`pnpm evidence serve`, service `ingestor` of compose.yaml), OTLP/JSON. It answers 200 only after committing;
   # anything else is retried from the persistent queue, forever (max_elapsed_time: 0).
   # In 0.161.0 the component is `otlp_http` (`otlphttp` is a deprecated alias).
   otlp_http/evidence:
-    endpoint: http://host.docker.internal:4319
+    endpoint: http://ingestor:4319
     encoding: json
     # Loopback traffic: no gzip, so the ingester reads plain JSON bodies.
     compression: none

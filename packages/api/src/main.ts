@@ -19,7 +19,13 @@ const app = await createServer({
   databaseUrl: config.databaseUrl,
   sessionHours: config.sessionHours,
   allowedOrigins: config.allowedOrigins,
-  allowedHosts: [`${config.host}:${config.port}`, `localhost:${config.port}`, `127.0.0.1:${config.port}`],
+  // The hosts of the allowed origins too: behind Cloudflare Tunnel the Host header is the public domain.
+  allowedHosts: [
+    `${config.host}:${config.port}`,
+    `localhost:${config.port}`,
+    `127.0.0.1:${config.port}`,
+    ...config.allowedOrigins.map((origin) => new URL(origin).host),
+  ],
   ...(existsSync(webRoot) ? { webRoot } : {}),
   ...(config.devTools ? { devTools: createDevTools(runtime, config.databaseUrl) } : {}),
 });

@@ -11,6 +11,7 @@
 //   node packages/api/src/cli.ts export-design <projectId> [--check dir | --out dir | dir]
 
 import {
+  typeSafeEvaluationKey,
   type Observer,
   type Partition,
   IMPORTER,
@@ -197,7 +198,7 @@ commands['evaluate-classifier'] = async () => {
       'Usage: evaluate-classifier <claude|codex|opencode|simulated|jev> <model> [effort|-] [test|dev|all] [v1|v1-en]',
     );
   }
-  if (jev && !process.env.TYPESAFE_API_KEY) throw new Error('Set TYPESAFE_API_KEY to evaluate Jev.');
+  if (jev && !typeSafeEvaluationKey()) throw new Error('Set TYPESAFE_API_KEY to evaluate Jev.');
   const effort = effortArg === '-' ? null : effortArg;
   // The labeled set: v1 (Spanish, the original) or v1-en (its English translation), under evals/classifier/.
   if (!/^[a-z0-9-]+$/.test(datasetArg)) throw new Error(`Unknown dataset: ${datasetArg}.`);
@@ -209,7 +210,7 @@ commands['evaluate-classifier'] = async () => {
     const classifier = jev
       ? createJevClassifier({
           model,
-          apiKey: process.env.TYPESAFE_API_KEY,
+          apiKey: typeSafeEvaluationKey(),
           onUsage: (u) => {
             usage.requests += 1;
             usage.input += u.input_tokens;

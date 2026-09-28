@@ -85,3 +85,8 @@ export function allowedEnv(
   }
   return { ...env, ...FIXED_VARIABLES, ...fixed };
 }
+
+/** Evaluation-only credential. The Jev adapter itself never reads the environment. */
+export function typeSafeEvaluationKey(): string | undefined {
+  return process.env.TYPESAFE_API_KEY;
+}

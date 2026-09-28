@@ -17,7 +17,7 @@ import {
   isDomainError,
   allowedForQuery,
 } from '@demiurgo/domain';
-import { HANDLERS, type InteractionRoot, type Services, executeCommand, runProgress } from '@demiurgo/core';
+import { HANDLERS, type InteractionRoot, SETTINGS, type Services, executeCommand, runProgress } from '@demiurgo/core';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
@@ -180,8 +180,18 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
     // The CSRF token is derived from the cookie's token: it is only returned if it is the one of this session.
     const token = req.cookies[SESSION_COOKIE];
     const csrf = c.type === 'person' && token && secretFingerprint(sessionCsrf(token)) === c.csrfHash ? sessionCsrf(token) : null;
-    return { actor: c.actor, type: c.type, csrf, ...(op.devTools ? { dev_tools: true } : {}) };
+    const locale =
+      c.actor.type === 'human'
+        ? ((await services.db.selectFrom('humans').select('locale').where('username', '=', c.actor.person).executeTakeFirst())
+            ?.locale ?? null)
+        : null;
+    return { actor: c.actor, type: c.type, csrf, locale, ...(op.devTools ? { dev_tools: true } : {}) };
   });
+
+  // The language the person reads DEMIURGO in: their own preference, null to follow the browser.
+  app.put('/api/session/locale', async (req) =>
+    SETTINGS['person.set_locale']({ db: services.db, providers: services.providers }, actorOf(req), req.body),
+  );
 
   app.delete('/api/session', async (req, reply) => {
     const token = req.cookies[SESSION_COOKIE];

@@ -28,7 +28,7 @@ const agentText = (id: string, action: string, skills: string[]) =>
 const skillText = (id: string) => `---\nname: ${id}\ndescription: A skill.\n---\nDo it well.\n`;
 
 describe('agent catalog', () => {
-  it('AC-AGE-002-04 the repository catalog loads the six agents with their skills in order and a version', async () => {
+  it('AC-AGE-002-04 the repository catalog loads the seven agents with their skills in order and a version', async () => {
     const catalog = await loadAgentCatalog();
     expect(catalog.agents.map((a) => a.id).toSorted()).toEqual([
       'designer',
@@ -37,6 +37,7 @@ describe('agent catalog', () => {
       'knowledge_classifier',
       'knowledge_reviewer',
       'onboarding',
+      'translator',
     ]);
     for (const a of catalog.agents) {
       expect(a.version).toMatch(/^[0-9a-f]{12}$/);
@@ -46,6 +47,7 @@ describe('agent catalog', () => {
     expect(catalog.get('onboarding')?.skills).toEqual(['asking-questions', 'demiurgo-glossary', 'structured-output']);
     expect(catalog.get('designer')?.session).toBe('thread');
     expect(catalog.get('knowledge_classifier')).toMatchObject({ action: 'knowledge_classification', session: 'none' });
+    expect(catalog.get('translator')).toMatchObject({ action: 'translation', session: 'none', group: null });
   });
 
   it('AC-AGE-002-04 each action has a default agent that serves it', async () => {

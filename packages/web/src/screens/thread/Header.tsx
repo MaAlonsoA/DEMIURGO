@@ -23,6 +23,7 @@ import { EntityState } from '../../components/status.tsx';
 import { Who, whoName } from '../../components/Who.tsx';
 import { shortDate } from '../../lib/time.ts';
 import { whoOf } from '../../words.ts';
+import { useReading } from '../../i18n/reading.tsx';
 
 export const short = (text: string, n = 56): string => (text.length > n ? `${text.slice(0, n - 1)}…` : text);
 
@@ -48,7 +49,9 @@ export function ThreadHeader({
 }) {
   const command = useCommand(projectId);
   const [dialog, setDialog] = useState<Dialog>(null);
-  const clamp = useClamp(t.purpose);
+  const reading = useReading(projectId, 'exploration', t.id);
+  const purpose = reading.text('purpose', t.purpose);
+  const clamp = useClamp(purpose);
   const open = (d: Dialog) => {
     command.reset();
     setDialog(d);
@@ -70,7 +73,7 @@ export function ThreadHeader({
       label: short(parent.purpose, 40),
       link: { to: '/p/$projectId/threads/$explorationId', params: { projectId, explorationId: parent.id } },
     });
-  crumbs.push({ label: short(t.purpose, 48) });
+  crumbs.push({ label: short(purpose, 48) });
 
   return (
     <div data-thread-header>
@@ -87,7 +90,7 @@ export function ThreadHeader({
         }
         title={
           <span ref={clamp.ref} className={clamp.all ? 'block' : 'line-clamp-3'}>
-            {t.purpose}
+            {purpose}
           </span>
         }
         meta={
@@ -102,6 +105,7 @@ export function ThreadHeader({
                 {clamp.all ? 'Show less of the purpose' : 'Show all of the purpose'}
               </button>
             ) : null}
+            {reading.mark ? <span className="basis-full">{reading.mark}</span> : null}
             <Provenance projectId={projectId} thread={t} parent={parent} threads={threads} products={products} />
           </>
         }

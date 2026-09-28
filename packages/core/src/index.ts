@@ -36,3 +36,4 @@ export * from './engine/inline.ts';
 export * from './design/export.ts';
 export * from './design/import.ts';
 export * from './dev/snapshots.ts';
+export * from './translation/index.ts';

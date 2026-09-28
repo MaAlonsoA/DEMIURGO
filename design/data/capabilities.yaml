@@ -143,6 +143,7 @@ queries:
   query.tables: { allowed: [human, agent_external], description: "Capability and transition tables." }
   query.tokens: { allowed: [human], description: "Project agent tokens." }
   query.providers: { allowed: [human], description: "Providers, agents, assignments, stats and consumption." }
+  query.translations: { allowed: [human], description: "Reading translations of records into the person's language (never authority)." }
 
 # Workspace settings: not tied to a project, so they don't go through the project bus and leave no
 # event in a project's log; their own tables are append-only and keep who changed what and when.
@@ -151,3 +152,4 @@ settings:
   agent.assign: { allowed: [human], description: "Assign a provider, model and effort to an agent, globally or for a project." }
   agent.unassign: { allowed: [human], description: "Remove an agent's assignment, globally or for a project." }
   providers.refresh: { allowed: [human, system], description: "Discover the providers' models and efforts again." }
+  person.set_locale: { allowed: [human], description: "Choose the language a person reads DEMIURGO in (the interface and the reading translations)." }

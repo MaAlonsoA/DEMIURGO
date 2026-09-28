@@ -1,0 +1,205 @@
+// Reading translations: records are always in English and a person reads them in their own
+// language. The server loads the source itself (a subject of the project, never text sent by the
+// client), translates it once per source fingerprint with the translator agent and keeps it in
+// `translations`. A translation is never authority and leaves no event in the journal.
+
+import {
+  DomainError,
+  type Locale,
+  type TranslationFields,
+  type TranslationSubject,
+  composeSystem,
+  delimitedJson,
+  detectLanguage,
+  readTranslation,
+  tooManyFields,
+  translationJsonSchema,
+  translationOutput,
+  translationSourceHash,
+  proseFields,
+  questionFields,
+  versionFields,
+  LOCALE_NAMES,
+} from '@demiurgo/domain';
+import { TRANSLATION_ACTION, loadAgentCatalog } from '../agents/catalog.ts';
+import { callProvider, noCallSession } from '../assignments/calls.ts';
+import { resolveEngine, resolutionProblem } from '../assignments/assignments.ts';
+import type { Db } from '../db/connection.ts';
+import type { Observer } from '../observe/index.ts';
+import type { ProviderRegistry } from '../providers/registry.ts';
+
+export const TRANSLATOR_AGENT = 'translator';
+
+export type TranslationDeps = { db: Db; providers: ProviderRegistry; observer: Observer };
+
+export type ReadingTranslation = {
+  subject: TranslationSubject;
+  id: string;
+  lang: Locale;
+  /** The English source, as stored. */
+  source: TranslationFields;
+  /** What to show: the translation, or the source when nothing needed translating. */
+  fields: TranslationFields;
+  translated: boolean;
+  /** Who translated it (`opencode/qwen-local/…`), when it was translated. */
+  by: string | null;
+};
+
+/** The prose of a subject of the project, or null if it doesn't exist there. */
+export async function sourceFields(
+  db: Db,
+  projectId: string,
+  subject: TranslationSubject,
+  id: string,
+): Promise<TranslationFields | null> {
+  switch (subject) {
+    case 'question': {
+      const q = await db
+        .selectFrom('questions')
+        .select(['question', 'reason', 'conclusion', 'reasoning', 'options'])
+        .where('id', '=', id)
+        .where('project_id', '=', projectId)
+        .executeTakeFirst();
+      return q ? questionFields(q) : null;
+    }
+    case 'message': {
+      const m = await db
+        .selectFrom('messages')
+        .select('body')
+        .where('id', '=', id)
+        .where('project_id', '=', projectId)
+        .executeTakeFirst();
+      return m ? proseFields({ body: m.body }) : null;
+    }
+    case 'exploration': {
+      const e = await db
+        .selectFrom('explorations')
+        .select('purpose')
+        .where('id', '=', id)
+        .where('project_id', '=', projectId)
+        .executeTakeFirst();
+      return e ? proseFields({ purpose: e.purpose }) : null;
+    }
+    case 'proposal': {
+      const p = await db
+        .selectFrom('proposals')
+        .select('payload')
+        .where('id', '=', id)
+        .where('project_id', '=', projectId)
+        .executeTakeFirst();
+      return p ? proseFields(p.payload) : null;
+    }
+    case 'record_version': {
+      const v = await db
+        .selectFrom('record_versions')
+        .select(['title', 'sections'])
+        .where('id', '=', id)
+        .where('project_id', '=', projectId)
+        .executeTakeFirst();
+      if (!v) return null;
+      const criteria = await db
+        .selectFrom('criteria')
+        .select(['code', 'title', 'statement', 'check_text'])
+        .where('record_version_id', '=', id)
+        .orderBy('position')
+        .execute();
+      return versionFields({ title: v.title, sections: v.sections as { title: string; content: string }[], criteria });
+    }
+  }
+}
+
+/** Whether every text already reads as the target language (a reply, or an older record). */
+function alreadyIn(lang: Locale, fields: TranslationFields): boolean {
+  const texts = Object.values(fields);
+  return texts.length > 0 && texts.every((t) => detectLanguage(t) === lang);
+}
+
+/** The subject in the person's language: from the cache, or translated now and cached. */
+export async function readingTranslation(
+  deps: TranslationDeps,
+  p: { projectId: string; subject: TranslationSubject; id: string; lang: Locale },
+): Promise<ReadingTranslation> {
+  const source = await sourceFields(deps.db, p.projectId, p.subject, p.id);
+  if (!source) throw new DomainError('not_found', `There is no ${p.subject.replace('_', ' ')} ${p.id} in this project.`);
+  const base = { subject: p.subject, id: p.id, lang: p.lang, source };
+  const nothingToDo = { ...base, fields: source, translated: false, by: null };
+  if (p.lang === 'en' || Object.keys(source).length === 0 || alreadyIn(p.lang, source)) return nothingToDo;
+  if (tooManyFields(source)) throw new DomainError('validation', 'This is too long to translate at once.');
+
+  const sourceHash = translationSourceHash(p.subject, source);
+  const cached = await deps.db
+    .selectFrom('translations')
+    .select(['fields', 'provider', 'model'])
+    .where('subject_kind', '=', p.subject)
+    .where('subject_id', '=', p.id)
+    .where('lang', '=', p.lang)
+    .where('source_hash', '=', sourceHash)
+    .executeTakeFirst();
+  if (cached) return { ...base, fields: cached.fields, translated: true, by: `${cached.provider}/${cached.model}` };
+
+  const agent = (await loadAgentCatalog()).get(TRANSLATOR_AGENT);
+  if (!agent || agent.action !== TRANSLATION_ACTION) throw new Error('The catalog has no translator agent.');
+  const engine = await resolveEngine(deps.db, deps.providers, { agent: agent.id });
+  const problem = resolutionProblem(agent.id, engine);
+  if (problem || engine.status !== 'ok') throw new DomainError('conflict', problem ?? `Choose a model for ${agent.id}.`);
+  const provider = deps.providers.get(engine.provider);
+  if (!provider) throw new DomainError('conflict', `Choose another model for ${agent.id}.`);
+
+  const content = {
+    target_language: p.lang,
+    target_language_name: LOCALE_NAMES[p.lang],
+    fields: Object.entries(source).map(([key, text]) => ({ key, text })),
+  };
+  const composed = composeSystem(agent, agent.skillDefinitions, []);
+  const result = await callProvider(
+    { db: deps.db, observer: deps.observer },
+    provider,
+    {
+      projectId: p.projectId,
+      runId: null,
+      updateId: null,
+      agent: agent.id,
+      agentVersion: agent.version,
+      promptHash: composed.promptHash,
+      engineSource: engine.source,
+      session: noCallSession(),
+      attempt: 1,
+      inputHash: null,
+      schemaHash: null,
+      schemaVersion: null,
+      packHash: null,
+      retryOf: null,
+    },
+    {
+      system: composed.system,
+      input: `<untrusted_input>\n${delimitedJson(content)}\n</untrusted_input>`,
+      schema: translationJsonSchema(),
+      model: engine.model,
+      effort: engine.effort,
+      session: { mode: 'none' },
+      timeMs: agent.timeLimitSeconds * 1000,
+      task: { action: TRANSLATION_ACTION, context: { hash: sourceHash, content } },
+    },
+  );
+  if (result.state !== 'ok') throw new DomainError('conflict', `The translation failed: ${result.message}`);
+  const parsed = translationOutput.safeParse(result.rawOutput);
+  if (!parsed.success) throw new DomainError('conflict', 'The translation came back in the wrong shape.');
+  const read = readTranslation(source, parsed.data);
+  if (!read.ok) throw new DomainError('conflict', read.problem);
+
+  await deps.db
+    .insertInto('translations')
+    .values({
+      project_id: p.projectId,
+      subject_kind: p.subject,
+      subject_id: p.id,
+      lang: p.lang,
+      source_hash: sourceHash,
+      fields: JSON.stringify(read.fields),
+      provider: engine.provider,
+      model: engine.model,
+    })
+    .onConflict((oc) => oc.columns(['subject_kind', 'subject_id', 'lang', 'source_hash']).doNothing())
+    .execute();
+  return { ...base, fields: read.fields, translated: true, by: `${engine.provider}/${engine.model}` };
+}

@@ -15,3 +15,4 @@ export * from './text.ts';
 export * from './knowledge.ts';
 export * from './compose.ts';
 export * from './views.ts';
+export * from './translation.ts';

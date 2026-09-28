@@ -25,6 +25,7 @@ import { acceptedRecord, obsoleteReason, proposalTitle } from './model.ts';
 import { BlockedNotice, DecisionBar, Evidence, IdeaCheck, OutOfDate, RecordChip, RunLine } from './parts.tsx';
 import { kindWord, type ProposalView as ProposalData, proposalIconType, whatItRecords } from './proposal.ts';
 import { ProposalBody } from './ProposalView.tsx';
+import { useReadingOf } from '../../i18n/reading.tsx';
 
 /** True while the element is on screen (the top decision bar: the footer shows once it is not). */
 function useOnScreen(ref: React.RefObject<HTMLElement | null>): boolean {
@@ -112,6 +113,8 @@ function ProposedRecord({
 }) {
   const id = useId();
   const obsolete = obsoleteReason(p);
+  const reading = useReadingOf(projectId, 'proposal', p.id, p.payload);
+  const shown = { ...p, payload: reading.value };
   return (
     <article aria-labelledby={id} data-proposal={p.id} data-state={p.state} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
@@ -127,13 +130,14 @@ function ProposedRecord({
           )}
         </div>
         <h2 id={id} className="text-lg font-semibold text-fg">
-          {single ? 'What it records' : proposalTitle(p)}
+          {single ? 'What it records' : proposalTitle(shown)}
         </h2>
       </div>
       {p.state === 'superseded' ? (
         <OutOfDate>{`${obsolete ?? 'What it was based on changed.'} It can't be accepted any more.`}</OutOfDate>
       ) : null}
-      <ProposalBody projectId={projectId} proposal={p} rows={rows} withGoal />
+      {reading.mark ? <div>{reading.mark}</div> : null}
+      <ProposalBody projectId={projectId} proposal={shown} rows={rows} withGoal />
       <IdeaCheck projectId={projectId} assessment={p.assessment} rows={rows} />
     </article>
   );

@@ -13,8 +13,9 @@ import { ChoiceGroup } from '../../components/Field.tsx';
 import { DeeperIcon, HelpIcon, PencilIcon } from '../../components/icons.tsx';
 import { QuestionMenu, QuestionOutcome } from '../../components/QuestionActions.tsx';
 import { EntityState } from '../../components/status.tsx';
+import { useReading } from '../../i18n/reading.tsx';
 import { cn } from '../../lib/cn.ts';
-import { answerChoices, draftOf, isOpenQuestion, pickedChoices, withExclusive } from './answers.ts';
+import { ASSUMED, answerChoices, draftOf, isOpenQuestion, pickedChoices, withExclusive } from './answers.ts';
 import { useDrafts } from './drafts.tsx';
 
 export function QuestionCard({
@@ -43,6 +44,7 @@ export function QuestionCard({
 }) {
   const drafts = useDrafts();
   const allows = useAllows('question', q.state);
+  const reading = useReading(projectId, 'question', q.id);
   if (!isOpenQuestion(q)) return <SettledQuestion projectId={projectId} question={q} stageTitle={stageTitle} />;
 
   const canAnswer = !!drafts && active && allows('question.confirm');
@@ -75,9 +77,10 @@ export function QuestionCard({
         </span>
       </header>
       <h3 id={titleId} className="text-md font-semibold text-fg">
-        {q.question}
+        {reading.text('question', q.question)}
       </h3>
-      {q.reason ? <p className="text-sm text-fg-2">Why it matters: {q.reason}</p> : null}
+      {q.reason ? <p className="text-sm text-fg-2">Why it matters: {reading.text('reason', q.reason)}</p> : null}
+      {reading.mark ? <div>{reading.mark}</div> : null}
 
       {canAnswer && choices.length > 0 ? (
         <ChoiceGroup
@@ -87,7 +90,12 @@ export function QuestionCard({
           value={picked}
           columns={choices.length > 1 ? 2 : 1}
           onChange={(next) => set(draftOf(q, withExclusive(choices, picked, next)))}
-          choices={choices.map((c) => ({ value: c.value, label: c.answer, detail: c.implies }))}
+          choices={choices.map((c) => ({
+            value: c.value,
+            label:
+              c.value === ASSUMED ? reading.text('conclusion', c.answer) : reading.text(`options.${c.value}.answer`, c.answer),
+            detail: c.value === ASSUMED ? c.implies : reading.text(`options.${c.value}.implies`, c.implies),
+          }))}
         />
       ) : null}
 
@@ -144,6 +152,7 @@ function SettledQuestion({
   question: Question;
   stageTitle: string | null;
 }) {
+  const reading = useReading(projectId, 'question', q.id);
   return (
     <div
       id={`question-${q.id}`}
@@ -155,12 +164,13 @@ function SettledQuestion({
       <div className="flex items-start gap-2">
         <EntityState entity="question" state={q.state} className="mt-0.5" />
         <p className="min-w-0 flex-1 text-base text-fg">
-          {q.question}
+          {reading.text('question', q.question)}
           {stageTitle ? <span className="text-sm text-fg-3"> · {stageTitle}</span> : null}
         </p>
         <QuestionMenu projectId={projectId} question={q} />
       </div>
       <QuestionOutcome question={q} className="pl-1" />
+      {reading.mark ? <div className="pl-1">{reading.mark}</div> : null}
     </div>
   );
 }

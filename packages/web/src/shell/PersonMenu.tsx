@@ -9,6 +9,7 @@ import { sessionQuery } from '../api/queries.ts';
 import { ChevronsUpDownIcon, DatabaseIcon, LogOutIcon } from '../components/icons.tsx';
 import { Menu, MenuItem, MenuLabel, MenuRadioItems, MenuSeparator } from '../components/Menu.tsx';
 import { WhoAvatar } from '../components/Who.tsx';
+import { LOCALE_NAMES, type Locale, useLocaleChoice } from '../i18n/locale.ts';
 import { cn } from '../lib/cn.ts';
 import { usePerson } from '../lib/hooks.ts';
 import { hasDevTools, openDevPanel } from '../screens/dev/snapshots.ts';
@@ -29,6 +30,13 @@ export function PersonMenu({
   const client = useQueryClient();
   const navigate = useNavigate();
   const theme = useTheme();
+  const locale = useLocaleChoice();
+
+  // The language is the person's, kept in their session: the same on every device they sign in from.
+  const chooseLocale = async (choice: Locale | 'browser') => {
+    await request('PUT', '/api/session/locale', { locale: choice === 'browser' ? null : choice });
+    await client.invalidateQueries({ queryKey: sessionQuery.queryKey });
+  };
 
   const signOut = async () => {
     try {
@@ -74,6 +82,17 @@ export function PersonMenu({
           { value: 'system', label: 'Like the system' },
           { value: 'light', label: 'Light' },
           { value: 'dark', label: 'Dark' },
+        ]}
+      />
+      <MenuSeparator />
+      <MenuLabel>Language</MenuLabel>
+      <MenuRadioItems<Locale | 'browser'>
+        value={locale ?? 'browser'}
+        onChange={(choice) => void chooseLocale(choice)}
+        options={[
+          { value: 'browser', label: 'Like the browser' },
+          { value: 'en', label: LOCALE_NAMES.en },
+          { value: 'es', label: LOCALE_NAMES.es },
         ]}
       />
       <MenuSeparator />

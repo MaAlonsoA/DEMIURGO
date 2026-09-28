@@ -15,10 +15,12 @@ export const DEFAULT_GROUP_ENGINES: Readonly<Record<string, Engine>> = {
   quick: { provider: 'codex', model: 'gpt-6-luna', effort: 'low' },
 };
 
-/** Agents that run on their own engine by default, not their group's (echo has no group). */
+/** Agents that run on their own engine by default, not their group's (echo and translator have no group). */
 export const DEFAULT_AGENT_ENGINES: Readonly<Record<string, Engine>> = {
   designer: { provider: 'claude', model: 'opus', effort: 'high' },
   echo: { provider: 'opencode', model: 'qwen-local/qwen3.8-27b', effort: 'high' },
+  // Reading translations run often and stay at home: the local model, at no quota.
+  translator: { provider: 'opencode', model: 'qwen-local/qwen3.8-27b', effort: 'medium' },
 };
 
 const sameEngine = (a: Engine, b: Engine) => a.provider === b.provider && a.model === b.model && a.effort === b.effort;

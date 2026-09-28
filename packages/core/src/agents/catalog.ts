@@ -23,6 +23,9 @@ import { z } from 'zod';
 /** Action of the knowledge classifier's agents: they don't produce an agent run. */
 export const CLASSIFICATION_ACTION = 'knowledge_classification';
 
+/** Action of the translator: reading translations of records, never an agent run. */
+export const TRANSLATION_ACTION = 'translation';
+
 /** Default agent of each action, when the web section doesn't name one. */
 export const DEFAULT_AGENTS: Readonly<Record<AgentAction, string>> = {
   echo: 'echo',
@@ -114,7 +117,7 @@ async function load(root: string): Promise<AgentCatalog> {
       }
     }
   }
-  const actions = new Set<string>([...AGENT_ACTIONS, CLASSIFICATION_ACTION]);
+  const actions = new Set<string>([...AGENT_ACTIONS, CLASSIFICATION_ACTION, TRANSLATION_ACTION]);
   const agents: LoadedAgent[] = [];
   for (const id of await folders(join(root, 'agents'))) {
     const parts = splitFrontMatter(await readFile(join(root, 'agents', id, 'AGENT.md'), 'utf8').catch(() => ''));

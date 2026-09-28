@@ -1,6 +1,7 @@
 // The UI's dictionary (spec §6): state and command codes → words and marks. The labels of
 // /api/tables are the default word; this dictionary adds the mark and changes the word only where
-// the agreed language differs. Record prose is shown as it was written, never translated.
+// the agreed language differs. Record prose is stored in English and shown as written; a person reading
+// in another language sees a marked reading translation next to it (i18n/reading.tsx), never in its place.
 
 import type { Actor, RecordType } from './api/types.ts';
 

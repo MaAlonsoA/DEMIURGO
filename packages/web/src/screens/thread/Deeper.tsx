@@ -136,7 +136,7 @@ export function DeeperPanel({
               {m.body}
             </p>
           ) : m.kind ? (
-            <Observations key={m.id} items={[m]} divided={false} />
+            <Observations key={m.id} projectId={projectId} items={[m]} divided={false} />
           ) : (
             <div key={m.id} className="flex flex-col gap-1.5">
               <Who actor={m.author} size={18} className="text-xs font-medium text-fg-2" />

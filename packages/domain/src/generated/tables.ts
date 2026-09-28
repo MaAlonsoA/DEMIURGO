@@ -882,6 +882,12 @@ export const CAPABILITIES = {
         "human"
       ],
       "description": "Providers, agents, assignments, stats and consumption."
+    },
+    "query.translations": {
+      "allowed": [
+        "human"
+      ],
+      "description": "Reading translations of records into the person's language (never authority)."
     }
   },
   "settings": {
@@ -903,6 +909,12 @@ export const CAPABILITIES = {
         "system"
       ],
       "description": "Discover the providers' models and efforts again."
+    },
+    "person.set_locale": {
+      "allowed": [
+        "human"
+      ],
+      "description": "Choose the language a person reads DEMIURGO in (the interface and the reading translations)."
     }
   }
 } as const;

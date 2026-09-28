@@ -18,6 +18,7 @@ import { Bone } from '../../components/Spinner.tsx';
 import { EntityState, StatusBadge, WorkingDot } from '../../components/status.tsx';
 import { RelativeTime } from '../../components/Time.tsx';
 import { Who } from '../../components/Who.tsx';
+import { useReading } from '../../i18n/reading.tsx';
 import { cn } from '../../lib/cn.ts';
 import { OBSERVATION_WORDS } from '../../words.ts';
 import { proposalsInWords } from '../run/runs.ts';
@@ -111,9 +112,9 @@ export function DemiurgoMessage({
       </header>
       {reply ? <Markdown>{reply.body}</Markdown> : null}
       {more.map((m) => (
-        <Markdown key={m.id}>{m.body}</Markdown>
+        <ReadMessage key={m.id} projectId={projectId} message={m} />
       ))}
-      {observed.length > 0 ? <Observations items={observed} divided={!!reply || more.length > 0} /> : null}
+      {observed.length > 0 ? <Observations projectId={projectId} items={observed} divided={!!reply || more.length > 0} /> : null}
       {batchId ? <Proposed projectId={projectId} batchId={batchId} /> : null}
       {canFork ? (
         <div className="flex justify-end border-t border-edge-subtle pt-2">
@@ -142,24 +143,41 @@ export function DemiurgoMessage({
   );
 }
 
+/** Something DEMIURGO wrote besides its reply, in the language shown. */
+function ReadMessage({ projectId, message: m }: { projectId: string; message: Message }) {
+  const reading = useReading(projectId, 'message', m.id);
+  return (
+    <div className="flex flex-col gap-1">
+      <Markdown>{reading.text('body', m.body)}</Markdown>
+      {reading.mark}
+    </div>
+  );
+}
+
 /** What DEMIURGO observed: each one Proposed (a claim or a hypothesis) or Unknown, in words. */
-export function Observations({ items, divided = true }: { items: Message[]; divided?: boolean }) {
+export function Observations({ projectId, items, divided = true }: { projectId: string; items: Message[]; divided?: boolean }) {
   return (
     <div className={cn('flex flex-col gap-2', divided && 'border-t border-edge-subtle pt-3')}>
       <h3 className="text-sm font-medium text-fg-2">What it observed</h3>
       <ul className="flex flex-col gap-2">
-        {items.map((o) => {
-          const w = OBSERVATION_WORDS[o.kind ?? 'unknown'] ?? { word: 'Unknown', mark: 'unknown' as const };
-          return (
-            <li key={o.id} data-observation={o.kind} className="flex flex-wrap items-start gap-x-2 gap-y-1 text-base">
-              <StatusBadge kind={w.mark === 'unknown' ? 'unknown' : 'proposed'} className="mt-0.5" />
-              {w.mark !== 'unknown' ? <span className="mt-px text-sm text-fg-3">{w.word}</span> : null}
-              <span className="min-w-0 flex-1 basis-60 text-fg">{o.body}</span>
-            </li>
-          );
-        })}
+        {items.map((o) => (
+          <Observation key={o.id} projectId={projectId} observation={o} />
+        ))}
       </ul>
     </div>
+  );
+}
+
+function Observation({ projectId, observation: o }: { projectId: string; observation: Message }) {
+  const reading = useReading(projectId, 'message', o.id);
+  const w = OBSERVATION_WORDS[o.kind ?? 'unknown'] ?? { word: 'Unknown', mark: 'unknown' as const };
+  return (
+    <li data-observation={o.kind} className="flex flex-wrap items-start gap-x-2 gap-y-1 text-base">
+      <StatusBadge kind={w.mark === 'unknown' ? 'unknown' : 'proposed'} className="mt-0.5" />
+      {w.mark !== 'unknown' ? <span className="mt-px text-sm text-fg-3">{w.word}</span> : null}
+      <span className="min-w-0 flex-1 basis-60 text-fg">{reading.text('body', o.body)}</span>
+      {reading.mark ? <span className="basis-full">{reading.mark}</span> : null}
+    </li>
   );
 }
 

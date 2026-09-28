@@ -40,6 +40,8 @@ export type HumansTable = {
   id: Generated<string>;
   username: string;
   password_hash: string;
+  /** The language the person reads DEMIURGO in ('en' | 'es'); null follows the browser. */
+  locale: ColumnType<string | null, string | null | undefined, string | null>;
   created_at: Generated<Timestamp>;
 };
 
@@ -497,6 +499,20 @@ export type ClassifierEvaluationsTable = {
   created_at: Generated<Timestamp>;
 };
 
+/** A reading translation of a record: never authority, keyed by the source's fingerprint. */
+export type TranslationsTable = {
+  id: Generated<string>;
+  project_id: string;
+  subject_kind: string;
+  subject_id: string;
+  lang: string;
+  source_hash: string;
+  fields: ColumnType<Record<string, string>, string, never>;
+  provider: string;
+  model: string;
+  created_at: Generated<Timestamp>;
+};
+
 export type DB = {
   projects: ProjectsTable;
   events: EventsTable;
@@ -534,6 +550,7 @@ export type DB = {
   classifications: ClassificationsTable;
   idea_assessments: IdeaAssessmentsTable;
   classifier_evaluations: ClassifierEvaluationsTable;
+  translations: TranslationsTable;
 };
 
 export type Row<T extends keyof DB> = Selectable<DB[T]>;

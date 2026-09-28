@@ -22,6 +22,7 @@ import type {
   ProjectUsageRow,
   RecordDetail,
   RunDetail,
+  ReadingTranslation,
   RunListItem,
   SearchResult,
   Session,
@@ -71,6 +72,15 @@ export const sessionQuery = queryOptions({
   },
   staleTime: 60_000,
 });
+
+/** A record in the person's language, for reading. Refetched with the rest of the project on its events. */
+export const translationQuery = (p: string, subject: string, id: string, lang: string) =>
+  queryOptions({
+    queryKey: ['p', p, 'translation', subject, id, lang] as const,
+    queryFn: () => get<ReadingTranslation>(`${P(p)}/translations/${subject}/${id}?lang=${lang}`),
+    staleTime: 10 * 60_000,
+    retry: false,
+  });
 
 export const projectsQuery = queryOptions({ queryKey: keys.projects, queryFn: () => get<Project[]>('/api/projects') });
 

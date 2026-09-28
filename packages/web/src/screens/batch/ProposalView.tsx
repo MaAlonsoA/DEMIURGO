@@ -14,6 +14,7 @@ import { EntityState, StatusBadge } from '../../components/status.tsx';
 import { RelativeTime } from '../../components/Time.tsx';
 import { TypeIcon } from '../../components/types.tsx';
 import { WhoAvatar, whoName } from '../../components/Who.tsx';
+import { useReadingOf } from '../../i18n/reading.tsx';
 import { cn } from '../../lib/cn.ts';
 import { whoOf } from '../../words.ts';
 import { acceptedRecord, obsoleteReason, proposalTitle, rowOfVersion } from './model.ts';
@@ -179,8 +180,11 @@ export function ProposalView({
   onDone?: (said: string) => void;
   className?: string;
 }) {
-  const title = proposalTitle(p);
-  const why = proposalWhy(p);
+  // Read in the person's language; the actions always work on the English proposal.
+  const reading = useReadingOf(projectId, 'proposal', p.id, p.payload);
+  const shown = { ...p, payload: reading.value };
+  const title = proposalTitle(shown);
+  const why = proposalWhy(shown);
   const who = whoOf(producer);
   const obsolete = obsoleteReason(p);
   const outOfDate = p.state === 'superseded';
@@ -223,7 +227,8 @@ export function ProposalView({
 
       {outOfDate ? <OutOfDate>{outOfDateText(obsolete)}</OutOfDate> : null}
 
-      <ProposalBody projectId={projectId} proposal={p} rows={rows} />
+      {reading.mark ? <div>{reading.mark}</div> : null}
+      <ProposalBody projectId={projectId} proposal={shown} rows={rows} />
 
       {children}
 

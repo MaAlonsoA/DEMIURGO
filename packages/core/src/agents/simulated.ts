@@ -158,9 +158,22 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
   },
 };
 
+/** Scripts of the tasks that aren't agent runs: the reading translation marks each text with its language. */
+const SERVICE_SCRIPTS: Readonly<Record<string, Script>> = {
+  translation(p) {
+    const content = obj(p.context.content);
+    const lang = txt(content.target_language, 'es');
+    return {
+      fields: list(content.fields)
+        .map(obj)
+        .map((f) => ({ key: txt(f.key), text: `[${lang}] ${txt(f.text)}` })),
+    };
+  },
+};
+
 function scriptFor(options: SimulatedOptions, action: string): Script {
   const known = action as AgentAction;
-  const script = options.scripts?.[known] ?? DEFAULT_SCRIPTS[known];
+  const script = options.scripts?.[known] ?? DEFAULT_SCRIPTS[known] ?? SERVICE_SCRIPTS[action];
   if (!script) throw new Error(`The simulator has no script for "${action}".`);
   return script;
 }

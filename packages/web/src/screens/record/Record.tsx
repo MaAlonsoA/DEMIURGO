@@ -34,6 +34,7 @@ import { ContextPanel, ReadinessPanel, VersionsPanel } from './RecordAside.tsx';
 import { ReviewArea, ReviewBand, ReviewProvider, ReviewSections, useReview } from './Review.tsx';
 import { canReview } from './review.ts';
 import { takeSaveWarnings } from './saved.ts';
+import { useReading } from '../../i18n/reading.tsx';
 
 /** The navigator beside the page; the page is a size container, so its columns follow its own width. */
 function Frame({ projectId, code, children }: { projectId: string; code: string; children: ReactNode }) {
@@ -99,7 +100,7 @@ export function RecordScreen() {
 function RecordPage({
   projectId,
   record,
-  version,
+  version: stored,
   state,
   inbox,
 }: {
@@ -109,6 +110,9 @@ function RecordPage({
   state: ProductState | undefined;
   inbox: Inbox | undefined;
 }) {
+  // The version read in the person's language; the actions act on the English one (same id).
+  const reading = useReading(projectId, 'record_version', stored.id);
+  const version = readVersion(stored, reading.text);
   const tab = useRecordTab();
   const tables = useTables();
   const readinessQ = useQuery({ ...readinessQuery(projectId, version.id), enabled: record.type !== 'decision' });
@@ -171,7 +175,16 @@ function RecordPage({
     );
 
   const header = (
-    <RecordHeader projectId={projectId} record={record} version={version} tab={tab} onApproved={() => setApproved(version.id)} />
+    <>
+      <RecordHeader
+        projectId={projectId}
+        record={record}
+        version={version}
+        tab={tab}
+        onApproved={() => setApproved(version.id)}
+      />
+      {reading.mark ? <div className="-mt-2 mb-4">{reading.mark}</div> : null}
+    </>
   );
 
   if (tab === 'questions' || tab === 'history' || tab === 'checks') {
@@ -245,6 +258,21 @@ function RecordPage({
       />
     </ReviewProvider>
   );
+}
+
+/** A version with its prose in the language shown: title, section contents and criteria. */
+function readVersion(v: RecordVersion, text: (key: string, original: string) => string): RecordVersion {
+  return {
+    ...v,
+    title: text('title', v.title),
+    sections: v.sections.map((s, i) => ({ ...s, content: text(`sections.${i}.content`, s.content) })),
+    criteria: v.criteria.map((c) => ({
+      ...c,
+      title: text(`criteria.${c.code}.title`, c.title),
+      statement: text(`criteria.${c.code}.statement`, c.statement),
+      check: text(`criteria.${c.code}.check`, c.check),
+    })),
+  };
 }
 
 function Annexes({ annexes }: { annexes: RecordVersion['annexes'] }) {

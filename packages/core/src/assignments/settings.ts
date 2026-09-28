@@ -1,7 +1,7 @@
 // The workspace settings of the capability matrix (`settings` in design/data/capabilities.yaml), each
 // with its data validation (422) and its function. The matrix decides who may run each (403).
 
-import { type Actor, DomainError, type SettingName } from '@demiurgo/domain';
+import { type Actor, DomainError, LOCALES, type SettingName } from '@demiurgo/domain';
 import { z } from 'zod';
 import { assignAgent, unassignAgent } from './assignments.ts';
 import { type SettingsDeps, refreshCatalogs, requireSetting } from './catalogs.ts';
@@ -28,12 +28,23 @@ function parse<T>(schema: z.ZodType<T>, data: unknown, name: string): T {
   return r.data;
 }
 
+const localeChoice = z.object({ locale: z.enum(LOCALES).nullable() }).strict();
+
+/** The person's own reading language; null follows the browser. */
+async function setLocale(deps: SettingsDeps, actor: Actor, data: unknown): Promise<{ locale: string | null }> {
+  const { locale } = parse(localeChoice, data, 'person.set_locale');
+  if (actor.type !== 'human') throw new DomainError('forbidden', 'Only a person chooses the language they read in.');
+  await deps.db.updateTable('humans').set({ locale }).where('username', '=', actor.person).execute();
+  return { locale };
+}
+
 type Setting = (deps: SettingsDeps, actor: Actor, data: unknown) => Promise<unknown>;
 
 const HANDLERS: Record<SettingName, Setting> = {
   'agent.assign': (deps, actor, data) => assignAgent(deps, actor, parse(assignment, data, 'agent.assign')),
   'agent.unassign': (deps, actor, data) => unassignAgent(deps, actor, parse(target, data, 'agent.unassign')),
   'providers.refresh': (deps, actor) => refreshCatalogs(deps, actor),
+  'person.set_locale': setLocale,
 };
 
 /** Same order as the bus: capability (403) before data validation (422). */

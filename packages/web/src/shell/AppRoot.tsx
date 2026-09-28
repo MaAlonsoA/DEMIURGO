@@ -9,6 +9,7 @@ import { onUnauthorized } from '../api/client.ts';
 import { keys } from '../api/queries.ts';
 import { Announcer } from '../components/announce.tsx';
 import { TooltipProvider } from '../components/Tooltip.tsx';
+import { useDocumentLanguage } from '../i18n/locale.ts';
 import { DevPanel } from './DevPanel.tsx';
 import { Help } from './Help.tsx';
 import './theme.ts';
@@ -16,6 +17,7 @@ import './theme.ts';
 export function AppRoot() {
   const router = useRouter();
   const client = useQueryClient();
+  useDocumentLanguage();
 
   useEffect(
     () =>

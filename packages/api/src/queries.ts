@@ -1,6 +1,16 @@
 // Query routes (read-only). Each one declares its query from the capability matrix.
 
-import { COVERED_QUESTION_STATES, DomainError, type QueryName, STAGES, graphFingerprint } from '@demiurgo/domain';
+import {
+  COVERED_QUESTION_STATES,
+  DomainError,
+  LOCALES,
+  type Locale,
+  type QueryName,
+  STAGES,
+  TRANSLATION_SUBJECTS,
+  type TranslationSubject,
+  graphFingerprint,
+} from '@demiurgo/domain';
 import { sql } from 'kysely';
 import {
   type Services,
@@ -23,6 +33,7 @@ import {
   productJourneys,
   productMap,
   projectUsage,
+  readingTranslation,
 } from '@demiurgo/core';
 import type { Credential } from './credentials.ts';
 
@@ -97,6 +108,23 @@ export function registerQueries(additions: QueryRoute[]): void {
 }
 
 registerQueries([
+  {
+    // A record in the person's language, for reading only: `?lang=es`. The source is loaded by the server.
+    path: '/api/projects/:projectId/translations/:subject/:id',
+    queryName: 'query.translations',
+    respond: ({ services, params, query }) => {
+      const subject = params.subject as TranslationSubject;
+      if (!TRANSLATION_SUBJECTS.includes(subject)) throw new DomainError('not_found', 'There is nothing to translate there.');
+      const lang = query.lang as Locale;
+      if (!LOCALES.includes(lang)) throw new DomainError('validation', `Unknown language: ${query.lang ?? '(none)'}.`);
+      return readingTranslation(services, {
+        projectId: uuid(params.projectId, 'project'),
+        subject,
+        id: uuid(params.id, subject.replace('_', ' ')),
+        lang,
+      });
+    },
+  },
   {
     path: '/api/projects/:projectId/state',
     queryName: 'query.state',

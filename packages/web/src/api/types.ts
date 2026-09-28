@@ -11,7 +11,24 @@ export type Actor =
   | { type: 'agent_run'; run: string }
   | { type: 'system'; component: string; version: string };
 
-export type Session = { actor: Actor; type: 'person' | 'agent'; csrf: string | null };
+export type Session = {
+  actor: Actor;
+  type: 'person' | 'agent';
+  csrf: string | null;
+  /** The language the person reads in ('en' | 'es'); null follows the browser. */
+  locale?: string | null;
+};
+
+/** A record's text in the person's language, for reading only (GET …/translations/:subject/:id). */
+export type ReadingTranslation = {
+  subject: string;
+  id: string;
+  lang: string;
+  source: Record<string, string>;
+  fields: Record<string, string>;
+  translated: boolean;
+  by: string | null;
+};
 
 export type Project = { id: string; name: string; state: string; created_at: string };
 

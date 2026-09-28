@@ -201,6 +201,10 @@ export const LinkIcon = make(
   'Link',
   <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />,
 );
+export const LanguagesIcon = make(
+  'Languages',
+  <path d="M4 5h8M8 3v2M5.5 11s2.5-1.5 4-6M6 7.5c1 2 3 3.5 5 4M12 21l4.5-10 4.5 10M13.5 17.5h6" />,
+);
 export const EyeIcon = make(
   'Eye',
   <>

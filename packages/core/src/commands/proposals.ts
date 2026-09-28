@@ -95,6 +95,10 @@ registerGuards({
     if (ctx.actor.type === 'agent_external' && !['decision', 'exploration', 'fdr', 'design_record'].includes(type)) {
       return `An external agent cannot propose "${type}".`;
     }
+    // Only DEMIURGO proposes the English version of an existing record (records are always in English).
+    if (type === 'record_translation' && ctx.actor.type !== 'system') {
+      return 'Only DEMIURGO proposes the English version of a record.';
+    }
     // Only the importer proposes what comes from design/: accepting it creates authority with the file's state.
     if (['imported_record', 'imported_taxonomy'].includes(type) && ctx.cause.sourceCommand !== 'design.import') {
       return `Only the design/ importer proposes "${type}".`;

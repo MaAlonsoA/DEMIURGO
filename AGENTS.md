@@ -10,6 +10,7 @@ DEMIURGO guía el desarrollo con IA de principio a fin con dos pilares: diseñar
 - **El actor lo fija el servidor** según la credencial o el canal: `human:<persona>` (cookie de sesión), `agent:<nombre>:<sesión>` (token de agente), `agent:run:<id>` (ejecuciones) y `system:<componente>@<versión>`. El cliente nunca declara su actor.
 - **Todo cambio de estado sale de las tablas de datos** (`design/data/`): lo que no está en la matriz de capacidades da 403 y lo que no está en la tabla de transiciones da 409, en ambos casos sin efectos.
 - **El diario (`events`) solo admite INSERT.** Cada mutación deja su evento en la misma transacción.
+- **Idioma del producto.** Lo que DEMIURGO guarda como registro (decisiones, FDR, criterios, preguntas, observaciones, propósitos y conocimiento) va **siempre en inglés**. Solo la respuesta conversacional (`reply`) sigue el idioma de la persona. La persona lee los registros en su idioma con una traducción de lectura marcada, que nunca es autoridad, y la interfaz se muestra en su idioma (catálogos `words.i18n.ts`). Plan: `docs/superpowers/plans/2026-09-28-contenido-en-ingles.md`.
 - **Idioma.** El código va **en inglés**: identificadores, comentarios, pruebas, API, textos de producto, mensajes de error y prompts de los agentes. La documentación (`docs/`, `AGENTS.md`, `CLAUDE.md`), la prosa de los documentos de `design/`, los commits y la conversación van **en español**.
 
 ## Entorno

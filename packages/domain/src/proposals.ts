@@ -69,15 +69,44 @@ export const reviewPayload = z
   })
   .strict();
 
+/**
+ * The English version of a record that was written in another language (records are always in
+ * English). Accepting it creates a new version with the same structure: every criterion carried
+ * over as modified, section titles and links kept, only the prose translated.
+ */
+export const recordTranslationPayload = z
+  .object({
+    record: recordReference,
+    title: text(200),
+    sections: z
+      .array(z.object({ title: text(120), content: z.string().max(10_000) }).strict())
+      .min(1)
+      .max(12),
+    criteria: z
+      .array(
+        z
+          .object({
+            code: z.string().regex(/^AC-[A-Z]{3}-\d{3}-\d{2}$/),
+            title: text(200),
+            statement: text(5000),
+            check: text(2000),
+          })
+          .strict(),
+      )
+      .max(40),
+  })
+  .strict();
+
 export const AGENT_PROPOSAL_TYPES = ['decision', 'exploration', 'fdr', 'design_record'] as const;
 
-/** Proposal types. `imported_record` and `imported_taxonomy` are only created by the design/ import. */
+/** Proposal types. `imported_record` and `imported_taxonomy` are only created by the design/ import; `record_translation`, by the system. */
 export const PAYLOADS = {
   decision: decisionPayload,
   exploration: explorationPayload,
   fdr: fdrPayload,
   design_record: designRecordPayload,
   review: reviewPayload,
+  record_translation: recordTranslationPayload,
   imported_record: z.object({ document: z.record(z.string(), z.unknown()), path: z.string() }).strict(),
   imported_taxonomy: z.object({ document: z.record(z.string(), z.unknown()), path: z.string() }).strict(),
 } as const;

@@ -94,6 +94,67 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
     );
   },
 
+  // The English version of a record written in another language: a new version with the same
+  // structure. Criteria are carried over as modified (same verification), section titles and the
+  // current links are kept; only the prose changes. Approving it (Accept and approve) supersedes the
+  // version it translates, like any new version.
+  async record_translation(ctx, { proposalId, payload, approve }) {
+    const c = PAYLOADS.record_translation.parse(payload);
+    const v = await resolveReference(ctx.trx, ctx.projectId, c.record.code, c.record.version);
+    if (!v) throw new DomainError('not_found', `There is no ${c.record.code}@${c.record.version}.`);
+    const source = await ctx.trx
+      .selectFrom('criteria')
+      .select(['code', 'verification'])
+      .where('record_version_id', '=', v.versionId)
+      .orderBy('position')
+      .execute();
+    const translated = new Map(c.criteria.map((k) => [k.code, k]));
+    const criteria = source.map((k) => {
+      const t = translated.get(k.code);
+      if (!t) throw new DomainError('validation', `The English version is missing the criterion ${k.code}.`);
+      return {
+        carry: 'modified' as const,
+        derived_from: k.code,
+        title: t.title,
+        statement: t.statement,
+        verification: k.verification,
+        check: t.check,
+      };
+    });
+    const links = await ctx.trx
+      .selectFrom('links')
+      .innerJoin('record_versions as target', 'target.id', 'links.to_id')
+      .innerJoin('records', 'records.id', 'target.record_id')
+      .select(['links.type', 'records.code', 'target.n'])
+      .where('links.from_id', '=', v.versionId)
+      .where('links.to_type', '=', 'record_version')
+      .where('links.state', 'in', ['current', 'kept', 'changed'])
+      .execute();
+    const r = await ctx.execute({
+      command: 'record_version.create',
+      actor: ctx.actor,
+      data: {
+        record_id: v.recordId,
+        title: c.title,
+        sections: c.sections,
+        criteria,
+        links: links.map((l) => ({ type: l.type, target: { code: l.code, version: l.n } })),
+        change_note: `English version of v${c.record.version}: the same content, translated (records are kept in English).`,
+        origin: { type: 'proposal', id: proposalId },
+      },
+    });
+    const res = r.result as { versionId: string; version: number; code: string };
+    if (approve) await ctx.execute({ command: 'record_version.approve', actor: ctx.actor, entityId: res.versionId, data: {} });
+    return {
+      type: 'record',
+      code: res.code,
+      recordId: v.recordId,
+      versionId: res.versionId,
+      version: res.version,
+      approved: approve,
+    };
+  },
+
   // Accepting a review proposed by knowledge doesn't change the record: it opens an
   // exploration to review it, with its origin.
   async review(ctx, { payload }) {

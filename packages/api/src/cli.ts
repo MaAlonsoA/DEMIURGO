@@ -4,7 +4,8 @@
 //   node packages/api/src/cli.ts create-project <name>
 //   node packages/api/src/cli.ts issue-agent-token <projectId> <agentName> <username>   (the person's password from stdin)
 //   node packages/api/src/cli.ts real-run <projectId> <action> <json-scope> [json-input]
-//   node packages/api/src/cli.ts evaluate-classifier <provider> <model> [effort|-] [test|dev|all]   (spends quota)
+//   node packages/api/src/cli.ts evaluate-classifier <provider> <model> [effort|-] [test|dev|all] [v1|v1-en]   (spends quota)
+//   node packages/api/src/cli.ts translate-records <projectId> [limit]         (proposes English versions; calls the translator)
 //   node packages/api/src/cli.ts import-design <projectId> [dir]                (creates the H1 pending batch)
 //   node packages/api/src/cli.ts export-design <projectId> [--check dir | --out dir | dir]
 
@@ -29,6 +30,8 @@ import {
   migrate,
   consoleLogger,
   inertEngine,
+  proposeEnglishVersions,
+  TRANSLATION_ACTOR,
 } from '@demiurgo/core';
 import { readTree, replaceTree } from '@demiurgo/design';
 import { type Actor, formatActor, human, system } from '@demiurgo/domain';
@@ -126,6 +129,32 @@ const commands: Record<string, () => Promise<void>> = {
     });
   },
 
+  // The English versions of the records written in another language, proposed for the person to
+  // check (records are always in English). It calls the translator agent's model (Qwen by default).
+  async 'translate-records'() {
+    const [projectId, limitArg] = args;
+    if (!projectId) throw new Error('Usage: translate-records <projectId> [limit]');
+    const limit = limitArg ? Number(limitArg) : 20;
+    if (!Number.isInteger(limit) || limit < 1) throw new Error('The limit is a whole number of records.');
+    await withDatabase(async (c) => {
+      const services = {
+        db: c.db,
+        clock: () => new Date(),
+        providers: createProviders(config),
+        classifierFor: () => Promise.reject(new Error('Proposing English versions classifies nothing.')),
+        agentSessionsDir: config.agentSessionsDir,
+        engine: inertEngine(),
+        logger: consoleLogger,
+        observer: createObserver(config.observe, consoleLogger),
+      };
+      const r = await interaction(services.observer, TRANSLATION_ACTOR, projectId, () =>
+        proposeEnglishVersions(services, projectId, { limit }),
+      );
+      console.log(JSON.stringify(r, null, 2));
+      await services.observer.flush(5000);
+    });
+  },
+
   async 'real-run'() {
     const [projectId, action, scope, input] = args;
     if (!projectId || !action || !scope) throw new Error('Usage: real-run <projectId> <action> <json-scope> [json-input]');
@@ -150,14 +179,17 @@ const commands: Record<string, () => Promise<void>> = {
 };
 
 commands['evaluate-classifier'] = async () => {
-  const [providerId = '', model = '', effortArg = '-', partitionArg = 'test'] = args;
+  const [providerId = '', model = '', effortArg = '-', partitionArg = 'test', datasetArg = 'v1'] = args;
   const partition = partitionArg as Partition;
   const provider = createProviders({ ...config, devTools: true }).get(providerId);
   const agent = (await loadAgentCatalog()).get('knowledge_classifier');
   if (!provider || !model || !agent) {
-    throw new Error('Usage: evaluate-classifier <claude|codex|opencode|simulated> <model> [effort|-] [test|dev|all]');
+    throw new Error('Usage: evaluate-classifier <claude|codex|opencode|simulated> <model> [effort|-] [test|dev|all] [v1|v1-en]');
   }
   const effort = effortArg === '-' ? null : effortArg;
+  // The labeled set: v1 (Spanish, the original) or v1-en (its English translation), under evals/classifier/.
+  if (!/^[a-z0-9-]+$/.test(datasetArg)) throw new Error(`Unknown dataset: ${datasetArg}.`);
+  const dir = `evals/classifier/${datasetArg}`;
   await withDatabase(async (c) => {
     // Through callProvider, so the evaluation's calls leave their trace like any other (spec §7.8).
     const observer = createObserver(config.observe, consoleLogger);
@@ -168,6 +200,7 @@ commands['evaluate-classifier'] = async () => {
     const report = await evaluateClassifier({
       classifier,
       partition,
+      dir,
       chunkSize: 40,
       db: c.db,
       output: 'evals/classifier/results',

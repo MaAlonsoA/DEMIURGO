@@ -125,6 +125,20 @@ export async function readingTranslation(
   const base = { subject: p.subject, id: p.id, lang: p.lang, source };
   const nothingToDo = { ...base, fields: source, translated: false, by: null };
   if (p.lang === 'en' || Object.keys(source).length === 0 || alreadyIn(p.lang, source)) return nothingToDo;
+  const t = await translateFields(deps, { projectId: p.projectId, subject: p.subject, id: p.id, lang: p.lang, source });
+  return { ...base, fields: t.fields, translated: true, by: t.by };
+}
+
+/**
+ * The fields of a subject translated into `lang` by the translator agent, from the cache when the
+ * same source (and glossary) was already translated. Also into English: the English version of an
+ * older record written in another language.
+ */
+export async function translateFields(
+  deps: TranslationDeps,
+  p: { projectId: string; subject: TranslationSubject; id: string; lang: Locale; source: TranslationFields },
+): Promise<{ fields: Record<string, string>; by: string }> {
+  const { source } = p;
   if (tooManyFields(source)) throw new DomainError('validation', 'This is too long to translate at once.');
 
   // The project's fixed terms travel with the texts, and a change of term translates again.
@@ -141,7 +155,7 @@ export async function readingTranslation(
     .where('lang', '=', p.lang)
     .where('source_hash', '=', sourceHash)
     .executeTakeFirst();
-  if (cached) return { ...base, fields: cached.fields, translated: true, by: `${cached.provider}/${cached.model}` };
+  if (cached) return { fields: cached.fields, by: `${cached.provider}/${cached.model}` };
 
   const agent = (await loadAgentCatalog()).get(TRANSLATOR_AGENT);
   if (!agent || agent.action !== TRANSLATION_ACTION) throw new Error('The catalog has no translator agent.');
@@ -208,5 +222,5 @@ export async function readingTranslation(
     })
     .onConflict((oc) => oc.columns(['subject_kind', 'subject_id', 'lang', 'source_hash']).doNothing())
     .execute();
-  return { ...base, fields: read.fields, translated: true, by: `${engine.provider}/${engine.model}` };
+  return { fields: read.fields, by: `${engine.provider}/${engine.model}` };
 }

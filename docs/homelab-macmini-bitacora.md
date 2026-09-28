@@ -59,7 +59,7 @@ Registro de la ejecución de `docs/homelab-macmini-runbook.md` por Claude Code d
    - Zone · Zone · Read
 2. **Correo para Access y WARP**: confirmado por la persona, `ma_lonso94@hotmail.com`.
 3. **Clave privada para el PC**: `~/.ssh/id_ed25519_pc_to_mini` hay que copiarla al PC (a `C:\Users\<usuario>\.ssh\id_ed25519_mini`). Mientras no haya Cloudflare, se copia desde la red de casa con `scp` **no** (sshd solo admite clave), así que se entrega por esta sesión cuando la persona lo pida, o se genera una clave nueva en el PC/Termius y se añade su pública.
-4. **Termius y WARP** en el PC y en el iPhone: instrucciones entregadas (sección «Termius y WARP» más abajo). Falta que la persona instale, entre con el correo y pegue la clave pública de Termius.
+4. **Termius y WARP** en el PC y en el iPhone: instrucciones entregadas por dispositivo (sección «Termius y WARP · paso a paso»). Desde las 13:20 **no hace falta ninguna clave**: SSH con certificados de Access (WARP e infraestructura, y terminal del navegador). Falta que la persona instale WARP y Termius, entre con el correo y confirme que llega al mini.
 5. **Prueba del corte de luz**: al final de la fase A.
 
 ## Fase B · Plataforma — cerrada
@@ -111,7 +111,7 @@ demiurgo-web-build-1 Up 17 seconds (healthy)
 
 - `pnpm gate:types` en verde. `pnpm gate:lint` falla en `packages/core/src/commands/stages.ts` y `exploration.ts` (`no-base-to-string`), ficheros que no se han tocado: falla igual sobre el árbol limpio de `origin/v2.2` en este mini (oxlint-tsgolint sobre macOS ARM64). Se anota y no se corrige aquí. `pnpm gate:format` también falla ya en `origin/v2.2` en `packages/core/src/commands/exploration.ts` y `packages/domain/src/stages.ts`; los ficheros nuevos y tocados aquí están formateados.
 
-## Fase C · Desarrollo — empezada en paralelo (lo que no depende de nadie)
+## Fase C · Desarrollo — cerrada (28-09, 13:25)
 
 - `pnpm install` en el host y `pnpm gate:types` en verde.
 - `pnpm gate:test` con `DEMIURGO_TEST_DB_URL` de `.env` (Postgres real, 55433): 907 pruebas pasan, 13 fallan en 11 ficheros (`changes`, `token-cli`, `walkthrough-s1`, `agent-runs`, `classifier-adapters`, `durability`, `engine`, `providers-claude`, `providers-codex`, `runner`, `views`). Dos son claramente del entorno: la sonda del `runner` espera alcanzar `127.0.0.1:55432` (el Postgres de desarrollo del PC, que aquí no existe) y los adaptadores de proveedores comparan la salida de las versiones instaladas de las CLI. El resto (`WebSearch`, listas de eventos esperadas, el explorador simulado) no tocan nada de lo cambiado en el mini y hay que comprobarlos contra la rama en el PC antes de decidir. No se cambia ninguna prueba; quedan anotadas para revisarlas en la fase C.
@@ -122,6 +122,12 @@ demiurgo-web-build-1 Up 17 seconds (healthy)
 - SSE (C.5): la ruta del diario ya escribe un comentario `: heartbeat` cada 15 s (`packages/api/src/server.ts`), por debajo de los 100 s del túnel. Se comprobará por el dominio cuando exista, sin cambios previstos.
 - Sonda del runner: retirado el destino `host.docker.internal:8000` de `packages/core/src/runner/probe.ts` (riesgo de la diapositiva 20 del plan). Commit propio.
 - **SSH sin claves (13:20).** Access for Infrastructure + CA de la app de navegador configurados; detalle en «Termius y WARP · paso a paso». Ya no hace falta que la persona genere ni pegue claves.
+- **C.5, C.6 y C.7 por el dominio (13:05–13:20), sin login de la persona.** Para comprobar sin esperar a nadie se creó un token de servicio de Access (`macmini-healthcheck`, un año, credenciales en `~/.config/demiurgo/cloudflare.env` como `CF_ACCESS_CLIENT_ID/SECRET`) y una política `non_identity` en la aplicación `demiurgo` (`a3e91ad2…`) que solo admite ese token; sirve también para vigilancia futura desde el mini. Con él, por `https://demiurgo.asterion-os.com`:
+  - `Host`: `/api/session` → 401 de la API (no 403 «Host not allowed»), `/api/health` → `{"ok":true}`, la web → 200. Se creó una persona temporal `prueba-mini` (`create-person`), se abrió sesión con cookie y CSRF por el dominio, se creó un proyecto `prueba-mini-dominio` con `Origin: https://demiurgo.asterion-os.com` (aceptado) y con un `Origin` ajeno (403, correcto). Sin cambios en `DEMIURGO_ORIGINS` ni en Fastify.
+  - SSE: el flujo `/events/stream` del proyecto se mantuvo abierto 135 s por Cloudflare, con 8 latidos `: heartbeat` y el evento `project.create` al inicio; no se cortó a los 100 s. No hace falta el keepalive extra (ya existía uno de 15 s).
+  - Recarga en caliente: cambiado en el host `/api/health` (`server.ts`) y el `<title>` de `packages/web/index.html`; ambos se sirvieron cambiados **por el dominio** en 1 s; deshechos, la API volvió en 1 s y la web tras reescribir el fichero en sitio (`git checkout` no disparó el evento de `index.html`, como ya se anotó para las escrituras por renombrado).
+  - Limpieza: proyecto archivado (`project.archive` con `entity_id`; el intento sin `entity_id` da `not_found`), sesión cerrada, persona borrada (`humans` y `sessions`); quedan en el diario los dos eventos de ese proyecto, que se irán con la restauración de los datos del PC. Ninguna ejecución real con Claude ni Codex.
+- Pendiente de la persona en esta fase: nada. Las 9 pruebas deterministas que fallan siguen anotadas para compararlas con el PC.
 - Git: el `git` de Homebrew (2.55) pide permiso al Llavero para leer la credencial de GitHub y se queda esperando el diálogo; los `push` se hacen con `/usr/bin/git`, que ya lo tiene. Identidad del repo fijada a la de los commits anteriores.
 
 - **Recarga en caliente (C.7, comprobada en 127.0.0.1:8100; por el dominio cuando Access lo abra).** La primera prueba falló: ni `node --watch` ni `vite build --watch` veían los cambios hechos desde macOS (virtiofs no propaga inotify; riesgo previsto en la diapositiva 20). Arreglo en dos pasos, sin cambiar de motor:

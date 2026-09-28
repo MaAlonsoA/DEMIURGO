@@ -1,0 +1,49 @@
+{
+  "purpose": "Historical regressions; not confirmatory evidence for the new benchmark.",
+  "files": [
+    {
+      "path": "evals/classifier/v1/README.md",
+      "sha256": "7f2a88c830a79bd72f6fa0a24b66a574d14f46b0f01fed33f74b3b5fc3230569"
+    },
+    {
+      "path": "evals/classifier/v1/ideas.jsonl",
+      "sha256": "555be120eb0dbbd1a8109d354486e7f623c41862e81afdc163e2252b6d6a19e0"
+    },
+    {
+      "path": "evals/classifier/v1/verdicts.jsonl",
+      "sha256": "8568c9d46a372320b4e109a4ff4e07f6be5230c1909a38ec50998f78ef02b316"
+    },
+    {
+      "path": "evals/classifier/v1-en/README.md",
+      "sha256": "bf7def91aaabfa2c62df8572e4b110557f1842458ce8aabcf08a8c9727161ce5"
+    },
+    {
+      "path": "evals/classifier/v1-en/ideas.jsonl",
+      "sha256": "133c9e060884f790bc1c2890acc753bad3263bcdf01a6da49dd43b19d365c3eb"
+    },
+    {
+      "path": "evals/classifier/v1-en/verdicts.jsonl",
+      "sha256": "6b096cd23244b146db0fde4c46aa81b1e4b1205fe89b46004c25caef5463e223"
+    },
+    {
+      "path": "evals/classifier/results/agent_knowledge_classifier_211cdc496096_opencode_qwen-local_qwen3_8-27b_medium-test-2026-09-28-15-06-24.json",
+      "sha256": "435cb5929a79a1297a3326aacba2a40813f42ba9869eecd5f845d086a9e8a7a8"
+    },
+    {
+      "path": "evals/classifier/results/agent_knowledge_classifier_211cdc496096_opencode_qwen-local_qwen3_8-27b_medium-test-2026-09-28-15-07-25.json",
+      "sha256": "6e5dbec4a856f5438d60533b0ffdd5d392727bb9db136f104c246e0350465d53"
+    },
+    {
+      "path": "evals/classifier/results/jev_jev-latest-test-2026-09-28-15-53-53.json",
+      "sha256": "43852c7e74e48d78fa3bbf9e38cef7ff927f2eb59818d62d9b6260efe4180a5e"
+    },
+    {
+      "path": "evals/classifier/results/jev_jev-latest-test-2026-09-28-15-54-14.json",
+      "sha256": "96896d4093a076f65948f1e1169583f42bdf1e8a6eacb53621849adecce276ad"
+    },
+    {
+      "path": "evals/classifier/results/referencia-claude_1-prueba-2026-09-24-14-08-56.json",
+      "sha256": "55178331c52b197cf5a7afb3a9fb0f70623b8969186550255b66d5596abcf524"
+    }
+  ]
+}

@@ -1,0 +1,1008 @@
+[
+  {
+    "id": "F01-1",
+    "project": "project-F01",
+    "family": "F01",
+    "variant": "1",
+    "translationOf": null,
+    "partition": "dev",
+    "language": "en",
+    "tags": [
+      "extension"
+    ],
+    "brief": "Harbor appointments is a fictional service. Review the approved change and the separate unapproved idea against the entire initial graph.",
+    "taxonomy": {
+      "axes": [
+        {
+          "code": "area",
+          "name": "Product area",
+          "categories": [
+            {
+              "code": "booking",
+              "name": "booking",
+              "description": "Rules about booking in Harbor appointments."
+            },
+            {
+              "code": "operations",
+              "name": "Operations",
+              "description": "Staff administration and general service operation."
+            },
+            {
+              "code": "other",
+              "name": "Other",
+              "description": "No defined area fits."
+            }
+          ]
+        }
+      ]
+    },
+    "graph": {
+      "version": 1,
+      "nodes": [
+        {
+          "ref": "DEC-F01-001@1",
+          "type": "decision",
+          "label": "Harbor appointments: booking",
+          "text": "Appointments last 30 minutes and require an email confirmation.",
+          "categories": {
+            "area": "booking"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F01-1-origin-1",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F01-002@1",
+          "type": "decision",
+          "label": "Access control",
+          "text": "Only Harbor appointments administrators can invite staff to the management console.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F01-1-origin-2",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F01-003@1",
+          "type": "decision",
+          "label": "Audit records",
+          "text": "Administrative actions in Harbor appointments retain an immutable audit entry for one year.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F01-1-origin-3",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F01-004@1",
+          "type": "decision",
+          "label": "Service hours",
+          "text": "Harbor appointments staff support is available Monday to Friday, 09:00 to 17:00.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F01-1-origin-4",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F01-005@1",
+          "type": "decision",
+          "label": "Accessibility",
+          "text": "Harbor appointments navigation must be usable with a keyboard and a screen reader.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F01-1-origin-5",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F01-006@1",
+          "type": "decision",
+          "label": "Data export",
+          "text": "Harbor appointments administrators can export the account directory as UTF-8 CSV.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F01-1-origin-6",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F01-007@1",
+          "type": "decision",
+          "label": "Session security",
+          "text": "Harbor appointments console sessions expire after 30 minutes of inactivity.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F01-1-origin-7",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F01-008@1",
+          "type": "decision",
+          "label": "Account deletion",
+          "text": "Harbor appointments account deletion requires a second administrator confirmation.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F01-1-origin-8",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F01-009@1",
+          "type": "decision",
+          "label": "Incident contacts",
+          "text": "Harbor appointments maintains an on-call contact list for service outages.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F01-1-origin-9",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F01-010@1",
+          "type": "decision",
+          "label": "Documentation",
+          "text": "Harbor appointments documents approved policies in a versioned staff handbook.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F01-1-origin-10",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        }
+      ],
+      "edges": [
+        {
+          "type": "related",
+          "from": "DEC-F01-002@1",
+          "to": "DEC-F01-003@1",
+          "validFrom": 1,
+          "validTo": null
+        }
+      ]
+    },
+    "change": {
+      "main": {
+        "ref": "DEC-F01-020@1",
+        "type": "decision",
+        "label": "Approved booking change",
+        "text": "Appointments still last 30 minutes; add an SMS confirmation alongside email.",
+        "epistemic": "confirmed",
+        "authority": true,
+        "origin": {
+          "type": "record_version",
+          "id": "F01-1-origin-20",
+          "version": 1
+        }
+      },
+      "companions": [],
+      "edges": [],
+      "supersedes": []
+    },
+    "idea": "Send an SMS confirmation as well as email for each appointment."
+  },
+  {
+    "id": "F01-1-es",
+    "project": "project-F01",
+    "family": "F01",
+    "variant": "legacy-es",
+    "translationOf": "F01-1",
+    "partition": "dev",
+    "language": "es",
+    "tags": [
+      "extension",
+      "legacy_spanish"
+    ],
+    "brief": "Harbor appointments is a fictional service. Review the approved change and the separate unapproved idea against the entire initial graph.",
+    "taxonomy": {
+      "axes": [
+        {
+          "code": "area",
+          "name": "Product area",
+          "categories": [
+            {
+              "code": "booking",
+              "name": "booking",
+              "description": "Rules about booking in Harbor appointments."
+            },
+            {
+              "code": "operations",
+              "name": "Operations",
+              "description": "Staff administration and general service operation."
+            },
+            {
+              "code": "other",
+              "name": "Other",
+              "description": "No defined area fits."
+            }
+          ]
+        }
+      ]
+    },
+    "graph": {
+      "version": 1,
+      "nodes": [
+        {
+          "ref": "DEC-F01-001@1",
+          "type": "decision",
+          "label": "Harbor appointments: booking",
+          "text": "Las citas duran 30 minutos y requieren una confirmación por correo electrónico.",
+          "categories": {
+            "area": "booking"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F01-1-origin-1",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F01-002@1",
+          "type": "decision",
+          "label": "Access control",
+          "text": "Only Harbor appointments administrators can invite staff to the management console.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F01-1-origin-2",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F01-003@1",
+          "type": "decision",
+          "label": "Audit records",
+          "text": "Administrative actions in Harbor appointments retain an immutable audit entry for one year.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F01-1-origin-3",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F01-004@1",
+          "type": "decision",
+          "label": "Service hours",
+          "text": "Harbor appointments staff support is available Monday to Friday, 09:00 to 17:00.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F01-1-origin-4",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F01-005@1",
+          "type": "decision",
+          "label": "Accessibility",
+          "text": "Harbor appointments navigation must be usable with a keyboard and a screen reader.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F01-1-origin-5",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F01-006@1",
+          "type": "decision",
+          "label": "Data export",
+          "text": "Harbor appointments administrators can export the account directory as UTF-8 CSV.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F01-1-origin-6",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F01-007@1",
+          "type": "decision",
+          "label": "Session security",
+          "text": "Harbor appointments console sessions expire after 30 minutes of inactivity.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F01-1-origin-7",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F01-008@1",
+          "type": "decision",
+          "label": "Account deletion",
+          "text": "Harbor appointments account deletion requires a second administrator confirmation.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F01-1-origin-8",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F01-009@1",
+          "type": "decision",
+          "label": "Incident contacts",
+          "text": "Harbor appointments maintains an on-call contact list for service outages.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F01-1-origin-9",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F01-010@1",
+          "type": "decision",
+          "label": "Documentation",
+          "text": "Harbor appointments documents approved policies in a versioned staff handbook.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F01-1-origin-10",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        }
+      ],
+      "edges": [
+        {
+          "type": "related",
+          "from": "DEC-F01-002@1",
+          "to": "DEC-F01-003@1",
+          "validFrom": 1,
+          "validTo": null
+        }
+      ]
+    },
+    "change": {
+      "main": {
+        "ref": "DEC-F01-020@1",
+        "type": "decision",
+        "label": "Approved booking change",
+        "text": "Las citas siguen durando 30 minutos; añadir una confirmación por SMS junto al correo electrónico.",
+        "epistemic": "confirmed",
+        "authority": true,
+        "origin": {
+          "type": "record_version",
+          "id": "F01-1-origin-20",
+          "version": 1
+        }
+      },
+      "companions": [],
+      "edges": [],
+      "supersedes": []
+    },
+    "idea": "Enviar una confirmación por SMS además del correo electrónico para cada cita."
+  },
+  {
+    "id": "F06-1",
+    "project": "project-F06",
+    "family": "F06",
+    "variant": "1",
+    "translationOf": null,
+    "partition": "dev",
+    "language": "en",
+    "tags": [
+      "negation"
+    ],
+    "brief": "Northwind lockers is a fictional service. Review the approved change and the separate unapproved idea against the entire initial graph.",
+    "taxonomy": {
+      "axes": [
+        {
+          "code": "area",
+          "name": "Product area",
+          "categories": [
+            {
+              "code": "access",
+              "name": "access",
+              "description": "Rules about access in Northwind lockers."
+            },
+            {
+              "code": "operations",
+              "name": "Operations",
+              "description": "Staff administration and general service operation."
+            },
+            {
+              "code": "other",
+              "name": "Other",
+              "description": "No defined area fits."
+            }
+          ]
+        }
+      ]
+    },
+    "graph": {
+      "version": 1,
+      "nodes": [
+        {
+          "ref": "DEC-F06-001@1",
+          "type": "decision",
+          "label": "Northwind lockers: access",
+          "text": "Members must not share their locker access codes with other members.",
+          "categories": {
+            "area": "access"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F06-1-origin-1",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F06-002@1",
+          "type": "decision",
+          "label": "Access control",
+          "text": "Only Northwind lockers administrators can invite staff to the management console.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F06-1-origin-2",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F06-003@1",
+          "type": "decision",
+          "label": "Audit records",
+          "text": "Administrative actions in Northwind lockers retain an immutable audit entry for one year.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F06-1-origin-3",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F06-004@1",
+          "type": "decision",
+          "label": "Service hours",
+          "text": "Northwind lockers staff support is available Monday to Friday, 09:00 to 17:00.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F06-1-origin-4",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F06-005@1",
+          "type": "decision",
+          "label": "Accessibility",
+          "text": "Northwind lockers navigation must be usable with a keyboard and a screen reader.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F06-1-origin-5",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F06-006@1",
+          "type": "decision",
+          "label": "Data export",
+          "text": "Northwind lockers administrators can export the account directory as UTF-8 CSV.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F06-1-origin-6",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F06-007@1",
+          "type": "decision",
+          "label": "Session security",
+          "text": "Northwind lockers console sessions expire after 30 minutes of inactivity.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F06-1-origin-7",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F06-008@1",
+          "type": "decision",
+          "label": "Account deletion",
+          "text": "Northwind lockers account deletion requires a second administrator confirmation.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F06-1-origin-8",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F06-009@1",
+          "type": "decision",
+          "label": "Incident contacts",
+          "text": "Northwind lockers maintains an on-call contact list for service outages.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F06-1-origin-9",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F06-010@1",
+          "type": "decision",
+          "label": "Documentation",
+          "text": "Northwind lockers documents approved policies in a versioned staff handbook.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F06-1-origin-10",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        }
+      ],
+      "edges": [
+        {
+          "type": "related",
+          "from": "DEC-F06-002@1",
+          "to": "DEC-F06-003@1",
+          "validFrom": 1,
+          "validTo": null
+        }
+      ]
+    },
+    "change": {
+      "main": {
+        "ref": "DEC-F06-020@1",
+        "type": "decision",
+        "label": "Approved access change",
+        "text": "Sharing locker access codes between members remains prohibited.",
+        "epistemic": "confirmed",
+        "authority": true,
+        "origin": {
+          "type": "record_version",
+          "id": "F06-1-origin-20",
+          "version": 1
+        }
+      },
+      "companions": [],
+      "edges": [],
+      "supersedes": []
+    },
+    "idea": "Allow members to share locker access codes with other members."
+  },
+  {
+    "id": "F06-1-es",
+    "project": "project-F06",
+    "family": "F06",
+    "variant": "legacy-es",
+    "translationOf": "F06-1",
+    "partition": "dev",
+    "language": "es",
+    "tags": [
+      "negation",
+      "legacy_spanish"
+    ],
+    "brief": "Northwind lockers is a fictional service. Review the approved change and the separate unapproved idea against the entire initial graph.",
+    "taxonomy": {
+      "axes": [
+        {
+          "code": "area",
+          "name": "Product area",
+          "categories": [
+            {
+              "code": "access",
+              "name": "access",
+              "description": "Rules about access in Northwind lockers."
+            },
+            {
+              "code": "operations",
+              "name": "Operations",
+              "description": "Staff administration and general service operation."
+            },
+            {
+              "code": "other",
+              "name": "Other",
+              "description": "No defined area fits."
+            }
+          ]
+        }
+      ]
+    },
+    "graph": {
+      "version": 1,
+      "nodes": [
+        {
+          "ref": "DEC-F06-001@1",
+          "type": "decision",
+          "label": "Northwind lockers: access",
+          "text": "Los miembros no deben compartir sus códigos de acceso a las taquillas con otros miembros.",
+          "categories": {
+            "area": "access"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F06-1-origin-1",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F06-002@1",
+          "type": "decision",
+          "label": "Access control",
+          "text": "Only Northwind lockers administrators can invite staff to the management console.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F06-1-origin-2",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F06-003@1",
+          "type": "decision",
+          "label": "Audit records",
+          "text": "Administrative actions in Northwind lockers retain an immutable audit entry for one year.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F06-1-origin-3",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F06-004@1",
+          "type": "decision",
+          "label": "Service hours",
+          "text": "Northwind lockers staff support is available Monday to Friday, 09:00 to 17:00.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F06-1-origin-4",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F06-005@1",
+          "type": "decision",
+          "label": "Accessibility",
+          "text": "Northwind lockers navigation must be usable with a keyboard and a screen reader.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F06-1-origin-5",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F06-006@1",
+          "type": "decision",
+          "label": "Data export",
+          "text": "Northwind lockers administrators can export the account directory as UTF-8 CSV.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F06-1-origin-6",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F06-007@1",
+          "type": "decision",
+          "label": "Session security",
+          "text": "Northwind lockers console sessions expire after 30 minutes of inactivity.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F06-1-origin-7",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F06-008@1",
+          "type": "decision",
+          "label": "Account deletion",
+          "text": "Northwind lockers account deletion requires a second administrator confirmation.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F06-1-origin-8",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F06-009@1",
+          "type": "decision",
+          "label": "Incident contacts",
+          "text": "Northwind lockers maintains an on-call contact list for service outages.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F06-1-origin-9",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        },
+        {
+          "ref": "DEC-F06-010@1",
+          "type": "decision",
+          "label": "Documentation",
+          "text": "Northwind lockers documents approved policies in a versioned staff handbook.",
+          "categories": {
+            "area": "operations"
+          },
+          "epistemic": "confirmed",
+          "authority": true,
+          "origin": {
+            "type": "record_version",
+            "id": "F06-1-origin-10",
+            "version": 1
+          },
+          "from": 1,
+          "until": null
+        }
+      ],
+      "edges": [
+        {
+          "type": "related",
+          "from": "DEC-F06-002@1",
+          "to": "DEC-F06-003@1",
+          "validFrom": 1,
+          "validTo": null
+        }
+      ]
+    },
+    "change": {
+      "main": {
+        "ref": "DEC-F06-020@1",
+        "type": "decision",
+        "label": "Approved access change",
+        "text": "Compartir códigos de acceso a las taquillas entre miembros sigue estando prohibido.",
+        "epistemic": "confirmed",
+        "authority": true,
+        "origin": {
+          "type": "record_version",
+          "id": "F06-1-origin-20",
+          "version": 1
+        }
+      },
+      "companions": [],
+      "edges": [],
+      "supersedes": []
+    },
+    "idea": "Permitir que los miembros compartan sus códigos de acceso a las taquillas con otros miembros."
+  }
+]

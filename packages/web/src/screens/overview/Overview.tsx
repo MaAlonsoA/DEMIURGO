@@ -9,7 +9,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { type ReactNode, useState } from 'react';
-import { explorationsQuery, inboxQuery, projectsQuery, runsQuery, stateQuery } from '../../api/queries.ts';
+import { definitionQuery, explorationsQuery, inboxQuery, projectsQuery, runsQuery, stateQuery } from '../../api/queries.ts';
 import { canCreate } from '../../api/tables.ts';
 import type { ExplorationSummary, ProductRow } from '../../api/types.ts';
 import { AskBox } from '../../components/AskBox.tsx';
@@ -82,6 +82,7 @@ function Overview({ projectId }: { projectId: string }) {
   const inbox = useQuery(inboxQuery(projectId));
   const runsQ = useQuery(runsQuery(projectId));
   const explorationsQ = useQuery(explorationsQuery(projectId));
+  const definition = useQuery(definitionQuery(projectId));
   const tables = useTables();
   const lens = useLens(projectId, state.data);
   const [preview, setPreviewState] = useState<PreviewTarget>(null);
@@ -112,6 +113,8 @@ function Overview({ projectId }: { projectId: string }) {
   };
   const progress = productProgress(rows, countOf, runs, drafting.length);
   const empty = !!s && rows.length === 0;
+  // With its definition, the product is no longer blank even before its first feature or decision.
+  const blank = empty && !definition.data?.record && !definition.data?.proposal;
   const versions = s ? versionIndex(s) : new Map();
   const newRecord = !!tables && canCreate(tables, 'record.create');
 
@@ -186,7 +189,7 @@ function Overview({ projectId }: { projectId: string }) {
               {lens.on ? <WhileAway projectId={projectId} lens={lens} /> : null}
               <ProductDefinitionSection projectId={projectId} />
               <DesignStages projectId={projectId} />
-              {empty ? (
+              {blank ? (
                 <EmptyState
                   title={t.nothingHereYet}
                   action={

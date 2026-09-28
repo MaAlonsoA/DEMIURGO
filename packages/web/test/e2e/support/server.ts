@@ -141,12 +141,30 @@ const engine = await startEngine(
 );
 await createPerson(connection.db, E2E_USER, E2E_PASSWORD);
 const origin = `http://127.0.0.1:${port}`;
+// E2E_DEV_TOOLS=1 turns on the dev tools that don't touch the database (the trace and its Alt+click
+// inspector), to look at them on this instance; snapshots and reset stay off.
+const noSnapshots = async (): Promise<never> => {
+  throw new Error('Snapshots are off on the e2e instance.');
+};
+const devTools =
+  process.env.E2E_DEV_TOOLS === '1'
+    ? {
+        database: name,
+        ready: async () => undefined,
+        list: async () => [],
+        save: noSnapshots,
+        restore: noSnapshots,
+        drop: noSnapshots,
+        reset: noSnapshots,
+      }
+    : undefined;
 const app = await createServer({
   services: engine.services,
   databaseUrl: url,
   sessionHours: 2,
   allowedOrigins: [origin, `http://localhost:${port}`],
   webRoot,
+  ...(devTools ? { devTools } : {}),
 });
 await app.listen({ host: '127.0.0.1', port });
 console.log(JSON.stringify({ e2e: origin, database: name }));

@@ -8,7 +8,7 @@ import type { Question } from '../../api/types.ts';
 import { DEFINITION_KEYS } from '../overview/definition.ts';
 
 /** Stored with a question left open on Day 1 (records are in English). */
-export const LEFT_OPEN_REASON = 'Left open on Day 1.';
+export const LEFT_OPEN_REASON = 'Not decided yet.';
 
 export type Answer = { text: string; open: boolean };
 

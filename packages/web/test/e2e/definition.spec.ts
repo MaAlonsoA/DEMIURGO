@@ -72,7 +72,7 @@ test('the idea leaves a product definition behind: read, confirmed at once, appr
   await expect(drafted.locator('[data-definition-section="purpose"]')).toContainText(SENTENCE);
   await expect(drafted.locator('[data-definition-section="stakeholders"] [data-settled="corrected"]')).toBeVisible();
   await expect(drafted.locator('[data-definition-section="scope_out"] [data-settled="answered"]')).toBeVisible();
-  await expect(drafted.locator('[data-definition-section="constraints"]')).toContainText('Left open: Left open on Day 1.');
+  await expect(drafted.locator('[data-definition-section="constraints"]')).toContainText('Left open: Not decided yet.');
   await expectAccessible(page, 'Product page with the drafted definition');
   await drafted.getByRole('button', { name: 'Approve the definition' }).click();
 
@@ -101,7 +101,7 @@ test('the idea leaves a product definition behind: read, confirmed at once, appr
   const next = page.locator('[data-definition-proposal]');
   await expect(next.getByRole('heading', { name: 'Version 2 is proposed' })).toBeVisible();
   await expect(next.locator('[data-definition-why]')).toContainText('We decided it runs in the browser.');
-  await expect(next.locator('[data-definition-before]')).toContainText('Left open: Left open on Day 1.');
+  await expect(next.locator('[data-definition-before]')).toContainText('Left open: Not decided yet.');
   await next.getByRole('button', { name: 'Approve version 2' }).click();
 
   await expect(page.locator('[data-definition-version="2"]')).toBeVisible();

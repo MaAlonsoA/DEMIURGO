@@ -185,6 +185,7 @@ describe('Codex provider', () => {
     expect(proposals?.items.anyOf.map((o) => o.properties.type)).toEqual([
       { type: 'string', enum: ['decision'] },
       { type: 'string', enum: ['exploration'] },
+      { type: 'string', enum: ['design_record'] },
     ]);
   });
 

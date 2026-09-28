@@ -122,7 +122,8 @@ describe('journey gaps', () => {
     expect(j?.paths).toEqual([
       expect.objectContaining({ given: 'an open activity', when: 'a member signs up', outcome: 'they see "You\'re in".' }),
     ]);
-    expect(j?.gaps.map((g) => g.id)).toEqual([open]);
+    expect(j?.gaps.map((g) => g.id)).toContain(open);
+    expect(j?.gaps.map((g) => g.id)).not.toContain(closed);
     const map = await productMap(s.db, projectId);
     expect(map.questions.find((q) => q.id === open)?.affects).toContain(
       journeys.find((x) => x.title === 'Sign up for an activity')?.code,

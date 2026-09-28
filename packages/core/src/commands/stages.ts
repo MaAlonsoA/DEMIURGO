@@ -98,8 +98,8 @@ registerHandlers({
     data: z.object({}).strict(),
     async apply(ctx, _d, e) {
       const id = e?.id ?? '';
-      const stage = String(e?.row.stage ?? '');
-      const thread = String(e?.row.exploration_id ?? '');
+      const stage = trimmed(e?.row.stage);
+      const thread = trimmed(e?.row.exploration_id);
       await ctx.trx
         .updateTable('stages')
         .set({ passed_by: formatActor(ctx.actor), passed_at: new Date() })

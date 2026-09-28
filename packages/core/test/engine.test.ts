@@ -78,6 +78,7 @@ describe('runs with the durable engine', () => {
       projectId,
       data: { exploration_id: e.entityId, text: 'I want it to be invalid', respond: false },
     });
+    const questionsBefore = await s.db.selectFrom('questions').select('id').where('project_id', '=', projectId).execute();
     const request = await executeCommand(s, {
       command: 'run.request',
       actor: ana,
@@ -94,8 +95,7 @@ describe('runs with the durable engine', () => {
       .where('project_id', '=', projectId)
       .orderBy('seq')
       .execute();
-    expect(commands.map((c) => c.command)).toEqual([
-      'project.create',
+    expect(commands.map((c) => c.command).slice(-6)).toEqual([
       'exploration.open',
       'message.post',
       'context_pack.build',
@@ -108,7 +108,7 @@ describe('runs with the durable engine', () => {
     const batches = await s.db.selectFrom('proposal_batches').select('id').where('project_id', '=', projectId).execute();
     expect({ messages: runMessages.length, questions: questions.length, batches: batches.length }).toEqual({
       messages: 0,
-      questions: 0,
+      questions: questionsBefore.length,
       batches: 0,
     });
   });

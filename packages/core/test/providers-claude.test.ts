@@ -133,7 +133,7 @@ describe('Claude provider', () => {
     expect(valueOf(args, '--model')).toBe('haiku');
     expect(valueOf(args, '--effort')).toBe('high');
     expect(valueOf(args, '--system-prompt')).toBe(invocation().system);
-    expect(valueOf(args, '--tools')).toBe('');
+    expect(valueOf(args, '--tools')).toBe('WebSearch');
     expect(valueOf(args, '--setting-sources')).toBe('');
     expect(args).toEqual(expect.arrayContaining(['--strict-mcp-config', '--safe-mode', '--no-session-persistence']));
     expect(input).toBe(invocation().input);

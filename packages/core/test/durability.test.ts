@@ -39,7 +39,8 @@ function launch(args: string[]): {
   };
 }
 
-const waitForExit = (h: ChildProcess) => new Promise<void>((r) => (h.exitCode !== null ? r() : h.once('exit', () => r())));
+const waitForExit = (h: ChildProcess) =>
+  new Promise<void>((resolve) => (h.exitCode !== null || h.signalCode !== null ? resolve() : h.once('exit', () => resolve())));
 
 describe('durable engine', () => {
   it('AC-ESQ-001-07 killing the process during a run resumes it and its effect happens only once', async () => {

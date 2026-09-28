@@ -46,6 +46,8 @@ const ENV_READERS = new Set([
   'packages/mcp/src/main.ts',
   // The evidence ingester runs outside the application and reads only its own variables.
   'packages/evidence/src/config.ts',
+  'packages/evidence/src/cli.ts',
+  'packages/evidence/src/metabase.ts',
 ]);
 
 describe('architecture', () => {
@@ -73,7 +75,14 @@ describe('architecture', () => {
 
   it('AC-DIS-001-04 agent actions only post messages, raise or infer questions and submit batches: they never decide (I2)', async () => {
     // An agent's output is applied here: messages, questions (the system infers them) and batches of proposals.
-    const ALLOWED = new Set(['message.post', 'question.raise', 'question.infer', 'batch.submit']);
+    const ALLOWED = new Set([
+      'message.post',
+      'question.raise',
+      'question.infer',
+      'question.suggest_options',
+      'exploration.revise_purpose',
+      'batch.submit',
+    ]);
     const violations: string[] = [];
     for (const dir of ['packages/core/src/actions', 'packages/core/src/agents']) {
       for (const [path, text] of await sources(dir)) {

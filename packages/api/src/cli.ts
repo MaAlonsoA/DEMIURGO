@@ -36,6 +36,11 @@ import { createPerson, verifyPerson } from './credentials.ts';
 
 const [command, ...args] = process.argv.slice(2);
 const config = readConfig();
+const cliLogger = {
+  ...consoleLogger,
+  info: (message: string, data?: Record<string, unknown>) =>
+    console.error(JSON.stringify({ level: 'info', m: message, ...data })),
+};
 
 /** Every order that executes commands is an interaction with channel `cli` (observability spec §7.2). */
 function interaction<T>(observer: Observer, actor: Actor, projectId: string | null, fn: () => Promise<T>): Promise<T> {
@@ -84,7 +89,7 @@ const commands: Record<string, () => Promise<void>> = {
   async 'create-project'() {
     const name = args[0];
     if (!name) throw new Error('Usage: create-project <name>');
-    const core = await startCore(config, consoleLogger);
+    const core = await startCore(config, cliLogger);
     try {
       const actor = system('cli');
       const r = await interaction(core.services.observer, actor, null, () =>
@@ -114,8 +119,8 @@ const commands: Record<string, () => Promise<void>> = {
         classifierFor: () => Promise.reject(new Error('Issuing an agent key classifies nothing.')),
         agentSessionsDir: config.agentSessionsDir,
         engine: inertEngine(),
-        logger: consoleLogger,
-        observer: createObserver(config.observe, consoleLogger),
+        logger: cliLogger,
+        observer: createObserver(config.observe, cliLogger),
       };
       const actor = human(username);
       const r = await interaction(services.observer, actor, projectId, () =>
@@ -129,7 +134,7 @@ const commands: Record<string, () => Promise<void>> = {
   async 'real-run'() {
     const [projectId, action, scope, input] = args;
     if (!projectId || !action || !scope) throw new Error('Usage: real-run <projectId> <action> <json-scope> [json-input]');
-    const core = await startCore(config, consoleLogger);
+    const core = await startCore(config, cliLogger);
     try {
       const actor = system('cli');
       const r = await interaction(core.services.observer, actor, projectId, () =>
@@ -160,7 +165,7 @@ commands['evaluate-classifier'] = async () => {
   const effort = effortArg === '-' ? null : effortArg;
   await withDatabase(async (c) => {
     // Through callProvider, so the evaluation's calls leave their trace like any other (spec §7.8).
-    const observer = createObserver(config.observe, consoleLogger);
+    const observer = createObserver(config.observe, cliLogger);
     const classifier =
       provider.id === 'simulated'
         ? createSimulatedClassifier()
@@ -181,7 +186,7 @@ commands['evaluate-classifier'] = async () => {
 commands['import-design'] = async () => {
   const [projectId, dir = 'design'] = args;
   if (!projectId) throw new Error('Usage: import-design <projectId> [dir]');
-  const core = await startCore(config, consoleLogger);
+  const core = await startCore(config, cliLogger);
   try {
     const tree = await readTree(dir);
     const r = await interaction(core.services.observer, IMPORTER, projectId, () =>

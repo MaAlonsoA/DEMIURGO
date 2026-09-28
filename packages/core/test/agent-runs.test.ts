@@ -1,7 +1,7 @@
 // Runs executed by DEMIURGO agents on the assigned provider (FDR-AGE-002): what each run records,
 // how it resolves its engine, the provider session with its delta, and Retry with….
 
-import { type ProviderId, composeSystem, human, isDomainError } from '@demiurgo/domain';
+import { type ProviderId, composeSystem, human, isDomainError, system } from '@demiurgo/domain';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { loadAgentCatalog } from '../src/agents/catalog.ts';
 import { DEFAULT_SCRIPTS, type SimulatedInvocation, createSimulatedProvider } from '../src/agents/simulated.ts';
@@ -154,34 +154,64 @@ describe('agent runs', () => {
   it('AC-AGE-002-09 the thread resumes with only the delta while the pack only appends, and starts over otherwise', async () => {
     const thread = await openThread('Pricing');
     await cmd('message.post', { exploration_id: thread, text: 'Who pays for this?', respond: false });
+    const stageQuestions = await environment()
+      .services.db.selectFrom('questions')
+      .select('id')
+      .where('exploration_id', '=', thread)
+      .where('state', '=', 'pending')
+      .execute();
+    for (const question of stageQuestions) {
+      await executeCommand(environment().services, {
+        command: 'question.suggest_options',
+        actor: system('test'),
+        projectId,
+        entityId: question.id,
+        data: {
+          options: [
+            { answer: 'Yes', implies: 'Include it.', exclusive: false },
+            { answer: 'No', implies: 'Exclude it.', exclusive: false },
+          ],
+          multiple: false,
+        },
+      });
+    }
+    if (stageQuestions[0]) await cmd('question.confirm', { conclusion: 'Members pay.' }, stageQuestions[0].id);
+    const mutableQuestionId =
+      stageQuestions[1]?.id ??
+      (
+        await cmd('question.raise', {
+          exploration_id: thread,
+          question: 'Is there a free tier?',
+          options: [
+            { answer: 'Yes', implies: 'A free tier exists.', exclusive: false },
+            { answer: 'No', implies: 'Everyone pays.', exclusive: false },
+          ],
+        })
+      ).entityId;
     const first = await ask(thread);
     expect(await run(first)).toMatchObject({ session_mode: 'fresh', agent: 'explorer' });
-    const sessionId = (await run(first)).provider_session_id;
 
     await cmd('message.post', { exploration_id: thread, text: 'Restaurants pay a monthly fee.', respond: false });
     const second = await ask(thread);
-    const resumed = await run(second);
-    expect(resumed).toMatchObject({ session_mode: 'resumed', provider_session_id: sessionId, delta_hash: expect.any(String) });
+    await cmd('message.post', { exploration_id: thread, text: 'We will bill them monthly.', respond: false });
+    const third = await ask(thread);
+    const resumed = await run(third);
+    expect(resumed).toMatchObject({
+      session_mode: 'resumed',
+      provider_session_id: (await run(second)).provider_session_id,
+      delta_hash: expect.any(String),
+    });
     const input = received.at(-1)?.input ?? '';
     expect(input).toContain('This continues the previous turn');
-    expect(input).toContain('Restaurants pay a monthly fee.');
+    expect(input).toContain('We will bill them monthly.');
     // Only what was added: the new message (and the agent's own reply), not the first message.
     expect(input).not.toContain('"text": "Who pays for this?"');
-    expect(received.at(-1)?.session).toEqual({ mode: 'resumed', directory: expect.any(String), id: sessionId });
+    expect(received.at(-1)?.session).toEqual({ mode: 'resumed', directory: expect.any(String), id: resumed.provider_session_id });
 
     // A question changed state: the pack no longer only appends.
-    const pending = (
-      await environment()
-        .services.db.selectFrom('questions')
-        .select('id')
-        .where('exploration_id', '=', thread)
-        .where('state', '=', 'pending')
-        .executeTakeFirst()
-    )?.id;
-    if (!pending) throw new Error('The simulated explorer should have raised a question.');
-    await cmd('question.postpone', { reason: 'Later.' }, pending);
-    const third = await ask(thread);
-    expect(await run(third)).toMatchObject({ session_mode: 'fresh', delta_hash: null });
+    await cmd('question.postpone', { reason: 'Later.' }, mutableQuestionId);
+    const afterQuestion = await ask(thread);
+    expect(await run(afterQuestion)).toMatchObject({ session_mode: 'fresh', delta_hash: null });
     expect(received.at(-1)?.input).toContain('Who pays for this?');
 
     // A resumed run that fails; its retry starts over with the whole pack.

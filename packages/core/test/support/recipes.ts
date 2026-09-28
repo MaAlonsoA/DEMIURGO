@@ -2,7 +2,7 @@
 // how to reach certain states.
 
 import { randomUUID } from 'node:crypto';
-import { human, system } from '@demiurgo/domain';
+import { STAGES, human, system } from '@demiurgo/domain';
 import { sql } from 'kysely';
 import { executeCommand } from '../../src/bus/bus.ts';
 import type { Services } from '../../src/services.ts';
@@ -74,7 +74,51 @@ registerRecipe('agent_token', {
 
 registerRecipe('exploration', {
   create: newExploration,
-  data: { 'exploration.set_aside': () => ({ reason: 'Apartada en la prueba.' }) },
+  data: {
+    'exploration.set_aside': () => ({ reason: 'Apartada en la prueba.' }),
+    'exploration.revise_purpose': () => ({ purpose: 'A revised purpose.' }),
+  },
+});
+
+async function openStage(s: Services, projectId: string): Promise<string> {
+  const existing = await s.db
+    .selectFrom('stages')
+    .select('id')
+    .where('project_id', '=', projectId)
+    .where('state', '=', 'open')
+    .orderBy('position')
+    .executeTakeFirst();
+  if (existing) return existing.id;
+  const first = STAGES[0];
+  if (!first) throw new Error('No design stage is defined.');
+  const opened = await executeCommand(s, {
+    command: 'stage.open',
+    actor: sys,
+    projectId,
+    data: { stage: first.key },
+  });
+  return opened.entityId;
+}
+
+registerRecipe('stage', {
+  create: openStage,
+  states: {
+    async passed(s, projectId) {
+      const id = await openStage(s, projectId);
+      const questions = await s.db.selectFrom('questions').select('id').where('stage_id', '=', id).execute();
+      for (const question of questions) {
+        await executeCommand(s, {
+          command: 'question.confirm',
+          actor: ana,
+          projectId,
+          entityId: question.id,
+          data: { conclusion: 'Settled in the test.' },
+        });
+      }
+      await executeCommand(s, { command: 'stage.pass', actor: ana, projectId, entityId: id, data: {} });
+      return id;
+    },
+  },
 });
 
 registerRecipe('message', {
@@ -115,6 +159,7 @@ registerRecipe('question', {
   },
   data: {
     'question.infer': () => ({ conclusion: 'Los socios.', reasoning: 'Lo dijo la persona.' }),
+    'question.suggest_options': () => ({ options: [] }),
     'question.confirm': () => ({ conclusion: 'Los socios.' }),
     'question.postpone': () => ({ reason: 'Más adelante.' }),
     'question.discard': () => ({ reason: 'No aplica.' }),

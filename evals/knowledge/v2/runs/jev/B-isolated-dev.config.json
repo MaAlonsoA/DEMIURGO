@@ -1,0 +1,33 @@
+{
+  "contract": "B",
+  "engine": "jev",
+  "policy": "pending",
+  "retrieval": "isolated",
+  "categories": "predicted",
+  "condition": "controlled",
+  "partition": "dev",
+  "repetitions": 5,
+  "seed": 42,
+  "thresholds": {
+    "category": {
+      "high": 0.8,
+      "medium": 0.55
+    },
+    "change": {
+      "high": 0.8,
+      "medium": 0.55
+    },
+    "idea": {
+      "high": 0.8,
+      "medium": 0.55
+    }
+  },
+  "qwen": {
+    "model": "qwen-local/qwen3_8-27b",
+    "effort": "medium",
+    "configPath": "/Users/marcos/.config/opencode/opencode.json"
+  },
+  "jev": {
+    "model": "jev-latest"
+  }
+}

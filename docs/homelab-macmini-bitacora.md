@@ -125,6 +125,39 @@ Los dos van por la misma puerta: WARP inscrito en la organización Zero Trust **
 
 La sesión `claude --remote-control` del mini aparece en la app de Claude (iPhone) y en https://claude.ai/code como «macmini…». Escríbele desde ahí; si no aparece, en Termius: `~/bin/claude-tmux.sh` y `tmux attach -t claude`.
 
+## Termius y WARP · paso a paso por dispositivo (entregado el 28-09)
+
+Común a todo: organización Zero Trust `asterion-os`, correo `ma_lonso94@hotmail.com` (código de un solo uso), el mini en la red privada del túnel como `192.168.1.145`, usuario `marcos`, solo clave. Cada clave pública nueva se me pega en el chat y yo la añado a `~/.ssh/authorized_keys`.
+
+### Windows 11 (PC)
+
+1. WARP: `winget install Cloudflare.Warp` (o https://one.one.one.one). Icono de WARP en la bandeja → engranaje → *Preferences* → *Account* → **Login with Cloudflare Zero Trust** → equipo `asterion-os` → navegador → correo → código → *Open WARP*. Debe decir **Connected · Zero Trust**.
+2. Termius: https://termius.com/download → cuenta (gratuita vale) → *Keychain* → *+ Key* → **Generate** (`ed25519`, nombre `mini`) → *Export public key* / copiar → pegarla en el chat.
+3. Host: *Hosts* → *+ New Host*: alias `mini`, dirección `192.168.1.145`, puerto `22`, usuario `marcos`, clave `mini`, comando de inicio `tmux attach -t claude || tmux new -s claude`.
+4. Conectar con WARP en **Connected**. La primera vez acepta la huella del host.
+
+### iPhone 15 Pro Max
+
+1. App Store → **Cloudflare One** (antes «1.1.1.1: Faster Internet») → ≡ → *Account* → **Login with Cloudflare Zero Trust** → `asterion-os` → correo → código → permitir el perfil VPN → interruptor en **Connected**.
+2. App Store → **Termius**. Misma cuenta que en el PC: si la clave y el host `mini` aparecen ya sincronizados, no hay nada más. Si no: *Keychain* → *+* → *Generate* (`ed25519`, `mini`) → copiar la pública → pegar en el chat; host igual que en el PC.
+3. App **Claude** → pestaña *Code* → aparece la sesión del mini (`claude --remote-control`). Escribir ahí.
+4. Navegador (sin instalar nada): `https://code.asterion-os.com`, `https://ssh.asterion-os.com`, y las tres apps.
+
+### Mac personal
+
+1. WARP: `brew install --cask cloudflare-warp` (o App Store «Cloudflare One»). Barra de menús → engranaje → *Preferences* → *Account* → **Login with Cloudflare Zero Trust** → `asterion-os` → correo → código. **Connected**.
+2. Termius (`brew install --cask termius` o App Store) con la misma cuenta: clave y host sincronizados o generados igual que en el PC.
+3. Sin Termius también vale el Terminal del sistema: `ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_mini`, pegar `~/.ssh/id_ed25519_mini.pub` en el chat, y `ssh -i ~/.ssh/id_ed25519_mini marcos@192.168.1.145 -t 'tmux attach -t claude || tmux new -s claude'`.
+
+### Mac de empresa
+
+No instalar WARP ni Termius si la política de la empresa no lo permite (WARP toma la VPN del sistema y suele chocar con el cliente corporativo). Ruta recomendada, solo navegador y sin dejar nada instalado:
+
+1. `https://code.asterion-os.com` → login de Cloudflare Access con el correo y el código → VS Code con terminal sobre el mini.
+2. `https://ssh.asterion-os.com` → mismo login → terminal SSH en el navegador; usuario `marcos`; el navegador guarda la clave pública que Access le genera, así que la primera vez hay que pegarme la que muestra el diálogo (o usar code-server, que no la necesita).
+3. `https://claude.ai/code` → la sesión del mini para el control remoto.
+4. Si la empresa permite instalar: igual que en el Mac personal.
+
 ## Fase D · Datos — preparado lo que no toca datos
 
 - **Copias (D.4).** `~/bin/backup.sh`: `pg_dump -Fc` de `demiurgo_v2`, `demiurgo_evidence` y `phoenix` desde los contenedores a `~/backups/dumps/<fecha>/` (rotación de 14 días) y `restic` cifrado (`~/backups/restic`, contraseña en `~/.config/demiurgo/restic-password`, `0600`) del repo sin `node_modules`, `.env`, `~/.claude`, `~/.codex`, `~/.ssh`, `~/.config/demiurgo` y los volcados del día, con `keep-daily 14`. LaunchAgent `com.demiurgo.backup` a las 03:00. Primera ejecución a mano: 9 s, tres volcados (139 KB, 128 KB, 260 KB con las bases vacías).

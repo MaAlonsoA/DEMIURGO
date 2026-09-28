@@ -13,7 +13,9 @@ import { readingTranslation } from '../src/translation/index.ts';
 import { useEnvironment } from './support/env.ts';
 
 const inputs: string[] = [];
-const environment = useEnvironment({ providers: () => [createSimulatedProvider({ onInvoke: (i) => inputs.push(i.input ?? '') })] });
+const environment = useEnvironment({
+  providers: () => [createSimulatedProvider({ onInvoke: (i) => inputs.push(i.input ?? '') })],
+});
 const ana = human('ana');
 let projectId = '';
 let thread = '';

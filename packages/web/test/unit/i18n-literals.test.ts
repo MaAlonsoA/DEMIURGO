@@ -23,7 +23,20 @@ function code(text: string): string {
 }
 
 // Words that are the same in every language: names of the product and its engines.
-const NAMES = new Set(['DEMIURGO', 'Claude', 'Codex', 'OpenCode', 'Qwen', 'English', 'Español', 'MCP', 'FDR', 'ADR', 'AC', 'Esc']);
+const NAMES = new Set([
+  'DEMIURGO',
+  'Claude',
+  'Codex',
+  'OpenCode',
+  'Qwen',
+  'English',
+  'Español',
+  'MCP',
+  'FDR',
+  'ADR',
+  'AC',
+  'Esc',
+]);
 
 /** Prose: at least two words of letters, or one capitalized word that isn't a known name. */
 function isProse(text: string): boolean {

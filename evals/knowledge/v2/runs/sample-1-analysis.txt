@@ -1,0 +1,99 @@
+jev/A-isolated-dev                 rel: 35 ok  15 pend  20 silentMiss  0 wrongAuto  0 | irr: 365 ok  269 pend  96 falseAl  0 | lab 0.963 relLab 0.857 inv 0 struct 0
+jev/A-isolated-validation          rel: 30 ok  15 pend  15 silentMiss  0 wrongAuto  0 | irr: 370 ok  253 pend 111 falseAl  6 | lab 0.863 relLab 1.000 inv 0 struct 0
+jev/B-isolated-dev                 rel: 35 ok  15 pend  20 silentMiss  0 wrongAuto  0 | irr: 365 ok   82 pend 283 falseAl  0 | lab 0.909 relLab 0.941 inv 0 struct 0
+jev/B-isolated-validation          rel: 30 ok  10 pend  20 silentMiss  0 wrongAuto  0 | irr: 370 ok   60 pend 310 falseAl  0 | lab 0.822 relLab 1.000 inv 0 struct 0
+qwen-sample-1/A-isolated-dev       rel:  7 ok   4 pend   0 silentMiss  0 wrongAuto  3 | irr:  73 ok   47 pend  26 falseAl  0 | lab 0.938 relLab 0.857 inv 0 struct 0
+qwen-sample-1/A-isolated-validation rel:  6 ok   4 pend   1 silentMiss  0 wrongAuto  1 | irr:  74 ok   41 pend  32 falseAl  1 | lab 0.863 relLab 1.000 inv 0 struct 0
+qwen-sample-1/B-isolated-dev       rel:  7 ok   4 pend   1 silentMiss  0 wrongAuto  2 | irr:  73 ok   19 pend  54 falseAl  0 | lab 0.812 relLab 0.882 inv 1 struct 0
+qwen-sample-1/B-isolated-validation rel:  6 ok   2 pend   3 silentMiss  0 wrongAuto  1 | irr:  74 ok   25 pend  48 falseAl  1 | lab 0.820 relLab 1.000 inv 0 struct 0
+--- cascade Jev->Qwen (derived offline)
+cascade/A-isolated-dev (esc 116, noQwen 0) rel: 35 ok  20 pend   0 silentMiss  0 wrongAuto 15 | irr: 365 ok  314 pend  51 falseAl  0 | lab 0.938 relLab 0.857 inv 0 struct 0
+cascade/A-isolated-validation (esc 126, noQwen 0) rel: 30 ok  20 pend   5 silentMiss  0 wrongAuto  5 | irr: 370 ok  276 pend  83 falseAl 11 | lab 0.863 relLab 1.000 inv 0 struct 0
+cascade/B-isolated-dev (esc 303, noQwen 0) rel: 35 ok  20 pend   5 silentMiss  0 wrongAuto 10 | irr: 365 ok  138 pend 227 falseAl  0 | lab 0.843 relLab 0.882 inv 5 struct 0
+cascade/B-isolated-validation (esc 330, noQwen 0) rel: 30 ok  10 pend  15 silentMiss  0 wrongAuto  5 | irr: 370 ok  138 pend 227 falseAl  5 | lab 0.833 relLab 1.000 inv 0 struct 0
+=== relevant pairs detail
+A-isolated-dev ('F01-1', 'change', 'DEC-F01-001@1') REF ['review']  {'A': ['add'], 'relation': ['related'], 'compatibility': ['compatible'], 'action': ['extend']}
+    jev {'review': 5} conf 0.86 - 0.88 {'A': 'add'}
+    qwen ['review'] 0.8 {'A': 'add'}
+A-isolated-dev ('F01-1', 'idea', 'DEC-F01-001@1') REF ['relation']  {'A': ['relates'], 'relation': ['related'], 'compatibility': ['compatible']}
+    jev {'relation': 5} conf 0.95 - 0.96 {'A': 'relates'}
+    qwen ['relation'] 0.85 {'A': 'relates'}
+A-isolated-dev ('F02-2', 'change', 'DEC-F02-001@1') REF ['conflict', 'review']  {'A': ['invalidate'], 'relation': ['related'], 'compatibility': ['direct_conflict'], 'action': ['replace']}
+    jev {'pending': 5} conf 0.42 - 0.54 {'A': 'invalidate'}
+    qwen ['review'] 0.95 {'A': 'invalidate'}
+A-isolated-dev ('F02-2', 'idea', 'DEC-F02-001@1') REF ['duplicate'] amb {'A': ['duplicates', 'relates'], 'relation': ['equivalent', 'related'], 'compatibility': ['compatible']}
+    jev {'pending': 5} conf 0.45 - 0.53 {'A': 'duplicates'}
+    qwen ['duplicate'] 0.9 {'A': 'duplicates'}
+A-isolated-dev ('F06-1', 'idea', 'DEC-F06-001@1') REF ['conflict']  {'A': ['conflicts'], 'relation': ['related'], 'compatibility': ['direct_conflict']}
+    jev {'conflict': 5} conf 0.99 - 1 {'A': 'conflicts'}
+    qwen ['conflict'] 0.95 {'A': 'conflicts'}
+A-isolated-dev ('F08-2', 'change', 'DEC-F08-001@1') REF ['review', 'assumption'] amb {'A': ['update', 'invalidate'], 'relation': ['related'], 'compatibility': ['assumption_mismatch', 'direct_conflict'], 'action': ['revise', 'replace']}
+    jev {'pending': 5} conf 0.18 - 0.3 {'A': 'invalidate'}
+    qwen ['review'] 0.92 {'A': 'invalidate'}
+A-isolated-dev ('F08-2', 'idea', 'DEC-F08-001@1') REF ['assumption']  {'A': ['inconsistent'], 'relation': ['related'], 'compatibility': ['assumption_mismatch']}
+    jev {'pending': 5} conf 0.66 - 0.7 {'A': 'conflicts'}
+    qwen ['conflict'] 0.96 {'A': 'conflicts'}
+A-isolated-validation ('F13-1', 'change', 'DEC-F13-001@1') REF ['relation']  {'A': ['relate'], 'relation': ['related'], 'compatibility': ['compatible'], 'action': ['none']}
+    jev {'pending': 5} conf 0.48 - 0.55 {'A': 'relate'}
+    qwen ['relation'] 0.82 {'A': 'relate'}
+A-isolated-validation ('F13-1', 'idea', 'DEC-F13-001@1') REF ['relation']  {'A': ['relates'], 'relation': ['related'], 'compatibility': ['compatible']}
+    jev {'relation': 5} conf 0.85 - 0.87 {'A': 'relates'}
+    qwen ['relation'] 0.9 {'A': 'relates'}
+A-isolated-validation ('F15-2', 'change', 'DEC-F15-001@1') REF ['conflict', 'review'] amb {'A': ['invalidate', 'update'], 'relation': ['related'], 'compatibility': ['direct_conflict'], 'action': ['replace', 'revise']}
+    jev {'pending': 5} conf 0.34 - 0.45 {'A': 'invalidate'}
+    qwen ['review'] 0.85 {'A': 'invalidate'}
+A-isolated-validation ('F15-2', 'idea', 'DEC-F15-001@1') REF ['conflict']  {'A': ['conflicts'], 'relation': ['related'], 'compatibility': ['direct_conflict']}
+    jev {'conflict': 5} conf 0.96 - 0.97 {'A': 'conflicts'}
+    qwen ['conflict'] 0.82 {'A': 'conflicts'}
+A-isolated-validation ('F16-1', 'idea', 'DEC-F16-001@1') REF ['duplicate']  {'A': ['duplicates'], 'relation': ['equivalent'], 'compatibility': ['compatible']}
+    jev {'duplicate': 5} conf 0.99 - 0.99 {'A': 'duplicates'}
+    qwen ['duplicate'] 0.95 {'A': 'duplicates'}
+A-isolated-validation ('F20-2', 'idea', 'DEC-F20-001@1') REF ['duplicate'] amb {'A': ['duplicates', 'relates'], 'relation': ['equivalent', 'related'], 'compatibility': ['compatible']}
+    jev {'pending': 5} conf 0.63 - 0.72 {'A': 'duplicates'}
+    qwen ['pending'] 0.62 {'A': 'duplicates'}
+B-isolated-dev ('F01-1', 'change', 'DEC-F01-001@1') REF ['review']  {'A': ['add'], 'relation': ['related'], 'compatibility': ['compatible'], 'action': ['extend']}
+    jev {'review': 5} conf 0.85 - 0.87 {'relation': 'related', 'compatibility': 'compatible', 'action': 'extend'}
+    qwen ['review'] 0.88 {'relation': 'related', 'compatibility': 'compatible', 'action': 'extend'}
+B-isolated-dev ('F01-1', 'idea', 'DEC-F01-001@1') REF ['relation']  {'A': ['relates'], 'relation': ['related'], 'compatibility': ['compatible']}
+    jev {'relation': 5} conf 0.82 - 0.85 {'relation': 'related', 'compatibility': 'compatible'}
+    qwen ['relation'] 0.85 {'relation': 'related', 'compatibility': 'compatible'}
+B-isolated-dev ('F02-2', 'change', 'DEC-F02-001@1') REF ['conflict', 'review']  {'A': ['invalidate'], 'relation': ['related'], 'compatibility': ['direct_conflict'], 'action': ['replace']}
+    jev {'pending': 5} conf 0.44 - 0.6 {'relation': 'related', 'compatibility': 'direct_conflict', 'action': 'replace'}
+    qwen ['conflict', 'review'] 0.92 {'relation': 'related', 'compatibility': 'direct_conflict', 'action': 'replace'}
+B-isolated-dev ('F02-2', 'idea', 'DEC-F02-001@1') REF ['duplicate'] amb {'A': ['duplicates', 'relates'], 'relation': ['equivalent', 'related'], 'compatibility': ['compatible']}
+    jev {'pending': 5} conf 0.61 - 0.63 {'relation': 'related', 'compatibility': 'compatible'}
+    qwen ['relation'] 0.82 {'relation': 'related', 'compatibility': 'compatible'}
+B-isolated-dev ('F06-1', 'idea', 'DEC-F06-001@1') REF ['conflict']  {'A': ['conflicts'], 'relation': ['related'], 'compatibility': ['direct_conflict']}
+    jev {'conflict': 5} conf 0.99 - 0.99 {'relation': 'related', 'compatibility': 'direct_conflict'}
+    qwen ['conflict'] 0.95 {'relation': 'related', 'compatibility': 'direct_conflict'}
+B-isolated-dev ('F08-2', 'change', 'DEC-F08-001@1') REF ['review', 'assumption'] amb {'A': ['update', 'invalidate'], 'relation': ['related'], 'compatibility': ['assumption_mismatch', 'direct_conflict'], 'action': ['revise', 'replace']}
+    jev {'pending': 5} conf 0.07 - 0.12 {'relation': 'related', 'compatibility': 'direct_conflict', 'action': 'revise'}
+    qwen ['pending'] 0.72 {'relation': 'related', 'compatibility': 'compatible', 'action': 'replace'}
+B-isolated-dev ('F08-2', 'idea', 'DEC-F08-001@1') REF ['assumption']  {'A': ['inconsistent'], 'relation': ['related'], 'compatibility': ['assumption_mismatch']}
+    jev {'pending': 5} conf 0.57 - 0.62 {'relation': 'related', 'compatibility': 'direct_conflict'}
+    qwen ['conflict'] 0.8 {'relation': 'related', 'compatibility': 'direct_conflict'}
+B-isolated-validation ('F13-1', 'change', 'DEC-F13-001@1') REF ['relation']  {'A': ['relate'], 'relation': ['related'], 'compatibility': ['compatible'], 'action': ['none']}
+    jev {'pending': 5} conf 0.31 - 0.4 {'relation': 'related', 'compatibility': 'compatible', 'action': 'none'}
+    qwen ['pending'] 0.78 {'relation': 'related', 'compatibility': 'compatible', 'action': 'none'}
+B-isolated-validation ('F13-1', 'idea', 'DEC-F13-001@1') REF ['relation']  {'A': ['relates'], 'relation': ['related'], 'compatibility': ['compatible']}
+    jev {'pending': 5} conf 0.53 - 0.63 {'relation': 'related', 'compatibility': 'compatible'}
+    qwen ['pending'] 0.7 {'relation': 'related', 'compatibility': 'compatible'}
+B-isolated-validation ('F15-2', 'change', 'DEC-F15-001@1') REF ['conflict', 'review'] amb {'A': ['invalidate', 'update'], 'relation': ['related'], 'compatibility': ['direct_conflict'], 'action': ['replace', 'revise']}
+    jev {'pending': 5} conf 0.37 - 0.41 {'relation': 'related', 'compatibility': 'direct_conflict', 'action': 'revise'}
+    qwen ['pending'] 0.72 {'relation': 'related', 'compatibility': 'direct_conflict', 'action': 'replace'}
+B-isolated-validation ('F15-2', 'idea', 'DEC-F15-001@1') REF ['conflict']  {'A': ['conflicts'], 'relation': ['related'], 'compatibility': ['direct_conflict']}
+    jev {'conflict': 5} conf 0.92 - 0.94 {'relation': 'related', 'compatibility': 'direct_conflict'}
+    qwen ['conflict'] 0.9 {'relation': 'related', 'compatibility': 'direct_conflict'}
+B-isolated-validation ('F16-1', 'idea', 'DEC-F16-001@1') REF ['duplicate']  {'A': ['duplicates'], 'relation': ['equivalent'], 'compatibility': ['compatible']}
+    jev {'duplicate': 5} conf 0.82 - 0.92 {'relation': 'equivalent', 'compatibility': 'compatible'}
+    qwen ['duplicate'] 0.92 {'relation': 'equivalent', 'compatibility': 'compatible'}
+B-isolated-validation ('F20-2', 'idea', 'DEC-F20-001@1') REF ['duplicate'] amb {'A': ['duplicates', 'relates'], 'relation': ['equivalent', 'related'], 'compatibility': ['compatible']}
+    jev {'pending': 5} conf 0.29 - 0.36 {'relation': 'equivalent', 'compatibility': 'compatible'}
+    qwen ['relation'] 0.8 {'relation': 'related', 'compatibility': 'compatible'}
+=== Jev false alarms A-validation
+F15-2 0 idea DEC-F15-008@1 ['conflict'] {'A': 'conflicts'} 0.8 REF ['preserve'] {'A': ['none'], 'relation': ['unrelated'], 'compatibility': ['compatible']}
+F16-1 0 idea DEC-F16-009@1 ['relation'] {'A': 'relates'} 0.91 REF ['preserve'] {'A': ['none', 'relates'], 'relation': ['unrelated', 'related'], 'compatibility': ['compatible']}
+F16-1 1 idea DEC-F16-009@1 ['relation'] {'A': 'relates'} 0.91 REF ['preserve'] {'A': ['none', 'relates'], 'relation': ['unrelated', 'related'], 'compatibility': ['compatible']}
+F16-1 2 idea DEC-F16-009@1 ['relation'] {'A': 'relates'} 0.91 REF ['preserve'] {'A': ['none', 'relates'], 'relation': ['unrelated', 'related'], 'compatibility': ['compatible']}
+F16-1 3 idea DEC-F16-009@1 ['relation'] {'A': 'relates'} 0.9 REF ['preserve'] {'A': ['none', 'relates'], 'relation': ['unrelated', 'related'], 'compatibility': ['compatible']}
+F16-1 4 idea DEC-F16-009@1 ['relation'] {'A': 'relates'} 0.92 REF ['preserve'] {'A': ['none', 'relates'], 'relation': ['unrelated', 'related'], 'compatibility': ['compatible']}

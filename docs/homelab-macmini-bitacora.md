@@ -74,11 +74,11 @@ Registro de la ejecución de `docs/homelab-macmini-runbook.md` por Claude Code d
    - Providers descubiertos por la API dentro del contenedor: `simulated` (1 modelo); Claude y Codex sin sesión (fase C, 🖐).
 5. **Prueba de cierre (reinicio).** Hecha; resultado en «Cierre» más abajo.
 
-### Cierre · reinicio del 11-01-1970 23:15 (comprobación automática, `~/bin/postboot-check.sh`)
+### Cierre · reinicio del 28-09-2026 12:56 (comprobación automática, `~/bin/postboot-check.sh`)
 
 | Comprobación | Resultado |
 |---|---|
-| Arranque | kern.boottime = 11-01-1970 23:15, sesión de `marcos` abierta sola (autologin), agente ejecutado |
+| Arranque | kern.boottime = 28-09-2026 12:56, sesión de `marcos` abierta sola (autologin), agente ejecutado |
 | Pila Docker (8 contenedores Up y sanos) | ✅ en 40s |
 | sshd 22 | ✅ |
 | code-server 8443 | ✅ |
@@ -103,6 +103,9 @@ demiurgo-phoenix-1 Up 17 seconds
 demiurgo-postgres-1 Up 17 seconds (healthy)
 demiurgo-web-build-1 Up 17 seconds (healthy)
 ```
+
+- El reinicio lo programé yo (`shutdown -r +1`, 12:56) y la verificación la hizo sola el LaunchAgent `com.demiurgo.postboot` → `~/bin/postboot-check.sh` al abrirse la sesión (solo actúa si existe `~/.config/demiurgo/postboot-pending`; se borra al ejecutarse). Los ocho contenedores volvieron sanos en 40 s desde que Docker respondió; nada hubo que tocar a mano. La sesión de Claude Code de la terminal se perdió con el reinicio, como es lógico; la de control remoto la recreó `com.demiurgo.claude-tmux`.
+- 🖐 Pendiente de la persona en esta fase: nada.
 
 ### Notas
 

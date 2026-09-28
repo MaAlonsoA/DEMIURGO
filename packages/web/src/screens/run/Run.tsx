@@ -34,6 +34,7 @@ import { engineLabel } from '../models/engines.ts';
 import { RetryWith } from '../models/RetryWith.tsx';
 import { Attempts, RunFacts } from './Aside.tsx';
 import { RunDetailTabs } from './Detail.tsx';
+import { RunDiagnostics } from './Diagnostics.tsx';
 import { requestedBy, runTitle } from './runs.ts';
 import { PhaseStrip, StatusCard } from './Status.tsx';
 
@@ -239,6 +240,7 @@ function RunPage({ projectId, run: r, runs }: { projectId: string; run: RunDetai
           aside={
             <>
               <RunFacts run={r} active={view.active} />
+              <RunDiagnostics projectId={projectId} run={r} />
               <Attempts projectId={projectId} run={r} runs={runs} />
             </>
           }

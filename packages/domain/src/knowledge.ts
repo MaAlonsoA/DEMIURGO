@@ -366,7 +366,8 @@ export function contextNodeCost(node: Node): number {
  */
 export function selectForContext(g: Graph, queryText: string, budget: number): ContextSelection {
   const scored = currentNodes(g)
-    .filter((n) => n.epistemic === 'confirmed' && n.type !== 'criterion')
+    // The product definition goes whole in every pack that writes records, not as a lexical match.
+    .filter((n) => n.epistemic === 'confirmed' && n.type !== 'criterion' && n.type !== 'product_definition')
     .map((n) => ({ node: n, sim: similarity(queryText, `${n.label}. ${n.text}`) }))
     .sort((a, b) => b.sim - a.sim || (a.node.ref < b.node.ref ? -1 : 1));
   const chosen: ContextChoice[] = [];

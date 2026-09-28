@@ -242,8 +242,12 @@ export type QuestionsTable = {
   options: ColumnType<{ answer: string; implies: string; exclusive?: boolean }[], string | undefined, string>;
   multiple: Generated<boolean>;
   shown_at: ColumnType<Date | null, Date | string | null | undefined, Date | string | null>;
+  /** The exact words of the person an inference rests on, each with its message. */
+  evidence: ColumnType<QuestionEvidence[], string | undefined, string>;
   created_at: Generated<Timestamp>;
 };
+
+export type QuestionEvidence = { message_id: string; quote: string };
 
 export type StagesTable = {
   id: Generated<string>;

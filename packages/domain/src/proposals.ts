@@ -97,9 +97,38 @@ export const recordTranslationPayload = z
   })
   .strict();
 
+/**
+ * The product definition composed by the system from the stage's confirmed answers (never by an
+ * agent). Without `record` it is the first version; with it, the next version of that one, with its
+ * change note. `sources` keeps, per section, the question it comes from.
+ */
+export const productDefinitionPayload = z
+  .object({
+    record: recordReference.optional(),
+    title: text(200),
+    sections: z
+      .array(z.object({ title: text(120), content: text(10_000) }).strict())
+      .min(1)
+      .max(12),
+    sources: z
+      .array(
+        z
+          .object({
+            section: text(120),
+            key: text(60),
+            question_id: z.string().uuid().nullable(),
+            state: z.enum(['confirmed', 'discarded', 'missing']),
+          })
+          .strict(),
+      )
+      .max(12),
+    change_note: z.string().trim().max(2000).optional(),
+  })
+  .strict();
+
 export const AGENT_PROPOSAL_TYPES = ['decision', 'exploration', 'fdr', 'design_record'] as const;
 
-/** Proposal types. `imported_record` and `imported_taxonomy` are only created by the design/ import; `record_translation`, by the system. */
+/** Proposal types. `imported_record` and `imported_taxonomy` are only created by the design/ import; `record_translation` and `product_definition`, by the system. */
 export const PAYLOADS = {
   decision: decisionPayload,
   exploration: explorationPayload,
@@ -107,6 +136,7 @@ export const PAYLOADS = {
   design_record: designRecordPayload,
   review: reviewPayload,
   record_translation: recordTranslationPayload,
+  product_definition: productDefinitionPayload,
   imported_record: z.object({ document: z.record(z.string(), z.unknown()), path: z.string() }).strict(),
   imported_taxonomy: z.object({ document: z.record(z.string(), z.unknown()), path: z.string() }).strict(),
 } as const;

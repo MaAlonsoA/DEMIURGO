@@ -17,6 +17,9 @@ import {
 import type { Db } from '../db/connection.ts';
 import { staleDependencies } from '../commands/proposals.ts';
 
+/** Records that are not built, so they have no readiness: a decision, and the product definition. */
+const WITHOUT_READINESS: ReadonlySet<string> = new Set(['decision', 'product_definition']);
+
 type Dep = { type: string; id: string; code?: string; version: number };
 
 async function currentOf(db: Db, recordId: string): Promise<number | null> {
@@ -373,7 +376,7 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
         carry: c.carry,
       })),
       links,
-      readiness: r.type === 'decision' ? null : await versionReadiness(db, projectId, v.id),
+      readiness: WITHOUT_READINESS.has(r.type) ? null : await versionReadiness(db, projectId, v.id),
     });
   }
   return {
@@ -481,7 +484,7 @@ export async function productState(db: Db, projectId: string) {
       current,
       latest: { n: latest.n, state: latest.state },
       epistemic_status: current !== null ? 'confirmed' : epistemicOfVersion(latest.state),
-      readiness: r.type === 'decision' ? null : await versionReadiness(db, projectId, currentId ?? latest.id),
+      readiness: WITHOUT_READINESS.has(r.type) ? null : await versionReadiness(db, projectId, currentId ?? latest.id),
       implementation: 'not implemented',
       summary: firstParagraph(latest.sections as { title: string; content: string }[]),
       checks: Number(checks.n),
@@ -509,7 +512,8 @@ export async function productState(db: Db, projectId: string) {
   return {
     project: { id: project.id, name: project.name, state: project.state },
     decisions: rows.filter((f) => f.type === 'decision'),
-    designs: rows.filter((f) => f.type !== 'decision'),
+    // The product definition is not a design to build: it has its own place (productDefinition).
+    designs: rows.filter((f) => !WITHOUT_READINESS.has(f.type)),
     ready_to_build: rows.filter((f) => f.readiness?.ready).map((f) => f.code),
     explorations: explorations.map((e) => ({
       ...e,

@@ -36,6 +36,7 @@ import {
   projectUsage,
   readingTranslation,
   projectGlossary,
+  productDefinition,
 } from '@demiurgo/core';
 import type { Credential } from './credentials.ts';
 
@@ -191,6 +192,12 @@ registerQueries([
     path: '/api/projects/:projectId/records/:code',
     queryName: 'query.records',
     respond: ({ services, params }) => recordDetail(services.db, uuid(params.projectId, 'project'), params.code ?? ''),
+  },
+  {
+    // The product definition: its versions with the question each section comes from, and the proposed one.
+    path: '/api/projects/:projectId/definition',
+    queryName: 'query.records',
+    respond: ({ services, params }) => productDefinition(services.db, uuid(params.projectId, 'project')),
   },
   {
     path: '/api/projects/:projectId/versions/:versionId/readiness',

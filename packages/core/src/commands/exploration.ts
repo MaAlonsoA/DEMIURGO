@@ -1,12 +1,22 @@
 // Agent tokens, explorations, conversation, sources and questions (Pillar 1).
 
-import { DomainError, STAGES, VALID_AGENT_NAME, formatActor, fingerprint, questionOption, system } from '@demiurgo/domain';
+import {
+  DomainError,
+  STAGES,
+  VALID_AGENT_NAME,
+  formatActor,
+  fingerprint,
+  questionOption,
+  quoteFound,
+  system,
+} from '@demiurgo/domain';
 import { sql } from 'kysely';
 import { z } from 'zod';
 import { trimmed, field, registerGuards } from '../bus/guards.ts';
 import { DEFAULT_AGENTS } from '../agents/catalog.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
 import { requireEngine } from './runs.ts';
+import { proposeDefinitionIfCovered } from '../definition/compose.ts';
 import type { Tx } from '../db/connection.ts';
 import { AGENT_TOKEN_PREFIX, secretFingerprint, newSecret } from '../secrets.ts';
 
@@ -411,11 +421,31 @@ registerHandlers({
   }),
 
   'question.infer': handler({
-    data: z.object({ conclusion: text(3000), reasoning: z.string().trim().max(3000).default('') }).strict(),
+    data: z
+      .object({
+        conclusion: text(3000),
+        reasoning: z.string().trim().max(3000).default(''),
+        // The exact words of the person it rests on, each in the message where they said it.
+        evidence: z
+          .array(z.object({ message_id: uuid, quote: text(300) }).strict())
+          .max(3)
+          .default([]),
+      })
+      .strict(),
     async apply(ctx, data, e) {
+      for (const ev of data.evidence) {
+        const m = await ctx.trx
+          .selectFrom('messages')
+          .select(['body', 'author'])
+          .where('id', '=', ev.message_id)
+          .where('project_id', '=', ctx.projectId)
+          .executeTakeFirst();
+        if (!m?.author.startsWith('human:') || !quoteFound(ev.quote, m.body))
+          throw new DomainError('validation', `The quote "${ev.quote}" is not in what the person wrote.`);
+      }
       await ctx.trx
         .updateTable('questions')
-        .set({ conclusion: data.conclusion, reasoning: data.reasoning })
+        .set({ conclusion: data.conclusion, reasoning: data.reasoning, evidence: JSON.stringify(data.evidence) })
         .where('id', '=', e?.id ?? '')
         .execute();
       return { entityId: e?.id ?? '', before: { conclusion: e?.row.conclusion ?? null }, after: data };
@@ -432,6 +462,8 @@ registerHandlers({
         .where('id', '=', e?.id ?? '')
         .execute();
       await revealQuestions(ctx.trx, trimmed(e?.row.exploration_id), e?.id);
+      // The last answer of the product definition stage proposes the definition (or its next version).
+      await proposeDefinitionIfCovered(ctx, e?.row.stage_id as string | null);
       return { entityId: e?.id ?? '', before: { conclusion: e?.row.conclusion ?? null }, after: { conclusion } };
     },
   }),
@@ -458,6 +490,7 @@ registerHandlers({
         .where('id', '=', e?.id ?? '')
         .execute();
       await revealQuestions(ctx.trx, trimmed(e?.row.exploration_id), e?.id);
+      await proposeDefinitionIfCovered(ctx, e?.row.stage_id as string | null);
       return { entityId: e?.id ?? '', after: { reason: data.reason } };
     },
   }),

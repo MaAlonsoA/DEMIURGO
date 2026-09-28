@@ -28,6 +28,8 @@ export * from './env.ts';
 export * from './secrets.ts';
 export * from './startup.ts';
 export * from './queries/read.ts';
+export * from './queries/definition.ts';
+export * from './queries/trace.ts';
 export * from './queries/web.ts';
 export * from './queries/views.ts';
 export * from './context/knowledge.ts';

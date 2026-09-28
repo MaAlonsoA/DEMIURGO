@@ -10,6 +10,7 @@ export const RECORD_TYPES = [
   'quality_requirement',
   'threat_model',
   'production_readiness',
+  'product_definition',
 ] as const;
 export type RecordType = (typeof RECORD_TYPES)[number];
 
@@ -22,6 +23,7 @@ export const RECORD_PREFIX: Record<RecordType, string> = {
   quality_requirement: 'NFR',
   threat_model: 'THR',
   production_readiness: 'PRR',
+  product_definition: 'PRD',
 };
 
 export const RECORD_TEMPLATES: Record<RecordType, { sections: readonly string[]; requiresCriteria: boolean }> = {
@@ -37,6 +39,12 @@ export const RECORD_TEMPLATES: Record<RecordType, { sections: readonly string[];
   production_readiness: {
     sections: ['Rollout and rollback', 'Monitoring', 'Failure modes', 'Scalability', 'Support'],
     requiresCriteria: true,
+  },
+  // What the product is, what it builds first and how: composed from the product definition
+  // stage's confirmed answers (domain/definition.ts). One per project; its changes are versions.
+  product_definition: {
+    sections: ['Purpose', 'Outcomes', 'Principles', 'Users', 'Problem', 'First version', 'Out of scope', 'Constraints'],
+    requiresCriteria: false,
   },
 };
 

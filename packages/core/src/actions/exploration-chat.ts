@@ -5,7 +5,7 @@
 // decision, source and knowledge node it weighed, with the journal event or version it derives
 // from and what happened to it. The pack itself is the same as `exploration_chat@1` produced.
 
-import { COVERED_QUESTION_STATES, DomainError, stageDefinition, system } from '@demiurgo/domain';
+import { COVERED_QUESTION_STATES, DomainError, quoteFound, stageDefinition, system } from '@demiurgo/domain';
 import { sql } from 'kysely';
 import { registerBuilder } from '../context/build.ts';
 import { knowledgeForContext } from '../context/knowledge.ts';
@@ -362,10 +362,25 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
       },
     });
   }
-  // Only pending questions that were in this run's context pack get inferred.
+  // Only pending questions that were in this run's context pack get inferred, and only on the
+  // person's own words: each quote has to be in one of their messages in this thread. An inference
+  // with no quote found is dropped, so the question stays open and gets asked.
   const pending = new Set(content.questions.filter((q) => q.state === 'pending').map((q) => q.id));
+  const said = await trx
+    .selectFrom('messages')
+    .select(['id', 'body'])
+    .where('exploration_id', '=', scope.id)
+    .where('author', 'like', 'human:%')
+    .orderBy('created_at', 'desc')
+    .orderBy('id', 'desc')
+    .execute();
   for (const inference of output.inferences) {
     if (!pending.has(inference.question_id)) continue;
+    const evidence = inference.quotes.flatMap((quote) => {
+      const m = said.find((s) => quoteFound(quote, s.body));
+      return m ? [{ message_id: m.id, quote }] : [];
+    });
+    if (evidence.length === 0) continue;
     const q = await trx.selectFrom('questions').select('state').where('id', '=', inference.question_id).executeTakeFirst();
     if (q?.state !== 'pending') continue;
     await execute({
@@ -373,7 +388,7 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
       command: 'question.infer',
       actor: system('exploration'),
       entityId: inference.question_id,
-      data: { conclusion: inference.conclusion, reasoning: inference.reasoning },
+      data: { conclusion: inference.conclusion, reasoning: inference.reasoning, evidence },
     });
   }
   // After DEMIURGO's reply, the reserve shows the next questions while the thread has room.

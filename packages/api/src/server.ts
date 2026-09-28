@@ -336,7 +336,7 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
 
   for (const c of QUERIES) registerQuery(app, services, c);
   registerModelRoutes(app, { services, actorOf, requireQuery });
-  if (op.devTools) registerDevRoutes(app, op.devTools);
+  if (op.devTools) registerDevRoutes(app, op.devTools, services);
   if (op.webRoot) await serveWeb(app, op.webRoot);
   app.setNotFoundHandler((req, reply) => {
     // Outside /api, a GET is a route of the web app: it gets index.html and the app resolves it.

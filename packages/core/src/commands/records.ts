@@ -442,6 +442,19 @@ registerHandlers({
   'record.create': handler({
     data: newRecordSchema,
     async apply(ctx, data, _e, to) {
+      if (data.type === 'product_definition') {
+        const existing = await ctx.trx
+          .selectFrom('records')
+          .select('code')
+          .where('project_id', '=', ctx.projectId)
+          .where('type', '=', 'product_definition')
+          .executeTakeFirst();
+        if (existing)
+          throw new DomainError(
+            'validation',
+            `The project already has its product definition, ${existing.code}: change it with a new version.`,
+          );
+      }
       const code = data.code ?? (await nextCode(ctx.trx, ctx.projectId, data.type, data.domain));
       if (!code.startsWith(`${RECORD_PREFIX[data.type]}-`)) {
         throw new DomainError('validation', `Code ${code} does not match a record of type "${data.type}".`);

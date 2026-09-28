@@ -5,7 +5,18 @@ import type { Edge, EpistemicStatus, Graph, Node } from '@demiurgo/domain';
 import { sql } from 'kysely';
 import type { Db } from '../db/connection.ts';
 
-const TYPES_WITH_AUTHORITY = new Set(['decision', 'fdr', 'adr', 'bug', 'criterion']);
+const TYPES_WITH_AUTHORITY = new Set([
+  'decision',
+  'fdr',
+  'adr',
+  'bug',
+  'requirement',
+  'quality_requirement',
+  'threat_model',
+  'production_readiness',
+  'product_definition',
+  'criterion',
+]);
 
 export async function readGraphVersion(db: Db, projectId: string): Promise<number> {
   const e = await db.selectFrom('knowledge_graph_state').select('version').where('project_id', '=', projectId).executeTakeFirst();

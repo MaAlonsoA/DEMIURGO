@@ -82,6 +82,10 @@ describe('S1 walkthrough', () => {
       respond: false,
     });
     await confirmStageQuestions(projectId);
+    // The covered product definition stage leaves the definition proposed: the person approves it.
+    const definition = await read<{ proposal: { id: string } | null }>(`/api/projects/${projectId}/definition`);
+    await command(projectId, 'proposal.accept', { approve: true }, definition.proposal?.id);
+    await waitForKnowledge(environment.services, projectId);
     await command(projectId, 'run.request', {
       action: 'exploration_chat',
       scope: { type: 'exploration', id: exploration.entity_id },

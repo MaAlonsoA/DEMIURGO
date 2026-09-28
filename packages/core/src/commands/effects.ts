@@ -155,6 +155,43 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
     };
   },
 
+  // The product definition the system composed from the stage's answers: the first version creates
+  // the record; a later one is the next version of it, with its change note.
+  async product_definition(ctx, { proposalId, payload, approve }) {
+    const c = PAYLOADS.product_definition.parse(payload);
+    const origin = { type: 'proposal', id: proposalId };
+    if (!c.record) {
+      return createRecord(
+        ctx,
+        { type: 'product_definition', domain: 'producto', title: c.title, sections: c.sections, origin },
+        approve,
+      );
+    }
+    const v = await resolveReference(ctx.trx, ctx.projectId, c.record.code, c.record.version);
+    if (!v) throw new DomainError('not_found', `There is no ${c.record.code}@${c.record.version}.`);
+    const r = await ctx.execute({
+      command: 'record_version.create',
+      actor: ctx.actor,
+      data: {
+        record_id: v.recordId,
+        title: c.title,
+        sections: c.sections,
+        change_note: c.change_note ?? 'The product definition changed.',
+        origin,
+      },
+    });
+    const res = r.result as { versionId: string; version: number; code: string };
+    if (approve) await ctx.execute({ command: 'record_version.approve', actor: ctx.actor, entityId: res.versionId, data: {} });
+    return {
+      type: 'record',
+      code: res.code,
+      recordId: v.recordId,
+      versionId: res.versionId,
+      version: res.version,
+      approved: approve,
+    };
+  },
+
   // Accepting a review proposed by knowledge doesn't change the record: it opens an
   // exploration to review it, with its origin.
   async review(ctx, { payload }) {

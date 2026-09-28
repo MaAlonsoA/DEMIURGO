@@ -21,10 +21,29 @@ export const STAGES: readonly StageDefinition[] = [
   {
     key: 'requirements',
     title: 'Product definition',
-    produces: 'The feature list: one feature (FDR) per capability, each with its own requirements.',
+    produces:
+      'The product definition (PRD): what the product is for, how you will know it works, its principles, users, problem, first version, what is out and its constraints. Then one feature (FDR) per capability.',
     purpose:
-      'Product definition: who uses the product, what problem it solves, what is out and which features the first version has (ISO/IEC/IEEE 29148 stakeholder requirements).',
+      'Product definition: what job the product does and for whom, how you will know it works, the principles that settle choices, who uses it, what problem it solves, what is out and which features the first version has (ISO/IEC/IEEE 29148 stakeholder requirements).',
     questions: [
+      {
+        key: 'purpose',
+        question: 'What job does the product do, for whom, and in which situation?',
+        reason: 'The purpose is what every later decision is checked against.',
+        impact: 'high',
+      },
+      {
+        key: 'outcomes',
+        question: 'How will you know it works? Name two or three things you could observe.',
+        reason: 'Observable outcomes turn the purpose into something that can be checked.',
+        impact: 'high',
+      },
+      {
+        key: 'principles',
+        question: 'Which principles should settle a choice between two reasonable options?',
+        reason: 'Principles let every proposal be checked against what matters most.',
+        impact: 'medium',
+      },
       {
         key: 'stakeholders',
         question: 'Who are the users and stakeholders, and which one comes first?',

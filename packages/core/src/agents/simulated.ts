@@ -56,6 +56,9 @@ const SIMULATED_OPTIONS = [
   { answer: 'Not for now', implies: 'It stays out of scope; it can come back later.', exclusive: false },
 ];
 
+/** In a test idea, asks the simulated onboarding to infer every pending question but the last two. */
+export const INFER_MARKER = '[infer]';
+
 export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
   echo(p) {
     const text = txt(obj(obj(p.context.content).input).text);
@@ -107,6 +110,25 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
           question_id: first.id,
           conclusion: truncate(text, 1400),
           reasoning: 'The person expressed it in their last message.',
+          quotes: [text.slice(0, 200)],
+        });
+      }
+    } else if (text.includes(INFER_MARKER)) {
+      // Deterministic Day 1 for the tests: the idea answers every pending question but the last two,
+      // each inferred from its first sentence (the quote), so the person confirms them and answers two.
+      const sentence =
+        text
+          .replace(INFER_MARKER, '')
+          .trim()
+          .split(/(?<=[.!?])\s/)[0]
+          ?.slice(0, 200) ?? '';
+      for (const q of pending.slice(0, -2)) {
+        if (typeof q.id !== 'string' || !sentence) continue;
+        (output.inferences as unknown[]).push({
+          question_id: q.id,
+          conclusion: `From the idea: ${sentence}`,
+          reasoning: 'The idea says it in its first sentence.',
+          quotes: [sentence],
         });
       }
     } else if (pending.length === 0) {

@@ -6,6 +6,7 @@ import { COVERED_QUESTION_STATES, STAGES, formatActor, nextStage, stageDefinitio
 import { z } from 'zod';
 import { field, registerGuards, trimmed } from '../bus/guards.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
+import { proposeDefinitionIfCovered } from '../definition/compose.ts';
 
 registerGuards({
   async stage_in_order({ ctx, data }) {
@@ -105,6 +106,8 @@ registerHandlers({
         .set({ passed_by: formatActor(ctx.actor), passed_at: new Date() })
         .where('id', '=', id)
         .execute();
+      // A stage covered before the definition existed (or whose definition was rejected) proposes it now.
+      await proposeDefinitionIfCovered(ctx, id);
       const next = nextStage(stage);
       if (next)
         await ctx.execute({

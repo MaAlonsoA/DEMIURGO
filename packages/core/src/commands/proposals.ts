@@ -99,6 +99,10 @@ registerGuards({
     if (type === 'record_translation' && ctx.actor.type !== 'system') {
       return 'Only DEMIURGO proposes the English version of a record.';
     }
+    // Only DEMIURGO composes the product definition, from the answers a person confirmed.
+    if (type === 'product_definition' && ctx.actor.type !== 'system') {
+      return 'Only DEMIURGO proposes the product definition.';
+    }
     // Only the importer proposes what comes from design/: accepting it creates authority with the file's state.
     if (['imported_record', 'imported_taxonomy'].includes(type) && ctx.cause.sourceCommand !== 'design.import') {
       return `Only the design/ importer proposes "${type}".`;

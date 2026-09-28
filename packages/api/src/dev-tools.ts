@@ -1,8 +1,10 @@
-// Development tools over HTTP: snapshots of the whole database and reset. Registered only with
+// Development tools over HTTP: snapshots of the whole database, reset, and the trace of any
+// entity (where it comes from, its raw data and which agent contexts read it). Registered only with
 // DEMIURGO_DEV_TOOLS=1 and only for a person with a session (the CSRF check is the server's).
 // Saving, restoring and resetting restart the core in place (see runtime.ts).
 
 import {
+  type Services,
   type Snapshot,
   dropSnapshot,
   findSnapshot,
@@ -11,6 +13,7 @@ import {
   restoreSnapshot,
   saveSnapshot,
   snapshotTarget,
+  traceEntity,
 } from '@demiurgo/core';
 import { DomainError } from '@demiurgo/domain';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -52,7 +55,16 @@ function requirePerson(req: FastifyRequest): void {
 
 const saveBody = z.object({ label: z.string().max(60).optional() });
 
-export function registerDevRoutes(app: FastifyInstance, dev: DevTools): void {
+const traceQuery = z.object({ project: z.string().uuid(), type: z.string().min(1).max(40), id: z.string().uuid() });
+
+export function registerDevRoutes(app: FastifyInstance, dev: DevTools, services: Services): void {
+  app.get('/api/dev/trace', async (req) => {
+    requirePerson(req);
+    const q = traceQuery.safeParse(req.query);
+    if (!q.success) throw new DomainError('validation', 'The trace needs a project, a type and an id.');
+    return traceEntity(services.db, q.data.project, q.data.type, q.data.id);
+  });
+
   app.get('/api/dev/snapshots', async (req) => {
     requirePerson(req);
     return { database: dev.database, snapshots: await dev.list() };

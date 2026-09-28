@@ -228,7 +228,20 @@ export const explorationChatOutput = z
       )
       .max(8),
     inferences: z
-      .array(z.object({ question_id: z.string().uuid(), conclusion: recordText(1500), reasoning: recordText(1500) }).strict())
+      .array(
+        z
+          .object({
+            question_id: z.string().uuid(),
+            conclusion: recordText(1500),
+            reasoning: recordText(1500),
+            // The evidence: without a quote the server can find in the person's messages, there is no inference.
+            quotes: z
+              .array(text(300))
+              .max(3)
+              .describe("The person's exact words the conclusion rests on, copied verbatim in their language."),
+          })
+          .strict(),
+      )
       .max(12),
     proposals: z
       .array(

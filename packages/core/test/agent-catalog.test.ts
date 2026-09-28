@@ -44,7 +44,12 @@ describe('agent catalog', () => {
       expect(a.skillDefinitions.map((s) => s.id)).toEqual(a.skills);
       expect(a.body.length).toBeGreaterThan(40);
     }
-    expect(catalog.get('onboarding')?.skills).toEqual(['asking-questions', 'demiurgo-glossary', 'structured-output']);
+    expect(catalog.get('onboarding')?.skills).toEqual([
+      'asking-questions',
+      'demiurgo-glossary',
+      'structured-output',
+      'product-definition',
+    ]);
     expect(catalog.get('designer')?.session).toBe('thread');
     expect(catalog.get('knowledge_classifier')).toMatchObject({ action: 'knowledge_classification', session: 'none' });
     expect(catalog.get('translator')).toMatchObject({ action: 'translation', session: 'none', group: null });

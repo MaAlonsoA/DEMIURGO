@@ -21,7 +21,16 @@ import {
   type Annotation,
   type Scenario,
 } from './dataset.ts';
-import { configSchema, defaultConfig, executeBenchmark, prepareInputs, replayRun, type RunTrace } from './runner.ts';
+import {
+  configSchema,
+  defaultConfig,
+  executeBenchmark,
+  isBlind,
+  prepareInputs,
+  replayRun,
+  selectedScenarios,
+  type RunTrace,
+} from './runner.ts';
 import { compareReports, reportRun, type Report } from './report.ts';
 
 const { positionals, values } = parseArgs({
@@ -57,7 +66,7 @@ async function load() {
   const annotations = values.annotations ? annotationSchema.array().parse(await json(values.annotations)) : [];
   return { scenarios, annotations };
 }
-function assertValid(scenarios: Scenario[], annotations: Annotation[], human = false) {
+function assertValid(scenarios: Scenario[], annotations: Annotation[], human: boolean | ReadonlySet<string> = false) {
   const errors = validateDataset(scenarios, annotations, human);
   if (errors.length) throw new Error(errors.join('\n'));
 }
@@ -224,8 +233,9 @@ async function main(): Promise<void> {
   if (command === 'run') {
     if (!values['allow-network'])
       throw new Error('Model calls require explicit --allow-network. Use prepare/replay for local work.');
-    assertValid(scenarios, annotations, true);
     const config = configSchema.parse(await json(required(values.config, 'config')));
+    // A blind run needs no reference: its responses cannot depend on labels (see isBlind).
+    assertValid(scenarios, annotations, isBlind(config) ? false : new Set(selectedScenarios(scenarios, config).map((s) => s.id)));
     const output = required(values.output, 'output');
     const { liveEngines } = await import('./providers.ts');
     const tracked = git(

@@ -121,6 +121,7 @@ demiurgo-web-build-1 Up 17 seconds (healthy)
 - Las 9 pruebas que fallan fuera del `runner` y los proveedores fallan igual en una segunda pasada y sin ninguna variable de `.env` salvo `DEMIURGO_TEST_DB_URL`: son deterministas en este mini. Quedan para compararlas con el PC.
 - SSE (C.5): la ruta del diario ya escribe un comentario `: heartbeat` cada 15 s (`packages/api/src/server.ts`), por debajo de los 100 s del túnel. Se comprobará por el dominio cuando exista, sin cambios previstos.
 - Sonda del runner: retirado el destino `host.docker.internal:8000` de `packages/core/src/runner/probe.ts` (riesgo de la diapositiva 20 del plan). Commit propio.
+- **SSH sin claves (13:20).** Access for Infrastructure + CA de la app de navegador configurados; detalle en «Termius y WARP · paso a paso». Ya no hace falta que la persona genere ni pegue claves.
 - Git: el `git` de Homebrew (2.55) pide permiso al Llavero para leer la credencial de GitHub y se queda esperando el diálogo; los `push` se hacen con `/usr/bin/git`, que ya lo tiene. Identidad del repo fijada a la de los commits anteriores.
 
 - **Recarga en caliente (C.7, comprobada en 127.0.0.1:8100; por el dominio cuando Access lo abra).** La primera prueba falló: ni `node --watch` ni `vite build --watch` veían los cambios hechos desde macOS (virtiofs no propaga inotify; riesgo previsto en la diapositiva 20). Arreglo en dos pasos, sin cambiar de motor:
@@ -158,36 +159,40 @@ Los dos van por la misma puerta: WARP inscrito en la organización Zero Trust **
 
 La sesión `claude --remote-control` del mini aparece en la app de Claude (iPhone) y en https://claude.ai/code como «macmini…». Escríbele desde ahí; si no aparece, en Termius: `~/bin/claude-tmux.sh` y `tmux attach -t claude`.
 
-## Termius y WARP · paso a paso por dispositivo (entregado el 28-09)
+## Termius y WARP · paso a paso por dispositivo (entregado el 28-09; sin claves desde las 13:20)
 
-Común a todo: organización Zero Trust `asterion-os`, correo `ma_lonso94@hotmail.com` (código de un solo uso), el mini en la red privada del túnel como `192.168.1.145`, usuario `marcos`, solo clave. Cada clave pública nueva se me pega en el chat y yo la añado a `~/.ssh/authorized_keys`.
+**Ya no hace falta ninguna clave SSH.** La persona preguntó si se podía entrar con el inicio de sesión de Cloudflare en vez de con clave pública/privada; sí. Access firma certificados SSH de corta duración con su identidad (correo + código) y `sshd` del mini confía en esas autoridades:
+
+- Access for Infrastructure: `gateway_ca` (`ec5ad036…`), target `macmini` = `192.168.1.145` en la red virtual `default`, aplicación `Mac mini · SSH por WARP (sin claves)` (`233bf352…`, tipo `infrastructure`, puerto 22, SSH) con política `allow` para `ma_lonso94@hotmail.com` y usuario SSH permitido `marcos`. Con WARP conectado, `ssh marcos@192.168.1.145` entra sin clave: WARP intercepta la conexión y Cloudflare presenta el certificado al mini.
+- Terminal en el navegador (`ssh.asterion-os.com`): CA propia de la aplicación (`75771219…`). El principal del certificado es la parte local del correo, `ma_lonso94`, mapeada a `marcos` en `/etc/ssh/principals/marcos`.
+- En el mini: `/etc/ssh/cloudflare-ca.pub` (las dos CAs), y en `/etc/ssh/sshd_config.d/demiurgo.conf`: `PubkeyAuthentication yes`, `TrustedUserCAKeys /etc/ssh/cloudflare-ca.pub`, `AuthorizedPrincipalsFile /etc/ssh/principals/%u`. `sshd -t` en verde y `sshd` relanzado. Comprobado después: la clave del PC sigue entrando, la contraseña sigue denegada. La clave del PC (`id_ed25519_pc_to_mini`) queda como vía de emergencia si Cloudflare fallara y se está en la LAN.
+
+Común a todo: organización Zero Trust `asterion-os`, correo `ma_lonso94@hotmail.com` (código de un solo uso), el mini en la red privada del túnel como `192.168.1.145`, usuario `marcos`.
 
 ### Windows 11 (PC)
 
 1. WARP: `winget install Cloudflare.Warp` (o https://one.one.one.one). Icono de WARP en la bandeja → engranaje → *Preferences* → *Account* → **Login with Cloudflare Zero Trust** → equipo `asterion-os` → navegador → correo → código → *Open WARP*. Debe decir **Connected · Zero Trust**.
-2. Termius: https://termius.com/download → cuenta (gratuita vale) → *Keychain* → *+ Key* → **Generate** (`ed25519`, nombre `mini`) → *Export public key* / copiar → pegarla en el chat.
-3. Host: *Hosts* → *+ New Host*: alias `mini`, dirección `192.168.1.145`, puerto `22`, usuario `marcos`, clave `mini`, comando de inicio `tmux attach -t claude || tmux new -s claude`.
-4. Conectar con WARP en **Connected**. La primera vez acepta la huella del host.
+2. Termius: https://termius.com/download → cuenta (gratuita vale). *Hosts* → *+ New Host*: alias `mini`, dirección `192.168.1.145`, puerto `22`, usuario `marcos`, **sin contraseña y sin clave**; comando de inicio `tmux attach -t claude || tmux new -s claude`. Si Termius exige elegir algo en autenticación, genera una clave cualquiera en su Keychain y asígnala: no hay que mandarla a nadie, Cloudflare la ignora.
+3. Conectar con WARP en **Connected**. La primera vez acepta la huella del host. Si WARP lleva poco conectado y falla, espera 10 s y repite.
 
 ### iPhone 15 Pro Max
 
 1. App Store → **Cloudflare One** (antes «1.1.1.1: Faster Internet») → ≡ → *Account* → **Login with Cloudflare Zero Trust** → `asterion-os` → correo → código → permitir el perfil VPN → interruptor en **Connected**.
-2. App Store → **Termius**. Misma cuenta que en el PC: si la clave y el host `mini` aparecen ya sincronizados, no hay nada más. Si no: *Keychain* → *+* → *Generate* (`ed25519`, `mini`) → copiar la pública → pegar en el chat; host igual que en el PC.
-3. App **Claude** → pestaña *Code* → aparece la sesión del mini (`claude --remote-control`). Escribir ahí.
-4. Navegador (sin instalar nada): `https://code.asterion-os.com`, `https://ssh.asterion-os.com`, y las tres apps.
+2. App Store → **Termius**, misma cuenta que en el PC: el host `mini` aparece sincronizado; si no, se crea igual (sin clave).
+3. App **Claude** → pestaña *Code* → la sesión del mini (`claude --remote-control`).
+4. Navegador, sin instalar nada: `https://ssh.asterion-os.com` (usuario `marcos`, sin clave: Access firma el certificado tras el login), `https://code.asterion-os.com` y las tres apps.
 
 ### Mac personal
 
 1. WARP: `brew install --cask cloudflare-warp` (o App Store «Cloudflare One»). Barra de menús → engranaje → *Preferences* → *Account* → **Login with Cloudflare Zero Trust** → `asterion-os` → correo → código. **Connected**.
-2. Termius (`brew install --cask termius` o App Store) con la misma cuenta: clave y host sincronizados o generados igual que en el PC.
-3. Sin Termius también vale el Terminal del sistema: `ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_mini`, pegar `~/.ssh/id_ed25519_mini.pub` en el chat, y `ssh -i ~/.ssh/id_ed25519_mini marcos@192.168.1.145 -t 'tmux attach -t claude || tmux new -s claude'`.
+2. Termius (`brew install --cask termius` o App Store) con la misma cuenta, o simplemente el Terminal: `ssh marcos@192.168.1.145 -t 'tmux attach -t claude || tmux new -s claude'`. Sin clave.
 
 ### Mac de empresa
 
-No instalar WARP ni Termius si la política de la empresa no lo permite (WARP toma la VPN del sistema y suele chocar con el cliente corporativo). Ruta recomendada, solo navegador y sin dejar nada instalado:
+No instalar WARP ni Termius si la política de la empresa no lo permite (WARP toma la VPN del sistema y suele chocar con el cliente corporativo). Solo navegador, sin dejar nada instalado:
 
-1. `https://code.asterion-os.com` → login de Cloudflare Access con el correo y el código → VS Code con terminal sobre el mini.
-2. `https://ssh.asterion-os.com` → mismo login → terminal SSH en el navegador; usuario `marcos`; el navegador guarda la clave pública que Access le genera, así que la primera vez hay que pegarme la que muestra el diálogo (o usar code-server, que no la necesita).
+1. `https://ssh.asterion-os.com` → login de Cloudflare Access con el correo y el código → usuario `marcos` → terminal en el navegador, sin clave.
+2. `https://code.asterion-os.com` → VS Code con terminal sobre el mini.
 3. `https://claude.ai/code` → la sesión del mini para el control remoto.
 4. Si la empresa permite instalar: igual que en el Mac personal.
 
@@ -209,7 +214,7 @@ No instalar WARP ni Termius si la política de la empresa no lo permite (WARP to
 | `https://metabase.asterion-os.com` | `127.0.0.1:3300` | Metabase |
 | `https://code.asterion-os.com` | `127.0.0.1:8443` | code-server (host, `brew services`) |
 | `https://ssh.asterion-os.com` | `127.0.0.1:22` | sshd, terminal en el navegador |
-| WARP → `192.168.1.145:22` | `sshd` | Termius desde PC e iPhone |
+| WARP → `192.168.1.145:22` | `sshd` | Termius desde PC e iPhone (certificado de Access, sin claves) |
 | — | `127.0.0.1:55433` | Postgres `demiurgo_v2` (usuario `demiurgo`) |
 | — | `127.0.0.1:55434` | Postgres de evidencia (usuario `evidence`) |
 | — | `127.0.0.1:4318` | Colector OTLP para las CLI del host |

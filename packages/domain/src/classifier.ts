@@ -10,6 +10,8 @@ export type ItemChoice = {
   state: ClassifierState;
   question: string;
   options: readonly string[];
+  optionDescriptions?: Readonly<Record<string, string>>;
+  rubricVersion?: string;
 };
 
 export type ChoiceResponse = {

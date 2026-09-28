@@ -4,7 +4,8 @@
 // never enters the cache, so a retry asks again.
 
 import {
-  VERDICT_QUESTION,
+  itemsForCategories,
+  itemsForVerdicts,
   type Candidate,
   type Change,
   type Classifier,
@@ -12,7 +13,6 @@ import {
   type ItemChoice,
   type Plan,
   type ChoiceResponse,
-  VERDICTS,
   routeByConfidence,
   hashCategoriesInput,
   hashVerdictsInput,
@@ -83,37 +83,7 @@ export async function saveToCache(db: Db, inputs: readonly (ToSave | null)[]): P
   }
 }
 
-export function itemsForCategories(change: Change, taxonomy: { axes: readonly Axis[] }): ItemChoice[] {
-  return taxonomy.axes.map((axis) => ({
-    id: axis.code,
-    state: {
-      task: 'category',
-      axis: axis.code,
-      categories: axis.categories,
-      artifact: { title: change.main.label, text: change.main.text },
-    },
-    question: `Which category under "${axis.name}" does this artifact belong to?`,
-    options: axis.categories.map((c) => c.code),
-  }));
-}
-
-export function itemsForVerdicts(change: Change, candidates: readonly Candidate[]): ItemChoice[] {
-  return candidates.map((c) => ({
-    id: c.ref,
-    state: {
-      task: 'verdict',
-      change: {
-        ref: change.main.ref,
-        type: change.main.type,
-        title: change.main.label,
-        text: change.main.text,
-      },
-      candidate: { ref: c.ref, type: c.type, title: c.label, text: c.text },
-    },
-    question: VERDICT_QUESTION,
-    options: VERDICTS,
-  }));
-}
+export { itemsForCategories, itemsForVerdicts } from '@demiurgo/domain';
 
 /** Categories applied to the node: only the high-confidence ones. */
 export function applicableCategories(responses: readonly ChoiceResponse[]): Record<string, string> {

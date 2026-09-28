@@ -7,7 +7,7 @@
 // - One request per item: every item carries its own `state`, and System One takes one `state`
 //   per request. Items go out in parallel, a few at a time (limit: 1,200 requests/min).
 // - `state`: the item's text or JSON, as it is. 64k-token context.
-// - Choice: the options become `criteria` (labels with no description). The answer carries the
+// - Choice: the options become `criteria` (labels with optional shared descriptions). The answer carries the
 //   label, its probabilities (passed through as `distribution`) and Jev's confidence.
 // - Score: ordered `levels`; the level is the most probable one and `distribution` its probabilities.
 // - Noul: `probability` is P(yes). Jev reports no confidence for it, so the confidence is how far
@@ -60,7 +60,9 @@ const indexOfMax = (values: readonly number[]): number => values.reduce((best, v
 
 export function createJevClassifier(options: JevOptions = {}): Classifier {
   const model = options.model ?? JEV_DEFAULT_MODEL;
-  const client = options.client ?? (options.apiKey ? new TypeSafeClient({ apiKey: options.apiKey, defaultModel: model, timeout: 30_000 }) : null);
+  const client =
+    options.client ??
+    (options.apiKey ? new TypeSafeClient({ apiKey: options.apiKey, defaultModel: model, timeout: 30_000 }) : null);
   if (!client) {
     const notAvailable = async (): Promise<never> => {
       throw new Error(JEV_UNAVAILABLE_MESSAGE);
@@ -77,7 +79,7 @@ export function createJevClassifier(options: JevOptions = {}): Classifier {
 
     choice: (items: readonly ItemChoice[]) =>
       mapLimited(items, limit, async (item): Promise<ChoiceResponse> => {
-        const criteria = Object.fromEntries(item.options.map((o) => [o, null]));
+        const criteria = Object.fromEntries(item.options.map((o) => [o, item.optionDescriptions?.[o] ?? null]));
         const r = await client.systemOne({
           state: item.state as string,
           questions: { [QUESTION]: choice(item.question, criteria) },

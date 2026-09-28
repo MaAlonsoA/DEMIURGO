@@ -9,8 +9,8 @@ import {
   type VerdictCase,
   type Classifier,
   IDEA_FINDINGS,
-  IDEA_QUESTION,
-  VERDICT_QUESTION,
+  ideaItem,
+  verdictItem,
   type ItemChoice,
   type EvaluationResult,
   VERDICTS,
@@ -39,21 +39,10 @@ export type EvaluationReport = {
 };
 
 function verdictItems(cases: readonly VerdictCase[]): ItemChoice[] {
-  return cases.map((c) => ({
-    id: c.id,
-    state: { task: 'verdict', change: c.change, candidate: c.candidate },
-    question: VERDICT_QUESTION,
-    options: VERDICTS,
-  }));
+  return cases.map((c) => verdictItem(c.id, c.change, c.candidate));
 }
-
 function ideaItems(cases: readonly IdeaCase[]): ItemChoice[] {
-  return cases.map((c) => ({
-    id: c.id,
-    state: { task: 'idea', idea: c.idea, node: c.node },
-    question: IDEA_QUESTION,
-    options: IDEA_FINDINGS,
-  }));
+  return cases.map((c) => ideaItem(c.id, c.idea, c.node));
 }
 
 async function respondInChunks(classifier: Classifier, items: readonly ItemChoice[], chunkSize: number) {

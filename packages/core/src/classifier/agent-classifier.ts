@@ -190,7 +190,19 @@ export function createAgentClassifier(options: AgentClassifierOptions): Classifi
           { confidence, justification: { type: 'string', minLength: 1, maxLength: MAX_JUSTIFICATION } },
         ),
       );
-      const blocks = items.map((i, n) => blockItem(n + 1, { id: i.id, question: i.question, options: i.options }, i.state));
+      const blocks = items.map((i, n) =>
+        blockItem(
+          n + 1,
+          {
+            id: i.id,
+            question: i.question,
+            options: i.options,
+            ...(i.optionDescriptions ? { optionDescriptions: i.optionDescriptions } : {}),
+            ...(i.rubricVersion ? { rubricVersion: i.rubricVersion } : {}),
+          },
+          i.state,
+        ),
+      );
       const { responses } = read(choiceResponses, await ask('choice', schema, blocks));
       const matched = match(items, responses);
       return items.map((item, n) => {

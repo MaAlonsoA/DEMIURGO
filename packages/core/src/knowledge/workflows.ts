@@ -4,10 +4,9 @@
 import { DBOS, WorkflowQueue } from '@dbos-inc/dbos-sdk';
 import {
   ATTR,
-  IDEA_QUESTION,
+  itemsForIdea,
   type Candidate,
   IDEA_FINDINGS,
-  type ItemChoice,
   type ChoiceResponse,
   SPAN,
   ideaCandidates,
@@ -111,15 +110,6 @@ function textOfIdea(type: string, payload: Record<string, unknown>): string {
     return `${t('title')}. ${sections.map((x) => (typeof x.content === 'string' ? x.content : '')).join(' ')}`.slice(0, 4000);
   }
   return '';
-}
-
-function itemsForIdea(idea: string, candidates: readonly Candidate[]): ItemChoice[] {
-  return candidates.map((c) => ({
-    id: c.ref,
-    state: { task: 'idea', idea: { text: idea }, node: { ref: c.ref, type: c.type, title: c.label, text: c.text } },
-    question: IDEA_QUESTION,
-    options: IDEA_FINDINGS,
-  }));
 }
 
 type CalculatedAssessment = {

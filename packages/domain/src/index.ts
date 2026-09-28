@@ -16,3 +16,4 @@ export * from './knowledge.ts';
 export * from './compose.ts';
 export * from './views.ts';
 export * from './translation.ts';
+export * from './knowledge-inputs.ts';

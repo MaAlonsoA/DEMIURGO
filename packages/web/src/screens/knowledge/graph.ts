@@ -113,7 +113,7 @@ export function groupByArea(nodes: readonly GraphNode[], axis: AreaAxis | null):
 export function recordOfRef(ref: string, graph: KnowledgeGraph | undefined): { code: string; version: number } | null {
   const fromGraph = graph?.nodes.find((n) => n.ref === ref)?.record;
   if (fromGraph) return fromGraph;
-  const m = /^((?:DEC|FDR|ADR|BUG|REQ|NFR|THR|PRR|PRD)-[A-Z0-9]+-\d{3})@(\d+)$/.exec(ref);
+  const m = /^((?:DEC|FDR|ADR|BUG|REQ|NFR|THR|PRR|DEF)-[A-Z0-9]+-\d{3})@(\d+)$/.exec(ref);
   return m?.[1] ? { code: m[1], version: Number(m[2]) } : null;
 }
 

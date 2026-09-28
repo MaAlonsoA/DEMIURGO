@@ -96,7 +96,7 @@ describe('Day 1 leaves a product definition behind', () => {
     const d = await definition();
     await command('proposal.accept', { approve: true }, d.proposal?.id);
     const after = await definition();
-    expect(after.record?.code).toMatch(/^PRD-/);
+    expect(after.record?.code).toMatch(/^DEF-/);
     expect(after.versions.map((v) => [v.n, v.state])).toEqual([[1, 'approved']]);
     expect(after.versions[0]?.sources.every((s) => s.question?.settled_by === 'human:ana')).toBe(true);
     expect(after.proposal).toBeNull();

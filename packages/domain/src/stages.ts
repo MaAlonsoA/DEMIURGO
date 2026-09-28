@@ -22,7 +22,7 @@ export const STAGES: readonly StageDefinition[] = [
     key: 'requirements',
     title: 'Product definition',
     produces:
-      'The product definition (PRD): what the product is for, how you will know it works, its principles, users, problem, first version, what is out and its constraints. Then one feature (FDR) per capability.',
+      'The product definition (DEF): what the product is for, how you will know it works, its principles, users, problem, first version, what is out and its constraints. Then one feature (FDR) per capability.',
     purpose:
       'Product definition: what job the product does and for whom, how you will know it works, the principles that settle choices, who uses it, what problem it solves, what is out and which features the first version has (ISO/IEC/IEEE 29148 stakeholder requirements).',
     questions: [

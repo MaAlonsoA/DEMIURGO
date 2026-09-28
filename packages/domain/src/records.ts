@@ -23,7 +23,7 @@ export const RECORD_PREFIX: Record<RecordType, string> = {
   quality_requirement: 'NFR',
   threat_model: 'THR',
   production_readiness: 'PRR',
-  product_definition: 'PRD',
+  product_definition: 'DEF',
 };
 
 export const RECORD_TEMPLATES: Record<RecordType, { sections: readonly string[]; requiresCriteria: boolean }> = {

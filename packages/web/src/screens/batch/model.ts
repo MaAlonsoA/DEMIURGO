@@ -167,7 +167,7 @@ export const FINDING_WORDS: Record<string, string> = {
 };
 
 // Every record prefix the product has, not only the first four (INVENTORY Part D §3, UX problem).
-const RECORD_REF = /^((?:DEC|FDR|ADR|BUG|REQ|NFR|THR|PRR|PRD)-[A-Z]{3}-\d{3})@(\d+)$/;
+const RECORD_REF = /^((?:DEC|FDR|ADR|BUG|REQ|NFR|THR|PRR|DEF)-[A-Z]{3}-\d{3})@(\d+)$/;
 const CHECK_REF = /^AC-([A-Z]{3}-\d{3})-\d{2}@(\d+)$/;
 
 /**

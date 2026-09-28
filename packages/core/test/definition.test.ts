@@ -163,12 +163,12 @@ describe('the definition is composed from the confirmed answers and proposed to 
     ).rejects.toMatchObject({ type: 'guard' });
   });
 
-  it('accepting and approving it creates the PRD record, version 1, whose origin is the proposal', async () => {
+  it('accepting and approving it creates the DEF record, version 1, whose origin is the proposal', async () => {
     const [proposal] = await definitionProposals();
     const r = await cmd('proposal.accept', { approve: true }, proposal?.id);
     expect(r.result).toMatchObject({ type: 'record', version: 1, approved: true });
     const code = (r.result as { code: string }).code;
-    expect(code).toMatch(/^PRD-[A-Z]{3}-\d{3}$/);
+    expect(code).toMatch(/^DEF-[A-Z]{3}-\d{3}$/);
     const v = await environment()
       .services.db.selectFrom('record_versions')
       .innerJoin('records', 'records.id', 'record_versions.record_id')

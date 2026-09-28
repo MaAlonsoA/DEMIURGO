@@ -1,4 +1,4 @@
--- The product definition (PRD): one record per project, composed by the system from the product
+-- The product definition (DEF): one record per project, composed by the system from the product
 -- definition stage's confirmed answers; its changes are versions of the same record. And the
 -- evidence of an inference: the exact words of the person it rests on, each with its message.
 

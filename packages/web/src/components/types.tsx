@@ -76,7 +76,7 @@ const PREFIX: Record<string, RecordType> = {
   NFR: 'quality_requirement',
   THR: 'threat_model',
   PRR: 'production_readiness',
-  PRD: 'product_definition',
+  DEF: 'product_definition',
 };
 
 /** The record type a code belongs to ("NFR-EVE-002" → quality_requirement), or null. */

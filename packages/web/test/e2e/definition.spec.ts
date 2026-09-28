@@ -81,7 +81,7 @@ test('the idea leaves a product definition behind: read, confirmed at once, appr
   await expect(page.locator('[data-definition-proposal]')).toHaveCount(0);
   await expect(section(page, 'stakeholders')).toContainText('Club members, organizers and guests.');
   const { record } = await person.get<Definition>(`/api/projects/${projectId}/definition`);
-  expect(record?.code).toMatch(/^PRD-/);
+  expect(record?.code).toMatch(/^DEF-/);
   await expect(page.getByRole('region', { name: 'What the product is' })).toContainText(`${record?.code}, version 1`);
 
   // The next thread's run reads the definition whole and depends on its version.

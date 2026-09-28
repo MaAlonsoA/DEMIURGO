@@ -28,7 +28,7 @@ const version = (n: number, state: string, constraints: string): DefinitionVersi
 });
 
 const definition: ProductDefinition = {
-  record: { id: 'r', code: 'PRD-PRO-001' },
+  record: { id: 'r', code: 'DEF-PRO-001' },
   versions: [
     version(3, 'draft', 'Web.'),
     version(2, 'approved', 'A web app, in English.'),

@@ -45,7 +45,7 @@ describe('the entity under an Alt+click', () => {
   });
 
   it('is nothing for a record code, an unknown type or a value that is not an id', () => {
-    expect(traceTargetOf(node({ 'data-record': 'PRD-PRO-001' }))).toBeNull();
+    expect(traceTargetOf(node({ 'data-record': 'DEF-PRO-001' }))).toBeNull();
     expect(traceTargetOf(node({ 'data-trace': `glossary:${ID}` }))).toBeNull();
     expect(traceTargetOf(node({ 'data-trace': 'question:not-an-id', 'data-run': 'working' }))).toBeNull();
     expect(traceTargetOf(null)).toBeNull();

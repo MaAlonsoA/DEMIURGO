@@ -15,7 +15,7 @@
 
 | Pieza | Qué es | Dónde |
 |---|---|---|
-| Registro `product_definition` (`PRD-…`) | Ocho secciones: Purpose, Outcomes, Principles, Users, Problem, First version, Out of scope y Constraints. Uno por proyecto; sin criterios. | `domain/records.ts`, migración 0016 |
+| Registro `product_definition` (`DEF-…`) | Ocho secciones: Purpose, Outcomes, Principles, Users, Problem, First version, Out of scope y Constraints. Uno por proyecto; sin criterios. | `domain/records.ts`, migración 0016 |
 | Preguntas de la etapa | La etapa `requirements` pasa de 5 a 8 preguntas obligatorias (`purpose`, `outcomes` y `principles` delante). | `domain/stages.ts` |
 | Composición sin IA | Cuando la etapa queda cubierta, el sistema compone la definición a partir de las conclusiones confirmadas y la propone (lote `system_package`). La persona la acepta y aprueba. | `domain/definition.ts`, `core/definition/compose.ts` |
 | Fuentes por sección | La propuesta lleva `sources` (sección → pregunta). La versión apunta a la propuesta por `origin`. | payload `product_definition` |
@@ -63,7 +63,7 @@ Tomadas por defecto en este plan; reversibles:
 ## Fase 1: el registro y su composición (dominio)
 
 - [ ] **1.1 Tipo `product_definition`** en `domain/records.ts`:
-  - `RECORD_TYPES`, con prefijo `PRD`.
+  - `RECORD_TYPES`, con prefijo `DEF`.
   - Plantilla de 8 secciones con `requiresCriteria: false`.
 - [ ] **1.2 Migración `0016_product_definition.sql`:**
   - `records_type_check` con los 9 tipos;
@@ -130,7 +130,7 @@ Tomadas por defecto en este plan; reversibles:
 - [ ] **2.11 Pruebas de integración** (`core/test/definition.test.ts`, `api/test/definition.test.ts`):
   - la definición se propone al cubrir la etapa y no antes;
   - cada sección apunta a su pregunta;
-  - aprobarla crea `PRD-…` v1;
+  - aprobarla crea `DEF-…` v1;
   - el pack de otro hilo y el de `design_proposal` la llevan entera y dependen de ella;
   - reabrir y confirmar propone la v2 con nota de cambio;
   - una cita inventada no crea inferencia;
@@ -159,7 +159,7 @@ Tomadas por defecto en este plan; reversibles:
 
 ## Hecho cuando
 
-- Tras el Día 1 existe `PRD-…` v1, aprobada por la persona, y cada sección apunta a la pregunta y al mensaje de los que sale.
+- Tras el Día 1 existe `DEF-…` v1, aprobada por la persona, y cada sección apunta a la pregunta y al mensaje de los que sale.
 - Cualquier ejecución posterior de `exploration_chat` o `design_proposal` lleva la definición entera y la declara como dependencia.
 - Un cambio produce una versión con su nota (qué y por qué), y la anterior sigue entera.
 - Con dev tools, la traza de una sección llega hasta la frase de la idea y hasta los packs que la leyeron.

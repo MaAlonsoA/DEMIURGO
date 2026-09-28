@@ -1,4 +1,4 @@
-// The product definition (PRD): what the product is, what it builds first and how. The system
+// The product definition (DEF): what the product is, what it builds first and how. The system
 // composes it, without AI, from the answers a person confirmed in the product definition stage: each
 // section is one confirmed conclusion and keeps the question it comes from. A person accepts it; its
 // changes are new versions, each with what changed and why. Pure.

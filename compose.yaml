@@ -192,6 +192,8 @@ services:
     environment:
       MB_DB_FILE: /metabase-data/metabase.db
       MB_SITE_URL: ${METABASE_SITE_URL:-http://127.0.0.1:3300}
+      MB_PASSWORD_COMPLEXITY: weak
+      MB_PASSWORD_LENGTH: "5"
       MB_ANON_TRACKING_ENABLED: "false"
       MB_CHECK_FOR_UPDATES: "false"
       MB_LOAD_SAMPLE_CONTENT: "false"

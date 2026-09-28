@@ -24,7 +24,7 @@ Subcommands:
                                    without --yes it only lists them
   check --operational <url>        compare the runs of the operational base with the evidence base (read-only)
   ask <question> [--param value]   answer a stored question (packages/evidence/questions/<question>.sql)
-  metabase-setup [--url <url>]     create or update the Metabase admin (evidence@demiurgo.local), the read-only
+  metabase-setup [--url <url>]     create or update the Metabase admin (admin@demiurgo.local), the read-only
                                    connection, the questions and the first dashboard; idempotent
 
 Environment:
@@ -186,7 +186,7 @@ async function main(argv: string[]): Promise<number> {
           err(`${failed.length} card(s) did not run: ${failed.map((c) => c.question).join(', ')}.`);
           return 1;
         }
-        out(`Open ${url ?? process.env.METABASE_URL ?? DEFAULT_METABASE_URL} and sign in as evidence@demiurgo.local.`);
+        out(`Open ${url ?? process.env.METABASE_URL ?? DEFAULT_METABASE_URL} and sign in as admin@demiurgo.local.`);
         return 0;
       }
       default:

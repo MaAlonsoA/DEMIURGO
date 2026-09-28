@@ -1,5 +1,5 @@
 // `pnpm evidence metabase-setup` (spec §12, §15.3): leaves the Metabase of compose.yaml ready
-// through its REST API, idempotently. The first run creates the admin account (evidence@demiurgo.local, with
+// through its REST API, idempotently. The first run creates the admin account (admin@demiurgo.local, with
 // METABASE_ADMIN_PASSWORD from the environment, or from packages/evidence/.env); every run then signs in and makes sure of: the
 // read-only connection "DEMIURGO evidence" to demiurgo_evidence as evidence_reader, no sample database,
 // the collection "DEMIURGO", one native SQL question per saved question of `questions/` that the
@@ -19,7 +19,7 @@ import { QUESTIONS_DIR } from './ask.ts';
 import { ENV_FILE, parseEnvFile } from './env-file.ts';
 
 export const DEFAULT_METABASE_URL = 'http://127.0.0.1:3300';
-export const ADMIN_EMAIL = 'evidence@demiurgo.local';
+export const ADMIN_EMAIL = 'admin@demiurgo.local';
 export const DATABASE_NAME = 'DEMIURGO evidence';
 export const COLLECTION_NAME = 'DEMIURGO';
 export const DASHBOARD_NAME = 'DEMIURGO · primer cuadro';
@@ -341,7 +341,7 @@ export async function setupMetabase(options: SetupOptions = {}): Promise<SetupRe
   if (properties['has-user-setup'] === false && properties['setup-token']) {
     const created = await api.call<{ id: string }>('POST', '/api/setup', {
       token: properties['setup-token'],
-      user: { email: ADMIN_EMAIL, password, first_name: 'Evidence', last_name: 'DEMIURGO' },
+      user: { email: ADMIN_EMAIL, password, first_name: 'Admin', last_name: 'DEMIURGO' },
       prefs: { site_name: 'DEMIURGO evidence', site_locale: 'en' },
     });
     api.session = created.id;

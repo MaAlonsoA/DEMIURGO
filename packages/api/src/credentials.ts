@@ -49,7 +49,7 @@ export const sessionCsrf = (token: string): string =>
   createHash('sha256').update(`demiurgo-csrf:${token}`, 'utf8').digest('base64url');
 
 export async function createPerson(db: Db, username: string, password: string): Promise<string> {
-  if (password.length < 12) throw new DomainError('validation', 'The password must be at least 12 characters.');
+  if (password.length === 0) throw new DomainError('validation', 'The password cannot be empty.');
   const { id } = await db
     .insertInto('humans')
     .values({ username: username, password_hash: await hashPassword(password) })

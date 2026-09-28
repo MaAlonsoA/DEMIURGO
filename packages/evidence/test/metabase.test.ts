@@ -41,13 +41,13 @@ describe('env file', () => {
     });
   });
 
-  it('renders the four secrets, each parseable back', () => {
+  it('renders service secrets and simple web passwords, each parseable back', () => {
     const rendered = renderEnvFile((n) => 'x'.repeat(n * 2));
     expect(parseEnvFile(rendered)).toEqual({
       PHOENIX_SECRET: 'x'.repeat(64),
       PHOENIX_SYSTEM_KEY: 'x'.repeat(64),
-      PHOENIX_ADMIN_PASSWORD: 'x'.repeat(24),
-      METABASE_ADMIN_PASSWORD: 'x'.repeat(24),
+      PHOENIX_ADMIN_PASSWORD: 'admin',
+      METABASE_ADMIN_PASSWORD: 'admin',
     });
     expect(missingSecretLines(parseEnvFile(rendered))).toEqual([]);
   });
@@ -60,7 +60,7 @@ describe('env file', () => {
     expect(await ensureEnvFile(path)).toEqual({ state: 'extended', keys: ['METABASE_ADMIN_PASSWORD'] });
     const parsed = parseEnvFile(await readFile(path, 'utf8'));
     expect(parsed).toMatchObject({ PHOENIX_SECRET: 'a', PHOENIX_SYSTEM_KEY: 'b', PHOENIX_ADMIN_PASSWORD: 'c' });
-    expect(parsed.METABASE_ADMIN_PASSWORD).toMatch(/^[0-9a-f]{24}$/);
+    expect(parsed.METABASE_ADMIN_PASSWORD).toBe('admin');
     expect(await ensureEnvFile(path)).toEqual({ state: 'unchanged' });
     expect(await readAdminPassword(path)).toBe(parsed.METABASE_ADMIN_PASSWORD);
     expect(await ensureEnvFile(join(dir, 'fresh.env'))).toEqual({ state: 'created' });

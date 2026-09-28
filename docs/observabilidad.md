@@ -162,7 +162,7 @@ En http://127.0.0.1:6006 (usuario `admin@localhost`, contraseña `PHOENIX_ADMIN_
 
 ## Metabase
 
-El cuadro de mando, en http://127.0.0.1:3300. Entra como `evidence@demiurgo.local` con la contraseña `METABASE_ADMIN_PASSWORD` de `.env`. Metabase pidió un dominio con punto, así que la cuenta no pudo ser `evidence@localhost`.
+El cuadro de mando, en http://127.0.0.1:3300. Entra como `admin@demiurgo.local` con la contraseña `METABASE_ADMIN_PASSWORD` de `.env`. Metabase exige un correo completo como usuario.
 
 Lo deja listo, y lo pone al día, un solo comando:
 

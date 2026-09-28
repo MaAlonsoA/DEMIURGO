@@ -1,7 +1,7 @@
 import { request } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { describe, expect, it } from 'vitest';
-import { SESSION_COOKIE } from '../src/credentials.ts';
+import { createPerson, SESSION_COOKIE } from '../src/credentials.ts';
 import { createServer } from '../src/server.ts';
 import { PASSWORD, useApi } from './support/api.ts';
 
@@ -24,6 +24,17 @@ async function actorOfLastEvent(projectId: string): Promise<string> {
 }
 
 describe('API: actor, session and errors', () => {
+  it('AC-ESQ-001-13 a person can sign in with a simple development password', async () => {
+    await createPerson(api().environment.services.db, 'simple', 'admin');
+    const login = await api().app.inject({
+      method: 'POST',
+      url: '/api/session',
+      payload: { username: 'simple', password: 'admin' },
+    });
+    expect(login.statusCode).toBe(200);
+    expect(login.json<{ person: string }>().person).toBe('simple');
+  });
+
   it('AC-ESQ-001-13 the actor comes from the credential and an actor declared in the body is ignored', async () => {
     const r = await api().person.request('POST', '/api/projects', { name: 'Actor', actor: 'system:impersonator@1' });
     expect(r.statusCode).toBe(200);

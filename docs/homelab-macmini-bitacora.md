@@ -131,3 +131,50 @@ La sesión `claude --remote-control` del mini aparece en la app de Claude (iPhon
 - **Ensayo de restauración (D.5, con las bases aún vacías).** `demiurgo_v2.dump` restaurado en una base `dmg_t_restore_*` con `pg_restore --no-owner`: 1 s; `events` = 0 en la copia y 0 en la real. Base de ensayo borrada. Se repetirá con datos reales tras el corte.
 - 🖐 Pendiente de la persona: el destino externo de las copias (disco USB cifrado o bucket remoto con credenciales) para añadirlo a `backup.sh`.
 - D.1 a D.3 (volcados del PC, ensayo y corte) no empiezan sin su confirmación explícita.
+
+## Fase E · Resumen operativo (se completa al cerrar; válido desde el 28-09-2026)
+
+### Hostnames y puertos
+
+| Desde fuera (Cloudflare Access, correo `ma_lonso94@hotmail.com`) | En el mini | Servicio |
+|---|---|---|
+| `https://demiurgo.asterion-os.com` | `127.0.0.1:8100` | API + web de DEMIURGO (contenedor `api`) |
+| `https://phoenix.asterion-os.com` | `127.0.0.1:6006` | Phoenix |
+| `https://metabase.asterion-os.com` | `127.0.0.1:3300` | Metabase |
+| `https://code.asterion-os.com` | `127.0.0.1:8443` | code-server (host, `brew services`) |
+| `https://ssh.asterion-os.com` | `127.0.0.1:22` | sshd, terminal en el navegador |
+| WARP → `192.168.1.145:22` | `sshd` | Termius desde PC e iPhone |
+| — | `127.0.0.1:55433` | Postgres `demiurgo_v2` (usuario `demiurgo`) |
+| — | `127.0.0.1:55434` | Postgres de evidencia (usuario `evidence`) |
+| — | `127.0.0.1:4318` | Colector OTLP para las CLI del host |
+
+Túnel `macmini` (`3e2b8c04-ae98-4d04-981e-0d07566dd267`), LaunchDaemon `com.cloudflare.cloudflared`, configuración en `/etc/cloudflared/config.yml` (copia en `~/.cloudflared/`). Organización Zero Trust `asterion-os`.
+
+### Dónde están los secretos
+
+- `~/Development/DEMIURGO/.env` (`0600`): contraseñas de Postgres, Phoenix, Metabase, orígenes. Referencia legible en `~/.config/demiurgo/secrets.md`.
+- `~/.config/demiurgo/cloudflare.env`: token de API `macmini-claude`, account, zone y tunnel id. `~/.cloudflared/cert.pem` y `<tunnel>.json`: credenciales del túnel.
+- `~/.config/demiurgo/restic-password`: contraseña del repositorio de copias.
+- `~/.ssh/id_ed25519_pc_to_mini`: clave privada para el PC (su pública ya está en `authorized_keys`).
+- Credenciales de Claude y Codex: en el host, `~/.claude` y `~/.codex`; en el contenedor, volumen `demiurgo_cli-auth`.
+
+### Copia y restauración
+
+- Automática a las 03:00 (`com.demiurgo.backup`); a mano `~/bin/backup.sh`. Volcados en `~/backups/dumps/<fecha>/` (14 días) y restic en `~/backups/restic` (`keep-daily 14`). Log: `~/backups/backup.log`.
+- Restaurar DEMIURGO en una base de ensayo: `docker exec demiurgo-postgres-1 psql -U demiurgo -d postgres -c 'create database dmg_t_restore'` y `docker exec -i demiurgo-postgres-1 pg_restore -U demiurgo -d dmg_t_restore --no-owner < ~/backups/dumps/<fecha>/demiurgo_v2.dump`. Sobre la real: parar `api` (`docker compose stop api`), restaurar en `demiurgo_v2` con `--clean --if-exists`, `docker compose start api`. Evidencia y Phoenix igual contra `demiurgo-evidence-db-1` (usuario `evidence`).
+- Ficheros: `restic -r ~/backups/restic --password-file ~/.config/demiurgo/restic-password snapshots` y `restore latest --target /tmp/r`.
+- 🖐 Pendiente: destino externo (disco USB cifrado o bucket) para una segunda copia fuera del mini.
+
+### Relanzar las cosas
+
+- Toda la pila: `cd ~/Development/DEMIURGO && pnpm stack:up` (o `docker compose up -d --wait`). Estado: `pnpm stack:ps`.
+- Sesión de Claude Code con control remoto: `~/bin/claude-tmux.sh` (la crea si no existe; también la crea el LaunchAgent al iniciar sesión). Verla: `tmux attach -t claude`. En la app de Claude aparece como sesión del mini.
+- Túnel: `sudo launchctl kickstart -k system/com.cloudflare.cloudflared`; estado `cloudflared tunnel info macmini`.
+- Colima/Docker: `brew services restart colima`. code-server: `brew services restart code-server`.
+
+### Si el mini falla
+
+- Sin corriente o sin Internet en casa: nada es alcanzable; al volver, macOS arranca solo, entra en sesión (`marcos`), Colima y los ocho contenedores vuelven (`restart: unless-stopped`), `cloudflared` y `code-server` también. No hay nada que hacer.
+- Disco o hardware: los datos están en `~/backups` (mismo disco) → por eso hace falta el destino externo. Con otra máquina: instalar Homebrew, `colima`, `docker`, clonar el repo, restaurar `.env` y los volcados, `docker compose up`, y `sudo cloudflared service install` con un túnel nuevo (o las credenciales guardadas).
+- Revocar el acceso desde fuera en un momento: desactivar las políticas «Solo Marcos» en Access (o borrar el token `macmini-claude` y las aplicaciones). El mini sigue accesible en la LAN.
+- `sudo` sigue pidiendo contraseña (no se creó `/etc/sudoers.d/demiurgo`); nada del arranque automático depende de ello.

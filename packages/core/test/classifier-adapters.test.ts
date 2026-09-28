@@ -1,4 +1,4 @@
-// Adapters for the `Classifier` port: Jev (empty) and the agent classifier, here over the Claude
+// Adapters for the `Classifier` port: Jev (over a fake fetch) and the agent classifier, here over the Claude
 // provider (`claude -p`). The fake launcher reproduces the recorded fixtures: the real CLI is never called.
 
 import { readFileSync } from 'node:fs';
@@ -7,7 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { type Classifier, IDEA_FINDINGS, type ItemChoice, RELEVANCE_LEVELS, VERDICTS } from '@demiurgo/domain';
 import { describe, expect, it } from 'vitest';
 import type { ProcessEnd, Launcher, LaunchCommand } from '../src/agents/process.ts';
-import { createJevClassifier } from '../src/classifier/jev.ts';
+import { TypeSafeClient } from '@typesafe-ai/sdk';
+import { JEV_UNAVAILABLE_MESSAGE, createJevClassifier } from '../src/classifier/jev.ts';
 import { createAgentClassifier } from '../src/classifier/agent-classifier.ts';
 import { createClaudeProvider } from '../src/providers/claude.ts';
 
@@ -93,17 +94,84 @@ function valueOf(args: readonly string[], flag: string): string | undefined {
   return i < 0 ? undefined : args[i + 1];
 }
 
-const JEV_MESSAGE = 'Jev is not available: the adapter is empty until we have access and an ADR about sending data to TypeSafe.';
+/** A TypeSafe client over a fake `fetch`: it answers like System One and records what was sent. */
+function fakeJev(answer: (question: Record<string, unknown>, state: unknown) => Record<string, unknown>) {
+  const sent: { state: unknown; questions: Record<string, unknown>; model: string }[] = [];
+  const client = new TypeSafeClient({
+    apiKey: 'test-key',
+    baseURL: 'https://typesafe.invalid',
+    retry: { maxRetries: 0 },
+    fetch: async (_url, init) => {
+      const body = JSON.parse(init?.body as string) as (typeof sent)[number];
+      sent.push(body);
+      const q = body.questions.q as Record<string, unknown>;
+      return new Response(
+        JSON.stringify({
+          model: 'jev-1.13.0',
+          answers: { q: answer(q, body.state) },
+          usage: { input_tokens: 100, output_tokens: 3 },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    },
+  });
+  return { client, sent };
+}
 
 describe('Jev adapter', () => {
-  it('AC-CLA-001-01 fails choice, score and noul with the empty-adapter message', async () => {
+  it('AC-CLA-001-01 fails choice, score and noul without a key, with no request sent', async () => {
     const jev = createJevClassifier();
     expect(jev.id).toBe('jev@unavailable');
-    await expect(jev.choice(ITEMS)).rejects.toThrow(JEV_MESSAGE);
+    await expect(jev.choice(ITEMS)).rejects.toThrow(JEV_UNAVAILABLE_MESSAGE);
     await expect(jev.score([{ id: 's', state: 'x', question: 'What?', levels: [...RELEVANCE_LEVELS] }])).rejects.toThrow(
-      JEV_MESSAGE,
+      JEV_UNAVAILABLE_MESSAGE,
     );
-    await expect(jev.noul([{ id: 'n', state: 'x', statement: 'It is observable.' }])).rejects.toThrow(JEV_MESSAGE);
+    await expect(jev.noul([{ id: 'n', state: 'x', statement: 'It is observable.' }])).rejects.toThrow(JEV_UNAVAILABLE_MESSAGE);
+  });
+
+  it('sends one request per item with its own state, and passes the probabilities through', async () => {
+    const { client, sent } = fakeJev(() => ({
+      type: 'choice',
+      choice: 'update',
+      confidence: 0.9,
+      probabilities: { keep: 0.02, update: 0.9, invalidate: 0.03, add: 0.02, relate: 0.02, other: 0.01 },
+    }));
+    const usage: number[] = [];
+    const jev = createJevClassifier({ client, model: 'jev-latest', onUsage: (u) => usage.push(u.input_tokens) });
+    const second: ItemChoice = { ...ITEMS[0]!, id: 'par-2', state: 'other state' };
+    const out = await jev.choice([ITEMS[0]!, second]);
+    expect(jev.id).toBe('jev@jev-latest');
+    expect(out.map((r) => [r.id, r.choice, r.confidence])).toEqual([
+      ['par-1', 'update', 0.9],
+      ['par-2', 'update', 0.9],
+    ]);
+    expect(out[0]?.distribution.update).toBe(0.9);
+    expect(sent.map((r) => r.state)).toEqual([ITEMS[0]!.state, 'other state']);
+    const asked = sent[0]?.questions.q as { criteria: object };
+    expect(Object.keys(asked.criteria)).toEqual([...VERDICTS]);
+    expect(usage).toEqual([100, 100]);
+  });
+
+  it('reads score as the most probable level and noul as P(yes) with a confidence from its distance to a coin toss', async () => {
+    const score = fakeJev(() => ({
+      type: 'score',
+      score: 1.4,
+      confidence: 0.7,
+      legend: {},
+      probabilities: { '0': 0.1, '1': 0.6, '2': 0.2, '3': 0.1 },
+    }));
+    const [s] = await createJevClassifier({ client: score.client }).score([
+      { id: 's', state: 'x', question: 'How relevant?', levels: [...RELEVANCE_LEVELS] },
+    ]);
+    expect(s).toEqual({ id: 's', level: 1, distribution: [0.1, 0.6, 0.2, 0.1], confidence: 0.7 });
+    const noul = fakeJev(() => ({ type: 'noul', noul: 0.2 }));
+    const [n] = await createJevClassifier({ client: noul.client }).noul([{ id: 'n', state: 'x', statement: 'It holds.' }]);
+    expect(n).toEqual({ id: 'n', probability: 0.2, confidence: 0.8 });
+  });
+
+  it('rejects a choice that is not among the options', async () => {
+    const { client } = fakeJev(() => ({ type: 'choice', choice: 'nonsense', confidence: 1, probabilities: {} }));
+    await expect(createJevClassifier({ client }).choice([ITEMS[0]!])).rejects.toThrow('invalid choice');
   });
 });
 

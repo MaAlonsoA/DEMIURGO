@@ -5,6 +5,7 @@
 //   node packages/api/src/cli.ts issue-agent-token <projectId> <agentName> <username>   (the person's password from stdin)
 //   node packages/api/src/cli.ts real-run <projectId> <action> <json-scope> [json-input]
 //   node packages/api/src/cli.ts evaluate-classifier <provider> <model> [effort|-] [test|dev|all] [v1|v1-en]   (spends quota)
+//     provider `jev` (TypeSafe, key TYPESAFE_API_KEY): sends the evaluation set out; it spends credits, ~0.01 USD
 //   node packages/api/src/cli.ts translate-records <projectId> [limit]         (proposes English versions; calls the translator)
 //   node packages/api/src/cli.ts import-design <projectId> [dir]                (creates the H1 pending batch)
 //   node packages/api/src/cli.ts export-design <projectId> [--check dir | --out dir | dir]
@@ -20,6 +21,8 @@ import {
   createProviders,
   createObserver,
   createSimulatedClassifier,
+  createJevClassifier,
+  jevCostUsd,
   evaluateClassifier,
   loadAgentCatalog,
   evaluationSummary,
@@ -186,11 +189,15 @@ const commands: Record<string, () => Promise<void>> = {
 commands['evaluate-classifier'] = async () => {
   const [providerId = '', model = '', effortArg = '-', partitionArg = 'test', datasetArg = 'v1'] = args;
   const partition = partitionArg as Partition;
+  const jev = providerId === 'jev';
   const provider = createProviders({ ...config, devTools: true }).get(providerId);
   const agent = (await loadAgentCatalog()).get('knowledge_classifier');
-  if (!provider || !model || !agent) {
-    throw new Error('Usage: evaluate-classifier <claude|codex|opencode|simulated> <model> [effort|-] [test|dev|all] [v1|v1-en]');
+  if ((!jev && !provider) || !model || !agent) {
+    throw new Error(
+      'Usage: evaluate-classifier <claude|codex|opencode|simulated|jev> <model> [effort|-] [test|dev|all] [v1|v1-en]',
+    );
   }
+  if (jev && !process.env.TYPESAFE_API_KEY) throw new Error('Set TYPESAFE_API_KEY to evaluate Jev.');
   const effort = effortArg === '-' ? null : effortArg;
   // The labeled set: v1 (Spanish, the original) or v1-en (its English translation), under evals/classifier/.
   if (!/^[a-z0-9-]+$/.test(datasetArg)) throw new Error(`Unknown dataset: ${datasetArg}.`);
@@ -198,8 +205,18 @@ commands['evaluate-classifier'] = async () => {
   await withDatabase(async (c) => {
     // Through callProvider, so the evaluation's calls leave their trace like any other (spec §7.8).
     const observer = createObserver(config.observe, cliLogger);
-    const classifier =
-      provider.id === 'simulated'
+    const usage = { requests: 0, input: 0, output: 0 };
+    const classifier = jev
+      ? createJevClassifier({
+          model,
+          apiKey: process.env.TYPESAFE_API_KEY,
+          onUsage: (u) => {
+            usage.requests += 1;
+            usage.input += u.input_tokens;
+            usage.output += u.output_tokens;
+          },
+        })
+      : provider?.id === 'simulated' || !provider
         ? createSimulatedClassifier()
         : classifierOnProvider({ db: c.db, observer }, provider, agent, { model, effort, source: 'override' }, null);
     const report = await evaluateClassifier({
@@ -212,6 +229,11 @@ commands['evaluate-classifier'] = async () => {
     });
     console.log(evaluationSummary(report));
     console.log(`Result saved to ${report.file ?? '(no file)'}`);
+    if (jev) {
+      console.log(
+        `Jev: ${usage.requests} requests, ${usage.input} input tokens, ${usage.output} output tokens, ${jevCostUsd(usage.input).toFixed(5)} USD`,
+      );
+    }
     await observer.flush(5000);
   });
 };

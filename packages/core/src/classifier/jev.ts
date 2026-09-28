@@ -60,7 +60,7 @@ const indexOfMax = (values: readonly number[]): number => values.reduce((best, v
 
 export function createJevClassifier(options: JevOptions = {}): Classifier {
   const model = options.model ?? JEV_DEFAULT_MODEL;
-  const client = options.client ?? (options.apiKey ? new TypeSafeClient({ apiKey: options.apiKey, defaultModel: model }) : null);
+  const client = options.client ?? (options.apiKey ? new TypeSafeClient({ apiKey: options.apiKey, defaultModel: model, timeout: 30_000 }) : null);
   if (!client) {
     const notAvailable = async (): Promise<never> => {
       throw new Error(JEV_UNAVAILABLE_MESSAGE);

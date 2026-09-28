@@ -1,0 +1,836 @@
+{
+  "classifier": "jev@jev-latest",
+  "date": "2026-09-28T15:54:14.623Z",
+  "dataset": "evals/classifier/v1-en",
+  "fingerprints": {
+    "verdicts": "6b096cd23244b146db0fde4c46aa81b1e4b1205fe89b46004c25caef5463e223",
+    "ideas": "133c9e060884f790bc1c2890acc753bad3263bcdf01a6da49dd43b19d365c3eb"
+  },
+  "partition": "test",
+  "durationMs": 15939,
+  "verdicts": {
+    "total": 35,
+    "hits": 23,
+    "accuracy": 0.6571428571428571,
+    "byClass": {
+      "keep": {
+        "support": 7,
+        "predicted": 8,
+        "hits": 6,
+        "precision": 0.75,
+        "recall": 0.8571428571428571,
+        "f1": 0.7999999999999999,
+        "noPredictions": false,
+        "noSupport": false
+      },
+      "update": {
+        "support": 6,
+        "predicted": 12,
+        "hits": 6,
+        "precision": 0.5,
+        "recall": 1,
+        "f1": 0.6666666666666666,
+        "noPredictions": false,
+        "noSupport": false
+      },
+      "invalidate": {
+        "support": 7,
+        "predicted": 6,
+        "hits": 6,
+        "precision": 1,
+        "recall": 0.8571428571428571,
+        "f1": 0.923076923076923,
+        "noPredictions": false,
+        "noSupport": false
+      },
+      "add": {
+        "support": 5,
+        "predicted": 0,
+        "hits": 0,
+        "precision": 0,
+        "recall": 0,
+        "f1": 0,
+        "noPredictions": true,
+        "noSupport": false
+      },
+      "relate": {
+        "support": 7,
+        "predicted": 8,
+        "hits": 5,
+        "precision": 0.625,
+        "recall": 0.7142857142857143,
+        "f1": 0.6666666666666666,
+        "noPredictions": false,
+        "noSupport": false
+      },
+      "other": {
+        "support": 3,
+        "predicted": 1,
+        "hits": 0,
+        "precision": 0,
+        "recall": 0,
+        "f1": 0,
+        "noPredictions": false,
+        "noSupport": false
+      }
+    },
+    "macro": {
+      "classes": [
+        "keep",
+        "update",
+        "invalidate",
+        "add",
+        "relate",
+        "other"
+      ],
+      "precision": 0.4791666666666667,
+      "recall": 0.5714285714285715,
+      "f1": 0.5094017094017094
+    },
+    "matrix": {
+      "keep": {
+        "keep": 6,
+        "update": 0,
+        "invalidate": 0,
+        "add": 0,
+        "relate": 0,
+        "other": 1
+      },
+      "update": {
+        "keep": 0,
+        "update": 6,
+        "invalidate": 0,
+        "add": 0,
+        "relate": 0,
+        "other": 0
+      },
+      "invalidate": {
+        "keep": 0,
+        "update": 1,
+        "invalidate": 6,
+        "add": 0,
+        "relate": 0,
+        "other": 0
+      },
+      "add": {
+        "keep": 0,
+        "update": 2,
+        "invalidate": 0,
+        "add": 0,
+        "relate": 3,
+        "other": 0
+      },
+      "relate": {
+        "keep": 0,
+        "update": 2,
+        "invalidate": 0,
+        "add": 0,
+        "relate": 5,
+        "other": 0
+      },
+      "other": {
+        "keep": 2,
+        "update": 1,
+        "invalidate": 0,
+        "add": 0,
+        "relate": 0,
+        "other": 0
+      }
+    },
+    "curve": [
+      {
+        "threshold": 0,
+        "cases": 35,
+        "proportion": 1,
+        "hits": 23,
+        "accuracy": 0.6571428571428571
+      },
+      {
+        "threshold": 0.5,
+        "cases": 18,
+        "proportion": 0.5142857142857142,
+        "hits": 15,
+        "accuracy": 0.8333333333333334
+      },
+      {
+        "threshold": 0.55,
+        "cases": 16,
+        "proportion": 0.45714285714285713,
+        "hits": 13,
+        "accuracy": 0.8125
+      },
+      {
+        "threshold": 0.6,
+        "cases": 11,
+        "proportion": 0.3142857142857143,
+        "hits": 10,
+        "accuracy": 0.9090909090909091
+      },
+      {
+        "threshold": 0.7,
+        "cases": 7,
+        "proportion": 0.2,
+        "hits": 6,
+        "accuracy": 0.8571428571428571
+      },
+      {
+        "threshold": 0.8,
+        "cases": 6,
+        "proportion": 0.17142857142857143,
+        "hits": 6,
+        "accuracy": 1
+      },
+      {
+        "threshold": 0.85,
+        "cases": 3,
+        "proportion": 0.08571428571428572,
+        "hits": 3,
+        "accuracy": 1
+      },
+      {
+        "threshold": 0.9,
+        "cases": 0,
+        "proportion": 0,
+        "hits": 0,
+        "accuracy": null
+      },
+      {
+        "threshold": 0.95,
+        "cases": 0,
+        "proportion": 0,
+        "hits": 0,
+        "accuracy": null
+      }
+    ]
+  },
+  "ideas": {
+    "total": 22,
+    "hits": 16,
+    "accuracy": 0.7272727272727273,
+    "byClass": {
+      "relates": {
+        "support": 5,
+        "predicted": 10,
+        "hits": 5,
+        "precision": 0.5,
+        "recall": 1,
+        "f1": 0.6666666666666666,
+        "noPredictions": false,
+        "noSupport": false
+      },
+      "conflicts": {
+        "support": 5,
+        "predicted": 5,
+        "hits": 5,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "noPredictions": false,
+        "noSupport": false
+      },
+      "inconsistent": {
+        "support": 4,
+        "predicted": 0,
+        "hits": 0,
+        "precision": 0,
+        "recall": 0,
+        "f1": 0,
+        "noPredictions": true,
+        "noSupport": false
+      },
+      "duplicates": {
+        "support": 4,
+        "predicted": 5,
+        "hits": 4,
+        "precision": 0.8,
+        "recall": 1,
+        "f1": 0.888888888888889,
+        "noPredictions": false,
+        "noSupport": false
+      },
+      "none": {
+        "support": 4,
+        "predicted": 2,
+        "hits": 2,
+        "precision": 1,
+        "recall": 0.5,
+        "f1": 0.6666666666666666,
+        "noPredictions": false,
+        "noSupport": false
+      }
+    },
+    "macro": {
+      "classes": [
+        "relates",
+        "conflicts",
+        "inconsistent",
+        "duplicates",
+        "none"
+      ],
+      "precision": 0.6599999999999999,
+      "recall": 0.7,
+      "f1": 0.6444444444444444
+    },
+    "matrix": {
+      "relates": {
+        "relates": 5,
+        "conflicts": 0,
+        "inconsistent": 0,
+        "duplicates": 0,
+        "none": 0
+      },
+      "conflicts": {
+        "relates": 0,
+        "conflicts": 5,
+        "inconsistent": 0,
+        "duplicates": 0,
+        "none": 0
+      },
+      "inconsistent": {
+        "relates": 3,
+        "conflicts": 0,
+        "inconsistent": 0,
+        "duplicates": 1,
+        "none": 0
+      },
+      "duplicates": {
+        "relates": 0,
+        "conflicts": 0,
+        "inconsistent": 0,
+        "duplicates": 4,
+        "none": 0
+      },
+      "none": {
+        "relates": 2,
+        "conflicts": 0,
+        "inconsistent": 0,
+        "duplicates": 0,
+        "none": 2
+      }
+    },
+    "curve": [
+      {
+        "threshold": 0,
+        "cases": 22,
+        "proportion": 1,
+        "hits": 16,
+        "accuracy": 0.7272727272727273
+      },
+      {
+        "threshold": 0.5,
+        "cases": 21,
+        "proportion": 0.9545454545454546,
+        "hits": 16,
+        "accuracy": 0.7619047619047619
+      },
+      {
+        "threshold": 0.55,
+        "cases": 21,
+        "proportion": 0.9545454545454546,
+        "hits": 16,
+        "accuracy": 0.7619047619047619
+      },
+      {
+        "threshold": 0.6,
+        "cases": 20,
+        "proportion": 0.9090909090909091,
+        "hits": 16,
+        "accuracy": 0.8
+      },
+      {
+        "threshold": 0.7,
+        "cases": 18,
+        "proportion": 0.8181818181818182,
+        "hits": 15,
+        "accuracy": 0.8333333333333334
+      },
+      {
+        "threshold": 0.8,
+        "cases": 14,
+        "proportion": 0.6363636363636364,
+        "hits": 13,
+        "accuracy": 0.9285714285714286
+      },
+      {
+        "threshold": 0.85,
+        "cases": 13,
+        "proportion": 0.5909090909090909,
+        "hits": 12,
+        "accuracy": 0.9230769230769231
+      },
+      {
+        "threshold": 0.9,
+        "cases": 10,
+        "proportion": 0.45454545454545453,
+        "hits": 10,
+        "accuracy": 1
+      },
+      {
+        "threshold": 0.95,
+        "cases": 5,
+        "proportion": 0.22727272727272727,
+        "hits": 5,
+        "accuracy": 1
+      }
+    ]
+  },
+  "responses": [
+    {
+      "id": "V001",
+      "task": "verdict",
+      "expected": "add",
+      "actual": "relate",
+      "confidence": 0.25,
+      "justification": ""
+    },
+    {
+      "id": "V002",
+      "task": "verdict",
+      "expected": "update",
+      "actual": "update",
+      "confidence": 0.59,
+      "justification": ""
+    },
+    {
+      "id": "V004",
+      "task": "verdict",
+      "expected": "relate",
+      "actual": "relate",
+      "confidence": 0.4,
+      "justification": ""
+    },
+    {
+      "id": "V008",
+      "task": "verdict",
+      "expected": "add",
+      "actual": "update",
+      "confidence": 0.39,
+      "justification": ""
+    },
+    {
+      "id": "V009",
+      "task": "verdict",
+      "expected": "invalidate",
+      "actual": "invalidate",
+      "confidence": 0.49,
+      "justification": ""
+    },
+    {
+      "id": "V010",
+      "task": "verdict",
+      "expected": "keep",
+      "actual": "keep",
+      "confidence": 0.57,
+      "justification": ""
+    },
+    {
+      "id": "V011",
+      "task": "verdict",
+      "expected": "keep",
+      "actual": "keep",
+      "confidence": 0.81,
+      "justification": ""
+    },
+    {
+      "id": "V012",
+      "task": "verdict",
+      "expected": "keep",
+      "actual": "other",
+      "confidence": 0.16,
+      "justification": ""
+    },
+    {
+      "id": "V013",
+      "task": "verdict",
+      "expected": "relate",
+      "actual": "update",
+      "confidence": 0.32,
+      "justification": ""
+    },
+    {
+      "id": "V015",
+      "task": "verdict",
+      "expected": "keep",
+      "actual": "keep",
+      "confidence": 0.57,
+      "justification": ""
+    },
+    {
+      "id": "V019",
+      "task": "verdict",
+      "expected": "relate",
+      "actual": "relate",
+      "confidence": 0.25,
+      "justification": ""
+    },
+    {
+      "id": "V021",
+      "task": "verdict",
+      "expected": "update",
+      "actual": "update",
+      "confidence": 0.65,
+      "justification": ""
+    },
+    {
+      "id": "V023",
+      "task": "verdict",
+      "expected": "add",
+      "actual": "relate",
+      "confidence": 0.22,
+      "justification": ""
+    },
+    {
+      "id": "V024",
+      "task": "verdict",
+      "expected": "invalidate",
+      "actual": "invalidate",
+      "confidence": 0.53,
+      "justification": ""
+    },
+    {
+      "id": "V025",
+      "task": "verdict",
+      "expected": "update",
+      "actual": "update",
+      "confidence": 0.6,
+      "justification": ""
+    },
+    {
+      "id": "V027",
+      "task": "verdict",
+      "expected": "invalidate",
+      "actual": "invalidate",
+      "confidence": 0.84,
+      "justification": ""
+    },
+    {
+      "id": "V029",
+      "task": "verdict",
+      "expected": "other",
+      "actual": "keep",
+      "confidence": 0.55,
+      "justification": ""
+    },
+    {
+      "id": "V033",
+      "task": "verdict",
+      "expected": "update",
+      "actual": "update",
+      "confidence": 0.88,
+      "justification": ""
+    },
+    {
+      "id": "V035",
+      "task": "verdict",
+      "expected": "add",
+      "actual": "relate",
+      "confidence": 0.15,
+      "justification": ""
+    },
+    {
+      "id": "V036",
+      "task": "verdict",
+      "expected": "update",
+      "actual": "update",
+      "confidence": 0.36,
+      "justification": ""
+    },
+    {
+      "id": "V040",
+      "task": "verdict",
+      "expected": "keep",
+      "actual": "keep",
+      "confidence": 0.35,
+      "justification": ""
+    },
+    {
+      "id": "V043",
+      "task": "verdict",
+      "expected": "invalidate",
+      "actual": "invalidate",
+      "confidence": 0.8,
+      "justification": ""
+    },
+    {
+      "id": "V044",
+      "task": "verdict",
+      "expected": "relate",
+      "actual": "relate",
+      "confidence": 0.43,
+      "justification": ""
+    },
+    {
+      "id": "V045",
+      "task": "verdict",
+      "expected": "other",
+      "actual": "update",
+      "confidence": 0.56,
+      "justification": ""
+    },
+    {
+      "id": "V047",
+      "task": "verdict",
+      "expected": "keep",
+      "actual": "keep",
+      "confidence": 0.61,
+      "justification": ""
+    },
+    {
+      "id": "V048",
+      "task": "verdict",
+      "expected": "invalidate",
+      "actual": "update",
+      "confidence": 0.49,
+      "justification": ""
+    },
+    {
+      "id": "V054",
+      "task": "verdict",
+      "expected": "keep",
+      "actual": "keep",
+      "confidence": 0.23,
+      "justification": ""
+    },
+    {
+      "id": "V055",
+      "task": "verdict",
+      "expected": "invalidate",
+      "actual": "invalidate",
+      "confidence": 0.89,
+      "justification": ""
+    },
+    {
+      "id": "V056",
+      "task": "verdict",
+      "expected": "relate",
+      "actual": "update",
+      "confidence": 0.13,
+      "justification": ""
+    },
+    {
+      "id": "V060",
+      "task": "verdict",
+      "expected": "invalidate",
+      "actual": "invalidate",
+      "confidence": 0.65,
+      "justification": ""
+    },
+    {
+      "id": "V062",
+      "task": "verdict",
+      "expected": "relate",
+      "actual": "relate",
+      "confidence": 0.51,
+      "justification": ""
+    },
+    {
+      "id": "V064",
+      "task": "verdict",
+      "expected": "other",
+      "actual": "keep",
+      "confidence": 0.26,
+      "justification": ""
+    },
+    {
+      "id": "V066",
+      "task": "verdict",
+      "expected": "relate",
+      "actual": "relate",
+      "confidence": 0.39,
+      "justification": ""
+    },
+    {
+      "id": "V067",
+      "task": "verdict",
+      "expected": "add",
+      "actual": "update",
+      "confidence": 0.73,
+      "justification": ""
+    },
+    {
+      "id": "V069",
+      "task": "verdict",
+      "expected": "update",
+      "actual": "update",
+      "confidence": 0.89,
+      "justification": ""
+    },
+    {
+      "id": "I003",
+      "task": "idea",
+      "expected": "duplicates",
+      "actual": "duplicates",
+      "confidence": 0.67,
+      "justification": ""
+    },
+    {
+      "id": "I006",
+      "task": "idea",
+      "expected": "duplicates",
+      "actual": "duplicates",
+      "confidence": 0.85,
+      "justification": ""
+    },
+    {
+      "id": "I008",
+      "task": "idea",
+      "expected": "relates",
+      "actual": "relates",
+      "confidence": 0.96,
+      "justification": ""
+    },
+    {
+      "id": "I011",
+      "task": "idea",
+      "expected": "conflicts",
+      "actual": "conflicts",
+      "confidence": 0.9,
+      "justification": ""
+    },
+    {
+      "id": "I013",
+      "task": "idea",
+      "expected": "conflicts",
+      "actual": "conflicts",
+      "confidence": 0.91,
+      "justification": ""
+    },
+    {
+      "id": "I014",
+      "task": "idea",
+      "expected": "inconsistent",
+      "actual": "relates",
+      "confidence": 0.89,
+      "justification": ""
+    },
+    {
+      "id": "I019",
+      "task": "idea",
+      "expected": "conflicts",
+      "actual": "conflicts",
+      "confidence": 0.92,
+      "justification": ""
+    },
+    {
+      "id": "I020",
+      "task": "idea",
+      "expected": "duplicates",
+      "actual": "duplicates",
+      "confidence": 0.71,
+      "justification": ""
+    },
+    {
+      "id": "I021",
+      "task": "idea",
+      "expected": "inconsistent",
+      "actual": "duplicates",
+      "confidence": 0.64,
+      "justification": ""
+    },
+    {
+      "id": "I022",
+      "task": "idea",
+      "expected": "relates",
+      "actual": "relates",
+      "confidence": 0.97,
+      "justification": ""
+    },
+    {
+      "id": "I023",
+      "task": "idea",
+      "expected": "relates",
+      "actual": "relates",
+      "confidence": 0.99,
+      "justification": ""
+    },
+    {
+      "id": "I024",
+      "task": "idea",
+      "expected": "conflicts",
+      "actual": "conflicts",
+      "confidence": 0.79,
+      "justification": ""
+    },
+    {
+      "id": "I027",
+      "task": "idea",
+      "expected": "inconsistent",
+      "actual": "relates",
+      "confidence": 0.74,
+      "justification": ""
+    },
+    {
+      "id": "I028",
+      "task": "idea",
+      "expected": "none",
+      "actual": "none",
+      "confidence": 0.92,
+      "justification": ""
+    },
+    {
+      "id": "I030",
+      "task": "idea",
+      "expected": "duplicates",
+      "actual": "duplicates",
+      "confidence": 0.81,
+      "justification": ""
+    },
+    {
+      "id": "I031",
+      "task": "idea",
+      "expected": "none",
+      "actual": "relates",
+      "confidence": 0.42,
+      "justification": ""
+    },
+    {
+      "id": "I032",
+      "task": "idea",
+      "expected": "conflicts",
+      "actual": "conflicts",
+      "confidence": 0.89,
+      "justification": ""
+    },
+    {
+      "id": "I033",
+      "task": "idea",
+      "expected": "none",
+      "actual": "none",
+      "confidence": 0.9,
+      "justification": ""
+    },
+    {
+      "id": "I036",
+      "task": "idea",
+      "expected": "relates",
+      "actual": "relates",
+      "confidence": 0.95,
+      "justification": ""
+    },
+    {
+      "id": "I039",
+      "task": "idea",
+      "expected": "relates",
+      "actual": "relates",
+      "confidence": 0.98,
+      "justification": ""
+    },
+    {
+      "id": "I044",
+      "task": "idea",
+      "expected": "inconsistent",
+      "actual": "relates",
+      "confidence": 0.57,
+      "justification": ""
+    },
+    {
+      "id": "I045",
+      "task": "idea",
+      "expected": "none",
+      "actual": "relates",
+      "confidence": 0.7,
+      "justification": ""
+    }
+  ],
+  "file": "evals/classifier/results/jev_jev-latest-test-2026-09-28-15-54-14.json"
+}

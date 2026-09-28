@@ -1,0 +1,4085 @@
+[
+  {
+    "scenario": "F01-1",
+    "scenarioHash": "577cc002cbd5ca2c75f5674a6abbfe0dad6b134aa52ccd09472c78f8a3ac6337",
+    "source": "ai_review",
+    "reviewer": "ai:claude-opus-5-5",
+    "status": "accepted",
+    "fullGraphReviewed": true,
+    "blindJudgment": "5beabbe9516fad371fea5163d2877d38c3d4e8871124746bb42162b86ace0ede",
+    "reviewedAt": "2026-09-28T17:24:33.028Z",
+    "categories": {
+      "area": "booking"
+    },
+    "pairs": [
+      {
+        "task": "change",
+        "ref": "DEC-F01-001@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "add"
+          ],
+          "relation": [
+            "related"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "extend"
+          ]
+        },
+        "effects": [
+          "review"
+        ],
+        "evidence": [
+          "Appointments still last 30 minutes; add an SMS confirmation alongside email.",
+          "Appointments last 30 minutes and require an email confirmation."
+        ],
+        "explanation": "The change keeps the 30-minute duration and email confirmation and adds SMS alongside email, a purely additive extension. The node has authority, so the extension must be reviewed by a person."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F01-001@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "relates"
+          ],
+          "relation": [
+            "related"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "relation"
+        ],
+        "evidence": [
+          "Send an SMS confirmation as well as email for each appointment.",
+          "require an email confirmation"
+        ],
+        "explanation": "The idea adds SMS on top of the email confirmation the node requires; it is compatible and adds new information, so it is related rather than a duplicate."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F01-002@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Only Harbor appointments administrators can invite staff to the management console."
+        ],
+        "explanation": "The node concerns a different operational subject than the approved change; it remains fully valid and no link is needed."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F01-002@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Only Harbor appointments administrators can invite staff to the management console."
+        ],
+        "explanation": "The idea has no substantive connection to this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F01-003@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Administrative actions in Harbor appointments retain an immutable audit entry for one year."
+        ],
+        "explanation": "The node concerns a different operational subject than the approved change; it remains fully valid and no link is needed."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F01-003@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Administrative actions in Harbor appointments retain an immutable audit entry for one year."
+        ],
+        "explanation": "The idea has no substantive connection to this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F01-004@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Harbor appointments staff support is available Monday to Friday, 09:00 to 17:00."
+        ],
+        "explanation": "The node concerns a different operational subject than the approved change; it remains fully valid and no link is needed."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F01-004@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Harbor appointments staff support is available Monday to Friday, 09:00 to 17:00."
+        ],
+        "explanation": "The idea has no substantive connection to this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F01-005@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Harbor appointments navigation must be usable with a keyboard and a screen reader."
+        ],
+        "explanation": "The node concerns a different operational subject than the approved change; it remains fully valid and no link is needed."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F01-005@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Harbor appointments navigation must be usable with a keyboard and a screen reader."
+        ],
+        "explanation": "The idea has no substantive connection to this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F01-006@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Harbor appointments administrators can export the account directory as UTF-8 CSV."
+        ],
+        "explanation": "The node concerns a different operational subject than the approved change; it remains fully valid and no link is needed."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F01-006@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Harbor appointments administrators can export the account directory as UTF-8 CSV."
+        ],
+        "explanation": "The idea has no substantive connection to this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F01-007@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Harbor appointments console sessions expire after 30 minutes of inactivity."
+        ],
+        "explanation": "The shared \"30 minutes\" refers to console session inactivity, not appointment length; the subjects are unrelated."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F01-007@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Harbor appointments console sessions expire after 30 minutes of inactivity."
+        ],
+        "explanation": "The idea has no substantive connection to this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F01-008@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Harbor appointments account deletion requires a second administrator confirmation."
+        ],
+        "explanation": "The node concerns a different operational subject than the approved change; it remains fully valid and no link is needed."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F01-008@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Harbor appointments account deletion requires a second administrator confirmation."
+        ],
+        "explanation": "The idea has no substantive connection to this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F01-009@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Harbor appointments maintains an on-call contact list for service outages."
+        ],
+        "explanation": "The node concerns a different operational subject than the approved change; it remains fully valid and no link is needed."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F01-009@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Harbor appointments maintains an on-call contact list for service outages."
+        ],
+        "explanation": "The idea has no substantive connection to this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F01-010@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Harbor appointments documents approved policies in a versioned staff handbook."
+        ],
+        "explanation": "The node concerns a different operational subject than the approved change; it remains fully valid and no link is needed."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F01-010@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Harbor appointments documents approved policies in a versioned staff handbook."
+        ],
+        "explanation": "The idea has no substantive connection to this operational node."
+      }
+    ],
+    "method": "Blind AI review from the card only (independent Claude session); proposals, scenarios.json and model answers not consulted. Frozen in commit 1ddc81f before any model answer was read; compared with the AI proposal afterwards without changing labels (status records the comparison)."
+  },
+  {
+    "scenario": "F02-2",
+    "scenarioHash": "a66cc583e37265ae4121f489572dcd98e371f0ac078644e21aba036430909b25",
+    "source": "ai_review",
+    "reviewer": "ai:claude-opus-5-5",
+    "status": "ambiguous",
+    "fullGraphReviewed": true,
+    "blindJudgment": "4f4ad537470bf40235c51acbf34db7beb67abb356349faf2931080a19951ff20",
+    "reviewedAt": "2026-09-28T17:24:33.028Z",
+    "categories": {
+      "area": "loans"
+    },
+    "pairs": [
+      {
+        "task": "change",
+        "ref": "DEC-F02-010@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Cedar lending documents approved policies in a versioned staff handbook."
+        ],
+        "explanation": "The node concerns a different operational subject than the approved change; it remains fully valid and no link is needed."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F02-010@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Cedar lending documents approved policies in a versioned staff handbook."
+        ],
+        "explanation": "The idea has no substantive connection to this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F02-009@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Cedar lending maintains an on-call contact list for service outages."
+        ],
+        "explanation": "The node concerns a different operational subject than the approved change; it remains fully valid and no link is needed."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F02-009@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Cedar lending maintains an on-call contact list for service outages."
+        ],
+        "explanation": "The idea has no substantive connection to this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F02-008@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Cedar lending account deletion requires a second administrator confirmation."
+        ],
+        "explanation": "The node concerns a different operational subject than the approved change; it remains fully valid and no link is needed."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F02-008@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Cedar lending account deletion requires a second administrator confirmation."
+        ],
+        "explanation": "The idea has no substantive connection to this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F02-007@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Cedar lending console sessions expire after 30 minutes of inactivity."
+        ],
+        "explanation": "The node concerns a different operational subject than the approved change; it remains fully valid and no link is needed."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F02-007@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Cedar lending console sessions expire after 30 minutes of inactivity."
+        ],
+        "explanation": "The idea has no substantive connection to this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F02-006@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Cedar lending administrators can export the account directory as UTF-8 CSV."
+        ],
+        "explanation": "The node concerns a different operational subject than the approved change; it remains fully valid and no link is needed."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F02-006@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Cedar lending administrators can export the account directory as UTF-8 CSV."
+        ],
+        "explanation": "The idea has no substantive connection to this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F02-005@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Cedar lending navigation must be usable with a keyboard and a screen reader."
+        ],
+        "explanation": "The node concerns a different operational subject than the approved change; it remains fully valid and no link is needed."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F02-005@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Cedar lending navigation must be usable with a keyboard and a screen reader."
+        ],
+        "explanation": "The idea has no substantive connection to this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F02-004@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Cedar lending staff support is available Monday to Friday, 09:00 to 17:00."
+        ],
+        "explanation": "The node concerns a different operational subject than the approved change; it remains fully valid and no link is needed."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F02-004@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Cedar lending staff support is available Monday to Friday, 09:00 to 17:00."
+        ],
+        "explanation": "The idea has no substantive connection to this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F02-003@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Administrative actions in Cedar lending retain an immutable audit entry for one year."
+        ],
+        "explanation": "The node concerns a different operational subject than the approved change; it remains fully valid and no link is needed."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F02-003@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Administrative actions in Cedar lending retain an immutable audit entry for one year."
+        ],
+        "explanation": "The idea has no substantive connection to this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F02-002@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Only Cedar lending administrators can invite staff to the management console."
+        ],
+        "explanation": "The node concerns a different operational subject than the approved change; it remains fully valid and no link is needed."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F02-002@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Only Cedar lending administrators can invite staff to the management console."
+        ],
+        "explanation": "The idea has no substantive connection to this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F02-001@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "invalidate"
+          ],
+          "relation": [
+            "related"
+          ],
+          "compatibility": [
+            "direct_conflict"
+          ],
+          "action": [
+            "replace"
+          ]
+        },
+        "effects": [
+          "conflict",
+          "review"
+        ],
+        "evidence": [
+          "every standard equipment loan lasts exactly 7 days, replacing the 14-day term",
+          "A standard equipment loan lasts exactly 14 days."
+        ],
+        "explanation": "The approved change explicitly replaces the 14-day term with 7 days for the same loan type, making the node entirely obsolete. The card does not list it in supersedes and the node has authority, so the replacement must go through human review rather than automatic invalidation."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F02-001@1",
+        "ambiguous": true,
+        "labels": {
+          "A": [
+            "duplicates",
+            "relates"
+          ],
+          "relation": [
+            "equivalent",
+            "related"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "duplicate"
+        ],
+        "evidence": [
+          "Keep the standard equipment loan term at exactly 14 days from today.",
+          "A standard equipment loan lasts exactly 14 days."
+        ],
+        "explanation": "Judged against the initial graph, the idea restates the existing 14-day term; the added \"from today\" and \"consider the next release\" add little substance, so duplicates is most likely but relates is defensible."
+      }
+    ],
+    "method": "Blind AI review from the card only (independent Claude session); proposals, scenarios.json and model answers not consulted. Frozen in commit 1ddc81f before any model answer was read; compared with the AI proposal afterwards without changing labels (status records the comparison)."
+  },
+  {
+    "scenario": "F06-1",
+    "scenarioHash": "c96b77e92c70e64adae350f323400f4d06987cbfc07e5cb89bfcd381de66b347",
+    "source": "ai_review",
+    "reviewer": "ai:claude-opus-5-5",
+    "status": "accepted",
+    "fullGraphReviewed": true,
+    "blindJudgment": "eee4b658203dc9c61df8de452d90d3c47a0bdfcd0bbadf724d8ffbf544ac3501",
+    "reviewedAt": "2026-09-28T17:24:29Z",
+    "categories": {
+      "area": "access"
+    },
+    "pairs": [
+      {
+        "task": "change",
+        "ref": "DEC-F06-001@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "equivalent"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Sharing locker access codes between members remains prohibited.",
+          "Members must not share their locker access codes with other members."
+        ],
+        "explanation": "The approved change restates the existing prohibition with the same meaning and scope (\"remains prohibited\"), so the node stays as is."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F06-001@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "conflicts"
+          ],
+          "relation": [
+            "related"
+          ],
+          "compatibility": [
+            "direct_conflict"
+          ]
+        },
+        "effects": [
+          "conflict"
+        ],
+        "evidence": [
+          "Allow members to share locker access codes with other members.",
+          "Members must not share their locker access codes with other members."
+        ],
+        "explanation": "The idea allows exactly what the confirmed decision forbids, for the same actors and scope, so the claims are mutually exclusive."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F06-002@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Only Northwind lockers administrators can invite staff to the management console."
+        ],
+        "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F06-002@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Only Northwind lockers administrators can invite staff to the management console."
+        ],
+        "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F06-003@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Administrative actions in Northwind lockers retain an immutable audit entry for one year."
+        ],
+        "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F06-003@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Administrative actions in Northwind lockers retain an immutable audit entry for one year."
+        ],
+        "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F06-004@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Northwind lockers staff support is available Monday to Friday, 09:00 to 17:00."
+        ],
+        "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F06-004@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Northwind lockers staff support is available Monday to Friday, 09:00 to 17:00."
+        ],
+        "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F06-005@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Northwind lockers navigation must be usable with a keyboard and a screen reader."
+        ],
+        "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F06-005@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Northwind lockers navigation must be usable with a keyboard and a screen reader."
+        ],
+        "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F06-006@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Northwind lockers administrators can export the account directory as UTF-8 CSV."
+        ],
+        "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F06-006@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Northwind lockers administrators can export the account directory as UTF-8 CSV."
+        ],
+        "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F06-007@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Northwind lockers console sessions expire after 30 minutes of inactivity."
+        ],
+        "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F06-007@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Northwind lockers console sessions expire after 30 minutes of inactivity."
+        ],
+        "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F06-008@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Northwind lockers account deletion requires a second administrator confirmation."
+        ],
+        "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F06-008@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Northwind lockers account deletion requires a second administrator confirmation."
+        ],
+        "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F06-009@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Northwind lockers maintains an on-call contact list for service outages."
+        ],
+        "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F06-009@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Northwind lockers maintains an on-call contact list for service outages."
+        ],
+        "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F06-010@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Northwind lockers documents approved policies in a versioned staff handbook."
+        ],
+        "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F06-010@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Northwind lockers documents approved policies in a versioned staff handbook."
+        ],
+        "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+      }
+    ],
+    "method": "Blind AI review from the card only (independent Claude session); proposals, scenarios.json and model answers not consulted. Frozen in commit 1ddc81f before any model answer was read; compared with the AI proposal afterwards without changing labels (status records the comparison)."
+  },
+  {
+    "scenario": "F08-2",
+    "scenarioHash": "9817f9a214655900d5d5e31e8e5a6c4dc38597889cf5066def30e13a79a11ee0",
+    "source": "ai_review",
+    "reviewer": "ai:claude-opus-5-5",
+    "status": "ambiguous",
+    "fullGraphReviewed": true,
+    "blindJudgment": "2c942a622583b58d73e6c3ba7d0f0e0df24ffccffc25d12b3fed155f2105fc22",
+    "reviewedAt": "2026-09-28T17:24:29Z",
+    "categories": {
+      "area": "inventory"
+    },
+    "pairs": [
+      {
+        "task": "change",
+        "ref": "DEC-F08-010@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Willow reservations documents approved policies in a versioned staff handbook."
+        ],
+        "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F08-010@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Willow reservations documents approved policies in a versioned staff handbook."
+        ],
+        "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F08-009@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Willow reservations maintains an on-call contact list for service outages."
+        ],
+        "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F08-009@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Willow reservations maintains an on-call contact list for service outages."
+        ],
+        "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F08-008@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Willow reservations account deletion requires a second administrator confirmation."
+        ],
+        "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F08-008@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Willow reservations account deletion requires a second administrator confirmation."
+        ],
+        "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F08-007@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Willow reservations console sessions expire after 30 minutes of inactivity."
+        ],
+        "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F08-007@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Willow reservations console sessions expire after 30 minutes of inactivity."
+        ],
+        "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F08-006@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Willow reservations administrators can export the account directory as UTF-8 CSV."
+        ],
+        "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F08-006@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Willow reservations administrators can export the account directory as UTF-8 CSV."
+        ],
+        "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F08-005@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Willow reservations navigation must be usable with a keyboard and a screen reader."
+        ],
+        "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F08-005@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Willow reservations navigation must be usable with a keyboard and a screen reader."
+        ],
+        "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F08-004@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Willow reservations staff support is available Monday to Friday, 09:00 to 17:00."
+        ],
+        "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F08-004@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Willow reservations staff support is available Monday to Friday, 09:00 to 17:00."
+        ],
+        "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F08-003@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Administrative actions in Willow reservations retain an immutable audit entry for one year."
+        ],
+        "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F08-003@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Administrative actions in Willow reservations retain an immutable audit entry for one year."
+        ],
+        "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F08-002@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Only Willow reservations administrators can invite staff to the management console."
+        ],
+        "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F08-002@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Only Willow reservations administrators can invite staff to the management console."
+        ],
+        "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F08-001@1",
+        "ambiguous": true,
+        "labels": {
+          "A": [
+            "update",
+            "invalidate"
+          ],
+          "relation": [
+            "related"
+          ],
+          "compatibility": [
+            "assumption_mismatch",
+            "direct_conflict"
+          ],
+          "action": [
+            "revise",
+            "replace"
+          ]
+        },
+        "effects": [
+          "review",
+          "assumption"
+        ],
+        "evidence": [
+          "Reservation confirmation must now display live stock through a real-time inventory endpoint.",
+          "This decision applies to the next release in the same scope.",
+          "The inventory service exposes no real-time stock endpoint."
+        ],
+        "explanation": "The change requires a real-time endpoint that the node says does not exist; since it applies to the next release, the node states current fact and the mismatch is a premise one (or a full supersession once released). The node has authority, so a person must review whether to revise or replace it."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F08-001@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "inconsistent"
+          ],
+          "relation": [
+            "related"
+          ],
+          "compatibility": [
+            "assumption_mismatch"
+          ]
+        },
+        "effects": [
+          "assumption"
+        ],
+        "evidence": [
+          "Show live stock by calling the existing real-time inventory endpoint.",
+          "The inventory service exposes no real-time stock endpoint."
+        ],
+        "explanation": "The idea presupposes an existing real-time endpoint, which the node says is not exposed; the idea proposes a feature, not a counter-claim about the endpoint, so it is a premise mismatch rather than a direct conflict."
+      }
+    ],
+    "method": "Blind AI review from the card only (independent Claude session); proposals, scenarios.json and model answers not consulted. Frozen in commit 1ddc81f before any model answer was read; compared with the AI proposal afterwards without changing labels (status records the comparison)."
+  },
+  {
+    "scenario": "F13-1",
+    "scenarioHash": "61932004ce51e47c03fd9a5ba201e8b7a99e568bdfb5e4ea3b61746963bc7b51",
+    "source": "ai_review",
+    "reviewer": "ai:claude-opus-5-5",
+    "status": "accepted",
+    "fullGraphReviewed": true,
+    "blindJudgment": "c5c7cce0595db38a4d4bbef41fa5e8475e0f8f3bb7cfb3b03099d06b87ff6a03",
+    "reviewedAt": "2026-09-28T17:24:36Z",
+    "categories": {
+      "area": "allergens"
+    },
+    "pairs": [
+      {
+        "task": "change",
+        "ref": "DEC-F13-001@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "relate"
+          ],
+          "relation": [
+            "related"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "relation"
+        ],
+        "evidence": [
+          "The approved project policy now requires ingredient testing monthly.",
+          "this external source is advisory, not an approved project policy"
+        ],
+        "explanation": "The node only records advisory supplier guidance (annual testing), which remains a true description of that source; the approved monthly policy is stricter and does not contradict it, so a related link is recorded without modifying the source."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F13-001@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "relates"
+          ],
+          "relation": [
+            "related"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "relation"
+        ],
+        "evidence": [
+          "Discuss monthly ingredient testing as a stricter alternative to annual testing.",
+          "Supplier guidance suggests testing ingredients annually"
+        ],
+        "explanation": "The idea explicitly discusses a stricter alternative to the annual testing the advisory source suggests; it is a substantive connection, and since the source is advisory rather than a binding rule there is no mutually exclusive claim."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F13-002@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Only Juniper kitchens administrators can invite staff to the management console."
+        ],
+        "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F13-002@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Only Juniper kitchens administrators can invite staff to the management console."
+        ],
+        "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F13-003@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Administrative actions in Juniper kitchens retain an immutable audit entry for one year."
+        ],
+        "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F13-003@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Administrative actions in Juniper kitchens retain an immutable audit entry for one year."
+        ],
+        "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F13-004@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Juniper kitchens staff support is available Monday to Friday, 09:00 to 17:00."
+        ],
+        "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F13-004@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Juniper kitchens staff support is available Monday to Friday, 09:00 to 17:00."
+        ],
+        "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F13-005@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Juniper kitchens navigation must be usable with a keyboard and a screen reader."
+        ],
+        "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F13-005@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Juniper kitchens navigation must be usable with a keyboard and a screen reader."
+        ],
+        "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F13-006@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Juniper kitchens administrators can export the account directory as UTF-8 CSV."
+        ],
+        "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F13-006@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Juniper kitchens administrators can export the account directory as UTF-8 CSV."
+        ],
+        "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F13-007@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Juniper kitchens console sessions expire after 30 minutes of inactivity."
+        ],
+        "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F13-007@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Juniper kitchens console sessions expire after 30 minutes of inactivity."
+        ],
+        "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F13-008@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Juniper kitchens account deletion requires a second administrator confirmation."
+        ],
+        "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F13-008@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Juniper kitchens account deletion requires a second administrator confirmation."
+        ],
+        "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F13-009@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Juniper kitchens maintains an on-call contact list for service outages."
+        ],
+        "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F13-009@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Juniper kitchens maintains an on-call contact list for service outages."
+        ],
+        "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F13-010@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Juniper kitchens documents approved policies in a versioned staff handbook."
+        ],
+        "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F13-010@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Juniper kitchens documents approved policies in a versioned staff handbook."
+        ],
+        "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+      }
+    ],
+    "method": "Blind AI review from the card only (independent Claude session); proposals, scenarios.json and model answers not consulted. Frozen in commit 1ddc81f before any model answer was read; compared with the AI proposal afterwards without changing labels (status records the comparison)."
+  },
+  {
+    "scenario": "F15-2",
+    "scenarioHash": "5b4b51a3bbf563881ef39d33beaf12f6aae4cef750008a809378421b92b0aa67",
+    "source": "ai_review",
+    "reviewer": "ai:claude-opus-5-5",
+    "status": "ambiguous",
+    "fullGraphReviewed": true,
+    "blindJudgment": "953c0616c3a50e246435af777ef742ca5357053c920a15846f1defcf02bf8731",
+    "reviewedAt": "2026-09-28T17:24:36Z",
+    "categories": {
+      "area": "release"
+    },
+    "pairs": [
+      {
+        "task": "change",
+        "ref": "DEC-F15-010@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Pebble publishing documents approved policies in a versioned staff handbook."
+        ],
+        "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F15-010@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Pebble publishing documents approved policies in a versioned staff handbook."
+        ],
+        "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F15-009@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Pebble publishing maintains an on-call contact list for service outages."
+        ],
+        "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F15-009@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Pebble publishing maintains an on-call contact list for service outages."
+        ],
+        "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F15-008@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Pebble publishing account deletion requires a second administrator confirmation."
+        ],
+        "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F15-008@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Pebble publishing account deletion requires a second administrator confirmation."
+        ],
+        "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F15-007@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Pebble publishing console sessions expire after 30 minutes of inactivity."
+        ],
+        "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F15-007@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Pebble publishing console sessions expire after 30 minutes of inactivity."
+        ],
+        "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F15-006@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Pebble publishing administrators can export the account directory as UTF-8 CSV."
+        ],
+        "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F15-006@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Pebble publishing administrators can export the account directory as UTF-8 CSV."
+        ],
+        "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F15-005@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Pebble publishing navigation must be usable with a keyboard and a screen reader."
+        ],
+        "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F15-005@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Pebble publishing navigation must be usable with a keyboard and a screen reader."
+        ],
+        "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F15-004@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Pebble publishing staff support is available Monday to Friday, 09:00 to 17:00."
+        ],
+        "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F15-004@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Pebble publishing staff support is available Monday to Friday, 09:00 to 17:00."
+        ],
+        "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F15-003@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Administrative actions in Pebble publishing retain an immutable audit entry for one year."
+        ],
+        "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F15-003@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Administrative actions in Pebble publishing retain an immutable audit entry for one year."
+        ],
+        "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F15-002@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Only Pebble publishing administrators can invite staff to the management console."
+        ],
+        "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F15-002@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Only Pebble publishing administrators can invite staff to the management console."
+        ],
+        "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F15-001@1",
+        "ambiguous": true,
+        "labels": {
+          "A": [
+            "invalidate",
+            "update"
+          ],
+          "relation": [
+            "related"
+          ],
+          "compatibility": [
+            "direct_conflict"
+          ],
+          "action": [
+            "replace",
+            "revise"
+          ]
+        },
+        "effects": [
+          "conflict",
+          "review"
+        ],
+        "evidence": [
+          "Publication now requires approval from one editor.",
+          "This decision applies to the next release in the same scope.",
+          "Publication requires approval from two editors."
+        ],
+        "explanation": "The approved change sets one editor where the node requires two, in the same scope, so they directly conflict; it is unclear whether 'applies to the next release' replaces the rule from then on or only carves out that release, and since the node has authority and is not listed in supersedes, a person must review it."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F15-001@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "conflicts"
+          ],
+          "relation": [
+            "related"
+          ],
+          "compatibility": [
+            "direct_conflict"
+          ]
+        },
+        "effects": [
+          "conflict"
+        ],
+        "evidence": [
+          "A single editor should be sufficient to approve publication.",
+          "Publication requires approval from two editors."
+        ],
+        "explanation": "The idea claims one editor suffices to approve publication in the same scope where the approved rule requires two editors; these are mutually exclusive claims."
+      }
+    ],
+    "method": "Blind AI review from the card only (independent Claude session); proposals, scenarios.json and model answers not consulted. Frozen in commit 1ddc81f before any model answer was read; compared with the AI proposal afterwards without changing labels (status records the comparison)."
+  },
+  {
+    "scenario": "F16-1",
+    "scenarioHash": "2b33af07968cb771a0aba3e7f4f9fdd2fa7791699421b4e619045129653f8c2e",
+    "source": "ai_review",
+    "reviewer": "ai:claude-opus-5-5",
+    "status": "ambiguous",
+    "fullGraphReviewed": true,
+    "blindJudgment": "ae7eef976a0abf30a84593f60d35fbc94ae640dabed2d10eb8ca5beb7607aca5",
+    "reviewedAt": "2026-09-28T17:24:35.085Z",
+    "categories": {
+      "area": "alerts"
+    },
+    "pairs": [
+      {
+        "task": "change",
+        "ref": "DEC-F16-001@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "equivalent"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Every critical incident pages the on-call responder immediately."
+        ],
+        "explanation": "The approved change is a word-for-word restatement of this node, so the node stays complete and applicable with nothing to modify."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F16-001@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "duplicates"
+          ],
+          "relation": [
+            "equivalent"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "duplicate"
+        ],
+        "evidence": [
+          "Immediately page the on-call responder for every critical incident.",
+          "Every critical incident pages the on-call responder immediately."
+        ],
+        "explanation": "The idea rephrases the same requirement in the same scope (immediate paging of the on-call responder for critical incidents) without adding anything."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F16-002@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Only Kestrel incidents administrators can invite staff to the management console."
+        ],
+        "explanation": "The node concerns a different operational subject than critical-incident paging; nothing to change or relate."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F16-002@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Only Kestrel incidents administrators can invite staff to the management console."
+        ],
+        "explanation": "The idea about paging on critical incidents has no substantive connection to this operational rule."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F16-003@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Administrative actions in Kestrel incidents retain an immutable audit entry for one year."
+        ],
+        "explanation": "The node concerns a different operational subject than critical-incident paging; nothing to change or relate."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F16-003@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Administrative actions in Kestrel incidents retain an immutable audit entry for one year."
+        ],
+        "explanation": "The idea about paging on critical incidents has no substantive connection to this operational rule."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F16-004@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Kestrel incidents staff support is available Monday to Friday, 09:00 to 17:00."
+        ],
+        "explanation": "The node concerns a different operational subject than critical-incident paging; nothing to change or relate."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F16-004@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Kestrel incidents staff support is available Monday to Friday, 09:00 to 17:00."
+        ],
+        "explanation": "The idea about paging on critical incidents has no substantive connection to this operational rule."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F16-005@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Kestrel incidents navigation must be usable with a keyboard and a screen reader."
+        ],
+        "explanation": "The node concerns a different operational subject than critical-incident paging; nothing to change or relate."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F16-005@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Kestrel incidents navigation must be usable with a keyboard and a screen reader."
+        ],
+        "explanation": "The idea about paging on critical incidents has no substantive connection to this operational rule."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F16-006@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Kestrel incidents administrators can export the account directory as UTF-8 CSV."
+        ],
+        "explanation": "The node concerns a different operational subject than critical-incident paging; nothing to change or relate."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F16-006@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Kestrel incidents administrators can export the account directory as UTF-8 CSV."
+        ],
+        "explanation": "The idea about paging on critical incidents has no substantive connection to this operational rule."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F16-007@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Kestrel incidents console sessions expire after 30 minutes of inactivity."
+        ],
+        "explanation": "The node concerns a different operational subject than critical-incident paging; nothing to change or relate."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F16-007@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Kestrel incidents console sessions expire after 30 minutes of inactivity."
+        ],
+        "explanation": "The idea about paging on critical incidents has no substantive connection to this operational rule."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F16-008@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Kestrel incidents account deletion requires a second administrator confirmation."
+        ],
+        "explanation": "The node concerns a different operational subject than critical-incident paging; nothing to change or relate."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F16-008@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Kestrel incidents account deletion requires a second administrator confirmation."
+        ],
+        "explanation": "The idea about paging on critical incidents has no substantive connection to this operational rule."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F16-009@1",
+        "ambiguous": true,
+        "labels": {
+          "A": [
+            "keep",
+            "relate"
+          ],
+          "relation": [
+            "unrelated",
+            "related"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "pages the on-call responder",
+          "Kestrel incidents maintains an on-call contact list for service outages."
+        ],
+        "explanation": "Both mention on-call staff, but the node concerns a contact list for service outages while the change concerns paging for critical incidents; a link is defensible but not required, and no modification is needed."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F16-009@1",
+        "ambiguous": true,
+        "labels": {
+          "A": [
+            "none",
+            "relates"
+          ],
+          "relation": [
+            "unrelated",
+            "related"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "page the on-call responder",
+          "Kestrel incidents maintains an on-call contact list for service outages."
+        ],
+        "explanation": "The idea and node share the on-call topic but differ in subject (paging on critical incidents vs. an outage contact list); a weak compatible link is defensible at most."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F16-010@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Kestrel incidents documents approved policies in a versioned staff handbook."
+        ],
+        "explanation": "The node concerns a different operational subject than critical-incident paging; nothing to change or relate."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F16-010@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Kestrel incidents documents approved policies in a versioned staff handbook."
+        ],
+        "explanation": "The idea about paging on critical incidents has no substantive connection to this operational rule."
+      }
+    ],
+    "method": "Blind AI review from the card only (independent Claude session); proposals, scenarios.json and model answers not consulted. Frozen in commit 1ddc81f before any model answer was read; compared with the AI proposal afterwards without changing labels (status records the comparison)."
+  },
+  {
+    "scenario": "F20-2",
+    "scenarioHash": "fe1293064cc3f72bb99450ecfbe5fa9755d87a2e09cbe69eb8e67ff29cb9a845",
+    "source": "ai_review",
+    "reviewer": "ai:claude-opus-5-5",
+    "status": "ambiguous",
+    "fullGraphReviewed": true,
+    "blindJudgment": "04865442ee79c0bbd2a6c82bb99d62197a20e41398c0476e831136f81a1cba6e",
+    "reviewedAt": "2026-09-28T17:24:35.085Z",
+    "categories": {
+      "area": "shifts"
+    },
+    "pairs": [
+      {
+        "task": "change",
+        "ref": "DEC-F20-010@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Briar schedules documents approved policies in a versioned staff handbook."
+        ],
+        "explanation": "The node concerns a different operational subject than shift start times; nothing to change or relate."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F20-010@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Briar schedules documents approved policies in a versioned staff handbook."
+        ],
+        "explanation": "The idea about summer shift start times has no substantive connection to this operational rule."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F20-009@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Briar schedules maintains an on-call contact list for service outages."
+        ],
+        "explanation": "The node concerns a different operational subject than shift start times; nothing to change or relate."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F20-009@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Briar schedules maintains an on-call contact list for service outages."
+        ],
+        "explanation": "The idea about summer shift start times has no substantive connection to this operational rule."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F20-008@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Briar schedules account deletion requires a second administrator confirmation."
+        ],
+        "explanation": "The node concerns a different operational subject than shift start times; nothing to change or relate."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F20-008@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Briar schedules account deletion requires a second administrator confirmation."
+        ],
+        "explanation": "The idea about summer shift start times has no substantive connection to this operational rule."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F20-007@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Briar schedules console sessions expire after 30 minutes of inactivity."
+        ],
+        "explanation": "The node concerns a different operational subject than shift start times; nothing to change or relate."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F20-007@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Briar schedules console sessions expire after 30 minutes of inactivity."
+        ],
+        "explanation": "The idea about summer shift start times has no substantive connection to this operational rule."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F20-006@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Briar schedules administrators can export the account directory as UTF-8 CSV."
+        ],
+        "explanation": "The node concerns a different operational subject than shift start times; nothing to change or relate."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F20-006@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Briar schedules administrators can export the account directory as UTF-8 CSV."
+        ],
+        "explanation": "The idea about summer shift start times has no substantive connection to this operational rule."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F20-005@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Briar schedules navigation must be usable with a keyboard and a screen reader."
+        ],
+        "explanation": "The node concerns a different operational subject than shift start times; nothing to change or relate."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F20-005@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Briar schedules navigation must be usable with a keyboard and a screen reader."
+        ],
+        "explanation": "The idea about summer shift start times has no substantive connection to this operational rule."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F20-004@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Briar schedules staff support is available Monday to Friday, 09:00 to 17:00."
+        ],
+        "explanation": "Staff support hours are a different subject from shift start times; the shared 09:00 is coincidental and needs no change or link."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F20-004@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Briar schedules staff support is available Monday to Friday, 09:00 to 17:00."
+        ],
+        "explanation": "Support availability hours are not shift start times; the shared 09:00 is coincidental."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F20-003@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Administrative actions in Briar schedules retain an immutable audit entry for one year."
+        ],
+        "explanation": "The node concerns a different operational subject than shift start times; nothing to change or relate."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F20-003@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Administrative actions in Briar schedules retain an immutable audit entry for one year."
+        ],
+        "explanation": "The idea about summer shift start times has no substantive connection to this operational rule."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F20-002@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Only Briar schedules administrators can invite staff to the management console."
+        ],
+        "explanation": "The node concerns a different operational subject than shift start times; nothing to change or relate."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F20-002@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "none"
+          ],
+          "relation": [
+            "unrelated"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Only Briar schedules administrators can invite staff to the management console."
+        ],
+        "explanation": "The idea about summer shift start times has no substantive connection to this operational rule."
+      },
+      {
+        "task": "change",
+        "ref": "DEC-F20-001@1",
+        "ambiguous": false,
+        "labels": {
+          "A": [
+            "keep"
+          ],
+          "relation": [
+            "equivalent"
+          ],
+          "compatibility": [
+            "compatible"
+          ],
+          "action": [
+            "none"
+          ]
+        },
+        "effects": [
+          "preserve"
+        ],
+        "evidence": [
+          "Keep winter shifts at 08:00 and summer shifts at 09:00.",
+          "During the winter schedule, shifts start at 08:00. The summer schedule starts at 09:00."
+        ],
+        "explanation": "The change explicitly keeps the same winter 08:00 and summer 09:00 start times for the next release in the same scope, so it reaffirms the node without modifying it."
+      },
+      {
+        "task": "idea",
+        "ref": "DEC-F20-001@1",
+        "ambiguous": true,
+        "labels": {
+          "A": [
+            "duplicates",
+            "relates"
+          ],
+          "relation": [
+            "equivalent",
+            "related"
+          ],
+          "compatibility": [
+            "compatible"
+          ]
+        },
+        "effects": [
+          "duplicate"
+        ],
+        "evidence": [
+          "Summer shifts start at 09:00.",
+          "The summer schedule starts at 09:00."
+        ],
+        "explanation": "The idea restates the summer half of the node with the same time and scope and adds nothing new; since it covers only part of the node, a compatible related reading is also defensible."
+      }
+    ],
+    "method": "Blind AI review from the card only (independent Claude session); proposals, scenarios.json and model answers not consulted. Frozen in commit 1ddc81f before any model answer was read; compared with the AI proposal afterwards without changing labels (status records the comparison)."
+  }
+]

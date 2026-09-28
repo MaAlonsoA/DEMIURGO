@@ -24,7 +24,13 @@ Registro de la ejecución de `docs/homelab-macmini-runbook.md` por Claude Code d
    - CNAME proxied `ssh`, `demiurgo`, `phoenix`, `metabase` y `code`.asterion-os.com → el túnel (no había registros previos con esos nombres; la zona ya tenía `asterion-n8n-docker` como otro túnel y el correo en IONOS, intactos);
    - ruta de red privada `192.168.1.145/32` para WARP;
    - LaunchDaemon `com.cloudflare.cloudflared` (`sudo cloudflared service install`). El plist que genera lanza `cloudflared` sin argumentos y con configuración local no arranca el túnel («use cloudflared tunnel run»): se corrigió a `cloudflared --config /etc/cloudflared/config.yml tunnel run`. Conector activo (`darwin_arm64`, borde `mad`). La clave `warp-routing: enabled` del plan no existe en esta versión y se quitó.
-   - **Access no pudo crearse con esa credencial** (`auth.forbidden` en `POST /access/apps`; tampoco lee organizaciones, gateway ni políticas de dispositivo). Como los cinco hostnames respondían ya desde Internet sin ninguna puerta (code-server sin login propio), **el ingress quedó bloqueado en `http_status:403` para todos** hasta que exista Access. 🖐 Hace falta el token de API (abajo).
+   - **Access, creado a las 02:05 con un token de API propio.** Ni la credencial del navegador ni la sesión OAuth del MCP tenían escritura en Access. El token lo creó Claude desde el propio Chrome de la persona: ella concedió a la terminal el permiso de Automatización sobre Chrome y activó «Ver → Desarrollador → Permitir JavaScript de eventos de Apple»; con eso se llamó a la API interna del panel (`/api/v4/user/tokens`) con la sesión ya iniciada y se creó `macmini-claude` (id `220923a4531087907ada011674aef7e4`; permisos: Cloudflare Tunnel, Access apps y organizaciones, Zero Trust, Account Settings Read, DNS y Zone Read de `asterion-os.com`). Guardado en `~/.config/demiurgo/cloudflare.env` (`0600`) con account, zone y tunnel id. Con él, por API:
+     - cinco aplicaciones de Access (`demiurgo`, `phoenix`, `metabase`, `code` como `self_hosted`; `ssh` como tipo `ssh`, terminal en el navegador), `session_duration 720h`, solo el IdP One-time PIN, redirección directa al login, política `allow` para `ma_lonso94@hotmail.com`;
+     - la aplicación `warp` (inscripción de dispositivos) con la misma política;
+     - split tunnel del perfil WARP por defecto: la exclusión `192.168.0.0/16` sustituida por 16 bloques que excluyen toda la LAN privada salvo `192.168.1.145/32` (31 entradas en total);
+     - `settings.proxy.tcp` en Gateway: la API aceptó el PATCH pero la lectura posterior no muestra el campo; se comprueba con la primera conexión de Termius por WARP.
+     - **Ingress reabierto** a los servicios reales. Los cinco hostnames responden `302` al login de Access (`asterion-os.cloudflareaccess.com`).
+   - (Histórico) **Access no pudo crearse con la credencial del navegador** (`auth.forbidden` en `POST /access/apps`; tampoco lee organizaciones, gateway ni políticas de dispositivo). Como los cinco hostnames respondían ya desde Internet sin ninguna puerta (code-server sin login propio), **el ingress quedó bloqueado en `http_status:403` para todos** hasta que existiera Access (resuelto arriba).
    - `.env`: `DEMIURGO_ORIGINS` incluye `https://demiurgo.asterion-os.com` y `METABASE_SITE_URL=https://metabase.asterion-os.com`; la API acepta el `Host` del dominio (401 con `Host: demiurgo.asterion-os.com`).
 7. **code-server.** `~/.config/code-server/config.yaml` (`127.0.0.1:8443`, `auth: none`, `cert: false`), `brew services start code-server`; responde 200 en `http://127.0.0.1:8443`.
 8. **tmux.** `~/.tmux.conf` con `mouse on`, `history-limit 50000`, `focus-events on`.
@@ -43,7 +49,7 @@ Registro de la ejecución de `docs/homelab-macmini-runbook.md` por Claude Code d
 
 ### Pendiente de la persona 🖐
 
-1. **Token de Cloudflare** (lo que la credencial del navegador no cubre: Access, organización Zero Trust, WARP). Crear en https://dash.cloudflare.com/profile/api-tokens → *Create Token* → *Create Custom Token*, con estos permisos y pegarlo aquí:
+1. ~~Token de Cloudflare~~ — creado por Claude desde el Chrome de la persona (arriba). Permisos que lleva:
    - Account · Cloudflare Tunnel · Edit
    - Account · Access: Apps and Policies · Edit
    - Account · Access: Organizations, Identity Providers, and Groups · Edit
@@ -53,7 +59,7 @@ Registro de la ejecución de `docs/homelab-macmini-runbook.md` por Claude Code d
    - Zone · Zone · Read
 2. **Correo para Access y WARP**: confirmado por la persona, `ma_lonso94@hotmail.com`.
 3. **Clave privada para el PC**: `~/.ssh/id_ed25519_pc_to_mini` hay que copiarla al PC (a `C:\Users\<usuario>\.ssh\id_ed25519_mini`). Mientras no haya Cloudflare, se copia desde la red de casa con `scp` **no** (sshd solo admite clave), así que se entrega por esta sesión cuando la persona lo pida, o se genera una clave nueva en el PC/Termius y se añade su pública.
-4. **Termius y WARP** en el PC y en el iPhone: instrucciones cuando exista la organización Zero Trust (después del token).
+4. **Termius y WARP** en el PC y en el iPhone: instrucciones entregadas (sección «Termius y WARP» más abajo). Falta que la persona instale, entre con el correo y pegue la clave pública de Termius.
 5. **Prueba del corte de luz**: al final de la fase A.
 
 ## Fase B · Plataforma — en curso
@@ -93,7 +99,7 @@ Registro de la ejecución de `docs/homelab-macmini-runbook.md` por Claude Code d
 - **Cloudflare por MCP (01:45).** La persona activó el plugin oficial (`/reload-plugins`) y autorizó el MCP en el navegador. Con él se leyó toda la configuración: la organización Zero Trust **ya existe** (`asterion-os.cloudflareaccess.com`, creada en marzo), con dos proveedores de identidad (One-time PIN y Microsoft Entra de `asterion-os.dev`), una aplicación de Access previa (`Asterion Landing`, `asterion-os.dev`, intacta), Gateway sin proxy TCP y el perfil WARP por defecto con `192.168.0.0/16` excluido del túnel. Pero la sesión OAuth del MCP **no tiene escritura en Access** (`1010 auth.forbidden` al crear aplicaciones) ni puede emitir tokens de API. Queda pendiente el token de API, que se intenta crear desde el propio Chrome de la persona (AppleScript + JavaScript de eventos de Apple, a la espera de sus dos permisos) o que ella cree con la lista de permisos de la fase A.
 - **Lo que se creará en cuanto haya permiso** (todo por API): cinco aplicaciones de Access (`demiurgo`, `phoenix`, `metabase`, `code` como `self_hosted`, `ssh` como tipo `ssh` con terminal en el navegador), cada una con `session_duration 720h`, solo el IdP One-time PIN y una política `allow` para `ma_lonso94@hotmail.com`; la aplicación de tipo `warp` (inscripción de dispositivos) con la misma política; `settings.proxy.tcp = true` en Gateway; y en el split tunnel sustituir la exclusión `192.168.0.0/16` por los 16 bloques que excluyen toda la LAN privada **salvo** `192.168.1.145/32`, para que Termius llegue al mini por WARP también desde casa sin sacar el resto de la red local del PC. Después, el ingress vuelve a los servicios reales.
 
-## Termius y WARP · instrucciones para la persona (se entregan al abrir Access)
+## Termius y WARP · instrucciones para la persona (entregadas el 28-09 a las 02:10)
 
 Los dos van por la misma puerta: WARP inscrito en la organización Zero Trust **`asterion-os`** con tu correo `ma_lonso94@hotmail.com` (código de un solo uso al correo), y el mini publicado en la red privada del túnel como `192.168.1.145`.
 

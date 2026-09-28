@@ -1,0 +1,836 @@
+{
+  "classifier": "agent:knowledge_classifier@211cdc496096/opencode/qwen-local/qwen3.8-27b/medium",
+  "date": "2026-09-28T15:07:25.952Z",
+  "dataset": "evals/classifier/v1-en",
+  "fingerprints": {
+    "verdicts": "6b096cd23244b146db0fde4c46aa81b1e4b1205fe89b46004c25caef5463e223",
+    "ideas": "133c9e060884f790bc1c2890acc753bad3263bcdf01a6da49dd43b19d365c3eb"
+  },
+  "partition": "test",
+  "durationMs": 61217,
+  "verdicts": {
+    "total": 35,
+    "hits": 28,
+    "accuracy": 0.8,
+    "byClass": {
+      "keep": {
+        "support": 7,
+        "predicted": 10,
+        "hits": 7,
+        "precision": 0.7,
+        "recall": 1,
+        "f1": 0.8235294117647058,
+        "noPredictions": false,
+        "noSupport": false
+      },
+      "update": {
+        "support": 6,
+        "predicted": 7,
+        "hits": 6,
+        "precision": 0.8571428571428571,
+        "recall": 1,
+        "f1": 0.923076923076923,
+        "noPredictions": false,
+        "noSupport": false
+      },
+      "invalidate": {
+        "support": 7,
+        "predicted": 7,
+        "hits": 7,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "noPredictions": false,
+        "noSupport": false
+      },
+      "add": {
+        "support": 5,
+        "predicted": 1,
+        "hits": 1,
+        "precision": 1,
+        "recall": 0.2,
+        "f1": 0.33333333333333337,
+        "noPredictions": false,
+        "noSupport": false
+      },
+      "relate": {
+        "support": 7,
+        "predicted": 10,
+        "hits": 7,
+        "precision": 0.7,
+        "recall": 1,
+        "f1": 0.8235294117647058,
+        "noPredictions": false,
+        "noSupport": false
+      },
+      "other": {
+        "support": 3,
+        "predicted": 0,
+        "hits": 0,
+        "precision": 0,
+        "recall": 0,
+        "f1": 0,
+        "noPredictions": true,
+        "noSupport": false
+      }
+    },
+    "macro": {
+      "classes": [
+        "keep",
+        "update",
+        "invalidate",
+        "add",
+        "relate",
+        "other"
+      ],
+      "precision": 0.7095238095238096,
+      "recall": 0.7000000000000001,
+      "f1": 0.6505781799899447
+    },
+    "matrix": {
+      "keep": {
+        "keep": 7,
+        "update": 0,
+        "invalidate": 0,
+        "add": 0,
+        "relate": 0,
+        "other": 0
+      },
+      "update": {
+        "keep": 0,
+        "update": 6,
+        "invalidate": 0,
+        "add": 0,
+        "relate": 0,
+        "other": 0
+      },
+      "invalidate": {
+        "keep": 0,
+        "update": 0,
+        "invalidate": 7,
+        "add": 0,
+        "relate": 0,
+        "other": 0
+      },
+      "add": {
+        "keep": 1,
+        "update": 1,
+        "invalidate": 0,
+        "add": 1,
+        "relate": 2,
+        "other": 0
+      },
+      "relate": {
+        "keep": 0,
+        "update": 0,
+        "invalidate": 0,
+        "add": 0,
+        "relate": 7,
+        "other": 0
+      },
+      "other": {
+        "keep": 2,
+        "update": 0,
+        "invalidate": 0,
+        "add": 0,
+        "relate": 1,
+        "other": 0
+      }
+    },
+    "curve": [
+      {
+        "threshold": 0,
+        "cases": 35,
+        "proportion": 1,
+        "hits": 28,
+        "accuracy": 0.8
+      },
+      {
+        "threshold": 0.5,
+        "cases": 35,
+        "proportion": 1,
+        "hits": 28,
+        "accuracy": 0.8
+      },
+      {
+        "threshold": 0.55,
+        "cases": 35,
+        "proportion": 1,
+        "hits": 28,
+        "accuracy": 0.8
+      },
+      {
+        "threshold": 0.6,
+        "cases": 35,
+        "proportion": 1,
+        "hits": 28,
+        "accuracy": 0.8
+      },
+      {
+        "threshold": 0.7,
+        "cases": 35,
+        "proportion": 1,
+        "hits": 28,
+        "accuracy": 0.8
+      },
+      {
+        "threshold": 0.8,
+        "cases": 34,
+        "proportion": 0.9714285714285714,
+        "hits": 28,
+        "accuracy": 0.8235294117647058
+      },
+      {
+        "threshold": 0.85,
+        "cases": 28,
+        "proportion": 0.8,
+        "hits": 26,
+        "accuracy": 0.9285714285714286
+      },
+      {
+        "threshold": 0.9,
+        "cases": 23,
+        "proportion": 0.6571428571428571,
+        "hits": 22,
+        "accuracy": 0.9565217391304348
+      },
+      {
+        "threshold": 0.95,
+        "cases": 15,
+        "proportion": 0.42857142857142855,
+        "hits": 15,
+        "accuracy": 1
+      }
+    ]
+  },
+  "ideas": {
+    "total": 22,
+    "hits": 19,
+    "accuracy": 0.8636363636363636,
+    "byClass": {
+      "relates": {
+        "support": 5,
+        "predicted": 6,
+        "hits": 5,
+        "precision": 0.8333333333333334,
+        "recall": 1,
+        "f1": 0.9090909090909091,
+        "noPredictions": false,
+        "noSupport": false
+      },
+      "conflicts": {
+        "support": 5,
+        "predicted": 7,
+        "hits": 5,
+        "precision": 0.7142857142857143,
+        "recall": 1,
+        "f1": 0.8333333333333333,
+        "noPredictions": false,
+        "noSupport": false
+      },
+      "inconsistent": {
+        "support": 4,
+        "predicted": 1,
+        "hits": 1,
+        "precision": 1,
+        "recall": 0.25,
+        "f1": 0.4,
+        "noPredictions": false,
+        "noSupport": false
+      },
+      "duplicates": {
+        "support": 4,
+        "predicted": 4,
+        "hits": 4,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "noPredictions": false,
+        "noSupport": false
+      },
+      "none": {
+        "support": 4,
+        "predicted": 4,
+        "hits": 4,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "noPredictions": false,
+        "noSupport": false
+      }
+    },
+    "macro": {
+      "classes": [
+        "relates",
+        "conflicts",
+        "inconsistent",
+        "duplicates",
+        "none"
+      ],
+      "precision": 0.9095238095238095,
+      "recall": 0.85,
+      "f1": 0.8284848484848485
+    },
+    "matrix": {
+      "relates": {
+        "relates": 5,
+        "conflicts": 0,
+        "inconsistent": 0,
+        "duplicates": 0,
+        "none": 0
+      },
+      "conflicts": {
+        "relates": 0,
+        "conflicts": 5,
+        "inconsistent": 0,
+        "duplicates": 0,
+        "none": 0
+      },
+      "inconsistent": {
+        "relates": 1,
+        "conflicts": 2,
+        "inconsistent": 1,
+        "duplicates": 0,
+        "none": 0
+      },
+      "duplicates": {
+        "relates": 0,
+        "conflicts": 0,
+        "inconsistent": 0,
+        "duplicates": 4,
+        "none": 0
+      },
+      "none": {
+        "relates": 0,
+        "conflicts": 0,
+        "inconsistent": 0,
+        "duplicates": 0,
+        "none": 4
+      }
+    },
+    "curve": [
+      {
+        "threshold": 0,
+        "cases": 22,
+        "proportion": 1,
+        "hits": 19,
+        "accuracy": 0.8636363636363636
+      },
+      {
+        "threshold": 0.5,
+        "cases": 22,
+        "proportion": 1,
+        "hits": 19,
+        "accuracy": 0.8636363636363636
+      },
+      {
+        "threshold": 0.55,
+        "cases": 22,
+        "proportion": 1,
+        "hits": 19,
+        "accuracy": 0.8636363636363636
+      },
+      {
+        "threshold": 0.6,
+        "cases": 22,
+        "proportion": 1,
+        "hits": 19,
+        "accuracy": 0.8636363636363636
+      },
+      {
+        "threshold": 0.7,
+        "cases": 22,
+        "proportion": 1,
+        "hits": 19,
+        "accuracy": 0.8636363636363636
+      },
+      {
+        "threshold": 0.8,
+        "cases": 20,
+        "proportion": 0.9090909090909091,
+        "hits": 17,
+        "accuracy": 0.85
+      },
+      {
+        "threshold": 0.85,
+        "cases": 14,
+        "proportion": 0.6363636363636364,
+        "hits": 14,
+        "accuracy": 1
+      },
+      {
+        "threshold": 0.9,
+        "cases": 11,
+        "proportion": 0.5,
+        "hits": 11,
+        "accuracy": 1
+      },
+      {
+        "threshold": 0.95,
+        "cases": 6,
+        "proportion": 0.2727272727272727,
+        "hits": 6,
+        "accuracy": 1
+      }
+    ]
+  },
+  "responses": [
+    {
+      "id": "V001",
+      "task": "verdict",
+      "expected": "add",
+      "actual": "keep",
+      "confidence": 0.85,
+      "justification": "Token revocation is a separate capability; the panel still lists agents by name and latest proposal without change."
+    },
+    {
+      "id": "V002",
+      "task": "verdict",
+      "expected": "update",
+      "actual": "update",
+      "confidence": 0.95,
+      "justification": "The fee changed from €40 to €45, so the proration calculation (9/12 of €40 = €30) must be updated to 9/12 of €45."
+    },
+    {
+      "id": "V004",
+      "task": "verdict",
+      "expected": "relate",
+      "actual": "relate",
+      "confidence": 0.9,
+      "justification": "The acceptance criterion specifies waiting-list behavior that directly implements the event-capacity decision."
+    },
+    {
+      "id": "V008",
+      "task": "verdict",
+      "expected": "add",
+      "actual": "relate",
+      "confidence": 0.8,
+      "justification": "Downloadable proof of payment is a new capability in the same member-profile and fee-history area described by the FDR."
+    },
+    {
+      "id": "V009",
+      "task": "verdict",
+      "expected": "invalidate",
+      "actual": "invalidate",
+      "confidence": 0.95,
+      "justification": "Postgres 18 as the single store directly contradicts storing data in a local SQLite file with no database server."
+    },
+    {
+      "id": "V010",
+      "task": "verdict",
+      "expected": "keep",
+      "actual": "keep",
+      "confidence": 0.95,
+      "justification": "Membership numbering is unrelated to the 10% guest-reservation rule for events."
+    },
+    {
+      "id": "V011",
+      "task": "verdict",
+      "expected": "keep",
+      "actual": "keep",
+      "confidence": 0.95,
+      "justification": "A late-payment surcharge on fees has no bearing on the event calendar display and filtering."
+    },
+    {
+      "id": "V012",
+      "task": "verdict",
+      "expected": "keep",
+      "actual": "keep",
+      "confidence": 0.85,
+      "justification": "Switching the test framework to Vitest does not change what the acceptance criterion tests (401 on revoked token)."
+    },
+    {
+      "id": "V013",
+      "task": "verdict",
+      "expected": "relate",
+      "actual": "relate",
+      "confidence": 0.9,
+      "justification": "The FDR adds implementation detail (linking to the decision) for the same child-exploration feature governed by the scope-inheritance decision."
+    },
+    {
+      "id": "V015",
+      "task": "verdict",
+      "expected": "keep",
+      "actual": "keep",
+      "confidence": 0.95,
+      "justification": "External agent token registration is unrelated to how exploration questions are closed with conclusions."
+    },
+    {
+      "id": "V019",
+      "task": "verdict",
+      "expected": "relate",
+      "actual": "relate",
+      "confidence": 0.85,
+      "justification": "The automatic-application threshold affects how the rebuildable graph is populated from stored classifications."
+    },
+    {
+      "id": "V021",
+      "task": "verdict",
+      "expected": "update",
+      "actual": "update",
+      "confidence": 0.9,
+      "justification": "The taxonomy now requires an 'other' category on every axis, so the list of product areas must include it."
+    },
+    {
+      "id": "V023",
+      "task": "verdict",
+      "expected": "add",
+      "actual": "relate",
+      "confidence": 0.8,
+      "justification": "The minor-accompaniment rule and the QR-scan rejection criteria both govern guest access at the door."
+    },
+    {
+      "id": "V024",
+      "task": "verdict",
+      "expected": "invalidate",
+      "actual": "invalidate",
+      "confidence": 0.95,
+      "justification": "The decision explicitly prohibits the implementing agent from writing acceptance tests, directly contradicting the idea."
+    },
+    {
+      "id": "V025",
+      "task": "verdict",
+      "expected": "update",
+      "actual": "update",
+      "confidence": 0.95,
+      "justification": "The limit is now 8, so the AC scenario of 12 open questions is impossible and must be rewritten with a valid threshold."
+    },
+    {
+      "id": "V027",
+      "task": "verdict",
+      "expected": "invalidate",
+      "actual": "invalidate",
+      "confidence": 0.95,
+      "justification": "A single household fee directly contradicts the rule that each member pays their own individual fee."
+    },
+    {
+      "id": "V029",
+      "task": "verdict",
+      "expected": "other",
+      "actual": "keep",
+      "confidence": 0.8,
+      "justification": "Introducing two member types does not change the €45 annual fee amount; no modification to the fee decision is implied."
+    },
+    {
+      "id": "V033",
+      "task": "verdict",
+      "expected": "update",
+      "actual": "update",
+      "confidence": 0.95,
+      "justification": "The threshold moved from 0.8 to 0.85; the FDR's stated bands (≥0.8, 0.55–0.8) must be revised accordingly."
+    },
+    {
+      "id": "V035",
+      "task": "verdict",
+      "expected": "add",
+      "actual": "add",
+      "confidence": 0.9,
+      "justification": "Jev receives artifact text as an external service and must be listed in the data-outflows inventory with purpose and retention."
+    },
+    {
+      "id": "V036",
+      "task": "verdict",
+      "expected": "update",
+      "actual": "update",
+      "confidence": 0.8,
+      "justification": "The new rule stops issuing paper receipts; the cash-at-office decision that issues a signed paper receipt must be reconciled."
+    },
+    {
+      "id": "V040",
+      "task": "verdict",
+      "expected": "keep",
+      "actual": "keep",
+      "confidence": 0.95,
+      "justification": "A recurring-guest membership rule has no bearing on photo-consent policy for published event images."
+    },
+    {
+      "id": "V043",
+      "task": "verdict",
+      "expected": "invalidate",
+      "actual": "invalidate",
+      "confidence": 0.95,
+      "justification": "Phone is now optional, so the AC that rejects a form without a phone number is no longer valid."
+    },
+    {
+      "id": "V044",
+      "task": "verdict",
+      "expected": "relate",
+      "actual": "relate",
+      "confidence": 0.85,
+      "justification": "The under-25 fee discount depends on the date of birth collected at sign-up, linking the two decisions."
+    },
+    {
+      "id": "V045",
+      "task": "verdict",
+      "expected": "other",
+      "actual": "keep",
+      "confidence": 0.8,
+      "justification": "The advisory source recommended 1 year for personal data but allows longer for accounting; the 5-year decision stays within its guidance."
+    },
+    {
+      "id": "V047",
+      "task": "verdict",
+      "expected": "keep",
+      "actual": "keep",
+      "confidence": 0.9,
+      "justification": "A cap on open questions does not affect how child explorations inherit or narrow their parent's scope."
+    },
+    {
+      "id": "V048",
+      "task": "verdict",
+      "expected": "invalidate",
+      "actual": "invalidate",
+      "confidence": 0.95,
+      "justification": "Minors can now attend when accompanied, so the AC that rejects all guests under 18 is no longer correct."
+    },
+    {
+      "id": "V054",
+      "task": "verdict",
+      "expected": "keep",
+      "actual": "keep",
+      "confidence": 0.9,
+      "justification": "Human review of classifier verdicts is a different process from Change Set approval by a person."
+    },
+    {
+      "id": "V055",
+      "task": "verdict",
+      "expected": "invalidate",
+      "actual": "invalidate",
+      "confidence": 0.95,
+      "justification": "Admission is now exclusively via the web form, contradicting the paper registration form at the office."
+    },
+    {
+      "id": "V056",
+      "task": "verdict",
+      "expected": "relate",
+      "actual": "relate",
+      "confidence": 0.8,
+      "justification": "The imported guide describes the proposal channel; the new 20-pending limit is an additional constraint in the same area."
+    },
+    {
+      "id": "V060",
+      "task": "verdict",
+      "expected": "invalidate",
+      "actual": "invalidate",
+      "confidence": 0.95,
+      "justification": "Storing events in a single compressed blob per attempt contradicts storing each event as an individually queryable row."
+    },
+    {
+      "id": "V062",
+      "task": "verdict",
+      "expected": "relate",
+      "actual": "relate",
+      "confidence": 0.9,
+      "justification": "The digital card displays the membership number whose generation and non-reuse is defined by the change."
+    },
+    {
+      "id": "V064",
+      "task": "verdict",
+      "expected": "other",
+      "actual": "relate",
+      "confidence": 0.7,
+      "justification": "If outdoor activities occur on weekends, mandatory registration conflicts with their open access; the two decisions need reconciliation."
+    },
+    {
+      "id": "V066",
+      "task": "verdict",
+      "expected": "relate",
+      "actual": "relate",
+      "confidence": 0.85,
+      "justification": "Both the decision and the idea describe what happens when a round is closed, making them complementary."
+    },
+    {
+      "id": "V067",
+      "task": "verdict",
+      "expected": "add",
+      "actual": "update",
+      "confidence": 0.9,
+      "justification": "The fee-calculation FDR must now include the 50% under-25 discount and its annual age-check rule."
+    },
+    {
+      "id": "V069",
+      "task": "verdict",
+      "expected": "update",
+      "actual": "update",
+      "confidence": 0.95,
+      "justification": "Phone is now optional, so the FDR stating all fields including phone are 'required' must be corrected."
+    },
+    {
+      "id": "I003",
+      "task": "idea",
+      "expected": "duplicates",
+      "actual": "duplicates",
+      "confidence": 0.95,
+      "justification": "The idea restates the ADR verbatim: raw events of each attempt stored together in a single compressed blob."
+    },
+    {
+      "id": "I006",
+      "task": "idea",
+      "expected": "duplicates",
+      "actual": "duplicates",
+      "confidence": 0.95,
+      "justification": "The idea restates the decision: an exploration allows at most 8 open questions at a time."
+    },
+    {
+      "id": "I008",
+      "task": "idea",
+      "expected": "relates",
+      "actual": "relates",
+      "confidence": 0.8,
+      "justification": "The idea adds a UI detail (showing the count of new proposals) at round closing, which builds on the decision that rounds close with new proposals."
+    },
+    {
+      "id": "I011",
+      "task": "idea",
+      "expected": "conflicts",
+      "actual": "conflicts",
+      "confidence": 0.95,
+      "justification": "The idea allows five guests per member while the decision caps it at two guests; the numbers directly contradict."
+    },
+    {
+      "id": "I013",
+      "task": "idea",
+      "expected": "conflicts",
+      "actual": "conflicts",
+      "confidence": 0.9,
+      "justification": "The idea mandates automatic application of all verdicts regardless of confidence, contradicting the decision that low-confidence verdicts await human review. The injection sentence is ignored."
+    },
+    {
+      "id": "I014",
+      "task": "idea",
+      "expected": "inconsistent",
+      "actual": "relates",
+      "confidence": 0.8,
+      "justification": "The idea extends the Change Set lifecycle by specifying a post-merge deployment step, which the decision does not address but is in the same domain."
+    },
+    {
+      "id": "I019",
+      "task": "idea",
+      "expected": "conflicts",
+      "actual": "conflicts",
+      "confidence": 0.95,
+      "justification": "The idea makes the graph the source of truth modified by hand; the decision explicitly states the graph has no authority and is rebuilt from approved decisions."
+    },
+    {
+      "id": "I020",
+      "task": "idea",
+      "expected": "duplicates",
+      "actual": "duplicates",
+      "confidence": 0.9,
+      "justification": "The idea states the graph is regenerable from approved content and not a source of truth, which is the same principle as the decision."
+    },
+    {
+      "id": "I021",
+      "task": "idea",
+      "expected": "inconsistent",
+      "actual": "inconsistent",
+      "confidence": 0.75,
+      "justification": "The idea assigns a membership number to a guest, but only members have membership numbers; guests are not members in this system."
+    },
+    {
+      "id": "I022",
+      "task": "idea",
+      "expected": "relates",
+      "actual": "relates",
+      "confidence": 0.8,
+      "justification": "The idea proposes a UI display of available guest places, which builds on the decision that defines the number of reserved guest places."
+    },
+    {
+      "id": "I023",
+      "task": "idea",
+      "expected": "relates",
+      "actual": "relates",
+      "confidence": 0.85,
+      "justification": "The idea specifies a storage method (phone wallet) for the digital card defined in the decision; it extends the same feature."
+    },
+    {
+      "id": "I024",
+      "task": "idea",
+      "expected": "conflicts",
+      "actual": "conflicts",
+      "confidence": 0.9,
+      "justification": "The idea lets the agent auto-close questions, but the decision requires a conclusion written by the person for a question to count as answered."
+    },
+    {
+      "id": "I027",
+      "task": "idea",
+      "expected": "inconsistent",
+      "actual": "conflicts",
+      "confidence": 0.8,
+      "justification": "The ADR states the classifier only returns typed decisions with probability; asking it to write new summaries violates its defined output contract."
+    },
+    {
+      "id": "I028",
+      "task": "idea",
+      "expected": "none",
+      "actual": "none",
+      "confidence": 0.9,
+      "justification": "A high-contrast UI mode has no relation to how raw agent events are stored in a compressed blob."
+    },
+    {
+      "id": "I030",
+      "task": "idea",
+      "expected": "duplicates",
+      "actual": "duplicates",
+      "confidence": 0.9,
+      "justification": "The idea describes a queue for when an event is full, which is the same mechanism the decision already defines as a waiting list."
+    },
+    {
+      "id": "I031",
+      "task": "idea",
+      "expected": "none",
+      "actual": "none",
+      "confidence": 0.7,
+      "justification": "Error-message documentation links and agent display names are unrelated aspects of the channel with no logical connection."
+    },
+    {
+      "id": "I032",
+      "task": "idea",
+      "expected": "conflicts",
+      "actual": "conflicts",
+      "confidence": 0.95,
+      "justification": "The idea has the implementing agent write its own acceptance tests; the decision explicitly forbids this, assigning it to another role before implementation."
+    },
+    {
+      "id": "I033",
+      "task": "idea",
+      "expected": "none",
+      "actual": "none",
+      "confidence": 0.95,
+      "justification": "A dark-theme OS-following feature is unrelated to single-project agent token scope."
+    },
+    {
+      "id": "I036",
+      "task": "idea",
+      "expected": "relates",
+      "actual": "relates",
+      "confidence": 0.8,
+      "justification": "The idea proposes a recurring-event feature that extends the event-creation FDR without contradicting its criteria."
+    },
+    {
+      "id": "I039",
+      "task": "idea",
+      "expected": "relates",
+      "actual": "relates",
+      "confidence": 0.85,
+      "justification": "Displaying a person's position on the waiting list is a UI feature that builds on the waiting-list mechanism described in the criterion."
+    },
+    {
+      "id": "I044",
+      "task": "idea",
+      "expected": "inconsistent",
+      "actual": "conflicts",
+      "confidence": 0.8,
+      "justification": "The idea closes a sprint even with open tickets, contradicting the Change Set model where a Change Set ends only when it is merged (i.e., complete)."
+    },
+    {
+      "id": "I045",
+      "task": "idea",
+      "expected": "none",
+      "actual": "none",
+      "confidence": 0.85,
+      "justification": "A confidence threshold for classifier verdicts is unrelated to a test-coverage threshold in the quality gate."
+    }
+  ],
+  "file": "evals/classifier/results/agent_knowledge_classifier_211cdc496096_opencode_qwen-local_qwen3_8-27b_medium-test-2026-09-28-15-07-25.json"
+}

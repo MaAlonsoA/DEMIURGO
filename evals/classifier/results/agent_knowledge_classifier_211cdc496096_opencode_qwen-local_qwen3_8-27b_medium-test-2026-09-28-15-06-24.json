@@ -1,0 +1,836 @@
+{
+  "classifier": "agent:knowledge_classifier@211cdc496096/opencode/qwen-local/qwen3.8-27b/medium",
+  "date": "2026-09-28T15:06:24.228Z",
+  "dataset": "evals/classifier/v1",
+  "fingerprints": {
+    "verdicts": "8568c9d46a372320b4e109a4ff4e07f6be5230c1909a38ec50998f78ef02b316",
+    "ideas": "555be120eb0dbbd1a8109d354486e7f623c41862e81afdc163e2252b6d6a19e0"
+  },
+  "partition": "test",
+  "durationMs": 97233,
+  "verdicts": {
+    "total": 35,
+    "hits": 26,
+    "accuracy": 0.7428571428571429,
+    "byClass": {
+      "keep": {
+        "support": 7,
+        "predicted": 8,
+        "hits": 6,
+        "precision": 0.75,
+        "recall": 0.8571428571428571,
+        "f1": 0.7999999999999999,
+        "noPredictions": false,
+        "noSupport": false
+      },
+      "update": {
+        "support": 6,
+        "predicted": 11,
+        "hits": 6,
+        "precision": 0.5454545454545454,
+        "recall": 1,
+        "f1": 0.7058823529411764,
+        "noPredictions": false,
+        "noSupport": false
+      },
+      "invalidate": {
+        "support": 7,
+        "predicted": 6,
+        "hits": 6,
+        "precision": 1,
+        "recall": 0.8571428571428571,
+        "f1": 0.923076923076923,
+        "noPredictions": false,
+        "noSupport": false
+      },
+      "add": {
+        "support": 5,
+        "predicted": 1,
+        "hits": 1,
+        "precision": 1,
+        "recall": 0.2,
+        "f1": 0.33333333333333337,
+        "noPredictions": false,
+        "noSupport": false
+      },
+      "relate": {
+        "support": 7,
+        "predicted": 9,
+        "hits": 7,
+        "precision": 0.7777777777777778,
+        "recall": 1,
+        "f1": 0.8750000000000001,
+        "noPredictions": false,
+        "noSupport": false
+      },
+      "other": {
+        "support": 3,
+        "predicted": 0,
+        "hits": 0,
+        "precision": 0,
+        "recall": 0,
+        "f1": 0,
+        "noPredictions": true,
+        "noSupport": false
+      }
+    },
+    "macro": {
+      "classes": [
+        "keep",
+        "update",
+        "invalidate",
+        "add",
+        "relate",
+        "other"
+      ],
+      "precision": 0.678872053872054,
+      "recall": 0.6523809523809524,
+      "f1": 0.6062154348919054
+    },
+    "matrix": {
+      "keep": {
+        "keep": 6,
+        "update": 0,
+        "invalidate": 0,
+        "add": 0,
+        "relate": 1,
+        "other": 0
+      },
+      "update": {
+        "keep": 0,
+        "update": 6,
+        "invalidate": 0,
+        "add": 0,
+        "relate": 0,
+        "other": 0
+      },
+      "invalidate": {
+        "keep": 0,
+        "update": 1,
+        "invalidate": 6,
+        "add": 0,
+        "relate": 0,
+        "other": 0
+      },
+      "add": {
+        "keep": 1,
+        "update": 3,
+        "invalidate": 0,
+        "add": 1,
+        "relate": 0,
+        "other": 0
+      },
+      "relate": {
+        "keep": 0,
+        "update": 0,
+        "invalidate": 0,
+        "add": 0,
+        "relate": 7,
+        "other": 0
+      },
+      "other": {
+        "keep": 1,
+        "update": 1,
+        "invalidate": 0,
+        "add": 0,
+        "relate": 1,
+        "other": 0
+      }
+    },
+    "curve": [
+      {
+        "threshold": 0,
+        "cases": 35,
+        "proportion": 1,
+        "hits": 26,
+        "accuracy": 0.7428571428571429
+      },
+      {
+        "threshold": 0.5,
+        "cases": 35,
+        "proportion": 1,
+        "hits": 26,
+        "accuracy": 0.7428571428571429
+      },
+      {
+        "threshold": 0.55,
+        "cases": 35,
+        "proportion": 1,
+        "hits": 26,
+        "accuracy": 0.7428571428571429
+      },
+      {
+        "threshold": 0.6,
+        "cases": 33,
+        "proportion": 0.9428571428571428,
+        "hits": 25,
+        "accuracy": 0.7575757575757576
+      },
+      {
+        "threshold": 0.7,
+        "cases": 27,
+        "proportion": 0.7714285714285715,
+        "hits": 23,
+        "accuracy": 0.8518518518518519
+      },
+      {
+        "threshold": 0.8,
+        "cases": 19,
+        "proportion": 0.5428571428571428,
+        "hits": 17,
+        "accuracy": 0.8947368421052632
+      },
+      {
+        "threshold": 0.85,
+        "cases": 18,
+        "proportion": 0.5142857142857142,
+        "hits": 16,
+        "accuracy": 0.8888888888888888
+      },
+      {
+        "threshold": 0.9,
+        "cases": 17,
+        "proportion": 0.4857142857142857,
+        "hits": 16,
+        "accuracy": 0.9411764705882353
+      },
+      {
+        "threshold": 0.95,
+        "cases": 3,
+        "proportion": 0.08571428571428572,
+        "hits": 3,
+        "accuracy": 1
+      }
+    ]
+  },
+  "ideas": {
+    "total": 22,
+    "hits": 18,
+    "accuracy": 0.8181818181818182,
+    "byClass": {
+      "relates": {
+        "support": 5,
+        "predicted": 7,
+        "hits": 5,
+        "precision": 0.7142857142857143,
+        "recall": 1,
+        "f1": 0.8333333333333333,
+        "noPredictions": false,
+        "noSupport": false
+      },
+      "conflicts": {
+        "support": 5,
+        "predicted": 7,
+        "hits": 5,
+        "precision": 0.7142857142857143,
+        "recall": 1,
+        "f1": 0.8333333333333333,
+        "noPredictions": false,
+        "noSupport": false
+      },
+      "inconsistent": {
+        "support": 4,
+        "predicted": 0,
+        "hits": 0,
+        "precision": 0,
+        "recall": 0,
+        "f1": 0,
+        "noPredictions": true,
+        "noSupport": false
+      },
+      "duplicates": {
+        "support": 4,
+        "predicted": 4,
+        "hits": 4,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "noPredictions": false,
+        "noSupport": false
+      },
+      "none": {
+        "support": 4,
+        "predicted": 4,
+        "hits": 4,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "noPredictions": false,
+        "noSupport": false
+      }
+    },
+    "macro": {
+      "classes": [
+        "relates",
+        "conflicts",
+        "inconsistent",
+        "duplicates",
+        "none"
+      ],
+      "precision": 0.6857142857142857,
+      "recall": 0.8,
+      "f1": 0.7333333333333333
+    },
+    "matrix": {
+      "relates": {
+        "relates": 5,
+        "conflicts": 0,
+        "inconsistent": 0,
+        "duplicates": 0,
+        "none": 0
+      },
+      "conflicts": {
+        "relates": 0,
+        "conflicts": 5,
+        "inconsistent": 0,
+        "duplicates": 0,
+        "none": 0
+      },
+      "inconsistent": {
+        "relates": 2,
+        "conflicts": 2,
+        "inconsistent": 0,
+        "duplicates": 0,
+        "none": 0
+      },
+      "duplicates": {
+        "relates": 0,
+        "conflicts": 0,
+        "inconsistent": 0,
+        "duplicates": 4,
+        "none": 0
+      },
+      "none": {
+        "relates": 0,
+        "conflicts": 0,
+        "inconsistent": 0,
+        "duplicates": 0,
+        "none": 4
+      }
+    },
+    "curve": [
+      {
+        "threshold": 0,
+        "cases": 22,
+        "proportion": 1,
+        "hits": 18,
+        "accuracy": 0.8181818181818182
+      },
+      {
+        "threshold": 0.5,
+        "cases": 22,
+        "proportion": 1,
+        "hits": 18,
+        "accuracy": 0.8181818181818182
+      },
+      {
+        "threshold": 0.55,
+        "cases": 22,
+        "proportion": 1,
+        "hits": 18,
+        "accuracy": 0.8181818181818182
+      },
+      {
+        "threshold": 0.6,
+        "cases": 22,
+        "proportion": 1,
+        "hits": 18,
+        "accuracy": 0.8181818181818182
+      },
+      {
+        "threshold": 0.7,
+        "cases": 22,
+        "proportion": 1,
+        "hits": 18,
+        "accuracy": 0.8181818181818182
+      },
+      {
+        "threshold": 0.8,
+        "cases": 19,
+        "proportion": 0.8636363636363636,
+        "hits": 18,
+        "accuracy": 0.9473684210526315
+      },
+      {
+        "threshold": 0.85,
+        "cases": 17,
+        "proportion": 0.7727272727272727,
+        "hits": 17,
+        "accuracy": 1
+      },
+      {
+        "threshold": 0.9,
+        "cases": 13,
+        "proportion": 0.5909090909090909,
+        "hits": 13,
+        "accuracy": 1
+      },
+      {
+        "threshold": 0.95,
+        "cases": 10,
+        "proportion": 0.45454545454545453,
+        "hits": 10,
+        "accuracy": 1
+      }
+    ]
+  },
+  "responses": [
+    {
+      "id": "V001",
+      "task": "verdict",
+      "expected": "add",
+      "actual": "keep",
+      "confidence": 0.62,
+      "justification": "La revocación de tokens no modifica la lista de agentes registrados ni sus fechas; no hay conflicto explícito."
+    },
+    {
+      "id": "V002",
+      "task": "verdict",
+      "expected": "update",
+      "actual": "update",
+      "confidence": 0.95,
+      "justification": "El nuevo importe de 45 € invalida el cálculo con 40 €; el criterio debe recalcularse."
+    },
+    {
+      "id": "V004",
+      "task": "verdict",
+      "expected": "relate",
+      "actual": "relate",
+      "confidence": 0.8,
+      "justification": "El criterio concreta el comportamiento de la lista de espera y se relaciona con la decisión de aforo."
+    },
+    {
+      "id": "V008",
+      "task": "verdict",
+      "expected": "add",
+      "actual": "update",
+      "confidence": 0.78,
+      "justification": "La descarga de justificantes es un nuevo comportamiento del perfil que el FDR debe incorporar."
+    },
+    {
+      "id": "V009",
+      "task": "verdict",
+      "expected": "invalidate",
+      "actual": "invalidate",
+      "confidence": 0.93,
+      "justification": "Postgres como almacén único contradice y sustituye la base local SQLite."
+    },
+    {
+      "id": "V010",
+      "task": "verdict",
+      "expected": "keep",
+      "actual": "keep",
+      "confidence": 0.9,
+      "justification": "El número de socio no afecta a las plazas reservadas para invitados."
+    },
+    {
+      "id": "V011",
+      "task": "verdict",
+      "expected": "keep",
+      "actual": "keep",
+      "confidence": 0.92,
+      "justification": "El recargo por impago no afecta al calendario de eventos."
+    },
+    {
+      "id": "V012",
+      "task": "verdict",
+      "expected": "keep",
+      "actual": "relate",
+      "confidence": 0.65,
+      "justification": "El ADR define el framework de pruebas y se relaciona con el criterio de prueba."
+    },
+    {
+      "id": "V013",
+      "task": "verdict",
+      "expected": "relate",
+      "actual": "relate",
+      "confidence": 0.78,
+      "justification": "El FDR especifica el enlace de la exploración hija y se relaciona con la decisión de herencia de alcance."
+    },
+    {
+      "id": "V015",
+      "task": "verdict",
+      "expected": "keep",
+      "actual": "keep",
+      "confidence": 0.9,
+      "justification": "El registro por token no afecta a las conclusiones de preguntas."
+    },
+    {
+      "id": "V019",
+      "task": "verdict",
+      "expected": "relate",
+      "actual": "relate",
+      "confidence": 0.68,
+      "justification": "El umbral de aplicación automática se relaciona con la actualización del conocimiento derivado."
+    },
+    {
+      "id": "V021",
+      "task": "verdict",
+      "expected": "update",
+      "actual": "update",
+      "confidence": 0.6,
+      "justification": "Si todos los ejes incluyen «otra», la clasificación por áreas debe incorporar esa categoría."
+    },
+    {
+      "id": "V023",
+      "task": "verdict",
+      "expected": "add",
+      "actual": "update",
+      "confidence": 0.74,
+      "justification": "El control de acceso debe verificar el acompañamiento de menores en la puerta."
+    },
+    {
+      "id": "V024",
+      "task": "verdict",
+      "expected": "invalidate",
+      "actual": "invalidate",
+      "confidence": 0.9,
+      "justification": "La decisión separa implementación y pruebas, descartando la idea del mismo agente."
+    },
+    {
+      "id": "V025",
+      "task": "verdict",
+      "expected": "update",
+      "actual": "update",
+      "confidence": 0.93,
+      "justification": "Con un máximo de 8, el ejemplo de 12 preguntas abiertas debe actualizarse."
+    },
+    {
+      "id": "V027",
+      "task": "verdict",
+      "expected": "invalidate",
+      "actual": "invalidate",
+      "confidence": 0.94,
+      "justification": "La cuota por unidad familiar sustituye la cuota individual aunque convivan."
+    },
+    {
+      "id": "V029",
+      "task": "verdict",
+      "expected": "other",
+      "actual": "keep",
+      "confidence": 0.65,
+      "justification": "Dos tipos de socio no modifica el importe general de la cuota anual."
+    },
+    {
+      "id": "V033",
+      "task": "verdict",
+      "expected": "update",
+      "actual": "update",
+      "confidence": 0.95,
+      "justification": "El umbral sube a 0,85; el FDR debe actualizar los rangos de confianza."
+    },
+    {
+      "id": "V035",
+      "task": "verdict",
+      "expected": "add",
+      "actual": "add",
+      "confidence": 0.72,
+      "justification": "Jev es un servicio externo que recibe texto y debe añadirse al inventario de salidas."
+    },
+    {
+      "id": "V036",
+      "task": "verdict",
+      "expected": "update",
+      "actual": "update",
+      "confidence": 0.78,
+      "justification": "El pago en efectivo debe adaptarse para no entregar recibo en papel salvo solicitud."
+    },
+    {
+      "id": "V040",
+      "task": "verdict",
+      "expected": "keep",
+      "actual": "keep",
+      "confidence": 0.92,
+      "justification": "La obligación de socios para invitados recurrentes no afecta al consentimiento de fotos."
+    },
+    {
+      "id": "V043",
+      "task": "verdict",
+      "expected": "invalidate",
+      "actual": "invalidate",
+      "confidence": 0.96,
+      "justification": "El teléfono es opcional; el criterio que lo exige deja de valer."
+    },
+    {
+      "id": "V044",
+      "task": "verdict",
+      "expected": "relate",
+      "actual": "relate",
+      "confidence": 0.75,
+      "justification": "La cuota reducida depende de la fecha de nacimiento ya exigida en el alta."
+    },
+    {
+      "id": "V045",
+      "task": "verdict",
+      "expected": "other",
+      "actual": "relate",
+      "confidence": 0.6,
+      "justification": "La decisión de conservación a cinco años se opone a la recomendación de un año; hay que vincularlas."
+    },
+    {
+      "id": "V047",
+      "task": "verdict",
+      "expected": "keep",
+      "actual": "keep",
+      "confidence": 0.9,
+      "justification": "El máximo de preguntas abiertas no afecta a la herencia de alcance."
+    },
+    {
+      "id": "V048",
+      "task": "verdict",
+      "expected": "invalidate",
+      "actual": "update",
+      "confidence": 0.88,
+      "justification": "Los menores pueden entrar acompañados; el criterio de rechazo absoluto debe actualizarse."
+    },
+    {
+      "id": "V054",
+      "task": "verdict",
+      "expected": "keep",
+      "actual": "keep",
+      "confidence": 0.9,
+      "justification": "La revisión de veredictos no afecta a la aprobación de Change Sets."
+    },
+    {
+      "id": "V055",
+      "task": "verdict",
+      "expected": "invalidate",
+      "actual": "invalidate",
+      "confidence": 0.94,
+      "justification": "El formulario web exclusivo invalida el alta por papel en la secretaría."
+    },
+    {
+      "id": "V056",
+      "task": "verdict",
+      "expected": "relate",
+      "actual": "relate",
+      "confidence": 0.58,
+      "justification": "El límite de propuestas pendientes es una restricción relacionada con la guía de agentes."
+    },
+    {
+      "id": "V060",
+      "task": "verdict",
+      "expected": "invalidate",
+      "actual": "invalidate",
+      "confidence": 0.93,
+      "justification": "Guardar cada intento en un blob único contradice una fila por evento."
+    },
+    {
+      "id": "V062",
+      "task": "verdict",
+      "expected": "relate",
+      "actual": "relate",
+      "confidence": 0.78,
+      "justification": "El carnet digital usa el número de socio definido por la decisión."
+    },
+    {
+      "id": "V064",
+      "task": "verdict",
+      "expected": "other",
+      "actual": "update",
+      "confidence": 0.58,
+      "justification": "La inscripción obligatoria en fines de semana debe matizar la apertura de actividades al aire libre."
+    },
+    {
+      "id": "V066",
+      "task": "verdict",
+      "expected": "relate",
+      "actual": "relate",
+      "confidence": 0.7,
+      "justification": "El resumen propuesto se relaciona con el cierre de ronda pero no altera la decisión."
+    },
+    {
+      "id": "V067",
+      "task": "verdict",
+      "expected": "add",
+      "actual": "update",
+      "confidence": 0.9,
+      "justification": "El cálculo de cuotas debe incorporar la tarifa reducida para menores de 25."
+    },
+    {
+      "id": "V069",
+      "task": "verdict",
+      "expected": "update",
+      "actual": "update",
+      "confidence": 0.94,
+      "justification": "El FDR debe cambiar el teléfono de obligatorio a opcional."
+    },
+    {
+      "id": "I003",
+      "task": "idea",
+      "expected": "duplicates",
+      "actual": "duplicates",
+      "confidence": 0.97,
+      "justification": "La idea dice exactamente lo mismo que el ADR: eventos crudos de cada intento guardados juntos en un único blob comprimido."
+    },
+    {
+      "id": "I006",
+      "task": "idea",
+      "expected": "duplicates",
+      "actual": "duplicates",
+      "confidence": 0.97,
+      "justification": "La idea repite la decisión: máximo 8 preguntas abiertas a la vez en cada exploración."
+    },
+    {
+      "id": "I008",
+      "task": "idea",
+      "expected": "relates",
+      "actual": "relates",
+      "confidence": 0.85,
+      "justification": "Ambos tratan el cierre de ronda y las propuestas; la idea añade mostrar el recuento de propuestas generadas, que no está en la decisión."
+    },
+    {
+      "id": "I011",
+      "task": "idea",
+      "expected": "conflicts",
+      "actual": "conflicts",
+      "confidence": 0.95,
+      "justification": "La idea permite hasta cinco invitados; la decisión fija un máximo de dos. Son límites incompatibles."
+    },
+    {
+      "id": "I013",
+      "task": "idea",
+      "expected": "conflicts",
+      "actual": "conflicts",
+      "confidence": 0.95,
+      "justification": "La idea aplica todos los veredictos sin revisar; la decisión exige revisión humana para confianza < 0,55. (Se ignora la instrucción inyectada en el estado.)"
+    },
+    {
+      "id": "I014",
+      "task": "idea",
+      "expected": "inconsistent",
+      "actual": "relates",
+      "confidence": 0.75,
+      "justification": "La decisión dice que el Change Set termina al fusionarse; la idea propone desplegar en producción en ese momento. Extiende el ciclo de vida sin contradecirlo."
+    },
+    {
+      "id": "I019",
+      "task": "idea",
+      "expected": "conflicts",
+      "actual": "conflicts",
+      "confidence": 0.97,
+      "justification": "La idea trata el grafo como fuente de verdad modificable a mano; la decisión establece que no tiene autoridad y se reconstruye desde decisiones aprobadas."
+    },
+    {
+      "id": "I020",
+      "task": "idea",
+      "expected": "duplicates",
+      "actual": "duplicates",
+      "confidence": 0.97,
+      "justification": "La idea expresa lo mismo: el grafo se regenera desde lo aprobado y no es fuente de verdad."
+    },
+    {
+      "id": "I021",
+      "task": "idea",
+      "expected": "inconsistent",
+      "actual": "relates",
+      "confidence": 0.78,
+      "justification": "La decisión cubre el carnet del socio; la idea extiende la idea de mostrar número de socio al carnet de un invitado, un sujeto distinto."
+    },
+    {
+      "id": "I022",
+      "task": "idea",
+      "expected": "relates",
+      "actual": "relates",
+      "confidence": 0.9,
+      "justification": "La decisión fija plazas para invitados; la idea propone mostrar las libres. Misma noción con un aspecto de presentación añadido."
+    },
+    {
+      "id": "I023",
+      "task": "idea",
+      "expected": "relates",
+      "actual": "relates",
+      "confidence": 0.9,
+      "justification": "La decisión define el carnet digital; la idea propone una forma concreta de guardarlo (cartera del móvil). Misma entidad, nueva capacidad."
+    },
+    {
+      "id": "I024",
+      "task": "idea",
+      "expected": "conflicts",
+      "actual": "conflicts",
+      "confidence": 0.95,
+      "justification": "La decisión exige que solo una conclusión escrita por la persona cierre una pregunta; la idea deja que el agente cierre automáticamente."
+    },
+    {
+      "id": "I027",
+      "task": "idea",
+      "expected": "inconsistent",
+      "actual": "conflicts",
+      "confidence": 0.78,
+      "justification": "El ADR dice que el clasificador solo devuelve decisiones tipadas con probabilidad; la idea le asigna redactar resúmenes, una función fuera de ese 'solo'."
+    },
+    {
+      "id": "I028",
+      "task": "idea",
+      "expected": "none",
+      "actual": "none",
+      "confidence": 0.97,
+      "justification": "Un modo de alto contraste en la interfaz no guarda relación con el almacenamiento de eventos crudos en un blob comprimido."
+    },
+    {
+      "id": "I030",
+      "task": "idea",
+      "expected": "duplicates",
+      "actual": "duplicates",
+      "confidence": 0.85,
+      "justification": "La decisión ya establece que, al completarse el aforo, las nuevas inscripciones pasan a una lista de espera; la idea propone lo mismo."
+    },
+    {
+      "id": "I031",
+      "task": "idea",
+      "expected": "none",
+      "actual": "none",
+      "confidence": 0.82,
+      "justification": "Enlaces a documentación en mensajes de error no se relacionan con el nombre visible de los agentes en el canal."
+    },
+    {
+      "id": "I032",
+      "task": "idea",
+      "expected": "conflicts",
+      "actual": "conflicts",
+      "confidence": 0.97,
+      "justification": "La decisión prohíbe explícitamente que el agente que implementa escriba sus pruebas de aceptación; la idea lo propone exactamente."
+    },
+    {
+      "id": "I033",
+      "task": "idea",
+      "expected": "none",
+      "actual": "none",
+      "confidence": 0.97,
+      "justification": "La preferencia de tema oscuro del SO no guarda relación con los tokens de agente de un solo proyecto."
+    },
+    {
+      "id": "I036",
+      "task": "idea",
+      "expected": "relates",
+      "actual": "relates",
+      "confidence": 0.88,
+      "justification": "El FDR describe crear un evento puntual con fecha; la idea propone un evento recurrente semanal. Misma noción de evento, nueva variante."
+    },
+    {
+      "id": "I039",
+      "task": "idea",
+      "expected": "relates",
+      "actual": "relates",
+      "confidence": 0.9,
+      "justification": "El AC trata la asignación de plaza a la primera persona de la lista; la idea añade mostrar la posición de cada uno. Misma lista, nuevo aspecto de UI."
+    },
+    {
+      "id": "I044",
+      "task": "idea",
+      "expected": "inconsistent",
+      "actual": "conflicts",
+      "confidence": 0.82,
+      "justification": "La decisión cierra un Change Set al fusionarse; la idea propone sprints de dos semanas que se cierran aunque queden tickets abiertos, contradiciendo el ciclo basado en fusión."
+    },
+    {
+      "id": "I045",
+      "task": "idea",
+      "expected": "none",
+      "actual": "none",
+      "confidence": 0.88,
+      "justification": "El umbral de confianza del clasificador no se relaciona con el umbral de cobertura de líneas del gate de calidad."
+    }
+  ],
+  "file": "evals/classifier/results/agent_knowledge_classifier_211cdc496096_opencode_qwen-local_qwen3_8-27b_medium-test-2026-09-28-15-06-24.json"
+}

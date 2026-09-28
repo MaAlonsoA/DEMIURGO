@@ -16,12 +16,12 @@ import {
   quoteFound,
   system,
 } from '@demiurgo/domain';
-import type { CommandContext, Tx } from '../bus/types.ts';
+import type { CommandContext, Db } from '../bus/types.ts';
 
 export const DEFINITION_ACTOR = system('definition');
 
 /** The project's product definition stage, if it has been opened. */
-export async function definitionStageId(trx: Tx, projectId: string): Promise<string | null> {
+export async function definitionStageId(trx: Db, projectId: string): Promise<string | null> {
   const stage = await trx
     .selectFrom('stages')
     .select('id')
@@ -154,7 +154,7 @@ export type ProposedChange = { section: DefinitionSectionTitle; content: string;
  * what it already says, or none of its quotes is in what the person wrote in the thread (`said`).
  */
 export async function definitionChangeProposal(
-  trx: Tx,
+  trx: Db,
   projectId: string,
   change: ProposedChange,
   said: readonly { id: string; body: string }[],

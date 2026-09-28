@@ -179,7 +179,8 @@ describe('a decision in another thread changes the definition', () => {
       [1, 'superseded'],
     ]);
     const current = d.versions[0];
-    expect(current?.sections.find((s) => s.title === 'Constraints')?.content).toBe(DECIDED);
+    const sections = (current?.sections ?? []) as { title: string; content: string }[];
+    expect(sections.find((s) => s.title === 'Constraints')?.content).toBe(DECIDED);
     expect(current?.from_thread).toMatchObject({ proposal_id: change?.id, exploration_id: other });
     expect(current?.reasons).toEqual([{ section: 'Constraints', why: `Decided in this thread: ${DECIDED}`, own_words: null }]);
   });

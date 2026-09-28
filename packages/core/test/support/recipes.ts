@@ -102,6 +102,18 @@ registerRecipe('source', {
   },
 });
 
+registerRecipe('glossary_term', {
+  async create(s, projectId) {
+    const r = await executeCommand(s, {
+      command: 'glossary.set',
+      actor: ana,
+      projectId,
+      data: { term: unique('hilo'), english: 'thread' },
+    });
+    return r.entityId;
+  },
+});
+
 registerRecipe('question', {
   async create(s, projectId) {
     const exploration = await newExploration(s, projectId);

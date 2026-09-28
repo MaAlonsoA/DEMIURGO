@@ -499,6 +499,18 @@ export type ClassifierEvaluationsTable = {
   created_at: Generated<Timestamp>;
 };
 
+/** A word of the project's glossary and its fixed English term; the latest row of a word is current. */
+export type GlossaryTermsTable = {
+  id: Generated<string>;
+  project_id: string;
+  term: string;
+  english: string | null;
+  note: string | null;
+  state: string;
+  set_by: string;
+  created_at: Generated<Timestamp>;
+};
+
 /** A reading translation of a record: never authority, keyed by the source's fingerprint. */
 export type TranslationsTable = {
   id: Generated<string>;
@@ -551,6 +563,7 @@ export type DB = {
   idea_assessments: IdeaAssessmentsTable;
   classifier_evaluations: ClassifierEvaluationsTable;
   translations: TranslationsTable;
+  glossary_terms: GlossaryTermsTable;
 };
 
 export type Row<T extends keyof DB> = Selectable<DB[T]>;

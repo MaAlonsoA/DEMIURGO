@@ -137,6 +137,22 @@ export const CAPABILITIES = {
       "decisive": false,
       "description": "Register a source as untrusted input."
     },
+    "glossary.set": {
+      "entity": "glossary_term",
+      "allowed": [
+        "human"
+      ],
+      "decisive": true,
+      "description": "Fix the English term the project uses for a word, so records and translations use it the same way."
+    },
+    "glossary.remove": {
+      "entity": "glossary_term",
+      "allowed": [
+        "human"
+      ],
+      "decisive": true,
+      "description": "Drop a word from the project's glossary."
+    },
     "question.raise": {
       "entity": "question",
       "allowed": [
@@ -883,6 +899,13 @@ export const CAPABILITIES = {
       ],
       "description": "Providers, agents, assignments, stats and consumption."
     },
+    "query.glossary": {
+      "allowed": [
+        "human",
+        "agent_external"
+      ],
+      "description": "The project's glossary: its words and their fixed English terms."
+    },
     "query.translations": {
       "allowed": [
         "human"
@@ -1100,6 +1123,30 @@ export const TRANSITIONS = {
           "command": "source.register",
           "from": "new",
           "to": "registered"
+        }
+      ]
+    },
+    "glossary_term": {
+      "label": "Glossary term",
+      "implemented_in": "S2",
+      "states": {
+        "set": "Set",
+        "removed": "Removed"
+      },
+      "authority": [
+        "set",
+        "removed"
+      ],
+      "transitions": [
+        {
+          "command": "glossary.set",
+          "from": "new",
+          "to": "set"
+        },
+        {
+          "command": "glossary.remove",
+          "from": "new",
+          "to": "removed"
         }
       ]
     },

@@ -64,6 +64,15 @@ entities:
     transitions:
       - { command: source.register, from: new, to: registered }
 
+  glossary_term:
+    label: Glossary term
+    implemented_in: S2
+    states: { set: Set, removed: Removed }
+    authority: [set, removed]
+    transitions:
+      - { command: glossary.set, from: new, to: set }
+      - { command: glossary.remove, from: new, to: removed }
+
   question:
     label: Question
     implemented_in: S1

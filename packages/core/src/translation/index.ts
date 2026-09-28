@@ -22,6 +22,7 @@ import {
   LOCALE_NAMES,
 } from '@demiurgo/domain';
 import { TRANSLATION_ACTION, loadAgentCatalog } from '../agents/catalog.ts';
+import { projectGlossary } from '../commands/glossary.ts';
 import { callProvider, noCallSession } from '../assignments/calls.ts';
 import { resolveEngine, resolutionProblem } from '../assignments/assignments.ts';
 import type { Db } from '../db/connection.ts';
@@ -126,7 +127,12 @@ export async function readingTranslation(
   if (p.lang === 'en' || Object.keys(source).length === 0 || alreadyIn(p.lang, source)) return nothingToDo;
   if (tooManyFields(source)) throw new DomainError('validation', 'This is too long to translate at once.');
 
-  const sourceHash = translationSourceHash(p.subject, source);
+  // The project's fixed terms travel with the texts, and a change of term translates again.
+  const glossary = (await projectGlossary(deps.db, p.projectId)).map((g) => ({ term: g.term, english: g.english }));
+  const sourceHash = translationSourceHash(
+    p.subject,
+    glossary.length > 0 ? { ...source, '#glossary': JSON.stringify(glossary) } : source,
+  );
   const cached = await deps.db
     .selectFrom('translations')
     .select(['fields', 'provider', 'model'])
@@ -149,6 +155,7 @@ export async function readingTranslation(
     target_language: p.lang,
     target_language_name: LOCALE_NAMES[p.lang],
     fields: Object.entries(source).map(([key, text]) => ({ key, text })),
+    ...(glossary.length > 0 ? { glossary } : {}),
   };
   const composed = composeSystem(agent, agent.skillDefinitions, []);
   const result = await callProvider(

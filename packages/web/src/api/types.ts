@@ -621,3 +621,6 @@ export type ProjectUsageRow = {
   declaredCostUsd: number;
   avgDurationMs: number | null;
 };
+
+/** A word of the project's glossary and the English term records use for it (GET …/glossary). */
+export type GlossaryEntry = { term: string; english: string; note: string | null; set_by: string; created_at: string };

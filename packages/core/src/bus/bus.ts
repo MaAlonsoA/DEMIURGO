@@ -44,6 +44,7 @@ export const TABLES: Partial<Record<EntityName, string>> = {
   exploration: 'explorations',
   message: 'messages',
   source: 'sources',
+  glossary_term: 'glossary_terms',
   question: 'questions',
   stage: 'stages',
   record: 'records',

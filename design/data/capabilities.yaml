@@ -32,6 +32,8 @@ commands:
   message.post: { entity: message, allowed: [human, agent_external, agent_run], decisive: false, description: "Post a message in a thread with the actor as author." }
   message.abandon_response: { entity: message, allowed: [system], decisive: false, description: "Give up the answer to a message whose knowledge stayed out of date." }
   source.register: { entity: source, allowed: [human, agent_external], decisive: false, description: "Register a source as untrusted input." }
+  glossary.set: { entity: glossary_term, allowed: [human], decisive: true, description: "Fix the English term the project uses for a word, so records and translations use it the same way." }
+  glossary.remove: { entity: glossary_term, allowed: [human], decisive: true, description: "Drop a word from the project's glossary." }
 
   question.raise: { entity: question, allowed: [human, system], decisive: false, description: "Raise a question in an exploration (the agent's are raised by the system from its validated output)." }
   question.infer: { entity: question, allowed: [system], decisive: false, description: "Mark a question as inferred from an agent's output." }
@@ -143,6 +145,7 @@ queries:
   query.tables: { allowed: [human, agent_external], description: "Capability and transition tables." }
   query.tokens: { allowed: [human], description: "Project agent tokens." }
   query.providers: { allowed: [human], description: "Providers, agents, assignments, stats and consumption." }
+  query.glossary: { allowed: [human, agent_external], description: "The project's glossary: its words and their fixed English terms." }
   query.translations: { allowed: [human], description: "Reading translations of records into the person's language (never authority)." }
 
 # Workspace settings: not tied to a project, so they don't go through the project bus and leave no

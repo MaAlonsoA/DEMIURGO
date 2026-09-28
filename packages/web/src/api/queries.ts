@@ -10,6 +10,7 @@ import type {
   CommandCatalog,
   EventRow,
   Exploration,
+  GlossaryEntry,
   ExplorationDetail,
   IdeaAssessment,
   Inbox,
@@ -72,6 +73,9 @@ export const sessionQuery = queryOptions({
   },
   staleTime: 60_000,
 });
+
+export const glossaryQuery = (p: string) =>
+  queryOptions({ queryKey: ['p', p, 'glossary'] as const, queryFn: () => get<GlossaryEntry[]>(`${P(p)}/glossary`) });
 
 /** A record in the person's language, for reading. Refetched with the rest of the project on its events. */
 export const translationQuery = (p: string, subject: string, id: string, lang: string) =>

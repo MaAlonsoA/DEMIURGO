@@ -34,6 +34,7 @@ import {
   productMap,
   projectUsage,
   readingTranslation,
+  projectGlossary,
 } from '@demiurgo/core';
 import type { Credential } from './credentials.ts';
 
@@ -108,6 +109,12 @@ export function registerQueries(additions: QueryRoute[]): void {
 }
 
 registerQueries([
+  {
+    // The project's glossary: each word and the English term records and translations use for it.
+    path: '/api/projects/:projectId/glossary',
+    queryName: 'query.glossary',
+    respond: ({ services, params }) => projectGlossary(services.db, uuid(params.projectId, 'project')),
+  },
   {
     // A record in the person's language, for reading only: `?lang=es`. The source is loaded by the server.
     path: '/api/projects/:projectId/translations/:subject/:id',

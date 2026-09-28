@@ -37,3 +37,4 @@ export * from './design/export.ts';
 export * from './design/import.ts';
 export * from './dev/snapshots.ts';
 export * from './translation/index.ts';
+export { type GlossaryEntry, projectGlossary } from './commands/glossary.ts';

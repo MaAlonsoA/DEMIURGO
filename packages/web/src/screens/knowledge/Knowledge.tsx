@@ -1,6 +1,6 @@
 // Knowledge (DESIGN.md §3.8, spec §4.10): what DEMIURGO derives from what the person decided. The
 // header says its freshness in words ("Up to date", "Updating · 2 to go", "Behind · 1 failed") and
-// the graph version; five APG tabs (Graph, Search, Idea checks, Taxonomy, Rebuild) live in ?tab=
+// the graph version; six APG tabs (Graph, Search, Idea checks, Taxonomy, Glossary, Rebuild) live in ?tab=
 // without piling history entries; the side column lists the latest updates, and a failed one can be
 // retried where it is shown (INV-KNOW-01…05).
 
@@ -23,6 +23,7 @@ import { TabPanel, Tabs } from '../../components/Tabs.tsx';
 import { RelativeTime } from '../../components/Time.tsx';
 import { cn } from '../../lib/cn.ts';
 import { useProjectId } from '../../lib/hooks.ts';
+import { GlossaryTab } from './GlossaryTab.tsx';
 import { GraphTab } from './GraphTab.tsx';
 import { type Freshness, describeTrigger, freshnessOf } from './graph.ts';
 import { IdeaChecksTab } from './IdeaChecksTab.tsx';
@@ -35,6 +36,7 @@ const TABS = [
   { value: 'search', label: 'Search' },
   { value: 'ideas', label: 'Idea checks' },
   { value: 'taxonomy', label: 'Taxonomy' },
+  { value: 'glossary', label: 'Glossary' },
   { value: 'rebuild', label: 'Rebuild' },
 ] as const;
 
@@ -76,6 +78,9 @@ export function KnowledgeScreen() {
             </TabPanel>
             <TabPanel value="search">
               <SearchTab projectId={projectId} />
+            </TabPanel>
+            <TabPanel value="glossary">
+              <GlossaryTab projectId={projectId} />
             </TabPanel>
             <TabPanel value="ideas">
               <IdeaChecksTab projectId={projectId} />

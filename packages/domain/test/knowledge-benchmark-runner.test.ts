@@ -256,3 +256,46 @@ describe('Isolated knowledge benchmark', () => {
     expect(validateDataset([scenario], [bad], true).join(' ')).toContain('verbatim');
   });
 });
+
+describe('Blind runs and AI-reviewed references', () => {
+  it('runs a blind configuration without any reference, only on its sample, and replays it', async () => {
+    const scenarios = pilotScenarios();
+    const sample = scenarios.filter((s) => s.partition === 'dev').slice(0, 2);
+    const blind = config({ categories: 'predicted', retrieval: 'isolated', scenarios: sample.map((s) => s.id) });
+    const run = await executeBenchmark(
+      scenarios,
+      [],
+      blind,
+      { primary: classifier((items) => items.map((i) => response(i, i.options[0]!))) },
+      provenance,
+    );
+    expect(run.adjudicationHash).toBeNull();
+    expect(new Set(run.events.map((e) => e.scenario))).toEqual(new Set(sample.map((s) => s.id)));
+    expect(replayRun(scenarios, [], run).status).toBe(run.status);
+    // A run whose categories come from the reference is never blind.
+    await expect(
+      executeBenchmark(
+        scenarios,
+        [],
+        config({ scenarios: sample.map((s) => s.id) }),
+        { primary: classifier(() => []) },
+        provenance,
+      ),
+    ).rejects.toThrow('missing reference adjudication');
+  });
+
+  it('accepts an AI review only with ai: provenance and a method, never as a human record', () => {
+    const { scenario, annotation } = fixture();
+    const review: Annotation = {
+      ...annotation,
+      source: 'ai_review',
+      reviewer: 'ai:claude-opus-5-5',
+      method: 'Blind review from the card; proposals consulted after freezing.',
+    };
+    expect(validateDataset([scenario], [review], true)).toEqual([]);
+    expect(validateDataset([scenario], [{ ...review, reviewer: 'human:claude' }], true).length).toBeGreaterThan(0);
+    const { method: _method, ...withoutMethod } = review;
+    expect(validateDataset([scenario], [withoutMethod], true).length).toBeGreaterThan(0);
+    expect(validateDataset([scenario], [{ ...review, source: 'ai_proposal' }], true).length).toBeGreaterThan(0);
+  });
+});

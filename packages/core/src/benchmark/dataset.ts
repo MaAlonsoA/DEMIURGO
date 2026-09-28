@@ -29,8 +29,9 @@ export type PairJudgment = {
 export type Annotation = {
   scenario: string;
   scenarioHash: string;
-  source: 'ai_proposal' | 'human';
+  source: 'ai_proposal' | 'ai_review' | 'human';
   reviewer: string | null;
+  method?: string;
   status: 'proposed' | 'accepted' | 'corrected' | 'ambiguous';
   fullGraphReviewed: boolean;
   blindJudgment: string | null;
@@ -112,8 +113,10 @@ export const annotationSchema = z
   .object({
     scenario: nonempty,
     scenarioHash: nonempty,
-    source: z.enum(['ai_proposal', 'human']),
+    source: z.enum(['ai_proposal', 'ai_review', 'human']),
     reviewer: z.string().nullable(),
+    /** How an AI review was made (sessions, blindness, what was consulted and when). */
+    method: z.string().min(1).optional(),
     status: z.enum(['proposed', 'accepted', 'corrected', 'ambiguous']),
     fullGraphReviewed: z.boolean(),
     blindJudgment: z.string().nullable(),
@@ -137,10 +140,15 @@ export const annotationSchema = z
   })
   .strict();
 
+/**
+ * A reference is a human adjudication, or a blind AI review with explicit provenance (`ai:<model>`).
+ * An AI review is never presented as human and is not product authority. `requireReference` is
+ * true for every scenario, or the set of scenarios that must carry one (a sample).
+ */
 export function validateDataset(
   scenarios: readonly Scenario[],
   annotations: readonly Annotation[],
-  requireHuman = false,
+  requireReference: boolean | ReadonlySet<string> = false,
 ): string[] {
   const errors: string[] = [];
   const seen = new Set<string>();
@@ -177,8 +185,9 @@ export function validateDataset(
     const matches = annotations.filter((a) => a.scenario === s.id);
     if (matches.length > 1) errors.push(`${s.id}: duplicate annotations.`);
     const a = matches[0];
+    const requireHuman = requireReference === true || (requireReference !== false && requireReference.has(s.id));
     if (!a) {
-      if (requireHuman) errors.push(`${s.id}: missing human adjudication.`);
+      if (requireHuman) errors.push(`${s.id}: missing reference adjudication.`);
       continue;
     }
     const checked = annotationSchema.safeParse(a);
@@ -189,15 +198,18 @@ export function validateDataset(
     if (a.scenarioHash !== fingerprint(s)) errors.push(`${s.id}: stale annotation.`);
     if (
       requireHuman &&
-      (a.source !== 'human' ||
+      (a.source === 'ai_proposal' ||
         a.status === 'proposed' ||
-        !a.reviewer?.startsWith('human:') ||
+        !a.reviewer?.startsWith(a.source === 'human' ? 'human:' : 'ai:') ||
+        (a.source === 'ai_review' && !a.method) ||
         !a.fullGraphReviewed ||
         !a.blindJudgment ||
         !a.reviewedAt ||
         !Number.isFinite(Date.parse(a.reviewedAt)))
     )
-      errors.push(`${s.id}: requires a human blind judgment and explicit full graph review.`);
+      errors.push(
+        `${s.id}: requires a blind reference judgment (human, or AI review with provenance) and explicit full graph review.`,
+      );
     for (const axis of s.taxonomy.axes)
       if (!axis.categories.some((c) => c.code === a.categories[axis.code]))
         errors.push(`${s.id}: invalid category ${axis.code}.`);

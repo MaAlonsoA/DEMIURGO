@@ -197,7 +197,7 @@ async function main(): Promise<void> {
     // The submitted blind file is immutable evidence; the separate receipt binds its content hash.
     const receipt = { ...blind, blindJudgment: fingerprint(blind) };
     const reviewErrors = validateDataset(scenarios, [receipt], true).filter(
-      (error) => !error.endsWith(': missing human adjudication.'),
+      (error) => !error.endsWith(': missing reference adjudication.'),
     );
     if (reviewErrors.length) throw new Error(reviewErrors.join('\n'));
     const proposals = annotationSchema.array().parse(await json(`${dataset}/proposals.json`));

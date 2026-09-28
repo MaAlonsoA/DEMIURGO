@@ -49,6 +49,8 @@ export const configSchema = z
     condition: z.enum(['controlled', 'operational']),
     partition: z.enum(['dev', 'validation', 'confirmatory']),
     repetitions: z.number().int().min(1).max(5),
+    /** Optional sample: only these scenarios of the partition run (e.g. a reviewed subset). */
+    scenarios: z.array(z.string().min(1)).min(1).optional(),
     seed: z.number().int().nonnegative(),
     thresholds: z.object({ category: thresholdSchema, change: thresholdSchema, idea: thresholdSchema }).strict(),
     qwen: z.object({ model: z.string().min(1), effort: z.string().nullable(), configPath: z.string().min(1) }).strict(),
@@ -84,6 +86,14 @@ export const contractHash = () =>
     VERDICT_DESCRIPTIONS,
     INTERPRETATION_RULES,
   });
+/** The scenarios a configuration runs, in dataset order: its partition, or the sample within it. */
+export const selectedScenarios = (scenarios: readonly Scenario[], config: Config): Scenario[] =>
+  scenarios.filter((s) => s.partition === config.partition && (!config.scenarios || config.scenarios.includes(s.id)));
+/**
+ * Responses never depend on labels unless categories come from the reference. Such a run is blind:
+ * it needs no reference to execute, records `adjudicationHash: null`, and is scored later.
+ */
+export const isBlind = (config: Config): boolean => config.categories !== 'adjudicated';
 export const configurationId = (config: Config) => fingerprint({ config, contractHash: contractHash() });
 export type CallTrace = {
   stage: 'category' | Task;
@@ -122,7 +132,8 @@ export type EventTrace = {
 export type RunTrace = {
   version: 1;
   datasetHash: string;
-  adjudicationHash: string;
+  /** Null for a blind run (see `isBlind`); otherwise the reference the run depended on. */
+  adjudicationHash: string | null;
   contractHash: string;
   configurationId: string;
   config: Config;
@@ -179,21 +190,19 @@ export function pairItems(s: Scenario, config: Config, task: Task, candidates: C
   return base.map((item) => (config.contract === 'B' ? separatedItems(item, task) : [item]));
 }
 export function prepareInputs(scenarios: readonly Scenario[], config: Config) {
-  return scenarios
-    .filter((s) => s.partition === config.partition)
-    .map((s) => ({
-      scenario: s.id,
-      categories: itemsForCategories(s.change, s.taxonomy, config.contract !== 'historical'),
-      tasks: (['change', 'idea'] as const).map((task) => ({
+  return selectedScenarios(scenarios, config).map((s) => ({
+    scenario: s.id,
+    categories: itemsForCategories(s.change, s.taxonomy, config.contract !== 'historical'),
+    tasks: (['change', 'idea'] as const).map((task) => ({
+      task,
+      exhaustivePairs: pairItems(
+        s,
+        { ...config, retrieval: 'exhaustive' },
         task,
-        exhaustivePairs: pairItems(
-          s,
-          { ...config, retrieval: 'exhaustive' },
-          task,
-          candidatesFor(s, { ...config, retrieval: 'exhaustive' }, {}, task),
-        ),
-      })),
-    }));
+        candidatesFor(s, { ...config, retrieval: 'exhaustive' }, {}, task),
+      ),
+    })),
+  }));
 }
 function batches(groups: ItemChoice[][], config: Config): ItemChoice[][] {
   return config.condition === 'controlled' ? groups : groups.length ? [groups.flat()] : [];
@@ -370,15 +379,15 @@ export async function executeBenchmark(
   checkpoint?: (trace: RunTrace) => Promise<void>,
 ): Promise<RunTrace> {
   const config = configSchema.parse(configInput);
-  const errors = validateDataset(scenarios, annotations, true);
+  const selected = selectedScenarios(scenarios, config);
+  const errors = validateDataset(scenarios, annotations, isBlind(config) ? false : new Set(selected.map((s) => s.id)));
   if (errors.length) throw new Error(errors.join('\n'));
-  const selected = scenarios.filter((s) => s.partition === config.partition);
   if (!selected.length) throw new Error('No scenarios in the selected partition.');
   if (config.engine === 'cascade' && !engines.reviewer) throw new Error('Cascade requires a reviewer.');
   const trace: RunTrace = {
     version: 1,
     datasetHash: fingerprint(scenarios),
-    adjudicationHash: fingerprint(annotations),
+    adjudicationHash: isBlind(config) ? null : fingerprint(annotations),
     contractHash: contractHash(),
     configurationId: configurationId(config),
     config,
@@ -391,7 +400,7 @@ export async function executeBenchmark(
   for (let repetition = 0; repetition < config.repetitions; repetition++)
     for (const [order, s] of shuffled(selected, config.seed + repetition).entries()) {
       const start = Date.now();
-      const a = annotations.find((v) => v.scenario === s.id)!;
+      const a = annotations.find((v) => v.scenario === s.id);
       const event: EventTrace = {
         scenario: s.id,
         family: s.family,
@@ -460,22 +469,23 @@ export async function executeBenchmark(
 
 /** Reject trace drift rather than silently scoring a new experiment as a replay. */
 export function replayRun(scenarios: Scenario[], annotations: Annotation[], trace: RunTrace): RunTrace {
-  const errors = validateDataset(scenarios, annotations, true);
-  if (errors.length) throw new Error(errors.join('\n'));
   configSchema.parse(trace.config);
+  const selected = selectedScenarios(scenarios, trace.config);
+  const errors = validateDataset(scenarios, annotations, isBlind(trace.config) ? false : new Set(selected.map((s) => s.id)));
+  if (errors.length) throw new Error(errors.join('\n'));
   if (
     trace.datasetHash !== fingerprint(scenarios) ||
-    trace.adjudicationHash !== fingerprint(annotations) ||
+    (trace.adjudicationHash === null ? !isBlind(trace.config) : trace.adjudicationHash !== fingerprint(annotations)) ||
     trace.contractHash !== contractHash() ||
     trace.configurationId !== configurationId(trace.config)
   )
     throw new Error('Trace fingerprints do not match the dataset, adjudication, rubric or configuration.');
-  const expected = scenarios.filter((s) => s.partition === trace.config.partition).length * trace.config.repetitions;
+  const expected = selected.length * trace.config.repetitions;
   const keys = trace.events.map((e) => `${e.scenario}:${e.repetition}`);
   if (trace.events.length !== expected || new Set(keys).size !== expected || trace.status === 'running')
     throw new Error('Incomplete or duplicate event trace.');
   const events = trace.events.map((e) => {
-    const s = scenarios.find((scenario) => scenario.id === e.scenario && scenario.partition === trace.config.partition);
+    const s = selected.find((scenario) => scenario.id === e.scenario);
     if (!s || e.family !== s.family || e.repetition < 0 || e.repetition >= trace.config.repetitions)
       throw new Error('Unexpected event in trace.');
     const result = replayEvent(
@@ -484,10 +494,7 @@ export function replayRun(scenarios: Scenario[], annotations: Annotation[], trac
       e,
       annotations.find((a) => a.scenario === e.scenario),
     );
-    const ordered = shuffled(
-      scenarios.filter((scenario) => scenario.partition === trace.config.partition),
-      trace.config.seed + e.repetition,
-    );
+    const ordered = shuffled(selected, trace.config.seed + e.repetition);
     if (ordered[e.order]?.id !== s.id) throw new Error('Saved order differs from the recorded seed.');
     const expectedCalls: Pick<CallTrace, 'stage' | 'role' | 'items'>[] = [];
     const expectStage = (stage: CallTrace['stage'], groups: ItemChoice[][]) => {

@@ -120,7 +120,7 @@ test('AC-INT-001-11 every kind of thing in the inbox appears in Needs you and is
 
   // An assumed question, confirmed with DEMIURGO's reasoning in view; an open one, answered.
   const questions = group(page, 'Questions');
-  d = await pick(page, questions.getByRole('option', { name: /Who are the users/ }));
+  d = await pick(page, questions.getByRole('option', { name: /What job does the product do/ }));
   await expect(d.locator('[data-assumed]')).toContainText("DEMIURGO's assumed answer");
   await resolvesInPlace(page, person, projectId, d, async () => {
     await d.getByRole('button', { name: 'Confirm', exact: true }).click();
@@ -469,7 +469,7 @@ test('screens of cut 5: Needs you with every group, Catch up, and Needs you empt
   await expect(group(page, 'Knowledge updates that failed')).toBeVisible();
   await screenshot(page, 5, '01-needs-you');
   await shot(page, '01-needs-you-conflict');
-  await pick(page, group(page, 'Questions').getByRole('option', { name: /Who are the users/ }));
+  await pick(page, group(page, 'Questions').getByRole('option', { name: /What job does the product do/ }));
   await screenshot(page, 5, '02-needs-you-question');
   await shot(page, '02-needs-you-question');
   await pick(page, group(page, 'Proposals').getByRole('option', { name: /Guests see the catalog/ }));

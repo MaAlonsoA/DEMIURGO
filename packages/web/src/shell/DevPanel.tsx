@@ -1,5 +1,6 @@
 // Dev tools, only when the API runs with DEMIURGO_DEV_TOOLS=1 (INV-DEV-*): save the whole database
-// as a snapshot, restore or delete one, or reset to an empty database. Not product UI. It opens from
+// as a snapshot, restore or delete one, or reset to an empty database; and a line on the inspector
+// (Alt+click, screens/dev/Inspector.tsx). Not product UI. It opens from
 // the sidebar and from the person's menu; restores and resets ask with the app's own dialogs.
 // Saving, restoring and resetting restart the API's core: the page then reloads.
 
@@ -147,6 +148,7 @@ function Panel() {
             {t.resetEllipsis}
           </Button>
         </div>
+        <p className="text-sm text-fg-2">{t.inspectHint}</p>
         {busy ? (
           <p role="status" className="flex items-center gap-2 text-base text-info-text">
             <Spinner /> {busyWord}

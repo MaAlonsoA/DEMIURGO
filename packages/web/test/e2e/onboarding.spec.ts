@@ -160,8 +160,10 @@ test('AC-INT-001-01 a new product from a blank page: the idea becomes a project 
     'href',
     `/p/${projectId}/threads/${explorationId}`,
   );
-  await expect(page.locator('[data-later]')).toHaveCount(3);
-  await expect(page.locator('[data-later="who"]')).toContainText('Later');
+  // Who uses it, the rules and the features are no longer a "Later": they are the product definition's
+  // answers, here to confirm at once (the idea says none of them, so all eight wait for an answer).
+  await expect(page.locator('[data-later]')).toHaveCount(0);
+  await expect(page.locator('[data-definition-answers] [data-answer-state="asked"]')).toHaveCount(8);
   await expect(page.locator('main [data-status="confirmed"]')).toHaveCount(0);
   await expectAccessible(page, "here's what I understood");
 

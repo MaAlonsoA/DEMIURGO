@@ -106,12 +106,13 @@ export const PROPOSAL_TYPE_WORDS: Record<string, string> = {
   exploration: 'Thread',
   review: 'Review',
   record_translation: 'English version',
+  product_definition: 'Product definition',
   imported_record: 'Document',
   imported_taxonomy: 'Taxonomy',
 };
 
 /** Which proposals can be approved in the same gesture as accepting them (they create a record). */
-export const APPROVABLE_TYPES = new Set(['decision', 'fdr', 'design_record', 'record_translation']);
+export const APPROVABLE_TYPES = new Set(['decision', 'fdr', 'design_record', 'record_translation', 'product_definition']);
 
 export type EditableField = { key: string; label: string; max: number; multiline: boolean };
 
@@ -166,7 +167,7 @@ export const FINDING_WORDS: Record<string, string> = {
 };
 
 // Every record prefix the product has, not only the first four (INVENTORY Part D §3, UX problem).
-const RECORD_REF = /^((?:DEC|FDR|ADR|BUG|REQ|NFR|THR|PRR)-[A-Z]{3}-\d{3})@(\d+)$/;
+const RECORD_REF = /^((?:DEC|FDR|ADR|BUG|REQ|NFR|THR|PRR|PRD)-[A-Z]{3}-\d{3})@(\d+)$/;
 const CHECK_REF = /^AC-([A-Z]{3}-\d{3})-\d{2}@(\d+)$/;
 
 /**

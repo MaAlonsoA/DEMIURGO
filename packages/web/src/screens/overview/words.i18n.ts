@@ -13,11 +13,6 @@ export const OVERVIEW = messages(
     pageTitleProduct: 'Product',
     whatChanged: (n: number) => `What changed · ${n}`,
     newRecord: 'New record',
-    comingLater: 'Coming later',
-    later: 'Later',
-    laterWhoUsesIt: 'Who uses it',
-    laterRules: 'Rules for the whole product',
-    laterInIncrement: 'In a later increment, DEMIURGO will read them from your idea.',
     loadingProduct: 'Loading the product',
     whatNeedsAndRuns: 'What needs you and what runs',
     nothingHereYet: 'Nothing here yet',
@@ -36,11 +31,6 @@ export const OVERVIEW = messages(
     pageTitleProduct: 'Producto',
     whatChanged: (n: number) => `Qué ha cambiado · ${n}`,
     newRecord: 'Nuevo registro',
-    comingLater: 'Más adelante',
-    later: 'Más tarde',
-    laterWhoUsesIt: 'Quién la usa',
-    laterRules: 'Reglas para todo el producto',
-    laterInIncrement: 'En un incremento posterior, DEMIURGO las leerá de tu idea.',
     loadingProduct: 'Cargando el producto',
     whatNeedsAndRuns: 'Qué te necesita y qué se está ejecutando',
     nothingHereYet: 'Aún no hay nada aquí',
@@ -355,5 +345,125 @@ export const WHILE_AWAY = messages(
     aProblem: 'Un problema',
     openCode: (code: string) => `Abrir ${code}`,
     nothingConfirmedChanged: 'Nada de lo que confirmaste ha cambiado.',
+  },
+);
+
+/** The product definition on the Product page: what the product is, what it builds first and how. */
+export const DEFINITION = messages(
+  {
+    title: 'What the product is',
+    section: (key: string): string =>
+      (
+        ({
+          purpose: 'Purpose',
+          outcomes: 'We will know it works when',
+          principles: 'Principles',
+          stakeholders: 'Who uses it',
+          problem: 'The problem',
+          features: 'What the first version does',
+          scope_out: 'What is left out',
+          constraints: 'Constraints',
+        }) as Record<string, string>
+      )[key] ?? key,
+    inForce: (code: string, n: number) => `${code}, version ${n}`,
+    approvedBy: (who: string) => `approved by ${who}`,
+    you: 'you',
+    proposedTitle: 'Your product definition, drafted from your answers',
+    proposedNote:
+      'DEMIURGO put it together from the answers you confirmed, without changing a word. Nothing is recorded until you approve it.',
+    proposedNextTitle: (n: number) => `Version ${n} is proposed`,
+    proposedNextNote:
+      'An answer changed, so the definition changes with it. The version in force stays as it is until you approve this one.',
+    approve: 'Approve the definition',
+    approveNext: (n: number) => `Approve version ${n}`,
+    approving: 'Approving…',
+    approved: (n: number) => `Product definition, version ${n}, approved.`,
+    reviewIt: 'Review it with its proposal',
+    changesSince: (n: number) => `Changes since v${n}`,
+    history: 'History',
+    unchanged: 'Unchanged',
+    before: 'Before',
+    why: 'Why',
+    changed: 'changed',
+    settled: (how: string): string =>
+      (
+        ({
+          assumed: 'DEMIURGO read it in your idea and you confirmed it',
+          corrected: 'DEMIURGO assumed something else; you corrected it',
+          answered: 'Your answer',
+          left_open: 'Left open on purpose',
+        }) as Record<string, string>
+      )[how] ?? '',
+    notAsked: 'Not asked when this stage opened',
+    from: 'From the question',
+    change: 'Change',
+    changeLabel: (section: string) => `What it should say: ${section}`,
+    whyLabel: 'Why it changes',
+    whyHint: 'It stays in the history next to the change.',
+    proposeChange: 'Propose the change',
+    proposing: 'Proposing…',
+    cancel: 'Cancel',
+    changeProposed: 'Change proposed: approve the new version above.',
+    whyRequired: 'Say why it changes.',
+    versionLine: (n: number) => `v${n}`,
+    firstVersion: 'Composed from the answers you confirmed.',
+  },
+  {
+    title: 'Qué es el producto',
+    section: (key: string): string =>
+      (
+        ({
+          purpose: 'Propósito',
+          outcomes: 'Sabremos que funciona cuando',
+          principles: 'Principios',
+          stakeholders: 'Quién lo usa',
+          problem: 'El problema',
+          features: 'Qué hace la primera versión',
+          scope_out: 'Qué queda fuera',
+          constraints: 'Restricciones',
+        }) as Record<string, string>
+      )[key] ?? key,
+    inForce: (code: string, n: number) => `${code}, versión ${n}`,
+    approvedBy: (who: string) => `aprobada por ${who}`,
+    you: 'ti',
+    proposedTitle: 'La definición de tu producto, redactada con tus respuestas',
+    proposedNote:
+      'DEMIURGO la ha montado con las respuestas que confirmaste, sin cambiar una palabra. No queda registrada hasta que la apruebes.',
+    proposedNextTitle: (n: number) => `Se propone la versión ${n}`,
+    proposedNextNote:
+      'Cambió una respuesta y la definición cambia con ella. La versión vigente sigue igual hasta que apruebes esta.',
+    approve: 'Aprobar la definición',
+    approveNext: (n: number) => `Aprobar la versión ${n}`,
+    approving: 'Aprobando…',
+    approved: (n: number) => `Definición del producto, versión ${n}, aprobada.`,
+    reviewIt: 'Revisarla en su propuesta',
+    changesSince: (n: number) => `Cambios desde v${n}`,
+    history: 'Historia',
+    unchanged: 'Sin cambios',
+    before: 'Antes',
+    why: 'Por qué',
+    changed: 'cambiada',
+    settled: (how: string): string =>
+      (
+        ({
+          assumed: 'DEMIURGO lo leyó en tu idea y lo confirmaste',
+          corrected: 'DEMIURGO supuso otra cosa; lo corregiste',
+          answered: 'Tu respuesta',
+          left_open: 'Dejada abierta a propósito',
+        }) as Record<string, string>
+      )[how] ?? '',
+    notAsked: 'No se preguntó cuando se abrió esta etapa',
+    from: 'De la pregunta',
+    change: 'Cambiar',
+    changeLabel: (section: string) => `Qué debe decir: ${section}`,
+    whyLabel: 'Por qué cambia',
+    whyHint: 'Queda en la historia junto al cambio.',
+    proposeChange: 'Proponer el cambio',
+    proposing: 'Proponiendo…',
+    cancel: 'Cancelar',
+    changeProposed: 'Cambio propuesto: aprueba la versión nueva de arriba.',
+    whyRequired: 'Di por qué cambia.',
+    versionLine: (n: number) => `v${n}`,
+    firstVersion: 'Compuesta con las respuestas que confirmaste.',
   },
 );

@@ -125,8 +125,8 @@ test('AC-INT-001-09 capturing an idea from the overview saves it as a thread wit
     'href',
     `/p/${projectId}/threads/${later.entity_id}`,
   );
-  await expect(main.locator('[data-later]')).toContainText('Who uses it');
-  await expect(main.locator('[data-later]')).toContainText('Later');
+  // Who uses it and the rules for the whole product are in the product definition now, not a placeholder.
+  await expect(main.locator('[data-later]')).toHaveCount(0);
 
   await main.getByRole('button', { name: 'Capture an idea' }).click();
   const dialog = page.getByRole('dialog');

@@ -1,9 +1,10 @@
-// Product overview (DESIGN.md §3.5, INV-OVW-*, INV-LENS-*): an operational dashboard of where the
-// product stands. The header says how many features are ready to build, with a bar and its text
-// legend; coming back, "While you were away" tells what changed, as links, and marks the changed
-// things. Then the design stages, one section per kind of thing (every title opens it, Preview
-// shows its facts beside the page), and on the side what needs you in Catch up's order, what runs,
-// what is ready and what was decided — with "Ask DEMIURGO about the whole product" at the bottom.
+// Product overview (DESIGN.md §3.5, INV-OVW-*, INV-LENS-*). First, what the product is: its
+// definition (Definition.tsx), with where each section comes from and its changes. Then where it
+// stands: the header says how many features are ready to build, with a bar and its text legend;
+// coming back, "While you were away" tells what changed, as links, and marks the changed things.
+// Then the design stages, one section per kind of thing (every title opens it, Preview shows its
+// facts beside the page), and on the side what needs you in Catch up's order, what runs, what is
+// ready and what was decided — with "Ask DEMIURGO about the whole product" at the bottom.
 
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
@@ -18,7 +19,6 @@ import { EyeIcon, PlusIcon, ProductIcon } from '../../components/icons.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
 import { PageBody, PageHeader, Section, usePageTitle, WithAside } from '../../components/Page.tsx';
 import { Bone, Skeleton } from '../../components/Spinner.tsx';
-import { Tag } from '../../components/Badge.tsx';
 import { cn } from '../../lib/cn.ts';
 import { useProjectId, useTables } from '../../lib/hooks.ts';
 import { useMessages } from '../../i18n/define.ts';
@@ -33,6 +33,7 @@ import { WhileAway } from './lens/WhileAway.tsx';
 import { NeedsSummary } from './NeedsColumn.tsx';
 import { DraftPreview, type PreviewTarget, RecordPreview } from './Previews.tsx';
 import { draftingRuns, featureStatus, productProgress, recentlyDecided, workingRuns } from './progress.ts';
+import { ProductDefinitionSection } from './Definition.tsx';
 import { DesignStages } from './Stages.tsx';
 import { useReturnFocus } from '../record/returnFocus.ts';
 import { OVERVIEW } from './words.i18n.ts';
@@ -71,28 +72,6 @@ function OverviewSkeleton() {
       <Bone className="h-5 w-56" />
       <Bone className="h-32 w-full rounded-lg" />
     </Skeleton>
-  );
-}
-
-/** What comes later (INV-OVW-09): quiet, at the end, so it doesn't take the space of what can be done now. */
-function LaterRows() {
-  const t = useMessages(OVERVIEW);
-  const items = [t.laterWhoUsesIt, t.laterRules];
-  return (
-    <section aria-labelledby="later-title" data-later className="flex flex-col gap-2">
-      <h2 id="later-title" className="text-base font-semibold text-fg">
-        {t.comingLater}
-      </h2>
-      <ul className="flex flex-col gap-1.5 rounded-lg border border-dashed border-edge-strong px-4 py-3 text-sm text-fg-2">
-        {items.map((label) => (
-          <li key={label} className="flex flex-wrap items-center gap-2">
-            <Tag>{t.later}</Tag>
-            <span className="font-medium text-fg">{label}</span>
-            <span>{t.laterInIncrement}</span>
-          </li>
-        ))}
-      </ul>
-    </section>
   );
 }
 
@@ -205,6 +184,7 @@ function Overview({ projectId }: { projectId: string }) {
           ) : (
             <div className="flex flex-col gap-10">
               {lens.on ? <WhileAway projectId={projectId} lens={lens} /> : null}
+              <ProductDefinitionSection projectId={projectId} />
               <DesignStages projectId={projectId} />
               {empty ? (
                 <EmptyState
@@ -277,7 +257,6 @@ function Overview({ projectId }: { projectId: string }) {
                   changeOf={(id) => changeOf(lens, lens.threads, id)}
                 />
               )}
-              <LaterRows />
             </div>
           )}
         </WithAside>

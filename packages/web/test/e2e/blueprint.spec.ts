@@ -106,9 +106,9 @@ test('AC-INT-001-09 on a feature the Questions tab answers the questions of its 
   await expect(stateOf(page, t.pay)).toHaveAttribute('data-status', 'open');
   const assumed = page.locator(`[data-question="${t.assumed}"]`);
   await expect(
-    assumed.getByRole('heading', { name: 'Who are the users and stakeholders, and which one comes first?' }),
+    assumed.getByRole('heading', { name: 'What job does the product do, for whom, and in which situation?' }),
   ).toBeVisible();
-  await expect(assumed).toContainText('Why it matters: Every requirement traces back to someone who needs it.');
+  await expect(assumed).toContainText('Why it matters: The purpose is what every later decision is checked against.');
   const recommended = assumed.locator('[data-recommended]');
   await expect(recommended).toContainText('Recommended');
   await expect(recommended).toContainText("Let's go with members and organizers first, then guests once the pilot is over.");
@@ -130,11 +130,8 @@ test('AC-INT-001-09 on a feature the Questions tab answers the questions of its 
   await expect(aside.locator('[data-later]')).toContainText('Becomes a decision and adds checks on its own');
   await expectAccessible(page, 'the Questions tab of a feature');
   await assumed.getByRole('heading').click();
-  await expect(assumed.getByRole('button', { name: /Who are the users and stakeholders/ })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
-  await expect(aside).toContainText('Who are the users and stakeholders');
+  await expect(assumed.getByRole('button', { name: /What job does the product do/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(aside).toContainText('What job does the product do');
   await expect(aside).toContainText("Let's go with members and organizers first");
   await expect(aside).toContainText('Yes. It waits until you confirm the answer DEMIURGO assumed.');
   for (const c of CHECKS) await expect(aside.locator('[data-aside-check]').filter({ hasText: c.title })).toHaveCount(1);
@@ -608,7 +605,7 @@ test('screens of the record: a feature with the navigator, its questions, its ch
     .getByRole('link', { name: /Questions/ })
     .click();
   await page.locator(`[data-question="${t.assumed}"]`).getByRole('heading').click();
-  await expect(page.getByRole('region', { name: 'If you confirm' })).toContainText('Who are the users and stakeholders');
+  await expect(page.getByRole('region', { name: 'If you confirm' })).toContainText('What job does the product do');
   await screenshot(page, 8, '02-blueprint-questions');
   await shot(page, 'record-questions');
   await shot(page, 'record-questions-full', true);

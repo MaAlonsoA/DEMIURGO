@@ -45,7 +45,7 @@ function Sub({ children }: { children: ReactNode }) {
   return <h3 className="text-xs font-medium text-fg-2">{children}</h3>;
 }
 
-const CODE = /\b((?:DEC|FDR|ADR|BUG|REQ|NFR|THR|PRR)-[A-Z]{3}-\d{3})\b/g;
+const CODE = /\b((?:DEC|FDR|ADR|BUG|REQ|NFR|THR|PRR|PRD)-[A-Z]{3}-\d{3})\b/g;
 
 /** A server reason as it came, with the record codes it names turned into links (the text stays). */
 export function ReasonText({ projectId, text }: { projectId: string; text: string }) {

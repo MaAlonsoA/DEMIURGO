@@ -45,6 +45,7 @@ const SECTION_OF: Record<string, string> = {
   quality_requirement: 'stage-records-title',
   threat_model: 'stage-records-title',
   production_readiness: 'stage-records-title',
+  product_definition: 'definition-title',
 };
 
 export function recordCrumbs(

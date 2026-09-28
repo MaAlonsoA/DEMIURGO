@@ -74,6 +74,7 @@ export type Navigator = { project: string; groups: NavGroup[]; parked: { id: str
 
 /** The groups of the records navigator, in the order of the product: features first, bugs last. */
 const NAV_GROUPS: { key: ProductRow['type']; titleKey: keyof RailWords }[] = [
+  { key: 'product_definition', titleKey: 'groupDefinition' },
   { key: 'fdr', titleKey: 'groupFeatures' },
   { key: 'decision', titleKey: 'groupDecisions' },
   { key: 'adr', titleKey: 'groupTech' },

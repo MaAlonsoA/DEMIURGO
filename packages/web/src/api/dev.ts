@@ -1,7 +1,9 @@
-// Dev tools of the API (only with DEMIURGO_DEV_TOOLS=1): snapshots of the whole database and reset.
-// Saving, restoring and resetting restart the API's core; the request answers once it is back.
+// Dev tools of the API (only with DEMIURGO_DEV_TOOLS=1): snapshots of the whole database, reset, and
+// the trace of any entity. Saving, restoring and resetting restart the API's core; the request
+// answers once it is back.
 
 import { queryOptions } from '@tanstack/react-query';
+import type { Trace, TraceType } from '../screens/dev/trace.ts';
 import { get, request } from './client.ts';
 
 export type Snapshot = {
@@ -27,3 +29,10 @@ export const saveSnapshot = (label: string) => request<{ snapshot: Snapshot }>('
 export const restoreSnapshot = (name: string) => request<{ restored: Snapshot }>('POST', `${snapshotPath(name)}/restore`);
 export const dropSnapshot = (name: string) => request<{ dropped: Snapshot }>('DELETE', snapshotPath(name));
 export const resetEnvironment = () => request<{ reset: true }>('POST', '/api/dev/reset');
+
+/** Where an entity comes from, its raw data and the agent contexts that read it. */
+export const traceQuery = (project: string, type: TraceType, id: string) =>
+  queryOptions({
+    queryKey: ['dev', 'trace', project, type, id] as const,
+    queryFn: () => get<Trace>(`/api/dev/trace?${new URLSearchParams({ project, type, id }).toString()}`),
+  });

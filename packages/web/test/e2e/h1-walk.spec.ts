@@ -110,6 +110,11 @@ async function settleOne(page: Page, item: Locator, kind: string, key: string): 
       }
       break;
     }
+    case 'proposal':
+      // Covering the product definition stage drafts the product definition: the person approves it.
+      await click('Accept and approve');
+      await confirmIn(page, 'Accept and approve');
+      break;
     default:
       throw new Error(`Needs you shows something the H1 walk did not expect: ${kind} (${key})`);
   }

@@ -1,7 +1,7 @@
 // Day 1 once the idea is written (DESIGN.md §1 J5, §3.9). First DEMIURGO reads it live; then
-// "What I understood": its reading, all proposed; its questions, answered in the thread; what it
-// proposed, each with its real state (a rejected or out-of-date proposal never shows as accepted);
-// and a quiet "Later" for what H1 cannot give yet (S6). The person can correct something and
+// "What I understood": its reading, all proposed; the product definition's answers, read in the idea
+// or left to answer, confirmed at once (DefinitionAnswers.tsx); what it proposed, each with its real
+// state (a rejected or out-of-date proposal never shows as accepted). The person can correct something and
 // DEMIURGO reads it again. One primary action per view, and the focus moves to the new title when
 // "See what I understood" swaps the view.
 
@@ -28,7 +28,8 @@ import { NotFound } from '../not-found/NotFound.tsx';
 import { MESSAGE_MAX, isDecisionRequest, pendingInOrder, readingsOf, writtenBy } from './day.ts';
 import { useDay, useSend } from './hooks.ts';
 import { live } from './live.ts';
-import { AsideHeading, DayError, DaySkeleton, FromYourIdea, LaterOfTheProduct, ObservationList, Reply } from './parts.tsx';
+import { DefinitionAnswers } from './DefinitionAnswers.tsx';
+import { AsideHeading, DayError, DaySkeleton, FromYourIdea, ObservationList, Reply } from './parts.tsx';
 import { LiveReading, type ReadingContent, ReadingStatus, type Subject } from './Reading.tsx';
 import { START } from './words.i18n.ts';
 
@@ -147,6 +148,9 @@ function Understood({
   const t = useMessages(START);
   const [correcting, setCorrecting] = useState(false);
   const correctButton = useRef<HTMLButtonElement>(null);
+  // While the product definition's answers wait below, confirming them is this view's primary action.
+  const definition = (useQuery(stagesQuery(projectId)).data ?? []).find((s) => s.key === 'requirements' && s.state === 'open');
+  const answersBelow = !!definition && definition.covered < definition.total;
   const questions = content.questions;
   const n = questions.length;
   const next =
@@ -166,7 +170,11 @@ function Understood({
         title={name ?? <Bone className="h-8 w-64" />}
         titleSize="2xl"
         actions={
-          <Link to={next.to} params={{ projectId, explorationId }} className={buttonClass({ variant: 'primary' })}>
+          <Link
+            to={next.to}
+            params={{ projectId, explorationId }}
+            className={buttonClass({ variant: answersBelow ? 'secondary' : 'primary' })}
+          >
             {next.label}
             <ArrowRightIcon size={15} />
           </Link>
@@ -214,8 +222,8 @@ function Understood({
                 <ObservationList observations={content.observations} />
               </div>
             </Section>
+            <DefinitionAnswers projectId={projectId} />
             {content.batchId ? <Proposed projectId={projectId} batchId={content.batchId} /> : null}
-            <LaterOfTheProduct />
           </div>
         </WithAside>
       </PageBody>

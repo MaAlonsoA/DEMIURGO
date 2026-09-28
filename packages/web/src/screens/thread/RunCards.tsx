@@ -122,7 +122,7 @@ function WorkingCard({ projectId, run }: { projectId: string; run: RunListItem }
       },
     );
   return (
-    <Card data-run-card="working" data-run={run.id} padding="sm" className="flex flex-col gap-2.5">
+    <Card data-run-card="working" data-run={run.id} data-trace={`run:${run.id}`} padding="sm" className="flex flex-col gap-2.5">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <WhoAvatar kind="demiurgo" size={24} />
         <div className="flex min-w-0 flex-1 flex-col">
@@ -211,7 +211,14 @@ function FailedCard({ projectId, run }: { projectId: string; run: RunListItem })
   );
   const retryWith = <RetryWith key="with" projectId={projectId} run={run} />;
   return (
-    <Card tone="danger" padding="sm" data-run-card="failed" data-run={run.id} className="flex flex-col gap-2">
+    <Card
+      tone="danger"
+      padding="sm"
+      data-run-card="failed"
+      data-run={run.id}
+      data-trace={`run:${run.id}`}
+      className="flex flex-col gap-2"
+    >
       <div className="flex flex-wrap items-start gap-x-2.5 gap-y-1">
         <StatusBadge kind="problem" word={interrupted ? t.interrupted : t.failed} />
         <p className="min-w-0 flex-1 font-medium text-fg">{failureWord(run.failure_kind, run.state)}</p>
@@ -251,6 +258,7 @@ function QuietLine({ projectId, run, display }: { projectId: string; run: RunLis
     <div
       data-run-card={display}
       data-run={run.id}
+      data-trace={`run:${run.id}`}
       className="flex flex-wrap items-center gap-x-2.5 gap-y-1 px-1 text-sm text-fg-2"
     >
       <StatusBadge kind="inactive" word={display === 'retried' ? t.retried : t.cancelledWord} />
@@ -267,12 +275,12 @@ function DraftReady({ projectId, run }: { projectId: string; run: RunListItem })
   if (!batch.data) {
     if (batch.isError)
       return (
-        <div data-run-card="draft-loading" data-run={run.id}>
+        <div data-run-card="draft-loading" data-run={run.id} data-trace={`run:${run.id}`}>
           <ErrorNotice error={batch.error} compact focus={false} onRetry={() => void batch.refetch()} />
         </div>
       );
     return (
-      <Card data-run-card="draft-loading" data-run={run.id} padding="sm">
+      <Card data-run-card="draft-loading" data-run={run.id} data-trace={`run:${run.id}`} padding="sm">
         <span className="sr-only">{t.loadingDraft}</span>
         <Bone className="h-4 w-2/3" />
       </Card>
@@ -286,6 +294,7 @@ function DraftReady({ projectId, run }: { projectId: string; run: RunListItem })
     <Card
       data-run-card="draft"
       data-run={run.id}
+      data-trace={`run:${run.id}`}
       padding="sm"
       {...(pending ? { tone: 'accent' as const } : {})}
       className="flex flex-wrap items-center gap-x-3 gap-y-2"

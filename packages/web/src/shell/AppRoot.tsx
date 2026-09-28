@@ -1,6 +1,6 @@
 // Root of the app (DESIGN.md §2.3): the skip link, tooltips, the live region, Help ("?"), the dev
-// tools (only with DEMIURGO_DEV_TOOLS=1) and what happens on a 401 anywhere: back to Sign in,
-// keeping the route.
+// tools and the dev inspector (only with DEMIURGO_DEV_TOOLS=1) and what happens on a 401 anywhere:
+// back to Sign in, keeping the route.
 
 import { useQueryClient } from '@tanstack/react-query';
 import { Outlet, useRouter } from '@tanstack/react-router';
@@ -8,6 +8,7 @@ import { useEffect } from 'react';
 import { onUnauthorized } from '../api/client.ts';
 import { keys } from '../api/queries.ts';
 import { Announcer } from '../components/announce.tsx';
+import { Inspector } from '../screens/dev/Inspector.tsx';
 import { TooltipProvider } from '../components/Tooltip.tsx';
 import { useMessages } from '../i18n/define.ts';
 import { useSessionLocale } from '../i18n/locale.ts';
@@ -43,6 +44,7 @@ export function AppRoot() {
       <Outlet />
       <Help />
       <DevPanel />
+      <Inspector />
       <Announcer />
     </TooltipProvider>
   );

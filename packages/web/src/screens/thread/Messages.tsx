@@ -36,6 +36,7 @@ export function PersonMessage({ message: m, by }: { message: Message; by: 'you' 
     <article
       data-message-by={by}
       data-message={m.id}
+      data-trace={`message:${m.id}`}
       aria-labelledby={headId}
       className={cn('flex max-w-[88%] flex-col gap-1', mine ? 'items-end self-end' : 'items-start self-start')}
     >
@@ -105,6 +106,7 @@ export function DemiurgoMessage({
     <article
       data-message-by="demiurgo"
       data-message={first.id}
+      data-trace={`message:${first.id}`}
       aria-labelledby={headId}
       className="flex flex-col gap-3 rounded-lg border border-edge bg-panel px-4 py-3.5"
     >

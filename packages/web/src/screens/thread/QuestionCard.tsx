@@ -64,6 +64,7 @@ export function QuestionCard({
       id={`question-${q.id}`}
       tabIndex={-1}
       data-question={q.id}
+      data-trace={`question:${q.id}`}
       data-draft={draft ? 'true' : undefined}
       aria-labelledby={titleId}
       className={cn(
@@ -170,6 +171,7 @@ function SettledQuestion({
       id={`question-${q.id}`}
       tabIndex={-1}
       data-question={q.id}
+      data-trace={`question:${q.id}`}
       data-state={q.state}
       className="flex flex-col gap-1.5 rounded-lg border border-edge-subtle bg-sunken px-3.5 py-2.5 outline-offset-2"
     >

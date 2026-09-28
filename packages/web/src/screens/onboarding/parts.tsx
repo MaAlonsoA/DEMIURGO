@@ -144,24 +144,6 @@ export function Later({ id, title, children }: { id: string; title: string; chil
   );
 }
 
-/** The three placeholders of Day 1 for what S6 brings: who uses it, the rules and the features. */
-export function LaterOfTheProduct({ features = true }: { features?: boolean }) {
-  const t = useMessages(PARTS);
-  return (
-    <div className="flex flex-col gap-6">
-      <div className="grid gap-6 md:grid-cols-2">
-        <Later id="who" title={t.whoUsesIt}>
-          {t.whoUsesItText}
-        </Later>
-        <Later id="rules" title={t.rulesForProduct}>
-          {t.rulesForProductText}
-        </Later>
-      </div>
-      {features ? <LaterFeatures /> : null}
-    </div>
-  );
-}
-
 export function LaterFeatures() {
   const t = useMessages(PARTS);
   return (

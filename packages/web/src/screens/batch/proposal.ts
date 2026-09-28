@@ -29,6 +29,7 @@ export const PROPOSAL_KIND_WORDS: Record<string, string> = {
   exploration: 'New thread',
   review: 'Review',
   record_translation: 'English version',
+  product_definition: 'Product definition',
   imported_record: 'Imported document',
   imported_taxonomy: 'Imported taxonomy',
 };
@@ -49,6 +50,7 @@ export function proposalIconType(p: Pick<ProposalView, 'type' | 'payload'>): str
   }
   if (p.type === 'imported_taxonomy') return 'taxonomy';
   if (p.type === 'record_translation') return 'package';
+  if (p.type === 'product_definition') return 'product_definition';
   return 'idea';
 }
 
@@ -77,7 +79,8 @@ export function proposalLine(p: Pick<ProposalView, 'type' | 'payload'>): string 
   if (p.type === 'fdr') return str(p.payload.goal);
   if (p.type === 'review') return str(p.payload.reason);
   if (p.type === 'exploration') return str(p.payload.purpose);
-  if (p.type === 'design_record' || p.type === 'record_translation') return payloadSections(p.payload)[0]?.content ?? '';
+  if (p.type === 'design_record' || p.type === 'record_translation' || p.type === 'product_definition')
+    return payloadSections(p.payload)[0]?.content ?? '';
   return '';
 }
 
@@ -94,6 +97,7 @@ const NOUN: Record<string, string> = {
   fdr: 'the feature',
   design_record: 'the record',
   exploration: 'the thread',
+  product_definition: 'the product definition',
 };
 
 /** "the feature “Sign up”, with its 3 checks": what accepting records. */
@@ -114,6 +118,12 @@ export function acceptEffects(p: Pick<ProposalView, 'type' | 'payload'>, approve
     ];
   }
   if (p.type === 'exploration') return [`DEMIURGO opens the thread “${proposalTitle(p)}”.`];
+  if (p.type === 'product_definition' && p.payload.record) {
+    const r = p.payload.record as { code?: string; version?: number } | undefined;
+    const what = `the product definition's next version, after ${r?.code ?? ''} v${r?.version ?? ''}`;
+    if (!approve) return [`DEMIURGO records ${what}, as a draft. You approve it later, on its page.`];
+    return [`DEMIURGO records ${what}.`, 'You approve it: it becomes the current version.'];
+  }
   if (p.type === 'record_translation') {
     const r = p.payload.record as { code?: string; version?: number } | undefined;
     const what = `the English version of ${r?.code ?? 'the record'} v${r?.version ?? ''} as a new version`;

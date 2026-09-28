@@ -109,6 +109,8 @@ export const DEV_PANEL = messages(
     resetLine: 'Reset: an empty database with the same people, ready for a new Day 1.',
     resetEllipsis: 'Reset…',
     confirm: 'Confirm',
+    inspectHint:
+      'Alt+click a message, a question, a proposal, a run or a section of the definition to see where it comes from, its data and who read it.',
   },
   {
     deleting: 'Eliminando…',
@@ -133,6 +135,8 @@ export const DEV_PANEL = messages(
     resetLine: 'Reiniciar: una base de datos vacía con las mismas personas, lista para un nuevo día 1.',
     resetEllipsis: 'Reiniciar…',
     confirm: 'Confirmar',
+    inspectHint:
+      'Alt+clic en un mensaje, una pregunta, una propuesta, una ejecución o una sección de la definición para ver de dónde sale, sus datos y quién lo ha leído.',
   },
 );
 

@@ -19,6 +19,7 @@ import {
   KnowledgeIcon,
   PackageIcon,
   PlayIcon,
+  ProductIcon,
   RequirementIcon,
   RocketIcon,
   ShieldIcon,
@@ -36,6 +37,7 @@ export const RECORD_ICON: Record<RecordType, ComponentType<IconProps>> = {
   quality_requirement: GaugeIcon,
   threat_model: ShieldIcon,
   production_readiness: RocketIcon,
+  product_definition: ProductIcon,
 };
 
 const OTHER_ICON: Record<string, ComponentType<IconProps>> = {
@@ -74,6 +76,7 @@ const PREFIX: Record<string, RecordType> = {
   NFR: 'quality_requirement',
   THR: 'threat_model',
   PRR: 'production_readiness',
+  PRD: 'product_definition',
 };
 
 /** The record type a code belongs to ("NFR-EVE-002" → quality_requirement), or null. */

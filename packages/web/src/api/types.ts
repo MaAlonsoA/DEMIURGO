@@ -80,7 +80,55 @@ export type RecordType =
   | 'requirement'
   | 'quality_requirement'
   | 'threat_model'
-  | 'production_readiness';
+  | 'production_readiness'
+  | 'product_definition';
+
+/** Where a section of the product definition comes from, and how the person settled its question. */
+export type DefinitionSource = {
+  section: string;
+  key: string;
+  state: 'confirmed' | 'discarded' | 'missing';
+  question: {
+    id: string;
+    question: string;
+    settled: 'assumed' | 'corrected' | 'answered' | 'left_open' | null;
+    settled_by: string | null;
+    settled_at: string | null;
+    inferred: string | null;
+    evidence: { message_id: string; quote: string }[];
+  } | null;
+};
+
+export type DefinitionVersion = {
+  id: string;
+  n: number;
+  state: string;
+  title: string;
+  sections: Section[];
+  change_note: string | null;
+  author: string;
+  created_at: string;
+  approved_at: string | null;
+  approved_by: string | null;
+  proposal_id: string | null;
+  sources: DefinitionSource[];
+};
+
+/** GET …/definition: the product definition's versions (newest first) and the one proposed, if any. */
+export type ProductDefinition = {
+  record: { id: string; code: string } | null;
+  versions: DefinitionVersion[];
+  proposal: {
+    id: string;
+    batch_id: string;
+    created_at: string;
+    base: { code: string; version: number } | null;
+    title: string;
+    sections: Section[];
+    change_note: string | null;
+    sources: DefinitionSource[];
+  } | null;
+};
 
 export type ProductRow = {
   code: string;
@@ -350,6 +398,8 @@ export type Question = {
   multiple?: boolean;
   /** When it was shown in its thread; null while it waits in the reserve. */
   shown_at?: string | null;
+  /** The person's exact words an inference rests on, each with its message. */
+  evidence?: { message_id: string; quote: string }[];
 };
 
 export type ExplorationDetail = {

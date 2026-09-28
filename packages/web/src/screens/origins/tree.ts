@@ -289,6 +289,7 @@ export type Why = { sentence: Segment[]; phrases: { label: string; text: string 
 const quoted = (s: string) => `“${s}”`;
 /** The order in which "It led to …" lists what came from a thread. */
 const LED_TO_ORDER: RecordType[] = [
+  'product_definition',
   'decision',
   'fdr',
   'adr',

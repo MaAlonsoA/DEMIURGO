@@ -18,6 +18,7 @@ import type {
   KnowledgeGraph,
   ProductState,
   Project,
+  ProductDefinition,
   Readiness,
   StageRow,
   ProjectUsageRow,
@@ -45,6 +46,7 @@ export const keys = {
   explorations: (p: string) => ['p', p, 'explorations'] as const,
   exploration: (p: string, id: string) => ['p', p, 'exploration', id] as const,
   record: (p: string, code: string) => ['p', p, 'record', code] as const,
+  definition: (p: string) => ['p', p, 'definition'] as const,
   readiness: (p: string, versionId: string) => ['p', p, 'readiness', versionId] as const,
   batch: (p: string, id: string) => ['p', p, 'batch', id] as const,
   run: (p: string, id: string) => ['p', p, 'run', id] as const,
@@ -116,6 +118,9 @@ export const recordQuery = (p: string, code: string) =>
     queryKey: keys.record(p, code),
     queryFn: () => get<RecordDetail>(`${P(p)}/records/${encodeURIComponent(code)}`),
   });
+
+export const definitionQuery = (p: string) =>
+  queryOptions({ queryKey: keys.definition(p), queryFn: () => get<ProductDefinition>(`${P(p)}/definition`) });
 
 export const readinessQuery = (p: string, versionId: string) =>
   queryOptions({

@@ -21,6 +21,7 @@ export const NODE_TYPES: Record<string, NodeKind> = {
   quality_requirement: { word: 'Quality requirement', plural: 'Quality requirements', order: 5 },
   threat_model: { word: 'Threat model', plural: 'Threat models', order: 6 },
   production_readiness: { word: 'Production readiness', plural: 'Production readiness', order: 7 },
+  product_definition: { word: 'Product definition', plural: 'Product definition', order: -1 },
   criterion: { word: 'Check', plural: 'Checks', order: 8 },
   // Search results that are not in the graph: the project's threads and its parked ideas.
   thread: { word: 'Thread', plural: 'Threads', order: 9 },
@@ -112,7 +113,7 @@ export function groupByArea(nodes: readonly GraphNode[], axis: AreaAxis | null):
 export function recordOfRef(ref: string, graph: KnowledgeGraph | undefined): { code: string; version: number } | null {
   const fromGraph = graph?.nodes.find((n) => n.ref === ref)?.record;
   if (fromGraph) return fromGraph;
-  const m = /^((?:DEC|FDR|ADR|BUG|REQ|NFR|THR|PRR)-[A-Z0-9]+-\d{3})@(\d+)$/.exec(ref);
+  const m = /^((?:DEC|FDR|ADR|BUG|REQ|NFR|THR|PRR|PRD)-[A-Z0-9]+-\d{3})@(\d+)$/.exec(ref);
   return m?.[1] ? { code: m[1], version: Number(m[2]) } : null;
 }
 

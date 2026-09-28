@@ -404,8 +404,8 @@ test('AC-INT-001-09 a design stage in its thread: its progress, the reserve of q
 
   const stage = page.locator('[data-thread-stage="requirements"]');
   await expect(stage).toContainText('Product definition');
-  await expect(stage).toContainText('0 of 5 answered');
-  await expect(page.locator('[data-reserve]')).toContainText('DEMIURGO keeps 3 questions for later.');
+  await expect(stage).toContainText('0 of 8 answered');
+  await expect(page.locator('[data-reserve]')).toContainText('DEMIURGO keeps 6 questions for later.');
   const shown = (await detailOf(person, projectId, id)).questions.filter((q) => q.shown_at);
   expect(shown).toHaveLength(2);
   await expect(card(page, shown[0]?.id ?? '')).toContainText('Question · Product definition');
@@ -423,8 +423,8 @@ test('AC-INT-001-09 a design stage in its thread: its progress, the reserve of q
   const bar = page.locator('[data-drafts-bar]');
   await expect(bar).toContainText('2 of 2 answers ready.');
   await bar.getByRole('button', { name: 'Confirm and send' }).click();
-  await expect(stage).toContainText('2 of 5 answered');
-  await expect(page.locator('[data-reserve]')).toContainText('DEMIURGO keeps 1 question for later.');
+  await expect(stage).toContainText('2 of 8 answered');
+  await expect(page.locator('[data-reserve]')).toContainText('DEMIURGO keeps 4 questions for later.');
 
   // The rest is answered elsewhere; once every question is covered the stage can be passed here.
   for (let n = 0; n < 5; n++) {
@@ -433,7 +433,7 @@ test('AC-INT-001-09 a design stage in its thread: its progress, the reserve of q
     for (const q of open) await person.command(projectId, 'question.confirm', { conclusion: 'Settled elsewhere.' }, q.id);
   }
   const complete = page.locator('[data-stage-complete="requirements"]');
-  await expect(complete).toContainText('Product definition is complete: 5 of 5 answered.');
+  await expect(complete).toContainText('Product definition is complete: 8 of 8 answered.');
   await expect(complete).toContainText('next comes Global quality');
   await expectAccessible(page, 'a stage complete');
   await complete.scrollIntoViewIfNeeded();

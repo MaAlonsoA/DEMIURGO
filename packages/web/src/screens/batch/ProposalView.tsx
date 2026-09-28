@@ -107,7 +107,7 @@ export function ProposalBody({
       </div>
     );
   }
-  if (p.type === 'design_record') {
+  if (p.type === 'design_record' || p.type === 'product_definition') {
     return (
       <div className="flex flex-col gap-4" data-body="design_record">
         <Sections sections={payloadSections(p.payload)} />
@@ -211,7 +211,13 @@ export function ProposalView({
   const deps = p.dependencies.filter((d) => d.code);
 
   return (
-    <article aria-labelledby={titleId} data-proposal={p.id} data-state={p.state} className={cn('flex flex-col gap-5', className)}>
+    <article
+      aria-labelledby={titleId}
+      data-proposal={p.id}
+      data-trace={`proposal:${p.id}`}
+      data-state={p.state}
+      className={cn('flex flex-col gap-5', className)}
+    >
       <header className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-fg-2">
           <span

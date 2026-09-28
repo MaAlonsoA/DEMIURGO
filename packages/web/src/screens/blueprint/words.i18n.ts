@@ -80,6 +80,7 @@ const RAIL_EN = {
   groupQuality: 'Quality requirements',
   groupThreatModels: 'Threat models',
   groupProductionReadiness: 'Production readiness',
+  groupDefinition: 'Product definition',
   groupBugs: 'Bugs',
 };
 
@@ -96,6 +97,7 @@ export const RAIL = messages(RAIL_EN, {
   groupQuality: 'Requisitos de calidad',
   groupThreatModels: 'Modelos de amenaza',
   groupProductionReadiness: 'Preparación para producción',
+  groupDefinition: 'Definición del producto',
   groupBugs: 'Errores',
 });
 

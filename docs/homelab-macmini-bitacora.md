@@ -62,7 +62,7 @@ Registro de la ejecución de `docs/homelab-macmini-runbook.md` por Claude Code d
 4. **Termius y WARP** en el PC y en el iPhone: instrucciones entregadas (sección «Termius y WARP» más abajo). Falta que la persona instale, entre con el correo y pegue la clave pública de Termius.
 5. **Prueba del corte de luz**: al final de la fase A.
 
-## Fase B · Plataforma — en curso
+## Fase B · Plataforma — cerrada
 
 ### Hecho
 
@@ -72,7 +72,37 @@ Registro de la ejecución de `docs/homelab-macmini-runbook.md` por Claude Code d
 4. **Pila levantada.** `docker compose up -d --wait`: los ocho servicios `healthy` (el colector no tiene healthcheck porque su imagen no tiene shell; el ingestor recibió su primer lote de él al arrancar). `curl http://127.0.0.1:8100/api/session` → 401; la web (`/`) → 200. `pnpm evidence migrate` lo hizo el ingestor al arrancar (`0001`–`0004`, particiones de septiembre y octubre); `docker compose run --rm api pnpm evidence metabase-setup` creó la cuenta, la conexión, la colección, 10 preguntas y el tablero de 7 tarjetas. Metabase en http://127.0.0.1:3300 y Phoenix en http://127.0.0.1:6006 responden.
    - Falló una vez: `web-build` no podía escribir en el volumen `web-dist` (nació de root). Resuelto creando `packages/web/dist` en la imagen con el usuario `demiurgo`, para que Docker copie ese propietario al volumen; se rehizo el volumen.
    - Providers descubiertos por la API dentro del contenedor: `simulated` (1 modelo); Claude y Codex sin sesión (fase C, 🖐).
-5. **Prueba de cierre (reinicio).** 🖐 Pendiente: se hará con `sudo reboot` cuando la persona no esté usando el mini, y comprobará `docker compose ps`, `launchctl list` (colima, code-server, cloudflared, claude-tmux) y la redirección de Access.
+5. **Prueba de cierre (reinicio).** Hecha; resultado en «Cierre» más abajo.
+
+### Cierre · reinicio del 11-01-1970 23:15 (comprobación automática, `~/bin/postboot-check.sh`)
+
+| Comprobación | Resultado |
+|---|---|
+| Arranque | kern.boottime = 11-01-1970 23:15, sesión de `marcos` abierta sola (autologin), agente ejecutado |
+| Pila Docker (8 contenedores Up y sanos) | ✅ en 40s |
+| sshd 22 | ✅ |
+| code-server 8443 | ✅ |
+| API 8100 (/api/session) | 401 (se espera 401) |
+| Web 8100 (/) | 200 |
+| Phoenix 6006 / Metabase 3300 | 200 / 200 |
+| cloudflared (LaunchDaemon) | ✅ proceso vivo |
+| Access: https://demiurgo.asterion-os.com | 302 (se espera 302 al login) |
+| Access: https://code.asterion-os.com | 302 |
+| Colima (sh.brew.colima) | state=running |
+| code-server (sh.brew.code-server) | state=running |
+| tmux `claude` con control remoto (com.demiurgo.claude-tmux) | ✅ sesión viva |
+| Puerto 8000 (demiurgo-stable, no se toca) | libre, como antes |
+
+```
+demiurgo-api-1 Up 17 seconds (healthy)
+demiurgo-collector-1 Up 17 seconds
+demiurgo-evidence-db-1 Up 17 seconds (healthy)
+demiurgo-ingestor-1 Up 17 seconds (healthy)
+demiurgo-metabase-1 Up 17 seconds (healthy)
+demiurgo-phoenix-1 Up 17 seconds
+demiurgo-postgres-1 Up 17 seconds (healthy)
+demiurgo-web-build-1 Up 17 seconds (healthy)
+```
 
 ### Notas
 

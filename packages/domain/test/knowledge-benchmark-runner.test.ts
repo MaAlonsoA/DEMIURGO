@@ -328,3 +328,12 @@ describe('Blind runs and AI-reviewed references', () => {
     expect(validateDataset([scenario], [{ ...review, source: 'ai_proposal' }], true).length).toBeGreaterThan(0);
   });
 });
+
+describe('Benchmark configuration', () => {
+  it('asks for a Qwen model that the OpenCode configuration defines', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const { openCodeModels } = await import('../../core/src/providers/opencode.ts');
+    const raw = await readFile(new URL('../../core/test/fixtures/opencode/opencode.json', import.meta.url), 'utf8');
+    expect(openCodeModels(JSON.parse(raw)).map((m) => m.model.id)).toContain(defaultConfig.qwen.model);
+  });
+});

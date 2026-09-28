@@ -23,7 +23,7 @@
     }
   },
   "qwen": {
-    "model": "qwen-local/qwen3_8-27b",
+    "model": "qwen-local/qwen3.8-27b",
     "effort": "medium",
     "configPath": "/Users/marcos/.config/opencode/opencode.json"
   },

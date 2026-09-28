@@ -1,6 +1,5 @@
--- ¿Cuánto tarda DEMIURGO en responder y dónde se va el tiempo? Una fila por interacción: total y
--- por fase (API, comandos, pasos del motor, contexto, modelo, aplicar), con sus tokens (spec §15.3,
--- vista v_interaction_summary).
+-- ¿Cuánto tarda la respuesta y cuánto dura toda la actividad derivada? Una fila por interacción.
+-- Las duraciones de comandos, pasos y modelo pueden estar anidadas: no son partes sumables del total.
 -- Usage: pnpm evidence ask interaction-time --project <project id | all> --since <YYYY-MM-DD | all>
 -- Every parameter is required; `all` lifts a filter.
 select
@@ -10,8 +9,8 @@ select
   s.thread_id,
   s.actor,
   s.root_command,
-  round(s.total_ms::numeric) as total_ms,
-  round(s.api_ms::numeric) as api_ms,
+  round(s.total_ms::numeric) as elapsed_ms,
+  round((case when s.channel in ('api', 'mcp') then s.api_ms end)::numeric) as response_ms,
   round(s.commands_ms::numeric) as commands_ms,
   round(s.steps_ms::numeric) as steps_ms,
   round(s.prepare_ms::numeric) as context_ms,

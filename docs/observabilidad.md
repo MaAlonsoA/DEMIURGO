@@ -41,7 +41,7 @@ El emisor va dentro del API. Se configura con estas variables al lanzar `node --
 | `DEMIURGO_OBSERVE` | `otlp`, `off` | `otlp` | `off` apaga el emisor del todo: no se envía nada ni se escribe `trace_contexts` |
 | `DEMIURGO_OTLP_ENDPOINT` | URL | `http://127.0.0.1:4318` | dónde está el Colector |
 | `DEMIURGO_ENVIRONMENT` | `real`, `qa`, `dev`, `test` | `dev` | la etiqueta de entorno de cada nota, para separar la instancia real de la de pruebas |
-| `DEMIURGO_SERVICE_VERSION` | texto | `unknown` | la versión de DEMIURGO que emitió la nota; usa el commit |
+| `DEMIURGO_SERVICE_VERSION` | texto | `unknown` fuera de Compose | la versión de DEMIURGO que emitió la nota; el contenedor usa el commit al arrancar |
 
 La instancia (`demiurgo.instance`) sale sola de `DEMIURGO_PORT`.
 
@@ -66,6 +66,12 @@ Con la pila apagada y `DEMIURGO_OBSERVE=otlp`, DEMIURGO sigue igual: las notas s
 
 ## Preguntar
 
+La página de una ejecución incluye **Diagnostics**: identificador de traza con enlace directo a
+Phoenix, identificador de conversación del proveedor y tiempos entre solicitud, inicio, llamadas al
+motor y cierre. Esos tiempos salen de la base operativa y no sustituyen los spans detallados de la
+base de evidencia. Si la observación estaba desactivada, el identificador de traza aparece ausente.
+
+
 Las preguntas guardadas viven en `packages/evidence/questions/*.sql`, cada una con su pregunta en la cabecera. `pnpm evidence ask` sin nada las lista. Todas piden sus parámetros; donde hay filtro por proyecto o por fecha, `all` lo quita.
 
 ```powershell
@@ -85,14 +91,14 @@ pnpm evidence ask cli-requests --run <id de ejecución>
 
 Qué responde cada una:
 
-- **session-reuse:** si una ejecución reanudó la sesión del modelo, desde qué ejecución base, con qué delta y qué parte del contexto vino de caché (`reused`, `partial`, `lost`, `none`).
+- **session-reuse:** si una ejecución reanudó la sesión del modelo, desde qué ejecución base, con qué delta y qué parte del contexto vino de caché (`reused`, `partial`, `no_cache`, `unknown`, `none`). Una caché vacía no demuestra una sesión perdida.
 - **decision-effort:** cuánto costó cada propuesta aceptada: interacciones y intervenciones de la persona, preguntas planteadas y respondidas, segundos desde la primera interacción del hilo hasta aceptar, ejecuciones, tokens por clase y coste declarado. Es acumulado por hilo: la segunda decisión de un hilo cuenta también lo gastado antes de la primera.
-- **interaction-time:** por interacción, el total y las fases: API, comandos, pasos del motor, contexto (`run.prepare`), modelo (`invoke_agent`) y aplicar (`run.apply`).
+- **interaction-time:** por interacción, `response_ms` mide la respuesta HTTP y `elapsed_ms` llega hasta el último efecto observado. Los tiempos de comandos, pasos, contexto, modelo y aplicación pueden estar anidados y no se suman.
 - **tokens-by-engine:** por proveedor, modelo, effort, agente y versión: llamadas, tokens sin caché, leídos y escritos de caché, salida, razonamiento, proporción de caché y coste.
 - **engine-acceptance:** qué motor da más propuestas aceptadas sin edición, con edición o rechazadas por cada 1 000 tokens de salida.
-- **engine-reliability:** qué falla y en qué motor: llamadas fallidas por tipo (`failures` es un JSON `{tipo: n}`), planes B, ejecuciones reintentadas, sesiones perdidas y cómo valoró la persona lo que salió.
+- **engine-reliability:** qué falla y en qué motor: llamadas fallidas por tipo (`failures` es un JSON `{tipo: n}`), planes B, ejecuciones reintentadas, caché ausente o no reportada y cómo valoró la persona lo que salió.
 - **interventions:** por hilo, cuántas interacciones y comandos pusieron las personas frente al sistema y los agentes, cuántas preguntas se plantearon, cuántas se respondieron, cuántas siguen abiertas y cuántas propuestas se aceptaron o rechazaron.
-- **cache-by-provider:** por proveedor y modelo, qué parte del contexto vino de caché y, de las llamadas que reanudaron una sesión, cuántas la encontraron entera, a medias o perdida.
+- **cache-by-provider:** por proveedor y modelo, qué parte del contexto vino de caché y, de las llamadas reanudadas, cuántas mostraron reutilización, ninguna caché o cifras desconocidas.
 - **context-budget:** por constructor y sección del context pack, cuánto del presupuesto se llenó y cuántos fragmentos entraron enteros, recortados, resumidos o descartados.
 - **context-of-run, context-diff, cli-requests:** el detalle de una ejecución: cada fragmento de su contexto con su origen y su decisión; la diferencia de contexto entre dos ejecuciones; y las peticiones que la CLI hizo a su API bajo cada llamada.
 
@@ -100,7 +106,7 @@ Las vistas de detrás (`v_decision_effort`, `v_interaction_summary`, `v_session_
 
 ## Cuando el ingestor se cae
 
-El Colector no pierde nada: tiene una cola persistente y reintenta hasta que el ingestor confirma. Además guarda la copia bruta en el archivo en ficheros. Si por lo que sea hay que ponerse al día desde el archivo (una base de evidencia restaurada, una cola que se descartó), se reproduce; es idempotente, así que reproducir dos veces no duplica nada:
+La entrega al ingestor tiene una cola persistente y reintenta hasta que confirma. El archivo bruto usa otro exportador sin cola persistente: una caída de ese exportador o del propio Colector puede dejar huecos. El emisor cuenta sus descartes, y `pnpm evidence check` compara las ejecuciones; revisa ambos antes de dar la evidencia por completa. Si hay que recuperar la base desde el archivo, la reproducción es idempotente:
 
 ```powershell
 docker cp demiurgo-collector-1:/archive ./archive-copia
@@ -177,12 +183,12 @@ Las siete tarjetas del tablero, en el orden de §15.3 de la spec, y lo que respo
 | Tarjeta | Responde | Pregunta guardada | Vista |
 |---|---|---|---|
 | ¿Cuánto cuesta una decisión aprobada…? | por propuesta aceptada: intervenciones, preguntas, segundos hasta aceptar, ejecuciones, tokens y coste declarado del hilo | `decision-effort` | `v_decision_effort` |
-| ¿Cuánto tarda DEMIURGO en responder y dónde se va el tiempo? | por interacción: total y fases (API, comandos, pasos, contexto, modelo, aplicar) | `interaction-time` | `v_interaction_summary` |
-| ¿Qué porcentaje del contexto se reutiliza de caché por proveedor y qué sesiones se pierden? | por proveedor y modelo: proporción de caché y sesiones reanudadas enteras, a medias o perdidas | `cache-by-provider` | `v_session_reuse` |
+| ¿Cuánto tarda la respuesta y cuánto dura toda la actividad derivada? | por interacción: respuesta, actividad hasta el último efecto y spans anidados | `interaction-time` | `v_interaction_summary` |
+| ¿Cuánta caché se reutiliza por proveedor? | por proveedor y modelo: proporción de caché, ausencia de caché y cifras no reportadas | `cache-by-provider` | `v_session_reuse` |
 | ¿Qué motor da más propuestas aceptadas sin edición por token gastado? | por motor: aceptadas, editadas y rechazadas por cada 1 000 tokens de salida | `engine-acceptance` | `v_engine_acceptance` |
 | ¿Cuántas intervenciones pide cada decisión y cuántas preguntas quedan sin responder? | por hilo: intervenciones de personas frente al sistema, preguntas planteadas, respondidas y abiertas | `interventions` | `v_interventions` |
 | ¿Cuánto presupuesto de contexto se llena y cuánto se descarta por sección? | por constructor y sección: llenado del presupuesto y fragmentos incluidos, recortados y descartados | `context-budget` | `v_context_budget` |
-| ¿Qué falla, cuánto y en qué motor? | por motor: fallos por tipo, planes B, reintentos, sesiones perdidas y valoración de las personas | `engine-reliability` | `v_engine_reliability` |
+| ¿Qué falla, cuánto y en qué motor? | por motor: fallos por tipo, planes B, reintentos, caché observada y valoración de las personas | `engine-reliability` | `v_engine_reliability` |
 
 Los filtros de las preguntas (`Project`, `Since`, `Run`) son variables de la consulta con valor por defecto `all` (o una ejecución que no existe, en `Run`): cámbialos en la propia pregunta. El SQL de cada tarjeta es el mismo fichero de `questions/`, con `:param` convertido en `{{param}}`; si cambias un fichero, vuelve a lanzar `metabase-setup`.
 

@@ -1,5 +1,5 @@
 // The observer (spec §5.1, §6.1, §6.3, §7.1): interaction ids as trace ids, spans that hang from the
-// active context or from a remote traceparent, texts once per fingerprint, and the three flavours.
+// active context or from a remote traceparent, repeatable texts, and the three flavours.
 
 import {
   ATTR,
@@ -181,7 +181,7 @@ describe('memory observer', () => {
     expect(retry?.links[0]?.attributes).toEqual({ [ATTR.retryOf]: 'r1' });
   });
 
-  it('text emits one log record per distinct body, attached to the active span, and returns the sha256', async () => {
+  it('text re-emits repeated bodies so a failed export can recover, and returns the sha256', async () => {
     const o = createMemoryObserver();
     const body = 'You are the classifier.';
     let hashes: string[] = [];
@@ -194,7 +194,7 @@ describe('memory observer', () => {
     expect(hashes[1]).toBe(hashes[0]);
     expect(hashes[2]).toBe(sha256('other'));
     const logs = o.logs();
-    expect(logs).toHaveLength(2);
+    expect(logs).toHaveLength(3);
     expect(logs[0]?.eventName).toBe(LOG.text);
     expect(logs[0]?.body).toBe(body);
     expect(logs[0]?.attributes).toMatchObject({
@@ -204,8 +204,8 @@ describe('memory observer', () => {
       'event.name': LOG.text,
     });
     expect(logs[0]?.spanContext?.spanId).toBe(spanId);
-    expect(logs[1]?.attributes).toMatchObject({ [ATTR.textKind]: 'input', [ATTR.callId]: 'k1' });
-    // After a reset the same text is new again.
+    expect(logs[1]?.body).toBe(body);
+    expect(logs[2]?.attributes).toMatchObject({ [ATTR.textKind]: 'input', [ATTR.callId]: 'k1' });
     o.reset();
     o.text('system_prompt', body);
     expect(o.logs()).toHaveLength(1);

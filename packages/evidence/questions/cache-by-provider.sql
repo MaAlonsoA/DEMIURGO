@@ -1,7 +1,7 @@
 -- ¿Qué porcentaje del contexto se reutiliza de caché por proveedor y qué sesiones se pierden? Por
 -- proveedor y modelo desde una fecha: llamadas, tokens sin caché, leídos y escritos de caché, la
--- proporción de caché, y de las llamadas que reanudaron una sesión cuántas la encontraron entera,
--- a medias o perdida (spec §15.3, vista v_session_reuse; con las cifras por petición de las CLI
+-- proporción de caché, y de las llamadas que reanudaron una sesión cuántas mostraron reutilización,
+-- ninguna caché o cifras desconocidas (spec §15.3, vista v_session_reuse; con las cifras de las CLI
 -- cuando las hay, `with_cli_figures`).
 -- Usage: pnpm evidence ask cache-by-provider --since <YYYY-MM-DD | all>
 -- Every parameter is required; `all` lifts the date filter.
@@ -21,8 +21,9 @@ select
   count(*) filter (where v.mode = 'resumed') as resumed,
   count(*) filter (where v.verdict = 'reused') as reused,
   count(*) filter (where v.verdict = 'partial') as partial,
-  count(*) filter (where v.verdict = 'lost') as lost,
-  count(*) filter (where v.figures_source = 'telemetry') as with_cli_figures
+  count(*) filter (where v.verdict = 'no_cache') as no_cache,
+  count(*) filter (where v.verdict = 'unknown') as unknown,
+  count(*) filter (where v.figures_source in ('telemetry', 'mixed')) as with_cli_figures
 from v_session_reuse v
 where (:since = 'all' or v.started_at >= nullif(:since, 'all')::timestamptz)
 group by v.provider, v.requested_model

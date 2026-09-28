@@ -1,11 +1,12 @@
 // Native telemetry of Claude Code and Codex (§13): their spans go to `spans` with their source, and
 // their API request events become `cli_requests`, joined to our call by the resource attribute
-// `demiurgo.call.id` or, failing that, by the trace. Codex counts the cache inside `input_tokens`
+// `demiurgo.call.id`. A trace can contain several calls, so it is not a safe fallback. Codex counts
+// the cache inside `input_tokens`
 // (§8); Claude Code reports it apart. Everything they send stays in `attributes`.
 
 import { ATTR } from '@demiurgo/domain';
 import type { Attrs, FlatLog, FlatSpan } from '../otlp.ts';
-import { type MapContext, type SpanSource, int, num, recordHash, str, unmapped, uuid, uuidAttr } from './common.ts';
+import { type MapContext, type SpanSource, int, num, recordHash, str, unmapped, uuidAttr } from './common.ts';
 import { insertSpan } from './span.ts';
 
 /** The events that describe one API request (§13). Anything else of theirs is kept as unmapped. */
@@ -17,20 +18,11 @@ export const CLI_REQUEST_EVENTS: ReadonlySet<string> = new Set([
   'codex.sse_event',
 ]);
 
-/** The call a CLI note belongs to: the resource says it, or the trace does (the call span shares it). */
-export async function callOf(ctx: MapContext, resource: Attrs, traceId: string | null): Promise<string | null> {
-  const fromResource = uuidAttr(resource, ATTR.callId);
-  if (fromResource !== null) return fromResource;
-  if (traceId === null) return null;
-  const { rows } = await ctx.client.query<{ call_id: string }>(
-    'select call_id from provider_calls where trace_id = $1 order by started_at desc nulls last limit 1',
-    [traceId],
-  );
-  return uuid(rows[0]?.call_id);
-}
+/** A missing resource id means unknown ownership, even when the trace has another provider call. */
+export const callOf = (resource: Attrs): string | null => uuidAttr(resource, ATTR.callId);
 
 export async function mapCliSpan(ctx: MapContext, span: FlatSpan, source: SpanSource): Promise<void> {
-  await insertSpan(ctx, span, source, await callOf(ctx, span.resource, span.traceId));
+  await insertSpan(ctx, span, source, callOf(span.resource));
 }
 
 export async function mapCliLog(ctx: MapContext, log: FlatLog, source: SpanSource): Promise<void> {
@@ -59,7 +51,7 @@ export async function mapCliLog(ctx: MapContext, log: FlatLog, source: SpanSourc
     [
       recordHash(log),
       log.traceId,
-      await callOf(ctx, log.resource, log.traceId),
+      callOf(log.resource),
       source,
       str(a, 'request_id'),
       int(a, 'attempt'),

@@ -66,16 +66,16 @@ export const QUESTIONS: readonly QuestionSpec[] = [
   },
   {
     question: 'interaction-time',
-    name: '¿Cuánto tarda DEMIURGO en responder y dónde se va el tiempo?',
-    description: 'Una fila por interacción: total y por fase, con sus tokens (v_interaction_summary).',
+    name: '¿Cuánto tarda la respuesta y cuánto dura toda la actividad derivada?',
+    description: 'La respuesta y la actividad posterior se miden por separado; los spans anidados no son partes sumables.',
     defaults: { project: 'all', since: 'all' },
     onDashboard: true,
   },
   {
     question: 'cache-by-provider',
-    name: '¿Qué porcentaje del contexto se reutiliza de caché por proveedor y qué sesiones se pierden?',
+    name: '¿Cuánta caché se reutiliza por proveedor?',
     description:
-      'Por proveedor y modelo: proporción de caché y sesiones reanudadas enteras, a medias o perdidas (v_session_reuse).',
+      'Por proveedor y modelo: caché observada, ausente o no reportada; ninguna cifra de caché prueba que una sesión se haya perdido.',
     defaults: { since: 'all' },
     onDashboard: true,
   },
@@ -105,8 +105,7 @@ export const QUESTIONS: readonly QuestionSpec[] = [
   {
     question: 'engine-reliability',
     name: '¿Qué falla, cuánto y en qué motor?',
-    description:
-      'Por motor: llamadas fallidas por tipo, planes B, reintentos, sesiones perdidas y valoración de las personas (v_engine_reliability).',
+    description: 'Por motor: llamadas fallidas por tipo, planes B, reintentos, caché observada y valoración de las personas.',
     defaults: {},
     onDashboard: true,
   },

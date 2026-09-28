@@ -27,6 +27,7 @@ import { RunStateBadge, useRunView } from '../../components/runState.tsx';
 import { PageSkeleton } from '../../components/Spinner.tsx';
 import { DayTime } from '../../components/Time.tsx';
 import { WhoAvatar } from '../../components/Who.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { useRouteParams, useTables } from '../../lib/hooks.ts';
 import { dayTime } from '../../lib/time.ts';
 import { ACTION_WORDS, whoOf } from '../../words.ts';
@@ -36,39 +37,41 @@ import { Attempts, RunFacts } from './Aside.tsx';
 import { RunDetailTabs } from './Detail.tsx';
 import { requestedBy, runTitle } from './runs.ts';
 import { PhaseStrip, StatusCard } from './Status.tsx';
+import { RUN } from './words.i18n.ts';
 
 const RETRIABLE = ['failed', 'interrupted', 'cancelled'];
 const actionWord = (a: string) => ACTION_WORDS[a] ?? a;
 const link = 'font-medium text-fg underline decoration-edge-strong underline-offset-2 hover:decoration-fg';
 
-const activityCrumb = (projectId: string) => ({
-  label: 'Activity',
+const activityCrumb = (projectId: string, label: string) => ({
+  label,
   link: { to: '/p/$projectId/activity' as const, params: { projectId } },
 });
 
 export function RunScreen() {
+  const t = useMessages(RUN);
   const { projectId, runId = '' } = useRouteParams();
   const run = useQuery(runQuery(projectId, runId));
   const runs = useQuery(runsQuery(projectId));
   const project = (useQuery(projectsQuery).data ?? []).find((p) => p.id === projectId);
   const r = run.data;
-  usePageTitle([r ? `${runTitle(r.action, ACTION_WORDS)} run` : 'Run', project?.name]);
+  usePageTitle([r ? `${runTitle(r.action, ACTION_WORDS)} run` : t.runFallback, project?.name]);
 
   if (isNotFound(run.error))
     return (
       <>
-        <PageHeader crumbs={[activityCrumb(projectId), { label: 'Run' }]} title="We couldn't find this run" />
+        <PageHeader crumbs={[activityCrumb(projectId, t.activity), { label: t.run }]} title={t.couldNotFindRun} />
         <PageBody width="reading">
           <EmptyState
-            title="It isn't in this project"
+            title={t.notInProject}
             action={
               <Link to="/p/$projectId/activity" params={{ projectId }} className={buttonClass({ variant: 'secondary' })}>
                 <ArrowLeftIcon size={14} />
-                Back to Activity
+                {t.backToActivity}
               </Link>
             }
           >
-            It may belong to another project.
+            {t.mayBelongOther}
           </EmptyState>
         </PageBody>
       </>
@@ -76,12 +79,12 @@ export function RunScreen() {
   if (!r)
     return (
       <>
-        <PageHeader crumbs={[activityCrumb(projectId), { label: 'Run' }]} title="Run" />
+        <PageHeader crumbs={[activityCrumb(projectId, t.activity), { label: t.run }]} title={t.run} />
         <PageBody>
           {run.error ? (
             <ErrorNotice error={run.error} onRetry={() => void run.refetch()} />
           ) : (
-            <PageSkeleton label="Loading the run" />
+            <PageSkeleton label={t.loadingRun} />
           )}
         </PageBody>
       </>
@@ -90,6 +93,7 @@ export function RunScreen() {
 }
 
 function RunPage({ projectId, run: r, runs }: { projectId: string; run: RunDetail; runs: RunListItem[] }) {
+  const t = useMessages(RUN);
   const view = useRunView(r);
   const item = runs.find((x) => x.id === r.id);
   const tables = useTables();
@@ -103,7 +107,7 @@ function RunPage({ projectId, run: r, runs }: { projectId: string; run: RunDetai
   const product = useQuery(stateQuery(projectId)).data;
   const catalogs = useQuery(providersQuery).data?.catalogs ?? [];
 
-  const thread = item?.exploration_id ? threads?.find((t) => t.id === item.exploration_id) : undefined;
+  const thread = item?.exploration_id ? threads?.find((th) => th.id === item.exploration_id) : undefined;
   const decision =
     r.scope.type === 'record_version'
       ? product?.decisions.find((d) => d.current_id === r.scope.id || d.latest_id === r.scope.id)
@@ -121,7 +125,7 @@ function RunPage({ projectId, run: r, runs }: { projectId: string; run: RunDetai
       { command: 'run.retry', data: { run_id: r.id } },
       {
         onSuccess: (res) => {
-          announce('Retried: a new attempt started.');
+          announce(t.retriedAnnounce);
           openRun(res.result?.runId ?? res.entity_id);
         },
       },
@@ -132,7 +136,7 @@ function RunPage({ projectId, run: r, runs }: { projectId: string; run: RunDetai
       {
         onSuccess: () => {
           setConfirming(false);
-          announce('Cancelled. Nothing was applied.');
+          announce(t.cancelledAnnounce);
           // The Cancel button is gone: the focus goes to what happened, not to the page's end.
           setTimeout(() => status.current?.focus(), 60);
         },
@@ -143,12 +147,12 @@ function RunPage({ projectId, run: r, runs }: { projectId: string; run: RunDetai
     <>
       <div data-run-header>
         <PageHeader
-          crumbs={[activityCrumb(projectId), { label: `${actionWord(r.action)} · ${dayTime(r.created_at)}` }]}
+          crumbs={[activityCrumb(projectId, t.activity), { label: `${actionWord(r.action)} · ${dayTime(r.created_at)}` }]}
           eyebrow={
             <>
               <span className="inline-flex items-center gap-1.5">
                 <PlayIcon size={14} className="text-fg-3" />
-                Run
+                {t.runLabel}
               </span>
               <RunStateBadge run={r} size="md" withDetail />
             </>
@@ -163,7 +167,7 @@ function RunPage({ projectId, run: r, runs }: { projectId: string; run: RunDetai
               </span>
               {decision ? (
                 <span>
-                  From{' '}
+                  {t.fromDecision}{' '}
                   <Link to="/p/$projectId/records/$code" params={{ projectId, code: decision.code }} className={link}>
                     {decision.title}
                   </Link>{' '}
@@ -172,7 +176,7 @@ function RunPage({ projectId, run: r, runs }: { projectId: string; run: RunDetai
               ) : null}
               {thread ? (
                 <span className="min-w-0">
-                  In the thread{' '}
+                  {t.inThread}{' '}
                   <Link
                     to="/p/$projectId/threads/$explorationId"
                     params={{ projectId, explorationId: thread.id }}
@@ -201,7 +205,7 @@ function RunPage({ projectId, run: r, runs }: { projectId: string; run: RunDetai
                       setConfirming(true);
                     }}
                   >
-                    Cancel
+                    {t.cancel}
                   </Button>
                 ) : null}
                 {canRetry ? (
@@ -211,16 +215,16 @@ function RunPage({ projectId, run: r, runs }: { projectId: string; run: RunDetai
                       icon={<RetryIcon size={14} />}
                       data-command="run.retry"
                       pending={retry.isPending}
-                      pendingLabel="Retrying…"
+                      pendingLabel={t.retrying}
                       onClick={doRetry}
                     >
-                      Retry
+                      {t.retry}
                     </Button>
                     <RetryWith
                       projectId={projectId}
                       run={r}
                       onRetried={(runId) => {
-                        announce('Retried on another engine: a new attempt started.');
+                        announce(t.retriedOtherEngineAnnounce);
                         openRun(runId);
                       }}
                     />
@@ -235,7 +239,7 @@ function RunPage({ projectId, run: r, runs }: { projectId: string; run: RunDetai
       </div>
       <PageBody>
         <WithAside
-          asideLabel="Details"
+          asideLabel={t.detailsAside}
           aside={
             <>
               <RunFacts run={r} active={view.active} />
@@ -253,20 +257,18 @@ function RunPage({ projectId, run: r, runs }: { projectId: string; run: RunDetai
       <ConfirmDialog
         open={confirming}
         onOpenChange={setConfirming}
-        title="Cancel this run?"
+        title={t.cancelRunTitle}
         description={
           <p>
-            {r.action === 'exploration_chat'
-              ? 'It stops now. Nothing is applied; what it already wrote in the thread stays.'
-              : 'It stops now. Nothing is applied.'}{' '}
-            You can retry it afterwards on the same context.
+            {r.action === 'exploration_chat' ? t.cancelConversation : t.cancelOther}
+            {t.cancelSuffix}
           </p>
         }
-        confirm="Cancel the run"
-        cancel="Keep it running"
+        confirm={t.cancelConfirm}
+        cancel={t.keepRunning}
         tone="danger"
         pending={cancel.isPending}
-        pendingLabel="Cancelling…"
+        pendingLabel={t.cancelling}
         error={cancel.error}
         onConfirm={doCancel}
       />

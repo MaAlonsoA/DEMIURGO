@@ -20,15 +20,16 @@ import { PageBody, PageHeader, WithAside, usePageTitle } from '../../components/
 import { Bone, RowsSkeleton, Skeleton } from '../../components/Spinner.tsx';
 import { DayTime, RelativeTime } from '../../components/Time.tsx';
 import { Who } from '../../components/Who.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { useCatalog, useProjectId, useTables } from '../../lib/hooks.ts';
 import { whoOf } from '../../words.ts';
-
-const UNTRUSTED = 'An agent registered it. DEMIURGO reads it as input to check, never as something you decided.';
+import { SOURCES } from './words.i18n.ts';
 
 export function SourcesScreen() {
+  const t = useMessages(SOURCES);
   const projectId = useProjectId();
   const project = (useQuery(projectsQuery).data ?? []).find((p) => p.id === projectId);
-  usePageTitle(['Sources', project?.name]);
+  usePageTitle([t.title, project?.name]);
   const sources = useQuery(sourcesQuery(projectId));
   const tables = useTables();
   const canAdd = tables ? canCreate(tables, 'source.register') : false;
@@ -39,10 +40,10 @@ export function SourcesScreen() {
   const list = sources.error ? (
     <ErrorNotice error={sources.error} onRetry={() => void sources.refetch()} />
   ) : sources.isPending ? (
-    <RowsSkeleton label="Loading the sources" rows={4} />
+    <RowsSkeleton label={t.loading} rows={4} />
   ) : rows.length === 0 ? (
-    <EmptyState icon={<SourcesIcon size={28} />} title="No sources yet" size="spacious">
-      Add notes, rules or anything else DEMIURGO should read.
+    <EmptyState icon={<SourcesIcon size={28} />} title={t.noSourcesTitle} size="spacious">
+      {t.noSourcesBody}
     </EmptyState>
   ) : (
     <div className="flex flex-col gap-3">
@@ -50,26 +51,26 @@ export function SourcesScreen() {
         <p className="flex items-start gap-2 text-sm text-fg-2">
           <AlertTriangleIcon size={15} className="mt-0.5 shrink-0 text-warning-text" />
           <span>
-            <strong className="font-medium text-fg">Untrusted input:</strong> {UNTRUSTED}
+            <strong className="font-medium text-fg">{t.untrustedLabel}</strong> {t.untrustedText}
           </span>
         </p>
       ) : null}
       <div className="relative overflow-x-auto rounded-lg border border-edge">
         <table className="w-full min-w-[600px] border-collapse text-left text-sm">
-          <caption className="sr-only">Sources</caption>
+          <caption className="sr-only">{t.caption}</caption>
           <thead className="bg-sunken text-xs text-fg-2">
             <tr className="border-b border-edge">
               <th scope="col" className="px-4 py-2.5 font-medium">
-                Name
+                {t.colName}
               </th>
               <th scope="col" className="w-44 px-4 py-2.5 font-medium">
-                Registered by
+                {t.colRegisteredBy}
               </th>
               <th scope="col" className="w-32 px-4 py-2.5 font-medium">
-                When
+                {t.colWhen}
               </th>
               <th scope="col" className="w-40 px-4 py-2.5 font-medium">
-                Content hash
+                {t.colHash}
               </th>
             </tr>
           </thead>
@@ -85,13 +86,10 @@ export function SourcesScreen() {
 
   return (
     <>
-      <PageHeader
-        title="Sources"
-        meta="What you and your agents give DEMIURGO to read. A source is input for its work, never a decision."
-      />
+      <PageHeader title={t.title} meta={t.meta} />
       <PageBody>
         {canAdd ? (
-          <WithAside asideLabel="New source" aside={<AddSource projectId={projectId} />} asideWidth="md">
+          <WithAside asideLabel={t.newSourceTitle} aside={<AddSource projectId={projectId} />} asideWidth="md">
             {list}
           </WithAside>
         ) : (
@@ -103,6 +101,7 @@ export function SourcesScreen() {
 }
 
 function SourceRow({ source: s }: { source: Source }) {
+  const t = useMessages(SOURCES);
   const untrusted = whoOf(s.registered_by).kind === 'agent';
   return (
     <tr data-source={s.id} className="align-top">
@@ -114,7 +113,7 @@ function SourceRow({ source: s }: { source: Source }) {
             {untrusted ? (
               <span className="inline-flex items-center gap-1 rounded-full border border-warning-edge bg-warning-soft px-2 text-xs leading-5 font-medium whitespace-nowrap text-warning-text">
                 <AlertTriangleIcon size={12} />
-                Untrusted input
+                {t.untrustedTag}
               </span>
             ) : null}
           </span>
@@ -133,7 +132,7 @@ function SourceRow({ source: s }: { source: Source }) {
         <details className="group">
           <summary className="inline-flex min-h-6 cursor-pointer list-none items-center gap-1 rounded-xs font-code text-xs text-fg-2 hover:text-fg">
             <ChevronRightIcon size={12} className="shrink-0 transition-transform group-open:rotate-90" />
-            {s.content_hash.slice(0, 12)}…<span className="sr-only"> Show the full hash</span>
+            {s.content_hash.slice(0, 12)}…<span className="sr-only">{t.showFullHash}</span>
           </summary>
           <code className="mt-1 block font-code text-xs break-all text-fg">{s.content_hash}</code>
         </details>
@@ -151,21 +150,15 @@ type FormField = {
   long: boolean;
 };
 
-/** Written words for the fields the command has today; any other string field gets its key as label. */
-const COPY: Record<string, { label: string; hint: string }> = {
-  name: { label: 'Name', hint: 'How you will recognise it: "Meeting notes, 12 Sep".' },
-  content: { label: 'Content', hint: 'Paste it as it is. DEMIURGO reads it; it never becomes a decision.' },
-};
-
 /** The fields of a command from its JSON Schema: strings, long ones as a text area. */
-function fieldsOf(schema: JsonSchema | null | undefined): FormField[] {
+function fieldsOf(schema: JsonSchema | null | undefined, copy: Record<string, { label: string; hint: string }>): FormField[] {
   const required = new Set(schema?.required ?? []);
   return Object.entries(schema?.properties ?? {})
     .filter(([, p]) => p.type === 'string')
     .map(([key, p]) => ({
       key,
-      label: COPY[key]?.label ?? key.charAt(0).toUpperCase() + key.slice(1).replaceAll('_', ' '),
-      hint: COPY[key]?.hint,
+      label: copy[key]?.label ?? key.charAt(0).toUpperCase() + key.slice(1).replaceAll('_', ' '),
+      hint: copy[key]?.hint,
       required: required.has(key),
       maxLength: p.maxLength,
       long: (p.maxLength ?? 0) > 1000,
@@ -173,8 +166,14 @@ function fieldsOf(schema: JsonSchema | null | undefined): FormField[] {
 }
 
 function AddSource({ projectId }: { projectId: string }) {
+  const t = useMessages(SOURCES);
   const catalog = useCatalog();
-  const fields = fieldsOf(catalog?.['source.register']?.data);
+  /** Written words for the fields the command has today; any other string field gets its key as label. */
+  const copy: Record<string, { label: string; hint: string }> = {
+    name: { label: t.nameLabel, hint: t.nameHint },
+    content: { label: t.contentLabel, hint: t.contentHint },
+  };
+  const fields = fieldsOf(catalog?.['source.register']?.data, copy);
   const command = useCommand(projectId);
   const [values, setValues] = useState<Record<string, string>>({});
   // The confirmation stays until the person changes something again (DESIGN.md §3.8).
@@ -189,10 +188,10 @@ function AddSource({ projectId }: { projectId: string }) {
       { command: 'source.register', data },
       {
         onSuccess: () => {
-          const name = String(data.name ?? 'The source');
+          const name = String(data.name ?? t.defaultName);
           setAdded(name);
           setValues({});
-          announce(`Added “${name}”.`);
+          announce(t.addedAnnounce(name));
         },
       },
     );
@@ -205,13 +204,13 @@ function AddSource({ projectId }: { projectId: string }) {
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-0.5">
         <h2 id={`${id}-title`} className="text-lg font-semibold text-fg">
-          Add a source
+          {t.newSourceTitle}
         </h2>
-        <p className="text-sm text-fg-2">Paste what DEMIURGO should read: notes, rules, a survey.</p>
+        <p className="text-sm text-fg-2">{t.newSourceIntro}</p>
       </div>
       <form aria-labelledby={`${id}-title`} onSubmit={submit} className="flex flex-col gap-4">
         {!catalog ? (
-          <Skeleton label="Loading the form" className="flex flex-col gap-3">
+          <Skeleton label={t.loadingForm} className="flex flex-col gap-3">
             <Bone className="h-9 w-full rounded-md" />
             <Bone className="h-40 w-full rounded-md" />
           </Skeleton>
@@ -245,8 +244,8 @@ function AddSource({ projectId }: { projectId: string }) {
         )}
         {command.error ? <ErrorNotice error={command.error} /> : null}
         {added ? (
-          <Notice tone="success" title={`Added “${added}”.`}>
-            It is at the top of the list.
+          <Notice tone="success" title={t.addedAnnounce(added)}>
+            {t.addedNote}
           </Notice>
         ) : null}
         <Button
@@ -254,10 +253,10 @@ function AddSource({ projectId }: { projectId: string }) {
           variant="primary"
           disabled={!complete}
           pending={command.isPending}
-          pendingLabel="Adding…"
+          pendingLabel={t.adding}
           className="self-end"
         >
-          Add a source
+          {t.add}
         </Button>
       </form>
     </div>

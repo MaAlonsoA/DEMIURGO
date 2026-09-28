@@ -15,12 +15,14 @@ import { ErrorNotice } from '../../components/Notice.tsx';
 import { type Crumb, PageBody, PageHeader, usePageTitle } from '../../components/Page.tsx';
 import { Bone, Skeleton } from '../../components/Spinner.tsx';
 import { isNotFound } from '../../components/explain.ts';
+import { useMessages } from '../../i18n/define.ts';
 import { useRouteParams } from '../../lib/hooks.ts';
 import { DemiurgoPackage } from './DemiurgoPackage.tsx';
 import { ImportPackage } from './ImportPackage.tsx';
 import { ItemBatch } from './ItemBatch.tsx';
 import { batchView } from './model.ts';
 import { batchTitle } from './proposal.ts';
+import { BATCH } from './words.i18n.ts';
 
 export type Origin = { kind: 'needs' } | { kind: 'catch-up' } | { kind: 'thread'; threadId: string };
 
@@ -46,21 +48,22 @@ function useOrigin(): Origin {
 
 /** The breadcrumb of a batch page, ending in its own name. */
 export function useBatchCrumbs(projectId: string, current: string): Crumb[] {
+  const t = useMessages(BATCH);
   const origin = useContext(OriginContext);
   const threads = useQuery({ ...explorationsQuery(projectId), enabled: origin.kind === 'thread' }).data;
-  const needs: Crumb = { label: 'Needs you', link: { to: '/p/$projectId/needs-you', params: { projectId } } };
+  const needs: Crumb = { label: t.needsYou, link: { to: '/p/$projectId/needs-you', params: { projectId } } };
   if (origin.kind === 'catch-up')
     return [
       needs,
-      { label: 'Catching up', link: { to: '/p/$projectId/needs-you', params: { projectId }, search: { 'catch-up': 1 } } },
+      { label: t.catchingUp, link: { to: '/p/$projectId/needs-you', params: { projectId }, search: { 'catch-up': 1 } } },
       { label: current },
     ];
   if (origin.kind === 'thread') {
-    const thread = threads?.find((t) => t.id === origin.threadId);
+    const thread = threads?.find((th) => th.id === origin.threadId);
     return [
-      { label: 'Threads', link: { to: '/p/$projectId/threads', params: { projectId } } },
+      { label: t.threads, link: { to: '/p/$projectId/threads', params: { projectId } } },
       {
-        label: thread?.purpose ?? 'Thread',
+        label: thread?.purpose ?? t.thread,
         link: { to: '/p/$projectId/threads/$explorationId', params: { projectId, explorationId: origin.threadId } },
       },
       { label: current },
@@ -70,19 +73,20 @@ export function useBatchCrumbs(projectId: string, current: string): Crumb[] {
 }
 
 export function BatchScreen() {
+  const t = useMessages(BATCH);
   const { projectId, batchId = '' } = useRouteParams();
   const batch = useQuery(batchQuery(projectId, batchId));
   const origin = useOrigin();
   const project = (useQuery(projectsQuery).data ?? []).find((p) => p.id === projectId);
   // One title for the tab, set here only (a child's would be overwritten by this one).
-  usePageTitle([batch.data ? batchTitle(batch.data) : isNotFound(batch.error) ? 'Not found' : 'Proposals', project?.name]);
+  usePageTitle([batch.data ? batchTitle(batch.data) : isNotFound(batch.error) ? t.notFound : t.proposals, project?.name]);
   if (isNotFound(batch.error)) return <Missing projectId={projectId} />;
   if (batch.error) {
     return (
       <>
         <PageHeader
-          crumbs={[{ label: 'Needs you', link: { to: '/p/$projectId/needs-you', params: { projectId } } }]}
-          title="Proposals"
+          crumbs={[{ label: t.needsYou, link: { to: '/p/$projectId/needs-you', params: { projectId } } }]}
+          title={t.proposals}
         />
         <PageBody width="reading">
           <ErrorNotice error={batch.error} onRetry={() => void batch.refetch()} />
@@ -106,29 +110,30 @@ export function BatchScreen() {
 }
 
 function Missing({ projectId }: { projectId: string }) {
+  const t = useMessages(BATCH);
   return (
     <>
       <PageHeader
-        crumbs={[{ label: 'Needs you', link: { to: '/p/$projectId/needs-you', params: { projectId } } }]}
-        title="Not found"
+        crumbs={[{ label: t.needsYou, link: { to: '/p/$projectId/needs-you', params: { projectId } } }]}
+        title={t.notFound}
       />
       <PageBody width="reading">
         <EmptyState
           size="spacious"
           icon={<PackageIcon size={28} />}
-          title="We couldn't find these proposals"
+          title={t.missingTitle}
           action={
             <>
               <Link to="/p/$projectId/needs-you" params={{ projectId }} className={buttonClass({ variant: 'primary' })}>
-                Back to Needs you
+                {t.backToNeedsYou}
               </Link>
               <Link to="/p/$projectId" params={{ projectId }} className={buttonClass({ variant: 'quiet' })}>
-                Back to the product
+                {t.backToProduct}
               </Link>
             </>
           }
         >
-          They may belong to another project, or the link is wrong.
+          {t.missingBody}
         </EmptyState>
       </PageBody>
     </>
@@ -136,14 +141,15 @@ function Missing({ projectId }: { projectId: string }) {
 }
 
 function BatchSkeleton({ projectId }: { projectId: string }) {
+  const t = useMessages(BATCH);
   return (
     <>
       <PageHeader
-        crumbs={[{ label: 'Needs you', link: { to: '/p/$projectId/needs-you', params: { projectId } } }, { label: 'Proposals' }]}
-        title="Proposals"
+        crumbs={[{ label: t.needsYou, link: { to: '/p/$projectId/needs-you', params: { projectId } } }, { label: t.proposals }]}
+        title={t.proposals}
       />
       <PageBody>
-        <Skeleton label="Loading the proposals" className="flex flex-col gap-6 xl:flex-row">
+        <Skeleton label={t.loadingProposals} className="flex flex-col gap-6 xl:flex-row">
           <div className="flex flex-col gap-2 xl:w-72">
             {[0, 1, 2].map((i) => (
               <Bone key={i} className="h-12 w-full rounded-md" />

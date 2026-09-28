@@ -23,6 +23,7 @@ import { EntityState } from '../../components/status.tsx';
 import { DayTime } from '../../components/Time.tsx';
 import { TypeIcon } from '../../components/types.tsx';
 import { Who, whoName } from '../../components/Who.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { useTables } from '../../lib/hooks.ts';
 import { TYPE_WORDS, TYPE_WORDS_PLURAL, whoOf } from '../../words.ts';
 import { RecordTabs } from '../blueprint/Sections.tsx';
@@ -30,6 +31,7 @@ import type { RecordTab } from '../blueprint/tabs.ts';
 import { isEarlierDraft, versionStage } from './logic.ts';
 import { useReturnFocus } from './returnFocus.ts';
 import { VersionPicker } from './VersionPicker.tsx';
+import { HEADER } from './words.i18n.ts';
 
 type Dialog = null | 'approve' | 'discard';
 
@@ -45,9 +47,15 @@ const SECTION_OF: Record<string, string> = {
   production_readiness: 'stage-records-title',
 };
 
-export function recordCrumbs(projectId: string, record: RecordDetail, title: string, more: Crumb[] = []): Crumb[] {
+export function recordCrumbs(
+  projectId: string,
+  record: RecordDetail,
+  title: string,
+  more: Crumb[] = [],
+  words: (typeof HEADER)['en'] = HEADER.en,
+): Crumb[] {
   return [
-    { label: 'Product', link: { to: '/p/$projectId', params: { projectId } } },
+    { label: words.product, link: { to: '/p/$projectId', params: { projectId } } },
     {
       label: TYPE_WORDS_PLURAL[record.type],
       link: { to: '/p/$projectId', params: { projectId }, hash: SECTION_OF[record.type] ?? '' },
@@ -72,6 +80,7 @@ export function RecordHeader({
   tab: RecordTab;
   onApproved: () => void;
 }) {
+  const t = useMessages(HEADER);
   const tables = useTables();
   const client = useQueryClient();
   const actions = useActions('record_version', version.state);
@@ -114,7 +123,7 @@ export function RecordHeader({
   return (
     <div data-record-header>
       <PageHeader
-        crumbs={recordCrumbs(projectId, record, version.title)}
+        crumbs={recordCrumbs(projectId, record, version.title, [], t)}
         eyebrow={
           <>
             <span className="inline-flex items-center gap-1.5">
@@ -127,7 +136,7 @@ export function RecordHeader({
             <span data-version-state className="inline-flex">
               <EntityState entity="record_version" state={version.state} />
             </span>
-            {version.current ? <span className="text-sm text-fg-2">current</span> : null}
+            {version.current ? <span className="text-sm text-fg-2">{t.current}</span> : null}
             {ready ? <Readiness stage={stage} blocking={ready.reasons.length} /> : null}
           </>
         }
@@ -136,12 +145,14 @@ export function RecordHeader({
           <>
             <span className="inline-flex items-center gap-1.5">
               <Who actor={version.author} size={16} showName={false} />
-              Written by {whoWord(version.author)} · <DayTime iso={version.created_at} />
+              {t.writtenBy}
+              {whoWord(version.author, t)} · <DayTime iso={version.created_at} />
             </span>
             {version.approved_by ? (
               <span className="inline-flex items-center gap-1.5">
                 <Who actor={version.approved_by} size={16} showName={false} />
-                Approved by {whoWord(version.approved_by)} · <DayTime iso={version.approved_at} />
+                {t.approvedBy}
+                {whoWord(version.approved_by, t)} · <DayTime iso={version.approved_at} />
               </span>
             ) : null}
           </>
@@ -163,7 +174,7 @@ export function RecordHeader({
                   className={buttonClass()}
                 >
                   <PencilIcon size={14} />
-                  New version
+                  {t.newVersion}
                 </Link>
               ) : null}
               <VersionPicker projectId={projectId} record={record} shown={version} />
@@ -176,39 +187,33 @@ export function RecordHeader({
       <ConfirmDialog
         open={dialog === 'approve'}
         onOpenChange={close}
-        title={`Approve v${version.n} of ${version.title}?`}
-        description={
-          <>
-            It becomes the current version
-            {record.current !== null && record.current < version.n ? `, and v${record.current} is replaced` : ''}. Approving does
-            not create a new version.
-          </>
-        }
-        confirm="Approve"
-        pendingLabel="Approving…"
+        title={t.approveTitle(version.n, version.title)}
+        description={t.approveDescription(record.current, version.n)}
+        confirm={t.approve}
+        pendingLabel={t.approving}
         pending={command.isPending}
         error={dialog === 'approve' ? command.error : null}
-        onConfirm={() => run('record_version.approve', {}, `Approved. v${version.n} is the current version.`, onApproved)}
+        onConfirm={() => run('record_version.approve', {}, t.approvedAnnounce(version.n), onApproved)}
       />
       <PromptDialog
         open={dialog === 'discard'}
         onOpenChange={close}
-        title={`Discard v${version.n}?`}
-        description="The draft stays in the history, marked as discarded. Nothing else changes."
-        label="Reason"
-        submit="Discard"
-        pendingLabel="Discarding…"
+        title={t.discardTitle(version.n)}
+        description={t.discardDescription}
+        label={t.reason}
+        submit={t.discard}
+        pendingLabel={t.discarding}
         tone="danger"
         maxLength={1000}
         pending={command.isPending}
         error={dialog === 'discard' ? command.error : null}
-        onSubmit={(text) => run('record_version.discard', text ? { reason: text } : {}, `Discarded v${version.n}.`)}
+        onSubmit={(text) => run('record_version.discard', text ? { reason: text } : {}, t.discardedAnnounce(version.n))}
       />
     </div>
   );
 }
 
-function whoWord(actor: string): string {
+function whoWord(actor: string, words: (typeof HEADER)['en']): string {
   const who = whoOf(actor);
-  return who.kind === 'you' ? 'you' : whoName(who);
+  return who.kind === 'you' ? words.you : whoName(who);
 }

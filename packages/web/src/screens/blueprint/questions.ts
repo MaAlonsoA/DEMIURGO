@@ -4,6 +4,7 @@
 
 import { questionReason } from '../../../../domain/src/records.ts';
 import type { Question, Readiness } from '../../api/types.ts';
+import { QUESTIONS_LOGIC, type QuestionsLogicWords } from './words.i18n.ts';
 
 export type QuestionGroups = {
   /** Pending, then assumed (inferred): what can still be answered here. */
@@ -37,9 +38,6 @@ export function shortAnswer(text: string, max = 44): string {
   return `${clean.slice(0, space > max / 2 ? space : max).trimEnd()}…`;
 }
 
-/** The level DEMIURGO gave to a question (question.raise takes high, medium or low). */
-export const IMPACT_WORDS: Record<string, string> = { high: 'High', medium: 'Medium', low: 'Low' };
-
 export type Citation = { cited: boolean; text: string; reason: string | null };
 
 /**
@@ -49,14 +47,12 @@ export type Citation = { cited: boolean; text: string; reason: string | null };
 export function readinessCitation(
   question: Pick<Question, 'id' | 'state' | 'question'>,
   readiness: Readiness | null,
+  words: QuestionsLogicWords = QUESTIONS_LOGIC.en,
 ): Citation | null {
   if (!readiness) return null;
   const expected = questionReason(question.state, question.question);
   const reason = readiness.reasons.find((r) => r === expected) ?? null;
-  if (!reason) return { cited: false, text: "Its readiness doesn't cite it.", reason: null };
-  const text =
-    question.state === 'inferred'
-      ? 'Yes. It waits until you confirm the answer DEMIURGO assumed.'
-      : 'Yes. It waits on this question of its thread.';
+  if (!reason) return { cited: false, text: words.notCited, reason: null };
+  const text = question.state === 'inferred' ? words.waitsOnAssumed : words.waitsOnQuestion;
   return { cited: true, text, reason };
 }

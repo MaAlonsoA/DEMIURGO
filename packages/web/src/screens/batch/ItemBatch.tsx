@@ -20,11 +20,13 @@ import { DayTime } from '../../components/Time.tsx';
 import { WhoAvatar } from '../../components/Who.tsx';
 import { cn } from '../../lib/cn.ts';
 import { whoOf } from '../../words.ts';
+import { useMessages } from '../../i18n/define.ts';
 import { useBatchCrumbs } from './Batch.tsx';
 import { EditGuard, useEditGuard } from './guard.tsx';
 import { PROPOSAL_TYPE_WORDS, proposalTitle } from './model.ts';
 import { batchHeading, type ProposalView as ProposalData } from './proposal.ts';
 import { ProposalView, producerName } from './ProposalView.tsx';
+import { ITEM_BATCH } from './words.i18n.ts';
 
 /** The batch's proposals with what the inbox adds to the pending ones: the idea check and the warnings. */
 export function withInbox(batch: BatchDetail, inbox: InboxProposal[]): ProposalData[] {
@@ -35,13 +37,6 @@ export function withInbox(batch: BatchDetail, inbox: InboxProposal[]): ProposalD
   });
 }
 
-const WHO_EXPLAINS: Record<string, string> = {
-  agent: 'An agent from outside. It only proposes: nothing changes until you accept.',
-  automatic: 'It found these while taking in a change. It only proposes: nothing changes until you accept.',
-  demiurgo: 'It only proposes: nothing changes until you accept.',
-  you: 'Nothing changes until you accept.',
-};
-
 export function ItemBatch({ projectId, batch }: { projectId: string; batch: BatchDetail }) {
   return (
     <EditGuard>
@@ -51,6 +46,7 @@ export function ItemBatch({ projectId, batch }: { projectId: string; batch: Batc
 }
 
 function ItemBatchPage({ projectId, batch }: { projectId: string; batch: BatchDetail }) {
+  const t = useMessages(ITEM_BATCH);
   const inbox = useQuery(inboxQuery(projectId)).data;
   const state = useQuery(stateQuery(projectId)).data;
   const rows: ProductRow[] = state ? [...state.decisions, ...state.designs] : [];
@@ -82,8 +78,8 @@ function ItemBatchPage({ projectId, batch }: { projectId: string; batch: BatchDe
     if (!focusTitle.current) return;
     focusTitle.current = false;
     // After the dialog has closed and given its focus back.
-    const t = setTimeout(() => document.getElementById(titleId)?.focus(), 60);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => document.getElementById(titleId)?.focus(), 60);
+    return () => clearTimeout(timer);
   });
 
   const go = (i: number, focus = false) =>
@@ -98,7 +94,7 @@ function ItemBatchPage({ projectId, batch }: { projectId: string; batch: BatchDe
     const before = proposals.findIndex((p, i) => i < index && p.state === 'pending');
     const next = after >= 0 ? after : before;
     const remaining = Math.max(0, left - 1);
-    announce(`${said} ${remaining === 0 ? 'All decided.' : `${remaining} to decide.`}`);
+    announce(t.doneAnnounce(said, remaining));
     focusTitle.current = true;
     if (next >= 0) setChosen(next);
   };
@@ -118,14 +114,14 @@ function ItemBatchPage({ projectId, batch }: { projectId: string; batch: BatchDe
           <>
             <DayTime iso={batch.created_at} />
             {batch.summary ? <span>{batch.summary}</span> : null}
-            <span>Nothing changes until you accept. Decide each one: accept it, change it or reject it.</span>
+            <span>{t.decideEach}</span>
           </>
         }
       >
         <Meter
           value={decided}
           max={n}
-          label={`${decided} of ${n} decided${stale > 0 ? ` · ${stale} out of date` : ''}`}
+          label={t.meterLabel(decided, n, stale)}
           tone={left === 0 && stale === 0 ? 'success' : 'accent'}
           className="max-w-md"
         />
@@ -133,11 +129,11 @@ function ItemBatchPage({ projectId, batch }: { projectId: string; batch: BatchDe
       <PageBody>
         <div className="flex flex-col gap-8 xl:flex-row xl:items-start">
           <div className="flex w-full shrink-0 flex-col gap-6 xl:sticky xl:top-4 xl:w-80">
-            <nav aria-label="Proposals in this batch" className="flex flex-col gap-2">
+            <nav aria-label={t.proposalsInBatch} className="flex flex-col gap-2">
               <div className="flex items-baseline justify-between gap-3">
-                <h2 className="text-base font-semibold text-fg">In this batch</h2>
+                <h2 className="text-base font-semibold text-fg">{t.inThisBatch}</h2>
                 <span className="text-sm text-fg-2" data-left={left}>
-                  {left > 0 ? `${left} to decide` : stale > 0 ? 'Nothing left to decide' : 'All decided'}
+                  {left > 0 ? t.toDecide(left) : stale > 0 ? t.nothingLeftToDecide : t.allDecided}
                 </span>
               </div>
               <ol className="flex flex-col gap-1">
@@ -178,39 +174,37 @@ function ItemBatchPage({ projectId, batch }: { projectId: string; batch: BatchDe
                 ))}
               </ol>
             </nav>
-            <section aria-label="Who proposes" className="flex items-start gap-3 rounded-lg border border-edge px-3.5 py-3">
+            <section aria-label={t.whoProposes} className="flex items-start gap-3 rounded-lg border border-edge px-3.5 py-3">
               <WhoAvatar kind={who.kind} size={28} />
               <div className="flex flex-col gap-0.5 text-sm">
-                <p className="font-medium text-fg">{producerName(batch.producer)}</p>
-                <p className="text-fg-2">{WHO_EXPLAINS[who.kind]}</p>
+                <p className="font-medium text-fg">{producerName(batch.producer, t.demiurgosKnowledge)}</p>
+                <p className="text-fg-2">{t.whoExplains(who.kind)}</p>
               </div>
             </section>
           </div>
 
           <div className="flex min-w-0 max-w-3xl flex-1 flex-col gap-4">
-            <nav aria-label="Move between proposals" className="flex items-center justify-between gap-3">
+            <nav aria-label={t.moveBetween} className="flex items-center justify-between gap-3">
               <Button
                 variant="quiet"
                 size="sm"
-                aria-label="Previous proposal"
+                aria-label={t.previousProposal}
                 icon={<ChevronLeftIcon size={14} />}
                 disabled={index === 0}
                 onClick={() => go(index - 1)}
               >
-                Previous
+                {t.previous}
               </Button>
-              <span className="text-sm text-fg-2 tabular-nums">
-                {index + 1} of {n}
-              </span>
+              <span className="text-sm text-fg-2 tabular-nums">{t.positionOf(index + 1, n)}</span>
               <Button
                 variant="quiet"
                 size="sm"
-                aria-label="Next proposal"
+                aria-label={t.nextProposal}
                 trailing={<ChevronRightIcon size={14} />}
                 disabled={index >= n - 1}
                 onClick={() => go(index + 1)}
               >
-                Next
+                {t.next}
               </Button>
             </nav>
             {current ? (
@@ -229,7 +223,7 @@ function ItemBatchPage({ projectId, batch }: { projectId: string; batch: BatchDe
                 footer={
                   left === 0 ? (
                     <Link to="/p/$projectId/needs-you" params={{ projectId }} className={buttonClass({ variant: 'secondary' })}>
-                      Back to Needs you
+                      {t.backToNeedsYou}
                     </Link>
                   ) : (
                     <Button
@@ -241,7 +235,7 @@ function ItemBatchPage({ projectId, batch }: { projectId: string; batch: BatchDe
                         )
                       }
                     >
-                      Next to decide
+                      {t.nextToDecide}
                     </Button>
                   )
                 }

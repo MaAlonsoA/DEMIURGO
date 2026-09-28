@@ -11,18 +11,17 @@ import { sessionQuery } from '../api/queries.ts';
 import { reconnect, useConnection } from '../api/stream.ts';
 import { Button } from '../components/Button.tsx';
 import { Banner } from '../components/Notice.tsx';
+import { useMessages } from '../i18n/define.ts';
 import { cn } from '../lib/cn.ts';
+import { CONNECTION } from './words.i18n.ts';
 
 /** "Live" · "Reconnecting…" · "Offline", with a dot of its shape and tone. */
 export function LiveStatus({ compact }: { compact?: boolean }) {
+  const t = useMessages(CONNECTION);
   const c = useConnection();
-  const word = c === 'open' ? 'Live' : c === 'closed' ? 'Offline' : c === 'down' ? 'Reconnecting…' : 'Connecting…';
+  const word = c === 'open' ? t.live : c === 'closed' ? t.offline : c === 'down' ? t.reconnecting : t.connecting;
   return (
-    <span
-      className="inline-flex min-w-0 items-center gap-2 text-sm text-fg-2"
-      data-connection={c}
-      title={`Live updates: ${word}`}
-    >
+    <span className="inline-flex min-w-0 items-center gap-2 text-sm text-fg-2" data-connection={c} title={t.liveUpdates(word)}>
       <span
         aria-hidden
         className={cn(
@@ -38,6 +37,7 @@ export function LiveStatus({ compact }: { compact?: boolean }) {
 }
 
 export function ConnectionBanner() {
+  const t = useMessages(CONNECTION);
   const c = useConnection();
   const client = useQueryClient();
   const router = useRouter();
@@ -48,8 +48,8 @@ export function ConnectionBanner() {
       setVisible(false);
       return;
     }
-    const t = setTimeout(() => setVisible(true), c === 'closed' ? 0 : 1500);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setVisible(true), c === 'closed' ? 0 : 1500);
+    return () => clearTimeout(timer);
   }, [c]);
 
   // The browser gave up: if the session ended, Sign in (keeping where the person was).
@@ -78,11 +78,11 @@ export function ConnectionBanner() {
         className="sticky top-0 z-20"
         action={
           <Button size="sm" variant="secondary" onClick={() => window.location.reload()}>
-            Reload
+            {t.reload}
           </Button>
         }
       >
-        Can't reconnect to DEMIURGO: live updates stopped. Reload the page to see them again.
+        {t.cantReconnect}
       </Banner>
     );
   return (
@@ -91,11 +91,11 @@ export function ConnectionBanner() {
       className="sticky top-0 z-20"
       action={
         <Button size="sm" variant="secondary" onClick={reconnect}>
-          Retry now
+          {t.retryNow}
         </Button>
       }
     >
-      Live updates paused — reconnecting. What you see may be out of date; you can keep working.
+      {t.paused}
     </Banner>
   );
 }

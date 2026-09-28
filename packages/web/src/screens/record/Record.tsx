@@ -18,6 +18,8 @@ import { ErrorNotice } from '../../components/Notice.tsx';
 import { PageHeader, usePageTitle } from '../../components/Page.tsx';
 import { PageSkeleton } from '../../components/Spinner.tsx';
 import { useAllows } from '../../components/actions.tsx';
+import { useMessages } from '../../i18n/define.ts';
+import { useReading } from '../../i18n/reading.tsx';
 import { useRouteParams, useTables } from '../../lib/hooks.ts';
 import { HistoryTab } from '../blueprint/HistoryTab.tsx';
 import { RecordsNavigator } from '../blueprint/Navigator.tsx';
@@ -34,7 +36,7 @@ import { ContextPanel, ReadinessPanel, VersionsPanel } from './RecordAside.tsx';
 import { ReviewArea, ReviewBand, ReviewProvider, ReviewSections, useReview } from './Review.tsx';
 import { canReview } from './review.ts';
 import { takeSaveWarnings } from './saved.ts';
-import { useReading } from '../../i18n/reading.tsx';
+import { RECORD } from './words.i18n.ts';
 
 /** The navigator beside the page; the page is a size container, so its columns follow its own width. */
 function Frame({ projectId, code, children }: { projectId: string; code: string; children: ReactNode }) {
@@ -48,11 +50,12 @@ function Frame({ projectId, code, children }: { projectId: string; code: string;
 
 /** Main content and its side column: stacked, then side by side from a 56rem wide content area. */
 function Columns({ main, aside }: { main: ReactNode; aside: ReactNode }) {
+  const t = useMessages(RECORD);
   return (
     <div className="flex flex-col gap-8 px-4 py-6 sm:px-6 lg:px-8 @4xl:flex-row @4xl:items-start">
       <div className="flex min-w-0 flex-1 flex-col gap-8">{main}</div>
       <aside
-        aria-label="About this record"
+        aria-label={t.aboutRecord}
         className="flex w-full shrink-0 flex-col gap-8 @4xl:sticky @4xl:top-3 @4xl:w-80 @6xl:w-96"
       >
         {aside}
@@ -62,6 +65,7 @@ function Columns({ main, aside }: { main: ReactNode; aside: ReactNode }) {
 }
 
 export function RecordScreen() {
+  const t = useMessages(RECORD);
   const { projectId, code = '' } = useRouteParams();
   const search = useSearch({ strict: false }) as { v?: number };
   const record = useQuery(recordQuery(projectId, code));
@@ -69,7 +73,7 @@ export function RecordScreen() {
   const inbox = useQuery(inboxQuery(projectId));
   usePageTitle([record.data ? (selectVersion(record.data, search.v)?.title ?? code) : code, state.data?.project.name]);
 
-  if (record.error instanceof ApiError && record.error.status === 404) return <NotFound thing={`the record ${code}`} />;
+  if (record.error instanceof ApiError && record.error.status === 404) return <NotFound thing={t.notFoundRecord(code)} />;
   const r = record.data;
   const version = r ? selectVersion(r, search.v) : undefined;
   if (!r || !version) {
@@ -84,7 +88,7 @@ export function RecordScreen() {
           </>
         ) : (
           <div className="px-4 py-6 sm:px-6 lg:px-8">
-            <PageSkeleton label="Loading the record" />
+            <PageSkeleton label={t.loadingRecord} />
           </div>
         )}
       </Frame>
@@ -110,6 +114,7 @@ function RecordPage({
   state: ProductState | undefined;
   inbox: Inbox | undefined;
 }) {
+  const t = useMessages(RECORD);
   // The version read in the person's language; the actions act on the English one (same id).
   const reading = useReading(projectId, 'record_version', stored.id);
   const version = readVersion(stored, reading.text);
@@ -201,7 +206,7 @@ function RecordPage({
             ) : hasChecks(record, version) ? (
               <Checks criteria={version.criteria} readiness={ready} />
             ) : (
-              <p className="text-sm text-fg-2">A decision without checks has no Checks section.</p>
+              <p className="text-sm text-fg-2">{t.noChecksSection}</p>
             )
           }
         />
@@ -237,7 +242,7 @@ function RecordPage({
               />
             ) : null}
             {record.type === 'fdr' ? <FeatureJourney version={version} readiness={ready} /> : null}
-            <article aria-label={`${version.title}, as written`} className="flex flex-col gap-8">
+            <article aria-label={t.asWritten(version.title)} className="flex flex-col gap-8">
               <ReviewSections sections={version.sections} parts={review.parts}>
                 {(s) => (
                   <section key={s.title} className="flex flex-col gap-2">
@@ -276,10 +281,11 @@ function readVersion(v: RecordVersion, text: (key: string, original: string) => 
 }
 
 function Annexes({ annexes }: { annexes: RecordVersion['annexes'] }) {
+  const t = useMessages(RECORD);
   return (
     <section aria-labelledby="annexes-title" className="flex flex-col gap-3">
       <h2 id="annexes-title" className="text-lg font-semibold text-fg">
-        Annexes <span className="font-normal text-fg-2">· {annexes.length}</span>
+        {t.annexesTitle} <span className="font-normal text-fg-2">· {annexes.length}</span>
       </h2>
       {annexes.map((a) => (
         <details key={a.path} className="rounded-lg border border-edge bg-panel px-4 py-2.5">

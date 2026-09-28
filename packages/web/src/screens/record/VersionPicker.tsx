@@ -7,28 +7,31 @@ import type { RecordDetail, RecordVersion } from '../../api/types.ts';
 import { Code } from '../../components/Badge.tsx';
 import { buttonClass } from '../../components/Button.tsx';
 import { ChevronDownIcon } from '../../components/icons.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { Menu, MenuItem, MenuLabel } from '../../components/Menu.tsx';
 import { StateIcon } from '../../components/status.tsx';
 import { whoName } from '../../components/Who.tsx';
 import { shortDate } from '../../lib/time.ts';
 import { stateWord, whoOf } from '../../words.ts';
+import { VERSION_PICKER } from './words.i18n.ts';
 
-const by = (actor: string) => {
+const by = (actor: string, words: (typeof VERSION_PICKER)['en']) => {
   const who = whoOf(actor);
-  return who.kind === 'you' ? 'you' : whoName(who);
+  return who.kind === 'you' ? words.you : whoName(who);
 };
 
 export function VersionPicker({ projectId, record, shown }: { projectId: string; record: RecordDetail; shown: RecordVersion }) {
+  const t = useMessages(VERSION_PICKER);
   const navigate = useNavigate();
   const w = stateWord('record_version', shown.state);
   return (
     <Menu
       align="end"
-      label="Versions"
+      label={t.versionsLabel}
       trigger={
         <button
           type="button"
-          aria-label={`Version ${shown.n} of ${record.versions.length} · choose another`}
+          aria-label={t.chooseAnother(shown.n, record.versions.length)}
           className={buttonClass({ variant: 'secondary' })}
         >
           <StateIcon kind={w.mark} />
@@ -38,7 +41,7 @@ export function VersionPicker({ projectId, record, shown }: { projectId: string;
         </button>
       }
     >
-      <MenuLabel>Versions</MenuLabel>
+      <MenuLabel>{t.versionsLabel}</MenuLabel>
       {record.versions.toReversed().map((v) => {
         const vw = stateWord('record_version', v.state);
         return (
@@ -58,11 +61,11 @@ export function VersionPicker({ projectId, record, shown }: { projectId: string;
             <span className="flex flex-col">
               <span>
                 <span className="font-medium">v{v.n}</span> {vw.word}
-                {v.current ? <span className="text-fg-2"> · current</span> : null}
+                {v.current ? <span className="text-fg-2">{t.current}</span> : null}
               </span>
               <span className="text-xs text-fg-2">
-                by {by(v.author)}
-                {v.approved_by ? ` · approved by ${by(v.approved_by)}` : ''}
+                {t.by(by(v.author, t))}
+                {v.approved_by ? t.approvedBySuffix(by(v.approved_by, t)) : ''}
               </span>
             </span>
           </MenuItem>

@@ -26,6 +26,8 @@ import { BlockedNotice, DecisionBar, Evidence, IdeaCheck, OutOfDate, RecordChip,
 import { kindWord, type ProposalView as ProposalData, proposalIconType, whatItRecords } from './proposal.ts';
 import { ProposalBody } from './ProposalView.tsx';
 import { useReadingOf } from '../../i18n/reading.tsx';
+import { useMessages } from '../../i18n/define.ts';
+import { PACKAGE } from './words.i18n.ts';
 
 /** True while the element is on screen (the top decision bar: the footer shows once it is not). */
 function useOnScreen(ref: React.RefObject<HTMLElement | null>): boolean {
@@ -41,14 +43,15 @@ function useOnScreen(ref: React.RefObject<HTMLElement | null>): boolean {
 }
 
 export function DemiurgoPackage({ projectId, batch }: { projectId: string; batch: BatchDetail }) {
+  const t = useMessages(PACKAGE);
   const inbox = useQuery(inboxQuery(projectId)).data;
   const state = useQuery(stateQuery(projectId)).data;
   const rows: ProductRow[] = state ? [...state.decisions, ...state.designs] : [];
   const proposals = withInbox(batch, inbox?.batches.find((b) => b.id === batch.id)?.proposals ?? []);
   const n = proposals.length;
   const single = n === 1 ? proposals[0] : undefined;
-  const title = single ? proposalTitle(single) : 'A package from DEMIURGO';
-  const crumbs = useBatchCrumbs(projectId, 'Package from DEMIURGO');
+  const title = single ? proposalTitle(single) : t.defaultTitle;
+  const crumbs = useBatchCrumbs(projectId, t.packageFromDemiurgo);
   const top = useRef<HTMLDivElement>(null);
   const topOnScreen = useOnScreen(top);
   const decision = usePackageDecision(projectId, batch, proposals);
@@ -61,12 +64,10 @@ export function DemiurgoPackage({ projectId, batch }: { projectId: string; batch
           <>
             <span className="inline-flex items-center gap-1.5">
               <WhoAvatar kind={whoOf(batch.producer).kind} size={18} />
-              Package from DEMIURGO
+              {t.packageFromDemiurgo}
             </span>
             <span aria-hidden>·</span>
-            <span>
-              {n} {n === 1 ? 'proposal' : 'proposals'}
-            </span>
+            <span>{t.proposalsCount(n)}</span>
             <EntityState entity="batch" state={batch.state} />
           </>
         }
@@ -74,16 +75,19 @@ export function DemiurgoPackage({ projectId, batch }: { projectId: string; batch
         meta={
           <>
             <RelativeTime iso={batch.created_at} />
-            <span>{batch.summary ? `${batch.summary} ` : ''}It is accepted or rejected whole.</span>
+            <span>
+              {batch.summary ? `${batch.summary} ` : ''}
+              {t.decidedWhole}
+            </span>
           </>
         }
       />
       <PageBody>
-        <WithAside asideLabel="About this package" aside={<PackageAside projectId={projectId} batch={batch} rows={rows} />}>
+        <WithAside asideLabel={t.aboutThisPackage} aside={<PackageAside projectId={projectId} batch={batch} rows={rows} />}>
           <div className="flex max-w-3xl flex-col gap-8">
             <div ref={top}>{decision.panel(false)}</div>
             {batch.run_id ? (
-              <Evidence title="Drafted by DEMIURGO">
+              <Evidence title={t.draftedByDemiurgo}>
                 <RunLine projectId={projectId} runId={batch.run_id} />
               </Evidence>
             ) : null}
@@ -111,6 +115,7 @@ function ProposedRecord({
   rows: readonly ProductRow[];
   single: boolean;
 }) {
+  const t = useMessages(PACKAGE);
   const id = useId();
   const obsolete = obsoleteReason(p);
   const reading = useReadingOf(projectId, 'proposal', p.id, p.payload);
@@ -124,18 +129,16 @@ function ProposedRecord({
             {kindWord(p.type)}
           </span>
           {p.state === 'superseded' ? (
-            <StatusBadge kind="stale" word="Out of date" />
+            <StatusBadge kind="stale" word={t.outOfDate} />
           ) : (
             <EntityState entity="proposal" state={p.state} />
           )}
         </div>
         <h2 id={id} className="text-lg font-semibold text-fg">
-          {single ? 'What it records' : proposalTitle(shown)}
+          {single ? t.whatItRecords : proposalTitle(shown)}
         </h2>
       </div>
-      {p.state === 'superseded' ? (
-        <OutOfDate>{`${obsolete ?? 'What it was based on changed.'} It can't be accepted any more.`}</OutOfDate>
-      ) : null}
+      {p.state === 'superseded' ? <OutOfDate>{t.cannotAcceptAnymore(obsolete ?? t.obsoleteDefault)}</OutOfDate> : null}
       {reading.mark ? <div>{reading.mark}</div> : null}
       <ProposalBody projectId={projectId} proposal={shown} rows={rows} withGoal />
       <IdeaCheck projectId={projectId} assessment={p.assessment} rows={rows} />
@@ -144,25 +147,26 @@ function ProposedRecord({
 }
 
 function PackageAside({ projectId, batch, rows }: { projectId: string; batch: BatchDetail; rows: readonly ProductRow[] }) {
+  const t = useMessages(PACKAGE);
   const deps = batch.dependencies.filter((d) => d.code);
   return (
     <>
       {deps.length > 0 ? (
-        <section aria-label="Starts from" className="flex flex-col gap-2">
-          <h2 className="text-base font-semibold text-fg">Starts from</h2>
+        <section aria-label={t.startsFrom} className="flex flex-col gap-2">
+          <h2 className="text-base font-semibold text-fg">{t.startsFrom}</h2>
           <div className="flex flex-wrap gap-2">
             {deps.map((d) => (
               <RecordChip key={d.id} projectId={projectId} code={d.code ?? ''} version={d.version} rows={rows} />
             ))}
           </div>
-          <p className="text-sm text-fg-2">If it gets a newer version before you decide, the package goes out of date.</p>
+          <p className="text-sm text-fg-2">{t.staleWarning}</p>
         </section>
       ) : null}
-      <section aria-label="Who proposes" className="flex items-start gap-3 rounded-lg border border-edge px-3.5 py-3">
+      <section aria-label={t.whoProposes} className="flex items-start gap-3 rounded-lg border border-edge px-3.5 py-3">
         <WhoAvatar kind={whoOf(batch.producer).kind} size={28} />
         <div className="flex flex-col gap-0.5 text-sm">
           <p className="font-medium text-fg">DEMIURGO</p>
-          <p className="text-fg-2">It only proposes: nothing changes until you accept.</p>
+          <p className="text-fg-2">{t.demiurgoOnlyProposes}</p>
         </div>
       </section>
     </>
@@ -173,6 +177,7 @@ type Dialog = null | 'accept' | 'approve' | 'reject';
 
 /** The package's decision: one set of dialogs, and a panel drawn at the top and in the footer. */
 function usePackageDecision(projectId: string, batch: BatchDetail, proposals: ProposalData[]) {
+  const t = useMessages(PACKAGE);
   const command = useCommand(projectId);
   const allows = useAllows('batch', batch.state);
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -199,8 +204,8 @@ function usePackageDecision(projectId: string, batch: BatchDetail, proposals: Pr
   useEffect(() => {
     if (!focusHeading.current || batch.state === 'pending') return;
     focusHeading.current = false;
-    const t = setTimeout(() => document.getElementById(headingId)?.focus(), 60);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => document.getElementById(headingId)?.focus(), 60);
+    return () => clearTimeout(timer);
   });
 
   const canAccept = allows('batch.accept_package');
@@ -220,15 +225,15 @@ function usePackageDecision(projectId: string, batch: BatchDetail, proposals: Pr
         {!footer ? <BlockedNotice reasons={warnings} /> : null}
         <DecisionBar
           sticky={false}
-          label="Decide the package"
+          label={t.decidePackage}
           className={footer ? undefined : 'rounded-lg border border-edge px-4 pt-3 pb-3'}
           caption={
             footer ? null : blocked ? (
-              <p>It can&apos;t be accepted until the warning above is resolved. You can still reject it.</p>
+              <p>{t.blockedCaption}</p>
             ) : (
               <p>
-                Accepting records {what} as a draft. <strong className="font-medium text-fg">Accept and approve</strong> also
-                approves it: it becomes the current version. Nothing changes until you decide.
+                {t.acceptCaptionBefore(what)} <strong className="font-medium text-fg">{t.acceptAndApprove}</strong>{' '}
+                {t.acceptCaptionAfter}
               </p>
             )
           }
@@ -241,7 +246,7 @@ function usePackageDecision(projectId: string, batch: BatchDetail, proposals: Pr
                 {...(blocked ? { 'aria-disabled': 'true' as const } : {})}
                 onClick={() => !blocked && open('accept')}
               >
-                Accept package
+                {t.acceptPackage}
               </Button>
               <Button
                 variant="secondary"
@@ -249,16 +254,16 @@ function usePackageDecision(projectId: string, batch: BatchDetail, proposals: Pr
                 {...(blocked ? { 'aria-disabled': 'true' as const } : {})}
                 onClick={() => !blocked && open('approve')}
               >
-                Accept and approve
+                {t.acceptAndApprove}
               </Button>
             </>
           ) : null}
           {canReject ? (
             <Button variant="quiet-danger" data-command="batch.reject_package" onClick={() => open('reject')}>
-              Reject package
+              {t.rejectPackage}
             </Button>
           ) : null}
-          {footer && blocked ? <span className="text-sm text-warning-text">Blocked: see the warning at the top.</span> : null}
+          {footer && blocked ? <span className="text-sm text-warning-text">{t.blockedFooter}</span> : null}
         </DecisionBar>
       </div>
     );
@@ -269,43 +274,43 @@ function usePackageDecision(projectId: string, batch: BatchDetail, proposals: Pr
       <ConfirmDialog
         open={dialog === 'accept' || dialog === 'approve'}
         onOpenChange={(o) => !o && setDialog(null)}
-        title={dialog === 'approve' ? 'Accept and approve this package?' : 'Accept this package?'}
+        title={dialog === 'approve' ? t.acceptDialogTitleApprove : t.acceptDialogTitleAccept}
         description={
           dialog === 'approve' ? (
             <div className="flex flex-col gap-1.5">
-              <p>Two things happen:</p>
+              <p>{t.twoThingsHappen}</p>
               <ol className="list-decimal space-y-0.5 pl-5">
-                <li>DEMIURGO records {what}.</li>
-                <li>You approve it: it becomes the current version.</li>
+                <li>{t.demiurgoRecords(what)}</li>
+                <li>{t.youApproveBecomesCurrent}</li>
               </ol>
             </div>
           ) : (
-            <p>DEMIURGO records {what} as a draft. You approve it later, on its page.</p>
+            <p>{t.demiurgoRecordsDraft(what)}</p>
           )
         }
-        confirm={dialog === 'approve' ? 'Accept and approve' : 'Accept package'}
-        pendingLabel="Accepting…"
+        confirm={dialog === 'approve' ? t.acceptAndApprove : t.acceptPackage}
+        pendingLabel={t.acceptingEllipsis}
         pending={command.isPending}
         error={dialog === 'accept' || dialog === 'approve' ? command.error : null}
         onConfirm={() =>
           dialog === 'approve'
-            ? run('batch.accept_package', { approve: true }, 'Package accepted and approved.')
-            : run('batch.accept_package', {}, 'Package accepted.')
+            ? run('batch.accept_package', { approve: true }, t.packageAcceptedApproved)
+            : run('batch.accept_package', {}, t.packageAccepted)
         }
       />
       <PromptDialog
         open={dialog === 'reject'}
         onOpenChange={(o) => !o && setDialog(null)}
-        title="Reject this package?"
-        description="Nothing is recorded. Say why, if you want: the reason is kept with the package."
-        label="Reason"
-        submit="Reject package"
-        pendingLabel="Rejecting…"
+        title={t.rejectDialogTitle}
+        description={t.rejectDialogDescription}
+        label={t.reasonLabel}
+        submit={t.rejectPackage}
+        pendingLabel={t.rejectingEllipsis}
         tone="danger"
         maxLength={2000}
         pending={command.isPending}
         error={dialog === 'reject' ? command.error : null}
-        onSubmit={(text) => run('batch.reject_package', text ? { reason: text } : {}, 'Package rejected.')}
+        onSubmit={(text) => run('batch.reject_package', text ? { reason: text } : {}, t.packageRejected)}
       />
     </>
   );
@@ -324,6 +329,7 @@ function Decided({
   batch: BatchDetail;
   proposals: ProposalData[];
 }) {
+  const t = useMessages(PACKAGE);
   const rows = useQuery(stateQuery(projectId)).data;
   const all = rows ? [...rows.decisions, ...rows.designs] : [];
   const w = stateWord('batch', batch.state);
@@ -334,19 +340,17 @@ function Decided({
       <h2 id={headingId} tabIndex={-1} className="flex items-center gap-2 text-base font-semibold text-fg outline-none">
         <StatusBadge kind={w.mark} word={w.word} size="md" />
         <span className="sr-only">: </span>
-        {batch.state === 'superseded' ? 'It can’t be accepted any more' : 'Decided'}
+        {batch.state === 'superseded' ? t.cannotAcceptAnymoreHeading : t.decided}
       </h2>
-      {batch.state === 'superseded' ? (
-        <p className="text-fg-2">What it was based on changed. It can&apos;t be accepted any more.</p>
-      ) : null}
+      {batch.state === 'superseded' ? <p className="text-fg-2">{t.decidedSupersededBody}</p> : null}
       {effects.map((e) => (
         <p key={e.code} className="flex flex-wrap items-center gap-2 text-fg-2">
           <RecordChip projectId={projectId} code={e.code} version={e.version} rows={all} />
-          {e.approved ? 'is approved and current.' : 'is a draft: approve it on its page.'}
+          {e.approved ? t.effectApproved : t.effectDraft}
         </p>
       ))}
-      {batch.state === 'rejected' ? <p className="text-fg-2">Nothing was recorded.</p> : null}
-      {batch.state === 'rejected' && reason ? <p className="text-sm text-fg-2">Reason: {reason}</p> : null}
+      {batch.state === 'rejected' ? <p className="text-fg-2">{t.nothingRecorded}</p> : null}
+      {batch.state === 'rejected' && reason ? <p className="text-sm text-fg-2">{t.reasonPrefix(reason)}</p> : null}
     </section>
   );
 }

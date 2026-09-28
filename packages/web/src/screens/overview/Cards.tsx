@@ -24,9 +24,11 @@ import { TypeIcon, typeWord } from '../../components/types.tsx';
 import { Who } from '../../components/Who.tsx';
 import { cn } from '../../lib/cn.ts';
 import { useTables } from '../../lib/hooks.ts';
+import { type Translation, useMessages } from '../../i18n/define.ts';
 import { rowStage, type Waiting, waitingCount, waitingPhrase } from '../record/logic.ts';
 import { useReturnFocus } from '../record/returnFocus.ts';
 import type { FeatureStatus } from './progress.ts';
+import { CARDS } from './words.i18n.ts';
 
 /** What the lens says of one thing: changed or not, and its short note ("Approved v2"). */
 export type ChangeMark = { changed: boolean; note: string | null; since: string | null };
@@ -40,10 +42,11 @@ const ABOVE = 'relative z-10';
 
 /** "Changed" beside a thing that changed since the last visit. */
 export function ChangedBadge() {
+  const t = useMessages(CARDS);
   return (
     <span className="inline-flex h-5 shrink-0 items-center gap-1 rounded-full border border-accent-edge bg-accent-soft px-1.5 text-xs font-medium whitespace-nowrap text-accent-text">
       <DiffIcon size={12} />
-      Changed
+      {t.changed}
     </span>
   );
 }
@@ -54,11 +57,11 @@ function ChangedEdge({ on }: { on: boolean }) {
   return <span aria-hidden className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-accent" />;
 }
 
-const verbOf = (row: ProductRow) => (row.latest.state === 'approved' ? 'approved' : 'drafted');
+const verbOf = (row: ProductRow, t: Translation<typeof CARDS.en>) => (row.latest.state === 'approved' ? t.approved : t.drafted);
 
-function needsWords(waiting: Waiting): string {
+function needsWords(waiting: Waiting, t: Translation<typeof CARDS.en>): string {
   const n = waitingCount(waiting);
-  return waitingPhrase(waiting) || `${n} ${n === 1 ? 'thing needs' : 'things need'} you`;
+  return waitingPhrase(waiting) || (n === 1 ? t.thingNeedsYou(n) : t.thingsNeedYou(n));
 }
 
 /** A feature: where it stands (readiness), what of it waits for the person, and who touched it last. */
@@ -77,9 +80,10 @@ export function FeatureCard({
   change: ChangeMark;
   onPreview: () => void;
 }) {
+  const t = useMessages(CARDS);
   const needs = waitingCount(waiting);
   const newer = row.current !== null && row.latest.n > row.current;
-  const since = change.changed && change.note ? `Since your last visit: ${change.note}` : null;
+  const since = change.changed && change.note ? t.sinceYourLastVisit(change.note) : null;
   return (
     <article
       data-record={row.code}
@@ -123,8 +127,8 @@ export function FeatureCard({
         <Readiness stage={rowStage(row)} blocking={row.readiness?.reasons.length ?? 0} />
         {needs > 0 ? (
           <span className="inline-flex items-center gap-1.5 text-xs font-medium text-accent-text">
-            <Count n={needs} label={needsWords(waiting)} />
-            <span aria-hidden>Needs you</span>
+            <Count n={needs} label={needsWords(waiting, t)} />
+            <span aria-hidden>{t.needsYouLabel}</span>
           </span>
         ) : null}
       </div>
@@ -132,22 +136,18 @@ export function FeatureCard({
         <span className="inline-flex min-w-0 items-center gap-1.5">
           <Who actor={row.updated_by} size={16} showName={false} />
           <span className="truncate">
-            {verbOf(row)} <RelativeTime iso={row.updated_at} />
+            {verbOf(row, t)} <RelativeTime iso={row.updated_at} />
           </span>
         </span>
-        {newer ? <Tag>v{row.latest.n} draft</Tag> : null}
-        {row.checks > 0 ? (
-          <span className="tabular-nums">
-            {row.checks} {row.checks === 1 ? 'check' : 'checks'}
-          </span>
-        ) : null}
+        {newer ? <Tag>{t.draft(row.latest.n)}</Tag> : null}
+        {row.checks > 0 ? <span className="tabular-nums">{t.check(row.checks)}</span> : null}
         {status?.kind === 'working' ? (
           <span data-feature-working className="inline-flex items-center gap-1.5">
             <RunStateBadge run={status.run} />
             <Elapsed start={status.run.started_at ?? status.run.created_at} className="text-info-text" />
           </span>
         ) : null}
-        <PreviewButton label={`Preview ${row.title}`} onClick={onPreview} className={cn(ABOVE, 'ml-auto -my-1')} />
+        <PreviewButton label={t.preview(row.title)} onClick={onPreview} className={cn(ABOVE, 'ml-auto -my-1')} />
       </div>
     </article>
   );
@@ -184,6 +184,7 @@ export function RecordRow({
   change: ChangeMark;
   onPreview: () => void;
 }) {
+  const t = useMessages(CARDS);
   const needs = waitingCount(waiting);
   return (
     <li data-record={row.code} data-card data-changed={change.changed ? 'true' : undefined} className={ROW}>
@@ -201,11 +202,11 @@ export function RecordRow({
         {change.changed && change.note ? <span className="block truncate text-xs text-accent-text">{change.note}</span> : null}
       </span>
       {change.changed ? <ChangedBadge /> : null}
-      <Count n={needs} label={needsWords(waiting)} />
+      <Count n={needs} label={needsWords(waiting, t)} />
       <span data-certainty className="inline-flex">
         <Certainty status={row.epistemic_status} />
       </span>
-      <PreviewButton label={`Preview ${row.title}`} onClick={onPreview} className={ABOVE} />
+      <PreviewButton label={t.preview(row.title)} onClick={onPreview} className={ABOVE} />
     </li>
   );
 }
@@ -222,6 +223,7 @@ export function ThreadRow({
   waiting: number;
   change: ChangeMark;
 }) {
+  const t = useMessages(CARDS);
   const open = thread.open_questions;
   return (
     <li data-thread={thread.id} data-card data-changed={change.changed ? 'true' : undefined} className={ROW}>
@@ -236,12 +238,12 @@ export function ThreadRow({
           {thread.purpose}
         </Link>
         <span className="block text-xs text-fg-2 tabular-nums">
-          {open} open {open === 1 ? 'question' : 'questions'}
+          {t.openQuestion(open)}
           {change.changed && change.note ? <span className="text-accent-text"> · {change.note}</span> : null}
         </span>
       </span>
       {change.changed ? <ChangedBadge /> : null}
-      <Count n={waiting} label={`${waiting} ${waiting === 1 ? 'question waits' : 'questions wait'} for you`} />
+      <Count n={waiting} label={t.questionWaits(waiting)} />
       <EntityState entity="exploration" state={thread.state} />
     </li>
   );
@@ -259,6 +261,7 @@ export function DraftingCard({
   from: ProductRow | undefined;
   onPreview: () => void;
 }) {
+  const t = useMessages(CARDS);
   return (
     <article
       data-drafting={run.id}
@@ -267,7 +270,7 @@ export function DraftingCard({
       <div className="flex items-center gap-2 text-xs text-fg-2">
         <span className="inline-flex items-center gap-1.5">
           <TypeIcon type="fdr" size={14} className="text-fg-3" />
-          Feature
+          {typeWord('fdr')}
         </span>
         <StatusBadge kind="proposed" className="ml-auto" />
       </div>
@@ -278,20 +281,20 @@ export function DraftingCard({
             params={{ projectId, runId: run.id }}
             className={cn('rounded-xs hover:text-accent-text', STRETCHED)}
           >
-            A new feature
+            {t.aNewFeature}
           </Link>
         </h3>
-        <p className="line-clamp-2 text-sm text-fg-2">{from ? `From ${from.title}` : 'From an approved decision'}</p>
+        <p className="line-clamp-2 text-sm text-fg-2">{from ? t.fromTitle(from.title) : t.fromApprovedDecision}</p>
       </div>
       <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-edge-subtle pt-2.5 text-xs text-fg-2">
         <Who actor={`agent:run:${run.id}`} model={run.model} size={16} />
         <span className="inline-flex items-center gap-1.5">
           <RunStateBadge run={run} />
           <span>
-            Drafting · <Elapsed start={run.started_at ?? run.created_at} />
+            {t.drafting} · <Elapsed start={run.started_at ?? run.created_at} />
           </span>
         </span>
-        <PreviewButton label="Preview the new feature" onClick={onPreview} className={cn(ABOVE, 'ml-auto -my-1')} />
+        <PreviewButton label={t.previewNewFeature} onClick={onPreview} className={cn(ABOVE, 'ml-auto -my-1')} />
       </div>
     </article>
   );
@@ -299,6 +302,7 @@ export function DraftingCard({
 
 /** A thread set aside: a parked idea, with the way back to it. */
 export function ParkedRow({ projectId, thread, change }: { projectId: string; thread: Exploration; change: ChangeMark }) {
+  const t = useMessages(CARDS);
   return (
     <li data-parked={thread.id} data-card data-changed={change.changed ? 'true' : undefined} className={ROW}>
       <ChangedEdge on={change.changed} />
@@ -313,7 +317,7 @@ export function ParkedRow({ projectId, thread, change }: { projectId: string; th
         </Link>
         <span className="block truncate text-xs text-fg-2">
           {thread.state_reason ? `${thread.state_reason} · ` : ''}
-          <RelativeTime iso={thread.last_activity} prefix="Set aside" />
+          <RelativeTime iso={thread.last_activity} prefix={t.setAside} />
         </span>
       </span>
       {change.changed ? <ChangedBadge /> : null}
@@ -335,6 +339,7 @@ export function ParkedIdeas({
   threads: Exploration[];
   changeOf: (id: string) => ChangeMark;
 }) {
+  const t = useMessages(CARDS);
   const tables = useTables();
   const command = useCommand(projectId);
   const [open, setOpen] = useState(false);
@@ -345,8 +350,13 @@ export function ParkedIdeas({
   return (
     <Section
       id="parked-ideas"
-      title={<>Parked ideas{threads.length > 0 ? <span className="font-normal text-fg-2"> · {threads.length}</span> : null}</>}
-      note="Threads set aside, to think through later."
+      title={
+        <>
+          {t.parkedIdeas}
+          {threads.length > 0 ? <span className="font-normal text-fg-2"> · {threads.length}</span> : null}
+        </>
+      }
+      note={t.parkedIdeasNote}
       actions={
         canCapture ? (
           <Button
@@ -358,7 +368,7 @@ export function ParkedIdeas({
               setOpen(true);
             }}
           >
-            Capture an idea
+            {t.captureAnIdea}
           </Button>
         ) : null
       }
@@ -366,25 +376,25 @@ export function ParkedIdeas({
       {saved ? (
         <p role="status" data-captured className="flex flex-wrap items-center gap-1.5 text-sm text-fg-2">
           <StateIcon kind="done" />
-          Saved as a thread ·
+          {t.savedAsThread}
           <Link
             to="/p/$projectId/threads/$explorationId"
             params={{ projectId, explorationId: saved.id }}
-            aria-label={`Open the thread ${saved.purpose}`}
+            aria-label={t.openThreadOf(saved.purpose)}
             className="inline-flex items-center gap-1 font-medium text-accent-text hover:underline"
           >
-            Open the thread <ArrowRightIcon size={12} />
+            {t.openTheThread} <ArrowRightIcon size={12} />
           </Link>
         </p>
       ) : null}
       {threads.length > 0 ? (
-        <RowList label="Parked ideas">
-          {threads.map((t) => (
-            <ParkedRow key={t.id} projectId={projectId} thread={t} change={changeOf(t.id)} />
+        <RowList label={t.parkedIdeas}>
+          {threads.map((th) => (
+            <ParkedRow key={th.id} projectId={projectId} thread={th} change={changeOf(th.id)} />
           ))}
         </RowList>
       ) : (
-        <p className="text-sm text-fg-2">No idea is parked. Capture one to think it through later.</p>
+        <p className="text-sm text-fg-2">{t.noIdeaParked}</p>
       )}
       <PromptDialog
         open={open}
@@ -392,11 +402,11 @@ export function ParkedIdeas({
           setOpen(o);
           if (!o) focus.restore();
         }}
-        title="Capture an idea"
-        description="It is saved as a thread, to think it through later. DEMIURGO is not asked anything."
-        label="Your idea"
-        submit="Save as a thread"
-        pendingLabel="Saving…"
+        title={t.captureAnIdeaTitle}
+        description={t.captureDescription}
+        label={t.yourIdea}
+        submit={t.saveAsThread}
+        pendingLabel={t.saving}
         required
         maxLength={1000}
         pending={command.isPending}
@@ -409,7 +419,7 @@ export function ParkedIdeas({
                 setSaved({ id: r.entity_id, purpose: idea });
                 setOpen(false);
                 focus.restore();
-                announce('Saved as a thread.');
+                announce(t.savedAnnounce);
               },
             },
           )

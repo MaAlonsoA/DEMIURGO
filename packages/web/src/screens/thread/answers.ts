@@ -5,6 +5,7 @@
 // to become the person's own words.
 
 import type { Question } from '../../api/types.ts';
+import { ANSWER_WORDS } from './words.i18n.ts';
 
 /** The longest answer a question takes (question.confirm). */
 export const MAX_ANSWER = 3000;
@@ -27,7 +28,7 @@ export function assumedAnswer(q: Answerable): string | null {
 }
 
 /** What the person can pick: the assumed answer (it stands alone), then each option by its index. */
-export function answerChoices(q: Answerable): AnswerChoice[] {
+export function answerChoices(q: Answerable, words = ANSWER_WORDS.en): AnswerChoice[] {
   const assumed = assumedAnswer(q);
   return [
     ...(assumed
@@ -35,7 +36,7 @@ export function answerChoices(q: Answerable): AnswerChoice[] {
           {
             value: ASSUMED,
             answer: assumed,
-            implies: q.reasoning ? `DEMIURGO assumed it: ${q.reasoning}` : 'DEMIURGO assumed it from the conversation.',
+            implies: q.reasoning ? words.assumedIt(q.reasoning) : words.assumedFromConversation,
             exclusive: true,
           },
         ]

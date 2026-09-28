@@ -21,6 +21,7 @@ import { Bone, RowsSkeleton } from '../../components/Spinner.tsx';
 import { EntityState, StatusBadge } from '../../components/status.tsx';
 import { TabPanel, Tabs } from '../../components/Tabs.tsx';
 import { RelativeTime } from '../../components/Time.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { useProjectId } from '../../lib/hooks.ts';
 import { GlossaryTab } from './GlossaryTab.tsx';
@@ -30,24 +31,27 @@ import { IdeaChecksTab } from './IdeaChecksTab.tsx';
 import { RebuildTab } from './RebuildTab.tsx';
 import { SearchTab } from './SearchTab.tsx';
 import { TaxonomyTab } from './TaxonomyTab.tsx';
+import { KNOWLEDGE } from './words.i18n.ts';
 
-const TABS = [
-  { value: 'graph', label: 'Graph' },
-  { value: 'search', label: 'Search' },
-  { value: 'ideas', label: 'Idea checks' },
-  { value: 'taxonomy', label: 'Taxonomy' },
-  { value: 'glossary', label: 'Glossary' },
-  { value: 'rebuild', label: 'Rebuild' },
-] as const;
+const TAB_VALUES = ['graph', 'search', 'ideas', 'taxonomy', 'glossary', 'rebuild'] as const;
 
-export type KnowledgeTab = (typeof TABS)[number]['value'];
+export type KnowledgeTab = (typeof TAB_VALUES)[number];
 
 export function KnowledgeScreen() {
+  const t = useMessages(KNOWLEDGE);
+  const TABS: { value: KnowledgeTab; label: string }[] = [
+    { value: 'graph', label: t.graphTab },
+    { value: 'search', label: t.searchTab },
+    { value: 'ideas', label: t.ideasTab },
+    { value: 'taxonomy', label: t.taxonomyTab },
+    { value: 'glossary', label: t.glossaryTab },
+    { value: 'rebuild', label: t.rebuildTab },
+  ];
   const projectId = useProjectId();
   const project = (useQuery(projectsQuery).data ?? []).find((p) => p.id === projectId);
-  usePageTitle(['Knowledge', project?.name]);
+  usePageTitle([t.title, project?.name]);
   const search = useSearch({ strict: false }) as { tab?: string };
-  const tab: KnowledgeTab = TABS.find((t) => t.value === search.tab)?.value ?? 'graph';
+  const tab: KnowledgeTab = TABS.find((row) => row.value === search.tab)?.value ?? 'graph';
   const navigate = useNavigate();
   const knowledge = useQuery(knowledgeQuery(projectId));
   // A tab is a view of the same page: it replaces the URL, so Back leaves the page (not the tab).
@@ -62,17 +66,17 @@ export function KnowledgeScreen() {
   return (
     <>
       <PageHeader
-        title="Knowledge"
+        title={t.title}
         meta={knowledge.data ? <FreshnessLine k={knowledge.data} /> : knowledge.isPending ? <Bone className="h-4 w-80" /> : null}
       />
       <PageBody>
         <WithAside
-          asideLabel="Updates"
+          asideLabel={t.updates}
           aside={
             <LatestUpdates projectId={projectId} knowledge={knowledge.data} error={knowledge.error} retry={knowledge.refetch} />
           }
         >
-          <Tabs label="Knowledge views" value={tab} onChange={show} tabs={TABS.map((t) => ({ value: t.value, label: t.label }))}>
+          <Tabs label={t.tabsLabel} value={tab} onChange={show} tabs={TABS}>
             <TabPanel value="graph">
               <GraphTab projectId={projectId} onTaxonomy={() => show('taxonomy')} />
             </TabPanel>
@@ -100,30 +104,28 @@ export function KnowledgeScreen() {
 
 /** The freshness in words and the graph's size (INV-KNOW-02): "Behind · 1 failed · Graph v12 · …". */
 function FreshnessLine({ k }: { k: Knowledge }) {
+  const t = useMessages(KNOWLEDGE);
   const state = freshnessOf(k);
   const failed = k.updates.filter((u) => u.state === 'rejected').length;
   const badge: Record<Freshness, { kind: 'done' | 'working' | 'problem'; word: string; title: string }> = {
-    current: { kind: 'done', word: 'Up to date', title: `Knowledge is up to date (version ${k.graph_version}).` },
+    current: { kind: 'done', word: t.upToDate, title: t.upToDateTitle(k.graph_version) },
     updating: {
       kind: 'working',
-      word: `Updating · ${k.updates_in_progress} to go`,
-      title: `DEMIURGO is updating its knowledge: ${k.updates_in_progress} ${k.updates_in_progress === 1 ? 'change' : 'changes'} to go.`,
+      word: t.updating(k.updates_in_progress),
+      title: t.updatingTitle(k.updates_in_progress),
     },
     behind: {
       kind: 'problem',
-      word: `Behind · ${failed} failed`,
-      title: `Knowledge is behind: ${failed} ${failed === 1 ? 'update' : 'updates'} failed. Retry it in Latest updates.`,
+      word: t.behind(failed),
+      title: t.behindTitle(failed),
     },
   };
   const b = badge[state];
   return (
     <span data-knowledge-freshness={state} className="flex flex-wrap items-center gap-x-2 gap-y-1">
       <StatusBadge kind={b.kind} word={b.word} size="md" title={b.title} />
-      <span className="tabular-nums">
-        Graph v{k.graph_version} · {k.current_nodes} {k.current_nodes === 1 ? 'node' : 'nodes'} · {k.current_edges}{' '}
-        {k.current_edges === 1 ? 'relation' : 'relations'}
-      </span>
-      {state === 'behind' ? <span className="text-danger-text">Retry the failed update in Latest updates.</span> : null}
+      <span className="tabular-nums">{t.graphLine(k.graph_version, k.current_nodes, k.current_edges)}</span>
+      {state === 'behind' ? <span className="text-danger-text">{t.retryFailedNote}</span> : null}
     </span>
   );
 }
@@ -142,6 +144,7 @@ function LatestUpdates({
   error: unknown;
   retry: () => unknown;
 }) {
+  const t = useMessages(KNOWLEDGE);
   const rows = useQuery(stateQuery(projectId)).data;
   const products = [...(rows?.decisions ?? []), ...(rows?.designs ?? [])];
   const [all, setAll] = useState(false);
@@ -149,13 +152,13 @@ function LatestUpdates({
   // A failed update is always in view: it is the one that asks for something.
   const shown = all ? updates : updates.filter((u, i) => i < SHOWN || u.state === 'rejected');
   return (
-    <Section id="updates" title="Latest updates" note="What you approve, accept or discard updates what DEMIURGO knows.">
+    <Section id="updates" title={t.latestUpdates} note={t.latestUpdatesNote}>
       {error && !knowledge ? (
         <ErrorNotice error={error} compact onRetry={() => void retry()} />
       ) : !knowledge ? (
-        <RowsSkeleton label="Loading the latest updates" rows={3} />
+        <RowsSkeleton label={t.loadingUpdates} rows={3} />
       ) : updates.length === 0 ? (
-        <p className="text-sm text-fg-2">Nothing has changed the knowledge yet.</p>
+        <p className="text-sm text-fg-2">{t.nothingChanged}</p>
       ) : (
         <ul id="knowledge-updates" className="flex flex-col divide-y divide-edge-subtle border-y border-edge-subtle">
           {shown.map((u) => (
@@ -173,7 +176,7 @@ function LatestUpdates({
           trailing={<ChevronDownIcon size={14} className={cn('transition-transform', all && 'rotate-180')} />}
           className="self-start"
         >
-          {all ? 'Show fewer' : `Show all ${updates.length}`}
+          {all ? t.showFewer : t.showAll(updates.length)}
         </Button>
       ) : null}
     </Section>
@@ -181,6 +184,7 @@ function LatestUpdates({
 }
 
 function UpdateRow({ projectId, update: u, what }: { projectId: string; update: KnowledgeUpdate; what: string }) {
+  const t = useMessages(KNOWLEDGE);
   const command = useCommand(projectId);
   const before = u.graph_version_before;
   const after = u.graph_version_after;
@@ -216,11 +220,11 @@ function UpdateRow({ projectId, update: u, what }: { projectId: string; update: 
                 variant: 'secondary',
                 icon: <RetryIcon size={14} />,
                 pending: command.isPending,
-                pendingLabel: 'Retrying…',
+                pendingLabel: t.retrying,
                 run: () =>
                   command.mutate(
                     { command: 'knowledge_update.retry', entityId: u.id },
-                    { onSuccess: () => announce(`${what}: sent to update again.`) },
+                    { onSuccess: () => announce(t.retriedAgain(what)) },
                   ),
               },
             }}

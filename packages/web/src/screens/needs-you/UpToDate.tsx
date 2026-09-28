@@ -21,12 +21,16 @@ import { Bone, Skeleton } from '../../components/Spinner.tsx';
 import { StateIcon } from '../../components/status.tsx';
 import { Elapsed, useNow } from '../../components/Time.tsx';
 import { WhoAvatar } from '../../components/Who.tsx';
+import { useMessages } from '../../i18n/define.ts';
+import { useLocale } from '../../i18n/locale.ts';
 import { cn } from '../../lib/cn.ts';
 import { ACTION_WORDS, PRODUCT_WORDS, whoOf } from '../../words.ts';
 import type { LensLine } from '../overview/lens/lines.ts';
 import { todayLines } from './today.ts';
+import { UP_TO_DATE } from './words.i18n.ts';
 
-const time = (iso: string) => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+const timeOf = (iso: string, locale: 'en' | 'es') =>
+  new Date(iso).toLocaleTimeString(locale === 'es' ? 'es-ES' : 'en-GB', { hour: '2-digit', minute: '2-digit' });
 
 const WORKING = new Set(['queued', 'running']);
 
@@ -77,6 +81,8 @@ function LineLink({ projectId, line, children }: { projectId: string; line: Lens
 }
 
 export function UpToDate({ projectId }: { projectId: string }) {
+  const t = useMessages(UP_TO_DATE);
+  const locale = useLocale();
   const state = useQuery(stateQuery(projectId));
   const changes = useQuery({ ...changesQuery(projectId, '0'), staleTime: 0 });
   const runs = useQuery(runsQuery(projectId));
@@ -99,21 +105,22 @@ export function UpToDate({ projectId }: { projectId: string }) {
       <PageHeader
         eyebrow={
           <span className="tabular-nums">
-            {today.toLocaleDateString('en-GB', { weekday: 'long' })} · {time(today.toISOString())}
+            {today.toLocaleDateString(locale === 'es' ? 'es-ES' : 'en-GB', { weekday: 'long' })} ·{' '}
+            {timeOf(today.toISOString(), locale)}
           </span>
         }
-        title="You're up to date"
+        title={t.upToDate}
         meta={
           lines === null ? null : (
             <span>
-              {n === 0 ? 'Nothing done yet today.' : `${n} ${n === 1 ? 'thing' : 'things'} done today.`} Nothing waits for you.
+              {n === 0 ? t.nothingDoneToday : t.thingsDoneToday(n)} {t.nothingWaits}
             </span>
           )
         }
       />
       <PageBody>
         <WithAside
-          asideLabel="Still happening"
+          asideLabel={t.stillHappening}
           aside={
             <>
               <InProgress
@@ -128,9 +135,7 @@ export function UpToDate({ projectId }: { projectId: string }) {
                   <CheckCircleIcon size={16} className="text-success-text" />
                   {PRODUCT_WORDS.nothingNeedsYou}
                 </p>
-                <p className="text-sm text-fg-2">
-                  Everything is saved. When you come back, DEMIURGO shows you what changed while you were away.
-                </p>
+                <p className="text-sm text-fg-2">{t.everythingSaved}</p>
               </Card>
             </>
           }
@@ -139,34 +144,32 @@ export function UpToDate({ projectId }: { projectId: string }) {
             <section aria-labelledby={todayId} className="flex flex-col gap-3">
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <h2 id={todayId} className="text-lg font-semibold text-fg">
-                  Today
-                  {lines?.[0] ? <span className="font-normal text-fg-2"> · since {time(lines[0].at)}</span> : null}
+                  {t.today}
+                  {lines?.[0] ? <span className="font-normal text-fg-2">{t.sinceTime(timeOf(lines[0].at, locale))}</span> : null}
                 </h2>
                 <Link
                   to="/p/$projectId/activity"
                   params={{ projectId }}
                   className="text-sm font-medium text-accent-text hover:underline"
                 >
-                  Show everything
+                  {t.showEverything}
                 </Link>
               </div>
               {changes.error ? (
                 <ErrorNotice error={changes.error} onRetry={() => void changes.refetch()} focus={false} />
               ) : lines === null ? (
-                <Skeleton label="Loading what you did today" className="flex flex-col gap-2">
+                <Skeleton label={t.loadingToday} className="flex flex-col gap-2">
                   <Bone className="h-4 w-3/4" />
                   <Bone className="h-4 w-2/3" />
                 </Skeleton>
               ) : lines.length === 0 ? (
-                <p className="rounded-lg border border-dashed border-edge-strong px-4 py-3 text-fg-2">
-                  Nothing yet today. What you do here is kept and shown next time.
-                </p>
+                <p className="rounded-lg border border-dashed border-edge-strong px-4 py-3 text-fg-2">{t.nothingYetToday}</p>
               ) : (
                 <ol className="flex flex-col divide-y divide-edge-subtle rounded-lg border border-edge">
                   {lines.map((l) => (
                     <li key={l.id} className="flex items-start gap-3 px-4 py-2.5" data-line={l.id}>
                       <time dateTime={l.at} className="w-11 shrink-0 pt-0.5 text-sm text-fg-2 tabular-nums">
-                        {time(l.at)}
+                        {timeOf(l.at, locale)}
                       </time>
                       <WhoAvatar kind={whoOf(l.actor).kind} size={18} className="mt-0.5" />
                       <p className="min-w-0 flex-1 text-base text-fg-2">
@@ -188,7 +191,8 @@ export function UpToDate({ projectId }: { projectId: string }) {
                         <span className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                           {l.problem ? (
                             <span className="inline-flex items-center gap-1 text-xs text-danger-text">
-                              <StateIcon kind="conflict" size={13} />A problem
+                              <StateIcon kind="conflict" size={13} />
+                              {t.aProblem}
                             </span>
                           ) : null}
                           {l.codes.map((c) => (
@@ -206,37 +210,38 @@ export function UpToDate({ projectId }: { projectId: string }) {
               <section aria-labelledby={productId} className="flex flex-col gap-3">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                   <h2 id={productId} className="text-lg font-semibold text-fg">
-                    The product · {state.data.project.name}
+                    {t.theProduct(state.data.project.name)}
                   </h2>
                   <Link
                     to="/p/$projectId"
                     params={{ projectId }}
                     className={cn(buttonClass({ variant: 'secondary', size: 'sm' }))}
                   >
-                    See the product <ArrowRightIcon size={13} />
+                    {t.seeProduct} <ArrowRightIcon size={13} />
                   </Link>
                 </div>
                 <p className="text-base text-fg" data-progress-line>
                   {progress.total === 0 ? (
-                    'No features yet.'
+                    t.noFeaturesYet
                   ) : (
                     <>
-                      {PRODUCT_WORDS.readyToBuild}: <span className="font-semibold tabular-nums">{progress.ready}</span> of{' '}
-                      <span className="tabular-nums">{progress.total}</span> {progress.total === 1 ? 'feature' : 'features'}
-                      {progress.inProgress > 0 ? ` · ${progress.inProgress} in progress` : ''}
+                      {PRODUCT_WORDS.readyToBuild}: <span className="font-semibold tabular-nums">{progress.ready}</span>
+                      {t.ofWord}
+                      <span className="tabular-nums">{progress.total}</span> {t.featureWord(progress.total)}
+                      {progress.inProgress > 0 ? t.inProgressSuffix(progress.inProgress) : ''}
                     </>
                   )}
                 </p>
                 <SegmentedBar
                   total={progress.total}
                   segments={[
-                    { key: 'ready', value: progress.ready, tone: 'success', label: 'ready to build' },
-                    { key: 'working', value: Math.min(progress.inProgress, progress.rest), tone: 'info', label: 'in progress' },
+                    { key: 'ready', value: progress.ready, tone: 'success', label: t.segReady },
+                    { key: 'working', value: Math.min(progress.inProgress, progress.rest), tone: 'info', label: t.segInProgress },
                     {
                       key: 'rest',
                       value: Math.max(0, progress.rest - progress.inProgress),
                       tone: 'neutral',
-                      label: 'not ready yet',
+                      label: t.segRest,
                     },
                   ]}
                 />
@@ -265,16 +270,17 @@ function InProgress({
   error: unknown;
   onRetry: () => void;
 }) {
+  const t = useMessages(UP_TO_DATE);
   const id = useId();
   return (
     <section aria-labelledby={id} className="flex flex-col gap-2">
       <h2 id={id} className="text-base font-semibold text-fg">
-        In progress
+        {t.inProgressTitle}
       </h2>
       {error ? (
         <ErrorNotice error={error} onRetry={onRetry} focus={false} compact />
       ) : runs.length === 0 ? (
-        <p className="text-sm text-fg-2">Nothing. DEMIURGO is waiting for you.</p>
+        <p className="text-sm text-fg-2">{t.nothingDemiurgoWaiting}</p>
       ) : (
         <ul className="flex flex-col gap-2">
           {runs.map((r) => (
@@ -283,15 +289,15 @@ function InProgress({
                 <RunStateBadge run={r} />
                 <span className="text-sm font-medium text-fg">
                   {r.action === 'design_proposal'
-                    ? 'Drafting a feature'
+                    ? t.draftingFeature
                     : r.action === 'exploration_chat'
-                      ? 'Answering'
+                      ? t.answering
                       : (ACTION_WORDS[r.action] ?? r.action)}
                 </span>
                 <Elapsed start={r.started_at ?? r.created_at} className="ml-auto text-xs text-fg-2" />
               </span>
               <span className="text-sm text-fg-2">
-                {r.exploration_id ? (threads.get(r.exploration_id) ?? 'its thread') : 'The product'}
+                {r.exploration_id ? (threads.get(r.exploration_id) ?? t.itsThread) : t.theProductWord}
               </span>
               <Link
                 to="/p/$projectId/runs/$runId"
@@ -300,7 +306,7 @@ function InProgress({
                   'inline-flex min-h-6 w-fit items-center gap-1 text-sm font-medium text-accent-text hover:underline',
                 )}
               >
-                Open the run <ArrowRightIcon size={13} />
+                {t.openRun} <ArrowRightIcon size={13} />
               </Link>
             </li>
           ))}

@@ -12,10 +12,13 @@ import { Certainty } from '../components/status.tsx';
 import { ErrorNotice } from '../components/Notice.tsx';
 import { SearchIcon } from '../components/icons.tsx';
 import { TypeIcon } from '../components/types.tsx';
+import { useMessages } from '../i18n/define.ts';
 import { cn } from '../lib/cn.ts';
 import { type SearchTarget, highlight, searchTarget, snippet } from '../screens/blueprint/search.ts';
 import { nodeType } from '../screens/knowledge/graph.ts';
-import { NAV } from './nav.ts';
+import { useSafeLocale } from '../words.ts';
+import { NAV, navLabelFor } from './nav.ts';
+import { COMMAND_MENU } from './words.i18n.ts';
 
 const MIN = 2;
 const DEBOUNCE_MS = 200;
@@ -53,6 +56,7 @@ type Option =
   | { kind: 'hit'; key: string; target: SearchTarget | null; title: string; excerpt: string; type: string; status: string };
 
 export function CommandMenu({ projectId }: { projectId: string }) {
+  const t = useMessages(COMMAND_MENU);
   const isOpen = useSyncExternalStore(
     (l) => {
       listeners.add(l);
@@ -83,7 +87,7 @@ export function CommandMenu({ projectId }: { projectId: string }) {
           aria-describedby={undefined}
           className="fixed top-[12vh] left-1/2 z-50 flex max-h-[70vh] w-[min(640px,calc(100vw-24px))] -translate-x-1/2 animate-enter flex-col overflow-hidden rounded-xl border border-edge bg-panel shadow-dialog"
         >
-          <D.Title className="sr-only">Search and go to</D.Title>
+          <D.Title className="sr-only">{t.title}</D.Title>
           {isOpen ? <MenuBody projectId={projectId} close={() => setOpen(false)} /> : null}
         </D.Content>
       </D.Portal>
@@ -92,6 +96,8 @@ export function CommandMenu({ projectId }: { projectId: string }) {
 }
 
 function MenuBody({ projectId, close }: { projectId: string; close: () => void }) {
+  const t = useMessages(COMMAND_MENU);
+  const locale = useSafeLocale();
   const navigate = useNavigate();
   const listId = useId();
   const [text, setText] = useState('');
@@ -99,8 +105,8 @@ function MenuBody({ projectId, close }: { projectId: string; close: () => void }
   const [active, setActive] = useState(0);
 
   useEffect(() => {
-    const t = setTimeout(() => setQuery(text.trim()), DEBOUNCE_MS);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setQuery(text.trim()), DEBOUNCE_MS);
+    return () => clearTimeout(timer);
   }, [text]);
 
   const enabled = query.length >= MIN;
@@ -111,11 +117,11 @@ function MenuBody({ projectId, close }: { projectId: string; close: () => void }
   const waiting = typed.length >= MIN && (typed !== query || search.isPending);
 
   const options: Option[] = useMemo(() => {
-    const t = typed.toLowerCase();
-    const go: Option[] = NAV.filter((n) => !t || n.label.toLowerCase().includes(t)).map((n) => ({
+    const q = typed.toLowerCase();
+    const go: Option[] = NAV.filter((n) => !q || navLabelFor(locale, n.key).toLowerCase().includes(q)).map((n) => ({
       kind: 'go',
       key: `go:${n.key}`,
-      label: n.label,
+      label: navLabelFor(locale, n.key),
       icon: <n.icon size={16} />,
       to: n.to,
     }));
@@ -129,7 +135,7 @@ function MenuBody({ projectId, close }: { projectId: string; close: () => void }
       status: h.epistemic_status,
     }));
     return typed.length >= MIN ? [...hits, ...go] : go;
-  }, [typed, enabled, search.data, records]);
+  }, [typed, enabled, search.data, records, locale]);
 
   useEffect(() => setActive(0), [query]);
 
@@ -183,12 +189,12 @@ function MenuBody({ projectId, close }: { projectId: string; close: () => void }
           autoFocus
           type="text"
           role="combobox"
-          aria-label="Search decisions, features, ideas"
+          aria-label={t.searchLabel}
           aria-expanded={options.length > 0}
           {...(options.length > 0 ? { 'aria-controls': listId } : {})}
           aria-autocomplete="list"
           {...(options[active] ? { 'aria-activedescendant': optionId(active) } : {})}
-          placeholder="Search decisions, features, ideas — or go to a section"
+          placeholder={t.placeholder}
           autoComplete="off"
           spellCheck={false}
           value={text}
@@ -196,23 +202,19 @@ function MenuBody({ projectId, close }: { projectId: string; close: () => void }
           onKeyDown={onKeyDown}
           className="h-12 w-full bg-transparent text-md text-fg placeholder:text-fg-3 focus:outline-none"
         />
-        <kbd className="shrink-0 rounded-xs border border-edge px-1.5 font-ui text-xs text-fg-3">Esc</kbd>
+        <kbd className="shrink-0 rounded-xs border border-edge px-1.5 font-ui text-xs text-fg-3">{t.esc}</kbd>
       </div>
       {/* Focusable, so the results can be scrolled by keyboard too (WCAG 2.1.1). */}
-      <div role="region" tabIndex={0} aria-label="Search results" className="min-h-0 flex-1 overflow-y-auto p-2">
+      <div role="region" tabIndex={0} aria-label={t.searchResults} className="min-h-0 flex-1 overflow-y-auto p-2">
         {search.error && enabled ? <ErrorNotice error={search.error} focus={false} compact className="m-1" /> : null}
         {typed.length >= MIN ? (
           <p className="px-2.5 pt-1 pb-1.5 text-xs font-medium text-fg-3">
-            {waiting
-              ? 'Searching…'
-              : hits.length === 0
-                ? 'No matches'
-                : `${hits.length} ${hits.length === 1 ? 'match' : 'matches'}`}
+            {waiting ? t.searching : hits.length === 0 ? t.noMatches : t.matches(hits.length)}
           </p>
         ) : null}
         {/* A listbox needs options (ARIA): with nothing to choose, only the line above is shown. */}
         {options.length > 0 ? (
-          <ul id={listId} role="listbox" aria-label="Results" className="flex flex-col">
+          <ul id={listId} role="listbox" aria-label={t.results} className="flex flex-col">
             {hits.map((o) => {
               const i = options.indexOf(o);
               if (o.kind !== 'hit') return null;
@@ -244,7 +246,7 @@ function MenuBody({ projectId, close }: { projectId: string; close: () => void }
                         <Highlighted text={snippet(o.excerpt, query)} query={query} />
                       </span>
                     ) : null}
-                    {!o.target ? <span className="text-xs text-fg-3">It has no page of its own.</span> : null}
+                    {!o.target ? <span className="text-xs text-fg-3">{t.noPageOfItsOwn}</span> : null}
                   </span>
                   <Certainty status={o.status} className="mt-0.5" />
                 </li>
@@ -252,7 +254,7 @@ function MenuBody({ projectId, close }: { projectId: string; close: () => void }
             })}
             {gos.length > 0 ? (
               <li role="presentation" className="px-2.5 pt-2 pb-1.5 text-xs font-medium text-fg-3">
-                Go to
+                {t.goTo}
               </li>
             ) : null}
             {gos.map((o) => {

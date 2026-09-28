@@ -28,38 +28,46 @@ import { WhoAvatar } from '../../components/Who.tsx';
 import { cn } from '../../lib/cn.ts';
 import { useTables } from '../../lib/hooks.ts';
 import { between, dayTime } from '../../lib/time.ts';
+import { type Translation, useMessages } from '../../i18n/define.ts';
 import { failureWord } from '../../words.ts';
 import { proposalTitle } from '../batch/model.ts';
 import type { Reading } from './day.ts';
 import { ObservationList } from './parts.tsx';
+import { READING } from './words.i18n.ts';
 
 export type Subject = 'idea' | 'correction' | 'decisions';
 
-const CATCHING_UP = 'DEMIURGO is catching up on what you just decided…';
-
-const WORDS: Record<Subject, { waiting: string; working: string; failed: string; cancelled: string; unanswered: string }> = {
-  idea: {
-    waiting: 'Waiting for DEMIURGO…',
-    working: 'Reading your idea…',
-    failed: "I couldn't finish reading your idea",
-    cancelled: 'You stopped the reading',
-    unanswered: "DEMIURGO hasn't read your idea yet",
-  },
-  correction: {
-    waiting: 'Waiting for DEMIURGO…',
-    working: 'Reading your correction…',
-    failed: "I couldn't finish reading your correction",
-    cancelled: 'You stopped the reading',
-    unanswered: "DEMIURGO hasn't read your correction yet",
-  },
-  decisions: {
-    waiting: 'Waiting for DEMIURGO…',
-    working: 'Proposing decisions…',
-    failed: "I couldn't finish proposing decisions",
-    cancelled: 'You stopped it',
-    unanswered: "DEMIURGO hasn't answered yet",
-  },
-};
+/** The words for a subject, from the active catalog (t is the READING catalog's translation). */
+function wordsOf(
+  t: Translation<typeof READING.en>,
+  subject: Subject,
+): { waiting: string; working: string; failed: string; cancelled: string; unanswered: string } {
+  if (subject === 'idea') {
+    return {
+      waiting: t.waiting,
+      working: t.ideaWorking,
+      failed: t.ideaFailed,
+      cancelled: t.ideaCancelled,
+      unanswered: t.ideaUnanswered,
+    };
+  }
+  if (subject === 'correction') {
+    return {
+      waiting: t.waiting,
+      working: t.correctionWorking,
+      failed: t.correctionFailed,
+      cancelled: t.correctionCancelled,
+      unanswered: t.correctionUnanswered,
+    };
+  }
+  return {
+    waiting: t.waiting,
+    working: t.decisionsWorking,
+    failed: t.decisionsFailed,
+    cancelled: t.decisionsCancelled,
+    unanswered: t.decisionsUnanswered,
+  };
+}
 
 export type ReadingContent = {
   reply: Message | null;
@@ -74,15 +82,16 @@ const waitingFor = (r: Reading) => r.phase === 'waiting' || r.phase === 'catchin
 
 /** Says out loud when the reading this screen waits for ends: finished, or stopped (R80). */
 function useAnnounceEnd(reading: Reading, subject: Subject) {
+  const t = useMessages(READING);
   const was = useRef(reading.phase);
   useEffect(() => {
     const before = was.current;
     was.current = reading.phase;
     const busy = before === 'working' || before === 'waiting' || before === 'catching_up';
     if (!busy || reading.phase === before) return;
-    if (reading.phase === 'read') announce(subject === 'decisions' ? 'DEMIURGO answered.' : 'DEMIURGO has read it.');
-    else if (stopped(reading)) announce(`${WORDS[subject][reading.phase === 'failed' ? 'failed' : 'cancelled']}.`);
-  }, [reading, subject]);
+    if (reading.phase === 'read') announce(subject === 'decisions' ? t.demiurgoAnswered : t.demiurgoRead);
+    else if (stopped(reading)) announce(`${wordsOf(t, subject)[reading.phase === 'failed' ? 'failed' : 'cancelled']}.`);
+  }, [reading, subject, t]);
 }
 
 /**
@@ -106,20 +115,21 @@ export function LiveReading({
   content: ReadingContent | null;
   onSee: () => void;
 }) {
+  const t = useMessages(READING);
   useAnnounceEnd(reading, 'idea');
   return (
     <section aria-labelledby="page-title" className="mx-auto flex w-full max-w-3xl flex-col gap-7 px-4 pt-10 pb-16 sm:px-6">
       <div className="flex flex-col gap-1.5">
-        <p className="text-sm text-fg-2">{name ?? 'Your new product'}</p>
+        <p className="text-sm text-fg-2">{name ?? t.yourNewProduct}</p>
         <h1 id="page-title" tabIndex={-1} className="text-2xl font-semibold text-fg outline-none">
-          DEMIURGO reads your idea
+          {t.pageTitle}
         </h1>
       </div>
       <figure className="flex items-start gap-3">
         <WhoAvatar kind="you" size={28} />
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <figcaption className="text-sm text-fg-2">
-            <span className="font-medium text-fg">Your idea</span> · <RelativeTime iso={idea.created_at} />
+            <span className="font-medium text-fg">{t.yourIdea}</span> · <RelativeTime iso={idea.created_at} />
           </figcaption>
           <blockquote className="text-md break-words whitespace-pre-wrap text-fg-2">“{idea.body}”</blockquote>
         </div>
@@ -135,9 +145,9 @@ export function LiveReading({
 
 type StepState = 'done' | 'active' | 'pending';
 
-const STEP_WORD: Record<StepState, string> = { done: 'Done', active: 'In progress', pending: 'Not yet' };
-
 function Step({ state, title, children }: { state: StepState; title: string; children?: ReactNode }) {
+  const t = useMessages(READING);
+  const stepWord: Record<StepState, string> = { done: t.done, active: t.inProgress, pending: t.notYet };
   return (
     <li data-step={state} className="flex gap-3.5 border-t border-edge-subtle px-5 py-4 first:border-t-0 sm:px-6">
       <span className="flex h-6 w-5 shrink-0 items-center justify-center">
@@ -146,7 +156,7 @@ function Step({ state, title, children }: { state: StepState; title: string; chi
       <div className="flex min-w-0 flex-1 flex-col gap-3">
         <h3 className={cn('text-base', state === 'pending' ? 'font-medium text-fg-2' : 'font-semibold text-fg')}>
           {title}
-          <span className="sr-only"> · {STEP_WORD[state]}</span>
+          <span className="sr-only"> · {stepWord[state]}</span>
         </h3>
         {children}
       </div>
@@ -184,14 +194,15 @@ function ReadingCard({
   content: ReadingContent | null;
   onSee: () => void;
 }) {
+  const t = useMessages(READING);
   const run = reading.run;
   const finished = reading.phase === 'read';
   const working = reading.phase === 'working';
   const headline = finished
-    ? "Here's a first reading of your idea"
+    ? t.firstReading
     : reading.phase === 'catching_up'
-      ? CATCHING_UP
-      : WORDS.idea[working ? 'working' : 'waiting'];
+      ? t.catchingUp
+      : wordsOf(t, 'idea')[working ? 'working' : 'waiting'];
   const shown = finished ? content : null;
   const first: StepState = finished ? 'done' : working ? 'active' : 'pending';
   const rest: StepState = finished ? 'done' : 'pending';
@@ -204,7 +215,7 @@ function ReadingCard({
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {working && run ? <RunLive run={run} /> : null}
-          {waitingFor(reading) ? <StatusBadge kind="working" word="Waiting" /> : null}
+          {waitingFor(reading) ? <StatusBadge kind="working" word={t.waitingBadge} /> : null}
           {finished && run ? (
             <span className="text-sm text-fg-2 tabular-nums">
               {between(run.started_at ?? run.created_at, run.finished_at)}
@@ -215,12 +226,10 @@ function ReadingCard({
         </div>
       </div>
       {waitingFor(reading) ? (
-        <p className="border-b border-edge-subtle bg-sunken px-5 py-2.5 text-sm text-fg-2 sm:px-6">
-          It starts as soon as its knowledge is up to date with your idea.
-        </p>
+        <p className="border-b border-edge-subtle bg-sunken px-5 py-2.5 text-sm text-fg-2 sm:px-6">{t.startsAsSoon}</p>
       ) : null}
-      <ol aria-label="What DEMIURGO does" aria-busy={!finished || undefined}>
-        <Step state={first} title="What I understood">
+      <ol aria-label={t.whatDemiurgoDoes} aria-busy={!finished || undefined}>
+        <Step state={first} title={t.whatIUnderstood}>
           {shown ? (
             <>
               {shown.reply ? <p className="text-md break-words whitespace-pre-wrap text-fg">{shown.reply.body}</p> : null}
@@ -228,7 +237,7 @@ function ReadingCard({
             </>
           ) : null}
         </Step>
-        <Step state={rest} title="What I still need to ask you">
+        <Step state={rest} title={t.whatIStillNeed}>
           {shown ? (
             shown.questions.length > 0 ? (
               <ul className="flex flex-col gap-2">
@@ -240,21 +249,17 @@ function ReadingCard({
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-fg-2">Nothing for now.</p>
+              <p className="text-sm text-fg-2">{t.nothingForNow}</p>
             )
           ) : null}
         </Step>
         {shown?.batchId ? <ProposedStep projectId={projectId} batchId={shown.batchId} /> : null}
       </ol>
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-t border-edge bg-sunken px-5 py-3.5 sm:px-6">
-        <p className="min-w-0 flex-1 basis-64 text-sm text-fg-2">
-          {finished
-            ? 'Everything above is only proposed. You will review it before anything is decided.'
-            : 'DEMIURGO is only reading. Nothing is decided without you.'}
-        </p>
+        <p className="min-w-0 flex-1 basis-64 text-sm text-fg-2">{finished ? t.everythingProposed : t.onlyReading}</p>
         {finished ? (
           <Button variant="primary" trailing={<ArrowRightIcon size={15} />} onClick={onSee}>
-            See what I understood
+            {t.seeWhatIUnderstood}
           </Button>
         ) : null}
       </div>
@@ -264,9 +269,10 @@ function ReadingCard({
 
 /** What the reading proposed (decisions, threads…), each with its real state; they wait on their batch page. */
 function ProposedStep({ projectId, batchId }: { projectId: string; batchId: string }) {
+  const t = useMessages(READING);
   const batch = useQuery(batchQuery(projectId, batchId));
   return (
-    <Step state="done" title="What I propose">
+    <Step state="done" title={t.whatIPropose}>
       {batch.error ? <ErrorNotice error={batch.error} compact focus={false} onRetry={() => void batch.refetch()} /> : null}
       <ul className="flex flex-col gap-2">
         {(batch.data?.proposals ?? []).map((p) => (
@@ -282,6 +288,7 @@ function ProposedStep({ projectId, batchId }: { projectId: string; batchId: stri
 
 /** Cancel a run that works, after saying what is kept (R27): nothing is applied. */
 export function CancelRun({ projectId, run, size }: { projectId: string; run: RunListItem; size?: ButtonSize }) {
+  const t = useMessages(READING);
   const command = useCommand(projectId);
   const [open, setOpen] = useState(false);
   return (
@@ -292,7 +299,7 @@ export function CancelRun({ projectId, run, size }: { projectId: string; run: Ru
         {...(size ? { size } : {})}
         handlers={{
           'run.cancel': {
-            label: 'Cancel',
+            label: t.cancel,
             variant: 'secondary',
             run: () => {
               command.reset();
@@ -304,10 +311,10 @@ export function CancelRun({ projectId, run, size }: { projectId: string; run: Ru
       <ConfirmDialog
         open={open}
         onOpenChange={setOpen}
-        title="Cancel this run?"
-        description="DEMIURGO stops here. Nothing is applied; what it already wrote in the thread stays."
-        confirm="Cancel the run"
-        pendingLabel="Cancelling…"
+        title={t.cancelThisRun}
+        description={t.cancelDescription}
+        confirm={t.cancelTheRun}
+        pendingLabel={t.cancelling}
         tone="danger"
         pending={command.isPending}
         error={open ? command.error : null}
@@ -317,7 +324,7 @@ export function CancelRun({ projectId, run, size }: { projectId: string; run: Ru
             {
               onSuccess: () => {
                 setOpen(false);
-                announce('Cancelled. Nothing was applied.');
+                announce(t.cancelledAnnounce);
               },
             },
           )
@@ -341,15 +348,17 @@ function StoppedCard({
   subject: Subject;
   compact?: boolean;
 }) {
+  const t = useMessages(READING);
   const tables = useTables();
   const command = useCommand(projectId);
   const run = reading.run;
   const failed = reading.phase === 'failed';
-  const title =
-    WORDS[subject][reading.phase === 'failed' ? 'failed' : reading.phase === 'cancelled' ? 'cancelled' : 'unanswered'];
+  const title = wordsOf(t, subject)[
+    reading.phase === 'failed' ? 'failed' : reading.phase === 'cancelled' ? 'cancelled' : 'unanswered'
+  ];
   const reason = run
     ? failureWord(run.failure_kind ?? (reading.phase === 'cancelled' ? 'cancelled' : null), run.state)
-    : 'Nothing was lost: what you wrote is in the thread.';
+    : t.nothingLost;
   const canRetry = !!run && !!tables && canCreate(tables, 'run.retry');
   const canAsk = !run && !!tables && canCreate(tables, 'run.request');
   const H = compact ? 'h3' : 'h2';
@@ -370,7 +379,7 @@ function StoppedCard({
           <p className={cn('text-base', failed ? 'text-danger-text' : 'text-fg-2')}>{reason}</p>
           {run ? (
             <p className="text-sm text-fg-2">
-              Conversation · {dayTime(run.finished_at ?? run.created_at)}
+              {t.conversation} · {dayTime(run.finished_at ?? run.created_at)}
               {run.model ? ` · ${run.model}` : ''}
             </p>
           ) : null}
@@ -380,10 +389,10 @@ function StoppedCard({
             <Link
               to="/p/$projectId/runs/$runId"
               params={{ projectId, runId: run.id }}
-              aria-label="Details of the conversation run"
+              aria-label={t.conversationDetails}
               className="inline-flex h-8 items-center gap-0.5 rounded-md px-2 text-sm font-medium text-fg-2 hover:bg-hover hover:text-fg"
             >
-              Details
+              {t.details}
               <ChevronRightIcon size={13} />
             </Link>
           ) : null}
@@ -394,15 +403,15 @@ function StoppedCard({
               icon={<RetryIcon size={14} />}
               data-command="run.retry"
               pending={command.isPending}
-              pendingLabel="Retrying…"
+              pendingLabel={t.retrying}
               onClick={() =>
                 command.mutate(
                   { command: 'run.retry', data: { run_id: run.id } },
-                  { onSuccess: () => announce('Retrying. DEMIURGO reads it again.') },
+                  { onSuccess: () => announce(t.retryingAnnounce) },
                 )
               }
             >
-              Retry
+              {t.retry}
             </Button>
           ) : null}
           {canAsk ? (
@@ -411,18 +420,18 @@ function StoppedCard({
               variant={compact ? 'secondary' : 'primary'}
               data-command="run.request"
               pending={command.isPending}
-              pendingLabel="Asking…"
+              pendingLabel={t.asking}
               onClick={() =>
                 command.mutate(
                   {
                     command: 'run.request',
                     data: { action: 'exploration_chat', agent: 'onboarding', scope: { type: 'exploration', id: explorationId } },
                   },
-                  { onSuccess: () => announce('Asked. DEMIURGO reads it.') },
+                  { onSuccess: () => announce(t.askedAnnounce) },
                 )
               }
             >
-              Ask DEMIURGO
+              {t.askDemiurgo}
             </Button>
           ) : null}
         </div>
@@ -444,6 +453,7 @@ export function ReadingStatus({
   reading: Reading;
   subject: Subject;
 }) {
+  const t = useMessages(READING);
   useAnnounceEnd(reading, subject);
   if (reading.phase === 'read') return null;
   if (stopped(reading)) {
@@ -456,14 +466,12 @@ export function ReadingStatus({
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <WhoAvatar kind="demiurgo" size={20} />
         <p className="min-w-0 flex-1 basis-48 text-base font-medium text-fg">
-          {reading.phase === 'catching_up' ? CATCHING_UP : WORDS[subject][working ? 'working' : 'waiting']}
+          {reading.phase === 'catching_up' ? t.catchingUp : wordsOf(t, subject)[working ? 'working' : 'waiting']}
         </p>
-        {working && run ? <RunLive run={run} /> : <StatusBadge kind="working" word="Waiting" />}
+        {working && run ? <RunLive run={run} /> : <StatusBadge kind="working" word={t.waitingBadge} />}
         {working && run ? <CancelRun projectId={projectId} run={run} size="sm" /> : null}
       </div>
-      {waitingFor(reading) ? (
-        <p className="text-sm text-fg-2">It starts as soon as its knowledge is up to date with what you wrote.</p>
-      ) : null}
+      {waitingFor(reading) ? <p className="text-sm text-fg-2">{t.startsAsSoonWrote}</p> : null}
     </Card>
   );
 }

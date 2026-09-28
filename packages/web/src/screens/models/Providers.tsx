@@ -7,14 +7,17 @@ import type { Catalog } from '../../api/models.ts';
 import { Code, Tag } from '../../components/Badge.tsx';
 import { StatusBadge } from '../../components/status.tsx';
 import { RelativeTime } from '../../components/Time.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
+import { PROVIDER_CARD } from './words.i18n.ts';
 
 export function ProviderCard({ catalog: c }: { catalog: Catalog }) {
+  const t = useMessages(PROVIDER_CARD);
   const state = !c.installed
-    ? ({ kind: 'inactive', word: 'Not installed' } as const)
+    ? ({ kind: 'inactive', word: t.notInstalled } as const)
     : c.ready
-      ? ({ kind: 'done', word: 'Ready' } as const)
-      : ({ kind: 'problem', word: 'Not ready' } as const);
+      ? ({ kind: 'done', word: t.ready } as const)
+      : ({ kind: 'problem', word: t.notReady } as const);
   return (
     <article
       data-provider={c.provider}
@@ -30,7 +33,7 @@ export function ProviderCard({ catalog: c }: { catalog: Catalog }) {
       </header>
       {c.message ? <p className={cn('text-sm', c.ready ? 'text-fg-2' : 'text-danger-text')}>{c.message}</p> : null}
       {c.models.length > 0 ? (
-        <ul aria-label={`Models of ${c.label}`} className="flex flex-col gap-2">
+        <ul aria-label={t.modelsOf(c.label)} className="flex flex-col gap-2">
           {c.models.map((m) => (
             <li key={m.id} className="flex flex-col gap-1">
               <span className="text-sm font-medium text-fg">{m.label}</span>
@@ -38,7 +41,7 @@ export function ProviderCard({ catalog: c }: { catalog: Catalog }) {
                 <span className="flex flex-wrap gap-1">
                   {m.efforts.map((e) => (
                     <Tag key={e} className={e === m.defaultEffort ? 'border-edge-strong text-fg' : undefined}>
-                      {e === m.defaultEffort ? `${e} · default` : e}
+                      {e === m.defaultEffort ? t.default(e) : e}
                     </Tag>
                   ))}
                 </span>
@@ -47,15 +50,15 @@ export function ProviderCard({ catalog: c }: { catalog: Catalog }) {
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-fg-3">No models to offer.</p>
+        <p className="text-sm text-fg-3">{t.noModels}</p>
       )}
       <p className="mt-auto border-t border-edge-subtle pt-3 text-xs text-fg-2">
-        {c.sessions ? 'Keeps a conversation per thread' : 'Sends the whole context every time'}
+        {c.sessions ? t.sessionPerThread : t.wholeContext}
         <span aria-hidden className="text-fg-3">
           {' · '}
         </span>
         <span className="sr-only">. </span>
-        <RelativeTime iso={c.discoveredAt} prefix="Checked" />
+        <RelativeTime iso={c.discoveredAt} prefix={t.checked} />
       </p>
     </article>
   );

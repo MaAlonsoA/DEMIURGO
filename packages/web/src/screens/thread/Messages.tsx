@@ -18,6 +18,7 @@ import { Bone } from '../../components/Spinner.tsx';
 import { EntityState, StatusBadge, WorkingDot } from '../../components/status.tsx';
 import { RelativeTime } from '../../components/Time.tsx';
 import { Who } from '../../components/Who.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { useReading } from '../../i18n/reading.tsx';
 import { cn } from '../../lib/cn.ts';
 import { OBSERVATION_WORDS } from '../../words.ts';
@@ -25,6 +26,7 @@ import { proposalsInWords } from '../run/runs.ts';
 import { OpenThreadDialog } from '../threads/OpenThreadDialog.tsx';
 import { plainText } from './answers.ts';
 import { useDrafts } from './drafts.tsx';
+import { MESSAGES } from './words.i18n.ts';
 
 /** A person (right), an outside agent or an automatic rule (left): plain text, as written. */
 export function PersonMessage({ message: m, by }: { message: Message; by: 'you' | 'agent' | 'automatic' }) {
@@ -61,15 +63,15 @@ export function PersonMessage({ message: m, by }: { message: Message; by: 'you' 
  * for knowledge to catch up, or given up. A working run shows itself as a card below.
  */
 function AnswerStatus({ message: m }: { message: Message }) {
+  const t = useMessages(MESSAGES);
   if (m.response === 'waiting')
     return (
       <p className="inline-flex items-center gap-1.5 text-xs text-info-text">
         <WorkingDot size={7} />
-        DEMIURGO answers once it has caught up with your latest changes.
+        {t.waitingCatchUp}
       </p>
     );
-  if (m.response === 'abandoned')
-    return <p className="text-xs text-fg-2">DEMIURGO didn't answer this message. Ask again when you're ready.</p>;
+  if (m.response === 'abandoned') return <p className="text-xs text-fg-2">{t.didntAnswer}</p>;
   return null;
 }
 
@@ -91,6 +93,7 @@ export function DemiurgoMessage({
   batchId: string | null;
   canFork: boolean;
 }) {
+  const t = useMessages(MESSAGES);
   const headId = useId();
   const [forking, setForking] = useState(false);
   const first = reply ?? observations[0];
@@ -125,7 +128,7 @@ export function DemiurgoMessage({
             data-command="exploration.open"
             onClick={() => setForking(true)}
           >
-            Fork into a new thread
+            {t.forkIntoNewThread}
           </Button>
         </div>
       ) : null}
@@ -156,9 +159,10 @@ function ReadMessage({ projectId, message: m }: { projectId: string; message: Me
 
 /** What DEMIURGO observed: each one Proposed (a claim or a hypothesis) or Unknown, in words. */
 export function Observations({ projectId, items, divided = true }: { projectId: string; items: Message[]; divided?: boolean }) {
+  const t = useMessages(MESSAGES);
   return (
     <div className={cn('flex flex-col gap-2', divided && 'border-t border-edge-subtle pt-3')}>
-      <h3 className="text-sm font-medium text-fg-2">What it observed</h3>
+      <h3 className="text-sm font-medium text-fg-2">{t.whatItObserved}</h3>
       <ul className="flex flex-col gap-2">
         {items.map((o) => (
           <Observation key={o.id} projectId={projectId} observation={o} />
@@ -183,6 +187,7 @@ function Observation({ projectId, observation: o }: { projectId: string; observa
 
 /** What the conversation proposed: suggested threads inline; the rest waits in Needs you. */
 function Proposed({ projectId, batchId }: { projectId: string; batchId: string }) {
+  const t = useMessages(MESSAGES);
   const batch = useQuery(batchQuery(projectId, batchId));
   if (!batch.data) {
     if (batch.isError)
@@ -208,8 +213,9 @@ function Proposed({ projectId, batchId }: { projectId: string; batchId: string }
         >
           <PackageIcon size={16} className={pending ? 'text-accent-text' : 'text-fg-3'} />
           <span className="min-w-0 flex-1 text-fg">
-            Proposed <span className="font-semibold">{proposalsInWords(rest.map((p) => p.type))}</span>
-            {pending ? ' for you to review.' : '.'}
+            {t.proposed}
+            <span className="font-semibold">{proposalsInWords(rest.map((p) => p.type))}</span>
+            {pending ? t.forReview : t.period}
           </span>
           {!pending ? <EntityState entity="batch" state={b.state} /> : null}
           <Link
@@ -220,7 +226,7 @@ function Proposed({ projectId, batchId }: { projectId: string; batchId: string }
               pending ? 'text-accent-text' : 'text-fg-2 hover:text-fg',
             )}
           >
-            {pending ? 'Review' : 'Open'}
+            {pending ? t.review : t.open}
             <ArrowRightIcon size={12} />
           </Link>
         </div>
@@ -239,6 +245,7 @@ const purposeOf = (p: Pick<Proposal, 'payload'>): string => {
  * draft, sent with the answers; once resolved it says what happened, with the way to the new thread.
  */
 function ForkSuggestion({ projectId, proposal: p }: { projectId: string; proposal: Proposal }) {
+  const t = useMessages(MESSAGES);
   const drafts = useDrafts();
   const threads = useQuery({ ...explorationsQuery(projectId), enabled: p.state !== 'pending' }).data;
   const purpose = purposeOf(p);
@@ -247,12 +254,12 @@ function ForkSuggestion({ projectId, proposal: p }: { projectId: string; proposa
 
   if (p.state !== 'pending') {
     const opened = p.state === 'accepted' || p.state === 'accepted_edited';
-    const child = opened ? threads?.find((t) => t.origin_type === 'proposal' && t.origin_id === p.id) : undefined;
+    const child = opened ? threads?.find((x) => x.origin_type === 'proposal' && x.origin_id === p.id) : undefined;
     return (
       <p data-fork-resolved={p.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-fg-2">
         <ForkIcon size={14} className="text-fg-3" />
         <span>
-          {opened ? 'Opened as its own thread: ' : p.state === 'rejected' ? 'Kept in this thread: ' : 'No longer suggested: '}
+          {opened ? t.openedAsOwnThread : p.state === 'rejected' ? t.keptInThread : t.noLongerSuggested}
           <span className="text-fg">«{purpose}»</span>
         </span>
         {child ? (
@@ -261,7 +268,7 @@ function ForkSuggestion({ projectId, proposal: p }: { projectId: string; proposa
             params={{ projectId, explorationId: child.id }}
             className="inline-flex items-center gap-1 font-medium text-accent-text hover:underline"
           >
-            Open it
+            {t.openIt}
             <ArrowRightIcon size={12} />
           </Link>
         ) : null}
@@ -293,13 +300,14 @@ function ForkSuggestion({ projectId, proposal: p }: { projectId: string; proposa
       <p id={labelId} className="flex items-start gap-2 text-base text-fg-2">
         <ForkIcon size={15} className="mt-0.5 shrink-0 text-fg-3" />
         <span>
-          Could deserve its own thread: <span className="font-medium text-fg">«{purpose}»</span>
+          {t.couldDeserveThread}
+          <span className="font-medium text-fg">«{purpose}»</span>
         </span>
       </p>
       <div className="flex flex-wrap items-center gap-2 pl-6">
-        {option('explore', 'Explore separately')}
-        {option('keep', 'Keep it here')}
-        {choice ? <span className="ml-auto text-sm font-medium text-accent-text">Not sent yet</span> : null}
+        {option('explore', t.exploreSeparately)}
+        {option('keep', t.keepItHere)}
+        {choice ? <span className="ml-auto text-sm font-medium text-accent-text">{t.notSentYet}</span> : null}
       </div>
     </div>
   );

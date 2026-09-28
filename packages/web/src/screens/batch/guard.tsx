@@ -6,6 +6,8 @@
 import { useBlocker } from '@tanstack/react-router';
 import { type ReactNode, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ConfirmDialog } from '../../components/Dialog.tsx';
+import { useMessages } from '../../i18n/define.ts';
+import { GUARD } from './words.i18n.ts';
 
 type Guard = {
   /** The Change form of proposal `id` has (or no longer has) unsaved changes. */
@@ -22,6 +24,7 @@ export function useEditGuard(): Guard {
 }
 
 export function EditGuard({ children }: { children: ReactNode }) {
+  const t = useMessages(GUARD);
   const dirty = useRef(new Set<string>());
   const [pending, setPending] = useState<null | (() => void)>(null);
   const isDirty = useCallback(() => dirty.current.size > 0, []);
@@ -64,12 +67,10 @@ export function EditGuard({ children }: { children: ReactNode }) {
         onOpenChange={(o) => {
           if (!o) cancel();
         }}
-        title="Leave your version?"
-        description={
-          <p>You changed this proposal and haven&apos;t accepted your version. If you leave, your changes are lost.</p>
-        }
-        confirm="Discard my changes"
-        cancel="Keep editing"
+        title={t.title}
+        description={<p>{t.description}</p>}
+        confirm={t.confirm}
+        cancel={t.cancel}
         tone="danger"
         onConfirm={discard}
       />

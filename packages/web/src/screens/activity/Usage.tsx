@@ -11,8 +11,10 @@ import { Code } from '../../components/Badge.tsx';
 import { ChevronDownIcon } from '../../components/icons.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
 import { Bone, Skeleton } from '../../components/Spinner.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { agentSection } from '../models/engines.ts';
+import { USAGE } from './words.i18n.ts';
 
 const n = (v: number) => v.toLocaleString('en-GB');
 const usd = (v: number) => (v > 0 ? `$${v.toFixed(2)}` : '—');
@@ -22,6 +24,7 @@ const th = 'px-3 py-2 text-xs font-medium text-fg-2 whitespace-nowrap';
 const td = 'px-3 py-2 tabular-nums';
 
 export function ProjectUsage({ projectId }: { projectId: string }) {
+  const t = useMessages(USAGE);
   const id = useId();
   const [open, setOpen] = useState(false);
   const usage = useQuery(usageQuery(projectId));
@@ -30,7 +33,7 @@ export function ProjectUsage({ projectId }: { projectId: string }) {
 
   if (usage.isPending)
     return (
-      <Skeleton label="Loading the usage">
+      <Skeleton label={t.loading}>
         <Bone className="h-12 w-full rounded-lg" />
       </Skeleton>
     );
@@ -38,11 +41,11 @@ export function ProjectUsage({ projectId }: { projectId: string }) {
   if (!rows || rows.length === 0) return null;
 
   const total = rows.reduce(
-    (t, r) => ({
-      calls: t.calls + r.calls,
-      failures: t.failures + r.failures,
-      tokens: t.tokens + r.inputTokens + r.outputTokens,
-      cost: t.cost + r.declaredCostUsd,
+    (acc, r) => ({
+      calls: acc.calls + r.calls,
+      failures: acc.failures + r.failures,
+      tokens: acc.tokens + r.inputTokens + r.outputTokens,
+      cost: acc.cost + r.declaredCostUsd,
     }),
     { calls: 0, failures: 0, tokens: 0, cost: 0 },
   );
@@ -51,17 +54,15 @@ export function ProjectUsage({ projectId }: { projectId: string }) {
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
         <div className="flex min-w-0 flex-1 basis-72 flex-col gap-0.5">
           <h2 id={`${id}-title`} className="text-base font-semibold text-fg">
-            Usage · All time
+            {t.title}
           </h2>
           <p className="text-sm text-fg-2">
-            <span className="tabular-nums">{n(total.calls)}</span> engine calls ·{' '}
+            <span className="tabular-nums">{n(total.calls)}</span> {t.engineCalls}{' '}
             <span className={cn('tabular-nums', total.failures > 0 && 'font-medium text-danger-text')}>{n(total.failures)}</span>{' '}
-            failed · <span className="tabular-nums">{n(total.tokens)}</span> tokens ·{' '}
-            {total.cost > 0 ? usd(total.cost) : 'no cost reported'}
+            {t.failed} <span className="tabular-nums">{n(total.tokens)}</span> {t.tokens}{' '}
+            {total.cost > 0 ? usd(total.cost) : t.noCost}
           </p>
-          <p className="text-xs text-fg-3">
-            Counts engine calls, not runs: a run can call its engine more than once. Only shown: there are no limits.
-          </p>
+          <p className="text-xs text-fg-3">{t.hint}</p>
         </div>
         <button
           type="button"
@@ -70,7 +71,7 @@ export function ProjectUsage({ projectId }: { projectId: string }) {
           onClick={() => setOpen((o) => !o)}
           className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-edge-strong bg-panel px-3 text-sm font-medium text-fg hover:bg-hover"
         >
-          {open ? 'Hide per part' : 'Show per part'}
+          {open ? t.hidePerPart : t.showPerPart}
           <ChevronDownIcon size={14} className={cn('transition-transform', open && 'rotate-180')} />
         </button>
       </div>
@@ -79,31 +80,31 @@ export function ProjectUsage({ projectId }: { projectId: string }) {
         id={`${id}-table`}
         hidden={!open}
         role="group"
-        aria-label="Usage per part of DEMIURGO"
+        aria-label={t.tableLabel}
         tabIndex={0}
         className="overflow-x-auto rounded-b-lg border-t border-edge-subtle"
       >
         <table className="w-full min-w-[560px] border-collapse text-left text-sm">
-          <caption className="sr-only">Usage per part of DEMIURGO, all time</caption>
+          <caption className="sr-only">{t.caption}</caption>
           <thead>
             <tr className="border-b border-edge-subtle">
               <th scope="col" className={th}>
-                Part of DEMIURGO
+                {t.colPart}
               </th>
               <th scope="col" className={cn(th, 'text-right')}>
-                Calls
+                {t.colCalls}
               </th>
               <th scope="col" className={cn(th, 'text-right')}>
-                Failed
+                {t.colFailed}
               </th>
               <th scope="col" className={cn(th, 'text-right')}>
-                Tokens in / out
+                {t.colTokens}
               </th>
               <th scope="col" className={cn(th, 'text-right')}>
-                Cost
+                {t.colCost}
               </th>
               <th scope="col" className={cn(th, 'text-right')}>
-                Avg time
+                {t.colAvgTime}
               </th>
             </tr>
           </thead>

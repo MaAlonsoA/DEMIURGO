@@ -11,9 +11,12 @@ import { CheckIcon, ChevronsUpDownIcon, FolderIcon, PencilIcon, PlusIcon } from 
 import { PromptDialog } from '../components/Dialog.tsx';
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from '../components/Menu.tsx';
 import { announce } from '../components/announce.tsx';
+import { useMessages } from '../i18n/define.ts';
 import { cn } from '../lib/cn.ts';
+import { PROJECT_SWITCHER } from './words.i18n.ts';
 
 export function ProjectSwitcher({ projectId, compact }: { projectId: string; compact?: boolean }) {
+  const t = useMessages(PROJECT_SWITCHER);
   const projects = useQuery(projectsQuery).data ?? [];
   const project = projects.find((p) => p.id === projectId);
   const navigate = useNavigate();
@@ -24,11 +27,11 @@ export function ProjectSwitcher({ projectId, compact }: { projectId: string; com
   return (
     <>
       <Menu
-        label="Projects"
+        label={t.projects}
         trigger={
           <button
             type="button"
-            aria-label={`Project: ${project?.name ?? ''}. Switch or manage projects`}
+            aria-label={t.ariaLabel(project?.name ?? '')}
             data-project-switcher
             className={cn(
               'flex h-9 w-full min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-left hover:bg-hover',
@@ -54,7 +57,7 @@ export function ProjectSwitcher({ projectId, compact }: { projectId: string; com
       >
         {projects.length > 1 ? (
           <>
-            <MenuLabel>Switch to</MenuLabel>
+            <MenuLabel>{t.switchTo}</MenuLabel>
             {projects.map((p) => (
               <MenuItem
                 key={p.id}
@@ -68,10 +71,10 @@ export function ProjectSwitcher({ projectId, compact }: { projectId: string; com
           </>
         ) : null}
         <MenuItem icon={<FolderIcon size={14} />} onSelect={() => void navigate({ to: '/projects' })}>
-          All projects
+          {t.allProjects}
         </MenuItem>
         <MenuItem icon={<PlusIcon size={14} />} onSelect={() => void navigate({ to: '/new' })}>
-          New project
+          {t.newProject}
         </MenuItem>
         <MenuSeparator />
         <MenuItem
@@ -81,15 +84,15 @@ export function ProjectSwitcher({ projectId, compact }: { projectId: string; com
             setRenaming(true);
           }}
         >
-          Rename the project…
+          {t.renameProject}
         </MenuItem>
       </Menu>
       <PromptDialog
         open={renaming}
         onOpenChange={setRenaming}
-        title="Rename the project"
-        label="Name"
-        submit="Rename"
+        title={t.renameTitle}
+        label={t.name}
+        submit={t.rename}
         required
         multiline={false}
         initial={project?.name ?? ''}
@@ -103,7 +106,7 @@ export function ProjectSwitcher({ projectId, compact }: { projectId: string; com
               onSuccess: () => {
                 void client.invalidateQueries({ queryKey: projectsQuery.queryKey });
                 setRenaming(false);
-                announce(`The project is now called ${name}.`);
+                announce(t.renamed(name));
               },
             },
           )

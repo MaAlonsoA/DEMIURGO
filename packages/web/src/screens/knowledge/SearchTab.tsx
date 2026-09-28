@@ -17,12 +17,15 @@ import { ErrorNotice } from '../../components/Notice.tsx';
 import { RowsSkeleton } from '../../components/Spinner.tsx';
 import { Certainty } from '../../components/status.tsx';
 import { TypeIcon } from '../../components/types.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { nodeType, recordOfRef } from './graph.ts';
+import { SEARCH_TAB } from './words.i18n.ts';
 
 /** A result as the API gives it (packages/core/src/knowledge/graph-pg.ts). */
 type Hit = { ref: string; type: string; title: string; excerpt: string; epistemic_status: string };
 
 export function SearchTab({ projectId }: { projectId: string }) {
+  const t = useMessages(SEARCH_TAB);
   const [text, setText] = useState('');
   const [q, setQ] = useState('');
   const search = useQuery(knowledgeSearchQuery(projectId, q));
@@ -34,13 +37,14 @@ export function SearchTab({ projectId }: { projectId: string }) {
   };
   const done = !!q && !!search.data;
   useEffect(() => {
-    if (done) announce(`${hits.length} ${hits.length === 1 ? 'result' : 'results'} for “${q}”.`);
+    if (done) announce(t.resultsFor(hits.length, q));
+    // biome-ignore lint/correctness/useExhaustiveDependencies: t is stable per render locale
   }, [done, hits.length, q]);
 
   return (
     <div className="flex flex-col gap-5">
       <form role="search" onSubmit={submit} className="max-w-2xl">
-        <Field label="Search the knowledge">
+        <Field label={t.searchLabel}>
           {(p) => (
             <div className="flex items-center gap-2">
               <div className="relative min-w-0 flex-1">
@@ -50,29 +54,27 @@ export function SearchTab({ projectId }: { projectId: string }) {
                   type="search"
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  placeholder="A word or a phrase, as it was written"
+                  placeholder={t.placeholder}
                   className="pl-9"
                 />
               </div>
               <Button type="submit" variant="primary" disabled={text.trim() === ''}>
-                Search
+                {t.search}
               </Button>
             </div>
           )}
         </Field>
       </form>
       {!q ? (
-        <p className="text-sm text-fg-2">
-          Search what DEMIURGO knows: decisions, features, tech decisions and their checks, as they were written.
-        </p>
+        <p className="text-sm text-fg-2">{t.introBody}</p>
       ) : search.error ? (
         <ErrorNotice error={search.error} onRetry={() => void search.refetch()} />
       ) : search.isPending ? (
-        <RowsSkeleton label="Searching" rows={3} />
+        <RowsSkeleton label={t.searching} rows={3} />
       ) : hits.length === 0 ? (
         <EmptyState
           icon={<SearchIcon size={24} />}
-          title={`Nothing matches “${q}”`}
+          title={t.nothingMatches(q)}
           action={
             <Button
               variant="secondary"
@@ -81,18 +83,16 @@ export function SearchTab({ projectId }: { projectId: string }) {
                 setQ('');
               }}
             >
-              Clear the search
+              {t.clearSearch}
             </Button>
           }
         >
-          Try another word, or fewer words.
+          {t.tryAnother}
         </EmptyState>
       ) : (
         <div className="flex flex-col gap-2">
-          <p className="text-sm text-fg-2">
-            {hits.length} {hits.length === 1 ? 'result' : 'results'} for “{q}”
-          </p>
-          <ul aria-label="Results" className="flex flex-col gap-2">
+          <p className="text-sm text-fg-2">{t.resultsForLine(hits.length, q)}</p>
+          <ul aria-label={t.results} className="flex flex-col gap-2">
             {hits.map((h) => (
               <Result key={h.ref} projectId={projectId} hit={h} record={recordOfRef(h.ref, graph)} />
             ))}
@@ -112,6 +112,7 @@ function Result({
   hit: Hit;
   record: { code: string; version: number } | null;
 }) {
+  const t = useMessages(SEARCH_TAB);
   const thread = h.ref.startsWith('exploration:') ? h.ref.slice('exploration:'.length) : null;
   const type = nodeType(h.type);
   const title = 'text-base font-medium text-fg underline-offset-2 hover:text-accent-text hover:underline';
@@ -139,7 +140,7 @@ function Result({
       ) : (
         <span className="flex flex-wrap items-baseline gap-x-2">
           <span className="text-base font-medium text-fg">{h.title}</span>
-          <span className="text-xs text-fg-3">It has no page of its own to open.</span>
+          <span className="text-xs text-fg-3">{t.noPageOfItsOwn}</span>
         </span>
       )}
       {h.excerpt ? <p className="line-clamp-3 text-sm text-fg-2">{h.excerpt}</p> : null}

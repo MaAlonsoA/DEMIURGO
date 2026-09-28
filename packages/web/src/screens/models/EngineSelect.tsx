@@ -6,8 +6,10 @@
 import { type ReactNode, useId } from 'react';
 import type { Catalog, Engine } from '../../api/models.ts';
 import { Select } from '../../components/Field.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { choosableProviders, effortsOf, modelsOf, withModel, withProvider } from './engines.ts';
+import { ENGINE_SELECT } from './words.i18n.ts';
 
 export function EngineSelect({
   catalogs,
@@ -28,6 +30,7 @@ export function EngineSelect({
   layout?: 'row' | 'stack';
   className?: string;
 }) {
+  const t = useMessages(ENGINE_SELECT);
   const id = useId();
   const providers = choosableProviders(catalogs);
   const models = value ? modelsOf(catalogs, value.provider) : [];
@@ -53,37 +56,37 @@ export function EngineSelect({
     >
       {field(
         'provider',
-        'Provider',
+        t.provider,
         <Select
           id={`${id}-provider`}
-          aria-label={`${label}: provider`}
+          aria-label={t.field(label, t.provider)}
           value={value?.provider ?? ''}
           onChange={(e) => {
             const next = withProvider(catalogs, e.target.value);
             if (next) onChange(next);
           }}
         >
-          {!known ? <option value={value?.provider ?? ''}>{value ? `${value.provider} (gone)` : 'Choose…'}</option> : null}
+          {!known ? <option value={value?.provider ?? ''}>{value ? t.gone(value.provider) : t.choose}</option> : null}
           {providers.map((p) => (
             <option key={p.provider} value={p.provider}>
               {p.label}
-              {p.ready ? '' : ' (not ready)'}
+              {p.ready ? '' : t.notReady}
             </option>
           ))}
         </Select>,
       )}
       {field(
         'model',
-        'Model',
+        t.model,
         <Select
           id={`${id}-model`}
-          aria-label={`${label}: model`}
+          aria-label={t.field(label, t.model)}
           value={value?.model ?? ''}
           disabled={!value || models.length === 0}
           onChange={(e) => value && onChange(withModel(catalogs, value, e.target.value))}
         >
           {!value ? <option value="">—</option> : null}
-          {value && !models.some((m) => m.id === value.model) ? <option value={value.model}>{value.model} (gone)</option> : null}
+          {value && !models.some((m) => m.id === value.model) ? <option value={value.model}>{t.gone(value.model)}</option> : null}
           {models.map((m) => (
             <option key={m.id} value={m.id}>
               {m.label}
@@ -93,10 +96,10 @@ export function EngineSelect({
       )}
       {field(
         'effort',
-        'Effort',
+        t.effort,
         <Select
           id={`${id}-effort`}
-          aria-label={`${label}: effort`}
+          aria-label={t.field(label, t.effort)}
           value={value?.effort ?? ''}
           disabled={!value || efforts.length === 0}
           onChange={(e) => value && onChange({ ...value, effort: e.target.value || null })}

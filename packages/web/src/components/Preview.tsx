@@ -5,10 +5,12 @@
 
 import { Dialog as D } from 'radix-ui';
 import type { ReactNode } from 'react';
+import { useMessages } from '../i18n/define.ts';
 import { cn } from '../lib/cn.ts';
 import { CloseIcon, EyeIcon } from './icons.tsx';
 import { useReturnFocus } from './returnFocus.ts';
 import { Tooltip } from './Tooltip.tsx';
+import { PREVIEW } from './words.i18n.ts';
 
 /** A side sheet with a title, content and a footer (e.g. "Open"). Modal, so focus stays inside. */
 export function PreviewSheet({
@@ -18,7 +20,7 @@ export function PreviewSheet({
   eyebrow,
   children,
   footer,
-  label = 'Preview',
+  label,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -28,6 +30,8 @@ export function PreviewSheet({
   footer?: ReactNode;
   label?: string;
 }) {
+  const t = useMessages(PREVIEW);
+  const shownLabel = label ?? t.label;
   const returnFocus = useReturnFocus(open);
   return (
     <D.Root open={open} onOpenChange={onOpenChange}>
@@ -41,12 +45,12 @@ export function PreviewSheet({
         >
           <div className="flex items-start gap-3 border-b border-edge px-5 pt-4 pb-3">
             <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <p className="text-xs font-medium text-fg-3">{label}</p>
+              <p className="text-xs font-medium text-fg-3">{shownLabel}</p>
               {eyebrow ? <div className="flex flex-wrap items-center gap-2 text-sm text-fg-2">{eyebrow}</div> : null}
               <D.Title className="text-lg font-semibold text-fg">{title}</D.Title>
             </div>
             <D.Close
-              aria-label="Close the preview"
+              aria-label={t.closePreview}
               className="-mr-2 inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-fg-2 hover:bg-hover hover:text-fg"
             >
               <CloseIcon size={16} />

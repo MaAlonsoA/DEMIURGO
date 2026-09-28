@@ -8,6 +8,8 @@ import { useEffect } from 'react';
 import { useCommand } from '../../api/commands.ts';
 import { announce } from '../../components/announce.tsx';
 import { PromptDialog } from '../../components/Dialog.tsx';
+import { useMessages } from '../../i18n/define.ts';
+import { OPEN_THREAD_DIALOG } from './words.i18n.ts';
 
 export function OpenThreadDialog({
   projectId,
@@ -26,6 +28,7 @@ export function OpenThreadDialog({
   initial?: string;
   fork?: boolean;
 }) {
+  const t = useMessages(OPEN_THREAD_DIALOG);
   const command = useCommand(projectId);
   const navigate = useNavigate();
   const { reset } = command;
@@ -36,20 +39,20 @@ export function OpenThreadDialog({
     <PromptDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={fork ? 'Fork into a new thread' : parent ? 'Open a thread inside' : 'Open a thread'}
+      title={fork ? t.forkTitle : parent ? t.insideTitle : t.title}
       description={
         parent ? (
           <>
-            Inside <span className="font-medium text-fg">{parent.purpose}</span>. Say what this thread explores.
+            {t.inside} <span className="font-medium text-fg">{parent.purpose}</span>. {t.sayWhatInside}
           </>
         ) : (
-          'Say what this thread explores. DEMIURGO reads it as its purpose.'
+          t.sayWhat
         )
       }
-      label="Purpose"
+      label={t.label}
       initial={initial}
-      submit="Open thread"
-      pendingLabel="Opening…"
+      submit={t.submit}
+      pendingLabel={t.opening}
       required
       maxLength={1000}
       pending={command.isPending}
@@ -63,7 +66,7 @@ export function OpenThreadDialog({
           {
             onSuccess: (r) => {
               onOpenChange(false);
-              announce('Thread opened.');
+              announce(t.opened);
               void navigate({ to: '/p/$projectId/threads/$explorationId', params: { projectId, explorationId: r.entity_id } });
             },
           },

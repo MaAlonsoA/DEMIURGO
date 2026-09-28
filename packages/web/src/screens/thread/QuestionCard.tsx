@@ -13,10 +13,12 @@ import { ChoiceGroup } from '../../components/Field.tsx';
 import { DeeperIcon, HelpIcon, PencilIcon } from '../../components/icons.tsx';
 import { QuestionMenu, QuestionOutcome } from '../../components/QuestionActions.tsx';
 import { EntityState } from '../../components/status.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { useReading } from '../../i18n/reading.tsx';
 import { cn } from '../../lib/cn.ts';
 import { ASSUMED, answerChoices, draftOf, isOpenQuestion, pickedChoices, withExclusive } from './answers.ts';
 import { useDrafts } from './drafts.tsx';
+import { ANSWER_WORDS, QUESTION_CARD } from './words.i18n.ts';
 
 export function QuestionCard({
   projectId,
@@ -42,13 +44,15 @@ export function QuestionCard({
   onDeeper: () => void;
   onOwnWords: () => void;
 }) {
+  const t = useMessages(QUESTION_CARD);
+  const answerWords = useMessages(ANSWER_WORDS);
   const drafts = useDrafts();
   const allows = useAllows('question', q.state);
   const reading = useReading(projectId, 'question', q.id);
   if (!isOpenQuestion(q)) return <SettledQuestion projectId={projectId} question={q} stageTitle={stageTitle} />;
 
   const canAnswer = !!drafts && active && allows('question.confirm');
-  const choices = answerChoices(q);
+  const choices = answerChoices(q, answerWords);
   const draft = drafts?.answers[q.id];
   const picked = pickedChoices(q, draft);
   const ownWords = !!draft && picked.length === 0;
@@ -70,7 +74,10 @@ export function QuestionCard({
     >
       <header className="flex items-center gap-2 text-sm text-fg-2">
         <HelpIcon size={15} className="shrink-0 text-accent-text" />
-        <span className="min-w-0 truncate">Question{stageTitle ? ` · ${stageTitle}` : ''}</span>
+        <span className="min-w-0 truncate">
+          {t.question}
+          {stageTitle ? ` · ${stageTitle}` : ''}
+        </span>
         <EntityState entity="question" state={q.state} />
         <span className="ml-auto">
           <QuestionMenu projectId={projectId} question={q} />
@@ -79,13 +86,18 @@ export function QuestionCard({
       <h3 id={titleId} className="text-md font-semibold text-fg">
         {reading.text('question', q.question)}
       </h3>
-      {q.reason ? <p className="text-sm text-fg-2">Why it matters: {reading.text('reason', q.reason)}</p> : null}
+      {q.reason ? (
+        <p className="text-sm text-fg-2">
+          {t.whyItMatters}
+          {reading.text('reason', q.reason)}
+        </p>
+      ) : null}
       {reading.mark ? <div>{reading.mark}</div> : null}
 
       {canAnswer && choices.length > 0 ? (
         <ChoiceGroup
           name={`answer-${q.id}`}
-          legend={q.multiple ? 'Pick all that apply' : 'Pick one'}
+          legend={q.multiple ? t.pickAll : t.pickOne}
           multiple={!!q.multiple}
           value={picked}
           columns={choices.length > 1 ? 2 : 1}
@@ -102,11 +114,11 @@ export function QuestionCard({
       {canAnswer && ownWords ? (
         <div className="flex items-start gap-3 rounded-md border border-edge bg-sunken px-3 py-2">
           <p className="min-w-0 flex-1 text-base whitespace-pre-wrap text-fg">
-            <span className="font-medium text-fg-2">Your answer: </span>
+            <span className="font-medium text-fg-2">{t.yourAnswer}</span>
             {draft}
           </p>
           <Button size="sm" variant="quiet" onClick={() => set(null)}>
-            Clear
+            {t.clear}
           </Button>
         </div>
       ) : null}
@@ -122,21 +134,21 @@ export function QuestionCard({
             data-deeper-button={q.id}
             onClick={onDeeper}
           >
-            {deeperOpen ? 'Going deeper' : 'Go deeper'}
-            {sideCount > 0 ? ` · ${sideCount} ${sideCount === 1 ? 'message' : 'messages'}` : ''}
+            {deeperOpen ? t.goingDeeper : t.goDeeper}
+            {sideCount > 0 ? t.messagesCount(sideCount) : ''}
           </Button>
           <Button size="sm" variant="quiet" icon={<PencilIcon size={14} />} aria-pressed={answering} onClick={onOwnWords}>
-            Answer in my own words
+            {t.answerOwnWords}
           </Button>
           {draft && !ownWords ? (
             <Button size="sm" variant="quiet" onClick={() => set(null)}>
-              Clear
+              {t.clear}
             </Button>
           ) : null}
-          {draft ? <span className="ml-auto text-sm font-medium text-accent-text">Not sent yet</span> : null}
+          {draft ? <span className="ml-auto text-sm font-medium text-accent-text">{t.notSentYet}</span> : null}
         </div>
       ) : !active ? (
-        <p className="text-sm text-fg-2">This thread isn't active. Resume it to answer here.</p>
+        <p className="text-sm text-fg-2">{t.notActive}</p>
       ) : null}
     </article>
   );

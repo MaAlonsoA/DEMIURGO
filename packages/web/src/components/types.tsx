@@ -4,7 +4,8 @@
 
 import type { ComponentType } from 'react';
 import type { RecordType } from '../api/types.ts';
-import { TYPE_WORDS } from '../words.ts';
+import type { Locale } from '../i18n/locale.ts';
+import { TYPE_WORDS, typeWordFor, useSafeLocale } from '../words.ts';
 import {
   BugIcon,
   ChecksIcon,
@@ -83,4 +84,14 @@ export function typeOfCode(code: string): RecordType | null {
 /** The word of a record type ("Feature", "Threat model"). */
 export function typeWord(type: string): string {
   return (TYPE_WORDS as Record<string, string>)[type] ?? type;
+}
+
+/** typeWord in the language given ("Feature" / "Funcionalidad"). */
+export function typeWordIn(locale: Locale, type: string): string {
+  return type in TYPE_WORDS ? typeWordFor(locale, type as RecordType) : type;
+}
+
+/** typeWord in the language shown now. */
+export function useTypeWord(type: string): string {
+  return typeWordIn(useSafeLocale(), type);
 }

@@ -13,8 +13,10 @@ import { Button } from '../../components/Button.tsx';
 import { RetryIcon } from '../../components/icons.tsx';
 import { Popover } from '../../components/Menu.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { EngineSelect } from './EngineSelect.tsx';
 import { choosableProviders, firstEngine } from './engines.ts';
+import { RETRY_WITH } from './words.i18n.ts';
 
 type RetriableRun = { id: string; provider: string; requested_model?: string | null; effort?: string | null };
 
@@ -27,6 +29,7 @@ export function RetryWith({
   run: RetriableRun;
   onRetried?: (runId: string) => void;
 }) {
+  const t = useMessages(RETRY_WITH);
   const catalogs = useQuery(providersQuery).data?.catalogs ?? [];
   const command = useCommand<{ runId: string }>(projectId);
   const [open, setOpen] = useState(false);
@@ -58,21 +61,21 @@ export function RetryWith({
         }
       }}
       align="end"
-      label="Retry with another engine"
+      label={t.label}
       className="w-96"
       trigger={
         <Button variant="secondary" data-retry-with>
-          Retry with…
+          {t.trigger}
         </Button>
       }
     >
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
-          <p className="text-base font-semibold text-fg">Retry with another engine</p>
-          <p className="text-sm text-fg-2">Same context, just this once. What runs this agent next time doesn’t change.</p>
+          <p className="text-base font-semibold text-fg">{t.title}</p>
+          <p className="text-sm text-fg-2">{t.description}</p>
         </div>
         <EngineSelect
-          label="Retry with"
+          label={t.retryWithLabel}
           layout="stack"
           catalogs={catalogs}
           value={engine}
@@ -82,7 +85,7 @@ export function RetryWith({
         {command.error ? <ErrorNotice error={command.error} compact focus={false} /> : null}
         <div className="flex flex-wrap justify-end gap-2">
           <Button variant="quiet" onClick={() => setOpen(false)}>
-            Not now
+            {t.notNow}
           </Button>
           <Button
             variant="primary"
@@ -90,10 +93,10 @@ export function RetryWith({
             data-command="run.retry"
             disabled={!engine}
             pending={command.isPending}
-            pendingLabel="Retrying…"
+            pendingLabel={t.retrying}
             onClick={retry}
           >
-            Retry
+            {t.retry}
           </Button>
         </div>
       </div>

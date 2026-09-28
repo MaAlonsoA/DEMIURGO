@@ -12,9 +12,12 @@ import { ConfirmDialog, Dialog } from '../components/Dialog.tsx';
 import { Field, TextInput } from '../components/Field.tsx';
 import { ErrorNotice } from '../components/Notice.tsx';
 import { RowsSkeleton, Spinner } from '../components/Spinner.tsx';
+import { useMessages } from '../i18n/define.ts';
 import { dayTime } from '../lib/time.ts';
 import { visits } from '../screens/overview/lens/visit.ts';
 import { hasDevTools, onOpenDevPanel, sizeOf, summaryOf } from '../screens/dev/snapshots.ts';
+import { useSafeLocale } from '../words.ts';
+import { DEV_PANEL } from './words.i18n.ts';
 
 type Action =
   | { kind: 'save'; label: string }
@@ -35,6 +38,8 @@ export function DevPanel() {
 }
 
 function Panel() {
+  const t = useMessages(DEV_PANEL);
+  const locale = useSafeLocale();
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState('');
   const [confirm, setConfirm] = useState<Action | null>(null);
@@ -58,7 +63,7 @@ function Panel() {
     },
   });
   const busy = action.isPending;
-  const busyWord = action.variables?.kind === 'drop' ? 'Deleting…' : 'Restarting the API…';
+  const busyWord = action.variables?.kind === 'drop' ? t.deleting : t.restarting;
 
   const save = (e: FormEvent) => {
     e.preventDefault();
@@ -67,18 +72,14 @@ function Panel() {
 
   const confirmText =
     confirm?.kind === 'restore'
-      ? {
-          title: `Restore «${confirm.snapshot.label}»?`,
-          body: 'Everything done after it is lost. You stay signed in.',
-          button: 'Restore',
-        }
+      ? { title: t.restoreTitle(confirm.snapshot.label), body: t.restoreBody, button: t.restore }
       : confirm?.kind === 'drop'
-        ? { title: `Delete the snapshot «${confirm.snapshot.label}»?`, body: 'The snapshot is gone for good.', button: 'Delete' }
+        ? { title: t.dropTitle(confirm.snapshot.label), body: t.dropBody, button: t.drop }
         : confirm?.kind === 'reset'
           ? {
-              title: `Reset ${list.data?.database ?? 'the database'}?`,
-              body: 'Every project is deleted. You stay signed in. Save a snapshot first if in doubt.',
-              button: 'Reset',
+              title: t.resetTitle(list.data?.database ?? (locale === 'es' ? 'la base de datos' : 'the database')),
+              body: t.resetBody,
+              button: t.reset,
             }
           : null;
 
@@ -89,32 +90,32 @@ function Panel() {
         onOpenChange={(v) => {
           if (!busy) setOpen(v);
         }}
-        title="Snapshots"
-        description={`Copies of the whole database (${list.data?.database ?? '…'}): projects, conversations, runs and knowledge. Development only.`}
+        title={t.snapshotsTitle}
+        description={t.snapshotsDescription(list.data?.database ?? '…')}
       >
         <form onSubmit={save} className="flex items-end gap-2">
-          <Field label="Label" optional className="flex-1">
+          <Field label={t.label} optional className="flex-1">
             {(p) => (
               <TextInput
                 {...p}
                 value={label}
                 maxLength={60}
-                placeholder="after day 1"
+                placeholder={t.labelPlaceholder}
                 disabled={busy}
                 onChange={(e) => setLabel(e.target.value)}
               />
             )}
           </Field>
           <Button type="submit" variant="primary" disabled={busy}>
-            Save snapshot
+            {t.saveSnapshot}
           </Button>
         </form>
         {list.isPending ? (
-          <RowsSkeleton label="Loading the snapshots" rows={3} />
+          <RowsSkeleton label={t.loadingSnapshots} rows={3} />
         ) : list.error ? (
           <ErrorNotice error={list.error} onRetry={() => void list.refetch()} />
         ) : list.data.snapshots.length === 0 ? (
-          <p className="text-base text-fg-2">No snapshots yet.</p>
+          <p className="text-base text-fg-2">{t.noSnapshots}</p>
         ) : (
           <ul className="flex max-h-72 flex-col divide-y divide-edge-subtle overflow-y-auto rounded-lg border border-edge">
             {list.data.snapshots.map((s) => (
@@ -122,11 +123,11 @@ function Panel() {
                 <div className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate text-base font-medium text-fg">{s.label}</span>
                   <span className="text-sm text-fg-2">
-                    {dayTime(s.created_at)} · {summaryOf(s)} · {sizeOf(s.size_bytes)}
+                    {dayTime(s.created_at, undefined, locale)} · {summaryOf(s)} · {sizeOf(s.size_bytes)}
                   </span>
                 </div>
                 <Button size="sm" disabled={busy} onClick={() => setConfirm({ kind: 'restore', snapshot: s })}>
-                  Restore
+                  {t.restore}
                 </Button>
                 <Button
                   size="sm"
@@ -134,16 +135,16 @@ function Panel() {
                   disabled={busy}
                   onClick={() => setConfirm({ kind: 'drop', snapshot: s })}
                 >
-                  Delete
+                  {t.drop}
                 </Button>
               </li>
             ))}
           </ul>
         )}
         <div className="flex items-center justify-between gap-3 border-t border-edge pt-3">
-          <p className="text-sm text-fg-2">Reset: an empty database with the same people, ready for a new Day 1.</p>
+          <p className="text-sm text-fg-2">{t.resetLine}</p>
           <Button variant="quiet-danger" disabled={busy} onClick={() => setConfirm({ kind: 'reset' })}>
-            Reset…
+            {t.resetEllipsis}
           </Button>
         </div>
         {busy ? (
@@ -163,7 +164,7 @@ function Panel() {
         }}
         title={confirmText?.title ?? ''}
         description={confirmText?.body ?? ''}
-        confirm={confirmText?.button ?? 'Confirm'}
+        confirm={confirmText?.button ?? t.confirm}
         tone="danger"
         pending={busy}
         pendingLabel={busyWord}

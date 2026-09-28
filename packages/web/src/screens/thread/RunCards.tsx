@@ -25,19 +25,22 @@ import { Bone } from '../../components/Spinner.tsx';
 import { EntityState, StateIcon, StatusBadge } from '../../components/status.tsx';
 import { DayTime, useNow } from '../../components/Time.tsx';
 import { WhoAvatar } from '../../components/Who.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { useTables } from '../../lib/hooks.ts';
 import { between } from '../../lib/time.ts';
 import { ACTION_WORDS, failureWord } from '../../words.ts';
 import { RetryWith } from '../models/RetryWith.tsx';
 import { runDuration } from '../run/runs.ts';
 import { type RunDisplay, progressWords } from './timeline.ts';
+import { RUN_CARDS } from './words.i18n.ts';
 
 const RETRIABLE = ['failed', 'interrupted', 'cancelled'];
 
-/** What a run in progress is doing, in a few words. */
-const DOING: Record<string, string> = { exploration_chat: 'Answering…', design_proposal: 'Drafting…' };
-
 const actionWord = (run: Pick<RunListItem, 'action'>) => ACTION_WORDS[run.action] ?? run.action;
+
+/** What a run in progress is doing, in a few words. */
+const doingWord = (action: string, t: typeof RUN_CARDS.en): string =>
+  action === 'exploration_chat' ? t.answering : action === 'design_proposal' ? t.drafting : t.working;
 
 /** The time a run has taken so far, never empty while it is active. */
 function elapsed(run: Pick<Run, 'state' | 'created_at' | 'started_at' | 'finished_at'>, now: number): string {
@@ -55,12 +58,13 @@ export function RunWorking({
   run: Pick<Run, 'state' | 'action' | 'created_at' | 'started_at' | 'finished_at'>;
   now: number;
 }) {
+  const t = useMessages(RUN_CARDS);
   const queued = run.state === 'queued';
   return (
     <span className="inline-flex items-center gap-1.5 text-sm text-info-text">
       <StateIcon kind="working" />
       <span>
-        {queued ? 'Queued' : (DOING[run.action] ?? 'Working…')} ·{' '}
+        {queued ? t.queued : doingWord(run.action, t)} ·{' '}
         <span data-run-timer className="tabular-nums">
           {elapsed(run, now)}
         </span>
@@ -84,14 +88,15 @@ export function RunCard({ projectId, run, display }: { projectId: string; run: R
 }
 
 function DetailsLink({ projectId, run }: { projectId: string; run: RunListItem }) {
+  const t = useMessages(RUN_CARDS);
   return (
     <Link
       to="/p/$projectId/runs/$runId"
       params={{ projectId, runId: run.id }}
-      aria-label={`Details of the ${actionWord(run).toLowerCase()} run`}
+      aria-label={t.detailsAria(actionWord(run).toLowerCase())}
       className="inline-flex min-h-6 items-center gap-1 text-sm font-medium text-fg-2 hover:text-fg hover:underline"
     >
-      Details
+      {t.details}
       <ArrowRightIcon size={12} />
     </Link>
   );
@@ -99,6 +104,7 @@ function DetailsLink({ projectId, run }: { projectId: string; run: RunListItem }
 
 /** DEMIURGO is working: who and what, its state (Late and Stalled included), progress, time and Cancel. */
 function WorkingCard({ projectId, run }: { projectId: string; run: RunListItem }) {
+  const t = useMessages(RUN_CARDS);
   const command = useCommand(projectId);
   const [confirming, setConfirming] = useState(false);
   const progress = useRunProgress(run.id);
@@ -111,7 +117,7 @@ function WorkingCard({ projectId, run }: { projectId: string; run: RunListItem }
       {
         onSuccess: () => {
           setConfirming(false);
-          announce('Run cancelled. Nothing was applied.');
+          announce(t.cancelled);
         },
       },
     );
@@ -120,7 +126,7 @@ function WorkingCard({ projectId, run }: { projectId: string; run: RunListItem }
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <WhoAvatar kind="demiurgo" size={24} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <p className="font-medium text-fg">DEMIURGO is working…</p>
+          <p className="font-medium text-fg">{t.demiurgoWorking}</p>
           <p className="text-sm text-fg-2">
             {actionWord(run)}
             {run.model ? ` · ${run.model}` : ''}
@@ -129,7 +135,7 @@ function WorkingCard({ projectId, run }: { projectId: string; run: RunListItem }
         <span aria-live="off" className="inline-flex items-center gap-2 text-sm text-fg-2">
           <RunStateBadge run={run} />
           <span>
-            {run.state === 'queued' ? 'waiting' : 'for'}{' '}
+            {run.state === 'queued' ? t.waiting : t.forTime}{' '}
             <span data-run-timer className="tabular-nums">
               {elapsed(run, now)}
             </span>
@@ -146,34 +152,31 @@ function WorkingCard({ projectId, run }: { projectId: string; run: RunListItem }
               setConfirming(true);
             }}
           >
-            Cancel
+            {t.cancel}
           </Button>
         ) : null}
       </div>
       {run.state === 'running' ? (
         <p data-run-progress aria-live="off" className="pl-9 text-sm text-fg-2 tabular-nums">
-          {progress ? progressWords(progressText(progress, now)) : (DOING[run.action] ?? 'Working…')}
+          {progress ? progressWords(progressText(progress, now)) : doingWord(run.action, t)}
         </p>
       ) : null}
       {view.detail ? (
         <p className="pl-9 text-sm text-warning-text">
-          {view.detail}.{' '}
-          {view.kind === 'stalled'
-            ? 'It may still answer: you can wait, or cancel it and retry.'
-            : 'It starts when DEMIURGO is free.'}
+          {view.detail}. {view.kind === 'stalled' ? t.mayStillAnswer : t.startsWhenFree}
         </p>
       ) : null}
       {!confirming && command.error ? <ErrorNotice error={command.error} compact /> : null}
       <ConfirmDialog
         open={confirming}
         onOpenChange={setConfirming}
-        title="Cancel this run?"
-        description={<p>DEMIURGO stops working on it. Nothing is applied; what it already wrote in the thread stays.</p>}
-        confirm="Cancel the run"
-        cancel="Keep it running"
+        title={t.cancelTitle}
+        description={<p>{t.cancelDescription}</p>}
+        confirm={t.cancelConfirm}
+        cancel={t.cancelCancel}
         tone="danger"
         pending={command.isPending}
-        pendingLabel="Cancelling…"
+        pendingLabel={t.cancelling}
         error={confirming ? command.error : null}
         onConfirm={cancel}
       />
@@ -183,6 +186,7 @@ function WorkingCard({ projectId, run }: { projectId: string; run: RunListItem }
 
 /** It failed: what happened in product words, what the agent said, and the way to run it again. */
 function FailedCard({ projectId, run }: { projectId: string; run: RunListItem }) {
+  const t = useMessages(RUN_CARDS);
   const tables = useTables();
   const command = useCommand(projectId);
   const canRetry = !!tables && canCreate(tables, 'run.retry') && RETRIABLE.includes(run.state);
@@ -197,27 +201,24 @@ function FailedCard({ projectId, run }: { projectId: string; run: RunListItem })
       icon={<RetryIcon size={13} />}
       data-command="run.retry"
       pending={command.isPending}
-      pendingLabel="Retrying…"
+      pendingLabel={t.retrying}
       onClick={() =>
-        command.mutate(
-          { command: 'run.retry', data: { run_id: run.id } },
-          { onSuccess: () => announce('Retrying the run on the same context.') },
-        )
+        command.mutate({ command: 'run.retry', data: { run_id: run.id } }, { onSuccess: () => announce(t.retriedSameContext) })
       }
     >
-      Retry
+      {t.retry}
     </Button>
   );
   const retryWith = <RetryWith key="with" projectId={projectId} run={run} />;
   return (
     <Card tone="danger" padding="sm" data-run-card="failed" data-run={run.id} className="flex flex-col gap-2">
       <div className="flex flex-wrap items-start gap-x-2.5 gap-y-1">
-        <StatusBadge kind="problem" word={interrupted ? 'Interrupted' : 'Failed'} />
+        <StatusBadge kind="problem" word={interrupted ? t.interrupted : t.failed} />
         <p className="min-w-0 flex-1 font-medium text-fg">{failureWord(run.failure_kind, run.state)}</p>
       </div>
       {run.error ? (
         <p className="text-sm text-fg-2">
-          <span className="font-medium text-fg">What it said: </span>
+          <span className="font-medium text-fg">{t.whatItSaid}</span>
           <span className="font-code break-words">{run.error}</span>
         </p>
       ) : null}
@@ -227,11 +228,7 @@ function FailedCard({ projectId, run }: { projectId: string; run: RunListItem })
       </p>
       {canRetry ? (
         <p className="text-sm text-fg-2">
-          {interrupted
-            ? 'It was DEMIURGO restarting, not what you wrote: a plain retry should work.'
-            : otherEngineFirst
-              ? 'Another engine may get the format right. Retry runs it again with the same context.'
-              : 'Retry runs it again with the same context.'}
+          {interrupted ? t.interruptedNote : otherEngineFirst ? t.otherEngineNote : t.retryNote}
         </p>
       ) : null}
       <div className="flex flex-wrap items-center gap-2">
@@ -245,17 +242,18 @@ function FailedCard({ projectId, run }: { projectId: string; run: RunListItem })
 
 /** Not active any more: cancelled, or failed and already retried. */
 function QuietLine({ projectId, run, display }: { projectId: string; run: RunListItem; display: 'retried' | 'cancelled' }) {
+  const t = useMessages(RUN_CARDS);
   const text =
     display === 'retried'
-      ? `${run.state === 'interrupted' ? 'Interrupted' : 'Failed'}, then retried: ${failureWord(run.failure_kind, run.state)}`
-      : `${actionWord(run)} after ${runDuration(run) || '0:00'}. Nothing was applied.`;
+      ? t.retriedLine(run.state === 'interrupted' ? t.interrupted : t.failed, failureWord(run.failure_kind, run.state))
+      : t.cancelledLine(actionWord(run), runDuration(run) || '0:00');
   return (
     <div
       data-run-card={display}
       data-run={run.id}
       className="flex flex-wrap items-center gap-x-2.5 gap-y-1 px-1 text-sm text-fg-2"
     >
-      <StatusBadge kind="inactive" word={display === 'retried' ? 'Retried' : 'Cancelled'} />
+      <StatusBadge kind="inactive" word={display === 'retried' ? t.retried : t.cancelledWord} />
       <span className="min-w-0">{text}</span>
       <DetailsLink projectId={projectId} run={run} />
     </div>
@@ -264,6 +262,7 @@ function QuietLine({ projectId, run, display }: { projectId: string; run: RunLis
 
 /** A draft left its package: its title and checks, and the way to review it. */
 function DraftReady({ projectId, run }: { projectId: string; run: RunListItem }) {
+  const t = useMessages(RUN_CARDS);
   const batch = useQuery(batchQuery(projectId, run.batch_id ?? ''));
   if (!batch.data) {
     if (batch.isError)
@@ -274,13 +273,13 @@ function DraftReady({ projectId, run }: { projectId: string; run: RunListItem })
       );
     return (
       <Card data-run-card="draft-loading" data-run={run.id} padding="sm">
-        <span className="sr-only">Loading the draft</span>
+        <span className="sr-only">{t.loadingDraft}</span>
         <Bone className="h-4 w-2/3" />
       </Card>
     );
   }
   const payload = batch.data.proposals[0]?.payload as { title?: string; criteria?: unknown[] } | undefined;
-  const title = payload?.title ?? 'a feature';
+  const title = payload?.title ?? t.aFeature;
   const checks = payload?.criteria?.length ?? 0;
   const pending = batch.data.state === 'pending';
   return (
@@ -293,11 +292,8 @@ function DraftReady({ projectId, run }: { projectId: string; run: RunListItem })
     >
       <PackageIcon size={18} className={pending ? 'text-accent-text' : 'text-fg-3'} />
       <p className="min-w-0 flex-1 text-fg">
-        <span className="font-medium">{pending ? 'A draft is ready: ' : 'The draft '}</span>
-        <span className="font-semibold">{title}</span>{' '}
-        <span className="text-fg-2">
-          with {checks} {checks === 1 ? 'check' : 'checks'}
-        </span>
+        <span className="font-medium">{pending ? t.draftReady : t.theDraft}</span>
+        <span className="font-semibold">{title}</span> <span className="text-fg-2">{t.withChecks(checks)}</span>
       </p>
       {!pending ? <EntityState entity="batch" state={batch.data.state} /> : null}
       <Link
@@ -309,7 +305,7 @@ function DraftReady({ projectId, run }: { projectId: string; run: RunListItem })
             : 'inline-flex min-h-6 items-center gap-1 text-sm font-medium text-fg-2 hover:text-fg hover:underline'
         }
       >
-        {pending ? 'Review' : 'Open'}
+        {pending ? t.review : t.open}
         <ArrowRightIcon size={12} />
       </Link>
     </Card>

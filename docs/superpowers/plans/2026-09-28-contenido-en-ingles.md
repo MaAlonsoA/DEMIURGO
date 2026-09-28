@@ -151,3 +151,30 @@ Orden recomendado: 1 → 2 → 4 → 3 → 6, con la 5 en paralelo cuando haya t
 - **Heurística de idioma con falsos positivos** en textos cortos o técnicos: por eso solo avisa (1.5).
 - **Qwen como traductor.** Hay que verificar la calidad con unos pocos registros reales antes de la fase 6.
 - **Jev y los datos.** Queda fuera de la instancia real hasta la ADR (4.6).
+
+## Estado de la implementación (28-09-2026, rama `v2.2-ingles`)
+
+Decisiones tomadas, con la recomendación del plan salvo la primera, que ya resolvía `AGENTS.md`:
+
+1. El `design/` del repo no se toca: `AGENTS.md` lo declara referencia histórica, que no se exporta encima. La regla de idioma del producto queda en `AGENTS.md`.
+2. Es registro todo lo que escribe un agente salvo `reply`: preguntas, razones, opciones, observaciones, inferencias, propuestas y propósito. `question_options.question/reason` sirve ahora para pasar al inglés las preguntas pendientes antiguas, en lugar de reescribirlas al idioma de la persona.
+3. El traductor es un agente propio, `translator`, sin grupo, con Qwen local por defecto.
+4. Los registros en español se migran por propuestas.
+
+| Fase | Estado | Qué quedó |
+|---|---|---|
+| 1. Agentes en inglés | Hecha | Reglas en `structured-output`, `asking-questions` y los agentes; tabla es→en en el glosario; campos de registro marcados «In English.» en los esquemas; `detectLanguage`/`looksEnglish`, que solo avisa y elige qué migrar. |
+| 2. Traducción de lectura | Hecha | Migración 0014 (`translations`, `humans.locale`); `query.translations` y `person.set_locale`; caché por huella del origen y del glosario; marca «Traducido · Ver el original» en preguntas, observaciones, propuestas, propósito del hilo y versiones. Las acciones siempre actúan sobre el inglés. |
+| 3. Glosario | Hecha | Migración 0015; `glossary.set`/`glossary.remove`, decisivos y solo humanos; entra en el context pack de `exploration_chat` y `design_proposal` y en el traductor; pestaña Glossary en Conocimiento. |
+| 4. Evaluación y Jev | Parcial | `v1-en` traducido por un agente, **pendiente de revisión de la persona**; `evaluate-classifier … [v1\|v1-en]`. Con Qwen local, en la partición de prueba: veredictos 74,3 % (es) y 80,0 % (en); ideas 81,8 % y 86,4 %. **Pendiente:** 4.4–4.6 (adaptador Jev, evaluación con Jev y ADR), que necesitan clave y créditos de TypeSafe. Tampoco se ha evaluado Claude: gasta cuota. |
+| 5. Interfaz i18n | Hecha, con costuras | Idioma de la persona en su sesión; selector en su menú; catálogos tipados `words.i18n.ts` por carpeta; `<html lang>`; fechas con `Intl`; errores de la API con frase de cabecera en español; prueba `i18n-literals.test.ts` que vigila que no quede prosa literal en JSX; e2e `language.spec.ts`. **Costuras:** algunos ayudantes puros probados por su texto inglés exacto siguen en inglés (`batch/model.ts`, `batch/proposal.ts`, `record/logic.ts`, `run/runs.ts`, `run/phases.ts`, `models/engines.ts`, `activity/summary.ts`, `knowledge/graph.ts`, `knowledge/taxonomy.ts`, `overview/lens/lines.ts`, `overview/needs.ts`, `origins/tree.ts`, `onboarding/day.ts`, los formularios de alta y versión nueva, `components/explain.ts`). Sus frases aparecen en inglés dentro de páginas en español: el siguiente paso es darles un parámetro de catálogo, como ya tienen `answers.ts`, `review.ts` o `rail.ts`. |
+| 6. Migración | Hecha | Tipo de propuesta `record_translation`, solo del sistema: al aceptarlo crea una versión nueva con la prosa en inglés, criterios arrastrados como modificados y enlaces vigentes. `proposeEnglishVersions` / CLI `translate-records <projectId> [limit]` propone en lotes resueltos propuesta a propuesta, con dependencia en la versión traducida. **Pendiente:** ejecutarlo sobre la instancia real, cuando la rama esté desplegada y con instantánea antes. |
+
+Para aplicarlo en la instancia 8100:
+
+1. `pnpm snap save antes-contenido-en-ingles`.
+2. Integrar la rama; el API aplica las migraciones 0014 y 0015 al arrancar y siembra `translator` con Qwen local.
+3. Elegir el idioma en el menú de la persona.
+4. `docker compose exec api node packages/api/src/cli.ts translate-records <projectId>` para proponer las versiones en inglés.
+
+Desde el Mac mini, el `node` del host no tiene permiso de Red local para llegar al PC de NInfer; dentro de los contenedores sí llega.

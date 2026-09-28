@@ -18,15 +18,18 @@ import { RowsSkeleton } from '../../components/Spinner.tsx';
 import { EntityState } from '../../components/status.tsx';
 import { DayTime } from '../../components/Time.tsx';
 import { WhoAvatar, whoName } from '../../components/Who.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { whoOf } from '../../words.ts';
 import { historyLines } from './history.ts';
+import { HISTORY_TAB } from './words.i18n.ts';
 
-function by(actor: string): string {
+function by(actor: string, you: string): string {
   const who = whoOf(actor);
-  return who.kind === 'you' ? 'you' : whoName(who);
+  return who.kind === 'you' ? you : whoName(who);
 }
 
 export function HistoryTab({ projectId, record }: { projectId: string; record: RecordDetail }) {
+  const t = useMessages(HISTORY_TAB);
   const client = useQueryClient();
   const results = useQueries({ queries: record.versions.map((v) => entityEventsQuery(projectId, v.id)) });
   const ids = record.versions.map((v) => v.id).join(',');
@@ -49,14 +52,14 @@ export function HistoryTab({ projectId, record }: { projectId: string; record: R
 
   return (
     <div className="flex flex-col gap-10">
-      <Section id="what-happened" title="What happened">
+      <Section id="what-happened" title={t.whatHappened}>
         {failed ? (
           <ErrorNotice error={failed.error} onRetry={() => void Promise.all(results.map((r) => r.refetch()))} />
         ) : loading ? (
-          <RowsSkeleton label="Loading the history" rows={4} />
+          <RowsSkeleton label={t.loadingHistory} rows={4} />
         ) : (
           <Timeline
-            label="What happened"
+            label={t.whatHappened}
             items={lines.map((l) => {
               const who = whoOf(l.actor);
               return {
@@ -77,33 +80,33 @@ export function HistoryTab({ projectId, record }: { projectId: string; record: R
         )}
       </Section>
 
-      <Section id="every-version" title="Every version">
+      <Section id="every-version" title={t.everyVersion}>
         <ol className="flex flex-col divide-y divide-edge-subtle rounded-lg border border-edge bg-panel">
           {record.versions.toReversed().map((v) => (
             <li key={v.id} data-history-version={v.n} className="flex flex-col gap-1.5 px-4 py-3">
               <div className="flex flex-wrap items-center gap-2">
                 <Code className="font-semibold text-fg">v{v.n}</Code>
                 <EntityState entity="record_version" state={v.state} />
-                {v.current ? <span className="text-sm text-fg-2">current</span> : null}
+                {v.current ? <span className="text-sm text-fg-2">{t.current}</span> : null}
                 <Link
                   to="/p/$projectId/records/$code"
                   params={{ projectId, code: record.code }}
                   search={{ v: v.n }}
                   className="ml-auto inline-flex items-center gap-1 text-sm font-medium text-accent-text hover:underline"
                 >
-                  Open v{v.n} <ArrowRightIcon size={12} />
+                  {t.openVersion(v.n)} <ArrowRightIcon size={12} />
                 </Link>
               </div>
-              <p className="text-sm text-fg">{v.change_note ?? (v.n === 1 ? 'The first version.' : 'No change note.')}</p>
+              <p className="text-sm text-fg">{v.change_note ?? (v.n === 1 ? t.firstVersion : t.noChangeNote)}</p>
               <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-fg-2">
                 <span className="inline-flex items-center gap-1.5">
                   <WhoAvatar kind={whoOf(v.author).kind} size={16} />
-                  Written by {by(v.author)} · <DayTime iso={v.created_at} />
+                  {t.writtenBy} {by(v.author, t.you)} · <DayTime iso={v.created_at} />
                 </span>
                 {v.approved_by ? (
                   <span className="inline-flex items-center gap-1.5">
                     <WhoAvatar kind={whoOf(v.approved_by).kind} size={16} />
-                    Approved by {by(v.approved_by)} · <DayTime iso={v.approved_at} />
+                    {t.approvedBy} {by(v.approved_by, t.you)} · <DayTime iso={v.approved_at} />
                   </span>
                 ) : null}
               </p>

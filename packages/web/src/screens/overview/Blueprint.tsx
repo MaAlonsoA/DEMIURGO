@@ -13,10 +13,10 @@ import { StateIcon } from '../../components/status.tsx';
 import { Elapsed, RelativeTime } from '../../components/Time.tsx';
 import { TypeIcon, typeWord } from '../../components/types.tsx';
 import { cn } from '../../lib/cn.ts';
+import { useMessages } from '../../i18n/define.ts';
 import { whoOf } from '../../words.ts';
 import type { Progress } from './progress.ts';
-
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+import { BLUEPRINT } from './words.i18n.ts';
 
 /**
  * "Ready to build 1 of 3 features", then a bar whose every segment is named in a text legend (the
@@ -24,23 +24,22 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
  * yet: they are said apart, not mixed into the features' total.
  */
 export function ProgressLine({ progress, drafting = 0 }: { progress: Progress; drafting?: number }) {
+  const t = useMessages(BLUEPRINT);
   const { total, ready, needs } = progress;
   const working = Math.max(0, progress.working - drafting);
-  if (total === 0 && drafting === 0) return <p className="text-sm text-fg-2">No features yet.</p>;
+  if (total === 0 && drafting === 0) return <p className="text-sm text-fg-2">{t.noFeaturesYet}</p>;
   const rest = Math.max(0, total - ready - needs - working);
   const segments: BarSegment[] = [
-    { key: 'ready', value: ready, tone: 'success', label: 'ready to build' },
-    { key: 'needs', value: needs, tone: 'accent', label: needs === 1 ? 'needs you' : 'need you' },
-    { key: 'working', value: working, tone: 'info', label: 'in progress' },
-    { key: 'rest', value: rest, tone: 'neutral', label: 'not ready yet' },
+    { key: 'ready', value: ready, tone: 'success', label: t.readyToBuild },
+    { key: 'needs', value: needs, tone: 'accent', label: needs === 1 ? t.needsYou : t.needYou },
+    { key: 'working', value: working, tone: 'info', label: t.inProgress },
+    { key: 'rest', value: rest, tone: 'neutral', label: t.notReadyYet },
   ];
   return (
     <div data-progress-line className="flex max-w-xl flex-col gap-2">
       <p className="text-sm text-fg-2">
-        <strong className="font-semibold text-fg">
-          Ready to build {ready} of {plural(total, 'feature')}
-        </strong>
-        {drafting > 0 ? <> · {drafting === 1 ? 'a new one is being drafted' : `${drafting} new ones are being drafted`}</> : null}
+        <strong className="font-semibold text-fg">{t.readyToBuildOf(ready, total)}</strong>
+        {drafting > 0 ? <> · {drafting === 1 ? t.newOneBeingDrafted : t.newOnesBeingDrafted(drafting)}</> : null}
       </p>
       {total > 0 ? <SegmentedBar total={total} segments={segments.filter((s) => s.value > 0)} /> : null}
     </div>
@@ -81,7 +80,7 @@ export function RunningNow({
   projectId,
   runs,
   threads,
-  title = 'Running now',
+  title,
   error,
   onRetry,
 }: {
@@ -94,12 +93,13 @@ export function RunningNow({
   error?: unknown;
   onRetry?: () => void;
 }) {
+  const t = useMessages(BLUEPRINT);
   return (
-    <AsidePanel title={title}>
+    <AsidePanel title={title ?? t.runningNow}>
       {error ? (
         <ErrorNotice error={error} compact focus={false} {...(onRetry ? { onRetry } : {})} />
       ) : runs.length === 0 ? (
-        <p className="text-sm text-fg-2">Nothing. I'm waiting for you.</p>
+        <p className="text-sm text-fg-2">{t.nothingWaitingForYou}</p>
       ) : (
         <ul className="flex flex-col">
           {runs.map((r) => {
@@ -109,7 +109,7 @@ export function RunningNow({
                 <Link to="/p/$projectId/runs/$runId" params={{ projectId, runId: r.id }} data-running={r.id} className={ROW}>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium text-fg">
-                      {r.action === 'design_proposal' ? 'Drafting a feature' : 'Answering'}
+                      {r.action === 'design_proposal' ? t.draftingFeature : t.answering}
                     </span>
                     {thread ? <span className="block truncate text-xs text-fg-2">{thread}</span> : null}
                   </span>
@@ -127,10 +127,11 @@ export function RunningNow({
 
 /** The features whose readiness says nothing blocks them. */
 export function ReadyToBuild({ projectId, rows }: { projectId: string; rows: ProductRow[] }) {
+  const t = useMessages(BLUEPRINT);
   return (
-    <AsidePanel title="Ready to build">
+    <AsidePanel title={t.readyToBuildTitle}>
       {rows.length === 0 ? (
-        <p className="text-sm text-fg-2">Nothing is ready to build yet.</p>
+        <p className="text-sm text-fg-2">{t.nothingReadyYet}</p>
       ) : (
         <ul className="flex flex-col">
           {rows.map((r) => (
@@ -138,7 +139,7 @@ export function ReadyToBuild({ projectId, rows }: { projectId: string; rows: Pro
               <Link to="/p/$projectId/records/$code" params={{ projectId, code: r.code }} data-ready={r.code} className={ROW}>
                 <StateIcon kind="done" />
                 <span className="min-w-0 flex-1 truncate font-medium text-fg">{r.title}</span>
-                <span className="sr-only">: ready to build</span>
+                <span className="sr-only">{t.readyToBuildSr}</span>
               </Link>
             </li>
           ))}
@@ -150,9 +151,10 @@ export function ReadyToBuild({ projectId, rows }: { projectId: string; rows: Pro
 
 /** What a person decided most recently: the records whose latest version was approved last. */
 export function RecentlyDecided({ projectId, rows }: { projectId: string; rows: ProductRow[] }) {
+  const t = useMessages(BLUEPRINT);
   if (rows.length === 0) return null;
   return (
-    <AsidePanel title="Recently decided">
+    <AsidePanel title={t.recentlyDecided}>
       <ul className="flex flex-col">
         {rows.map((r) => (
           <li key={r.code}>
@@ -162,7 +164,7 @@ export function RecentlyDecided({ projectId, rows }: { projectId: string; rows: 
               <span className="min-w-0 flex-1 truncate text-fg">{r.title}</span>
               <span className="shrink-0 text-xs text-fg-2">
                 <RelativeTime iso={r.updated_at} />
-                {whoOf(r.updated_by).kind === 'you' ? ', by you' : ''}
+                {whoOf(r.updated_by).kind === 'you' ? t.byYou : ''}
               </span>
             </Link>
           </li>

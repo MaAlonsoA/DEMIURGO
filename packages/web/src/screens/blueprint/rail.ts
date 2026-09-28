@@ -5,26 +5,27 @@
 import type { Inbox, ProductRow, ProductState } from '../../api/types.ts';
 import { EPISTEMIC_MARK, type MarkKind } from '../../words.ts';
 import { rowStage, type Waiting, waitingCount, waitingFor, waitingPhrase } from '../record/logic.ts';
+import { RAIL, type RailWords } from './words.i18n.ts';
 
 export type FeatureStatus =
-  | { kind: 'needs'; word: 'Needs you'; count: number; detail: string }
-  | { kind: 'ready'; word: 'Ready to build' }
-  | { kind: 'doubt'; word: 'In doubt' }
-  | { kind: 'draft'; word: 'Draft' }
-  | { kind: 'not-ready'; word: 'Not ready' };
+  | { kind: 'needs'; word: string; count: number; detail: string }
+  | { kind: 'ready'; word: string }
+  | { kind: 'doubt'; word: string }
+  | { kind: 'draft'; word: string }
+  | { kind: 'not-ready'; word: string };
 
 /**
  * One word for a feature: what waits for the person comes first (the blue count), then how far it
  * is (the first bar: ready, in doubt), then whether it is still a draft.
  */
-export function featureStatus(row: ProductRow, waiting: Waiting): FeatureStatus {
+export function featureStatus(row: ProductRow, waiting: Waiting, words: RailWords = RAIL.en): FeatureStatus {
   const count = waitingCount(waiting);
-  if (count > 0) return { kind: 'needs', word: 'Needs you', count, detail: waitingPhrase(waiting) };
+  if (count > 0) return { kind: 'needs', word: words.needsYou, count, detail: waitingPhrase(waiting) };
   const stage = rowStage(row);
-  if (stage === 'ready') return { kind: 'ready', word: 'Ready to build' };
-  if (stage === 'doubt') return { kind: 'doubt', word: 'In doubt' };
-  if (row.latest.state === 'draft') return { kind: 'draft', word: 'Draft' };
-  return { kind: 'not-ready', word: 'Not ready' };
+  if (stage === 'ready') return { kind: 'ready', word: words.readyToBuild };
+  if (stage === 'doubt') return { kind: 'doubt', word: words.inDoubt };
+  if (row.latest.state === 'draft') return { kind: 'draft', word: words.draft };
+  return { kind: 'not-ready', word: words.notReady };
 }
 
 export type RailFeature = { code: string; title: string; current: boolean; status: FeatureStatus };
@@ -44,7 +45,12 @@ const node = (row: ProductRow, current: string): RailNode => ({
   mark: EPISTEMIC_MARK[row.epistemic_status] ?? 'unknown',
 });
 
-export function railOf(state: ProductState | undefined, inbox: Inbox | undefined, current: string): Rail {
+export function railOf(
+  state: ProductState | undefined,
+  inbox: Inbox | undefined,
+  current: string,
+  words: RailWords = RAIL.en,
+): Rail {
   if (!state) return { project: '', features: [], decisions: [], tech: [], parked: [] };
   return {
     project: state.project.name,
@@ -54,7 +60,7 @@ export function railOf(state: ProductState | undefined, inbox: Inbox | undefined
         code: r.code,
         title: r.title,
         current: r.code === current,
-        status: featureStatus(r, waitingFor(r.code, inbox, r.origin_exploration)),
+        status: featureStatus(r, waitingFor(r.code, inbox, r.origin_exploration), words),
       })),
     decisions: state.decisions.map((r) => node(r, current)),
     tech: state.designs.filter((r) => r.type === 'adr').map((r) => node(r, current)),
@@ -67,15 +73,15 @@ export type NavGroup = { key: string; title: string; records: NavRecord[] };
 export type Navigator = { project: string; groups: NavGroup[]; parked: { id: string; purpose: string }[] };
 
 /** The groups of the records navigator, in the order of the product: features first, bugs last. */
-const NAV_GROUPS: { key: ProductRow['type']; title: string }[] = [
-  { key: 'fdr', title: 'Features' },
-  { key: 'decision', title: 'Decisions' },
-  { key: 'adr', title: 'Tech decisions' },
-  { key: 'requirement', title: 'Requirements' },
-  { key: 'quality_requirement', title: 'Quality requirements' },
-  { key: 'threat_model', title: 'Threat models' },
-  { key: 'production_readiness', title: 'Production readiness' },
-  { key: 'bug', title: 'Bugs' },
+const NAV_GROUPS: { key: ProductRow['type']; titleKey: keyof RailWords }[] = [
+  { key: 'fdr', titleKey: 'groupFeatures' },
+  { key: 'decision', titleKey: 'groupDecisions' },
+  { key: 'adr', titleKey: 'groupTech' },
+  { key: 'requirement', titleKey: 'groupRequirements' },
+  { key: 'quality_requirement', titleKey: 'groupQuality' },
+  { key: 'threat_model', titleKey: 'groupThreatModels' },
+  { key: 'production_readiness', titleKey: 'groupProductionReadiness' },
+  { key: 'bug', titleKey: 'groupBugs' },
 ];
 
 /**
@@ -84,17 +90,22 @@ const NAV_GROUPS: { key: ProductRow['type']; title: string }[] = [
  * features with their status and the rest with their certainty, and the threads set aside. Only
  * non-empty groups, except Features, which says when there is none.
  */
-export function navigatorOf(state: ProductState | undefined, inbox: Inbox | undefined, current: string): Navigator {
+export function navigatorOf(
+  state: ProductState | undefined,
+  inbox: Inbox | undefined,
+  current: string,
+  words: RailWords = RAIL.en,
+): Navigator {
   if (!state) return { project: '', groups: [], parked: [] };
   const rows = [...state.designs, ...state.decisions];
   const groups = NAV_GROUPS.map((g) => ({
     key: g.key,
-    title: g.title,
+    title: words[g.titleKey],
     records: rows
       .filter((r) => r.type === g.key)
       .map((r) => ({
         ...node(r, current),
-        ...(r.type === 'fdr' ? { status: featureStatus(r, waitingFor(r.code, inbox, r.origin_exploration)) } : {}),
+        ...(r.type === 'fdr' ? { status: featureStatus(r, waitingFor(r.code, inbox, r.origin_exploration), words) } : {}),
       })),
   })).filter((g) => g.key === 'fdr' || g.records.length > 0);
   return {

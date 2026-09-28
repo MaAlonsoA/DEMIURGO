@@ -18,6 +18,7 @@ import { Bone, Skeleton } from '../../components/Spinner.tsx';
 import { Certainty, EntityState } from '../../components/status.tsx';
 import { Segmented } from '../../components/Tabs.tsx';
 import { TypeIcon } from '../../components/types.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import {
   type AreaAxis,
@@ -30,8 +31,10 @@ import {
   relationsOf,
 } from './graph.ts';
 import { parseAxes } from './taxonomy.ts';
+import { GRAPH_TAB } from './words.i18n.ts';
 
 export function GraphTab({ projectId, onTaxonomy }: { projectId: string; onTaxonomy: () => void }) {
+  const t = useMessages(GRAPH_TAB);
   const graph = useQuery(graphQuery(projectId));
   const taxonomies = useQuery(taxonomiesQuery(projectId));
   const [filter, setFilter] = useState<string>('all');
@@ -55,8 +58,8 @@ export function GraphTab({ projectId, onTaxonomy }: { projectId: string; onTaxon
   if (graph.isPending || taxonomies.isPending) return <GraphSkeleton />;
   if (!graph.data || nodes.length === 0) {
     return (
-      <EmptyState icon={<KnowledgeIcon size={24} />} title="The graph is empty">
-        It grows as you approve decisions and designs, or accept what DEMIURGO proposes.
+      <EmptyState icon={<KnowledgeIcon size={24} />} title={t.empty}>
+        {t.emptyBody}
       </EmptyState>
     );
   }
@@ -70,24 +73,22 @@ export function GraphTab({ projectId, onTaxonomy }: { projectId: string; onTaxon
       <div className="flex flex-col gap-3">
         <p className="text-sm text-fg-2">
           {axis ? (
-            <>
-              Grouped by {axis.name} ({axis.taxonomy.code} v{axis.taxonomy.version})
-            </>
+            t.groupedBy(axis.name, axis.taxonomy.code, axis.taxonomy.version)
           ) : (
             <>
-              No taxonomy is approved yet, so nothing is classified.{' '}
+              {t.noTaxonomy}{' '}
               <Button size="sm" variant="secondary" onClick={onTaxonomy} className="ml-1 align-middle">
-                Open the taxonomy
+                {t.openTaxonomy}
               </Button>
             </>
           )}
         </p>
         <Segmented
-          label="Show node types"
+          label={t.showNodeTypes}
           value={filter}
           onChange={setFilter}
           options={[
-            { value: 'all', label: 'All', count: nodes.length },
+            { value: 'all', label: t.all, count: nodes.length },
             ...counts.map((c) => ({ value: c.type, label: nodeType(c.type).plural, count: c.n })),
           ]}
         />
@@ -100,9 +101,7 @@ export function GraphTab({ projectId, onTaxonomy }: { projectId: string; onTaxon
               <h2 id={id} className="text-base font-semibold text-fg">
                 {g.name}
               </h2>
-              <span className="text-sm text-fg-3 tabular-nums">
-                {g.nodes.length} {g.nodes.length === 1 ? 'node' : 'nodes'}
-              </span>
+              <span className="text-sm text-fg-3 tabular-nums">{t.nodeCount(g.nodes.length)}</span>
               {g.description ? <p className="w-full text-sm text-fg-2">{g.description}</p> : null}
             </div>
             <ul className="grid grid-cols-1 gap-2 md:grid-cols-2">
@@ -130,11 +129,11 @@ export function GraphTab({ projectId, onTaxonomy }: { projectId: string; onTaxon
               search={{ v: previewed.record.version }}
               className={buttonClass({ variant: 'primary' })}
             >
-              Open {previewed.record.code}
+              {t.openRecord(previewed.record.code)}
               <ArrowRightIcon size={15} />
             </Link>
           ) : previewed ? (
-            <p className="text-sm text-fg-2">It has no page of its own to open.</p>
+            <p className="text-sm text-fg-2">{t.noPageOfItsOwn}</p>
           ) : null
         }
       >
@@ -160,6 +159,7 @@ function NodeState({ node }: { node: GraphNode }) {
  * record says so instead of pretending to open), its state and its Preview button.
  */
 function NodeRow({ projectId, node, onPreview }: { projectId: string; node: GraphNode; onPreview: () => void }) {
+  const t = useMessages(GRAPH_TAB);
   const type = nodeType(node.type);
   const name = `${type.word}: ${node.label} (${node.ref})`;
   return (
@@ -185,7 +185,7 @@ function NodeRow({ projectId, node, onPreview }: { projectId: string; node: Grap
         </span>
       )}
       <NodeState node={node} />
-      <PreviewButton label={`Preview ${node.label}`} onClick={onPreview} />
+      <PreviewButton label={t.preview(node.label)} onClick={onPreview} />
     </div>
   );
 }
@@ -217,25 +217,26 @@ function NodePreview({
   axis: AreaAxis | null;
   taxonomies: Taxonomy[];
 }) {
+  const t = useMessages(GRAPH_TAB);
   const relations = relationsOf(graph, node.ref);
   const areas = areaNames(node, taxonomies);
   return (
     <>
       {node.excerpt ? <p className="text-sm whitespace-pre-line text-fg-2">{node.excerpt}</p> : null}
       <p className="text-sm text-fg-2">
-        <span className="font-medium text-fg">Where it sits: </span>
-        {areas.length > 0 ? areas.join(' · ') : axis ? 'Not classified yet' : 'No approved taxonomy'}
+        <span className="font-medium text-fg">{t.whereItSits}</span>
+        {areas.length > 0 ? areas.join(' · ') : axis ? t.notClassifiedYet : t.noApprovedTaxonomy}
       </p>
       <section aria-labelledby="preview-relations" className="flex flex-col gap-3 border-t border-edge-subtle pt-3">
         <h3 id="preview-relations" className="text-base font-semibold text-fg">
-          Relations
+          {t.relations}
         </h3>
         {relations.length > 0 ? (
           groupRelations(relations).map((g) => (
             <RelationGroup key={g.word} projectId={projectId} word={g.word} relations={g.relations} />
           ))
         ) : (
-          <p className="text-sm text-fg-2">No relations yet.</p>
+          <p className="text-sm text-fg-2">{t.noRelationsYet}</p>
         )}
       </section>
     </>
@@ -243,6 +244,7 @@ function NodePreview({
 }
 
 function RelationGroup({ projectId, word, relations }: { projectId: string; word: string; relations: Relation[] }) {
+  const t = useMessages(GRAPH_TAB);
   const [all, setAll] = useState(false);
   const id = `rel-${word.replace(/\W+/g, '-')}`;
   const shown = all ? relations : relations.slice(0, PER_GROUP);
@@ -283,7 +285,7 @@ function RelationGroup({ projectId, word, relations }: { projectId: string; word
           onClick={() => setAll((v) => !v)}
           className="inline-flex min-h-6 cursor-pointer items-center gap-1 self-start rounded-xs text-sm font-medium text-accent-text hover:underline"
         >
-          {all ? 'Show fewer' : `Show all ${relations.length}`}
+          {all ? t.showFewer : t.showAll(relations.length)}
           <ChevronDownIcon size={14} className={cn('transition-transform', all && 'rotate-180')} />
         </button>
       ) : null}
@@ -308,8 +310,9 @@ function areaNames(node: GraphNode, taxonomies: Taxonomy[]): string[] {
 }
 
 function GraphSkeleton() {
+  const t = useMessages(GRAPH_TAB);
   return (
-    <Skeleton label="Loading the graph" className="flex flex-col gap-6">
+    <Skeleton label={t.loadingGraph} className="flex flex-col gap-6">
       {[0, 1].map((s) => (
         <div key={s} className="flex flex-col gap-2.5">
           <Bone className="h-4 w-40" />

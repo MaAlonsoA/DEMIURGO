@@ -21,9 +21,12 @@ import { usePageTitle } from '../../components/Page.tsx';
 import { StateIcon } from '../../components/status.tsx';
 import { cn } from '../../lib/cn.ts';
 import { useTables } from '../../lib/hooks.ts';
+import { useMessages } from '../../i18n/define.ts';
+import { useLocale } from '../../i18n/locale.ts';
 import { WorkspaceFrame } from '../../shell/WorkspaceFrame.tsx';
 import { IDEA_EXAMPLES, MESSAGE_MAX, purposeOf } from './day.ts';
 import { live } from './live.ts';
+import { EXAMPLE_LABELS, NEW_PROJECT } from './words.i18n.ts';
 
 const NAME_MAX = 120;
 const DRAFT = 'dm-new-project';
@@ -57,7 +60,9 @@ function writeDraft(d: Draft | null): void {
 type Missing = null | 'idea' | 'name';
 
 export function NewProjectScreen() {
-  usePageTitle(['New project']);
+  const t = useMessages(NEW_PROJECT);
+  const locale = useLocale();
+  usePageTitle([t.pageTitle]);
   const client = useQueryClient();
   const navigate = useNavigate();
   const tables = useTables();
@@ -153,20 +158,17 @@ export function NewProjectScreen() {
     <WorkspaceFrame current="new">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 pt-10 pb-16 sm:px-6 sm:pt-16">
         <div className="flex flex-col gap-3">
-          <p className="text-sm font-medium text-accent-text">New project</p>
+          <p className="text-sm font-medium text-accent-text">{t.eyebrow}</p>
           <h1 id="page-title" tabIndex={-1} className="text-3xl font-semibold text-fg outline-none">
-            What do you want to build?
+            {t.title}
           </h1>
-          <p className="max-w-2xl text-md text-fg-2">
-            Describe it in your own words, like you would to a friend. DEMIURGO turns it into a plan you can see, correct and
-            build.
-          </p>
+          <p className="max-w-2xl text-md text-fg-2">{t.intro}</p>
         </div>
 
         <form noValidate onSubmit={(e) => void start(e)} aria-labelledby="page-title" className="flex flex-col gap-6">
           <Field
-            label="Describe your idea"
-            error={missing === 'idea' ? 'Describe your idea to start.' : undefined}
+            label={t.ideaLabel}
+            error={missing === 'idea' ? t.ideaError : undefined}
             count={idea.length > MESSAGE_MAX * 0.9 ? [idea.length, MESSAGE_MAX] : undefined}
           >
             {(p) => (
@@ -178,7 +180,7 @@ export function NewProjectScreen() {
                 maxRows={16}
                 maxLength={MESSAGE_MAX}
                 value={idea}
-                placeholder="An app where… It helps… People use it to…"
+                placeholder={t.ideaPlaceholder}
                 className="px-4 py-3 text-md"
                 onChange={(e) => {
                   setIdea(e.target.value);
@@ -190,7 +192,7 @@ export function NewProjectScreen() {
 
           <div className="flex flex-col gap-2">
             <p id={examplesId} className="text-sm text-fg-2">
-              Or start from an example:
+              {t.orExample}
             </p>
             <div role="group" aria-labelledby={examplesId} className="flex flex-wrap gap-2">
               {IDEA_EXAMPLES.map((e) => {
@@ -208,7 +210,7 @@ export function NewProjectScreen() {
                         : 'border-edge-strong bg-panel text-fg-2 hover:border-edge-control hover:text-fg',
                     )}
                   >
-                    {e.label}
+                    {EXAMPLE_LABELS[e.label]?.[locale] ?? e.label}
                   </button>
                 );
               })}
@@ -217,10 +219,10 @@ export function NewProjectScreen() {
 
           <div className="flex flex-col gap-4 border-t border-edge pt-6 sm:flex-row sm:items-start">
             <Field
-              label="Name"
+              label={t.nameLabel}
               className="sm:w-80"
-              hint={created ? 'The project already exists with this name. You can rename it later.' : 'You can rename it later.'}
-              error={missing === 'name' ? 'Give the project a name to start.' : undefined}
+              hint={created ? t.nameHintCreated : t.nameHint}
+              error={missing === 'name' ? t.nameError : undefined}
             >
               {(p) => (
                 <TextInput
@@ -229,7 +231,7 @@ export function NewProjectScreen() {
                   value={name}
                   maxLength={NAME_MAX}
                   autoComplete="off"
-                  placeholder="A short name"
+                  placeholder={t.namePlaceholder}
                   readOnly={created}
                   className={cn('h-10', created && 'bg-sunken text-fg-2')}
                   onChange={(e) => {
@@ -245,30 +247,30 @@ export function NewProjectScreen() {
               size="lg"
               disabled={!allowed}
               pending={pending}
-              pendingLabel="Starting…"
+              pendingLabel={t.starting}
               trailing={<ArrowRightIcon size={16} />}
               className="sm:mt-6 sm:ml-auto"
             >
-              Start
+              {t.start}
             </Button>
           </div>
 
           {error ? <ErrorNotice error={error} modelsHref="/models" /> : null}
-          {allowed ? null : <Notice tone="neutral">Only a person can start a project.</Notice>}
+          {allowed ? null : <Notice tone="neutral">{t.onlyPerson}</Notice>}
         </form>
 
-        <ul aria-label="Before you start" className="flex flex-col gap-3 text-sm text-fg-2 sm:flex-row sm:flex-wrap sm:gap-x-8">
+        <ul aria-label={t.beforeYouStart} className="flex flex-col gap-3 text-sm text-fg-2 sm:flex-row sm:flex-wrap sm:gap-x-8">
           <li className="flex items-center gap-2">
             <StateIcon kind="proposed" size={15} />
-            Nothing is decided until you confirm it
+            {t.nothingDecided}
           </li>
           <li className="flex items-center gap-2">
             <PencilIcon size={15} className="shrink-0 text-fg-3" />
-            You can change anything later
+            {t.changeAnything}
           </li>
           <li className="flex items-center gap-2">
             <ShieldIcon size={15} className="shrink-0 text-fg-3" />
-            Everything stays here, saved
+            {t.everythingSaved}
           </li>
         </ul>
       </div>

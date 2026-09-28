@@ -1,10 +1,11 @@
 // The language the person reads DEMIURGO in: the interface and the reading translations of records.
 // Records themselves are always in English. The person's choice lives in their session (PUT
 // /api/session/locale); without one, the browser's language decides, and anything but Spanish
-// reads in English.
+// reads in English. Like the theme, it's a small store: the app root keeps it in step with the
+// session, and any component reads it without needing the query client.
 
 import { useQuery } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { sessionQuery } from '../api/queries.ts';
 
 export const LOCALES = ['en', 'es'] as const;
@@ -22,10 +23,29 @@ export function isLocale(v: unknown): v is Locale {
   return typeof v === 'string' && (LOCALES as readonly string[]).includes(v);
 }
 
+// The person's choice (null: follow the browser), as the session last said it.
+let choice: Locale | null = null;
+const listeners = new Set<() => void>();
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+/** Sets the person's choice (the app root does it from the session). */
+export function setLocaleChoice(next: Locale | null): void {
+  if (next === choice) return;
+  choice = next;
+  for (const l of listeners) l();
+}
+
 /** The person's chosen language, or null when they follow the browser. */
 export function useLocaleChoice(): Locale | null {
-  const session = useQuery(sessionQuery).data;
-  return isLocale(session?.locale) ? session.locale : null;
+  return useSyncExternalStore(
+    subscribe,
+    () => choice,
+    () => choice,
+  );
 }
 
 /** The language to show now. */
@@ -33,8 +53,11 @@ export function useLocale(): Locale {
   return useLocaleChoice() ?? browserLocale();
 }
 
-/** Keeps <html lang> in step with the language shown (screen readers, hyphenation). */
-export function useDocumentLanguage(): void {
+/** At the app root: keeps the store in step with the session and <html lang> with the language shown. */
+export function useSessionLocale(): void {
+  const session = useQuery(sessionQuery).data;
+  const fromSession = isLocale(session?.locale) ? session.locale : null;
+  useEffect(() => setLocaleChoice(fromSession), [fromSession]);
   const locale = useLocale();
   useEffect(() => {
     if (typeof document !== 'undefined') document.documentElement.lang = locale;

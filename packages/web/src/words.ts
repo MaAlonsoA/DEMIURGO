@@ -4,6 +4,12 @@
 // in another language sees a marked reading translation next to it (i18n/reading.tsx), never in its place.
 
 import type { Actor, RecordType } from './api/types.ts';
+import { type Locale, useLocale } from './i18n/locale.ts';
+
+/** The language shown now (the same store as i18n/locale.ts; it needs no query client). */
+export function useSafeLocale(): Locale {
+  return useLocale();
+}
 
 /** Marks of the visual language (canvas S3A): dots, not-active marks and colors. */
 export type MarkKind =
@@ -269,3 +275,264 @@ export const PRODUCT_WORDS = {
   onlyAPerson: 'Only a person can do this.',
   notAllowed: "This isn't allowed here.",
 } as const;
+
+// ---------------------------------------------------------------------------------------------
+// Locale-aware accessors (additive; every export above keeps its English value and signature
+// unchanged for backwards compatibility with screens that already import it). These read the
+// person's interface language and give the Spanish word where the English one is a dictionary
+// value rather than a record type's own prose.
+
+/** Spanish names and phrases of the marks, same shape and keys as MARKS. */
+export const MARKS_ES: Record<MarkKind, { name: string; phrase: string }> = {
+  confirmed: { name: 'Confirmado', phrase: 'Una persona dijo que sí.' },
+  assumed: { name: 'Supuesto', phrase: 'DEMIURGO lo dedujo. Aún sin confirmar.' },
+  proposed: { name: 'Propuesto', phrase: 'Sugerido, a la espera de ti.' },
+  open: { name: 'Abierta', phrase: 'Preguntado, sin respuesta todavía.' },
+  unknown: { name: 'Desconocido', phrase: 'Todavía no se sabe.' },
+  parked: { name: 'Aparcada', phrase: 'Guardado para más tarde.' },
+  dropped: { name: 'Descartada', phrase: 'No aplica.' },
+  replaced: { name: 'Reemplazado', phrase: 'Existe una versión más reciente.' },
+  stale: { name: 'Desactualizado', phrase: 'Lo que lo motivó cambió: ya no se puede aceptar.' },
+  conflict: { name: 'Conflicto', phrase: 'Contradice algo confirmado.' },
+  problem: { name: 'Problema', phrase: 'Algo falló o necesita revisión.' },
+  working: { name: 'En curso', phrase: 'DEMIURGO o un agente lo está haciendo.' },
+  inactive: { name: 'Inactivo', phrase: 'Terminado o detenido: nada que hacer.' },
+  done: { name: 'Hecho', phrase: 'Terminado sin problemas.' },
+};
+
+/** MARKS in the language given. */
+export function marksFor(locale: Locale): typeof MARKS {
+  return locale === 'es' ? MARKS_ES : MARKS;
+}
+
+/** MARKS in the language shown now. */
+export function useMarks(): typeof MARKS {
+  return marksFor(useSafeLocale());
+}
+
+const STATE_WORDS_ES: Record<string, Record<string, string>> = {
+  record_version: { draft: 'Borrador', approved: 'Aprobada', superseded: 'Reemplazada', discarded: 'Descartada' },
+  question: { pending: 'Abierta', inferred: 'Supuesta', confirmed: 'Confirmada', postponed: 'Aparcada', discarded: 'Descartada' },
+  proposal: {
+    pending: 'Propuesta',
+    accepted: 'Aceptada',
+    accepted_edited: 'Aceptada con cambios',
+    rejected: 'Rechazada',
+    superseded: 'Desactualizada',
+  },
+  batch: {
+    pending: 'Pendiente',
+    accepted: 'Aceptado',
+    rejected: 'Rechazado',
+    resolved: 'Resuelto',
+    superseded: 'Desactualizado',
+  },
+  link: {
+    current: 'Actual',
+    needs_review: 'Necesita revisión',
+    kept: 'Mantenido',
+    changed: 'Cambiado',
+    obsolete: 'Desactualizado',
+  },
+  ai_run: {
+    queued: 'En cola',
+    running: 'En curso',
+    completed: 'Completada',
+    failed: 'Fallida',
+    cancelled: 'Cancelada',
+    interrupted: 'Interrumpida',
+  },
+  knowledge_update: {
+    queued: 'Actualizando',
+    classifying: 'Actualizando',
+    verifying: 'Actualizando',
+    applied: 'Aplicada',
+    rejected: 'Fallida',
+  },
+  classification: { applied: 'Aplicada', pending_review: 'Necesita revisión', resolved: 'Resuelta' },
+  exploration: { active: 'Activo', concluded: 'Concluido', set_aside: 'Aparcado' },
+  taxonomy: { draft: 'Propuesta', approved: 'Aprobada', superseded: 'Reemplazada' },
+  knowledge_node: { current: 'Actual', invalidated: 'Invalidado' },
+  knowledge_edge: { current: 'Actual', invalidated: 'Invalidado' },
+  source: { registered: 'Registrada' },
+};
+
+/** stateWord in the language given: the mark never changes, only the word. */
+export function stateWordFor(locale: Locale, entity: string, state: string, fallbackLabel?: string): Word {
+  const base = stateWord(entity, state, fallbackLabel);
+  if (locale !== 'es') return base;
+  const word = STATE_WORDS_ES[entity]?.[state];
+  return word ? { word, mark: base.mark } : base;
+}
+
+/** stateWord in the language shown now. */
+export function useStateWord(entity: string, state: string, fallbackLabel?: string): Word {
+  return stateWordFor(useSafeLocale(), entity, state, fallbackLabel);
+}
+
+const COMMAND_WORDS_ES: Record<string, string> = {
+  'batch.accept_package': 'Aceptar paquete',
+  'batch.reject_package': 'Rechazar paquete',
+  'proposal.accept': 'Aceptar',
+  'proposal.accept_edited': 'Cambiar',
+  'proposal.reject': 'Rechazar',
+  'record_version.approve': 'Aprobar',
+  'record_version.discard': 'Descartar',
+  'record_version.create': 'Nueva versión',
+  'question.confirm': 'Confirmar',
+  'question.postpone': 'Aparcar',
+  'question.discard': 'Descartar',
+  'question.reopen': 'Reabrir',
+  'question.raise': 'Hacer una pregunta',
+  'link.create': 'Añadir un enlace',
+  'exploration.open': 'Nuevo hilo',
+  'exploration.conclude': 'Concluir',
+  'exploration.set_aside': 'Aparcar',
+  'exploration.resume': 'Reanudar',
+  'message.post': 'Enviar',
+  'run.request': 'Preguntar a DEMIURGO',
+  'run.retry': 'Reintentar',
+  'run.cancel': 'Cancelar',
+  'link.keep': 'Mantener',
+  'link.change': 'Marcar como cambiado',
+  'link.obsolete': 'Desactualizado',
+  'classification.resolve': 'Resolver',
+  'knowledge_update.retry': 'Reintentar',
+  'taxonomy.propose': 'Proponer',
+  'taxonomy.approve': 'Aprobar',
+  'source.register': 'Añadir una fuente',
+  'design.import': 'Importar design/',
+};
+
+/** commandWord in the language given. */
+export function commandWordFor(locale: Locale, command: string): string {
+  return locale === 'es' ? (COMMAND_WORDS_ES[command] ?? commandWord(command)) : commandWord(command);
+}
+
+/** commandWord in the language shown now. */
+export function useCommandWord(command: string): string {
+  return commandWordFor(useSafeLocale(), command);
+}
+
+const TYPE_WORDS_ES: Record<RecordType, string> = {
+  fdr: 'Funcionalidad',
+  adr: 'Decisión técnica',
+  decision: 'Decisión',
+  bug: 'Fallo',
+  requirement: 'Requisito',
+  quality_requirement: 'Requisito de calidad',
+  threat_model: 'Modelo de amenazas',
+  production_readiness: 'Preparación para producción',
+};
+
+const TYPE_WORDS_PLURAL_ES: Record<RecordType, string> = {
+  fdr: 'Funcionalidades',
+  adr: 'Decisiones técnicas',
+  decision: 'Decisiones',
+  bug: 'Fallos',
+  requirement: 'Requisitos',
+  quality_requirement: 'Requisitos de calidad',
+  threat_model: 'Modelos de amenazas',
+  production_readiness: 'Preparación para producción',
+};
+
+/** TYPE_WORDS in the language given. */
+export function typeWordFor(locale: Locale, type: RecordType): string {
+  return locale === 'es' ? TYPE_WORDS_ES[type] : TYPE_WORDS[type];
+}
+
+/** TYPE_WORDS in the language shown now. */
+export function useTypeWord(type: RecordType): string {
+  return typeWordFor(useSafeLocale(), type);
+}
+
+/** TYPE_WORDS_PLURAL in the language given. */
+export function typeWordPluralFor(locale: Locale, type: RecordType): string {
+  return locale === 'es' ? TYPE_WORDS_PLURAL_ES[type] : TYPE_WORDS_PLURAL[type];
+}
+
+/** TYPE_WORDS_PLURAL in the language shown now. */
+export function useTypeWordPlural(type: RecordType): string {
+  return typeWordPluralFor(useSafeLocale(), type);
+}
+
+const FAILURE_WORDS_ES: Record<string, string> = {
+  invalid_output: 'No pudo terminar: la salida no encajaba en el formato. No se cambió nada.',
+  agent_error: 'El agente respondió con un error. No se cambió nada.',
+  timeout: 'Tardó demasiado y se detuvo. No se cambió nada.',
+  infra: 'DEMIURGO se reinició mientras se ejecutaba. No se cambió nada.',
+  cancelled: 'Lo cancelaste. No se cambió nada.',
+  stale_knowledge: 'El conocimiento cambió mientras se ejecutaba. No se cambió nada.',
+};
+
+/** failureWord in the language given. */
+export function failureWordFor(locale: Locale, kind: string | null, state?: string): string {
+  if (locale !== 'es') return failureWord(kind, state);
+  if (state === 'interrupted') return 'DEMIURGO se reinició mientras se ejecutaba. No se cambió nada.';
+  if (!kind) return 'Se detuvo sin decir por qué. No se cambió nada.';
+  return FAILURE_WORDS_ES[kind] ?? 'Se detuvo con un error. No se cambió nada.';
+}
+
+/** failureWord in the language shown now. */
+export function useFailureWord(kind: string | null, state?: string): string {
+  return failureWordFor(useSafeLocale(), kind, state);
+}
+
+export const WHO_PHRASES_ES: Record<Who['kind'], string> = {
+  you: 'Solo las personas confirman.',
+  demiurgo: 'Redacta, pregunta y propone.',
+  agent: 'Desde fuera. Solo propone.',
+  automatic: 'Una regla o prueba que se ejecutó sola.',
+};
+
+/** WHO_PHRASES in the language given. */
+export function whoPhraseFor(locale: Locale, kind: Who['kind']): string {
+  return locale === 'es' ? WHO_PHRASES_ES[kind] : WHO_PHRASES[kind];
+}
+
+/** WHO_PHRASES in the language shown now. */
+export function useWhoPhrase(kind: Who['kind']): string {
+  return whoPhraseFor(useSafeLocale(), kind);
+}
+
+const WHO_KIND_WORDS_ES: Record<Who['kind'], string> = {
+  you: 'Tú',
+  demiurgo: 'DEMIURGO',
+  agent: 'Agente',
+  automatic: 'Automático',
+};
+
+/** whoName in the language given: the fixed word for the kind, or "Agent · <name>" translated. */
+export function whoNameFor(locale: Locale, who: Who): string {
+  // Matches whoName (components/Who.tsx) for English, without importing it back (it imports this file).
+  if (locale !== 'es') return who.kind === 'agent' ? `Agent · ${who.name}` : who.name;
+  if (who.kind === 'agent') return `${WHO_KIND_WORDS_ES.agent} · ${who.name}`;
+  return WHO_KIND_WORDS_ES[who.kind];
+}
+
+/** whoName in the language shown now. */
+export function useWhoName(who: Who): string {
+  return whoNameFor(useSafeLocale(), who);
+}
+
+export const PRODUCT_WORDS_ES = {
+  needsYou: 'Te necesita',
+  nothingNeedsYou: 'Nada te necesita. Puedes cerrar DEMIURGO.',
+  readyToBuild: 'Listo para construir',
+  notReady: 'No está listo',
+  notBuilt: 'no construido',
+  catchingUp: 'DEMIURGO está poniéndose al día con tus últimos cambios. Inténtalo de nuevo en un momento.',
+  cantReach: 'No se puede contactar con DEMIURGO. Reintentando…',
+  onlyAPerson: 'Solo una persona puede hacer esto.',
+  notAllowed: 'Esto no está permitido aquí.',
+} as const;
+
+/** PRODUCT_WORDS in the language given. */
+export function productWordFor(locale: Locale, key: keyof typeof PRODUCT_WORDS): string {
+  return locale === 'es' ? PRODUCT_WORDS_ES[key] : PRODUCT_WORDS[key];
+}
+
+/** PRODUCT_WORDS in the language shown now. */
+export function useProductWord(key: keyof typeof PRODUCT_WORDS): string {
+  return productWordFor(useSafeLocale(), key);
+}

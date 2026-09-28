@@ -6,8 +6,9 @@
 
 import { listeningSince, lastProgressAt, useRunProgress } from '../api/progress.ts';
 import type { RunListItem } from '../api/types.ts';
+import type { Locale } from '../i18n/locale.ts';
 import { duration } from '../lib/time.ts';
-import { type MarkKind, stateWord } from '../words.ts';
+import { type MarkKind, stateWordFor, useSafeLocale } from '../words.ts';
 import { StatusBadge } from './status.tsx';
 import { useNow } from './Time.tsx';
 
@@ -31,16 +32,35 @@ export function isActive(state: string): boolean {
   return state === 'queued' || state === 'running';
 }
 
+const RUN_WORDS_ES: Record<'late' | 'queued' | 'stalled' | 'working', string> = {
+  late: 'Tarde',
+  queued: 'En cola',
+  stalled: 'Estancada',
+  working: 'En curso',
+};
+
 /** Pure: the state to show for a run at `now`, given when this tab last heard from its engine. */
 export function runView(
   run: RunLike,
-  { now, lastProgress, since = listeningSince }: { now: number; lastProgress: number | null; since?: number },
+  {
+    now,
+    lastProgress,
+    since = listeningSince,
+    locale = 'en',
+  }: { now: number; lastProgress: number | null; since?: number; locale?: Locale },
 ): RunView {
+  const w = locale === 'es' ? RUN_WORDS_ES : { late: 'Late', queued: 'Queued', stalled: 'Stalled', working: 'Working' };
   if (run.state === 'queued') {
     const waited = now - new Date(run.created_at).getTime();
     if (waited > LATE_AFTER_MS)
-      return { kind: 'late', word: 'Late', mark: 'stale', detail: `Queued for ${duration(waited)}`, active: true };
-    return { kind: 'queued', word: 'Queued', mark: 'working', detail: null, active: true };
+      return {
+        kind: 'late',
+        word: w.late,
+        mark: 'stale',
+        detail: locale === 'es' ? `En cola desde hace ${duration(waited)}` : `Queued for ${duration(waited)}`,
+        active: true,
+      };
+    return { kind: 'queued', word: w.queued, mark: 'working', detail: null, active: true };
   }
   if (run.state === 'running') {
     const started = run.started_at ? new Date(run.started_at).getTime() : since;
@@ -49,27 +69,31 @@ export function runView(
     if (silent > STALLED_AFTER_MS)
       return {
         kind: 'stalled',
-        word: 'Stalled',
+        word: w.stalled,
         mark: 'stale',
-        detail: `No sign of activity for ${duration(silent)}`,
+        detail:
+          locale === 'es'
+            ? `Sin señales de actividad desde hace ${duration(silent)}`
+            : `No sign of activity for ${duration(silent)}`,
         active: true,
       };
-    return { kind: 'working', word: 'Working', mark: 'working', detail: null, active: true };
+    return { kind: 'working', word: w.working, mark: 'working', detail: null, active: true };
   }
-  const w = stateWord('ai_run', run.state);
+  const state = stateWordFor(locale, 'ai_run', run.state);
   const kind: RunKind =
     run.state === 'completed' || run.state === 'failed' || run.state === 'cancelled' || run.state === 'interrupted'
       ? run.state
       : 'failed';
-  return { kind, word: w.word, mark: w.mark, detail: null, active: false };
+  return { kind, word: state.word, mark: state.mark, detail: null, active: false };
 }
 
 /** The live state of one run: re-evaluated every second while active and on each progress message. */
 export function useRunView(run: RunLike & { id: string }): RunView {
   const active = isActive(run.state);
   const now = useNow(active);
+  const locale = useSafeLocale();
   useRunProgress(active ? run.id : undefined);
-  return runView(run, { now, lastProgress: lastProgressAt(run.id) });
+  return runView(run, { now, lastProgress: lastProgressAt(run.id), locale });
 }
 
 /** The badge of a run's state, Late and Stalled included. */

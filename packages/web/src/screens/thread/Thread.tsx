@@ -32,6 +32,7 @@ import { ErrorNotice } from '../../components/Notice.tsx';
 import { PageBody, PageHeader, usePageTitle } from '../../components/Page.tsx';
 import { ResizablePanel } from '../../components/SidePanel.tsx';
 import { Bone, Skeleton } from '../../components/Spinner.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { useRouteParams, useTables } from '../../lib/hooks.ts';
 import { isOpenQuestion, isShown, pickedChoices } from './answers.ts';
 import { ThreadAside } from './Aside.tsx';
@@ -44,6 +45,7 @@ import { ThreadHeader, short } from './Header.tsx';
 import { Sheet, useWide } from './Sheet.tsx';
 import { StageComplete } from './StageComplete.tsx';
 import { buildTimeline, draftableDecisions } from './timeline.ts';
+import { THREAD } from './words.i18n.ts';
 
 export function ThreadScreen() {
   const { projectId, explorationId = '' } = useRouteParams();
@@ -73,6 +75,7 @@ const focusDeeperButton = (id: string) =>
   requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-deeper-button="${id}"]`)?.focus());
 
 function ThreadView({ projectId, explorationId }: { projectId: string; explorationId: string }) {
+  const words = useMessages(THREAD);
   const thread = useQuery(explorationQuery(projectId, explorationId));
   const runs = useQuery(runsQuery(projectId, { exploration: explorationId }));
   const products = useQuery(stateQuery(projectId)).data;
@@ -179,8 +182,8 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
       return (
         <>
           <PageHeader
-            crumbs={[{ label: 'Threads', link: { to: '/p/$projectId/threads', params: { projectId } } }]}
-            title="This thread couldn't load"
+            crumbs={[{ label: words.threadsCrumb, link: { to: '/p/$projectId/threads', params: { projectId } } }]}
+            title={words.couldntLoad}
           />
           <PageBody width="reading">
             <ErrorNotice error={thread.error} onRetry={() => void thread.refetch()} />
@@ -262,10 +265,10 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
                 <Button
                   variant="secondary"
                   icon={<PanelRightIcon size={15} />}
-                  trailing={<Count n={openCount} label={`: ${openCount} open`} />}
+                  trailing={<Count n={openCount} label={words.openCount(openCount)} />}
                   onClick={() => setDetailsOpen(true)}
                 >
-                  Questions and threads
+                  {words.questionsAndThreads}
                 </Button>
               )
             }
@@ -273,7 +276,7 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
 
           <div className="flex w-full max-w-3xl flex-1 flex-col gap-4 px-4 pt-6 pb-8 sm:px-6 lg:px-8">
             {runs.isPending ? (
-              <Skeleton label="Loading the conversation" className="flex flex-col gap-4">
+              <Skeleton label={words.loadingConversation} className="flex flex-col gap-4">
                 <Bone className="h-14 w-3/5 self-end rounded-lg" />
                 <Bone className="h-28 w-full rounded-lg" />
               </Skeleton>
@@ -303,7 +306,7 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
             ) : null}
             {reserve > 0 && active ? (
               <p data-reserve className="rounded-md border border-dashed border-edge-strong px-3 py-2 text-sm text-fg-2">
-                DEMIURGO keeps {reserve} {reserve === 1 ? 'question' : 'questions'} for later. They come up as you answer.
+                {words.reserve(reserve)}
               </p>
             ) : null}
           </div>
@@ -316,7 +319,7 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
                 className="absolute -top-11 left-1/2 inline-flex h-8 -translate-x-1/2 cursor-pointer items-center gap-1.5 rounded-full bg-inverse px-3.5 text-sm font-medium text-on-inverse shadow-popover"
               >
                 <ChevronDownIcon size={14} />
-                {unseen} new · Jump to latest
+                {words.jumpToLatest(unseen)}
               </button>
             ) : null}
             <div className="flex w-full max-w-3xl flex-col gap-2 px-4 py-3 sm:px-6 lg:px-8">
@@ -327,11 +330,7 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
                 projectId={projectId}
                 explorationId={t.id}
                 active={active}
-                inactiveNote={
-                  t.state === 'concluded'
-                    ? 'This thread is concluded. Resume it to continue.'
-                    : 'This thread is set aside. Resume it to continue.'
-                }
+                inactiveNote={t.state === 'concluded' ? words.concludedNote : words.setAsideNote}
                 decisions={decisions}
                 answering={answeringQuestion ? { id: answeringQuestion.id, question: answeringQuestion.question } : null}
                 onStopAnswering={() => setAnsweringId(null)}
@@ -344,7 +343,7 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
                     ? () =>
                         resume
                           .mutateAsync({ command: 'exploration.resume', entityId: t.id })
-                          .then(() => announce('Thread resumed.'))
+                          .then(() => announce(words.resumed))
                           .catch(() => undefined)
                     : undefined
                 }
@@ -356,7 +355,7 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
 
         {wide ? (
           <ResizablePanel
-            label={deeper ? 'Go deeper' : 'In this thread'}
+            label={deeper ? words.goDeeper : words.inThisThread}
             className="sticky top-0 h-[calc(100vh-16px)] self-start lg:top-2 lg:rounded-r-lg"
           >
             {deeper ?? aside}
@@ -371,7 +370,7 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
             onOpenChange={(o) => {
               if (!o) closeDeeper();
             }}
-            label="Go deeper"
+            label={words.goDeeper}
             onOpenAutoFocus={(e) => {
               e.preventDefault();
               deeperHeading.current?.focus();
@@ -379,10 +378,10 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
           >
             {deeper}
           </Sheet>
-          <Sheet open={detailsOpen} onOpenChange={setDetailsOpen} label="In this thread">
+          <Sheet open={detailsOpen} onOpenChange={setDetailsOpen} label={words.inThisThread}>
             <div className="flex items-center justify-end px-3 pt-3">
               <Button variant="quiet" size="sm" onClick={() => setDetailsOpen(false)}>
-                Close
+                {words.close}
               </Button>
             </div>
             {aside}
@@ -395,18 +394,19 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
 
 /** A thread that isn't there, or belongs to another project. */
 function Missing({ projectId }: { projectId: string }) {
-  usePageTitle(['Thread not found']);
+  const words = useMessages(THREAD);
+  usePageTitle([words.notFoundTitle]);
   return (
     <>
       <PageHeader
-        crumbs={[{ label: 'Threads', link: { to: '/p/$projectId/threads', params: { projectId } } }]}
-        title="We couldn't find this thread."
+        crumbs={[{ label: words.threadsCrumb, link: { to: '/p/$projectId/threads', params: { projectId } } }]}
+        title={words.notFoundHeading}
       />
       <PageBody width="reading" className="flex flex-col items-start gap-4">
-        <p className="text-md text-fg-2">It may belong to another project.</p>
+        <p className="text-md text-fg-2">{words.notFoundBody}</p>
         <Link to="/p/$projectId/threads" params={{ projectId }} className={buttonClass({ variant: 'secondary' })}>
           <ArrowLeftIcon size={14} />
-          Back to the threads
+          {words.backToThreads}
         </Link>
       </PageBody>
     </>
@@ -414,8 +414,9 @@ function Missing({ projectId }: { projectId: string }) {
 }
 
 function ThreadSkeleton() {
+  const words = useMessages(THREAD);
   return (
-    <Skeleton label="Loading the thread" className="flex flex-col">
+    <Skeleton label={words.loadingThread} className="flex flex-col">
       <div className="flex flex-col gap-3 border-b border-edge px-4 pt-5 pb-5 sm:px-6 lg:px-8">
         <Bone className="h-3 w-32" />
         <Bone className="h-3 w-20" />

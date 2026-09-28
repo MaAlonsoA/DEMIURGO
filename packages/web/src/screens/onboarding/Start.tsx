@@ -22,6 +22,7 @@ import { PageBody, PageHeader, Section, WithAside, usePageTitle } from '../../co
 import { Bone } from '../../components/Spinner.tsx';
 import { EntityState, StateIcon } from '../../components/status.tsx';
 import { useRouteParams, useTables } from '../../lib/hooks.ts';
+import { useMessages } from '../../i18n/define.ts';
 import { PROPOSAL_TYPE_WORDS, proposalTitle } from '../batch/model.ts';
 import { NotFound } from '../not-found/NotFound.tsx';
 import { MESSAGE_MAX, isDecisionRequest, pendingInOrder, readingsOf, writtenBy } from './day.ts';
@@ -29,15 +30,17 @@ import { useDay, useSend } from './hooks.ts';
 import { live } from './live.ts';
 import { AsideHeading, DayError, DaySkeleton, FromYourIdea, LaterOfTheProduct, ObservationList, Reply } from './parts.tsx';
 import { LiveReading, type ReadingContent, ReadingStatus, type Subject } from './Reading.tsx';
+import { START } from './words.i18n.ts';
 
 export function StartScreen() {
+  const t = useMessages(START);
   const { projectId, explorationId = '' } = useRouteParams();
   const day = useDay(projectId, explorationId);
   const [watching, setWatching] = useState(() => live.isLive(explorationId));
   const focusTitle = useRef(false);
   const loaded = !!day.thread && !!day.runs;
   const unread = loaded && readingsOf(day.thread?.messages ?? [], day.runs ?? []).length === 0;
-  usePageTitle([watching || unread ? 'DEMIURGO reads your idea' : 'What I understood', day.project?.name]);
+  usePageTitle([watching || unread ? t.pageTitleReading : t.pageTitleUnderstood, day.project?.name]);
   // Whoever sees DEMIURGO reading also sees it finish, and moves on with "See what I understood".
   useEffect(() => {
     if (unread) setWatching(true);
@@ -48,15 +51,15 @@ export function StartScreen() {
     focusTitle.current = false;
     const title = document.getElementById('page-title');
     title?.focus();
-    announce('What I understood');
-  }, [watching]);
+    announce(t.understoodAnnounce);
+  }, [watching, t.understoodAnnounce]);
 
-  if (isNotFound(day.error)) return <NotFound thing="this idea">It may belong to another project.</NotFound>;
+  if (isNotFound(day.error)) return <NotFound thing={t.notFoundThing}>{t.notFoundHint}</NotFound>;
   if (!day.thread || !day.runs) {
     return day.error ? (
-      <DayError title="Your idea" error={day.error} onRetry={day.retry} />
+      <DayError title={t.errorTitle} error={day.error} onRetry={day.retry} />
     ) : (
-      <DaySkeleton label="Loading your idea" />
+      <DaySkeleton label={t.loadingIdea} />
     );
   }
 
@@ -70,13 +73,13 @@ export function StartScreen() {
         <PageHeader title={thread.purpose} />
         <PageBody width="reading">
           <div className="flex flex-col items-start gap-4">
-            <p className="text-md text-fg-2">Nothing was written in this thread yet, so DEMIURGO has nothing to read.</p>
+            <p className="text-md text-fg-2">{t.nothingWritten}</p>
             <Link
               to="/p/$projectId/threads/$explorationId"
               params={{ projectId, explorationId }}
               className={buttonClass({ variant: 'secondary' })}
             >
-              Open the thread
+              {t.openThread}
             </Link>
           </div>
         </PageBody>
@@ -141,14 +144,15 @@ function Understood({
   status: ReactNode;
   busy: boolean;
 }) {
+  const t = useMessages(START);
   const [correcting, setCorrecting] = useState(false);
   const correctButton = useRef<HTMLButtonElement>(null);
   const questions = content.questions;
   const n = questions.length;
   const next =
     n > 0
-      ? { label: 'Answer in the thread', to: '/p/$projectId/threads/$explorationId' as const }
-      : { label: 'See your starting point', to: '/p/$projectId/start/$explorationId/done' as const };
+      ? { label: t.answerInThread, to: '/p/$projectId/threads/$explorationId' as const }
+      : { label: t.seeStartingPoint, to: '/p/$projectId/start/$explorationId/done' as const };
   const close = () => {
     setCorrecting(false);
     // The form is gone: back to the button that opened it.
@@ -158,7 +162,7 @@ function Understood({
   return (
     <>
       <PageHeader
-        eyebrow="The product"
+        eyebrow={t.eyebrow}
         title={name ?? <Bone className="h-8 w-64" />}
         titleSize="2xl"
         actions={
@@ -170,27 +174,25 @@ function Understood({
       >
         <Notice
           tone="accent"
-          title={newReading ? 'This is my new reading, with your corrections.' : 'This is my first reading of your idea.'}
+          title={newReading ? t.newReading : t.firstReading}
           action={
             n > 0 ? (
               <span data-needs={n} className="text-sm font-medium whitespace-nowrap text-accent-text">
-                Needs you · {n} {n === 1 ? 'question' : 'questions'}
+                {t.needsYou(n)}
               </span>
             ) : null
           }
         >
-          {n > 0
-            ? "Nothing is decided: correct anything that's wrong, then answer my questions."
-            : "Nothing is decided: correct anything that's wrong."}
+          {n > 0 ? t.correctWithQuestions : t.correctNoQuestions}
         </Notice>
       </PageHeader>
       <PageBody>
-        <WithAside asideLabel="What happens now" aside={<WhatHappensNow projectId={projectId} questions={questions} />}>
+        <WithAside asideLabel={t.whatHappensNow} aside={<WhatHappensNow projectId={projectId} questions={questions} />}>
           <div className="flex flex-col gap-10">
             <FromYourIdea projectId={projectId} explorationId={explorationId} idea={idea} />
             <Section
               id="understood"
-              title="What I understood"
+              title={t.whatIUnderstood}
               actions={
                 correcting ? null : (
                   <Button
@@ -200,7 +202,7 @@ function Understood({
                     icon={<PencilIcon size={14} />}
                     onClick={() => setCorrecting(true)}
                   >
-                    Correct something
+                    {t.correctSomething}
                   </Button>
                 )
               }
@@ -223,26 +225,25 @@ function Understood({
 
 /** The side column: nothing is decided, and the questions DEMIURGO will ask, each in its own thread. */
 function WhatHappensNow({ projectId, questions }: { projectId: string; questions: Question[] }) {
+  const t = useMessages(START);
   const n = questions.length;
   const stages = useQuery(stagesQuery(projectId)).data;
   return (
     <div className="flex flex-col gap-6 rounded-lg border border-edge bg-sunken p-5">
-      <h2 className="text-lg font-semibold text-fg">What happens now</h2>
+      <h2 className="text-lg font-semibold text-fg">{t.whatHappensNow}</h2>
       <section aria-labelledby="now-decided" className="flex flex-col gap-2.5">
-        <AsideHeading id="now-decided">Nothing is decided yet</AsideHeading>
+        <AsideHeading id="now-decided">{t.nothingDecidedYet}</AsideHeading>
         <p className="flex gap-2.5 text-sm text-fg-2">
           <StateIcon kind="proposed" size={15} className="mt-0.5" />
-          Everything on this page is only proposed. You decide on each thing.
+          {t.everythingProposed}
         </p>
         <p className="flex gap-2.5 text-sm text-fg-2">
           <MinusCircleIcon size={15} className="mt-0.5 shrink-0 text-fg-3" />
-          Nothing is built. Each feature will get its own details and checks.
+          {t.nothingBuiltYet}
         </p>
       </section>
       <section aria-labelledby="now-questions" className="flex flex-col gap-2.5">
-        <AsideHeading id="now-questions">
-          {n > 0 ? `Then I'll ask you ${n} ${n === 1 ? 'question' : 'questions'}, one at a time` : 'No questions for now'}
-        </AsideHeading>
+        <AsideHeading id="now-questions">{n > 0 ? t.thenIllAsk(n) : t.noQuestionsForNow}</AsideHeading>
         {n > 0 ? (
           <ul className="flex flex-col gap-1">
             {questions.map((q) => {
@@ -257,7 +258,11 @@ function WhatHappensNow({ projectId, questions }: { projectId: string; questions
                     <EntityState entity="question" state={q.state} className="mt-px" />
                     <span className="flex min-w-0 flex-1 flex-col gap-1">
                       <span className="text-sm break-words text-fg group-hover:underline">{q.question}</span>
-                      {stage ? <Tag className="self-start">{stage.title} · mandatory</Tag> : null}
+                      {stage ? (
+                        <Tag className="self-start">
+                          {stage.title} · {t.mandatory}
+                        </Tag>
+                      ) : null}
                     </span>
                   </Link>
                 </li>
@@ -265,9 +270,7 @@ function WhatHappensNow({ projectId, questions }: { projectId: string; questions
             })}
           </ul>
         ) : null}
-        <p className="text-sm text-fg-2">
-          Smaller things I&apos;ll decide on my own and mark as assumed, so you can check them later.
-        </p>
+        <p className="text-sm text-fg-2">{t.smallerThings}</p>
       </section>
     </div>
   );
@@ -275,6 +278,7 @@ function WhatHappensNow({ projectId, questions }: { projectId: string; questions
 
 /** "Correct something": the person says what's wrong and DEMIURGO reads the idea again. */
 function Correction({ projectId, explorationId, onClose }: { projectId: string; explorationId: string; onClose: () => void }) {
+  const t = useMessages(START);
   const tables = useTables();
   const { send, pending, error } = useSend(projectId, explorationId);
   const [text, setText] = useState('');
@@ -293,7 +297,7 @@ function Correction({ projectId, explorationId, onClose }: { projectId: string; 
       return;
     }
     send(text.trim(), () => {
-      announce('Sent. DEMIURGO reads your idea again.');
+      announce(t.sentAnnounce);
       onClose();
     });
   };
@@ -306,9 +310,9 @@ function Correction({ projectId, explorationId, onClose }: { projectId: string; 
       className="flex flex-col gap-3 rounded-lg border border-edge-strong bg-panel p-4"
     >
       <Field
-        label="What's wrong?"
-        hint="Enter sends · Shift+Enter adds a line"
-        error={missing ? "Say what's wrong to send it." : undefined}
+        label={t.whatsWrong}
+        hint={t.enterSends}
+        error={missing ? t.sayWhatsWrong : undefined}
         count={text.length > MESSAGE_MAX * 0.9 ? [text.length, MESSAGE_MAX] : undefined}
       >
         {(p) => (
@@ -319,7 +323,7 @@ function Correction({ projectId, explorationId, onClose }: { projectId: string; 
             autoGrow
             maxLength={MESSAGE_MAX}
             value={text}
-            placeholder="Say it in your own words: DEMIURGO reads your idea again with it."
+            placeholder={t.correctPlaceholder}
             onChange={(e) => {
               setText(e.target.value);
               if (missing) setMissing(false);
@@ -334,10 +338,10 @@ function Correction({ projectId, explorationId, onClose }: { projectId: string; 
         )}
       </Field>
       {error ? <ErrorNotice error={error} /> : null}
-      {canPost ? null : <p className="text-sm text-fg-2">Only a person can do this.</p>}
+      {canPost ? null : <p className="text-sm text-fg-2">{t.onlyPerson}</p>}
       <div className="flex flex-wrap items-center justify-end gap-2">
         <Button variant="quiet" onClick={onClose}>
-          Cancel
+          {t.cancel}
         </Button>
         <Button
           type="submit"
@@ -345,9 +349,9 @@ function Correction({ projectId, explorationId, onClose }: { projectId: string; 
           icon={<SendIcon size={14} />}
           disabled={!canPost}
           pending={pending}
-          pendingLabel="Sending…"
+          pendingLabel={t.sending}
         >
-          Send and read again
+          {t.sendAndReadAgain}
         </Button>
       </div>
     </form>
@@ -356,9 +360,10 @@ function Correction({ projectId, explorationId, onClose }: { projectId: string; 
 
 /** What the reading proposed: each proposal with its real state, waiting for the person on its batch page. */
 function Proposed({ projectId, batchId }: { projectId: string; batchId: string }) {
+  const t = useMessages(START);
   const batch = useQuery(batchQuery(projectId, batchId));
   return (
-    <Section id="proposed" title="What I propose" note="Each one waits for you: accept, change or reject it on its page.">
+    <Section id="proposed" title={t.whatIPropose} note={t.eachWaits}>
       {batch.error ? (
         <ErrorNotice error={batch.error} focus={false} onRetry={() => void batch.refetch()} />
       ) : !batch.data ? (
@@ -375,7 +380,8 @@ function Proposed({ projectId, batchId }: { projectId: string; batchId: string }
                 params={{ projectId, batchId }}
                 className="inline-flex h-7 items-center gap-0.5 rounded-md px-1.5 text-sm font-medium text-accent-text hover:bg-hover"
               >
-                Review<span className="sr-only">: {proposalTitle(p)}</span>
+                {t.review}
+                <span className="sr-only">: {proposalTitle(p)}</span>
                 <ChevronRightIcon size={13} />
               </Link>
             </li>

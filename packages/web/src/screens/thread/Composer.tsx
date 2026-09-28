@@ -24,9 +24,11 @@ import { Button } from '../../components/Button.tsx';
 import { ChevronDownIcon, CloseIcon, DecisionIcon, SendIcon, WandIcon } from '../../components/icons.tsx';
 import { Menu, MenuItem, MenuLabel } from '../../components/Menu.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { useTables } from '../../lib/hooks.ts';
 import type { Draftable } from './timeline.ts';
+import { COMPOSER } from './words.i18n.ts';
 
 type Sending = 'send' | 'ask' | 'draft' | 'resume';
 
@@ -67,6 +69,7 @@ export function Composer({
   onSent: () => void;
   ref?: Ref<ComposerHandle>;
 }) {
+  const t = useMessages(COMPOSER);
   const tables = useTables();
   const command = useCommand(projectId);
   const [text, setText] = useState('');
@@ -86,8 +89,8 @@ export function Composer({
   };
   useImperativeHandle(ref, () => ({
     focus,
-    prefill: (t: string) => {
-      if (!text.trim() && t) setText(t);
+    prefill: (v: string) => {
+      if (!text.trim() && v) setText(v);
       requestAnimationFrame(focus);
     },
   }));
@@ -119,13 +122,13 @@ export function Composer({
     if (answering) {
       onAnswer(answering.id, text.trim());
       setText('');
-      announce('Kept as your answer. Nothing is sent until you confirm.');
+      announce(t.keptAsAnswer);
       requestAnimationFrame(focus);
       return;
     }
     run('send', { command: 'message.post', data: { exploration_id: explorationId, text: text.trim(), respond: false } }, () => {
       setText('');
-      announce('Sent to the thread.');
+      announce(t.sentToThread);
     });
   };
   const ask = () => {
@@ -134,19 +137,19 @@ export function Composer({
       run(
         'ask',
         { command: 'run.request', data: { action: 'exploration_chat', scope: { type: 'exploration', id: explorationId } } },
-        () => announce('Asked DEMIURGO to go on.'),
+        () => announce(t.askedToGoOn),
       );
     else
       run('ask', { command: 'message.post', data: { exploration_id: explorationId, text: text.trim(), respond: true } }, () => {
         setText('');
-        announce('Sent. DEMIURGO answers here.');
+        announce(t.sentAnswersHere);
       });
   };
   const draft = (d: Draftable) =>
     run(
       'draft',
       { command: 'run.request', data: { action: 'design_proposal', scope: { type: 'record_version', id: d.versionId } } },
-      () => announce(`DEMIURGO is drafting a feature from ${d.code}.`),
+      () => announce(t.drafting(d.code)),
     );
 
   const onSubmit = (e: FormEvent) => {
@@ -164,9 +167,9 @@ export function Composer({
     return (
       <div className="flex flex-col gap-2">
         {command.error ? <ErrorNotice error={command.error} /> : null}
-        <form aria-label="Write in the thread" className="flex flex-col rounded-lg border border-edge bg-sunken">
+        <form aria-label={t.writeAria} className="flex flex-col rounded-lg border border-edge bg-sunken">
           <label htmlFor="thread-composer" className="px-3 pt-2 text-xs font-medium text-fg-2">
-            Message
+            {t.message}
           </label>
           <textarea
             id="thread-composer"
@@ -184,13 +187,13 @@ export function Composer({
                 size="sm"
                 variant="secondary"
                 pending={sending === 'resume'}
-                pendingLabel="Resuming…"
+                pendingLabel={t.resuming}
                 onClick={() => {
                   setSending('resume');
                   void onResume().finally(() => setSending(null));
                 }}
               >
-                Resume
+                {t.resume}
               </Button>
             ) : null}
           </div>
@@ -200,16 +203,14 @@ export function Composer({
   }
 
   const noDecision = decisions !== undefined && decisions.length === 0;
-  const hint = answering
-    ? 'Enter keeps it as your answer · Shift+Enter adds a line'
-    : `Enter sends · Shift+Enter adds a line${canRequest ? ` · ${MOD}+Enter asks DEMIURGO` : ''}`;
+  const hint = answering ? t.hintAnswering : t.hint(MOD, canRequest);
 
   return (
     <div className="flex flex-col gap-1.5">
       {command.error ? <ErrorNotice error={command.error} /> : null}
       <form
         onSubmit={onSubmit}
-        aria-label="Write in the thread"
+        aria-label={t.writeAria}
         className={cn(
           'flex flex-col rounded-lg border bg-panel',
           answering ? 'border-accent' : 'border-edge-control',
@@ -218,7 +219,7 @@ export function Composer({
       >
         <div className="flex min-w-0 flex-wrap items-center gap-2 px-3 pt-2">
           <label htmlFor="thread-composer" className="text-xs font-medium text-fg-2">
-            Message
+            {t.message}
           </label>
           {answering ? (
             <span
@@ -226,7 +227,8 @@ export function Composer({
               className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-full border border-accent-edge bg-accent-soft py-0.5 pr-0.5 pl-2.5 text-xs text-accent-text"
             >
               <span className="truncate">
-                Answering: <span className="font-medium">{answering.question}</span>
+                {t.answeringPrefix}
+                <span className="font-medium">{answering.question}</span>
               </span>
               <button
                 type="button"
@@ -234,14 +236,14 @@ export function Composer({
                   onStopAnswering();
                   requestAnimationFrame(focus);
                 }}
-                aria-label="Stop answering: write to the thread instead"
+                aria-label={t.stopAnswering}
                 className="inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full hover:bg-accent-edge"
               >
                 <CloseIcon size={12} />
               </button>
             </span>
           ) : (
-            <span className="text-xs text-fg-3">to the thread</span>
+            <span className="text-xs text-fg-3">{t.toTheThread}</span>
           )}
         </div>
         <textarea
@@ -252,7 +254,7 @@ export function Composer({
           maxLength={MAX_MESSAGE}
           disabled={!canPost}
           aria-describedby={hintId}
-          placeholder={answering ? 'Your answer to the question…' : 'Write to the thread…'}
+          placeholder={answering ? t.placeholderAnswering : t.placeholder}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKeyDown}
           className="w-full resize-none bg-transparent px-3 py-1.5 text-md text-fg outline-none placeholder:text-fg-3 disabled:cursor-not-allowed"
@@ -261,7 +263,7 @@ export function Composer({
           {canRequest && !answering ? (
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
               <DraftIt decisions={decisions ?? []} disabled={busy || noDecision} pending={sending === 'draft'} onPick={draft} />
-              {noDecision ? <span className="text-xs text-fg-2">Draft it needs an approved decision first.</span> : null}
+              {noDecision ? <span className="text-xs text-fg-2">{t.needsDecision}</span> : null}
             </div>
           ) : null}
           <div className="ml-auto flex items-center gap-2">
@@ -272,10 +274,10 @@ export function Composer({
                 data-command="run.request"
                 disabled={busy && sending !== 'ask'}
                 pending={sending === 'ask'}
-                pendingLabel="Asking…"
+                pendingLabel={t.asking}
                 onClick={ask}
               >
-                Ask DEMIURGO
+                {t.askDemiurgo}
               </Button>
             ) : null}
             {canPost ? (
@@ -286,9 +288,9 @@ export function Composer({
                 icon={<SendIcon size={13} />}
                 disabled={empty || (busy && sending !== 'send')}
                 pending={sending === 'send'}
-                pendingLabel="Sending…"
+                pendingLabel={t.sending}
               >
-                {answering ? 'Use as answer' : 'Send'}
+                {answering ? t.useAsAnswer : t.send}
               </Button>
             ) : null}
           </div>
@@ -316,6 +318,7 @@ function DraftIt({
   pending: boolean;
   onPick: (d: Draftable) => void;
 }) {
+  const t = useMessages(COMPOSER);
   // Blocked by a rule: the button stays focusable, and the reason is printed beside it (DESIGN.md §5).
   if (disabled && !pending)
     return (
@@ -326,14 +329,14 @@ function DraftIt({
         aria-disabled="true"
         trailing={<ChevronDownIcon size={12} />}
       >
-        Draft it
+        {t.draftIt}
       </Button>
     );
   return (
     <Menu
       side="top"
       align="start"
-      label="Draft it"
+      label={t.draftIt}
       trigger={
         <Button
           size="sm"
@@ -341,16 +344,14 @@ function DraftIt({
           icon={<WandIcon size={14} />}
           trailing={<ChevronDownIcon size={12} />}
           pending={pending}
-          pendingLabel="Asking…"
+          pendingLabel={t.asking}
         >
-          Draft it
+          {t.draftIt}
         </Button>
       }
     >
       <MenuLabel>
-        <span className="block max-w-80 whitespace-normal">
-          DEMIURGO drafts a feature with its checks from an approved decision. You review it before anything changes.
-        </span>
+        <span className="block max-w-80 whitespace-normal">{t.draftItHint}</span>
       </MenuLabel>
       {decisions.map((d) => (
         <MenuItem key={d.versionId} icon={<DecisionIcon size={14} />} onSelect={() => onPick(d)}>
@@ -360,7 +361,7 @@ function DraftIt({
               <Code>
                 {d.code} v{d.version}
               </Code>
-              {d.bornHere ? <Tag>From this thread</Tag> : null}
+              {d.bornHere ? <Tag>{t.fromThisThread}</Tag> : null}
             </span>
           </span>
         </MenuItem>

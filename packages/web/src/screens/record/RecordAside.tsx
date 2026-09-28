@@ -15,11 +15,13 @@ import { EntityState, StateIcon, StatusBadge } from '../../components/status.tsx
 import { DayTime, RelativeTime } from '../../components/Time.tsx';
 import { TypeIcon } from '../../components/types.tsx';
 import { WhoAvatar, whoName } from '../../components/Who.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { stateWord, whoOf } from '../../words.ts';
 import { IncomingLinks } from './Incoming.tsx';
 import { LINK_WORDS, type VersionRef } from './logic.ts';
 import { ReviewArea } from './Review.tsx';
+import { RECORD_ASIDE } from './words.i18n.ts';
 
 const LINK = 'font-medium text-accent-text hover:underline';
 
@@ -75,6 +77,7 @@ export function ReadinessPanel({
   readiness: Readiness | null;
   stage: Stage;
 }) {
+  const t = useMessages(RECORD_ASIDE);
   const id = useId();
   if (!readiness) return null;
   const left = readiness.reasons.length;
@@ -82,22 +85,18 @@ export function ReadinessPanel({
   return (
     <section aria-labelledby={id} className="flex flex-col gap-3">
       <h2 id={id} className="text-base font-semibold text-fg">
-        {readiness.ready ? 'Ready to build' : 'Before it can be built'}
+        {readiness.ready ? t.readyToBuild : t.beforeItCanBeBuilt}
       </h2>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span data-stage-track data-stage={stage} className="inline-flex">
           <ReadinessBadge stage={stage} blocking={left} size="md" />
         </span>
-        {left > 0 ? (
-          <span className="text-sm font-medium text-fg-2 tabular-nums">
-            {left} {left === 1 ? 'thing' : 'things'} left
-          </span>
-        ) : null}
+        {left > 0 ? <span className="text-sm font-medium text-fg-2 tabular-nums">{t.leftCount(left)}</span> : null}
       </div>
       {readiness.ready ? (
-        <p className="text-sm text-fg-2">Nothing blocks it. Nothing is built yet.</p>
+        <p className="text-sm text-fg-2">{t.nothingBlocks}</p>
       ) : stage === 'doubt' ? (
-        <p className="text-sm font-medium text-danger-text">It was ready to build, and now something blocks it.</p>
+        <p className="text-sm font-medium text-danger-text">{t.wasReadyNowBlocked}</p>
       ) : null}
       {left > 0 ? (
         <ul className="flex flex-col gap-1.5">
@@ -113,7 +112,7 @@ export function ReadinessPanel({
       ) : null}
       {readiness.warnings.length > 0 ? (
         <div className="flex flex-col gap-1.5">
-          <Sub>Warnings on how its checks can be verified</Sub>
+          <Sub>{t.verifiabilityWarnings}</Sub>
           <ul className="flex flex-col gap-1.5">
             {readiness.warnings.map((w) => (
               <li key={w} className="flex items-start gap-2 text-sm text-fg">
@@ -126,19 +125,24 @@ export function ReadinessPanel({
       ) : null}
       {thread && version.inferred_questions.length > 0 ? (
         <ReviewArea part="assumed" className="mt-4 flex flex-col gap-2 border-t border-edge pt-3">
-          <Sub>Assumed in its thread</Sub>
+          <Sub>{t.assumedInThread}</Sub>
           <ul className="flex flex-col gap-3">
             {version.inferred_questions.map((q) => (
               <li key={q.id} data-inferred-question={q.id} className="flex flex-col gap-1 text-sm">
                 <StatusBadge kind="assumed" className="self-start" />
                 <span className="text-fg">{q.question}</span>
-                {q.conclusion ? <span className="text-fg-2">Assumed: {q.conclusion}</span> : null}
+                {q.conclusion ? (
+                  <span className="text-fg-2">
+                    {t.assumedPrefix}
+                    {q.conclusion}
+                  </span>
+                ) : null}
                 <Link
                   to="/p/$projectId/threads/$explorationId"
                   params={{ projectId, explorationId: thread }}
                   className={cn(LINK, 'inline-flex items-center gap-1 self-start')}
                 >
-                  Confirm it in the thread <ArrowRightIcon size={12} />
+                  {t.confirmInThread} <ArrowRightIcon size={12} />
                 </Link>
               </li>
             ))}
@@ -149,9 +153,9 @@ export function ReadinessPanel({
   );
 }
 
-function byWords(actor: string): string {
+function byWords(actor: string, words: (typeof RECORD_ASIDE)['en']): string {
   const who = whoOf(actor);
-  return who.kind === 'you' ? 'you' : who.kind === 'agent' ? `an agent (${who.name})` : whoName(who);
+  return who.kind === 'you' ? words.you : who.kind === 'agent' ? words.anAgent(who.name) : whoName(who);
 }
 
 export function ContextPanel({
@@ -173,6 +177,7 @@ export function ContextPanel({
   /** What connects to the record (the other way). */
   incoming?: readonly IncomingLink[];
 }) {
+  const t = useMessages(RECORD_ASIDE);
   const connected = incoming.some((l) => l.relation !== null);
   const origin = [
     ...(version.origin_exploration
@@ -182,13 +187,13 @@ export function ContextPanel({
             icon: <TypeIcon type="thread" size={13} />,
             body: (
               <span className="flex flex-col">
-                <span className="text-xs text-fg-2">A thread</span>
+                <span className="text-xs text-fg-2">{t.aThread}</span>
                 <Link
                   to="/p/$projectId/threads/$explorationId"
                   params={{ projectId, explorationId: version.origin_exploration }}
                   className={LINK}
                 >
-                  {thread ?? 'Open the thread'}
+                  {thread ?? t.openTheThread}
                 </Link>
               </span>
             ),
@@ -200,7 +205,7 @@ export function ContextPanel({
           {
             key: 'proposal',
             icon: <TypeIcon type="package" size={13} />,
-            body: <span className="text-fg-2">A proposal, accepted by {byWords(version.author)}</span>,
+            body: <span className="text-fg-2">{t.proposalAcceptedBy(byWords(version.author, t))}</span>,
           },
         ]
       : []),
@@ -209,8 +214,8 @@ export function ContextPanel({
       icon: <WhoAvatar kind={whoOf(version.author).kind} size={16} />,
       body: (
         <span>
-          <span className="font-medium">This version</span>
-          <span className="text-fg-2"> · written by {byWords(version.author)}</span>
+          <span className="font-medium">{t.thisVersion}</span>
+          <span className="text-fg-2">{t.writtenBySuffix(byWords(version.author, t))}</span>
         </span>
       ),
       meta: <DayTime iso={version.created_at} />,
@@ -220,7 +225,7 @@ export function ContextPanel({
           {
             key: 'approved',
             icon: <WhoAvatar kind={whoOf(version.approved_by).kind} size={16} />,
-            body: <span className="font-medium">Approved by {byWords(version.approved_by)}</span>,
+            body: <span className="font-medium">{t.approvedBy(byWords(version.approved_by, t))}</span>,
             meta: <DayTime iso={version.approved_at} />,
           },
         ]
@@ -228,29 +233,26 @@ export function ContextPanel({
   ];
   return (
     <AsidePanel
-      title="Context"
+      title={t.contextTitle}
       actions={
         <Link to="/p/$projectId/origins" params={{ projectId }} search={{ record: code }} className={cn(LINK, 'text-sm')}>
-          Open in Origins
+          {t.openInOrigins}
         </Link>
       }
     >
       <div className="flex flex-col gap-2">
-        <Sub>Where it comes from</Sub>
-        <Timeline items={origin} label="Where it comes from" />
+        <Sub>{t.whereItComesFrom}</Sub>
+        <Timeline items={origin} label={t.whereItComesFrom} />
       </div>
       <div className="flex flex-col gap-1.5">
-        <Sub>What it changes</Sub>
-        <p className="text-sm text-fg">
-          {version.change_note ??
-            (version.n === 1 ? "It's the first version: it doesn't change an earlier one." : 'This version has no change note.')}
-        </p>
+        <Sub>{t.whatItChanges}</Sub>
+        <p className="text-sm text-fg">{version.change_note ?? (version.n === 1 ? t.firstVersionNote : t.noChangeNote)}</p>
       </div>
       <div className="flex flex-col gap-1.5">
-        <Sub>What it touches</Sub>
+        <Sub>{t.whatItTouches}</Sub>
         {version.links.length === 0 ? (
           !connected ? (
-            <p className="text-sm text-fg-2">It has no links to other records.</p>
+            <p className="text-sm text-fg-2">{t.noLinks}</p>
           ) : null
         ) : (
           <ul className="flex flex-col gap-2">
@@ -274,7 +276,7 @@ export function ContextPanel({
                         {target.title}
                       </Link>
                     ) : targets || l.to_code !== undefined ? (
-                      <span className="text-fg-2">a version that is no longer shown</span>
+                      <span className="text-fg-2">{t.noLongerShown}</span>
                     ) : (
                       <Bone className="inline-block h-3 w-32 align-middle" />
                     )}
@@ -282,7 +284,7 @@ export function ContextPanel({
                   <span className="flex flex-wrap items-center gap-2">
                     <Code>
                       {target ? `${target.code} v${target.n}` : `v${l.to_version ?? '?'}`}
-                      {replaced ? ' · replaced by a newer version' : ''}
+                      {replaced ? t.replacedSuffix : ''}
                     </Code>
                     <EntityState entity="link" state={l.state} />
                   </span>
@@ -298,8 +300,9 @@ export function ContextPanel({
 }
 
 export function VersionsPanel({ projectId, record, shown }: { projectId: string; record: RecordDetail; shown: RecordVersion }) {
+  const t = useMessages(RECORD_ASIDE);
   return (
-    <AsidePanel title="Versions">
+    <AsidePanel title={t.versionsTitle}>
       <ol className="-mx-2 flex flex-col">
         {record.versions.toReversed().map((v) => {
           const w = stateWord('record_version', v.state);
@@ -318,7 +321,7 @@ export function VersionsPanel({ projectId, record, shown }: { projectId: string;
               >
                 <Code className={cn('w-7 font-semibold', selected ? 'text-fg' : 'text-fg-2')}>v{v.n}</Code>
                 <StatusBadge kind={w.mark} word={w.word} />
-                {v.current ? <span className="text-xs text-fg-2">current</span> : null}
+                {v.current ? <span className="text-xs text-fg-2">{t.current}</span> : null}
                 <span className="ml-auto flex items-center gap-1.5 text-xs text-fg-2">
                   <WhoAvatar kind={whoOf(v.author).kind} size={16} />
                   <RelativeTime iso={v.created_at} />

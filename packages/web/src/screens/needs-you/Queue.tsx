@@ -7,36 +7,30 @@ import { type KeyboardEvent, useId } from 'react';
 import { Tag } from '../../components/Badge.tsx';
 import { StatusBadge, EntityState } from '../../components/status.tsx';
 import { RelativeTime } from '../../components/Time.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { type NeedContext, kindIcon } from './frame.tsx';
-import type { Group, GroupKey, NeedItem } from './order.ts';
-import { KIND_WORDS, needReason, needSince, needTitle } from './titles.ts';
-
-export const GROUP_HINTS: Record<GroupKey, string> = {
-  conflicts: 'Knowledge found them. DEMIURGO recommends; you decide.',
-  questions: 'The ones that block something come first.',
-  proposals: 'A package is decided whole; a batch, one proposal at a time.',
-  versions: "Approving doesn't create a new version.",
-  links: 'What they point to has a newer version.',
-  classifications: "DEMIURGO wasn't sure where they go.",
-  updates: 'Until they are taken in, the knowledge is behind.',
-};
+import type { Group, NeedItem } from './order.ts';
+import { needReason, needSince, needTitle } from './titles.ts';
+import { QUEUE, TITLES } from './words.i18n.ts';
 
 /** The id of a row, for focus and aria-activedescendant-free roving. */
 export const optionId = (key: string) => `need-option-${key}`;
 
+type QueueWords = typeof QUEUE.en;
+
 /** The state of a thing as its row shows it. */
-function RowState({ item }: { item: NeedItem }) {
+function RowState({ item, t }: { item: NeedItem; t: QueueWords }) {
   switch (item.kind) {
     case 'conflict':
-      return <StatusBadge kind="conflict" word="Conflict" />;
+      return <StatusBadge kind="conflict" word={t.conflictWord} />;
     case 'question':
       return <EntityState entity="question" state={item.question.state} />;
     case 'package':
     case 'proposal':
-      return <StatusBadge kind="proposed" word="Proposed" />;
+      return <StatusBadge kind="proposed" word={t.proposedWord} />;
     case 'version':
-      return <StatusBadge kind="proposed" word={`v${item.version.n} Draft`} />;
+      return <StatusBadge kind="proposed" word={t.draftWord(item.version.n)} />;
     case 'link':
       return <EntityState entity="link" state={item.link.state} />;
     case 'classification':
@@ -52,12 +46,16 @@ function Row({
   selected,
   onSelect,
   onKey,
+  t,
+  kindWords,
 }: {
   item: NeedItem;
   ctx: NeedContext;
   selected: boolean;
   onSelect: () => void;
   onKey: (e: KeyboardEvent<HTMLDivElement>) => void;
+  t: QueueWords;
+  kindWords: typeof TITLES.en;
 }) {
   const Icon = kindIcon(item);
   const titleId = `${optionId(item.key)}-title`;
@@ -92,17 +90,17 @@ function Row({
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-1">
         <span id={titleId} className="line-clamp-2 text-base font-medium text-fg">
-          {needTitle(item, ctx.rows)}
+          {needTitle(item, ctx.rows, kindWords)}
         </span>
         <span id={metaId} className="flex flex-col gap-1.5">
           <span className="line-clamp-2 text-sm text-fg-2">
-            <span className="sr-only">{KIND_WORDS[item.kind]}. </span>
-            {needReason(item, ctx)}
+            <span className="sr-only">{kindWords.kindWord(item.kind)}. </span>
+            {needReason(item, ctx, kindWords)}
           </span>
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-fg-2">
-            <RowState item={item} />
-            {item.unblocks.length > 0 ? <Tag>Unblocks {item.unblocks.length}</Tag> : null}
-            {since ? <RelativeTime iso={since} prefix="waiting since" className="text-fg-3" /> : null}
+            <RowState item={item} t={t} />
+            {item.unblocks.length > 0 ? <Tag>{t.unblocksTag(item.unblocks.length)}</Tag> : null}
+            {since ? <RelativeTime iso={since} prefix={t.waitingSince} className="text-fg-3" /> : null}
           </span>
         </span>
       </span>
@@ -130,6 +128,8 @@ export function Queue({
   onEnter: (key: string) => void;
   className?: string;
 }) {
+  const t = useMessages(QUEUE);
+  const kindWords = useMessages(TITLES);
   const base = useId();
   const flat = groups.flatMap((g) => g.items.map((i) => i.key));
   const onKey = (key: string) => (e: KeyboardEvent<HTMLDivElement>) => {
@@ -148,20 +148,22 @@ export function Queue({
     if (to && to !== key) onSelect(to, true);
   };
   return (
-    <div role="listbox" aria-label="What needs you" aria-orientation="vertical" className={cn('flex flex-col gap-5', className)}>
+    <div role="listbox" aria-label={t.listboxLabel} aria-orientation="vertical" className={cn('flex flex-col gap-5', className)}>
       {groups.map((g) => (
         <div key={g.key} role="group" aria-labelledby={`${base}-${g.key}`} data-group={g.key} className="flex flex-col gap-1">
           <div role="presentation" id={`${base}-${g.key}`} className="flex flex-col px-1 pb-1">
             <span className="text-sm font-semibold text-fg">
               {g.title} <span className="font-normal text-fg-2 tabular-nums">({g.items.length})</span>
             </span>
-            <span className="text-xs text-fg-2">{GROUP_HINTS[g.key]}</span>
+            <span className="text-xs text-fg-2">{t.hint(g.key)}</span>
           </div>
           {g.items.map((item) => (
             <Row
               key={item.key}
               item={item}
               ctx={ctx}
+              t={t}
+              kindWords={kindWords}
               selected={item.key === selected}
               onSelect={() => onPick(item.key)}
               onKey={onKey(item.key)}

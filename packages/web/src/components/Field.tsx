@@ -13,8 +13,11 @@ import {
   useLayoutEffect,
   useRef,
 } from 'react';
+import { useMessages } from '../i18n/define.ts';
 import { cn } from '../lib/cn.ts';
+import { useSafeLocale } from '../words.ts';
 import { CheckIcon, ChevronDownIcon } from './icons.tsx';
+import { FIELD } from './words.i18n.ts';
 
 export const controlClass = cn(
   'w-full rounded-md border border-edge-control bg-panel px-3 text-base text-fg placeholder:text-fg-3',
@@ -43,13 +46,15 @@ export function Field({
   className?: string;
   labelHidden?: boolean;
 }) {
+  const t = useMessages(FIELD);
+  const numberLocale = useSafeLocale() === 'es' ? 'es-ES' : 'en-GB';
   const id = useId();
   const help = hint || error || count ? `${id}-help` : undefined;
   return (
     <div className={cn('flex flex-col gap-1.5', className)}>
       <label htmlFor={id} className={cn('text-sm font-medium text-fg', labelHidden && 'sr-only')}>
         {label}
-        {optional ? <span className="font-normal text-fg-3"> · optional</span> : null}
+        {optional ? <span className="font-normal text-fg-3">{t.optional}</span> : null}
       </label>
       {children({ id, ...(help ? { 'aria-describedby': help } : {}), ...(error ? { 'aria-invalid': true } : {}) })}
       {help ? (
@@ -57,7 +62,7 @@ export function Field({
           <span className={error ? 'font-medium text-danger-text' : 'text-fg-3'}>{error ?? hint}</span>
           {count ? (
             <span className={cn('shrink-0 tabular-nums', count[0] >= count[1] ? 'text-danger-text' : 'text-fg-3')}>
-              {count[0].toLocaleString('en-GB')} / {count[1].toLocaleString('en-GB')}
+              {count[0].toLocaleString(numberLocale)} / {count[1].toLocaleString(numberLocale)}
             </span>
           ) : null}
         </div>

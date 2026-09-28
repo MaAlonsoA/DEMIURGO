@@ -17,21 +17,18 @@ import { Certainty, EntityState, StatusBadge } from '../../components/status.tsx
 import { RelativeTime } from '../../components/Time.tsx';
 import { TypeIcon } from '../../components/types.tsx';
 import { Who } from '../../components/Who.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { verdictWord } from './graph.ts';
-
-const IDEA_TYPES: Record<string, { word: string; icon: string }> = {
-  decision: { word: 'Decision', icon: 'decision' },
-  fdr: { word: 'Feature', icon: 'fdr' },
-  exploration: { word: 'Thread', icon: 'thread' },
-};
+import { IDEA_CHECKS_TAB } from './words.i18n.ts';
 
 export function IdeaChecksTab({ projectId }: { projectId: string }) {
+  const t = useMessages(IDEA_CHECKS_TAB);
   const list = useQuery(ideaAssessmentsQuery(projectId));
   if (list.error) return <ErrorNotice error={list.error} onRetry={() => void list.refetch()} />;
   if (list.isPending) {
     return (
-      <Skeleton label="Loading the idea checks" className="flex flex-col gap-3">
+      <Skeleton label={t.loadingChecks} className="flex flex-col gap-3">
         {[0, 1].map((i) => (
           <Bone key={i} className="h-40 w-full rounded-lg" />
         ))}
@@ -41,17 +38,14 @@ export function IdeaChecksTab({ projectId }: { projectId: string }) {
   const checks = list.data ?? [];
   if (checks.length === 0) {
     return (
-      <EmptyState icon={<IdeaIcon size={24} />} title="No idea has been checked yet">
-        When an agent proposes a decision, a feature or a thread, DEMIURGO compares it with what it knows and shows here what it
-        duplicates, contradicts or relates to.
+      <EmptyState icon={<IdeaIcon size={24} />} title={t.noChecksTitle}>
+        {t.noChecksBody}
       </EmptyState>
     );
   }
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm text-fg-2">
-        Each idea an agent proposes is compared with what DEMIURGO knows. It recommends; you decide in the batch.
-      </p>
+      <p className="text-sm text-fg-2">{t.intro}</p>
       {checks.map((a) => (
         <IdeaCheck key={a.id} projectId={projectId} check={a} />
       ))}
@@ -60,13 +54,19 @@ export function IdeaChecksTab({ projectId }: { projectId: string }) {
 }
 
 function IdeaCheck({ projectId, check: a }: { projectId: string; check: IdeaAssessment }) {
+  const t = useMessages(IDEA_CHECKS_TAB);
+  const IDEA_TYPES: Record<string, { word: string; icon: string }> = {
+    decision: { word: t.decision, icon: 'decision' },
+    fdr: { word: t.feature, icon: 'fdr' },
+    exploration: { word: t.thread, icon: 'thread' },
+  };
   const type = IDEA_TYPES[a.proposal.type] ?? { word: a.proposal.type, icon: 'idea' };
   const title = a.proposal.title ?? type.word;
   const conflict = a.findings.some((f) => verdictWord(f.verdict).conflict);
   return (
     <Card
       as="article"
-      aria-label={`Idea check: ${title}`}
+      aria-label={t.ideaCheckAria(title)}
       padding="none"
       className={cn('grid md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]', conflict && 'border-danger-edge')}
     >
@@ -74,14 +74,18 @@ function IdeaCheck({ projectId, check: a }: { projectId: string; check: IdeaAsse
         {conflict ? <StatusBadge kind="conflict" size="md" className="self-start" /> : null}
         <div className="flex flex-wrap items-center gap-2 text-sm text-fg-2">
           <TypeIcon type={type.icon} size={15} className="text-fg-3" />
-          <span>Idea · {type.word}</span>
+          <span>
+            {t.ideaPrefix}
+            {type.word}
+          </span>
           <EntityState entity="proposal" state={a.proposal.state} />
         </div>
         <h2 className="text-base font-semibold text-fg">{title}</h2>
         <div className="mt-auto flex flex-col gap-1 pt-2 text-xs text-fg-3">
           <Who actor={`system:${a.classifier}`} size={16} className="text-fg-2" />
           <span>
-            Checked against graph v{a.graph_version} · <RelativeTime iso={a.created_at} />
+            {t.checkedAgainst(a.graph_version)}
+            <RelativeTime iso={a.created_at} />
           </span>
         </div>
         <Link
@@ -89,19 +93,19 @@ function IdeaCheck({ projectId, check: a }: { projectId: string; check: IdeaAsse
           params={{ projectId, batchId: a.proposal.batch_id }}
           className="inline-flex items-center gap-1 self-start text-sm font-medium text-accent-text underline-offset-2 hover:underline"
         >
-          Open its batch
+          {t.openItsBatch}
           <ArrowRightIcon size={14} />
         </Link>
       </div>
       <div className="px-4 py-4">
         {a.error ? (
-          <Notice tone="danger" title="It couldn't be checked">
+          <Notice tone="danger" title={t.couldntBeChecked}>
             {a.error}
           </Notice>
         ) : a.findings.length === 0 ? (
-          <p className="text-sm text-fg-2">Nothing DEMIURGO knows duplicates, contradicts or relates to this idea.</p>
+          <p className="text-sm text-fg-2">{t.nothingRelates}</p>
         ) : (
-          <ul aria-label="Findings" className="flex flex-col divide-y divide-edge-subtle">
+          <ul aria-label={t.findings} className="flex flex-col divide-y divide-edge-subtle">
             {a.findings.map((f) => {
               const v = verdictWord(f.verdict);
               return (
@@ -137,7 +141,7 @@ function IdeaCheck({ projectId, check: a }: { projectId: string; check: IdeaAsse
                       {f.epistemic_status ? <Certainty status={f.epistemic_status} /> : null}
                       {f.confidence !== null ? (
                         <span className="ml-auto shrink-0 text-xs text-fg-3 tabular-nums">
-                          {Math.round(f.confidence * 100)}% sure
+                          {t.sure(Math.round(f.confidence * 100))}
                         </span>
                       ) : null}
                     </div>

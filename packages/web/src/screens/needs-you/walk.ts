@@ -9,8 +9,6 @@ export type Step = { key: string; kind: NeedItem['kind']; title: string };
 export type Walk = { steps: Step[]; skipped: string[]; at: number };
 export type StepState = 'done' | 'skipped' | 'now' | 'next';
 
-export const STEP_WORDS: Record<StepState, string> = { done: 'Done', skipped: 'Skipped', now: 'Now', next: 'Next' };
-
 /** A walk left alone for this long starts again. */
 const STALE_MS = 2 * 3_600_000;
 

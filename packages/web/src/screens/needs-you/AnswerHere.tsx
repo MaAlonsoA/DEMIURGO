@@ -12,9 +12,12 @@ import { Button, buttonClass } from '../../components/Button.tsx';
 import { ChoiceGroup, Field, TextArea } from '../../components/Field.tsx';
 import { ArrowRightIcon, PencilIcon } from '../../components/icons.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { MAX_ANSWER, answerChoices, draftOf, withExclusive } from '../thread/answers.ts';
+import { ANSWER_HERE } from './words.i18n.ts';
 
 export function AnswerHere({ projectId, question: q }: { projectId: string; question: InboxQuestion }) {
+  const t = useMessages(ANSWER_HERE);
   const command = useCommand(projectId);
   const answerable = {
     state: q.state,
@@ -31,18 +34,22 @@ export function AnswerHere({ projectId, question: q }: { projectId: string; ques
   const send = () => {
     if (!answer) return;
     void command.mutateAsync({ command: 'question.confirm', entityId: q.id, data: { conclusion: answer } }).then(
-      () => announce('Answered.'),
+      () => announce(t.answered),
       () => undefined,
     );
   };
 
   return (
     <div data-answer-here className="flex flex-col gap-3">
-      {q.reason ? <p className="text-sm text-fg-2">Why it matters: {q.reason}</p> : null}
+      {q.reason ? (
+        <p className="text-sm text-fg-2">
+          {t.whyItMatters} {q.reason}
+        </p>
+      ) : null}
       {own === null ? (
         <ChoiceGroup
           name={`answer-${q.id}`}
-          legend={q.multiple ? 'Pick all that apply' : 'Pick one'}
+          legend={q.multiple ? t.pickAll : t.pickOne}
           multiple={!!q.multiple}
           value={picked}
           columns={choices.length > 1 ? 2 : 1}
@@ -51,7 +58,7 @@ export function AnswerHere({ projectId, question: q }: { projectId: string; ques
           choices={choices.map((c) => ({ value: c.value, label: c.answer, detail: c.implies }))}
         />
       ) : (
-        <Field label="Your answer" count={[own.length, MAX_ANSWER]}>
+        <Field label={t.yourAnswer} count={[own.length, MAX_ANSWER]}>
           {(p) => (
             <TextArea
               {...p}
@@ -67,7 +74,7 @@ export function AnswerHere({ projectId, question: q }: { projectId: string; ques
       )}
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="primary" disabled={!answer || command.isPending} onClick={send}>
-          {command.isPending ? 'Answering…' : 'Answer'}
+          {command.isPending ? t.answering : t.answer}
         </Button>
         {choices.length > 0 ? (
           <Button
@@ -77,7 +84,7 @@ export function AnswerHere({ projectId, question: q }: { projectId: string; ques
             disabled={command.isPending}
             onClick={() => setOwn(own === null ? '' : null)}
           >
-            Answer in my own words
+            {t.answerOwnWords}
           </Button>
         ) : null}
         <Link
@@ -86,7 +93,7 @@ export function AnswerHere({ projectId, question: q }: { projectId: string; ques
           search={{ question: q.id }}
           className={buttonClass({ variant: 'quiet' })}
         >
-          Continue in the thread
+          {t.continueInThread}
           <ArrowRightIcon size={14} />
         </Link>
       </div>

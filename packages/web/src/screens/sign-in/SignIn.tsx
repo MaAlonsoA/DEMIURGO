@@ -14,7 +14,9 @@ import { Button } from '../../components/Button.tsx';
 import { Field, TextInput } from '../../components/Field.tsx';
 import { ErrorNotice, Notice } from '../../components/Notice.tsx';
 import { usePageTitle } from '../../components/Page.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { Wordmark } from '../../shell/WorkspaceFrame.tsx';
+import { SIGN_IN } from './words.i18n.ts';
 
 /** Only paths inside the app are followed after signing in. */
 export function safeNext(next: string | undefined): string {
@@ -25,7 +27,8 @@ export function safeNext(next: string | undefined): string {
 type Missing = { user: boolean; password: boolean };
 
 export function SignInScreen() {
-  usePageTitle(['Sign in']);
+  const t = useMessages(SIGN_IN);
+  usePageTitle([t.title]);
   const { next } = useSearch({ strict: false }) as { next?: string };
   const router = useRouter();
   const client = useQueryClient();
@@ -80,9 +83,9 @@ export function SignInScreen() {
           className="flex flex-col gap-5 rounded-xl border border-edge bg-panel px-6 py-7 sm:px-8"
         >
           <h1 id="page-title" tabIndex={-1} className="text-xl font-semibold text-fg outline-none">
-            Sign in
+            {t.title}
           </h1>
-          <Field label="User" error={missing.user ? 'Write your user to sign in.' : undefined}>
+          <Field label={t.user} error={missing.user ? t.userMissing : undefined}>
             {(p) => (
               <TextInput
                 {...p}
@@ -103,7 +106,7 @@ export function SignInScreen() {
               />
             )}
           </Field>
-          <Field label="Password" error={missing.password ? 'Write your password to sign in.' : undefined}>
+          <Field label={t.password} error={missing.password ? t.passwordMissing : undefined}>
             {(p) => (
               <TextInput
                 {...p}
@@ -121,10 +124,10 @@ export function SignInScreen() {
               />
             )}
           </Field>
-          {wrong ? <Notice tone="danger" role="alert" title="Wrong user or password." /> : null}
+          {wrong ? <Notice tone="danger" role="alert" title={t.wrong} /> : null}
           {error ? <ErrorNotice error={error} /> : null}
-          <Button type="submit" variant="primary" size="lg" pending={pending} pendingLabel="Signing in…" className="w-full">
-            Sign in
+          <Button type="submit" variant="primary" size="lg" pending={pending} pendingLabel={t.signingIn} className="w-full">
+            {t.signIn}
           </Button>
         </form>
       </div>

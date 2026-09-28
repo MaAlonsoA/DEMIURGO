@@ -18,7 +18,8 @@ import { PageBody, PageHeader, usePageTitle } from '../../components/Page.tsx';
 import { StatusBadge } from '../../components/status.tsx';
 import { TypeIcon } from '../../components/types.tsx';
 import { useProjectId } from '../../lib/hooks.ts';
-import { TYPE_WORDS } from '../../words.ts';
+import { typeWordFor, useSafeLocale, useTypeWord } from '../../words.ts';
+import { useMessages } from '../../i18n/define.ts';
 import { CheckEditor } from '../new-version/CheckEditor.tsx';
 import { FormPanel, MissingList, SaveFooter, SectionField, useLeaveGuard } from '../new-version/FormParts.tsx';
 import { type CheckDraft, addCheck } from '../new-version/form.ts';
@@ -35,36 +36,28 @@ import {
   toCreateCommand,
   withType,
 } from './form.ts';
-
-const HINTS: Record<RecordType, string> = {
-  decision: 'Something decided about the product: what, and what follows from it.',
-  fdr: 'A feature: what it is for, what it covers and how it behaves, with the checks that prove it.',
-  adr: 'A technical choice: the options weighed, the one taken and its consequences, with its checks.',
-  bug: 'Something that does not work: how to reproduce it, what was expected and what happened.',
-  requirement:
-    'A requirement in EARS form ("When <trigger>, the system shall <response>"), with the measurable criterion that shows it is met.',
-  quality_requirement: 'A quality target (performance, availability, usability…) as a scenario with its measure.',
-  threat_model: 'What is protected, from whom, the STRIDE threats and the mitigation for each one.',
-  production_readiness: 'How it rolls out and back, how it is monitored, how it fails and scales, and who supports it.',
-};
+import { NEW_RECORD } from './words.i18n.ts';
 
 const DOMAIN = /^[a-z][a-z_]*$/;
 
 export function NewRecordScreen() {
+  const t = useMessages(NEW_RECORD);
+  const locale = useSafeLocale();
   const projectId = useProjectId();
   const search = useSearch({ strict: false }) as { type?: string };
-  const initial = WRITABLE_TYPES.find((t) => t === search.type) ?? 'decision';
+  const initial = WRITABLE_TYPES.find((tp) => tp === search.type) ?? 'decision';
   const navigate = useNavigate();
   const state = useQuery(stateQuery(projectId));
   const command = useCommand<{ code: string; version: number }>(projectId);
   const [form, setForm] = useState<RecordForm>(() => blankRecord(initial));
   const hintId = useId();
-  usePageTitle(['New record', state.data?.project.name]);
+  usePageTitle([t.newRecord, state.data?.project.name]);
   const domains = [...new Set([...(state.data?.decisions ?? []), ...(state.data?.designs ?? [])].map((r) => r.domain))].sort();
   const miss = recordMissing(form);
   const needsChecks = form.type !== 'decision';
   const guard = useLeaveGuard(recordDirty(form) && !command.isSuccess);
   const areaInvalid = form.domain.trim() !== '' && !DOMAIN.test(form.domain.trim());
+  const typeWord = useTypeWord(form.type);
 
   const update = (next: CheckDraft) => setForm((f) => ({ ...f, checks: f.checks.map((c) => (c.key === next.key ? next : c)) }));
   const remove = (key: string) => setForm((f) => ({ ...f, checks: f.checks.filter((c) => c.key !== key) }));
@@ -76,7 +69,7 @@ export function NewRecordScreen() {
         onSuccess: (r) => {
           if (!r.result) return;
           guard.release();
-          announce(`Saved: ${r.result.code} v${r.result.version} is a draft.`);
+          announce(t.savedAnnounce(r.result.code, r.result.version));
           void navigate({
             to: '/p/$projectId/records/$code',
             params: { projectId, code: r.result.code },
@@ -90,38 +83,36 @@ export function NewRecordScreen() {
   return (
     <>
       <PageHeader
-        crumbs={[{ label: 'Product', link: { to: '/p/$projectId', params: { projectId } } }, { label: 'New record' }]}
-        title="New record"
-        meta={<span>Write it yourself. DEMIURGO is not asked anything.</span>}
+        crumbs={[{ label: t.product, link: { to: '/p/$projectId', params: { projectId } } }, { label: t.newRecord }]}
+        title={t.newRecord}
+        meta={<span>{t.writeItYourself}</span>}
       />
       <PageBody className="pb-0">
         <div className="flex flex-col gap-8 xl:flex-row xl:items-start">
           <div className="flex min-w-0 flex-1 flex-col gap-6">
-            <FormPanel title="What it is">
+            <FormPanel title={t.whatItIs}>
               <ChoiceGroup
-                legend="What it is"
+                legend={t.whatItIs}
                 legendHidden
                 columns={3}
                 value={[form.type]}
-                onChange={([t]) => t && setForm((f) => withType(f, t as RecordType))}
-                choices={WRITABLE_TYPES.map((t) => ({
-                  value: t,
+                onChange={([tp]) => tp && setForm((f) => withType(f, tp as RecordType))}
+                choices={WRITABLE_TYPES.map((tp) => ({
+                  value: tp,
                   label: (
                     <span className="inline-flex items-center gap-2">
-                      <TypeIcon type={t} size={15} className="text-fg-2" />
-                      {TYPE_WORDS[t]}
+                      <TypeIcon type={tp} size={15} className="text-fg-2" />
+                      {typeWordFor(locale, tp)}
                     </span>
                   ),
                 }))}
               />
               <p id={hintId} className="text-sm text-fg-2" aria-live="polite">
-                {HINTS[form.type]}
+                {t.hint(form.type)}
               </p>
               {form.kept.length > 0 ? (
-                <Notice tone="info" title="Kept from the previous type">
-                  <p>
-                    This type has no section for what you wrote here. It is kept, and comes back if you choose that type again.
-                  </p>
+                <Notice tone="info" title={t.keptFromPreviousType}>
+                  <p>{t.keptBody}</p>
                   <dl className="mt-2 flex flex-col gap-2">
                     {form.kept.map((k) => (
                       <div key={k.title} className="flex flex-col gap-0.5">
@@ -134,8 +125,8 @@ export function NewRecordScreen() {
               ) : null}
             </FormPanel>
 
-            <FormPanel title="Content">
-              <Field label="Title" count={[form.title.length, 200]}>
+            <FormPanel title={t.content}>
+              <Field label={t.title} count={[form.title.length, 200]}>
                 {(p) => (
                   <TextInput
                     {...p}
@@ -146,11 +137,7 @@ export function NewRecordScreen() {
                   />
                 )}
               </Field>
-              <Field
-                label="Area"
-                hint="Lowercase letters and underscores. It names the code: «club» gives DEC-CLU-001."
-                error={areaInvalid ? `Lowercase letters and underscores only, like ${domainHint(form.domain)}.` : undefined}
-              >
+              <Field label={t.area} hint={t.areaHint} error={areaInvalid ? t.areaError(domainHint(form.domain)) : undefined}>
                 {(p) => (
                   <>
                     <TextInput
@@ -185,14 +172,10 @@ export function NewRecordScreen() {
               <FormPanel
                 title={
                   <>
-                    Checks <span className="font-normal text-fg-2">· {form.checks.length}</span>
+                    {t.checks} <span className="font-normal text-fg-2">· {form.checks.length}</span>
                   </>
                 }
-                note={
-                  needsChecks
-                    ? `A ${TYPE_WORDS[form.type].toLowerCase()} needs at least one: how you'll know it holds.`
-                    : 'How you will know it holds.'
-                }
+                note={needsChecks ? t.checksNoteRequired(typeWord) : t.checksNoteOptional}
               >
                 {form.checks.length > 0 ? (
                   <ol className="flex flex-col gap-3">
@@ -202,7 +185,7 @@ export function NewRecordScreen() {
                   </ol>
                 ) : null}
                 <Button className="self-start" icon={<PlusIcon size={14} />} onClick={() => setForm(addCheck)}>
-                  Add a check
+                  {t.addACheck}
                 </Button>
               </FormPanel>
             ) : null}
@@ -213,25 +196,19 @@ export function NewRecordScreen() {
               onChange={(links) => setForm((f) => ({ ...f, links }))}
             />
           </div>
-          <aside aria-label="This new record" className="flex w-full shrink-0 flex-col gap-4 xl:sticky xl:top-4 xl:w-80">
+          <aside aria-label={t.thisNewRecord} className="flex w-full shrink-0 flex-col gap-4 xl:sticky xl:top-4 xl:w-80">
             <section className="flex flex-col gap-2 rounded-lg border border-edge bg-panel p-4">
-              <h2 className="text-base font-semibold text-fg">This new record</h2>
+              <h2 className="text-base font-semibold text-fg">{t.thisNewRecord}</h2>
               <p className="flex flex-wrap items-center gap-2 text-sm text-fg-2">
-                <StatusBadge kind="proposed" word="Draft" />
-                Version 1 is saved as a draft. Nothing is decided until you approve it.
+                <StatusBadge kind="proposed" word={t.draft} />
+                {t.versionOneAsDraft}
               </p>
             </section>
             <MissingList missing={miss} />
           </aside>
         </div>
         <SaveFooter
-          summary={
-            <>
-              {TYPE_WORDS[form.type]}, version 1 as a draft
-              {form.checks.length > 0 ? ` · ${form.checks.length} ${form.checks.length === 1 ? 'check' : 'checks'}` : ''}
-              {form.links.length > 0 ? ` · ${form.links.length} ${form.links.length === 1 ? 'link' : 'links'}` : ''}
-            </>
-          }
+          summary={t.summary(typeWord, form.checks.length, form.links.length)}
           missing={miss}
           error={command.error}
           pending={command.isPending}

@@ -11,7 +11,9 @@ import { runCommand } from '../../api/commands.ts';
 import { keys } from '../../api/queries.ts';
 import type { ExplorationDetail } from '../../api/types.ts';
 import { announce } from '../../components/announce.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { MAX_ANSWER, isOpenQuestion, isShown } from './answers.ts';
+import { DRAFTS } from './words.i18n.ts';
 
 export type ForkChoice = 'explore' | 'keep';
 
@@ -128,6 +130,7 @@ export function useSendDrafts(
   drafts: Drafts,
   forkStates: ReadonlyMap<string, { purpose: string; state: string }>,
 ) {
+  const words = useMessages(DRAFTS);
   const client = useQueryClient();
   const [sending, setSending] = useState(false);
   const [results, setResults] = useState<SendItem[] | null>(null);
@@ -155,7 +158,7 @@ export function useSendDrafts(
         }
       }
       for (const [id, choice] of forks) {
-        const label = `${choice === 'explore' ? 'Explore separately' : 'Keep it here'}: «${forkStates.get(id)?.purpose ?? 'a suggested thread'}»`;
+        const label = `${choice === 'explore' ? words.exploreSeparately : words.keepItHere}${words.forSuggestedThread(forkStates.get(id)?.purpose ?? words.aSuggestedThread)}`;
         try {
           await runCommand(
             projectId,
@@ -181,9 +184,9 @@ export function useSendDrafts(
             command: 'run.request',
             data: { action: 'exploration_chat', scope: { type: 'exploration', id: thread.id } },
           });
-          out.push({ key: 'go-on', kind: 'go-on', label: 'DEMIURGO reads your answers and goes on', state: 'sent' });
+          out.push({ key: 'go-on', kind: 'go-on', label: words.goOnLabel, state: 'sent' });
         } catch (error) {
-          out.push({ key: 'go-on', kind: 'go-on', label: 'DEMIURGO reads your answers and goes on', state: 'failed', error });
+          out.push({ key: 'go-on', kind: 'go-on', label: words.goOnLabel, state: 'failed', error });
         }
       }
     } finally {
@@ -194,9 +197,9 @@ export function useSendDrafts(
     const sent = out.filter((r) => r.state === 'sent' && r.kind !== 'go-on').length;
     setResults(failed.length > 0 ? out : null);
     if (failed.length === 0) {
-      announce(`${sent === 1 ? '1 draft' : `${sent} drafts`} sent.${answered(out) ? ' DEMIURGO goes on.' : ''}`);
+      announce(words.sentSuffix(sent, answered(out)));
     } else {
-      announce(`${sent} sent, ${failed.length} not sent. They stay as drafts.`);
+      announce(words.partial(sent, failed.length));
     }
     return failed.length === 0;
   };

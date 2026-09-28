@@ -22,7 +22,8 @@ import { PageSkeleton } from '../../components/Spinner.tsx';
 import { StatusBadge } from '../../components/status.tsx';
 import { TypeIcon } from '../../components/types.tsx';
 import { useRouteParams } from '../../lib/hooks.ts';
-import { TYPE_WORDS } from '../../words.ts';
+import { useTypeWord } from '../../words.ts';
+import { useMessages } from '../../i18n/define.ts';
 import { NotFound } from '../not-found/NotFound.tsx';
 import { recordCrumbs } from '../record/Header.tsx';
 import { type VersionRef, baseVersion, versionIndex } from '../record/logic.ts';
@@ -42,13 +43,15 @@ import {
 } from './form.ts';
 import { linkTargets } from './links.ts';
 import { LinksEditor } from './LinksEditor.tsx';
+import { NEW_VERSION } from './words.i18n.ts';
 
 export function NewVersionScreen() {
+  const t = useMessages(NEW_VERSION);
   const { projectId, code = '' } = useRouteParams();
   const record = useQuery(recordQuery(projectId, code));
   const state = useQuery(stateQuery(projectId));
   const inbox = useQuery(inboxQuery(projectId));
-  usePageTitle(['New version', code, state.data?.project.name]);
+  usePageTitle([t.newVersion, code, state.data?.project.name]);
   if (record.error instanceof ApiError && record.error.status === 404) return <NotFound thing={`the record ${code}`} />;
   const r = record.data;
   const base = r ? baseVersion(r) : undefined;
@@ -56,12 +59,12 @@ export function NewVersionScreen() {
   if (!r || !base) {
     return (
       <>
-        <PageHeader title="New version" />
+        <PageHeader title={t.newVersion} />
         <PageBody width="reading">
           {record.error ? (
             <ErrorNotice error={record.error} onRetry={() => void record.refetch()} />
           ) : (
-            <PageSkeleton label="Loading the record" />
+            <PageSkeleton label={t.loadingRecord} />
           )}
         </PageBody>
       </>
@@ -93,6 +96,8 @@ function NewVersionForm({
   index: Map<string, VersionRef> | undefined;
   state: ProductState | undefined;
 }) {
+  const t = useMessages(NEW_VERSION);
+  const typeWord = useTypeWord(record.type);
   const navigate = useNavigate();
   const command = useCommand<{ versionId: string; version: number; warnings: string[] }>(projectId);
   // The base is frozen when the form opens.
@@ -151,7 +156,7 @@ function NewVersionForm({
           guard.release();
           const n = r.result?.version ?? next;
           leaveSaveWarnings(record.code, n, r.result?.warnings ?? []);
-          announce(`Saved: v${n} is a draft.`);
+          announce(t.savedAnnounce(n));
           void navigate({
             to: '/p/$projectId/records/$code',
             params: { projectId, code: record.code },
@@ -163,39 +168,35 @@ function NewVersionForm({
   };
 
   const choices = [
-    counts.kept ? `${counts.kept} kept` : '',
-    counts.changed ? `${counts.changed} changed` : '',
-    counts.dropped ? `${counts.dropped} dropped` : '',
-    counts.added ? `${counts.added} new` : '',
+    counts.kept ? t.keptCount(counts.kept) : '',
+    counts.changed ? t.changedCount(counts.changed) : '',
+    counts.dropped ? t.droppedCount(counts.dropped) : '',
+    counts.added ? t.newCount(counts.added) : '',
   ].filter(Boolean);
 
   return (
     <>
       <PageHeader
-        crumbs={recordCrumbs(projectId, record, base.title, [{ label: 'New version' }])}
+        crumbs={recordCrumbs(projectId, record, base.title, [{ label: t.newVersion }])}
         eyebrow={
           <>
             <span className="inline-flex items-center gap-1.5">
               <TypeIcon type={record.type} size={15} className="text-fg-3" />
-              {TYPE_WORDS[record.type]}
+              {typeWord}
             </span>
             <Code>
               {record.code} · from v{base.n}
             </Code>
           </>
         }
-        title={`New version of ${base.title}`}
-        meta={<span>Say what changes, then choose what happens to each check.</span>}
+        title={t.newVersionTitle(base.title)}
+        meta={<span>{t.sayWhatChanges}</span>}
       />
       <PageBody className="pb-0">
         <div className="flex flex-col gap-8 xl:flex-row xl:items-start">
           <div className="flex min-w-0 flex-1 flex-col gap-6">
-            <FormPanel title="Change note">
-              <Field
-                label="What changed"
-                hint="Required. It tells whoever reads this version what it changes and why."
-                count={[form.note.length, 2000]}
-              >
+            <FormPanel title={t.changeNote}>
+              <Field label={t.whatChanged} hint={t.whatChangedHint} count={[form.note.length, 2000]}>
                 {(p) => (
                   <TextArea
                     {...p}
@@ -210,8 +211,8 @@ function NewVersionForm({
               </Field>
             </FormPanel>
 
-            <FormPanel title="Content">
-              <Field label="Title" count={[form.title.length, 200]}>
+            <FormPanel title={t.content}>
+              <Field label={t.title} count={[form.title.length, 200]}>
                 {(p) => (
                   <TextInput
                     {...p}
@@ -238,10 +239,10 @@ function NewVersionForm({
               <FormPanel
                 title={
                   <>
-                    Checks <span className="font-normal text-fg-2">· {form.checks.length}</span>
+                    {t.checks} <span className="font-normal text-fg-2">· {form.checks.length}</span>
                   </>
                 }
-                note="A changed check keeps its code; a dropped one stays in earlier versions."
+                note={t.checksNote}
               >
                 <ol className="flex flex-col gap-3">
                   {form.checks.map((c, i) => (
@@ -256,41 +257,39 @@ function NewVersionForm({
                   ))}
                 </ol>
                 <Button className="self-start" icon={<PlusIcon size={14} />} onClick={() => setForm(addCheck)}>
-                  Add a check
+                  {t.addACheck}
                 </Button>
               </FormPanel>
             ) : null}
 
             {carried && carried.unknown.length > 0 ? (
-              <Notice tone="warning">
-                {carried.unknown.length} {carried.unknown.length === 1 ? 'link points' : 'links point'} to a version that is no
-                longer shown: {carried.unknown.length === 1 ? 'it is' : 'they are'} not carried.
-              </Notice>
+              <Notice tone="warning">{t.linkWarning(carried.unknown.length)}</Notice>
             ) : null}
             <LinksEditor
               targets={linkTargets(state, record.code)}
               links={links ?? []}
               carried={carried?.carried ?? []}
               onChange={setLinks}
-              note="The links of the base version are carried as they are; remove any that no longer holds, or add new ones."
+              note={t.carriedLinksNote}
             />
           </div>
-          <aside aria-label="This new version" className="flex w-full shrink-0 flex-col gap-4 xl:sticky xl:top-4 xl:w-80">
+          <aside aria-label={t.thisNewVersion} className="flex w-full shrink-0 flex-col gap-4 xl:sticky xl:top-4 xl:w-80">
             <section className="flex flex-col gap-3 rounded-lg border border-edge bg-panel p-4">
-              <h2 className="text-base font-semibold text-fg">This new version</h2>
+              <h2 className="text-base font-semibold text-fg">{t.thisNewVersion}</h2>
               <p className="flex flex-wrap items-center gap-2 text-sm text-fg-2">
-                <StatusBadge kind="proposed" word="Draft" />
+                <StatusBadge kind="proposed" word={t.draft} />
                 <span>
-                  <Code className="text-fg">v{next}</Code>, from v{base.n}. Nothing changes until you approve it.
+                  <Code className="text-fg">v{next}</Code>
+                  {t.fromVNothingChanges(base.n)}
                 </span>
               </p>
               <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 border-t border-edge-subtle pt-3 text-sm">
                 {(
                   [
-                    ['Kept', counts.kept],
-                    ['Changed', counts.changed],
-                    ['Dropped', counts.dropped],
-                    ['New', counts.added],
+                    [t.kept, counts.kept],
+                    [t.changed, counts.changed],
+                    [t.dropped, counts.dropped],
+                    [t.new, counts.added],
                   ] as const
                 )
                   .filter(([, n]) => n > 0)
@@ -301,17 +300,13 @@ function NewVersionForm({
                     </div>
                   ))}
               </dl>
-              {choices.length === 0 ? <p className="text-sm text-fg-2">No check has a choice yet.</p> : null}
+              {choices.length === 0 ? <p className="text-sm text-fg-2">{t.noChoiceYet}</p> : null}
             </section>
             <MissingList missing={miss} />
           </aside>
         </div>
         <SaveFooter
-          summary={
-            <>
-              v{next} as a draft{choices.length > 0 ? ` · checks: ${choices.join(', ')}` : ''}
-            </>
-          }
+          summary={t.summary(next, choices.join(', '))}
           missing={miss}
           error={command.error}
           pending={command.isPending}

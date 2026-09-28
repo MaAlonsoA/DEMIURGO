@@ -9,15 +9,18 @@ import { onUnauthorized } from '../api/client.ts';
 import { keys } from '../api/queries.ts';
 import { Announcer } from '../components/announce.tsx';
 import { TooltipProvider } from '../components/Tooltip.tsx';
-import { useDocumentLanguage } from '../i18n/locale.ts';
+import { useMessages } from '../i18n/define.ts';
+import { useSessionLocale } from '../i18n/locale.ts';
 import { DevPanel } from './DevPanel.tsx';
 import { Help } from './Help.tsx';
 import './theme.ts';
+import { APP_ROOT } from './words.i18n.ts';
 
 export function AppRoot() {
   const router = useRouter();
   const client = useQueryClient();
-  useDocumentLanguage();
+  const t = useMessages(APP_ROOT);
+  useSessionLocale();
 
   useEffect(
     () =>
@@ -35,7 +38,7 @@ export function AppRoot() {
         href="#main"
         className="sr-only z-50 rounded-md bg-inverse px-3 py-2 text-base text-on-inverse focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
       >
-        Skip to content
+        {t.skipToContent}
       </a>
       <Outlet />
       <Help />

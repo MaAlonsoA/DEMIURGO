@@ -12,11 +12,14 @@ import { StatusBadge } from '../../../components/status.tsx';
 import { DayTime } from '../../../components/Time.tsx';
 import { WhoAvatar, whoName } from '../../../components/Who.tsx';
 import { cn } from '../../../lib/cn.ts';
+import { useMessages } from '../../../i18n/define.ts';
 import { whoOf } from '../../../words.ts';
 import { lineTarget } from './own.ts';
 import type { Lens } from './useLens.ts';
+import { WHILE_AWAY } from '../words.i18n.ts';
 
 export function WhileAway({ projectId, lens }: { projectId: string; lens: Lens }) {
+  const t = useMessages(WHILE_AWAY);
   const id = useId();
   return (
     <section
@@ -28,17 +31,17 @@ export function WhileAway({ projectId, lens }: { projectId: string; lens: Lens }
         <div className="flex min-w-0 items-center gap-2">
           <HistoryIcon size={16} className="shrink-0 text-accent-text" />
           <h2 className="text-base font-semibold text-fg">
-            <span id={id}>While you were away</span>
+            <span id={id}>{t.whileYouWereAway}</span>
             {lens.since ? (
               <span className="font-normal text-fg-2">
                 {' '}
-                · since <DayTime iso={lens.since} />
+                · {t.since} <DayTime iso={lens.since} />
               </span>
             ) : null}
           </h2>
         </div>
         <Button size="sm" variant="quiet" onClick={() => lens.setOn(false)}>
-          Show everything
+          {t.showEverything}
         </Button>
       </div>
       <ol className="flex flex-col divide-y divide-edge-subtle">
@@ -80,13 +83,13 @@ export function WhileAway({ projectId, lens }: { projectId: string; lens: Lens }
               </span>
               {l.problem || l.codes.length > 0 ? (
                 <span className="flex shrink-0 flex-wrap items-center gap-2 pl-[108px] sm:pl-0">
-                  {l.problem ? <StatusBadge kind="problem" word="A problem" /> : null}
+                  {l.problem ? <StatusBadge kind="problem" word={t.aProblem} /> : null}
                   {l.codes.map((c) => (
                     <Link
                       key={c}
                       to="/p/$projectId/records/$code"
                       params={{ projectId, code: c }}
-                      aria-label={`Open ${c}`}
+                      aria-label={t.openCode(c)}
                       className="rounded-xs px-0.5 hover:underline"
                     >
                       <Code>{c}</Code>
@@ -101,7 +104,7 @@ export function WhileAway({ projectId, lens }: { projectId: string; lens: Lens }
       {lens.nothingConfirmed ? (
         <p className="flex items-center gap-2 border-t border-edge px-4 py-2.5 text-sm text-fg-2">
           <CheckCircleIcon size={15} className="shrink-0 text-success-text" />
-          Nothing you confirmed was changed.
+          {t.nothingConfirmedChanged}
         </p>
       ) : null}
     </section>

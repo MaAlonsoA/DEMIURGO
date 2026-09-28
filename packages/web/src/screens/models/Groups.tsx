@@ -21,14 +21,14 @@ import { Button } from '../../components/Button.tsx';
 import { CheckCircleIcon, ChevronRightIcon } from '../../components/icons.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
 import { StateIcon } from '../../components/status.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { ACTION_WORDS } from '../../words.ts';
 import { EngineSelect } from './EngineSelect.tsx';
 import { changeWords, choosableProviders, firstEngine, resolutionLine } from './engines.ts';
+import { GROUPS } from './words.i18n.ts';
 
 type Skills = { id: string; description: string }[];
-
-const minutes = (s: number) => (s >= 60 ? `${Math.round(s / 60)} min` : `${s} s`);
 
 /** Assigning and removing one engine choice, with the words of what it did. */
 function useEngineChoice(target: EngineTarget, name: string, catalogs: readonly Catalog[]) {
@@ -59,12 +59,13 @@ function useEngineChoice(target: EngineTarget, name: string, catalogs: readonly 
 }
 
 function Changed({ words }: { words: string | null }) {
+  const t = useMessages(GROUPS);
   if (!words) return null;
   return (
     <p data-changed className="flex items-start gap-1.5 text-sm text-success-text">
       <CheckCircleIcon size={14} className="mt-0.5 shrink-0" />
       <span>
-        <span className="font-medium">Applied just now: </span>
+        <span className="font-medium">{t.appliedNow}</span>
         {words}
       </span>
     </p>
@@ -82,6 +83,7 @@ export function GroupCard({
   catalogs: Catalog[];
   skills: Skills;
 }) {
+  const t = useMessages(GROUPS);
   const choice = useEngineChoice({ group: group.id }, group.name, catalogs);
   const engine = group.assignment?.engine ?? null;
   return (
@@ -98,11 +100,11 @@ export function GroupCard({
       </header>
       <div className="flex flex-col gap-2">
         <EngineSelect label={group.name} catalogs={catalogs} value={engine} disabled={choice.busy} onChange={choice.set} />
-        {engine ? null : <p className="text-sm font-medium text-danger-text">No model yet: its tasks can’t run.</p>}
+        {engine ? null : <p className="text-sm font-medium text-danger-text">{t.noEngineYet}</p>}
         <Changed words={choice.changed} />
         {choice.error ? <ErrorNotice error={choice.error} compact /> : null}
       </div>
-      <ul aria-label={`Tasks in ${group.name}`} className="flex flex-col border-t border-edge-subtle">
+      <ul aria-label={t.tasksIn(group.name)} className="flex flex-col border-t border-edge-subtle">
         {agents.map((a) => (
           <TaskRow key={a.id} agent={a} catalogs={catalogs} skills={skills} groupEngine={engine} />
         ))}
@@ -124,6 +126,7 @@ export function TaskRow({
   /** Its group's engine, the starting point of an exception; null for a task without a group. */
   groupEngine: Engine | null;
 }) {
+  const t = useMessages(GROUPS);
   const choice = useEngineChoice({ agent: a.id }, a.section, catalogs);
   const line = resolutionLine(a.effective, catalogs);
   const start = groupEngine ?? firstEngine(catalogs, choosableProviders(catalogs)[0]?.provider ?? '');
@@ -149,14 +152,14 @@ export function TaskRow({
       >
         <StateIcon kind={line.tone === 'ok' ? 'done' : 'problem'} size={14} className="mt-0.5" />
         <span>
-          <span className="sr-only">{line.tone === 'ok' ? 'Runs on: ' : 'Cannot run: '}</span>
+          <span className="sr-only">{line.tone === 'ok' ? t.runsOn : t.cannotRun}</span>
           {line.text}
         </span>
       </p>
       {a.own ? (
         <div className="flex flex-col gap-2">
           <EngineSelect
-            label={`${a.section}, its own model`}
+            label={t.ownModel(a.section)}
             catalogs={catalogs}
             value={a.own.engine}
             disabled={choice.busy}
@@ -164,7 +167,7 @@ export function TaskRow({
           />
           {a.group ? (
             <Button size="sm" variant="quiet" className="self-start" disabled={choice.busy} onClick={choice.clear}>
-              Use the group’s
+              {t.useGroups}
             </Button>
           ) : null}
         </div>
@@ -174,12 +177,12 @@ export function TaskRow({
             size="sm"
             variant="secondary"
             disabled={choice.busy || !start}
-            aria-label={a.group ? `Use another model for ${a.section}` : `Choose a model for ${a.section}`}
+            aria-label={a.group ? t.useAnotherFor(a.section) : t.chooseFor(a.section)}
             onClick={() => start && choice.set(start)}
           >
-            {a.group ? 'Use another model' : 'Choose a model'}
+            {a.group ? t.useAnother : t.chooseOne}
           </Button>
-          {!start ? <span className="text-sm text-fg-3">No engine to choose yet.</span> : null}
+          {!start ? <span className="text-sm text-fg-3">{t.noEngineToChoose}</span> : null}
         </div>
       )}
       <Changed words={choice.changed} />
@@ -187,21 +190,21 @@ export function TaskRow({
       <details className="group">
         <summary className="inline-flex min-h-6 cursor-pointer list-none items-center gap-1 text-sm font-medium text-fg-2 hover:text-fg [&::-webkit-details-marker]:hidden">
           <ChevronRightIcon size={12} className="transition-transform group-open:rotate-90" />
-          Skills and limits
+          {t.skillsAndLimits}
         </summary>
         <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-          <dt className="text-fg-2">Does</dt>
+          <dt className="text-fg-2">{t.does}</dt>
           <dd className="text-fg">{ACTION_WORDS[a.action] ?? a.action}</dd>
-          <dt className="text-fg-2">Conversation</dt>
-          <dd className="text-fg">
-            {a.session === 'thread' ? 'Keeps a conversation per thread' : 'Sends the whole context every time'}
+          <dt className="text-fg-2">{t.conversation}</dt>
+          <dd className="text-fg">{a.session === 'thread' ? t.keepsConversation : t.sendsWholeContext}</dd>
+          <dt className="text-fg-2">{t.timeLimit}</dt>
+          <dd className="text-fg tabular-nums">
+            {t.stoppedAfter(a.time_limit >= 60 ? t.minutes(Math.round(a.time_limit / 60)) : t.seconds(a.time_limit))}
           </dd>
-          <dt className="text-fg-2">Time limit</dt>
-          <dd className="text-fg tabular-nums">Stopped after {minutes(a.time_limit)}</dd>
-          <dt className="text-fg-2">Skills</dt>
+          <dt className="text-fg-2">{t.skills}</dt>
           <dd className="text-fg">
             {own.length === 0 && a.skills.length === 0 ? (
-              <span className="text-fg-3">None</span>
+              <span className="text-fg-3">{t.none}</span>
             ) : (
               <ul className="flex flex-col gap-1">
                 {(own.length > 0 ? own : a.skills.map((id) => ({ id, description: '' }))).map((s) => (

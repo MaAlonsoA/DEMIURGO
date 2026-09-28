@@ -8,30 +8,35 @@ import type { Criterion, Readiness } from '../../api/types.ts';
 import { Code } from '../../components/Badge.tsx';
 import { AlertTriangleIcon } from '../../components/icons.tsx';
 import { WhoAvatar } from '../../components/Who.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { warningsOf } from './logic.ts';
+import { CHECKS } from './words.i18n.ts';
 
 /** Who checks it: a test on its own (Automatic) or the person by hand (You), in words. */
 export function VerificationMark({ verification, className }: { verification: string; className?: string }) {
+  const t = useMessages(CHECKS);
   const you = verification === 'manual';
   return (
     <span
       className={cn('inline-flex items-center gap-1.5 text-xs text-fg-2', className)}
-      title={you ? 'You check it by hand once it is built.' : 'A test checks it on its own.'}
+      title={you ? t.verifyManualTitle : t.verifyAutoTitle}
     >
       <WhoAvatar kind={you ? 'you' : 'automatic'} size={16} />
       <span>
-        Checked by: <span className="font-medium text-fg">{you ? 'You' : 'Automatic'}</span>
+        {t.checkedBy}
+        <span className="font-medium text-fg">{you ? t.you : t.automatic}</span>
       </span>
     </span>
   );
 }
 
 export function CheckList({ criteria, readiness }: { criteria: Criterion[]; readiness: Readiness | null }) {
+  const t = useMessages(CHECKS);
   if (criteria.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-edge-strong px-4 py-6 text-center text-sm text-fg-2">
-        This version has no checks yet.
+        {t.noChecksYet}
       </p>
     );
   }
@@ -61,7 +66,7 @@ export function CheckList({ criteria, readiness }: { criteria: Criterion[]; read
             ) : null}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-edge-subtle pt-2 text-sm text-fg-2">
               <span>
-                <span className="font-medium text-fg">How: </span>
+                <span className="font-medium text-fg">{t.how}</span>
                 {c.check}
               </span>
               <VerificationMark verification={c.verification} className="ml-auto" />
@@ -83,12 +88,13 @@ export function Checks({
   readiness: Readiness | null;
   level?: 2 | 3;
 }) {
+  const t = useMessages(CHECKS);
   const id = useId();
   const H = level === 3 ? 'h3' : 'h2';
   return (
     <section aria-labelledby={id} className="flex flex-col gap-3">
       <H id={id} className="text-lg font-semibold text-fg">
-        Checks <span className="font-normal text-fg-2">· {criteria.length}</span>
+        {t.checksTitle} <span className="font-normal text-fg-2">· {criteria.length}</span>
       </H>
       <CheckList criteria={criteria} readiness={readiness} />
     </section>

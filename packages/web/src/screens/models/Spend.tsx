@@ -8,8 +8,10 @@ import type { AgentInfo, Catalog, Consumption, ConsumptionRow, StatsRow } from '
 import { Code } from '../../components/Badge.tsx';
 import { Section } from '../../components/Page.tsx';
 import { Segmented } from '../../components/Tabs.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { agentSection, engineLabel, failureKindsText, formatTokens } from './engines.ts';
+import { SPEND } from './words.i18n.ts';
 
 const th = 'px-3 py-2 text-left text-xs font-medium text-fg-2 whitespace-nowrap';
 const num = 'text-right tabular-nums';
@@ -48,58 +50,60 @@ export function SpendSection({
   catalogs: Catalog[];
   agents: readonly AgentInfo[] | undefined;
 }) {
+  const t = useMessages(SPEND);
   const [period, setPeriod] = useState<'today' | 'week'>('today');
   const data = consumption[period];
   const providerName = (key: string) => catalogs.find((c) => c.provider === key)?.label ?? key;
   return (
     <Section
-      title="What it has spent"
+      title={t.spendTitle}
       id="spend"
-      note="Only shown: there are no limits. Cost appears only when the provider reports it."
+      note={t.spendNote}
       actions={
         <Segmented
-          label="Period"
+          label={t.periodLabel}
           value={period}
           onChange={setPeriod}
           options={[
-            { value: 'today', label: 'Today' },
-            { value: 'week', label: 'Last 7 days' },
+            { value: 'today', label: t.today },
+            { value: 'week', label: t.week },
           ]}
         />
       }
     >
       <div className="grid gap-4 lg:grid-cols-2">
-        <UsageTable title="By provider" rows={data.byProvider} name={(k) => providerName(k)} />
-        <UsageTable title="By part of DEMIURGO" rows={data.byAgent} name={(k) => <PartName id={k} agents={agents} />} />
+        <UsageTable title={t.byProvider} rows={data.byProvider} name={(k) => providerName(k)} />
+        <UsageTable title={t.byPart} rows={data.byAgent} name={(k) => <PartName id={k} agents={agents} />} />
       </div>
     </Section>
   );
 }
 
 function UsageTable({ title, rows, name }: { title: string; rows: ConsumptionRow[]; name: (key: string) => ReactNode }) {
+  const t = useMessages(SPEND);
   return (
     <Frame title={title} label={title}>
       {rows.length === 0 ? (
-        <p className="px-3 py-3 text-sm text-fg-3">Nothing yet.</p>
+        <p className="px-3 py-3 text-sm text-fg-3">{t.nothingYet}</p>
       ) : (
         <table className="w-full min-w-[420px] border-collapse text-sm">
           <caption className="sr-only">{title}</caption>
           <thead>
             <tr className="border-b border-edge-subtle">
               <th scope="col" className={th}>
-                Name
+                {t.colName}
               </th>
               <th scope="col" className={cn(th, 'text-right')}>
-                Calls
+                {t.colCalls}
               </th>
               <th scope="col" className={cn(th, 'text-right')}>
-                Tokens in
+                {t.colTokensIn}
               </th>
               <th scope="col" className={cn(th, 'text-right')}>
-                Tokens out
+                {t.colTokensOut}
               </th>
               <th scope="col" className={cn(th, 'text-right')}>
-                Cost
+                {t.colCost}
               </th>
             </tr>
           </thead>
@@ -134,37 +138,38 @@ export function StatsSection({
   catalogs: Catalog[];
   agents: readonly AgentInfo[] | undefined;
 }) {
+  const t = useMessages(SPEND);
   if (stats.length === 0) return null;
   return (
-    <Section title="How each engine does" id="stats" note="Per part of DEMIURGO and engine, over every call it made.">
-      <Frame label="How each engine does">
+    <Section title={t.statsTitle} id="stats" note={t.statsNote}>
+      <Frame label={t.statsTitle}>
         <table className="w-full min-w-[760px] border-collapse text-sm">
-          <caption className="sr-only">How each engine does</caption>
+          <caption className="sr-only">{t.statsTitle}</caption>
           <thead>
             <tr className="border-b border-edge-subtle">
               <th scope="col" className={th}>
-                Part
+                {t.colPart}
               </th>
               <th scope="col" className={th}>
-                Engine
+                {t.colEngine}
               </th>
               <th scope="col" className={cn(th, 'text-right')}>
-                Calls
+                {t.colCalls}
               </th>
               <th scope="col" className={th}>
-                Failed
+                {t.colFailed}
               </th>
               <th scope="col" className={cn(th, 'text-right')}>
-                Avg time
+                {t.colAvgTime}
               </th>
               <th scope="col" className={cn(th, 'text-right')}>
-                Avg tokens
+                {t.colAvgTokens}
               </th>
               <th scope="col" className={cn(th, 'text-right')}>
-                Questions/run
+                {t.colQuestionsPerRun}
               </th>
               <th scope="col" className={cn(th, 'text-right')}>
-                Proposals/run
+                {t.colProposalsPerRun}
               </th>
             </tr>
           </thead>

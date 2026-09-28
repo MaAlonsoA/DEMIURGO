@@ -20,25 +20,15 @@ import { RowsSkeleton } from '../../components/Spinner.tsx';
 import { EntityState } from '../../components/status.tsx';
 import { Segmented } from '../../components/Tabs.tsx';
 import { RelativeTime } from '../../components/Time.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { useProjectId, useTables } from '../../lib/hooks.ts';
 import { OpenThreadDialog } from './OpenThreadDialog.tsx';
 import { type StateFilter, type TreeRow, filterRows, stateCounts, threadTree, treeRows, visibleRows } from './tree.ts';
-
-const FILTERS: { value: StateFilter; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'active', label: 'Active' },
-  { value: 'concluded', label: 'Concluded' },
-  { value: 'set_aside', label: 'Set aside' },
-];
-
-const FILTER_EMPTY: Record<Exclude<StateFilter, 'all'>, string> = {
-  active: 'No active threads',
-  concluded: 'No concluded threads',
-  set_aside: 'No threads set aside',
-};
+import { THREADS } from './words.i18n.ts';
 
 export function ThreadsScreen() {
+  const t = useMessages(THREADS);
   const projectId = useProjectId();
   const tables = useTables();
   const threads = useQuery(explorationsQuery(projectId));
@@ -46,39 +36,43 @@ export function ThreadsScreen() {
   const [opening, setOpening] = useState(false);
   const [filter, setFilter] = useState<StateFilter>('all');
   const allowed = tables ? canCreate(tables, 'exploration.open') : false;
-  usePageTitle(['Threads', project?.name]);
+  usePageTitle([t.title, project?.name]);
 
+  const FILTERS: { value: StateFilter; label: string }[] = [
+    { value: 'all', label: t.all },
+    { value: 'active', label: t.active },
+    { value: 'concluded', label: t.concluded },
+    { value: 'set_aside', label: t.setAside },
+  ];
   const list = threads.data;
   const counts = stateCounts(list ?? []);
   const newThread = allowed ? (
     <Button variant="primary" icon={<PlusIcon size={14} />} onClick={() => setOpening(true)}>
-      New thread
+      {t.newThread}
     </Button>
   ) : null;
 
   return (
     <>
       <PageHeader
-        title="Threads"
+        title={t.title}
         meta={
           list && list.length > 0 ? (
-            <span className="tabular-nums">
-              {list.length} {list.length === 1 ? 'thread' : 'threads'} · {counts.active} active
-            </span>
+            <span className="tabular-nums">{t.countLine(list.length, counts.active)}</span>
           ) : (
-            <span>Explore something with DEMIURGO: a question, an idea, a change.</span>
+            <span>{t.exploreSomething}</span>
           )
         }
         actions={list?.length === 0 ? null : newThread}
       />
       <PageBody width="wide" className="flex flex-col gap-4">
         {threads.isPending ? (
-          <RowsSkeleton label="Loading the threads" rows={4} />
+          <RowsSkeleton label={t.loadingThreads} rows={4} />
         ) : !list ? (
           <ErrorNotice error={threads.error} onRetry={() => void threads.refetch()} />
         ) : list.length === 0 ? (
-          <EmptyState size="spacious" icon={<ThreadsIcon size={28} />} title="No threads yet" action={newThread}>
-            {allowed ? 'Open one to explore something with DEMIURGO.' : 'Threads appear here when someone opens one.'}
+          <EmptyState size="spacious" icon={<ThreadsIcon size={28} />} title={t.noThreadsYet} action={newThread}>
+            {allowed ? t.openOneAllowed : t.openOneNotAllowed}
           </EmptyState>
         ) : (
           <>
@@ -86,7 +80,7 @@ export function ThreadsScreen() {
               <ErrorNotice error={threads.error} onRetry={() => void threads.refetch()} focus={false} compact />
             ) : null}
             <Segmented
-              label="Show threads"
+              label={t.showThreads}
               value={filter}
               onChange={setFilter}
               options={FILTERS.map((f) => ({ value: f.value, label: f.label, count: counts[f.value] }))}
@@ -118,6 +112,12 @@ function ThreadTree({
   filter: StateFilter;
   onShowAll: () => void;
 }) {
+  const words = useMessages(THREADS);
+  const FILTER_EMPTY: Record<Exclude<StateFilter, 'all'>, string> = {
+    active: words.noActive,
+    concluded: words.noConcluded,
+    set_aside: words.noSetAside,
+  };
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [focusId, setFocusId] = useState<string | null>(null);
@@ -127,8 +127,8 @@ function ThreadTree({
 
   if (rows.length === 0 && filter !== 'all') {
     return (
-      <EmptyState title={FILTER_EMPTY[filter]} action={<Button onClick={onShowAll}>Show all threads</Button>}>
-        Nothing in this state among the {threads.length} {threads.length === 1 ? 'thread' : 'threads'} of the project.
+      <EmptyState title={FILTER_EMPTY[filter]} action={<Button onClick={onShowAll}>{words.showAllThreads}</Button>}>
+        {words.nothingInState(threads.length)}
       </EmptyState>
     );
   }
@@ -192,22 +192,22 @@ function ThreadTree({
   return (
     <>
       <p id="threads-keys" className="sr-only">
-        Arrow keys move between threads. Right and Left show or hide the threads inside one. Enter opens it.
+        {words.keysHelp}
       </p>
       <div
         ref={grid}
         role="treegrid"
-        aria-label="Threads"
+        aria-label={words.title}
         aria-describedby="threads-keys"
         aria-rowcount={rows.length + 1}
         className="overflow-hidden rounded-lg border border-edge"
       >
         <div role="rowgroup" className="hidden border-b border-edge bg-sunken md:block">
           <div role="row" aria-rowindex={1} className={cn(COLUMNS, 'h-9 items-center px-3 text-sm font-medium text-fg-2')}>
-            <span role="columnheader">Thread</span>
-            <span role="columnheader">State</span>
-            <span role="columnheader">Waiting on you</span>
-            <span role="columnheader">Last activity</span>
+            <span role="columnheader">{words.thread}</span>
+            <span role="columnheader">{words.state}</span>
+            <span role="columnheader">{words.waitingOnYou}</span>
+            <span role="columnheader">{words.lastActivity}</span>
           </div>
         </div>
         <div role="rowgroup" className="divide-y divide-edge-subtle">
@@ -245,7 +245,7 @@ function ThreadTree({
                       <button
                         type="button"
                         tabIndex={-1}
-                        aria-label={`${isCollapsed ? 'Show' : 'Hide'} the threads inside “${t.purpose}”`}
+                        aria-label={isCollapsed ? words.showChildren(t.purpose) : words.hideChildren(t.purpose)}
                         onClick={() => toggle(t.id)}
                         className="inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-xs text-fg-2 hover:bg-sunken hover:text-fg"
                       >
@@ -278,7 +278,7 @@ function ThreadTree({
                   <Waiting n={t.open_questions} dash />
                 </div>
                 <div role="gridcell" className="hidden text-sm text-fg-2 md:block">
-                  <span className="sr-only">Last activity </span>
+                  <span className="sr-only">{words.lastActivitySr}</span>
                   <RelativeTime iso={t.last_activity} />
                 </div>
               </div>
@@ -295,12 +295,13 @@ function ThreadTree({
  * assumed or parked, so the words say so (the old "open questions" undercounted, INVENTORY Part C).
  */
 function Waiting({ n, dash }: { n: number; dash?: boolean }) {
+  const words = useMessages(THREADS);
   if (n <= 0)
     return dash ? (
       <span className="text-sm text-fg-3">
         <span aria-hidden>—</span>
-        <span className="sr-only">Nothing waits for you</span>
+        <span className="sr-only">{words.nothingWaits}</span>
       </span>
     ) : null;
-  return <Count n={n} label={`${n} ${n === 1 ? 'question waits' : 'questions wait'} for you (open, assumed or parked)`} />;
+  return <Count n={n} label={words.waiting(n)} />;
 }

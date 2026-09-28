@@ -14,6 +14,9 @@ import {
   SourcesIcon,
   ThreadsIcon,
 } from '../components/icons.tsx';
+import type { Locale } from '../i18n/locale.ts';
+import { useSafeLocale } from '../words.ts';
+import { NAV_LABELS } from './words.i18n.ts';
 
 export type NavKey = 'needs' | 'threads' | 'product' | 'activity' | 'knowledge' | 'sources' | 'models' | 'keys';
 
@@ -98,4 +101,14 @@ export const NAV: NavItem[] = [
 export function sectionOf(pathname: string): NavKey | null {
   const rest = pathname.replace(/^\/p\/[^/]+/, '');
   return NAV.find((n) => n.match.test(rest))?.key ?? null;
+}
+
+/** A NAV item's label in the language given ("Needs you" / "Te necesita"); NAV.label stays English. */
+export function navLabelFor(locale: Locale, key: NavKey): string {
+  return (locale === 'es' ? NAV_LABELS.es : NAV_LABELS.en)[key];
+}
+
+/** navLabelFor in the language shown now. */
+export function useNavLabel(key: NavKey): string {
+  return navLabelFor(useSafeLocale(), key);
 }

@@ -14,27 +14,31 @@ import { isActive, runView, unresolvedFailures } from '../components/runState.ts
 import { WorkingDot } from '../components/status.tsx';
 import { useNow } from '../components/Time.tsx';
 import { Tooltip } from '../components/Tooltip.tsx';
+import { type Translation, useMessages } from '../i18n/define.ts';
 import { cn } from '../lib/cn.ts';
 import { freshnessOf } from '../screens/knowledge/graph.ts';
 import { hasDevTools, openDevPanel } from '../screens/dev/snapshots.ts';
+import { useSafeLocale } from '../words.ts';
 import { openCommandMenu } from './CommandMenu.tsx';
 import { LiveStatus } from './Connection.tsx';
 import { openHelp } from './Help.tsx';
-import { NAV, type NavItem, sectionOf } from './nav.ts';
+import { NAV, type NavItem, navLabelFor, sectionOf } from './nav.ts';
 import { PersonMenu } from './PersonMenu.tsx';
 import { ProjectSwitcher } from './ProjectSwitcher.tsx';
+import { SIDEBAR } from './words.i18n.ts';
 
 type Signal = { indicator: ReactNode; words: string };
+type SidebarWords = Translation<typeof SIDEBAR.en>;
 
-function useNeedsSignal(projectId: string): Signal {
+function useNeedsSignal(projectId: string, t: SidebarWords): Signal {
   const total = useQuery(inboxQuery(projectId)).data?.total ?? 0;
   return {
-    indicator: <Count n={total} label={`${total} ${total === 1 ? 'thing needs' : 'things need'} you`} />,
-    words: total > 0 ? `${total} ${total === 1 ? 'thing waits' : 'things wait'} for you` : 'Nothing waits for you',
+    indicator: <Count n={total} label={t.needsYouIndicator(total)} />,
+    words: total > 0 ? t.thingsWait(total) : t.nothingWaits,
   };
 }
 
-function useActivitySignal(projectId: string): Signal {
+function useActivitySignal(projectId: string, t: SidebarWords): Signal {
   const runs = useQuery(runsQuery(projectId)).data ?? [];
   const active = runs.filter((r) => isActive(r.state));
   const now = useNow(active.length > 0);
@@ -43,12 +47,12 @@ function useActivitySignal(projectId: string): Signal {
   const stuck = views.filter((v) => v.kind === 'stalled' || v.kind === 'late').length;
   const failed = unresolvedFailures(runs, now).length;
   const words = [
-    working > 0 ? `${working} working` : null,
-    stuck > 0 ? `${stuck} stalled or late` : null,
-    failed > 0 ? `${failed} failed` : null,
+    working > 0 ? t.working(working) : null,
+    stuck > 0 ? t.stalledOrLate(stuck) : null,
+    failed > 0 ? t.failed(failed) : null,
   ].filter(Boolean);
   return {
-    words: words.length > 0 ? words.join(' · ') : 'Nothing running',
+    words: words.length > 0 ? words.join(' · ') : t.nothingRunning,
     indicator: (
       <span className="flex items-center gap-1.5" data-activity={`${working}:${stuck}:${failed}`}>
         {working > 0 ? (
@@ -62,28 +66,20 @@ function useActivitySignal(projectId: string): Signal {
             {working}
           </span>
         ) : null}
-        {failed > 0 ? <Count n={failed} tone="danger" label={`${failed} failed`} /> : null}
+        {failed > 0 ? <Count n={failed} tone="danger" label={t.failed(failed)} /> : null}
       </span>
     ),
   };
 }
 
-function useKnowledgeSignal(projectId: string): Signal | null {
+function useKnowledgeSignal(projectId: string, t: SidebarWords): Signal | null {
   const k = useQuery(knowledgeQuery(projectId)).data;
   if (!k) return null;
   const f = freshnessOf(k);
   const failed = k.updates.filter((u) => u.state === 'rejected').length;
-  if (f === 'behind')
-    return {
-      indicator: <AlertCircleIcon size={15} className="text-danger-text" />,
-      words: `Behind: ${failed} ${failed === 1 ? 'update' : 'updates'} failed`,
-    };
-  if (f === 'updating')
-    return {
-      indicator: <WorkingDot size={7} />,
-      words: `Updating: ${k.updates_in_progress} ${k.updates_in_progress === 1 ? 'change' : 'changes'} to go`,
-    };
-  return { indicator: null, words: `Up to date (version ${k.graph_version})` };
+  if (f === 'behind') return { indicator: <AlertCircleIcon size={15} className="text-danger-text" />, words: t.behind(failed) };
+  if (f === 'updating') return { indicator: <WorkingDot size={7} />, words: t.updating(k.updates_in_progress) };
+  return { indicator: null, words: t.upToDate(k.graph_version) };
 }
 
 function NavLink({
@@ -101,6 +97,7 @@ function NavLink({
   compact?: boolean;
   onNavigate?: () => void;
 }) {
+  const label = navLabelFor(useSafeLocale(), item.key);
   const link = (
     <Link
       to={item.to as '/p/$projectId'}
@@ -115,13 +112,13 @@ function NavLink({
       )}
     >
       <item.icon size={17} className={cn('shrink-0', current ? 'text-accent-text' : 'text-fg-3 group-hover:text-fg-2')} />
-      {!compact ? <span className="min-w-0 flex-1 truncate">{item.label}</span> : <span className="sr-only">{item.label}</span>}
+      {!compact ? <span className="min-w-0 flex-1 truncate">{label}</span> : <span className="sr-only">{label}</span>}
       {signal?.indicator ? <span className={cn('shrink-0', compact && 'absolute right-1 top-1')}>{signal.indicator}</span> : null}
       {signal?.words ? <span className="sr-only">: {signal.words}</span> : null}
     </Link>
   );
   return compact || signal?.words ? (
-    <Tooltip content={signal?.words ? `${item.label} · ${signal.words}` : item.label} side="right">
+    <Tooltip content={signal?.words ? `${label} · ${signal.words}` : label} side="right">
       {link}
     </Tooltip>
   ) : (
@@ -142,11 +139,12 @@ export function Sidebar({
   /** Called after following a link (closes the drawer on small screens). */
   onNavigate?: () => void;
 }) {
+  const t = useMessages(SIDEBAR);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const section = sectionOf(pathname);
-  const needs = useNeedsSignal(projectId);
-  const activity = useActivitySignal(projectId);
-  const knowledge = useKnowledgeSignal(projectId);
+  const needs = useNeedsSignal(projectId, t);
+  const activity = useActivitySignal(projectId, t);
+  const knowledge = useKnowledgeSignal(projectId, t);
   const devTools = hasDevTools(useQuery(sessionQuery).data);
   const signals: Partial<Record<NavItem['key'], Signal | null>> = { needs, activity, knowledge };
 
@@ -169,11 +167,11 @@ export function Sidebar({
   );
 
   return (
-    <nav aria-label="Sections" className="flex h-full min-h-0 flex-col gap-1 px-2 py-3">
+    <nav aria-label={t.sections} className="flex h-full min-h-0 flex-col gap-1 px-2 py-3">
       <div className={cn('flex items-center gap-1 px-1 pb-1', compact && 'flex-col px-0')}>
         <Link
           to="/"
-          aria-label="DEMIURGO: your projects"
+          aria-label={t.home}
           className={cn(
             'inline-flex min-w-0 flex-1 items-center gap-2 rounded-md py-1 text-sm font-semibold text-fg',
             compact && 'flex-none',
@@ -188,10 +186,10 @@ export function Sidebar({
           {!compact ? <span className="truncate">DEMIURGO</span> : null}
         </Link>
         {onToggle ? (
-          <Tooltip content={compact ? 'Expand the sidebar' : 'Collapse the sidebar'} side="right">
+          <Tooltip content={compact ? t.expand : t.collapse} side="right">
             <button
               type="button"
-              aria-label={compact ? 'Expand the sidebar' : 'Collapse the sidebar'}
+              aria-label={compact ? t.expand : t.collapse}
               aria-expanded={!compact}
               onClick={onToggle}
               className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-fg-3 hover:bg-hover hover:text-fg"
@@ -205,7 +203,7 @@ export function Sidebar({
       <button
         type="button"
         onClick={openCommandMenu}
-        aria-label="Search (Ctrl K)"
+        aria-label={t.search}
         aria-keyshortcuts="Control+K Meta+K"
         className={cn(
           'mb-1 flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-md border border-edge bg-panel px-2 text-base text-fg-3 hover:border-edge-strong hover:text-fg-2',
@@ -215,25 +213,25 @@ export function Sidebar({
         <SearchIcon size={16} className="shrink-0" />
         {!compact ? (
           <>
-            <span className="flex-1 text-left">Search</span>
-            <kbd className="rounded-xs border border-edge px-1 font-ui text-xs">Ctrl K</kbd>
+            <span className="flex-1 text-left">{t.search}</span>
+            <kbd className="rounded-xs border border-edge px-1 font-ui text-xs">{t.ctrlK}</kbd>
           </>
         ) : null}
       </button>
       <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
         {group('work', null)}
-        {group('knowledge', 'Knowledge')}
-        {group('settings', 'Settings')}
+        {group('knowledge', t.knowledgeGroup)}
+        {group('settings', t.settingsGroup)}
       </div>
       <div className={cn('flex flex-col gap-1 border-t border-edge pt-2', compact && 'items-center')}>
         <div className={cn('flex items-center gap-1', compact ? 'flex-col' : 'justify-between px-2')}>
           <LiveStatus {...(compact ? { compact } : {})} />
           <div className={cn('flex items-center gap-0.5', compact && 'flex-col')}>
             {devTools ? (
-              <Tooltip content="Dev tools: snapshots" side="right">
+              <Tooltip content={t.devTools} side="right">
                 <button
                   type="button"
-                  aria-label="Dev tools: snapshots"
+                  aria-label={t.devTools}
                   onClick={openDevPanel}
                   className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-fg-3 hover:bg-hover hover:text-fg"
                 >
@@ -241,10 +239,10 @@ export function Sidebar({
                 </button>
               </Tooltip>
             ) : null}
-            <Tooltip content="Help (?)" side="right">
+            <Tooltip content={t.help} side="right">
               <button
                 type="button"
-                aria-label="Help"
+                aria-label={t.helpLabel}
                 aria-keyshortcuts="?"
                 onClick={openHelp}
                 className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-fg-3 hover:bg-hover hover:text-fg"

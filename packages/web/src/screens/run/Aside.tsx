@@ -13,17 +13,20 @@ import { Section } from '../../components/Page.tsx';
 import { attemptOf } from '../../components/runState.tsx';
 import { EntityState } from '../../components/status.tsx';
 import { DayTime, useNow } from '../../components/Time.tsx';
+import { type Translation, useMessages } from '../../i18n/define.ts';
 import { ACTION_WORDS } from '../../words.ts';
 import { engineLabel, formatTokens } from '../models/engines.ts';
 import { SESSION_WORDS, attemptsOf, clockTime, runDuration } from './runs.ts';
+import { ASIDE } from './words.i18n.ts';
 
 /** "From the engine's usage report", or that it wasn't reported. */
-function source(provenance: Record<string, string> | undefined, field: string): string {
+function source(t: Translation<typeof ASIDE.en>, provenance: Record<string, string> | undefined, field: string): string {
   const from = provenance?.[field];
-  return from ? `From ${from}` : 'Not reported by the engine';
+  return from ? t.from(from) : t.notReported;
 }
 
 export function RunFacts({ run: r, active }: { run: RunDetail; active: boolean }) {
+  const t = useMessages(ASIDE);
   const catalogs = useQuery(providersQuery).data?.catalogs ?? [];
   const now = useNow(active);
   const [agent, version] = r.method.split('@');
@@ -32,7 +35,7 @@ export function RunFacts({ run: r, active }: { run: RunDetail; active: boolean }
   const items: KeyValueItem[] = [
     {
       key: 'agent',
-      label: 'Agent',
+      label: t.agent,
       value: (
         <Code className="text-sm text-fg">
           {r.agent ?? agent}
@@ -40,70 +43,70 @@ export function RunFacts({ run: r, active }: { run: RunDetail; active: boolean }
         </Code>
       ),
     },
-    { key: 'engine', label: 'Engine', value: engine ? engineLabel(engine, catalogs) : r.provider },
-    { key: 'model', label: 'Answered by', value: r.model ?? <span className="text-fg-3">Not known yet</span> },
+    { key: 'engine', label: t.engine, value: engine ? engineLabel(engine, catalogs) : r.provider },
+    { key: 'model', label: t.answeredBy, value: r.model ?? <span className="text-fg-3">{t.notKnownYet}</span> },
     ...(r.session_mode
-      ? [{ key: 'session', label: 'Conversation', value: SESSION_WORDS[r.session_mode] ?? r.session_mode }]
+      ? [{ key: 'session', label: t.conversation, value: SESSION_WORDS[r.session_mode] ?? r.session_mode }]
       : []),
     ...(r.prompt_hash
       ? [
           {
             key: 'prompt',
-            label: 'Prompt',
+            label: t.prompt,
             value: <Code className="break-all">{r.prompt_hash}</Code>,
-            hint: "Fingerprint of the agent's system prompt",
+            hint: t.promptHint,
           },
         ]
       : []),
-    { key: 'requested', label: 'Requested', value: <Clock iso={r.created_at} /> },
-    ...(r.started_at ? [{ key: 'started', label: 'Started', value: <Clock iso={r.started_at} /> }] : []),
-    ...(r.finished_at ? [{ key: 'finished', label: 'Finished', value: <Clock iso={r.finished_at} /> }] : []),
+    { key: 'requested', label: t.requested, value: <Clock iso={r.created_at} /> },
+    ...(r.started_at ? [{ key: 'started', label: t.started, value: <Clock iso={r.started_at} /> }] : []),
+    ...(r.finished_at ? [{ key: 'finished', label: t.finished, value: <Clock iso={r.finished_at} /> }] : []),
     {
       key: 'duration',
-      label: 'Duration',
+      label: t.duration,
       value: <span className="tabular-nums">{runDuration(r, now) || '—'}</span>,
-      ...(active ? { hint: 'Still counting' } : {}),
+      ...(active ? { hint: t.stillCounting } : {}),
     },
     ...(u
       ? [
           {
             key: 'tokens-in',
-            label: 'Tokens in',
+            label: t.tokensIn,
             value: (
               <span className="tabular-nums">
                 {formatTokens(u.inputTokens)}
-                {u.cachedInputTokens ? <span className="text-fg-2"> · {formatTokens(u.cachedInputTokens)} cached</span> : null}
+                {u.cachedInputTokens ? <span className="text-fg-2"> · {t.cached(formatTokens(u.cachedInputTokens))}</span> : null}
               </span>
             ),
-            hint: source(u.provenance, 'inputTokens'),
+            hint: source(t, u.provenance, 'inputTokens'),
           },
           {
             key: 'tokens-out',
-            label: 'Tokens out',
+            label: t.tokensOut,
             value: (
               <span className="tabular-nums">
                 {formatTokens(u.outputTokens)}
-                {u.reasoningTokens ? <span className="text-fg-2"> · {formatTokens(u.reasoningTokens)} thinking</span> : null}
+                {u.reasoningTokens ? <span className="text-fg-2"> · {t.thinking(formatTokens(u.reasoningTokens))}</span> : null}
               </span>
             ),
-            hint: source(u.provenance, 'outputTokens'),
+            hint: source(t, u.provenance, 'outputTokens'),
           },
-          ...(u.turns ? [{ key: 'turns', label: 'Turns', value: <span className="tabular-nums">{u.turns}</span> }] : []),
+          ...(u.turns ? [{ key: 'turns', label: t.turns, value: <span className="tabular-nums">{u.turns}</span> }] : []),
           {
             key: 'cost',
-            label: 'Cost',
+            label: t.cost,
             value: u.declaredCostUsd ? (
               <span className="tabular-nums">${u.declaredCostUsd.toFixed(4)}</span>
             ) : (
               <span className="text-fg-3">—</span>
             ),
-            hint: u.declaredCostUsd ? source(u.provenance, 'declaredCostUsd') : 'The engine reported no cost',
+            hint: u.declaredCostUsd ? source(t, u.provenance, 'declaredCostUsd') : t.costNotReported,
           },
         ]
-      : [{ key: 'usage', label: 'Usage', value: <span className="text-fg-3">Not reported yet</span> }]),
+      : [{ key: 'usage', label: t.usage, value: <span className="text-fg-3">{t.notReportedYet}</span> }]),
   ];
   return (
-    <Section title="Details" id="run-details">
+    <Section title={t.detailsTitle} id="run-details">
       <KeyValue items={items} />
     </Section>
   );
@@ -119,22 +122,23 @@ function Clock({ iso }: { iso: string }) {
 
 /** Every attempt of the same work, oldest first; this run is marked, the others are links. */
 export function Attempts({ projectId, run: r, runs }: { projectId: string; run: RunDetail; runs: RunListItem[] }) {
+  const t = useMessages(ASIDE);
   type Attempt = Pick<RunListItem, 'id' | 'retry_of' | 'created_at' | 'state' | 'action'>;
   const known: Attempt[] = runs.some((x) => x.id === r.id) ? runs : [...runs, r];
   const chain = attemptsOf(r.id, known);
   if (chain.length < 2 && !r.retry_of) return null;
   const retries = new Set(runs.filter((x) => x.retry_of === r.id).map((x) => x.id));
   return (
-    <Section title="Attempts" id="run-attempts" note="A retry is a new run on the same context. Oldest first.">
+    <Section title={t.attemptsTitle} id="run-attempts" note={t.attemptsNote}>
       <ol className="flex flex-col gap-1">
         {chain.map((x) => {
           const current = x.id === r.id;
           const body = (
             <>
               <span className="flex flex-wrap items-center gap-2">
-                <span className="font-medium text-fg">Attempt {attemptOf(x, known)}</span>
+                <span className="font-medium text-fg">{t.attempt(attemptOf(x, known))}</span>
                 <EntityState entity="ai_run" state={x.state} />
-                {current ? <span className="text-xs font-medium text-accent-text">This run</span> : null}
+                {current ? <span className="text-xs font-medium text-accent-text">{t.thisRun}</span> : null}
               </span>
               <span className="text-xs text-fg-2">
                 {ACTION_WORDS[x.action] ?? x.action} · <DayTime iso={x.created_at} />
@@ -167,13 +171,13 @@ export function Attempts({ projectId, run: r, runs }: { projectId: string; run: 
       </ol>
       {r.retry_of && !runs.some((x) => x.id === r.retry_of) ? (
         <p data-run-retry-of className="text-sm text-fg-2">
-          It retries a run that is no longer in the latest runs:{' '}
+          {t.retriesOfOldRun}{' '}
           <Link
             to="/p/$projectId/runs/$runId"
             params={{ projectId, runId: r.retry_of }}
             className="font-medium text-accent-text hover:underline"
           >
-            open the run it retries
+            {t.openRunItRetries}
           </Link>
         </p>
       ) : null}

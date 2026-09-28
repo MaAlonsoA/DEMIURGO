@@ -39,12 +39,12 @@ describe('default engines', () => {
         .execute();
     }
 
-    expect((await seedDefaultEngines(db)).toSorted()).toEqual(['echo', 'group:deep', 'group:quick']);
+    expect((await seedDefaultEngines(db)).toSorted()).toEqual(['echo', 'group:deep', 'group:quick', 'translator']);
     const current = await currentAssignments(db);
     expect(current.groups.deep?.engine).toEqual(ASTRA);
     expect(current.groups.quick?.engine).toEqual(LUNA);
-    // Only the exceptions keep their own engine: designer on Opus, and echo, which has no group.
-    expect(Object.keys(current.agents).toSorted()).toEqual(['designer', 'echo']);
+    // Only the exceptions keep their own engine: designer on Opus, and echo and translator, which have no group.
+    expect(Object.keys(current.agents).toSorted()).toEqual(['designer', 'echo', 'translator']);
     expect(current.agents.designer?.engine).toEqual(OPUS);
 
     // Every agent resolves to exactly the engine it had.

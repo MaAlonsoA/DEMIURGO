@@ -6,11 +6,15 @@
 
 import { Link, useRouter } from '@tanstack/react-router';
 import { type ReactNode, useEffect, useRef } from 'react';
+import { ApiError } from '../api/client.ts';
+import { useMessages } from '../i18n/define.ts';
 import { cn } from '../lib/cn.ts';
+import { useSafeLocale } from '../words.ts';
 import { Button } from './Button.tsx';
 import { ENGINE_REASON, explain } from './explain.ts';
 import { AlertCircleIcon, AlertTriangleIcon, CheckCircleIcon, InfoIcon, RetryIcon, XCircleIcon } from './icons.tsx';
 import { TONE, type Tone } from './status.tsx';
+import { NOTICE } from './words.i18n.ts';
 
 type NoticeTone = Extract<Tone, 'info' | 'success' | 'warning' | 'danger' | 'neutral' | 'accent'>;
 
@@ -79,6 +83,8 @@ export function ErrorNotice({
   /** Where "Open Models & providers" goes; by default the open project's, or the workspace's. */
   modelsHref?: string;
 }) {
+  const t = useMessages(NOTICE);
+  const locale = useSafeLocale();
   const ref = useRef<HTMLDivElement>(null);
   // Outside a router (a unit test) the link is a plain anchor.
   const router = useRouter({ warn: false }) as ReturnType<typeof useRouter> | undefined;
@@ -87,6 +93,9 @@ export function ErrorNotice({
   }, [error, focus]);
   if (!error) return null;
   const e = explain(error);
+  // In Spanish, a short lead sentence for the error's type, then the server's message as it came
+  // (product English, possibly specific) — the English side keeps today's title exactly.
+  const title = locale === 'es' ? t.leadFor(error instanceof ApiError ? error.type : null) : e.title;
   const path = router?.state.location.pathname ?? (typeof window === 'undefined' ? '' : window.location.pathname);
   const project = /^\/p\/([^/]+)/.exec(path)?.[1];
   const href = modelsHref ?? (project ? `/p/${project}/models` : '/models');
@@ -105,7 +114,7 @@ export function ErrorNotice({
     >
       <AlertCircleIcon size={16} className="mt-0.5 shrink-0" />
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <p className="font-medium">{e.title}</p>
+        <p className="font-medium">{title}</p>
         {e.reasons.length > 0 && (
           <ul className="list-disc space-y-0.5 pl-5 text-fg">
             {e.reasons.map((r) => (
@@ -116,11 +125,11 @@ export function ErrorNotice({
                     {' '}
                     {router ? (
                       <Link to={href as '/models'} className={linkClass}>
-                        Open Models &amp; providers
+                        {t.openModels}
                       </Link>
                     ) : (
                       <a href={href} className={linkClass}>
-                        Open Models &amp; providers
+                        {t.openModels}
                       </a>
                     )}
                   </>
@@ -132,7 +141,7 @@ export function ErrorNotice({
       </div>
       {onRetry ? (
         <Button size="sm" variant="secondary" icon={<RetryIcon size={14} />} onClick={onRetry} className="self-center">
-          Retry
+          {t.retry}
         </Button>
       ) : null}
     </div>

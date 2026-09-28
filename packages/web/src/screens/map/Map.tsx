@@ -24,24 +24,34 @@ import { Certainty, EntityState, StateIcon, StatusBadge } from '../../components
 import { RelativeTime } from '../../components/Time.tsx';
 import { TypeIcon, typeWord } from '../../components/types.tsx';
 import { Who } from '../../components/Who.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { useProjectId } from '../../lib/hooks.ts';
 import { ProductTabs } from '../../shell/ProductTabs.tsx';
 import { EPISTEMIC_MARK, MARKS } from '../../words.ts';
 import { rowStage } from '../record/logic.ts';
-import { LINE_STYLES, RELATION_KINDS, UNDER_REVIEW, connectedTo, lanesOf, relationWord, waitingOn } from './layout.ts';
+import {
+  LINE_STYLES,
+  type RelationWords,
+  RELATION_KINDS,
+  UNDER_REVIEW,
+  connectedTo,
+  lanesOf,
+  relationWord,
+  waitingOn,
+} from './layout.ts';
+import { MAP_WORDS } from './words.i18n.ts';
 
 const SCALES = [0.5, 0.6, 0.75, 0.9, 1, 1.15, 1.3];
 const MIN_SCALE = SCALES[0] ?? 0.5;
 const MAX_SCALE = SCALES.at(-1) ?? 1.3;
 
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-
 export function MapScreen() {
+  const t = useMessages(MAP_WORDS);
   const projectId = useProjectId();
   const map = useQuery(mapQuery(projectId));
   const project = (useQuery(projectsQuery).data ?? []).find((p) => p.id === projectId);
-  usePageTitle(['Map', project?.name]);
+  usePageTitle([t.mapTitle, project?.name]);
   const data = map.data;
   const [selected, setSelected] = useState<string | null>(null);
   const [pointed, setPointed] = useState<string | null>(null);
@@ -61,7 +71,7 @@ export function MapScreen() {
   const select = (code: string | null) => {
     setSelected(code);
     const row = code ? data?.records.find((r) => r.code === code) : undefined;
-    announce(row ? `Selected ${row.title}. Its connections are in the side panel.` : 'Selection cleared.');
+    announce(row ? t.selectedAnnounce(row.title) : t.selectionCleared);
   };
   const clear = () => {
     const code = selected;
@@ -86,8 +96,8 @@ export function MapScreen() {
   // Keys of the map, wherever the focus is inside it (never while typing): + and − zoom, 0 goes
   // back to actual size, Esc clears the selection.
   const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
-    const t = e.target as HTMLElement;
-    if (e.ctrlKey || e.metaKey || e.altKey || t.closest('input, textarea, select, [contenteditable="true"]')) return;
+    const target = e.target as HTMLElement;
+    if (e.ctrlKey || e.metaKey || e.altKey || target.closest('input, textarea, select, [contenteditable="true"]')) return;
     if (e.key === '+' || e.key === '=') step(1);
     else if (e.key === '-' || e.key === '_' || e.key === '−') step(-1);
     else if (e.key === '0') setScale(1);
@@ -105,11 +115,11 @@ export function MapScreen() {
         eyebrow={
           <>
             <ProductIcon size={15} className="text-fg-3" />
-            <span>{project?.name ?? 'Product'}</span>
+            <span>{project?.name ?? t.productFallback}</span>
           </>
         }
-        title="Map"
-        meta={data ? <Summary map={data} /> : 'Each area with its features, the rules they follow and how they connect.'}
+        title={t.mapTitle}
+        meta={data ? <Summary map={data} /> : t.mapSummaryFallback}
         tabs={<ProductTabs active="map" />}
       />
       <PageBody width="full">
@@ -118,14 +128,14 @@ export function MapScreen() {
         ) : map.isPending ? (
           <MapSkeleton />
         ) : !hasContent || !data ? (
-          <EmptyState icon={<MapIcon size={28} />} title="Nothing on the map yet" size="spacious">
-            Records appear here as soon as the product has them.
+          <EmptyState icon={<MapIcon size={28} />} title={t.emptyTitle} size="spacious">
+            {t.emptyBody}
           </EmptyState>
         ) : (
           // The keys of the map are heard anywhere inside it: the canvas, the toolbar and the side panel.
           <div onKeyDown={onKey}>
             <WithAside
-              asideLabel="Map details"
+              asideLabel={t.asideLabel}
               asideWidth="lg"
               aside={
                 <>
@@ -133,7 +143,7 @@ export function MapScreen() {
                     <MapPanel projectId={projectId} row={record} map={data} onClear={clear} />
                   ) : (
                     <p className="rounded-lg border border-dashed border-edge-strong px-4 py-3 text-sm text-fg-2">
-                      Select a feature or a rule to see what it is connected to, where it comes from and what waits on you.
+                      {t.selectHint}
                     </p>
                   )}
                   <MapLegend />
@@ -142,9 +152,7 @@ export function MapScreen() {
             >
               <div className="flex flex-col gap-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-sm text-fg-2">
-                    Point at something to light up what it is connected to; select it to keep it in the side panel.
-                  </p>
+                  <p className="text-sm text-fg-2">{t.pointHint}</p>
                   <ZoomControls
                     scale={scale}
                     onOut={() => step(-1)}
@@ -175,16 +183,12 @@ export function MapScreen() {
 
 /** "12 records in 4 areas · 9 relations · 2 questions wait on you" (INV-MAP-02). */
 function Summary({ map }: { map: ProductMap }) {
+  const t = useMessages(MAP_WORDS);
   const waiting = map.questions.length;
   return (
     <>
-      <span>
-        {plural(map.records.length, 'record', 'records')} in {plural(map.areas.length, 'area', 'areas')} ·{' '}
-        {plural(map.relations.length, 'relation', 'relations')}
-      </span>
-      {waiting > 0 ? (
-        <span className="font-medium text-accent-text">{plural(waiting, 'question waits', 'questions wait')} on you</span>
-      ) : null}
+      <span>{t.summaryLine(map.records.length, map.areas.length, map.relations.length)}</span>
+      {waiting > 0 ? <span className="font-medium text-accent-text">{t.questionsWaitOnYou(waiting)}</span> : null}
     </>
   );
 }
@@ -202,10 +206,15 @@ function ZoomControls({
   onActual: () => void;
   onFit: () => void;
 }) {
+  const t = useMessages(MAP_WORDS);
   const pct = Math.round(scale * 100);
   return (
-    <div role="group" aria-label="Zoom" className="flex items-center gap-1 rounded-md border border-edge bg-panel p-0.5">
-      <IconButton label="Zoom out" size="sm" aria-keyshortcuts="-" onClick={onOut} disabled={scale <= MIN_SCALE}>
+    <div
+      role="group"
+      aria-label={t.zoomGroupLabel}
+      className="flex items-center gap-1 rounded-md border border-edge bg-panel p-0.5"
+    >
+      <IconButton label={t.zoomOut} size="sm" aria-keyshortcuts="-" onClick={onOut} disabled={scale <= MIN_SCALE}>
         <span aria-hidden className="text-lg leading-none">
           −
         </span>
@@ -213,19 +222,19 @@ function ZoomControls({
       <Button
         size="sm"
         variant="quiet"
-        aria-label={`${pct}%: back to actual size`}
+        aria-label={t.backToActualSize(pct)}
         aria-keyshortcuts="0"
         onClick={onActual}
         className="min-w-14 tabular-nums"
       >
         {pct}%
       </Button>
-      <IconButton label="Zoom in" size="sm" aria-keyshortcuts="+" onClick={onIn} disabled={scale >= MAX_SCALE}>
+      <IconButton label={t.zoomIn} size="sm" aria-keyshortcuts="+" onClick={onIn} disabled={scale >= MAX_SCALE}>
         <PlusIcon size={15} />
       </IconButton>
       <span aria-hidden className="mx-0.5 h-4 w-px bg-edge" />
       <Button size="sm" variant="quiet" onClick={onFit}>
-        Fit
+        {t.fit}
       </Button>
     </div>
   );
@@ -252,6 +261,7 @@ function Canvas({
   onPoint: (code: string | null) => void;
   onSelect: (code: string) => void;
 }) {
+  const t = useMessages(MAP_WORDS);
   // The content is scaled with a transform; the sizer gives the scroll area the scaled size.
   const [natural, setNatural] = useState({ w: 0, h: 0 });
   useEffect(() => {
@@ -282,7 +292,7 @@ function Canvas({
       ref={viewport}
       data-map
       role="region"
-      aria-label="Map canvas: arrow keys scroll it"
+      aria-label={t.mapCanvasLabel}
       tabIndex={0}
       className="relative h-[calc(100vh-290px)] min-h-[420px] overflow-auto rounded-lg border border-edge bg-sunken"
       style={{ backgroundImage: 'radial-gradient(var(--c-edge-strong) 1px, transparent 1px)', backgroundSize: '20px 20px' }}
@@ -298,26 +308,30 @@ function Canvas({
           {lanesOf(map).map((lane) => (
             <section
               key={lane.area}
-              aria-label={`Area: ${lane.area}`}
+              aria-label={t.areaLabel(lane.area)}
               data-lane={lane.area}
               className="relative z-10 flex w-[300px] flex-col gap-2.5"
             >
               <h2 className="flex items-center justify-between gap-2 border-b border-edge-strong pb-1.5 text-sm font-semibold text-fg">
                 <span className="truncate">{lane.area}</span>
                 <span className="text-xs font-normal text-fg-3 tabular-nums">
-                  {plural(lane.features.length + lane.rules.length, 'record', 'records')}
+                  {t.recordsCount(lane.features.length + lane.rules.length)}
                 </span>
               </h2>
               {lane.features.map(element)}
               {lane.rules.length > 0 ? (
-                <h3 className="mt-2 text-xs font-medium text-fg-2">{lane.features.length > 0 ? 'Rules it follows' : 'Rules'}</h3>
+                <h3 className="mt-2 text-xs font-medium text-fg-2">
+                  {lane.features.length > 0 ? t.rulesItFollowsHeading : t.rulesHeading}
+                </h3>
               ) : null}
               {lane.rules.map(element)}
             </section>
           ))}
           {map.ideas.length > 0 ? (
-            <section aria-label="Parked ideas" className="relative z-10 flex w-[260px] flex-col gap-2.5">
-              <h2 className="border-b border-dashed border-edge-strong pb-1.5 text-sm font-semibold text-fg-2">Parked ideas</h2>
+            <section aria-label={t.parkedIdeasLabel} className="relative z-10 flex w-[260px] flex-col gap-2.5">
+              <h2 className="border-b border-dashed border-edge-strong pb-1.5 text-sm font-semibold text-fg-2">
+                {t.parkedIdeasLabel}
+              </h2>
               {map.ideas.map((i) => (
                 <Link
                   key={i.id}
@@ -328,7 +342,7 @@ function Canvas({
                 >
                   <TypeIcon type="idea" size={15} className="mt-0.5 shrink-0 text-fg-3" />
                   <span className="min-w-0 flex-1">
-                    <span className="sr-only">Parked idea: </span>
+                    <span className="sr-only">{t.parkedIdeaSrPrefix}</span>
                     {i.purpose}
                   </span>
                   <StatusBadge kind="parked" />
@@ -357,16 +371,17 @@ function MapElement({
   onPoint: (code: string | null) => void;
   onSelect: (code: string) => void;
 }) {
+  const t = useMessages(MAP_WORDS);
   const waiting = waitingOn(row.code, map.questions).length;
   const certainty = MARKS[EPISTEMIC_MARK[row.epistemic_status] ?? 'unknown'].name;
   const feature = row.type === 'fdr';
   const stage = rowStage(row);
-  const stageWord = stage === 'ready' ? 'Ready to build' : stage === 'doubt' ? 'In doubt' : 'Not ready';
+  const stageWord = stage === 'ready' ? t.readyToBuild : stage === 'doubt' ? t.inDoubt : t.notReady;
   const name = [
     `${typeWord(row.type)}: ${row.title} (${row.code})`,
     certainty,
     feature ? stageWord : null,
-    waiting > 0 ? `${plural(waiting, 'question waits', 'questions wait')} on you` : null,
+    waiting > 0 ? t.questionsWaitOnYou(waiting) : null,
   ]
     .filter(Boolean)
     .join(' · ');
@@ -394,9 +409,9 @@ function MapElement({
       <button type="button" {...events} className={cn(frame, 'flex flex-col gap-2 p-3')}>
         <span className="flex items-center gap-1.5 text-xs text-fg-2">
           <TypeIcon type="fdr" size={14} className="text-fg-3" />
-          Feature
+          {t.featureLabel}
           <span className="ml-auto">
-            <Count n={waiting} label={`${plural(waiting, 'question waits', 'questions wait')} on you`} />
+            <Count n={waiting} label={t.questionsWaitOnYou(waiting)} />
           </span>
         </span>
         <span className="line-clamp-2 text-base font-medium text-fg">{row.title}</span>
@@ -411,7 +426,7 @@ function MapElement({
           {row.checks > 0 ? (
             <span className="ml-auto inline-flex shrink-0 items-center gap-1">
               <ChecksIcon size={13} />
-              {plural(row.checks, 'check', 'checks')}
+              {t.checksCount(row.checks)}
             </span>
           ) : null}
         </span>
@@ -423,7 +438,7 @@ function MapElement({
       <TypeIcon type={row.type} size={15} className="shrink-0 text-fg-3" />
       <span className="line-clamp-2 min-w-0 flex-1 text-sm text-fg">{row.title}</span>
       <StateIcon kind={EPISTEMIC_MARK[row.epistemic_status] ?? 'unknown'} size={14} />
-      <Count n={waiting} label={`${plural(waiting, 'question waits', 'questions wait')} on you`} />
+      <Count n={waiting} label={t.questionsWaitOnYou(waiting)} />
     </button>
   );
 }
@@ -589,31 +604,38 @@ function LegendSample({ kind, review }: { kind: MapRelation['kind']; review?: bo
 
 /** The legend (INV-MAP-10): always visible, beside the canvas, with every line style named. */
 function MapLegend() {
+  const t = useMessages(MAP_WORDS);
+  const lineLabel = (k: MapRelation['kind']): string =>
+    ({ needs: t.lineNeeds, follows: t.lineFollows, conflicts: t.lineConflicts, affects: t.lineAffects })[k];
   return (
     <section aria-labelledby="map-legend" className="flex flex-col gap-3 rounded-lg border border-edge bg-panel p-4">
       <h2 id="map-legend" className="text-base font-semibold text-fg">
-        How to read the map
+        {t.howToReadTitle}
       </h2>
-      <p className="text-sm text-fg-2">
-        One column per area. Features are cards; the decisions they follow are below them. Point at something to light up what it
-        is connected to; select it to see it here.
-      </p>
+      <p className="text-sm text-fg-2">{t.legendIntro}</p>
       <ul className="flex flex-col gap-2 text-sm text-fg">
         {RELATION_KINDS.map((k) => (
           <li key={k} className="flex items-center gap-2.5" data-legend={k}>
             <LegendSample kind={k} />
-            {LINE_STYLES[k].label}
+            {lineLabel(k)}
           </li>
         ))}
         <li className="flex items-center gap-2.5" data-legend="under-review">
           <LegendSample kind="needs" review />
-          {UNDER_REVIEW.label}
+          {t.underReviewLabel}
         </li>
       </ul>
-      <p className="text-xs text-fg-3">Only the links the records declare are drawn: nothing is guessed.</p>
+      <p className="text-xs text-fg-3">{t.legendOnlyDeclared}</p>
       <p className="text-xs text-fg-3">
-        Keys: <Kbd>+</Kbd> and <Kbd>−</Kbd> zoom, <Kbd>0</Kbd> actual size, arrows scroll the canvas, <Kbd>Esc</Kbd> clears the
-        selection.
+        {t.keysPrefix}
+        <Kbd>+</Kbd>
+        {t.keysAnd}
+        <Kbd>−</Kbd>
+        {t.keysZoom}
+        <Kbd>0</Kbd>
+        {t.keysActualSize}
+        <Kbd>Esc</Kbd>
+        {t.keysClearsSelection}
       </p>
     </section>
   );
@@ -635,12 +657,19 @@ function MapPanel({
   map: ProductMap;
   onClear: () => void;
 }) {
+  const t = useMessages(MAP_WORDS);
+  const relationWords: RelationWords = {
+    needs: { from: t.needsFrom, to: t.needsTo },
+    follows: { from: t.followsFrom, to: t.followsTo },
+    conflicts: { from: t.conflictsFrom, to: t.conflictsTo },
+    affects: { from: t.affectsFrom, to: t.affectsTo },
+  };
   const title = (code: string) => map.records.find((r) => r.code === code)?.title ?? code;
   const groups = new Map<string, string[]>();
   const add = (word: string, code: string) => groups.set(word, [...(groups.get(word) ?? []), code]);
   for (const r of map.relations) {
-    if (r.from === row.code) add(relationWord(r.kind, 'from'), r.to);
-    if (r.to === row.code) add(relationWord(r.kind, 'to'), r.from);
+    if (r.from === row.code) add(relationWord(r.kind, 'from', relationWords), r.to);
+    if (r.to === row.code) add(relationWord(r.kind, 'to', relationWords), r.from);
   }
   const review = new Set(
     map.relations.filter((r) => r.under_review && (r.from === row.code || r.to === row.code)).flatMap((r) => [r.from, r.to]),
@@ -650,7 +679,7 @@ function MapPanel({
   return (
     <section
       data-map-panel
-      aria-label={`Selected: ${row.title}`}
+      aria-label={t.selectedLabel(row.title)}
       className="flex flex-col gap-4 rounded-lg border border-accent-edge bg-panel p-4"
     >
       <div className="flex flex-col gap-2">
@@ -671,22 +700,22 @@ function MapPanel({
             params={{ projectId, code: row.code }}
             className={buttonClass({ variant: 'secondary', size: 'sm' })}
           >
-            Open
+            {t.openLabel}
             <ArrowRightIcon size={14} />
           </Link>
           <Button size="sm" variant="quiet" icon={<CloseIcon size={14} />} onClick={onClear} kbd="Esc">
-            Clear selection
+            {t.clearSelection}
           </Button>
         </div>
       </div>
       {row.origin_exploration ? (
-        <PanelBlock title="Comes from">
+        <PanelBlock title={t.comesFrom}>
           <Link
             to="/p/$projectId/threads/$explorationId"
             params={{ projectId, explorationId: row.origin_exploration }}
             className="text-sm font-medium text-accent-text underline-offset-2 hover:underline"
           >
-            Its thread
+            {t.itsThread}
           </Link>
         </PanelBlock>
       ) : null}
@@ -710,7 +739,7 @@ function MapPanel({
         </PanelBlock>
       ))}
       {waiting.length > 0 ? (
-        <PanelBlock title="Waiting on you">
+        <PanelBlock title={t.waitingOnYouTitle}>
           <ul className="flex flex-col gap-2">
             {waiting.map((q) => (
               <li key={q.id} className="flex items-start justify-between gap-3 text-sm">
@@ -720,7 +749,7 @@ function MapPanel({
                   params={{ projectId, explorationId: q.exploration_id }}
                   className={buttonClass({ variant: 'secondary', size: 'sm' })}
                 >
-                  Answer
+                  {t.answer}
                 </Link>
               </li>
             ))}
@@ -728,8 +757,8 @@ function MapPanel({
         </PanelBlock>
       ) : null}
       {feature ? (
-        <PanelBlock title="How we'll know it works">
-          <p className="text-sm text-fg-2">{plural(row.checks, 'check', 'checks')} · none has run: nothing is built yet.</p>
+        <PanelBlock title={t.howWellKnow}>
+          <p className="text-sm text-fg-2">{t.checksNotRun(row.checks)}</p>
         </PanelBlock>
       ) : null}
     </section>
@@ -746,8 +775,9 @@ function PanelBlock({ title, children }: { title: string; children: ReactNode })
 }
 
 function MapSkeleton() {
+  const t = useMessages(MAP_WORDS);
   return (
-    <Skeleton label="Loading the map" className="flex gap-8">
+    <Skeleton label={t.loadingMap} className="flex gap-8">
       {[0, 1, 2].map((lane) => (
         <div key={lane} className="flex w-[300px] flex-col gap-2.5">
           <Bone className="h-4 w-28" />

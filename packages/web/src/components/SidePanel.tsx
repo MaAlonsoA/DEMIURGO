@@ -3,7 +3,9 @@
 // Reset button — never dragging only (WCAG 2.5.7, R85). Its width is remembered in this browser.
 
 import { type KeyboardEvent, type PointerEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { useMessages } from '../i18n/define.ts';
 import { cn } from '../lib/cn.ts';
+import { SIDE_PANEL } from './words.i18n.ts';
 
 const KEY = 'dm-side-panel-width';
 const MIN = 320;
@@ -24,6 +26,7 @@ function maxWidth(): number {
 
 /** A panel on the right whose width the person can change (Go deeper, previews). */
 export function ResizablePanel({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
+  const t = useMessages(SIDE_PANEL);
   const [width, setWidth] = useState(readWidth);
   const dragging = useRef<{ x: number; w: number } | null>(null);
   const clamp = useCallback((w: number) => Math.min(maxWidth(), Math.max(MIN, Math.round(w))), []);
@@ -66,11 +69,11 @@ export function ResizablePanel({ label, children, className }: { label: string; 
       <div
         role="separator"
         aria-orientation="vertical"
-        aria-label={`Resize ${label}`}
+        aria-label={t.resize(label)}
         aria-valuemin={MIN}
         aria-valuemax={maxWidth()}
         aria-valuenow={width}
-        aria-valuetext={`${width} pixels wide`}
+        aria-valuetext={t.pixelsWide(width)}
         tabIndex={0}
         onKeyDown={onKey}
         onPointerDown={onDown}

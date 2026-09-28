@@ -15,12 +15,15 @@ import { ErrorNotice } from '../../components/Notice.tsx';
 import { usePageTitle } from '../../components/Page.tsx';
 import { RowsSkeleton } from '../../components/Spinner.tsx';
 import { StatusBadge } from '../../components/status.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { useTables } from '../../lib/hooks.ts';
 import { shortDate } from '../../lib/time.ts';
 import { WorkspaceFrame } from '../../shell/WorkspaceFrame.tsx';
+import { PROJECTS } from './words.i18n.ts';
 
 export function ProjectsScreen() {
-  usePageTitle(['Your projects']);
+  const t = useMessages(PROJECTS);
+  usePageTitle([t.title]);
   const projects = useQuery(projectsQuery);
   const list = projects.data ?? [];
   return (
@@ -29,30 +32,26 @@ export function ProjectsScreen() {
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
           <div className="flex min-w-0 flex-col gap-1">
             <h1 id="page-title" tabIndex={-1} className="text-xl font-semibold text-fg outline-none">
-              Your projects
+              {t.title}
             </h1>
-            {projects.data ? (
-              <p className="text-sm text-fg-2">
-                {list.length} {list.length === 1 ? 'project' : 'projects'}
-              </p>
-            ) : null}
+            {projects.data ? <p className="text-sm text-fg-2">{t.count(list.length)}</p> : null}
           </div>
           <Link to="/new" className={buttonClass({ variant: 'primary' })}>
             <PlusIcon size={15} />
-            New project
+            {t.newProject}
           </Link>
         </div>
         {projects.isPending ? (
-          <RowsSkeleton label="Loading projects" rows={3} />
+          <RowsSkeleton label={t.loading} rows={3} />
         ) : projects.error ? (
           <ErrorNotice error={projects.error} onRetry={() => void projects.refetch()} />
         ) : list.length === 0 ? (
-          <EmptyState icon={<FolderIcon size={28} />} title="There are no projects yet">
-            Start one with New project.
+          <EmptyState icon={<FolderIcon size={28} />} title={t.noProjectsTitle}>
+            {t.noProjectsBody}
           </EmptyState>
         ) : (
           <ul
-            aria-label="Projects"
+            aria-label={t.projectsLabel}
             className="flex flex-col divide-y divide-edge-subtle overflow-hidden rounded-lg border border-edge"
           >
             {list.map((p) => (
@@ -65,10 +64,10 @@ export function ProjectsScreen() {
   );
 }
 
-/** The tables' words for a project's state, until the tables arrive. */
-const FALLBACK: Record<string, string> = { active: 'Active', archived: 'Archived' };
-
 function ProjectRow({ project: p }: { project: Project }) {
+  const t = useMessages(PROJECTS);
+  /** The tables' words for a project's state, until the tables arrive. */
+  const FALLBACK: Record<string, string> = { active: t.active, archived: t.archived };
   const tables = useTables();
   const archived = p.state === 'archived';
   return (
@@ -88,7 +87,7 @@ function ProjectRow({ project: p }: { project: Project }) {
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="text-base font-medium break-words text-fg group-hover:underline">{p.name}</span>
           <span className="text-sm text-fg-2">
-            Created <time dateTime={p.created_at}>{shortDate(p.created_at)}</time>
+            {t.created} <time dateTime={p.created_at}>{shortDate(p.created_at)}</time>
           </span>
         </span>
         <StatusBadge

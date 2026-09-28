@@ -8,10 +8,12 @@ import type { ReactNode } from 'react';
 import { projectsQuery } from '../api/queries.ts';
 import { HelpIcon } from '../components/icons.tsx';
 import { Tooltip } from '../components/Tooltip.tsx';
+import { useMessages } from '../i18n/define.ts';
 import { cn } from '../lib/cn.ts';
 import { useRouteFocus } from './focus.ts';
 import { openHelp } from './Help.tsx';
 import { PersonMenu } from './PersonMenu.tsx';
+import { SIDEBAR, WORKSPACE_FRAME } from './words.i18n.ts';
 
 export function Wordmark({ className }: { className?: string }) {
   return (
@@ -31,6 +33,8 @@ const linkClass = (active: boolean) =>
   );
 
 export function WorkspaceFrame({ children, current }: { children: ReactNode; current?: 'projects' | 'models' | 'new' }) {
+  const t = useMessages(WORKSPACE_FRAME);
+  const sidebarWords = useMessages(SIDEBAR);
   useRouteFocus();
   const projects = useQuery(projectsQuery).data ?? [];
   return (
@@ -38,7 +42,7 @@ export function WorkspaceFrame({ children, current }: { children: ReactNode; cur
       <header className="flex min-h-14 flex-wrap items-center gap-x-2 gap-y-1 px-4 py-2 sm:px-6">
         <Wordmark />
         <nav
-          aria-label="Workspace"
+          aria-label={t.workspace}
           className="order-last -mx-1 flex w-full items-center gap-1 overflow-x-auto sm:order-none sm:mx-0 sm:ml-4 sm:w-auto"
         >
           {projects.length > 0 ? (
@@ -47,21 +51,21 @@ export function WorkspaceFrame({ children, current }: { children: ReactNode; cur
               aria-current={current === 'projects' ? 'page' : undefined}
               className={linkClass(current === 'projects')}
             >
-              Your projects
+              {t.yourProjects}
             </Link>
           ) : null}
           <Link to="/new" aria-current={current === 'new' ? 'page' : undefined} className={linkClass(current === 'new')}>
-            New project
+            {t.newProject}
           </Link>
           <Link to="/models" aria-current={current === 'models' ? 'page' : undefined} className={linkClass(current === 'models')}>
-            Models &amp; providers
+            {t.models}
           </Link>
         </nav>
         <div className="ml-auto flex items-center gap-1">
-          <Tooltip content="Help (?)">
+          <Tooltip content={t.help}>
             <button
               type="button"
-              aria-label="Help"
+              aria-label={sidebarWords.helpLabel}
               onClick={openHelp}
               className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-fg-3 hover:bg-hover hover:text-fg"
             >

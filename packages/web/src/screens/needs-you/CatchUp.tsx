@@ -10,19 +10,19 @@ import { announce } from '../../components/announce.tsx';
 import { Button, buttonClass } from '../../components/Button.tsx';
 import { CheckIcon } from '../../components/icons.tsx';
 import { PageBody, PageHeader } from '../../components/Page.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { useEditGuard } from '../batch/guard.tsx';
 import { NeedDetail } from './Detail.tsx';
 import type { NeedContext } from './frame.tsx';
 import { catchUpOrder, type NeedItem } from './order.ts';
-import { KIND_WORDS, needTitle } from './titles.ts';
+import { needTitle } from './titles.ts';
 import {
   clearWalk,
   currentStep,
   emptyWalk,
   extendWalk,
   loadWalk,
-  STEP_WORDS,
   type StepState,
   saveWalk,
   skip,
@@ -31,6 +31,7 @@ import {
   type Walk,
   walkProgress,
 } from './walk.ts';
+import { CATCH_UP, TITLES, WALK } from './words.i18n.ts';
 
 export const DETAIL_TITLE = 'need-detail-title';
 
@@ -59,6 +60,9 @@ const STATE_TEXT: Record<StepState, string> = {
 };
 
 export function CatchUp({ ctx, items }: { ctx: NeedContext; items: NeedItem[] }) {
+  const t = useMessages(CATCH_UP);
+  const kindWords = useMessages(TITLES);
+  const stepWords = useMessages(WALK);
   const navigate = useNavigate();
   const guard = useEditGuard();
   const listId = useId();
@@ -66,7 +70,7 @@ export function CatchUp({ ctx, items }: { ctx: NeedContext; items: NeedItem[] })
   const present = new Set(items.map((i) => i.key));
   const [stored, setStored] = useState<Walk>(() => loadWalk(ctx.projectId) ?? emptyWalk());
   // Things that arrive meanwhile join the end of the walk (INV-CATCH-12).
-  const walk = extendWalk(stored, ordered, (i) => needTitle(i, ctx.rows));
+  const walk = extendWalk(stored, ordered, (i) => needTitle(i, ctx.rows, kindWords));
   const grew = walk.steps.length !== stored.steps.length;
   useEffect(() => {
     if (grew) setStored(walk);
@@ -85,8 +89,8 @@ export function CatchUp({ ctx, items }: { ctx: NeedContext; items: NeedItem[] })
   useEffect(() => {
     if (entered.current) return;
     entered.current = true;
-    const t = setTimeout(() => document.getElementById(DETAIL_TITLE)?.focus(), 60);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => document.getElementById(DETAIL_TITLE)?.focus(), 60);
+    return () => clearTimeout(timer);
   }, []);
 
   const leave = () =>
@@ -103,26 +107,26 @@ export function CatchUp({ ctx, items }: { ctx: NeedContext; items: NeedItem[] })
       const next = skip(walk, current.key);
       setStored(next);
       const after = currentStep(next, present);
-      announce(after ? `Skipped. Now: ${after.title}.` : 'Skipped. You went through everything.');
+      announce(after ? t.announceSkippedNow(after.title) : t.announceSkippedDone);
       setTimeout(() => document.getElementById(DETAIL_TITLE)?.focus(), 60);
     });
 
   const bar = (
     <section
-      aria-label="Catching up"
+      aria-label={t.catchingUp}
       className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-accent-edge bg-accent-soft px-4 py-2"
     >
       <p data-progress className="text-sm font-medium text-accent-text tabular-nums">
-        {current ? `${position} of ${total} · about ${minutes} min` : `Done · ${skipped} skipped`}
+        {current ? t.progressCurrent(position, total, minutes) : t.progressDone(skipped)}
       </p>
       <span className="flex-1" />
       {current ? (
         <Button size="sm" variant="secondary" onClick={skipIt}>
-          Skip
+          {t.skip}
         </Button>
       ) : null}
       <Button size="sm" variant="quiet" onClick={leave}>
-        Leave
+        {t.leave}
       </Button>
     </section>
   );
@@ -131,11 +135,11 @@ export function CatchUp({ ctx, items }: { ctx: NeedContext; items: NeedItem[] })
     <>
       <PageHeader
         crumbs={[
-          { label: 'Needs you', link: { to: '/p/$projectId/needs-you', params: { projectId: ctx.projectId } } },
-          { label: 'Catching up' },
+          { label: t.needsYou, link: { to: '/p/$projectId/needs-you', params: { projectId: ctx.projectId } } },
+          { label: t.catchingUp },
         ]}
-        title="Catching up"
-        meta={<span>One at a time, in the order that unblocks the most. What you skip stays in Needs you.</span>}
+        title={t.catchingUp}
+        meta={<span>{t.meta}</span>}
       />
       <PageBody>
         <div className="flex flex-col gap-8 xl:flex-row xl:items-start">
@@ -147,10 +151,10 @@ export function CatchUp({ ctx, items }: { ctx: NeedContext; items: NeedItem[] })
           >
             <div className="flex items-baseline justify-between gap-3">
               <h2 id={listId} className="text-base font-semibold text-fg">
-                In order
+                {t.inOrder}
               </h2>
               <span className="text-sm text-fg-2 tabular-nums">
-                {left.length === 0 ? 'Nothing left' : `${left.length} left · about ${minutes} min`}
+                {left.length === 0 ? t.nothingLeft : t.leftMinutes(left.length, minutes)}
               </span>
             </div>
             <ol className="flex flex-col gap-1">
@@ -171,20 +175,20 @@ export function CatchUp({ ctx, items }: { ctx: NeedContext; items: NeedItem[] })
                     <StepMark n={i + 1} state={st} />
                     <span className="flex min-w-0 flex-1 flex-col">
                       <span className={cn('text-xs', s.kind === 'conflict' ? 'text-danger-text' : 'text-fg-2')}>
-                        {KIND_WORDS[s.kind]}
+                        {kindWords.kindWord(s.kind)}
                       </span>
                       <span className={cn('line-clamp-2 text-sm font-medium text-fg', st === 'done' && 'text-fg-2 line-through')}>
                         {s.title}
                       </span>
                     </span>
-                    <span className={cn('shrink-0 text-xs', STATE_TEXT[st])}>{STEP_WORDS[st]}</span>
+                    <span className={cn('shrink-0 text-xs', STATE_TEXT[st])}>{stepWords.stepWord(st)}</span>
                   </li>
                 );
               })}
             </ol>
             <div className="flex flex-col gap-0.5 rounded-lg bg-sunken px-3.5 py-3 text-sm">
-              <p className="font-medium text-fg">Stop whenever you like</p>
-              <p className="text-fg-2">What you skip stays in Needs you, in the same order.</p>
+              <p className="font-medium text-fg">{t.stopWhenever}</p>
+              <p className="text-fg-2">{t.skipStays}</p>
             </div>
           </section>
 
@@ -195,11 +199,9 @@ export function CatchUp({ ctx, items }: { ctx: NeedContext; items: NeedItem[] })
               <section aria-labelledby={DETAIL_TITLE} className="flex flex-col gap-4" data-finished>
                 {bar}
                 <h2 id={DETAIL_TITLE} tabIndex={-1} className="text-xl font-semibold text-fg outline-none">
-                  You went through everything
+                  {t.wentThroughEverything}
                 </h2>
-                <p className="text-md text-fg-2">
-                  {`${skipped} ${skipped === 1 ? 'thing you skipped stays' : 'things you skipped stay'} in Needs you, in the same order.`}
-                </p>
+                <p className="text-md text-fg-2">{t.skippedStay(skipped)}</p>
                 <div className="flex flex-wrap items-center gap-3">
                   <Link
                     to="/p/$projectId/needs-you"
@@ -207,10 +209,10 @@ export function CatchUp({ ctx, items }: { ctx: NeedContext; items: NeedItem[] })
                     onClick={() => clearWalk(ctx.projectId)}
                     className={buttonClass({ variant: 'primary' })}
                   >
-                    Back to Needs you
+                    {t.backToNeedsYou}
                   </Link>
                   <Link to="/p/$projectId" params={{ projectId: ctx.projectId }} className={buttonClass({ variant: 'quiet' })}>
-                    See the product
+                    {t.seeProduct}
                   </Link>
                 </div>
               </section>

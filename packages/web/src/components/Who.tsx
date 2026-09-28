@@ -4,7 +4,7 @@
 
 import type { Actor } from '../api/types.ts';
 import { cn } from '../lib/cn.ts';
-import { type Who as WhoValue, WHO_PHRASES, whoOf } from '../words.ts';
+import { type Who as WhoValue, useWhoName, useWhoPhrase, whoOf } from '../words.ts';
 import { AgentIcon, AutomaticIcon, PersonIcon } from './icons.tsx';
 
 export function WhoAvatar({ kind, size = 20, className }: { kind: WhoValue['kind']; size?: number; className?: string }) {
@@ -91,10 +91,11 @@ export function Who({
   prefix?: string;
 }) {
   const who = whoOf(actor, model);
-  const name = whoName(who);
+  const name = useWhoName(who);
+  const phrase = useWhoPhrase(who.kind);
   const detail = who.kind === 'demiurgo' && who.detail ? ` · ${who.detail}` : '';
   return (
-    <span className={cn('inline-flex min-w-0 items-center gap-1.5', className)} title={`${name} · ${WHO_PHRASES[who.kind]}`}>
+    <span className={cn('inline-flex min-w-0 items-center gap-1.5', className)} title={`${name} · ${phrase}`}>
       <WhoAvatar kind={who.kind} size={size} />
       {showName ? (
         <span className="truncate">

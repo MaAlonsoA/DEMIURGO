@@ -23,14 +23,17 @@ import { DayTime, useNow } from '../../components/Time.tsx';
 import { Who } from '../../components/Who.tsx';
 import { useProjectId } from '../../lib/hooks.ts';
 import { ACTION_WORDS, STATE_WORDS, failureWord } from '../../words.ts';
+import { useMessages } from '../../i18n/define.ts';
 import { RUN_STATES, runDuration } from '../run/runs.ts';
 import { RUNS_LIMIT, activityLine, countsByState, emptyFilterWords, isRunState } from './summary.ts';
 import { RightNow } from './RightNow.tsx';
 import { ProjectUsage } from './Usage.tsx';
+import { ACTIVITY } from './words.i18n.ts';
 
 const stateWordOf = (s: string) => STATE_WORDS.ai_run?.[s]?.word ?? s;
 
 export function ActivityScreen() {
+  const t = useMessages(ACTIVITY);
   const projectId = useProjectId();
   const search = useSearch({ strict: false }) as { state?: string };
   const filter = isRunState(search.state) ? search.state : undefined;
@@ -38,11 +41,11 @@ export function ActivityScreen() {
   const runs = useQuery(runsQuery(projectId, filter ? { state: filter } : {}));
   const threads = useQuery(explorationsQuery(projectId)).data;
   const project = (useQuery(projectsQuery).data ?? []).find((p) => p.id === projectId);
-  usePageTitle(['Activity', project?.name]);
+  usePageTitle([t.title, project?.name]);
   const everything = all.data ?? [];
   const now = useNow(everything.some((r) => isActive(r.state)));
   const counts = all.data ? countsByState(all.data) : null;
-  const purposeOf = (id: string | null) => (id ? threads?.find((t) => t.id === id)?.purpose : undefined);
+  const purposeOf = (id: string | null) => (id ? threads?.find((th) => th.id === id)?.purpose : undefined);
   const retry = () => {
     void all.refetch();
     void runs.refetch();
@@ -54,23 +57,23 @@ export function ActivityScreen() {
         eyebrow={
           <span className="inline-flex items-center gap-1.5">
             <ActivityIcon size={14} className="text-fg-3" />
-            What the agents do
+            {t.eyebrow}
           </span>
         }
-        title="Activity"
+        title={t.title}
         meta={all.data ? <span data-activity-summary>{activityLine(all.data, now)}</span> : null}
       />
       <PageBody>
         <div className="flex flex-col gap-8">
           <RightNow projectId={projectId} runs={everything.filter((r) => isActive(r.state))} purposeOf={purposeOf} />
           <ProjectUsage projectId={projectId} />
-          <Section title="Runs" id="runs" note="Newest first. Open one to see what it did, step by step.">
+          <Section title={t.runsTitle} id="runs" note={t.runsNote}>
             <SegmentedLinks
-              label="Filter by state"
+              label={t.filterLabel}
               segments={[
                 {
                   key: 'all',
-                  label: 'All',
+                  label: t.all,
                   ...(all.data ? { count: all.data.length } : {}),
                   link: { to: '/p/$projectId/activity', params: { projectId }, search: {} },
                   current: !filter,
@@ -85,7 +88,7 @@ export function ActivityScreen() {
               ]}
             />
             {runs.isPending ? (
-              <RowsSkeleton label="Loading the runs" rows={5} />
+              <RowsSkeleton label={t.loading} rows={5} />
             ) : runs.error && !runs.data ? (
               <ErrorNotice error={runs.error} onRetry={retry} />
             ) : runs.data.length === 0 ? (
@@ -94,34 +97,30 @@ export function ActivityScreen() {
                   title={emptyFilterWords(stateWordOf(filter))}
                   action={
                     <Link to="/p/$projectId/activity" params={{ projectId }} search={{}} className={buttonClass()}>
-                      Show all runs
+                      {t.showAll}
                     </Link>
                   }
                 >
-                  None of the runs of this project is in this state.
+                  {t.noneInState}
                 </EmptyState>
               ) : (
                 <EmptyState
                   icon={<ActivityIcon size={24} />}
-                  title="No runs yet"
+                  title={t.noRunsYet}
                   action={
                     <Link to="/p/$projectId/threads" params={{ projectId }} className={buttonClass({ variant: 'primary' })}>
                       <ThreadsIcon size={14} />
-                      Open the threads
+                      {t.openThreads}
                     </Link>
                   }
                 >
-                  They appear when you ask DEMIURGO in a thread.
+                  {t.noRunsBody}
                 </EmptyState>
               )
             ) : (
               <>
                 <RunsTable projectId={projectId} runs={runs.data} all={everything} purposeOf={purposeOf} now={now} />
-                {runs.data.length >= RUNS_LIMIT ? (
-                  <Notice tone="info">
-                    Showing the latest {RUNS_LIMIT} runs. Older runs are not listed here; their threads still show them.
-                  </Notice>
-                ) : null}
+                {runs.data.length >= RUNS_LIMIT ? <Notice tone="info">{t.limitNotice(RUNS_LIMIT)}</Notice> : null}
               </>
             )}
           </Section>
@@ -147,6 +146,7 @@ function RunsTable({
   purposeOf: (id: string | null) => string | undefined;
   now: number;
 }) {
+  const t = useMessages(ACTIVITY);
   const navigate = useNavigate();
   // The whole row opens the run; its link stays the accessible way in (and the one keyboards use).
   const open = (e: MouseEvent<HTMLTableRowElement>, runId: string) => {
@@ -157,26 +157,26 @@ function RunsTable({
   return (
     <div className="md:rounded-lg md:border md:border-edge">
       <table className="w-full border-collapse text-left text-sm max-md:block">
-        <caption className="sr-only">Runs of DEMIURGO, newest first</caption>
+        <caption className="sr-only">{t.caption}</caption>
         <thead className="max-md:sr-only">
           <tr className="border-b border-edge">
             <th scope="col" className={`${th} w-40`}>
-              State
+              {t.colState}
             </th>
             <th scope="col" className={th}>
-              Run
+              {t.colRun}
             </th>
             <th scope="col" className={th}>
-              Thread
+              {t.colThread}
             </th>
             <th scope="col" className={`${th} w-44`}>
-              Requested by
+              {t.colRequestedBy}
             </th>
             <th scope="col" className={`${th} w-28`}>
-              When
+              {t.colWhen}
             </th>
             <th scope="col" className={`${th} w-24 text-right`}>
-              Duration
+              {t.colDuration}
             </th>
           </tr>
         </thead>
@@ -213,6 +213,7 @@ function RunRow({
   now: number;
   onOpen: (e: MouseEvent<HTMLTableRowElement>, runId: string) => void;
 }) {
+  const t = useMessages(ACTIVITY);
   const failed = r.state === 'failed' || r.state === 'interrupted';
   const attempt = r.retry_of ? attemptOf(r, all) : 1;
   const action = ACTION_WORDS[r.action] ?? r.action;
@@ -242,8 +243,8 @@ function RunRow({
                 params={{ projectId, runId: r.retry_of }}
                 className="text-sm font-medium text-accent-text hover:underline"
               >
-                Attempt {attempt}
-                <span className="sr-only">: open the run it retries</span>
+                {t.attempt(attempt)}
+                <span className="sr-only">{t.opensRetries}</span>
               </Link>
             ) : null}
           </span>
@@ -266,14 +267,14 @@ function RunRow({
         )}
       </td>
       <td className={`${td} text-fg-2`}>
-        <span className="sr-only md:hidden">Requested by </span>
+        <span className="sr-only md:hidden">{t.requestedBySr}</span>
         <Who actor={r.requested_by} size={16} />
       </td>
       <td className={`${td} whitespace-nowrap text-fg-2`}>
         <DayTime iso={r.created_at} />
       </td>
       <td className={`${td} whitespace-nowrap text-right text-fg-2 tabular-nums`}>
-        <span className="md:hidden">{isActive(r.state) ? 'Running ' : 'Took '}</span>
+        <span className="md:hidden">{isActive(r.state) ? t.running : t.took}</span>
         {runDuration(r, now) || '—'}
       </td>
     </tr>

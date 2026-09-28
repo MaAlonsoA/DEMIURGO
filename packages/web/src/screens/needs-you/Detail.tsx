@@ -24,6 +24,7 @@ import { QuestionActions, QuestionOutcome } from '../../components/QuestionActio
 import { EntityState, StatusBadge } from '../../components/status.tsx';
 import { DayTime, RelativeTime } from '../../components/Time.tsx';
 import { Who, WhoAvatar } from '../../components/Who.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { TYPE_WORDS, whoOf } from '../../words.ts';
 import { proposalTitle, rowOf, rowOfVersion } from '../batch/model.ts';
@@ -35,6 +36,7 @@ import { Conflict } from './Conflict.tsx';
 import { DetailFrame, type NeedContext, stageOf, ThreadLink, Unblocks } from './frame.tsx';
 import type { NeedItem } from './order.ts';
 import { axisOf, needTitle, nodeName, packageTitle, producerWords, updateTitle } from './titles.ts';
+import { DETAIL, TITLES } from './words.i18n.ts';
 
 export type DetailProps<K extends NeedItem['kind'] = NeedItem['kind']> = {
   item: Extract<NeedItem, { kind: K }>;
@@ -49,9 +51,10 @@ const QUIET = () => {};
 
 export function NeedDetail(props: DetailProps) {
   const { item } = props;
+  const kindWords = useMessages(TITLES);
   switch (item.kind) {
     case 'conflict':
-      return <Conflict {...(props as DetailProps<'conflict'>)} title={needTitle(item, props.ctx.rows)} />;
+      return <Conflict {...(props as DetailProps<'conflict'>)} title={needTitle(item, props.ctx.rows, kindWords)} />;
     case 'question':
       return <QuestionDetail {...(props as DetailProps<'question'>)} />;
     case 'package':
@@ -70,6 +73,7 @@ export function NeedDetail(props: DetailProps) {
 }
 
 function QuestionDetail({ item, ctx, titleId, top }: DetailProps<'question'>) {
+  const t = useMessages(DETAIL);
   const q = item.question;
   const assumed = q.state === 'inferred';
   const parked = q.state === 'postponed';
@@ -77,12 +81,12 @@ function QuestionDetail({ item, ctx, titleId, top }: DetailProps<'question'>) {
   const allows = useAllows('question', q.state);
   const answerHere = !assumed && allows('question.confirm');
   const line = assumed
-    ? 'DEMIURGO assumed an answer from what you said. Confirm it, change it, or park it.'
+    ? t.questionAssumedLine
     : parked
-      ? 'You parked it. It stays open, and what depends on it keeps waiting.'
+      ? t.questionParkedLine
       : item.unblocks.length > 0
-        ? 'Something waits for your answer before it can be built.'
-        : 'It waits for your answer.';
+        ? t.questionUnblocksLine
+        : t.questionWaitsLine;
   return (
     <DetailFrame
       item={item}
@@ -94,7 +98,7 @@ function QuestionDetail({ item, ctx, titleId, top }: DetailProps<'question'>) {
       why={
         <>
           <WhoAvatar kind={whoOf(q.raised_by).kind} size={16} />
-          <span>{q.raised_by.startsWith('human:') ? 'Asked by you' : 'Asked by DEMIURGO'} in</span>
+          <span>{t.askedByPrefix(q.raised_by.startsWith('human:'))}</span>
           <ThreadLink projectId={ctx.projectId} id={q.exploration_id} threads={ctx.threads} />
         </>
       }
@@ -109,11 +113,11 @@ function QuestionDetail({ item, ctx, titleId, top }: DetailProps<'question'>) {
     >
       {assumed && q.conclusion ? (
         <Card tone="warning" padding="md" className="flex flex-col gap-1.5" data-assumed>
-          <p className="text-sm font-medium text-fg">DEMIURGO&apos;s assumed answer</p>
+          <p className="text-sm font-medium text-fg">{t.assumedAnswerTitle}</p>
           <p className="text-md text-fg">{q.conclusion}</p>
           {q.reasoning ? (
             <p className="text-sm text-fg-2">
-              <span className="font-medium text-fg">Why: </span>
+              <span className="font-medium text-fg">{t.whyLabel} </span>
               {q.reasoning}
             </p>
           ) : null}
@@ -126,6 +130,8 @@ function QuestionDetail({ item, ctx, titleId, top }: DetailProps<'question'>) {
 }
 
 function PackageDetail({ item, ctx, titleId, top }: DetailProps<'package'>) {
+  const t = useMessages(DETAIL);
+  const kindWords = useMessages(TITLES);
   const b = item.batch;
   const n = b.proposals.length;
   const shown = b.proposals.slice(0, 6);
@@ -135,47 +141,50 @@ function PackageDetail({ item, ctx, titleId, top }: DetailProps<'package'>) {
       ctx={ctx}
       titleId={titleId}
       top={top}
-      title={packageTitle(item)}
-      state={<StatusBadge kind="proposed" word="Proposed" />}
-      eyebrow={`${n} ${n === 1 ? 'proposal' : 'proposals'}, accepted or rejected whole`}
+      title={packageTitle(item, kindWords)}
+      state={<StatusBadge kind="proposed" word={t.proposedWord} />}
+      eyebrow={t.packageEyebrow(n)}
       why={
         <>
           <WhoAvatar kind={whoOf(b.producer).kind} size={16} />
-          <span>From {producerWords(b.producer)}</span>
+          <span>
+            {t.fromWord} {producerWords(b.producer, kindWords)}
+          </span>
           <span aria-hidden>·</span>
           <RelativeTime iso={b.created} />
         </>
       }
-      line={b.summary && b.type !== 'import' ? b.summary : 'It is decided whole, on its own page.'}
+      line={b.summary && b.type !== 'import' ? b.summary : t.packageLineFallback}
       decision={
-        <DecisionBar caption="A package is read and decided on its page. Catch up keeps your place while you are there.">
+        <DecisionBar caption={t.packageCaption}>
           <Link
             to="/p/$projectId/batches/$batchId"
             params={{ projectId: ctx.projectId, batchId: b.id }}
             className={buttonClass({ variant: 'primary' })}
           >
-            Open the package <ArrowRightIcon size={14} />
+            {t.openPackage} <ArrowRightIcon size={14} />
           </Link>
         </DecisionBar>
       }
     >
-      <section className="flex flex-col gap-2" aria-label="What's inside">
-        <h3 className="text-sm font-semibold text-fg-2">What&apos;s inside</h3>
+      <section className="flex flex-col gap-2" aria-label={t.whatsInside}>
+        <h3 className="text-sm font-semibold text-fg-2">{t.whatsInside}</h3>
         <ul className="flex flex-col divide-y divide-edge-subtle rounded-lg border border-edge">
           {shown.map((p) => (
             <li key={p.id} className="flex flex-wrap items-baseline gap-x-2 px-3 py-2 text-sm">
               <span className="text-fg-2">{kindWord(p.type)}</span>
-              <span className="font-medium text-fg">{proposalTitle(p) || 'Untitled'}</span>
+              <span className="font-medium text-fg">{proposalTitle(p) || t.untitled}</span>
             </li>
           ))}
         </ul>
-        {n > shown.length ? <p className="text-sm text-fg-2">and {n - shown.length} more</p> : null}
+        {n > shown.length ? <p className="text-sm text-fg-2">{t.andMore(n - shown.length)}</p> : null}
       </section>
     </DetailFrame>
   );
 }
 
 function ProposalDetail({ item, ctx, titleId, top }: DetailProps<'proposal'>) {
+  const t = useMessages(DETAIL);
   const b = item.batch;
   return (
     <section
@@ -205,7 +214,7 @@ function ProposalDetail({ item, ctx, titleId, top }: DetailProps<'proposal'>) {
               params={{ projectId: ctx.projectId, batchId: b.id }}
               className={cn(linkClass, 'inline-flex min-h-6 items-center')}
             >
-              Open the batch
+              {t.openBatch}
             </Link>
           </>
         }
@@ -217,6 +226,7 @@ function ProposalDetail({ item, ctx, titleId, top }: DetailProps<'proposal'>) {
 }
 
 function VersionDetail({ item, ctx, titleId, top }: DetailProps<'version'>) {
+  const t = useMessages(DETAIL);
   const v = item.version;
   const command = useCommand(ctx.projectId);
   const client = useQueryClient();
@@ -250,7 +260,7 @@ function VersionDetail({ item, ctx, titleId, top }: DetailProps<'version'>) {
       top={top}
       title={v.title}
       code={`${v.code} v${v.n}`}
-      state={<StatusBadge kind="proposed" word={`v${v.n} Draft`} />}
+      state={<StatusBadge kind="proposed" word={t.draftWord(v.n)} />}
       eyebrow={TYPE_WORDS[v.type]}
       why={
         <Link
@@ -259,28 +269,20 @@ function VersionDetail({ item, ctx, titleId, top }: DetailProps<'version'>) {
           search={{ v: v.n }}
           className={cn(linkClass, 'inline-flex min-h-6 items-center gap-1')}
         >
-          Read it on its page <ArrowRightIcon size={13} />
+          {t.readOnItsPage} <ArrowRightIcon size={13} />
         </Link>
       }
       line={row?.summary || undefined}
       decision={
-        <DecisionBar
-          caption={
-            v.approvable ? (
-              "Approving makes it the current version. It doesn't create a new version."
-            ) : (
-              <span data-reason>A later version is already approved: this draft can only be discarded.</span>
-            )
-          }
-        >
+        <DecisionBar caption={v.approvable ? t.approvableCaption : <span data-reason>{t.notApprovableCaption}</span>}>
           {allows('record_version.approve') ? (
             v.approvable ? (
               <Button variant="primary" data-command="record_version.approve" onClick={() => open('approve')}>
-                Approve
+                {t.approve}
               </Button>
             ) : (
               <Button variant="primary" data-command="record_version.approve" aria-disabled="true" onClick={() => {}}>
-                Approve
+                {t.approve}
               </Button>
             )
           ) : null}
@@ -290,15 +292,15 @@ function VersionDetail({ item, ctx, titleId, top }: DetailProps<'version'>) {
               data-command="record_version.discard"
               onClick={() => open('discard')}
             >
-              Discard
+              {t.discard}
             </Button>
           ) : null}
         </DecisionBar>
       }
     >
       {row?.readiness ? (
-        <section className="flex flex-col gap-2" aria-label="Readiness">
-          <h3 className="text-sm font-semibold text-fg-2">Before it can be built</h3>
+        <section className="flex flex-col gap-2" aria-label={t.readinessLabel}>
+          <h3 className="text-sm font-semibold text-fg-2">{t.beforeBuilt}</h3>
           <div>
             <Readiness stage={stageOf(row)} blocking={reasons.length} />
           </div>
@@ -314,10 +316,10 @@ function VersionDetail({ item, ctx, titleId, top }: DetailProps<'version'>) {
       <ConfirmDialog
         open={dialog === 'approve'}
         onOpenChange={(o) => !o && close()}
-        title={`Approve “${v.title}” v${v.n}?`}
-        description={<p>It becomes the current version of {v.code}. Approving doesn&apos;t create a new version.</p>}
-        confirm="Approve"
-        pendingLabel="Approving…"
+        title={t.approveTitle(v.title, v.n)}
+        description={<p>{t.approveDescription(v.code)}</p>}
+        confirm={t.approve}
+        pendingLabel={t.approving}
         pending={command.isPending}
         error={dialog === 'approve' ? command.error : null}
         onConfirm={() => run('record_version.approve', {})}
@@ -325,11 +327,11 @@ function VersionDetail({ item, ctx, titleId, top }: DetailProps<'version'>) {
       <PromptDialog
         open={dialog === 'discard'}
         onOpenChange={(o) => !o && close()}
-        title={`Discard “${v.title}” v${v.n}?`}
-        description="The draft stays in the history as discarded. Say why, if you want."
-        label="Reason"
-        submit="Discard"
-        pendingLabel="Discarding…"
+        title={t.discardTitle(v.title, v.n)}
+        description={t.discardDescription}
+        label={t.reasonLabel}
+        submit={t.discard}
+        pendingLabel={t.discarding}
         tone="danger"
         maxLength={2000}
         pending={command.isPending}
@@ -341,6 +343,7 @@ function VersionDetail({ item, ctx, titleId, top }: DetailProps<'version'>) {
 }
 
 function LinkDetail({ item, ctx, titleId, top }: DetailProps<'link'>) {
+  const t = useMessages(DETAIL);
   const l = item.link;
   const command = useCommand(ctx.projectId);
   const [confirm, setConfirm] = useState(false);
@@ -361,7 +364,7 @@ function LinkDetail({ item, ctx, titleId, top }: DetailProps<'link'>) {
       ctx={ctx}
       titleId={titleId}
       top={top}
-      title={`${l.from_title} is based on ${l.to_title}`}
+      title={t.linkTitle(l.from_title, l.to_title)}
       state={<EntityState entity="link" state={l.state} />}
       why={
         <>
@@ -370,23 +373,19 @@ function LinkDetail({ item, ctx, titleId, top }: DetailProps<'link'>) {
           <RecordChip projectId={ctx.projectId} code={l.to_code} version={l.to_n} rows={ctx.rows} />
         </>
       }
-      line={
-        newer
-          ? `${l.to_code} now has v${newer}: does the link still hold?`
-          : 'The version it points to changed: does the link still hold?'
-      }
+      line={newer ? t.linkNewerLine(l.to_code, newer) : t.linkChangedLine}
       decision={
         <DecisionBar
           caption={
             <ul className="flex flex-col gap-0.5 sm:flex-row sm:flex-wrap sm:gap-x-4">
               <li>
-                <span className="font-medium text-fg">Keep:</span> it still holds.
+                <span className="font-medium text-fg">{t.keepLabel}</span> {t.keepDesc}
               </li>
               <li>
-                <span className="font-medium text-fg">Mark as changed:</span> it holds, with changes.
+                <span className="font-medium text-fg">{t.changeLabel}</span> {t.changeDesc}
               </li>
               <li>
-                <span className="font-medium text-fg">Out of date:</span> it no longer holds.
+                <span className="font-medium text-fg">{t.obsoleteLabel}</span> {t.obsoleteDesc}
               </li>
             </ul>
           }
@@ -398,18 +397,18 @@ function LinkDetail({ item, ctx, titleId, top }: DetailProps<'link'>) {
             handlers={{
               'link.keep': {
                 run: (a) => run(a.command),
-                label: 'Keep',
+                label: t.keep,
                 variant: 'primary',
                 pending: running === 'link.keep',
-                pendingLabel: 'Keeping…',
+                pendingLabel: t.keeping,
                 disabled: command.isPending,
               },
               'link.change': {
                 run: (a) => run(a.command),
-                label: 'Mark as changed',
+                label: t.markChanged,
                 variant: 'secondary',
                 pending: running === 'link.change',
-                pendingLabel: 'Marking…',
+                pendingLabel: t.marking,
                 disabled: command.isPending,
               },
               'link.obsolete': {
@@ -417,7 +416,7 @@ function LinkDetail({ item, ctx, titleId, top }: DetailProps<'link'>) {
                   command.reset();
                   setConfirm(true);
                 },
-                label: 'Out of date',
+                label: t.outOfDate,
                 variant: 'quiet-danger',
                 disabled: command.isPending,
               },
@@ -429,14 +428,10 @@ function LinkDetail({ item, ctx, titleId, top }: DetailProps<'link'>) {
       <ConfirmDialog
         open={confirm}
         onOpenChange={(o) => !o && setConfirm(false)}
-        title="Mark this link out of date?"
-        description={
-          <p>
-            “{l.from_title}” stops being based on “{l.to_title}”. New versions of {l.from_code} won&apos;t carry this link.
-          </p>
-        }
-        confirm="Out of date"
-        pendingLabel="Marking…"
+        title={t.confirmOutOfDateTitle}
+        description={<p>{t.confirmOutOfDateDescription(l.from_title, l.to_title, l.from_code)}</p>}
+        confirm={t.outOfDate}
+        pendingLabel={t.marking}
         tone="danger"
         pending={command.isPending}
         error={confirm ? command.error : null}
@@ -448,6 +443,7 @@ function LinkDetail({ item, ctx, titleId, top }: DetailProps<'link'>) {
 
 function ClassificationDetail({ item, ctx, titleId, top }: DetailProps<'classification'>) {
   const c = item.classification;
+  const t = useMessages(DETAIL);
   const command = useCommand(ctx.projectId);
   const axis = axisOf(ctx.taxonomies, c.axis);
   const categories = axis?.categories ?? [{ code: c.category, name: c.category }];
@@ -465,7 +461,7 @@ function ClassificationDetail({ item, ctx, titleId, top }: DetailProps<'classifi
       code={version ? `${code} v${version}` : c.node_ref}
       state={<EntityState entity="classification" state="pending_review" />}
       eyebrow={axis?.name ?? c.axis}
-      line={`DEMIURGO put it in “${proposed}”, ${Math.round(c.confidence * 100)}% sure: ${c.justification}`}
+      line={t.classificationLine(proposed, Math.round(c.confidence * 100), c.justification)}
       decision={
         allows('classification.resolve') ? (
           <DecisionBar error={command.error ? <ErrorNotice error={command.error} compact /> : null}>
@@ -473,29 +469,29 @@ function ClassificationDetail({ item, ctx, titleId, top }: DetailProps<'classifi
               variant="primary"
               data-command="classification.resolve"
               pending={command.isPending}
-              pendingLabel="Resolving…"
+              pendingLabel={t.resolving}
               onClick={() => command.mutate({ command: 'classification.resolve', entityId: c.id, data: { category: chosen } })}
             >
-              Resolve
+              {t.resolve}
             </Button>
           </DecisionBar>
         ) : null
       }
     >
       {axis ? null : (
-        <Notice tone="info" title="There is no approved taxonomy yet">
-          You can only confirm the category DEMIURGO chose. Approve a taxonomy in Knowledge to choose among its categories.
+        <Notice tone="info" title={t.noTaxonomyTitle}>
+          {t.noTaxonomyBody}
         </Notice>
       )}
       <ChoiceGroup
-        legend="Where it goes"
+        legend={t.whereItGoes}
         name={`classification-${c.id}`}
         value={[chosen]}
         onChange={(v) => setChosen(v[0] ?? c.category)}
         columns={2}
         choices={categories.map((cat) => ({
           value: cat.code,
-          label: cat.code === c.category ? `${cat.name} · DEMIURGO's choice` : cat.name,
+          label: cat.code === c.category ? t.demiurgoChoice(cat.name) : cat.name,
           ...('description' in cat && cat.description ? { detail: cat.description } : {}),
         }))}
       />
@@ -504,18 +500,20 @@ function ClassificationDetail({ item, ctx, titleId, top }: DetailProps<'classifi
 }
 
 function UpdateDetail({ item, ctx, titleId, top }: DetailProps<'update'>) {
+  const t = useMessages(DETAIL);
+  const kindWords = useMessages(TITLES);
   const u = item.update;
   const command = useCommand(ctx.projectId);
-  const t = u.trigger as { id?: string; version?: number | null } | null;
-  const row = t?.id ? rowOfVersion(ctx.rows, t.id) : undefined;
+  const trigger = u.trigger as { id?: string; version?: number | null } | null;
+  const row = trigger?.id ? rowOfVersion(ctx.rows, trigger.id) : undefined;
   return (
     <DetailFrame
       item={item}
       ctx={ctx}
       titleId={titleId}
       top={top}
-      title={updateTitle(item, ctx.rows)}
-      code={row ? `${row.code}${t?.version ? ` v${t.version}` : ''}` : undefined}
+      title={updateTitle(item, ctx.rows, kindWords)}
+      code={row ? `${row.code}${trigger?.version ? ` v${trigger.version}` : ''}` : undefined}
       state={<EntityState entity="knowledge_update" state="rejected" />}
       why={
         <>
@@ -523,7 +521,7 @@ function UpdateDetail({ item, ctx, titleId, top }: DetailProps<'update'>) {
           <span aria-hidden>·</span>
           <DayTime iso={u.created_at} />
           <span aria-hidden>·</span>
-          <span>Until it is taken in, the knowledge is behind.</span>
+          <span>{t.updateReasonLine}</span>
         </>
       }
       decision={
@@ -534,10 +532,10 @@ function UpdateDetail({ item, ctx, titleId, top }: DetailProps<'update'>) {
             handlers={{
               'knowledge_update.retry': {
                 run: () => command.mutate({ command: 'knowledge_update.retry', entityId: u.id, data: {} }),
-                label: 'Retry',
+                label: t.retry,
                 variant: 'primary',
                 pending: command.isPending,
-                pendingLabel: 'Retrying…',
+                pendingLabel: t.retrying,
               },
             }}
           />
@@ -545,11 +543,11 @@ function UpdateDetail({ item, ctx, titleId, top }: DetailProps<'update'>) {
       }
     >
       <Card padding="sm" className="flex flex-col gap-1">
-        <p className="text-sm font-medium text-fg">What happened</p>
-        <p className="text-sm text-fg-2">{u.failure ?? 'It stopped without saying why.'}</p>
+        <p className="text-sm font-medium text-fg">{t.whatHappened}</p>
+        <p className="text-sm text-fg-2">{u.failure ?? t.stoppedNoReason}</p>
         {row ? (
           <p className="text-sm text-fg-2">
-            The change: <Code>{row.code}</Code> {row.title}
+            {t.theChangeLabel} <Code>{row.code}</Code> {row.title}
           </p>
         ) : null}
       </Card>
@@ -558,7 +556,7 @@ function UpdateDetail({ item, ctx, titleId, top }: DetailProps<'update'>) {
 }
 
 /** Used by the page to say what a result means for the rest ("Answered. 3 left in Needs you."). */
-export function saidWithCount(said: string, left: number): string {
-  if (left === 0) return `${said} Nothing else needs you.`;
-  return `${said} ${left} left in Needs you.`;
+export function saidWithCount(said: string, left: number, words: typeof DETAIL.en = DETAIL.en): string {
+  if (left === 0) return words.nothingElse(said);
+  return words.leftCount(said, left);
 }

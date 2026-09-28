@@ -2,8 +2,10 @@
 // "x of y" with its words beside it; the readiness badge is a word plus a three-step track whose
 // meaning is in the word (the track is decorative).
 
+import { useMessages } from '../i18n/define.ts';
 import { cn } from '../lib/cn.ts';
 import { StatusBadge } from './status.tsx';
+import { METER } from './words.i18n.ts';
 
 /** "3 of 5 answered" with a thin bar; the text carries the value. */
 export function Meter({
@@ -118,15 +120,16 @@ export function Readiness({
   track?: boolean;
   className?: string;
 }) {
-  const word =
-    stage === 'not-ready' && blocking ? `Not ready · ${blocking} ${blocking === 1 ? 'thing' : 'things'}` : STAGE_WORD[stage];
+  const t = useMessages(METER);
+  const word = t.stageWord(stage, blocking);
+  const phrase = t.stagePhrase(stage);
   return (
-    <span data-stage={stage} className={cn('inline-flex items-center gap-2', className)} title={STAGE_PHRASE[stage]}>
+    <span data-stage={stage} className={cn('inline-flex items-center gap-2', className)} title={phrase}>
       <StatusBadge
         kind={stage === 'ready' ? 'done' : stage === 'doubt' ? 'conflict' : 'open'}
         word={word}
         size={size}
-        title={STAGE_PHRASE[stage]}
+        title={phrase}
       />
       {track ? (
         <span aria-hidden className="inline-flex gap-0.5">

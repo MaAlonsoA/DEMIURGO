@@ -22,30 +22,31 @@ import { Certainty, StatusBadge } from '../../components/status.tsx';
 import { DayTime, Elapsed } from '../../components/Time.tsx';
 import { TypeIcon, typeWord } from '../../components/types.tsx';
 import { Who, whoName } from '../../components/Who.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { whoOf } from '../../words.ts';
 import { ReasonText } from '../record/RecordAside.tsx';
 import { useReturnFocus } from '../record/returnFocus.ts';
 import { rowStage, type Waiting, waitingCount, waitingPhrase } from '../record/logic.ts';
+import { PREVIEWS } from './words.i18n.ts';
 
 export type PreviewTarget = { kind: 'record'; code: string } | { kind: 'draft'; runId: string } | null;
 
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-
-function by(actor: string): string {
+function by(actor: string, you: string): string {
   const who = whoOf(actor);
-  return who.kind === 'you' ? 'you' : whoName(who);
+  return who.kind === 'you' ? you : whoName(who);
 }
 
 /** The reasons a record can't be built yet, as the server says them. */
 function ReadinessFacts({ projectId, row }: { projectId: string; row: ProductRow }) {
+  const t = useMessages(PREVIEWS);
   const r = row.readiness;
   if (!r) return null;
   const stage = rowStage(row);
   return (
-    <section aria-label={r.ready ? 'Ready to build' : 'Before it can be built'} className="flex flex-col gap-2">
+    <section aria-label={r.ready ? t.readyToBuild : t.beforeItCanBeBuilt} className="flex flex-col gap-2">
       <Readiness stage={stage} blocking={r.reasons.length} size="md" />
       {r.ready ? (
-        <p className="text-sm text-fg-2">Nothing blocks it. Nothing is built yet.</p>
+        <p className="text-sm text-fg-2">{t.nothingBlocks}</p>
       ) : r.reasons.length > 0 ? (
         <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-fg">
           {r.reasons.map((reason) => (
@@ -58,7 +59,7 @@ function ReadinessFacts({ projectId, row }: { projectId: string; row: ProductRow
       {r.warnings.length > 0 ? (
         <p className="flex items-center gap-1.5 text-xs text-warning-text">
           <AlertTriangleIcon size={13} className="shrink-0" />
-          {plural(r.warnings.length, 'warning')} on how its checks can be verified
+          {t.warning(r.warnings.length)}
         </p>
       ) : null}
     </section>
@@ -76,34 +77,35 @@ function RecordFacts({
   waiting: Waiting;
   thread: string | null;
 }) {
+  const t = useMessages(PREVIEWS);
   const shown = row.current ?? row.latest.n;
   const items: KeyValueItem[] = [
-    { key: 'code', label: 'Code', value: <Code>{`${row.code} · v${shown}`}</Code> },
+    { key: 'code', label: t.code, value: <Code>{`${row.code} · v${shown}`}</Code> },
     {
       key: 'versions',
-      label: 'Versions',
+      label: t.versions,
       value: (
         <>
-          {row.current !== null ? `v${row.current} current` : 'None approved yet'}
-          {row.latest.n !== row.current ? <span className="text-fg-2"> · v{row.latest.n} draft</span> : null}
+          {row.current !== null ? t.current(row.current) : t.noneApprovedYet}
+          {row.latest.n !== row.current ? <span className="text-fg-2"> · {t.draft(row.latest.n)}</span> : null}
         </>
       ),
     },
     ...(row.type !== 'decision'
-      ? [{ key: 'checks', label: 'Checks', value: row.checks === 0 ? 'None yet' : String(row.checks) }]
+      ? [{ key: 'checks', label: t.checks, value: row.checks === 0 ? t.noneYet : String(row.checks) }]
       : []),
     ...(row.origin_exploration
       ? [
           {
             key: 'origin',
-            label: 'Comes from',
+            label: t.comesFrom,
             value: (
               <Link
                 to="/p/$projectId/threads/$explorationId"
                 params={{ projectId, explorationId: row.origin_exploration }}
                 className="font-medium text-accent-text hover:underline"
               >
-                {thread ?? 'Its thread'}
+                {thread ?? t.itsThread}
               </Link>
             ),
           },
@@ -111,11 +113,11 @@ function RecordFacts({
       : []),
     {
       key: 'last',
-      label: row.latest.state === 'approved' ? 'Approved by' : 'Drafted by',
+      label: row.latest.state === 'approved' ? t.approvedBy : t.draftedBy,
       value: (
         <span className="inline-flex flex-wrap items-center gap-1.5">
           <Who actor={row.updated_by} size={16} showName={false} />
-          {by(row.updated_by)} · <DayTime iso={row.updated_at} />
+          {by(row.updated_by, t.you)} · <DayTime iso={row.updated_at} />
         </span>
       ),
     },
@@ -124,7 +126,7 @@ function RecordFacts({
   return (
     <>
       {needs > 0 ? (
-        <Notice tone="accent" title="Needs you">
+        <Notice tone="accent" title={t.needsYou}>
           {waitingPhrase(waiting).replace(/^Needs you: /, '')}
         </Notice>
       ) : null}
@@ -150,6 +152,7 @@ export function RecordPreview({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useMessages(PREVIEWS);
   return (
     <PreviewSheet
       open={open && !!row}
@@ -171,7 +174,7 @@ export function RecordPreview({
             params={{ projectId, code: row.code }}
             className={buttonClass({ variant: 'primary' })}
           >
-            Open <ArrowRightIcon size={14} />
+            {t.open} <ArrowRightIcon size={14} />
           </Link>
         ) : null
       }
@@ -195,6 +198,7 @@ export function DraftPreview({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useMessages(PREVIEWS);
   const command = useCommand(projectId);
   const [cancelling, setCancelling] = useState(false);
   const focus = useReturnFocus();
@@ -202,11 +206,11 @@ export function DraftPreview({
     <PreviewSheet
       open={open && !!run}
       onOpenChange={onOpenChange}
-      title="A new feature"
+      title={t.aNewFeature}
       eyebrow={
         <>
           <TypeIcon type="fdr" size={14} className="text-fg-3" />
-          Feature
+          {t.feature}
           <StatusBadge kind="proposed" />
         </>
       }
@@ -218,7 +222,7 @@ export function DraftPreview({
               params={{ projectId, runId: run.id }}
               className={buttonClass({ variant: 'primary' })}
             >
-              Open the run <ArrowRightIcon size={14} />
+              {t.openTheRun} <ArrowRightIcon size={14} />
             </Link>
             <ActionBar
               entity="ai_run"
@@ -243,7 +247,7 @@ export function DraftPreview({
           <p className="text-sm text-fg">
             {from ? (
               <>
-                From{' '}
+                {t.fromWord}{' '}
                 <Link
                   to="/p/$projectId/records/$code"
                   params={{ projectId, code: from.code }}
@@ -253,16 +257,16 @@ export function DraftPreview({
                 </Link>
               </>
             ) : (
-              'From an approved decision'
+              t.fromApprovedDecision
             )}
           </p>
           <div className="flex flex-wrap items-center gap-2 text-sm text-fg-2">
             <Who actor={`agent:run:${run.id}`} model={run.model} size={18} />
-            <span>is writing a first draft ·</span>
+            <span>{t.isWritingDraft}</span>
             <RunStateBadge run={run} withDetail />
             <Elapsed start={run.started_at ?? run.created_at} />
           </div>
-          <p className="text-sm text-fg-2">It becomes a feature when you accept its package.</p>
+          <p className="text-sm text-fg-2">{t.becomesFeature}</p>
           {command.error && !cancelling ? <ErrorNotice error={command.error} /> : null}
           <ConfirmDialog
             open={cancelling}
@@ -270,12 +274,12 @@ export function DraftPreview({
               setCancelling(o);
               if (!o) focus.restore();
             }}
-            title="Cancel this draft?"
-            description="DEMIURGO stops writing it. Nothing is applied; what it already wrote in the thread stays."
-            confirm="Cancel the draft"
-            cancel="Keep drafting"
+            title={t.cancelThisDraft}
+            description={t.cancelDraftDescription}
+            confirm={t.cancelTheDraft}
+            cancel={t.keepDrafting}
             tone="danger"
-            pendingLabel="Cancelling…"
+            pendingLabel={t.cancelling}
             pending={command.isPending}
             error={cancelling ? command.error : null}
             onConfirm={() =>
@@ -284,7 +288,7 @@ export function DraftPreview({
                 {
                   onSuccess: () => {
                     setCancelling(false);
-                    announce('The draft was cancelled.');
+                    announce(t.cancelledAnnounce);
                   },
                 },
               )

@@ -9,37 +9,32 @@ import { Code } from '../../components/Badge.tsx';
 import { Button } from '../../components/Button.tsx';
 import { ChoiceGroup, Field, TextArea, TextInput } from '../../components/Field.tsx';
 import { AlertTriangleIcon, TrashIcon } from '../../components/icons.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { VerificationMark } from '../record/Checks.tsx';
 import type { CheckDraft, Choice as Carry, Verification } from './form.ts';
 import { statementWarnings } from './verifiability.ts';
-
-/** What happens to a check of the base version, and what choosing it changes. */
-const CARRY: { value: Carry; label: string; effect: string }[] = [
-  { value: 'keep', label: 'Keep', effect: 'It goes into the new version as it is.' },
-  { value: 'change', label: 'Change', effect: 'You edit it here, under the same code.' },
-  { value: 'drop', label: 'Drop', effect: 'It leaves the new version and stays in the earlier ones.' },
-];
-
-const WHO: { value: Verification; label: string; detail: string }[] = [
-  { value: 'automatic', label: 'Automatic', detail: 'A test checks it on its own.' },
-  { value: 'manual', label: 'You', detail: 'You check it by hand once it is built.' },
-];
+import { CHECK_EDITOR } from './words.i18n.ts';
 
 function Editor({ check, onChange }: { check: CheckDraft; onChange: (c: CheckDraft) => void }) {
+  const t = useMessages(CHECK_EDITOR);
   // The warning appears when leaving the statement field (and follows it on every later blur).
   const [left, setLeft] = useState<string | null>(null);
   const warnings = left === null ? [] : statementWarnings(left);
   const warningsId = useId();
+  const WHO: { value: Verification; label: string; detail: string }[] = [
+    { value: 'automatic', label: t.automatic, detail: t.automaticDetail },
+    { value: 'manual', label: t.you, detail: t.youDetail },
+  ];
   return (
     <div className="flex flex-col gap-4 border-t border-edge-subtle pt-4">
-      <Field label="Title" count={[check.title.length, 200]}>
+      <Field label={t.title} count={[check.title.length, 200]}>
         {(p) => (
           <TextInput {...p} value={check.title} maxLength={200} onChange={(e) => onChange({ ...check, title: e.target.value })} />
         )}
       </Field>
       <div className="flex flex-col gap-2">
-        <Field label="Statement" hint="What must be true: given…, when…, then…" count={[check.statement.length, 3000]}>
+        <Field label={t.statement} hint={t.statementHint} count={[check.statement.length, 3000]}>
           {(p) => (
             <TextArea
               {...p}
@@ -62,7 +57,7 @@ function Editor({ check, onChange }: { check: CheckDraft; onChange: (c: CheckDra
           >
             <AlertTriangleIcon size={14} className="mt-0.5 shrink-0 text-warning-text" />
             <div className="flex flex-col gap-0.5">
-              <p className="font-medium">It may be hard to verify. You can save it anyway.</p>
+              <p className="font-medium">{t.hardToVerify}</p>
               <ul className="list-disc pl-5 text-fg-2">
                 {warnings.map((w) => (
                   <li key={w}>{w}</li>
@@ -72,7 +67,7 @@ function Editor({ check, onChange }: { check: CheckDraft; onChange: (c: CheckDra
           </div>
         ) : null}
       </div>
-      <Field label="How it is checked" count={[check.check.length, 1000]}>
+      <Field label={t.howItIsChecked} count={[check.check.length, 1000]}>
         {(p) => (
           <TextInput
             {...p}
@@ -83,7 +78,7 @@ function Editor({ check, onChange }: { check: CheckDraft; onChange: (c: CheckDra
         )}
       </Field>
       <ChoiceGroup
-        legend="Who checks it"
+        legend={t.whoChecksIt}
         columns={2}
         value={[check.verification]}
         onChange={([v]) => v && onChange({ ...check, verification: v as Verification })}
@@ -107,6 +102,12 @@ export function CheckEditor({
   /** Edits made under Change are waiting to come back if Change is chosen again. */
   editsKept?: boolean;
 }) {
+  const t = useMessages(CHECK_EDITOR);
+  const CARRY: { value: Carry; label: string; effect: string }[] = [
+    { value: 'keep', label: t.keep, effect: t.keepEffect },
+    { value: 'change', label: t.change, effect: t.changeEffect },
+    { value: 'drop', label: t.drop, effect: t.dropEffect },
+  ];
   const isNew = check.code === null;
   const dropped = check.choice === 'drop';
   return (
@@ -120,7 +121,7 @@ export function CheckEditor({
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-1">
           <p className="flex flex-wrap items-center gap-2 text-xs font-medium text-fg-2">
-            {isNew ? 'New check' : `Check ${index + 1}`}
+            {isNew ? t.newCheck : t.checkN(index + 1)}
             {check.code ? <Code>{check.code}</Code> : null}
           </p>
           {!isNew ? (
@@ -133,9 +134,9 @@ export function CheckEditor({
             variant="quiet-danger"
             icon={<TrashIcon size={14} />}
             onClick={onRemove}
-            aria-label="Remove the new check"
+            aria-label={t.removeTheNewCheck}
           >
-            Remove
+            {t.remove}
           </Button>
         ) : null}
       </div>
@@ -147,7 +148,7 @@ export function CheckEditor({
       ) : null}
       {!isNew ? (
         <ChoiceGroup
-          legend={`What to do with ${check.title} (${check.code})`}
+          legend={t.whatToDoWith(check.title, check.code ?? '')}
           legendHidden
           columns={3}
           value={check.choice ? [check.choice] : []}
@@ -155,9 +156,7 @@ export function CheckEditor({
           choices={CARRY.map((c) => ({ value: c.value, label: c.label, detail: c.effect }))}
         />
       ) : null}
-      {editsKept && check.choice !== 'change' ? (
-        <p className="text-xs text-fg-2">Your edits are kept: choose Change to see them again.</p>
-      ) : null}
+      {editsKept && check.choice !== 'change' ? <p className="text-xs text-fg-2">{t.editsKept}</p> : null}
       {isNew || check.choice === 'change' ? <Editor check={check} onChange={onChange} /> : null}
     </li>
   );

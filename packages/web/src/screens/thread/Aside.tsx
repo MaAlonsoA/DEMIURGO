@@ -14,10 +14,12 @@ import { Button } from '../../components/Button.tsx';
 import { PlusIcon, ThreadsIcon } from '../../components/icons.tsx';
 import { QuestionOutcome } from '../../components/QuestionActions.tsx';
 import { EntityState } from '../../components/status.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { useTables } from '../../lib/hooks.ts';
 import { OpenThreadDialog } from '../threads/OpenThreadDialog.tsx';
 import { isOpenQuestion, isShown } from './answers.ts';
 import { useDrafts } from './drafts.tsx';
+import { ASIDE } from './words.i18n.ts';
 
 export function ThreadAside({
   projectId,
@@ -48,6 +50,7 @@ function QuestionsHere({
   stageTitleOf: (q: Question) => string | null;
   onJump: (questionId: string) => void;
 }) {
+  const words = useMessages(ASIDE);
   const drafts = useDrafts();
   const shown = t.questions.filter(isShown);
   // Open ones first (they wait for the person), each group in the order they were shown.
@@ -62,13 +65,9 @@ function QuestionsHere({
     <section aria-labelledby="aside-questions" className="flex flex-col gap-3">
       <div className="flex flex-col gap-0.5">
         <h2 id="aside-questions" className="text-base font-semibold text-fg">
-          Questions in this thread
+          {words.questionsTitle}
         </h2>
-        <p className="text-sm text-fg-2">
-          {shown.length === 0
-            ? 'None yet. DEMIURGO asks here as the thread goes on.'
-            : `${open} open · ${shown.length - open} settled`}
-        </p>
+        <p className="text-sm text-fg-2">{shown.length === 0 ? words.none : words.openSettled(open, shown.length)}</p>
       </div>
       {ordered.length > 0 ? (
         <ul className="flex flex-col gap-2">
@@ -84,7 +83,7 @@ function QuestionsHere({
                   <EntityState entity="question" state={q.state} />
                   {stage ? <span className="text-xs text-fg-3">{stage}</span> : null}
                   {drafts?.answers[q.id] && isOpenQuestion(q) ? (
-                    <span className="ml-auto text-xs font-medium text-accent-text">Not sent yet</span>
+                    <span className="ml-auto text-xs font-medium text-accent-text">{words.notSentYet}</span>
                   ) : null}
                 </div>
                 <button
@@ -93,7 +92,7 @@ function QuestionsHere({
                   className="cursor-pointer text-left text-sm text-fg hover:underline"
                 >
                   {q.question}
-                  <span className="sr-only"> · show it in the conversation</span>
+                  <span className="sr-only">{words.jumpToConversation}</span>
                 </button>
                 <QuestionOutcome question={q} className="text-xs" />
               </li>
@@ -101,16 +100,13 @@ function QuestionsHere({
           })}
         </ul>
       ) : null}
-      {reserve > 0 && t.state === 'active' ? (
-        <p className="text-sm text-fg-2">
-          DEMIURGO keeps {reserve} {reserve === 1 ? 'question' : 'questions'} for later. They come up as you answer.
-        </p>
-      ) : null}
+      {reserve > 0 && t.state === 'active' ? <p className="text-sm text-fg-2">{words.reserve(reserve)}</p> : null}
     </section>
   );
 }
 
 function ThreadsInside({ projectId, thread: t }: { projectId: string; thread: ExplorationDetail }) {
+  const words = useMessages(ASIDE);
   const tables = useTables();
   const [opening, setOpening] = useState(false);
   const canOpen = !!tables && canCreate(tables, 'exploration.open');
@@ -119,7 +115,7 @@ function ThreadsInside({ projectId, thread: t }: { projectId: string; thread: Ex
   return (
     <section aria-labelledby="aside-children" className="flex flex-col gap-3">
       <h2 id="aside-children" className="text-base font-semibold text-fg">
-        Threads inside
+        {words.threadsInsideTitle}
       </h2>
       {t.children.length > 0 ? (
         <ul className="flex flex-col gap-1">
@@ -138,7 +134,7 @@ function ThreadsInside({ projectId, thread: t }: { projectId: string; thread: Ex
                   </Link>
                   <span className="flex flex-wrap items-center gap-2">
                     <EntityState entity="exploration" state={c.state} />
-                    <Count n={waiting} label={`${waiting} ${waiting === 1 ? 'question waits' : 'questions wait'} for you`} />
+                    <Count n={waiting} label={words.waiting(waiting)} />
                   </span>
                 </div>
               </li>
@@ -146,7 +142,7 @@ function ThreadsInside({ projectId, thread: t }: { projectId: string; thread: Ex
           })}
         </ul>
       ) : (
-        <p className="text-sm text-fg-2">None yet. Fork a message of DEMIURGO to explore an idea apart.</p>
+        <p className="text-sm text-fg-2">{words.noneInside}</p>
       )}
       {canOpen ? (
         <Button
@@ -156,7 +152,7 @@ function ThreadsInside({ projectId, thread: t }: { projectId: string; thread: Ex
           className="self-start"
           onClick={() => setOpening(true)}
         >
-          New thread inside
+          {words.newThreadInside}
         </Button>
       ) : null}
       <OpenThreadDialog

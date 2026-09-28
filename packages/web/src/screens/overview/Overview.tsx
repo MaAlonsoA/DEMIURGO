@@ -21,6 +21,7 @@ import { Bone, Skeleton } from '../../components/Spinner.tsx';
 import { Tag } from '../../components/Badge.tsx';
 import { cn } from '../../lib/cn.ts';
 import { useProjectId, useTables } from '../../lib/hooks.ts';
+import { useMessages } from '../../i18n/define.ts';
 import { TYPE_WORDS_PLURAL } from '../../words.ts';
 import { ProductTabs } from '../../shell/ProductTabs.tsx';
 import { TaxonomyHint } from '../knowledge/TaxonomyHint.tsx';
@@ -34,6 +35,7 @@ import { DraftPreview, type PreviewTarget, RecordPreview } from './Previews.tsx'
 import { draftingRuns, featureStatus, productProgress, recentlyDecided, workingRuns } from './progress.ts';
 import { DesignStages } from './Stages.tsx';
 import { useReturnFocus } from '../record/returnFocus.ts';
+import { OVERVIEW } from './words.i18n.ts';
 
 const STAGE_RECORD_TYPES = new Set(['requirement', 'quality_requirement', 'threat_model', 'production_readiness']);
 
@@ -52,8 +54,9 @@ export function OverviewScreen() {
 }
 
 function OverviewSkeleton() {
+  const t = useMessages(OVERVIEW);
   return (
-    <Skeleton label="Loading the product" className="flex flex-col gap-6">
+    <Skeleton label={t.loadingProduct} className="flex flex-col gap-6">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[0, 1, 2, 3, 4].map((i) => (
           <Bone key={i} className="h-28 rounded-lg" />
@@ -73,17 +76,19 @@ function OverviewSkeleton() {
 
 /** What comes later (INV-OVW-09): quiet, at the end, so it doesn't take the space of what can be done now. */
 function LaterRows() {
+  const t = useMessages(OVERVIEW);
+  const items = [t.laterWhoUsesIt, t.laterRules];
   return (
     <section aria-labelledby="later-title" data-later className="flex flex-col gap-2">
       <h2 id="later-title" className="text-base font-semibold text-fg">
-        Coming later
+        {t.comingLater}
       </h2>
       <ul className="flex flex-col gap-1.5 rounded-lg border border-dashed border-edge-strong px-4 py-3 text-sm text-fg-2">
-        {['Who uses it', 'Rules for the whole product'].map((t) => (
-          <li key={t} className="flex flex-wrap items-center gap-2">
-            <Tag>Later</Tag>
-            <span className="font-medium text-fg">{t}</span>
-            <span>In a later increment, DEMIURGO will read them from your idea.</span>
+        {items.map((label) => (
+          <li key={label} className="flex flex-wrap items-center gap-2">
+            <Tag>{t.later}</Tag>
+            <span className="font-medium text-fg">{label}</span>
+            <span>{t.laterInIncrement}</span>
           </li>
         ))}
       </ul>
@@ -92,6 +97,7 @@ function LaterRows() {
 }
 
 function Overview({ projectId }: { projectId: string }) {
+  const t = useMessages(OVERVIEW);
   const project = (useQuery(projectsQuery).data ?? []).find((p) => p.id === projectId);
   const state = useQuery(stateQuery(projectId));
   const inbox = useQuery(inboxQuery(projectId));
@@ -101,17 +107,17 @@ function Overview({ projectId }: { projectId: string }) {
   const lens = useLens(projectId, state.data);
   const [preview, setPreviewState] = useState<PreviewTarget>(null);
   const focus = useReturnFocus();
-  const setPreview = (t: PreviewTarget) => {
-    if (t) focus.capture();
-    setPreviewState(t);
+  const setPreview = (target: PreviewTarget) => {
+    if (target) focus.capture();
+    setPreviewState(target);
   };
   const closePreview = (o: boolean) => {
     if (o) return;
     setPreviewState(null);
     focus.restore();
   };
-  const name = state.data?.project.name ?? project?.name ?? 'The product';
-  usePageTitle(['Product', name]);
+  const name = state.data?.project.name ?? project?.name ?? t.theProductDefault;
+  usePageTitle([t.pageTitleProduct, name]);
 
   const runs = runsQ.data ?? [];
   const working = workingRuns(runs);
@@ -140,13 +146,13 @@ function Overview({ projectId }: { projectId: string }) {
           className={cn(buttonClass(), lens.on && 'border-accent-edge bg-accent-soft text-accent-text hover:bg-accent-soft')}
         >
           <EyeIcon size={15} />
-          What changed · {lens.lines.length}
+          {t.whatChanged(lens.lines.length)}
         </button>
       ) : null}
       {newRecord ? (
         <Link to="/p/$projectId/records/new" params={{ projectId }} className={buttonClass({ variant: 'secondary' })}>
           <PlusIcon size={15} />
-          New record
+          {t.newRecord}
         </Link>
       ) : null}
     </>
@@ -179,7 +185,7 @@ function Overview({ projectId }: { projectId: string }) {
         eyebrow={
           <>
             <ProductIcon size={15} className="text-fg-3" />
-            The product
+            {t.theProduct}
           </>
         }
         title={name}
@@ -189,7 +195,7 @@ function Overview({ projectId }: { projectId: string }) {
         {s && !empty ? <ProgressLine progress={progress} drafting={drafting.length} /> : null}
       </PageHeader>
       <PageBody>
-        <WithAside aside={aside} asideLabel="What needs you and what runs" asideWidth="md">
+        <WithAside aside={aside} asideLabel={t.whatNeedsAndRuns} asideWidth="md">
           {!s ? (
             state.error ? (
               <ErrorNotice error={state.error} onRetry={() => void state.refetch()} />
@@ -202,21 +208,21 @@ function Overview({ projectId }: { projectId: string }) {
               <DesignStages projectId={projectId} />
               {empty ? (
                 <EmptyState
-                  title="Nothing here yet"
+                  title={t.nothingHereYet}
                   action={
                     <>
                       <Link to="/p/$projectId/threads" params={{ projectId }} className={buttonClass({ variant: 'primary' })}>
-                        Go to Threads
+                        {t.goToThreads}
                       </Link>
                       {newRecord ? (
                         <Link to="/p/$projectId/records/new" params={{ projectId }} className={buttonClass()}>
-                          New record
+                          {t.newRecord}
                         </Link>
                       ) : null}
                     </>
                   }
                 >
-                  Write a record yourself or open a thread to design it with DEMIURGO.
+                  {t.writeOrOpen}
                 </EmptyState>
               ) : (
                 <ProductSections
@@ -240,11 +246,11 @@ function Overview({ projectId }: { projectId: string }) {
                   id="drafting"
                   title={
                     <>
-                      Being drafted
+                      {t.beingDrafted}
                       <Count n={drafting.length} />
                     </>
                   }
-                  note="Features DEMIURGO is writing from an approved decision."
+                  note={t.draftingNote}
                 >
                   <div className="grid gap-4 sm:grid-cols-2">
                     {drafting.map((run) => {
@@ -315,6 +321,7 @@ function ProductSections({
   explorations: ExplorationSummary[];
   questionsWaiting: (threadId: string) => number;
 }) {
+  const t = useMessages(OVERVIEW);
   const features = rows.filter((r) => r.type === 'fdr');
   const decisions = rows.filter((r) => r.type === 'decision' || r.type === 'adr');
   const stageRecords = rows.filter((r) => STAGE_RECORD_TYPES.has(r.type));
@@ -342,9 +349,7 @@ function ProductSections({
         }
       >
         {features.length === 0 ? (
-          <p className="text-sm text-fg-2">
-            No features yet. DEMIURGO drafts one from an approved decision, or you can write one yourself.
-          </p>
+          <p className="text-sm text-fg-2">{t.noFeaturesYet}</p>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             {features.map((row) => (
@@ -366,12 +371,12 @@ function ProductSections({
           id="decisions"
           title={
             <>
-              Decisions and tech decisions
+              {t.decisionsAndTech}
               <Count n={decisions.length} />
             </>
           }
         >
-          <RowList label="Decisions and tech decisions">{decisions.map(recordRow)}</RowList>
+          <RowList label={t.decisionsAndTech}>{decisions.map(recordRow)}</RowList>
         </Section>
       ) : null}
       {stageRecords.length > 0 ? (
@@ -379,12 +384,12 @@ function ProductSections({
           id="stage-records"
           title={
             <>
-              Requirements, quality, security and production
+              {t.requirementsQuality}
               <Count n={stageRecords.length} />
             </>
           }
         >
-          <RowList label="Requirements, quality, security and production">{stageRecords.map(recordRow)}</RowList>
+          <RowList label={t.requirementsQuality}>{stageRecords.map(recordRow)}</RowList>
         </Section>
       ) : null}
       {bugs.length > 0 ? (
@@ -405,19 +410,19 @@ function ProductSections({
           id="open-threads"
           title={
             <>
-              Threads with open questions
+              {t.threadsWithOpen}
               <Count n={open.length} />
             </>
           }
         >
-          <RowList label="Threads with open questions">
-            {open.map((t) => (
+          <RowList label={t.threadsWithOpen}>
+            {open.map((thread) => (
               <ThreadRow
-                key={t.id}
+                key={thread.id}
                 projectId={projectId}
-                thread={t}
-                waiting={questionsWaiting(t.id)}
-                change={changeOf(lens, lens.threads, t.id)}
+                thread={thread}
+                waiting={questionsWaiting(thread.id)}
+                change={changeOf(lens, lens.threads, thread.id)}
               />
             ))}
           </RowList>

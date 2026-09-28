@@ -10,8 +10,10 @@ import { type FormEvent, type KeyboardEvent, type Ref, useEffect, useId, useImpe
 import { runCommand } from '../api/commands.ts';
 import { explorationQuery, explorationsQuery, keys, runsQuery } from '../api/queries.ts';
 import { canCreate } from '../api/tables.ts';
+import { useMessages } from '../i18n/define.ts';
 import { cn } from '../lib/cn.ts';
 import { useTables } from '../lib/hooks.ts';
+import { useSafeLocale } from '../words.ts';
 import { type AskSubject, askPlaceholder, askProgress, openThreadData, subjectWords, threadFor } from './ask.ts';
 import { Button } from './Button.tsx';
 import { TextArea } from './Field.tsx';
@@ -19,6 +21,7 @@ import { ArrowRightIcon, SendIcon } from './icons.tsx';
 import { ErrorNotice } from './Notice.tsx';
 import { StateIcon } from './status.tsx';
 import { WhoAvatar } from './Who.tsx';
+import { ASK_BOX } from './words.i18n.ts';
 
 export type AskBoxHandle = { prefill: (beginning: string) => void };
 
@@ -35,6 +38,8 @@ export function AskBox({
   className?: string;
   ref?: Ref<AskBoxHandle>;
 }) {
+  const t = useMessages(ASK_BOX);
+  const locale = useSafeLocale();
   const tables = useTables();
   const client = useQueryClient();
   const [text, setText] = useState('');
@@ -104,7 +109,10 @@ export function AskBox({
       submit();
     }
   };
-  const label = `Ask DEMIURGO about ${subjectWords(subject)}`;
+  const label =
+    locale === 'es'
+      ? `Pregunta a DEMIURGO sobre ${subjectWords(subject, locale)}`
+      : `Ask DEMIURGO about ${subjectWords(subject)}`;
 
   return (
     <section aria-labelledby={`${id}-title`} className={cn('flex flex-col gap-2', className)} data-ask>
@@ -125,12 +133,12 @@ export function AskBox({
           rows={2}
           value={text}
           maxLength={20_000}
-          placeholder={askPlaceholder(subject)}
+          placeholder={askPlaceholder(subject, locale)}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKeyDown}
         />
         <div className="flex items-center justify-between gap-2">
-          <span className="text-xs text-fg-3">Enter asks · Shift Enter for a new line</span>
+          <span className="text-xs text-fg-3">{t.enterHint}</span>
           <Button
             type="submit"
             size="sm"
@@ -138,9 +146,9 @@ export function AskBox({
             icon={<SendIcon size={14} />}
             disabled={empty}
             pending={send.isPending}
-            pendingLabel="Sending…"
+            pendingLabel={t.sending}
           >
-            Ask
+            {t.ask}
           </Button>
         </div>
       </form>
@@ -151,9 +159,11 @@ export function AskBox({
 
 /** How the answer goes: working while DEMIURGO answers, then the way to the thread. */
 function AskStatus({ projectId, sent }: { projectId: string; sent: Sent }) {
+  const t = useMessages(ASK_BOX);
+  const locale = useSafeLocale();
   const thread = useQuery(explorationQuery(projectId, sent.explorationId));
   const runs = useQuery(runsQuery(projectId, { exploration: sent.explorationId }));
-  const progress = askProgress(thread.data, runs.data, sent.messageId);
+  const progress = askProgress(thread.data, runs.data, sent.messageId, locale);
   const where = (
     <Link
       to="/p/$projectId/threads/$explorationId"
@@ -169,7 +179,7 @@ function AskStatus({ projectId, sent }: { projectId: string; sent: Sent }) {
       params={{ projectId, explorationId: sent.explorationId }}
       className="inline-flex items-center gap-1 font-medium whitespace-nowrap text-accent-text hover:underline"
     >
-      Open the thread <ArrowRightIcon size={12} />
+      {t.openThread} <ArrowRightIcon size={12} />
     </Link>
   );
   return (
@@ -182,15 +192,25 @@ function AskStatus({ projectId, sent }: { projectId: string; sent: Sent }) {
         <StateIcon kind={progress.state === 'answering' ? 'working' : progress.state === 'answered' ? 'done' : 'problem'} />
       </span>
       <span className="min-w-0 leading-5">
-        {progress.state === 'answering' && <>Sent to {where} · DEMIURGO is answering…</>}
+        {progress.state === 'answering' &&
+          (locale === 'es' ? (
+            <>Enviado a {where} · DEMIURGO está respondiendo…</>
+          ) : (
+            <>Sent to {where} · DEMIURGO is answering…</>
+          ))}
         {progress.state === 'answered' && (
           <>
-            DEMIURGO answered in {where} · {open}
+            {locale === 'es' ? <>DEMIURGO respondió en {where}</> : <>DEMIURGO answered in {where}</>} · {open}
           </>
         )}
         {progress.state === 'failed' && (
           <>
-            DEMIURGO couldn't answer: {progress.failure} · {open}
+            {locale === 'es' ? (
+              <>DEMIURGO no pudo responder: {progress.failure}</>
+            ) : (
+              <>DEMIURGO couldn't answer: {progress.failure}</>
+            )}{' '}
+            · {open}
           </>
         )}
       </span>

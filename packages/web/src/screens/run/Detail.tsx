@@ -24,27 +24,30 @@ import { RowsSkeleton } from '../../components/Spinner.tsx';
 import { TabPanel, Tabs } from '../../components/Tabs.tsx';
 import { Who } from '../../components/Who.tsx';
 import { runCallsQuery } from '../../api/models.ts';
+import { type Translation, useMessages } from '../../i18n/define.ts';
 import { CallsPanel } from './Engine.tsx';
 import { runEventsQuery } from './hooks.ts';
 import { Facts, RawJson, ReadableValue, humanize } from './Readable.tsx';
 import { EVENT_WORDS, clockTime } from './runs.ts';
+import { DETAIL } from './words.i18n.ts';
 
 type TabKey = 'calls' | 'context' | 'output' | 'events';
 
 export function RunDetailTabs({ projectId, run: r, active }: { projectId: string; run: RunDetail; active: boolean }) {
+  const t = useMessages(DETAIL);
   const [tab, setTab] = useState<TabKey>('calls');
   const calls = useQuery(runCallsQuery(projectId, r.id)).data;
   const events = useQuery(runEventsQuery(projectId, r)).data;
   return (
     <Tabs
-      label="About this run"
+      label={t.aboutRun}
       value={tab}
       onChange={(v) => setTab(v as TabKey)}
       tabs={[
-        { value: 'calls', label: 'Engine calls', ...(calls ? { count: calls.length } : {}) },
-        { value: 'context', label: 'Context' },
-        { value: 'output', label: 'Output' },
-        { value: 'events', label: 'Events', ...(events ? { count: events.length } : {}) },
+        { value: 'calls', label: t.engineCalls, ...(calls ? { count: calls.length } : {}) },
+        { value: 'context', label: t.context },
+        { value: 'output', label: t.output },
+        { value: 'events', label: t.events, ...(events ? { count: events.length } : {}) },
       ]}
     >
       <TabPanel value="calls">
@@ -65,27 +68,28 @@ export function RunDetailTabs({ projectId, run: r, active }: { projectId: string
 
 /** What DEMIURGO was given: the context pack a retry reuses as it is. */
 function ContextPanel({ projectId, pack }: { projectId: string; pack: ContextPack | null }) {
+  const t = useMessages(DETAIL);
   const threads = useQuery(explorationsQuery(projectId)).data;
   if (!pack)
     return (
-      <EmptyState title="This run has no context pack." headingLevel={3}>
-        DEMIURGO gathers one when a run is requested. This run was made without it.
+      <EmptyState title={t.noContextTitle} headingLevel={3}>
+        {t.noContextBody}
       </EmptyState>
     );
   const budget = Object.entries(pack.budget ?? {});
   return (
     <div data-context className="flex flex-col gap-5">
-      <p className="text-base text-fg-2">What DEMIURGO was given. A retry reuses it as it is.</p>
+      <p className="text-base text-fg-2">{t.contextIntro}</p>
       <KeyValue
         items={[
-          { key: 'role', label: 'Role', value: pack.role },
-          { key: 'builder', label: 'Builder', value: <Code className="text-sm text-fg">{pack.builder}</Code> },
+          { key: 'role', label: t.role, value: pack.role },
+          { key: 'builder', label: t.builder, value: <Code className="text-sm text-fg">{pack.builder}</Code> },
           {
             key: 'budget',
-            label: 'Budget',
+            label: t.budget,
             value:
               budget.length === 0 ? (
-                <span className="text-fg-3">None</span>
+                <span className="text-fg-3">{t.none}</span>
               ) : (
                 <span className="flex flex-wrap gap-1.5">
                   {budget.map(([k, v]) => (
@@ -96,18 +100,18 @@ function ContextPanel({ projectId, pack }: { projectId: string; pack: ContextPac
                 </span>
               ),
           },
-          { key: 'graph', label: 'Graph version', value: <span className="tabular-nums">v{pack.graph_version}</span> },
+          { key: 'graph', label: t.graphVersion, value: <span className="tabular-nums">v{pack.graph_version}</span> },
           {
             key: 'dependencies',
-            label: 'Dependencies',
+            label: t.dependencies,
             value:
               pack.dependencies.length === 0 ? (
-                <span className="text-fg-3">None</span>
+                <span className="text-fg-3">{t.none}</span>
               ) : (
                 <ul className="flex flex-col gap-1">
                   {pack.dependencies.map((d, i) => (
                     <li key={`${d.type}-${d.id}-${i}`} className="flex min-w-0 items-baseline gap-2">
-                      <span className="w-24 shrink-0 text-sm text-fg-3">{dependencyWord(d.type)}</span>
+                      <span className="w-24 shrink-0 text-sm text-fg-3">{dependencyWord(t, d.type)}</span>
                       <DependencyName projectId={projectId} dependency={d} threads={threads} />
                     </li>
                   ))}
@@ -116,20 +120,20 @@ function ContextPanel({ projectId, pack }: { projectId: string; pack: ContextPac
           },
           {
             key: 'hash',
-            label: 'Hash',
+            label: t.hash,
             value: (
               <code data-context-hash className="font-code text-xs break-all text-fg">
                 {pack.hash}
               </code>
             ),
-            hint: 'The fingerprint of this context: the same hash means the same context.',
+            hint: t.hashHint,
           },
         ]}
       />
       <details data-context-content className="group rounded-lg border border-edge">
         <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 px-4 py-2 text-base font-medium text-fg hover:bg-hover [&::-webkit-details-marker]:hidden">
           <ChevronRightIcon size={14} className="shrink-0 text-fg-2 transition-transform group-open:rotate-90" />
-          What it read
+          {t.whatItRead}
         </summary>
         <div className="flex flex-col gap-4 border-t border-edge px-4 py-4">
           {isObject(pack.content) ? <Facts object={pack.content} /> : <ReadableValue value={pack.content} />}
@@ -142,16 +146,15 @@ function ContextPanel({ projectId, pack }: { projectId: string; pack: ContextPac
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
-const DEPENDENCY_WORDS: Record<string, string> = {
-  exploration: 'Thread',
-  record: 'Record',
-  record_version: 'Record',
-  knowledge_node: 'Knowledge',
-  source: 'Source',
-};
-
-function dependencyWord(type: string): string {
-  return DEPENDENCY_WORDS[type] ?? humanize(type);
+function dependencyWord(t: Translation<typeof DETAIL.en>, type: string): string {
+  const words: Record<string, string> = {
+    exploration: t.dependencyThread,
+    record: t.dependencyRecord,
+    record_version: t.dependencyRecord,
+    knowledge_node: t.dependencyKnowledge,
+    source: t.dependencySource,
+  };
+  return words[type] ?? humanize(type);
 }
 
 function DependencyName({
@@ -191,24 +194,23 @@ function DependencyName({
 
 /** What it answered: readable first, the JSON behind a disclosure. */
 function OutputPanel({ run: r, active }: { run: RunDetail; active: boolean }) {
+  const t = useMessages(DETAIL);
   if (r.output === null || r.output === undefined) {
     if (active)
       return (
-        <EmptyState title="No answer yet" headingLevel={3}>
-          What the engine answers appears here once DEMIURGO has checked it.
+        <EmptyState title={t.noAnswerYetTitle} headingLevel={3}>
+          {t.noAnswerYetBody}
         </EmptyState>
       );
     return (
-      <EmptyState title="No answer was kept" headingLevel={3}>
-        {r.state === 'completed'
-          ? 'This run finished without an answer to keep.'
-          : 'It stopped before DEMIURGO could use an answer. What the engine sent is under Engine calls, in Raw events.'}
+      <EmptyState title={t.noAnswerKeptTitle} headingLevel={3}>
+        {r.state === 'completed' ? t.finishedNoAnswer : t.stoppedNoAnswer}
       </EmptyState>
     );
   }
   return (
     <div data-run-output className="flex flex-col gap-4">
-      <p className="text-base text-fg-2">What it answered, as DEMIURGO checked it against the format.</p>
+      <p className="text-base text-fg-2">{t.outputIntro}</p>
       {isObject(r.output) ? <Facts object={r.output} /> : <ReadableValue value={r.output} />}
       <RawJson value={r.output} />
     </div>
@@ -225,20 +227,21 @@ function eventIcon(command: string) {
 
 /** The run's life in the journal: its own events, those it caused, and its context pack's. */
 function EventsPanel({ projectId, run: r }: { projectId: string; run: RunDetail }) {
+  const t = useMessages(DETAIL);
   const events = useQuery(runEventsQuery(projectId, r));
-  if (events.isPending) return <RowsSkeleton label="Loading the events" rows={4} />;
+  if (events.isPending) return <RowsSkeleton label={t.loadingEvents} rows={4} />;
   if (events.error && !events.data) return <ErrorNotice error={events.error} onRetry={() => void events.refetch()} />;
   const list: EventRow[] = events.data ?? [];
   if (list.length === 0)
     return (
-      <EmptyState title="No events yet" headingLevel={3}>
-        What happens to the run is written here as it happens.
+      <EmptyState title={t.noEventsTitle} headingLevel={3}>
+        {t.noEventsBody}
       </EmptyState>
     );
   return (
     <div data-run-events>
       <Timeline
-        label="Events of the run, oldest first"
+        label={t.eventsLabel}
         items={list.map((e) => ({
           key: e.id,
           icon: eventIcon(e.command),

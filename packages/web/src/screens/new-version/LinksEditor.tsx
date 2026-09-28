@@ -8,11 +8,13 @@ import { Code, Tag } from '../../components/Badge.tsx';
 import { Button } from '../../components/Button.tsx';
 import { Field, Select } from '../../components/Field.tsx';
 import { PlusIcon } from '../../components/icons.tsx';
-import { TYPE_WORDS_PLURAL } from '../../words.ts';
+import { useMessages } from '../../i18n/define.ts';
+import { typeWordPluralFor, useSafeLocale } from '../../words.ts';
 import { LINK_WORDS } from '../record/logic.ts';
 import { FormPanel } from './FormParts.tsx';
 import type { LinkInput } from './form.ts';
 import { type LinkTarget, MANUAL_LINK_TYPES, addLink, removeLink } from './links.ts';
+import { LINKS_EDITOR } from './words.i18n.ts';
 
 const keyOf = (l: LinkInput) => `${l.type}:${l.target.code}`;
 
@@ -30,12 +32,14 @@ export function LinksEditor({
   carried?: readonly LinkInput[];
   note?: string;
 }) {
+  const t = useMessages(LINKS_EDITOR);
+  const locale = useSafeLocale();
   const [type, setType] = useState<string>(MANUAL_LINK_TYPES[0]);
   const [code, setCode] = useState('');
-  const target = targets.find((t) => t.code === code);
-  const titleOf = new Map(targets.map((t) => [t.code, t.title]));
+  const target = targets.find((x) => x.code === code);
+  const titleOf = new Map(targets.map((x) => [x.code, x.title]));
   const carriedKeys = new Set(carried.map(keyOf));
-  const groups = [...new Set(targets.map((t) => t.type))];
+  const groups = [...new Set(targets.map((x) => x.type))];
   const add = () => {
     if (!target) return;
     const link = { type, target: { code: target.code, version: target.version } };
@@ -47,10 +51,10 @@ export function LinksEditor({
     <FormPanel
       title={
         <>
-          Links <span className="font-normal text-fg-2">· {links.length}</span>
+          {t.links} <span className="font-normal text-fg-2">· {links.length}</span>
         </>
       }
-      note={note ?? 'What this record builds on, designs, covers or conflicts with. Links are born with the version.'}
+      note={note ?? t.defaultNote}
     >
       {links.length > 0 ? (
         <ul className="flex flex-col divide-y divide-edge-subtle rounded-md border border-edge">
@@ -67,45 +71,45 @@ export function LinksEditor({
               <Code>
                 {l.target.code} v{l.target.version}
               </Code>
-              {carriedKeys.has(keyOf(l)) ? <Tag>Carried</Tag> : null}
+              {carriedKeys.has(keyOf(l)) ? <Tag>{t.carried}</Tag> : null}
               <Button
                 size="sm"
                 variant="quiet"
-                aria-label={`Remove the link to ${l.target.code}`}
+                aria-label={t.removeTheLinkTo(l.target.code)}
                 onClick={() => onChange(removeLink(links, l))}
               >
-                Remove
+                {t.remove}
               </Button>
             </li>
           ))}
         </ul>
       ) : null}
       {targets.length === 0 ? (
-        <p className="text-sm text-fg-2">There is nothing else to link to yet.</p>
+        <p className="text-sm text-fg-2">{t.nothingToLinkTo}</p>
       ) : (
         <div className="flex flex-wrap items-end gap-3">
-          <Field label="Link type" className="w-44">
+          <Field label={t.linkType} className="w-44">
             {(p) => (
               <Select {...p} value={type} onChange={(e) => setType(e.target.value)}>
-                {MANUAL_LINK_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {LINK_WORDS[t] ?? t}
+                {MANUAL_LINK_TYPES.map((lt) => (
+                  <option key={lt} value={lt}>
+                    {LINK_WORDS[lt] ?? lt}
                   </option>
                 ))}
               </Select>
             )}
           </Field>
-          <Field label="Links to" className="min-w-0 flex-1 basis-64">
+          <Field label={t.linksTo} className="min-w-0 flex-1 basis-64">
             {(p) => (
               <Select {...p} value={code} onChange={(e) => setCode(e.target.value)}>
-                <option value="">Choose a record…</option>
+                <option value="">{t.chooseARecord}</option>
                 {groups.map((g) => (
-                  <optgroup key={g} label={TYPE_WORDS_PLURAL[g] ?? g}>
+                  <optgroup key={g} label={typeWordPluralFor(locale, g)}>
                     {targets
-                      .filter((t) => t.type === g)
-                      .map((t) => (
-                        <option key={t.code} value={t.code}>
-                          {t.code} v{t.version} · {t.title}
+                      .filter((x) => x.type === g)
+                      .map((x) => (
+                        <option key={x.code} value={x.code}>
+                          {x.code} v{x.version} · {x.title}
                         </option>
                       ))}
                   </optgroup>
@@ -114,7 +118,7 @@ export function LinksEditor({
             )}
           </Field>
           <Button icon={<PlusIcon size={14} />} disabled={!target} onClick={add}>
-            Add link
+            {t.addLink}
           </Button>
         </div>
       )}

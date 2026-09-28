@@ -15,8 +15,10 @@ import { Count } from '../../components/Badge.tsx';
 import { Button, buttonClass } from '../../components/Button.tsx';
 import { ConfirmDialog } from '../../components/Dialog.tsx';
 import { ArrowRightIcon, CheckIcon } from '../../components/icons.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { type ReviewPart, type ReviewPartKey, reviewBanner, reviewParts, reviewStep } from './review.ts';
+import { REVIEW } from './words.i18n.ts';
 
 const reducedMotion = (): ScrollBehavior =>
   typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
@@ -26,6 +28,7 @@ const ReviewContext = createContext<ReviewState>({ step: 0, parts: [] });
 
 /** A piece of the page the review walks: outlined and labelled while it is the part under review. */
 export function ReviewArea({ part, children, className }: { part: ReviewPartKey; children: ReactNode; className?: string }) {
+  const t = useMessages(REVIEW);
   const { step, parts } = useContext(ReviewContext);
   const current = step >= 1 && step <= parts.length ? parts[step - 1] : undefined;
   const active = current !== undefined && !current.quiet && current.key === part;
@@ -42,7 +45,7 @@ export function ReviewArea({ part, children, className }: { part: ReviewPartKey;
       {active && current ? (
         // The label sits on the outline's top edge, in the gap above the part, so nothing moves.
         <p data-review-flag className="absolute -top-7 left-0 text-xs font-medium text-accent-text">
-          Part {current.n} of {parts.length} · {current.name}
+          {t.partLabel(current.n, parts.length, current.name)}
         </p>
       ) : null}
       {children}
@@ -61,6 +64,7 @@ export type Review = {
  * confirmed (or approved elsewhere) the page goes back to the top, where it says what it is now.
  */
 export function useReview(record: RecordDetail, version: RecordVersion, reviewable: boolean): Review {
+  const t = useMessages(REVIEW);
   const [step, setStep] = useState(0);
   // Another version on screen starts without a review.
   const [shown, setShown] = useState(version.id);
@@ -74,7 +78,7 @@ export function useReview(record: RecordDetail, version: RecordVersion, reviewab
     setStep(0);
     window.scrollTo({ top: 0, behavior: reducedMotion() });
   }, [ended]);
-  return { step: reviewable ? step : 0, parts: reviewParts(record.type, version), setStep };
+  return { step: reviewable ? step : 0, parts: reviewParts(record.type, version, t), setStep };
 }
 
 /** The sections of the record, grouped by the part of the review they belong to. */
@@ -124,6 +128,7 @@ export function ReviewBand({
   canNewVersion: boolean;
   onApproved: () => void;
 }) {
+  const t = useMessages(REVIEW);
   const start = useRef<HTMLButtonElement>(null);
   const focusStart = useRef(false);
   useEffect(() => {
@@ -134,19 +139,19 @@ export function ReviewBand({
   }, [review.step]);
 
   if (review.step === 0) {
-    const banner = reviewBanner(version);
+    const banner = reviewBanner(version, t);
     return (
       <div
         data-review-banner
         className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border border-accent-edge bg-accent-soft px-4 py-3"
       >
-        <Count n={1} label="Needs you: this version waits for your review." />
+        <Count n={1} label={t.needsYou} />
         <div className="flex min-w-0 flex-1 basis-60 flex-col">
           <p className="text-base font-semibold text-fg">{banner.title}</p>
           <p className="text-sm text-fg-2">{banner.detail}</p>
         </div>
         <Button ref={start} variant="primary" onClick={() => review.setStep(1)}>
-          Start review
+          {t.startReview}
         </Button>
       </div>
     );
@@ -169,8 +174,9 @@ export function ReviewBand({
 }
 
 function Steps({ parts, step, go }: { parts: ReviewPart[]; step: number; go: (n: number) => void }) {
+  const t = useMessages(REVIEW);
   return (
-    <ol aria-label="Parts" className="flex items-center gap-1.5">
+    <ol aria-label={t.partsLabel} className="flex items-center gap-1.5">
       {parts.map((p) => {
         const state = p.n === step ? 'now' : p.n < step ? 'done' : 'next';
         return (
@@ -179,7 +185,7 @@ function Steps({ parts, step, go }: { parts: ReviewPart[]; step: number; go: (n:
               type="button"
               onClick={() => go(p.n)}
               aria-current={state === 'now' ? 'step' : undefined}
-              aria-label={`Part ${p.n}: ${p.name}${state === 'done' ? ', reviewed' : ''}`}
+              aria-label={t.partAria(p.n, p.name, state === 'done')}
               title={p.name}
               className={cn(
                 'inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border text-xs font-semibold tabular-nums transition-colors duration-[var(--m-fast)]',
@@ -216,13 +222,14 @@ function ReviewBar({
   onApproved: () => void;
   onLeave: () => void;
 }) {
+  const t = useMessages(REVIEW);
   const command = useCommand(projectId);
   const [confirming, setConfirming] = useState(false);
   const [changing, setChanging] = useState(false);
   const ok = useRef<HTMLButtonElement>(null);
   const confirm = useRef<HTMLButtonElement>(null);
   const { step, parts, setStep } = review;
-  const words = reviewStep(parts, step, version.title);
+  const words = reviewStep(parts, step, version.title, t);
   const part = parts[step - 1];
 
   // Keyboard: the focus stays on the way forward (Looks right, then Confirm).
@@ -251,7 +258,7 @@ function ReviewBar({
 
   return (
     <section
-      aria-label="Review"
+      aria-label={t.reviewLabel}
       className="sticky top-14 z-20 flex flex-col gap-3 rounded-lg border border-accent-edge bg-panel px-4 py-3 shadow-popover lg:top-3"
     >
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
@@ -265,16 +272,16 @@ function ReviewBar({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="quiet" onClick={onLeave}>
-            Leave review
+            {t.leaveReview}
           </Button>
           {step > 1 ? (
             <Button variant="quiet" onClick={() => go(step - 1)}>
-              Back
+              {t.back}
             </Button>
           ) : null}
           {words.final ? (
             <>
-              <Button onClick={() => go(1)}>Review again</Button>
+              <Button onClick={() => go(1)}>{t.reviewAgain}</Button>
               <Button
                 ref={confirm}
                 variant="primary"
@@ -283,14 +290,14 @@ function ReviewBar({
                   setConfirming(true);
                 }}
               >
-                Confirm
+                {t.confirm}
               </Button>
             </>
           ) : (
             <>
-              <Button onClick={change}>Change something</Button>
+              <Button onClick={change}>{t.changeSomething}</Button>
               <Button ref={ok} variant="primary" onClick={() => go(step + 1)}>
-                Looks right
+                {t.looksRight}
               </Button>
             </>
           )}
@@ -299,18 +306,19 @@ function ReviewBar({
       {changing && part ? (
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1.5 border-t border-edge pt-3 text-sm text-fg-2">
           <span>
-            Tell DEMIURGO what to change in <strong className="font-semibold text-fg">{part.name}</strong>: the box "Ask DEMIURGO
-            about this" has it ready.
+            {t.changeHintPrefix}
+            <strong className="font-semibold text-fg">{part.name}</strong>
+            {t.changeHintSuffix}
           </span>
           {canNewVersion ? (
             <>
-              <span>Or change it yourself:</span>
+              <span>{t.orChangeYourself}</span>
               <Link
                 to="/p/$projectId/records/$code/new-version"
                 params={{ projectId, code: record.code }}
                 className={buttonClass({ size: 'sm' })}
               >
-                New version <ArrowRightIcon size={12} />
+                {t.newVersionLink} <ArrowRightIcon size={12} />
               </Link>
             </>
           ) : null}
@@ -324,17 +332,15 @@ function ReviewBar({
           // Not now: back to Confirm, where the review was.
           if (!o) setTimeout(() => confirm.current?.focus(), 50);
         }}
-        title={`Confirm ${version.title}?`}
+        title={t.confirmTitle(version.title)}
         description={
           <>
-            <p>
-              This approves version {version.n}. It becomes the current version. It is Ready to build if nothing else blocks it.
-            </p>
-            <p>Approving does not create a new version.</p>
+            <p>{t.confirmDialogDescription1(version.n)}</p>
+            <p>{t.confirmDialogDescription2}</p>
           </>
         }
-        confirm="Confirm"
-        pendingLabel="Confirming…"
+        confirm={t.confirm}
+        pendingLabel={t.confirming}
         pending={command.isPending}
         error={confirming ? command.error : null}
         onConfirm={() =>
@@ -345,7 +351,7 @@ function ReviewBar({
             .then(() => {
               setConfirming(false);
               setStep(0);
-              announce(`Confirmed. Version ${version.n} is the current version.`);
+              announce(t.confirmedAnnounce(version.n));
               onApproved();
               // The bar is gone: the focus goes to the top of the page, which now says what it is.
               setTimeout(() => document.getElementById('page-title')?.focus({ preventScroll: true }), 50);

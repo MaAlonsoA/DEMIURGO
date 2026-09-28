@@ -5,15 +5,18 @@
 
 import { Link, type LinkProps } from '@tanstack/react-router';
 import { type ReactNode, useEffect } from 'react';
+import { useMessages } from '../i18n/define.ts';
 import { cn } from '../lib/cn.ts';
 import { ChevronRightIcon } from './icons.tsx';
+import { PAGE } from './words.i18n.ts';
 
 export type Crumb = { label: ReactNode; link?: LinkProps };
 
 export function Breadcrumbs({ items, className }: { items: Crumb[]; className?: string }) {
+  const t = useMessages(PAGE);
   if (items.length === 0) return null;
   return (
-    <nav aria-label="Breadcrumb" className={cn('min-w-0', className)}>
+    <nav aria-label={t.breadcrumb} className={cn('min-w-0', className)}>
       <ol className="flex min-w-0 items-center gap-1 text-sm text-fg-2">
         {items.map((c, i) => {
           const last = i === items.length - 1;

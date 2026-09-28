@@ -17,7 +17,9 @@ import { PageSkeleton } from '../../components/Spinner.tsx';
 import { EntityState, StatusBadge } from '../../components/status.tsx';
 import { Who, WhoAvatar } from '../../components/Who.tsx';
 import { cn } from '../../lib/cn.ts';
+import { useMessages } from '../../i18n/define.ts';
 import { OBSERVATION_WORDS } from '../../words.ts';
+import { PARTS } from './words.i18n.ts';
 
 const LONG_IDEA = 280;
 
@@ -33,6 +35,7 @@ export function FromYourIdea({
   idea: string;
   className?: string;
 }) {
+  const t = useMessages(PARTS);
   const [all, setAll] = useState(false);
   const id = useId();
   const long = idea.length > LONG_IDEA || idea.split('\n').length > 3;
@@ -41,13 +44,13 @@ export function FromYourIdea({
       <WhoAvatar kind="you" size={24} className="mt-0.5" />
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <figcaption className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-2">
-          <span className="font-medium text-fg">From your idea</span>
+          <span className="font-medium text-fg">{t.fromYourIdea}</span>
           <Link
             to="/p/$projectId/threads/$explorationId"
             params={{ projectId, explorationId }}
             className="inline-flex items-center gap-0.5 font-medium text-accent-text hover:underline"
           >
-            Open the thread
+            {t.openThread}
             <ChevronRightIcon size={13} />
           </Link>
         </figcaption>
@@ -62,7 +65,7 @@ export function FromYourIdea({
             onClick={() => setAll((a) => !a)}
             className="self-start text-sm font-medium text-accent-text hover:underline"
           >
-            {all ? 'Show less' : 'Show all'}
+            {all ? t.showLess : t.showAll}
           </button>
         ) : null}
       </div>
@@ -123,6 +126,7 @@ export function AnswerRow({ question: q }: { question: Question }) {
 
 /** What H1 cannot give yet: a quiet dashed placeholder with its "Later" tag, never invented content. */
 export function Later({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+  const t = useMessages(PARTS);
   const headingId = useId();
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-2">
@@ -133,7 +137,7 @@ export function Later({ id, title, children }: { id: string; title: string; chil
         data-later={id}
         className="flex items-start gap-3 rounded-lg border border-dashed border-edge-strong px-3.5 py-3 text-sm text-fg-2"
       >
-        <Tag>Later</Tag>
+        <Tag>{t.later}</Tag>
         <span>{children}</span>
       </div>
     </section>
@@ -142,14 +146,15 @@ export function Later({ id, title, children }: { id: string; title: string; chil
 
 /** The three placeholders of Day 1 for what S6 brings: who uses it, the rules and the features. */
 export function LaterOfTheProduct({ features = true }: { features?: boolean }) {
+  const t = useMessages(PARTS);
   return (
     <div className="flex flex-col gap-6">
       <div className="grid gap-6 md:grid-cols-2">
-        <Later id="who" title="Who uses it">
-          DEMIURGO will read the people in your idea (S6).
+        <Later id="who" title={t.whoUsesIt}>
+          {t.whoUsesItText}
         </Later>
-        <Later id="rules" title="Rules for the whole product">
-          DEMIURGO will gather the rules your answers set (S6).
+        <Later id="rules" title={t.rulesForProduct}>
+          {t.rulesForProductText}
         </Later>
       </div>
       {features ? <LaterFeatures /> : null}
@@ -158,9 +163,10 @@ export function LaterOfTheProduct({ features = true }: { features?: boolean }) {
 }
 
 export function LaterFeatures() {
+  const t = useMessages(PARTS);
   return (
-    <Later id="features" title="What it must do">
-      DEMIURGO will split your idea into features (S6). For now, a feature is drafted from a decision you approve, in the thread.
+    <Later id="features" title={t.whatMustItDo}>
+      {t.whatMustItDoText}
     </Later>
   );
 }
@@ -170,23 +176,22 @@ export function LaterFeatures() {
  * person to set one up (Knowledge · Taxonomy).
  */
 export function TaxonomyNote({ projectId }: { projectId: string }) {
+  const t = useMessages(PARTS);
   const list = useQuery(taxonomiesQuery(projectId));
-  if (!list.data || list.data.some((t) => t.state === 'approved')) return null;
-  const proposed = list.data.some((t) => t.state === 'draft');
+  if (!list.data || list.data.some((tx) => tx.state === 'approved')) return null;
+  const proposed = list.data.some((tx) => tx.state === 'draft');
   return (
     <div data-taxonomy-hint className="flex items-start gap-2.5 rounded-lg border border-edge px-3.5 py-3 text-sm text-fg-2">
       <TagIcon size={15} className="mt-0.5 shrink-0 text-fg-3" />
       <p>
-        {proposed
-          ? 'A taxonomy is waiting for your approval: until then, what DEMIURGO knows is not grouped.'
-          : "DEMIURGO doesn't group what it knows yet."}{' '}
+        {proposed ? t.taxonomyWaiting : t.taxonomyNotGrouped}{' '}
         <Link
           to="/p/$projectId/knowledge"
           params={{ projectId }}
           search={{ tab: 'taxonomy' }}
           className="inline-flex items-center gap-0.5 font-medium whitespace-nowrap text-accent-text hover:underline"
         >
-          {proposed ? 'Review the taxonomy' : 'Set up how it groups knowledge'}
+          {proposed ? t.reviewTaxonomy : t.setUpTaxonomy}
           <ChevronRightIcon size={13} />
         </Link>
       </p>

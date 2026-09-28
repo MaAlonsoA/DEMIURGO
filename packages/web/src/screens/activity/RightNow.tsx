@@ -10,9 +10,11 @@ import { ArrowRightIcon } from '../../components/icons.tsx';
 import { Section } from '../../components/Page.tsx';
 import { RunStateBadge, useRunView } from '../../components/runState.tsx';
 import { useNow } from '../../components/Time.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { ACTION_WORDS } from '../../words.ts';
 import { LiveProgress } from '../run/Engine.tsx';
 import { runDuration } from '../run/runs.ts';
+import { RIGHT_NOW } from './words.i18n.ts';
 
 export function RightNow({
   projectId,
@@ -23,9 +25,10 @@ export function RightNow({
   runs: RunListItem[];
   purposeOf: (id: string | null) => string | undefined;
 }) {
+  const t = useMessages(RIGHT_NOW);
   if (runs.length === 0) return null;
   return (
-    <Section title="Right now" id="right-now" note={`${runs.length} ${runs.length === 1 ? 'run is' : 'runs are'} on it.`}>
+    <Section title={t.title} id="right-now" note={t.note(runs.length)}>
       <ul className="flex flex-col gap-2">
         {runs.map((r) => (
           <WorkingRun key={r.id} projectId={projectId} run={r} purpose={purposeOf(r.exploration_id)} />
@@ -36,6 +39,7 @@ export function RightNow({
 }
 
 function WorkingRun({ projectId, run: r, purpose }: { projectId: string; run: RunListItem; purpose: string | undefined }) {
+  const t = useMessages(RIGHT_NOW);
   const view = useRunView(r);
   const now = useNow(true);
   const progress = useRunProgress(r.id);
@@ -53,13 +57,13 @@ function WorkingRun({ projectId, run: r, purpose }: { projectId: string; run: Ru
       <div className="flex min-w-0 flex-1 basis-64 flex-col gap-0.5">
         <p className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-base">
           <span className="font-medium text-fg">{ACTION_WORDS[r.action] ?? r.action}</span>
-          {purpose ? <span className="min-w-0 truncate text-fg-2">in {purpose}</span> : null}
+          {purpose ? <span className="min-w-0 truncate text-fg-2">{t.inThread(purpose)}</span> : null}
         </p>
         <p className="flex flex-wrap items-baseline gap-x-3 text-sm text-fg-2">
           {view.detail ? <span className="font-medium text-warning-text">{view.detail}</span> : null}
           {progress && view.kind !== 'queued' && view.kind !== 'late' ? <LiveProgress progress={progress} now={now} /> : null}
           <span>
-            {view.kind === 'queued' || view.kind === 'late' ? 'Waiting ' : 'Running '}
+            {view.kind === 'queued' || view.kind === 'late' ? t.waiting : t.running}
             <span className="tabular-nums">{runDuration(r, now)}</span>
           </span>
         </p>
@@ -69,11 +73,8 @@ function WorkingRun({ projectId, run: r, purpose }: { projectId: string; run: Ru
         params={{ projectId, runId: r.id }}
         className="inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-sm font-medium text-accent-text hover:bg-hover"
       >
-        Open the run
-        <span className="sr-only">
-          : {ACTION_WORDS[r.action] ?? r.action}
-          {purpose ? ` in ${purpose}` : ''}
-        </span>
+        {t.openRun}
+        <span className="sr-only">{t.openRunSr(ACTION_WORDS[r.action] ?? r.action, purpose)}</span>
         <ArrowRightIcon size={14} />
       </Link>
     </li>

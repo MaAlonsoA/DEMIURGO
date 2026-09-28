@@ -18,23 +18,24 @@ import { ErrorNotice } from '../../components/Notice.tsx';
 import { PageBody, PageHeader, Section, usePageTitle } from '../../components/Page.tsx';
 import { Bone, Skeleton } from '../../components/Spinner.tsx';
 import { Certainty } from '../../components/status.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { useProjectId } from '../../lib/hooks.ts';
 import { ProductTabs } from '../../shell/ProductTabs.tsx';
-
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+import { JOURNEYS } from './words.i18n.ts';
 
 /** The line under a journey in the list (INV-JRN-02). */
-function summaryOf(j: Journey): string {
-  if (j.gaps.length > 0) return `${plural(j.gaps.length, 'path waits', 'paths wait')} on you`;
-  return j.paths.length > 0 ? 'All paths defined' : 'No paths written yet';
+function summaryOf(j: Journey, t: typeof JOURNEYS.en): string {
+  if (j.gaps.length > 0) return t.pathsWait(j.gaps.length);
+  return j.paths.length > 0 ? t.allPathsDefined : t.noPathsYet;
 }
 
 export function JourneysScreen() {
+  const t = useMessages(JOURNEYS);
   const projectId = useProjectId();
   const journeys = useQuery(journeysQuery(projectId));
   const project = (useQuery(projectsQuery).data ?? []).find((p) => p.id === projectId);
-  usePageTitle(['Journeys', project?.name]);
+  usePageTitle([t.title, project?.name]);
   const search = useSearch({ strict: false }) as { j?: string };
   const navigate = useNavigate();
   const list = journeys.data?.journeys ?? [];
@@ -49,11 +50,11 @@ export function JourneysScreen() {
         eyebrow={
           <>
             <ProductIcon size={15} className="text-fg-3" />
-            <span>{project?.name ?? 'Product'}</span>
+            <span>{project?.name ?? t.product}</span>
           </>
         }
-        title="Journeys"
-        meta={name ? `How people will use ${name}: one journey per feature with its behavior written.` : null}
+        title={t.title}
+        meta={name ? t.meta(name) : null}
         tabs={<ProductTabs active="journeys" />}
       />
       <PageBody>
@@ -62,8 +63,8 @@ export function JourneysScreen() {
         ) : journeys.isPending ? (
           <JourneysSkeleton />
         ) : list.length === 0 || !current ? (
-          <EmptyState icon={<JourneyIcon size={28} />} title="No journeys yet" size="spacious">
-            A journey appears when a feature has its behavior written: its steps come from it, and its paths from its checks.
+          <EmptyState icon={<JourneyIcon size={28} />} title={t.noJourneysYet} size="spacious">
+            {t.noJourneysBody}
           </EmptyState>
         ) : (
           <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
@@ -89,6 +90,7 @@ function JourneyList({
   current: string;
   onChoose: (code: string) => void;
 }) {
+  const t = useMessages(JOURNEYS);
   const id = useId();
   const box = useRef<HTMLUListElement>(null);
   const index = Math.max(
@@ -113,12 +115,12 @@ function JourneyList({
   return (
     <div className="flex w-full shrink-0 flex-col gap-2 lg:sticky lg:top-4 lg:w-72">
       <h2 id={`${id}-label`} className="text-sm font-medium text-fg-2">
-        {plural(journeys.length, 'journey', 'journeys')}
+        {t.journey(journeys.length)}
       </h2>
       <ul
         ref={box}
         role="listbox"
-        aria-label="Journeys"
+        aria-label={t.journeys}
         aria-describedby={`${id}-label`}
         aria-activedescendant={optionId(current)}
         tabIndex={0}
@@ -145,7 +147,7 @@ function JourneyList({
             >
               <span className={cn('text-base text-fg', on ? 'font-semibold' : 'font-medium')}>{j.title}</span>
               <span className={cn('text-sm', j.gaps.length > 0 ? 'font-medium text-accent-text' : 'text-fg-2')}>
-                {summaryOf(j)}
+                {summaryOf(j, t)}
               </span>
             </li>
           );
@@ -156,6 +158,7 @@ function JourneyList({
 }
 
 function JourneyView({ projectId, journey: j }: { projectId: string; journey: Journey }) {
+  const t = useMessages(JOURNEYS);
   const defined = j.paths.length;
   const gaps = j.gaps.length;
   return (
@@ -167,7 +170,7 @@ function JourneyView({ projectId, journey: j }: { projectId: string; journey: Jo
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-fg-2">
           <Certainty status={j.epistemic_status} />
           <span>
-            From the behavior and the checks of{' '}
+            {t.fromBehaviorOf}{' '}
             <Link
               to="/p/$projectId/records/$code"
               params={{ projectId, code: j.code }}
@@ -180,9 +183,9 @@ function JourneyView({ projectId, journey: j }: { projectId: string; journey: Jo
         </p>
       </header>
 
-      <Section id="journey-steps" title="Steps" note={plural(j.steps.length, 'step', 'steps')}>
+      <Section id="journey-steps" title={t.steps} note={t.step(j.steps.length)}>
         {j.steps.length === 0 ? (
-          <p className="text-sm text-fg-2">Its behavior has no numbered steps yet.</p>
+          <p className="text-sm text-fg-2">{t.noStepsYet}</p>
         ) : (
           <ol className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
             {j.steps.map((s) => (
@@ -192,24 +195,20 @@ function JourneyView({ projectId, journey: j }: { projectId: string; journey: Jo
         )}
       </Section>
 
-      <Section
-        id="journey-paths"
-        title="Paths"
-        note={`${plural(defined, 'path', 'paths')} defined${gaps > 0 ? ` · ${plural(gaps, 'gap', 'gaps')} not defined yet` : ''}`}
-      >
+      <Section id="journey-paths" title={t.paths} note={t.pathsNote(defined, gaps)}>
         {defined + gaps === 0 ? (
-          <p className="text-sm text-fg-2">No paths written yet: they come from the feature's checks.</p>
+          <p className="text-sm text-fg-2">{t.noPathsWritten}</p>
         ) : (
           <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {j.paths.map((p) => (
               <li key={p.code} data-path={p.code} className="flex flex-col gap-1.5 rounded-lg border border-edge bg-panel p-4">
-                <span className="text-sm text-fg-2">{p.given ? `If ${p.given}` : p.title}</span>
-                {p.when ? <span className="text-sm text-fg">When {p.when}</span> : null}
+                <span className="text-sm text-fg-2">{p.given ? t.ifPrefix(p.given) : p.title}</span>
+                {p.when ? <span className="text-sm text-fg">{t.when(p.when)}</span> : null}
                 <span className="text-base font-medium text-fg">→ {p.outcome}</span>
                 <span className="mt-auto flex items-center gap-2 border-t border-edge-subtle pt-2 text-xs text-fg-2">
                   <ChecksIcon size={13} className="shrink-0 text-fg-3" />
                   <span className="min-w-0 flex-1">
-                    {p.title} · {p.verification === 'manual' ? 'You check it' : 'Checked automatically'}
+                    {p.title} · {p.verification === 'manual' ? t.youCheckIt : t.checkedAutomatically}
                   </span>
                   <Code className="shrink-0">{p.code}</Code>
                 </span>
@@ -221,16 +220,16 @@ function JourneyView({ projectId, journey: j }: { projectId: string; journey: Jo
                 data-gap={g.id}
                 className="flex flex-col gap-1.5 rounded-lg border border-dashed border-accent-edge bg-accent-soft p-4"
               >
-                <span className="text-sm font-medium text-accent-text">Not defined yet</span>
+                <span className="text-sm font-medium text-accent-text">{t.notDefinedYet}</span>
                 <span className="text-base font-medium text-fg">{g.question}</span>
-                <span className="text-sm text-fg-2">Waiting on your answer in its thread.</span>
+                <span className="text-sm text-fg-2">{t.waitingOnAnswer}</span>
                 <Link
                   to="/p/$projectId/threads/$explorationId"
                   params={{ projectId, explorationId: g.exploration_id }}
-                  aria-label={`Answer: ${g.question}`}
+                  aria-label={t.answerAria(g.question)}
                   className={buttonClass({ variant: 'secondary', size: 'sm', className: 'mt-auto self-start' })}
                 >
-                  Answer
+                  {t.answer}
                 </Link>
               </li>
             ))}
@@ -243,10 +242,10 @@ function JourneyView({ projectId, journey: j }: { projectId: string; journey: Jo
         className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4 rounded-lg border border-edge bg-sunken px-5 py-4"
       >
         <dl className="flex flex-wrap items-center gap-x-8 gap-y-3">
-          <Figure n={defined + gaps} label="paths in this journey" />
-          <Figure n={defined} label="defined" />
-          <Figure n={gaps} label="waiting on you" accent={gaps > 0} />
-          <Figure n={j.steps.length} label="steps" />
+          <Figure n={defined + gaps} label={t.pathsInJourney} />
+          <Figure n={defined} label={t.defined} />
+          <Figure n={gaps} label={t.waitingOnYou} accent={gaps > 0} />
+          <Figure n={j.steps.length} label={t.stepsLabel} />
         </dl>
         {gaps > 0 && j.origin_exploration ? (
           <Link
@@ -254,7 +253,7 @@ function JourneyView({ projectId, journey: j }: { projectId: string; journey: Jo
             params={{ projectId, explorationId: j.origin_exploration }}
             className={buttonClass({ variant: 'primary' })}
           >
-            Answer {plural(gaps, 'question', 'questions')}
+            {t.answerQuestions(gaps)}
             <ArrowRightIcon size={15} />
           </Link>
         ) : null}
@@ -267,15 +266,14 @@ const SHOWN_DETAILS = 4;
 
 /** A step: its title and every detail; past four, "Show all n details" opens the rest in place. */
 function Step({ step: s, total }: { step: Journey['steps'][number]; total: number }) {
+  const t = useMessages(JOURNEYS);
   const [all, setAll] = useState(false);
   const id = useId();
   const extra = s.detail.length - SHOWN_DETAILS;
   const shown = all ? s.detail : s.detail.slice(0, SHOWN_DETAILS);
   return (
     <li data-step={s.n} className="flex flex-col gap-2 rounded-lg border border-edge bg-panel p-4">
-      <span className="text-xs font-medium text-fg-3 tabular-nums">
-        Step {s.n} of {total}
-      </span>
+      <span className="text-xs font-medium text-fg-3 tabular-nums">{t.stepOf(s.n, total)}</span>
       <strong className="text-base font-semibold text-fg">{s.title}</strong>
       {s.detail.length > 0 ? (
         <ul id={`${id}-details`} className="flex list-disc flex-col gap-1 pl-4 text-sm text-fg-2">
@@ -292,7 +290,7 @@ function Step({ step: s, total }: { step: Journey['steps'][number]; total: numbe
           onClick={() => setAll((v) => !v)}
           className="inline-flex min-h-6 cursor-pointer items-center gap-1 self-start rounded-xs text-sm font-medium text-accent-text hover:underline"
         >
-          {all ? 'Show fewer' : `Show all ${s.detail.length} details`}
+          {all ? t.showFewer : t.showAllDetails(s.detail.length)}
           <ChevronDownIcon size={14} className={cn('transition-transform', all && 'rotate-180')} />
         </button>
       ) : null}
@@ -310,8 +308,9 @@ function Figure({ n, label, accent }: { n: number; label: string; accent?: boole
 }
 
 function JourneysSkeleton() {
+  const t = useMessages(JOURNEYS);
   return (
-    <Skeleton label="Loading the journeys" className="flex flex-col gap-8 lg:flex-row">
+    <Skeleton label={t.loadingJourneys} className="flex flex-col gap-8 lg:flex-row">
       <div className="flex w-full flex-col gap-2 lg:w-72">
         {[0, 1, 2].map((i) => (
           <Bone key={i} className="h-14 w-full rounded-md" />

@@ -16,26 +16,29 @@ import { ErrorNotice } from '../../components/Notice.tsx';
 import { PageBody, PageHeader, Section, WithAside, usePageTitle } from '../../components/Page.tsx';
 import { EntityState, StatusBadge } from '../../components/status.tsx';
 import { useRouteParams } from '../../lib/hooks.ts';
+import { useMessages } from '../../i18n/define.ts';
 import { NotFound } from '../not-found/NotFound.tsx';
 import { daySummary, reviewTarget, understandingOf, writtenBy } from './day.ts';
 import { useDay } from './hooks.ts';
 import { AnswerRow, AsideHeading, DayError, DaySkeleton, LaterFeatures, ObservationList, TaxonomyNote } from './parts.tsx';
+import { DAY_DONE } from './words.i18n.ts';
 
 export function DayDoneScreen() {
+  const t = useMessages(DAY_DONE);
   const { projectId, explorationId = '' } = useRouteParams();
   const day = useDay(projectId, explorationId);
-  usePageTitle(['Your starting point', day.project?.name]);
+  usePageTitle([t.pageTitle, day.project?.name]);
   const products = useQuery(stateQuery(projectId)).data;
   const batchIds = [...new Set((day.runs ?? []).flatMap((r) => (r.batch_id ? [r.batch_id] : [])))];
   const batches = useQueries({ queries: batchIds.map((id) => batchQuery(projectId, id)) });
 
-  if (isNotFound(day.error)) return <NotFound thing="this day">It may belong to another project.</NotFound>;
+  if (isNotFound(day.error)) return <NotFound thing={t.notFoundThing}>{t.notFoundHint}</NotFound>;
   const thread = day.thread;
   if (!thread || !day.runs || batches.some((b) => b.isPending)) {
     return day.error ? (
-      <DayError title="Your starting point" error={day.error} onRetry={day.retry} />
+      <DayError title={t.pageTitle} error={day.error} onRetry={day.retry} />
     ) : (
-      <DaySkeleton label="Loading your starting point" />
+      <DaySkeleton label={`Loading ${t.pageTitle.toLowerCase()}`} />
     );
   }
 
@@ -53,7 +56,7 @@ export function DayDoneScreen() {
   const approved = (products?.decisions ?? []).filter((r) => r.origin_exploration === explorationId && r.current_id);
   const needs = s.waiting.length + s.open.length;
   const review = reviewTarget(s.waiting);
-  const minutes = `${s.minutes} ${s.minutes === 1 ? 'minute' : 'minutes'}`;
+  const minutes = t.minutes(s.minutes);
   const toThread = { to: '/p/$projectId/threads/$explorationId' as const, params: { projectId, explorationId } };
   const confirmed = thread.questions.filter((q) => q.state === 'confirmed');
 
@@ -65,13 +68,13 @@ export function DayDoneScreen() {
             {s.day} · {minutes}
           </span>
         }
-        title="Your starting point is ready"
+        title={t.title}
         titleSize="2xl"
         actions={
           <>
             {review === 'needs-you' ? (
               <Link to="/p/$projectId/needs-you" params={{ projectId }} className={buttonClass({ variant: 'primary' })}>
-                Review the decisions
+                {t.reviewDecisions}
                 <ArrowRightIcon size={15} />
               </Link>
             ) : review ? (
@@ -80,7 +83,7 @@ export function DayDoneScreen() {
                 params={{ projectId, batchId: review.batchId }}
                 className={buttonClass({ variant: 'primary' })}
               >
-                Review the decisions
+                {t.reviewDecisions}
                 <ArrowRightIcon size={15} />
               </Link>
             ) : null}
@@ -89,48 +92,48 @@ export function DayDoneScreen() {
               params={{ projectId }}
               className={buttonClass({ variant: review ? 'secondary' : 'primary' })}
             >
-              Go to the product
+              {t.goToProduct}
             </Link>
           </>
         }
       >
-        <ol data-day-numbers aria-label="The day in numbers" className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-3">
-          <Figure n={1} label="idea" />
-          <Figure n={s.answered} label={s.answered === 1 ? 'question answered' : 'questions answered'} arrow />
-          <Figure n={s.proposed} label={s.proposed === 1 ? 'decision proposed' : 'decisions proposed'} arrow />
+        <ol data-day-numbers aria-label={t.dayNumbers} className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-3">
+          <Figure n={1} label={t.idea} />
+          <Figure n={s.answered} label={s.answered === 1 ? t.questionAnswered : t.questionsAnswered} arrow />
+          <Figure n={s.proposed} label={s.proposed === 1 ? t.decisionProposed : t.decisionsProposed} arrow />
         </ol>
       </PageHeader>
       <PageBody>
         <WithAside
-          asideLabel="What happens now"
+          asideLabel={t.whatHappensNow}
           asideWidth="lg"
           aside={
             <>
               <NeedsYou projectId={projectId} explorationId={explorationId} summary={s} needs={needs} />
               <section data-whats-next aria-labelledby="whats-next" className="flex flex-col gap-2">
-                <AsideHeading id="whats-next">What&apos;s next</AsideHeading>
+                <AsideHeading id="whats-next">{t.whatsNext}</AsideHeading>
                 {approved.length > 0 ? (
                   approved.map((r) => (
                     <p key={r.code} className="text-sm text-fg">
-                      <span className="font-semibold">Draft it:</span> DEMIURGO drafts a feature with its checks from “{r.title}”.
+                      <span className="font-semibold">{t.draftIt}</span> {t.draftItText(r.title)}
                     </p>
                   ))
                 ) : (
                   <p className="text-sm text-fg">
-                    Accept and approve a decision, then <span className="font-semibold">Draft it</span>: DEMIURGO drafts a feature
-                    with its checks from it.
+                    {t.draftItEmpty} <span className="font-semibold">{t.draftIt.replace(':', '')}</span>
+                    {t.draftItEmptyRest}
                   </p>
                 )}
                 <p className="text-sm text-fg-2">
-                  Draft it lives in the thread.{' '}
+                  {t.draftItLives}{' '}
                   <Link {...toThread} className="font-medium text-accent-text hover:underline">
-                    Open the thread
+                    {t.openThread}
                   </Link>
                 </p>
               </section>
               {s.parked.length > 0 ? (
                 <section aria-labelledby="parked" className="flex flex-col gap-1.5">
-                  <AsideHeading id="parked">Parked for later</AsideHeading>
+                  <AsideHeading id="parked">{t.parkedForLater}</AsideHeading>
                   <ul className="flex flex-col gap-0.5">
                     {s.parked.map((q) => (
                       <QuestionLink key={q.id} question={q} projectId={projectId} explorationId={explorationId} />
@@ -140,10 +143,8 @@ export function DayDoneScreen() {
               ) : null}
               <TaxonomyNote projectId={projectId} />
               <div className="flex flex-col gap-1 rounded-lg border border-success-edge bg-success-soft px-4 py-3.5">
-                <p className="text-base font-semibold text-fg">You can close DEMIURGO</p>
-                <p className="text-sm text-fg-2">
-                  Everything is saved. When you come back, I&apos;ll show you what changed while you were away.
-                </p>
+                <p className="text-base font-semibold text-fg">{t.youCanClose}</p>
+                <p className="text-sm text-fg-2">{t.everythingSaved}</p>
               </div>
             </>
           }
@@ -159,14 +160,14 @@ export function DayDoneScreen() {
               />
             ) : null}
             <div className="grid gap-8 lg:grid-cols-2">
-              <Section id="day-understood" title="What I understood">
+              <Section id="day-understood" title={t.whatIUnderstood}>
                 {understanding ? (
                   <Observations messages={thread.messages} runId={understanding.id} />
                 ) : (
-                  <p className="text-base text-fg-2">Nothing noted.</p>
+                  <p className="text-base text-fg-2">{t.nothingNoted}</p>
                 )}
               </Section>
-              <Section id="day-answers" title="Your answers">
+              <Section id="day-answers" title={t.yourAnswers}>
                 {confirmed.length > 0 ? (
                   <ul className="flex flex-col gap-2">
                     {confirmed.map((q) => (
@@ -174,7 +175,7 @@ export function DayDoneScreen() {
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-base text-fg-2">No answers yet. The questions wait in the thread.</p>
+                  <p className="text-base text-fg-2">{t.noAnswersYet}</p>
                 )}
               </Section>
             </div>
@@ -197,11 +198,12 @@ function NeedsYou({
   summary: ReturnType<typeof daySummary>;
   needs: number;
 }) {
+  const t = useMessages(DAY_DONE);
   return (
     <section aria-labelledby="day-needs" className="flex flex-col gap-2.5">
       <h2 id="day-needs" className="flex items-center gap-2 text-lg font-semibold text-fg">
-        Needs you
-        <Count n={needs} label={`${needs} ${needs === 1 ? 'thing waits' : 'things wait'} for you`} />
+        {t.needsYou}
+        <Count n={needs} label={t.thingWaits(needs)} />
       </h2>
       {s.waiting.length > 0 ? (
         <ul className="flex flex-col gap-2">
@@ -215,10 +217,10 @@ function NeedsYou({
               >
                 <span className="flex items-center gap-2 text-sm text-fg-2">
                   <StatusBadge kind="proposed" />
-                  Decision
+                  {t.decision}
                 </span>
                 <span className="line-clamp-3 text-base font-semibold break-words text-fg group-hover:underline">{w.title}</span>
-                <span className="text-sm text-fg-2">DEMIURGO proposes it. Accept, change or reject it.</span>
+                <span className="text-sm text-fg-2">{t.demiurgoProposesIt}</span>
               </Link>
             </li>
           ))}
@@ -231,7 +233,7 @@ function NeedsYou({
           ))}
         </ul>
       ) : null}
-      {needs === 0 ? <p className="text-sm text-fg-2">Nothing from today waits for you.</p> : null}
+      {needs === 0 ? <p className="text-sm text-fg-2">{t.nothingWaits}</p> : null}
     </section>
   );
 }
@@ -250,8 +252,9 @@ function Figure({ n, label, arrow }: { n: number; label: string; arrow?: boolean
 }
 
 function Observations({ messages, runId }: { messages: Parameters<typeof writtenBy>[0]; runId: string }) {
+  const t = useMessages(DAY_DONE);
   const { observations } = writtenBy(messages, runId);
-  if (observations.length === 0) return <p className="text-base text-fg-2">Nothing noted.</p>;
+  if (observations.length === 0) return <p className="text-base text-fg-2">{t.nothingNoted}</p>;
   return <ObservationList observations={observations} compact />;
 }
 
@@ -265,6 +268,7 @@ function QuestionLink({
   projectId: string;
   explorationId: string;
 }) {
+  const t = useMessages(DAY_DONE);
   return (
     <li>
       <Link
@@ -277,7 +281,7 @@ function QuestionLink({
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="text-sm break-words text-fg group-hover:underline">{q.question}</span>
           {q.state === 'inferred' && q.conclusion ? (
-            <span className="line-clamp-2 text-xs text-fg-2">Assumed: {q.conclusion}</span>
+            <span className="line-clamp-2 text-xs text-fg-2">{t.assumed(q.conclusion)}</span>
           ) : null}
         </span>
         <ChevronRightIcon size={14} className="mt-0.5 shrink-0 text-fg-3" />

@@ -18,6 +18,7 @@ import { ArrowLeftIcon } from '../../components/icons.tsx';
 import { ErrorNotice, Notice } from '../../components/Notice.tsx';
 import { PageBody, PageHeader, usePageTitle } from '../../components/Page.tsx';
 import { Bone, Skeleton } from '../../components/Spinner.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { useProjectId } from '../../lib/hooks.ts';
 import { EditGuard, useEditGuard } from '../batch/guard.tsx';
 import { CatchUp, DETAIL_TITLE } from './CatchUp.tsx';
@@ -28,6 +29,7 @@ import { optionId, Queue } from './Queue.tsx';
 import { countSummary, entityOf, saidOf } from './titles.ts';
 import { UpToDate } from './UpToDate.tsx';
 import { clearWalk } from './walk.ts';
+import { DETAIL, NEEDS_YOU, ORDER, TITLES } from './words.i18n.ts';
 
 /** True while the viewport is at least this wide (the split view needs 1280 px). */
 function useMediaQuery(query: string): boolean {
@@ -52,6 +54,8 @@ const focusSoon = (id: string) => setTimeout(() => document.getElementById(id)?.
  * the component that ran the command: that component is gone once its thing has left.
  */
 function useDecisionResults(items: NeedItem[] | null, total: number): void {
+  const words = useMessages(TITLES);
+  const detailWords = useMessages(DETAIL);
   const successes = useMutationState({
     filters: { status: 'success' },
     select: (m) => ({ id: m.mutationId, call: m.state.variables as CommandCall | undefined }),
@@ -68,14 +72,18 @@ function useDecisionResults(items: NeedItem[] | null, total: number): void {
       const thing = things.current.get(s.call.entityId);
       // Questions say their own result while they stay (the shared question actions announce it).
       if (thing)
-        pending.current = { key: thing.key, said: saidOf(s.call, thing.kind), quiet: s.call.command.startsWith('question.') };
+        pending.current = {
+          key: thing.key,
+          said: saidOf(s.call, thing.kind, words),
+          quiet: s.call.command.startsWith('question.'),
+        };
     }
     seen.current = Math.max(seen.current, newest);
     const p = pending.current;
     if (!p || !items) return;
     if (!items.some((i) => i.key === p.key)) {
       pending.current = null;
-      announce(saidWithCount(p.said, total));
+      announce(saidWithCount(p.said, total, detailWords));
       focusSoon(items.length === 0 ? 'page-title' : DETAIL_TITLE);
       return;
     }
@@ -86,10 +94,11 @@ function useDecisionResults(items: NeedItem[] | null, total: number): void {
       if (!p.quiet) announce(p.said);
     }, 1500);
     return () => clearTimeout(t);
-  }, [successes, items, total]);
+  }, [successes, items, total, words, detailWords]);
 }
 
 export function NeedsYouScreen() {
+  const t = useMessages(NEEDS_YOU);
   const projectId = useProjectId();
   const search = useSearch({ strict: false }) as { 'catch-up'?: number };
   const catchUp = Boolean(search['catch-up']);
@@ -105,12 +114,12 @@ export function NeedsYouScreen() {
   const total = inbox.data?.total ?? 0;
   useDecisionResults(items, total);
   // One title for the tab, set here only (a child's would be overwritten by this one).
-  usePageTitle([items?.length === 0 ? "You're up to date" : catchUp ? 'Catching up' : 'Needs you', project?.name]);
+  usePageTitle([items?.length === 0 ? t.upToDate : catchUp ? t.catchingUp : t.needsYou, project?.name]);
 
   if (inbox.error) {
     return (
       <>
-        <PageHeader title="Needs you" />
+        <PageHeader title={t.needsYou} />
         <PageBody width="reading">
           <ErrorNotice error={inbox.error} onRetry={() => void inbox.refetch()} />
         </PageBody>
@@ -124,14 +133,14 @@ export function NeedsYouScreen() {
     <Notice
       tone="danger"
       role="alert"
-      title="Couldn't load the product's records"
+      title={t.couldntLoadTitle}
       action={
         <Button size="sm" variant="secondary" onClick={() => void state.refetch()}>
-          Retry
+          {t.retry}
         </Button>
       }
     >
-      What each thing unblocks isn&apos;t shown until they load.
+      {t.couldntLoadBody}
     </Notice>
   ) : null;
 
@@ -170,10 +179,13 @@ function NeedsList({
   total: number;
   partial: React.ReactNode;
 }) {
+  const t = useMessages(NEEDS_YOU);
+  const orderWords = useMessages(ORDER);
+  const titleWords = useMessages(TITLES);
   const wide = useMediaQuery('(min-width: 1280px)');
   const guard = useEditGuard();
   const stable = useStableOrder(items);
-  const groups = groupsOf(stable);
+  const groups = groupsOf(stable, orderWords);
   const flat = groups.flatMap((g) => g.items);
   const [chosen, setChosen] = useState<string | undefined>(() => readSelected(ctx.projectId));
   const [open, setOpen] = useState(false);
@@ -227,7 +239,7 @@ function NeedsList({
       <PageHeader
         title={
           <span className="inline-flex items-center gap-2.5">
-            Needs you
+            {t.needsYou}
             <span aria-hidden>
               <Count n={total} label="" />
             </span>
@@ -235,10 +247,10 @@ function NeedsList({
         }
         meta={
           <>
-            <span>Everything that waits for you, decided here.</span>
-            <span data-count-summary>{countSummary(items, total)}</span>
+            <span>{t.everythingWaits}</span>
+            <span data-count-summary>{countSummary(items, total, titleWords)}</span>
             <span aria-hidden>·</span>
-            <span>about {minutesOf(items)} min in all</span>
+            <span>{t.minutesInAll(minutesOf(items))}</span>
           </>
         }
         actions={
@@ -250,9 +262,9 @@ function NeedsList({
               onClick={() => clearWalk(ctx.projectId)}
               className={buttonClass({ variant: 'primary' })}
             >
-              Catch up
+              {t.catchUpAction}
             </Link>
-            <span className="text-xs text-fg-2">One at a time, what unblocks the most first.</span>
+            <span className="text-xs text-fg-2">{t.catchUpHint}</span>
           </div>
         }
       />
@@ -274,7 +286,7 @@ function NeedsList({
             <div className="flex min-w-0 max-w-3xl flex-1 flex-col gap-4">
               {!wide ? (
                 <Button variant="quiet" size="sm" icon={<ArrowLeftIcon size={14} />} onClick={back} className="w-fit">
-                  Back to Needs you
+                  {t.backToNeedsYou}
                 </Button>
               ) : null}
               <NeedDetail key={current.key} item={current} ctx={ctx} titleId={DETAIL_TITLE} />
@@ -297,11 +309,12 @@ function useStableOrder(items: NeedItem[]): NeedItem[] {
 }
 
 function NeedsSkeleton({ catchUp }: { catchUp: boolean }) {
+  const t = useMessages(NEEDS_YOU);
   return (
     <>
-      <PageHeader title={catchUp ? 'Catching up' : 'Needs you'} />
+      <PageHeader title={catchUp ? t.catchingUp : t.needsYou} />
       <PageBody>
-        <Skeleton label={catchUp ? 'Getting ready…' : 'Loading what needs you'} className="flex flex-col gap-8 xl:flex-row">
+        <Skeleton label={catchUp ? t.gettingReady : t.loadingNeeds} className="flex flex-col gap-8 xl:flex-row">
           <div className="flex flex-col gap-3 xl:w-[380px]">
             <Bone className="h-3 w-32" />
             {[0, 1, 2, 3].map((i) => (

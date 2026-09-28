@@ -28,8 +28,10 @@ import { Bone } from '../../components/Spinner.tsx';
 import { EntityState } from '../../components/status.tsx';
 import { TypeIcon } from '../../components/types.tsx';
 import { useRouteParams, useTables } from '../../lib/hooks.ts';
+import { useMessages } from '../../i18n/define.ts';
 import { proposalTitle } from '../batch/model.ts';
 import { NotFound } from '../not-found/NotFound.tsx';
+import { QUESTIONS } from './words.i18n.ts';
 import {
   IMPACT_LEVEL,
   IMPACT_WORDS,
@@ -74,13 +76,14 @@ function saveWalk(explorationId: string, walk: Walk): void {
 }
 
 export function QuestionsScreen() {
+  const t = useMessages(QUESTIONS);
   const { projectId, explorationId = '' } = useRouteParams();
   const day = useDay(projectId, explorationId);
   const [walk, setWalk] = useState<Walk | null>(() => readWalk(explorationId));
   const thread = day.thread;
   const index = walk?.index ?? 0;
   const question = walk && index < walk.ids.length ? thread?.questions.find((q) => q.id === walk.ids[index]) : undefined;
-  usePageTitle([question ? `Question ${index + 1} of ${walk?.ids.length ?? 0}` : 'Questions', day.project?.name]);
+  usePageTitle([question ? t.pageTitleOf(index + 1, walk?.ids.length ?? 0) : t.pageTitleDone, day.project?.name]);
 
   // The questions walked are the open ones when the screen opens, plus any DEMIURGO raises while
   // the person is still walking them. Once the walk ends it no longer grows.
@@ -98,12 +101,12 @@ export function QuestionsScreen() {
     if (walk) saveWalk(explorationId, walk);
   }, [walk, explorationId]);
 
-  if (isNotFound(day.error)) return <NotFound thing="these questions">They may belong to another project.</NotFound>;
+  if (isNotFound(day.error)) return <NotFound thing={t.notFoundThing}>{t.notFoundHint}</NotFound>;
   if (!thread || !day.runs || walk === null) {
     return day.error ? (
-      <DayError title="Your questions" error={day.error} onRetry={day.retry} />
+      <DayError title={t.errorTitle} error={day.error} onRetry={day.retry} />
     ) : (
-      <DaySkeleton label="Loading the questions" />
+      <DaySkeleton label={t.loadingQuestions} />
     );
   }
 
@@ -118,14 +121,14 @@ export function QuestionsScreen() {
   return (
     <>
       <PageHeader
-        eyebrow="The product"
+        eyebrow={t.eyebrow}
         title={day.project?.name ?? <Bone className="h-7 w-56" />}
-        meta={total > 0 ? `${total} ${total === 1 ? 'question' : 'questions'} to walk, one at a time` : null}
+        meta={total > 0 ? t.metaToWalk(total) : null}
       />
       <PageBody>
         <WithAside
           asideWidth="lg"
-          asideLabel={question ? `Question ${index + 1} of ${total}` : 'Questions done'}
+          asideLabel={question ? t.questionOf(index + 1, total) : t.questionsDone}
           aside={
             <div className="flex flex-col gap-5 rounded-lg border border-edge-strong bg-panel p-5">
               {question ? (
@@ -167,7 +170,8 @@ export function QuestionsScreen() {
 
 /** "1 of 3" with its bar: the text carries the value. */
 function Progress({ position, total }: { position: number; total: number }) {
-  return <Meter value={position} max={total} label={`${position} of ${total}`} className="w-32" />;
+  const t = useMessages(QUESTIONS);
+  return <Meter value={position} max={total} label={t.of(position, total)} className="w-32" />;
 }
 
 function Ask({
@@ -185,6 +189,7 @@ function Ask({
   total: number;
   onNext: () => void;
 }) {
+  const t = useMessages(QUESTIONS);
   const command = useCommand(projectId);
   const allows = useAllows('question', q.state);
   const stages = useQuery(stagesQuery(projectId)).data;
@@ -204,7 +209,7 @@ function Ask({
       { command: 'question.confirm', entityId: q.id, data: { conclusion } },
       {
         onSuccess: () => {
-          announce('Answered.');
+          announce(t.answered);
           onNext();
         },
       },
@@ -216,16 +221,16 @@ function Ask({
           {
             value: INFERRED,
             label: inferred,
-            detail: q.reasoning ? `DEMIURGO inferred it: ${q.reasoning}` : 'DEMIURGO inferred it from the conversation.',
+            detail: q.reasoning ? t.inferredByDemiurgo(q.reasoning) : t.inferredNoReason,
           },
         ]
       : []),
     ...options.map((o, i) => ({
       value: optionKey(i),
       label: o.answer,
-      detail: o.exclusive && q.multiple ? `${o.implies} Only this one.` : o.implies,
+      detail: o.exclusive && q.multiple ? `${o.implies} ${t.onlyThisOne}` : o.implies,
     })),
-    { value: OWN, label: 'Something else', detail: 'Write it in your own words.' },
+    { value: OWN, label: t.somethingElse, detail: t.writeOwnWords },
   ];
   const writing = picked.includes(OWN);
 
@@ -234,7 +239,7 @@ function Ask({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="flex flex-wrap items-center gap-2 text-sm text-fg-2">
           <TypeIcon type="question" size={15} className="text-fg-3" />
-          {stage ? `${stage.title} · mandatory` : 'Question'}
+          {stage ? `${stage.title} · ${t.mandatory}` : t.question}
           <EntityState entity="question" state={q.state} />
         </span>
         <Progress position={position} total={total} />
@@ -246,12 +251,12 @@ function Ask({
         <KeyValue
           className="rounded-lg border border-edge bg-sunken px-3.5 py-3"
           items={[
-            ...(q.reason ? [{ key: 'why', label: 'Why it matters', value: q.reason }] : []),
+            ...(q.reason ? [{ key: 'why', label: t.why, value: q.reason }] : []),
             ...(q.impact
               ? [
                   {
                     key: 'impact',
-                    label: 'What it affects',
+                    label: t.impact,
                     value: (
                       <>
                         <span className="font-medium">{IMPACT_LEVEL[q.impact] ?? q.impact}.</span> {IMPACT_WORDS[q.impact] ?? ''}
@@ -274,7 +279,7 @@ function Ask({
         >
           {picking ? (
             <ChoiceGroup
-              legend={q.multiple ? 'Pick one or more answers' : 'Pick an answer'}
+              legend={q.multiple ? t.pickMultiple : t.pickOne}
               multiple={!!q.multiple}
               value={picked}
               onChange={(value) => {
@@ -286,7 +291,7 @@ function Ask({
             />
           ) : null}
           {writing ? (
-            <Field label="Your answer" labelHidden={picking} count={own.length > 2700 ? [own.length, 3000] : undefined}>
+            <Field label={t.yourAnswer} labelHidden={picking} count={own.length > 2700 ? [own.length, 3000] : undefined}>
               {(p) => (
                 <TextArea
                   {...p}
@@ -295,7 +300,7 @@ function Ask({
                   autoGrow
                   maxLength={3000}
                   value={own}
-                  placeholder="Answer in your own words"
+                  placeholder={t.answerPlaceholder}
                   onChange={(e) => setOwn(e.target.value)}
                 />
               )}
@@ -315,20 +320,16 @@ function Ask({
               className="w-full"
               disabled={!conclusion}
               pending={command.isPending}
-              pendingLabel="Answering…"
+              pendingLabel={t.answering}
             >
-              Answer
+              {t.answer}
             </Button>
-            {!conclusion ? (
-              <p className="text-center text-xs text-fg-2">
-                {picking ? 'Pick an answer, or write your own, first.' : 'Write your answer first.'}
-              </p>
-            ) : null}
+            {!conclusion ? <p className="text-center text-xs text-fg-2">{picking ? t.pickFirst : t.writeFirst}</p> : null}
           </>
         ) : null}
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="secondary" className="flex-1" onClick={onNext}>
-            {q.state === 'pending' ? 'Skip' : 'Next'}
+            {q.state === 'pending' ? t.skip : t.next}
           </Button>
           {/* Park keeps it for later with a reason: the same words and dialog as everywhere (§4.4). */}
           <QuestionActions
@@ -339,13 +340,13 @@ function Ask({
           />
         </div>
         <p className="text-sm text-fg-2">
-          Talk it through with DEMIURGO instead:{' '}
+          {t.talkThrough}{' '}
           <Link
             to="/p/$projectId/threads/$explorationId"
             params={{ projectId, explorationId }}
             className="font-medium text-accent-text hover:underline"
           >
-            Open the thread
+            {t.openThread}
           </Link>
         </p>
       </div>
@@ -371,6 +372,7 @@ function End({
   request: Message | null;
   reading: Reading;
 }) {
+  const t = useMessages(QUESTIONS);
   const tables = useTables();
   const { send, pending, error } = useSend(projectId, explorationId);
   const [asked, setAsked] = useState(false);
@@ -390,24 +392,18 @@ function End({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="flex items-center gap-2 text-sm text-fg-2">
           <TypeIcon type="question" size={15} className="text-fg-3" />
-          Questions
+          {t.questionsHeader}
         </span>
         {total > 0 ? <Progress position={total} total={total} /> : null}
       </div>
       <div className="flex flex-col gap-1.5">
         <h2 ref={heading} tabIndex={-1} className="text-xl font-semibold text-fg outline-none">
-          That&apos;s all my questions for now
+          {t.lastQuestion}
         </h2>
         <p className="text-base text-fg-2">{walkSummary(walked)}</p>
       </div>
-      {showAsk ? (
-        <p className="text-sm text-fg-2">
-          DEMIURGO can turn your answers into decisions. It only proposes them: you accept, change or reject each one.
-        </p>
-      ) : null}
-      {showAsk && answers.length === 0 ? (
-        <p className="text-sm text-fg-2">Answer at least one question to ask for decisions.</p>
-      ) : null}
+      {showAsk ? <p className="text-sm text-fg-2">{t.canTurnAnswers}</p> : null}
+      {showAsk && answers.length === 0 ? <p className="text-sm text-fg-2">{t.answerAtLeastOne}</p> : null}
       {request ? (
         <ReadingStatus projectId={projectId} explorationId={explorationId} reading={reading} subject="decisions" />
       ) : null}
@@ -417,7 +413,7 @@ function End({
       {read && batchId && batch.data ? (
         <section data-proposed-decisions aria-labelledby="proposed-decisions" className="flex flex-col gap-2.5">
           <p id="proposed-decisions" className="text-base font-semibold text-fg">
-            DEMIURGO proposed {decisions} {decisions === 1 ? 'decision' : 'decisions'}.
+            {t.demiurgoProposed(decisions)}
           </p>
           <ul className="flex flex-col gap-2">
             {proposed.map((p) => (
@@ -430,14 +426,12 @@ function End({
               </li>
             ))}
           </ul>
-          {decisions > 0 ? (
-            <p className="text-sm text-fg-2">They wait for you: accept, change or reject each one. Nothing is decided yet.</p>
-          ) : null}
+          {decisions > 0 ? <p className="text-sm text-fg-2">{t.theyWait}</p> : null}
         </section>
       ) : null}
       {read && !batchId ? (
         <p data-proposed-decisions className="text-base text-fg-2">
-          DEMIURGO didn&apos;t propose a decision this time. You can ask again in the thread.
+          {t.didntPropose}
         </p>
       ) : null}
       {error ? <ErrorNotice error={error} /> : null}
@@ -449,15 +443,15 @@ function End({
             className="w-full"
             disabled={answers.length === 0}
             pending={pending}
-            pendingLabel="Asking…"
+            pendingLabel={t.asking}
             onClick={() =>
               send(decisionRequest(answers), () => {
                 setAsked(true);
-                announce('Asked. DEMIURGO proposes decisions from your answers.');
+                announce(t.asked);
               })
             }
           >
-            Ask DEMIURGO to propose decisions
+            {t.askToPropose}
           </Button>
         ) : null}
         <Link
@@ -465,7 +459,7 @@ function End({
           params={{ projectId, explorationId }}
           className={buttonClass({ variant: 'secondary', size: 'lg', className: 'w-full' })}
         >
-          See your starting point
+          {t.seeStartingPoint}
           <ChevronRightIcon size={15} />
         </Link>
       </div>
@@ -475,11 +469,12 @@ function End({
 
 /** The person's answers so far, confirmed. */
 function Answers({ questions }: { questions: Question[] }) {
+  const t = useMessages(QUESTIONS);
   const confirmed = questions
     .filter((q) => q.state === 'confirmed')
     .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
   return (
-    <Section id="your-answers" title="Your answers">
+    <Section id="your-answers" title={t.yourAnswers}>
       {confirmed.length > 0 ? (
         <ul className="flex flex-col gap-2">
           {confirmed.map((q) => (
@@ -487,7 +482,7 @@ function Answers({ questions }: { questions: Question[] }) {
           ))}
         </ul>
       ) : (
-        <p className="text-base text-fg-2">Your answers appear here as you give them.</p>
+        <p className="text-base text-fg-2">{t.answersAppear}</p>
       )}
     </Section>
   );
@@ -495,9 +490,10 @@ function Answers({ questions }: { questions: Question[] }) {
 
 /** What DEMIURGO understood, quieter: the context of the questions. */
 function Understood({ messages, runId, model }: { messages: Message[]; runId: string; model: string | null }) {
+  const t = useMessages(QUESTIONS);
   const { reply, observations } = writtenBy(messages, runId);
   return (
-    <Section id="understood" title="What I understood">
+    <Section id="understood" title={t.understood}>
       <Reply reply={reply} model={model} muted />
       <ObservationList observations={observations} compact />
     </Section>

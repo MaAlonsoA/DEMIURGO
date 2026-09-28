@@ -27,18 +27,22 @@ import { DayTime } from '../../components/Time.tsx';
 import { whoName } from '../../components/Who.tsx';
 import { cn } from '../../lib/cn.ts';
 import { useTables } from '../../lib/hooks.ts';
+import { useMessages } from '../../i18n/define.ts';
 import { whoOf } from '../../words.ts';
 import { useReturnFocus } from '../record/returnFocus.ts';
+import { STAGES } from './words.i18n.ts';
 
-const STAGE_LOOK = {
-  not_started: { word: 'Not started', tone: TONE.neutral, Icon: CircleDashedIcon },
-  open: { word: 'Open', tone: TONE.info, Icon: CircleHalfIcon },
-  passed: { word: 'Passed', tone: TONE.success, Icon: CheckCircleIcon },
+const STAGE_ICON = {
+  not_started: { tone: TONE.neutral, Icon: CircleDashedIcon },
+  open: { tone: TONE.info, Icon: CircleHalfIcon },
+  passed: { tone: TONE.success, Icon: CheckCircleIcon },
 } as const;
 
 /** The state of a stage as a badge: icon, word and tone (DESIGN.md §4.3: not started, open, passed). */
 function StageBadge({ state }: { state: StageRow['state'] }) {
-  const look = STAGE_LOOK[state];
+  const t = useMessages(STAGES);
+  const stageWord: Record<StageRow['state'], string> = { not_started: t.notStarted, open: t.open, passed: t.passed };
+  const look = STAGE_ICON[state];
   return (
     <span
       data-status={state}
@@ -50,7 +54,7 @@ function StageBadge({ state }: { state: StageRow['state'] }) {
       )}
     >
       <look.Icon size={12} className={look.tone.icon} />
-      {look.word}
+      {stageWord[state]}
     </span>
   );
 }
@@ -73,6 +77,7 @@ function StepMark({ stage }: { stage: StageRow }) {
 }
 
 export function DesignStages({ projectId }: { projectId: string }) {
+  const t = useMessages(STAGES);
   const stages = useQuery(stagesQuery(projectId));
   const tables = useTables();
   const start = useCommand(projectId);
@@ -89,24 +94,24 @@ export function DesignStages({ projectId }: { projectId: string }) {
       id="design-stages"
       title={
         <>
-          Product design
-          {current ? <span className="font-normal text-fg-2"> · now: {current.title}</span> : null}
+          {t.productDesign}
+          {current ? <span className="font-normal text-fg-2"> · {t.now(current.title)}</span> : null}
         </>
       }
-      note="What holds for the whole product. Each feature then has its own requirements, checks and Ready to build."
+      note={t.stagesNote}
       actions={
         canStart ? (
           <Button
             pending={start.isPending}
-            pendingLabel="Starting…"
+            pendingLabel={t.starting}
             onClick={() =>
               start.mutate(
                 { command: 'stage.open', data: { stage: first.key } },
-                { onSuccess: () => announce(`Design stages started: ${first.title} is open.`) },
+                { onSuccess: () => announce(t.startedAnnounce(first.title)) },
               )
             }
           >
-            Start design stages
+            {t.startDesignStages}
           </Button>
         ) : null
       }
@@ -116,7 +121,7 @@ export function DesignStages({ projectId }: { projectId: string }) {
         {stages.error ? (
           <ErrorNotice error={stages.error} onRetry={() => void stages.refetch()} />
         ) : !stages.data ? (
-          <Skeleton label="Loading the design stages">
+          <Skeleton label={t.loadingStages}>
             <div className="grid gap-2 sm:grid-cols-5">
               {[0, 1, 2, 3, 4].map((i) => (
                 <Bone key={i} className="h-24 rounded-lg" />
@@ -125,7 +130,7 @@ export function DesignStages({ projectId }: { projectId: string }) {
           </Skeleton>
         ) : list.length === 0 ? null : (
           <T.Root value={selected?.key ?? ''} onValueChange={setChosen} className="flex flex-col gap-3">
-            <T.List aria-label="Design stages" className="grid gap-2 sm:grid-cols-5">
+            <T.List aria-label={t.designStages} className="grid gap-2 sm:grid-cols-5">
               {list.map((s) => (
                 <T.Trigger
                   key={s.key}
@@ -150,9 +155,7 @@ export function DesignStages({ projectId }: { projectId: string }) {
                         style={{ width: `${s.total > 0 ? Math.round((Math.min(s.covered, s.total) / s.total) * 100) : 0}%` }}
                       />
                     </span>
-                    <span className="text-xs text-fg-2 tabular-nums">
-                      {s.covered} of {s.total} answered
-                    </span>
+                    <span className="text-xs text-fg-2 tabular-nums">{t.answeredOf(s.covered, s.total)}</span>
                   </span>
                 </T.Trigger>
               ))}
@@ -170,6 +173,7 @@ export function DesignStages({ projectId }: { projectId: string }) {
 }
 
 function StageDetail({ projectId, stage: s, next }: { projectId: string; stage: StageRow; next: StageRow | undefined }) {
+  const t = useMessages(STAGES);
   const command = useCommand(projectId);
   const actions = useActions('stage', s.state === 'not_started' ? undefined : s.state);
   const [confirming, setConfirming] = useState(false);
@@ -179,22 +183,20 @@ function StageDetail({ projectId, stage: s, next }: { projectId: string; stage: 
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-edge bg-panel p-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h3 className="text-base font-semibold text-fg">
-          Stage {s.position + 1} · {s.title}
-        </h3>
+        <h3 className="text-base font-semibold text-fg">{t.stageOf(s.position + 1, s.title)}</h3>
         <StageBadge state={s.state} />
       </div>
       <p className="text-sm text-fg-2">{s.produces}</p>
       <Meter
         value={s.covered}
         max={s.total}
-        label={`${s.covered} of ${s.total} questions answered`}
+        label={t.answeredOf(s.covered, s.total)}
         tone={s.state === 'passed' ? 'success' : 'info'}
         className="max-w-sm"
       />
       {s.state === 'passed' && s.passed_by ? (
         <p className="text-sm text-fg-2">
-          Passed by {whoOf(s.passed_by).kind === 'you' ? 'you' : whoName(whoOf(s.passed_by))}
+          {t.passedBy(whoOf(s.passed_by).kind === 'you' ? t.you : whoName(whoOf(s.passed_by)))}
           {s.passed_at ? (
             <>
               {' '}
@@ -204,9 +206,7 @@ function StageDetail({ projectId, stage: s, next }: { projectId: string; stage: 
         </p>
       ) : null}
       {s.state === 'not_started' ? (
-        <p className="text-sm text-fg-2">
-          {s.position === 0 ? 'It opens when you start the design stages.' : 'It opens when the stage before it passes.'}
-        </p>
+        <p className="text-sm text-fg-2">{s.position === 0 ? t.opensWhenStart : t.opensWhenPasses}</p>
       ) : null}
       {s.exploration_id || canPass ? (
         <div className="flex flex-wrap items-center gap-2">
@@ -221,17 +221,17 @@ function StageDetail({ projectId, stage: s, next }: { projectId: string; stage: 
                 setConfirming(true);
               }}
             >
-              Pass stage
+              {t.passStage}
             </Button>
           ) : null}
           {s.exploration_id ? (
             <Link
               to="/p/$projectId/threads/$explorationId"
               params={{ projectId, explorationId: s.exploration_id }}
-              aria-label={`Open the thread of ${s.title}`}
+              aria-label={t.openThreadOf(s.title)}
               className={buttonClass({ size: 'sm', variant: canPass ? 'quiet' : 'secondary' })}
             >
-              Open thread
+              {t.openThread}
             </Link>
           ) : null}
         </div>
@@ -239,7 +239,7 @@ function StageDetail({ projectId, stage: s, next }: { projectId: string; stage: 
       {canPass && missing > 0 ? (
         <p className="flex items-start gap-1.5 text-sm text-fg-2" data-why-not>
           <InfoIcon size={14} className="mt-0.5 shrink-0 text-fg-3" />
-          Not ready to pass: {missing} of {s.total} {s.total === 1 ? 'question still needs' : 'questions still need'} an answer.
+          {t.notReadyToPass(missing, s.total)}
         </p>
       ) : null}
       <ConfirmDialog
@@ -248,15 +248,15 @@ function StageDetail({ projectId, stage: s, next }: { projectId: string; stage: 
           setConfirming(o);
           if (!o) focus.restore();
         }}
-        title={`Pass ${s.title}?`}
+        title={t.passStageOf(s.title)}
         description={
           <>
-            <p>A stage passes once its mandatory questions are covered. Passing it is your decision.</p>
-            <p>{next ? `${next.title} opens next.` : 'It is the last stage.'}</p>
+            <p>{t.passDescription1}</p>
+            <p>{next ? t.passDescriptionNext(next.title) : t.passDescriptionLast}</p>
           </>
         }
-        confirm="Pass stage"
-        pendingLabel="Passing…"
+        confirm={t.passStage}
+        pendingLabel={t.passing}
         pending={command.isPending}
         error={confirming ? command.error : null}
         onConfirm={() =>
@@ -266,7 +266,7 @@ function StageDetail({ projectId, stage: s, next }: { projectId: string; stage: 
             {
               onSuccess: () => {
                 setConfirming(false);
-                announce(`${s.title} passed.${next ? ` ${next.title} is open.` : ''}`);
+                announce(t.passedAnnounce(s.title, next?.title ?? null));
               },
             },
           )

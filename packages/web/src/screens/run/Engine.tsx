@@ -14,11 +14,13 @@ import { PauseCircleIcon, PlayIcon } from '../../components/icons.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
 import { RowsSkeleton } from '../../components/Spinner.tsx';
 import { StatusBadge } from '../../components/status.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { failureWord } from '../../words.ts';
 import { engineLabel, formatTokens } from '../models/engines.ts';
 import { RawJson } from './Readable.tsx';
 import { CALL_EVENT_WORDS, SESSION_WORDS, clockTime } from './runs.ts';
+import { ENGINE } from './words.i18n.ts';
 
 /** «Thinking… 1,240 tokens · 0:12» while the provider works. */
 export function LiveProgress({
@@ -47,12 +49,13 @@ const eventCount = (calls: readonly RunCall[] | undefined) => (calls ?? []).redu
 
 /** The calls of a run: the engine calls tab of the run page. */
 export function CallsPanel({ projectId, runId, active }: { projectId: string; runId: string; active: boolean }) {
+  const t = useMessages(ENGINE);
   const [paused, setPaused] = useState<RunCall[] | null>(null);
   const live = active && paused === null;
   const calls = useQuery({ ...runCallsQuery(projectId, runId), refetchInterval: live ? 2000 : false });
   const catalogs = useQuery(providersQuery).data?.catalogs ?? [];
 
-  if (calls.isPending) return <RowsSkeleton label="Loading the engine calls" rows={3} />;
+  if (calls.isPending) return <RowsSkeleton label={t.loadingCalls} rows={3} />;
   if (calls.error && !calls.data) return <ErrorNotice error={calls.error} onRetry={() => void calls.refetch()} />;
   const latest = calls.data ?? [];
   // While paused (and the run still works), the list is the one the person froze.
@@ -65,10 +68,8 @@ export function CallsPanel({ projectId, runId, active }: { projectId: string; ru
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-fg-2">
             {/* Only the switch is announced, never each new event (R80). */}
-            <span role="status">{paused ? 'Live updates paused.' : 'Every event as it arrives.'}</span>
-            {paused && unseen > 0 ? (
-              <span className="font-medium text-fg"> {`${unseen} new ${unseen === 1 ? 'event' : 'events'} since.`}</span>
-            ) : null}
+            <span role="status">{paused ? t.liveUpdatesPaused : t.everyEventArrives}</span>
+            {paused && unseen > 0 ? <span className="font-medium text-fg"> {t.newEventsSince(unseen)}</span> : null}
           </p>
           <Button
             size="sm"
@@ -77,35 +78,33 @@ export function CallsPanel({ projectId, runId, active }: { projectId: string; ru
             icon={paused ? <PlayIcon size={14} /> : <PauseCircleIcon size={14} />}
             onClick={() => setPaused((p) => (p ? null : latest))}
           >
-            {paused ? 'Resume live updates' : 'Pause live updates'}
+            {paused ? t.resumeLiveUpdates : t.pauseLiveUpdates}
           </Button>
         </div>
       ) : (
-        <p className="text-sm text-fg-2">Every event as it arrived.</p>
+        <p className="text-sm text-fg-2">{t.everyEventArrived}</p>
       )}
       {shown.length === 0 ? (
-        <EmptyState title={active ? 'No engine call yet' : 'No engine calls'} headingLevel={3}>
-          {active
-            ? 'The engine is called once the run starts. Its events appear here as they arrive.'
-            : 'This run ended before it called an engine.'}
+        <EmptyState title={active ? t.noCallYetTitle : t.noCallsTitle} headingLevel={3}>
+          {active ? t.noCallYetBody : t.noCallsBody}
         </EmptyState>
       ) : (
         <ol className="flex flex-col gap-3">
           {shown.map((c, i) => (
             <li key={c.id} className="rounded-lg border border-edge bg-panel">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-edge-subtle px-4 py-2.5">
-                <h3 className="text-base font-semibold text-fg">{shown.length > 1 ? `Call ${i + 1}` : 'Call'}</h3>
+                <h3 className="text-base font-semibold text-fg">{shown.length > 1 ? t.call(i + 1) : t.callSingle}</h3>
                 <span className="text-sm text-fg-2">
                   {engineLabel({ provider: c.provider, model: c.requested_model, effort: c.effort }, catalogs)}
                 </span>
                 <span className="text-sm text-fg-3">{SESSION_WORDS[c.session_mode] ?? c.session_mode}</span>
                 <span className="ml-auto">
                   {c.state === 'error' ? (
-                    <StatusBadge kind="problem" word="Failed" />
+                    <StatusBadge kind="problem" word={t.failed} />
                   ) : c.state === 'running' ? (
-                    <StatusBadge kind="working" word="Working" />
+                    <StatusBadge kind="working" word={t.working} />
                   ) : (
-                    <StatusBadge kind="done" word="Answered" />
+                    <StatusBadge kind="done" word={t.answered} />
                   )}
                 </span>
               </div>
@@ -113,13 +112,13 @@ export function CallsPanel({ projectId, runId, active }: { projectId: string; ru
                 {c.state === 'error' ? (
                   <p className="text-sm text-danger-text">
                     {failureWord(c.failure_kind)}
-                    {c.error ? <span className="block break-words text-fg-2">What it said: {c.error}</span> : null}
+                    {c.error ? <span className="block break-words text-fg-2">{t.whatItSaid(c.error)}</span> : null}
                   </p>
                 ) : null}
                 {c.events.length === 0 ? (
-                  <p className="text-sm text-fg-3">{c.state === 'running' ? 'No events yet.' : 'It recorded no events.'}</p>
+                  <p className="text-sm text-fg-3">{c.state === 'running' ? t.noEventsYet : t.noEventsRecorded}</p>
                 ) : (
-                  <ol aria-label={`Events of ${shown.length > 1 ? `call ${i + 1}` : 'the call'}`} className="flex flex-col">
+                  <ol aria-label={shown.length > 1 ? t.eventsOfCall(i + 1) : t.eventsOfTheCall} className="flex flex-col">
                     {c.events.map((e) => (
                       <li
                         key={e.seq}
@@ -130,7 +129,7 @@ export function CallsPanel({ projectId, runId, active }: { projectId: string; ru
                           {CALL_EVENT_WORDS[e.kind] ?? e.kind}
                         </span>
                         {e.tokens !== null ? (
-                          <span className="text-fg-2 tabular-nums">{formatTokens(e.tokens)} tokens</span>
+                          <span className="text-fg-2 tabular-nums">{t.tokens(formatTokens(e.tokens))}</span>
                         ) : null}
                         <time dateTime={e.received_at} className="ml-auto text-xs text-fg-3 tabular-nums">
                           {clockTime(e.received_at)}
@@ -139,7 +138,7 @@ export function CallsPanel({ projectId, runId, active }: { projectId: string; ru
                     ))}
                   </ol>
                 )}
-                {c.events.length > 0 ? <RawJson label="Raw events" value={c.events.map((e) => safeParse(e.raw))} /> : null}
+                {c.events.length > 0 ? <RawJson label={t.rawEvents} value={c.events.map((e) => safeParse(e.raw))} /> : null}
               </div>
             </li>
           ))}

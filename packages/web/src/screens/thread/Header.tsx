@@ -21,9 +21,11 @@ import { ErrorNotice } from '../../components/Notice.tsx';
 import { type Crumb, PageHeader } from '../../components/Page.tsx';
 import { EntityState } from '../../components/status.tsx';
 import { Who, whoName } from '../../components/Who.tsx';
+import { useMessages } from '../../i18n/define.ts';
+import { useReading } from '../../i18n/reading.tsx';
 import { shortDate } from '../../lib/time.ts';
 import { whoOf } from '../../words.ts';
-import { useReading } from '../../i18n/reading.tsx';
+import { HEADER } from './words.i18n.ts';
 
 export const short = (text: string, n = 56): string => (text.length > n ? `${text.slice(0, n - 1)}…` : text);
 
@@ -47,6 +49,7 @@ export function ThreadHeader({
   /** More actions for small screens (the side panel's content in a sheet). */
   extraActions?: ReactNode;
 }) {
+  const words = useMessages(HEADER);
   const command = useCommand(projectId);
   const [dialog, setDialog] = useState<Dialog>(null);
   const reading = useReading(projectId, 'exploration', t.id);
@@ -67,7 +70,7 @@ export function ThreadHeader({
       },
     );
 
-  const crumbs: Crumb[] = [{ label: 'Threads', link: { to: '/p/$projectId/threads', params: { projectId } } }];
+  const crumbs: Crumb[] = [{ label: words.threadsCrumb, link: { to: '/p/$projectId/threads', params: { projectId } } }];
   if (parent)
     crumbs.push({
       label: short(parent.purpose, 40),
@@ -82,7 +85,7 @@ export function ThreadHeader({
         eyebrow={
           <>
             <ThreadsIcon size={14} />
-            <span>Thread</span>
+            <span>{words.thread}</span>
             <span data-thread-state={t.state} className="inline-flex">
               <EntityState entity="exploration" state={t.state} />
             </span>
@@ -102,7 +105,7 @@ export function ThreadHeader({
                 aria-expanded={clamp.all}
                 className="basis-full cursor-pointer text-left text-sm font-medium text-accent-text hover:underline"
               >
-                {clamp.all ? 'Show less of the purpose' : 'Show all of the purpose'}
+                {clamp.all ? words.showLess : words.showAll}
               </button>
             ) : null}
             {reading.mark ? <span className="basis-full">{reading.mark}</span> : null}
@@ -119,10 +122,10 @@ export function ThreadHeader({
                 'exploration.conclude': { run: () => open('conclude'), variant: 'secondary' },
                 'exploration.set_aside': { run: () => open('set_aside'), variant: 'quiet' },
                 'exploration.resume': {
-                  run: () => run('exploration.resume', {}, 'Thread resumed.'),
+                  run: () => run('exploration.resume', {}, words.resumed),
                   variant: 'primary',
                   pending: command.isPending && !dialog,
-                  pendingLabel: 'Resuming…',
+                  pendingLabel: words.resuming,
                 },
               }}
             />
@@ -134,7 +137,7 @@ export function ThreadHeader({
         {!dialog && command.error ? <ErrorNotice error={command.error} /> : null}
         {t.state === 'concluded' && t.state_reason ? (
           <Card tone="success" padding="sm" data-thread-conclusion className="flex max-w-3xl flex-col gap-0.5">
-            <span className="text-sm font-medium text-success-text">Conclusion</span>
+            <span className="text-sm font-medium text-success-text">{words.conclusion}</span>
             <p className="text-base whitespace-pre-wrap text-fg">{t.state_reason}</p>
           </Card>
         ) : null}
@@ -143,8 +146,8 @@ export function ThreadHeader({
             data-thread-conclusion
             className="flex max-w-3xl flex-col gap-0.5 rounded-lg border border-dashed border-edge-strong px-3 py-3"
           >
-            <span className="text-sm font-medium text-fg-2">Why it was set aside</span>
-            <p className="text-base whitespace-pre-wrap text-fg">{t.state_reason || 'No reason given.'}</p>
+            <span className="text-sm font-medium text-fg-2">{words.whySetAside}</span>
+            <p className="text-base whitespace-pre-wrap text-fg">{t.state_reason || words.noReasonGiven}</p>
           </div>
         ) : null}
       </PageHeader>
@@ -152,30 +155,30 @@ export function ThreadHeader({
       <PromptDialog
         open={dialog === 'conclude'}
         onOpenChange={(o) => !o && setDialog(null)}
-        title="Conclude this thread"
-        description="Say what the thread settled. It stays with the thread, and you can resume it later."
-        label="Conclusion"
-        submit="Conclude"
-        pendingLabel="Concluding…"
+        title={words.concludeTitle}
+        description={words.concludeDescription}
+        label={words.concludeLabel}
+        submit={words.concludeSubmit}
+        pendingLabel={words.concluding}
         required
         maxLength={1000}
         pending={command.isPending}
         error={dialog === 'conclude' ? command.error : null}
-        onSubmit={(text) => run('exploration.conclude', { reason: text }, 'Thread concluded.')}
+        onSubmit={(text) => run('exploration.conclude', { reason: text }, words.concluded)}
       />
       <PromptDialog
         open={dialog === 'set_aside'}
         onOpenChange={(o) => !o && setDialog(null)}
-        title="Set this thread aside"
-        description="It stops for now, with everything it has. Say why."
-        label="Reason"
-        submit="Set aside"
-        pendingLabel="Setting aside…"
+        title={words.setAsideTitle}
+        description={words.setAsideDescription}
+        label={words.setAsideLabel}
+        submit={words.setAsideSubmit}
+        pendingLabel={words.settingAside}
         required
         maxLength={1000}
         pending={command.isPending}
         error={dialog === 'set_aside' ? command.error : null}
-        onSubmit={(text) => run('exploration.set_aside', { reason: text }, 'Thread set aside.')}
+        onSubmit={(text) => run('exploration.set_aside', { reason: text }, words.setAside)}
       />
     </div>
   );
@@ -201,13 +204,15 @@ function useClamp(text: string) {
 
 /** The design stage this thread carries: its title and how many of its questions are answered. */
 function StageProgress({ stage }: { stage: StageRow }) {
+  const words = useMessages(HEADER);
   return (
     <div data-thread-stage={stage.key} className="flex max-w-md flex-col gap-1.5">
       <span className="inline-flex items-center gap-1.5 text-sm text-fg-2">
         <StagesIcon size={14} className="text-fg-3" />
-        Design stage: <span className="font-medium text-fg">{stage.title}</span>
+        {words.designStage}
+        <span className="font-medium text-fg">{stage.title}</span>
       </span>
-      <Meter value={stage.covered} max={stage.total} label={`${stage.covered} of ${stage.total} answered`} />
+      <Meter value={stage.covered} max={stage.total} label={words.answeredOf(stage.covered, stage.total)} />
     </div>
   );
 }
@@ -216,6 +221,7 @@ const PURPOSE_COMMANDS = new Set(['exploration.open', 'exploration.revise_purpos
 
 /** Earlier versions of the purpose: the agent rewrites it as the design moves on. */
 function PurposeHistory({ projectId, explorationId }: { projectId: string; explorationId: string }) {
+  const words = useMessages(HEADER);
   const events = useQuery(entityEventsQuery(projectId, explorationId)).data;
   const versions = (events ?? [])
     .filter((e) => e.entity_id === explorationId && PURPOSE_COMMANDS.has(e.command))
@@ -226,7 +232,7 @@ function PurposeHistory({ projectId, explorationId }: { projectId: string; explo
   return (
     <details data-purpose-history className="max-w-3xl text-sm">
       <summary className="w-fit cursor-pointer font-medium text-fg-2 select-none hover:text-fg">
-        Earlier summaries ({versions.length - 1})
+        {words.earlierSummaries(versions.length - 1)}
       </summary>
       <ol className="mt-2 flex flex-col gap-2.5 border-l-2 border-edge pl-3">
         {versions.slice(1).map((v) => (
@@ -258,6 +264,7 @@ function Provenance({
   threads: readonly Exploration[] | undefined;
   products: ProductState | undefined;
 }) {
+  const words = useMessages(HEADER);
   const parentDetail = useQuery({
     ...explorationQuery(projectId, t.parent_id ?? ''),
     enabled: t.origin_type === 'question' && !!t.parent_id,
@@ -268,7 +275,7 @@ function Provenance({
       key: 'parent',
       node: (
         <span>
-          Inside{' '}
+          {words.inside}{' '}
           <Link to="/p/$projectId/threads/$explorationId" params={{ projectId, explorationId: parent.id }} className={linkClass}>
             {parent.purpose}
           </Link>
@@ -277,14 +284,18 @@ function Provenance({
     });
   }
   if (t.origin_type && t.origin_id && !(t.origin_type === 'exploration' && t.origin_id === t.parent_id)) {
-    parts.push({ key: 'origin', node: <span>{originOf(projectId, t, threads, parentDetail?.questions, products)}</span> });
+    parts.push({
+      key: 'origin',
+      node: <span>{originOf(projectId, t, threads, parentDetail?.questions, products, words)}</span>,
+    });
   }
   parts.push({
     key: 'who',
     node: (
       <span className="inline-flex items-center gap-1.5">
         <Who actor={t.opened_by} size={16} showName={false} />
-        Opened by {t.opened_by.startsWith('human:') ? 'you' : whoName(whoOf(t.opened_by))} · {shortDate(t.created_at)}
+        {words.openedBy(t.opened_by.startsWith('human:') ? words.openedByYou : whoName(whoOf(t.opened_by)))} ·{' '}
+        {shortDate(t.created_at)}
       </span>
     ),
   });
@@ -306,6 +317,7 @@ function originOf(
   threads: readonly Exploration[] | undefined,
   questions: Question[] | undefined,
   products: ProductState | undefined,
+  words: typeof HEADER.en,
 ): ReactNode {
   const id = t.origin_id ?? '';
   switch (t.origin_type) {
@@ -313,28 +325,28 @@ function originOf(
       const from = threads?.find((x) => x.id === id);
       return from ? (
         <>
-          From the thread{' '}
+          {words.fromTheThread}{' '}
           <Link to="/p/$projectId/threads/$explorationId" params={{ projectId, explorationId: from.id }} className={linkClass}>
             {from.purpose}
           </Link>
         </>
       ) : (
-        'From another thread'
+        words.fromAnotherThread
       );
     }
     case 'question': {
       const q = questions?.find((x) => x.id === id);
-      return q ? `From the question “${short(q.question, 80)}”` : 'From a question';
+      return q ? words.fromTheQuestion(short(q.question, 80)) : words.fromAQuestion;
     }
     case 'record_version': {
       const row = [...(products?.decisions ?? []), ...(products?.designs ?? [])].find(
         (r) => r.latest_id === id || r.current_id === id,
       );
-      if (!row) return 'From a record';
+      if (!row) return words.fromARecord;
       const n = row.latest_id === id ? row.latest.n : (row.current ?? row.latest.n);
       return (
         <>
-          From{' '}
+          {words.from}{' '}
           <Link to="/p/$projectId/records/$code" params={{ projectId, code: row.code }} search={{ v: n }} className={linkClass}>
             {row.title}
           </Link>{' '}
@@ -345,7 +357,7 @@ function originOf(
       );
     }
     case 'proposal':
-      return 'From a proposal';
+      return words.fromAProposal;
     default:
       return null;
   }

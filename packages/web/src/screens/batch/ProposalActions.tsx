@@ -15,10 +15,12 @@ import { announce } from '../../components/announce.tsx';
 import { Button } from '../../components/Button.tsx';
 import { ConfirmDialog, PromptDialog } from '../../components/Dialog.tsx';
 import { Field, TextArea, TextInput } from '../../components/Field.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { useReportDirty } from './guard.tsx';
 import { APPROVABLE_TYPES, changedFields, EDITABLE_FIELDS, type EditableField, editedPayload, proposalTitle } from './model.ts';
 import { DecisionBar, Disclosure } from './parts.tsx';
 import { acceptEffects } from './proposal.ts';
+import { PROPOSAL_ACTIONS } from './words.i18n.ts';
 
 export type ProposalRef = { id: string; type: string; payload: Record<string, unknown>; state: string };
 
@@ -28,10 +30,11 @@ type Dialog = null | 'accept' | 'approve' | 'edit' | 'reject';
 
 /** The effects of accepting, as the confirmation says them. */
 function Effects({ lines }: { lines: string[] }) {
+  const t = useMessages(PROPOSAL_ACTIONS);
   if (lines.length === 1) return <p>{lines[0]}</p>;
   return (
     <div className="flex flex-col gap-1.5">
-      <p>Two things happen:</p>
+      <p>{t.twoThingsHappen}</p>
       <ol className="list-decimal space-y-0.5 pl-5">
         {lines.map((l) => (
           <li key={l}>{l}</li>
@@ -59,6 +62,7 @@ export function ProposalDecision({
   onDone?: (said: string) => void;
   sticky?: boolean;
 }) {
+  const t = useMessages(PROPOSAL_ACTIONS);
   const command = useCommand(projectId);
   const client = useQueryClient();
   const allows = useAllows('proposal', p.state);
@@ -72,8 +76,8 @@ export function ProposalDecision({
   const canApprove = canAccept && !isBlocked && APPROVABLE_TYPES.has(p.type);
   const canChange = allows('proposal.accept_edited') && !isBlocked && fields.length > 0;
   const canReject = allows('proposal.reject');
-  const acceptLabel = labels.accept ?? (APPROVABLE_TYPES.has(p.type) ? 'Accept as draft' : 'Accept');
-  const rejectLabel = labels.reject ?? 'Reject';
+  const acceptLabel = labels.accept ?? (APPROVABLE_TYPES.has(p.type) ? t.acceptAsDraft : t.accept);
+  const rejectLabel = labels.reject ?? t.reject;
 
   const open = (d: Dialog) => {
     command.reset();
@@ -116,21 +120,21 @@ export function ProposalDecision({
         <ConfirmDialog
           open={dialog === 'edit'}
           onOpenChange={(o) => !o && close()}
-          title={`Accept your version of “${title}”?`}
+          title={t.acceptYourVersionTitle(title)}
           description={
             <p>
-              DEMIURGO records it with your changes to{' '}
+              {t.acceptYourVersionDescriptionBefore}{' '}
               {changedFields(p.payload, draft)
                 .map((k) => fields.find((f) => f.key === k)?.label ?? k)
                 .join(', ')}
-              . The proposal is kept as it came.
+              {t.acceptYourVersionDescriptionAfter}
             </p>
           }
-          confirm="Accept my version"
-          pendingLabel="Accepting…"
+          confirm={t.acceptMyVersion}
+          pendingLabel={t.acceptingEllipsis}
           pending={command.isPending}
           error={dialog === 'edit' ? command.error : null}
-          onConfirm={() => run('proposal.accept_edited', { edit: editedPayload(p.payload, draft) }, 'Your version is accepted.')}
+          onConfirm={() => run('proposal.accept_edited', { edit: editedPayload(p.payload, draft) }, t.yourVersionAccepted)}
         />
       </ChangeForm>
     );
@@ -138,8 +142,7 @@ export function ProposalDecision({
 
   if (!canAccept && !canChange && !canReject) return null;
 
-  const saidOnAccept =
-    p.type === 'review' ? 'A thread to review it is open.' : APPROVABLE_TYPES.has(p.type) ? 'Accepted as a draft.' : 'Accepted.';
+  const saidOnAccept = p.type === 'review' ? t.reviewOpened : APPROVABLE_TYPES.has(p.type) ? t.acceptedAsDraft : t.accepted;
 
   return (
     <>
@@ -148,14 +151,11 @@ export function ProposalDecision({
         caption={
           canApprove ? (
             <div className="flex flex-col gap-1">
-              <p>As draft, it is recorded but doesn&apos;t count yet. Approved, it is settled.</p>
-              <Disclosure label="What's the difference?">
-                As draft: it is recorded but doesn&apos;t count yet; you can discard it or make a new version. Approve: it becomes
-                settled: agents take it as decided, features can build on it, and changing it takes a new version.
-              </Disclosure>
+              <p>{t.draftCaption}</p>
+              <Disclosure label={t.whatsTheDifference}>{t.draftDisclosure}</Disclosure>
             </div>
           ) : isBlocked && canAccept ? (
-            <p>It can&apos;t be accepted until what it starts from is settled again: see why above.</p>
+            <p>{t.blockedCaption}</p>
           ) : null
         }
       >
@@ -171,7 +171,7 @@ export function ProposalDecision({
         ) : null}
         {canApprove ? (
           <Button variant="secondary" data-command="proposal.accept" onClick={() => open('approve')}>
-            Accept and approve
+            {t.acceptAndApprove}
           </Button>
         ) : null}
         {canChange ? (
@@ -180,7 +180,7 @@ export function ProposalDecision({
             data-command="proposal.accept_edited"
             onClick={() => setDraft(Object.fromEntries(fields.map((f) => [f.key, textOf(p.payload[f.key])])))}
           >
-            Change
+            {t.change}
           </Button>
         ) : null}
         {canReject ? (
@@ -196,32 +196,30 @@ export function ProposalDecision({
       <ConfirmDialog
         open={dialog === 'accept' || dialog === 'approve'}
         onOpenChange={(o) => !o && close()}
-        title={dialog === 'approve' ? `Accept and approve “${title}”?` : `${acceptLabel}: “${title}”?`}
+        title={dialog === 'approve' ? t.approveDialogTitle(title) : t.acceptDialogTitle(acceptLabel, title)}
         description={<Effects lines={acceptEffects(p, dialog === 'approve')} />}
-        confirm={dialog === 'approve' ? 'Accept and approve' : acceptLabel}
-        pendingLabel="Accepting…"
+        confirm={dialog === 'approve' ? t.acceptAndApprove : acceptLabel}
+        pendingLabel={t.acceptingEllipsis}
         pending={command.isPending}
         error={dialog === 'accept' || dialog === 'approve' ? command.error : null}
         onConfirm={() =>
           dialog === 'approve'
-            ? run('proposal.accept', { approve: true }, 'Accepted and approved.')
+            ? run('proposal.accept', { approve: true }, t.acceptedAndApproved)
             : run('proposal.accept', {}, saidOnAccept)
         }
       />
       <PromptDialog
         open={dialog === 'reject'}
         onOpenChange={(o) => !o && close()}
-        title={`${rejectLabel}: “${title}”`}
-        description="Say why, if you want. The reason is kept with the proposal."
-        label="Reason"
+        title={t.rejectDialogTitle(rejectLabel, title)}
+        description={t.rejectDialogDescription}
+        label={t.reasonLabel}
         submit={rejectLabel}
-        pendingLabel={p.type === 'review' ? 'Keeping it…' : 'Rejecting…'}
+        pendingLabel={p.type === 'review' ? t.keepingEllipsis : t.rejectingEllipsis}
         tone={p.type === 'review' ? 'primary' : 'danger'}
         pending={command.isPending}
         error={dialog === 'reject' ? command.error : null}
-        onSubmit={(text) =>
-          run('proposal.reject', text ? { reason: text } : {}, p.type === 'review' ? 'Kept as it is.' : 'Rejected.')
-        }
+        onSubmit={(text) => run('proposal.reject', text ? { reason: text } : {}, p.type === 'review' ? t.keptAsItIs : t.rejected)}
       />
     </>
   );
@@ -253,19 +251,16 @@ function ChangeForm({
   sticky: boolean;
   children: React.ReactNode;
 }) {
+  const t = useMessages(PROPOSAL_ACTIONS);
   const formId = useId();
   const changed = changedFields(payload, draft);
   useReportDirty(id, changed.length > 0);
   const empty = fields.filter((f) => (draft[f.key] ?? '').trim() === '').map((f) => f.label);
-  const why = empty.length
-    ? `${empty.join(', ')} can't be empty.`
-    : changed.length === 0
-      ? 'Change something to accept your version.'
-      : null;
+  const why = empty.length ? t.emptyFields(empty.join(', ')) : changed.length === 0 ? t.changeSomething : null;
   return (
     <form
       id={formId}
-      aria-label="Your version"
+      aria-label={t.yourVersionLabel}
       data-change-form
       className="flex flex-col gap-4 border-t border-edge pt-4"
       onSubmit={(e) => {
@@ -274,8 +269,8 @@ function ChangeForm({
       }}
     >
       <div className="flex flex-col gap-0.5">
-        <h3 className="text-base font-semibold text-fg">Your version</h3>
-        <p className="text-sm text-fg-2">Accepting it records your text. The proposal is kept as it came.</p>
+        <h3 className="text-base font-semibold text-fg">{t.yourVersionLabel}</h3>
+        <p className="text-sm text-fg-2">{t.yourVersionBody}</p>
       </div>
       {fields.map((f) => {
         const value = draft[f.key] ?? '';
@@ -303,12 +298,12 @@ function ChangeForm({
           </Field>
         );
       })}
-      <DecisionBar sticky={sticky} label="Your version" caption={why ? <span data-why>{why}</span> : null}>
+      <DecisionBar sticky={sticky} label={t.yourVersionLabel} caption={why ? <span data-why>{why}</span> : null}>
         <Button type="submit" variant="primary" aria-disabled={why ? 'true' : undefined}>
-          Accept my version
+          {t.acceptMyVersion}
         </Button>
         <Button variant="quiet" onClick={onCancel}>
-          Cancel
+          {t.cancel}
         </Button>
       </DecisionBar>
       {children}

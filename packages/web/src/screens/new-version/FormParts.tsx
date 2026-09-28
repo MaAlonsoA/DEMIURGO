@@ -10,6 +10,8 @@ import { ConfirmDialog } from '../../components/Dialog.tsx';
 import { Field, TextArea } from '../../components/Field.tsx';
 import { InfoIcon } from '../../components/icons.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
+import { useMessages } from '../../i18n/define.ts';
+import { FORM_PARTS } from './words.i18n.ts';
 
 /** A template section in Markdown; its title is the field's label. */
 export function SectionField({
@@ -21,8 +23,9 @@ export function SectionField({
   content: string;
   onChange: (content: string) => void;
 }) {
+  const t = useMessages(FORM_PARTS);
   return (
-    <Field label={title} hint="Markdown">
+    <Field label={title} hint={t.markdown}>
       {(p) => <TextArea {...p} autoGrow rows={3} maxRows={18} value={content} onChange={(e) => onChange(e.target.value)} />}
     </Field>
   );
@@ -59,10 +62,11 @@ export function FormPanel({
 
 /** What still keeps the draft from being saved, in words. */
 export function MissingList({ missing }: { missing: string[] }) {
+  const t = useMessages(FORM_PARTS);
   if (missing.length === 0) return null;
   return (
     <div data-missing className="flex flex-col gap-1.5 rounded-lg border border-edge bg-sunken px-3.5 py-3 text-sm">
-      <p className="font-medium text-fg">To save it:</p>
+      <p className="font-medium text-fg">{t.toSaveIt}</p>
       <ul className="flex list-disc flex-col gap-0.5 pl-5 text-fg-2">
         {missing.map((m) => (
           <li key={m}>{m}</li>
@@ -93,6 +97,7 @@ export function SaveFooter({
   onSave: () => void;
   onCancel: () => void;
 }) {
+  const t = useMessages(FORM_PARTS);
   return (
     <div className="sticky bottom-0 z-20 -mx-4 mt-2 flex flex-col gap-3 border-t border-edge bg-panel px-4 py-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
       {error ? <ErrorNotice error={error} /> : null}
@@ -102,18 +107,16 @@ export function SaveFooter({
           {missing.length > 0 ? (
             <span className="flex items-center gap-1.5 text-fg-2">
               <InfoIcon size={13} className="shrink-0 text-fg-3" />
-              {missing.length === 1
-                ? `One thing to do before saving: ${missing[0]}`
-                : `${missing.length} things to do before saving: see "To save it".`}
+              {missing.length === 1 ? t.oneThing(missing[0] as string) : t.manyThings(missing.length)}
             </span>
           ) : null}
         </div>
         <div className="flex items-center gap-2">
           <Button variant="quiet" onClick={onCancel}>
-            Cancel
+            {t.cancel}
           </Button>
-          <Button variant="primary" disabled={!canSave} pending={pending} pendingLabel="Saving…" onClick={onSave}>
-            Save draft
+          <Button variant="primary" disabled={!canSave} pending={pending} pendingLabel={t.savingEllipsis} onClick={onSave}>
+            {t.saveDraft}
           </Button>
         </div>
       </div>
@@ -126,6 +129,7 @@ export function SaveFooter({
  * or closing the tab. `release()` lets the next navigation through (after a successful save).
  */
 export function useLeaveGuard(dirty: boolean): { dialog: ReactNode; release: () => void } {
+  const t = useMessages(FORM_PARTS);
   const on = useRef(dirty);
   on.current = dirty;
   const released = useRef(false);
@@ -137,10 +141,10 @@ export function useLeaveGuard(dirty: boolean): { dialog: ReactNode; release: () 
       onOpenChange={(o) => {
         if (!o && blocker.status === 'blocked') blocker.reset();
       }}
-      title="Leave without saving?"
-      description={<p>What you wrote here isn&apos;t saved. If you leave, it is lost.</p>}
-      confirm="Leave and lose it"
-      cancel="Keep writing"
+      title={t.leaveWithoutSaving}
+      description={<p>{t.leaveBody}</p>}
+      confirm={t.leaveAndLoseIt}
+      cancel={t.keepWriting}
       tone="danger"
       onConfirm={() => {
         released.current = true;

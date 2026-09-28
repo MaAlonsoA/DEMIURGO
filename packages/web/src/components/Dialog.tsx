@@ -6,11 +6,14 @@
 
 import { AlertDialog, Dialog as D } from 'radix-ui';
 import { type FormEvent, type ReactNode, useEffect, useId, useState } from 'react';
+import { useMessages } from '../i18n/define.ts';
 import { cn } from '../lib/cn.ts';
+import { useSafeLocale } from '../words.ts';
 import { Button } from './Button.tsx';
 import { CloseIcon } from './icons.tsx';
 import { ErrorNotice } from './Notice.tsx';
 import { useReturnFocus } from './returnFocus.ts';
+import { DIALOG, FIELD } from './words.i18n.ts';
 
 const overlay = 'fixed inset-0 z-50 bg-scrim animate-enter';
 const panel =
@@ -34,6 +37,7 @@ export function Dialog({
   wide?: boolean;
   className?: string;
 }) {
+  const t = useMessages(DIALOG);
   const returnFocus = useReturnFocus(open);
   return (
     <D.Root open={open} onOpenChange={onOpenChange}>
@@ -52,7 +56,7 @@ export function Dialog({
               )}
             </div>
             <D.Close
-              aria-label="Close"
+              aria-label={t.close}
               className="-mt-1 -mr-2 inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-fg-2 hover:bg-hover hover:text-fg"
             >
               <CloseIcon size={16} />
@@ -81,7 +85,7 @@ export function ConfirmDialog({
   error,
   children,
   tone = 'primary',
-  cancel = 'Not now',
+  cancel,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -96,6 +100,7 @@ export function ConfirmDialog({
   tone?: 'primary' | 'danger';
   cancel?: string;
 }) {
+  const t = useMessages(DIALOG);
   const returnFocus = useReturnFocus(open);
   return (
     <AlertDialog.Root open={open} onOpenChange={onOpenChange}>
@@ -110,12 +115,12 @@ export function ConfirmDialog({
           {error ? <ErrorNotice error={error} compact /> : null}
           <div className="flex flex-wrap justify-end gap-2 pt-1">
             <AlertDialog.Cancel asChild>
-              <Button variant="quiet">{cancel}</Button>
+              <Button variant="quiet">{cancel ?? t.notNow}</Button>
             </AlertDialog.Cancel>
             <Button
               variant={tone === 'danger' ? 'danger' : 'primary'}
               pending={pending}
-              pendingLabel={pendingLabel ?? 'Working…'}
+              pendingLabel={pendingLabel ?? t.working}
               data-confirm
               onClick={(e) => {
                 e.preventDefault();
@@ -173,6 +178,10 @@ export function PromptDialog({
   error?: unknown;
   tone?: 'primary' | 'danger';
 }) {
+  const t = useMessages(DIALOG);
+  const f = useMessages(FIELD);
+  const locale = useSafeLocale();
+  const numberLocale = locale === 'es' ? 'es-ES' : 'en-GB';
   const id = useId();
   const [text, setText] = useState(initial);
   useEffect(() => {
@@ -207,7 +216,7 @@ export function PromptDialog({
             <div className="flex flex-col gap-1.5">
               <label htmlFor={id} className="text-sm font-medium text-fg">
                 {label}
-                {!required ? <span className="font-normal text-fg-3"> · optional</span> : null}
+                {!required ? <span className="font-normal text-fg-3">{f.optional}</span> : null}
               </label>
               {multiline ? (
                 <textarea
@@ -236,10 +245,10 @@ export function PromptDialog({
                 />
               )}
               <div id={`${id}-help`} className="flex items-start justify-between gap-3 text-xs text-fg-3">
-                <span>{missing ? 'Write something to continue.' : hint}</span>
+                <span>{missing ? t.writeSomething : hint}</span>
                 {maxLength ? (
                   <span className="shrink-0 tabular-nums">
-                    {text.length.toLocaleString('en-GB')} / {maxLength.toLocaleString('en-GB')}
+                    {text.length.toLocaleString(numberLocale)} / {maxLength.toLocaleString(numberLocale)}
                   </span>
                 ) : null}
               </div>
@@ -247,14 +256,14 @@ export function PromptDialog({
             {error ? <ErrorNotice error={error} compact /> : null}
             <div className="flex flex-wrap justify-end gap-2">
               <D.Close asChild>
-                <Button variant="quiet">Not now</Button>
+                <Button variant="quiet">{t.notNow}</Button>
               </D.Close>
               <Button
                 type="submit"
                 variant={tone === 'danger' ? 'danger' : 'primary'}
                 disabled={missing}
                 pending={pending}
-                pendingLabel={pendingLabel ?? 'Working…'}
+                pendingLabel={pendingLabel ?? t.working}
               >
                 {submit}
               </Button>

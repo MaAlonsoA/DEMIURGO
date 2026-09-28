@@ -15,6 +15,7 @@ import { RelativeTime } from '../../components/Time.tsx';
 import { TypeIcon } from '../../components/types.tsx';
 import { WhoAvatar, whoName } from '../../components/Who.tsx';
 import { useReadingOf } from '../../i18n/reading.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { whoOf } from '../../words.ts';
 import { acceptedRecord, obsoleteReason, proposalTitle, rowOfVersion } from './model.ts';
@@ -30,13 +31,14 @@ import {
   proposalWhy,
   resolvedText,
 } from './proposal.ts';
+import { PROPOSAL_VIEW } from './words.i18n.ts';
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
 /** The name of who proposes: an agent by its name, DEMIURGO, or DEMIURGO's knowledge. */
-export function producerName(producer: string): string {
+export function producerName(producer: string, knowledgeLabel: string): string {
   const who = whoOf(producer);
-  return who.kind === 'automatic' ? "DEMIURGO's knowledge" : whoName(who);
+  return who.kind === 'automatic' ? knowledgeLabel : whoName(who);
 }
 
 /** A text field of the payload as prose under its heading; nothing when it is empty. */
@@ -51,13 +53,14 @@ function Prose({ title, text }: { title: string; text: string }) {
 }
 
 function Checks({ proposal: p }: { proposal: ProposalData }) {
+  const t = useMessages(PROPOSAL_VIEW);
   const checks = payloadChecks(p.payload);
   if (checks.length === 0) return null;
   return (
     <section className="flex flex-col gap-2">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-        <h3 className="text-sm font-semibold text-fg-2">Checks ({checks.length})</h3>
-        {p.state === 'pending' ? <span className="text-xs text-fg-3">Codes are given when it is accepted</span> : null}
+        <h3 className="text-sm font-semibold text-fg-2">{t.checksCount(checks.length)}</h3>
+        {p.state === 'pending' ? <span className="text-xs text-fg-3">{t.codesGivenOnAccept}</span> : null}
       </div>
       <ChecksList checks={checks} />
     </section>
@@ -77,26 +80,27 @@ export function ProposalBody({
   /** Show a feature's goal here too (the package page has no "why" line). */
   withGoal?: boolean;
 }) {
+  const t = useMessages(PROPOSAL_VIEW);
   const based = p.payload.based_on as { code?: string; version?: number } | undefined;
   if (p.type === 'decision') {
     return (
       <div className="flex flex-col gap-4" data-body="decision">
-        {withGoal ? <Prose title="Context" text={str(p.payload.context)} /> : null}
-        <Prose title="Decision" text={str(p.payload.decision)} />
-        <Prose title="Consequences" text={str(p.payload.consequences)} />
+        {withGoal ? <Prose title={t.context} text={str(p.payload.context)} /> : null}
+        <Prose title={t.decision} text={str(p.payload.decision)} />
+        <Prose title={t.consequences} text={str(p.payload.consequences)} />
       </div>
     );
   }
   if (p.type === 'fdr') {
     return (
       <div className="flex flex-col gap-4" data-body="fdr">
-        {withGoal ? <Prose title="Goal" text={str(p.payload.goal)} /> : null}
-        <Prose title="Scope" text={str(p.payload.scope)} />
-        <Prose title="Out of scope" text={str(p.payload.out_of_scope)} />
-        <Prose title="Behavior" text={str(p.payload.behavior)} />
+        {withGoal ? <Prose title={t.goal} text={str(p.payload.goal)} /> : null}
+        <Prose title={t.scope} text={str(p.payload.scope)} />
+        <Prose title={t.outOfScope} text={str(p.payload.out_of_scope)} />
+        <Prose title={t.behavior} text={str(p.payload.behavior)} />
         {based?.code ? (
           <p className="flex flex-wrap items-center gap-2 text-sm text-fg-2">
-            Based on <RecordChip projectId={projectId} code={based.code} version={based.version ?? null} rows={rows} />
+            {t.based} <RecordChip projectId={projectId} code={based.code} version={based.version ?? null} rows={rows} />
           </p>
         ) : null}
         <Checks proposal={p} />
@@ -114,8 +118,22 @@ export function ProposalBody({
   if (p.type === 'exploration') {
     return (
       <div className="flex flex-col gap-1" data-body="exploration">
-        <h3 className="text-sm font-semibold text-fg-2">New thread</h3>
+        <h3 className="text-sm font-semibold text-fg-2">{t.newThread}</h3>
         <p className="text-md text-fg">{str(p.payload.purpose)}</p>
+      </div>
+    );
+  }
+  if (p.type === 'record_translation') {
+    const r = p.payload.record as { code?: string; version?: number } | undefined;
+    return (
+      <div className="flex flex-col gap-4" data-body="record_translation">
+        <p className="flex flex-wrap items-center gap-2 text-sm text-fg-2">
+          {t.englishVersionOf}
+          {r?.code ? <RecordChip projectId={projectId} code={r.code} version={r.version ?? null} rows={rows} /> : null}
+        </p>
+        <p className="text-sm text-fg-2">{t.englishVersionNote}</p>
+        <Sections sections={payloadSections(p.payload)} />
+        <Checks proposal={p} />
       </div>
     );
   }
@@ -125,19 +143,19 @@ export function ProposalBody({
     const change = c?.id ? rowOfVersion(rows, c.id) : undefined;
     return (
       <div className="flex flex-col gap-2 text-sm" data-body="review">
-        <h3 className="font-semibold text-fg-2">What it asks</h3>
+        <h3 className="font-semibold text-fg-2">{t.whatItAsks}</h3>
         <p className="flex flex-wrap items-center gap-2 text-fg-2">
-          Review
+          {t.review}
           {r?.code ? <RecordChip projectId={projectId} code={r.code} version={r.version ?? null} rows={rows} /> : null}
-          <span>· {Math.round(Number(p.payload.confidence ?? 0) * 100)}% sure</span>
+          <span>· {t.sure(Math.round(Number(p.payload.confidence ?? 0) * 100))}</span>
         </p>
         {change ? (
           <p className="flex flex-wrap items-center gap-2 text-fg-2">
-            Because of
+            {t.becauseOf}
             <RecordChip projectId={projectId} code={change.code} version={c?.version ?? null} rows={rows} />
           </p>
         ) : null}
-        <p className="text-fg-2">Accepting opens a thread to review it; the record itself doesn&apos;t change.</p>
+        <p className="text-fg-2">{t.reviewOpensThread}</p>
       </div>
     );
   }
@@ -180,6 +198,7 @@ export function ProposalView({
   onDone?: (said: string) => void;
   className?: string;
 }) {
+  const t = useMessages(PROPOSAL_VIEW);
   // Read in the person's language; the actions always work on the English proposal.
   const reading = useReadingOf(projectId, 'proposal', p.id, p.payload);
   const shown = { ...p, payload: reading.value };
@@ -195,11 +214,14 @@ export function ProposalView({
     <article aria-labelledby={titleId} data-proposal={p.id} data-state={p.state} className={cn('flex flex-col gap-5', className)}>
       <header className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-fg-2">
-          <span className="inline-flex items-center gap-1.5 font-medium text-fg" title={producerName(producer)}>
+          <span
+            className="inline-flex items-center gap-1.5 font-medium text-fg"
+            title={producerName(producer, t.demiurgosKnowledge)}
+          >
             <WhoAvatar kind={who.kind} size={18} />
-            {producerName(producer)}
+            {producerName(producer, t.demiurgosKnowledge)}
           </span>
-          <span>proposes</span>
+          <span>{t.proposes}</span>
           <span aria-hidden>·</span>
           <span className="tabular-nums">
             {position} of {count}
@@ -233,7 +255,7 @@ export function ProposalView({
       {children}
 
       {deps.length > 0 ? (
-        <Evidence title="Starts from">
+        <Evidence title={t.startsFrom}>
           <div className="flex flex-wrap gap-2">
             {deps.map((d) => (
               <RecordChip
@@ -249,7 +271,7 @@ export function ProposalView({
       ) : null}
       {p.type !== 'review' ? <IdeaCheck projectId={projectId} assessment={p.assessment} rows={rows} /> : null}
       {runId ? (
-        <Evidence title="Drafted by DEMIURGO">
+        <Evidence title={t.draftedByDemiurgo}>
           <RunLine projectId={projectId} runId={runId} />
         </Evidence>
       ) : null}
@@ -262,7 +284,7 @@ export function ProposalView({
             projectId={projectId}
             proposal={p}
             blocked={warnings}
-            {...(p.type === 'review' ? { labels: { accept: 'Open a review', reject: 'Keep it as it is' } } : {})}
+            {...(p.type === 'review' ? { labels: { accept: t.openReview, reject: t.keepAsIs } } : {})}
             {...(onDone ? { onDone } : {})}
           />
         </>
@@ -279,13 +301,14 @@ export function ProposalView({
 
 /** A decided proposal: what happened, the reason, and the record it made (INV-PROP-20). */
 function Resolved({ projectId, proposal: p, footer }: { projectId: string; proposal: ProposalData; footer?: ReactNode }) {
+  const t = useMessages(PROPOSAL_VIEW);
   const effect = acceptedRecord(p);
   const reason = typeof p.resolution?.reason === 'string' ? p.resolution.reason : '';
   return (
     <div data-resolved className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-edge pt-4">
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <p className="font-medium text-fg">{resolvedText(p.state, effect)}</p>
-        {reason ? <p className="text-sm text-fg-2">Reason: {reason}</p> : null}
+        {reason ? <p className="text-sm text-fg-2">{t.reasonPrefix(reason)}</p> : null}
         {effect ? (
           <Link
             to="/p/$projectId/records/$code"
@@ -293,7 +316,7 @@ function Resolved({ projectId, proposal: p, footer }: { projectId: string; propo
             search={{ v: effect.version }}
             className={cn(linkClass, 'inline-flex min-h-6 w-fit items-center gap-1 text-sm')}
           >
-            Open {effect.code} <ArrowRightIcon size={13} />
+            {t.openRecord(effect.code)} <ArrowRightIcon size={13} />
           </Link>
         ) : null}
       </div>

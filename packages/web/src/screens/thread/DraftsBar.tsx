@@ -9,17 +9,18 @@ import { Button } from '../../components/Button.tsx';
 import { ConfirmDialog } from '../../components/Dialog.tsx';
 import { CheckCircleIcon, XCircleIcon } from '../../components/icons.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import type { SendDrafts } from './drafts.tsx';
+import { DRAFTS_BAR } from './words.i18n.ts';
 
 export function DraftsBar({ state, onDiscard, onSent }: { state: SendDrafts; onDiscard: () => void; onSent: () => void }) {
+  const t = useMessages(DRAFTS_BAR);
   const [discarding, setDiscarding] = useState(false);
   const { answers, openShown, forks, send, sending, results, dismissResults } = state;
   if (answers + forks === 0 && !results) return null;
   const parts = [
-    answers > 0
-      ? `${answers} of ${Math.max(openShown, answers)} ${Math.max(openShown, answers) === 1 ? 'answer' : 'answers'}`
-      : null,
-    forks > 0 ? `${forks} thread ${forks === 1 ? 'choice' : 'choices'}` : null,
+    answers > 0 ? t.answersReady(answers, Math.max(openShown, answers)) : null,
+    forks > 0 ? t.forksReady(forks) : null,
   ].filter(Boolean);
   const firstFailed = results?.find((r) => r.state === 'failed')?.key;
 
@@ -28,33 +29,36 @@ export function DraftsBar({ state, onDiscard, onSent }: { state: SendDrafts; onD
       {answers + forks > 0 ? (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <p className="min-w-0 flex-1 basis-64 text-sm text-fg">
-            <span className="font-medium">{parts.join(' and ')} ready.</span>{' '}
-            <span className="text-fg-2">Nothing is sent until you confirm; you can still change them.</span>
+            <span className="font-medium">
+              {parts.join(t.and)}
+              {t.ready}
+            </span>{' '}
+            <span className="text-fg-2">{t.notSentUntilConfirm}</span>
           </p>
           <Button size="sm" variant="quiet" disabled={sending} onClick={() => setDiscarding(true)}>
-            Discard
+            {t.discard}
           </Button>
           <Button
             size="sm"
             variant="primary"
             pending={sending}
-            pendingLabel="Sending…"
+            pendingLabel={t.sending}
             onClick={() =>
               void send().then((ok) => {
                 if (ok) onSent();
               })
             }
           >
-            Confirm and send
+            {t.confirmAndSend}
           </Button>
         </div>
       ) : null}
       {results ? (
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-2">
-            <p className="flex-1 text-sm font-medium text-fg">What happened with the last send</p>
+            <p className="flex-1 text-sm font-medium text-fg">{t.whatHappened}</p>
             <Button size="sm" variant="quiet" onClick={dismissResults}>
-              Dismiss
+              {t.dismiss}
             </Button>
           </div>
           <ul className="flex flex-col gap-1.5">
@@ -67,7 +71,7 @@ export function DraftsBar({ state, onDiscard, onSent }: { state: SendDrafts; onD
                     <XCircleIcon size={14} className="mt-0.5 shrink-0 text-danger-text" />
                   )}
                   <span className="min-w-0 text-fg">
-                    <span className="font-medium">{r.state === 'sent' ? 'Sent: ' : 'Not sent: '}</span>
+                    <span className="font-medium">{r.state === 'sent' ? t.sent : t.notSent}</span>
                     {r.label}
                   </span>
                 </span>
@@ -80,16 +84,16 @@ export function DraftsBar({ state, onDiscard, onSent }: { state: SendDrafts; onD
       <ConfirmDialog
         open={discarding}
         onOpenChange={setDiscarding}
-        title="Discard your drafts?"
-        description={<p>The answers and thread choices you haven't sent are removed from this browser. Nothing else changes.</p>}
-        confirm="Discard"
-        cancel="Keep them"
+        title={t.discardTitle}
+        description={<p>{t.discardDescription}</p>}
+        confirm={t.discardConfirm}
+        cancel={t.discardCancel}
         tone="danger"
         onConfirm={() => {
           onDiscard();
           setDiscarding(false);
           dismissResults();
-          announce('Drafts discarded.');
+          announce(t.discarded);
         }}
       />
     </div>

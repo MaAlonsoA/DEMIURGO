@@ -19,7 +19,9 @@ import { PageBody, PageHeader, Section, usePageTitle } from '../../components/Pa
 import { RowsSkeleton } from '../../components/Spinner.tsx';
 import { StatusBadge } from '../../components/status.tsx';
 import { RelativeTime } from '../../components/Time.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { useProjectId } from '../../lib/hooks.ts';
+import { AGENT_KEYS } from './words.i18n.ts';
 
 type Issued = { name: string; token: string };
 
@@ -41,6 +43,7 @@ function focusRow(name: string) {
 
 /** A "Copy" button that says "Copied" for a moment, or that it couldn't. */
 function CopyButton({ text, what }: { text: string; what: string }) {
+  const t = useMessages(AGENT_KEYS);
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const copy = async () => {
@@ -49,11 +52,11 @@ function CopyButton({ text, what }: { text: string; what: string }) {
       if (!navigator.clipboard) throw new Error('No clipboard');
       await navigator.clipboard.writeText(text);
       setState('copied');
-      announce(`Copied ${what}.`);
+      announce(t.copiedAnnounce(what));
       timer.current = setTimeout(() => setState('idle'), 2500);
     } catch {
       setState('failed');
-      announce(`Couldn't copy ${what}. Select it and copy it by hand.`);
+      announce(t.copyFailedAnnounce(what));
     }
   };
   return (
@@ -63,21 +66,22 @@ function CopyButton({ text, what }: { text: string; what: string }) {
         variant="secondary"
         icon={state === 'copied' ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
         onClick={() => void copy()}
-        aria-label={state === 'copied' ? `Copied ${what}` : `Copy ${what}`}
+        aria-label={state === 'copied' ? t.copiedWhat(what) : t.copyWhat(what)}
       >
-        {state === 'copied' ? 'Copied' : 'Copy'}
+        {state === 'copied' ? t.copied : t.copy}
       </Button>
-      {state === 'failed' ? (
-        <span className="text-sm text-danger-text">Couldn't copy it here. Select it and copy it by hand.</span>
-      ) : null}
+      {state === 'failed' ? <span className="text-sm text-danger-text">{t.copyFailedInline}</span> : null}
     </span>
   );
 }
 
 export function AgentKeysScreen() {
+  const t = useMessages(AGENT_KEYS);
+  // Aliased: the list below names each token `t`, shadowing the messages.
+  const tr = t;
   const projectId = useProjectId();
   const project = (useQuery(projectsQuery).data ?? []).find((p) => p.id === projectId);
-  usePageTitle(['Agent keys', project?.name]);
+  usePageTitle([t.title, project?.name]);
   const tokens = useQuery(tokensQuery(projectId));
   const issue = useCommand<{ token: string; actor: string }>(projectId);
   const revoke = useCommand(projectId);
@@ -92,16 +96,11 @@ export function AgentKeysScreen() {
         eyebrow={
           <span className="inline-flex items-center gap-1.5">
             <KeyIcon size={14} className="text-fg-3" />
-            Settings
+            {t.eyebrow}
           </span>
         }
-        title="Agent keys"
-        meta={
-          <span className="max-w-3xl">
-            An agent with a key reads this project and proposes through MCP, with its own name. It never accepts or approves
-            anything: that stays with you.
-          </span>
-        }
+        title={t.title}
+        meta={<span className="max-w-3xl">{t.meta}</span>}
         actions={
           <Button
             variant="primary"
@@ -111,7 +110,7 @@ export function AgentKeysScreen() {
               setNaming(true);
             }}
           >
-            New key
+            {t.newKey}
           </Button>
         }
       />
@@ -120,13 +119,11 @@ export function AgentKeysScreen() {
           {issued ? (
             <section
               role="status"
-              aria-label={`The key of ${issued.name}`}
+              aria-label={t.keyOf(issued.name)}
               data-issued-key
               className="flex flex-col gap-4 rounded-lg border border-accent-edge bg-accent-soft p-4"
             >
-              <p className="text-base font-semibold text-fg">
-                The key of {issued.name}. It is shown only this once: copy it now.
-              </p>
+              <p className="text-base font-semibold text-fg">{t.keyIntro(issued.name)}</p>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <code
                   data-secret
@@ -134,15 +131,15 @@ export function AgentKeysScreen() {
                 >
                   {issued.token}
                 </code>
-                <CopyButton text={issued.token} what="the key" />
+                <CopyButton text={issued.token} what={t.copyKey} />
               </div>
               <div className="flex flex-col gap-2">
-                <p className="text-sm text-fg-2">To use it from Claude Code, run this in the DEMIURGO folder:</p>
+                <p className="text-sm text-fg-2">{t.setupIntro}</p>
                 <code className="block rounded-md border border-edge bg-panel px-3 py-2 font-code text-xs break-all whitespace-pre-wrap text-fg">
                   {mcpSetup(window.location.origin, projectId, issued.token)}
                 </code>
                 <span className="self-start">
-                  <CopyButton text={mcpSetup(window.location.origin, projectId, issued.token)} what="the command" />
+                  <CopyButton text={mcpSetup(window.location.origin, projectId, issued.token)} what={t.copyCommand} />
                 </span>
               </div>
               <Button
@@ -151,57 +148,59 @@ export function AgentKeysScreen() {
                 onClick={() => {
                   const name = issued.name;
                   setIssued(null);
-                  announce('The key is no longer on the page.');
+                  announce(t.savedAnnounce);
                   focusRow(name);
                 }}
               >
-                I have saved it
+                {t.saved}
               </Button>
             </section>
           ) : null}
 
-          <Section title="Keys" id="keys">
+          <Section title={t.keysTitle} id="keys">
             {tokens.isPending ? (
-              <RowsSkeleton label="Loading the keys" rows={3} />
+              <RowsSkeleton label={t.loading} rows={3} />
             ) : tokens.error && !tokens.data ? (
               <ErrorNotice error={tokens.error} onRetry={() => void tokens.refetch()} />
             ) : list.length === 0 ? (
-              <EmptyState icon={<KeyIcon size={24} />} title="No agent has a key yet." headingLevel={3}>
-                Give one to Claude Code to let it propose through MCP.
+              <EmptyState icon={<KeyIcon size={24} />} title={t.noKeysTitle} headingLevel={3}>
+                {t.noKeysBody}
               </EmptyState>
             ) : (
-              <ul aria-label="Keys" className="flex flex-col divide-y divide-edge-subtle rounded-lg border border-edge">
-                {list.map((t) => (
+              <ul aria-label={t.keysTitle} className="flex flex-col divide-y divide-edge-subtle rounded-lg border border-edge">
+                {list.map((tok) => (
                   <li
-                    key={t.id}
-                    data-agent-key={t.name}
-                    data-key-state={t.state}
+                    key={tok.id}
+                    data-agent-key={tok.name}
+                    data-key-state={tok.state}
                     tabIndex={-1}
                     className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 outline-none focus-visible:outline-2"
                   >
                     <StatusBadge
-                      kind={t.state === 'active' ? 'done' : 'dropped'}
-                      word={t.state === 'active' ? 'Active' : 'Revoked'}
+                      kind={tok.state === 'active' ? 'done' : 'dropped'}
+                      word={tok.state === 'active' ? tr.active : tr.revoked}
                     />
                     <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate font-code text-base font-medium text-fg">{t.name}</span>
+                      <span className="truncate font-code text-base font-medium text-fg">{tok.name}</span>
                       <span className="text-sm text-fg-2">
-                        {t.state === 'revoked' && t.revoked_at ? <RelativeTime iso={t.revoked_at} prefix="Revoked" /> : null}
-                        {t.state === 'revoked' && t.revoked_at ? ' · ' : null}
-                        Issued by {t.issued_by.replace(/^human:/, '')} <RelativeTime iso={t.created_at} />
+                        {tok.state === 'revoked' && tok.revoked_at ? (
+                          <RelativeTime iso={tok.revoked_at} prefix={tr.revokedAt} />
+                        ) : null}
+                        {tok.state === 'revoked' && tok.revoked_at ? ' · ' : null}
+                        {tr.issuedBy(tok.issued_by.replace(/^human:/, ''))} <RelativeTime iso={tok.created_at} />
                       </span>
                     </span>
-                    {t.state === 'active' ? (
+                    {tok.state === 'active' ? (
                       <Button
                         size="sm"
                         variant="quiet-danger"
-                        aria-label={`Revoke the key of ${t.name}`}
+                        aria-label={tr.revokeAriaLabel(tok.name)}
                         onClick={() => {
                           revoke.reset();
-                          setRevoking(t);
+                          setRevoking(tok);
                         }}
                       >
-                        Revoke
+                        {tr.revoke}
                       </Button>
                     ) : null}
                   </li>
@@ -215,16 +214,16 @@ export function AgentKeysScreen() {
       <PromptDialog
         open={naming}
         onOpenChange={setNaming}
-        title="New agent key"
-        description="The agent proposes with this name. Lowercase letters, numbers and hyphens."
-        label="Name of the agent"
-        submit="Create the key"
+        title={t.newKeyTitle}
+        description={t.newKeyDescription}
+        label={t.nameLabel}
+        submit={t.createKey}
         required
         multiline={false}
         maxLength={40}
         placeholder="claude-code"
         pending={issue.isPending}
-        pendingLabel="Creating…"
+        pendingLabel={t.creating}
         error={naming ? issue.error : null}
         onSubmit={(name) =>
           issue.mutate(
@@ -233,7 +232,7 @@ export function AgentKeysScreen() {
               onSuccess: (r) => {
                 if (r.result) setIssued({ name, token: r.result.token });
                 setNaming(false);
-                announce(`Created the key of ${name}. Copy it now: it is shown only this once.`);
+                announce(t.createdAnnounce(name));
               },
             },
           )
@@ -244,12 +243,12 @@ export function AgentKeysScreen() {
         onOpenChange={(open) => {
           if (!open) setRevoking(null);
         }}
-        title={`Revoke the key of ${revoking?.name ?? ''}?`}
-        description="The agent can no longer read or propose with it. What it already proposed stays as it is."
-        confirm="Revoke"
+        title={t.revokeTitle(revoking?.name ?? '')}
+        description={t.revokeDescription}
+        confirm={t.revoke}
         tone="danger"
         pending={revoke.isPending}
-        pendingLabel="Revoking…"
+        pendingLabel={t.revoking}
         error={revoke.error}
         onConfirm={() => {
           if (!revoking) return;
@@ -259,7 +258,7 @@ export function AgentKeysScreen() {
             {
               onSuccess: () => {
                 setRevoking(null);
-                announce(`Revoked the key of ${name}.`);
+                announce(t.revokedAnnounce(name));
                 focusRow(name);
               },
             },

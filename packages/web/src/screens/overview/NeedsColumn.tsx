@@ -14,9 +14,11 @@ import { ErrorNotice } from '../../components/Notice.tsx';
 import { Bone, Skeleton } from '../../components/Spinner.tsx';
 import { StateText } from '../../components/status.tsx';
 import { cn } from '../../lib/cn.ts';
-import { PRODUCT_WORDS } from '../../words.ts';
+import { useMessages } from '../../i18n/define.ts';
+import { useProductWord } from '../../words.ts';
 import { minutesOf, needsOf } from '../needs-you/order.ts';
 import { type NeedsItem, justRatified, needsItems, packagesNote } from './needs.ts';
+import { NEEDS_COLUMN } from './words.i18n.ts';
 
 const SHOWN = 4;
 
@@ -50,6 +52,9 @@ export function NeedsSummary({
   state: ProductState | undefined;
   inbox: UseQueryResult<Inbox>;
 }) {
+  const t = useMessages(NEEDS_COLUMN);
+  const needsYouWord = useProductWord('needsYou');
+  const nothingNeedsYouWord = useProductWord('nothingNeedsYou');
   const id = useId();
   const data = inbox.data;
   const items = data ? needsItems(data, state) : [];
@@ -71,37 +76,30 @@ export function NeedsSummary({
     >
       <div className="flex flex-col gap-0.5">
         <h2 className="flex items-center gap-2 text-base font-semibold text-fg">
-          <span id={id}>{PRODUCT_WORDS.needsYou}</span>
-          <Count n={total} label={`${total} ${total === 1 ? 'thing needs' : 'things need'} you`} />
+          <span id={id}>{needsYouWord}</span>
+          <Count n={total} label={t.thingNeedsYou(total)} />
         </h2>
         {waiting ? (
           <p className="text-xs text-fg-2" data-needs-summary>
-            {total} {total === 1 ? 'thing' : 'things'}
-            {packages && items.length !== total
-              ? ` in ${items.length} ${items.length === 1 ? 'decision' : 'decisions'} (${packages})`
-              : ''}{' '}
-            · about {minutes} {minutes === 1 ? 'minute' : 'minutes'}
+            {t.summaryThings(total)}
+            {packages && items.length !== total ? t.inDecisions(items.length, packages) : ''} · {t.aboutMinutes(minutes)}
           </p>
         ) : null}
       </div>
       {inbox.error ? (
         <ErrorNotice error={inbox.error} compact focus={false} onRetry={() => void inbox.refetch()} />
       ) : !data ? (
-        <Skeleton label="Loading what needs you">
+        <Skeleton label={t.loadingWhatNeedsYou}>
           <div className="flex flex-col gap-2">
             <Bone className="h-16 w-full rounded-md" />
             <Bone className="h-16 w-full rounded-md" />
           </div>
         </Skeleton>
       ) : !waiting ? (
-        <p className="text-sm text-fg-2">{PRODUCT_WORDS.nothingNeedsYou}</p>
+        <p className="text-sm text-fg-2">{nothingNeedsYouWord}</p>
       ) : (
         <>
-          <p className="text-sm text-fg-2">
-            {ratified
-              ? 'Everything is proposed: nothing is approved yet. Start with what you agree with.'
-              : 'In the order Catch up walks them: what unblocks more goes first.'}
-          </p>
+          <p className="text-sm text-fg-2">{ratified ? t.everythingProposed : t.inCatchUpOrder}</p>
           <ol className="flex flex-col gap-2">
             {items.slice(0, SHOWN).map((item, i) => (
               <Item key={item.key} projectId={projectId} item={item} index={i} />
@@ -113,7 +111,7 @@ export function NeedsSummary({
               params={{ projectId }}
               className="inline-flex items-center gap-1 self-start text-sm font-medium text-accent-text hover:underline"
             >
-              And {items.length - SHOWN} more in Needs you <ArrowRightIcon size={12} />
+              {t.andMoreInNeedsYou(items.length - SHOWN)} <ArrowRightIcon size={12} />
             </Link>
           ) : null}
           {ratified && firstVersion ? (
@@ -124,7 +122,7 @@ export function NeedsSummary({
                 search={{ v: firstVersion.n }}
                 className={buttonClass({ variant: 'primary' })}
               >
-                Start with the versions to approve
+                {t.startWithVersions}
               </Link>
               <Link
                 to="/p/$projectId/needs-you"
@@ -132,7 +130,7 @@ export function NeedsSummary({
                 search={{ 'catch-up': 1 }}
                 className="text-center text-sm font-medium text-accent-text hover:underline"
               >
-                Or catch up with everything, one at a time
+                {t.orCatchUpEverything}
               </Link>
             </div>
           ) : (
@@ -143,9 +141,9 @@ export function NeedsSummary({
                 search={{ 'catch-up': 1 }}
                 className={buttonClass({ variant: 'primary' })}
               >
-                Catch up
+                {t.catchUp}
               </Link>
-              <p className="text-center text-xs text-fg-2">One at a time. What you skip stays here.</p>
+              <p className="text-center text-xs text-fg-2">{t.oneAtATime}</p>
             </div>
           )}
         </>

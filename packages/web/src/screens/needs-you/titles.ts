@@ -6,37 +6,24 @@ import type { Exploration, ProductRow, Taxonomy } from '../../api/types.ts';
 import { TYPE_WORDS, whoOf } from '../../words.ts';
 import { proposalTitle, rowOf, rowOfVersion } from '../batch/model.ts';
 import type { NeedItem } from './order.ts';
+import { TITLES } from './words.i18n.ts';
 
-/** The word of each kind of thing, as the queue and the detail say it. */
-export const KIND_WORDS: Record<NeedItem['kind'], string> = {
-  conflict: 'Conflict',
-  question: 'Question',
-  package: 'Package',
-  proposal: 'Proposal',
-  version: 'Version to approve',
-  link: 'Link to review',
-  classification: 'Classification',
-  update: 'Knowledge update',
-};
+type Words = typeof TITLES.en;
 
-/** The verdict of a knowledge review, in words (the title of a conflict). */
-export const VERDICT_WORDS: Record<string, string> = {
-  update: 'may need an update',
-  invalidate: 'may no longer hold',
-  add: 'may need something added',
-  other: 'may be affected',
-};
-
-export function packageTitle(item: Extract<NeedItem, { kind: 'package' }>): string {
-  if (item.batch.type === 'import') return 'Imported from design/';
+export function packageTitle(item: Extract<NeedItem, { kind: 'package' }>, words: Words = TITLES.en): string {
+  if (item.batch.type === 'import') return words.packageImported;
   const first = item.batch.proposals[0];
-  return (first ? proposalTitle(first) : '') || 'A package';
+  return (first ? proposalTitle(first) : '') || words.packageFallback;
 }
 
-export function conflictTitle(item: Extract<NeedItem, { kind: 'conflict' }>, rows: readonly ProductRow[]): string {
+export function conflictTitle(
+  item: Extract<NeedItem, { kind: 'conflict' }>,
+  rows: readonly ProductRow[],
+  words: Words = TITLES.en,
+): string {
   const r = item.proposal.payload.record as { code?: string } | undefined;
-  const name = rowOf(rows, r?.code ?? '')?.title ?? r?.code ?? 'A record';
-  return `${name} ${VERDICT_WORDS[String(item.proposal.payload.verdict)] ?? 'may be affected'}`;
+  const name = rowOf(rows, r?.code ?? '')?.title ?? r?.code ?? words.recordFallback;
+  return `${name} ${words.verdictWord(String(item.proposal.payload.verdict))}`;
 }
 
 /** The record a knowledge node ref (CODE@n) names, by its title when the product has it. */
@@ -45,75 +32,79 @@ export function nodeName(ref: string, rows: readonly ProductRow[]): string {
   return rowOf(rows, code)?.title ?? code;
 }
 
-export function updateTitle(item: Extract<NeedItem, { kind: 'update' }>, rows: readonly ProductRow[]): string {
+export function updateTitle(
+  item: Extract<NeedItem, { kind: 'update' }>,
+  rows: readonly ProductRow[],
+  words: Words = TITLES.en,
+): string {
   const t = item.update.trigger as { type?: string; id?: string } | null;
   const row = t?.id ? rowOfVersion(rows, t.id) : undefined;
-  if (row) return `Knowledge couldn't take in ${row.title}`;
-  if (t?.type === 'proposal') return "Knowledge couldn't take in an accepted proposal";
-  return "Knowledge couldn't take in a change";
+  if (row) return words.updateWithTitle(row.title);
+  if (t?.type === 'proposal') return words.updateAcceptedProposal;
+  return words.updateChange;
 }
 
 /** A thing's title, as the queue, the detail and Catch up name it. */
-export function needTitle(item: NeedItem, rows: readonly ProductRow[]): string {
+export function needTitle(item: NeedItem, rows: readonly ProductRow[], words: Words = TITLES.en): string {
   switch (item.kind) {
     case 'conflict':
-      return conflictTitle(item, rows);
+      return conflictTitle(item, rows, words);
     case 'question':
       return item.question.question;
     case 'package':
-      return packageTitle(item);
+      return packageTitle(item, words);
     case 'proposal':
-      return proposalTitle(item.proposal) || 'A proposal';
+      return proposalTitle(item.proposal) || words.proposalFallback;
     case 'version':
       return item.version.title;
     case 'link':
-      return `${item.link.from_title} is based on ${item.link.to_title}`;
+      return words.linkTitle(item.link.from_title, item.link.to_title);
     case 'classification':
       return nodeName(item.classification.node_ref, rows);
     case 'update':
-      return updateTitle(item, rows);
+      return updateTitle(item, rows, words);
   }
 }
 
 export type ReasonContext = { rows: readonly ProductRow[]; threads: readonly Pick<Exploration, 'id' | 'purpose'>[] };
 
 /** The name of who produced a batch, in a few words. */
-export function producerWords(producer: string): string {
+export function producerWords(producer: string, words: Words = TITLES.en): string {
   const who = whoOf(producer);
-  if (who.kind === 'agent') return `Agent · ${who.name}`;
-  if (who.kind === 'automatic') return "DEMIURGO's knowledge";
+  if (who.kind === 'agent') return words.producerAgent(who.name);
+  if (who.kind === 'automatic') return words.producerKnowledge;
   return who.name;
 }
 
 /** Why a thing is in Needs you, in one line of the queue ("Asked by DEMIURGO in Global quality"). */
-export function needReason(item: NeedItem, ctx: ReasonContext): string {
+export function needReason(item: NeedItem, ctx: ReasonContext, words: Words = TITLES.en): string {
   switch (item.kind) {
     case 'conflict':
-      return item.approved ? 'Found by knowledge · with something you approved' : 'Found by knowledge · with an earlier version';
+      return item.approved ? words.foundApproved : words.foundEarlier;
     case 'question': {
       const q = item.question;
-      const thread = ctx.threads.find((t) => t.id === q.exploration_id)?.purpose ?? 'its thread';
-      return `${q.raised_by.startsWith('human:') ? 'Asked by you' : 'Asked by DEMIURGO'} in ${thread}`;
+      const thread = ctx.threads.find((t) => t.id === q.exploration_id)?.purpose ?? words.itsThread;
+      return words.askedByIn(q.raised_by.startsWith('human:'), thread);
     }
     case 'package': {
       const n = item.batch.proposals.length;
-      return `From ${producerWords(item.batch.producer)} · ${n} ${n === 1 ? 'proposal' : 'proposals'}, decided whole`;
+      return words.packageReason(producerWords(item.batch.producer, words), n);
     }
     case 'proposal':
-      return `From ${producerWords(item.batch.producer)} · ${item.position} of ${item.batch.proposals.length} in its batch`;
+      return words.proposalReason(producerWords(item.batch.producer, words), item.position, item.batch.proposals.length);
     case 'version':
-      return `${TYPE_WORDS[item.version.type] ?? 'Record'} · ${item.version.code} v${item.version.n}`;
+      return words.versionReason(TYPE_WORDS[item.version.type], item.version.code, item.version.n);
     case 'link': {
       const to = rowOf(ctx.rows, item.link.to_code);
       const newer = to?.current && to.current > item.link.to_n ? to.current : null;
-      return newer ? `${item.link.to_code} now has v${newer}` : 'The version it points to changed';
+      return newer ? words.linkNewer(item.link.to_code, newer) : words.linkChanged;
     }
     case 'classification': {
       const c = item.classification;
-      return `DEMIURGO is ${Math.round(c.confidence * 100)}% sure of where it goes`;
+      return words.classificationReason(Math.round(c.confidence * 100));
     }
     case 'update':
-      return 'Until it is taken in, the knowledge is behind';
+      return words.updateReason;
   }
 }
 
@@ -124,23 +115,18 @@ export function needSince(item: NeedItem): string | null {
   return null;
 }
 
-const things = (n: number) => `${n} ${n === 1 ? 'thing' : 'things'}`;
-
 /**
  * The header's count, reconciled with the rows (INVENTORY Part D §1, UX problem): the server counts
  * every proposal of a package, the queue shows a package once. With packages, it says so:
  * "7 things: 1 package of 4 proposals and 3 other things".
  */
-export function countSummary(items: readonly NeedItem[], total: number): string {
+export function countSummary(items: readonly NeedItem[], total: number, words: Words = TITLES.en): string {
   const packages = items.filter((i): i is Extract<NeedItem, { kind: 'package' }> => i.kind === 'package');
   const inside = packages.reduce((n, p) => n + p.batch.proposals.length, 0);
-  if (packages.length === 0 || total === items.length) return things(total);
+  if (packages.length === 0 || total === items.length) return words.thing(total);
   const rest = items.length - packages.length;
-  const pkg =
-    packages.length === 1
-      ? `1 package of ${inside} ${inside === 1 ? 'proposal' : 'proposals'}`
-      : `${packages.length} packages with ${inside} proposals`;
-  return rest > 0 ? `${things(total)}: ${pkg} and ${rest} other ${rest === 1 ? 'thing' : 'things'}` : `${things(total)}: ${pkg}`;
+  const pkg = packages.length === 1 ? words.packageOne(inside) : words.packageMany(packages.length, inside);
+  return rest > 0 ? words.countWithPackage(total, pkg, rest) : words.countPackageOnly(total, pkg);
 }
 
 type Axis = { code: string; name: string; categories: { code: string; name: string; description?: string }[] };
@@ -153,40 +139,44 @@ export function axisOf(taxonomies: readonly Taxonomy[], axis: string): Axis | nu
 }
 
 /** What a command did, in a few words, for the announcement after it ("Answered. 3 left…"). */
-export function saidOf(call: { command: string; data?: Record<string, unknown> | undefined }, kind?: NeedItem['kind']): string {
+export function saidOf(
+  call: { command: string; data?: Record<string, unknown> | undefined },
+  kind?: NeedItem['kind'],
+  words: Words = TITLES.en,
+): string {
   const data = call.data ?? {};
   switch (call.command) {
     case 'proposal.accept':
-      if (kind === 'conflict') return 'A thread to review it is open.';
-      return data.approve ? 'Accepted and approved.' : 'Accepted.';
+      if (kind === 'conflict') return words.saidThreadOpen;
+      return data.approve ? words.saidAcceptedApproved : words.saidAccepted;
     case 'proposal.accept_edited':
-      return 'Your version is accepted.';
+      return words.saidYourVersionAccepted;
     case 'proposal.reject':
-      return kind === 'conflict' ? 'Kept as it is.' : 'Rejected.';
+      return kind === 'conflict' ? words.saidKept : words.saidRejected;
     case 'question.confirm':
-      return typeof data.conclusion === 'string' ? 'Answered.' : 'Answer confirmed.';
+      return typeof data.conclusion === 'string' ? words.saidAnswered : words.saidAnswerConfirmed;
     case 'question.postpone':
-      return 'Question parked.';
+      return words.saidQuestionParked;
     case 'question.discard':
-      return 'Question dropped.';
+      return words.saidQuestionDropped;
     case 'question.reopen':
-      return 'Question reopened.';
+      return words.saidQuestionReopened;
     case 'record_version.approve':
-      return 'Approved.';
+      return words.saidApproved;
     case 'record_version.discard':
-      return 'Draft discarded.';
+      return words.saidDraftDiscarded;
     case 'link.keep':
-      return 'Link kept.';
+      return words.saidLinkKept;
     case 'link.change':
-      return 'Link marked as changed.';
+      return words.saidLinkChanged;
     case 'link.obsolete':
-      return 'Link marked out of date.';
+      return words.saidLinkObsolete;
     case 'classification.resolve':
-      return 'Classified.';
+      return words.saidClassified;
     case 'knowledge_update.retry':
-      return 'Retrying the update.';
+      return words.saidRetrying;
     default:
-      return 'Done.';
+      return words.saidDone;
   }
 }
 

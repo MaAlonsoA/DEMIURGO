@@ -14,24 +14,28 @@ import { ChevronRightIcon, CpuIcon, RefreshIcon } from '../../components/icons.t
 import { ErrorNotice } from '../../components/Notice.tsx';
 import { PageBody, PageHeader, Section, usePageTitle } from '../../components/Page.tsx';
 import { Bone, RowsSkeleton, Skeleton } from '../../components/Spinner.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { useProjectId } from '../../lib/hooks.ts';
 import { WorkspaceFrame } from '../../shell/WorkspaceFrame.tsx';
 import { GroupCard, TaskRow } from './Groups.tsx';
 import { agentOrder } from './engines.ts';
 import { ProviderCard } from './Providers.tsx';
 import { SpendSection, StatsSection } from './Spend.tsx';
+import { MODELS } from './words.i18n.ts';
 
 /** Inside a project: the same choice as outside, which applies to every project. */
 export function ModelsScreen() {
+  const t = useMessages(MODELS);
   const projectId = useProjectId();
   const project = (useQuery(projectsQuery).data ?? []).find((p) => p.id === projectId);
-  usePageTitle(['Models & providers', project?.name]);
+  usePageTitle([t.title, project?.name]);
   return <ModelsAndProviders />;
 }
 
 /** Outside any project: a first project needs an engine before it exists. */
 export function WorkspaceModelsScreen() {
-  usePageTitle(['Models & providers']);
+  const t = useMessages(MODELS);
+  usePageTitle([t.title]);
   return (
     <WorkspaceFrame current="models">
       <ModelsAndProviders />
@@ -40,6 +44,7 @@ export function WorkspaceModelsScreen() {
 }
 
 function ModelsAndProviders() {
+  const t = useMessages(MODELS);
   const client = useQueryClient();
   const providers = useQuery(providersQuery);
   const agents = useQuery(agentsQuery);
@@ -47,7 +52,7 @@ function ModelsAndProviders() {
     mutationFn: refreshProviders,
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: ['models'] });
-      announce('Providers checked again.');
+      announce(t.providersChecked);
     },
   });
   const catalogs = providers.data?.catalogs ?? [];
@@ -63,25 +68,20 @@ function ModelsAndProviders() {
         eyebrow={
           <span className="inline-flex items-center gap-1.5">
             <CpuIcon size={14} className="text-fg-3" />
-            Settings
+            {t.eyebrow}
           </span>
         }
-        title="Models & providers"
-        meta={
-          <span className="max-w-3xl">
-            Which engine runs each kind of task, the same for every project. Choose one per group, and another for a single task
-            only when it needs it. You choose from what each provider offers right now; DEMIURGO never switches on its own.
-          </span>
-        }
+        title={t.title}
+        meta={<span className="max-w-3xl">{t.meta}</span>}
         actions={
           <Button
             data-refresh-providers
             icon={<RefreshIcon size={14} />}
             pending={refresh.isPending}
-            pendingLabel="Looking…"
+            pendingLabel={t.looking}
             onClick={() => refresh.mutate()}
           >
-            Refresh
+            {t.refresh}
           </Button>
         }
       >
@@ -89,9 +89,9 @@ function ModelsAndProviders() {
       </PageHeader>
       <PageBody>
         <div className="flex flex-col gap-10">
-          <Section title="Providers" id="providers" note="Discovered without spending quota">
+          <Section title={t.providersTitle} id="providers" note={t.providersNote}>
             {providers.isPending ? (
-              <Skeleton label="Loading the providers" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <Skeleton label={t.loadingProviders} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 <Bone className="h-44 rounded-lg" />
                 <Bone className="h-44 rounded-lg" />
                 <Bone className="h-44 rounded-lg" />
@@ -99,8 +99,8 @@ function ModelsAndProviders() {
             ) : providers.error && !providers.data ? (
               <ErrorNotice error={providers.error} onRetry={() => void providers.refetch()} />
             ) : catalogs.length === 0 ? (
-              <EmptyState title="No providers found" headingLevel={3}>
-                DEMIURGO looks for Claude, Codex and OpenCode on this machine. Install one, then Refresh.
+              <EmptyState title={t.noProvidersTitle} headingLevel={3}>
+                {t.noProvidersBody}
               </EmptyState>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -111,14 +111,14 @@ function ModelsAndProviders() {
             )}
           </Section>
 
-          <Section title="Who does what" id="agents" note="A change applies to the next run, never to one already asked for.">
+          <Section title={t.agentsTitle} id="agents" note={t.agentsNote}>
             {agents.isPending || providers.isPending ? (
-              <RowsSkeleton label="Loading the parts of DEMIURGO" rows={5} />
+              <RowsSkeleton label={t.loadingParts} rows={5} />
             ) : agents.error && !agents.data ? (
               <ErrorNotice error={agents.error} onRetry={() => void agents.refetch()} />
             ) : !agentList || agentList.length === 0 ? (
-              <EmptyState title="No parts of DEMIURGO found" headingLevel={3}>
-                The agents come with DEMIURGO. If none shows, the server could not read its catalog.
+              <EmptyState title={t.noPartsTitle} headingLevel={3}>
+                {t.noPartsBody}
               </EmptyState>
             ) : (
               <div className="flex flex-col gap-4">
@@ -137,9 +137,9 @@ function ModelsAndProviders() {
                   <details data-ungrouped className="group rounded-lg border border-edge-subtle p-4">
                     <summary className="inline-flex min-h-6 cursor-pointer list-none items-center gap-1 text-sm font-medium text-fg-2 hover:text-fg [&::-webkit-details-marker]:hidden">
                       <ChevronRightIcon size={12} className="transition-transform group-open:rotate-90" />
-                      Tasks outside any group · {ungrouped.length}
+                      {t.tasksOutsideGroup(ungrouped.length)}
                     </summary>
-                    <ul aria-label="Tasks outside any group" className="mt-2 flex flex-col">
+                    <ul aria-label={t.tasksOutsideGroupLabel} className="mt-2 flex flex-col">
                       {ungrouped.map((a) => (
                         <TaskRow key={a.id} agent={a} catalogs={catalogs} skills={skills} groupEngine={null} />
                       ))}

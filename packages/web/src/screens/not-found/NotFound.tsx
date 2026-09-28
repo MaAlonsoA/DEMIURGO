@@ -12,10 +12,14 @@ import { projectsQuery } from '../../api/queries.ts';
 import { buttonClass } from '../../components/Button.tsx';
 import { ArrowLeftIcon, SearchIcon } from '../../components/icons.tsx';
 import { usePageTitle } from '../../components/Page.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { Wordmark } from '../../shell/WorkspaceFrame.tsx';
+import { NOT_FOUND } from './words.i18n.ts';
 
-export function NotFound({ thing = 'this page', children }: { thing?: string; children?: ReactNode }) {
-  usePageTitle(['Not found']);
+export function NotFound({ thing: thingProp, children }: { thing?: string; children?: ReactNode }) {
+  const t = useMessages(NOT_FOUND);
+  const thing = thingProp ?? t.thing;
+  usePageTitle([t.title]);
   const { projectId } = useParams({ strict: false }) as { projectId?: string };
   const known = (useQuery(projectsQuery).data ?? []).some((p) => p.id === projectId);
   const probe = useRef<HTMLDivElement>(null);
@@ -35,19 +39,19 @@ export function NotFound({ thing = 'this page', children }: { thing?: string; ch
         <SearchIcon size={22} />
       </span>
       <h1 id="page-title" tabIndex={-1} className="text-xl font-semibold text-fg outline-none">
-        We couldn&apos;t find {thing}.
+        {t.couldNotFind(thing)}
       </h1>
       {children ? <div className="max-w-md text-md text-fg-2">{children}</div> : null}
       <div className="mt-2">
         {projectId && known ? (
           <Link to="/p/$projectId" params={{ projectId }} className={buttonClass({ variant: 'secondary' })}>
             <ArrowLeftIcon size={15} />
-            Back to the product
+            {t.backToProduct}
           </Link>
         ) : (
           <Link to="/" className={buttonClass({ variant: 'secondary' })}>
             <ArrowLeftIcon size={15} />
-            Back to DEMIURGO
+            {t.backToDemiurgo}
           </Link>
         )}
       </div>

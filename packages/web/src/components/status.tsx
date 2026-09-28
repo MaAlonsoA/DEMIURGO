@@ -4,7 +4,7 @@
 // (WCAG 1.4.1; R73, R36, R39).
 
 import type { ComponentType } from 'react';
-import { EPISTEMIC_MARK, MARKS, type MarkKind, stateWord } from '../words.ts';
+import { EPISTEMIC_MARK, type MarkKind, useMarks, useStateWord } from '../words.ts';
 import { cn } from '../lib/cn.ts';
 import {
   AlertTriangleIcon,
@@ -122,13 +122,14 @@ export function StatusBadge({
   className?: string;
   title?: string;
 }) {
+  const marks = useMarks();
   const look = LOOK[kind];
   const t = TONE[look.tone];
-  const label = word ?? MARKS[kind].name;
+  const label = word ?? marks[kind].name;
   return (
     <span
       data-status={kind}
-      title={title ?? `${MARKS[kind].name} · ${MARKS[kind].phrase}`}
+      title={title ?? `${marks[kind].name} · ${marks[kind].phrase}`}
       className={cn(
         'inline-flex max-w-full shrink-0 items-center gap-1 rounded-full border font-medium whitespace-nowrap',
         size === 'sm' ? 'h-5 px-1.5 text-xs' : 'h-6 px-2 text-sm',
@@ -156,7 +157,7 @@ export function EntityState({
   size?: BadgeSize;
   className?: string;
 }) {
-  const w = stateWord(entity, state);
+  const w = useStateWord(entity, state);
   return <StatusBadge kind={w.mark} word={w.word} {...(size ? { size } : {})} {...(className ? { className } : {})} />;
 }
 
@@ -168,11 +169,12 @@ export function Certainty({ status, size, className }: { status: string; size?: 
 
 /** Icon + word inline, without the pill: for dense rows where a pill would be noise (R73: ≥3 cues). */
 export function StateText({ kind, word, className }: { kind: MarkKind; word?: string; className?: string }) {
+  const marks = useMarks();
   const look = LOOK[kind];
   return (
     <span data-status={kind} className={cn('inline-flex items-center gap-1.5 text-sm', TONE[look.tone].text, className)}>
       <StateIcon kind={kind} size={14} />
-      <span>{word ?? MARKS[kind].name}</span>
+      <span>{word ?? marks[kind].name}</span>
     </span>
   );
 }

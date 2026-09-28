@@ -10,8 +10,11 @@ import { Button } from '../../components/Button.tsx';
 import { Card } from '../../components/Card.tsx';
 import { ConfirmDialog } from '../../components/Dialog.tsx';
 import { CheckCircleIcon } from '../../components/icons.tsx';
+import { useMessages } from '../../i18n/define.ts';
+import { STAGE_COMPLETE } from './words.i18n.ts';
 
 export function StageComplete({ projectId, stage, next }: { projectId: string; stage: StageRow; next: string | null }) {
+  const t = useMessages(STAGE_COMPLETE);
   const command = useCommand(projectId);
   const [confirming, setConfirming] = useState(false);
   return (
@@ -19,10 +22,8 @@ export function StageComplete({ projectId, stage, next }: { projectId: string; s
       <p className="flex items-start gap-2 text-base text-fg">
         <CheckCircleIcon size={16} className="mt-0.5 shrink-0 text-accent-text" />
         <span>
-          <span className="font-semibold">
-            {stage.title} is complete: {stage.covered} of {stage.total} answered.
-          </span>{' '}
-          You can pass the stage{next ? `; next comes ${next}` : ''}.
+          <span className="font-semibold">{t.complete(stage.title, stage.covered, stage.total)}</span>
+          {t.canPass(next)}
         </span>
       </p>
       <Button
@@ -34,20 +35,15 @@ export function StageComplete({ projectId, stage, next }: { projectId: string; s
           setConfirming(true);
         }}
       >
-        Pass stage
+        {t.passStage}
       </Button>
       <ConfirmDialog
         open={confirming}
         onOpenChange={setConfirming}
-        title={`Pass ${stage.title}?`}
-        description={
-          <p>
-            Its answers stay as they are, confirmed by you.{' '}
-            {next ? `${next} opens next, with its own questions in this thread.` : 'It is the last design stage.'}
-          </p>
-        }
-        confirm="Pass stage"
-        pendingLabel="Passing…"
+        title={t.passTitle(stage.title)}
+        description={<p>{t.passDescription(next)}</p>}
+        confirm={t.passStage}
+        pendingLabel={t.passing}
         pending={command.isPending}
         error={confirming ? command.error : null}
         onConfirm={() =>
@@ -57,7 +53,7 @@ export function StageComplete({ projectId, stage, next }: { projectId: string; s
             {
               onSuccess: () => {
                 setConfirming(false);
-                announce(next ? `${stage.title} passed. ${next} opens next.` : `${stage.title} passed.`);
+                announce(t.passed(stage.title, next));
               },
             },
           )

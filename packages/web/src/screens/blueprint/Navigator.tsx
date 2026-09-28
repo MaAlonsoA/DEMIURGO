@@ -15,10 +15,12 @@ import { ChevronDownIcon, ChevronLeftIcon, PanelLeftIcon, PlusIcon } from '../..
 import { ErrorNotice } from '../../components/Notice.tsx';
 import { Bone, Skeleton } from '../../components/Spinner.tsx';
 import { StateIcon, StateText } from '../../components/status.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { useTables } from '../../lib/hooks.ts';
 import { MARKS } from '../../words.ts';
 import { type FeatureStatus, type NavRecord, navigatorOf } from './rail.ts';
+import { NAVIGATOR, RAIL } from './words.i18n.ts';
 
 const KEY = 'dm-records-nav';
 
@@ -121,11 +123,13 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
 }
 
 export function RecordsNavigator({ projectId, code }: { projectId: string; code: string }) {
+  const t = useMessages(NAVIGATOR);
+  const railWords = useMessages(RAIL);
   const [open, setOpen] = useState(initialOpen);
   const state = useQuery(stateQuery(projectId));
   const inbox = useQuery(inboxQuery(projectId)).data;
   const tables = useTables();
-  const nav = navigatorOf(state.data, inbox, code);
+  const nav = navigatorOf(state.data, inbox, code, railWords);
   const listId = useId();
   const toggle = () =>
     setOpen((o) => {
@@ -135,7 +139,7 @@ export function RecordsNavigator({ projectId, code }: { projectId: string; code:
 
   return (
     <nav
-      aria-label="Records"
+      aria-label={t.recordsNav}
       onKeyDown={moveFocus}
       data-open={open ? 'true' : 'false'}
       className={cn(
@@ -145,7 +149,7 @@ export function RecordsNavigator({ projectId, code }: { projectId: string; code:
     >
       {/* Closed on a wide screen: a strip with the way to open it. */}
       <div className={cn('hidden justify-center py-3', !open && 'lg:flex')}>
-        <IconButton label="Show the records" onClick={toggle} aria-expanded={false} aria-controls={listId}>
+        <IconButton label={t.showRecords} onClick={toggle} aria-expanded={false} aria-controls={listId}>
           <PanelLeftIcon size={17} />
         </IconButton>
       </div>
@@ -157,7 +161,7 @@ export function RecordsNavigator({ projectId, code }: { projectId: string; code:
         aria-controls={listId}
         className="flex h-11 w-full cursor-pointer items-center justify-between px-4 text-sm font-medium text-fg hover:bg-hover lg:hidden"
       >
-        All records
+        {t.allRecords}
         <ChevronDownIcon size={16} className={cn('text-fg-2 transition-transform', open && 'rotate-180')} />
       </button>
       <div id={listId} hidden={!open} className="flex flex-col gap-5 px-2 pt-2 pb-8 lg:pt-4">
@@ -169,10 +173,10 @@ export function RecordsNavigator({ projectId, code }: { projectId: string; code:
             className="flex min-w-0 items-center gap-1 rounded-md px-1.5 py-1 text-sm font-semibold text-fg hover:bg-hover"
           >
             <ChevronLeftIcon size={14} className="shrink-0 text-fg-3" />
-            <span className="truncate">{nav.project || 'The product'}</span>
+            <span className="truncate">{nav.project || t.theProduct}</span>
           </Link>
           <span className="hidden lg:inline-flex">
-            <IconButton label="Hide the records" size="sm" onClick={toggle} aria-expanded aria-controls={listId}>
+            <IconButton label={t.hideRecords} size="sm" onClick={toggle} aria-expanded aria-controls={listId}>
               <PanelLeftIcon size={16} />
             </IconButton>
           </span>
@@ -184,13 +188,13 @@ export function RecordsNavigator({ projectId, code }: { projectId: string; code:
             className="-mt-3 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm font-medium text-accent-text hover:bg-hover"
           >
             <PlusIcon size={14} />
-            New record
+            {t.newRecord}
           </Link>
         ) : null}
         {state.error ? (
           <ErrorNotice error={state.error} compact focus={false} onRetry={() => void state.refetch()} />
         ) : !state.data ? (
-          <Skeleton label="Loading the records">
+          <Skeleton label={t.loadingRecords}>
             <div className="flex flex-col gap-2 px-2.5">
               <Bone className="h-3 w-16" />
               <Bone className="h-4 w-40" />
@@ -202,31 +206,31 @@ export function RecordsNavigator({ projectId, code }: { projectId: string; code:
           <>
             {nav.groups.map((g) => (
               <Group key={g.key} title={g.title}>
-                {g.records.length === 0 ? <li className="px-2.5 text-xs text-fg-2">No features yet.</li> : null}
+                {g.records.length === 0 ? <li className="px-2.5 text-xs text-fg-2">{t.noFeaturesYet}</li> : null}
                 {g.records.map((r) => (
                   <RecordLink key={r.code} projectId={projectId} record={r} />
                 ))}
               </Group>
             ))}
             <div className="flex flex-col gap-1">
-              <p className="px-2.5 text-xs font-medium text-fg-2">Rules for the whole product</p>
+              <p className="px-2.5 text-xs font-medium text-fg-2">{t.rulesForWholeProduct}</p>
               <p data-later className="mx-1 rounded-md border border-dashed border-edge-strong px-2.5 py-2 text-xs text-fg-2">
-                <span className="font-medium text-fg">Later</span> · Rules that every feature follows come in a later increment.
+                <span className="font-medium text-fg">{t.later}</span> · {t.laterProductRules}
               </p>
             </div>
             {nav.parked.length > 0 ? (
-              <Group title="Parked ideas">
-                {nav.parked.map((t) => (
-                  <li key={t.id}>
+              <Group title={t.parkedIdeas}>
+                {nav.parked.map((p) => (
+                  <li key={p.id}>
                     <Link
                       to="/p/$projectId/threads/$explorationId"
-                      params={{ projectId, explorationId: t.id }}
+                      params={{ projectId, explorationId: p.id }}
                       className="flex flex-col gap-0.5 rounded-md border-l-2 border-transparent px-2.5 py-1.5 text-sm hover:bg-hover"
                     >
-                      <span className="line-clamp-2 text-fg">{t.purpose}</span>
+                      <span className="line-clamp-2 text-fg">{p.purpose}</span>
                       <span data-status="parked" className="inline-flex items-center gap-1 text-xs text-fg-2">
                         <StateIcon kind="parked" size={12} />
-                        Set aside
+                        {t.setAside}
                       </span>
                     </Link>
                   </li>

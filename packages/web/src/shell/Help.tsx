@@ -7,7 +7,9 @@ import { Dialog } from '../components/Dialog.tsx';
 import { Readiness } from '../components/Meter.tsx';
 import { StatusBadge } from '../components/status.tsx';
 import { WhoAvatar } from '../components/Who.tsx';
-import { MARKS, type MarkKind, WHO_PHRASES } from '../words.ts';
+import { useMessages } from '../i18n/define.ts';
+import { type MarkKind, useMarks, useSafeLocale, whoPhraseFor } from '../words.ts';
+import { HELP, HELP_KEYS } from './words.i18n.ts';
 
 const listeners = new Set<() => void>();
 let open = false;
@@ -26,24 +28,28 @@ function typing(target: EventTarget | null): boolean {
   return el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName);
 }
 
-const GROUPS: { title: string; kinds: MarkKind[] }[] = [
-  { title: 'How sure it is', kinds: ['confirmed', 'assumed', 'proposed', 'open', 'unknown'] },
-  { title: 'Where it stands', kinds: ['working', 'done', 'stale', 'problem', 'conflict'] },
-  { title: 'Set aside', kinds: ['parked', 'dropped', 'replaced', 'inactive'] },
+const GROUPS: { titleKey: 'howSure' | 'whereItStands' | 'setAside'; kinds: MarkKind[] }[] = [
+  { titleKey: 'howSure', kinds: ['confirmed', 'assumed', 'proposed', 'open', 'unknown'] },
+  { titleKey: 'whereItStands', kinds: ['working', 'done', 'stale', 'problem', 'conflict'] },
+  { titleKey: 'setAside', kinds: ['parked', 'dropped', 'replaced', 'inactive'] },
 ];
 
-const KEYS: { keys: string; what: string }[] = [
-  { keys: 'Ctrl K  ·  ⌘ K', what: 'Search, or go to a section' },
-  { keys: '?', what: 'Open this help' },
-  { keys: 'Esc', what: 'Close a dialog, a menu or a panel' },
-  { keys: 'Enter', what: 'Send, in any box where you write to DEMIURGO' },
-  { keys: 'Shift Enter', what: 'A new line in those boxes' },
-  { keys: 'Ctrl Enter  ·  ⌘ Enter', what: 'Ask DEMIURGO, in a thread' },
-  { keys: '↑ ↓', what: 'Move through a list, a menu or search results' },
-  { keys: '← →', what: 'Move through tabs and choices; resize a side panel' },
+const KEYS: { keys: string; whatKey: keyof typeof HELP_KEYS.en }[] = [
+  { keys: 'Ctrl K  ·  ⌘ K', whatKey: 'search' },
+  { keys: '?', whatKey: 'openHelp' },
+  { keys: 'Esc', whatKey: 'closeLayer' },
+  { keys: 'Enter', whatKey: 'send' },
+  { keys: 'Shift Enter', whatKey: 'newLine' },
+  { keys: 'Ctrl Enter  ·  ⌘ Enter', whatKey: 'askInThread' },
+  { keys: '↑ ↓', whatKey: 'moveList' },
+  { keys: '← →', whatKey: 'moveTabs' },
 ];
 
 export function Help() {
+  const t = useMessages(HELP);
+  const tk = useMessages(HELP_KEYS);
+  const marks = useMarks();
+  const locale = useSafeLocale();
   const isOpen = useSyncExternalStore(
     (l) => {
       listeners.add(l);
@@ -68,12 +74,12 @@ export function Help() {
   }, []);
 
   return (
-    <Dialog open={isOpen} onOpenChange={setOpen} title="Help" description="What the symbols mean, and the keyboard." wide>
-      <div role="tablist" aria-label="Help" className="-mt-1 flex gap-4 border-b border-edge">
+    <Dialog open={isOpen} onOpenChange={setOpen} title={t.title} description={t.description} wide>
+      <div role="tablist" aria-label={t.title} className="-mt-1 flex gap-4 border-b border-edge">
         {(
           [
-            ['symbols', 'Symbols'],
-            ['keys', 'Keyboard'],
+            ['symbols', t.symbols],
+            ['keys', t.keyboard],
           ] as const
         ).map(([k, label]) => (
           <button
@@ -95,40 +101,35 @@ export function Help() {
       {tab === 'symbols' ? (
         <div className="flex flex-col gap-5" data-help="symbols">
           {GROUPS.map((g) => (
-            <section key={g.title} className="flex flex-col gap-2">
-              <h3 className="text-sm font-semibold text-fg">{g.title}</h3>
+            <section key={g.titleKey} className="flex flex-col gap-2">
+              <h3 className="text-sm font-semibold text-fg">{t[g.titleKey]}</h3>
               <ul className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
                 {g.kinds.map((k) => (
                   <li key={k} className="flex items-start gap-2.5">
                     <StatusBadge kind={k} />
-                    <span className="text-sm text-fg-2">{MARKS[k].phrase}</span>
+                    <span className="text-sm text-fg-2">{marks[k].phrase}</span>
                   </li>
                 ))}
               </ul>
             </section>
           ))}
           <section className="flex flex-col gap-2">
-            <h3 className="text-sm font-semibold text-fg">Who did it</h3>
+            <h3 className="text-sm font-semibold text-fg">{t.whoDidIt}</h3>
             <ul className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
               {(['you', 'demiurgo', 'agent', 'automatic'] as const).map((k) => (
                 <li key={k} className="flex items-start gap-2.5">
                   <WhoAvatar kind={k} size={20} />
                   <span className="text-sm">
-                    <span className="font-medium text-fg">
-                      {k === 'you' ? 'You' : k === 'demiurgo' ? 'DEMIURGO' : k === 'agent' ? 'Agent' : 'Automatic'}
-                    </span>
-                    <span className="text-fg-2"> · {WHO_PHRASES[k]}</span>
+                    <span className="font-medium text-fg">{t[k]}</span>
+                    <span className="text-fg-2"> · {whoPhraseFor(locale, k)}</span>
                   </span>
                 </li>
               ))}
             </ul>
           </section>
           <section className="flex flex-col gap-2">
-            <h3 className="text-sm font-semibold text-fg">Ready to build</h3>
-            <p className="text-sm text-fg-2">
-              A feature is ready to build when nothing blocks it. The track has three steps: ready, built and verified; today only
-              the first one fills.
-            </p>
+            <h3 className="text-sm font-semibold text-fg">{t.readyToBuild}</h3>
+            <p className="text-sm text-fg-2">{t.readyToBuildBody}</p>
             <ul className="flex flex-col gap-2">
               <li>
                 <Readiness stage="ready" />
@@ -144,14 +145,14 @@ export function Help() {
         </div>
       ) : (
         <table className="w-full text-sm" data-help="keys">
-          <caption className="sr-only">Keyboard shortcuts</caption>
+          <caption className="sr-only">{t.keyboardShortcuts}</caption>
           <tbody className="divide-y divide-edge-subtle">
             {KEYS.map((k) => (
               <tr key={k.keys}>
                 <th scope="row" className="w-48 py-2 pr-4 text-left font-medium whitespace-nowrap text-fg">
                   <kbd className="font-code text-sm">{k.keys}</kbd>
                 </th>
-                <td className="py-2 text-fg-2">{k.what}</td>
+                <td className="py-2 text-fg-2">{tk[k.whatKey]}</td>
               </tr>
             ))}
           </tbody>

@@ -19,9 +19,11 @@ import { Section } from '../../components/Page.tsx';
 import { QuestionActions, QuestionOutcome } from '../../components/QuestionActions.tsx';
 import { Bone, Skeleton } from '../../components/Spinner.tsx';
 import { EntityState, StateIcon } from '../../components/status.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { stateWord } from '../../words.ts';
-import { IMPACT_WORDS, type QuestionGroups, questionGroups, readinessCitation } from './questions.ts';
+import { type QuestionGroups, questionGroups, readinessCitation } from './questions.ts';
+import { QUESTIONS_LOGIC, QUESTIONS_TAB } from './words.i18n.ts';
 
 export type QuestionsState = {
   threadId: string | null;
@@ -36,6 +38,7 @@ export type QuestionsState = {
 
 /** The questions of the version's thread and the one in hand, shared by the list and its aside. */
 export function useQuestions(projectId: string, version: RecordVersion): QuestionsState {
+  const t = useMessages(QUESTIONS_TAB);
   const threadId = version.origin_exploration;
   const thread = useQuery({ ...explorationQuery(projectId, threadId ?? ''), enabled: !!threadId });
   const [chosen, setChosen] = useState<string | null>(null);
@@ -52,7 +55,7 @@ export function useQuestions(projectId: string, version: RecordVersion): Questio
     select: (q) => {
       if (q.id === selected?.id) return;
       setChosen(q.id);
-      announce(`If you confirm now shows: ${q.question}`);
+      announce(t.confirmNowShows(q.question));
     },
   };
 }
@@ -80,6 +83,7 @@ function OpenQuestion({
   selected: boolean;
   onSelect: () => void;
 }) {
+  const t = useMessages(QUESTIONS_TAB);
   const id = useId();
   const assumed = q.state === 'inferred' && !!q.conclusion;
   return (
@@ -102,7 +106,7 @@ function OpenQuestion({
     >
       <div className="flex flex-wrap items-center gap-2">
         <EntityState entity="question" state={q.state} />
-        {selected ? <span className="text-xs text-accent-text">In "If you confirm"</span> : null}
+        {selected ? <span className="text-xs text-accent-text">{t.inIfYouConfirm}</span> : null}
       </div>
       <h2 id={id} className="text-md leading-snug font-semibold text-fg">
         <button
@@ -116,23 +120,35 @@ function OpenQuestion({
       </h2>
       {q.reason || q.impact ? (
         <div className="flex flex-col gap-0.5 text-sm text-fg-2">
-          {q.reason ? <p>Why it matters: {q.reason}</p> : null}
-          {q.impact ? <p>Impact: {IMPACT_WORDS[q.impact] ?? q.impact}</p> : null}
+          {q.reason ? (
+            <p>
+              {t.whyItMatters} {q.reason}
+            </p>
+          ) : null}
+          {q.impact ? (
+            <p>
+              {t.impact} {t.impactWord(q.impact)}
+            </p>
+          ) : null}
         </div>
       ) : null}
       {assumed ? (
         <div data-recommended className="flex flex-col gap-1 rounded-md border border-accent-edge bg-accent-soft px-3 py-2.5">
           <p className="flex flex-wrap items-center gap-2 font-medium text-fg">
             {q.conclusion}
-            <Tag>Recommended</Tag>
+            <Tag>{t.recommended}</Tag>
           </p>
-          {q.reasoning ? <p className="text-sm text-fg-2">Why: {q.reasoning}</p> : null}
-          <p className="text-xs text-fg-2">DEMIURGO assumed it. Nothing is confirmed until you say so.</p>
+          {q.reasoning ? (
+            <p className="text-sm text-fg-2">
+              {t.why} {q.reasoning}
+            </p>
+          ) : null}
+          <p className="text-xs text-fg-2">{t.assumedNotice}</p>
         </div>
       ) : null}
       <QuestionActions projectId={projectId} question={q} size="sm" />
       <ThreadLink projectId={projectId} threadId={q.exploration_id}>
-        Talk about it in the thread
+        {t.talkInThread}
       </ThreadLink>
     </article>
   );
@@ -153,21 +169,21 @@ function SettledRow({ projectId, q }: { projectId: string; q: Question }) {
   );
 }
 
-const SETTLED = [
-  { key: 'answered', title: 'Answered', attr: 'answered' },
-  { key: 'notNow', title: 'Parked', attr: 'parked' },
-  { key: 'doesNotApply', title: 'Dropped', attr: 'dropped' },
-] as const;
-
 export function QuestionsList({ projectId, questions }: { projectId: string; questions: QuestionsState }) {
+  const t = useMessages(QUESTIONS_TAB);
+  const SETTLED = [
+    { key: 'answered', title: t.answered, attr: 'answered' },
+    { key: 'notNow', title: t.parked, attr: 'parked' },
+    { key: 'doesNotApply', title: t.dropped, attr: 'dropped' },
+  ] as const;
   const { threadId, groups } = questions;
   if (!threadId) {
-    return <EmptyState title="No questions">This version doesn't come from a thread, so it has no questions.</EmptyState>;
+    return <EmptyState title={t.noQuestionsTitle}>{t.noQuestionsBody}</EmptyState>;
   }
   if (questions.error) return <ErrorNotice error={questions.error} onRetry={questions.retry} />;
   if (!groups) {
     return (
-      <Skeleton label="Loading the questions" className="flex flex-col gap-3">
+      <Skeleton label={t.loadingQuestions} className="flex flex-col gap-3">
         <Bone className="h-36 w-full rounded-lg" />
         <Bone className="h-36 w-full rounded-lg" />
       </Skeleton>
@@ -176,7 +192,7 @@ export function QuestionsList({ projectId, questions }: { projectId: string; que
   return (
     <div className="flex flex-col gap-8">
       {groups.open.length === 0 ? (
-        <EmptyState title="No open questions">Nothing to answer here: no question of its thread is open.</EmptyState>
+        <EmptyState title={t.noOpenQuestionsTitle}>{t.noOpenQuestionsBody}</EmptyState>
       ) : (
         <div data-open-questions className="flex flex-col gap-4">
           {groups.open.map((q) => (
@@ -212,7 +228,7 @@ export function QuestionsList({ projectId, questions }: { projectId: string; que
         );
       })}
       <ThreadLink projectId={projectId} threadId={threadId}>
-        {`Open the thread: ${questions.purpose ?? ''}`}
+        {t.openThread(questions.purpose ?? '')}
       </ThreadLink>
     </div>
   );
@@ -228,20 +244,22 @@ export function IfYouConfirm({
   version: RecordVersion;
   readiness: Readiness | null;
 }) {
+  const t = useMessages(QUESTIONS_TAB);
+  const logicWords = useMessages(QUESTIONS_LOGIC);
   const id = useId();
-  const citation = readinessCitation(q, readiness);
+  const citation = readinessCitation(q, readiness, logicWords);
   const checkMark = stateWord('record_version', version.state).mark;
   return (
     <section aria-labelledby={id} data-if-you-confirm className="flex flex-col gap-3 rounded-lg border border-edge bg-sunken p-4">
       <div className="flex flex-col gap-0.5">
         <h2 id={id} className="text-base font-semibold text-fg">
-          If you confirm
+          {t.ifYouConfirm}
         </h2>
         <p className="text-sm text-fg-2">{q.question}</p>
       </div>
       <dl className="flex flex-col gap-2.5 text-sm">
         <div className="flex flex-col gap-0.5">
-          <dt className="text-xs text-fg-2">It becomes the confirmed answer in its thread</dt>
+          <dt className="text-xs text-fg-2">{t.becomesConfirmedAnswer}</dt>
           <dd className="text-fg">
             {q.state === 'inferred' && q.conclusion ? (
               <span className="flex items-start gap-1.5">
@@ -249,19 +267,19 @@ export function IfYouConfirm({
                 {q.conclusion}
               </span>
             ) : (
-              <span className="text-fg-2">The answer you write.</span>
+              <span className="text-fg-2">{t.theAnswerYouWrite}</span>
             )}
           </dd>
         </div>
         {q.impact ? (
           <div className="flex flex-col gap-0.5">
-            <dt className="text-xs text-fg-2">It affects</dt>
-            <dd className="text-fg">{IMPACT_WORDS[q.impact] ?? q.impact} impact</dd>
+            <dt className="text-xs text-fg-2">{t.itAffects}</dt>
+            <dd className="text-fg">{t.impactLine(q.impact)}</dd>
           </div>
         ) : null}
         {citation ? (
           <div className="flex flex-col gap-0.5">
-            <dt className="text-xs text-fg-2">Before it can be built</dt>
+            <dt className="text-xs text-fg-2">{t.beforeItCanBeBuilt}</dt>
             <dd className="flex flex-col gap-0.5 text-fg">
               <span>{citation.text}</span>
               {citation.reason ? <span className="text-fg-2">{citation.reason}</span> : null}
@@ -270,9 +288,9 @@ export function IfYouConfirm({
         ) : null}
       </dl>
       <div className="flex flex-col gap-1.5 border-t border-edge pt-3">
-        <h3 className="text-sm font-semibold text-fg">How we'll know it works</h3>
+        <h3 className="text-sm font-semibold text-fg">{t.howWellKnowItWorks}</h3>
         {version.criteria.length === 0 ? (
-          <p className="text-sm text-fg-2">This version has no checks yet.</p>
+          <p className="text-sm text-fg-2">{t.noChecksYet}</p>
         ) : (
           <ul className="flex flex-col gap-1.5">
             {version.criteria.map((c) => (
@@ -285,8 +303,7 @@ export function IfYouConfirm({
         )}
       </div>
       <p data-later className="rounded-md border border-dashed border-edge-strong px-3 py-2 text-xs text-fg-2">
-        <span className="font-medium text-fg">Later</span> · Becomes a decision and adds checks on its own (later increment).
-        Today confirming only answers the question.
+        <span className="font-medium text-fg">{t.later}</span> · {t.laterDecision}
       </p>
     </section>
   );

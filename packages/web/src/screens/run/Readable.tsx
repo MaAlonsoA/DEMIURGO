@@ -6,6 +6,8 @@
 import { type ReactNode, useState } from 'react';
 import { cn } from '../../lib/cn.ts';
 import { ChevronRightIcon } from '../../components/icons.tsx';
+import { useMessages } from '../../i18n/define.ts';
+import { READABLE } from './words.i18n.ts';
 
 /** "question_in_progress" → "Question in progress". */
 export function humanize(key: string): string {
@@ -33,6 +35,7 @@ const isPlain = (v: unknown): v is Record<string, unknown> => typeof v === 'obje
 const isScalar = (v: unknown) => v === null || v === undefined || ['string', 'number', 'boolean'].includes(typeof v);
 
 function LongText({ text }: { text: string }) {
+  const t = useMessages(READABLE);
   const [all, setAll] = useState(false);
   const long = text.length > 480 || text.split('\n').length > 8;
   return (
@@ -45,7 +48,7 @@ function LongText({ text }: { text: string }) {
           onClick={() => setAll((a) => !a)}
           className="cursor-pointer text-sm font-medium text-accent-text hover:underline"
         >
-          {all ? 'Show less' : 'Show all'}
+          {all ? t.showLess : t.showAll}
         </button>
       ) : null}
     </span>
@@ -53,11 +56,12 @@ function LongText({ text }: { text: string }) {
 }
 
 function Scalar({ value }: { value: unknown }) {
-  if (value === null || value === undefined) return <span className="text-fg-3">None</span>;
-  if (typeof value === 'boolean') return <span>{value ? 'Yes' : 'No'}</span>;
+  const t = useMessages(READABLE);
+  if (value === null || value === undefined) return <span className="text-fg-3">{t.none}</span>;
+  if (typeof value === 'boolean') return <span>{value ? t.yes : t.no}</span>;
   if (typeof value === 'number') return <span className="tabular-nums">{value.toLocaleString('en-GB')}</span>;
   const text = typeof value === 'string' ? value : JSON.stringify(value);
-  if (text.trim() === '') return <span className="text-fg-3">Empty</span>;
+  if (text.trim() === '') return <span className="text-fg-3">{t.empty}</span>;
   return <LongText text={text} />;
 }
 
@@ -67,10 +71,11 @@ function Compact({ value }: { value: unknown }) {
 
 /** A value of any shape, `depth` levels deep; below three levels it is compact JSON. */
 export function ReadableValue({ value, depth = 0 }: { value: unknown; depth?: number }): ReactNode {
+  const t = useMessages(READABLE);
   if (isScalar(value)) return <Scalar value={value} />;
   if (depth >= 3) return <Compact value={value} />;
   if (Array.isArray(value)) {
-    if (value.length === 0) return <span className="text-fg-3">None</span>;
+    if (value.length === 0) return <span className="text-fg-3">{t.none}</span>;
     if (value.every(isScalar))
       return (
         <ul className="flex flex-col gap-1">
@@ -146,8 +151,9 @@ function label(key: string, value: unknown): string {
 
 /** An object as label → value pairs, stacked under 640 px. */
 export function Facts({ object, depth = 0 }: { object: Record<string, unknown>; depth?: number }) {
+  const t = useMessages(READABLE);
   const entries = Object.entries(object);
-  if (entries.length === 0) return <span className="text-fg-3">Nothing</span>;
+  if (entries.length === 0) return <span className="text-fg-3">{t.nothing}</span>;
   return (
     <dl className="grid grid-cols-1 gap-x-4 gap-y-2 text-sm sm:grid-cols-[minmax(120px,auto)_1fr]">
       {entries.map(([k, v]) => (
@@ -165,9 +171,11 @@ export function Facts({ object, depth = 0 }: { object: Record<string, unknown>; 
 /** The raw JSON, one disclosure away. */
 export function RawJson({
   value,
-  label: summary = 'Raw JSON',
+  label: labelProp,
   ...rest
 }: { value: unknown; label?: string } & Record<`data-${string}`, unknown>) {
+  const t = useMessages(READABLE);
+  const summary = labelProp ?? t.rawJson;
   return (
     <details className="group rounded-md border border-edge" {...rest}>
       <summary className="flex min-h-8 cursor-pointer list-none items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-fg-2 hover:text-fg [&::-webkit-details-marker]:hidden">

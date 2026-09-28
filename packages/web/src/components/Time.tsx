@@ -5,6 +5,7 @@
 import { useSyncExternalStore } from 'react';
 import { ago, dayTime, duration } from '../lib/time.ts';
 import { cn } from '../lib/cn.ts';
+import { useSafeLocale } from '../words.ts';
 
 type Listener = () => void;
 
@@ -54,21 +55,23 @@ export function RelativeTime({
   prefix?: string;
 }) {
   const now = useNow();
+  const locale = useSafeLocale();
   if (!iso) return null;
   return (
-    <time dateTime={iso} title={dayTime(iso, now)} className={cn('tabular-nums', className)}>
+    <time dateTime={iso} title={dayTime(iso, now, locale)} className={cn('tabular-nums', className)}>
       {prefix ? `${prefix} ` : ''}
-      {ago(iso, now)}
+      {ago(iso, now, locale)}
     </time>
   );
 }
 
 /** "Thu 18:52" (or "24 Sep 18:52"). */
 export function DayTime({ iso, className }: { iso: string | null | undefined; className?: string }) {
+  const locale = useSafeLocale();
   if (!iso) return null;
   return (
     <time dateTime={iso} className={cn('tabular-nums', className)}>
-      {dayTime(iso)}
+      {dayTime(iso, undefined, locale)}
     </time>
   );
 }

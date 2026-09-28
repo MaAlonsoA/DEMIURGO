@@ -8,10 +8,12 @@ import { type Ref, useEffect, useImperativeHandle, useLayoutEffect, useRef } fro
 import type { ExplorationDetail, Question, RunListItem } from '../../api/types.ts';
 import { EmptyState } from '../../components/EmptyState.tsx';
 import { ThreadsIcon } from '../../components/icons.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { DemiurgoMessage, PersonMessage } from './Messages.tsx';
 import { QuestionCard } from './QuestionCard.tsx';
 import { RunCard } from './RunCards.tsx';
 import { type TimelineItem, sideMessages } from './timeline.ts';
+import { CONVERSATION } from './words.i18n.ts';
 
 export type ConversationHandle = {
   /** Shows the end of the conversation and resets the count of new items. */
@@ -51,6 +53,7 @@ export function Conversation({
   onUnseen: (n: number) => void;
   ref?: Ref<ConversationHandle>;
 }) {
+  const t = useMessages(CONVERSATION);
   const active = thread.state === 'active';
   const runOf = new Map(runs.map((r) => [r.id, r]));
   const reading = useRef(true);
@@ -96,14 +99,14 @@ export function Conversation({
   return (
     <section aria-labelledby="conversation-title" className="flex flex-col gap-4">
       <h2 id="conversation-title" className="sr-only">
-        Conversation
+        {t.title}
       </h2>
       {items.length === 0 ? (
-        <EmptyState icon={<ThreadsIcon size={24} />} title="Nothing written yet" headingLevel={3}>
-          {active ? 'Write below, then Send it or ask DEMIURGO.' : 'Nothing was written in this thread.'}
+        <EmptyState icon={<ThreadsIcon size={24} />} title={t.emptyTitle} headingLevel={3}>
+          {active ? t.emptyActive : t.emptyInactive}
         </EmptyState>
       ) : null}
-      <div role="log" aria-label="Conversation" aria-relevant="additions" className="flex flex-col gap-4">
+      <div role="log" aria-label={t.title} aria-relevant="additions" className="flex flex-col gap-4">
         {items.map((item) => {
           if (item.type === 'question') {
             const q = item.question;

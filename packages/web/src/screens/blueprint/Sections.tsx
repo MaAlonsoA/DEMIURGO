@@ -7,8 +7,10 @@ import { useSearch } from '@tanstack/react-router';
 import { explorationQuery } from '../../api/queries.ts';
 import type { RecordDetail, RecordVersion } from '../../api/types.ts';
 import { LinkTabs } from '../../components/Tabs.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { questionGroups } from './questions.ts';
 import { type RecordTab, tabOf, tabSearch } from './tabs.ts';
+import { SECTIONS } from './words.i18n.ts';
 
 export function useRecordTab(): RecordTab {
   const search = useSearch({ strict: false }) as { tab?: unknown };
@@ -39,24 +41,25 @@ export function RecordTabs({
   version: RecordVersion;
   tab: RecordTab;
 }) {
+  const t = useMessages(SECTIONS);
   const search = useSearch({ strict: false }) as { v?: number };
   const open = useOpenQuestions(projectId, version);
-  const link = (t: RecordTab) => ({
+  const link = (forTab: RecordTab) => ({
     to: '/p/$projectId/records/$code' as const,
     params: { projectId, code: record.code },
-    search: tabSearch(search.v, t) as never,
+    search: tabSearch(search.v, forTab) as never,
     resetScroll: false,
     // Only the section on screen is current, not the Overview under every ?tab=.
     activeOptions: { exact: true },
   });
   return (
     <LinkTabs
-      label="Record sections"
+      label={t.recordSectionsLabel}
       tabs={[
-        { key: 'overview', label: 'Overview', current: tab === 'overview', link: link('overview') },
+        { key: 'overview', label: t.tabOverview, current: tab === 'overview', link: link('overview') },
         {
           key: 'questions',
-          label: 'Questions',
+          label: t.tabQuestions,
           current: tab === 'questions',
           link: link('questions'),
           ...(open > 0 ? { count: open } : {}),
@@ -65,14 +68,14 @@ export function RecordTabs({
           ? [
               {
                 key: 'checks',
-                label: 'Checks',
+                label: t.tabChecks,
                 current: tab === 'checks',
                 link: link('checks'),
                 count: version.criteria.length,
               },
             ]
           : []),
-        { key: 'history', label: 'History', current: tab === 'history', link: link('history') },
+        { key: 'history', label: t.tabHistory, current: tab === 'history', link: link('history') },
       ]}
     />
   );

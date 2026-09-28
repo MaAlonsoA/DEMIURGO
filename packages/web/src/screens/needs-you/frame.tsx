@@ -21,12 +21,13 @@ import {
 import { Readiness, type Stage } from '../../components/Meter.tsx';
 import { Certainty } from '../../components/status.tsx';
 import { iconOf, typeWord } from '../../components/types.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { rowOf } from '../batch/model.ts';
 import { linkClass, RecordChip } from '../batch/parts.tsx';
 import { proposalIconType } from '../batch/proposal.ts';
 import type { NeedItem } from './order.ts';
-import { KIND_WORDS } from './titles.ts';
+import { FRAME, TITLES } from './words.i18n.ts';
 
 export type NeedContext = {
   projectId: string;
@@ -65,7 +66,8 @@ export function stageOf(row: ProductRow): Stage {
 
 /** A link to the thread a thing was raised in, by its purpose. */
 export function ThreadLink({ projectId, id, threads }: { projectId: string; id: string; threads: readonly Exploration[] }) {
-  const t = threads.find((x) => x.id === id);
+  const words = useMessages(FRAME);
+  const thread = threads.find((x) => x.id === id);
   return (
     <Link
       to="/p/$projectId/threads/$explorationId"
@@ -73,13 +75,14 @@ export function ThreadLink({ projectId, id, threads }: { projectId: string; id: 
       className={cn(linkClass, 'inline-flex min-h-6 items-center gap-1')}
     >
       <ThreadsIcon size={13} />
-      {t?.purpose ?? 'its thread'}
+      {thread?.purpose ?? words.itsThread}
     </Link>
   );
 }
 
 /** "What it unblocks": the records whose readiness waits for this thing, and what they still need. */
 export function Unblocks({ ctx, item }: { ctx: NeedContext; item: NeedItem }) {
+  const words = useMessages(FRAME);
   const id = useId();
   const rows = item.unblocks.flatMap((c) => {
     const r = rowOf(ctx.rows, c);
@@ -88,10 +91,10 @@ export function Unblocks({ ctx, item }: { ctx: NeedContext; item: NeedItem }) {
   return (
     <section aria-labelledby={id} className="flex flex-col gap-2" data-unblocks={item.unblocks.join(' ')}>
       <h3 id={id} className="text-sm font-semibold text-fg-2">
-        What it unblocks
+        {words.whatItUnblocks}
       </h3>
       {rows.length === 0 ? (
-        <p className="text-sm text-fg-2">Nothing waits for it directly.</p>
+        <p className="text-sm text-fg-2">{words.nothingWaitsDirectly}</p>
       ) : (
         <ul className="flex flex-col gap-2">
           {rows.map((r) => (
@@ -145,6 +148,7 @@ export function DetailFrame({
   top?: ReactNode;
 }) {
   const Icon = kindIcon(item);
+  const kindWords = useMessages(TITLES);
   return (
     <section
       aria-labelledby={titleId}
@@ -164,7 +168,7 @@ export function DetailFrame({
             )}
           >
             <Icon size={15} className={item.kind === 'conflict' ? undefined : 'text-fg-3'} />
-            {KIND_WORDS[item.kind]}
+            {kindWords.kindWord(item.kind)}
           </span>
           {eyebrow ? <span className="text-fg-2">{eyebrow}</span> : null}
           {state}

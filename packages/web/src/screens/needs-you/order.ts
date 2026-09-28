@@ -4,6 +4,7 @@
 
 import { questionReason } from '../../../../domain/src/records.ts';
 import type { Inbox, InboxBatch, InboxLink, InboxProposal, InboxQuestion, InboxVersion, ProductRow } from '../../api/types.ts';
+import { ORDER } from './words.i18n.ts';
 
 export type Classification = Inbox['classifications_to_review'][number];
 export type FailedUpdate = Inbox['rejected_updates'][number];
@@ -25,14 +26,14 @@ export type NeedItem = Need & { unblocks: string[]; minutes: number };
 
 export type GroupKey = 'conflicts' | 'questions' | 'proposals' | 'versions' | 'links' | 'classifications' | 'updates';
 
-export const GROUPS: { key: GroupKey; title: string; kinds: Need['kind'][] }[] = [
-  { key: 'conflicts', title: 'Conflicts', kinds: ['conflict'] },
-  { key: 'questions', title: 'Questions', kinds: ['question'] },
-  { key: 'proposals', title: 'Proposals', kinds: ['proposal', 'package'] },
-  { key: 'versions', title: 'Versions to approve', kinds: ['version'] },
-  { key: 'links', title: 'Links to review', kinds: ['link'] },
-  { key: 'classifications', title: 'Classifications to review', kinds: ['classification'] },
-  { key: 'updates', title: 'Knowledge updates that failed', kinds: ['update'] },
+export const GROUPS: { key: GroupKey; kinds: Need['kind'][] }[] = [
+  { key: 'conflicts', kinds: ['conflict'] },
+  { key: 'questions', kinds: ['question'] },
+  { key: 'proposals', kinds: ['proposal', 'package'] },
+  { key: 'versions', kinds: ['version'] },
+  { key: 'links', kinds: ['link'] },
+  { key: 'classifications', kinds: ['classification'] },
+  { key: 'updates', kinds: ['update'] },
 ];
 
 /** About how long each thing takes, as the canvas estimates it (a question, a minute). */
@@ -168,10 +169,12 @@ export function catchUpOrder(items: readonly NeedItem[]): NeedItem[] {
 export type Group = { key: GroupKey; title: string; items: NeedItem[] };
 
 /** The non-empty groups of the list, in their order. */
-export function groupsOf(items: readonly NeedItem[]): Group[] {
-  return GROUPS.map((g) => ({ key: g.key, title: g.title, items: items.filter((i) => g.kinds.includes(i.kind)) })).filter(
-    (g) => g.items.length > 0,
-  );
+export function groupsOf(items: readonly NeedItem[], words: typeof ORDER.en = ORDER.en): Group[] {
+  return GROUPS.map((g) => ({
+    key: g.key,
+    title: words.groupTitle(g.key),
+    items: items.filter((i) => g.kinds.includes(i.kind)),
+  })).filter((g) => g.items.length > 0);
 }
 
 export function minutesOf(items: readonly NeedItem[]): number {

@@ -10,6 +10,7 @@ import { inboxQuery, projectsQuery } from '../api/queries.ts';
 import { useProjectStream } from '../api/stream.ts';
 import { Count } from '../components/Badge.tsx';
 import { MenuIcon, SearchIcon } from '../components/icons.tsx';
+import { useMessages } from '../i18n/define.ts';
 import { cn } from '../lib/cn.ts';
 import { useProjectId } from '../lib/hooks.ts';
 import { CommandMenu, openCommandMenu } from './CommandMenu.tsx';
@@ -17,6 +18,7 @@ import { ConnectionBanner } from './Connection.tsx';
 import { useRouteFocus } from './focus.ts';
 import { Sidebar } from './Sidebar.tsx';
 import { setTitleCount } from './title.ts';
+import { PROJECT_SHELL } from './words.i18n.ts';
 
 const COLLAPSED = 'dm-sidebar-collapsed';
 
@@ -29,6 +31,7 @@ function readCollapsed(): boolean {
 }
 
 export function ProjectShell() {
+  const t = useMessages(PROJECT_SHELL);
   const projectId = useProjectId();
   useProjectStream(projectId);
   useRouteFocus();
@@ -65,7 +68,7 @@ export function ProjectShell() {
           <D.Trigger asChild>
             <button
               type="button"
-              aria-label="Open the sections"
+              aria-label={t.openSections}
               className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md text-fg-2 hover:bg-hover"
             >
               <MenuIcon size={18} />
@@ -77,16 +80,16 @@ export function ProjectShell() {
               aria-describedby={undefined}
               className="fixed inset-y-0 left-0 z-50 w-[min(300px,85vw)] animate-enter bg-app shadow-dialog lg:hidden"
             >
-              <D.Title className="sr-only">Sections</D.Title>
+              <D.Title className="sr-only">{t.sections}</D.Title>
               <Sidebar projectId={projectId} onNavigate={() => setDrawer(false)} />
             </D.Content>
           </D.Portal>
         </D.Root>
         <span className="min-w-0 flex-1 truncate text-base font-semibold">{project?.name ?? ''}</span>
-        <Count n={needs} label={`${needs} ${needs === 1 ? 'thing needs' : 'things need'} you`} />
+        <Count n={needs} label={t.needsYou(needs)} />
         <button
           type="button"
-          aria-label="Search (Ctrl K)"
+          aria-label={t.search}
           onClick={openCommandMenu}
           className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md text-fg-2 hover:bg-hover"
         >

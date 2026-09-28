@@ -105,12 +105,13 @@ export const PROPOSAL_TYPE_WORDS: Record<string, string> = {
   design_record: 'Design record',
   exploration: 'Thread',
   review: 'Review',
+  record_translation: 'English version',
   imported_record: 'Document',
   imported_taxonomy: 'Taxonomy',
 };
 
 /** Which proposals can be approved in the same gesture as accepting them (they create a record). */
-export const APPROVABLE_TYPES = new Set(['decision', 'fdr', 'design_record']);
+export const APPROVABLE_TYPES = new Set(['decision', 'fdr', 'design_record', 'record_translation']);
 
 export type EditableField = { key: string; label: string; max: number; multiline: boolean };
 

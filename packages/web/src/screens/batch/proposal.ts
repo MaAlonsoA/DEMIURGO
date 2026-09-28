@@ -28,6 +28,7 @@ export const PROPOSAL_KIND_WORDS: Record<string, string> = {
   design_record: 'Design record',
   exploration: 'New thread',
   review: 'Review',
+  record_translation: 'English version',
   imported_record: 'Imported document',
   imported_taxonomy: 'Imported taxonomy',
 };
@@ -47,6 +48,7 @@ export function proposalIconType(p: Pick<ProposalView, 'type' | 'payload'>): str
     return typeof doc?.type === 'string' ? doc.type : 'package';
   }
   if (p.type === 'imported_taxonomy') return 'taxonomy';
+  if (p.type === 'record_translation') return 'package';
   return 'idea';
 }
 
@@ -75,7 +77,7 @@ export function proposalLine(p: Pick<ProposalView, 'type' | 'payload'>): string 
   if (p.type === 'fdr') return str(p.payload.goal);
   if (p.type === 'review') return str(p.payload.reason);
   if (p.type === 'exploration') return str(p.payload.purpose);
-  if (p.type === 'design_record') return payloadSections(p.payload)[0]?.content ?? '';
+  if (p.type === 'design_record' || p.type === 'record_translation') return payloadSections(p.payload)[0]?.content ?? '';
   return '';
 }
 
@@ -112,6 +114,12 @@ export function acceptEffects(p: Pick<ProposalView, 'type' | 'payload'>, approve
     ];
   }
   if (p.type === 'exploration') return [`DEMIURGO opens the thread “${proposalTitle(p)}”.`];
+  if (p.type === 'record_translation') {
+    const r = p.payload.record as { code?: string; version?: number } | undefined;
+    const what = `the English version of ${r?.code ?? 'the record'} v${r?.version ?? ''} as a new version`;
+    if (!approve) return [`DEMIURGO records ${what}, as a draft. You approve it later, on its page.`];
+    return [`DEMIURGO records ${what}.`, 'You approve it: it becomes the current version.'];
+  }
   const what = whatItRecords(p);
   if (!approve) return [`DEMIURGO records ${what} as a draft. You approve it later, on its page.`];
   return [`DEMIURGO records ${what}.`, 'You approve it: it becomes the current version.'];

@@ -3,7 +3,8 @@
 // the answer goes from the thread and its runs.
 
 import type { Exploration, ExplorationDetail, RecordType, RunListItem } from '../api/types.ts';
-import { TYPE_WORDS, failureWord } from '../words.ts';
+import type { Locale } from '../i18n/locale.ts';
+import { TYPE_WORDS, failureWordFor, typeWordFor } from '../words.ts';
 
 export type AskSubject =
   | { kind: 'product'; name: string }
@@ -30,13 +31,19 @@ export function openThreadData(subject: AskSubject): { purpose: string; origin?:
   return { purpose: `About ${subject.title}`, origin: { type: 'record_version', id: subject.versionId } };
 }
 
-export function askPlaceholder(subject: AskSubject): string {
+export function askPlaceholder(subject: AskSubject, locale: Locale = 'en'): string {
+  if (locale === 'es') {
+    if (subject.kind === 'product') return `Pregunta o cuenta a DEMIURGO lo que quieras sobre ${subject.name}`;
+    return `Pregunta sobre esta ${typeWordFor('es', subject.type).toLowerCase()}, o sugiere un cambio…`;
+  }
   if (subject.kind === 'product') return `Ask or tell DEMIURGO anything about ${subject.name}`;
   return `Ask about this ${TYPE_WORDS[subject.type].toLowerCase()}, or suggest a change…`;
 }
 
 /** The subject in a few words, for the field's label. */
-export function subjectWords(subject: AskSubject): string {
+export function subjectWords(subject: AskSubject, locale: Locale = 'en'): string {
+  if (locale === 'es')
+    return subject.kind === 'product' ? 'todo el producto' : `esta ${typeWordFor('es', subject.type).toLowerCase()}`;
   return subject.kind === 'product' ? 'the whole product' : `this ${TYPE_WORDS[subject.type].toLowerCase()}`;
 }
 
@@ -53,6 +60,7 @@ export function askProgress(
   thread: Pick<ExplorationDetail, 'messages'> | undefined,
   runs: readonly RunListItem[] | undefined,
   messageId: string,
+  locale: Locale = 'en',
 ): AskProgress {
   const mine = thread?.messages.find((m) => m.id === messageId);
   if (!mine) return { state: 'answering' };
@@ -67,6 +75,6 @@ export function askProgress(
   const last = after.at(-1);
   if (!last) return { state: 'answering' };
   if (last.state === 'completed') return { state: 'answered' };
-  if (FAILED.includes(last.state)) return { state: 'failed', failure: failureWord(last.failure_kind, last.state) };
+  if (FAILED.includes(last.state)) return { state: 'failed', failure: failureWordFor(locale, last.failure_kind, last.state) };
   return { state: 'answering' };
 }

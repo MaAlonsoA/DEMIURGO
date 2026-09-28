@@ -9,11 +9,13 @@ import { sessionQuery } from '../api/queries.ts';
 import { ChevronsUpDownIcon, DatabaseIcon, LogOutIcon } from '../components/icons.tsx';
 import { Menu, MenuItem, MenuLabel, MenuRadioItems, MenuSeparator } from '../components/Menu.tsx';
 import { WhoAvatar } from '../components/Who.tsx';
-import { LOCALE_NAMES, type Locale, useLocaleChoice } from '../i18n/locale.ts';
+import { useMessages } from '../i18n/define.ts';
+import { LOCALE_NAMES, type Locale, setLocaleChoice, useLocaleChoice } from '../i18n/locale.ts';
 import { cn } from '../lib/cn.ts';
 import { usePerson } from '../lib/hooks.ts';
 import { hasDevTools, openDevPanel } from '../screens/dev/snapshots.ts';
 import { type ThemeChoice, setTheme, useTheme } from './theme.ts';
+import { PERSON_MENU } from './words.i18n.ts';
 
 export function PersonMenu({
   compact,
@@ -25,6 +27,7 @@ export function PersonMenu({
   /** Where the menu opens: above in the sidebar, below in the top bar. */
   side?: 'top' | 'bottom';
 }) {
+  const t = useMessages(PERSON_MENU);
   const person = usePerson();
   const devTools = hasDevTools(useQuery(sessionQuery).data);
   const client = useQueryClient();
@@ -34,7 +37,9 @@ export function PersonMenu({
 
   // The language is the person's, kept in their session: the same on every device they sign in from.
   const chooseLocale = async (choice: Locale | 'browser') => {
-    await request('PUT', '/api/session/locale', { locale: choice === 'browser' ? null : choice });
+    const next = choice === 'browser' ? null : choice;
+    await request('PUT', '/api/session/locale', { locale: next });
+    setLocaleChoice(next);
     await client.invalidateQueries({ queryKey: sessionQuery.queryKey });
   };
 
@@ -52,11 +57,11 @@ export function PersonMenu({
     <Menu
       side={side}
       align={side === 'top' ? 'start' : 'end'}
-      label="Your menu"
+      label={t.yourMenu}
       trigger={
         <button
           type="button"
-          aria-label={`Signed in as ${person ?? ''}`}
+          aria-label={t.signedInAs(person ?? '')}
           className={cn(
             'flex h-9 w-full min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-base text-fg hover:bg-hover',
             className,
@@ -72,25 +77,25 @@ export function PersonMenu({
         </button>
       }
     >
-      <MenuLabel>Signed in as {person}</MenuLabel>
+      <MenuLabel>{t.signedInAs(person ?? '')}</MenuLabel>
       <MenuSeparator />
-      <MenuLabel>Theme</MenuLabel>
+      <MenuLabel>{t.theme}</MenuLabel>
       <MenuRadioItems<ThemeChoice>
         value={theme}
         onChange={setTheme}
         options={[
-          { value: 'system', label: 'Like the system' },
-          { value: 'light', label: 'Light' },
-          { value: 'dark', label: 'Dark' },
+          { value: 'system', label: t.likeTheSystem },
+          { value: 'light', label: t.light },
+          { value: 'dark', label: t.dark },
         ]}
       />
       <MenuSeparator />
-      <MenuLabel>Language</MenuLabel>
+      <MenuLabel>{t.language}</MenuLabel>
       <MenuRadioItems<Locale | 'browser'>
         value={locale ?? 'browser'}
         onChange={(choice) => void chooseLocale(choice)}
         options={[
-          { value: 'browser', label: 'Like the browser' },
+          { value: 'browser', label: t.likeTheBrowser },
           { value: 'en', label: LOCALE_NAMES.en },
           { value: 'es', label: LOCALE_NAMES.es },
         ]}
@@ -98,11 +103,11 @@ export function PersonMenu({
       <MenuSeparator />
       {devTools ? (
         <MenuItem icon={<DatabaseIcon size={14} />} onSelect={openDevPanel}>
-          Snapshots…
+          {t.snapshots}
         </MenuItem>
       ) : null}
       <MenuItem icon={<LogOutIcon size={14} />} onSelect={() => void signOut()}>
-        Sign out
+        {t.signOut}
       </MenuItem>
     </Menu>
   );

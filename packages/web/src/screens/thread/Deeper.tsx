@@ -21,6 +21,7 @@ import { QuestionOutcome } from '../../components/QuestionActions.tsx';
 import { EntityState, StatusBadge, WorkingDot } from '../../components/status.tsx';
 import { Tooltip } from '../../components/Tooltip.tsx';
 import { Who } from '../../components/Who.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { useTables } from '../../lib/hooks.ts';
 import { failureWord } from '../../words.ts';
 import { readingOf } from '../onboarding/day.ts';
@@ -28,6 +29,7 @@ import { MAX_ANSWER, answerChoices, draftOf, isOpenQuestion, pickedChoices, plai
 import { useDrafts } from './drafts.tsx';
 import { Observations } from './Messages.tsx';
 import { sideMessages } from './timeline.ts';
+import { ANSWER_WORDS, DEEPER } from './words.i18n.ts';
 
 const OWN = 'own';
 const MAX_MESSAGE = 20_000;
@@ -52,6 +54,7 @@ export function DeeperPanel({
   onClose: () => void;
   headingRef?: Ref<HTMLHeadingElement>;
 }) {
+  const t = useMessages(DEEPER);
   const tables = useTables();
   const drafts = useDrafts();
   const post = useCommand(projectId);
@@ -82,7 +85,7 @@ export function DeeperPanel({
       {
         onSuccess: () => {
           onTalk('');
-          announce('Sent. DEMIURGO answers here.');
+          announce(t.sentAnswersHere);
         },
       },
     );
@@ -102,13 +105,13 @@ export function DeeperPanel({
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 text-sm font-medium text-fg-2">
             <DeeperIcon size={14} />
-            Going deeper
+            {t.goingDeeper}
           </span>
           <EntityState entity="question" state={q.state} />
-          <Tooltip content="Close and go back to the thread (Esc)">
+          <Tooltip content={t.closeTip}>
             <button
               type="button"
-              aria-label="Close and go back to the thread"
+              aria-label={t.closeAria}
               onClick={onClose}
               className="-mr-2 ml-auto inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-fg-2 hover:bg-hover hover:text-fg"
             >
@@ -119,20 +122,18 @@ export function DeeperPanel({
         <h2 id={`${talkId}-title`} ref={headingRef} tabIndex={-1} className="text-lg font-semibold text-fg outline-none">
           {q.question}
         </h2>
-        <p className="text-sm text-fg-2">The main thread waits here. Nothing is lost.</p>
+        <p className="text-sm text-fg-2">{t.waitsHere}</p>
       </header>
 
       <div ref={scroller} className="flex min-h-40 flex-1 flex-col gap-3 overflow-y-auto px-5 py-4">
-        {messages.length === 0 && !writing ? (
-          <p className="text-sm text-fg-2">Ask anything about this question: what each option means, examples, what others do.</p>
-        ) : null}
+        {messages.length === 0 && !writing ? <p className="text-sm text-fg-2">{t.askAnything}</p> : null}
         {messages.map((m) =>
           m.author.startsWith('human:') ? (
             <p
               key={m.id}
               className="max-w-[90%] self-end rounded-lg rounded-tr-xs bg-selected px-3 py-2 text-base whitespace-pre-wrap text-fg"
             >
-              <span className="sr-only">You: </span>
+              <span className="sr-only">{t.youPrefix}</span>
               {m.body}
             </p>
           ) : m.kind ? (
@@ -148,7 +149,7 @@ export function DeeperPanel({
                   className="self-start"
                   onClick={() => settle.current?.fill(plainText(m.body).slice(0, MAX_ANSWER))}
                 >
-                  Use this reply as the answer
+                  {t.useReplyAsAnswer}
                 </Button>
               ) : null}
             </div>
@@ -158,7 +159,7 @@ export function DeeperPanel({
           {writing ? (
             <span className="inline-flex items-center gap-2 text-info-text">
               <WorkingDot />
-              DEMIURGO is writing…
+              {t.writing}
             </span>
           ) : null}
         </div>
@@ -169,10 +170,7 @@ export function DeeperPanel({
             retrying={retry.isPending}
             error={retry.error}
             onRetry={() =>
-              retry.mutate(
-                { command: 'run.retry', data: { run_id: failed.id } },
-                { onSuccess: () => announce('Asked again. DEMIURGO answers here.') },
-              )
+              retry.mutate({ command: 'run.retry', data: { run_id: failed.id } }, { onSuccess: () => announce(t.askedAgain) })
             }
           />
         ) : null}
@@ -188,8 +186,8 @@ export function DeeperPanel({
             className="flex flex-col gap-2"
           >
             <Field
-              label="Talk it through"
-              hint="Enter sends · Shift+Enter adds a line"
+              label={t.talkThrough}
+              hint={t.hint}
               count={talk.length > MAX_MESSAGE * 0.9 ? [talk.length, MAX_MESSAGE] : undefined}
             >
               {(p) => (
@@ -200,7 +198,7 @@ export function DeeperPanel({
                   rows={2}
                   value={talk}
                   maxLength={MAX_MESSAGE}
-                  placeholder="Ask about this question…"
+                  placeholder={t.placeholder}
                   onChange={(e) => onTalk(e.target.value)}
                   onKeyDown={onKeyDown}
                 />
@@ -215,9 +213,9 @@ export function DeeperPanel({
               className="self-end"
               disabled={!talk.trim()}
               pending={post.isPending}
-              pendingLabel="Sending…"
+              pendingLabel={t.sending}
             >
-              Send
+              {t.send}
             </Button>
           </form>
         ) : null}
@@ -226,7 +224,7 @@ export function DeeperPanel({
             <Settle ref={settle} question={q} onDone={onClose} />
           ) : null
         ) : (
-          <Notice tone="neutral" title="This question is no longer open.">
+          <Notice tone="neutral" title={t.notOpen}>
             <QuestionOutcome question={q} />
           </Notice>
         )}
@@ -249,25 +247,26 @@ function FailedHere({
   error: unknown;
   onRetry: () => void;
 }) {
+  const t = useMessages(DEEPER);
   const failed = run.state === 'failed' || run.state === 'interrupted';
   return (
     <Card tone={failed ? 'danger' : undefined} padding="sm" className="flex flex-col gap-2 text-sm" data-deeper-failed={run.id}>
       <p className="flex flex-wrap items-center gap-2">
-        <StatusBadge kind={failed ? 'problem' : 'inactive'} word={failed ? 'Failed' : 'Cancelled'} />
-        <span className="font-medium text-fg">DEMIURGO couldn't answer this time.</span>
+        <StatusBadge kind={failed ? 'problem' : 'inactive'} word={failed ? t.failed : t.cancelled} />
+        <span className="font-medium text-fg">{t.couldntAnswer}</span>
       </p>
       <p className="text-fg-2">{failureWord(run.failure_kind, run.state)}</p>
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant="secondary" pending={retrying} pendingLabel="Retrying…" onClick={onRetry}>
-          Retry
+        <Button size="sm" variant="secondary" pending={retrying} pendingLabel={t.retrying} onClick={onRetry}>
+          {t.retry}
         </Button>
         <Link
           to="/p/$projectId/runs/$runId"
           params={{ projectId, runId: run.id }}
-          aria-label="Details of the run that didn't answer"
+          aria-label={t.detailsAria}
           className="inline-flex min-h-6 items-center gap-1 font-medium text-fg-2 hover:text-fg hover:underline"
         >
-          Details
+          {t.details}
           <ArrowRightIcon size={12} />
         </Link>
       </div>
@@ -289,15 +288,17 @@ function Settle({
   onDone: () => void;
   ref: Ref<{ fill: (text: string) => void }>;
 }) {
+  const t = useMessages(DEEPER);
+  const answerWords = useMessages(ANSWER_WORDS);
   const drafts = useDrafts();
   const draft = drafts?.answers[q.id];
-  const choices = answerChoices(q);
+  const choices = answerChoices(q, answerWords);
   const initialPicked = pickedChoices(q, draft);
   const [picked, setPicked] = useState<string[]>(() => (draft && initialPicked.length === 0 ? [OWN] : initialPicked));
   const [own, setOwn] = useState(() => (draft && initialPicked.length === 0 ? draft : ''));
   const ownRef = useRef<HTMLTextAreaElement>(null);
   const focusOwn = useRef(false);
-  const all = [...choices, { value: OWN, answer: 'My own words', implies: '', exclusive: true }];
+  const all = [...choices, { value: OWN, answer: t.ownWords, implies: '', exclusive: true }];
 
   // "Use this reply as the answer" fills the own words and moves there.
   useImperativeHandle(ref, () => ({
@@ -319,14 +320,14 @@ function Settle({
     <div className="flex flex-col gap-3 rounded-lg border border-accent-edge bg-accent-soft p-3">
       <ChoiceGroup
         name={`settle-${q.id}`}
-        legend="Settle the question with"
+        legend={t.settleWith}
         multiple={!!q.multiple}
         value={picked}
         onChange={(next) => setPicked(withExclusive(all, picked, next))}
         choices={all.map((c) => ({ value: c.value, label: c.answer, ...(c.implies ? { detail: c.implies } : {}) }))}
       />
       {picked.includes(OWN) ? (
-        <Field label="Your answer" count={[own.length, MAX_ANSWER]}>
+        <Field label={t.yourAnswer} count={[own.length, MAX_ANSWER]}>
           {(p) => (
             <TextArea
               {...p}
@@ -347,15 +348,13 @@ function Settle({
           disabled={!conclusion}
           onClick={() => {
             drafts?.setAnswer(q.id, conclusion);
-            announce('Drafted as your answer. You confirm it with the others in the thread.');
+            announce(t.drafted);
             onDone();
           }}
         >
-          Use as answer
+          {t.useAsAnswer}
         </Button>
-        <span className="text-sm text-fg-2">
-          {conclusion ? 'You confirm it with the others in the thread.' : 'Pick an option, or use a reply or your own words.'}
-        </span>
+        <span className="text-sm text-fg-2">{conclusion ? t.confirmWithOthers : t.pickOption}</span>
       </div>
     </div>
   );

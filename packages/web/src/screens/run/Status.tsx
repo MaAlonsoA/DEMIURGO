@@ -21,12 +21,14 @@ import {
 import type { RunView } from '../../components/runState.tsx';
 import { WorkingDot } from '../../components/status.tsx';
 import { useNow } from '../../components/Time.tsx';
+import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { failureWord } from '../../words.ts';
 import { LiveProgress } from './Engine.tsx';
 import { runEventsQuery } from './hooks.ts';
 import { PHASE_STATE_WORDS, type Phase, phasesOf } from './phases.ts';
 import { clockTime, nextStep, runDuration } from './runs.ts';
+import { STATUS } from './words.i18n.ts';
 
 const linkClass = 'inline-flex items-center gap-1 text-base font-medium text-accent-text hover:underline';
 
@@ -43,6 +45,7 @@ export const StatusCard = forwardRef<
   HTMLElement,
   { projectId: string; run: RunDetail; item: RunListItem | undefined; view: RunView }
 >(function StatusCard({ projectId, run: r, item, view }, ref) {
+  const t = useMessages(STATUS);
   const now = useNow(view.active);
   const progress = useRunProgress(view.active ? r.id : undefined);
   const tone: keyof typeof TONE_CLASS =
@@ -66,21 +69,18 @@ export const StatusCard = forwardRef<
       className={cn('flex flex-col gap-3 rounded-lg border p-4 outline-none', TONE_CLASS[tone])}
     >
       <h2 id="run-status-title" className="text-sm font-medium text-fg-2">
-        {view.active ? 'What is happening' : 'What happened'}
+        {view.active ? t.whatIsHappening : t.whatHappened}
       </h2>
 
       {view.kind === 'queued' || view.kind === 'late' ? (
         <div className="flex flex-col gap-1">
-          <p className="text-md font-medium text-fg">Waiting to start.</p>
+          <p className="text-md font-medium text-fg">{t.waitingToStart}</p>
           <p className="text-base text-fg-2">
-            Queued for{' '}
+            {t.queuedForPrefix}{' '}
             <span data-run-timer className="tabular-nums">
               {runDuration(r, now)}
             </span>
-            .{' '}
-            {view.kind === 'late'
-              ? "That is longer than usual: this page's reading, not DEMIURGO's. You can wait or cancel it."
-              : 'An engine takes it as soon as one is free.'}
+            . {view.kind === 'late' ? t.lateReason : t.queuedReason}
           </p>
         </div>
       ) : null}
@@ -89,40 +89,28 @@ export const StatusCard = forwardRef<
         <div className="flex flex-col gap-1">
           <p className="flex items-center gap-2 text-md font-medium text-fg">
             {view.kind === 'working' ? <WorkingDot /> : <HourglassIcon size={16} className="text-warning-text" />}
-            DEMIURGO is working…
+            {t.working}
           </p>
           <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-base text-fg-2">
-            {progress ? (
-              <LiveProgress progress={progress} now={now} />
-            ) : (
-              <span>{"This page hasn't heard from its engine yet."}</span>
-            )}
+            {progress ? <LiveProgress progress={progress} now={now} /> : <span>{t.noHeardYet}</span>}
             <span>
-              Running for{' '}
+              {t.runningForPrefix}{' '}
               <span data-run-timer className="tabular-nums">
                 {runDuration(r, now)}
               </span>
             </span>
           </p>
-          {view.kind === 'stalled' ? (
-            <p className="text-base text-warning-text">
-              {`${view.detail}. This is this page's reading, not DEMIURGO's: the engine may still be thinking. You can wait or cancel it.`}
-            </p>
-          ) : null}
+          {view.kind === 'stalled' ? <p className="text-base text-warning-text">{t.stalledReason(view.detail)}</p> : null}
         </div>
       ) : null}
 
       {view.kind === 'completed' ? (
         <div className="flex flex-col gap-2">
-          <p className="text-md font-medium text-fg">Finished in {runDuration(r) || '0:00'}.</p>
-          <p className="text-base text-fg-2">
-            {item?.batch_id
-              ? 'It proposed what it found: it waits for you before anything changes.'
-              : 'What it wrote is in its thread.'}
-          </p>
+          <p className="text-md font-medium text-fg">{t.finishedIn(runDuration(r) || '0:00')}</p>
+          <p className="text-base text-fg-2">{item?.batch_id ? t.proposedWaits : t.writtenInThread}</p>
           {item?.batch_id ? (
             <Link to="/p/$projectId/batches/$batchId" params={{ projectId, batchId: item.batch_id }} className={linkClass}>
-              Review
+              {t.review}
               <ArrowRightIcon size={14} />
             </Link>
           ) : item?.exploration_id ? (
@@ -131,7 +119,7 @@ export const StatusCard = forwardRef<
               params={{ projectId, explorationId: item.exploration_id }}
               className={linkClass}
             >
-              Open the thread
+              {t.openThread}
               <ArrowRightIcon size={14} />
             </Link>
           ) : null}
@@ -145,13 +133,13 @@ export const StatusCard = forwardRef<
           </p>
           {r.error ? (
             <p className="text-base text-fg-2">
-              <span className="font-medium text-fg">What it said: </span>
+              <span className="font-medium text-fg">{t.what}</span>
               <span className="break-words">{r.error}</span>
             </p>
           ) : null}
           {next ? (
             <p className="text-base text-fg-2">
-              <span className="font-medium text-fg">Next: </span>
+              <span className="font-medium text-fg">{t.next}</span>
               {next}
             </p>
           ) : null}
@@ -169,29 +157,40 @@ const PHASE_ICON = {
 
 /** Requested → Context → Model → Result, each with its time and a word for its state. */
 export function PhaseStrip({ projectId, run: r }: { projectId: string; run: RunDetail }) {
+  const t = useMessages(STATUS);
   const events = useQuery(runEventsQuery(projectId, r)).data;
   const calls = useQuery(runCallsQuery(projectId, r.id)).data;
   const contextAt = events?.find((e) => e.command === 'context_pack.build')?.at ?? null;
   const answered = (calls ?? []).some((c) => c.state === 'ok');
   const phases = phasesOf(r, { contextAt, answered });
-  const stoppedAs = r.state === 'cancelled' ? 'Cancelled here' : r.state === 'interrupted' ? 'Interrupted here' : null;
+  const stoppedAs = r.state === 'cancelled' ? t.cancelledHere : r.state === 'interrupted' ? t.interruptedHere : null;
+  const cancelled = r.state === 'cancelled';
   return (
     <section aria-labelledby="run-phases-title" className="flex flex-col gap-3">
       <h2 id="run-phases-title" className="text-base font-semibold text-fg">
-        How far it got
+        {t.howFar}
       </h2>
       <ol data-run-phases className="grid grid-cols-1 gap-2 sm:grid-cols-4 sm:gap-0">
         {phases.map((p, i) => (
-          <PhaseStep key={p.key} phase={p} last={i === phases.length - 1} stoppedAs={stoppedAs} />
+          <PhaseStep key={p.key} phase={p} last={i === phases.length - 1} stoppedAs={stoppedAs} cancelled={cancelled} />
         ))}
       </ol>
     </section>
   );
 }
 
-function PhaseStep({ phase: p, last, stoppedAs }: { phase: Phase; last: boolean; stoppedAs: string | null }) {
+function PhaseStep({
+  phase: p,
+  last,
+  stoppedAs,
+  cancelled,
+}: {
+  phase: Phase;
+  last: boolean;
+  stoppedAs: string | null;
+  cancelled: boolean;
+}) {
   const word = p.state === 'stopped' && stoppedAs ? stoppedAs : PHASE_STATE_WORDS[p.state];
-  const cancelled = stoppedAs === 'Cancelled here';
   const Icon = p.state === 'current' ? null : p.state === 'stopped' && cancelled ? MinusCircleIcon : PHASE_ICON[p.state];
   return (
     <li data-phase={p.key} data-phase-state={p.state} className="relative flex items-start gap-2.5 sm:flex-col sm:gap-2 sm:pr-3">

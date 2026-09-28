@@ -9,4 +9,8 @@ if [ ! -e packages/api/node_modules ] || [ ! -e node_modules/.modules.yaml ]; th
   flock /app/node_modules/.demiurgo-install.lock sh -c \
     '[ -e packages/api/node_modules ] || pnpm install --frozen-lockfile --offline'
 fi
+if [ -z "${DEMIURGO_SERVICE_VERSION:-}" ]; then
+  DEMIURGO_SERVICE_VERSION="$(git -c safe.directory=/app rev-parse --short HEAD 2>/dev/null || true)"
+  export DEMIURGO_SERVICE_VERSION="${DEMIURGO_SERVICE_VERSION:-unknown}"
+fi
 exec "$@"

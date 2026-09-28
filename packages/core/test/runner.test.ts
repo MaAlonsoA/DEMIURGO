@@ -304,7 +304,7 @@ describe('runner with docker', () => {
 
   describe('probe', () => {
     const FAKE = {
-      DATABASE_URL: 'postgres://demiurgo:demiurgo-dev@127.0.0.1:55432/postgres',
+      DATABASE_URL: 'postgres://demiurgo:demiurgo-dev@127.0.0.1:55433/postgres',
       ANTHROPIC_API_KEY: 'sk-ant-fake',
       OPENAI_API_KEY: 'sk-fake',
       DEMIURGO_SECRET: 'fake-secret',
@@ -331,7 +331,7 @@ describe('runner with docker', () => {
 
     it('AC-ESQ-001-11 the probe inside the runner sees no credentials or sensitive files, opens no connections, writes nothing outside /tmp and is not root', async () => {
       // Precondition: the dev Postgres does listen on the host.
-      expect(await isPortOpen('127.0.0.1', 55432)).toBe(true);
+      expect(await isPortOpen('127.0.0.1', 55433)).toBe(true);
       const { report, violations, durationMs, result } = await runProbe();
       expect(violations).toEqual([]);
       expect(report.uid).not.toBe(0);
@@ -344,7 +344,7 @@ describe('runner with docker', () => {
       expect(report.paths.every((r) => r.state !== 'visible')).toBe(true);
       expect(report.connections.length).toBeGreaterThanOrEqual(7);
       expect(report.connections.filter((c) => c.connected)).toEqual([]);
-      expect(report.connections.map((c) => c.target)).toContain('host.docker.internal:55432');
+      expect(report.connections.map((c) => c.target)).toContain('host.docker.internal:55433');
       expect(report.writeOutsideTmp.map((e) => e.target)).toEqual(expect.arrayContaining(['/', '.']));
       expect(report.writeOutsideTmp.filter((e) => e.written)).toEqual([]);
       expect(report.writeInTmp.written).toBe(true);
@@ -357,7 +357,7 @@ describe('runner with docker', () => {
       writeFileSync(file, '{}');
       const script = generateProbeScript({
         sensitivePaths: [file, join(controlDir, 'no-existe')],
-        tcpTargets: [{ host: '127.0.0.1', port: 55432 }],
+        tcpTargets: [{ host: '127.0.0.1', port: 55433 }],
         dnsNames: ['localhost'],
         writePaths: [controlDir],
         tmpPath: controlDir,
@@ -376,12 +376,12 @@ describe('runner with docker', () => {
       const report = probeReportSchema.parse(JSON.parse(output));
       expect(report.sensitiveVariables).toEqual(expect.arrayContaining(Object.keys(FAKE)));
       expect(report.visibleFiles).toEqual([file]);
-      expect(report.connections.filter((c) => c.connected).map((c) => c.target)).toEqual(['127.0.0.1:55432', 'localhost']);
+      expect(report.connections.filter((c) => c.connected).map((c) => c.target)).toEqual(['127.0.0.1:55433', 'localhost']);
       expect(report.writeOutsideTmp.every((e) => e.written)).toBe(true);
       const violations = probeViolations(report);
       expect(violations.join(' ')).toMatch(/Sensitive variables visible: .*DATABASE_URL/);
       expect(violations.join(' ')).toMatch(/Sensitive files visible/);
-      expect(violations.join(' ')).toMatch(/Open tcp connection to 127\.0\.0\.1:55432/);
+      expect(violations.join(' ')).toMatch(/Open tcp connection to 127\.0\.0\.1:55433/);
       expect(violations.join(' ')).toMatch(/Write outside \/tmp/);
     });
   });

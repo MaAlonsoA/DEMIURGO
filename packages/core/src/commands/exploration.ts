@@ -179,7 +179,11 @@ registerHandlers({
         .executeTakeFirstOrThrow();
       // The first root thread a person opens is the product's main thread: the design stages start there.
       if (ctx.actor.type === 'human' && !data.parent_id) {
-        const started = await ctx.trx.selectFrom('stages').select('id').where('project_id', '=', ctx.projectId).executeTakeFirst();
+        const started = await ctx.trx
+          .selectFrom('stages')
+          .select('id')
+          .where('project_id', '=', ctx.projectId)
+          .executeTakeFirst();
         if (!started)
           await ctx.execute({
             command: 'stage.open',
@@ -427,7 +431,7 @@ registerHandlers({
         .set({ conclusion, state_reason: null })
         .where('id', '=', e?.id ?? '')
         .execute();
-      await revealQuestions(ctx.trx, String(e?.row.exploration_id ?? ''), e?.id);
+      await revealQuestions(ctx.trx, trimmed(e?.row.exploration_id), e?.id);
       return { entityId: e?.id ?? '', before: { conclusion: e?.row.conclusion ?? null }, after: { conclusion } };
     },
   }),
@@ -440,7 +444,7 @@ registerHandlers({
         .set({ state_reason: data.reason })
         .where('id', '=', e?.id ?? '')
         .execute();
-      await revealQuestions(ctx.trx, String(e?.row.exploration_id ?? ''), e?.id);
+      await revealQuestions(ctx.trx, trimmed(e?.row.exploration_id), e?.id);
       return { entityId: e?.id ?? '', after: { reason: data.reason } };
     },
   }),
@@ -453,7 +457,7 @@ registerHandlers({
         .set({ state_reason: data.reason })
         .where('id', '=', e?.id ?? '')
         .execute();
-      await revealQuestions(ctx.trx, String(e?.row.exploration_id ?? ''), e?.id);
+      await revealQuestions(ctx.trx, trimmed(e?.row.exploration_id), e?.id);
       return { entityId: e?.id ?? '', after: { reason: data.reason } };
     },
   }),
@@ -465,7 +469,11 @@ registerHandlers({
       // pending with no conclusion: confirming it again requires a new one.
       await ctx.trx
         .updateTable('questions')
-        .set({ state_reason: data.reason ?? null, conclusion: null, shown_at: (e?.row.shown_at as Date | null | undefined) ?? new Date() })
+        .set({
+          state_reason: data.reason ?? null,
+          conclusion: null,
+          shown_at: (e?.row.shown_at as Date | null | undefined) ?? new Date(),
+        })
         .where('id', '=', e?.id ?? '')
         .execute();
       return {

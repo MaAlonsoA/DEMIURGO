@@ -73,8 +73,6 @@ export const SPAN_QUEUE = {
   exportTimeoutMillis: 10_000,
 };
 export const LOG_QUEUE = { maxQueueSize: 8192, scheduledDelayMillis: 2000, maxExportBatchSize: 512, exportTimeoutMillis: 10_000 };
-/** Texts emitted once per fingerprint and process (§6.3). */
-export const TEXT_CACHE_SIZE = 10_000;
 /** The API's logger writes one line per minute while notes keep being dropped (§14.1). */
 export const DROP_LOG_INTERVAL_MS = 60_000;
 
@@ -304,8 +302,6 @@ export type SdkObserverOptions = {
 export type SdkObserver = Observer & {
   readonly tracerProvider: BasicTracerProvider;
   readonly loggerProvider: LoggerProvider;
-  /** Forgets which texts were already emitted. */
-  resetTextCache(): void;
 };
 
 export type { ReadableLogRecord, ReadableSpan };
@@ -344,7 +340,6 @@ export function createSdkObserver(deps: SdkObserverOptions): SdkObserver {
   otelLogger = loggerProvider.getLogger(SERVICE_NAME, String(OBSERVE_SCHEMA_VERSION));
   const emitter = otelLogger;
 
-  let emittedTexts = new Set<string>();
   let closed = false;
 
   const swallow = (what: string, error: unknown): void => {
@@ -428,9 +423,6 @@ export function createSdkObserver(deps: SdkObserverOptions): SdkObserver {
   const observer: SdkObserver = {
     tracerProvider,
     loggerProvider,
-    resetTextCache: () => {
-      emittedTexts = new Set();
-    },
 
     async interaction(root, fn) {
       const id = root.interactionId && isUuid(root.interactionId) ? root.interactionId.toLowerCase() : uuidV7(clock().getTime());
@@ -498,12 +490,9 @@ export function createSdkObserver(deps: SdkObserverOptions): SdkObserver {
     text(kind: TextKind, body: string, attrs?: Attributes) {
       const hash = sha256Hex(body);
       try {
-        if (closed || emittedTexts.has(hash)) return hash;
-        emittedTexts.add(hash);
-        if (emittedTexts.size > TEXT_CACHE_SIZE) {
-          const oldest = emittedTexts.values().next().value;
-          if (oldest !== undefined) emittedTexts.delete(oldest);
-        }
+        // The evidence base deduplicates by hash. Re-emit repeated texts so an earlier failed
+        // export does not leave every later reference to the same body unresolved.
+        if (closed) return hash;
         emitter.emit({
           eventName: LOG.text,
           severityNumber: SeverityNumber.INFO,

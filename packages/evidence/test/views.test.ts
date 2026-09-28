@@ -142,7 +142,7 @@ describe('v_decision_effort', () => {
 });
 
 describe('v_engine_reliability', () => {
-  it('counts per engine the calls, failures by kind, retries, lost sessions and human verdicts', async () => {
+  it('counts per engine the calls, failures by kind, retries and human verdicts', async () => {
     const rows = await query('select * from v_engine_reliability order by provider');
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({
@@ -160,7 +160,7 @@ describe('v_engine_reliability', () => {
       retry_runs: '0',
       retried_runs: '1',
       sessions_resumed: '1',
-      sessions_lost: '1',
+      sessions_lost: '0',
       sessions_partial: '0',
       accepted_unedited: '1',
       accepted_edited: '0',
@@ -319,12 +319,12 @@ describe('saved questions', () => {
 
   it('engine-reliability shows both engines with their failures and verdicts', async () => {
     const rows = await asked('engine-reliability');
-    expect(rows.map((r) => [r.provider, r.calls, r.failed_calls, r.failures, r.lost, r.accepted, r.rejected, r.retried])).toEqual(
-      [
-        ['claude', '2', '1', { timeout: 1 }, '1', '1', '0', '1'],
-        ['codex', '1', '0', {}, '0', '0', '1', '0'],
-      ],
-    );
+    expect(
+      rows.map((r) => [r.provider, r.calls, r.failed_calls, r.failures, r.no_cache, r.accepted, r.rejected, r.retried]),
+    ).toEqual([
+      ['claude', '2', '1', { timeout: 1 }, '1', '1', '0', '1'],
+      ['codex', '1', '0', {}, '0', '0', '1', '0'],
+    ]);
   });
 
   it('engine-acceptance ranks the engines by accepted proposals per 1 000 output tokens', async () => {
@@ -340,7 +340,8 @@ describe('saved questions', () => {
     expect(rows).toHaveLength(8);
     const post1 = rows.find((r) => r.interaction_id === I.post1);
     expect(post1).toMatchObject({ thread_id: BIZ.thread1, commands: '7', runs: '1', calls: '1', input: '10000', output: '400' });
-    expect(Number(post1?.total_ms)).toBeGreaterThanOrEqual(0);
+    expect(Number(post1?.elapsed_ms)).toBeGreaterThanOrEqual(0);
+    expect(Number(post1?.response_ms)).toBeGreaterThanOrEqual(0);
     expect(Number(post1?.model_ms)).toBeGreaterThanOrEqual(0);
     expect(await asked('interaction-time', { project: 'all', since: '2000-01-01' })).toHaveLength(8);
     expect(await asked('interaction-time', { project: 'all', since: '2999-01-01' })).toHaveLength(0);
@@ -362,7 +363,9 @@ describe('saved questions', () => {
       ['codex', '1', '1'],
     ]);
     const claude = rows[0] ?? {};
-    expect(Number(claude.resumed)).toBe(Number(claude.reused) + Number(claude.partial) + Number(claude.lost));
+    expect(Number(claude.resumed)).toBe(
+      Number(claude.reused) + Number(claude.partial) + Number(claude.no_cache) + Number(claude.unknown),
+    );
     expect(await asked('cache-by-provider', { since: '2999-01-01' })).toHaveLength(0);
   });
 

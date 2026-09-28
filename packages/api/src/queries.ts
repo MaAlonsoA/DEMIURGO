@@ -10,6 +10,7 @@ import {
   TRANSLATION_SUBJECTS,
   type TranslationSubject,
   graphFingerprint,
+  parseTraceParent,
 } from '@demiurgo/domain';
 import { sql } from 'kysely';
 import {
@@ -99,7 +100,18 @@ export const QUERIES: QueryRoute[] = [
             .where('id', '=', run.context_pack_id)
             .executeTakeFirst()
         : null;
-      return { ...run, context_pack: pack ?? null };
+      const trace = await services.db
+        .selectFrom('trace_contexts')
+        .select('trace_parent')
+        .where('project_id', '=', projectId)
+        .where('entity_type', '=', 'ai_run')
+        .where('entity_id', '=', run.id)
+        .executeTakeFirst();
+      return {
+        ...run,
+        context_pack: pack ?? null,
+        trace_id: trace ? (parseTraceParent(trace.trace_parent)?.traceId ?? null) : null,
+      };
     },
   },
 ];

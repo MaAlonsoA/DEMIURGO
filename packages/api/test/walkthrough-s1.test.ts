@@ -40,6 +40,7 @@ async function waitForRuns(projectId: string, minimum: number): Promise<string[]
 
 type Inbox = {
   total: number;
+  open_questions: { id: string }[];
   batches: {
     id: string;
     type: string;
@@ -48,6 +49,24 @@ type Inbox = {
     proposals: { id: string; type: string; epistemic_status: string }[];
   }[];
 };
+
+async function confirmStageQuestions(projectId: string): Promise<void> {
+  const db = api().environment.services.db;
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const questions = await db
+      .selectFrom('questions')
+      .select('id')
+      .where('project_id', '=', projectId)
+      .where('stage_id', 'is not', null)
+      .where('state', 'in', ['pending', 'inferred'])
+      .execute();
+    if (questions.length === 0) return;
+    for (const question of questions) {
+      await command(projectId, 'question.confirm', { conclusion: 'Settled for this walkthrough.' }, question.id);
+    }
+  }
+  throw new Error('Stage questions did not settle.');
+}
 
 describe('S1 walkthrough', () => {
   it('AC-DIS-001-01 AC-DIS-001-20 intent → accepted and approved decision → FDR with 2 AC → "ready to build" and an empty inbox', async () => {
@@ -60,6 +79,12 @@ describe('S1 walkthrough', () => {
     await command(projectId, 'message.post', {
       exploration_id: exploration.entity_id,
       text: 'Quiero que cada socio pueda darse de alta con su nombre y su correo',
+      respond: false,
+    });
+    await confirmStageQuestions(projectId);
+    await command(projectId, 'run.request', {
+      action: 'exploration_chat',
+      scope: { type: 'exploration', id: exploration.entity_id },
     });
     const [runChat] = await waitForRuns(projectId, 1);
 
@@ -185,6 +210,12 @@ describe('S1 walkthrough', () => {
     await command(projectId, 'message.post', {
       exploration_id: exploration.entity_id,
       text: 'Quiero que cualquier vecino pueda darse de alta',
+      respond: false,
+    });
+    await confirmStageQuestions(projectId);
+    await command(projectId, 'run.request', {
+      action: 'exploration_chat',
+      scope: { type: 'exploration', id: exploration.entity_id },
     });
     const [run] = await waitForRuns(projectId, 1);
     const row = await environment.services.db

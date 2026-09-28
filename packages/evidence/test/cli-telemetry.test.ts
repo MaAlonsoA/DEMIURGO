@@ -10,7 +10,7 @@ import { ask } from '../src/ask.ts';
 import { ingest } from '../src/ingest/ingest.ts';
 import { parseLogs, parseTraces } from '../src/ingest/otlp.ts';
 import { IDS } from './fixtures/ids.ts';
-import { count, useEvidenceDatabase } from './support/db.ts';
+import { count, createEvidenceDatabase, useEvidenceDatabase } from './support/db.ts';
 
 type Fixture = { traces?: unknown; logs?: unknown };
 
@@ -119,6 +119,30 @@ describe('transcripts', () => {
 });
 
 describe('the CLI requests next to the official usage', () => {
+  it('keeps a call id when CLI telemetry arrives first and does not guess ownership without one', async () => {
+    const isolated = await createEvidenceDatabase();
+    try {
+      const codex = await fixture('codex');
+      const request = parseLogs(codex.logs).find((l) => l.eventName === 'codex.api_request');
+      expect(request).toBeDefined();
+      if (!request) return;
+      await ingest(isolated.pool, { logs: [request] }, 'collector');
+      const interaction = await fixture('interaction');
+      await ingest(isolated.pool, { spans: parseTraces(interaction.traces) }, 'collector');
+      const withoutId = {
+        ...request,
+        resource: Object.fromEntries(Object.entries(request.resource).filter(([key]) => key !== ATTR.callId)),
+      };
+      await ingest(isolated.pool, { logs: [withoutId] }, 'collector');
+      const { rows } = await isolated.pool.query<{ call_id: string | null }>(
+        "select call_id from cli_requests where attributes->>'event.name' = 'codex.api_request' order by call_id nulls last",
+      );
+      expect(rows).toEqual([{ call_id: IDS.call2 }, { call_id: null }]);
+    } finally {
+      await isolated.drop();
+    }
+  });
+
   it('v_cli_requests_by_call counts the requests of each call, sums their tokens and gives the delta against the call', async () => {
     const { rows } = await base().pool.query<Record<string, unknown>>(
       'select * from v_cli_requests_by_call where call_id in ($1, $2) order by started_at',
@@ -185,9 +209,9 @@ describe('the CLI requests next to the official usage', () => {
     expect(rows.map((r) => [r.call_id, r.mode, r.verdict, r.figures_source, r.tokens_cache_read, r.tokens_cache_write])).toEqual([
       [IDS.call1, 'fresh', 'none', 'telemetry', '0', '1000'],
       // Codex never reports cache writes per request: the call's own 500 stays next to the 8000 read.
-      [IDS.call2, 'resumed', 'reused', 'telemetry', '8000', '500'],
-      [CALL3, 'resumed', 'lost', 'official', null, null],
-      [CALL4, 'resumed', 'lost', 'official', null, null],
+      [IDS.call2, 'resumed', 'reused', 'mixed', '8000', '500'],
+      [CALL3, 'resumed', 'unknown', 'official', null, null],
+      [CALL4, 'resumed', 'unknown', 'official', null, null],
     ]);
     expect(rows[1]?.cache_ratio).toBeCloseTo(8000 / 9500, 3);
   });

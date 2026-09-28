@@ -119,7 +119,7 @@ describe('agent classifier over claude -p', () => {
     expect(command.args[0]).toBe('-p');
     expect(valueOf(command.args, '--output-format')).toBe('stream-json');
     expect(valueOf(command.args, '--model')).toBe('haiku');
-    expect(valueOf(command.args, '--tools')).toBe('');
+    expect(valueOf(command.args, '--tools')).toBe('WebSearch');
     const schema = JSON.parse(valueOf(command.args, '--json-schema') ?? '{}') as {
       properties: {
         responses: { minItems: number; maxItems: number; items: { anyOf: { properties: Record<string, unknown> }[] } };

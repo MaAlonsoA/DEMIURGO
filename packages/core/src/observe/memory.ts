@@ -42,7 +42,6 @@ export function createMemoryObserver(options: MemoryObserverOptions = {}): Memor
     reset: () => {
       spanExporter.reset();
       logExporter.reset();
-      base.resetTextCache();
     },
     toOtlpJson: () => ({
       traces: toJson(JsonTraceSerializer.serializeRequest(spanExporter.getFinishedSpans())),

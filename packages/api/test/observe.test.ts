@@ -84,4 +84,20 @@ describe('API: interactions', () => {
     expect((await api().person.request('GET', `/api/projects/${projectId}/explorations`)).statusCode).toBe(200);
     expect(api().environment.observer.spans()).toHaveLength(spansBefore);
   });
+
+  it('returns the creating trace id on a run so its diagnostics can open the same interaction', async () => {
+    const project = await api().person.request('POST', '/api/projects', { name: 'Run diagnostics' });
+    const projectId = project.json<{ project_id: string }>().project_id;
+    const requested = await api().person.request('POST', `/api/projects/${projectId}/commands/run.request`, {
+      data: { action: 'echo', scope: { type: 'echo' }, input: { text: 'Observed' } },
+    });
+    expect(requested.statusCode).toBe(200);
+    const { entity_id: runId, interaction_id: interactionId } = requested.json<{
+      entity_id: string;
+      interaction_id: string;
+    }>();
+    const detail = await api().person.request('GET', `/api/projects/${projectId}/runs/${runId}`);
+    expect(detail.statusCode).toBe(200);
+    expect(detail.json<{ trace_id: string | null }>().trace_id).toBe(interactionId.replaceAll('-', ''));
+  });
 });

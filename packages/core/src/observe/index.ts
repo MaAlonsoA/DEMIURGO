@@ -15,7 +15,6 @@ export {
   type ReadableSpan,
   SPAN_QUEUE,
   type SdkObserver,
-  TEXT_CACHE_SIZE,
   errorTypeOf,
   inertHandle,
   remoteSpanContext,

@@ -71,6 +71,8 @@ services:
       - web-dist:/app/packages/web/dist
       - agent-sessions:/var/lib/demiurgo/sessions
       - cli-auth:/var/lib/demiurgo/cli-auth
+      # El opencode.json del Mac mini (modelos locales de OpenCode), en la ruta por defecto de DEMIURGO.
+      - ${HOME}/.config/opencode:/home/demiurgo/.config/opencode:ro
       # El runner (packages/core/src/runner) lanza contenedores: necesita el socket del motor.
       - /var/run/docker.sock:/var/run/docker.sock
     # Grupo propietario del socket de Docker dentro de la VM de Colima.
@@ -93,6 +95,8 @@ services:
   web-build:
     <<: *app-image
     command: ["pnpm", "--filter", "@demiurgo/web", "exec", "vite", "build", "--watch"]
+    environment:
+      VITE_PHOENIX_URL: ${PHOENIX_PUBLIC_URL:-}
     volumes:
       - .:/app
       - node_modules:/app/node_modules

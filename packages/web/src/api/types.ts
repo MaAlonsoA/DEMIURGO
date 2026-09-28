@@ -456,7 +456,7 @@ export type Run = {
   delta_hash?: string | null;
 };
 
-export type RunDetail = Run & { context_pack: ContextPack | null };
+export type RunDetail = Run & { context_pack: ContextPack | null; trace_id: string | null };
 
 export type EventRow = {
   id: string;

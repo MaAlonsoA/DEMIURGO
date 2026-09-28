@@ -5,7 +5,7 @@ import {
   currentVersion,
   keyOfSection,
   previousVersion,
-  reasonsOf,
+  reasonFor,
   sectionChanges,
 } from '../../src/screens/overview/definition.ts';
 
@@ -24,7 +24,9 @@ const version = (n: number, state: string, constraints: string): DefinitionVersi
   approved_at: '2026-09-28T10:00:00Z',
   approved_by: 'human:ana',
   proposal_id: null,
+  from_thread: null,
   sources: [],
+  reasons: [],
 });
 
 const definition: ProductDefinition = {
@@ -35,6 +37,7 @@ const definition: ProductDefinition = {
     version(1, 'superseded', 'A web app.'),
   ],
   proposal: null,
+  changes: [],
 };
 
 describe('the product definition on the Product page', () => {
@@ -54,11 +57,15 @@ describe('the product definition on the Product page', () => {
     expect(sectionChanges(null, v2?.sections ?? []).every((c) => !c.changed)).toBe(true);
   });
 
-  it('reads the reason of each changed section from the change note', () => {
-    expect([...reasonsOf(definition.versions[1]?.change_note ?? null)]).toEqual([
-      ['Constraints', 'Records are kept in English.'],
-    ]);
-    expect(reasonsOf(null).size).toBe(0);
+  it('gives the reason of a changed section in the words of the person when they read in their language', () => {
+    const reasons = [
+      { section: 'Constraints', why: 'Records are kept in English.', own_words: 'Los registros van en inglés.' },
+      { section: 'Users', why: 'Guests come too.', own_words: null },
+    ];
+    expect(reasonFor(reasons, 'Constraints', 'es')).toBe('Los registros van en inglés.');
+    expect(reasonFor(reasons, 'Constraints', 'en')).toBe('Records are kept in English.');
+    expect(reasonFor(reasons, 'Users', 'es')).toBe('Guests come too.');
+    expect(reasonFor(reasons, 'Purpose', 'es')).toBeNull();
   });
 
   it('names each section by its question', () => {

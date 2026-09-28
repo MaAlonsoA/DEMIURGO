@@ -5,8 +5,10 @@
 // the decision. Once decided, the decision gives way to what happened; out of date, to why (R22,
 // R67, P3 evidence before narration).
 
+import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
+import { definitionQuery } from '../../api/queries.ts';
 import type { ProductRow } from '../../api/types.ts';
 import { ArrowRightIcon } from '../../components/icons.tsx';
 import { Markdown } from '../../components/Markdown.tsx';
@@ -31,6 +33,8 @@ import {
   proposalWhy,
   resolvedText,
 } from './proposal.ts';
+import { DEFINITION } from '../overview/words.i18n.ts';
+import { keyOfSection } from '../overview/definition.ts';
 import { PROPOSAL_VIEW } from './words.i18n.ts';
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
@@ -64,6 +68,40 @@ function Checks({ proposal: p }: { proposal: ProposalData }) {
       </div>
       <ChecksList checks={checks} />
     </section>
+  );
+}
+
+/** A change to a section of the definition: what it would say, what it says now, and the person's words it rests on. */
+function DefinitionChangeBody({ projectId, proposal: p }: { projectId: string; proposal: ProposalData }) {
+  const t = useMessages(PROPOSAL_VIEW);
+  const words = useMessages(DEFINITION);
+  const definition = useQuery(definitionQuery(projectId)).data;
+  const base = p.payload.record as { version?: number } | undefined;
+  const title = str(p.payload.section);
+  const key = keyOfSection(title);
+  const now = definition?.versions.find((v) => v.n === base?.version)?.sections.find((s) => s.title === title)?.content ?? null;
+  const evidence = Array.isArray(p.payload.evidence) ? (p.payload.evidence as { message_id: string; quote: string }[]) : [];
+  return (
+    <div className="flex flex-col gap-4" data-body="definition_change">
+      <p className="text-sm text-fg-2">{t.definitionChangeOf(key ? words.section(key) : title)}</p>
+      <Prose title={t.itWouldSay} text={str(p.payload.content)} />
+      {now ? (
+        <section className="flex flex-col gap-1" data-definition-before>
+          <h3 className="text-sm font-semibold text-fg-2">{t.nowItSays}</h3>
+          <Markdown className="text-fg-3 line-through">{now}</Markdown>
+        </section>
+      ) : null}
+      {evidence.length > 0 ? (
+        <section className="flex flex-col gap-1">
+          <h3 className="text-sm font-semibold text-fg-2">{t.inTheirWords}</h3>
+          {evidence.map((e) => (
+            <p key={`${e.message_id}:${e.quote}`} className="text-sm text-fg-2" data-trace={`message:${e.message_id}`}>
+              <q>{e.quote}</q>
+            </p>
+          ))}
+        </section>
+      ) : null}
+    </div>
   );
 }
 
@@ -115,6 +153,7 @@ export function ProposalBody({
       </div>
     );
   }
+  if (p.type === 'definition_change') return <DefinitionChangeBody projectId={projectId} proposal={p} />;
   if (p.type === 'exploration') {
     return (
       <div className="flex flex-col gap-1" data-body="exploration">

@@ -1,16 +1,19 @@
 // The product definition after Day 1 (docs/superpowers/plans/2026-09-28-definicion-del-producto.md),
 // end to end with the simulated provider. The idea answers six of the eight questions of the product
 // definition stage ([infer] makes the simulation read them in its first sentence) and leaves two
-// open; the person corrects one, answers one, leaves one open and confirms it all at once; the system
-// drafts the definition; the person approves it on the Product page, where each section says where it
-// comes from; the next thread's run reads it whole; and changing a section proposes version 2 with
-// what changed and why.
+// open; the person corrects one, answers one in Spanish, leaves one open and confirms it all at once;
+// the system drafts the definition, in English, with the person's own words beside it; the person
+// approves it on the Product page, where each section says where it comes from; the next thread's run
+// reads it whole; changing a section proposes the change with its why; and a decision in another
+// thread changes it in one step.
 
 import type { Page } from '@playwright/test';
 import { type PersonApi, expect, expectAccessible, test } from './support/fixtures.ts';
 
 const SENTENCE = 'Members sign up for club trips and organizers see who is coming.';
 const IDEA = `${SENTENCE} They pay at the door. [infer]`;
+const SPANISH = 'Los pagos dentro de la aplicación quedan fuera.';
+const OFFLINE = 'It also works offline, as an installed app.';
 
 type Run = { id: string; state: string };
 type RunDetail = {
@@ -58,7 +61,7 @@ test('the idea leaves a product definition behind: read, confirmed at once, appr
   // The person corrects one reading, answers what is left out and leaves the constraints open.
   await item(page, 'Who uses it').getByRole('button', { name: 'Correct' }).click();
   await item(page, 'Who uses it').getByLabel('Your answer: Who uses it').fill('Club members, organizers and guests.');
-  await item(page, 'What is left out').getByLabel('Your answer: What is left out').fill('Payments inside the app.');
+  await item(page, 'What is left out').getByLabel('Your answer: What is left out').fill(SPANISH);
   await item(page, 'Constraints').getByRole('button', { name: 'Leave it open' }).click();
   await expectAccessible(page, 'Day 1 answers of the product definition');
   await confirm.click();
@@ -72,6 +75,9 @@ test('the idea leaves a product definition behind: read, confirmed at once, appr
   await expect(drafted.locator('[data-definition-section="purpose"]')).toContainText(SENTENCE);
   await expect(drafted.locator('[data-definition-section="stakeholders"] [data-settled="corrected"]')).toBeVisible();
   await expect(drafted.locator('[data-definition-section="scope_out"] [data-settled="answered"]')).toBeVisible();
+  // Records are kept in English: the simulated translator marks what it put into English.
+  await expect(drafted.locator('[data-definition-section="scope_out"]')).toContainText(`[en] ${SPANISH}`);
+  await expect(drafted.locator('[data-definition-section="scope_out"] [data-definition-own-words]')).toContainText(SPANISH);
   await expect(drafted.locator('[data-definition-section="constraints"]')).toContainText('Left open: Not decided yet.');
   await expectAccessible(page, 'Product page with the drafted definition');
   await drafted.getByRole('button', { name: 'Approve the definition' }).click();
@@ -82,7 +88,9 @@ test('the idea leaves a product definition behind: read, confirmed at once, appr
   await expect(section(page, 'stakeholders')).toContainText('Club members, organizers and guests.');
   const { record } = await person.get<Definition>(`/api/projects/${projectId}/definition`);
   expect(record?.code).toMatch(/^DEF-/);
-  await expect(page.getByRole('region', { name: 'What the product is' })).toContainText(`${record?.code}, version 1`);
+  // One definition that keeps up to date: no version numbers outside its history.
+  await expect(page.getByRole('region', { name: 'What the product is' })).toContainText('Approved by you');
+  await expect(page.getByRole('region', { name: 'What the product is' })).not.toContainText('version 1');
 
   // The next thread's run reads the definition whole and depends on its version.
   const other = (await person.command(projectId, 'exploration.open', { purpose: 'Paying for trips' })).entity_id;
@@ -99,16 +107,40 @@ test('the idea leaves a product definition behind: read, confirmed at once, appr
   await page.getByLabel('Why it changes').fill('We decided it runs in the browser.');
   await page.getByRole('button', { name: 'Propose the change' }).click();
   const next = page.locator('[data-definition-proposal]');
-  await expect(next.getByRole('heading', { name: 'Version 2 is proposed' })).toBeVisible();
+  await expect(next.getByRole('heading', { name: 'A change is proposed' })).toBeVisible();
   await expect(next.locator('[data-definition-why]')).toContainText('We decided it runs in the browser.');
   await expect(next.locator('[data-definition-before]')).toContainText('Left open: Not decided yet.');
-  await next.getByRole('button', { name: 'Approve version 2' }).click();
+  await next.getByRole('button', { name: 'Approve the change' }).click();
 
   await expect(page.locator('[data-definition-version="2"]')).toBeVisible();
-  await page.getByRole('button', { name: 'Changes since v1' }).click();
+  await expect(page.getByRole('region', { name: 'What the product is' })).toContainText('Last changed, and approved by you');
+  await page.getByRole('button', { name: 'Last change' }).click();
   await expect(page.locator('[data-definition-unchanged]')).toContainText('Purpose');
   await expect(section(page, 'constraints')).toContainText('A web app, used from the browser.');
   await expect(section(page, 'constraints').locator('[data-definition-why]')).toContainText('We decided it runs in the browser.');
+  await page.getByRole('button', { name: 'Last change' }).click();
+
+  // A decision in another thread: DEMIURGO proposes the change there; the Product page lists it, and
+  // approving it updates the definition at once.
+  const where = (await person.command(projectId, 'exploration.open', { purpose: 'Using it offline' })).entity_id;
+  await person.command(projectId, 'message.post', { exploration_id: where, text: `${OFFLINE} [redefine]`, respond: true });
+  await runsSettled(person, projectId, where);
+  await page.reload();
+  const decided = page.locator('[data-definition-changes]');
+  await expect(decided.getByRole('heading', { name: 'Changes decided in threads' })).toBeVisible();
+  await expect(decided.locator('[data-definition-thread-change="constraints"]')).toContainText(OFFLINE);
+  await expect(decided.locator('[data-definition-before]')).toContainText('A web app, used from the browser.');
+  await expectAccessible(page, 'Product page with a change decided in a thread');
+  await decided.getByRole('button', { name: 'Approve the change' }).click();
+  await expect(page.locator('[data-definition-changes]')).toHaveCount(0);
+  await expect(page.locator('[data-definition-version="3"]')).toBeVisible();
+  await expect(section(page, 'constraints')).toContainText(OFFLINE);
+  await page.getByRole('button', { name: 'Last change' }).click();
+  await expect(section(page, 'constraints')).toContainText('Changed after a thread');
+  await expect(section(page, 'constraints').getByRole('link', { name: 'Open the thread' })).toHaveAttribute(
+    'href',
+    `/p/${projectId}/threads/${where}`,
+  );
   await page.getByRole('button', { name: 'History' }).click();
-  await expect(page.locator('[data-definition-history] li')).toHaveCount(2);
+  await expect(page.locator('[data-definition-history] li')).toHaveCount(3);
 });

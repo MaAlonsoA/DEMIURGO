@@ -30,6 +30,7 @@ export const PROPOSAL_KIND_WORDS: Record<string, string> = {
   review: 'Review',
   record_translation: 'English version',
   product_definition: 'Product definition',
+  definition_change: 'Change to the definition',
   imported_record: 'Imported document',
   imported_taxonomy: 'Imported taxonomy',
 };
@@ -50,7 +51,7 @@ export function proposalIconType(p: Pick<ProposalView, 'type' | 'payload'>): str
   }
   if (p.type === 'imported_taxonomy') return 'taxonomy';
   if (p.type === 'record_translation') return 'package';
-  if (p.type === 'product_definition') return 'product_definition';
+  if (p.type === 'product_definition' || p.type === 'definition_change') return 'product_definition';
   return 'idea';
 }
 
@@ -79,6 +80,7 @@ export function proposalLine(p: Pick<ProposalView, 'type' | 'payload'>): string 
   if (p.type === 'fdr') return str(p.payload.goal);
   if (p.type === 'review') return str(p.payload.reason);
   if (p.type === 'exploration') return str(p.payload.purpose);
+  if (p.type === 'definition_change') return str(p.payload.content);
   if (p.type === 'design_record' || p.type === 'record_translation' || p.type === 'product_definition')
     return payloadSections(p.payload)[0]?.content ?? '';
   return '';
@@ -88,7 +90,7 @@ export function proposalLine(p: Pick<ProposalView, 'type' | 'payload'>): string 
 export function proposalWhy(p: Pick<ProposalView, 'type' | 'payload'>): string {
   if (p.type === 'decision') return str(p.payload.context);
   if (p.type === 'fdr') return str(p.payload.goal);
-  if (p.type === 'review') return str(p.payload.reason);
+  if (p.type === 'review' || p.type === 'definition_change') return str(p.payload.reason);
   return '';
 }
 
@@ -118,6 +120,12 @@ export function acceptEffects(p: Pick<ProposalView, 'type' | 'payload'>, approve
     ];
   }
   if (p.type === 'exploration') return [`DEMIURGO opens the thread “${proposalTitle(p)}”.`];
+  if (p.type === 'definition_change') {
+    return [
+      `DEMIURGO changes “${str(p.payload.section)}” in the product definition, as it says here.`,
+      'The definition is updated at once: accepting it approves it. The version before stays in its history.',
+    ];
+  }
   if (p.type === 'product_definition' && p.payload.record) {
     const r = p.payload.record as { code?: string; version?: number } | undefined;
     const what = `the product definition's next version, after ${r?.code ?? ''} v${r?.version ?? ''}`;

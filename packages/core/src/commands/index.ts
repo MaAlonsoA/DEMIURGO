@@ -7,6 +7,7 @@ import './stages.ts';
 import './glossary.ts';
 import './records.ts';
 import './proposals.ts';
+import '../definition/english.ts';
 import '../actions/index.ts';
 import '../knowledge/index.ts';
 import '../design/import.ts';

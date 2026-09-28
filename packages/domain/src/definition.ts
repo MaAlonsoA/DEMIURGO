@@ -21,6 +21,14 @@ export const DEFINITION_SECTIONS = [
   { title: 'Constraints', key: 'constraints' },
 ] as const;
 
+export type DefinitionSectionTitle = (typeof DEFINITION_SECTIONS)[number]['title'];
+
+/** The section titles, for the schemas that name one (a change proposed from a thread). */
+export const DEFINITION_SECTION_TITLES = DEFINITION_SECTIONS.map((s) => s.title) as [
+  DefinitionSectionTitle,
+  ...DefinitionSectionTitle[],
+];
+
 export type DefinitionQuestion = {
   id: string;
   key: string;
@@ -82,6 +90,20 @@ export function definitionChangeNote(changes: readonly { section: string; why: s
   const lines = changes.map((c) => `${c.section}: ${c.why?.trim() || 'its answer changed.'}`);
   const note = `Changed: ${changes.map((c) => c.section).join(', ')}.\n\n${lines.join('\n')}`;
   return note.length > VERSION_LIMITS.changeNote ? `${note.slice(0, VERSION_LIMITS.changeNote - 1).trimEnd()}…` : note;
+}
+
+/**
+ * The reason a change note gives for each changed section, in the form `definitionChangeNote` writes
+ * it ("Changed: A, B." and then one "Section: why" line per section).
+ */
+export function changeReasons(note: string | null | undefined): { section: string; why: string }[] {
+  const reasons: { section: string; why: string }[] = [];
+  for (const line of (note ?? '').split('\n')) {
+    const m = /^([^:]+):\s*(.+)$/.exec(line.trim());
+    const section = m?.[1]?.trim();
+    if (section && m?.[2] && section !== 'Changed') reasons.push({ section, why: m[2].trim() });
+  }
+  return reasons;
 }
 
 const normalized = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase();

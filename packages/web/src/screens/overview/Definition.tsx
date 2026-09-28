@@ -1,9 +1,10 @@
 // The product definition at the top of the Product page: what the product is, what it builds first
-// and how. It reads as a document, not a dashboard: each section with, in the margin, the question it
-// comes from and how the person settled it (and the words of the idea DEMIURGO read it in). A
-// proposed definition, or its next version, waits above with what changed and why; nothing is
-// recorded until the person approves it. "Change" reopens the section's question with a reason and
-// confirms the new answer: the system then proposes the next version.
+// and how. It reads as a document, not a dashboard: one definition that keeps up to date, each section
+// with, in the margin, the question it comes from, how the person settled it, their own words and the
+// words of the idea DEMIURGO read it in. What waits for the person sits above it: a definition drafted
+// from the answers, or its change, and the changes decided in threads. Nothing is recorded until the
+// person approves it. "Change" reopens the section's question with a reason and confirms the new
+// answer: the system then proposes the change. The versions only show in the history.
 
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
@@ -11,7 +12,14 @@ import { type FormEvent, useState } from 'react';
 import { ApiError } from '../../api/client.ts';
 import { useCommand } from '../../api/commands.ts';
 import { definitionQuery } from '../../api/queries.ts';
-import type { DefinitionSource, DefinitionVersion, ProductDefinition } from '../../api/types.ts';
+import type {
+  DefinitionChange,
+  DefinitionEvidence,
+  DefinitionReason,
+  DefinitionSource,
+  DefinitionVersion,
+  ProductDefinition,
+} from '../../api/types.ts';
 import { announce } from '../../components/announce.tsx';
 import { Button, buttonClass } from '../../components/Button.tsx';
 import { Field, TextArea } from '../../components/Field.tsx';
@@ -21,6 +29,7 @@ import { Section } from '../../components/Page.tsx';
 import { DayTime } from '../../components/Time.tsx';
 import { whoName } from '../../components/Who.tsx';
 import { useMessages } from '../../i18n/define.ts';
+import { useLocale } from '../../i18n/locale.ts';
 import { useReading } from '../../i18n/reading.tsx';
 import { whoOf } from '../../words.ts';
 import {
@@ -28,13 +37,16 @@ import {
   currentVersion,
   keyOfSection,
   previousVersion,
-  reasonsOf,
+  reasonFor,
   sectionChanges,
   sourceOf,
 } from './definition.ts';
 import { DEFINITION } from './words.i18n.ts';
 
 type View = 'document' | 'changes' | 'history';
+
+/** A thread a section changed in, with the person's words there. */
+type FromThread = { explorationId: string | null; evidence: DefinitionEvidence[] };
 
 export function ProductDefinitionSection({ projectId }: { projectId: string }) {
   const t = useMessages(DEFINITION);
@@ -47,15 +59,16 @@ export function ProductDefinitionSection({ projectId }: { projectId: string }) {
   const previous = current ? previousVersion(d, current) : null;
   const toggle = (v: View) => setView((was) => (was === v ? 'document' : v));
   const approver = current?.approved_by ? whoOf(current.approved_by) : null;
+  const who = approver ? (approver.kind === 'you' ? t.you : whoName(approver)) : null;
   return (
     <Section
       id="definition"
       title={t.title}
       note={
-        current && d.record ? (
+        current && who ? (
           <>
-            {t.inForce(d.record.code, current.n)}
-            {approver ? ` · ${t.approvedBy(approver.kind === 'you' ? t.you : whoName(approver))} ` : ' '}
+            {previous ? t.changedNote(who) : t.approvedNote(who)}
+            {' · '}
             <DayTime iso={current.approved_at ?? current.created_at} />
           </>
         ) : null
@@ -65,7 +78,7 @@ export function ProductDefinitionSection({ projectId }: { projectId: string }) {
           <>
             {previous ? (
               <Button size="sm" variant="quiet" aria-pressed={view === 'changes'} onClick={() => toggle('changes')}>
-                {t.changesSince(previous.n)}
+                {t.lastChange}
               </Button>
             ) : null}
             <Button size="sm" variant="quiet" aria-pressed={view === 'history'} onClick={() => toggle('history')}>
@@ -76,6 +89,7 @@ export function ProductDefinitionSection({ projectId }: { projectId: string }) {
       }
     >
       <div data-definition className="flex flex-col gap-8">
+        {current && d.changes.length > 0 ? <ThreadChanges projectId={projectId} changes={d.changes} current={current} /> : null}
         {d.proposal ? <Proposed projectId={projectId} d={d} current={current} /> : null}
         {current ? (
           view === 'history' ? (
@@ -94,21 +108,141 @@ export function ProductDefinitionSection({ projectId }: { projectId: string }) {
   );
 }
 
-/** A definition waiting for the person: the first one, or the next version with its changes and why. */
+/** Changes to a section decided in threads, each one approved on its own. */
+function ThreadChanges({
+  projectId,
+  changes,
+  current,
+}: {
+  projectId: string;
+  changes: DefinitionChange[];
+  current: DefinitionVersion;
+}) {
+  const t = useMessages(DEFINITION);
+  return (
+    <div data-definition-changes className="flex flex-col gap-3 border-l-2 border-accent pl-5">
+      <div className="flex flex-col gap-1">
+        <h3 className="text-base font-semibold text-fg">{t.threadChangesTitle}</h3>
+        <p className="max-w-prose text-sm text-fg-2">{t.threadChangesNote}</p>
+      </div>
+      <div className="flex flex-col">
+        {changes.map((c) => (
+          <ThreadChange key={c.id} projectId={projectId} change={c} current={current} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ThreadChange({
+  projectId,
+  change,
+  current,
+}: {
+  projectId: string;
+  change: DefinitionChange;
+  current: DefinitionVersion;
+}) {
+  const t = useMessages(DEFINITION);
+  const accept = useCommand(projectId);
+  const reading = useReading(projectId, 'proposal', change.id);
+  const key = keyOfSection(change.section);
+  const before = current.sections.find((s) => s.title === change.section)?.content ?? null;
+  return (
+    <section
+      data-definition-thread-change={key ?? change.section}
+      data-trace={`proposal:${change.id}`}
+      className="grid gap-x-10 gap-y-3 border-t border-edge py-5 md:grid-cols-[minmax(0,1fr)_15rem]"
+    >
+      <div className="flex min-w-0 flex-col gap-2">
+        <h4 className="text-base font-semibold text-fg">{key ? t.section(key) : change.section}</h4>
+        {reading.mark ? <div>{reading.mark}</div> : null}
+        <Markdown size="sm" className="max-w-prose">
+          {reading.text('content', change.content)}
+        </Markdown>
+        {before !== null ? <Before text={before} /> : null}
+        {accept.error ? <ErrorNotice error={accept.error} /> : null}
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <Button
+            variant="primary"
+            size="sm"
+            pending={accept.isPending}
+            pendingLabel={t.approving}
+            onClick={() =>
+              accept.mutate(
+                { command: 'proposal.accept', entityId: change.id, data: {} },
+                { onSuccess: () => announce(t.changeApproved) },
+              )
+            }
+          >
+            {t.approveNext}
+          </Button>
+          <Link
+            to="/p/$projectId/batches/$batchId"
+            params={{ projectId, batchId: change.batch_id }}
+            className={buttonClass({ variant: 'quiet', size: 'sm' })}
+          >
+            {t.reviewIt}
+          </Link>
+        </div>
+      </div>
+      <aside className="flex flex-col gap-1.5 text-sm text-fg-2">
+        <p data-definition-why>
+          <span className="font-medium text-fg">{t.why}</span>
+          {` · ${reading.text('reason', change.reason)}`}
+        </p>
+        <ThreadNote
+          projectId={projectId}
+          from={{ explorationId: change.exploration_id, evidence: change.evidence }}
+          label={t.decidedInThread}
+        />
+      </aside>
+    </section>
+  );
+}
+
+/** Where in a thread a section was decided, with the person's words there. */
+function ThreadNote({ projectId, from, label }: { projectId: string; from: FromThread; label: string }) {
+  const t = useMessages(DEFINITION);
+  return (
+    <>
+      <p>
+        {label}
+        {from.explorationId ? (
+          <>
+            {' · '}
+            <Link
+              to="/p/$projectId/threads/$explorationId"
+              params={{ projectId, explorationId: from.explorationId }}
+              className="font-medium text-accent-text hover:underline"
+            >
+              {t.openThread}
+            </Link>
+          </>
+        ) : null}
+      </p>
+      {from.evidence.map((e) => (
+        <p key={`${e.message_id}:${e.quote}`} className="text-fg-3" data-trace={`message:${e.message_id}`}>
+          <q>{e.quote}</q>
+        </p>
+      ))}
+    </>
+  );
+}
+
+/** A definition waiting for the person: the first one, or its change with what changed and why. */
 function Proposed({ projectId, d, current }: { projectId: string; d: ProductDefinition; current: DefinitionVersion | null }) {
   const t = useMessages(DEFINITION);
   const accept = useCommand(projectId);
   const p = d.proposal;
   const reading = useReading(projectId, 'proposal', p?.id);
   if (!p) return null;
-  const next = current ? current.n + 1 : 1;
   const base = p.base && current ? current.sections : null;
   const changes = sectionChanges(base, p.sections);
-  const reasons = reasonsOf(p.change_note);
   return (
     <div data-trace={`proposal:${p.id}`} data-definition-proposal className="flex flex-col gap-3 border-l-2 border-accent pl-5">
       <div className="flex flex-col gap-1">
-        <h3 className="text-base font-semibold text-fg">{p.base ? t.proposedNextTitle(next) : t.proposedTitle}</h3>
+        <h3 className="text-base font-semibold text-fg">{p.base ? t.proposedNextTitle : t.proposedTitle}</h3>
         <p className="max-w-prose text-sm text-fg-2">{p.base ? t.proposedNextNote : t.proposedNote}</p>
         {reading.mark ? <div>{reading.mark}</div> : null}
       </div>
@@ -117,8 +251,9 @@ function Proposed({ projectId, d, current }: { projectId: string; d: ProductDefi
         changes={p.base ? changes.filter((c) => c.changed) : changes}
         folded={p.base ? changes.filter((c) => !c.changed) : []}
         text={(c) => reading.text(`sections.${p.sections.findIndex((s) => s.title === c.title)}.content`, c.content)}
-        reasons={reasons}
+        reasons={p.reasons}
         sources={p.sources}
+        fromThread={null}
         showBefore={!!p.base}
         canChange={false}
       />
@@ -131,11 +266,11 @@ function Proposed({ projectId, d, current }: { projectId: string; d: ProductDefi
           onClick={() =>
             accept.mutate(
               { command: 'proposal.accept', entityId: p.id, data: { approve: true } },
-              { onSuccess: () => announce(t.approved(next)) },
+              { onSuccess: () => announce(p.base ? t.changeApproved : t.approved) },
             )
           }
         >
-          {p.base ? t.approveNext(next) : t.approve}
+          {p.base ? t.approveNext : t.approve}
         </Button>
         <Link
           to="/p/$projectId/batches/$batchId"
@@ -149,7 +284,7 @@ function Proposed({ projectId, d, current }: { projectId: string; d: ProductDefi
   );
 }
 
-/** The version in force as a document; with `previous`, only what changed from it, and why. */
+/** The definition in force as a document; with `previous`, only what its last change changed, and why. */
 function Document({
   projectId,
   version,
@@ -163,6 +298,9 @@ function Document({
 }) {
   const reading = useReading(projectId, 'record_version', version.id);
   const changes = sectionChanges(previous?.sections ?? null, version.sections);
+  const fromThread = version.from_thread
+    ? { explorationId: version.from_thread.exploration_id, evidence: version.from_thread.evidence }
+    : null;
   return (
     <article data-trace={`record_version:${version.id}`} data-definition-version={version.n} className="flex flex-col gap-3">
       {reading.mark ? <div>{reading.mark}</div> : null}
@@ -171,8 +309,9 @@ function Document({
         changes={previous ? changes.filter((c) => c.changed) : changes}
         folded={previous ? changes.filter((c) => !c.changed) : []}
         text={(c) => reading.text(`sections.${version.sections.findIndex((s) => s.title === c.title)}.content`, c.content)}
-        reasons={previous ? reasonsOf(version.change_note) : new Map()}
+        reasons={previous ? version.reasons : []}
         sources={version.sources}
+        fromThread={previous ? fromThread : null}
         showBefore={!!previous}
         canChange={canChange && !previous}
       />
@@ -187,6 +326,7 @@ function Sections({
   text,
   reasons,
   sources,
+  fromThread,
   showBefore,
   canChange,
 }: {
@@ -194,12 +334,15 @@ function Sections({
   changes: SectionChange[];
   folded: SectionChange[];
   text: (c: SectionChange) => string;
-  reasons: Map<string, string>;
+  reasons: readonly DefinitionReason[];
   sources: DefinitionSource[];
+  /** The thread the changed sections were decided in, when they were. */
+  fromThread: FromThread | null;
   showBefore: boolean;
   canChange: boolean;
 }) {
   const t = useMessages(DEFINITION);
+  const locale = useLocale();
   const label = (title: string) => {
     const key = keyOfSection(title);
     return key ? t.section(key) : title;
@@ -219,8 +362,9 @@ function Sections({
           label={label(c.title)}
           change={c}
           content={text(c)}
-          why={reasons.get(c.title) ?? null}
+          why={reasonFor(reasons, c.title, locale)}
           source={sourceOf(sources, c.title)}
+          fromThread={c.changed ? fromThread : null}
           showBefore={showBefore}
           canChange={canChange}
         />
@@ -236,6 +380,7 @@ function DefinitionSection({
   content,
   why,
   source,
+  fromThread,
   showBefore,
   canChange,
 }: {
@@ -245,6 +390,7 @@ function DefinitionSection({
   content: string;
   why: string | null;
   source: DefinitionSource | null;
+  fromThread: FromThread | null;
   showBefore: boolean;
   canChange: boolean;
 }) {
@@ -273,7 +419,7 @@ function DefinitionSection({
             projectId={projectId}
             questionId={question.id}
             label={label}
-            initial={change.content}
+            initial={question.own_words ?? change.content}
             onDone={() => setEditing(false)}
           />
         ) : (
@@ -281,22 +427,37 @@ function DefinitionSection({
             {content}
           </Markdown>
         )}
-        {showBefore && change.before !== null ? (
-          <div className="grid max-w-prose grid-cols-[4rem_minmax(0,1fr)] gap-x-3 text-sm" data-definition-before>
-            <span className="font-medium text-fg-2">{t.before}</span>
-            <Markdown size="sm" className="text-fg-3 line-through">
-              {change.before}
-            </Markdown>
-          </div>
-        ) : null}
+        {showBefore && change.before !== null ? <Before text={change.before} /> : null}
       </div>
-      <SideNote source={source} why={why} />
+      <SideNote projectId={projectId} source={source} why={why} fromThread={fromThread} />
     </section>
   );
 }
 
+function Before({ text }: { text: string }) {
+  const t = useMessages(DEFINITION);
+  return (
+    <div className="grid max-w-prose grid-cols-[4rem_minmax(0,1fr)] gap-x-3 text-sm" data-definition-before>
+      <span className="font-medium text-fg-2">{t.before}</span>
+      <Markdown size="sm" className="text-fg-3 line-through">
+        {text}
+      </Markdown>
+    </div>
+  );
+}
+
 /** The margin note: why it changed, and where it comes from. */
-function SideNote({ source, why }: { source: DefinitionSource | null; why: string | null }) {
+function SideNote({
+  projectId,
+  source,
+  why,
+  fromThread,
+}: {
+  projectId: string;
+  source: DefinitionSource | null;
+  why: string | null;
+  fromThread: FromThread | null;
+}) {
   const t = useMessages(DEFINITION);
   const q = source?.question ?? null;
   return (
@@ -307,24 +468,36 @@ function SideNote({ source, why }: { source: DefinitionSource | null; why: strin
           {` · ${why}`}
         </p>
       ) : null}
+      {fromThread ? <ThreadNote projectId={projectId} from={fromThread} label={t.changedInThread} /> : null}
       {!q ? (
         <p>{source ? t.notAsked : null}</p>
       ) : (
         <>
-          <p data-settled={q.settled ?? ''}>
-            {q.settled ? t.settled(q.settled) : null}
-            {q.settled_at ? (
-              <>
-                {' · '}
-                <DayTime iso={q.settled_at} />
-              </>
-            ) : null}
-          </p>
-          {q.evidence.map((e) => (
-            <p key={`${e.message_id}:${e.quote}`} className="text-fg-3" data-trace={`message:${e.message_id}`}>
-              <q>{e.quote}</q>
+          {fromThread ? null : (
+            <p data-settled={q.settled ?? ''}>
+              {q.settled ? t.settled(q.settled) : null}
+              {q.settled_at ? (
+                <>
+                  {' · '}
+                  <DayTime iso={q.settled_at} />
+                </>
+              ) : null}
             </p>
-          ))}
+          )}
+          {q.own_words ? (
+            <p data-definition-own-words>
+              <span className="font-medium text-fg">{t.ownWords}</span>
+              {' · '}
+              <q>{q.own_words}</q>
+            </p>
+          ) : null}
+          {fromThread
+            ? null
+            : q.evidence.map((e) => (
+                <p key={`${e.message_id}:${e.quote}`} className="text-fg-3" data-trace={`message:${e.message_id}`}>
+                  <q>{e.quote}</q>
+                </p>
+              ))}
           <p className="text-xs text-fg-3">{`${t.from} · ${q.question}`}</p>
         </>
       )}
@@ -373,7 +546,7 @@ function ChangeForm({
   }
   return (
     <form className="flex max-w-prose flex-col gap-3" onSubmit={(e) => void submit(e)} data-definition-change>
-      <Field label={t.changeLabel(label)}>
+      <Field label={t.changeLabel(label)} hint={t.changeHint}>
         {(p) => <TextArea {...p} autoGrow rows={3} value={text} onChange={(e) => setText(e.target.value)} />}
       </Field>
       <Field label={t.whyLabel} hint={t.whyHint} error={error}>
@@ -391,30 +564,33 @@ function ChangeForm({
   );
 }
 
-/** Every version, newest first: when, what changed and who approved it. The versions are never deleted. */
+/** Every change, newest first: when, what changed and who approved it. The versions are never deleted. */
 function History({ d }: { d: ProductDefinition }) {
   const t = useMessages(DEFINITION);
   return (
-    <ol className="flex flex-col" data-definition-history>
-      {d.versions.map((v) => {
-        const approver = v.approved_by ? whoOf(v.approved_by) : null;
-        return (
-          <li
-            key={v.id}
-            data-trace={`record_version:${v.id}`}
-            className="grid grid-cols-[3rem_minmax(0,1fr)] gap-x-3 border-t border-edge py-3 text-sm first:border-t-0"
-          >
-            <span className="font-mono text-fg">{t.versionLine(v.n)}</span>
-            <span className="flex flex-col gap-0.5 text-fg-2">
-              <span className="whitespace-pre-line text-fg">{v.change_note ?? t.firstVersion}</span>
-              <span>
-                <DayTime iso={v.approved_at ?? v.created_at} />
-                {approver ? ` · ${t.approvedBy(approver.kind === 'you' ? t.you : whoName(approver))}` : ''}
+    <div className="flex flex-col gap-3">
+      {d.record ? <p className="text-sm text-fg-2">{t.historyOf(d.record.code)}</p> : null}
+      <ol className="flex flex-col" data-definition-history>
+        {d.versions.map((v) => {
+          const approver = v.approved_by ? whoOf(v.approved_by) : null;
+          return (
+            <li
+              key={v.id}
+              data-trace={`record_version:${v.id}`}
+              className="grid grid-cols-[3rem_minmax(0,1fr)] gap-x-3 border-t border-edge py-3 text-sm first:border-t-0"
+            >
+              <span className="font-mono text-fg">{t.versionLine(v.n)}</span>
+              <span className="flex flex-col gap-0.5 text-fg-2">
+                <span className="whitespace-pre-line text-fg">{v.change_note ?? t.firstVersion}</span>
+                <span>
+                  <DayTime iso={v.approved_at ?? v.created_at} />
+                  {approver ? ` · ${t.approvedBy(approver.kind === 'you' ? t.you : whoName(approver))}` : ''}
+                </span>
               </span>
-            </span>
-          </li>
-        );
-      })}
-    </ol>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }

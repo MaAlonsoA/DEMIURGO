@@ -1,8 +1,16 @@
 // Effect of accepting each proposal type. Runs with the human actor who accepts, so
 // every authority change carries its `human` event (I1).
 
-import { PAYLOADS, DomainError, type ProposalType } from '@demiurgo/domain';
+import {
+  DEFINITION_SECTIONS,
+  DomainError,
+  PAYLOADS,
+  type ProposalType,
+  type Section,
+  definitionChangeNote,
+} from '@demiurgo/domain';
 import type { CommandContext } from '../bus/types.ts';
+import { definitionStageId, proposeDefinitionIfCovered } from '../definition/compose.ts';
 import { resolveReference } from './records.ts';
 
 export type Effect = Record<string, unknown>;
@@ -156,16 +164,21 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
   },
 
   // The product definition the system composed from the stage's answers: the first version creates
-  // the record; a later one is the next version of it, with its change note.
+  // the record; a later one is the next version of it, with its change note. An answer that changed
+  // while it waited gets proposed right after, in the next version.
   async product_definition(ctx, { proposalId, payload, approve }) {
     const c = PAYLOADS.product_definition.parse(payload);
     const origin = { type: 'proposal', id: proposalId };
+    const waiting = async () =>
+      proposeDefinitionIfCovered(ctx, await definitionStageId(ctx.trx, ctx.projectId), { resolving: proposalId });
     if (!c.record) {
-      return createRecord(
+      const created = await createRecord(
         ctx,
         { type: 'product_definition', domain: 'producto', title: c.title, sections: c.sections, origin },
         approve,
       );
+      await waiting();
+      return created;
     }
     const v = await resolveReference(ctx.trx, ctx.projectId, c.record.code, c.record.version);
     if (!v) throw new DomainError('not_found', `There is no ${c.record.code}@${c.record.version}.`);
@@ -182,6 +195,7 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
     });
     const res = r.result as { versionId: string; version: number; code: string };
     if (approve) await ctx.execute({ command: 'record_version.approve', actor: ctx.actor, entityId: res.versionId, data: {} });
+    await waiting();
     return {
       type: 'record',
       code: res.code,
@@ -189,6 +203,64 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
       versionId: res.versionId,
       version: res.version,
       approved: approve,
+    };
+  },
+
+  // A change to one section of the definition, proposed in a thread. Accepting it is the person's
+  // decision on that section, in one step: its answer changes (the question reopened with the reason
+  // and confirmed with the new text) and the next version, the one in force with only this section
+  // changed, is created and approved. A definition only means something approved, so it always is.
+  // Answers confirmed meanwhile that the definition doesn't have yet are proposed after, as always.
+  async definition_change(ctx, { proposalId, payload }) {
+    const c = PAYLOADS.definition_change.parse(payload);
+    const v = await resolveReference(ctx.trx, ctx.projectId, c.record.code, c.record.version);
+    if (!v) throw new DomainError('not_found', `There is no ${c.record.code}@${c.record.version}.`);
+    const key = DEFINITION_SECTIONS.find((s) => s.title === c.section)?.key;
+    const stageId = await definitionStageId(ctx.trx, ctx.projectId);
+    const question =
+      stageId && key
+        ? await ctx.trx
+            .selectFrom('questions')
+            .select(['id', 'state'])
+            .where('stage_id', '=', stageId)
+            .where('stage_key', '=', key)
+            .executeTakeFirst()
+        : undefined;
+    if (!question)
+      throw new DomainError('conflict', `${c.section} was never asked in this project, so it can't change from a thread.`);
+    if (['confirmed', 'discarded', 'postponed'].includes(question.state)) {
+      await ctx.execute({ command: 'question.reopen', actor: ctx.actor, entityId: question.id, data: { reason: c.reason } });
+    }
+    await ctx.execute({ command: 'question.confirm', actor: ctx.actor, entityId: question.id, data: { conclusion: c.content } });
+    const base = await ctx.trx
+      .selectFrom('record_versions')
+      .select(['title', 'sections'])
+      .where('id', '=', v.versionId)
+      .executeTakeFirstOrThrow();
+    const sections = (base.sections as Section[]).map((s) =>
+      s.title === c.section ? { title: s.title, content: c.content } : s,
+    );
+    const r = await ctx.execute({
+      command: 'record_version.create',
+      actor: ctx.actor,
+      data: {
+        record_id: v.recordId,
+        title: base.title,
+        sections,
+        change_note: definitionChangeNote([{ section: c.section, why: c.reason }]),
+        origin: { type: 'proposal', id: proposalId },
+      },
+    });
+    const res = r.result as { versionId: string; version: number; code: string };
+    await ctx.execute({ command: 'record_version.approve', actor: ctx.actor, entityId: res.versionId, data: {} });
+    await proposeDefinitionIfCovered(ctx, stageId, { afterChange: true });
+    return {
+      type: 'record',
+      code: res.code,
+      recordId: v.recordId,
+      versionId: res.versionId,
+      version: res.version,
+      approved: true,
     };
   },
 

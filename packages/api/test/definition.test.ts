@@ -1,7 +1,8 @@
 // Day 1 through the API, end to end with the simulated provider: the idea is read, DEMIURGO infers
 // what it says (citing the person's words) and leaves the rest open, the person confirms in a block,
 // the system proposes the product definition, the person approves it, the next thread's run reads it
-// whole, and the dev trace walks a section back to the sentence of the idea it comes from.
+// whole, the dev trace walks a section back to the sentence of the idea it comes from, and a decision
+// in another thread changes it.
 
 import { type ProductDefinition, type Trace, waitForKnowledge, waitForRun } from '@demiurgo/core';
 import { DEFINITION_SECTIONS } from '@demiurgo/domain';
@@ -146,5 +147,49 @@ describe('the dev trace', () => {
       expect.arrayContaining(['question.raise', 'question.infer', 'question.confirm']),
     );
     expect(trace.read_by.packs.length).toBeGreaterThan(0);
+  });
+});
+
+describe('a decision in another thread changes the definition', () => {
+  const DECIDED = 'A web app, used from the browser.';
+  let other = '';
+
+  it('DEMIURGO proposes the change there, on the words of the person, and the Product page lists it', async () => {
+    other = (await command('exploration.open', { purpose: 'Where it runs' })).entity_id;
+    await ask(other, `${DECIDED} [redefine]`);
+    const d = await definition();
+    expect(d.changes).toHaveLength(1);
+    expect(d.changes[0]).toMatchObject({
+      exploration_id: other,
+      section: 'Constraints',
+      content: DECIDED,
+      base: { version: 1 },
+      evidence: [{ quote: DECIDED }],
+    });
+  });
+
+  it('accepting it is one step: version 2 is in force, its section says where it was decided', async () => {
+    const [change] = (await definition()).changes;
+    await command('proposal.accept', {}, change?.id);
+    const d = await definition();
+    expect(d.changes).toEqual([]);
+    expect(d.proposal).toBeNull();
+    expect(d.versions.map((v) => [v.n, v.state])).toEqual([
+      [2, 'approved'],
+      [1, 'superseded'],
+    ]);
+    const current = d.versions[0];
+    expect(current?.sections.find((s) => s.title === 'Constraints')?.content).toBe(DECIDED);
+    expect(current?.from_thread).toMatchObject({ proposal_id: change?.id, exploration_id: other });
+    expect(current?.reasons).toEqual([{ section: 'Constraints', why: `Decided in this thread: ${DECIDED}`, own_words: null }]);
+  });
+
+  it('the trace of version 2 reaches the message where the person decided it', async () => {
+    const version = (await definition()).versions[0]?.id ?? '';
+    const trace = (
+      await api().person.request('GET', `/api/dev/trace?project=${projectId}&type=record_version&id=${version}`)
+    ).json<Trace>();
+    expect(trace.origin.find((s) => s.type === 'proposal')?.label).toBe('definition_change proposal: Constraints');
+    expect(trace.origin.some((s) => s.type === 'message' && s.label === `${DECIDED} [redefine]`)).toBe(true);
   });
 });

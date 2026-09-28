@@ -34,7 +34,7 @@ import type { Attributes, SpanHandle } from '../observe/observer.ts';
 import type { Services } from '../services.ts';
 import '../commands/index.ts';
 import { GUARDS } from './guards.ts';
-import { HANDLERS } from './handlers.ts';
+import { HANDLERS, PREPARERS } from './handlers.ts';
 import type { Cause, CommandContext, LoadedEntity, Request, Result, Tx } from './types.ts';
 
 /** Table for each implemented entity. */
@@ -77,8 +77,10 @@ const newScope = (): Scope => ({ pending: [], okSpans: [] });
 /** Runs a command in its own transaction and, after commit, its deferred work. */
 export async function executeCommand(services: Services, request: Request): Promise<Result> {
   const scope = newScope();
+  const prepare = PREPARERS[request.command];
+  const prepared = prepare ? await prepare(services, request) : request;
   const result = await withRollbackNote(services, scope, () =>
-    services.db.transaction().execute((trx) => executeInTransaction(services, trx, request, scope)),
+    services.db.transaction().execute((trx) => executeInTransaction(services, trx, prepared, scope)),
   );
   await executePending(services, scope.pending);
   return result;

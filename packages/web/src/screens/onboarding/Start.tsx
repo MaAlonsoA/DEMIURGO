@@ -152,6 +152,8 @@ function Understood({
   const definition = (useQuery(stagesQuery(projectId)).data ?? []).find((s) => s.key === 'requirements' && s.state === 'open');
   const answersBelow = !!definition && definition.covered < definition.total;
   const questions = content.questions;
+  // The side column leaves out the definition's questions: they are answered in its block below.
+  const threadQuestions = questions.filter((q) => !definition || q.stage_id !== definition.id);
   const n = questions.length;
   const next =
     n > 0
@@ -195,7 +197,10 @@ function Understood({
         </Notice>
       </PageHeader>
       <PageBody>
-        <WithAside asideLabel={t.whatHappensNow} aside={<WhatHappensNow projectId={projectId} questions={questions} />}>
+        <WithAside
+          asideLabel={t.whatHappensNow}
+          aside={<WhatHappensNow projectId={projectId} questions={threadQuestions} answersBelow={answersBelow} />}
+        >
           <div className="flex flex-col gap-10">
             <FromYourIdea projectId={projectId} explorationId={explorationId} idea={idea} />
             <Section
@@ -231,8 +236,19 @@ function Understood({
   );
 }
 
-/** The side column: nothing is decided, and the questions DEMIURGO will ask, each in its own thread. */
-function WhatHappensNow({ projectId, questions }: { projectId: string; questions: Question[] }) {
+/**
+ * The side column: nothing is decided, and the questions DEMIURGO will ask, each in its own thread.
+ * The product definition's own questions are not repeated here: they are answered in its block.
+ */
+function WhatHappensNow({
+  projectId,
+  questions,
+  answersBelow,
+}: {
+  projectId: string;
+  questions: Question[];
+  answersBelow: boolean;
+}) {
   const t = useMessages(START);
   const n = questions.length;
   const stages = useQuery(stagesQuery(projectId)).data;
@@ -251,7 +267,9 @@ function WhatHappensNow({ projectId, questions }: { projectId: string; questions
         </p>
       </section>
       <section aria-labelledby="now-questions" className="flex flex-col gap-2.5">
-        <AsideHeading id="now-questions">{n > 0 ? t.thenIllAsk(n) : t.noQuestionsForNow}</AsideHeading>
+        <AsideHeading id="now-questions">
+          {n > 0 ? t.thenIllAsk(n) : answersBelow ? t.noOtherQuestions : t.noQuestionsForNow}
+        </AsideHeading>
         {n > 0 ? (
           <ul className="flex flex-col gap-1">
             {questions.map((q) => {

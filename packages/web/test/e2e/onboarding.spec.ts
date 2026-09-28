@@ -21,6 +21,7 @@ type Detail = {
     conclusion: string | null;
     state_reason: string | null;
     shown_at: string | null;
+    stage_key?: string | null;
   }[];
 };
 type Run = { id: string; state: string; action: string; batch_id: string | null; retry_of: string | null };
@@ -61,6 +62,12 @@ const detailOf = (person: PersonApi, projectId: string, explorationId: string) =
 const shownOpen = (detail: Detail) => detail.questions.filter((q) => q.shown_at && ['pending', 'inferred'].includes(q.state));
 
 const willAsk = (n: number) => `Then I'll ask you ${n} ${n === 1 ? 'question' : 'questions'}, one at a time`;
+
+/** What the side column says the thread will ask: the definition's own questions are in their block. */
+const asideHeading = (shown: Detail['questions']) => {
+  const n = shown.filter((q) => !q.stage_key).length;
+  return n > 0 ? willAsk(n) : 'No other questions for now';
+};
 
 /**
  * Walks the one-question screen to its end: the first `answer` questions get an answer (the first
@@ -154,7 +161,7 @@ test('AC-INT-001-01 a new product from a blank page: the idea becomes a project 
   for (const mark of await understood.locator('[data-observation] [data-status]').all()) {
     expect(['proposed', 'unknown']).toContain(await mark.getAttribute('data-status'));
   }
-  await expect(page.getByRole('heading', { name: willAsk(shown.length) })).toBeVisible();
+  await expect(page.getByRole('heading', { name: asideHeading(shown) })).toBeVisible();
   // One primary action: the questions are answered in the thread.
   await expect(page.getByRole('link', { name: 'Answer in the thread' })).toHaveAttribute(
     'href',
@@ -543,7 +550,7 @@ test('screens of the onboarding: what do you want to build, DEMIURGO reading liv
     await person.command(projectId, 'question.raise', { exploration_id: explorationId, question, impact: 'medium' });
   }
   const shown = shownOpen(await detailOf(person, projectId, explorationId));
-  await expect(page.getByRole('heading', { name: willAsk(shown.length) })).toBeVisible();
+  await expect(page.getByRole('heading', { name: asideHeading(shown) })).toBeVisible();
   await screenshot(page, 8, '04-what-i-understood');
 
   // 5 · Correct something: the person says what's wrong (not sent here).

@@ -30,6 +30,7 @@ const NOT_PROSE = new Set([
   'question_id',
   'record_id',
   'exploration_id',
+  'message_id',
   'kind',
   'state',
   'domain',

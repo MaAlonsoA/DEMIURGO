@@ -3,6 +3,7 @@
 
 import { z } from 'zod';
 import { proposedCriterion } from './agents.ts';
+import { DEFINITION_SECTION_TITLES } from './definition.ts';
 
 const text = (max: number) => z.string().trim().min(1).max(max);
 
@@ -126,9 +127,32 @@ export const productDefinitionPayload = z
   })
   .strict();
 
+/**
+ * A change to one section of the approved product definition, proposed by an agent from what the
+ * person decided in a thread, on their own words there (`evidence`, checked by the server). Accepting
+ * it changes that section's answer (its question reopened with the reason and confirmed with the new
+ * text) and approves the next version of the definition; `record` is the version it changes.
+ */
+export const definitionChangePayload = z
+  .object({
+    record: recordReference,
+    section: z.enum(DEFINITION_SECTION_TITLES),
+    content: text(3000),
+    reason: text(1000),
+    evidence: z
+      .array(z.object({ message_id: z.string().uuid(), quote: text(300) }).strict())
+      .min(1)
+      .max(3),
+  })
+  .strict();
+
 export const AGENT_PROPOSAL_TYPES = ['decision', 'exploration', 'fdr', 'design_record'] as const;
 
-/** Proposal types. `imported_record` and `imported_taxonomy` are only created by the design/ import; `record_translation` and `product_definition`, by the system. */
+/**
+ * Proposal types. `imported_record` and `imported_taxonomy` are only created by the design/ import;
+ * `record_translation` and `product_definition`, by the system; `definition_change`, by DEMIURGO's
+ * agents in a thread.
+ */
 export const PAYLOADS = {
   decision: decisionPayload,
   exploration: explorationPayload,
@@ -137,6 +161,7 @@ export const PAYLOADS = {
   review: reviewPayload,
   record_translation: recordTranslationPayload,
   product_definition: productDefinitionPayload,
+  definition_change: definitionChangePayload,
   imported_record: z.object({ document: z.record(z.string(), z.unknown()), path: z.string() }).strict(),
   imported_taxonomy: z.object({ document: z.record(z.string(), z.unknown()), path: z.string() }).strict(),
 } as const;

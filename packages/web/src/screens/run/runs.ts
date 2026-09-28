@@ -158,6 +158,7 @@ const NOUNS: Record<string, [string, string]> = {
   adr: ['tech decision', 'tech decisions'],
   exploration: ['thread', 'threads'],
   review: ['review', 'reviews'],
+  definition_change: ['change to the definition', 'changes to the definition'],
 };
 
 /** What a batch holds, in words: "1 decision", "2 features and 1 thread". */

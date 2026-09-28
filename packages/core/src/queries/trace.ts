@@ -158,12 +158,18 @@ class Walker {
         return;
       }
       case 'proposal': {
-        const payload = row.payload as { sources?: { section: string; question_id: string | null }[]; title?: string };
+        const payload = row.payload as {
+          sources?: { section: string; question_id: string | null }[];
+          title?: string;
+          section?: string;
+          evidence?: { message_id: string; quote: string }[];
+        };
+        const title = payload.title ?? payload.section;
         if (
           !this.add(depth, {
             type,
             id,
-            label: `${str(row.type)} proposal${payload.title ? `: ${short(payload.title, 80)}` : ''}`,
+            label: `${str(row.type)} proposal${title ? `: ${short(title, 80)}` : ''}`,
             actor: str(row.resolved_by ?? ''),
             at: iso(row.created_at),
             detail: str(row.state),
@@ -173,6 +179,8 @@ class Walker {
         await this.walk('batch', str(row.batch_id), depth + 1);
         // The product definition: each section comes from one question of the stage.
         for (const s of payload.sources ?? []) if (s.question_id) await this.walk('question', s.question_id, depth + 1);
+        // A change proposed in a thread rests on the person's words there.
+        for (const ev of payload.evidence ?? []) await this.walk('message', ev.message_id, depth + 1);
         return;
       }
       case 'batch': {

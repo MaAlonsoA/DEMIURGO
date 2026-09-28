@@ -13,6 +13,7 @@ import { type FragmentSource, ManifestBuilder, recordKnowledge } from '../contex
 import type { Tx } from '../db/connection.ts';
 import { registerApplier } from './appliers.ts';
 import { revealQuestions } from '../commands/exploration.ts';
+import { definitionChangeProposal } from '../definition/compose.ts';
 
 const BUILDER = 'exploration_chat@2';
 const BUDGET = { messages: 12_000, decisions: 4_000, sources: 6_000, knowledge: 4_000 };
@@ -393,18 +394,30 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
   }
   // After DEMIURGO's reply, the reserve shows the next questions while the thread has room.
   await revealQuestions(trx, scope.id);
-  if (output.proposals.length > 0) {
+  // A change to the definition rests, like an inference, on the person's words in this thread, and on
+  // the version in force: without either, it is dropped.
+  const proposals: { type: string; payload: unknown; dependencies?: unknown[] }[] = [];
+  for (const p of output.proposals) {
+    if (p.type !== 'definition_change') {
+      const { type, ...payload } = p;
+      proposals.push({ type, payload });
+      continue;
+    }
+    const change = await definitionChangeProposal(trx, run.project_id, p, said);
+    if (change) proposals.push(change);
+  }
+  if (proposals.length > 0) {
     await execute({
       ...base,
       command: 'batch.submit',
       actor,
       data: {
-        summary: `Proposals from the exploration conversation (${output.proposals.length}).`,
+        summary: `Proposals from the exploration conversation (${proposals.length}).`,
         batch_type: 'agent',
         resolution: 'item',
         run_id: run.id,
         context_pack_id: run.context_pack_id ?? undefined,
-        proposals: output.proposals.map(({ type, ...payload }) => ({ type, payload })),
+        proposals,
       },
     });
   }

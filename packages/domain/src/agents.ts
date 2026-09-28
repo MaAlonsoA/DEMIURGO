@@ -3,6 +3,7 @@
 // at all (I7).
 
 import { z } from 'zod';
+import { DEFINITION_SECTION_TITLES } from './definition.ts';
 
 export const AGENT_ACTIONS = ['echo', 'exploration_chat', 'design_proposal'] as const;
 export type AgentAction = (typeof AGENT_ACTIONS)[number];
@@ -266,6 +267,20 @@ export const explorationChatOutput = z
                 .min(1)
                 .max(8),
               criteria: z.array(proposedCriterion).min(1).max(12),
+            })
+            .strict(),
+          // A section of the approved product definition changes because the person decided so here.
+          z
+            .object({
+              type: z.literal('definition_change'),
+              section: z.enum(DEFINITION_SECTION_TITLES),
+              content: recordText(3000).describe('The whole section as it should read after the change, in English.'),
+              reason: recordText(1000),
+              quotes: z
+                .array(text(300))
+                .min(1)
+                .max(3)
+                .describe("The person's exact words in this thread the change rests on, copied verbatim in their language."),
             })
             .strict(),
         ]),

@@ -409,6 +409,10 @@ export const PROPOSAL_VIEW = messages(
     englishVersionOf: 'English version of',
     englishVersionNote:
       'Records are kept in English. This is the same content, translated by DEMIURGO: accepting it makes it a new version of the record, with every check carried over.',
+    definitionChangeOf: (section: string) => `A change to “${section}” in the product definition, decided in a thread.`,
+    itWouldSay: 'It would say',
+    nowItSays: 'Now it says',
+    inTheirWords: 'In the words of the person',
     proposes: 'proposes',
     openReview: 'Open a review',
     keepAsIs: 'Keep it as it is',
@@ -438,6 +442,10 @@ export const PROPOSAL_VIEW = messages(
     englishVersionOf: 'Versión en inglés de',
     englishVersionNote:
       'Los registros se guardan en inglés. Es el mismo contenido, traducido por DEMIURGO: al aceptarlo pasa a ser una versión nueva del registro, con todas sus comprobaciones.',
+    definitionChangeOf: (section: string) => `Un cambio en «${section}» de la definición del producto, decidido en un hilo.`,
+    itWouldSay: 'Diría',
+    nowItSays: 'Ahora dice',
+    inTheirWords: 'En palabras de la persona',
     proposes: 'propone',
     openReview: 'Abrir una revisión',
     keepAsIs: 'Mantenerlo como está',

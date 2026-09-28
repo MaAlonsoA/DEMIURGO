@@ -96,8 +96,15 @@ export type DefinitionSource = {
     settled_at: string | null;
     inferred: string | null;
     evidence: { message_id: string; quote: string }[];
+    /** The answer as the person wrote it, when DEMIURGO put it into English. */
+    own_words: string | null;
   } | null;
 };
+
+/** Why a section changed, and the person's own words for it when they wrote it in another language. */
+export type DefinitionReason = { section: string; why: string; own_words: string | null };
+
+export type DefinitionEvidence = { message_id: string; quote: string };
 
 export type DefinitionVersion = {
   id: string;
@@ -111,10 +118,29 @@ export type DefinitionVersion = {
   approved_at: string | null;
   approved_by: string | null;
   proposal_id: string | null;
+  /** When a change decided in a thread made it: the proposal, its thread and the person's words there. */
+  from_thread: { proposal_id: string; exploration_id: string | null; evidence: DefinitionEvidence[] } | null;
   sources: DefinitionSource[];
+  reasons: DefinitionReason[];
 };
 
-/** GET …/definition: the product definition's versions (newest first) and the one proposed, if any. */
+/** A change to one section proposed in a thread, waiting for the person. */
+export type DefinitionChange = {
+  id: string;
+  batch_id: string;
+  created_at: string;
+  exploration_id: string | null;
+  base: { code: string; version: number };
+  section: string;
+  content: string;
+  reason: string;
+  evidence: DefinitionEvidence[];
+};
+
+/**
+ * GET …/definition: the product definition's versions (newest first), the one proposed, if any, and
+ * the changes proposed in threads.
+ */
 export type ProductDefinition = {
   record: { id: string; code: string } | null;
   versions: DefinitionVersion[];
@@ -127,7 +153,9 @@ export type ProductDefinition = {
     sections: Section[];
     change_note: string | null;
     sources: DefinitionSource[];
+    reasons: DefinitionReason[];
   } | null;
+  changes: DefinitionChange[];
 };
 
 export type ProductRow = {

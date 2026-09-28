@@ -22,6 +22,8 @@ import { AGENT_TOKEN_PREFIX, secretFingerprint, newSecret } from '../secrets.ts'
 
 const text = (max: number) => z.string().trim().min(1).max(max);
 const uuid = z.string().uuid();
+/** The person's answer as they wrote it, when the server put it into English (definition/english.ts). */
+const ownWords = z.string().trim().max(3000).optional();
 
 const ORIGINS = {
   exploration: 'explorations',
@@ -453,7 +455,7 @@ registerHandlers({
   }),
 
   'question.confirm': handler({
-    data: z.object({ conclusion: z.string().trim().max(3000).optional() }).strict(),
+    data: z.object({ conclusion: z.string().trim().max(3000).optional(), own_words: ownWords }).strict(),
     async apply(ctx, data, e) {
       const conclusion = data.conclusion || trimmed(e?.row.conclusion);
       await ctx.trx
@@ -464,7 +466,11 @@ registerHandlers({
       await revealQuestions(ctx.trx, trimmed(e?.row.exploration_id), e?.id);
       // The last answer of the product definition stage proposes the definition (or its next version).
       await proposeDefinitionIfCovered(ctx, e?.row.stage_id as string | null);
-      return { entityId: e?.id ?? '', before: { conclusion: e?.row.conclusion ?? null }, after: { conclusion } };
+      return {
+        entityId: e?.id ?? '',
+        before: { conclusion: e?.row.conclusion ?? null },
+        after: { conclusion, ...(data.own_words ? { own_words: data.own_words } : {}) },
+      };
     },
   }),
 
@@ -482,7 +488,7 @@ registerHandlers({
   }),
 
   'question.discard': handler({
-    data: z.object({ reason: z.string().max(1000).default('') }).strict(),
+    data: z.object({ reason: z.string().max(1000).default(''), own_words: ownWords }).strict(),
     async apply(ctx, data, e) {
       await ctx.trx
         .updateTable('questions')
@@ -491,12 +497,12 @@ registerHandlers({
         .execute();
       await revealQuestions(ctx.trx, trimmed(e?.row.exploration_id), e?.id);
       await proposeDefinitionIfCovered(ctx, e?.row.stage_id as string | null);
-      return { entityId: e?.id ?? '', after: { reason: data.reason } };
+      return { entityId: e?.id ?? '', after: { reason: data.reason, ...(data.own_words ? { own_words: data.own_words } : {}) } };
     },
   }),
 
   'question.reopen': handler({
-    data: z.object({ reason: z.string().trim().max(1000).optional() }).strict(),
+    data: z.object({ reason: z.string().trim().max(1000).optional(), own_words: ownWords }).strict(),
     async apply(ctx, data, e) {
       // The history (prior conclusion and reasons) stays in the event log; the question goes back to
       // pending with no conclusion: confirming it again requires a new one.
@@ -512,7 +518,7 @@ registerHandlers({
       return {
         entityId: e?.id ?? '',
         before: { conclusion: e?.row.conclusion ?? null, reason: e?.row.state_reason ?? null },
-        after: { reason: data.reason ?? null },
+        after: { reason: data.reason ?? null, ...(data.own_words ? { own_words: data.own_words } : {}) },
       };
     },
   }),

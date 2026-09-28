@@ -94,6 +94,7 @@ export function proposalTitle(p: { type: string; payload: Record<string, unknown
     return `Review ${r?.code ?? 'a record'}${r?.version ? ` v${r.version}` : ''}`;
   }
   if (p.type === 'exploration') return str(p.payload.purpose);
+  if (p.type === 'definition_change') return `Product definition: ${str(p.payload.section)}`;
   const doc = p.payload.document as { title?: unknown } | undefined;
   return str(p.payload.title) || str(doc?.title);
 }
@@ -107,6 +108,7 @@ export const PROPOSAL_TYPE_WORDS: Record<string, string> = {
   review: 'Review',
   record_translation: 'English version',
   product_definition: 'Product definition',
+  definition_change: 'Change to the definition',
   imported_record: 'Document',
   imported_taxonomy: 'Taxonomy',
 };

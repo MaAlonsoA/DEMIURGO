@@ -59,6 +59,19 @@ const SIMULATED_OPTIONS = [
 /** In a test idea, asks the simulated onboarding to infer every pending question but the last two. */
 export const INFER_MARKER = '[infer]';
 
+/** In a test message, asks the simulated explorer to change the definition's constraints to its first sentence. */
+export const REDEFINE_MARKER = '[redefine]';
+
+/** The first sentence of a text, at most 200 characters. */
+function firstSentence(text: string): string {
+  return (
+    text
+      .trim()
+      .split(/(?<=[.!?])\s/)[0]
+      ?.slice(0, 200) ?? ''
+  );
+}
+
 export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
   echo(p) {
     const text = txt(obj(obj(p.context.content).input).text);
@@ -96,7 +109,21 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
       inferences: [],
       proposals: [],
     };
-    if (wantsToDecide) {
+    const definition = obj(c.product_definition);
+    if (text.includes(REDEFINE_MARKER) && definition.code) {
+      // A decision in this thread that changes the approved definition: its constraints now say the
+      // message's first sentence, quoted as the person wrote it.
+      const sentence = firstSentence(text.replace(REDEFINE_MARKER, ''));
+      if (sentence) {
+        (output.proposals as unknown[]).push({
+          type: 'definition_change',
+          section: 'Constraints',
+          content: sentence,
+          reason: `Decided in this thread: ${sentence}`,
+          quotes: [sentence],
+        });
+      }
+    } else if (wantsToDecide) {
       (output.proposals as unknown[]).push({
         type: 'decision',
         title: truncate(text, 120),
@@ -116,12 +143,7 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
     } else if (text.includes(INFER_MARKER)) {
       // Deterministic Day 1 for the tests: the idea answers every pending question but the last two,
       // each inferred from its first sentence (the quote), so the person confirms them and answers two.
-      const sentence =
-        text
-          .replace(INFER_MARKER, '')
-          .trim()
-          .split(/(?<=[.!?])\s/)[0]
-          ?.slice(0, 200) ?? '';
+      const sentence = firstSentence(text.replace(INFER_MARKER, ''));
       for (const q of pending.slice(0, -2)) {
         if (typeof q.id !== 'string' || !sentence) continue;
         (output.inferences as unknown[]).push({

@@ -164,3 +164,29 @@ Tomadas por defecto en este plan; reversibles:
 - Un cambio produce una versión con su nota (qué y por qué), y la anterior sigue entera.
 - Con dev tools, la traza de una sección llega hasta la frase de la idea y hasta los packs que la leyeron.
 - `pnpm gate:all` en verde. Los e2e de onboarding, producto y definición en verde.
+
+## Fase 4: pendientes de la primera entrega
+
+Lo que quedó abierto al cerrar las fases 1–3, y cómo se resuelve.
+
+- [ ] **4.1 Una sola definición que se actualiza.** La vista principal no habla de números de versión:
+  - dice cuándo cambió por última vez y quién la aprobó;
+  - lo propuesto es «Un cambio propuesto» y se aprueba con «Aprobar el cambio»;
+  - los números quedan solo en la historia.
+- [ ] **4.2 En inglés, con tus palabras al lado.**
+  - Los registros van en inglés. Una respuesta escrita en otro idioma a una pregunta de la etapa de definición se traduce al inglés al confirmarla, antes de la transacción: en el bus, con el agente traductor. Afecta a la conclusión de `question.confirm` y al motivo de `question.reopen` y `question.discard`.
+  - El texto original queda en el evento como `own_words`, y el margen de la sección lo enseña.
+  - Si no hay modelo para traducir, el comando falla con el motivo y nada se guarda a medias.
+  - El compositor sigue sin IA y siempre compone en inglés.
+- [ ] **4.3 Cambios que nacen en otros hilos.**
+  - `exploration_chat` puede proponer `definition_change`: la sección entera como debe quedar (en inglés), el porqué y las citas literales de la persona en ese hilo.
+  - El aplicador la descarta si no hay definición aprobada, si ninguna cita aparece en lo que escribió la persona o si la sección no tiene pregunta. Depende de la versión vigente: si la definición cambia antes, la propuesta queda obsoleta.
+  - Aceptarla es un solo paso: reabre la pregunta con el porqué, la confirma con el texto nuevo y crea y aprueba la versión siguiente, cuyo origen es la propuesta.
+  - Las respuestas confirmadas que aún esperan se proponen después, como siempre.
+  - La página de Producto enseña los cambios propuestos en hilos, con su hilo, y el lote los enseña con antes y después.
+  - El simulado propone uno con el marcador `[redefine]`.
+- [ ] **4.4 Día 1 sin repetición:** la columna «Qué pasa ahora» deja fuera las preguntas que ya están en el bloque de la definición.
+- [ ] **4.5 Evaluación con modelo real** del agente de onboarding. Se hace sobre una base efímera y una API aparte, nunca la 8100:
+  - seis ideas variadas, en español e inglés;
+  - por cada una se mide qué infiere y con qué citas, cuántas se descartan, qué pregunta y si escribe en inglés;
+  - se ajustan los prompts con lo que salga y se repite una vez.

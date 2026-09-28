@@ -7,10 +7,12 @@ import {
   DEFINITION_SECTIONS,
   type DefinitionQuestion,
   NOT_ASKED,
+  changeReasons,
   composeDefinition,
   definitionChangeNote,
   definitionChanges,
 } from '../src/definition.ts';
+import { PAYLOADS } from '../src/proposals.ts';
 import { RECORD_TEMPLATES, templateGaps } from '../src/records.ts';
 import { stageDefinition } from '../src/stages.ts';
 
@@ -74,5 +76,34 @@ describe('the product definition', () => {
       'Changed: Constraints.\n\nConstraints: Records are kept in English.',
     );
     expect(definitionChangeNote([{ section: 'Users', why: null }])).toBe('Changed: Users.\n\nUsers: its answer changed.');
+  });
+});
+
+describe('the reasons of a change note', () => {
+  it('reads each changed section and why, as the note writes them', () => {
+    const note = definitionChangeNote([
+      { section: 'Constraints', why: 'We decided it runs in the browser.' },
+      { section: 'Users', why: null },
+    ]);
+    expect(changeReasons(note)).toEqual([
+      { section: 'Constraints', why: 'We decided it runs in the browser.' },
+      { section: 'Users', why: 'its answer changed.' },
+    ]);
+    expect(changeReasons(null)).toEqual([]);
+  });
+});
+
+describe('a change proposed in a thread', () => {
+  it('names a section of the definition and rests on at least one quote of the person', () => {
+    const base = {
+      record: { code: 'DEF-PRO-001', version: 1 },
+      section: 'Constraints',
+      content: 'A web app.',
+      reason: 'Decided in the thread.',
+    };
+    const evidence = [{ message_id: '01a0e9f8-8c0f-7c9d-9646-2f0c7b018a53', quote: 'a web app' }];
+    expect(PAYLOADS.definition_change.safeParse({ ...base, evidence }).success).toBe(true);
+    expect(PAYLOADS.definition_change.safeParse({ ...base, evidence: [] }).success).toBe(false);
+    expect(PAYLOADS.definition_change.safeParse({ ...base, section: 'Pricing', evidence }).success).toBe(false);
   });
 });

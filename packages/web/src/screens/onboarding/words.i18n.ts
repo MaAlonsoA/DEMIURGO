@@ -372,6 +372,7 @@ export const START = messages(
     nothingBuiltYet: 'Nothing is built. Each feature will get its own details and checks.',
     thenIllAsk: (n: number) => `Then I'll ask you ${n} ${n === 1 ? 'question' : 'questions'}, one at a time`,
     noQuestionsForNow: 'No questions for now',
+    noOtherQuestions: 'No other questions for now',
     mandatory: 'mandatory',
     smallerThings: "Smaller things I'll decide on my own and mark as assumed, so you can check them later.",
     whatsWrong: "What's wrong?",
@@ -414,6 +415,7 @@ export const START = messages(
     nothingBuiltYet: 'Nada está construido. Cada funcionalidad tendrá sus propios detalles y comprobaciones.',
     thenIllAsk: (n: number) => `Luego te haré ${n} ${n === 1 ? 'pregunta' : 'preguntas'}, una a una`,
     noQuestionsForNow: 'Sin preguntas por ahora',
+    noOtherQuestions: 'Ninguna otra pregunta por ahora',
     mandatory: 'obligatoria',
     smallerThings: 'Las cosas más pequeñas las decidiré yo y las marcaré como supuestas, para que las revises más tarde.',
     whatsWrong: '¿Qué está mal?',
@@ -467,7 +469,7 @@ export const PARTS = messages(
 export const CONFIRM = messages(
   {
     title: 'Your product definition, from your idea',
-    note: 'Each answer becomes a line of your product definition. Correct what is wrong, answer what your idea does not say, and confirm it all at once.',
+    note: 'Each answer becomes a line of your product definition. Correct what is wrong, answer what your idea does not say, and confirm it all at once. Write in your own language: the definition is kept in English, and you read it in yours.',
     readInIdea: 'Read in your idea',
     notInIdea: 'Your idea does not say it',
     correct: 'Correct',
@@ -485,7 +487,7 @@ export const CONFIRM = messages(
   },
   {
     title: 'La definición de tu producto, desde tu idea',
-    note: 'Cada respuesta será una línea de la definición de tu producto. Corrige lo que no esté bien, responde lo que tu idea no dice y confírmalo todo a la vez.',
+    note: 'Cada respuesta será una línea de la definición de tu producto. Corrige lo que no esté bien, responde lo que tu idea no dice y confírmalo todo a la vez. Escribe en tu idioma: la definición se guarda en inglés y tú la lees en el tuyo.',
     readInIdea: 'Leído en tu idea',
     notInIdea: 'Tu idea no lo dice',
     correct: 'Corregir',

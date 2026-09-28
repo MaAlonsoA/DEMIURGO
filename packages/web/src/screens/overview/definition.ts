@@ -2,7 +2,7 @@
 // changed from the one before and why, and how each section was settled. The server gives the
 // versions and their sources (GET …/definition); this only arranges them.
 
-import type { DefinitionSource, DefinitionVersion, ProductDefinition, Section } from '../../api/types.ts';
+import type { DefinitionReason, DefinitionSource, DefinitionVersion, ProductDefinition, Section } from '../../api/types.ts';
 
 /** The stage keys of the definition's sections, in order: the words of each one are keyed by them. */
 export const DEFINITION_KEYS = [
@@ -60,16 +60,13 @@ export function sectionChanges(before: readonly Section[] | null, after: readonl
 }
 
 /**
- * The reason a change note gives for each section. The system writes it as "Changed: A, B." and
- * then one "Section: why" line per changed section.
+ * Why a section changed, as the person reads it: in their own words when they wrote it in another
+ * language and read DEMIURGO in theirs, else as recorded (in English).
  */
-export function reasonsOf(changeNote: string | null): Map<string, string> {
-  const reasons = new Map<string, string>();
-  for (const line of (changeNote ?? '').split('\n')) {
-    const m = /^([^:]+):\s*(.+)$/.exec(line.trim());
-    if (m?.[1] && m[2] && m[1] !== 'Changed') reasons.set(m[1].trim(), m[2].trim());
-  }
-  return reasons;
+export function reasonFor(reasons: readonly DefinitionReason[], title: string, locale: string): string | null {
+  const r = reasons.find((x) => x.section === title);
+  if (!r) return null;
+  return locale !== 'en' && r.own_words ? r.own_words : r.why;
 }
 
 /** The source of a section, by its title. */

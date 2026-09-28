@@ -195,12 +195,7 @@ Común a todo: organización Zero Trust `asterion-os`, correo `ma_lonso94@hotmai
 
 ### Mac de empresa
 
-No instalar WARP ni Termius si la política de la empresa no lo permite (WARP toma la VPN del sistema y suele chocar con el cliente corporativo). Solo navegador, sin dejar nada instalado:
-
-1. `https://ssh.asterion-os.com` → login de Cloudflare Access con el correo y el código → usuario `marcos` → terminal en el navegador, sin clave.
-2. `https://code.asterion-os.com` → VS Code con terminal sobre el mini.
-3. `https://claude.ai/code` → la sesión del mini para el control remoto.
-4. Si la empresa permite instalar: igual que en el Mac personal.
+Descartado por la persona (28-09, 13:40): Netskope corta todo el tráfico y no se puede instalar nada. El homelab se usa solo desde el Windows 11, el iPhone y el Mac personal. No hay nada que configurar ni que probar para ese equipo.
 
 ## Fase D · Datos — preparado lo que no toca datos
 

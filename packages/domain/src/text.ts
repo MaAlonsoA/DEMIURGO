@@ -84,3 +84,38 @@ export function overlap(a: string, b: string): number {
 export function delimitedJson(value: unknown, indent = 2): string {
   return (JSON.stringify(value, null, indent) ?? 'null').replaceAll('<', '\\u003c').replaceAll('>', '\\u003e');
 }
+
+// Language of a record's text (spec: records are always in English). A heuristic over function
+// words that belong to only one of the two languages, plus Spanish-only characters. It only
+// warns: short or technical texts may come out as null.
+
+const ONLY_SPANISH = new Set(
+  SPANISH_STOP_WORDS.split(' ').filter((w) => !ENGLISH_STOP_WORDS.split(' ').includes(w) && w.length > 1),
+);
+const ONLY_ENGLISH = new Set(
+  ENGLISH_STOP_WORDS.split(' ').filter((w) => !SPANISH_STOP_WORDS.split(' ').includes(w) && w.length > 1),
+);
+
+export type TextLanguage = 'en' | 'es';
+
+/** 'en' or 'es' when the text clearly leans to one of them; null when it's too short or mixed. */
+export function detectLanguage(text: string): TextLanguage | null {
+  const words = text.toLowerCase().match(/\p{L}+/gu) ?? [];
+  let es = /[ñ¿¡]/.test(text) ? 2 : 0;
+  let en = 0;
+  for (const w of words) {
+    const plain = withoutAccents(w);
+    if (ONLY_SPANISH.has(plain)) es += 1;
+    else if (ONLY_ENGLISH.has(plain)) en += 1;
+    if (plain !== w) es += 0.5;
+  }
+  if (es + en < 2) return null;
+  if (es >= 2 * en && es >= 2) return 'es';
+  if (en >= 2 * es && en >= 2) return 'en';
+  return null;
+}
+
+/** Whether a record's text may stay as it is: false only when it's clearly not in English. */
+export function looksEnglish(text: string): boolean {
+  return detectLanguage(text) !== 'es';
+}

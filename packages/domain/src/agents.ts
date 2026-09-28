@@ -171,33 +171,38 @@ export interface Provider {
 
 const text = (max: number) => z.string().trim().min(1).max(max);
 
+/** A text that becomes part of the project's record: always in English (only `reply` follows the person). */
+const recordText = (max: number) => text(max).describe('In English.');
+
 export const echoOutput = z.object({ reply: text(2000) }).strict();
 
 export const proposedCriterion = z
   .object({
-    title: text(160),
-    statement: text(1500),
+    title: recordText(160),
+    statement: recordText(1500),
     verification: z.enum(['automatic', 'manual']),
-    check: text(600),
+    check: recordText(600),
   })
   .strict();
 
 /** A predefined answer to a question and what choosing it implies for the design. */
 // `exclusive`: in a multiple-choice question, choosing it clears the others (e.g. "None for now").
-export const questionOption = z.object({ answer: text(300), implies: text(300), exclusive: z.boolean() }).strict();
+export const questionOption = z.object({ answer: recordText(300), implies: recordText(300), exclusive: z.boolean() }).strict();
 
 export const explorationChatOutput = z
   .object({
     reply: text(6000),
     // The thread's purpose rewritten as a summary of what it has designed so far; null keeps it.
-    purpose: text(1000).nullable(),
-    observations: z.array(z.object({ type: z.enum(['claim', 'hypothesis', 'unknown']), text: text(1000) }).strict()).max(10),
+    purpose: recordText(1000).nullable(),
+    observations: z
+      .array(z.object({ type: z.enum(['claim', 'hypothesis', 'unknown']), text: recordText(1000) }).strict())
+      .max(10),
     questions: z
       .array(
         z
           .object({
-            question: text(500),
-            reason: text(500),
+            question: recordText(500),
+            reason: recordText(500),
             impact: z.enum(['high', 'medium', 'low']),
             // Whether the person may pick several options (e.g. what is out of scope).
             multiple: z.boolean(),
@@ -216,14 +221,14 @@ export const explorationChatOutput = z
             question_id: z.string().uuid(),
             options: z.array(questionOption).max(4),
             multiple: z.boolean(),
-            question: text(500).nullable(),
-            reason: text(500).nullable(),
+            question: recordText(500).nullable(),
+            reason: recordText(500).nullable(),
           })
           .strict(),
       )
       .max(8),
     inferences: z
-      .array(z.object({ question_id: z.string().uuid(), conclusion: text(1500), reasoning: text(1500) }).strict())
+      .array(z.object({ question_id: z.string().uuid(), conclusion: recordText(1500), reasoning: recordText(1500) }).strict())
       .max(12),
     proposals: z
       .array(
@@ -231,20 +236,20 @@ export const explorationChatOutput = z
           z
             .object({
               type: z.literal('decision'),
-              title: text(160),
-              context: text(3000),
-              decision: text(3000),
-              consequences: text(3000),
+              title: recordText(160),
+              context: recordText(3000),
+              decision: recordText(3000),
+              consequences: recordText(3000),
             })
             .strict(),
-          z.object({ type: z.literal('exploration'), purpose: text(500) }).strict(),
+          z.object({ type: z.literal('exploration'), purpose: recordText(500) }).strict(),
           z
             .object({
               type: z.literal('design_record'),
               record_type: z.enum(['fdr', 'requirement', 'quality_requirement', 'threat_model', 'production_readiness', 'adr']),
-              title: text(160),
+              title: recordText(160),
               sections: z
-                .array(z.object({ title: text(120), content: text(6000) }).strict())
+                .array(z.object({ title: recordText(120), content: recordText(6000) }).strict())
                 .min(1)
                 .max(8),
               criteria: z.array(proposedCriterion).min(1).max(12),
@@ -260,11 +265,11 @@ export const designProposalOutput = z
   .object({
     fdr: z
       .object({
-        title: text(160),
-        goal: text(3000),
-        scope: text(3000),
-        out_of_scope: text(3000),
-        behavior: text(6000),
+        title: recordText(160),
+        goal: recordText(3000),
+        scope: recordText(3000),
+        out_of_scope: recordText(3000),
+        behavior: recordText(6000),
         criteria: z.array(proposedCriterion).min(1).max(12),
       })
       .strict(),

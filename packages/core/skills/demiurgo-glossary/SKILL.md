@@ -9,3 +9,20 @@ description: DEMIURGO's vocabulary, so every agent uses the words the same way.
 - **AC** (acceptance criterion): an observable statement that says when the feature is done.
 - **Proposal**: anything an agent suggests. It has no effect until the person accepts it.
 - **Authority**: what the person approved. Agents never create authority; they only propose.
+
+When the person writes in Spanish, record these words with their fixed English term:
+
+| Spanish | English |
+|---|---|
+| hilo, exploración | thread, exploration |
+| pregunta, pendiente, inferida, confirmada, aplazada, descartada | question, pending, inferred, confirmed, postponed, discarded |
+| decisión, contexto, consecuencias | decision, context, consequences |
+| criterio de aceptación | acceptance criterion |
+| alcance, fuera de alcance, comportamiento, objetivo | scope, out of scope, behavior, goal |
+| propuesta, lote, paquete | proposal, batch, package |
+| autoridad, aceptar, rechazar | authority, accept, reject |
+| conocimiento, fuente | knowledge, source |
+| requisito, requisito de calidad, modelo de amenazas | requirement, quality requirement, threat model |
+| listo para construir | ready to build |
+
+The project's own glossary, when the context carries one (`glossary`), takes precedence over this table.

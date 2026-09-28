@@ -1,0 +1,512 @@
+{
+  "scenario": "F15-2",
+  "scenarioHash": "5b4b51a3bbf563881ef39d33beaf12f6aae4cef750008a809378421b92b0aa67",
+  "source": "ai_review",
+  "reviewer": "ai:claude-opus-5-5",
+  "status": "corrected",
+  "fullGraphReviewed": true,
+  "blindJudgment": null,
+  "reviewedAt": "2026-09-28T17:24:36Z",
+  "categories": {
+    "area": "release"
+  },
+  "pairs": [
+    {
+      "task": "change",
+      "ref": "DEC-F15-010@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Pebble publishing documents approved policies in a versioned staff handbook."
+      ],
+      "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F15-010@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Pebble publishing documents approved policies in a versioned staff handbook."
+      ],
+      "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F15-009@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Pebble publishing maintains an on-call contact list for service outages."
+      ],
+      "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F15-009@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Pebble publishing maintains an on-call contact list for service outages."
+      ],
+      "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F15-008@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Pebble publishing account deletion requires a second administrator confirmation."
+      ],
+      "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F15-008@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Pebble publishing account deletion requires a second administrator confirmation."
+      ],
+      "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F15-007@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Pebble publishing console sessions expire after 30 minutes of inactivity."
+      ],
+      "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F15-007@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Pebble publishing console sessions expire after 30 minutes of inactivity."
+      ],
+      "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F15-006@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Pebble publishing administrators can export the account directory as UTF-8 CSV."
+      ],
+      "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F15-006@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Pebble publishing administrators can export the account directory as UTF-8 CSV."
+      ],
+      "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F15-005@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Pebble publishing navigation must be usable with a keyboard and a screen reader."
+      ],
+      "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F15-005@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Pebble publishing navigation must be usable with a keyboard and a screen reader."
+      ],
+      "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F15-004@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Pebble publishing staff support is available Monday to Friday, 09:00 to 17:00."
+      ],
+      "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F15-004@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Pebble publishing staff support is available Monday to Friday, 09:00 to 17:00."
+      ],
+      "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F15-003@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Administrative actions in Pebble publishing retain an immutable audit entry for one year."
+      ],
+      "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F15-003@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Administrative actions in Pebble publishing retain an immutable audit entry for one year."
+      ],
+      "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F15-002@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Only Pebble publishing administrators can invite staff to the management console."
+      ],
+      "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F15-002@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Only Pebble publishing administrators can invite staff to the management console."
+      ],
+      "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F15-001@1",
+      "ambiguous": true,
+      "labels": {
+        "A": [
+          "invalidate",
+          "update"
+        ],
+        "relation": [
+          "related"
+        ],
+        "compatibility": [
+          "direct_conflict"
+        ],
+        "action": [
+          "replace",
+          "revise"
+        ]
+      },
+      "effects": [
+        "conflict",
+        "review"
+      ],
+      "evidence": [
+        "Publication now requires approval from one editor.",
+        "This decision applies to the next release in the same scope.",
+        "Publication requires approval from two editors."
+      ],
+      "explanation": "The approved change sets one editor where the node requires two, in the same scope, so they directly conflict; it is unclear whether 'applies to the next release' replaces the rule from then on or only carves out that release, and since the node has authority and is not listed in supersedes, a person must review it."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F15-001@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "conflicts"
+        ],
+        "relation": [
+          "related"
+        ],
+        "compatibility": [
+          "direct_conflict"
+        ]
+      },
+      "effects": [
+        "conflict"
+      ],
+      "evidence": [
+        "A single editor should be sufficient to approve publication.",
+        "Publication requires approval from two editors."
+      ],
+      "explanation": "The idea claims one editor suffices to approve publication in the same scope where the approved rule requires two editors; these are mutually exclusive claims."
+    }
+  ],
+  "method": "Blind AI review from the card only (independent Claude session); proposals, scenarios.json and model answers not consulted."
+}

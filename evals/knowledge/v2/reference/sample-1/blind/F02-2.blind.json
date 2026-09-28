@@ -1,0 +1,511 @@
+{
+  "scenario": "F02-2",
+  "scenarioHash": "a66cc583e37265ae4121f489572dcd98e371f0ac078644e21aba036430909b25",
+  "source": "ai_review",
+  "reviewer": "ai:claude-opus-5-5",
+  "status": "corrected",
+  "fullGraphReviewed": true,
+  "blindJudgment": null,
+  "reviewedAt": "2026-09-28T17:24:33.028Z",
+  "categories": {
+    "area": "loans"
+  },
+  "pairs": [
+    {
+      "task": "change",
+      "ref": "DEC-F02-010@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Cedar lending documents approved policies in a versioned staff handbook."
+      ],
+      "explanation": "The node concerns a different operational subject than the approved change; it remains fully valid and no link is needed."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F02-010@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Cedar lending documents approved policies in a versioned staff handbook."
+      ],
+      "explanation": "The idea has no substantive connection to this operational node."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F02-009@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Cedar lending maintains an on-call contact list for service outages."
+      ],
+      "explanation": "The node concerns a different operational subject than the approved change; it remains fully valid and no link is needed."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F02-009@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Cedar lending maintains an on-call contact list for service outages."
+      ],
+      "explanation": "The idea has no substantive connection to this operational node."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F02-008@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Cedar lending account deletion requires a second administrator confirmation."
+      ],
+      "explanation": "The node concerns a different operational subject than the approved change; it remains fully valid and no link is needed."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F02-008@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Cedar lending account deletion requires a second administrator confirmation."
+      ],
+      "explanation": "The idea has no substantive connection to this operational node."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F02-007@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Cedar lending console sessions expire after 30 minutes of inactivity."
+      ],
+      "explanation": "The node concerns a different operational subject than the approved change; it remains fully valid and no link is needed."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F02-007@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Cedar lending console sessions expire after 30 minutes of inactivity."
+      ],
+      "explanation": "The idea has no substantive connection to this operational node."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F02-006@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Cedar lending administrators can export the account directory as UTF-8 CSV."
+      ],
+      "explanation": "The node concerns a different operational subject than the approved change; it remains fully valid and no link is needed."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F02-006@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Cedar lending administrators can export the account directory as UTF-8 CSV."
+      ],
+      "explanation": "The idea has no substantive connection to this operational node."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F02-005@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Cedar lending navigation must be usable with a keyboard and a screen reader."
+      ],
+      "explanation": "The node concerns a different operational subject than the approved change; it remains fully valid and no link is needed."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F02-005@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Cedar lending navigation must be usable with a keyboard and a screen reader."
+      ],
+      "explanation": "The idea has no substantive connection to this operational node."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F02-004@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Cedar lending staff support is available Monday to Friday, 09:00 to 17:00."
+      ],
+      "explanation": "The node concerns a different operational subject than the approved change; it remains fully valid and no link is needed."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F02-004@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Cedar lending staff support is available Monday to Friday, 09:00 to 17:00."
+      ],
+      "explanation": "The idea has no substantive connection to this operational node."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F02-003@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Administrative actions in Cedar lending retain an immutable audit entry for one year."
+      ],
+      "explanation": "The node concerns a different operational subject than the approved change; it remains fully valid and no link is needed."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F02-003@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Administrative actions in Cedar lending retain an immutable audit entry for one year."
+      ],
+      "explanation": "The idea has no substantive connection to this operational node."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F02-002@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Only Cedar lending administrators can invite staff to the management console."
+      ],
+      "explanation": "The node concerns a different operational subject than the approved change; it remains fully valid and no link is needed."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F02-002@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Only Cedar lending administrators can invite staff to the management console."
+      ],
+      "explanation": "The idea has no substantive connection to this operational node."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F02-001@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "invalidate"
+        ],
+        "relation": [
+          "related"
+        ],
+        "compatibility": [
+          "direct_conflict"
+        ],
+        "action": [
+          "replace"
+        ]
+      },
+      "effects": [
+        "conflict",
+        "review"
+      ],
+      "evidence": [
+        "every standard equipment loan lasts exactly 7 days, replacing the 14-day term",
+        "A standard equipment loan lasts exactly 14 days."
+      ],
+      "explanation": "The approved change explicitly replaces the 14-day term with 7 days for the same loan type, making the node entirely obsolete. The card does not list it in supersedes and the node has authority, so the replacement must go through human review rather than automatic invalidation."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F02-001@1",
+      "ambiguous": true,
+      "labels": {
+        "A": [
+          "duplicates",
+          "relates"
+        ],
+        "relation": [
+          "equivalent",
+          "related"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "duplicate"
+      ],
+      "evidence": [
+        "Keep the standard equipment loan term at exactly 14 days from today.",
+        "A standard equipment loan lasts exactly 14 days."
+      ],
+      "explanation": "Judged against the initial graph, the idea restates the existing 14-day term; the added \"from today\" and \"consider the next release\" add little substance, so duplicates is most likely but relates is defensible."
+    }
+  ],
+  "method": "Blind AI review from the card only (independent Claude session); proposals, scenarios.json and model answers not consulted."
+}

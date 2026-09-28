@@ -1,0 +1,508 @@
+{
+  "scenario": "F06-1",
+  "scenarioHash": "c96b77e92c70e64adae350f323400f4d06987cbfc07e5cb89bfcd381de66b347",
+  "source": "ai_review",
+  "reviewer": "ai:claude-opus-5-5",
+  "status": "corrected",
+  "fullGraphReviewed": true,
+  "blindJudgment": null,
+  "reviewedAt": "2026-09-28T17:24:29Z",
+  "categories": {
+    "area": "access"
+  },
+  "pairs": [
+    {
+      "task": "change",
+      "ref": "DEC-F06-001@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "equivalent"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Sharing locker access codes between members remains prohibited.",
+        "Members must not share their locker access codes with other members."
+      ],
+      "explanation": "The approved change restates the existing prohibition with the same meaning and scope (\"remains prohibited\"), so the node stays as is."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F06-001@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "conflicts"
+        ],
+        "relation": [
+          "related"
+        ],
+        "compatibility": [
+          "direct_conflict"
+        ]
+      },
+      "effects": [
+        "conflict"
+      ],
+      "evidence": [
+        "Allow members to share locker access codes with other members.",
+        "Members must not share their locker access codes with other members."
+      ],
+      "explanation": "The idea allows exactly what the confirmed decision forbids, for the same actors and scope, so the claims are mutually exclusive."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F06-002@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Only Northwind lockers administrators can invite staff to the management console."
+      ],
+      "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F06-002@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Only Northwind lockers administrators can invite staff to the management console."
+      ],
+      "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F06-003@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Administrative actions in Northwind lockers retain an immutable audit entry for one year."
+      ],
+      "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F06-003@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Administrative actions in Northwind lockers retain an immutable audit entry for one year."
+      ],
+      "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F06-004@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Northwind lockers staff support is available Monday to Friday, 09:00 to 17:00."
+      ],
+      "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F06-004@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Northwind lockers staff support is available Monday to Friday, 09:00 to 17:00."
+      ],
+      "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F06-005@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Northwind lockers navigation must be usable with a keyboard and a screen reader."
+      ],
+      "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F06-005@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Northwind lockers navigation must be usable with a keyboard and a screen reader."
+      ],
+      "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F06-006@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Northwind lockers administrators can export the account directory as UTF-8 CSV."
+      ],
+      "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F06-006@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Northwind lockers administrators can export the account directory as UTF-8 CSV."
+      ],
+      "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F06-007@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Northwind lockers console sessions expire after 30 minutes of inactivity."
+      ],
+      "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F06-007@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Northwind lockers console sessions expire after 30 minutes of inactivity."
+      ],
+      "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F06-008@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Northwind lockers account deletion requires a second administrator confirmation."
+      ],
+      "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F06-008@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Northwind lockers account deletion requires a second administrator confirmation."
+      ],
+      "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F06-009@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Northwind lockers maintains an on-call contact list for service outages."
+      ],
+      "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F06-009@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Northwind lockers maintains an on-call contact list for service outages."
+      ],
+      "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F06-010@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Northwind lockers documents approved policies in a versioned staff handbook."
+      ],
+      "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F06-010@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Northwind lockers documents approved policies in a versioned staff handbook."
+      ],
+      "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+    }
+  ],
+  "method": "Blind AI review from the card only (independent Claude session); proposals, scenarios.json and model answers not consulted."
+}

@@ -46,6 +46,7 @@ const { positionals, values } = parseArgs({
     scenario: { type: 'string' },
     judgment: { type: 'string' },
     'allow-network': { type: 'boolean', default: false },
+    provisional: { type: 'boolean', default: false },
   },
 });
 const command = positionals[0];
@@ -272,7 +273,10 @@ async function main(): Promise<void> {
   }
   if (command === 'replay' || command === 'report') {
     const saved = (await json(required(values.input, 'input'))) as RunTrace;
-    const result = command === 'replay' ? replayRun(scenarios, annotations, saved) : reportRun(scenarios, annotations, saved);
+    const result =
+      command === 'replay'
+        ? replayRun(scenarios, annotations, saved)
+        : reportRun(scenarios, annotations, saved, { provisional: values.provisional });
     await save(required(values.output, 'output'), result);
     if (result.status !== 'complete') process.exitCode = 1;
     return;

@@ -1,0 +1,513 @@
+{
+  "scenario": "F16-1",
+  "scenarioHash": "2b33af07968cb771a0aba3e7f4f9fdd2fa7791699421b4e619045129653f8c2e",
+  "source": "ai_review",
+  "reviewer": "ai:claude-opus-5-5",
+  "status": "corrected",
+  "fullGraphReviewed": true,
+  "blindJudgment": null,
+  "reviewedAt": "2026-09-28T17:24:35.085Z",
+  "categories": {
+    "area": "alerts"
+  },
+  "pairs": [
+    {
+      "task": "change",
+      "ref": "DEC-F16-001@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "equivalent"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Every critical incident pages the on-call responder immediately."
+      ],
+      "explanation": "The approved change is a word-for-word restatement of this node, so the node stays complete and applicable with nothing to modify."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F16-001@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "duplicates"
+        ],
+        "relation": [
+          "equivalent"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "duplicate"
+      ],
+      "evidence": [
+        "Immediately page the on-call responder for every critical incident.",
+        "Every critical incident pages the on-call responder immediately."
+      ],
+      "explanation": "The idea rephrases the same requirement in the same scope (immediate paging of the on-call responder for critical incidents) without adding anything."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F16-002@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Only Kestrel incidents administrators can invite staff to the management console."
+      ],
+      "explanation": "The node concerns a different operational subject than critical-incident paging; nothing to change or relate."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F16-002@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Only Kestrel incidents administrators can invite staff to the management console."
+      ],
+      "explanation": "The idea about paging on critical incidents has no substantive connection to this operational rule."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F16-003@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Administrative actions in Kestrel incidents retain an immutable audit entry for one year."
+      ],
+      "explanation": "The node concerns a different operational subject than critical-incident paging; nothing to change or relate."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F16-003@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Administrative actions in Kestrel incidents retain an immutable audit entry for one year."
+      ],
+      "explanation": "The idea about paging on critical incidents has no substantive connection to this operational rule."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F16-004@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Kestrel incidents staff support is available Monday to Friday, 09:00 to 17:00."
+      ],
+      "explanation": "The node concerns a different operational subject than critical-incident paging; nothing to change or relate."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F16-004@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Kestrel incidents staff support is available Monday to Friday, 09:00 to 17:00."
+      ],
+      "explanation": "The idea about paging on critical incidents has no substantive connection to this operational rule."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F16-005@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Kestrel incidents navigation must be usable with a keyboard and a screen reader."
+      ],
+      "explanation": "The node concerns a different operational subject than critical-incident paging; nothing to change or relate."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F16-005@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Kestrel incidents navigation must be usable with a keyboard and a screen reader."
+      ],
+      "explanation": "The idea about paging on critical incidents has no substantive connection to this operational rule."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F16-006@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Kestrel incidents administrators can export the account directory as UTF-8 CSV."
+      ],
+      "explanation": "The node concerns a different operational subject than critical-incident paging; nothing to change or relate."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F16-006@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Kestrel incidents administrators can export the account directory as UTF-8 CSV."
+      ],
+      "explanation": "The idea about paging on critical incidents has no substantive connection to this operational rule."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F16-007@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Kestrel incidents console sessions expire after 30 minutes of inactivity."
+      ],
+      "explanation": "The node concerns a different operational subject than critical-incident paging; nothing to change or relate."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F16-007@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Kestrel incidents console sessions expire after 30 minutes of inactivity."
+      ],
+      "explanation": "The idea about paging on critical incidents has no substantive connection to this operational rule."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F16-008@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Kestrel incidents account deletion requires a second administrator confirmation."
+      ],
+      "explanation": "The node concerns a different operational subject than critical-incident paging; nothing to change or relate."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F16-008@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Kestrel incidents account deletion requires a second administrator confirmation."
+      ],
+      "explanation": "The idea about paging on critical incidents has no substantive connection to this operational rule."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F16-009@1",
+      "ambiguous": true,
+      "labels": {
+        "A": [
+          "keep",
+          "relate"
+        ],
+        "relation": [
+          "unrelated",
+          "related"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "pages the on-call responder",
+        "Kestrel incidents maintains an on-call contact list for service outages."
+      ],
+      "explanation": "Both mention on-call staff, but the node concerns a contact list for service outages while the change concerns paging for critical incidents; a link is defensible but not required, and no modification is needed."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F16-009@1",
+      "ambiguous": true,
+      "labels": {
+        "A": [
+          "none",
+          "relates"
+        ],
+        "relation": [
+          "unrelated",
+          "related"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "page the on-call responder",
+        "Kestrel incidents maintains an on-call contact list for service outages."
+      ],
+      "explanation": "The idea and node share the on-call topic but differ in subject (paging on critical incidents vs. an outage contact list); a weak compatible link is defensible at most."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F16-010@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Kestrel incidents documents approved policies in a versioned staff handbook."
+      ],
+      "explanation": "The node concerns a different operational subject than critical-incident paging; nothing to change or relate."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F16-010@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Kestrel incidents documents approved policies in a versioned staff handbook."
+      ],
+      "explanation": "The idea about paging on critical incidents has no substantive connection to this operational rule."
+    }
+  ],
+  "method": "Blind AI review from the card only (independent Claude session); proposals, scenarios.json and model answers not consulted."
+}

@@ -1,0 +1,508 @@
+{
+  "scenario": "F13-1",
+  "scenarioHash": "61932004ce51e47c03fd9a5ba201e8b7a99e568bdfb5e4ea3b61746963bc7b51",
+  "source": "ai_review",
+  "reviewer": "ai:claude-opus-5-5",
+  "status": "corrected",
+  "fullGraphReviewed": true,
+  "blindJudgment": null,
+  "reviewedAt": "2026-09-28T17:24:36Z",
+  "categories": {
+    "area": "allergens"
+  },
+  "pairs": [
+    {
+      "task": "change",
+      "ref": "DEC-F13-001@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "relate"
+        ],
+        "relation": [
+          "related"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "relation"
+      ],
+      "evidence": [
+        "The approved project policy now requires ingredient testing monthly.",
+        "this external source is advisory, not an approved project policy"
+      ],
+      "explanation": "The node only records advisory supplier guidance (annual testing), which remains a true description of that source; the approved monthly policy is stricter and does not contradict it, so a related link is recorded without modifying the source."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F13-001@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "relates"
+        ],
+        "relation": [
+          "related"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "relation"
+      ],
+      "evidence": [
+        "Discuss monthly ingredient testing as a stricter alternative to annual testing.",
+        "Supplier guidance suggests testing ingredients annually"
+      ],
+      "explanation": "The idea explicitly discusses a stricter alternative to the annual testing the advisory source suggests; it is a substantive connection, and since the source is advisory rather than a binding rule there is no mutually exclusive claim."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F13-002@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Only Juniper kitchens administrators can invite staff to the management console."
+      ],
+      "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F13-002@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Only Juniper kitchens administrators can invite staff to the management console."
+      ],
+      "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F13-003@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Administrative actions in Juniper kitchens retain an immutable audit entry for one year."
+      ],
+      "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F13-003@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Administrative actions in Juniper kitchens retain an immutable audit entry for one year."
+      ],
+      "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F13-004@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Juniper kitchens staff support is available Monday to Friday, 09:00 to 17:00."
+      ],
+      "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F13-004@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Juniper kitchens staff support is available Monday to Friday, 09:00 to 17:00."
+      ],
+      "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F13-005@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Juniper kitchens navigation must be usable with a keyboard and a screen reader."
+      ],
+      "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F13-005@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Juniper kitchens navigation must be usable with a keyboard and a screen reader."
+      ],
+      "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F13-006@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Juniper kitchens administrators can export the account directory as UTF-8 CSV."
+      ],
+      "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F13-006@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Juniper kitchens administrators can export the account directory as UTF-8 CSV."
+      ],
+      "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F13-007@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Juniper kitchens console sessions expire after 30 minutes of inactivity."
+      ],
+      "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F13-007@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Juniper kitchens console sessions expire after 30 minutes of inactivity."
+      ],
+      "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F13-008@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Juniper kitchens account deletion requires a second administrator confirmation."
+      ],
+      "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F13-008@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Juniper kitchens account deletion requires a second administrator confirmation."
+      ],
+      "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F13-009@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Juniper kitchens maintains an on-call contact list for service outages."
+      ],
+      "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F13-009@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Juniper kitchens maintains an on-call contact list for service outages."
+      ],
+      "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F13-010@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Juniper kitchens documents approved policies in a versioned staff handbook."
+      ],
+      "explanation": "The node covers an unrelated operational topic; the approved change does not touch it."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F13-010@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Juniper kitchens documents approved policies in a versioned staff handbook."
+      ],
+      "explanation": "The idea concerns a different subject; no substantive connection with this operational node."
+    }
+  ],
+  "method": "Blind AI review from the card only (independent Claude session); proposals, scenarios.json and model answers not consulted."
+}

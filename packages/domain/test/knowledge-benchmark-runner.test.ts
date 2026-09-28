@@ -284,6 +284,35 @@ describe('Blind runs and AI-reviewed references', () => {
     ).rejects.toThrow('missing reference adjudication');
   });
 
+  it('scores only the scenarios with a reference, and uses unreviewed proposals only provisionally', async () => {
+    const scenarios = pilotScenarios();
+    const sample = scenarios.filter((s) => s.partition === 'dev').slice(0, 2);
+    const run = await executeBenchmark(
+      scenarios,
+      [],
+      config({ categories: 'predicted', retrieval: 'isolated', scenarios: sample.map((s) => s.id) }),
+      { primary: classifier((items) => items.map((i) => response(i, i.options[0]!))) },
+      provenance,
+    );
+    const review: Annotation = {
+      ...proposedAnnotations([sample[0]!])[0]!,
+      source: 'ai_review',
+      reviewer: 'ai:claude-opus-5-5',
+      method: 'Test fixture.',
+      status: 'corrected',
+      fullGraphReviewed: true,
+      blindJudgment: 'fixture-only',
+      reviewedAt: '2026-09-28T00:00:00Z',
+    };
+    const report = reportRun(scenarios, [review], run);
+    expect(report.reference.scoredScenarios).toEqual([sample[0]!.id]);
+    expect(report.reference.unscoredScenarios).toEqual([sample[1]!.id]);
+    expect(new Set(report.pairs.map((p) => p.scenario))).toEqual(new Set([sample[0]!.id]));
+    const proposals = proposedAnnotations(sample);
+    expect(() => reportRun(scenarios, proposals, run)).toThrow('reference');
+    expect(reportRun(scenarios, proposals, run, { provisional: true }).reference.provisional).toBe(true);
+  });
+
   it('accepts an AI review only with ai: provenance and a method, never as a human record', () => {
     const { scenario, annotation } = fixture();
     const review: Annotation = {

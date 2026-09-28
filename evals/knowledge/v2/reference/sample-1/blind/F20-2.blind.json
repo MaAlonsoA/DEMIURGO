@@ -1,0 +1,510 @@
+{
+  "scenario": "F20-2",
+  "scenarioHash": "fe1293064cc3f72bb99450ecfbe5fa9755d87a2e09cbe69eb8e67ff29cb9a845",
+  "source": "ai_review",
+  "reviewer": "ai:claude-opus-5-5",
+  "status": "corrected",
+  "fullGraphReviewed": true,
+  "blindJudgment": null,
+  "reviewedAt": "2026-09-28T17:24:35.085Z",
+  "categories": {
+    "area": "shifts"
+  },
+  "pairs": [
+    {
+      "task": "change",
+      "ref": "DEC-F20-010@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Briar schedules documents approved policies in a versioned staff handbook."
+      ],
+      "explanation": "The node concerns a different operational subject than shift start times; nothing to change or relate."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F20-010@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Briar schedules documents approved policies in a versioned staff handbook."
+      ],
+      "explanation": "The idea about summer shift start times has no substantive connection to this operational rule."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F20-009@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Briar schedules maintains an on-call contact list for service outages."
+      ],
+      "explanation": "The node concerns a different operational subject than shift start times; nothing to change or relate."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F20-009@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Briar schedules maintains an on-call contact list for service outages."
+      ],
+      "explanation": "The idea about summer shift start times has no substantive connection to this operational rule."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F20-008@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Briar schedules account deletion requires a second administrator confirmation."
+      ],
+      "explanation": "The node concerns a different operational subject than shift start times; nothing to change or relate."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F20-008@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Briar schedules account deletion requires a second administrator confirmation."
+      ],
+      "explanation": "The idea about summer shift start times has no substantive connection to this operational rule."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F20-007@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Briar schedules console sessions expire after 30 minutes of inactivity."
+      ],
+      "explanation": "The node concerns a different operational subject than shift start times; nothing to change or relate."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F20-007@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Briar schedules console sessions expire after 30 minutes of inactivity."
+      ],
+      "explanation": "The idea about summer shift start times has no substantive connection to this operational rule."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F20-006@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Briar schedules administrators can export the account directory as UTF-8 CSV."
+      ],
+      "explanation": "The node concerns a different operational subject than shift start times; nothing to change or relate."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F20-006@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Briar schedules administrators can export the account directory as UTF-8 CSV."
+      ],
+      "explanation": "The idea about summer shift start times has no substantive connection to this operational rule."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F20-005@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Briar schedules navigation must be usable with a keyboard and a screen reader."
+      ],
+      "explanation": "The node concerns a different operational subject than shift start times; nothing to change or relate."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F20-005@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Briar schedules navigation must be usable with a keyboard and a screen reader."
+      ],
+      "explanation": "The idea about summer shift start times has no substantive connection to this operational rule."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F20-004@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Briar schedules staff support is available Monday to Friday, 09:00 to 17:00."
+      ],
+      "explanation": "Staff support hours are a different subject from shift start times; the shared 09:00 is coincidental and needs no change or link."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F20-004@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Briar schedules staff support is available Monday to Friday, 09:00 to 17:00."
+      ],
+      "explanation": "Support availability hours are not shift start times; the shared 09:00 is coincidental."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F20-003@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Administrative actions in Briar schedules retain an immutable audit entry for one year."
+      ],
+      "explanation": "The node concerns a different operational subject than shift start times; nothing to change or relate."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F20-003@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Administrative actions in Briar schedules retain an immutable audit entry for one year."
+      ],
+      "explanation": "The idea about summer shift start times has no substantive connection to this operational rule."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F20-002@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Only Briar schedules administrators can invite staff to the management console."
+      ],
+      "explanation": "The node concerns a different operational subject than shift start times; nothing to change or relate."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F20-002@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Only Briar schedules administrators can invite staff to the management console."
+      ],
+      "explanation": "The idea about summer shift start times has no substantive connection to this operational rule."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F20-001@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "equivalent"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Keep winter shifts at 08:00 and summer shifts at 09:00.",
+        "During the winter schedule, shifts start at 08:00. The summer schedule starts at 09:00."
+      ],
+      "explanation": "The change explicitly keeps the same winter 08:00 and summer 09:00 start times for the next release in the same scope, so it reaffirms the node without modifying it."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F20-001@1",
+      "ambiguous": true,
+      "labels": {
+        "A": [
+          "duplicates",
+          "relates"
+        ],
+        "relation": [
+          "equivalent",
+          "related"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "duplicate"
+      ],
+      "evidence": [
+        "Summer shifts start at 09:00.",
+        "The summer schedule starts at 09:00."
+      ],
+      "explanation": "The idea restates the summer half of the node with the same time and scope and adds nothing new; since it covers only part of the node, a compatible related reading is also defensible."
+    }
+  ],
+  "method": "Blind AI review from the card only (independent Claude session); proposals, scenarios.json and model answers not consulted."
+}

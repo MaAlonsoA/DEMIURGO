@@ -1,0 +1,513 @@
+{
+  "scenario": "F08-2",
+  "scenarioHash": "9817f9a214655900d5d5e31e8e5a6c4dc38597889cf5066def30e13a79a11ee0",
+  "source": "ai_review",
+  "reviewer": "ai:claude-opus-5-5",
+  "status": "corrected",
+  "fullGraphReviewed": true,
+  "blindJudgment": null,
+  "reviewedAt": "2026-09-28T17:24:29Z",
+  "categories": {
+    "area": "inventory"
+  },
+  "pairs": [
+    {
+      "task": "change",
+      "ref": "DEC-F08-010@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Willow reservations documents approved policies in a versioned staff handbook."
+      ],
+      "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F08-010@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Willow reservations documents approved policies in a versioned staff handbook."
+      ],
+      "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F08-009@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Willow reservations maintains an on-call contact list for service outages."
+      ],
+      "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F08-009@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Willow reservations maintains an on-call contact list for service outages."
+      ],
+      "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F08-008@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Willow reservations account deletion requires a second administrator confirmation."
+      ],
+      "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F08-008@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Willow reservations account deletion requires a second administrator confirmation."
+      ],
+      "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F08-007@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Willow reservations console sessions expire after 30 minutes of inactivity."
+      ],
+      "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F08-007@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Willow reservations console sessions expire after 30 minutes of inactivity."
+      ],
+      "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F08-006@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Willow reservations administrators can export the account directory as UTF-8 CSV."
+      ],
+      "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F08-006@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Willow reservations administrators can export the account directory as UTF-8 CSV."
+      ],
+      "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F08-005@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Willow reservations navigation must be usable with a keyboard and a screen reader."
+      ],
+      "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F08-005@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Willow reservations navigation must be usable with a keyboard and a screen reader."
+      ],
+      "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F08-004@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Willow reservations staff support is available Monday to Friday, 09:00 to 17:00."
+      ],
+      "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F08-004@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Willow reservations staff support is available Monday to Friday, 09:00 to 17:00."
+      ],
+      "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F08-003@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Administrative actions in Willow reservations retain an immutable audit entry for one year."
+      ],
+      "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F08-003@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Administrative actions in Willow reservations retain an immutable audit entry for one year."
+      ],
+      "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F08-002@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "keep"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ],
+        "action": [
+          "none"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Only Willow reservations administrators can invite staff to the management console."
+      ],
+      "explanation": "The node concerns a different subject (staff operations) than the approved change, so it stays complete and needs no link."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F08-002@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "none"
+        ],
+        "relation": [
+          "unrelated"
+        ],
+        "compatibility": [
+          "compatible"
+        ]
+      },
+      "effects": [
+        "preserve"
+      ],
+      "evidence": [
+        "Only Willow reservations administrators can invite staff to the management console."
+      ],
+      "explanation": "The idea addresses a different subject than this operations node; no substantive connection."
+    },
+    {
+      "task": "change",
+      "ref": "DEC-F08-001@1",
+      "ambiguous": true,
+      "labels": {
+        "A": [
+          "update",
+          "invalidate"
+        ],
+        "relation": [
+          "related"
+        ],
+        "compatibility": [
+          "assumption_mismatch",
+          "direct_conflict"
+        ],
+        "action": [
+          "revise",
+          "replace"
+        ]
+      },
+      "effects": [
+        "review",
+        "assumption"
+      ],
+      "evidence": [
+        "Reservation confirmation must now display live stock through a real-time inventory endpoint.",
+        "This decision applies to the next release in the same scope.",
+        "The inventory service exposes no real-time stock endpoint."
+      ],
+      "explanation": "The change requires a real-time endpoint that the node says does not exist; since it applies to the next release, the node states current fact and the mismatch is a premise one (or a full supersession once released). The node has authority, so a person must review whether to revise or replace it."
+    },
+    {
+      "task": "idea",
+      "ref": "DEC-F08-001@1",
+      "ambiguous": false,
+      "labels": {
+        "A": [
+          "inconsistent"
+        ],
+        "relation": [
+          "related"
+        ],
+        "compatibility": [
+          "assumption_mismatch"
+        ]
+      },
+      "effects": [
+        "assumption"
+      ],
+      "evidence": [
+        "Show live stock by calling the existing real-time inventory endpoint.",
+        "The inventory service exposes no real-time stock endpoint."
+      ],
+      "explanation": "The idea presupposes an existing real-time endpoint, which the node says is not exposed; the idea proposes a feature, not a counter-claim about the endpoint, so it is a premise mismatch rather than a direct conflict."
+    }
+  ],
+  "method": "Blind AI review from the card only (independent Claude session); proposals, scenarios.json and model answers not consulted."
+}

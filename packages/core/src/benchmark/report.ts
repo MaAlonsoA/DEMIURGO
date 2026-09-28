@@ -1,6 +1,6 @@
-import { DIMENSIONS, VERDICTS, IDEA_FINDINGS } from '@demiurgo/domain';
+import { DIMENSIONS, VERDICTS, IDEA_FINDINGS, fingerprint } from '@demiurgo/domain';
 import { average, classificationMetrics, pairedInterval, quantile } from '../../../domain/src/benchmark-metrics.ts';
-import type { Annotation, Scenario } from './dataset.ts';
+import { validateDataset, type Annotation, type Scenario } from './dataset.ts';
 import { finalResponses, replayRun, type RunTrace } from './runner.ts';
 import type { Effect } from '../../../domain/src/benchmark-policy.ts';
 
@@ -47,9 +47,36 @@ function summarize(rows: SummaryRow[]) {
     ambiguousAbstentions: evaluated.filter((p) => p.ambiguous && p.abstained).length,
   };
 }
-export function reportRun(scenarios: Scenario[], annotations: Annotation[], saved: RunTrace) {
+export type ReportOptions = {
+  /** Score against unreviewed AI proposals: a provisional look, never a reference result. */
+  provisional?: boolean;
+};
+/**
+ * Scores a run against its reference. Only scenarios with a reference are scored (a reviewed sample
+ * scores just those); the rest are listed as unscored. Operations (calls, tokens, latency) cover the
+ * whole run.
+ */
+export function reportRun(scenarios: Scenario[], annotations: Annotation[], saved: RunTrace, options: ReportOptions = {}) {
   const run = replayRun(scenarios, annotations, saved);
-  const pairs = run.events.flatMap((event) =>
+  const annotated = new Set(annotations.map((a) => a.scenario));
+  const referenceErrors = validateDataset(scenarios, annotations, options.provisional ? false : annotated);
+  if (referenceErrors.length) throw new Error(referenceErrors.join('\n'));
+  if (!options.provisional && annotations.some((a) => a.source === 'ai_proposal'))
+    throw new Error('Unreviewed AI proposals can only be used for a provisional report.');
+  const scored = run.events.filter((event) => annotated.has(event.scenario));
+  if (!scored.length) throw new Error('No scenario of this run has a reference.');
+  const reference = {
+    hash: fingerprint(annotations),
+    provisional: options.provisional === true,
+    sources: [...new Set(annotations.map((a) => a.source))],
+    reviewers: [...new Set(annotations.map((a) => a.reviewer ?? 'none'))],
+    scoredScenarios: [...new Set(scored.map((e) => e.scenario))].sort(),
+    unscoredScenarios: [...new Set(run.events.map((e) => e.scenario))].filter((id) => !annotated.has(id)).sort(),
+    note: options.provisional
+      ? 'Provisional: scored against unreviewed AI proposals, not a reference.'
+      : 'Reference judgments with the provenance above (an AI review is not a human adjudication).',
+  };
+  const pairs = scored.flatMap((event) =>
     event.outcomes.map((outcome) => {
       const judgment = annotations
         .find((a) => a.scenario === event.scenario)!
@@ -93,7 +120,7 @@ export function reportRun(scenarios: Scenario[], annotations: Annotation[], save
       };
     }),
   );
-  const categoryRows = run.events.flatMap((event) => {
+  const categoryRows = scored.flatMap((event) => {
     if (!event.calls.some((call) => call.stage === 'category')) return [];
     const responses = finalResponses(event.calls, 'category');
     const scenario = scenarios.find((entry) => entry.id === event.scenario)!;
@@ -169,6 +196,7 @@ export function reportRun(scenarios: Scenario[], annotations: Annotation[], save
     configurationId: run.configurationId,
     datasetHash: run.datasetHash,
     adjudicationHash: run.adjudicationHash,
+    reference,
     engine: run.config.engine,
     policy: run.config.policy,
     partition: run.config.partition,
@@ -176,8 +204,8 @@ export function reportRun(scenarios: Scenario[], annotations: Annotation[], save
     condition: run.config.condition,
     retrieval: run.config.retrieval,
     repetitions: run.config.repetitions,
-    scenarios: new Set(run.events.map((e) => e.scenario)).size,
-    families: new Set(run.events.map((e) => e.family)).size,
+    scenarios: new Set(scored.map((e) => e.scenario)).size,
+    families: new Set(scored.map((e) => e.family)).size,
     classification,
     categoriesSource: run.config.categories,
     categoryMetrics: classificationMetrics(
@@ -237,7 +265,8 @@ const key = (p: Report['pairs'][number]) => `${p.scenario}:${p.repetition}:${p.t
 export function compareReports(baseline: Report, candidate: Report, seed = 42) {
   if (
     baseline.datasetHash !== candidate.datasetHash ||
-    baseline.adjudicationHash !== candidate.adjudicationHash ||
+    baseline.reference.hash !== candidate.reference.hash ||
+    baseline.reference.provisional !== candidate.reference.provisional ||
     baseline.partition !== candidate.partition ||
     baseline.condition !== candidate.condition ||
     baseline.retrieval !== candidate.retrieval ||

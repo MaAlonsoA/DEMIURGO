@@ -263,4 +263,26 @@ describe('While you were away', () => {
     };
     expect(nothingConfirmedChanged(reopened, tables)).toBe(false);
   });
+
+  it('tells a change of the product definition as an update, without its versions', () => {
+    const changes: Changes = {
+      latest: '4',
+      things: [
+        {
+          kind: 'record',
+          key: 'DEF-PRO-001',
+          title: 'Product definition',
+          events: [
+            ev('record_version.supersede', 'system:versions@1', {
+              entity_type: 'record_version',
+              state_before: 'approved',
+              state_after: 'superseded',
+            }),
+          ],
+        },
+      ],
+    };
+    const [line] = linesOf(changes);
+    expect(line ? lineText(line) : '').toBe('Product definition was updated.');
+  });
 });

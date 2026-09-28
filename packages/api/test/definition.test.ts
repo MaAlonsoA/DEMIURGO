@@ -192,5 +192,7 @@ describe('a decision in another thread changes the definition', () => {
     ).json<Trace>();
     expect(trace.origin.find((s) => s.type === 'proposal')?.label).toBe('definition_change proposal: Constraints');
     expect(trace.origin.some((s) => s.type === 'message' && s.label === `${DECIDED} [redefine]`)).toBe(true);
+    // Approving version 2 started a knowledge update: it ends before the engine stops.
+    await waitForKnowledge(api().environment.services, projectId);
   });
 });

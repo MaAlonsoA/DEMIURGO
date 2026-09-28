@@ -2,6 +2,7 @@
 // their readiness, and batches. These are derived functions: nothing is stored (§4 of the plan).
 
 import {
+  AGENT_PROPOSAL_TYPES,
   type Dependency,
   type ReadinessInput,
   DomainError,
@@ -174,7 +175,8 @@ export async function inbox(db: Db, projectId: string) {
         state: p.state,
         epistemic_status: epistemicOfProposal(p.state),
         obsolescence: warnings,
-        assessment: await assessmentOf(db, p.id),
+        // Only what an agent proposes of its own is checked against the knowledge (knowledge/workflows.ts).
+        assessment: ASSESSED.has(p.type) ? await assessmentOf(db, p.id) : null,
         dependencies: (p.dependencies ?? []) as Dependency[],
       });
     }
@@ -305,6 +307,7 @@ export function registerInboxExtension(e: InboxExtension): void {
   extension = e;
 }
 const assessmentOf = (db: Db, id: string) => extension.assessment(db, id);
+const ASSESSED: ReadonlySet<string> = new Set(AGENT_PROPOSAL_TYPES);
 const pendingKnowledge = (db: Db, id: string) => extension.pending(db, id);
 
 export async function recordDetail(db: Db, projectId: string, code: string) {

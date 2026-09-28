@@ -65,6 +65,9 @@ function recordLine(t: ChangedThing, ctx: LensContext): Told {
   const drafted = last(e, 'record_version.create');
   const checks = ctx.records?.[t.key]?.checks ?? 0;
   const withChecks = checks > 0 ? ` (${plural(checks, 'check')})` : '';
+  // The product definition is one document that keeps up to date: its changes are told without versions.
+  const updated = t.key.startsWith('DEF-') && !created ? (approve ?? last(e, 'record_version.supersede')) : undefined;
+  if (updated) return { event: updated, segments: [{ strong: title }, ' was updated.'], note: 'Updated' };
   if (approve && created) {
     return {
       event: approve,

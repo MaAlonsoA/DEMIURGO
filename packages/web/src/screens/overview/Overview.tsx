@@ -35,6 +35,7 @@ import { DraftPreview, type PreviewTarget, RecordPreview } from './Previews.tsx'
 import { draftingRuns, featureStatus, productProgress, recentlyDecided, workingRuns } from './progress.ts';
 import { DefinitionWhyPanel, ProductDefinitionSection } from './Definition.tsx';
 import { DesignStages } from './Stages.tsx';
+import { RepositorySection } from './Repository.tsx';
 import { useReturnFocus } from '../record/returnFocus.ts';
 import { OVERVIEW } from './words.i18n.ts';
 import { ASPECT_WORDS } from '../../aspects.i18n.ts';
@@ -192,6 +193,7 @@ function Overview({ projectId }: { projectId: string }) {
               {lens.on ? <WhileAway projectId={projectId} lens={lens} /> : null}
               <ProductDefinitionSection projectId={projectId} whyOpen={whyOpen} onWhy={setWhyOpen} />
               <DesignStages projectId={projectId} />
+              <RepositorySection projectId={projectId} />
               {blank ? (
                 <EmptyState
                   title={t.nothingHereYet}

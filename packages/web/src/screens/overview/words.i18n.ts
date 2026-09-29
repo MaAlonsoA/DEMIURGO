@@ -407,6 +407,27 @@ export const STAGES = messages(
   },
 );
 
+export const REPOSITORY = messages(
+  {
+    repository: "Repository",
+    note: (dir: string) =>
+      `DEMIURGO writes what you accept and approve to ${dir}, one commit per change.`,
+    you: "you",
+    files: (n: number) => (n === 1 ? "1 file" : `${n} files`),
+    allCommits: (n: number) => `See all ${n} commits`,
+    fewer: "See fewer",
+  },
+  {
+    repository: "Repositorio",
+    note: (dir: string) =>
+      `DEMIURGO escribe en ${dir} lo que aceptas y apruebas, un commit por cambio.`,
+    you: "tú",
+    files: (n: number) => (n === 1 ? "1 archivo" : `${n} archivos`),
+    allCommits: (n: number) => `Ver los ${n} commits`,
+    fewer: "Ver menos",
+  },
+);
+
 export const WHILE_AWAY = messages(
   {
     whileYouWereAway: "While you were away",

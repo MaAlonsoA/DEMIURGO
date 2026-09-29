@@ -30,6 +30,7 @@ export * from './startup.ts';
 export * from './queries/read.ts';
 export * from './queries/definition.ts';
 export { principlesBatch } from './definition/principles.ts';
+export { projectsDir, syncRepo } from './repo/repo.ts';
 export { classifyAspects } from './classifier/aspect.ts';
 export * from './queries/trace.ts';
 export * from './queries/web.ts';

@@ -551,6 +551,25 @@ export type TranslationsTable = {
   created_at: Generated<Timestamp>;
 };
 
+/** Each project's repository folder (repo/repo.ts); derived. */
+export type ProjectReposTable = {
+  project_id: string;
+  dir: string;
+  created_at: Timestamp;
+};
+
+/** Each commit DEMIURGO made in a project's repository, with what it recorded; derived. */
+export type ProjectCommitsTable = {
+  id: Generated<string>;
+  project_id: string;
+  sha: string;
+  message: string;
+  actor: string;
+  record_version_id: string | null;
+  files: Json;
+  created_at: Timestamp;
+};
+
 export type DB = {
   projects: ProjectsTable;
   events: EventsTable;
@@ -591,6 +610,8 @@ export type DB = {
   classifier_evaluations: ClassifierEvaluationsTable;
   translations: TranslationsTable;
   glossary_terms: GlossaryTermsTable;
+  project_repos: ProjectReposTable;
+  project_commits: ProjectCommitsTable;
 };
 
 export type Row<T extends keyof DB> = Selectable<DB[T]>;

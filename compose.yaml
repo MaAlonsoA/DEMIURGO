@@ -65,6 +65,8 @@ services:
       METABASE_ADMIN_PASSWORD: ${METABASE_ADMIN_PASSWORD:?set in .env}
       # Jev (TypeSafe) clasifica el aspecto de mensajes y propuestas, solo con el ADR aprobado.
       TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
+      DEMIURGO_PROJECTS_DIR: /projects
+      DEMIURGO_PROJECTS_LABEL: ~/Development/Demiurgo-projects
     ports:
       - "127.0.0.1:8100:8100"
     volumes:
@@ -77,6 +79,7 @@ services:
       - ${HOME}/.config/opencode:/home/demiurgo/.config/opencode:ro
       # El runner (packages/core/src/runner) lanza contenedores: necesita el socket del motor.
       - /var/run/docker.sock:/var/run/docker.sock
+      - ${HOME}/Development/Demiurgo-projects:/projects
     # Grupo propietario del socket de Docker dentro de la VM de Colima.
     group_add:
       - "${DOCKER_SOCKET_GID:-991}"

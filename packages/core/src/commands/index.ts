@@ -11,3 +11,4 @@ import '../definition/english.ts';
 import '../actions/index.ts';
 import '../knowledge/index.ts';
 import '../design/import.ts';
+import '../repo/repo.ts';

@@ -1,19 +1,19 @@
 // Shapes of the API responses the UI reads. They mirror packages/core/src/queries/read.ts and
 // packages/api/src/queries.ts: when both disagree, the code of the API rules.
 
-import type { RunUsage } from './models.ts';
+import type { RunUsage } from "./models.ts";
 
-export type Epistemic = 'confirmed' | 'proposed' | 'pending' | 'unknown';
+export type Epistemic = "confirmed" | "proposed" | "pending" | "unknown";
 
 export type Actor =
-  | { type: 'human'; person: string }
-  | { type: 'agent_external'; name: string; session: string }
-  | { type: 'agent_run'; run: string }
-  | { type: 'system'; component: string; version: string };
+  | { type: "human"; person: string }
+  | { type: "agent_external"; name: string; session: string }
+  | { type: "agent_run"; run: string }
+  | { type: "system"; component: string; version: string };
 
 export type Session = {
   actor: Actor;
-  type: 'person' | 'agent';
+  type: "person" | "agent";
   csrf: string | null;
   /** The language the person reads in ('en' | 'es'); null follows the browser. */
   locale?: string | null;
@@ -30,12 +30,27 @@ export type ReadingTranslation = {
   by: string | null;
 };
 
-export type Project = { id: string; name: string; state: string; created_at: string };
+export type Project = {
+  id: string;
+  name: string;
+  state: string;
+  created_at: string;
+};
 
 // Tables (GET /api/tables) and command contracts (GET /api/commands).
-export type ActorType = 'human' | 'agent_external' | 'agent_run' | 'system';
-export type CommandDef = { entity: string; allowed: ActorType[]; decisive: boolean; description: string };
-export type TransitionDef = { command: string; from: 'new' | string[]; to: string; guards?: string[] };
+export type ActorType = "human" | "agent_external" | "agent_run" | "system";
+export type CommandDef = {
+  entity: string;
+  allowed: ActorType[];
+  decisive: boolean;
+  description: string;
+};
+export type TransitionDef = {
+  command: string;
+  from: "new" | string[];
+  to: string;
+  guards?: string[];
+};
 export type EntityDef = {
   label: string;
   implemented_in: string;
@@ -44,7 +59,10 @@ export type EntityDef = {
   transitions: TransitionDef[];
 };
 export type Tables = {
-  capabilities: { commands: Record<string, CommandDef>; queries: Record<string, { allowed: ActorType[] }> };
+  capabilities: {
+    commands: Record<string, CommandDef>;
+    queries: Record<string, { allowed: ActorType[] }>;
+  };
   transitions: { entities: Record<string, EntityDef> };
 };
 export type JsonSchema = {
@@ -59,7 +77,10 @@ export type JsonSchema = {
   description?: string;
   anyOf?: JsonSchema[];
 };
-export type CommandContract = CommandDef & { implemented: boolean; data: JsonSchema | null };
+export type CommandContract = CommandDef & {
+  implemented: boolean;
+  data: JsonSchema | null;
+};
 export type CommandCatalog = Record<string, CommandContract>;
 
 export type CommandResponse<R = unknown> = {
@@ -70,28 +91,32 @@ export type CommandResponse<R = unknown> = {
   result: R | null;
 };
 
-export type Readiness = { ready: boolean; reasons: string[]; warnings: string[] };
+export type Readiness = {
+  ready: boolean;
+  reasons: string[];
+  warnings: string[];
+};
 
 export type RecordType =
-  | 'decision'
-  | 'fdr'
-  | 'adr'
-  | 'bug'
-  | 'requirement'
-  | 'quality_requirement'
-  | 'threat_model'
-  | 'production_readiness'
-  | 'product_definition';
+  | "decision"
+  | "fdr"
+  | "adr"
+  | "bug"
+  | "requirement"
+  | "quality_requirement"
+  | "threat_model"
+  | "production_readiness"
+  | "product_definition";
 
 /** Where a section of the product definition comes from, and how the person settled its question. */
 export type DefinitionSource = {
   section: string;
   key: string;
-  state: 'confirmed' | 'discarded' | 'missing';
+  state: "confirmed" | "discarded" | "missing";
   question: {
     id: string;
     question: string;
-    settled: 'assumed' | 'corrected' | 'answered' | 'left_open' | null;
+    settled: "assumed" | "corrected" | "answered" | "left_open" | null;
     settled_by: string | null;
     settled_at: string | null;
     inferred: string | null;
@@ -102,7 +127,11 @@ export type DefinitionSource = {
 };
 
 /** Why a section changed, and the person's own words for it when they wrote it in another language. */
-export type DefinitionReason = { section: string; why: string; own_words: string | null };
+export type DefinitionReason = {
+  section: string;
+  why: string;
+  own_words: string | null;
+};
 
 export type DefinitionEvidence = { message_id: string; quote: string };
 
@@ -119,7 +148,11 @@ export type DefinitionVersion = {
   approved_by: string | null;
   proposal_id: string | null;
   /** When a change decided in a thread made it: the proposal, its thread and the person's words there. */
-  from_thread: { proposal_id: string; exploration_id: string | null; evidence: DefinitionEvidence[] } | null;
+  from_thread: {
+    proposal_id: string;
+    exploration_id: string | null;
+    evidence: DefinitionEvidence[];
+  } | null;
   sources: DefinitionSource[];
   reasons: DefinitionReason[];
 };
@@ -201,7 +234,12 @@ export type ProductState = {
   inbox: { total: number };
 };
 
-export type Dependency = { type: string; id: string; code?: string; version: number | null };
+export type Dependency = {
+  type: string;
+  id: string;
+  code?: string;
+  version: number | null;
+};
 
 export type InboxProposal = {
   id: string;
@@ -230,7 +268,12 @@ export type BasisRefs = {
     aspect: string | null;
     aspect_confidence: number | null;
   }[];
-  questions: { id: string; question: string; exploration_id: string; exploration_purpose: string }[];
+  questions: {
+    id: string;
+    question: string;
+    exploration_id: string;
+    exploration_purpose: string;
+  }[];
 };
 
 export type IdeaFinding = {
@@ -242,7 +285,10 @@ export type IdeaFinding = {
   quote?: string;
   [k: string]: unknown;
 };
-export type IdeaAssessmentSummary = { findings?: IdeaFinding[]; [k: string]: unknown };
+export type IdeaAssessmentSummary = {
+  findings?: IdeaFinding[];
+  [k: string]: unknown;
+};
 
 export type InboxBatch = {
   id: string;
@@ -322,7 +368,13 @@ export type Inbox = {
     classifier: string;
     epistemic_status: Epistemic;
   }[];
-  rejected_updates: { id: string; trigger: unknown; failure: string | null; created_at: string; epistemic_status: Epistemic }[];
+  rejected_updates: {
+    id: string;
+    trigger: unknown;
+    failure: string | null;
+    created_at: string;
+    epistemic_status: Epistemic;
+  }[];
 };
 
 export type Criterion = {
@@ -377,7 +429,11 @@ export type RecordVersion = {
   /** Thread the version comes from (through its proposal, batch and run), if any. */
   origin_exploration: string | null;
   /** Inferred questions of that thread not confirmed yet: a readiness warning (◐). */
-  inferred_questions: { id: string; question: string; conclusion: string | null }[];
+  inferred_questions: {
+    id: string;
+    question: string;
+    conclusion: string | null;
+  }[];
   criteria: Criterion[];
   links: Link[];
   readiness: Readiness | null;
@@ -408,7 +464,7 @@ export type IncomingLink = {
   /** The version of this record it points to. */
   to_n: number;
   /** What the map draws for it; null for links the map doesn't draw (origin, covers). */
-  relation: 'needs' | 'follows' | 'conflicts' | 'affects' | null;
+  relation: "needs" | "follows" | "conflicts" | "affects" | null;
 };
 
 export type Message = {
@@ -423,7 +479,7 @@ export type Message = {
   created_at: string;
   epistemic_status: Epistemic | null;
   /** Where DEMIURGO's answer stands; null when the message asked for none. */
-  response: 'waiting' | 'requested' | 'abandoned' | null;
+  response: "waiting" | "requested" | "abandoned" | null;
   /** The run that answers it, once requested. */
   response_run: string | null;
   /** What Jev says the message is about, and how sure it is. */
@@ -475,7 +531,10 @@ export type ExplorationDetail = {
   children: { id: string; purpose: string; state: string }[];
 };
 
-export type Exploration = Omit<ExplorationDetail, 'messages' | 'questions' | 'children'> & {
+export type Exploration = Omit<
+  ExplorationDetail,
+  "messages" | "questions" | "children"
+> & {
   open_questions: number;
   last_activity: string;
 };
@@ -519,7 +578,15 @@ export type BatchDetail = {
 };
 
 export type ImportCounts = Record<
-  'decision' | 'adr' | 'fdr' | 'bug' | 'versions' | 'criteria' | 'links' | 'taxonomies' | 'annexes',
+  | "decision"
+  | "adr"
+  | "fdr"
+  | "bug"
+  | "versions"
+  | "criteria"
+  | "links"
+  | "taxonomies"
+  | "annexes",
   number
 >;
 
@@ -559,14 +626,20 @@ export type Run = {
   requested_model?: string | null;
   effort?: string | null;
   prompt_hash?: string | null;
-  session_mode?: 'none' | 'fresh' | 'resumed' | null;
+  session_mode?: "none" | "fresh" | "resumed" | null;
   provider_session_id?: string | null;
   delta_hash?: string | null;
   /** It ran on its backup engine: the one it replaced, and why. */
-  fallback?: { from: { provider: string; model: string; effort: string | null }; reason: string } | null;
+  fallback?: {
+    from: { provider: string; model: string; effort: string | null };
+    reason: string;
+  } | null;
 };
 
-export type RunDetail = Run & { context_pack: ContextPack | null; trace_id: string | null };
+export type RunDetail = Run & {
+  context_pack: ContextPack | null;
+  trace_id: string | null;
+};
 
 export type EventRow = {
   id: string;
@@ -585,7 +658,13 @@ export type EventRow = {
   cause: unknown;
 };
 
-export type Source = { id: string; name: string; content_hash: string; registered_by: string; created_at: string };
+export type Source = {
+  id: string;
+  name: string;
+  content_hash: string;
+  registered_by: string;
+  created_at: string;
+};
 
 export type KnowledgeUpdate = {
   id: string;
@@ -608,7 +687,14 @@ export type Knowledge = {
 };
 
 /** A search result over the current knowledge (GET …/knowledge/search). */
-export type SearchResult = { ref: string; type: string; title: string; excerpt: string; epistemic_status: string; rank: number };
+export type SearchResult = {
+  ref: string;
+  type: string;
+  title: string;
+  excerpt: string;
+  epistemic_status: string;
+  rank: number;
+};
 
 /** A run in the list (GET …/runs): its thread is its scope, or where its decision was born. */
 export type RunListItem = {
@@ -643,13 +729,22 @@ export type GraphNode = {
   epistemic_status: string;
   /** Taxonomy axis → category, from the node's classification. */
   areas: Record<string, string>;
-  state: 'current' | 'invalidated';
+  state: "current" | "invalidated";
   record: { code: string; version: number } | null;
 };
 
-export type GraphEdge = { type: string; from: string; to: string; state: string };
+export type GraphEdge = {
+  type: string;
+  from: string;
+  to: string;
+  state: string;
+};
 
-export type KnowledgeGraph = { graph_version: number; nodes: GraphNode[]; edges: GraphEdge[] };
+export type KnowledgeGraph = {
+  graph_version: number;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+};
 
 export type IdeaAssessment = {
   id: string;
@@ -657,7 +752,13 @@ export type IdeaAssessment = {
   classifier: string;
   created_at: string;
   error: string | null;
-  proposal: { id: string; type: string; title: string | null; batch_id: string; state: string };
+  proposal: {
+    id: string;
+    type: string;
+    title: string | null;
+    batch_id: string;
+    state: string;
+  };
   findings: {
     /** duplicates, contradicts or relates. */
     verdict: string;
@@ -686,13 +787,13 @@ export type Taxonomy = {
 
 /** "What changed" since an event id (GET …/changes?since=): the events grouped by the thing they touch. */
 export type ChangedThing = {
-  kind: 'record' | 'exploration' | 'batch' | 'knowledge' | 'project';
+  kind: "record" | "exploration" | "batch" | "knowledge" | "project";
   /** Record code, exploration id, batch id, "knowledge" or the project id. */
   key: string;
   title: string | null;
   /** The record's type, or the batch's kind. */
   record_type?: string;
-  events: Omit<EventRow, 'project_id' | 'seq' | 'before' | 'after' | 'cause'>[];
+  events: Omit<EventRow, "project_id" | "seq" | "before" | "after" | "cause">[];
 };
 
 export type Changes = { latest: string; things: ChangedThing[] };
@@ -701,7 +802,7 @@ export type Changes = { latest: string; things: ChangedThing[] };
 export type AgentToken = {
   id: string;
   name: string;
-  state: 'active' | 'revoked';
+  state: "active" | "revoked";
   issued_by: string;
   created_at: string;
   revoked_at: string | null;
@@ -712,10 +813,10 @@ export type StageRow = {
   title: string;
   produces: string;
   /** When it opens: in the onboarding, before building (on the approved features) or before the first version. */
-  moment: 'onboarding' | 'before_build' | 'before_release';
+  moment: "onboarding" | "before_build" | "before_release";
   position: number;
   id: string | null;
-  state: 'not_started' | 'open' | 'passed';
+  state: "not_started" | "open" | "passed";
   exploration_id: string | null;
   passed_by: string | null;
   passed_at: string | null;
@@ -735,4 +836,23 @@ export type ProjectUsageRow = {
 };
 
 /** A word of the project's glossary and the English term records use for it (GET …/glossary). */
-export type GlossaryEntry = { term: string; english: string; note: string | null; set_by: string; created_at: string };
+export type GlossaryEntry = {
+  term: string;
+  english: string;
+  note: string | null;
+  set_by: string;
+  created_at: string;
+};
+
+/** The project's repository and the commits DEMIURGO made in it (GET …/commits), newest first. */
+export type ProjectCommits = {
+  dir: string | null;
+  commits: {
+    sha: string;
+    message: string;
+    actor: string;
+    files: string[];
+    at: string;
+    record: { code: string; version: number } | null;
+  }[];
+};

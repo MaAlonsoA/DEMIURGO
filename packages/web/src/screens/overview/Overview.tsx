@@ -36,6 +36,7 @@ import { draftingRuns, featureStatus, productProgress, recentlyDecided, workingR
 import { DefinitionWhyPanel, ProductDefinitionSection } from './Definition.tsx';
 import { DesignStages } from './Stages.tsx';
 import { FirstFeature } from '../thread/StageComplete.tsx';
+import { NextStepCard } from './NextStep.tsx';
 import { useReturnFocus } from '../record/returnFocus.ts';
 import { OVERVIEW } from './words.i18n.ts';
 import { epicGroups } from '../epics/logic.ts';
@@ -206,6 +207,8 @@ function Overview({ projectId }: { projectId: string }) {
               <ProductDefinitionSection projectId={projectId} whyOpen={whyOpen} onWhy={setWhyOpen} />
               {firstFeature && mainThread ? (
                 <FirstFeature projectId={projectId} explorationId={mainThread} active={mainState === 'active'} goToThread />
+              ) : rows.some((r) => r.type === 'fdr' || r.type === 'epic') ? (
+                <NextStepCard projectId={projectId} state={s} rows={rows} stages={stages ?? []} />
               ) : null}
               <DesignStages projectId={projectId} />
               {blank ? (

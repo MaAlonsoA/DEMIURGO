@@ -6,7 +6,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
 import { stateQuery } from '../../api/queries.ts';
 import { announce } from '../../components/announce.tsx';
@@ -44,18 +44,33 @@ export function NewRecordScreen() {
   const t = useMessages(NEW_RECORD);
   const locale = useSafeLocale();
   const projectId = useProjectId();
-  const search = useSearch({ strict: false }) as { type?: string };
+  const search = useSearch({ strict: false }) as { type?: string; basedOn?: string };
   const initial = WRITABLE_TYPES.find((tp) => tp === search.type) ?? 'decision';
   const navigate = useNavigate();
   const state = useQuery(stateQuery(projectId));
   const command = useCommand<{ code: string; version: number }>(projectId);
   const [form, setForm] = useState<RecordForm>(() => blankRecord(initial));
+  // Written from another record's page (a task from its feature): it rests on that record's current
+  // version, in its area. What was filled in for the person doesn't count as unsaved text.
+  const [seed, setSeed] = useState<RecordForm | null>(null);
+  useEffect(() => {
+    if (seed || !search.basedOn || !state.data) return;
+    const base = [...state.data.designs, ...state.data.decisions].find((r) => r.code === search.basedOn);
+    if (!base?.current) return;
+    const seeded = {
+      ...blankRecord(initial),
+      domain: base.domain,
+      links: [{ type: 'based_on', target: { code: base.code, version: base.current } }],
+    };
+    setForm(seeded);
+    setSeed(seeded);
+  }, [seed, search.basedOn, state.data, initial]);
   const hintId = useId();
   usePageTitle([t.newRecord, state.data?.project.name]);
   const domains = [...new Set([...(state.data?.decisions ?? []), ...(state.data?.designs ?? [])].map((r) => r.domain))].sort();
   const miss = recordMissing(form);
   const needsChecks = form.type !== 'decision';
-  const guard = useLeaveGuard(recordDirty(form) && !command.isSuccess);
+  const guard = useLeaveGuard(recordDirty(form) && JSON.stringify(form) !== JSON.stringify(seed) && !command.isSuccess);
   const areaInvalid = form.domain.trim() !== '' && !DOMAIN.test(form.domain.trim());
   const typeWord = useTypeWord(form.type);
 

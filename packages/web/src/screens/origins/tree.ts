@@ -293,6 +293,7 @@ const LED_TO_ORDER: RecordType[] = [
   'decision',
   'epic',
   'fdr',
+  'task',
   'adr',
   'bug',
   'requirement',

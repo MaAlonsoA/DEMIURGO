@@ -349,7 +349,7 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
     .innerJoin('records', 'records.id', 'record_versions.record_id')
     .select(['records.id as recordId', 'records.code', 'records.type', 'record_versions.n', 'record_versions.state', 'record_versions.title', 'record_versions.sections'])
     .where('records.project_id', '=', projectId)
-    .where('records.type', 'in', ['product_definition', 'epic', 'fdr', 'requirement', 'quality_requirement', 'adr', 'threat_model', 'production_readiness'])
+    .where('records.type', 'in', ['product_definition', 'epic', 'fdr', 'task', 'requirement', 'quality_requirement', 'adr', 'threat_model', 'production_readiness'])
     .where('record_versions.state', 'in', ['approved', 'draft'])
     .orderBy('records.code')
     .orderBy('record_versions.n', 'desc')

@@ -32,6 +32,7 @@ import { BriefCard } from './CopyBrief.tsx';
 import { EpicBoard } from './EpicBoard.tsx';
 import { featureEpicThread } from '../epics/logic.ts';
 import { FeatureJourney } from './FeatureJourney.tsx';
+import { TaskBoard } from './TaskBoard.tsx';
 import { RecordHeader } from './Header.tsx';
 import { ancestorsOf } from './hierarchy.ts';
 import { PlannedFeaturePage } from './PlannedFeature.tsx';
@@ -282,10 +283,11 @@ function RecordPage({
                 onApproved={() => setApproved(version.id)}
               />
             ) : null}
-            {(record.type === 'fdr' || record.type === 'adr') && version.n === record.current && ready?.ready ? (
+            {(record.type === 'fdr' || record.type === 'adr' || record.type === 'task') && version.n === record.current && ready?.ready ? (
               <BriefCard projectId={projectId} code={record.code} />
             ) : null}
             {record.type === 'fdr' ? <FeatureJourney version={version} readiness={ready} /> : null}
+            {record.type === 'fdr' ? <TaskBoard projectId={projectId} record={record} state={state} /> : null}
             {record.type === 'epic' ? <EpicBoard projectId={projectId} record={record} state={state} /> : null}
             <article aria-label={t.asWritten(version.title)} className="flex flex-col gap-8">
               <ReviewSections sections={version.sections} parts={review.parts}>

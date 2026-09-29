@@ -9,6 +9,7 @@ const FOLDERS: Record<string, string> = {
   decision: 'decisions',
   adr: 'adr',
   fdr: 'fdr',
+  task: 'tasks',
   bug: 'bugs',
   epic: 'epics',
   product_definition: 'product',
@@ -31,11 +32,24 @@ const sentence = (s: string) => s.trim().replace(/[.\s]+$/, '');
 
 export function buildBrief(record: RecordDetail, version: RecordVersion, rows: readonly ProductRow[]): string {
   const row = rows.find((r) => r.code === record.code);
-  const epic = row ? epicOf(row, rows.filter((r) => r.type === 'epic')) : undefined;
+  // A task is built as a piece of its feature: the feature (and its epic) frame it.
+  const feature = record.type === 'task' && row?.based_on ? rows.find((r) => r.code === row.based_on) : undefined;
+  const framed = feature ?? row;
+  const epic = framed ? epicOf(framed, rows.filter((r) => r.type === 'epic')) : undefined;
   const kind = record.type === 'adr' ? 'decision' : 'feature';
+  const of = feature
+    ? `, a task of feature ${feature.code} "${feature.title}"${epic ? ` in epic ${epic.code} "${epic.title}"` : ''}`
+    : epic
+      ? `, a ${kind} of epic ${epic.code} "${epic.title}"`
+      : '';
+  const paths = [
+    designPath(record.type, record.code),
+    ...(feature ? [designPath('fdr', feature.code)] : []),
+    ...(epic ? [designPath('epic', epic.code)] : []),
+  ];
   const lines = [
-    `Build ${record.code} "${version.title}" (v${version.n})${epic ? `, a ${kind} of epic ${epic.code} "${epic.title}"` : ''}.`,
-    `Design in this repository: ${[designPath(record.type, record.code), ...(epic ? [designPath('epic', epic.code)] : [])].join(' and ')}.`,
+    `Build ${record.code} "${version.title}" (v${version.n})${of}.`,
+    `Design in this repository: ${paths.join(' and ')}.`,
     `Goal: ${goalOf(version.sections)}`,
     'Acceptance criteria:',
     ...version.criteria.map(

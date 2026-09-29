@@ -151,9 +151,10 @@ const recordRoute = createRoute({
 const newRecordRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: '/records/new',
-  validateSearch: (s: Record<string, unknown>): { type?: string } => {
+  validateSearch: (s: Record<string, unknown>): { type?: string; basedOn?: string } => {
     const type = text(s.type);
-    return type ? { type } : {};
+    const basedOn = text(s.basedOn);
+    return { ...(type ? { type } : {}), ...(basedOn ? { basedOn } : {}) };
   },
   component: NewRecordScreen,
 });

@@ -390,3 +390,24 @@ export const REVIEW = messages(
     confirmedAnnounce: (n: number) => `Confirmado. La versión ${n} es la versión actual.`,
   },
 );
+
+export const TASK_BOARD = messages(
+  {
+    title: 'Tasks',
+    note: 'The pieces this feature is built in, each with its own checks. They come out of this feature’s thread, or you write them here.',
+    none: 'No tasks yet.',
+    approveFirst: 'Approve the feature to break it into tasks.',
+    add: 'Add a task',
+    count: (built: number, total: number) => `${built} of ${total} built`,
+    checks: (n: number) => (n === 1 ? '1 check' : `${n} checks`),
+  },
+  {
+    title: 'Tareas',
+    note: 'Las piezas en que se construye esta funcionalidad, cada una con sus propias comprobaciones. Salen del hilo de esta funcionalidad, o las escribes aquí.',
+    none: 'Aún no tiene tareas.',
+    approveFirst: 'Aprueba la funcionalidad para dividirla en tareas.',
+    add: 'Añadir tarea',
+    count: (built: number, total: number) => `${built} de ${total} construidas`,
+    checks: (n: number) => (n === 1 ? '1 comprobación' : `${n} comprobaciones`),
+  },
+);

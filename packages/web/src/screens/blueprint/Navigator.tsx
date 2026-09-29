@@ -91,7 +91,7 @@ function RecordLink({ projectId, record }: { projectId: string; record: NavRecor
         aria-current={record.current ? 'page' : undefined}
         className={cn(
           'flex flex-col gap-0.5 rounded-md border-l-2 px-2.5 py-1.5 text-sm transition-colors duration-[var(--m-fast)]',
-          record.nested && 'ml-3',
+          record.deeper ? 'ml-6' : record.nested && 'ml-3',
           record.current ? 'border-accent bg-selected' : 'border-transparent hover:bg-hover',
         )}
       >

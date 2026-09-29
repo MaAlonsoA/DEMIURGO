@@ -101,6 +101,7 @@ export type RecordType =
   | 'decision'
   | 'epic'
   | 'fdr'
+  | 'task'
   | 'adr'
   | 'bug'
   | 'requirement'

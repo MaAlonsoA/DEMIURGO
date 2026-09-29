@@ -5,6 +5,7 @@ export const RECORD_TYPES = [
   'decision',
   'epic',
   'fdr',
+  'task',
   'adr',
   'bug',
   'requirement',
@@ -19,6 +20,7 @@ export const RECORD_PREFIX: Record<RecordType, string> = {
   decision: 'DEC',
   epic: 'EPC',
   fdr: 'FDR',
+  task: 'TSK',
   adr: 'ADR',
   bug: 'BUG',
   requirement: 'REQ',
@@ -37,6 +39,9 @@ export const RECORD_TEMPLATES: Record<RecordType, { sections: readonly string[];
   // already check. Older versions still carry a "Features" section: an extra section is allowed.
   epic: { sections: ['Goal', 'Done when'], requiresCriteria: true },
   fdr: { sections: ['Goal', 'Scope', 'Out of scope', 'Behavior'], requiresCriteria: true },
+  // A task: a piece of the construction of a feature, small enough to build and check on its own. It
+  // rests on its feature (based_on the FDR) and has its own criteria, finer than the feature's.
+  task: { sections: ['Goal', 'Scope'], requiresCriteria: true },
   bug: { sections: ['Reproduction', 'Expected', 'Observed'], requiresCriteria: true },
   // Design stages: a requirement in EARS with its Volere fit criterion; quality scenarios (arc42);
   // a STRIDE threat model; the production readiness review (KEP PRR, Google SRE).
@@ -155,6 +160,7 @@ export type Readiness = { ready: boolean; reasons: string[]; warnings: string[] 
 export const READINESS_BASES: Partial<Record<RecordType, readonly RecordType[]>> = {
   fdr: ['epic', 'product_definition', 'decision'],
   adr: ['fdr', 'product_definition', 'decision'],
+  task: ['fdr'],
 };
 
 const BASIS_NOUN: Record<string, string> = {
@@ -191,12 +197,14 @@ export function readiness(e: ReadinessInput): Readiness {
       reasons.push(`Criterion ${c.code} doesn't say how it's checked.`);
     }
   }
-  if (e.type === 'fdr' || e.type === 'adr') {
+  if (e.type === 'fdr' || e.type === 'adr' || e.type === 'task') {
     if (e.basedOn.length === 0) {
       reasons.push(
         e.type === 'fdr'
           ? 'It is not based on any epic or on the product definition.'
-          : 'It is not based on any feature, on the product definition or on a decision.',
+          : e.type === 'task'
+            ? 'It is not based on any feature.'
+            : 'It is not based on any feature, on the product definition or on a decision.',
       );
     }
     for (const d of e.basedOn) {

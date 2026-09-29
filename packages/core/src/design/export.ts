@@ -28,6 +28,7 @@ type Row<T extends keyof DB> = Selectable<DB[T]>;
 const MORE_FOLDERS: Record<string, string> = {
   product_definition: 'product',
   epic: 'epics',
+  task: 'tasks',
   requirement: 'requirements',
   quality_requirement: 'quality',
   threat_model: 'security',

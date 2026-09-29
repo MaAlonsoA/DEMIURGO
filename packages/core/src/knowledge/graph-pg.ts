@@ -9,6 +9,7 @@ const TYPES_WITH_AUTHORITY = new Set([
   'decision',
   'epic',
   'fdr',
+  'task',
   'adr',
   'bug',
   'requirement',

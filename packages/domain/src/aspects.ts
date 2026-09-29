@@ -25,6 +25,7 @@ const BY_TYPE: Record<string, Aspect> = {
   definition_change: 'product',
   epic: 'feature',
   fdr: 'feature',
+  task: 'feature',
   requirement: 'feature',
   quality_requirement: 'quality',
   adr: 'architecture',

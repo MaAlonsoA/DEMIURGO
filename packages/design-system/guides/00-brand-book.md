@@ -64,7 +64,7 @@ Space in steps from `space-1` (4px) to `space-12` (48px); cards pad `space-4`, g
 
 ### Layout
 
-Desktop first at `artboard-width` × 900. A `header-height` header on `surface`, the page on `paper`, and a right column of about `aside-width` for Needs you, context and readiness. Phones, at most, check and approve. The page uses the whole width of the screen: never cap a page or a section at a fixed width that leaves the rest empty. Only a reading column (a conversation, a form) is narrow; long prose keeps its line length inside its block, and wide content (a grid, a canvas, a table) grows with the screen.
+Desktop first at `artboard-width` × 900. A `header-height` header on `surface`, the page on `paper`, and a right column of about `aside-width` for Needs you, context and readiness. Phones, at most, check and approve. The page uses the whole width of the screen: never cap a page or a section at a fixed width that leaves the rest empty. Only a reading column (a form, a first-run flow) is narrow; a conversation grows with the space it has, beside or without its side panel; long prose keeps its line length inside its block, and wide content (a grid, a canvas, a table) grows with the screen.
 
 ## Iconography
 

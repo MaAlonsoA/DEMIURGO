@@ -29,7 +29,7 @@ import { Count } from '../../components/Badge.tsx';
 import { Button, buttonClass } from '../../components/Button.tsx';
 import { ArrowLeftIcon, ChevronDownIcon, PanelRightIcon } from '../../components/icons.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
-import { PageBody, PageHeader, READING_COLUMN, usePageTitle } from '../../components/Page.tsx';
+import { PageBody, PageHeader, usePageTitle } from '../../components/Page.tsx';
 import { ResizablePanel } from '../../components/SidePanel.tsx';
 import { Bone, Skeleton } from '../../components/Spinner.tsx';
 import { useMessages } from '../../i18n/define.ts';
@@ -280,7 +280,7 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
             }
           />
 
-          <div className={`flex w-full flex-1 flex-col gap-4 px-4 pt-6 pb-8 sm:px-6 lg:px-8 ${READING_COLUMN}`}>
+          <div className="flex w-full flex-1 flex-col gap-4 px-4 pt-6 pb-8 sm:px-6 lg:px-8">
             {runs.isPending ? (
               <Skeleton label={words.loadingConversation} className="flex flex-col gap-4">
                 <Bone className="h-14 w-3/5 self-end rounded-lg" />
@@ -330,7 +330,7 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
                 {words.jumpToLatest(unseen)}
               </button>
             ) : null}
-            <div className={`flex w-full flex-col gap-2 px-4 py-3 sm:px-6 lg:px-8 ${READING_COLUMN}`}>
+            <div className="flex w-full flex-col gap-2 px-4 py-3 sm:px-6 lg:px-8">
               {active ? <DraftsBar state={sending} onDiscard={drafts.clear} onSent={() => composer.current?.focus()} /> : null}
               {resume.error ? <ErrorNotice error={resume.error} compact /> : null}
               <Composer
@@ -431,7 +431,7 @@ function ThreadSkeleton() {
         <Bone className="h-6 w-2/3" />
         <Bone className="h-3 w-1/2" />
       </div>
-      <div className={`flex flex-col gap-4 px-4 pt-6 sm:px-6 lg:px-8 ${READING_COLUMN}`}>
+      <div className="flex flex-col gap-4 px-4 pt-6 sm:px-6 lg:px-8">
         <Bone className="h-14 w-3/5 self-end rounded-lg" />
         <Bone className="h-28 w-full rounded-lg" />
       </div>

@@ -105,11 +105,11 @@ export function PageHeader({
   );
 }
 
-/** The width of a reading column (a conversation, a first-run flow): the only fixed page width. */
+/** The width of a reading column (a form, a first-run flow; a conversation uses the whole width): the only fixed page width. */
 export const READING_COLUMN = 'max-w-3xl';
 
 /**
- * The scrolling body of a page. `width`: a reading column (a conversation, a form), or the whole
+ * The scrolling body of a page. `width`: a reading column (a form), or the whole
  * width ('wide' and 'full' are the same). Pages use the whole screen: no cap on 'wide', so a big
  * screen is never half empty (test/unit/page-width.test.ts guards it). Long prose keeps its line
  * length inside (max-w-prose), not the page.

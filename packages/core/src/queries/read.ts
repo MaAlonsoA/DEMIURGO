@@ -315,6 +315,8 @@ export async function inbox(db: Db, projectId: string) {
     ])
     .where('record_versions.project_id', '=', projectId)
     .where('record_versions.state', '=', 'draft')
+    // An accepted epic grows while its features are designed: it is approved from its page, not from here.
+    .where('records.type', '!=', 'epic')
     .orderBy('records.code')
     .orderBy('record_versions.n')
     .execute();

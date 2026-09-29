@@ -91,6 +91,8 @@ function record(s: Spec): { row: ProductRow; detail: RecordDetail } {
     epistemic_status: approved ? 'confirmed' : 'proposed',
     readiness: null,
     implementation: 'not implemented',
+    based_on: null,
+    needs: [],
     summary: '',
     checks: 0,
     latest_id: latest.id,

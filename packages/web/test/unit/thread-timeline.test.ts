@@ -116,6 +116,8 @@ describe('Draft it', () => {
     epistemic_status: 'confirmed',
     readiness: null,
     implementation: 'not_built',
+    based_on: null,
+    needs: [],
     summary: '',
     checks: 0,
     latest_id: `${code}-v1`,

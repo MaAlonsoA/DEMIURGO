@@ -17,7 +17,11 @@ const ready: ReadinessInput = {
       statement: 'Given a member, then they sign up.',
     },
   ],
-  basedOn: [{ code: 'DEC-CLU-001', version: 1, versionState: 'approved', current: 1, linkState: 'current' }],
+  basedOn: [
+    { code: 'DEC-CLU-001', type: 'decision', version: 1, versionState: 'approved', current: 1, linkState: 'current' },
+  ],
+  needs: [],
+  architecturePassed: true,
   linksUnderReview: [],
   openQuestions: [],
   pendingProposals: 0,

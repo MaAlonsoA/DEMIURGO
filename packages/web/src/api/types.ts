@@ -204,6 +204,10 @@ export type ProductRow = {
   epistemic_status: Epistemic;
   readiness: Readiness | null;
   implementation: string;
+  /** Code of what it rests on (an epic, the product definition or a decision), if any. */
+  based_on: string | null;
+  /** Codes of the features this feature needs built first. */
+  needs: string[];
   /** First paragraph of the latest version: the card's one line. */
   summary: string;
   /** Criteria of the latest version. */

@@ -123,8 +123,23 @@ export type ReadinessInput = {
   /** Last approved version of the record (the current one), if any. */
   current: number | null;
   criteria: { code: string; verification: string; check: string; statement: string }[];
-  /** "based_on" links to decisions: linked version, that decision's current version, and link status. */
-  basedOn: { code: string; version: number; versionState: string; current: number | null; linkState: string }[];
+  /**
+   * "based_on" links to what it rests on (READINESS_BASES: an epic, the product definition or a
+   * decision for a feature; a feature, the definition or a decision for an ADR): linked version, that
+   * record's current version, and link status.
+   */
+  basedOn: {
+    code: string;
+    type: string;
+    version: number;
+    versionState: string;
+    current: number | null;
+    linkState: string;
+  }[];
+  /** Features this feature needs (based_on links to other features), with how built each one is. */
+  needs: { code: string; implementation: string }[];
+  /** Whether the Architecture stage (before_build) has passed: a feature is not built before it. */
+  architecturePassed: boolean;
   /** Other links of this version that are pending review. */
   linksUnderReview: string[];
   /** Pending, postponed or assumed (inferred, not confirmed) questions in the origin exploration. */
@@ -134,6 +149,19 @@ export type ReadinessInput = {
 };
 
 export type Readiness = { ready: boolean; reasons: string[]; warnings: string[] };
+
+/** What a record rests on, in order of preference (the design hierarchy). */
+export const READINESS_BASES: Partial<Record<RecordType, readonly RecordType[]>> = {
+  fdr: ['epic', 'product_definition', 'decision'],
+  adr: ['fdr', 'product_definition', 'decision'],
+};
+
+const BASIS_NOUN: Record<string, string> = {
+  epic: 'epic',
+  product_definition: 'product definition',
+  decision: 'decision',
+  fdr: 'feature',
+};
 
 const QUESTION_REASONS: Record<string, string> = {
   pending: 'A question of its thread is open',
@@ -163,15 +191,26 @@ export function readiness(e: ReadinessInput): Readiness {
     }
   }
   if (e.type === 'fdr' || e.type === 'adr') {
-    const decisions = e.basedOn;
-    if (decisions.length === 0) reasons.push('It is not based on any decision.');
-    for (const d of decisions) {
+    if (e.basedOn.length === 0) {
+      reasons.push(
+        e.type === 'fdr'
+          ? 'It is not based on any epic or on the product definition.'
+          : 'It is not based on any feature, on the product definition or on a decision.',
+      );
+    }
+    for (const d of e.basedOn) {
       if (d.current === null) {
-        reasons.push(`The decision it is based on, ${d.code}, is not approved.`);
+        reasons.push(`The ${BASIS_NOUN[d.type] ?? 'record'} it is based on, ${d.code}, is not approved.`);
       } else if (d.current !== d.version) {
         reasons.push(`It is based on ${d.code} v${d.version}, but the current one is v${d.current}.`);
       }
       if (d.linkState === 'needs_review') reasons.push(`The link with ${d.code} is pending review.`);
+    }
+  }
+  if (e.type === 'fdr') {
+    if (!e.architecturePassed) reasons.push('The Architecture stage has not passed.');
+    for (const n of e.needs) {
+      if (n.implementation !== 'implemented') reasons.push(`It needs ${n.code}, which is not built yet.`);
     }
   }
   for (const linkRef of e.linksUnderReview) reasons.push(`The link with ${linkRef} is pending review.`);

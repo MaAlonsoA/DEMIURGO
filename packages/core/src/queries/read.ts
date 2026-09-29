@@ -6,6 +6,7 @@ import {
   type Dependency,
   type ReadinessInput,
   DomainError,
+  READINESS_BASES,
   type Readiness,
   type RecordType,
   epistemicOfObservation,
@@ -91,19 +92,26 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
     .where('links.from_id', '=', versionId)
     .execute();
   const basedOn: ReadinessInput['basedOn'] = [];
+  const needs: ReadinessInput['needs'] = [];
   const linksUnderReview: string[] = [];
+  const bases = READINESS_BASES[v.type as RecordType] ?? [];
   for (const e of links) {
-    if (e.type === 'based_on' && e.targetType === 'decision') {
+    if (e.type === 'based_on' && bases.includes(e.targetType as RecordType)) {
       basedOn.push({
         code: e.code,
+        type: e.targetType,
         version: e.n,
         versionState: e.targetState,
         current: await currentOf(db, e.recordId),
         linkState: e.state,
       });
-    } else if (e.state === 'needs_review') {
-      linksUnderReview.push(`${e.code} v${e.n}`);
+      continue;
     }
+    // A feature based on another feature needs it built first (the map draws it as "needs").
+    if (e.type === 'based_on' && v.type === 'fdr' && e.targetType === 'fdr') {
+      needs.push({ code: e.code, implementation: await implementationOf(db, e.recordId) });
+    }
+    if (e.state === 'needs_review') linksUnderReview.push(`${e.code} v${e.n}`);
   }
   const origin = await originExploration(db, versionId);
   const openQuestions = origin
@@ -138,10 +146,49 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
       statement: c.statement,
     })),
     basedOn,
+    needs,
+    architecturePassed: await architecturePassed(db, projectId),
     linksUnderReview,
     openQuestions,
     pendingProposals,
   });
+}
+
+async function architecturePassed(db: Db, projectId: string): Promise<boolean> {
+  const stage = await db
+    .selectFrom('stages')
+    .select('id')
+    .where('project_id', '=', projectId)
+    .where('stage', '=', 'architecture')
+    .where('state', '=', 'passed')
+    .executeTakeFirst();
+  return stage !== undefined;
+}
+
+/** How built a record is (its evidence); nothing is recorded yet. */
+export async function implementationOf(_db: Db, _recordId: string): Promise<string> {
+  return 'not implemented';
+}
+
+/** The based_on targets of a version: what it rests on and, for a feature, the features it needs. */
+async function basisOf(db: Db, versionId: string, type: RecordType) {
+  const targets = await db
+    .selectFrom('links')
+    .innerJoin('record_versions as t', 't.id', 'links.to_id')
+    .innerJoin('records as rd', 'rd.id', 't.record_id')
+    .select(['rd.code', 'rd.type'])
+    .where('links.from_id', '=', versionId)
+    .where('links.type', '=', 'based_on')
+    .orderBy('rd.code')
+    .execute();
+  const bases = READINESS_BASES[type];
+  const basis = bases
+    ? bases.map((b) => targets.find((t) => t.type === b)).find((t) => t !== undefined)
+    : targets[0];
+  return {
+    based_on: basis?.code ?? null,
+    needs: type === 'fdr' ? targets.filter((t) => t.type === 'fdr').map((t) => t.code) : [],
+  };
 }
 
 export type BasisRefs = {
@@ -572,7 +619,8 @@ export async function productState(db: Db, projectId: string) {
       latest: { n: latest.n, state: latest.state },
       epistemic_status: current !== null ? 'confirmed' : epistemicOfVersion(latest.state),
       readiness: WITHOUT_READINESS.has(r.type) ? null : await versionReadiness(db, projectId, currentId ?? latest.id),
-      implementation: 'not implemented',
+      implementation: await implementationOf(db, r.id),
+      ...(await basisOf(db, currentId ?? latest.id, r.type as RecordType)),
       summary: firstParagraph(latest.sections as { title: string; content: string }[]),
       checks: Number(checks.n),
       latest_id: latest.id,

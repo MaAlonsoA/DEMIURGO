@@ -24,6 +24,8 @@ function row(code: string, extra: Partial<ProductRow> = {}): ProductRow {
     epistemic_status: 'proposed',
     readiness: { ready: false, reasons: ['Version 1 is not approved.'], warnings: [] },
     implementation: 'not implemented',
+    based_on: null,
+    needs: [],
     summary: '',
     checks: 3,
     latest_id: `${code}-v1`,

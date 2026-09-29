@@ -27,6 +27,8 @@ function row(code: string, reasons: string[], extra: Partial<ProductRow> = {}): 
     epistemic_status: 'proposed',
     readiness: code.startsWith('DEC') ? null : readiness,
     implementation: 'not implemented',
+    based_on: null,
+    needs: [],
     summary: '',
     checks: 0,
     latest_id: `${code}-v1`,

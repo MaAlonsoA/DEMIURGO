@@ -22,6 +22,7 @@ import { DEFINITION } from '../overview/words.i18n.ts';
 import { ExplainButton, Explanation, useExplain } from '../thread/Explain.tsx';
 import { type Answer, blockCalls, initialAnswer, missingAnswers, openItems } from './confirm.ts';
 import { CONFIRM } from './words.i18n.ts';
+import { Quote } from '../../components/Quote.tsx';
 
 const DEFINITION_STAGE = 'requirements';
 
@@ -210,7 +211,7 @@ function Item({
         {read
           ? (q.evidence ?? []).map((e) => (
               <p key={`${e.message_id}:${e.quote}`} className="text-fg-3" data-trace={`message:${e.message_id}`}>
-                <q>{e.quote}</q>
+                <Quote text={e.quote} />
               </p>
             ))
           : null}

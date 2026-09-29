@@ -5,14 +5,14 @@
 // decision, source and knowledge node it weighed, with the journal event or version it derives
 // from and what happened to it. The pack itself is the same as `exploration_chat@1` produced.
 
-import { COVERED_QUESTION_STATES, DomainError, quoteFound, stageDefinition, system } from '@demiurgo/domain';
+import { COVERED_QUESTION_STATES, DomainError, findQuote, stageDefinition, system } from '@demiurgo/domain';
 import { sql } from 'kysely';
 import { loadAgentCatalog } from '../agents/catalog.ts';
 import { registerBuilder } from '../context/build.ts';
 import { knowledgeForContext } from '../context/knowledge.ts';
 import { type FragmentSource, ManifestBuilder, recordKnowledge } from '../context/manifest.ts';
-import type { Tx } from '../db/connection.ts';
-import { registerApplier } from './appliers.ts';
+import type { Db, Tx } from '../db/connection.ts';
+import { registerApplier, registerChecker } from './appliers.ts';
 import { revealQuestions } from '../commands/exploration.ts';
 import { definitionChangeProposal } from '../definition/compose.ts';
 
@@ -286,6 +286,34 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
   };
 });
 
+/** What the person wrote in the thread, most recent first: where an agent's quotes have to be. */
+function saidInThread(db: Db, explorationId: string) {
+  return db
+    .selectFrom('messages')
+    .select(['id', 'body'])
+    .where('exploration_id', '=', explorationId)
+    .where('author', 'like', 'human:%')
+    .orderBy('created_at', 'desc')
+    .orderBy('id', 'desc')
+    .execute();
+}
+
+// A quote that isn't in what the person wrote goes back to the agent once: dropped, it would take
+// its inference or its change with it, and it is often just a word copied wrong.
+registerChecker('exploration_chat', async ({ db, run, output }) => {
+  const said = await saidInThread(db, (run.scope as { id: string }).id);
+  const quotes = [
+    ...output.inferences.flatMap((i) => i.quotes),
+    ...output.proposals.flatMap((p) => (p.type === 'definition_change' ? p.quotes : [])),
+  ];
+  return quotes
+    .filter((quote) => !findQuote(quote, said))
+    .map(
+      (quote) =>
+        `The quote "${quote}" is not in what the person wrote in this thread. Copy their words exactly as they wrote them, or leave the quote out.`,
+    );
+});
+
 registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
   const actor = { type: 'agent_run' as const, run: run.id };
   const scope = run.scope as { id: string };
@@ -374,20 +402,10 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
   // person's own words: each quote has to be in one of their messages in this thread. An inference
   // with no quote found is dropped, so the question stays open and gets asked.
   const pending = new Set(content.questions.filter((q) => q.state === 'pending').map((q) => q.id));
-  const said = await trx
-    .selectFrom('messages')
-    .select(['id', 'body'])
-    .where('exploration_id', '=', scope.id)
-    .where('author', 'like', 'human:%')
-    .orderBy('created_at', 'desc')
-    .orderBy('id', 'desc')
-    .execute();
+  const said = await saidInThread(trx, scope.id);
   for (const inference of output.inferences) {
     if (!pending.has(inference.question_id)) continue;
-    const evidence = inference.quotes.flatMap((quote) => {
-      const m = said.find((s) => quoteFound(quote, s.body));
-      return m ? [{ message_id: m.id, quote }] : [];
-    });
+    const evidence = inference.quotes.flatMap((quote) => findQuote(quote, said) ?? []);
     if (evidence.length === 0) continue;
     const q = await trx.selectFrom('questions').select('state').where('id', '=', inference.question_id).executeTakeFirst();
     if (q?.state !== 'pending') continue;

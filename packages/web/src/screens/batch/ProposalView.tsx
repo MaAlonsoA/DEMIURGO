@@ -36,6 +36,7 @@ import {
 import { DEFINITION } from '../overview/words.i18n.ts';
 import { keyOfSection } from '../overview/definition.ts';
 import { PROPOSAL_VIEW } from './words.i18n.ts';
+import { Quote } from '../../components/Quote.tsx';
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
@@ -96,7 +97,7 @@ function DefinitionChangeBody({ projectId, proposal: p }: { projectId: string; p
           <h3 className="text-sm font-semibold text-fg-2">{t.inTheirWords}</h3>
           {evidence.map((e) => (
             <p key={`${e.message_id}:${e.quote}`} className="text-sm text-fg-2" data-trace={`message:${e.message_id}`}>
-              <q>{e.quote}</q>
+              <Quote text={e.quote} />
             </p>
           ))}
         </section>

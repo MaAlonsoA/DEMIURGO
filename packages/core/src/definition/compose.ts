@@ -13,7 +13,7 @@ import {
   composeDefinition,
   definitionChangeNote,
   definitionChanges,
-  quoteFound,
+  findQuote,
   system,
 } from '@demiurgo/domain';
 import type { CommandContext, Db } from '../bus/types.ts';
@@ -159,10 +159,7 @@ export async function definitionChangeProposal(
   change: ProposedChange,
   said: readonly { id: string; body: string }[],
 ): Promise<{ type: 'definition_change'; payload: unknown; dependencies: unknown[] } | null> {
-  const evidence = change.quotes.flatMap((quote) => {
-    const m = said.find((s) => quoteFound(quote, s.body));
-    return m ? [{ message_id: m.id, quote }] : [];
-  });
+  const evidence = change.quotes.flatMap((quote) => findQuote(quote, said) ?? []);
   if (evidence.length === 0) return null;
   const current = await trx
     .selectFrom('record_versions')

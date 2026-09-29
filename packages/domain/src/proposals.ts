@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 import { proposedCriterion } from './agents.ts';
-import { DEFINITION_SECTION_TITLES } from './definition.ts';
+import { DEFINITION_SECTION_TITLES, QUOTE_MAX } from './definition.ts';
 
 const text = (max: number) => z.string().trim().min(1).max(max);
 
@@ -140,7 +140,7 @@ export const definitionChangePayload = z
     content: text(3000),
     reason: text(1000),
     evidence: z
-      .array(z.object({ message_id: z.string().uuid(), quote: text(300) }).strict())
+      .array(z.object({ message_id: z.string().uuid(), quote: text(QUOTE_MAX) }).strict())
       .min(1)
       .max(3),
   })

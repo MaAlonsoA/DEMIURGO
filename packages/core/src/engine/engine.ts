@@ -14,6 +14,7 @@ import {
   ENGINE_SOURCES,
   type EngineSource,
   OUTPUT_SCHEMAS,
+  type Provider,
   type ProviderInvocation,
   SPAN,
   type SessionRequest,
@@ -28,14 +29,15 @@ import {
   system,
 } from '@demiurgo/domain';
 import { sql } from 'kysely';
-import { APPLIERS } from '../actions/appliers.ts';
+import { APPLIERS, CHECKERS } from '../actions/appliers.ts';
 import { DEFAULT_AGENTS, loadAgentCatalog, schemaVersion } from '../agents/catalog.ts';
 import { type Engine, couldNotAnswer, fallbackOf, sameEngine } from '../assignments/assignments.ts';
-import { type CallMeta, type CallSession, callProvider, closeOrphanCalls } from '../assignments/calls.ts';
+import { type CallMeta, type CallSession, callProvider, closeOrphanCalls, noCallSession } from '../assignments/calls.ts';
 import { previousSession, saveSession, sessionDirectory, sessionKey } from '../assignments/sessions.ts';
 import { executeCommand, inTransaction } from '../bus/bus.ts';
 import { graphUpToDate } from '../context/graph.ts';
 import type { Db, Tx } from '../db/connection.ts';
+import type { Row } from '../db/schema.ts';
 import { traceParentOf } from '../observe/trace-contexts.ts';
 import type { WorkflowEngine, Services } from '../services.ts';
 import { stepSpan, systemInteraction } from './observe.ts';
@@ -303,8 +305,9 @@ async function invokeInSpan(s: Services, runId: string): Promise<InvokeResult> {
       task: { action, context: { hash: pack.hash, content: pack.content } },
     };
     let result = await callProvider(s, provider, meta, { ...base, input, session });
-    let attempt: 1 | 2 = 1;
+    let attempt = 1;
     let mode = session.mode;
+    let asked: SessionRequest = session;
     if (session.mode === 'resumed' && result.state === 'error' && result.failureKind === 'agent_error') {
       // The provider may have lost the session: once more from scratch, on the same engine and
       // model, with a new session of ours (plan B, attempt 2).
@@ -327,6 +330,7 @@ async function invokeInSpan(s: Services, runId: string): Promise<InvokeResult> {
       attempt = 2;
       mode = 'fresh';
       deltaHash = null;
+      asked = again;
     }
     const backup =
       couldNotAnswer(result) && engineSource !== 'override' && engineSource !== 'fallback'
@@ -336,12 +340,13 @@ async function invokeInSpan(s: Services, runId: string): Promise<InvokeResult> {
     const from: Engine = { provider: run.provider, model, effort: run.effort };
     if (backup && backupProvider && !control.signal.aborted && !sameEngine(backup, from)) {
       const engine: Engine = { provider: backup.provider, model: backup.model, effort: backup.effort };
+      attempt += 1;
       const again = await callProvider(
         s,
         backupProvider,
         {
           ...meta,
-          attempt: attempt === 1 ? 2 : 3,
+          attempt,
           engineSource: 'fallback',
           session: { id: null, mode: 'none', baseRunId: null, basePackHash: null, deltaHash: null, keyHash: null },
           inputHash: s.observer.text('input', full),
@@ -349,20 +354,101 @@ async function invokeInSpan(s: Services, runId: string): Promise<InvokeResult> {
         { ...base, model: engine.model, effort: engine.effort, input: full, session: { mode: 'none' } },
       );
       const reason = result.state === 'error' ? result.message : 'It could not answer.';
-      return {
+      const answer: InvokeResult = {
         ...again,
         session: { mode: 'none', key: null, providerSessionId: null, deltaHash: null },
         fallback: { engine, from, reason },
       };
+      return await corrected(s, run, answer, {
+        provider: backupProvider,
+        meta: { ...meta, engineSource: 'fallback' },
+        base: { ...base, model: engine.model, effort: engine.effort },
+        full,
+        attempt,
+        session: null,
+      });
     }
     const resumedId = session.mode === 'resumed' && mode === 'resumed' ? session.id : null;
     const providerSessionId = mode === 'none' ? null : (result.sessionId ?? resumedId);
-    return { ...result, session: { mode, key, providerSessionId, deltaHash } };
+    const answer: InvokeResult = { ...result, session: { mode, key, providerSessionId, deltaHash } };
+    return await corrected(s, run, answer, {
+      provider,
+      meta,
+      base,
+      full,
+      attempt,
+      session:
+        asked.mode !== 'none' && providerSessionId
+          ? { request: { mode: 'resumed', directory: asked.directory, id: providerSessionId }, seen: sessionSeen }
+          : null,
+    });
   } catch (e) {
     return fail('infra', `The adapter failed: ${String(e)}`);
   } finally {
     controllers.delete(runId);
   }
+}
+
+/** What the engine checks in an answer before applying it: its schema, then what the action's checker finds. */
+async function problemsOf(db: Db, run: Row<'ai_runs'>, rawOutput: unknown): Promise<string[]> {
+  const action = run.action as AgentAction;
+  const v = OUTPUT_SCHEMAS[action].safeParse(normalizeOutput(action, rawOutput));
+  if (!v.success) return v.error.issues.slice(0, 20).map((i) => `${i.path.map(String).join('.') || 'output'}: ${i.message}`);
+  const checker = CHECKERS[action] as ((e: { db: Db; run: Row<'ai_runs'>; output: unknown }) => Promise<string[]>) | undefined;
+  return checker ? checker({ db, run, output: v.data }) : [];
+}
+
+type Correction = {
+  provider: Provider;
+  meta: CallMeta;
+  base: Omit<ProviderInvocation, 'input' | 'session'>;
+  full: string;
+  attempt: number;
+  /** The provider session the answer came from, to ask for the correction there; null to send it all again. */
+  session: { request: SessionRequest & { mode: 'resumed' }; seen: CallSession } | null;
+};
+
+/**
+ * An answer that fails the schema or its action's checks goes back to the same engine once, with the
+ * problems, instead of being dropped whole for one of them: in its session when it has one, or with
+ * the whole input and its own answer otherwise. The corrected answer replaces it only if the engine
+ * gave one; the engine's word is still checked when it is applied.
+ */
+async function corrected(s: Services, run: Row<'ai_runs'>, answer: InvokeResult, c: Correction): Promise<InvokeResult> {
+  if (answer.state !== 'ok' || c.base.signal?.aborted) return answer;
+  const problems = await problemsOf(s.db, run, answer.rawOutput);
+  if (problems.length === 0) return answer;
+  const note = [
+    "Your previous answer can't be used as it is:",
+    ...problems.map((p) => `- ${p}`),
+    'Answer again with the whole output: fix only these problems and keep everything else as it was.',
+  ].join('\n');
+  const input = c.session ? note : `${c.full}\n\nYour previous answer:\n${rawOutputText(answer.rawOutput)}\n\n${note}`;
+  const again = await callProvider(
+    s,
+    c.provider,
+    {
+      ...c.meta,
+      attempt: c.attempt + 1,
+      session: c.session
+        ? {
+            ...c.session.seen,
+            id: c.session.request.id,
+            mode: 'resumed',
+            baseRunId: run.id,
+            deltaHash: s.observer.text('delta', note),
+          }
+        : noCallSession(),
+      inputHash: s.observer.text('input', input),
+    },
+    { ...c.base, input, session: c.session?.request ?? { mode: 'none' } },
+  );
+  if (again.state !== 'ok') return answer;
+  const session =
+    answer.session && c.session
+      ? { ...answer.session, providerSessionId: again.sessionId ?? c.session.request.id }
+      : answer.session;
+  return { ...again, session, ...(answer.fallback ? { fallback: answer.fallback } : {}) };
 }
 
 /** The run's session columns, as run.complete and run.fail record them. */

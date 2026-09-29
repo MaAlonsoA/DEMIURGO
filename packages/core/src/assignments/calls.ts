@@ -55,8 +55,8 @@ export type CallMeta = {
   promptHash: string;
   engineSource: EngineSource | null;
   session: CallSession;
-  /** 1; 2 for the plan B after a lost session; the next one for the backup engine (up to 3). */
-  attempt: 1 | 2 | 3;
+  /** 1; 2 for the plan B after a lost session; the next one for the backup engine; the next for a correction. */
+  attempt: number;
   /** Full hashes of the texts sent, when the caller already emitted them; otherwise computed here. */
   inputHash: string | null;
   schemaHash: string | null;

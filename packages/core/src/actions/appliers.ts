@@ -4,7 +4,7 @@
 import type { AgentAction, ActionOutput } from '@demiurgo/domain';
 import type { Request, Result } from '../bus/types.ts';
 import type { Row } from '../db/schema.ts';
-import type { Tx } from '../db/connection.ts';
+import type { Db, Tx } from '../db/connection.ts';
 
 export type ApplierInput<A extends AgentAction> = {
   trx: Tx;
@@ -22,4 +22,17 @@ export const APPLIERS: { [A in AgentAction]?: Applier<A> } = {
 
 export function registerApplier<A extends AgentAction>(action: A, applier: Applier<A>): void {
   (APPLIERS as Record<string, unknown>)[action] = applier;
+}
+
+/**
+ * What an action's valid output gets wrong that the agent can fix, checked before applying it: each
+ * problem in words the agent reads, so the engine can hand them back once instead of dropping what
+ * the output got right.
+ */
+type Checker<A extends AgentAction> = (e: { db: Db; run: Row<'ai_runs'>; output: ActionOutput<A> }) => Promise<string[]>;
+
+export const CHECKERS: { [A in AgentAction]?: Checker<A> } = {};
+
+export function registerChecker<A extends AgentAction>(action: A, checker: Checker<A>): void {
+  (CHECKERS as Record<string, unknown>)[action] = checker;
 }

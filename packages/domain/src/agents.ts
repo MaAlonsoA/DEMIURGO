@@ -3,7 +3,7 @@
 // at all (I7).
 
 import { z } from 'zod';
-import { DEFINITION_SECTION_TITLES } from './definition.ts';
+import { DEFINITION_SECTION_TITLES, QUOTE_MAX } from './definition.ts';
 
 export const AGENT_ACTIONS = ['echo', 'exploration_chat', 'design_proposal'] as const;
 export type AgentAction = (typeof AGENT_ACTIONS)[number];
@@ -237,7 +237,7 @@ export const explorationChatOutput = z
             reasoning: recordText(1500),
             // The evidence: without a quote the server can find in the person's messages, there is no inference.
             quotes: z
-              .array(text(300))
+              .array(text(QUOTE_MAX))
               .max(3)
               .describe("The person's exact words the conclusion rests on, copied verbatim in their language."),
           })
@@ -277,7 +277,7 @@ export const explorationChatOutput = z
               content: recordText(3000).describe('The whole section as it should read after the change, in English.'),
               reason: recordText(1000),
               quotes: z
-                .array(text(300))
+                .array(text(QUOTE_MAX))
                 .min(1)
                 .max(3)
                 .describe("The person's exact words in this thread the change rests on, copied verbatim in their language."),

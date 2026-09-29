@@ -218,10 +218,11 @@ describe('agent runs', () => {
     await cmd('message.post', { exploration_id: thread, text: '[invalid] one more thing', respond: false });
     const failed = await ask(thread);
     expect(await run(failed)).toMatchObject({ state: 'failed', failure_kind: 'invalid_output', session_mode: 'resumed' });
+    const before = received.length;
     const again = (await cmd('run.retry', { run_id: failed })).entityId;
     await waitForRun(again);
     expect(await run(again)).toMatchObject({ session_mode: 'fresh', retry_of: failed });
-    expect(received.at(-1)?.input).toContain('Who pays for this?');
+    expect(received[before]?.input).toContain('Who pays for this?');
   });
 
   it('AC-AGE-002-11 Retry with… runs the same context pack on the chosen engine; an engine outside the catalog is 422', async () => {

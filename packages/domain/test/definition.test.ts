@@ -11,6 +11,8 @@ import {
   composeDefinition,
   definitionChangeNote,
   definitionChanges,
+  findQuote,
+  matchQuote,
 } from '../src/definition.ts';
 import { PAYLOADS } from '../src/proposals.ts';
 import { RECORD_TEMPLATES, templateGaps } from '../src/records.ts';
@@ -105,5 +107,41 @@ describe('a change proposed in a thread', () => {
     expect(PAYLOADS.definition_change.safeParse({ ...base, evidence }).success).toBe(true);
     expect(PAYLOADS.definition_change.safeParse({ ...base, evidence: [] }).success).toBe(false);
     expect(PAYLOADS.definition_change.safeParse({ ...base, section: 'Pricing', evidence }).success).toBe(false);
+  });
+});
+
+describe('the person’s words a quote rests on', () => {
+  const said =
+    'Quiero que, cuando surja una idea nueva, vea antes de aceptarla a qué piezas del diseño y del código afecta.\n' +
+    '- Todo se hace desde la web.';
+
+  it('finds a quote copied with a word changed, and keeps the person’s words, not the copy', () => {
+    expect(
+      matchQuote('Cuando surja una idea nueva vea antes de aceptarla a que partes del diseño y del codigo afecta', said),
+    ).toEqual({
+      text: 'cuando surja una idea nueva, vea antes de aceptarla a qué piezas del diseño y del código afecta.',
+      changes: 1,
+    });
+    expect(matchQuote('todo se hace desde la web', said)?.text).toBe('Todo se hace desde la web.');
+  });
+
+  it('does not take a paraphrase or a made-up quote for the person’s words', () => {
+    expect(matchQuote('antes de aceptar una idea quiero saber qué rompe en el código', said)).toBeNull();
+    expect(matchQuote('todo desde el móvil', said)).toBeNull();
+  });
+
+  it('has no length limit of its own: a long quote counts if it is in what they wrote', () => {
+    const long = `${'Una frase larga que la persona escribió. '.repeat(20)}Fin.`;
+    expect(matchQuote(long, `Antes. ${long} Después.`)?.text).toBe(long.trim());
+    expect(PAYLOADS.definition_change.shape.evidence.element.shape.quote.safeParse(long).success).toBe(true);
+  });
+
+  it('says in which message it is, choosing the one it matches best', () => {
+    const messages = [
+      { id: 'a', body: 'Todo se hace desde el móvil.' },
+      { id: 'b', body: 'Todo se hace desde la web.' },
+    ];
+    expect(findQuote('todo se hace desde la web', messages)).toEqual({ message_id: 'b', quote: 'Todo se hace desde la web.' });
+    expect(findQuote('nada de esto', messages)).toBeNull();
   });
 });

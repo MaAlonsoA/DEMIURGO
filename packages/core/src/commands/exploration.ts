@@ -2,6 +2,7 @@
 
 import {
   DomainError,
+  QUOTE_MAX,
   STAGES,
   VALID_AGENT_NAME,
   formatActor,
@@ -429,7 +430,7 @@ registerHandlers({
         reasoning: z.string().trim().max(3000).default(''),
         // The exact words of the person it rests on, each in the message where they said it.
         evidence: z
-          .array(z.object({ message_id: uuid, quote: text(300) }).strict())
+          .array(z.object({ message_id: uuid, quote: text(QUOTE_MAX) }).strict())
           .max(3)
           .default([]),
       })

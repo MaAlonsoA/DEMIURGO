@@ -5,18 +5,17 @@ import { DEFAULT_SCRIPTS, createSimulatedProvider } from '../../core/src/agents/
 import { describe, expect, it } from 'vitest';
 import { useApi } from './support/api.ts';
 
-// The first invocation of each pack returns an invalid output; the following ones, the normal one.
-const seen = new Set<string>();
+// The first answer to each pack and its correction are invalid; the following ones, the normal one.
+const seen = new Map<string, number>();
 const api = useApi({
   durable: true,
   providers: () => [
     createSimulatedProvider({
       scripts: {
         exploration_chat: (p) => {
-          if (!seen.has(p.context.hash)) {
-            seen.add(p.context.hash);
-            return { reply: 7 };
-          }
+          const n = seen.get(p.context.hash) ?? 0;
+          seen.set(p.context.hash, n + 1);
+          if (n < 2) return { reply: 7 };
           return DEFAULT_SCRIPTS.exploration_chat(p);
         },
       },

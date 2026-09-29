@@ -42,6 +42,7 @@ import {
   sourceOf,
 } from './definition.ts';
 import { DEFINITION } from './words.i18n.ts';
+import { Quote } from '../../components/Quote.tsx';
 
 type View = 'document' | 'changes' | 'history';
 
@@ -223,7 +224,7 @@ function ThreadNote({ projectId, from, label }: { projectId: string; from: FromT
       </p>
       {from.evidence.map((e) => (
         <p key={`${e.message_id}:${e.quote}`} className="text-fg-3" data-trace={`message:${e.message_id}`}>
-          <q>{e.quote}</q>
+          <Quote text={e.quote} />
         </p>
       ))}
     </>
@@ -495,7 +496,7 @@ function SideNote({
             ? null
             : q.evidence.map((e) => (
                 <p key={`${e.message_id}:${e.quote}`} className="text-fg-3" data-trace={`message:${e.message_id}`}>
-                  <q>{e.quote}</q>
+                  <Quote text={e.quote} />
                 </p>
               ))}
           <p className="text-xs text-fg-3">{`${t.from} · ${q.question}`}</p>

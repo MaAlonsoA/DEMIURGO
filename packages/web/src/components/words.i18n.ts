@@ -220,3 +220,6 @@ export const ASK_BOX = messages(
     openThread: 'Abrir el hilo',
   },
 );
+
+/** Quote.tsx: a long quote of the person's words folds behind "Show more". */
+export const QUOTE = messages({ showMore: 'Show more', showLess: 'Show less' }, { showMore: 'Ver más', showLess: 'Ver menos' });

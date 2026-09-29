@@ -164,6 +164,77 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
       text: stageTitle,
       reason: `stage:${stage.stage}`,
     });
+  // The record the thread was opened about (Ask DEMIURGO about this): whole, with its state, so the
+  // agent answers about it without asking the person to paste it.
+  const about =
+    exploration.origin_type === 'record_version' && exploration.origin_id
+      ? await trx
+          .selectFrom('record_versions')
+          .innerJoin('records', 'records.id', 'record_versions.record_id')
+          .select([
+            'records.id as recordId',
+            'records.code',
+            'records.type',
+            'record_versions.id',
+            'record_versions.n',
+            'record_versions.state',
+            'record_versions.title',
+            'record_versions.sections',
+          ])
+          .where('record_versions.id', '=', exploration.origin_id)
+          .where('records.project_id', '=', projectId)
+          .executeTakeFirst()
+      : undefined;
+  const aboutRecord = about
+    ? {
+        code: about.code,
+        type: about.type,
+        version: about.n,
+        state: about.state,
+        title: about.title,
+        sections: about.sections as { title: string; content: string }[],
+      }
+    : null;
+  if (about && aboutRecord)
+    manifest.entered({
+      section: 'about_record',
+      source: source('record_version', about.id, about.n),
+      text: JSON.stringify(aboutRecord),
+      reason: 'thread origin',
+    });
+  // The product definition's draft: accepted but not approved yet, newer than the version in force.
+  // It is what the person is still exploring before approving it, so the conversation reads it too.
+  const definitionDraft = await trx
+    .selectFrom('record_versions')
+    .innerJoin('records', 'records.id', 'record_versions.record_id')
+    .select([
+      'records.id as recordId',
+      'records.code',
+      'record_versions.id',
+      'record_versions.n',
+      'record_versions.state',
+      'record_versions.sections',
+    ])
+    .where('records.project_id', '=', projectId)
+    .where('records.type', '=', 'product_definition')
+    .orderBy('record_versions.n', 'desc')
+    .executeTakeFirst()
+    .then((v) => (v && v.state === 'draft' ? v : undefined));
+  const productDefinitionDraft = definitionDraft
+    ? {
+        code: definitionDraft.code,
+        version: definitionDraft.n,
+        state: 'draft',
+        sections: definitionDraft.sections as { title: string; content: string }[],
+      }
+    : null;
+  if (definitionDraft && productDefinitionDraft)
+    manifest.entered({
+      section: 'product_definition_draft',
+      source: source('record_version', definitionDraft.id, definitionDraft.n),
+      text: JSON.stringify(productDefinitionDraft),
+      reason: 'definition draft',
+    });
   const decisions = await trx
     .selectFrom('record_versions')
     .innerJoin('records', 'records.id', 'record_versions.record_id')
@@ -268,6 +339,10 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
       graph_version: graphVersion,
       dependencies: [
         { type: 'exploration', id: exploration.id, version: null },
+        ...(about ? [{ type: 'record', id: about.recordId, version: about.n }] : []),
+        ...(definitionDraft && definitionDraft.recordId !== about?.recordId
+          ? [{ type: 'record', id: definitionDraft.recordId, version: definitionDraft.n }]
+          : []),
         ...decisionSplit.chosen.map((d) => ({ type: 'record', id: d.recordId, version: d.version })),
         ...knowledge.dependencies,
       ],
@@ -301,6 +376,8 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
               uncovered_mandatory_questions: stageQuestions.map((q) => ({ id: q.id, question: q.question, state: q.state })),
             }
           : null,
+        ...(aboutRecord ? { about_record: aboutRecord } : {}),
+        ...(productDefinitionDraft ? { product_definition_draft: productDefinitionDraft } : {}),
         confirmed_decisions: decisionsSummary,
         untrusted_sources: chosenSources,
         knowledge: knowledge.nodes,

@@ -9,7 +9,15 @@ import { TYPE_WORDS, failureWordFor, typeWordFor } from '../words.ts';
 export type AskSubject =
   | { kind: 'product'; name: string }
   /** A record: the version on screen and every version of it (a thread born from any of them is its thread). */
-  | { kind: 'record'; type: RecordType; title: string; versionIds: readonly string[]; versionId: string };
+  | {
+      kind: 'record';
+      type: RecordType;
+      title: string;
+      versionIds: readonly string[];
+      versionId: string;
+      /** The thread the record was worked out in (the product definition's stage): asking goes on there. */
+      threadId?: string | null;
+    };
 
 export const PRODUCT_PURPOSE = 'About the whole product';
 
@@ -17,6 +25,10 @@ type ThreadLike = Pick<Exploration, 'id' | 'purpose' | 'state' | 'origin_type' |
 
 /** The active thread of the subject, the most recent first; undefined when it has none yet. */
 export function threadFor<T extends ThreadLike>(threads: readonly T[], subject: AskSubject): T | undefined {
+  if (subject.kind === 'record' && subject.threadId) {
+    const own = threads.find((t) => t.id === subject.threadId && t.state === 'active');
+    if (own) return own;
+  }
   const mine = threads.filter((t) => {
     if (t.state !== 'active') return false;
     if (subject.kind === 'record') return t.origin_type === 'record_version' && subject.versionIds.includes(t.origin_id ?? '');

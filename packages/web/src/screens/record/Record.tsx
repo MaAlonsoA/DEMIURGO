@@ -9,7 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSearch } from '@tanstack/react-router';
 import { type ReactNode, useRef, useState } from 'react';
 import { ApiError } from '../../api/client.ts';
-import { inboxQuery, readinessQuery, recordQuery, stateQuery } from '../../api/queries.ts';
+import { inboxQuery, readinessQuery, recordQuery, stagesQuery, stateQuery } from '../../api/queries.ts';
 import { canCreate } from '../../api/tables.ts';
 import type { Inbox, ProductState, RecordDetail, RecordVersion } from '../../api/types.ts';
 import { AskBox, type AskBoxHandle } from '../../components/AskBox.tsx';
@@ -133,6 +133,9 @@ function RecordPage({
   const review = useReview(record, version, reviewable);
   const questions = useQuestions(projectId, version);
   const ask = useRef<AskBoxHandle>(null);
+  // The product definition is worked out in its stage's thread: asking about it goes on there.
+  const stages = useQuery({ ...stagesQuery(projectId), enabled: record.type === 'product_definition' }).data;
+  const stageThread = stages?.find((s) => s.key === 'requirements')?.exploration_id ?? null;
   const [approved, setApproved] = useState<string | null>(null);
   // What the save of this version said, shown once on its page.
   const [saved] = useState(() => ({ n: version.n, warnings: takeSaveWarnings(record.code, version.n) }));
@@ -149,6 +152,7 @@ function RecordPage({
         title: version.title,
         versionIds: record.versions.map((v) => v.id),
         versionId: version.id,
+        threadId: stageThread,
       }}
       className="border-t border-edge pt-6"
     />
@@ -247,7 +251,7 @@ function RecordPage({
                 {(s) => (
                   <section key={s.title} className="flex flex-col gap-2">
                     <h2 className="text-lg font-semibold text-fg">{s.title}</h2>
-                    <Markdown className="max-w-3xl">{s.content}</Markdown>
+                    <Markdown className="max-w-prose">{s.content}</Markdown>
                   </section>
                 )}
               </ReviewSections>

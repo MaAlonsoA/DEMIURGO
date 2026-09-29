@@ -28,6 +28,8 @@ import { hasChecks, useRecordTab } from '../blueprint/Sections.tsx';
 import { NotFound } from '../not-found/NotFound.tsx';
 import { needsItems } from '../overview/needs.ts';
 import { Checks } from './Checks.tsx';
+import { EpicBoard } from './EpicBoard.tsx';
+import { featureEpicThread } from '../epics/logic.ts';
 import { FeatureJourney } from './FeatureJourney.tsx';
 import { RecordHeader } from './Header.tsx';
 import { isEarlierDraft, selectVersion, versionIndex, versionStage } from './logic.ts';
@@ -158,6 +160,7 @@ function RecordPage({
         versionIds: record.versions.map((v) => v.id),
         versionId: version.id,
         threadId: stageThread,
+        parentId: record.type === 'fdr' && state ? featureEpicThread(state, record.code) : null,
       }}
       className="border-t border-edge pt-6"
     />
@@ -251,6 +254,7 @@ function RecordPage({
               />
             ) : null}
             {record.type === 'fdr' ? <FeatureJourney version={version} readiness={ready} /> : null}
+            {record.type === 'epic' ? <EpicBoard projectId={projectId} record={record} state={state} /> : null}
             <article aria-label={t.asWritten(version.title)} className="flex flex-col gap-8">
               <ReviewSections sections={version.sections} parts={review.parts}>
                 {(s) => (

@@ -17,9 +17,14 @@ export type AskSubject =
       versionId: string;
       /** The thread the record was worked out in (the product definition's stage): asking goes on there. */
       threadId?: string | null;
+      /** The thread a new one hangs from: a feature's epic thread. */
+      parentId?: string | null;
     };
 
 export const PRODUCT_PURPOSE = 'About the whole product';
+
+/** Whether a thread is where a feature of an epic is designed (`Design "Name" (EPC-…)`), not the epic's own. */
+export const isFeatureThread = (purpose: string): boolean => purpose.startsWith('Design "');
 
 type ThreadLike = Pick<Exploration, 'id' | 'purpose' | 'state' | 'origin_type' | 'origin_id' | 'last_activity'>;
 
@@ -31,16 +36,28 @@ export function threadFor<T extends ThreadLike>(threads: readonly T[], subject: 
   }
   const mine = threads.filter((t) => {
     if (t.state !== 'active') return false;
-    if (subject.kind === 'record') return t.origin_type === 'record_version' && subject.versionIds.includes(t.origin_id ?? '');
+    if (subject.kind === 'record') {
+      // A feature's thread is born from its epic's version too: asking about the epic goes to the epic's own.
+      if (subject.type === 'epic' && isFeatureThread(t.purpose)) return false;
+      return t.origin_type === 'record_version' && subject.versionIds.includes(t.origin_id ?? '');
+    }
     return t.origin_type === null && t.purpose.startsWith(PRODUCT_PURPOSE);
   });
   return mine.sort((a, b) => Date.parse(b.last_activity) - Date.parse(a.last_activity))[0];
 }
 
 /** Data of exploration.open for the subject's first thread. */
-export function openThreadData(subject: AskSubject): { purpose: string; origin?: { type: 'record_version'; id: string } } {
+export function openThreadData(subject: AskSubject): {
+  purpose: string;
+  parent_id?: string;
+  origin?: { type: 'record_version'; id: string };
+} {
   if (subject.kind === 'product') return { purpose: PRODUCT_PURPOSE };
-  return { purpose: `About ${subject.title}`, origin: { type: 'record_version', id: subject.versionId } };
+  return {
+    purpose: `About ${subject.title}`,
+    ...(subject.parentId ? { parent_id: subject.parentId } : {}),
+    origin: { type: 'record_version', id: subject.versionId },
+  };
 }
 
 export function askPlaceholder(subject: AskSubject, locale: Locale = 'en'): string {

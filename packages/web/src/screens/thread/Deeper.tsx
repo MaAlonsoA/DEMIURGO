@@ -23,6 +23,7 @@ import { EntityState, StatusBadge, WorkingDot } from '../../components/status.ts
 import { Tooltip } from '../../components/Tooltip.tsx';
 import { Who } from '../../components/Who.tsx';
 import { useMessages } from '../../i18n/define.ts';
+import { type Reading, useReading } from '../../i18n/reading.tsx';
 import { cn } from '../../lib/cn.ts';
 import { useTables } from '../../lib/hooks.ts';
 import { failureWord } from '../../words.ts';
@@ -69,6 +70,7 @@ export function DeeperPanel({
   const post = useCommand(projectId);
   const retry = useCommand(projectId);
   const explain = useExplain(projectId, thread.id);
+  const shown = useReading(projectId, 'question', q.id);
   const talkId = useId();
   const open = isOpenQuestion(q);
   const canTalk = !!tables && canCreate(tables, 'message.post') && thread.state === 'active' && open;
@@ -152,8 +154,9 @@ export function DeeperPanel({
           tabIndex={-1}
           className={cn('font-semibold text-fg outline-none', compact ? 'text-base' : 'text-lg')}
         >
-          {q.question}
+          {shown.text('question', q.question)}
         </h2>
+        {shown.mark ? <div>{shown.mark}</div> : null}
         {compact ? null : <p className="text-sm text-fg-2">{t.waitsHere}</p>}
         {canTalk && !compact ? (
           <div className="flex flex-col items-start gap-1">
@@ -295,7 +298,7 @@ export function DeeperPanel({
                 </Button>
               ) : null}
               <div hidden={!settling} className={compact ? 'max-h-[26vh] overflow-y-auto' : undefined}>
-                <Settle ref={settle} question={q} onDone={onClose} dense={compact} />
+                <Settle ref={settle} question={q} reading={shown} onDone={onClose} dense={compact} />
               </div>
             </>
           ) : null
@@ -357,11 +360,13 @@ function FailedHere({
  */
 function Settle({
   question: q,
+  reading,
   onDone,
   ref,
   dense = false,
 }: {
   question: Question;
+  reading: Reading;
   onDone: () => void;
   ref: Ref<{ pick: (value: string) => void }>;
   dense?: boolean;
@@ -399,9 +404,9 @@ function Settle({
               {c.answer}
             </>
           ) : (
-            c.answer
+            reading.text(`options.${c.value}.answer`, c.answer)
           ),
-          ...(c.implies ? { detail: c.implies } : {}),
+          ...(c.implies ? { detail: reading.text(`options.${c.value}.implies`, c.implies) } : {}),
           ...(c.highlight ? { highlight: true } : {}),
         }))}
       />

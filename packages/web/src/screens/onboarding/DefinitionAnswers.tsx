@@ -2,16 +2,18 @@
 // in the definition's order. What DEMIURGO read in the idea comes with the person's own words it
 // rests on; what the idea doesn't say waits for an answer (with its likely options) or can be left
 // open on purpose. When the person doesn't know what to answer, "Explain it simply" explains the
-// question under it. One button confirms it all; the system then drafts the product definition,
-// which waits for the person's approval on the Product page.
+// question under it, and "Talk it through" opens Go deeper over the page to settle it in a side
+// conversation. A correction is saved here (kept in this browser) until one button confirms it all;
+// the system then drafts the product definition, which waits for the person's approval on the
+// Product page.
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../../api/client.ts';
 import { runCommand } from '../../api/commands.ts';
-import { explorationQuery, keys, stagesQuery } from '../../api/queries.ts';
-import type { Question } from '../../api/types.ts';
+import { explorationQuery, keys, runsQuery, stagesQuery } from '../../api/queries.ts';
+import type { ExplorationDetail, Question } from '../../api/types.ts';
 import { announce } from '../../components/announce.tsx';
 import { Button, buttonClass } from '../../components/Button.tsx';
 import { Field, TextArea } from '../../components/Field.tsx';
@@ -19,7 +21,10 @@ import { ErrorNotice } from '../../components/Notice.tsx';
 import { Section } from '../../components/Page.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { DEFINITION } from '../overview/words.i18n.ts';
+import { DeeperPanel } from '../thread/Deeper.tsx';
+import { type Drafts, DraftsProvider } from '../thread/drafts.tsx';
 import { ExplainButton, Explanation, useExplain } from '../thread/Explain.tsx';
+import { Sheet } from '../thread/Sheet.tsx';
 import { type Answer, blockCalls, initialAnswer, missingAnswers, openItems } from './confirm.ts';
 import { CONFIRM } from './words.i18n.ts';
 import { Quote } from '../../components/Quote.tsx';
@@ -46,21 +51,76 @@ export function DefinitionAnswers({ projectId }: { projectId: string }) {
       </Section>
     ) : null;
   }
-  return <Block projectId={projectId} explorationId={items[0]?.exploration_id ?? ''} items={items} />;
+  return <Block projectId={projectId} thread={thread.data} items={items} />;
 }
 
-function Block({ projectId, explorationId, items }: { projectId: string; explorationId: string; items: Question[] }) {
+const storageKey = (thread: string) => `dm-day1-answers:${thread}`;
+
+/** The answers saved on Day 1, kept in this browser until they are confirmed. */
+function useSavedAnswers(
+  threadId: string,
+): [Record<string, Answer>, (f: (all: Record<string, Answer>) => Record<string, Answer>) => void] {
+  const [answers, setAnswers] = useState<Record<string, Answer>>(() => {
+    try {
+      return JSON.parse(window.localStorage.getItem(storageKey(threadId)) ?? '{}') as Record<string, Answer>;
+    } catch {
+      return {};
+    }
+  });
+  const change = (f: (all: Record<string, Answer>) => Record<string, Answer>) =>
+    setAnswers((all) => {
+      const next = f(all);
+      try {
+        window.localStorage.setItem(storageKey(threadId), JSON.stringify(next));
+      } catch {
+        // Keeping them across reloads is a convenience: without storage they last for this visit.
+      }
+      return next;
+    });
+  return [answers, change];
+}
+
+function Block({ projectId, thread, items }: { projectId: string; thread: ExplorationDetail; items: Question[] }) {
   const t = useMessages(CONFIRM);
   const client = useQueryClient();
   const navigate = useNavigate();
-  const [answers, setAnswers] = useState<Record<string, Answer>>({});
+  const explorationId = thread.id;
+  const [answers, setAnswers] = useSavedAnswers(explorationId);
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<unknown>(null);
+  const [deeperId, setDeeperId] = useState<string | null>(null);
+  const [talks, setTalks] = useState<Record<string, string>>({});
+  const deeperHeading = useRef<HTMLHeadingElement>(null);
+  const runs = useQuery({ ...runsQuery(projectId, { exploration: explorationId }), enabled: !!deeperId });
   const answerOf = (q: Question) => answers[q.id] ?? initialAnswer(q);
-  const set = (q: Question, a: Partial<Answer>) => setAnswers((all) => ({ ...all, [q.id]: { ...answerOf(q), ...a } }));
+  const set = (q: Question, a: Partial<Answer>) =>
+    setAnswers((all) => ({ ...all, [q.id]: { ...(all[q.id] ?? initialAnswer(q)), ...a } }));
   const missing = missingAnswers(items, answers);
   const calls = blockCalls(items, answers);
   const explain = useExplain(projectId, explorationId);
+  const deeper = items.find((q) => q.id === deeperId) ?? null;
+
+  // Go deeper settles a question into this block: "Use as answer" becomes the saved answer.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: set only reads the items and answers passed in
+  const drafts = useMemo<Drafts>(
+    () => ({
+      answers: Object.fromEntries(
+        items.flatMap((q) => {
+          const a = answers[q.id];
+          return a && !a.open && a.text.trim() && a.text.trim() !== initialAnswer(q).text.trim() ? [[q.id, a.text]] : [];
+        }),
+      ),
+      forks: {},
+      setAnswer: (id, text) => {
+        const q = items.find((x) => x.id === id);
+        if (q) set(q, { text: text ?? initialAnswer(q).text, open: false });
+      },
+      setFork: () => {},
+      clear: () => {},
+      prune: () => {},
+    }),
+    [items, answers],
+  );
 
   async function confirm() {
     setError(null);
@@ -70,6 +130,7 @@ function Block({ projectId, explorationId, items }: { projectId: string; explora
         await runCommand(projectId, call);
         setProgress(i + 1);
       }
+      setAnswers(() => ({}));
       await client.invalidateQueries({ queryKey: keys.project(projectId) });
       announce(t.confirmed);
       await navigate({ to: '/p/$projectId', params: { projectId } });
@@ -92,6 +153,7 @@ function Block({ projectId, explorationId, items }: { projectId: string; explora
             onChange={(a) => set(q, a)}
             explanation={<Explanation projectId={projectId} explorationId={explorationId} questionId={q.id} />}
             explainButton={<ExplainButton question={q} pending={explain.pending} onExplain={() => explain.ask(q.id)} />}
+            onTalk={() => setDeeperId(q.id)}
           />
         ))}
       </ol>
@@ -109,6 +171,33 @@ function Block({ projectId, explorationId, items }: { projectId: string; explora
         </Button>
         {missing > 0 ? <span className="text-sm text-fg-2">{t.missing(missing)}</span> : null}
       </div>
+      <DraftsProvider value={drafts}>
+        <Sheet
+          open={!!deeper}
+          onOpenChange={(o) => {
+            if (!o) setDeeperId(null);
+          }}
+          label={t.talkLabel}
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            deeperHeading.current?.focus();
+          }}
+        >
+          {deeper ? (
+            <DeeperPanel
+              key={deeper.id}
+              projectId={projectId}
+              thread={thread}
+              question={deeper}
+              runs={runs.data ?? []}
+              talk={talks[deeper.id] ?? ''}
+              onTalk={(text) => setTalks((all) => ({ ...all, [deeper.id]: text }))}
+              onClose={() => setDeeperId(null)}
+              headingRef={deeperHeading}
+            />
+          ) : null}
+        </Sheet>
+      </DraftsProvider>
     </Section>
   );
 }
@@ -119,6 +208,7 @@ function Item({
   onChange,
   explanation,
   explainButton,
+  onTalk,
 }: {
   q: Question;
   answer: Answer;
@@ -126,13 +216,19 @@ function Item({
   /** What DEMIURGO explained about the question, when the person asked. */
   explanation: ReactNode;
   explainButton: ReactNode;
+  /** Opens Go deeper on the question. */
+  onTalk: () => void;
 }) {
   const t = useMessages(CONFIRM);
   const d = useMessages(DEFINITION);
   const read = q.state === 'inferred';
-  const [editing, setEditing] = useState(!read);
+  // While a reading is being corrected, the answer it had before: Discard goes back to it. What the
+  // person writes counts as it is typed, so a correction confirmed without Save is not lost.
+  const [before, setBefore] = useState<string | null>(null);
+  const editing = !read || before !== null;
   const section = d.section(q.stage_key ?? '');
   const corrected = read && answer.text.trim() !== (q.conclusion ?? '').trim();
+  const write = (value: string) => onChange({ text: value });
   return (
     <li
       data-trace={`question:${q.id}`}
@@ -150,18 +246,14 @@ function Item({
           ) : (
             <span className="flex flex-wrap justify-end gap-1">
               {explainButton}
-              {read ? (
-                <Button
-                  size="sm"
-                  variant="quiet"
-                  onClick={() => {
-                    if (editing) onChange({ text: q.conclusion ?? '' });
-                    setEditing(!editing);
-                  }}
-                >
-                  {editing ? t.keep : t.correct}
+              {read && before === null ? (
+                <Button size="sm" variant="quiet" onClick={() => setBefore(answer.text)}>
+                  {t.correct}
                 </Button>
               ) : null}
+              <Button size="sm" variant="quiet" onClick={onTalk}>
+                {t.talk}
+              </Button>
               <Button size="sm" variant="quiet" onClick={() => onChange({ open: true })}>
                 {t.leaveOpen}
               </Button>
@@ -181,7 +273,7 @@ function Item({
                     variant="secondary"
                     aria-pressed={answer.text === o.answer}
                     title={o.implies}
-                    onClick={() => onChange({ text: o.answer })}
+                    onClick={() => write(o.answer)}
                   >
                     {o.answer}
                   </Button>
@@ -190,19 +282,49 @@ function Item({
             ) : null}
             <Field label={t.answerLabel(section)} labelHidden>
               {(p) => (
-                <TextArea
-                  {...p}
-                  autoGrow
-                  rows={2}
-                  maxLength={3000}
-                  value={answer.text}
-                  onChange={(e) => onChange({ text: e.target.value })}
-                />
+                <TextArea {...p} autoGrow rows={2} maxLength={3000} value={answer.text} onChange={(e) => write(e.target.value)} />
               )}
             </Field>
+            {read && before !== null ? (
+              <span className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={!answer.text.trim()}
+                  onClick={() => {
+                    onChange({ text: answer.text.trim() });
+                    setBefore(null);
+                  }}
+                >
+                  {t.save}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="quiet"
+                  onClick={() => {
+                    onChange({ text: before });
+                    setBefore(null);
+                  }}
+                >
+                  {t.discard}
+                </Button>
+              </span>
+            ) : null}
           </>
         ) : (
-          <p className="max-w-prose text-base text-fg">{answer.text}</p>
+          <>
+            <p className="max-w-prose text-base text-fg" data-answer-text>
+              {answer.text}
+            </p>
+            {corrected ? (
+              <p className="flex flex-wrap items-center gap-2 text-sm text-fg-2">
+                {t.saved}
+                <Button size="sm" variant="quiet" onClick={() => onChange({ text: q.conclusion ?? '' })}>
+                  {t.backToRead}
+                </Button>
+              </p>
+            ) : null}
+          </>
         )}
         {explanation}
       </div>

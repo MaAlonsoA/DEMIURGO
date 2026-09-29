@@ -97,6 +97,8 @@ services:
     command: ["pnpm", "--filter", "@demiurgo/web", "exec", "vite", "build", "--watch"]
     environment:
       VITE_PHOENIX_URL: ${PHOENIX_PUBLIC_URL:-}
+      # Colima + virtiofs: los eventos nativos no llegan al vigilante por fichero de vite; sondea.
+      DEMIURGO_WATCH_POLLING: "1"
     volumes:
       - .:/app
       - node_modules:/app/node_modules

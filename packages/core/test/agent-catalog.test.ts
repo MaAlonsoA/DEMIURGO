@@ -28,11 +28,12 @@ const agentText = (id: string, action: string, skills: string[]) =>
 const skillText = (id: string) => `---\nname: ${id}\ndescription: A skill.\n---\nDo it well.\n`;
 
 describe('agent catalog', () => {
-  it('AC-AGE-002-04 the repository catalog loads the seven agents with their skills in order and a version', async () => {
+  it('AC-AGE-002-04 the repository catalog loads the eight agents with their skills in order and a version', async () => {
     const catalog = await loadAgentCatalog();
     expect(catalog.agents.map((a) => a.id).toSorted()).toEqual([
       'designer',
       'echo',
+      'explainer',
       'explorer',
       'knowledge_classifier',
       'knowledge_reviewer',

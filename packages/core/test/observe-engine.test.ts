@@ -408,10 +408,13 @@ describe('the engine under observation', () => {
       await cmd('message.post', { exploration_id: thread, text: 'And a free trial.', respond: false });
       const third = await ask(thread);
       expect(await run(third)).toMatchObject({ state: 'completed', session_mode: 'fresh', delta_hash: null });
-      const attempts = spans()
-        .filter((s) => s.name === `${SPAN.invokeAgent} explorer` && withRun(third)(s))
-        .sort((a, b) => Number(a.attributes[ATTR.callAttempt]) - Number(b.attributes[ATTR.callAttempt]));
-      expect(attempts.map((s) => s.attributes[ATTR.callAttempt])).toEqual([1, 2]);
+      const attemptsOf = () =>
+        spans()
+          .filter((s) => s.name === `${SPAN.invokeAgent} explorer` && withRun(third)(s))
+          .sort((a, b) => Number(a.attributes[ATTR.callAttempt]) - Number(b.attributes[ATTR.callAttempt]));
+      // The spans are exported in batches: under load the second one may arrive a moment later.
+      await expect.poll(() => attemptsOf().map((s) => s.attributes[ATTR.callAttempt])).toEqual([1, 2]);
+      const attempts = attemptsOf();
       expect(attempts[0]?.attributes).toMatchObject({ [ATTR.sessionMode]: 'resumed', [ATTR.failureKind]: 'agent_error' });
       expect(attempts[0]?.status.code).toBe(2);
       expect(attempts[0]?.attributes[ATTR.errorType]).toBe('agent_error');

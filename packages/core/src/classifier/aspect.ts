@@ -3,35 +3,21 @@
 // thread and each proposal's own text (to check the aspect its agent chose). It is derived data:
 // it runs after the commit, never blocks a command and a failure only leaves it unclassified.
 //
-// Sending that text to TypeSafe needs the key and an approved ADR in the project (JEV_ADR_TITLE):
-// without either, nothing leaves the machine.
+// It is a tool of this DEMIURGO build, not a decision of the product being designed: the key
+// (TYPESAFE_API_KEY) turns it on; without it, nothing leaves the machine.
 
 import { ASPECTS, ASPECT_DESCRIPTIONS, type Aspect, isAspect } from '@demiurgo/domain';
-import type { Db } from '../db/connection.ts';
 import type { Services } from '../services.ts';
 import { createJevClassifier, jevCostUsd } from './jev.ts';
-
-/** The ADR that allows sending a project's text to TypeSafe: approved, Jev classifies it. */
-export const JEV_ADR_TITLE = 'Send conversation and proposal text to TypeSafe (Jev) for classification';
 
 const QUESTION = 'Which part of the product is this text mainly about?';
 const MAX_TEXT = 8000;
 
 export type AspectJudgment = { aspect: Aspect; confidence: number };
 
-/** Whether this project allows Jev: the key is set and the ADR is approved. */
-export async function jevAllowed(db: Db, projectId: string): Promise<boolean> {
-  if (!process.env.TYPESAFE_API_KEY) return false;
-  const adr = await db
-    .selectFrom('records')
-    .innerJoin('record_versions', 'record_versions.record_id', 'records.id')
-    .select('records.id')
-    .where('records.project_id', '=', projectId)
-    .where('records.type', '=', 'adr')
-    .where('record_versions.title', '=', JEV_ADR_TITLE)
-    .where('record_versions.state', '=', 'approved')
-    .executeTakeFirst();
-  return !!adr;
+/** Whether Jev is on: the key is set. */
+export function jevAllowed(): boolean {
+  return !!process.env.TYPESAFE_API_KEY;
 }
 
 /** Each text's aspect, by id; nothing when Jev is not allowed. */
@@ -42,7 +28,7 @@ export async function classifyAspects(
 ): Promise<Map<string, AspectJudgment>> {
   const out = new Map<string, AspectJudgment>();
   const items = texts.filter((t) => t.text.trim());
-  if (items.length === 0 || !(await jevAllowed(services.db, projectId))) return out;
+  if (items.length === 0 || !jevAllowed()) return out;
   let tokens = 0;
   const jev = createJevClassifier({ apiKey: process.env.TYPESAFE_API_KEY, onUsage: (u) => (tokens += u.input_tokens) });
   const answers = await jev.choice(

@@ -5,7 +5,7 @@
 //   node packages/api/src/cli.ts issue-agent-token <projectId> <agentName> <username>   (the person's password from stdin)
 //   node packages/api/src/cli.ts real-run <projectId> <action> <json-scope> [json-input]
 //   node packages/api/src/cli.ts propose-quality <projectId>                   (the NFRs of a covered Global quality stage)
-//   node packages/api/src/cli.ts propose-jev-adr <projectId>                   (the ADR that allows Jev; a person approves it)
+//   node packages/api/src/cli.ts supersede-batch <projectId> <batchId> <reason>  (withdraws a pending batch; decides nothing)
 //   node packages/api/src/cli.ts classify-messages <projectId>                 (Jev: aspect of the messages not classified yet)
 //   node packages/api/src/cli.ts evaluate-classifier <provider> <model> [effort|-] [test|dev|all] [v1|v1-en]   (spends quota)
 //     provider `jev` (TypeSafe, key TYPESAFE_API_KEY): sends the evaluation set out; it spends credits, ~0.01 USD
@@ -41,7 +41,6 @@ import {
   TRANSLATION_ACTOR,
   QUALITY_ACTOR,
   qualityBatch,
-  JEV_ADR_TITLE,
   classifyAspects,
 } from '@demiurgo/core';
 import { readTree, replaceTree } from '@demiurgo/design';
@@ -192,73 +191,24 @@ const commands: Record<string, () => Promise<void>> = {
     }
   },
 
-  async 'propose-jev-adr'() {
-    const [projectId] = args;
-    if (!projectId) throw new Error('Usage: propose-jev-adr <projectId>');
+  async 'supersede-batch'() {
+    const [projectId, batchId, ...reason] = args;
+    if (!projectId || !batchId || reason.length === 0) throw new Error('Usage: supersede-batch <projectId> <batchId> <reason>');
     const core = await startCore(config, cliLogger);
     try {
-      const r = await executeCommand(core.services, {
-        command: 'batch.submit',
+      await executeCommand(core.services, {
+        command: 'batch.supersede',
         actor: system('design'),
         projectId,
-        data: {
-          summary: 'Allow DEMIURGO to classify text with Jev (TypeSafe).',
-          batch_type: 'system_package',
-          resolution: 'item',
-          proposals: [
-            {
-              type: 'design_record',
-              payload: {
-                record_type: 'adr',
-                aspect: 'security',
-                title: JEV_ADR_TITLE,
-                sections: [
-                  {
-                    title: 'Context',
-                    content:
-                      'DEMIURGO tags every proposal, record and conversation with the aspect of the product it is about (product, feature, quality, architecture, security, operations). Judging it on the text alone, apart from the thread and the stage, needs a fast and cheap classifier. Jev (TypeSafe, System One) returns a typed choice with its probabilities for about USD 0.04 per million input tokens.',
-                  },
-                  {
-                    title: 'Options',
-                    content:
-                      'Jev over the TypeSafe API; the agents already used for conversations (slower, and they spend the subscription quota); no classification (only the aspect the proposing agent chose).',
-                  },
-                  {
-                    title: 'Decision',
-                    content:
-                      "Send to TypeSafe the text of each message a person writes in a thread and of each proposal (its title and prose), one request per text, to classify its aspect. Nothing else is sent: no records' history, sources, names of people or credentials. The key lives in the server's environment (TYPESAFE_API_KEY).",
-                  },
-                  {
-                    title: 'Consequences',
-                    content:
-                      'The text leaves the machine for a US-hosted API without zero data retention (outside its enterprise plan). The aspect of messages and the check of each proposal become available within seconds. Rejecting or replacing this ADR, or removing the key, stops every request; what was classified stays as derived data.',
-                  },
-                ],
-                criteria: [
-                  {
-                    title: 'Nothing is sent without this ADR approved',
-                    statement:
-                      'While this record is not approved, or the key is not set, DEMIURGO sends no text to TypeSafe.',
-                    verification: 'automatic',
-                    check: 'With the ADR not approved, post a message and submit a proposal: no request reaches TypeSafe and no aspect is stored.',
-                  },
-                  {
-                    title: 'Only the text of messages and proposals is sent',
-                    statement: 'Each request carries only one message text or one proposal title and prose.',
-                    verification: 'manual',
-                    check: 'Inspect the requests logged for one message and one proposal: nothing else is in their state.',
-                  },
-                ],
-              },
-            },
-          ],
-        },
+        entityId: batchId,
+        data: { reason: reason.join(' ') },
       });
-      console.log(JSON.stringify({ batch: r.entityId }));
+      console.log(JSON.stringify({ superseded: batchId }));
     } finally {
       await core.stop();
     }
   },
+
 
   async 'classify-messages'() {
     const [projectId] = args;

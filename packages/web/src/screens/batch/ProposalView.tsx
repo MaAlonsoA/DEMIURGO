@@ -124,6 +124,7 @@ export function ProposalBody({
   withGoal?: boolean;
 }) {
   const t = useMessages(PROPOSAL_VIEW);
+  const needs = (Array.isArray(p.payload.needs) ? p.payload.needs : []) as { code: string; version?: number }[];
   if (p.type === 'decision') {
     return (
       <div className="flex flex-col gap-4" data-body="decision">
@@ -147,6 +148,14 @@ export function ProposalBody({
   if (p.type === 'design_record' || p.type === 'product_definition') {
     return (
       <div className="flex flex-col gap-4" data-body="design_record">
+        {needs.length > 0 ? (
+          <p className="flex flex-wrap items-center gap-2 text-sm text-fg-2" data-needs>
+            {t.needs}
+            {needs.map((n) => (
+              <RecordChip key={n.code} projectId={projectId} code={n.code} version={n.version ?? null} rows={rows} />
+            ))}
+          </p>
+        ) : null}
         <Sections sections={payloadSections(p.payload)} />
         <Checks proposal={p} />
       </div>

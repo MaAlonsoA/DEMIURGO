@@ -295,6 +295,13 @@ export const explorationChatOutput = z
                 .strict()
                 .nullable()
                 .describe('For a feature (fdr): the approved epic it belongs to, with its current version; null otherwise.'),
+              needs: z
+                .array(z.object({ code: z.string().regex(/^[A-Z]{3}-[A-Z]{3}-\d{3}$/), version: z.number().int().positive() }).strict())
+                .max(6)
+                .nullable()
+                .describe(
+                  'For a feature (fdr): the approved features of the same epic it depends on and that must be built first, each with its current version; null when it depends on none.',
+                ),
               sections: z
                 .array(z.object({ title: recordText(120), content: recordText(6000) }).strict())
                 .min(1)

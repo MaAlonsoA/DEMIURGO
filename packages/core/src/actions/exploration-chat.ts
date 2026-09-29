@@ -542,8 +542,37 @@ registerChecker('exploration_chat', async ({ db, run, output }) => {
         );
     }
   }
+  for (const p of output.proposals) {
+    if (p.type !== 'design_record' || p.record_type !== 'fdr' || !p.needs) continue;
+    const found = await neededFeatures(db, run.project_id, p.needs);
+    for (const n of p.needs)
+      if (!found.some((f) => f.code === n.code && f.version === n.version))
+        notes.push(
+          `${n.code} v${n.version} in \`needs\` is not an approved feature at that version. \`needs\` only names approved features listed in design_records, with their current version.`,
+        );
+  }
   return notes;
 });
+
+/** The approved features (at that version) among the references an agent gave as what a feature needs. */
+async function neededFeatures(db: Db, projectId: string, refs: readonly { code: string; version: number }[]) {
+  const found: { id: string; code: string; version: number }[] = [];
+  for (const ref of refs) {
+    if (found.some((f) => f.code === ref.code)) continue;
+    const feature = await db
+      .selectFrom('record_versions')
+      .innerJoin('records', 'records.id', 'record_versions.record_id')
+      .select('records.id')
+      .where('records.project_id', '=', projectId)
+      .where('records.type', '=', 'fdr')
+      .where('records.code', '=', ref.code)
+      .where('record_versions.n', '=', ref.version)
+      .where('record_versions.state', '=', 'approved')
+      .executeTakeFirst();
+    if (feature) found.push({ id: feature.id, code: ref.code, version: ref.version });
+  }
+  return found;
+}
 
 /**
  * The record the thread is about, at the version in force: where a `record_change` can land. Null
@@ -748,6 +777,9 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
       const { type, quotes, ...fields } = p;
       // Fields the agent leaves null (an epic's name, a feature's epic) are left out of the payload.
       const payload = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== null));
+      // A feature's needs: approved features only; the ones that aren't are dropped (the checker told the agent).
+      const needs = p.type === 'design_record' && p.record_type === 'fdr' ? await neededFeatures(trx, run.project_id, p.needs ?? []) : [];
+      delete payload.needs;
       const basis = [
         ...quotes.flatMap((quote) => {
           const found = findQuote(quote, said);
@@ -755,7 +787,16 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
         }),
         ...(questionId ? [{ type: 'question' as const, id: questionId }] : []),
       ];
-      proposals.push({ type, payload: { ...payload, ...(basis.length > 0 ? { basis } : {}) } });
+      proposals.push({
+        type,
+        payload: {
+          ...payload,
+          ...(needs.length > 0 ? { needs: needs.map((n) => ({ code: n.code, version: n.version })) } : {}),
+          ...(basis.length > 0 ? { basis } : {}),
+        },
+        // Each needed feature, like the epic it is based on, must still be at that version when it is accepted.
+        ...(needs.length > 0 ? { dependencies: needs.map((n) => ({ type: 'record', ...n })) } : {}),
+      });
       continue;
     }
     const change = await definitionChangeProposal(trx, run.project_id, p, said);

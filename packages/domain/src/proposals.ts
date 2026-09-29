@@ -77,6 +77,8 @@ export const designRecordPayload = z
       .optional(),
     /** A feature's epic: the record it rests on. */
     based_on: recordReference.optional(),
+    /** A feature's siblings it depends on (approved features): one `based_on` link each, and they have to be built first. */
+    needs: z.array(recordReference).max(6).optional(),
     aspect: aspectSchema.optional(),
     basis,
   })

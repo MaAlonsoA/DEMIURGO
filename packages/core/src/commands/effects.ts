@@ -114,7 +114,8 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
         title: c.title,
         sections: c.sections,
         criteria: c.criteria.map((k) => ({ carry: 'new', ...k })),
-        links: c.based_on ? [{ type: 'based_on', target: c.based_on }] : [],
+        // What it rests on, then the features it needs (a `based_on` link each: the map reads them as "needs").
+        links: [...(c.based_on ? [c.based_on] : []), ...(c.needs ?? [])].map((target) => ({ type: 'based_on', target })),
         origin: { type: 'proposal', id: proposalId },
       },
       approve,

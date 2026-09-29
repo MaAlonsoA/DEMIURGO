@@ -85,7 +85,7 @@ function RecordLink({ projectId, record }: { projectId: string; record: NavRecor
     <li>
       <Link
         to="/p/$projectId/records/$code"
-        params={{ projectId, code: record.opens ?? record.code }}
+        params={{ projectId, code: record.code }}
         data-rail-record={record.code}
         data-feature-status={record.status?.kind}
         aria-current={record.current ? 'page' : undefined}

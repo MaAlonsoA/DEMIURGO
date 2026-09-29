@@ -33,6 +33,8 @@ import { EpicBoard } from './EpicBoard.tsx';
 import { featureEpicThread } from '../epics/logic.ts';
 import { FeatureJourney } from './FeatureJourney.tsx';
 import { RecordHeader } from './Header.tsx';
+import { ancestorsOf } from './hierarchy.ts';
+import { PlannedFeaturePage } from './PlannedFeature.tsx';
 import { isEarlierDraft, selectVersion, versionIndex, versionStage } from './logic.ts';
 import { RecordNotices } from './Notices.tsx';
 import { ContextPanel, ReadinessPanel, VersionsPanel } from './RecordAside.tsx';
@@ -74,9 +76,34 @@ export function RecordScreen() {
   const record = useQuery(recordQuery(projectId, code));
   const state = useQuery(stateQuery(projectId));
   const inbox = useQuery(inboxQuery(projectId));
-  usePageTitle([record.data ? (selectVersion(record.data, search.v)?.title ?? code) : code, state.data?.project.name]);
+  usePageTitle([
+    record.data
+      ? (selectVersion(record.data, search.v)?.title ?? code)
+      : (state.data?.planned?.find((p) => p.code === code)?.name ?? code),
+    state.data?.project.name,
+  ]);
 
-  if (record.error instanceof ApiError && record.error.status === 404) return <NotFound thing={t.notFoundRecord(code)} />;
+  if (record.error instanceof ApiError && record.error.status === 404) {
+    // A feature its epic lists and nobody has designed yet: its code is reserved, and this is its page.
+    const planned = state.data?.planned?.find((p) => p.code === code);
+    if (planned && state.data) {
+      return (
+        <Frame projectId={projectId} code={code}>
+          <PlannedFeaturePage projectId={projectId} planned={planned} state={state.data} />
+        </Frame>
+      );
+    }
+    if (state.isPending) {
+      return (
+        <Frame projectId={projectId} code={code}>
+          <div className="px-4 py-6 sm:px-6 lg:px-8">
+            <PageSkeleton label={t.loadingRecord} />
+          </div>
+        </Frame>
+      );
+    }
+    return <NotFound thing={t.notFoundRecord(code)} />;
+  }
   const r = record.data;
   const version = r ? selectVersion(r, search.v) : undefined;
   if (!r || !version) {
@@ -200,6 +227,7 @@ function RecordPage({
         version={version}
         tab={tab}
         onApproved={() => setApproved(version.id)}
+        ancestors={ancestorsOf(state, record.code)}
       />
       {reading.mark ? <div className="-mt-2 mb-4">{reading.mark}</div> : null}
     </>

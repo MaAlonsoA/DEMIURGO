@@ -122,3 +122,38 @@ export const PLAN_EDITING = messages(
     dropped: (name: string) => `«${name}» quitada de la lista.`,
   },
 );
+
+export const PLANNED_FEATURE = messages(
+  {
+    feature: 'Feature',
+    planned: 'Planned',
+    place: (n: number, total: number, epic: string) => `No. ${n} of ${total} in ${epic}`,
+    before: 'Before it',
+    after: 'After it',
+    nextStep: 'Next step',
+    designing: 'It is being designed in its thread.',
+    openThread: 'Open its thread',
+    notDesigned: 'Nobody has designed it yet. Designing it opens its own thread under the epic, and what DEMIURGO proposes there becomes its design.',
+    becomes: (code: string) => `Once designed, ${code} is its design record and this page shows it.`,
+    approveEpic: (epic: string) => `${epic} is still a draft: approve it to start designing its features.`,
+    openEpic: 'Open the epic',
+    list: 'In the list',
+    notFound: (code: string) => `the feature ${code}`,
+  },
+  {
+    feature: 'Funcionalidad',
+    planned: 'Prevista',
+    place: (n: number, total: number, epic: string) => `N.º ${n} de ${total} en ${epic}`,
+    before: 'Antes',
+    after: 'Después',
+    nextStep: 'Siguiente paso',
+    designing: 'Se está diseñando en su hilo.',
+    openThread: 'Abrir su hilo',
+    notDesigned: 'Nadie la ha diseñado aún. Diseñarla abre su propio hilo bajo la épica, y lo que DEMIURGO proponga ahí pasa a ser su diseño.',
+    becomes: (code: string) => `Cuando se diseñe, ${code} será su registro de diseño y esta página lo mostrará.`,
+    approveEpic: (epic: string) => `${epic} sigue en borrador: apruébala para empezar a diseñar sus funcionalidades.`,
+    openEpic: 'Abrir la épica',
+    list: 'En la lista',
+    notFound: (code: string) => `la funcionalidad ${code}`,
+  },
+);

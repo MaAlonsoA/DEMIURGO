@@ -10,7 +10,7 @@ import { ApiError } from '../../api/client.ts';
 import { useCommand } from '../../api/commands.ts';
 import { keys, readinessQuery } from '../../api/queries.ts';
 import { canCreate } from '../../api/tables.ts';
-import type { RecordDetail, RecordVersion } from '../../api/types.ts';
+import type { RecordDetail, RecordType, RecordVersion } from '../../api/types.ts';
 import { ActionButtons, useActions } from '../../components/actions.tsx';
 import { announce } from '../../components/announce.tsx';
 import { Code } from '../../components/Badge.tsx';
@@ -44,23 +44,32 @@ function sectionOf(record: { type: string; aspect?: string | null }): string {
   return `aspect-${aspectOfRecord(record) ?? 'none'}-title`;
 }
 
+/** A record above another one in the hierarchy (its epic, its feature): a step of the breadcrumb. */
+export type CrumbAncestor = { code: string; title: string; type: RecordType; aspect?: string | null };
+
 export function recordCrumbs(
   projectId: string,
-  record: RecordDetail,
+  record: { code: string; type: RecordType; aspect?: string | null },
   title: string,
   more: Crumb[] = [],
   words: (typeof HEADER)['en'] = HEADER.en,
+  ancestors: readonly CrumbAncestor[] = [],
 ): Crumb[] {
+  // The list it hangs from is the top one's: a feature of an epic is under Epics, then its epic.
+  const top = ancestors[0] ?? record;
   return [
     { label: words.product, link: { to: '/p/$projectId', params: { projectId } } },
     {
-      label: TYPE_WORDS_PLURAL[record.type],
+      label: TYPE_WORDS_PLURAL[top.type],
       // Epics have their own page; the rest are listed in the overview's sections.
       link:
-        record.type === 'epic'
+        top.type === 'epic'
           ? { to: '/p/$projectId/epics', params: { projectId } }
-          : { to: '/p/$projectId', params: { projectId }, hash: sectionOf(record) },
+          : { to: '/p/$projectId', params: { projectId }, hash: sectionOf(top) },
     },
+    ...ancestors.map(
+      (a): Crumb => ({ label: a.title, link: { to: '/p/$projectId/records/$code', params: { projectId, code: a.code } } }),
+    ),
     more.length > 0
       ? { label: title, link: { to: '/p/$projectId/records/$code', params: { projectId, code: record.code } } }
       : { label: title },
@@ -74,12 +83,15 @@ export function RecordHeader({
   version,
   tab,
   onApproved,
+  ancestors = [],
 }: {
   projectId: string;
   record: RecordDetail;
   version: RecordVersion;
   tab: RecordTab;
   onApproved: () => void;
+  /** Its epic and feature above it, from the top. */
+  ancestors?: readonly CrumbAncestor[];
 }) {
   const t = useMessages(HEADER);
   const tables = useTables();
@@ -124,7 +136,7 @@ export function RecordHeader({
   return (
     <div data-record-header>
       <PageHeader
-        crumbs={recordCrumbs(projectId, record, version.title, [], t)}
+        crumbs={recordCrumbs(projectId, record, version.title, [], t, ancestors)}
         eyebrow={
           <>
             <span className="inline-flex items-center gap-1.5">

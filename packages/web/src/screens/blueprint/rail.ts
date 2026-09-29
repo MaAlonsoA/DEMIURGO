@@ -80,8 +80,6 @@ export type NavRecord = {
   status?: FeatureStatus;
   /** A feature listed under its epic. */
   nested?: boolean;
-  /** The record the link opens, when not its own (a planned feature opens its epic). */
-  opens?: string;
 };
 export type NavGroup = { key: string; title: string; records: NavRecord[] };
 export type Navigator = { project: string; groups: NavGroup[]; parked: { id: string; purpose: string }[] };
@@ -113,7 +111,7 @@ export function navigatorOf(
     const at = byAspect.findIndex((g) => g.key !== 'product');
     byAspect.splice(at < 0 ? byAspect.length : at, 0, { key: 'feature', aspect: 'feature', rows: [] });
   }
-  // An epic, then its list in order (a feature not designed yet opens the epic), then the features
+  // An epic, then its list in order (a feature not designed yet has its own page too), then the features
   // that rest on it outside its list.
   const navOf = (r: ProductRow): NavRecord[] => {
     const group = r.type === 'epic' ? epics.find((g) => g.epic.code === r.code) : undefined;
@@ -128,11 +126,10 @@ export function navigatorOf(
             : {
                 code: l.code,
                 title: l.name,
-                current: false,
+                current: l.code === current,
                 mark: 'open',
                 status: { kind: 'planned', word: words.planned },
                 nested: true,
-                opens: r.code,
               },
       ),
       ...plan.outside.map((f) => ({ ...toNav(f), nested: true })),

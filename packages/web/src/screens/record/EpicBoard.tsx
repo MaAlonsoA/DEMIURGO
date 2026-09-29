@@ -64,7 +64,7 @@ export function progressWords(
     .join(' · ');
 }
 
-/** The name of a line: to its feature's page, or to its thread while it is only being designed. */
+/** The name of a line: to its feature's page (the planned feature's own page until it is designed). */
 export function LineName({ projectId, line }: { projectId: string; line: EpicLine }) {
   if (line.row) {
     return (
@@ -78,24 +78,12 @@ export function LineName({ projectId, line }: { projectId: string; line: EpicLin
       </Link>
     );
   }
-  const code = <span className="ml-2 font-mono text-xs text-fg-3">{line.code}</span>;
-  if (line.thread) {
-    return (
-      <Link
-        to="/p/$projectId/threads/$explorationId"
-        params={{ projectId, explorationId: line.thread.id }}
-        className="font-medium text-fg hover:underline"
-      >
-        {line.name}
-        {code}
-      </Link>
-    );
-  }
+  // Not designed yet: its own page, under its reserved code (its thread is linked from there).
   return (
-    <span className="font-medium text-fg">
+    <Link to="/p/$projectId/records/$code" params={{ projectId, code: line.code }} className="font-medium text-fg hover:underline">
       {line.name}
-      {code}
-    </span>
+      <span className="ml-2 font-mono text-xs text-fg-3">{line.code}</span>
+    </Link>
   );
 }
 

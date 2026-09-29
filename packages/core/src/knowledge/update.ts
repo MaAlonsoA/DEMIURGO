@@ -459,6 +459,12 @@ async function prepareReviews(
   const current = new Map(currentNodes(graph).map((n) => [n.ref, n]));
   const proposals: ReviewProposal[] = [];
   const reasons: string[] = [];
+  // A new version of a record never asks to review that same record: its older node is replaced.
+  const changed =
+    d.change.main.origin.type === 'record_version' && d.change.main.origin.id
+      ? (await trx.selectFrom('record_versions').select('record_id').where('id', '=', d.change.main.origin.id).executeTakeFirst())
+          ?.record_id
+      : undefined;
   for (const review of reviews) {
     const origin = current.get(review.ref)?.origin;
     const v =
@@ -475,6 +481,7 @@ async function prepareReviews(
       reasons.push(`Can't propose the review of ${review.ref}: its node doesn't come from a record version in this project.`);
       continue;
     }
+    if (v.recordId === changed) continue;
     proposals.push({
       type: 'review',
       payload: {

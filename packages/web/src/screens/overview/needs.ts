@@ -4,7 +4,9 @@
 // overview's own ranking, which disagreed with Catch up (INVENTORY §2 #7). Pure.
 
 import type { Inbox, ProductState } from '../../api/types.ts';
-import { EPISTEMIC_MARK, type MarkKind, TYPE_WORDS, whoOf } from '../../words.ts';
+import { type Aspect } from '../../aspects.ts';
+import { EPISTEMIC_MARK, type MarkKind, whoOf } from '../../words.ts';
+import { aspectOfNeed } from '../needs-you/titles.ts';
 import { type NeedItem, catchUpOrder, needsOf } from '../needs-you/order.ts';
 
 export type NeedsKind = NeedItem['kind'];
@@ -20,8 +22,10 @@ export type NeedsItem = {
   /** Unique within the list (the kind and the id of what it is). */
   key: string;
   kind: NeedsKind;
-  /** What it is, in a word or two ("Assumed answer", "Version to approve"). */
+  /** What it is, in a word or two ("Assumed answer", "Accepted proposal to approve"). */
   label: string;
+  /** The aspect of a proposal or an accepted proposal, for its tag. */
+  aspect: Aspect | null;
   title: string;
   /** Where it comes from, in words. */
   from: string;
@@ -55,7 +59,7 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 function describe(n: NeedItem, state: ProductState | undefined): NeedsItem {
   const threads = new Map((state?.explorations ?? []).map((e) => [e.id, e.purpose]));
   const records = new Map([...(state?.designs ?? []), ...(state?.decisions ?? [])].map((r) => [r.code, r]));
-  const base = { key: n.key, kind: n.kind, unblocks: n.unblocks };
+  const base = { key: n.key, kind: n.kind, unblocks: n.unblocks, aspect: aspectOfNeed(n) };
   switch (n.kind) {
     case 'conflict': {
       const cited = (n.proposal.payload.record as { code?: string } | undefined)?.code ?? '';
@@ -113,9 +117,9 @@ function describe(n: NeedItem, state: ProductState | undefined): NeedsItem {
       const v = n.version;
       return {
         ...base,
-        label: v.approvable ? 'Version to approve' : 'Old draft to discard',
+        label: v.approvable ? 'Accepted proposal to approve' : 'Old accepted proposal to discard',
         title: v.title,
-        from: `${TYPE_WORDS[v.type] ?? v.type} · ${v.code} v${v.n}`,
+        from: `${v.code} v${v.n}`,
         mark: epistemic(v.epistemic_status),
         target: { to: '/p/$projectId/records/$code', params: { code: v.code }, search: { v: v.n } },
         code: v.code,

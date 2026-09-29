@@ -5,6 +5,8 @@
 // the decision. Once decided, the decision gives way to what happened; out of date, to why (R22,
 // R67, P3 evidence before narration).
 
+import { ProposalKind } from '../../components/AspectTag.tsx';
+import { useLocale } from '../../i18n/locale.ts';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
@@ -24,7 +26,6 @@ import { acceptedRecord, obsoleteReason, proposalTitle, rowOfVersion } from './m
 import { BlockedNotice, ChecksList, Evidence, IdeaCheck, linkClass, OutOfDate, RecordChip, RunLine, Sections } from './parts.tsx';
 import { ProposalDecision } from './ProposalActions.tsx';
 import {
-  kindWord,
   outOfDateText,
   payloadChecks,
   payloadSections,
@@ -283,7 +284,7 @@ export function ProposalView({
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="inline-flex items-center gap-1.5 font-medium text-fg-2">
             <TypeIcon type={proposalIconType(p)} size={15} className="text-fg-3" />
-            {kindWord(p.type)}
+            <ProposalKind proposal={p} />
           </span>
           {outOfDate ? <StatusBadge kind="stale" word="Out of date" /> : <EntityState entity="proposal" state={p.state} />}
         </div>
@@ -348,12 +349,13 @@ export function ProposalView({
 /** A decided proposal: what happened, the reason, and the record it made (INV-PROP-20). */
 function Resolved({ projectId, proposal: p, footer }: { projectId: string; proposal: ProposalData; footer?: ReactNode }) {
   const t = useMessages(PROPOSAL_VIEW);
+  const locale = useLocale();
   const effect = acceptedRecord(p);
   const reason = typeof p.resolution?.reason === 'string' ? p.resolution.reason : '';
   return (
     <div data-resolved className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-edge pt-4">
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <p className="font-medium text-fg">{resolvedText(p.state, effect)}</p>
+        <p className="font-medium text-fg">{resolvedText(p.state, effect, locale)}</p>
         {reason ? <p className="text-sm text-fg-2">{t.reasonPrefix(reason)}</p> : null}
         {effect ? (
           <Link

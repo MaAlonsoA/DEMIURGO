@@ -93,9 +93,9 @@ describe('the pages of runs', () => {
   });
 
   it('AC-INT-001-10 says what a run proposed in words', () => {
-    expect(proposalsInWords(['decision'])).toBe('1 decision');
-    expect(proposalsInWords(['fdr', 'fdr', 'exploration'])).toBe('2 features and 1 thread');
-    expect(proposalsInWords(['decision', 'fdr', 'other'])).toBe('1 decision, 1 feature and 1 proposal');
+    expect(proposalsInWords(['decision'])).toBe('1 proposal');
+    expect(proposalsInWords(['fdr', 'fdr', 'exploration'])).toBe('2 proposals and 1 thread');
+    expect(proposalsInWords(['decision', 'review', 'other'])).toBe('2 proposals and 1 review');
   });
 });
 

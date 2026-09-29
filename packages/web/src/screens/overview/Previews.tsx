@@ -20,7 +20,9 @@ import { PreviewSheet } from '../../components/Preview.tsx';
 import { RunStateBadge } from '../../components/runState.tsx';
 import { Certainty, StatusBadge } from '../../components/status.tsx';
 import { DayTime, Elapsed } from '../../components/Time.tsx';
-import { TypeIcon, typeWord } from '../../components/types.tsx';
+import { TypeIcon } from '../../components/types.tsx';
+import { RecordKind } from '../../components/AspectTag.tsx';
+import { aspectOfRecord } from '../../aspects.ts';
 import { Who, whoName } from '../../components/Who.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { whoOf } from '../../words.ts';
@@ -162,7 +164,7 @@ export function RecordPreview({
         row ? (
           <>
             <TypeIcon type={row.type} size={14} className="text-fg-3" />
-            {typeWord(row.type)}
+            <RecordKind aspect={aspectOfRecord(row)} draft={row.current === null} />
             <Certainty status={row.epistemic_status} />
           </>
         ) : null

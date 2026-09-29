@@ -152,23 +152,24 @@ export function clockTime(iso: string, now = Date.now()): string {
   return today ? time : `${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} ${time}`;
 }
 
-const NOUNS: Record<string, [string, string]> = {
-  decision: ['decision', 'decisions'],
-  fdr: ['feature', 'features'],
-  adr: ['tech decision', 'tech decisions'],
-  exploration: ['thread', 'threads'],
-  review: ['review', 'reviews'],
-  definition_change: ['change to the definition', 'changes to the definition'],
+// One noun per kind of thing: what makes or changes a record is a "proposal"; a thread and a review are their own.
+const NOUNS: Record<string, Record<'en' | 'es', [string, string]>> = {
+  proposal: { en: ['proposal', 'proposals'], es: ['propuesta', 'propuestas'] },
+  exploration: { en: ['thread', 'threads'], es: ['hilo', 'hilos'] },
+  review: { en: ['review', 'reviews'], es: ['revisión', 'revisiones'] },
 };
 
-/** What a batch holds, in words: "1 decision", "2 features and 1 thread". */
-export function proposalsInWords(types: readonly string[]): string {
+/** What a batch holds, in words: "1 proposal", "2 proposals and 1 thread". */
+export function proposalsInWords(types: readonly string[], locale: 'en' | 'es' = 'en'): string {
   const counts = new Map<string, number>();
-  for (const t of types) counts.set(t, (counts.get(t) ?? 0) + 1);
+  for (const t of types) {
+    const k = t === 'exploration' || t === 'review' ? t : 'proposal';
+    counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
   const parts = [...counts].map(([t, n]) => {
-    const [one, many] = NOUNS[t] ?? ['proposal', 'proposals'];
+    const [one, many] = (NOUNS[t] ?? NOUNS.proposal!)[locale];
     return `${n} ${n === 1 ? one : many}`;
   });
-  if (parts.length <= 1) return parts[0] ?? 'nothing';
-  return `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`;
+  if (parts.length <= 1) return parts[0] ?? (locale === 'es' ? 'nada' : 'nothing');
+  return `${parts.slice(0, -1).join(', ')} ${locale === 'es' ? 'y' : 'and'} ${parts.at(-1)}`;
 }

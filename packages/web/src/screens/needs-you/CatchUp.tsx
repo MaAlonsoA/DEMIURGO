@@ -16,7 +16,8 @@ import { useEditGuard } from '../batch/guard.tsx';
 import { NeedDetail } from './Detail.tsx';
 import type { NeedContext } from './frame.tsx';
 import { catchUpOrder, type NeedItem } from './order.ts';
-import { needTitle } from './titles.ts';
+import { aspectOfNeed, needTitle } from './titles.ts';
+import { AspectTag } from '../../components/AspectTag.tsx';
 import {
   clearWalk,
   currentStep,
@@ -71,6 +72,7 @@ export function CatchUp({ ctx, items }: { ctx: NeedContext; items: NeedItem[] })
   const [stored, setStored] = useState<Walk>(() => loadWalk(ctx.projectId) ?? emptyWalk());
   // Things that arrive meanwhile join the end of the walk (INV-CATCH-12).
   const walk = extendWalk(stored, ordered, (i) => needTitle(i, ctx.rows, kindWords));
+  const aspectByKey = new Map(ordered.map((i) => [i.key, aspectOfNeed(i)]));
   const grew = walk.steps.length !== stored.steps.length;
   useEffect(() => {
     if (grew) setStored(walk);
@@ -176,6 +178,12 @@ export function CatchUp({ ctx, items }: { ctx: NeedContext; items: NeedItem[] })
                     <span className="flex min-w-0 flex-1 flex-col">
                       <span className={cn('text-xs', s.kind === 'conflict' ? 'text-danger-text' : 'text-fg-2')}>
                         {kindWords.kindWord(s.kind)}
+                        {aspectByKey.get(s.key) ? (
+                          <>
+                            {' '}
+                            <AspectTag aspect={aspectByKey.get(s.key)} />
+                          </>
+                        ) : null}
                       </span>
                       <span className={cn('line-clamp-2 text-sm font-medium text-fg', st === 'done' && 'text-fg-2 line-through')}>
                         {s.title}

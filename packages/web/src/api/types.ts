@@ -162,6 +162,8 @@ export type ProductRow = {
   code: string;
   type: RecordType;
   domain: string;
+  /** The aspect of the product it is about (domain/aspects.ts); null until classified. */
+  aspect: string | null;
   title: string;
   current: number | null;
   latest: { n: number; state: string };
@@ -367,6 +369,8 @@ export type RecordDetail = {
   code: string;
   type: RecordType;
   domain: string;
+  /** The aspect of the product it is about (domain/aspects.ts); null until classified. */
+  aspect: string | null;
   current: number | null;
   implementation: string;
   versions: RecordVersion[];

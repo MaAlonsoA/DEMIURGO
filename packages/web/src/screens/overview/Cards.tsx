@@ -21,6 +21,8 @@ import { Certainty, EntityState, StateIcon, StatusBadge } from '../../components
 import { Section } from '../../components/Page.tsx';
 import { Elapsed, RelativeTime } from '../../components/Time.tsx';
 import { TypeIcon, typeWord } from '../../components/types.tsx';
+import { ProposalKind, RecordKind } from '../../components/AspectTag.tsx';
+import { aspectOfRecord } from '../../aspects.ts';
 import { Who } from '../../components/Who.tsx';
 import { cn } from '../../lib/cn.ts';
 import { useTables } from '../../lib/hooks.ts';
@@ -98,7 +100,7 @@ export function FeatureCard({
       <div className="flex flex-wrap items-center gap-2 text-xs text-fg-2">
         <span className="inline-flex items-center gap-1.5">
           <TypeIcon type={row.type} size={14} className="text-fg-3" />
-          {typeWord(row.type)}
+          <RecordKind aspect={aspectOfRecord(row)} draft={row.current === null} />
         </span>
         <span className="ml-auto flex items-center gap-1.5">
           {change.changed ? <ChangedBadge /> : null}
@@ -270,7 +272,7 @@ export function DraftingCard({
       <div className="flex items-center gap-2 text-xs text-fg-2">
         <span className="inline-flex items-center gap-1.5">
           <TypeIcon type="fdr" size={14} className="text-fg-3" />
-          {typeWord('fdr')}
+          <ProposalKind proposal={{ type: 'fdr', payload: {} }} />
         </span>
         <StatusBadge kind="proposed" className="ml-auto" />
       </div>

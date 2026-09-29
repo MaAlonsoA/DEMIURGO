@@ -13,6 +13,7 @@ import { ArrowRightIcon } from '../../components/icons.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
 import { Bone, Skeleton } from '../../components/Spinner.tsx';
 import { StateText } from '../../components/status.tsx';
+import { AspectTag } from '../../components/AspectTag.tsx';
 import { cn } from '../../lib/cn.ts';
 import { useMessages } from '../../i18n/define.ts';
 import { useProductWord } from '../../words.ts';
@@ -35,6 +36,7 @@ function Item({ projectId, item, index }: { projectId: string; item: NeedsItem; 
         <span className="flex items-center gap-2 text-xs">
           <span className="w-4 shrink-0 font-medium text-fg-2 tabular-nums">{index + 1}</span>
           <StateText kind={item.mark} word={item.label} className="text-xs" />
+          <AspectTag aspect={item.aspect} />
         </span>
         <span className="line-clamp-2 text-sm leading-snug font-medium text-fg">{item.title}</span>
         <span className="truncate pl-6 text-xs text-fg-2">{item.from}</span>

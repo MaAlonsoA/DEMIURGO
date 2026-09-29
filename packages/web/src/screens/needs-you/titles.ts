@@ -3,7 +3,8 @@
 // the rows. Pure, so the queue, the detail and Catch up say the same thing.
 
 import type { Exploration, ProductRow, Taxonomy } from '../../api/types.ts';
-import { TYPE_WORDS, whoOf } from '../../words.ts';
+import { type Aspect, aspectOfProposal, aspectOfType } from '../../aspects.ts';
+import { whoOf } from '../../words.ts';
 import { proposalTitle, rowOf, rowOfVersion } from '../batch/model.ts';
 import type { NeedItem } from './order.ts';
 import { TITLES } from './words.i18n.ts';
@@ -92,8 +93,10 @@ export function needReason(item: NeedItem, ctx: ReasonContext, words: Words = TI
     }
     case 'proposal':
       return words.proposalReason(producerWords(item.batch.producer, words), item.position, item.batch.proposals.length);
-    case 'version':
-      return words.versionReason(TYPE_WORDS[item.version.type], item.version.code, item.version.n);
+    case 'version': {
+      const aspect = aspectOfType(item.version.type);
+      return words.versionReason(aspect ? words.aspectWord(aspect) : null, item.version.code, item.version.n);
+    }
     case 'link': {
       const to = rowOf(ctx.rows, item.link.to_code);
       const newer = to?.current && to.current > item.link.to_n ? to.current : null;
@@ -199,4 +202,11 @@ export function entityOf(item: NeedItem): string {
     case 'update':
       return item.update.id;
   }
+}
+
+/** The aspect of a thing in Needs you, for its tag: a proposal's or an accepted proposal's. */
+export function aspectOfNeed(item: NeedItem): Aspect | null {
+  if (item.kind === 'proposal' || item.kind === 'conflict') return aspectOfProposal(item.proposal);
+  if (item.kind === 'version') return aspectOfType(item.version.type);
+  return null;
 }

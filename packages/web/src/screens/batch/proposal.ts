@@ -4,6 +4,8 @@
 // type gets its own label and body here: the old view showed its raw type name (INVENTORY Part D §3).
 
 import type { BatchDetail, Dependency, IdeaAssessmentSummary } from '../../api/types.ts';
+import { NOUNS, proposalNoun } from '../../aspects.i18n.ts';
+import type { Locale } from '../../i18n/locale.ts';
 import { whoOf } from '../../words.ts';
 import { batchView, proposalTitle } from './model.ts';
 
@@ -21,22 +23,9 @@ export type ProposalView = {
   assessment?: IdeaAssessmentSummary | null;
 };
 
-/** What kind of change a proposal is, as its header says it. */
-export const PROPOSAL_KIND_WORDS: Record<string, string> = {
-  decision: 'New decision',
-  fdr: 'New feature',
-  design_record: 'Design record',
-  exploration: 'New thread',
-  review: 'Review',
-  record_translation: 'English version',
-  product_definition: 'Product definition',
-  definition_change: 'Change to the definition',
-  imported_record: 'Imported document',
-  imported_taxonomy: 'Imported taxonomy',
-};
-
-export function kindWord(type: string): string {
-  return PROPOSAL_KIND_WORDS[type] ?? 'Proposal';
+/** What kind of change a proposal is, in one noun ("Proposal", "Review", "Thread"…); the aspect goes in a tag. */
+export function kindWord(type: string, locale: Locale = 'en'): string {
+  return proposalNoun(type, NOUNS[locale]);
 }
 
 /** The record type an accepted proposal makes (or a review is about), for its icon. */
@@ -94,61 +83,63 @@ export function proposalWhy(p: Pick<ProposalView, 'type' | 'payload'>): string {
   return '';
 }
 
-const NOUN: Record<string, string> = {
-  decision: 'the decision',
-  fdr: 'the feature',
-  design_record: 'the record',
-  exploration: 'the thread',
-  product_definition: 'the product definition',
-};
-
-/** "the feature “Sign up”, with its 3 checks": what accepting records. */
-export function whatItRecords(p: Pick<ProposalView, 'type' | 'payload'>): string {
-  const checks = payloadChecks(p.payload).length;
-  return `${NOUN[p.type] ?? 'it'} “${proposalTitle(p)}”${checks ? `, with its ${checks} ${checks === 1 ? 'check' : 'checks'}` : ''}`;
-}
-
 /**
- * What accepting does, before it happens (INV-PROP-15, 16): a list of sentences. With `approve`,
- * the two things that happen, in order.
+ * What accepting does, before it happens (INV-PROP-15, 16), in one plain sentence: accepting keeps
+ * working on it as an accepted proposal; approving settles it.
  */
-export function acceptEffects(p: Pick<ProposalView, 'type' | 'payload'>, approve: boolean): string[] {
+export function acceptEffects(p: Pick<ProposalView, 'type' | 'payload'>, approve: boolean, locale: Locale = 'en'): string[] {
+  const es = locale === 'es';
   if (p.type === 'review') {
-    const r = p.payload.record as { code?: string; version?: number } | undefined;
+    const r = p.payload.record as { code?: string } | undefined;
+    const code = r?.code ?? (es ? 'el registro' : 'the record');
     return [
-      `DEMIURGO opens a thread to review ${r?.code ?? 'the record'} v${r?.version ?? ''}. The record itself doesn't change.`,
+      es
+        ? `DEMIURGO abre un hilo para revisar ${code}. El registro en sí no cambia.`
+        : `DEMIURGO opens a thread to review ${code}. The record itself doesn't change.`,
     ];
   }
-  if (p.type === 'exploration') return [`DEMIURGO opens the thread “${proposalTitle(p)}”.`];
+  if (p.type === 'exploration')
+    return [es ? `DEMIURGO abre el hilo «${proposalTitle(p)}».` : `DEMIURGO opens the thread “${proposalTitle(p)}”.`];
   if (p.type === 'definition_change') {
+    const section = str(p.payload.section);
+    return es
+      ? [
+          `DEMIURGO cambia «${section}» en la definición del producto, tal como dice aquí.`,
+          'Queda asentada al momento: aceptarla la aprueba. Lo que decía antes se queda en su historial.',
+        ]
+      : [
+          `DEMIURGO changes “${section}” in the product definition, as it says here.`,
+          'It is settled at once: accepting it approves it. What it said before stays in its history.',
+        ];
+  }
+  if (approve)
     return [
-      `DEMIURGO changes “${str(p.payload.section)}” in the product definition, as it says here.`,
-      'The definition is updated at once: accepting it approves it. The version before stays in its history.',
+      es
+        ? 'Queda asentada: DEMIURGO y los siguientes pasos parten de ella.'
+        : 'It is settled: DEMIURGO and the next steps build on it.',
     ];
-  }
-  if (p.type === 'product_definition' && p.payload.record) {
-    const r = p.payload.record as { code?: string; version?: number } | undefined;
-    const what = `the product definition's next version, after ${r?.code ?? ''} v${r?.version ?? ''}`;
-    if (!approve) return [`DEMIURGO records ${what}, as a draft. You approve it later, on its page.`];
-    return [`DEMIURGO records ${what}.`, 'You approve it: it becomes the current version.'];
-  }
-  if (p.type === 'record_translation') {
-    const r = p.payload.record as { code?: string; version?: number } | undefined;
-    const what = `the English version of ${r?.code ?? 'the record'} v${r?.version ?? ''} as a new version`;
-    if (!approve) return [`DEMIURGO records ${what}, as a draft. You approve it later, on its page.`];
-    return [`DEMIURGO records ${what}.`, 'You approve it: it becomes the current version.'];
-  }
-  const what = whatItRecords(p);
-  if (!approve) return [`DEMIURGO records ${what} as a draft. You approve it later, on its page.`];
-  return [`DEMIURGO records ${what}.`, 'You approve it: it becomes the current version.'];
+  return [
+    es
+      ? 'Sigues trabajando en ella: queda como propuesta aceptada, aún sin asentar.'
+      : 'You keep working on it: it is recorded as an accepted proposal, not settled yet.',
+  ];
 }
 
 /** What happened to a decided proposal, in one sentence (the state badge says the state). */
-export function resolvedText(state: string, effect: { code: string; approved: boolean } | null): string {
-  const made = effect ? (effect.approved ? ` ${effect.code} is approved and current.` : ` ${effect.code} is a draft.`) : '';
-  if (state === 'accepted') return `You accepted it.${made}`;
-  if (state === 'accepted_edited') return `You accepted your version.${made}`;
-  if (state === 'rejected') return 'You rejected it.';
+export function resolvedText(state: string, effect: { code: string; approved: boolean } | null, locale: Locale = 'en'): string {
+  const es = locale === 'es';
+  const made = effect
+    ? effect.approved
+      ? es
+        ? ` ${effect.code} es un registro: queda asentado.`
+        : ` ${effect.code} is a record: settled.`
+      : es
+        ? ` ${effect.code} es una propuesta aceptada: sigues trabajando en ella.`
+        : ` ${effect.code} is an accepted proposal: you keep working on it.`
+    : '';
+  if (state === 'accepted') return `${es ? 'La aceptaste.' : 'You accepted it.'}${made}`;
+  if (state === 'accepted_edited') return `${es ? 'Aceptaste tu versión.' : 'You accepted your version.'}${made}`;
+  if (state === 'rejected') return es ? 'La rechazaste.' : 'You rejected it.';
   return '';
 }
 

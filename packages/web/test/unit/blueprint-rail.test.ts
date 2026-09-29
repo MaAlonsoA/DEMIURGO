@@ -19,6 +19,7 @@ function row(code: string, over: Partial<ProductRow> = {}): ProductRow {
     code,
     type,
     domain: 'catalog',
+    aspect: null,
     title: `Title of ${code}`,
     current: null,
     latest: { n: 1, state: 'draft' },

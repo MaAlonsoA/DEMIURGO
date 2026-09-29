@@ -109,6 +109,7 @@ describe('Draft it', () => {
     code,
     type: 'decision',
     domain: 'plan',
+    aspect: null,
     title: `Title of ${code}`,
     current: 1,
     latest: { n: 1, state: 'approved' },

@@ -1,5 +1,5 @@
 // A package from DEMIURGO (DESIGN.md §3.2): what it proposes, each record in full as it will be
-// recorded, decided whole. Its decision — Accept package, Accept and approve, Reject package — sits
+// recorded, decided whole. Its decision — Accept, Approve, Reject package — sits
 // above the content and again in a footer that stays at the bottom while the person reads, so it is
 // never far from what it approves (INVENTORY Part D §3, UX problem). When warnings block accepting,
 // the buttons stay, inactive, with the warning beside them (R76).
@@ -23,7 +23,8 @@ import { useBatchCrumbs } from './Batch.tsx';
 import { withInbox } from './ItemBatch.tsx';
 import { acceptedRecord, obsoleteReason, proposalTitle } from './model.ts';
 import { BlockedNotice, DecisionBar, Evidence, IdeaCheck, OutOfDate, RecordChip, RunLine } from './parts.tsx';
-import { kindWord, type ProposalView as ProposalData, proposalIconType, whatItRecords } from './proposal.ts';
+import { type ProposalView as ProposalData, proposalIconType } from './proposal.ts';
+import { ProposalKind } from '../../components/AspectTag.tsx';
 import { ProposalBody } from './ProposalView.tsx';
 import { useReadingOf } from '../../i18n/reading.tsx';
 import { useMessages } from '../../i18n/define.ts';
@@ -126,7 +127,7 @@ function ProposedRecord({
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="inline-flex items-center gap-1.5 font-medium text-fg-2">
             <TypeIcon type={proposalIconType(p)} size={15} className="text-fg-3" />
-            {kindWord(p.type)}
+            <ProposalKind proposal={p} />
           </span>
           {p.state === 'superseded' ? (
             <StatusBadge kind="stale" word={t.outOfDate} />
@@ -184,7 +185,6 @@ function usePackageDecision(projectId: string, batch: BatchDetail, proposals: Pr
   const headingId = useId();
   const focusHeading = useRef(false);
   const warnings = [...new Set(proposals.flatMap((p) => (p.state === 'pending' ? (p.obsolescence ?? []) : [])))];
-  const what = proposals.map(whatItRecords).join('; ');
   const open = (d: Dialog) => {
     command.reset();
     setDialog(d);
@@ -227,16 +227,7 @@ function usePackageDecision(projectId: string, batch: BatchDetail, proposals: Pr
           sticky={false}
           label={t.decidePackage}
           className={footer ? undefined : 'rounded-lg border border-edge px-4 pt-3 pb-3'}
-          caption={
-            footer ? null : blocked ? (
-              <p>{t.blockedCaption}</p>
-            ) : (
-              <p>
-                {t.acceptCaptionBefore(what)} <strong className="font-medium text-fg">{t.acceptAndApprove}</strong>{' '}
-                {t.acceptCaptionAfter}
-              </p>
-            )
-          }
+          caption={footer ? null : blocked ? <p>{t.blockedCaption}</p> : <p>{t.acceptCaption}</p>}
         >
           {canAccept ? (
             <>
@@ -275,19 +266,7 @@ function usePackageDecision(projectId: string, batch: BatchDetail, proposals: Pr
         open={dialog === 'accept' || dialog === 'approve'}
         onOpenChange={(o) => !o && setDialog(null)}
         title={dialog === 'approve' ? t.acceptDialogTitleApprove : t.acceptDialogTitleAccept}
-        description={
-          dialog === 'approve' ? (
-            <div className="flex flex-col gap-1.5">
-              <p>{t.twoThingsHappen}</p>
-              <ol className="list-decimal space-y-0.5 pl-5">
-                <li>{t.demiurgoRecords(what)}</li>
-                <li>{t.youApproveBecomesCurrent}</li>
-              </ol>
-            </div>
-          ) : (
-            <p>{t.demiurgoRecordsDraft(what)}</p>
-          )
-        }
+        description={<p>{dialog === 'approve' ? t.approveEffect : t.acceptEffect}</p>}
         confirm={dialog === 'approve' ? t.acceptAndApprove : t.acceptPackage}
         pendingLabel={t.acceptingEllipsis}
         pending={command.isPending}

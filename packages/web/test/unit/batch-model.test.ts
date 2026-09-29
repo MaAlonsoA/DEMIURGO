@@ -127,12 +127,11 @@ describe('the package page', () => {
         criteria: [{ title: 'Expires', statement: 's', verification: 'automatic', check: 'c' }],
       },
     };
-    expect(kindWord('design_record')).toBe('Design record');
+    expect(kindWord('design_record')).toBe('Proposal');
+    expect(kindWord('design_record', 'es')).toBe('Propuesta');
     expect(payloadSections(p.payload).map((x) => x.title)).toEqual(['Context', 'Decision']);
     expect(proposalLine(p)).toBe('Sessions leak.');
-    expect(acceptEffects(p, false)).toEqual([
-      'DEMIURGO records the record “Keep sessions short”, with its 1 check as a draft. You approve it later, on its page.',
-    ]);
-    expect(acceptEffects(p, true)).toHaveLength(2);
+    expect(acceptEffects(p, false)).toEqual(['You keep working on it: it is recorded as an accepted proposal, not settled yet.']);
+    expect(acceptEffects(p, true)).toEqual(['It is settled: DEMIURGO and the next steps build on it.']);
   });
 });

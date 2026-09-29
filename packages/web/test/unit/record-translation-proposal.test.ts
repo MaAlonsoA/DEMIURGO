@@ -18,9 +18,6 @@ describe('the English version of an older record in the inbox', () => {
     expect(proposalTitle(p)).toBe('Revoke agent tokens');
     expect(proposalLine(p)).toBe('The person can revoke a token at any time.');
     expect(APPROVABLE_TYPES.has('record_translation')).toBe(true);
-    expect(acceptEffects(p, true)).toEqual([
-      'DEMIURGO records the English version of FDR-CAN-003 v2 as a new version.',
-      'You approve it: it becomes the current version.',
-    ]);
+    expect(acceptEffects(p, true)).toEqual(['It is settled: DEMIURGO and the next steps build on it.']);
   });
 });

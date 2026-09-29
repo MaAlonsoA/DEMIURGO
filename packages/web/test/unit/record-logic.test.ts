@@ -47,6 +47,7 @@ function record(versions: RecordVersion[]): RecordDetail {
     code: 'FDR-CAT-001',
     type: 'fdr',
     domain: 'catalog',
+    aspect: null,
     current,
     implementation: 'not implemented',
     versions: versions.map((v) => ({ ...v, current: v.n === current })),

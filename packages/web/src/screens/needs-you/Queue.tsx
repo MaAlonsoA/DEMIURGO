@@ -11,7 +11,8 @@ import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { type NeedContext, kindIcon } from './frame.tsx';
 import type { Group, NeedItem } from './order.ts';
-import { needReason, needSince, needTitle } from './titles.ts';
+import { aspectOfNeed, needReason, needSince, needTitle } from './titles.ts';
+import { AspectTag } from '../../components/AspectTag.tsx';
 import { QUEUE, TITLES } from './words.i18n.ts';
 
 /** The id of a row, for focus and aria-activedescendant-free roving. */
@@ -99,6 +100,7 @@ function Row({
           </span>
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-fg-2">
             <RowState item={item} t={t} />
+            <AspectTag aspect={aspectOfNeed(item)} />
             {item.unblocks.length > 0 ? <Tag>{t.unblocksTag(item.unblocks.length)}</Tag> : null}
             {since ? <RelativeTime iso={since} prefix={t.waitingSince} className="text-fg-3" /> : null}
           </span>

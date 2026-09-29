@@ -99,20 +99,6 @@ export function proposalTitle(p: { type: string; payload: Record<string, unknown
   return str(p.payload.title) || str(doc?.title);
 }
 
-/** The type of a proposal in the UI's words. */
-export const PROPOSAL_TYPE_WORDS: Record<string, string> = {
-  decision: 'Decision',
-  fdr: 'Feature',
-  design_record: 'Design record',
-  exploration: 'Thread',
-  review: 'Review',
-  record_translation: 'English version',
-  product_definition: 'Product definition',
-  definition_change: 'Change to the definition',
-  imported_record: 'Document',
-  imported_taxonomy: 'Taxonomy',
-};
-
 /** Which proposals can be approved in the same gesture as accepting them (they create a record). */
 export const APPROVABLE_TYPES = new Set(['decision', 'fdr', 'design_record', 'record_translation', 'product_definition']);
 

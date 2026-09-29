@@ -1,4 +1,4 @@
-// The decision of one proposal (DESIGN.md §3.1.1): Accept as draft, Accept and approve, Change
+// The decision of one proposal (DESIGN.md §3.1.1): Accept (keep working on it), Approve (settle it), Change
 // (the person's version of its fields, inline) and Reject — in a bar that stays at the bottom of
 // the proposal. Buttons exist only if the tables allow them. Accepting is decisive: it asks first
 // and says what happens; the button says "Accepting…" until the server answers, never before
@@ -16,6 +16,7 @@ import { Button } from '../../components/Button.tsx';
 import { ConfirmDialog, PromptDialog } from '../../components/Dialog.tsx';
 import { Field, TextArea, TextInput } from '../../components/Field.tsx';
 import { useMessages } from '../../i18n/define.ts';
+import { useLocale } from '../../i18n/locale.ts';
 import { useReportDirty } from './guard.tsx';
 import { APPROVABLE_TYPES, changedFields, EDITABLE_FIELDS, type EditableField, editedPayload, proposalTitle } from './model.ts';
 import { DecisionBar, Disclosure } from './parts.tsx';
@@ -58,11 +59,12 @@ export function ProposalDecision({
   blocked?: string[];
   /** Other words for a review: "Open a review", "Keep it as it is". */
   labels?: { accept?: string; reject?: string };
-  /** After the server confirmed: what to say ("Accepted as a draft."). The caller announces it. */
+  /** After the server confirmed: what to say ("Accepted."). The caller announces it. */
   onDone?: (said: string) => void;
   sticky?: boolean;
 }) {
   const t = useMessages(PROPOSAL_ACTIONS);
+  const locale = useLocale();
   const command = useCommand(projectId);
   const client = useQueryClient();
   const allows = useAllows('proposal', p.state);
@@ -197,7 +199,7 @@ export function ProposalDecision({
         open={dialog === 'accept' || dialog === 'approve'}
         onOpenChange={(o) => !o && close()}
         title={dialog === 'approve' ? t.approveDialogTitle(title) : t.acceptDialogTitle(acceptLabel, title)}
-        description={<Effects lines={acceptEffects(p, dialog === 'approve')} />}
+        description={<Effects lines={acceptEffects(p, dialog === 'approve', locale)} />}
         confirm={dialog === 'approve' ? t.acceptAndApprove : acceptLabel}
         pendingLabel={t.acceptingEllipsis}
         pending={command.isPending}

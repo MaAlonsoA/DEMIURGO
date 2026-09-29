@@ -23,7 +23,8 @@ import { whoOf } from '../../words.ts';
 import { useMessages } from '../../i18n/define.ts';
 import { useBatchCrumbs } from './Batch.tsx';
 import { EditGuard, useEditGuard } from './guard.tsx';
-import { PROPOSAL_TYPE_WORDS, proposalTitle } from './model.ts';
+import { proposalTitle } from './model.ts';
+import { ProposalKind } from '../../components/AspectTag.tsx';
 import { batchHeading, type ProposalView as ProposalData } from './proposal.ts';
 import { ProposalView, producerName } from './ProposalView.tsx';
 import { ITEM_BATCH } from './words.i18n.ts';
@@ -159,7 +160,7 @@ function ItemBatchPage({ projectId, batch }: { projectId: string; batch: BatchDe
                         {i + 1}
                       </span>
                       <span className="flex min-w-0 flex-1 flex-col gap-1">
-                        <span className="text-xs text-fg-2">{PROPOSAL_TYPE_WORDS[p.type] ?? 'Proposal'}</span>
+                        <ProposalKind proposal={p} className="inline-flex items-center gap-1.5 text-xs text-fg-2" />
                         <span className="line-clamp-2 text-sm font-medium text-fg">{proposalTitle(p)}</span>
                         <span>
                           {p.state === 'superseded' ? (

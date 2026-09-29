@@ -26,10 +26,10 @@ import { DayTime, RelativeTime } from '../../components/Time.tsx';
 import { Who, WhoAvatar } from '../../components/Who.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
-import { TYPE_WORDS, whoOf } from '../../words.ts';
+import { whoOf } from '../../words.ts';
 import { proposalTitle, rowOf, rowOfVersion } from '../batch/model.ts';
 import { DecisionBar, linkClass, RecordChip } from '../batch/parts.tsx';
-import { kindWord } from '../batch/proposal.ts';
+import { ProposalKind } from '../../components/AspectTag.tsx';
 import { ProposalView } from '../batch/ProposalView.tsx';
 import { AnswerHere } from './AnswerHere.tsx';
 import { Conflict } from './Conflict.tsx';
@@ -172,7 +172,7 @@ function PackageDetail({ item, ctx, titleId, top }: DetailProps<'package'>) {
         <ul className="flex flex-col divide-y divide-edge-subtle rounded-lg border border-edge">
           {shown.map((p) => (
             <li key={p.id} className="flex flex-wrap items-baseline gap-x-2 px-3 py-2 text-sm">
-              <span className="text-fg-2">{kindWord(p.type)}</span>
+              <ProposalKind proposal={p} className="inline-flex items-center gap-1.5 text-fg-2" />
               <span className="font-medium text-fg">{proposalTitle(p) || t.untitled}</span>
             </li>
           ))}
@@ -261,7 +261,6 @@ function VersionDetail({ item, ctx, titleId, top }: DetailProps<'version'>) {
       title={v.title}
       code={`${v.code} v${v.n}`}
       state={<StatusBadge kind="proposed" word={t.draftWord(v.n)} />}
-      eyebrow={TYPE_WORDS[v.type]}
       why={
         <Link
           to="/p/$projectId/records/$code"

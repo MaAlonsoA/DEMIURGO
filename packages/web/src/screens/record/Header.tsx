@@ -25,7 +25,9 @@ import { TypeIcon } from '../../components/types.tsx';
 import { Who, whoName } from '../../components/Who.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { useTables } from '../../lib/hooks.ts';
-import { TYPE_WORDS, TYPE_WORDS_PLURAL, whoOf } from '../../words.ts';
+import { TYPE_WORDS_PLURAL, whoOf } from '../../words.ts';
+import { RecordKind } from '../../components/AspectTag.tsx';
+import { aspectOfRecord } from '../../aspects.ts';
 import { RecordTabs } from '../blueprint/Sections.tsx';
 import type { RecordTab } from '../blueprint/tabs.ts';
 import { isEarlierDraft, versionStage } from './logic.ts';
@@ -129,13 +131,19 @@ export function RecordHeader({
           <>
             <span className="inline-flex items-center gap-1.5">
               <TypeIcon type={record.type} size={15} className="text-fg-3" />
-              {TYPE_WORDS[record.type]}
+              <RecordKind aspect={aspectOfRecord(record)} draft={version.state === 'draft'} />
             </span>
             <Code>
               {record.code} · v{version.n}
             </Code>
             <span data-version-state className="inline-flex">
-              <EntityState entity="record_version" state={version.state} />
+              {version.state === 'draft' || version.state === 'approved' ? (
+                <span className="sr-only">
+                  <EntityState entity="record_version" state={version.state} />
+                </span>
+              ) : (
+                <EntityState entity="record_version" state={version.state} />
+              )}
             </span>
             {version.current ? <span className="text-sm text-fg-2">{t.current}</span> : null}
             {ready ? <Readiness stage={stage} blocking={ready.reasons.length} /> : null}

@@ -23,6 +23,9 @@ import { useReading } from '../../i18n/reading.tsx';
 import { cn } from '../../lib/cn.ts';
 import { OBSERVATION_WORDS } from '../../words.ts';
 import { proposalsInWords } from '../run/runs.ts';
+import { AspectTag } from '../../components/AspectTag.tsx';
+import { aspectOfProposal } from '../../aspects.ts';
+import { useLocale } from '../../i18n/locale.ts';
 import { OpenThreadDialog } from '../threads/OpenThreadDialog.tsx';
 import { plainText } from './answers.ts';
 import { useDrafts } from './drafts.tsx';
@@ -190,6 +193,7 @@ function Observation({ projectId, observation: o }: { projectId: string; observa
 /** What the conversation proposed: suggested threads inline; the rest waits in Needs you. */
 function Proposed({ projectId, batchId }: { projectId: string; batchId: string }) {
   const t = useMessages(MESSAGES);
+  const locale = useLocale();
   const batch = useQuery(batchQuery(projectId, batchId));
   if (!batch.data) {
     if (batch.isError)
@@ -216,9 +220,17 @@ function Proposed({ projectId, batchId }: { projectId: string; batchId: string }
           <PackageIcon size={16} className={pending ? 'text-accent-text' : 'text-fg-3'} />
           <span className="min-w-0 flex-1 text-fg">
             {t.proposed}
-            <span className="font-semibold">{proposalsInWords(rest.map((p) => p.type))}</span>
+            <span className="font-semibold">
+              {proposalsInWords(
+                rest.map((p) => p.type),
+                locale,
+              )}
+            </span>
             {pending ? t.forReview : t.period}
           </span>
+          {[...new Set(rest.map((p) => aspectOfProposal(p)).filter((a) => a !== null))].map((a) => (
+            <AspectTag key={a} aspect={a} />
+          ))}
           {!pending ? <EntityState entity="batch" state={b.state} /> : null}
           <Link
             to="/p/$projectId/batches/$batchId"

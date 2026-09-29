@@ -27,6 +27,8 @@ import { rowOf } from '../batch/model.ts';
 import { linkClass, RecordChip } from '../batch/parts.tsx';
 import { proposalIconType } from '../batch/proposal.ts';
 import type { NeedItem } from './order.ts';
+import { aspectOfNeed } from './titles.ts';
+import { AspectTag } from '../../components/AspectTag.tsx';
 import { FRAME, TITLES } from './words.i18n.ts';
 
 export type NeedContext = {
@@ -170,6 +172,7 @@ export function DetailFrame({
             <Icon size={15} className={item.kind === 'conflict' ? undefined : 'text-fg-3'} />
             {kindWords.kindWord(item.kind)}
           </span>
+          <AspectTag aspect={aspectOfNeed(item)} />
           {eyebrow ? <span className="text-fg-2">{eyebrow}</span> : null}
           {state}
         </div>

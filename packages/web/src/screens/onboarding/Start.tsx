@@ -23,7 +23,9 @@ import { Bone } from '../../components/Spinner.tsx';
 import { EntityState, StateIcon } from '../../components/status.tsx';
 import { useRouteParams, useTables } from '../../lib/hooks.ts';
 import { useMessages } from '../../i18n/define.ts';
-import { PROPOSAL_TYPE_WORDS, proposalTitle } from '../batch/model.ts';
+import { proposalTitle } from '../batch/model.ts';
+import { AspectTag } from '../../components/AspectTag.tsx';
+import { aspectOfProposal } from '../../aspects.ts';
 import { NotFound } from '../not-found/NotFound.tsx';
 import { MESSAGE_MAX, isDecisionRequest, pendingInOrder, readingsOf, writtenBy } from './day.ts';
 import { useDay, useSend } from './hooks.ts';
@@ -399,7 +401,7 @@ function Proposed({ projectId, batchId }: { projectId: string; batchId: string }
           {batch.data.proposals.map((p) => (
             <li key={p.id} data-proposal={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3">
               <EntityState entity="proposal" state={p.state} />
-              <Tag>{PROPOSAL_TYPE_WORDS[p.type] ?? p.type}</Tag>
+              <AspectTag aspect={aspectOfProposal(p)} />
               <span className="min-w-0 flex-1 basis-48 text-base break-words text-fg">{proposalTitle(p)}</span>
               <Link
                 to="/p/$projectId/batches/$batchId"

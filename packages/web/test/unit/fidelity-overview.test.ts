@@ -17,6 +17,7 @@ function row(code: string, extra: Partial<ProductRow> = {}): ProductRow {
     code,
     type: 'fdr',
     domain: 'catalog',
+    aspect: null,
     title: `Title ${code}`,
     current: null,
     latest: { n: 1, state: 'draft' },
@@ -165,7 +166,7 @@ describe('what needs you on the overview', () => {
     expect(items.map((i) => i.key)).toEqual(catchUpOrder(needsOf(inbox(), [])).map((n) => n.key));
     expect(items.map((i) => [i.label, i.title])).toEqual([
       ['Proposal', 'Two guests per member'],
-      ['Version to approve', 'Title B'],
+      ['Accepted proposal to approve', 'Title B'],
       ['Question', 'How many guests?'],
     ]);
     expect(items[0]?.from).toBe('From an agent · claude-code · 1 of 1 in its batch');

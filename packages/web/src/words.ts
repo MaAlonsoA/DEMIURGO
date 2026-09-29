@@ -51,8 +51,8 @@ export type Word = { word: string; mark: MarkKind };
 /** Entities the UI shows, with every state of their table (a unit test checks it's complete). */
 export const STATE_WORDS: Record<string, Record<string, Word>> = {
   record_version: {
-    draft: { word: 'Draft', mark: 'proposed' },
-    approved: { word: 'Approved', mark: 'confirmed' },
+    draft: { word: 'Accepted proposal', mark: 'proposed' },
+    approved: { word: 'Record', mark: 'confirmed' },
     superseded: { word: 'Replaced', mark: 'replaced' },
     discarded: { word: 'Discarded', mark: 'dropped' },
   },
@@ -313,7 +313,7 @@ export function useMarks(): typeof MARKS {
 }
 
 const STATE_WORDS_ES: Record<string, Record<string, string>> = {
-  record_version: { draft: 'Borrador', approved: 'Aprobada', superseded: 'Reemplazada', discarded: 'Descartada' },
+  record_version: { draft: 'Propuesta aceptada', approved: 'Registro', superseded: 'Reemplazada', discarded: 'Descartada' },
   question: { pending: 'Abierta', inferred: 'Supuesta', confirmed: 'Confirmada', postponed: 'Aparcada', discarded: 'Descartada' },
   proposal: {
     pending: 'Propuesta',

@@ -1,4 +1,5 @@
 export * from './actors.ts';
+export * from './aspects.ts';
 export * from './agents.ts';
 export * from './classifier.ts';
 export * from './errors.ts';

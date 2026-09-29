@@ -63,6 +63,8 @@ services:
       EVIDENCE_READER_PASSWORD: ${EVIDENCE_READER_PASSWORD:?set in .env}
       METABASE_URL: http://metabase:3000
       METABASE_ADMIN_PASSWORD: ${METABASE_ADMIN_PASSWORD:?set in .env}
+      # Jev (TypeSafe) clasifica el aspecto de mensajes y propuestas, solo con el ADR aprobado.
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
     ports:
       - "127.0.0.1:8100:8100"
     volumes:

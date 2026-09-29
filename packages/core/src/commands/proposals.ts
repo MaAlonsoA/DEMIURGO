@@ -16,6 +16,7 @@ import { trimmed, field, registerGuards } from '../bus/guards.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
 import type { CommandContext, LoadedEntity } from '../bus/types.ts';
 import type { Db, Tx } from '../db/connection.ts';
+import { classifyBatch } from '../classifier/aspect.ts';
 import { APPLICATIONS, type Effect } from './effects.ts';
 import { onAuthorityEvent } from './reactions.ts';
 
@@ -337,6 +338,11 @@ registerHandlers({
       if (batchType === 'agent' || runId !== null) {
         const { services, projectId } = ctx;
         ctx.afterCommit(() => services.engine.startAssessment(id, projectId));
+      }
+      // Jev checks, on each proposal's own text, the aspect it is about (only with its ADR approved).
+      if (batchType !== 'knowledge') {
+        const { services, projectId } = ctx;
+        ctx.afterCommit(() => void classifyBatch(services, projectId, id));
       }
       return {
         entityId: id,

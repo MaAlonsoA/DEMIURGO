@@ -18,6 +18,7 @@ import { trimmed, field, registerGuards } from '../bus/guards.ts';
 import { DEFAULT_AGENTS } from '../agents/catalog.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
 import { requireEngine } from './runs.ts';
+import { classifyMessage } from '../classifier/aspect.ts';
 import { proposeDefinitionIfCovered } from '../definition/compose.ts';
 import { conclusionWithImplies, proposeQualityIfCovered } from '../definition/quality.ts';
 import type { Tx } from '../db/connection.ts';
@@ -301,6 +302,11 @@ registerHandlers({
         })
         .returning('id')
         .executeTakeFirstOrThrow();
+      // Jev says what the person's message is about (only with its ADR approved), off the transaction.
+      if (ctx.actor.type === 'human') {
+        const { services, projectId } = ctx;
+        ctx.afterCommit(() => void classifyMessage(services, projectId, id, data.text));
+      }
       if (answers) {
         // The response is a durable workflow: it waits for the knowledge base to be up to date and requests the run.
         const { services, projectId } = ctx;

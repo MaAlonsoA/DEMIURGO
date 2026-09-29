@@ -83,7 +83,7 @@ export async function qualityBatch(trx: Db, projectId: string, stageId: string |
   if (stage?.stage !== QUALITY_STAGE) return null;
   const questions = await trx
     .selectFrom('questions')
-    .select(['stage_key', 'state', 'conclusion', 'options', 'conversation_option'])
+    .select(['id', 'stage_key', 'state', 'conclusion', 'options', 'conversation_option'])
     .where('stage_id', '=', stageId)
     .where('stage_key', 'is not', null)
     .execute();
@@ -120,6 +120,8 @@ export async function qualityBatch(trx: Db, projectId: string, stageId: string |
               check: cut(`Check the product against each target: ${target}`, 600),
             },
           ],
+          // Based on the answer it comes from.
+          basis: [{ type: 'question', id: q.id }],
         },
         dependencies: [],
       },

@@ -3,6 +3,7 @@
 
 import { z } from 'zod';
 import { proposedCriterion } from './agents.ts';
+import { aspectSchema } from './aspects.ts';
 import { DEFINITION_SECTION_TITLES, QUOTE_MAX } from './definition.ts';
 
 const text = (max: number) => z.string().trim().min(1).max(max);
@@ -10,6 +11,20 @@ const text = (max: number) => z.string().trim().min(1).max(max);
 export const recordReference = z
   .object({ code: z.string().regex(/^[A-Z]{3}-[A-Z]{3}-\d{3}$/), version: z.number().int().positive() })
   .strict();
+
+/**
+ * What a proposal rests on, for "Based on": the person's words in a thread (with the quote), the
+ * question it answers, a record it builds on or a source. Everything comes from DEMIURGO: the
+ * provenance is what it is based on, not who wrote it.
+ */
+export const basisItem = z
+  .object({
+    type: z.enum(['message', 'question', 'record', 'source']),
+    id: z.string().uuid(),
+    quote: text(QUOTE_MAX).optional(),
+  })
+  .strict();
+const basis = z.array(basisItem).max(12).optional();
 
 export const decisionPayload = z
   .object({
@@ -21,6 +36,8 @@ export const decisionPayload = z
       .string()
       .regex(/^[a-z][a-z_]*$/)
       .optional(),
+    aspect: aspectSchema.optional(),
+    basis,
   })
   .strict();
 
@@ -39,6 +56,8 @@ export const fdrPayload = z
       .string()
       .regex(/^[a-z][a-z_]*$/)
       .optional(),
+    aspect: aspectSchema.optional(),
+    basis,
   })
   .strict();
 
@@ -56,6 +75,8 @@ export const designRecordPayload = z
       .string()
       .regex(/^[a-z][a-z_]*$/)
       .optional(),
+    aspect: aspectSchema.optional(),
+    basis,
   })
   .strict();
 

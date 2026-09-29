@@ -32,6 +32,7 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
       {
         type: 'decision',
         domain: c.domain ?? 'producto',
+        ...(c.aspect ? { aspect: c.aspect } : {}),
         title: c.title,
         sections: [
           { title: 'Context', content: c.context },
@@ -71,6 +72,7 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
       {
         type: 'fdr',
         domain: c.domain ?? 'producto',
+        ...(c.aspect ? { aspect: c.aspect } : {}),
         title: c.title,
         sections: [
           { title: 'Goal', content: c.goal },
@@ -93,6 +95,7 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
       {
         type: c.record_type,
         domain: c.domain ?? 'producto',
+        ...(c.aspect ? { aspect: c.aspect } : {}),
         title: c.title,
         sections: c.sections,
         criteria: c.criteria.map((k) => ({ carry: 'new', ...k })),

@@ -2,6 +2,7 @@
 // it against the action's schema and, if it fails, the run ends in `invalid_output` with no effect
 // at all (I7).
 
+import { aspectSchema } from './aspects.ts';
 import { z } from 'zod';
 import { DEFINITION_SECTION_TITLES, QUOTE_MAX } from './definition.ts';
 
@@ -269,6 +270,13 @@ export const explorationChatOutput = z
               context: recordText(3000),
               decision: recordText(3000),
               consequences: recordText(3000),
+              aspect: aspectSchema.describe(
+                "The part of the product this decision's own text is about; never the thread's, its parent's or the open stage's.",
+              ),
+              quotes: z
+                .array(text(QUOTE_MAX))
+                .max(3)
+                .describe("The person's exact words in this thread the proposal rests on, copied verbatim in their language; empty when none."),
             })
             .strict(),
           z.object({ type: z.literal('exploration'), purpose: recordText(500) }).strict(),
@@ -282,6 +290,10 @@ export const explorationChatOutput = z
                 .min(1)
                 .max(8),
               criteria: z.array(proposedCriterion).min(1).max(12),
+              quotes: z
+                .array(text(QUOTE_MAX))
+                .max(3)
+                .describe("The person's exact words in this thread the proposal rests on, copied verbatim in their language; empty when none."),
             })
             .strict(),
           // A section of the approved product definition changes because the person decided so here.

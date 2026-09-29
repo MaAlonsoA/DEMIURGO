@@ -3,6 +3,8 @@
 // create a version (I4), and a new version requires explicitly carrying over every criterion.
 
 import {
+  aspectOfType,
+  aspectSchema,
   DomainError,
   VERSION_LIMITS,
   RECORD_PREFIX,
@@ -89,6 +91,8 @@ export const newRecordSchema = z
     code: z.string().regex(RE_CODE).optional(),
     // Letters only: the domain names the code (DEC-DOM-NNN), and a code is letters (ADR-FMT-001).
     domain: z.string().regex(/^[a-z][a-z_]*$/, 'The domain can only contain lowercase letters and underscores.'),
+    // The aspect of the product it is about; by default, the one its type fixes (domain/aspects.ts).
+    aspect: aspectSchema.optional(),
     ...versionContentSchema,
   })
   .strict();
@@ -461,10 +465,17 @@ registerHandlers({
       }
       const { id } = await ctx.trx
         .insertInto('records')
-        .values({ project_id: ctx.projectId, code: code, type: data.type, domain: data.domain, state: to })
+        .values({
+          project_id: ctx.projectId,
+          code: code,
+          type: data.type,
+          domain: data.domain,
+          aspect: data.aspect ?? aspectOfType(data.type),
+          state: to,
+        })
         .returning('id')
         .executeTakeFirstOrThrow();
-      const { type: _t, code: _c, domain: _d, ...content } = data;
+      const { type: _t, code: _c, domain: _d, aspect: _a, ...content } = data;
       const v = await ctx.execute({
         command: 'record_version.create',
         actor: ctx.actor,

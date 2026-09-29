@@ -446,7 +446,7 @@ registerChecker('exploration_chat', async ({ db, run, output }) => {
   const said = await saidInThread(db, (run.scope as { id: string }).id);
   const quotes = [
     ...output.inferences.flatMap((i) => i.quotes),
-    ...output.proposals.flatMap((p) => (p.type === 'definition_change' ? p.quotes : [])),
+    ...output.proposals.flatMap((p) => ('quotes' in p ? p.quotes : [])),
   ];
   return quotes
     .filter((quote) => !findQuote(quote, said))
@@ -581,9 +581,22 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
   // the version in force: without either, it is dropped.
   const proposals: { type: string; payload: unknown; dependencies?: unknown[] }[] = [];
   for (const p of output.proposals) {
-    if (p.type !== 'definition_change') {
+    if (p.type === 'exploration') {
       const { type, ...payload } = p;
       proposals.push({ type, payload });
+      continue;
+    }
+    if (p.type !== 'definition_change') {
+      // "Based on": the person's words it rests on and the question being talked about.
+      const { type, quotes, ...payload } = p;
+      const basis = [
+        ...quotes.flatMap((quote) => {
+          const found = findQuote(quote, said);
+          return found ? [{ type: 'message' as const, id: found.message_id, quote: found.quote }] : [];
+        }),
+        ...(questionId ? [{ type: 'question' as const, id: questionId }] : []),
+      ];
+      proposals.push({ type, payload: { ...payload, ...(basis.length > 0 ? { basis } : {}) } });
       continue;
     }
     const change = await definitionChangeProposal(trx, run.project_id, p, said);

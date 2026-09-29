@@ -289,6 +289,9 @@ export type MessagesTable = {
   state: string;
   response: string | null;
   response_run: string | null;
+  /** What Jev says the message is about (domain/aspects.ts), and how sure it is; derived. */
+  aspect: string | null;
+  aspect_confidence: number | null;
   created_at: Generated<Timestamp>;
 };
 
@@ -309,6 +312,8 @@ export type RecordsTable = {
   code: string;
   type: string;
   domain: string;
+  /** The aspect of the product it is about (domain/aspects.ts); null until its content is classified. */
+  aspect: string | null;
   state: string;
   created_at: Generated<Timestamp>;
 };
@@ -392,6 +397,8 @@ export type ProposalsTable = {
   resolution: NullableJson;
   resolved_by: string | null;
   resolved_at: NullableTimestamp;
+  /** What Jev says the proposal's own text is about: { aspect, confidence }; derived. */
+  aspect_check: NullableJson;
   created_at: Generated<Timestamp>;
 };
 

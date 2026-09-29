@@ -354,7 +354,7 @@ test("AC-INT-001-09 DEMIURGO's question: an option drafts the answer and survive
 
   // Talking it through: Enter sends, DEMIURGO answers in the side conversation, not in the thread.
   await deeperButton.click();
-  const talk = panel.getByLabel('Talk it through');
+  const talk = panel.getByLabel('Write about this question');
   await talk.fill('What changes if it stays out for now?');
   await talk.press('Enter');
   await expect(talk).toHaveValue('');

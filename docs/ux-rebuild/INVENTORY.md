@@ -661,7 +661,7 @@ Areas: SHELL (root, header, search, shared overlays and UI primitives), AUTH, PR
   - title "Not now", with "The question stays for later, parked. Say why.";
   - "Reason": required, max 1000;
   - "Park it" runs Cmd `question.postpone {reason}` and advances.
-- **INV-ONB-40** "Talk it through with DEMIURGO instead: Open the thread" (`Questions.tsx:306-315`).
+- **INV-ONB-40** "Or answer it with DEMIURGO in the thread: Open the thread" (`Questions.tsx:306-315`).
 - **INV-ONB-41** End, with the aside labelled "Questions done" (`Questions.tsx:372-483`; `day.ts:157-198`):
   - the h2 "That's all my questions for now", focused;
   - the summary "You answered X, skipped Y, parked Z and dropped W.";
@@ -2539,7 +2539,7 @@ Checklist:
   (plain text), DEMIURGO's/others' on the left with WhoMark and **Markdown**; auto-scrolls to the bottom when messages
   arrive or writing starts.
 - **INV-DEEP-05** Empty hint: "Ask anything about this question: what each option means, examples, what others do."
-- **INV-DEEP-06** "Talk it through" textarea (sr-only label "Talk it through", placeholder "Talk it through…"): **Enter
+- **INV-DEEP-06** "Write about this question" textarea (sr-only label "Write about this question", placeholder "Ask about this question…"): **Enter
   sends, Shift+Enter new line**; "Send" (secondary; "Sending…"; disabled when empty) → `message.post` `{exploration_id,
   question_id, text, respond: true}`; clears on success; errors below. (Server: with `question_in_progress` the agent talks
   only about that question and raises no new questions or proposals.)
@@ -2578,7 +2578,7 @@ UX problems:
 - No Escape to close, focus does not move into the panel on open nor back to the card on close (`ThreadQuestions.tsx:419-421`,
   `Thread.tsx:125`); the Go deeper toggle has no `aria-expanded`/`aria-pressed`, its open state is a background tint
   (`ThreadQuestions.tsx:294-297`).
-- Unsent text in "Talk it through" is lost on close or when switching question (`Thread.tsx:94` key reset); the textarea
+- Unsent text in "Write about this question" is lost on close or when switching question (`Thread.tsx:94` key reset); the textarea
   has no `maxLength` (`ThreadQuestions.tsx:463-476`) while the server caps messages at 20,000.
 - The panel vanishes abruptly if the question is settled elsewhere (`Thread.tsx:83`).
 - The splitter exposes `aria-valuenow`/`aria-valuemin` but no `aria-valuemax` (`ui/layout.tsx:102-113`), and its value is

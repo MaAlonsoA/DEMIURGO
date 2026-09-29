@@ -2,7 +2,7 @@
 // in the definition's order. What DEMIURGO read in the idea comes with the person's own words it
 // rests on; what the idea doesn't say waits for an answer (with its likely options) or can be left
 // open on purpose. When the person doesn't know what to answer, "Explain it simply" explains the
-// question under it, and "Talk it through" opens Go deeper over the page to settle it in a side
+// question under it, and "Go deeper" opens the side panel over the page to settle it in a side
 // conversation. A correction is saved here (kept in this browser) until one button confirms it all;
 // the system then drafts the product definition, which waits for the person's approval on the
 // Product page.

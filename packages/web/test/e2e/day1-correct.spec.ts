@@ -1,6 +1,6 @@
 // Correcting an answer on Day 1, end to end with the simulated provider: a correction is saved (it
-// stays after a reload and waits to be confirmed with the others) or discarded, and "Talk it
-// through" opens Go deeper over Day 1, where a reply of DEMIURGO can become the answer.
+// stays after a reload and waits to be confirmed with the others) or discarded, and "Go
+// deeper" opens it over Day 1, where a reply of DEMIURGO can become the answer.
 
 import type { Page } from '@playwright/test';
 import { type PersonApi, expect, expectAccessible, test } from './support/fixtures.ts';
@@ -21,10 +21,7 @@ function runsSettled(person: PersonApi, projectId: string, explorationId: string
 const item = (page: Page, section: string) =>
   page.locator('[data-definition-answers] > li').filter({ has: page.getByRole('heading', { name: section, exact: true }) });
 
-test('Day 1: a correction is saved or discarded, and "Talk it through" settles an answer from Go deeper', async ({
-  page,
-  person,
-}) => {
+test('Day 1: a correction is saved or discarded, and Go deeper settles an answer', async ({ page, person }) => {
   test.setTimeout(120_000);
   const projectId = await person.createProject('Club trips');
   const explorationId = (await person.command(projectId, 'exploration.open', { purpose: 'An app for our club trips' })).entity_id;
@@ -58,10 +55,10 @@ test('Day 1: a correction is saved or discarded, and "Talk it through" settles a
   await expect(users).toHaveAttribute('data-answer-state', 'read');
   await expect(users.locator('[data-answer-text]')).toHaveText(read);
 
-  // Talk it through: Go deeper over Day 1; DEMIURGO's reply becomes the answer.
+  // Go deeper over Day 1; DEMIURGO's reply becomes the answer.
   const principles = item(page, 'Principles');
   const asked = (await principles.getAttribute('data-question')) ?? '';
-  await principles.getByRole('button', { name: 'Talk it through' }).click();
+  await principles.getByRole('button', { name: 'Go deeper' }).click();
   const deeper = page.locator(`[data-deeper="${asked}"]`);
   await expect(deeper).toBeVisible();
   // The options are there from the start; hiding them leaves the room to the conversation, and the
@@ -77,7 +74,7 @@ test('Day 1: a correction is saved or discarded, and "Talk it through" settles a
   await expect(deeper.getByRole('radio')).toHaveCount(0);
   await deeper.getByRole('button', { name: 'Show the options' }).click();
   await expect(deeper.getByRole('radio').first()).toBeVisible();
-  await deeper.getByLabel('Talk it through').fill('Should speed come before safety?');
+  await deeper.getByLabel('Write about this question').fill('Should speed come before safety?');
   await deeper.getByRole('button', { name: 'Send' }).click();
   // DEMIURGO words the idea the conversation arrived at: under its reply, and as one more option.
   const TALKED = 'From our talk: Should speed come before safety?';

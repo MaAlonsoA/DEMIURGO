@@ -283,18 +283,20 @@ export const explorationChatOutput = z
           z
             .object({
               type: z.literal('design_record'),
-              record_type: z.enum(['epic', 'fdr', 'requirement', 'quality_requirement', 'threat_model', 'production_readiness', 'adr']),
+              record_type: z.enum(['epic', 'fdr', 'task', 'requirement', 'quality_requirement', 'threat_model', 'production_readiness', 'adr']),
               title: recordText(160),
               domain: z
                 .string()
                 .regex(/^[a-z][a-z_]*$/)
                 .nullable()
-                .describe("The epic's short name in snake_case (its first three letters make the code, e.g. guided_design → EPC-GUI-001, FDR-GUI-001): an epic's own, and its features' too; null for other records."),
+                .describe("The epic's short name in snake_case (its first three letters make the code, e.g. guided_design → EPC-GUI-001, FDR-GUI-001): an epic's own, its features' and their tasks' too (a task takes its feature's); null for other records."),
               based_on: z
                 .object({ code: z.string().regex(/^[A-Z]{3}-[A-Z]{3}-\d{3}$/), version: z.number().int().positive() })
                 .strict()
                 .nullable()
-                .describe('For a feature (fdr): the approved epic it belongs to, with its current version; null otherwise.'),
+                .describe(
+                  'For a feature (fdr): the approved epic it belongs to, with its current version; for a task: its approved feature (`feature_tasks.code` and `feature_tasks.version`); null otherwise.',
+                ),
               needs: z
                 .array(z.object({ code: z.string().regex(/^[A-Z]{3}-[A-Z]{3}-\d{3}$/), version: z.number().int().positive() }).strict())
                 .max(6)

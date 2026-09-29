@@ -126,12 +126,22 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
   async design_record(ctx, { proposalId, payload, approve }) {
     const c = PAYLOADS.design_record.parse(payload);
     const planned = c.record_type === 'fdr' && c.code ? await plannedToDesign(ctx, c.code) : null;
+    // A task is in its feature's area, whatever the proposal said.
+    const feature =
+      c.record_type === 'task' && c.based_on
+        ? await ctx.trx
+            .selectFrom('records')
+            .select('domain')
+            .where('project_id', '=', ctx.projectId)
+            .where('code', '=', c.based_on.code)
+            .executeTakeFirst()
+        : undefined;
     const created = await createRecord(
       ctx,
       {
         type: c.record_type,
         ...(planned ? { code: planned.code } : {}),
-        domain: planned?.domain ?? c.domain ?? 'producto',
+        domain: planned?.domain ?? feature?.domain ?? c.domain ?? 'producto',
         ...(c.aspect ? { aspect: c.aspect } : {}),
         title: c.title,
         sections: c.sections,

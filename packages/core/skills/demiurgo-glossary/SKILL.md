@@ -8,6 +8,7 @@ description: DEMIURGO's vocabulary, so every agent uses the words the same way.
 - **Epic** (EPC): a capability of the first version too big for one feature. It has a goal, its features in order (the smallest end-to-end walk first) and what "done" means for the whole walk. The person approves it. Its features are the list it keeps (each with a name, one sentence and its reserved FDR code): the list changes on its own (add, drop, move), never as text in a section of the epic.
 - **Planned feature**: a feature its epic lists that is not designed yet. Designing it makes its FDR with that same code; only a planned one can be dropped, and a code is never reused.
 - **FDR**: a feature design (goal, scope, out of scope, behavior) with acceptance criteria.
+- **Task** (TSK): a piece of the construction of a feature, small enough to build and check on its own. It rests on its approved feature and has its own acceptance criteria, finer than the feature's. It comes from the feature's thread or is written by hand; the person approves it.
 - **AC** (acceptance criterion): an observable statement that says when the feature is done.
 - **Proposal**: anything an agent suggests. It has no effect until the person accepts it.
 - **Authority**: what the person approved. Agents never create authority; they only propose.

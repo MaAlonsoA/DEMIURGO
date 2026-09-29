@@ -257,6 +257,17 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
       text: JSON.stringify(plannedFeature),
       reason: 'thread purpose',
     });
+  // The feature this thread is about, or the one it designed (its FDR now exists), with its tasks:
+  // an approved feature is broken into tasks in its thread.
+  const featureCode = about?.type === 'fdr' ? about.code : planned?.state === 'designed' ? planned.code : undefined;
+  const featureTasks = featureCode ? await featureTasksOf(trx, projectId, featureCode) : null;
+  if (featureTasks)
+    manifest.entered({
+      section: 'feature_tasks',
+      source: source('exploration', exploration.id),
+      text: JSON.stringify(featureTasks),
+      reason: 'the feature of the thread',
+    });
   if (about && aboutRecord)
     manifest.entered({
       section: 'about_record',
@@ -481,6 +492,7 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
         ...(nextStep ? { next_step: nextStep } : {}),
         ...(aboutRecord ? { about_record: aboutRecord } : {}),
         ...(plannedFeature ? { planned_feature: plannedFeature } : {}),
+        ...(featureTasks ? { feature_tasks: featureTasks } : {}),
         ...(productDefinitionDraft ? { product_definition_draft: productDefinitionDraft } : {}),
         confirmed_decisions: decisionsSummary,
         design_records: designRecords,
@@ -590,6 +602,15 @@ registerChecker('exploration_chat', async ({ db, run, output }) => {
       notes.push(
         `${p.code} in \`code\` is not a planned feature of this project (it may be designed or dropped already). \`code\` is the \`planned_feature.code\` of the context: leave it null otherwise.`,
       );
+    if (p.record_type === 'task') {
+      const feature = p.based_on ? await featureTasksOf(db, run.project_id, p.based_on.code) : null;
+      if (!feature)
+        notes.push('A task rests on its feature: `based_on` is `feature_tasks.code` and `feature_tasks.version`.');
+      else if (!feature.approved || feature.version !== p.based_on?.version)
+        notes.push(
+          `${feature.code} is ${feature.approved ? `approved at v${feature.version}` : 'not approved yet'}: a task rests on the current approved version of its feature, so propose none until then.`,
+        );
+    }
     if (p.record_type !== 'fdr' || !p.needs) continue;
     const found = await neededFeatures(db, run.project_id, p.needs);
     for (const n of p.needs)
@@ -600,6 +621,54 @@ registerChecker('exploration_chat', async ({ db, run, output }) => {
   }
   return notes;
 });
+
+/**
+ * A feature (FDR) and its tasks, for its thread: its latest title, its current approved version (null
+ * while it is a draft) and each task resting on it, with its latest version's title and state.
+ */
+export async function featureTasksOf(db: Db, projectId: string, code: string) {
+  const feature = await db
+    .selectFrom('records')
+    .select(['id', 'code', 'domain'])
+    .where('project_id', '=', projectId)
+    .where('code', '=', code)
+    .where('type', '=', 'fdr')
+    .executeTakeFirst();
+  if (!feature) return null;
+  const versions = await db
+    .selectFrom('record_versions')
+    .select(['n', 'state', 'title'])
+    .where('record_id', '=', feature.id)
+    .where('state', 'in', ['approved', 'draft'])
+    .orderBy('n', 'desc')
+    .execute();
+  const current = versions.find((v) => v.state === 'approved');
+  const rows = await db
+    .selectFrom('records as t')
+    .innerJoin('record_versions as tv', 'tv.record_id', 't.id')
+    .innerJoin('links', 'links.from_id', 'tv.id')
+    .innerJoin('record_versions as fv', 'fv.id', 'links.to_id')
+    .select(['t.code', 'tv.title', 'tv.state', 'tv.n'])
+    .where('t.project_id', '=', projectId)
+    .where('t.type', '=', 'task')
+    .where('links.type', '=', 'based_on')
+    .where('fv.record_id', '=', feature.id)
+    .where('tv.state', 'in', ['approved', 'draft'])
+    .orderBy('t.code')
+    .orderBy('tv.n', 'desc')
+    .execute();
+  const tasks = rows
+    .filter((r, i) => rows.findIndex((o) => o.code === r.code) === i)
+    .map((r) => ({ code: r.code, title: r.title, state: r.state }));
+  return {
+    code: feature.code,
+    title: versions[0]?.title ?? feature.code,
+    domain: feature.domain,
+    version: current?.n ?? null,
+    approved: !!current,
+    tasks,
+  };
+}
 
 /** An epic's features are its planned features, never a section of text. */
 const isFeaturesSection = (s: { title: string }) => s.title.trim().toLowerCase() === 'features';

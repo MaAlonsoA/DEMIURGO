@@ -2,13 +2,15 @@
 // `config.ts`, it is the only module that reads environment variables (AC-ESQ-001-06), and only
 // to filter them.
 
-/** Variables the CLI needs to start on Windows and find the subscription. */
+/** Variables the CLI needs to start on Windows and macOS and find the subscription. */
 export const ALLOWED_VARIABLES = [
   'PATH',
   'SystemRoot',
   'windir',
   'USERPROFILE',
   'HOME',
+  // macOS: the CLI looks its login up in the Keychain by this account name.
+  'USER',
   'HOMEDRIVE',
   'HOMEPATH',
   'APPDATA',

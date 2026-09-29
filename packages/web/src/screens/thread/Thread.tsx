@@ -251,6 +251,7 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
       onTalk={(text) => setTalks((all) => ({ ...all, [deeperQuestion.id]: text }))}
       onClose={closeDeeper}
       headingRef={deeperHeading}
+      compact
     />
   ) : null;
   const aside = <ThreadAside projectId={projectId} thread={t} stageTitleOf={stageTitleOf} onJump={jumpTo} />;
@@ -379,6 +380,7 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
               if (!o) closeDeeper();
             }}
             label={words.goDeeper}
+            wide
             onOpenAutoFocus={(e) => {
               e.preventDefault();
               deeperHeading.current?.focus();

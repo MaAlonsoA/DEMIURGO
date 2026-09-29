@@ -59,7 +59,7 @@ export function DeeperPanel({
   headingRef?: Ref<HTMLHeadingElement>;
   /**
    * The options to settle the question keep to a part of the panel, with their own scroll, and can be
-   * hidden, so the conversation has the room (Go deeper over Day 1).
+   * hidden, so the conversation has the room (Go deeper in a thread and over Day 1).
    */
   compact?: boolean;
 }) {

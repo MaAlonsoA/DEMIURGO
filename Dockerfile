@@ -26,9 +26,14 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends docker-ce-cli \
  && rm -rf /var/lib/apt/lists/*
 
-# pnpm por corepack (la versión la fija package.json) y las CLI de Claude y Codex para Linux.
+# pnpm por corepack (la versión la fija package.json) y las CLI de Claude y Codex para Linux, siempre
+# en su última versión: cada build descarga la ficha de la última versión publicada en npm, y cuando
+# cambia invalida la capa de abajo, así que `pnpm stack:up` las actualiza en cuanto sale una nueva
+# (sin esto, Docker reutilizaba la capa y se quedaban en la versión del primer build).
+ADD https://registry.npmjs.org/@anthropic-ai/claude-code/latest /tmp/cli-latest/claude-code.json
+ADD https://registry.npmjs.org/@openai/codex/latest /tmp/cli-latest/codex.json
 RUN corepack enable \
- && npm install -g @anthropic-ai/claude-code @openai/codex \
+ && npm install -g @anthropic-ai/claude-code@latest @openai/codex@latest \
  && npm cache clean --force
 
 # Usuario no root con el mismo uid que la cuenta del mini, para poder escribir en el repo montado.

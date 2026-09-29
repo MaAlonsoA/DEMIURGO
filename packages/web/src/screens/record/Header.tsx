@@ -55,7 +55,11 @@ export function recordCrumbs(
     { label: words.product, link: { to: '/p/$projectId', params: { projectId } } },
     {
       label: TYPE_WORDS_PLURAL[record.type],
-      link: { to: '/p/$projectId', params: { projectId }, hash: sectionOf(record) },
+      // Epics have their own page; the rest are listed in the overview's sections.
+      link:
+        record.type === 'epic'
+          ? { to: '/p/$projectId/epics', params: { projectId } }
+          : { to: '/p/$projectId', params: { projectId }, hash: sectionOf(record) },
     },
     more.length > 0
       ? { label: title, link: { to: '/p/$projectId/records/$code', params: { projectId, code: record.code } } }

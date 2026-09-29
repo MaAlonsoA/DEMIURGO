@@ -258,6 +258,38 @@ export const CAPABILITIES = {
       "decisive": false,
       "description": "Discard a draft version."
     },
+    "planned_feature.add": {
+      "entity": "planned_feature",
+      "allowed": [
+        "human"
+      ],
+      "decisive": false,
+      "description": "Add a feature to an epic's list, reserving its code."
+    },
+    "planned_feature.move": {
+      "entity": "planned_feature",
+      "allowed": [
+        "human"
+      ],
+      "decisive": false,
+      "description": "Move a feature to another place in its epic's list."
+    },
+    "planned_feature.drop": {
+      "entity": "planned_feature",
+      "allowed": [
+        "human"
+      ],
+      "decisive": false,
+      "description": "Drop a feature not designed yet from its epic's list."
+    },
+    "planned_feature.design": {
+      "entity": "planned_feature",
+      "allowed": [
+        "human"
+      ],
+      "decisive": false,
+      "description": "Tie a planned feature to the record that designs it."
+    },
     "criterion.record": {
       "entity": "criterion",
       "allowed": [
@@ -2140,6 +2172,54 @@ export const TRANSITIONS = {
             "running"
           ],
           "to": "cancelled"
+        }
+      ]
+    },
+    "planned_feature": {
+      "label": "Planned feature",
+      "implemented_in": "S1",
+      "states": {
+        "planned": "Planned",
+        "designed": "Designed",
+        "dropped": "Dropped"
+      },
+      "authority": [],
+      "transitions": [
+        {
+          "command": "planned_feature.add",
+          "from": "new",
+          "to": "planned",
+          "guards": [
+            "epic_of_project"
+          ]
+        },
+        {
+          "command": "planned_feature.move",
+          "from": [
+            "planned"
+          ],
+          "to": "planned"
+        },
+        {
+          "command": "planned_feature.move",
+          "from": [
+            "designed"
+          ],
+          "to": "designed"
+        },
+        {
+          "command": "planned_feature.drop",
+          "from": [
+            "planned"
+          ],
+          "to": "dropped"
+        },
+        {
+          "command": "planned_feature.design",
+          "from": [
+            "planned"
+          ],
+          "to": "designed"
         }
       ]
     },

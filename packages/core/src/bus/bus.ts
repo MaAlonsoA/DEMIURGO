@@ -62,6 +62,7 @@ export const TABLES: Partial<Record<EntityName, string>> = {
   knowledge_edge: 'knowledge_edges',
   idea_assessment: 'idea_assessments',
   evidence: 'evidence',
+  planned_feature: 'planned_features',
 };
 
 type Pending = () => Promise<void> | void;

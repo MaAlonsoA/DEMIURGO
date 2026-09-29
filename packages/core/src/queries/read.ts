@@ -710,8 +710,27 @@ export async function productState(db: Db, projectId: string) {
     .groupBy('exploration_id')
     .execute();
   const b = await inbox(db, projectId);
+  // The features each epic lists, in order: planned (only the name and a sentence) or designed.
+  const planned = await db
+    .selectFrom('planned_features')
+    .innerJoin('records as epic', 'epic.id', 'planned_features.epic_id')
+    .select([
+      'planned_features.id',
+      'planned_features.code',
+      'epic.code as epic_code',
+      'planned_features.name',
+      'planned_features.summary',
+      'planned_features.position',
+      'planned_features.state',
+    ])
+    .where('planned_features.project_id', '=', projectId)
+    .where('planned_features.state', '<>', 'dropped')
+    .orderBy('epic.code')
+    .orderBy('planned_features.position')
+    .execute();
   return {
     project: { id: project.id, name: project.name, state: project.state },
+    planned,
     decisions: rows.filter((f) => f.type === 'decision'),
     // The product definition is not a design to build: it has its own place (productDefinition).
     designs: rows.filter((f) => !WITHOUT_READINESS.has(f.type)),

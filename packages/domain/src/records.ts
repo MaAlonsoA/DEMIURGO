@@ -31,10 +31,11 @@ export const RECORD_PREFIX: Record<RecordType, string> = {
 export const RECORD_TEMPLATES: Record<RecordType, { sections: readonly string[]; requiresCriteria: boolean }> = {
   decision: { sections: ['Context', 'Decision', 'Consequences'], requiresCriteria: false },
   adr: { sections: ['Context', 'Options', 'Decision', 'Consequences'], requiresCriteria: true },
-  // An epic: a capability of the first version too big for one feature. It lists its features in
-  // order (the smallest end-to-end walk first); each FDR rests on it, and a new feature is a new
-  // version of it. Its criteria check the whole walk, not what its features already check.
-  epic: { sections: ['Goal', 'Features', 'Done when'], requiresCriteria: true },
+  // An epic: a capability of the first version too big for one feature. Its features are records
+  // of their own from the moment it lists them (planned_features, in order, the smallest end-to-end
+  // walk first); each FDR rests on it. Its criteria check the whole walk, not what its features
+  // already check. Older versions still carry a "Features" section: an extra section is allowed.
+  epic: { sections: ['Goal', 'Done when'], requiresCriteria: true },
   fdr: { sections: ['Goal', 'Scope', 'Out of scope', 'Behavior'], requiresCriteria: true },
   bug: { sections: ['Reproduction', 'Expected', 'Observed'], requiresCriteria: true },
   // Design stages: a requirement in EARS with its Volere fit criterion; quality scenarios (arc42);

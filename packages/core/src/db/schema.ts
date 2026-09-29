@@ -367,6 +367,20 @@ export type EvidenceTable = {
   created_at: Generated<Timestamp>;
 };
 
+/** A feature of an epic's list: its reserved code, name and sentence, and the record once designed. */
+export type PlannedFeaturesTable = {
+  id: Generated<string>;
+  project_id: string;
+  epic_id: string;
+  code: string;
+  name: string;
+  summary: string;
+  position: number;
+  state: string;
+  record_id: string | null;
+  created_at: Generated<Timestamp>;
+};
+
 export type LinksTable = {
   id: Generated<string>;
   project_id: string;
@@ -625,6 +639,7 @@ export type DB = {
   translations: TranslationsTable;
   glossary_terms: GlossaryTermsTable;
   evidence: EvidenceTable;
+  planned_features: PlannedFeaturesTable;
   project_repos: ProjectReposTable;
   project_commits: ProjectCommitsTable;
 };

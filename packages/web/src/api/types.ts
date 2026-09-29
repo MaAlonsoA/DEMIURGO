@@ -230,8 +230,21 @@ export type ExplorationSummary = {
   open_questions: number;
 };
 
+/** A feature an epic lists: its reserved code, name and sentence; `designed` once its record exists. */
+export type PlannedFeatureRow = {
+  id: string;
+  code: string;
+  epic_code: string;
+  name: string;
+  summary: string;
+  position: number;
+  state: 'planned' | 'designed';
+};
+
 export type ProductState = {
   project: { id: string; name: string; state: string };
+  /** The features each epic lists, in order (absent on an older API). */
+  planned?: PlannedFeatureRow[];
   decisions: ProductRow[];
   designs: ProductRow[];
   ready_to_build: string[];

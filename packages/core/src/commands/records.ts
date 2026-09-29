@@ -131,15 +131,24 @@ export async function resolveReference(trx: Tx, projectId: string, code: string,
     .executeTakeFirst();
 }
 
-// The DOM-NNN part of a code is unique across types: its criteria are named AC-DOM-NNN-NN.
-async function nextCode(trx: Tx, projectId: string, type: RecordType, domain: string): Promise<string> {
+// The DOM-NNN part of a code is unique across types: its criteria are named AC-DOM-NNN-NN. The codes an
+// epic's planned features reserve count too.
+export async function nextCode(trx: Tx, projectId: string, type: RecordType, domain: string): Promise<string> {
   const dom = domain.replaceAll('_', '').slice(0, 3).toUpperCase().padEnd(3, 'X');
-  const rows = await trx
-    .selectFrom('records')
-    .select('code')
-    .where('project_id', '=', projectId)
-    .where('code', 'like', `___-${dom}-___`)
-    .execute();
+  const rows = [
+    ...(await trx
+      .selectFrom('records')
+      .select('code')
+      .where('project_id', '=', projectId)
+      .where('code', 'like', `___-${dom}-___`)
+      .execute()),
+    ...(await trx
+      .selectFrom('planned_features')
+      .select('code')
+      .where('project_id', '=', projectId)
+      .where('code', 'like', `___-${dom}-___`)
+      .execute()),
+  ];
   const max = rows.reduce((m, f) => Math.max(m, Number(f.code.slice(-3))), 0);
   return `${RECORD_PREFIX[type]}-${dom}-${String(max + 1).padStart(3, '0')}`;
 }
@@ -154,6 +163,17 @@ registerGuards({
       .where('project_id', '=', ctx.projectId)
       .where('code', 'like', `___-${code.slice(4)}`)
       .executeTakeFirst();
+    // A planned feature's reserved code: free only for the record that designs it.
+    const reserved = await ctx.trx
+      .selectFrom('planned_features')
+      .select(['code', 'state'])
+      .where('project_id', '=', ctx.projectId)
+      .where('code', 'like', `___-${code.slice(4)}`)
+      .executeTakeFirst();
+    if (reserved && !existing)
+      return reserved.code === code && reserved.state === 'planned' && field(data, 'type') === 'fdr'
+        ? null
+        : `${code} is reserved for the planned feature ${reserved.code}.`;
     if (!existing) return null;
     return existing.code === code
       ? `Code ${code} already exists in this project.`

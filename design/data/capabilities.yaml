@@ -49,6 +49,10 @@ commands:
   record_version.approve: { entity: record_version, allowed: [human], decisive: true, description: "Approve a version without creating another one." }
   record_version.supersede: { entity: record_version, allowed: [system], decisive: false, description: "Mark the previous approved version as superseded." }
   record_version.discard: { entity: record_version, allowed: [human], decisive: false, description: "Discard a draft version." }
+  planned_feature.add: { entity: planned_feature, allowed: [human], decisive: false, description: "Add a feature to an epic's list, reserving its code." }
+  planned_feature.move: { entity: planned_feature, allowed: [human], decisive: false, description: "Move a feature to another place in its epic's list." }
+  planned_feature.drop: { entity: planned_feature, allowed: [human], decisive: false, description: "Drop a feature not designed yet from its epic's list." }
+  planned_feature.design: { entity: planned_feature, allowed: [human], decisive: false, description: "Tie a planned feature to the record that designs it." }
   criterion.record: { entity: criterion, allowed: [human], decisive: false, description: "Record an acceptance criterion within a version." }
 
   link.create: { entity: link, allowed: [human], decisive: false, description: "Create a typed link between versions." }

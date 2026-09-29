@@ -17,6 +17,7 @@ import { cn } from '../../lib/cn.ts';
 import { DesignNextButton, type EpicRef } from '../epics/DesignNext.tsx';
 import { type EpicLine, type LineState, epicGroups, epicPlan, epicThreads, featuresSection } from '../epics/logic.ts';
 import { EPIC_BOARD } from '../epics/words.i18n.ts';
+import { CopyBriefButton } from './CopyBrief.tsx';
 
 const MARK: Record<LineState, ReactNode> = {
   built: <CheckCircleIcon size={14} className="text-success-text" />,
@@ -129,7 +130,8 @@ export function EpicBoard({
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <span className="w-5 shrink-0 text-sm tabular-nums text-fg-3">{i + 1}.</span>
                 <LineName projectId={projectId} line={l} />
-                <span className="ml-auto">
+                <span className="ml-auto flex items-center gap-3">
+                  {l.state === 'ready' && l.row ? <CopyBriefButton projectId={projectId} code={l.row.code} size="sm" /> : null}
                   <LineMark state={l.state} />
                 </span>
               </div>

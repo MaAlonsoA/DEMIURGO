@@ -15,6 +15,7 @@ import { Bone, Skeleton } from '../../components/Spinner.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { useProjectId } from '../../lib/hooks.ts';
 import { RecordRow, RowList, UNCHANGED } from '../overview/Cards.tsx';
+import { CopyBriefButton } from '../record/CopyBrief.tsx';
 import { LineMark, LineName, progressWords } from '../record/EpicBoard.tsx';
 import { waitingFor } from '../record/logic.ts';
 import { DesignNextButton } from './DesignNext.tsx';
@@ -85,6 +86,7 @@ function EpicSummary({
                   size="sm"
                 />
               ) : null}
+              {l.state === 'ready' && l.row ? <CopyBriefButton projectId={projectId} code={l.row.code} size="sm" /> : null}
               <LineMark state={l.state} />
             </span>
           </li>

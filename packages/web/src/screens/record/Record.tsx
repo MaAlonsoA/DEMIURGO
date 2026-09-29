@@ -28,6 +28,7 @@ import { hasChecks, useRecordTab } from '../blueprint/Sections.tsx';
 import { NotFound } from '../not-found/NotFound.tsx';
 import { needsItems } from '../overview/needs.ts';
 import { Checks } from './Checks.tsx';
+import { BriefCard } from './CopyBrief.tsx';
 import { EpicBoard } from './EpicBoard.tsx';
 import { featureEpicThread } from '../epics/logic.ts';
 import { FeatureJourney } from './FeatureJourney.tsx';
@@ -252,6 +253,9 @@ function RecordPage({
                 canNewVersion={!!tables && canCreate(tables, 'record_version.create')}
                 onApproved={() => setApproved(version.id)}
               />
+            ) : null}
+            {(record.type === 'fdr' || record.type === 'adr') && version.n === record.current && ready?.ready ? (
+              <BriefCard projectId={projectId} code={record.code} />
             ) : null}
             {record.type === 'fdr' ? <FeatureJourney version={version} readiness={ready} /> : null}
             {record.type === 'epic' ? <EpicBoard projectId={projectId} record={record} state={state} /> : null}

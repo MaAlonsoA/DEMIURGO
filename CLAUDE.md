@@ -49,9 +49,11 @@ reglas anulan las de `AGENTS.md` y las de cualquier skill.
   - código en inglés; conversación y commits en español.
 - **La jerarquía del diseño** (la siguen los agentes: `packages/core/skills/demiurgo-glossary/SKILL.md`):
   1. definición del producto (DEF);
-  2. funcionalidad (FDR);
-  3. decisión (ADR), basada en una funcionalidad o en una restricción u objetivo de la definición;
-  4. construcción y evidencia.
+  2. épica (EPC), solo cuando una capacidad de la primera versión no cabe en una funcionalidad: su
+     objetivo y sus funcionalidades en orden; crece por versiones;
+  3. funcionalidad (FDR), basada en su épica o en la definición;
+  4. decisión (ADR), basada en una funcionalidad o en una restricción u objetivo de la definición;
+  5. construcción y evidencia.
 
   Una propuesta no es un nivel: es cómo llega cualquier cosa. Las funcionalidades van antes que las
   decisiones; un parche no debe hacer que se decida sin algo en lo que basarse.

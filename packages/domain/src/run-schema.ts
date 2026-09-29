@@ -6,7 +6,8 @@
 // action's full schema: a provider that ignores the narrowing only leaves those questions without
 // options, the reply is kept.
 
-import { type AgentAction, jsonSchemaOf } from './agents.ts';
+import { z } from 'zod';
+import { type AgentAction, conversationOption, jsonSchemaOf } from './agents.ts';
 
 /** At most this many questions get their options asked in one run: a whole stage, so Day 1 offers them all. */
 export const MAX_QUESTIONS_NEEDING_OPTIONS = 8;
@@ -23,10 +24,24 @@ export function questionsNeedingOptions(content: unknown): string[] {
     .map((q) => q.id as string);
 }
 
+/**
+ * In a side conversation about one question (Go deeper), the answer it leads to is required, as an
+ * option or null, so every provider gives it.
+ */
+function withConversationOption(schema: Record<string, unknown>, content: unknown): Record<string, unknown> {
+  if (!isObject(content) || typeof content.question_in_progress !== 'string') return schema;
+  const { $schema: _, ...option } = z.toJSONSchema(conversationOption.nullable(), { target: 'draft-7' }) as AnyObject;
+  return {
+    ...schema,
+    properties: { ...(schema.properties as AnyObject), conversation_option: option },
+    required: [...((schema.required as string[]) ?? []), 'conversation_option'],
+  };
+}
+
 /** The JSON Schema the provider gets for this run. */
 export function runSchemaOf(action: AgentAction, content: unknown): Record<string, unknown> {
-  const schema = jsonSchemaOf(action);
-  if (action !== 'exploration_chat') return schema;
+  if (action !== 'exploration_chat') return jsonSchemaOf(action);
+  const schema = withConversationOption(jsonSchemaOf(action), content);
   const ids = questionsNeedingOptions(content);
   if (ids.length === 0) return schema;
   const properties = schema.properties as AnyObject;

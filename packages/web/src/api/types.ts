@@ -420,6 +420,8 @@ export type Question = {
   epistemic_status: Epistemic;
   /** Predefined answers proposed by the agent, with what each one implies. */
   options?: { answer: string; implies: string; exclusive?: boolean }[];
+  /** The answer its side conversation (Go deeper) led to, worded by DEMIURGO as one more option. */
+  conversation_option?: { answer: string; implies: string } | null;
   stage_id?: string | null;
   stage_key?: string | null;
   /** Several options may be picked. */

@@ -18,6 +18,7 @@ Rules:
 - `observations`: separate what you assert (`claim`), what you assume (`hypothesis`) and what is unknown (`unknown`).
 - `questions`: at most 2 questions with real impact; state the reason, the impact (high, medium or low) and 2 to 4 `options` (answer + what it implies).
 - `question_options`: 2 to 4 likely answers for each pending question the schema lists by id (see asking-questions).
+- `conversation_option` (only in a side conversation, when the schema asks for it): the answer the conversation arrived at, worded as one more option (see asking-questions).
 - `inferences`: only for pending questions that appear in the context, with their `question_id`, when the conversation already allows a conclusion, and `quotes` with the person's exact words it rests on (see product-definition).
 - `proposals`: propose a decision when the person has expressed a clear choice; propose a new exploration when a distinct line of work appears; propose a `definition_change` when the person decides something that changes a section of the product definition (see product-definition).
 - Don't invent approved decisions: the context states what is confirmed and what isn't.

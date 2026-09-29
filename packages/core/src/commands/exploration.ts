@@ -7,6 +7,7 @@ import {
   VALID_AGENT_NAME,
   formatActor,
   fingerprint,
+  conversationOption,
   questionOption,
   quoteFound,
   system,
@@ -391,6 +392,20 @@ registerHandlers({
         entityId: id,
         after: { question: data.question, impact: data.impact ?? null, stage_key: data.stage_key ?? null },
       };
+    },
+  }),
+
+  // The answer a side conversation led to: one option kept apart from the predefined ones (which an
+  // agent may replace whole), replaced by the next conversation's.
+  'question.set_conversation_option': handler({
+    data: conversationOption,
+    async apply(ctx, data, e) {
+      await ctx.trx
+        .updateTable('questions')
+        .set({ conversation_option: JSON.stringify(data) })
+        .where('id', '=', e?.id ?? '')
+        .execute();
+      return { entityId: e?.id ?? '', before: { conversation_option: e?.row.conversation_option ?? null }, after: data };
     },
   }),
 

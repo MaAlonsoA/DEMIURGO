@@ -1,6 +1,6 @@
 // How a question is answered in its thread (DESIGN.md §3.3), as pure rules: which questions are
 // open and shown, the choices an answer can be picked from (DEMIURGO's assumed answer first, then
-// the options), how a draft names its picked choices and back — several at once for a multiple
+// the answer its side conversation led to, then the options), how a draft names its picked choices and back — several at once for a multiple
 // choice, where an exclusive option clears the others — and a DEMIURGO reply turned into plain text
 // to become the person's own words.
 
@@ -17,10 +17,12 @@ export const isShown = (q: Pick<Question, 'shown_at'>): boolean => !!q.shown_at;
 
 /** The value of DEMIURGO's assumed answer among the choices. */
 export const ASSUMED = 'assumed';
+/** The value of the answer the question's side conversation led to. */
+export const CONVERSATION = 'conversation';
 
-export type AnswerChoice = { value: string; answer: string; implies: string; exclusive: boolean };
+export type AnswerChoice = { value: string; answer: string; implies: string; exclusive: boolean; highlight?: boolean };
 
-type Answerable = Pick<Question, 'state' | 'conclusion' | 'reasoning' | 'options' | 'multiple'>;
+type Answerable = Pick<Question, 'state' | 'conclusion' | 'reasoning' | 'options' | 'multiple' | 'conversation_option'>;
 
 /** DEMIURGO's assumed answer, when the question is assumed and has one. */
 export function assumedAnswer(q: Answerable): string | null {
@@ -41,6 +43,18 @@ export function answerChoices(q: Answerable, words = ANSWER_WORDS.en): AnswerCho
           },
         ]
       : []),
+    // It stands alone, like the assumed answer: it is one idea, not a part of a multiple answer.
+    ...(q.conversation_option
+      ? [
+          {
+            value: CONVERSATION,
+            answer: q.conversation_option.answer,
+            implies: q.conversation_option.implies,
+            exclusive: true,
+            highlight: true,
+          },
+        ]
+      : []),
     ...(q.options ?? []).map((o, k) => ({ value: String(k), answer: o.answer, implies: o.implies, exclusive: !!o.exclusive })),
   ];
 }
@@ -52,6 +66,7 @@ export function pickedChoices(q: Answerable, draft: string | undefined): string[
   if (!draft) return [];
   const assumed = assumedAnswer(q);
   if (assumed && draft === assumed) return [ASSUMED];
+  if (q.conversation_option && draft === q.conversation_option.answer) return [CONVERSATION];
   const options = q.options ?? [];
   const parts = q.multiple ? draft.split(SEP) : [draft];
   const picked = options.flatMap((o, k) => (parts.includes(o.answer) ? [String(k)] : []));
@@ -63,6 +78,7 @@ export function pickedChoices(q: Answerable, draft: string | undefined): string[
 /** The draft that picked choices write: the options' answers in their order, joined; null for none. */
 export function draftOf(q: Answerable, picked: readonly string[]): string | null {
   if (picked.includes(ASSUMED)) return assumedAnswer(q);
+  if (picked.includes(CONVERSATION)) return q.conversation_option?.answer ?? null;
   const options = q.options ?? [];
   const text = [...picked]
     .map(Number)

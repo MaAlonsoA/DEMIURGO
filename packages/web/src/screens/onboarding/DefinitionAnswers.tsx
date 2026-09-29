@@ -23,6 +23,7 @@ import { useMessages } from '../../i18n/define.ts';
 import { DEFINITION } from '../overview/words.i18n.ts';
 import { DeeperPanel } from '../thread/Deeper.tsx';
 import { type Drafts, DraftsProvider } from '../thread/drafts.tsx';
+import { ANSWER_WORDS } from '../thread/words.i18n.ts';
 import { ExplainButton, Explanation, useExplain } from '../thread/Explain.tsx';
 import { Sheet } from '../thread/Sheet.tsx';
 import { type Answer, blockCalls, initialAnswer, missingAnswers, openItems } from './confirm.ts';
@@ -223,6 +224,7 @@ function Item({
 }) {
   const t = useMessages(CONFIRM);
   const d = useMessages(DEFINITION);
+  const words = useMessages(ANSWER_WORDS);
   const read = q.state === 'inferred';
   // While a reading is being corrected, the answer it had before: Discard goes back to it. What the
   // person writes counts as it is typed, so a correction confirmed without Save is not lost.
@@ -266,9 +268,23 @@ function Item({
           <p className="text-sm text-fg-2">{t.leftOpen}</p>
         ) : editing ? (
           <>
-            {q.options && q.options.length > 0 ? (
+            {(q.options && q.options.length > 0) || q.conversation_option ? (
               <div className="flex flex-wrap gap-2" role="group" aria-label={q.question}>
-                {q.options.map((o) => (
+                {q.conversation_option ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="border-accent-edge"
+                    aria-pressed={answer.text === q.conversation_option.answer}
+                    title={q.conversation_option.implies}
+                    onClick={() => write(q.conversation_option?.answer ?? '')}
+                    data-conversation-option
+                  >
+                    <span className="text-xs font-medium text-accent-text">{words.fromConversation}</span>
+                    {q.conversation_option.answer}
+                  </Button>
+                ) : null}
+                {(q.options ?? []).map((o) => (
                   <Button
                     key={o.answer}
                     size="sm"

@@ -80,6 +80,7 @@ describe('architecture', () => {
       'question.raise',
       'question.infer',
       'question.suggest_options',
+      'question.set_conversation_option',
       'exploration.revise_purpose',
       'batch.submit',
     ]);

@@ -253,6 +253,8 @@ export type QuestionsTable = {
   stage_id: string | null;
   stage_key: string | null;
   options: ColumnType<{ answer: string; implies: string; exclusive?: boolean }[], string | undefined, string>;
+  /** The answer its side conversation (Go deeper) led to, worded as one more option; null while none. */
+  conversation_option: ColumnType<{ answer: string; implies: string } | null, string | null | undefined, string | null>;
   multiple: Generated<boolean>;
   shown_at: ColumnType<Date | null, Date | string | null | undefined, Date | string | null>;
   /** The exact words of the person an inference rests on, each with its message. */

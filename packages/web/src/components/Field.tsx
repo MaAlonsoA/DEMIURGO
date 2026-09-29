@@ -157,7 +157,14 @@ export function Checkbox({
   );
 }
 
-export type Choice = { value: string; label: ReactNode; detail?: ReactNode; disabled?: boolean };
+export type Choice = {
+  value: string;
+  label: ReactNode;
+  detail?: ReactNode;
+  disabled?: boolean;
+  /** Set apart from the others with the accent edge (e.g. the answer a conversation led to). */
+  highlight?: boolean;
+};
 
 /**
  * A group of choices as cards: one (radio) or several (checkbox). Native inputs inside a fieldset
@@ -175,6 +182,7 @@ export function ChoiceGroup({
   disabled,
   name,
   className,
+  dense = false,
 }: {
   legend: ReactNode;
   legendHidden?: boolean;
@@ -186,13 +194,22 @@ export function ChoiceGroup({
   disabled?: boolean;
   name?: string;
   className?: string;
+  /** Tighter cards, for a side panel where the room goes to something else. */
+  dense?: boolean;
 }) {
   const auto = useId();
   const group = name ?? auto;
   return (
-    <fieldset className={cn('flex min-w-0 flex-col gap-2', className)} disabled={disabled}>
+    <fieldset className={cn('flex min-w-0 flex-col', dense ? 'gap-1.5' : 'gap-2', className)} disabled={disabled}>
       <legend className={cn('mb-1 text-sm font-medium text-fg', legendHidden && 'sr-only')}>{legend}</legend>
-      <div className={cn('grid gap-2', columns === 2 && 'sm:grid-cols-2', columns === 3 && 'sm:grid-cols-2 lg:grid-cols-3')}>
+      <div
+        className={cn(
+          'grid',
+          dense ? 'gap-1.5' : 'gap-2',
+          columns === 2 && 'sm:grid-cols-2',
+          columns === 3 && 'sm:grid-cols-2 lg:grid-cols-3',
+        )}
+      >
         {choices.map((c) => {
           const checked = value.includes(c.value);
           const id = `${group}-${c.value}`;
@@ -203,8 +220,13 @@ export function ChoiceGroup({
               data-choice={c.value}
               data-checked={checked || undefined}
               className={cn(
-                'relative flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5 transition-colors duration-[var(--m-fast)]',
-                checked ? 'border-accent bg-accent-soft' : 'border-edge-strong bg-panel hover:border-edge-control hover:bg-hover',
+                'relative flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 transition-colors duration-[var(--m-fast)]',
+                dense ? 'py-1.5' : 'py-2.5',
+                checked
+                  ? 'border-accent bg-accent-soft'
+                  : c.highlight
+                    ? 'border-accent-edge bg-panel hover:border-accent hover:bg-hover'
+                    : 'border-edge-strong bg-panel hover:border-edge-control hover:bg-hover',
                 (c.disabled || disabled) && 'cursor-not-allowed opacity-60',
               )}
             >
@@ -227,11 +249,14 @@ export function ChoiceGroup({
                 )}
               />
               {multiple && checked ? (
-                <CheckIcon size={12} className="pointer-events-none absolute top-[13px] left-[14px] text-on-accent" />
+                <CheckIcon
+                  size={12}
+                  className={cn('pointer-events-none absolute left-[14px] text-on-accent', dense ? 'top-[9px]' : 'top-[13px]')}
+                />
               ) : null}
               <span className="flex min-w-0 flex-col gap-0.5">
-                <span className="font-medium text-fg">{c.label}</span>
-                {c.detail ? <span className="text-sm text-fg-2">{c.detail}</span> : null}
+                <span className={cn('font-medium text-fg', dense && 'text-sm')}>{c.label}</span>
+                {c.detail ? <span className={cn('text-fg-2', dense ? 'text-xs' : 'text-sm')}>{c.detail}</span> : null}
               </span>
             </label>
           );

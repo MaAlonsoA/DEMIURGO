@@ -190,6 +190,17 @@ export const proposedCriterion = z
 // `exclusive`: in a multiple-choice question, choosing it clears the others (e.g. "None for now").
 export const questionOption = z.object({ answer: recordText(300), implies: recordText(300), exclusive: z.boolean() }).strict();
 
+/**
+ * The answer a side conversation about one question (Go deeper) leads to, worded as one more option:
+ * the idea the person and the agent arrived at, not a copy of a reply. Null while it isn't clear.
+ */
+export const conversationOption = z
+  .object({
+    answer: recordText(300).describe('In English: the answer as the person would pick it, short and self-contained.'),
+    implies: recordText(300).describe('In English: what choosing it implies for the design.'),
+  })
+  .strict();
+
 export const explorationChatOutput = z
   .object({
     reply: text(6000),
@@ -228,6 +239,8 @@ export const explorationChatOutput = z
           .strict(),
       )
       .max(8),
+    // Only asked for when the run answers a side conversation (`question_in_progress`): see run-schema.ts.
+    conversation_option: conversationOption.nullable().optional(),
     inferences: z
       .array(
         z
@@ -314,5 +327,11 @@ export type ActionOutput<A extends AgentAction> = z.infer<(typeof OUTPUT_SCHEMAS
 
 export function jsonSchemaOf(action: AgentAction): Record<string, unknown> {
   // draft-07: the draft the Claude CLI (2.1.281) validates; this way the schema travels as is.
-  return z.toJSONSchema(OUTPUT_SCHEMAS[action], { target: 'draft-7' });
+  const schema = z.toJSONSchema(OUTPUT_SCHEMAS[action], { target: 'draft-7' }) as Record<string, unknown>;
+  // An optional field is never sent as is (strict providers need every property required): a run
+  // adds the ones its context pack calls for (runSchemaOf).
+  const properties = schema.properties as Record<string, unknown> | undefined;
+  const required = (schema.required as string[] | undefined) ?? [];
+  if (!properties) return schema;
+  return { ...schema, properties: Object.fromEntries(Object.entries(properties).filter(([k]) => required.includes(k))) };
 }

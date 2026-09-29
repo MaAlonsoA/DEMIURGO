@@ -109,6 +109,13 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
       inferences: [],
       proposals: [],
     };
+    // A side conversation (Go deeper): the answer it led to, worded from the person's last words there.
+    if (obj(p.schema?.properties).conversation_option) {
+      output.conversation_option = {
+        answer: `From our talk: ${truncate(text, 200)}`,
+        implies: 'It is what the side conversation arrived at.',
+      };
+    }
     const definition = obj(c.product_definition);
     if (text.includes(REDEFINE_MARKER) && definition.code) {
       // A decision in this thread that changes the approved definition: its constraints now say the

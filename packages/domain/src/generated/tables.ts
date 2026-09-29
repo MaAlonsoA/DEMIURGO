@@ -178,6 +178,14 @@ export const CAPABILITIES = {
       "decisive": false,
       "description": "Set the predefined answers an agent proposes for a pending question."
     },
+    "question.set_conversation_option": {
+      "entity": "question",
+      "allowed": [
+        "system"
+      ],
+      "decisive": false,
+      "description": "Keep the answer a side conversation about an open question led to, as one more option to pick."
+    },
     "question.confirm": {
       "entity": "question",
       "allowed": [
@@ -1200,6 +1208,20 @@ export const TRANSITIONS = {
             "pending"
           ],
           "to": "pending"
+        },
+        {
+          "command": "question.set_conversation_option",
+          "from": [
+            "pending"
+          ],
+          "to": "pending"
+        },
+        {
+          "command": "question.set_conversation_option",
+          "from": [
+            "inferred"
+          ],
+          "to": "inferred"
         },
         {
           "command": "question.confirm",

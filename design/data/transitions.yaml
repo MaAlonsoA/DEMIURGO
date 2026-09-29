@@ -82,6 +82,8 @@ entities:
       - { command: question.raise, from: new, to: pending, guards: [exploration_active] }
       - { command: question.infer, from: [pending], to: inferred, guards: [conclusion_present] }
       - { command: question.suggest_options, from: [pending], to: pending }
+      - { command: question.set_conversation_option, from: [pending], to: pending }
+      - { command: question.set_conversation_option, from: [inferred], to: inferred }
       - { command: question.confirm, from: [pending, inferred], to: confirmed, guards: [conclusion_present] }
       - { command: question.postpone, from: [pending, inferred], to: postponed, guards: [reason_present] }
       - { command: question.discard, from: [pending, inferred, postponed], to: discarded, guards: [reason_present] }

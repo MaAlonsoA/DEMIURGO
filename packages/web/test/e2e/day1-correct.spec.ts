@@ -79,12 +79,23 @@ test('Day 1: a correction is saved or discarded, and "Talk it through" settles a
   await expect(deeper.getByRole('radio').first()).toBeVisible();
   await deeper.getByLabel('Talk it through').fill('Should speed come before safety?');
   await deeper.getByRole('button', { name: 'Send' }).click();
-  await expect(deeper.getByRole('button', { name: 'Use this reply as the answer' })).toBeVisible({ timeout: 45_000 });
+  // DEMIURGO words the idea the conversation arrived at: under its reply, and as one more option.
+  const TALKED = 'From our talk: Should speed come before safety?';
+  const idea = deeper.locator('[data-conversation-option]');
+  await expect(idea).toContainText(TALKED, { timeout: 45_000 });
+  await expect(
+    deeper.getByRole('radio', { name: new RegExp(`From the conversation.*${TALKED.replace('?', '\\?')}`) }),
+  ).toBeVisible();
   await expectAccessible(page, 'Go deeper over Day 1');
-  await deeper.getByRole('button', { name: 'Use this reply as the answer' }).click();
+  await idea.getByRole('button', { name: 'Use this idea as the answer' }).click();
   await deeper.getByRole('button', { name: 'Use as answer' }).click();
   await expect(deeper).toHaveCount(0);
   await expect(principles).toHaveAttribute('data-answer-state', 'corrected');
+  await expect(principles.locator('[data-answer-text]')).toHaveText(TALKED);
+  // On Day 1 too, correcting offers the idea beside the other options.
+  await principles.getByRole('button', { name: 'Correct' }).click();
+  await expect(principles.locator('[data-conversation-option]')).toContainText(TALKED);
+  await expect(principles.locator('[data-conversation-option]')).toHaveAttribute('aria-pressed', 'true');
   // Talking doesn't read the idea again: the block keeps what DEMIURGO read.
   await expect(block.locator('[data-answer-state="read"]')).toHaveCount(5);
 });

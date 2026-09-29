@@ -97,7 +97,18 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
     manifest.dropped({ section: 'messages', source: messageSource(m.id), text: m.body, reason: `limit:${LIMIT.messages}` });
   const allQuestions = await trx
     .selectFrom('questions')
-    .select(['id', 'question', 'reason', 'state', 'conclusion', 'impact', 'options', 'multiple', 'shown_at'])
+    .select([
+      'id',
+      'question',
+      'reason',
+      'state',
+      'conclusion',
+      'impact',
+      'options',
+      'conversation_option',
+      'multiple',
+      'shown_at',
+    ])
     .where('exploration_id', '=', exploration.id)
     .orderBy('created_at')
     .orderBy('id')
@@ -115,7 +126,18 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
   const stageQuestions = stage
     ? await trx
         .selectFrom('questions')
-        .select(['id', 'question', 'reason', 'state', 'conclusion', 'impact', 'options', 'multiple', 'shown_at'])
+        .select([
+          'id',
+          'question',
+          'reason',
+          'state',
+          'conclusion',
+          'impact',
+          'options',
+          'conversation_option',
+          'multiple',
+          'shown_at',
+        ])
         .where('stage_id', '=', stage.id)
         .where('stage_key', 'is not', null)
         .where('state', 'not in', [...COVERED_QUESTION_STATES])
@@ -261,10 +283,12 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
           conclusion: q.conclusion,
           impact: q.impact,
           has_options: q.options.length > 0,
-          // The one being talked about carries its options, so Go deeper and the explainer weigh them.
+          // The one being talked about carries its options, so Go deeper and the explainer weigh them,
+          // and the answer its conversation led to so far, which the next reply refines.
           ...(q.id === input.question_id && q.options.length > 0
             ? { options: q.options.map((o) => ({ answer: o.answer, implies: o.implies })) }
             : {}),
+          ...(q.id === input.question_id && q.conversation_option ? { conversation_option: q.conversation_option } : {}),
           multiple: q.multiple,
           // Not shown yet: it waits in the reserve for its turn (don't ask it again).
           shown: q.shown_at !== null,
@@ -376,6 +400,19 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
         multiple: q.multiple,
       },
     });
+  }
+  // In a side conversation, the answer it led to becomes one more option of the question while it is open.
+  if (questionId && output.conversation_option) {
+    const q = await trx.selectFrom('questions').select(['state']).where('id', '=', questionId).executeTakeFirst();
+    if (q?.state === 'pending' || q?.state === 'inferred') {
+      await execute({
+        ...base,
+        command: 'question.set_conversation_option',
+        actor: system('exploration'),
+        entityId: questionId,
+        data: output.conversation_option,
+      });
+    }
   }
   for (const suggestion of output.question_options) {
     if (suggestion.options.length === 0 && !suggestion.question) continue;

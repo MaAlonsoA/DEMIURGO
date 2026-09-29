@@ -358,18 +358,17 @@ test("AC-INT-001-09 DEMIURGO's question: an option drafts the answer and survive
   await talk.fill('What changes if it stays out for now?');
   await talk.press('Enter');
   await expect(talk).toHaveValue('');
-  const useReply = panel.getByRole('button', { name: 'Use this reply as the answer' });
-  await expect(useReply).toBeVisible({ timeout: 30_000 });
+  // DEMIURGO words the idea the conversation arrived at; it becomes the answer with one click.
+  const useIdea = panel.getByRole('button', { name: 'Use this idea as the answer' });
+  await expect(useIdea).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('[data-message-by="demiurgo"]')).toHaveCount(1);
   await shot(page, '12-go-deeper-talk');
-  await useReply.click();
-  const own = panel.getByLabel('Your answer');
-  await expect(own).toBeFocused();
-  await expect(own).toHaveValue(/Got it/);
+  await useIdea.click();
+  await expect(panel.getByRole('radio', { name: /From the conversation/ })).toBeChecked();
   await panel.getByRole('button', { name: 'Use as answer' }).click();
   await expect(panel).toHaveCount(0);
   await expect(question.getByRole('button', { name: /Go deeper · \d+ messages/ })).toBeFocused();
-  await expect(question).toContainText('Your answer: Got it');
+  await expect(question.getByRole('radio', { name: /From our talk: What changes if it stays out for now\?/ })).toBeChecked();
 
   // The other questions are answered elsewhere; Confirm and send then leaves nothing open, and
   // DEMIURGO reads the answers and goes on.

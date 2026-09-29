@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Message, ProductRow, Question, RunListItem } from '../../src/api/types.ts';
 import {
   ASSUMED,
+  CONVERSATION,
   answerChoices,
   draftOf,
   isOpenQuestion,
@@ -183,6 +184,28 @@ describe('answering a question in its thread', () => {
     ]);
     expect(choices[0]?.implies).toBe('DEMIURGO assumed it: You said so.');
     expect(answerChoices(q()).map((c) => c.value)).toEqual(['0', '1', '2']);
+  });
+
+  it('offers the answer a side conversation led to right after the assumed one, set apart, and reads it back', () => {
+    const talked = q({
+      state: 'inferred',
+      conclusion: 'Me',
+      conversation_option: { answer: 'Me and two friends', implies: 'Three accounts, no roles.' },
+    });
+    const choices = answerChoices(talked);
+    expect(choices.map((c) => [c.value, c.answer, !!c.highlight])).toEqual([
+      [ASSUMED, 'Me', false],
+      [CONVERSATION, 'Me and two friends', true],
+      ['0', 'Me', false],
+      ['1', 'A team', false],
+      ['2', 'Nobody yet', false],
+    ]);
+    expect(choices[1]?.implies).toBe('Three accounts, no roles.');
+    expect(draftOf(talked, [CONVERSATION])).toBe('Me and two friends');
+    expect(pickedChoices(talked, 'Me and two friends')).toEqual([CONVERSATION]);
+    // It stands alone, like the assumed answer.
+    expect(withExclusive(choices, ['0'], ['0', CONVERSATION])).toEqual([CONVERSATION]);
+    expect(answerChoices(q({ conversation_option: null })).map((c) => c.value)).toEqual(['0', '1', '2']);
   });
 
   it('AC-INT-001-09 a draft names the options it picks, in their order, and reads back the same', () => {

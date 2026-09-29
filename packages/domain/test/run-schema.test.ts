@@ -79,4 +79,37 @@ describe('the output schema of a run', () => {
     const list = { ...raw, question_options: [] };
     expect(normalizeOutput('exploration_chat', list)).toBe(list);
   });
+
+  it('asks for the answer a side conversation leads to only when the run answers one, and never sends optional fields otherwise', () => {
+    const base = jsonSchemaOf('exploration_chat') as { properties: Record<string, unknown>; required: string[] };
+    expect(base.properties).not.toHaveProperty('conversation_option');
+    expect(base.required).toEqual(Object.keys(base.properties));
+
+    const deeper = runSchemaOf('exploration_chat', { question_in_progress: id(1), questions: [q(1, { has_options: true })] }) as {
+      properties: Record<string, { anyOf?: unknown[] }>;
+      required: string[];
+    };
+    expect(deeper.required).toContain('conversation_option');
+    expect(JSON.stringify(deeper.properties.conversation_option)).toContain('"answer"');
+    expect(JSON.stringify(deeper.properties.conversation_option)).toContain('"null"');
+
+    const main = runSchemaOf('exploration_chat', { question_in_progress: null, questions: [q(1, { has_options: true })] });
+    expect((main.properties as Record<string, unknown>).conversation_option).toBeUndefined();
+  });
+
+  it('accepts an output with or without the conversation option', () => {
+    const out = {
+      reply: 'Hi.',
+      purpose: null,
+      observations: [],
+      questions: [],
+      question_options: [],
+      inferences: [],
+      proposals: [],
+    };
+    expect(explorationChatOutput.safeParse(out).success).toBe(true);
+    expect(explorationChatOutput.safeParse({ ...out, conversation_option: null }).success).toBe(true);
+    const option = { answer: 'Members first, then organizers.', implies: 'The sign-up flow is built first.' };
+    expect(explorationChatOutput.safeParse({ ...out, conversation_option: option }).success).toBe(true);
+  });
 });

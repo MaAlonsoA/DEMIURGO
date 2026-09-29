@@ -172,6 +172,7 @@ registerRecipe('question', {
   data: {
     'question.infer': () => ({ conclusion: 'Los socios.', reasoning: 'Lo dijo la persona.' }),
     'question.suggest_options': () => ({ options: [] }),
+    'question.set_conversation_option': () => ({ answer: 'Los socios.', implies: 'Solo socios.' }),
     'question.confirm': () => ({ conclusion: 'Los socios.' }),
     'question.postpone': () => ({ reason: 'Más adelante.' }),
     'question.discard': () => ({ reason: 'No aplica.' }),

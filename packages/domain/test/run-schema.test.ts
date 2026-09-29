@@ -31,7 +31,7 @@ describe('the output schema of a run', () => {
         q(7, { shown: false }),
       ],
     };
-    expect(questionsNeedingOptions(content)).toEqual([id(2), id(6), id(1), id(5)].slice(0, MAX_QUESTIONS_NEEDING_OPTIONS));
+    expect(questionsNeedingOptions(content)).toEqual([id(2), id(6), id(1), id(5), id(7)].slice(0, MAX_QUESTIONS_NEEDING_OPTIONS));
   });
 
   it('turns question_options into one required entry per question, without question_id and with at least 2 options', () => {

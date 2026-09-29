@@ -8,8 +8,8 @@
 
 import { type AgentAction, jsonSchemaOf } from './agents.ts';
 
-/** At most this many questions get their options asked in one run. */
-export const MAX_QUESTIONS_NEEDING_OPTIONS = 4;
+/** At most this many questions get their options asked in one run: a whole stage, so Day 1 offers them all. */
+export const MAX_QUESTIONS_NEEDING_OPTIONS = 8;
 
 type AnyObject = Record<string, unknown>;
 const isObject = (v: unknown): v is AnyObject => typeof v === 'object' && v !== null && !Array.isArray(v);

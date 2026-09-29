@@ -47,6 +47,14 @@ reglas anulan las de `AGENTS.md` y las de cualquier skill.
   - ninguna llamada real a Claude o Codex salvo que se pida;
   - no repetir secretos;
   - código en inglés; conversación y commits en español.
+- **La jerarquía del diseño** (la siguen los agentes: `packages/core/skills/demiurgo-glossary/SKILL.md`):
+  1. definición del producto (DEF);
+  2. funcionalidad (FDR);
+  3. decisión (ADR), basada en una funcionalidad o en una restricción u objetivo de la definición;
+  4. construcción y evidencia.
+
+  Una propuesta no es un nivel: es cómo llega cualquier cosa. Las funcionalidades van antes que las
+  decisiones; un parche no debe hacer que se decida sin algo en lo que basarse.
 - **El companion** (`claude --agent demiurgo-companion`) corre en otra terminal, en solo lectura.
   Sus bloques «Parche para Claude Code» se pegan aquí.
 

@@ -10,6 +10,15 @@ description: DEMIURGO's vocabulary, so every agent uses the words the same way.
 - **Proposal**: anything an agent suggests. It has no effect until the person accepts it.
 - **Authority**: what the person approved. Agents never create authority; they only propose.
 
+How the design is layered, each level resting on the one above:
+
+1. **Product definition** (DEF): what the product is for and for whom, its principles, constraints, quality goals and the features of the first version.
+2. **Feature** (FDR): what one capability does, with its requirements and how each is checked. It rests on the definition.
+3. **Decision** (ADR, a threat and its mitigation): how something a feature forces is solved, when there are at least two real options. It rests on a feature, or on a constraint or quality goal of the definition.
+4. **Build and evidence**: the code and the executed checks that show the feature does what was agreed.
+
+A proposal is not a level: it is how anything at any level arrives (proposed by an agent, accepted and then approved by the person). Features come before decisions: a decision without a feature, constraint or quality goal to rest on is a guess, so it stays a principle or an open question. Decisions forced by a constraint live in the definition's principles; decisions that span features (the system's structure, its stack) are taken in the architecture stage, which opens once a feature is approved.
+
 When the person writes in Spanish, record these words with their fixed English term:
 
 | Spanish | English |

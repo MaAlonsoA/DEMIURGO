@@ -3,12 +3,12 @@
 // engine among them, so a workspace from before the groups keeps working the same), or else the
 // default below. The agents whose own engine matches their group's then follow the group; the ones
 // that differ stay as exceptions. What the person assigns in Models & providers always wins: a
-// group or an agent with any row, even a removal, is left alone.
+// group or an agent with any row, even a removal, is left alone. The same goes for the backups.
 
 import { formatActor, system } from '@demiurgo/domain';
 import { loadAgentCatalog } from '../agents/catalog.ts';
 import type { Db } from '../db/connection.ts';
-import { type Engine, currentAssignments, insertChoice } from './assignments.ts';
+import { type Engine, currentAssignments, insertChoice, insertFallback } from './assignments.ts';
 
 export const DEFAULT_GROUP_ENGINES: Readonly<Record<string, Engine>> = {
   deep: { provider: 'codex', model: 'gpt-6-astra', effort: 'medium' },
@@ -21,6 +21,11 @@ export const DEFAULT_AGENT_ENGINES: Readonly<Record<string, Engine>> = {
   echo: { provider: 'opencode', model: 'qwen-local/qwen3.8-27b', effort: 'high' },
   // Reading translations run often and stay at home: the local model, at no quota.
   translator: { provider: 'opencode', model: 'qwen-local/qwen3.8-27b', effort: 'medium' },
+};
+
+/** Backup engines by default: the translator runs at home, and when the local model is down the answers still get saved. */
+export const DEFAULT_AGENT_FALLBACKS: Readonly<Record<string, Engine>> = {
+  translator: { provider: 'codex', model: 'gpt-6-luna', effort: 'low' },
 };
 
 const sameEngine = (a: Engine, b: Engine) => a.provider === b.provider && a.model === b.model && a.effort === b.effort;
@@ -66,6 +71,16 @@ export async function seedDefaultEngines(db: Db): Promise<string[]> {
     if (touchedAgents.has(agent) || !catalog.get(agent)) continue;
     await insertChoice(db, { agent }, engine, by);
     seeded.push(agent);
+  }
+  const touchedFallbacks = new Set(
+    (await db.selectFrom('engine_fallbacks').select('agent').distinct().where('agent', 'is not', null).execute()).map(
+      (r) => r.agent,
+    ),
+  );
+  for (const [agent, engine] of Object.entries(DEFAULT_AGENT_FALLBACKS)) {
+    if (touchedFallbacks.has(agent) || !catalog.get(agent)) continue;
+    await insertFallback(db, { agent }, engine, by);
+    seeded.push(`backup:${agent}`);
   }
   return seeded;
 }

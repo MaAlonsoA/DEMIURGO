@@ -1,7 +1,9 @@
 // The knowledge classifier of each project (FDR-AGE-002): the knowledge_classifier agent on the
-// engine the person assigned, and the cascade to knowledge_reviewer when it has one too. Without an
-// engine there is no silent fallback: classifying fails with what the person has to do, and the
-// knowledge update is rejected until they choose a model and retry it.
+// engine the person assigned (or its backup, when that one isn't available), and the cascade to
+// knowledge_reviewer when it has one too. Without an engine that can run there is no silent
+// fallback: classifying fails with what the person has to do, and the knowledge update is rejected
+// until they choose a model and retry it. A classifier keeps one engine for all its calls, so its
+// verdicts say which one gave them: a call that can't reach it fails, and the update is retried.
 
 import { type Classifier, type EngineSource, type Provider, composeSystem } from '@demiurgo/domain';
 import { type LoadedAgent, loadAgentCatalog } from '../agents/catalog.ts';

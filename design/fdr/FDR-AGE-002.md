@@ -67,8 +67,9 @@ El detalle está en `docs/superpowers/specs/2026-09-25-agentes-y-proveedores-des
 3. **Resolución.**
    - Al pedir una ejecución se usa, en este orden, el override de «Retry with…», la asignación del proyecto y la global.
    - Si no hay ninguna, la ejecución no se crea y el error dice qué agente necesita motor.
-   - Si el modelo asignado ya no está en el catálogo, el agente no se ejecuta hasta que la persona elija otro.
-   - DEMIURGO nunca cambia de proveedor ni de modelo por su cuenta.
+   - Si el modelo asignado ya no está en el catálogo, el agente no se ejecuta hasta que la persona elija otro, salvo que tenga respaldo.
+   - DEMIURGO solo cambia al motor de respaldo que eligió la persona (el del grupo o el propio del agente), y solo cuando el elegido no está disponible, no se alcanza o no responde a tiempo.
+   - La ejecución registra el motor al que sustituyó y por qué; «Retry with…» nunca usa el respaldo.
 4. **Ejecución.**
    - La composición une el AGENT.md, sus skills en orden y las reglas de DEMIURGO; el contexto va delimitado como dato no confiable.
    - Cada adaptador pide salida estructurada nativa, sin herramientas, sin la configuración de la persona y con el entorno filtrado.

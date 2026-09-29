@@ -23,15 +23,25 @@ export type Engine = { provider: string; model: string; effort: string | null };
 
 export type Assignment = { engine: Engine; assignedBy: string; assignedAt: string };
 
-/** Where an agent's engine comes from: Retry with…, its own (an exception), or its group's. */
-export type EngineSource = 'override' | 'agent' | 'group';
+/** Where an agent's engine comes from: Retry with…, its own (an exception), its group's, or its backup. */
+export type EngineSource = 'override' | 'agent' | 'group' | 'fallback';
+
+/** An agent's backup engine (its own or its group's) and why it can't run now, if it can't. */
+export type Fallback = Engine & { source: 'agent' | 'group'; problem: string | null };
 
 export type Resolution =
-  | ({ status: 'ok'; source: EngineSource } & Engine)
+  | ({ status: 'ok'; source: EngineSource; fallback: Fallback | null; replaced?: Engine & { reason: string } } & Engine)
   | { status: 'unassigned' }
-  | ({ status: 'unavailable'; source: EngineSource; reason: string } & Engine);
+  | ({ status: 'unavailable'; source: EngineSource; reason: string; fallback: Fallback | null } & Engine);
 
-export type AgentGroup = { id: string; name: string; description: string; assignment: Assignment | null };
+export type AgentGroup = {
+  id: string;
+  name: string;
+  description: string;
+  assignment: Assignment | null;
+  /** The engine its tasks run on when theirs can't answer. */
+  fallback: Assignment | null;
+};
 
 export type AgentInfo = {
   id: string;
@@ -46,6 +56,8 @@ export type AgentInfo = {
   group: string | null;
   /** Its own engine, an exception to its group's. */
   own: Assignment | null;
+  /** Its own backup, an exception to its group's. */
+  own_fallback: Assignment | null;
   effective: Resolution | null;
 };
 
@@ -149,3 +161,10 @@ export const assignEngine = (target: EngineTarget, engine: Engine) =>
   request<{ ok: true }>('PUT', assignmentPath(target), engine);
 
 export const unassignEngine = (target: EngineTarget) => request<{ ok: true }>('DELETE', assignmentPath(target));
+
+const fallbackPath = (t: EngineTarget) =>
+  'group' in t ? `/api/groups/${encodeURIComponent(t.group)}/fallback` : `/api/agents/${encodeURIComponent(t.agent)}/fallback`;
+
+export const setFallback = (target: EngineTarget, engine: Engine) => request<{ ok: true }>('PUT', fallbackPath(target), engine);
+
+export const removeFallback = (target: EngineTarget) => request<{ ok: true }>('DELETE', fallbackPath(target));

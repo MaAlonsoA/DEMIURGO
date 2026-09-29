@@ -141,7 +141,14 @@ function ModelsAndProviders() {
                     </summary>
                     <ul aria-label={t.tasksOutsideGroupLabel} className="mt-2 flex flex-col">
                       {ungrouped.map((a) => (
-                        <TaskRow key={a.id} agent={a} catalogs={catalogs} skills={skills} groupEngine={null} />
+                        <TaskRow
+                          key={a.id}
+                          agent={a}
+                          catalogs={catalogs}
+                          skills={skills}
+                          groupEngine={null}
+                          groupFallback={null}
+                        />
                       ))}
                     </ul>
                   </details>

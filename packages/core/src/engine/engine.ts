@@ -30,6 +30,7 @@ import {
 import { sql } from 'kysely';
 import { APPLIERS } from '../actions/appliers.ts';
 import { DEFAULT_AGENTS, loadAgentCatalog, schemaVersion } from '../agents/catalog.ts';
+import { type Engine, couldNotAnswer, fallbackOf, sameEngine } from '../assignments/assignments.ts';
 import { type CallMeta, type CallSession, callProvider, closeOrphanCalls } from '../assignments/calls.ts';
 import { previousSession, saveSession, sessionDirectory, sessionKey } from '../assignments/sessions.ts';
 import { executeCommand, inTransaction } from '../bus/bus.ts';
@@ -167,13 +168,18 @@ export type SessionOutcome = {
   deltaHash: string | null;
 };
 
-export type InvokeResult = AgentResult & { session?: SessionOutcome };
+/** The run ran on its backup engine: which one, the one it replaced and why. */
+export type FallbackOutcome = { engine: Engine; from: Engine; reason: string };
+
+export type InvokeResult = AgentResult & { session?: SessionOutcome; fallback?: FallbackOutcome };
 
 /**
  * Runs the run's agent on its engine (FDR-AGE-002): composes the prompt, decides the provider
  * session and calls the provider through the recorder. The session is resumed, sending only the
  * delta, if the agent keeps one per thread, this is not a retry, the conversation's last run
  * completed and the new pack only appends to its pack. Otherwise it starts over with the whole pack.
+ * When the engine couldn't answer at all (unreachable, or no answer in time) and the agent has a
+ * backup, the whole pack goes once more to the backup, without a session, and the run says so.
  */
 async function invoke(runId: string, projectId: string): Promise<InvokeResult> {
   const s = requireServices();
@@ -296,6 +302,7 @@ async function invokeInSpan(s: Services, runId: string): Promise<InvokeResult> {
       task: { action, context: { hash: pack.hash, content: pack.content } },
     };
     let result = await callProvider(s, provider, meta, { ...base, input, session });
+    let attempt: 1 | 2 = 1;
     let mode = session.mode;
     if (session.mode === 'resumed' && result.state === 'error' && result.failureKind === 'agent_error') {
       // The provider may have lost the session: once more from scratch, on the same engine and
@@ -316,8 +323,36 @@ async function invokeInSpan(s: Services, runId: string): Promise<InvokeResult> {
         { ...meta, attempt: 2, session: seen, inputHash: s.observer.text('input', full) },
         { ...base, input: full, session: again },
       );
+      attempt = 2;
       mode = 'fresh';
       deltaHash = null;
+    }
+    const backup =
+      couldNotAnswer(result) && engineSource !== 'override' && engineSource !== 'fallback'
+        ? await fallbackOf(s.db, s.providers, agent.id)
+        : null;
+    const backupProvider = backup && !backup.problem ? s.providers.get(backup.provider) : undefined;
+    const from: Engine = { provider: run.provider, model, effort: run.effort };
+    if (backup && backupProvider && !control.signal.aborted && !sameEngine(backup, from)) {
+      const engine: Engine = { provider: backup.provider, model: backup.model, effort: backup.effort };
+      const again = await callProvider(
+        s,
+        backupProvider,
+        {
+          ...meta,
+          attempt: attempt === 1 ? 2 : 3,
+          engineSource: 'fallback',
+          session: { id: null, mode: 'none', baseRunId: null, basePackHash: null, deltaHash: null, keyHash: null },
+          inputHash: s.observer.text('input', full),
+        },
+        { ...base, model: engine.model, effort: engine.effort, input: full, session: { mode: 'none' } },
+      );
+      const reason = result.state === 'error' ? result.message : 'It could not answer.';
+      return {
+        ...again,
+        session: { mode: 'none', key: null, providerSessionId: null, deltaHash: null },
+        fallback: { engine, from, reason },
+      };
     }
     const resumedId = session.mode === 'resumed' && mode === 'resumed' ? session.id : null;
     const providerSessionId = mode === 'none' ? null : (result.sessionId ?? resumedId);
@@ -399,6 +434,7 @@ async function applyInSpan(s: Services, runId: string, projectId: string, r: Inv
             usage: r.usage ?? null,
             model: r.model,
             session: sessionData(r),
+            fallback: r.fallback ?? null,
           },
         });
         state = 'failed';
@@ -413,6 +449,7 @@ async function applyInSpan(s: Services, runId: string, projectId: string, r: Inv
             usage: r.usage,
             model: r.model,
             session: sessionData(r),
+            fallback: r.fallback ?? null,
           },
         });
         state = 'failed';
@@ -429,6 +466,7 @@ async function applyInSpan(s: Services, runId: string, projectId: string, r: Inv
               usage: r.usage,
               model: r.model,
               session: sessionData(r),
+              fallback: r.fallback ?? null,
             },
           });
           state = 'failed';
@@ -441,7 +479,7 @@ async function applyInSpan(s: Services, runId: string, projectId: string, r: Inv
           await execute({
             ...base,
             command: 'run.complete',
-            data: { output: v.data, usage: r.usage, model: r.model, session: sessionData(r) },
+            data: { output: v.data, usage: r.usage, model: r.model, session: sessionData(r), fallback: r.fallback ?? null },
           });
           state = 'completed';
         }

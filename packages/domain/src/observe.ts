@@ -83,7 +83,7 @@ export const COMMAND_OUTCOMES = [
 ] as const;
 export type CommandOutcome = (typeof COMMAND_OUTCOMES)[number];
 
-export const ENGINE_SOURCES = ['override', 'agent', 'group'] as const;
+export const ENGINE_SOURCES = ['override', 'agent', 'group', 'fallback'] as const;
 export type EngineSource = (typeof ENGINE_SOURCES)[number];
 
 /** Attribute names (§6). Grouped by the note that carries them; the same name means the same thing everywhere. */

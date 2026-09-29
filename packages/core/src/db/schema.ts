@@ -96,6 +96,8 @@ export type RunsTable = {
   session_mode: string | null;
   provider_session_id: string | null;
   delta_hash: string | null;
+  /** The engine the backup replaced and why, when the run ran on the backup engine. */
+  fallback: NullableJson;
 };
 
 export type ProviderCatalogsTable = {
@@ -132,6 +134,17 @@ export type GroupAssignmentsTable = {
   effort: string | null;
   assigned_by: string;
   assigned_at: Timestamp;
+};
+
+export type EngineFallbacksTable = {
+  id: Generated<string>;
+  agent: string | null;
+  group_id: string | null;
+  provider: string | null;
+  model: string | null;
+  effort: string | null;
+  assigned_by: string;
+  assigned_at: Generated<Timestamp>;
 };
 
 /** Trace context of each entity a command created (observability §5.2). Not a domain table. */
@@ -540,6 +553,7 @@ export type DB = {
   provider_catalogs: ProviderCatalogsTable;
   agent_assignments: AgentAssignmentsTable;
   group_assignments: GroupAssignmentsTable;
+  engine_fallbacks: EngineFallbacksTable;
   agent_sessions: AgentSessionsTable;
   trace_contexts: TraceContextsTable;
   agent_calls: AgentCallsTable;

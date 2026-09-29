@@ -8,6 +8,8 @@ import {
   choosableProviders,
   effortsOf,
   engineLabel,
+  fallbackChangeWords,
+  fallbackLine,
   failureKindsText,
   firstEngine,
   formatTokens,
@@ -83,11 +85,11 @@ describe('choosing an engine', () => {
 
   it('AC-AGE-002-03 AC-AGE-002-08 says what runs the agent and where it comes from, or what the person has to do', () => {
     const sol = { provider: 'codex', model: 'gpt-6-sol', effort: 'high' };
-    expect(resolutionLine({ status: 'ok', source: 'group', ...sol }, CATALOGS)).toEqual({
+    expect(resolutionLine({ status: 'ok', source: 'group', ...sol, fallback: null }, CATALOGS)).toEqual({
       tone: 'ok',
       text: 'Codex · GPT-6-Sol · high (from its group)',
     });
-    expect(resolutionLine({ status: 'ok', source: 'agent', ...sol }, CATALOGS).text).toBe(
+    expect(resolutionLine({ status: 'ok', source: 'agent', ...sol, fallback: null }, CATALOGS).text).toBe(
       'Codex · GPT-6-Sol · high (its own model)',
     );
     expect(resolutionLine({ status: 'unassigned' }, CATALOGS)).toEqual({
@@ -103,10 +105,48 @@ describe('choosing an engine', () => {
           provider: 'codex',
           model: 'gpt-6-sol',
           effort: null,
+          fallback: null,
         },
         CATALOGS,
       ),
     ).toEqual({ tone: 'problem', text: 'gpt-6-sol is no longer offered by Codex.' });
+  });
+
+  it('says when a task runs on its backup, why, and which backup each task has', () => {
+    const qwen = { provider: 'opencode', model: 'qwen-local/qwen3.8-27b', effort: 'medium' };
+    const luna = { provider: 'codex', model: 'gpt-6-luna', effort: 'low' };
+    expect(
+      resolutionLine(
+        {
+          status: 'ok',
+          source: 'fallback',
+          ...luna,
+          fallback: null,
+          replaced: { ...qwen, reason: "OpenCode hasn't been discovered yet: press Refresh in Models & providers." },
+        },
+        CATALOGS,
+      ),
+    ).toEqual({
+      tone: 'ok',
+      text: "Codex · GPT-6-Luna · low (its backup, because OpenCode · Qwen3.8-27B · medium can't run: OpenCode hasn't been discovered yet: press Refresh in Models & providers.)",
+    });
+    expect(
+      resolutionLine(
+        {
+          status: 'unavailable',
+          source: 'agent',
+          reason: 'qwen-local/qwen3.8-27b is no longer offered by OpenCode.',
+          ...qwen,
+          fallback: { ...luna, source: 'agent', problem: 'gpt-6-luna is no longer offered by Codex.' },
+        },
+        CATALOGS,
+      ).text,
+    ).toBe(
+      "qwen-local/qwen3.8-27b is no longer offered by OpenCode. Its backup can't run either: gpt-6-luna is no longer offered by Codex.",
+    );
+    expect(fallbackLine(luna, qwen, CATALOGS)).toEqual({ engine: luna, text: 'Codex · GPT-6-Luna · low (its own)' });
+    expect(fallbackLine(null, qwen, CATALOGS)?.text).toBe('OpenCode · Qwen3.8-27B · medium (from its group)');
+    expect(fallbackLine(null, null, CATALOGS)).toBeNull();
   });
 
   it('orders the agents as the product uses them', () => {
@@ -133,6 +173,25 @@ describe('saying what changed', () => {
       "Explorer now uses Codex · GPT-6-Sol · medium instead of its group's.",
     );
     expect(changeWords('Explorer', { kind: 'agent', engine: null }, CATALOGS)).toBe('Explorer follows its group again.');
+  });
+
+  it('a change of backup is said in words too', () => {
+    const luna = { provider: 'codex', model: 'gpt-6-luna', effort: 'low' };
+    expect(fallbackChangeWords('Deep thinking', { kind: 'group', engine: luna, inGroup: false }, CATALOGS)).toBe(
+      'Deep thinking falls back to Codex · GPT-6-Luna · low.',
+    );
+    expect(fallbackChangeWords('Deep thinking', { kind: 'group', engine: null, inGroup: false }, CATALOGS)).toBe(
+      'Deep thinking has no backup now.',
+    );
+    expect(fallbackChangeWords('Explorer', { kind: 'agent', engine: luna, inGroup: true }, CATALOGS)).toBe(
+      "Explorer falls back to Codex · GPT-6-Luna · low instead of its group's backup.",
+    );
+    expect(fallbackChangeWords('Explorer', { kind: 'agent', engine: null, inGroup: true }, CATALOGS)).toBe(
+      "Explorer takes its group's backup again.",
+    );
+    expect(fallbackChangeWords('Translation', { kind: 'agent', engine: null, inGroup: false }, CATALOGS)).toBe(
+      'Translation has no backup now.',
+    );
   });
 
   it('AC-AGE-002-02 names a part of DEMIURGO as the agents table does, and every failure kind in words', () => {

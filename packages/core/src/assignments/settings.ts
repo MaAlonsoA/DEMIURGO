@@ -3,7 +3,7 @@
 
 import { type Actor, DomainError, LOCALES, type SettingName } from '@demiurgo/domain';
 import { z } from 'zod';
-import { assignAgent, unassignAgent } from './assignments.ts';
+import { assignAgent, removeFallback, setFallback, unassignAgent } from './assignments.ts';
 import { type SettingsDeps, refreshCatalogs, requireSetting } from './catalogs.ts';
 
 // A choice is for one group of agents or for one agent (an exception to its group), for every project.
@@ -43,6 +43,8 @@ type Setting = (deps: SettingsDeps, actor: Actor, data: unknown) => Promise<unkn
 const HANDLERS: Record<SettingName, Setting> = {
   'agent.assign': (deps, actor, data) => assignAgent(deps, actor, parse(assignment, data, 'agent.assign')),
   'agent.unassign': (deps, actor, data) => unassignAgent(deps, actor, parse(target, data, 'agent.unassign')),
+  'agent.set_fallback': (deps, actor, data) => setFallback(deps, actor, parse(assignment, data, 'agent.set_fallback')),
+  'agent.remove_fallback': (deps, actor, data) => removeFallback(deps, actor, parse(target, data, 'agent.remove_fallback')),
   'providers.refresh': (deps, actor) => refreshCatalogs(deps, actor),
   'person.set_locale': setLocale,
 };

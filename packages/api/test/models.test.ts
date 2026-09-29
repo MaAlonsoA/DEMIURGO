@@ -88,6 +88,29 @@ describe('models and providers API', () => {
     expect((await person.request('PUT', '/api/groups/nobody/assignment', engine)).statusCode).toBe(422);
   });
 
+  it('a backup engine is set and removed per group or per agent, only by a person, and each task says which one it has', async () => {
+    const engine = { provider: 'simulated', model: 'simulated', effort: null };
+    const agent = api().agent(token);
+    expect((await agent.request('PUT', '/api/groups/deep/fallback', engine)).statusCode).toBe(403);
+    expect((await agent.request('DELETE', '/api/agents/translator/fallback')).statusCode).toBe(403);
+    const person = api().person;
+    expect((await person.request('PUT', '/api/groups/deep/fallback', { ...engine, model: 'gpt-9' })).statusCode).toBe(422);
+    expect((await person.request('PUT', '/api/groups/deep/fallback', engine)).statusCode).toBe(200);
+    expect((await person.request('PUT', '/api/agents/translator/fallback', engine)).statusCode).toBe(200);
+    type Agents = {
+      groups: { id: string; fallback: { engine: unknown } | null }[];
+      agents: { id: string; own_fallback: { engine: unknown } | null; effective: { fallback: unknown } }[];
+    };
+    const body = (await person.request('GET', '/api/agents')).json<Agents>();
+    expect(body.groups.find((g) => g.id === 'deep')?.fallback?.engine).toEqual(engine);
+    expect(body.agents.find((a) => a.id === 'translator')?.own_fallback?.engine).toEqual(engine);
+    expect(body.agents.find((a) => a.id === 'explorer')?.own_fallback).toBeNull();
+    expect((await person.request('DELETE', '/api/groups/deep/fallback')).statusCode).toBe(200);
+    expect((await person.request('DELETE', '/api/agents/translator/fallback')).statusCode).toBe(200);
+    const after = (await person.request('GET', '/api/agents')).json<Agents>();
+    expect(after.groups.find((g) => g.id === 'deep')?.fallback).toBeNull();
+  });
+
   it('AC-AGE-002-10 a run streams its progress on the SSE and leaves its calls with the events in order', async () => {
     const e = api().environment;
     const app = await createServer({ services: e.services, databaseUrl: e.url, sessionHours: 1, allowedOrigins: [] });

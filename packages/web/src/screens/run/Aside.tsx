@@ -44,6 +44,19 @@ export function RunFacts({ run: r, active }: { run: RunDetail; active: boolean }
       ),
     },
     { key: 'engine', label: t.engine, value: engine ? engineLabel(engine, catalogs) : r.provider },
+    ...(r.fallback
+      ? [
+          {
+            key: 'backup',
+            label: t.backup,
+            value: (
+              <span data-run-backup className="text-fg">
+                {t.ranOnBackup(engineLabel(r.fallback.from, catalogs), r.fallback.reason)}
+              </span>
+            ),
+          },
+        ]
+      : []),
     { key: 'model', label: t.answeredBy, value: r.model ?? <span className="text-fg-3">{t.notKnownYet}</span> },
     ...(r.session_mode
       ? [{ key: 'session', label: t.conversation, value: SESSION_WORDS[r.session_mode] ?? r.session_mode }]

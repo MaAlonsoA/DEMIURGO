@@ -532,6 +532,8 @@ export type Run = {
   session_mode?: 'none' | 'fresh' | 'resumed' | null;
   provider_session_id?: string | null;
   delta_hash?: string | null;
+  /** It ran on its backup engine: the one it replaced, and why. */
+  fallback?: { from: { provider: string; model: string; effort: string | null }; reason: string } | null;
 };
 
 export type RunDetail = Run & { context_pack: ContextPack | null; trace_id: string | null };

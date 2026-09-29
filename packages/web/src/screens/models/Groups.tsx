@@ -1,8 +1,9 @@
 // "Who does what" (INV-MODELS-09…17; DESIGN.md §3.9): the engine of each group of agents (Deep
 // thinking, Quick…) and, inside each group, its tasks. A task follows its group's engine unless the
 // person gives it its own ("Use another model"), an exception said in its row until it goes back
-// ("Use the group's"). One choice for every project. Each change applies at once and is announced
-// and written where it was made, so a slip is seen.
+// ("Use the group's"). The backup engine works the same way: the group's, or a task's own; it runs
+// only when the chosen engine can't answer. One choice for every project. Each change applies at
+// once and is announced and written where it was made, so a slip is seen.
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -13,6 +14,8 @@ import {
   type Engine,
   type EngineTarget,
   assignEngine,
+  removeFallback,
+  setFallback,
   unassignEngine,
 } from '../../api/models.ts';
 import { announce } from '../../components/announce.tsx';
@@ -25,7 +28,7 @@ import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { ACTION_WORDS } from '../../words.ts';
 import { EngineSelect } from './EngineSelect.tsx';
-import { changeWords, choosableProviders, firstEngine, resolutionLine } from './engines.ts';
+import { changeWords, choosableProviders, fallbackChangeWords, fallbackLine, firstEngine, resolutionLine } from './engines.ts';
 import { GROUPS } from './words.i18n.ts';
 
 type Skills = { id: string; description: string }[];
@@ -58,6 +61,41 @@ function useEngineChoice(target: EngineTarget, name: string, catalogs: readonly 
   };
 }
 
+/** Setting and removing a backup engine, with the words of what it did. */
+function useBackupChoice(target: EngineTarget, name: string, catalogs: readonly Catalog[], inGroup: boolean) {
+  const client = useQueryClient();
+  const [changed, setChanged] = useState<string | null>(null);
+  const kind = 'group' in target ? 'group' : 'agent';
+  const done = async (engine: Engine | null) => {
+    await client.invalidateQueries({ queryKey: ['models'] });
+    const words = fallbackChangeWords(name, { kind, engine, inGroup }, catalogs);
+    setChanged(words);
+    announce(words);
+  };
+  const set = useMutation({ mutationFn: (engine: Engine) => setFallback(target, engine), onSuccess: (_r, e) => done(e) });
+  const remove = useMutation({ mutationFn: () => removeFallback(target), onSuccess: () => done(null) });
+  return {
+    changed,
+    busy: set.isPending || remove.isPending,
+    error: set.error ?? remove.error,
+    set: (engine: Engine) => {
+      remove.reset();
+      set.mutate(engine);
+    },
+    clear: () => {
+      set.reset();
+      remove.mutate();
+    },
+  };
+}
+
+/** Where a new backup starts: the first model of another provider than the chosen engine's, else any. */
+function backupStart(catalogs: readonly Catalog[], chosen: Engine | null): Engine | null {
+  const providers = choosableProviders(catalogs);
+  const other = providers.find((p) => p.provider !== chosen?.provider) ?? providers[0];
+  return other ? firstEngine(catalogs, other.provider) : null;
+}
+
 function Changed({ words }: { words: string | null }) {
   const t = useMessages(GROUPS);
   if (!words) return null;
@@ -85,7 +123,10 @@ export function GroupCard({
 }) {
   const t = useMessages(GROUPS);
   const choice = useEngineChoice({ group: group.id }, group.name, catalogs);
+  const backup = useBackupChoice({ group: group.id }, group.name, catalogs, false);
   const engine = group.assignment?.engine ?? null;
+  const fallback = group.fallback?.engine ?? null;
+  const start = backupStart(catalogs, engine);
   return (
     <section
       data-group={group.id}
@@ -104,9 +145,42 @@ export function GroupCard({
         <Changed words={choice.changed} />
         {choice.error ? <ErrorNotice error={choice.error} compact /> : null}
       </div>
+      <div className="flex flex-col gap-2" data-group-backup={group.id}>
+        <h4 className="text-sm font-semibold text-fg">{t.backupTitle}</h4>
+        {fallback ? (
+          <>
+            <p className="text-sm text-fg-2">{t.backupIntro}</p>
+            <EngineSelect
+              label={t.backupOf(group.name)}
+              catalogs={catalogs}
+              value={fallback}
+              disabled={backup.busy}
+              onChange={backup.set}
+            />
+            <Button size="sm" variant="quiet" className="self-start" disabled={backup.busy} onClick={backup.clear}>
+              {t.removeBackup}
+            </Button>
+          </>
+        ) : (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span className="text-sm text-fg-2">{t.noBackup}</span>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={backup.busy || !start}
+              aria-label={t.addBackupFor(group.name)}
+              onClick={() => start && backup.set(start)}
+            >
+              {t.addBackup}
+            </Button>
+          </div>
+        )}
+        <Changed words={backup.changed} />
+        {backup.error ? <ErrorNotice error={backup.error} compact /> : null}
+      </div>
       <ul aria-label={t.tasksIn(group.name)} className="flex flex-col border-t border-edge-subtle">
         {agents.map((a) => (
-          <TaskRow key={a.id} agent={a} catalogs={catalogs} skills={skills} groupEngine={engine} />
+          <TaskRow key={a.id} agent={a} catalogs={catalogs} skills={skills} groupEngine={engine} groupFallback={fallback} />
         ))}
       </ul>
     </section>
@@ -119,16 +193,24 @@ export function TaskRow({
   catalogs,
   skills,
   groupEngine,
+  groupFallback,
 }: {
   agent: AgentInfo;
   catalogs: Catalog[];
   skills: Skills;
   /** Its group's engine, the starting point of an exception; null for a task without a group. */
   groupEngine: Engine | null;
+  /** Its group's backup, which it takes unless it has its own; null without one. */
+  groupFallback: Engine | null;
 }) {
   const t = useMessages(GROUPS);
   const choice = useEngineChoice({ agent: a.id }, a.section, catalogs);
+  const backup = useBackupChoice({ agent: a.id }, a.section, catalogs, !!a.group);
   const line = resolutionLine(a.effective, catalogs);
+  const ownFallback = a.own_fallback?.engine ?? null;
+  const fallback = fallbackLine(ownFallback, groupFallback, catalogs);
+  const effective = a.effective && a.effective.status !== 'unassigned' ? a.effective : null;
+  const backupFrom = fallback?.engine ?? backupStart(catalogs, effective);
   const start = groupEngine ?? firstEngine(catalogs, choosableProviders(catalogs)[0]?.provider ?? '');
   const own = skills.filter((s) => a.skills.includes(s.id));
   return (
@@ -156,6 +238,12 @@ export function TaskRow({
           {line.text}
         </span>
       </p>
+      {fallback ? (
+        <p data-backup className="text-sm text-fg-2">
+          <span className="font-medium">{t.backup}</span>
+          {fallback.text}
+        </p>
+      ) : null}
       {a.own ? (
         <div className="flex flex-col gap-2">
           <EngineSelect
@@ -187,6 +275,33 @@ export function TaskRow({
       )}
       <Changed words={choice.changed} />
       {choice.error ? <ErrorNotice error={choice.error} compact /> : null}
+      {ownFallback ? (
+        <div className="flex flex-col gap-2">
+          <EngineSelect
+            label={t.ownBackup(a.section)}
+            catalogs={catalogs}
+            value={ownFallback}
+            disabled={backup.busy}
+            onChange={backup.set}
+          />
+          <Button size="sm" variant="quiet" className="self-start" disabled={backup.busy} onClick={backup.clear}>
+            {a.group ? t.useGroupsBackup : t.removeBackup}
+          </Button>
+        </div>
+      ) : (
+        <Button
+          size="sm"
+          variant="quiet"
+          className="self-start"
+          disabled={backup.busy || !backupFrom}
+          aria-label={fallback ? t.useAnotherBackupFor(a.section) : t.addBackupFor(a.section)}
+          onClick={() => backupFrom && backup.set(backupFrom)}
+        >
+          {fallback ? t.useAnotherBackup : t.addBackup}
+        </Button>
+      )}
+      <Changed words={backup.changed} />
+      {backup.error ? <ErrorNotice error={backup.error} compact /> : null}
       <details className="group">
         <summary className="inline-flex min-h-6 cursor-pointer list-none items-center gap-1 text-sm font-medium text-fg-2 hover:text-fg [&::-webkit-details-marker]:hidden">
           <ChevronRightIcon size={12} className="transition-transform group-open:rotate-90" />

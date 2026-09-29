@@ -14,7 +14,13 @@ import {
 } from '@demiurgo/domain';
 import { z } from 'zod';
 import { DEFAULT_AGENTS, type LoadedAgent, loadAgentCatalog, schemaVersion } from '../agents/catalog.ts';
-import { type AssignmentSource, type Engine, resolutionProblem, resolveEngine } from '../assignments/assignments.ts';
+import {
+  type AssignmentSource,
+  type Engine,
+  type Replaced,
+  resolutionProblem,
+  resolveEngine,
+} from '../assignments/assignments.ts';
 import { trimmed, field, registerGuards } from '../bus/guards.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
 import type { CommandContext } from '../bus/types.ts';
@@ -49,6 +55,21 @@ const engineSchema = z
   .object({ provider: z.string().min(1), model: z.string().min(1), effort: z.string().min(1).nullable() })
   .strict();
 
+// The run ran on the backup engine: which one, the one it replaced and why (it couldn't be reached).
+const fallbackSchema = z.object({ engine: engineSchema, from: engineSchema, reason: z.string().max(2000) }).strict();
+
+/** The columns of a run that ran on its backup: the engine it ran on, and the one it replaced with why. */
+function fallbackColumns(f: z.infer<typeof fallbackSchema> | null) {
+  return f
+    ? {
+        provider: f.engine.provider,
+        requested_model: f.engine.model,
+        effort: f.engine.effort,
+        fallback: JSON.stringify({ from: f.from, reason: f.reason }),
+      }
+    : {};
+}
+
 /** The agent that serves the action: the one the web section names, or the action's default. */
 async function agentFor(action: AgentAction, requested: string | undefined): Promise<LoadedAgent> {
   const catalog = await loadAgentCatalog();
@@ -61,15 +82,15 @@ async function agentFor(action: AgentAction, requested: string | undefined): Pro
 }
 
 /**
- * The engine this run uses (Retry with… → the agent's own → its group's) and where it came from, or
- * a 409 that tells the person what to do: the run is not created. An override outside the catalog
- * is a 422, like an assignment.
+ * The engine this run uses (Retry with… → the agent's own → its group's, or its backup when that one
+ * isn't available) and where it came from, or a 409 that tells the person what to do: the run is not
+ * created. An override outside the catalog is a 422, like an assignment.
  */
 async function engineFor(
   ctx: CommandContext,
   agent: LoadedAgent,
   override?: Engine,
-): Promise<{ engine: Engine; source: AssignmentSource }> {
+): Promise<{ engine: Engine; source: AssignmentSource; replaced: Replaced | null }> {
   const r = await resolveEngine(ctx.trx, ctx.services.providers, {
     agent: agent.id,
     ...(override ? { override } : {}),
@@ -79,7 +100,14 @@ async function engineFor(
     if (override) throw new DomainError('validation', 'That engine is not available.', [problem ?? '']);
     throw new DomainError('guard', `The conditions for "${ctx.command}" are not met.`, [problem ?? '']);
   }
-  return { engine: { provider: r.provider, model: r.model, effort: r.effort }, source: r.source };
+  return { engine: { provider: r.provider, model: r.model, effort: r.effort }, source: r.source, replaced: r.replaced ?? null };
+}
+
+/** The run's `fallback` column when it starts on the backup: the engine it replaces and why. */
+function replacedColumn(replaced: Replaced | null) {
+  if (!replaced) return {};
+  const { reason, ...from } = replaced;
+  return { fallback: JSON.stringify({ from, reason }) };
 }
 
 /** Throws the visible 409 when an agent has no engine: used before posting a message that asks for an answer. */
@@ -164,7 +192,7 @@ registerHandlers({
       const action: AgentAction = data.action;
       if (data.answers_message) await checkAnswered(ctx, data.answers_message, data.scope);
       const agent = await agentFor(action, data.agent);
-      const { engine, source } = await engineFor(ctx, agent);
+      const { engine, source, replaced } = await engineFor(ctx, agent);
       const { pack, manifest } = await buildContext(
         ctx.trx,
         ctx.projectId,
@@ -182,6 +210,7 @@ registerHandlers({
           action: action,
           scope: JSON.stringify(data.scope),
           ...runAgentColumns(agent, engine),
+          ...replacedColumn(replaced),
           schema_version: schemaVersion(action),
           model: null,
           context_pack_id: created.entityId,
@@ -227,6 +256,7 @@ registerHandlers({
           engine,
           // Where the engine came from: the journal is the only record of it (observability §7.4).
           engine_source: source,
+          ...(replaced ? { replaced } : {}),
           scope: data.scope,
           context_pack: hash,
           ...(data.answers_message ? { answers_message: data.answers_message } : {}),
@@ -244,7 +274,7 @@ registerHandlers({
       const action = o.action as AgentAction;
       // Runs from before the agents had none: they retry with the action's default agent.
       const agent = await agentFor(action, o.agent ?? undefined);
-      const { engine, source } = await engineFor(ctx, agent, data.override);
+      const { engine, source, replaced } = await engineFor(ctx, agent, data.override);
       const { id } = await ctx.trx
         .insertInto('ai_runs')
         .values({
@@ -252,6 +282,7 @@ registerHandlers({
           action: o.action,
           scope: JSON.stringify(o.scope),
           ...runAgentColumns(agent, engine),
+          ...replacedColumn(replaced),
           // A retry validates against today's schema: the old one may be what made the original fail.
           schema_version: schemaVersion(action),
           model: null,
@@ -266,7 +297,13 @@ registerHandlers({
       ctx.afterCommit(() => ctx.services.engine.startRun(id, projectId));
       return {
         entityId: id,
-        after: { retry_of: o.id, engine, engine_source: source, override: data.override ?? null },
+        after: {
+          retry_of: o.id,
+          engine,
+          engine_source: source,
+          override: data.override ?? null,
+          ...(replaced ? { replaced } : {}),
+        },
         result: { runId: id, contextPackId: o.context_pack_id },
       };
     },
@@ -288,6 +325,7 @@ registerHandlers({
         usage: usageSchema.nullable(),
         model: z.string().nullable(),
         session: sessionSchema.nullable().default(null),
+        fallback: fallbackSchema.nullable().default(null),
       })
       .strict(),
     async apply(ctx, data, e) {
@@ -299,11 +337,15 @@ registerHandlers({
           usage: data.usage ? JSON.stringify(data.usage) : null,
           model: data.model,
           ...sessionColumns(data.session),
+          ...fallbackColumns(data.fallback),
           finished_at: now(),
         })
         .where('id', '=', id)
         .execute();
-      return { entityId: id, after: { usage: data.usage, model: data.model } };
+      return {
+        entityId: id,
+        after: { usage: data.usage, model: data.model, ...(data.fallback ? { fallback: data.fallback } : {}) },
+      };
     },
   }),
 
@@ -315,6 +357,7 @@ registerHandlers({
         usage: usageSchema.nullable().default(null),
         model: z.string().nullable().default(null),
         session: sessionSchema.nullable().default(null),
+        fallback: fallbackSchema.nullable().default(null),
       })
       .strict(),
     async apply(ctx, data, e) {
@@ -327,11 +370,15 @@ registerHandlers({
           usage: data.usage ? JSON.stringify(data.usage) : null,
           model: data.model,
           ...sessionColumns(data.session),
+          ...fallbackColumns(data.fallback),
           finished_at: now(),
         })
         .where('id', '=', id)
         .execute();
-      return { entityId: id, after: { failure_kind: data.failure_kind, error: data.error } };
+      return {
+        entityId: id,
+        after: { failure_kind: data.failure_kind, error: data.error, ...(data.fallback ? { fallback: data.fallback } : {}) },
+      };
     },
   }),
 

@@ -926,6 +926,18 @@ export const CAPABILITIES = {
       ],
       "description": "Remove an agent's assignment, globally or for a project."
     },
+    "agent.set_fallback": {
+      "allowed": [
+        "human"
+      ],
+      "description": "Choose the backup engine of a group of agents, or of one agent: it runs only when the chosen engine can't."
+    },
+    "agent.remove_fallback": {
+      "allowed": [
+        "human"
+      ],
+      "description": "Remove the backup engine of a group of agents or of one agent."
+    },
     "providers.refresh": {
       "allowed": [
         "human",

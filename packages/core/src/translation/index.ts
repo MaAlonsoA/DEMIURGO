@@ -6,6 +6,7 @@
 import {
   DomainError,
   type Locale,
+  type Provider,
   type TranslationFields,
   type TranslationSubject,
   composeSystem,
@@ -24,7 +25,13 @@ import {
 import { TRANSLATION_ACTION, loadAgentCatalog } from '../agents/catalog.ts';
 import { projectGlossary } from '../commands/glossary.ts';
 import { callProvider, noCallSession } from '../assignments/calls.ts';
-import { resolveEngine, resolutionProblem } from '../assignments/assignments.ts';
+import {
+  type AssignmentSource,
+  type Engine,
+  fallbackAfter,
+  resolveEngine,
+  resolutionProblem,
+} from '../assignments/assignments.ts';
 import type { Db } from '../db/connection.ts';
 import type { Observer } from '../observe/index.ts';
 import type { ProviderRegistry } from '../providers/registry.ts';
@@ -159,10 +166,10 @@ export async function translateFields(
 
   const agent = (await loadAgentCatalog()).get(TRANSLATOR_AGENT);
   if (!agent || agent.action !== TRANSLATION_ACTION) throw new Error('The catalog has no translator agent.');
-  const engine = await resolveEngine(deps.db, deps.providers, { agent: agent.id });
-  const problem = resolutionProblem(agent.id, engine);
-  if (problem || engine.status !== 'ok') throw new DomainError('conflict', problem ?? `Choose a model for ${agent.id}.`);
-  const provider = deps.providers.get(engine.provider);
+  const resolved = await resolveEngine(deps.db, deps.providers, { agent: agent.id });
+  const problem = resolutionProblem(agent.id, resolved);
+  if (problem || resolved.status !== 'ok') throw new DomainError('conflict', problem ?? `Choose a model for ${agent.id}.`);
+  const provider = deps.providers.get(resolved.provider);
   if (!provider) throw new DomainError('conflict', `Choose another model for ${agent.id}.`);
 
   const content = {
@@ -172,36 +179,50 @@ export async function translateFields(
     ...(glossary.length > 0 ? { glossary } : {}),
   };
   const composed = composeSystem(agent, agent.skillDefinitions, []);
-  const result = await callProvider(
-    { db: deps.db, observer: deps.observer },
-    provider,
-    {
-      projectId: p.projectId,
-      runId: null,
-      updateId: null,
-      agent: agent.id,
-      agentVersion: agent.version,
-      promptHash: composed.promptHash,
-      engineSource: engine.source,
-      session: noCallSession(),
-      attempt: 1,
-      inputHash: null,
-      schemaHash: null,
-      schemaVersion: null,
-      packHash: null,
-      retryOf: null,
-    },
-    {
-      system: composed.system,
-      input: `<untrusted_input>\n${delimitedJson(content)}\n</untrusted_input>`,
-      schema: translationJsonSchema(),
-      model: engine.model,
-      effort: engine.effort,
-      session: { mode: 'none' },
-      timeMs: agent.timeLimitSeconds * 1000,
-      task: { action: TRANSLATION_ACTION, context: { hash: sourceHash, content } },
-    },
-  );
+  const call = (on: Provider, engine: Engine, engineSource: AssignmentSource, attempt: 1 | 2) =>
+    callProvider(
+      { db: deps.db, observer: deps.observer },
+      on,
+      {
+        projectId: p.projectId,
+        runId: null,
+        updateId: null,
+        agent: agent.id,
+        agentVersion: agent.version,
+        promptHash: composed.promptHash,
+        engineSource,
+        session: noCallSession(),
+        attempt,
+        inputHash: null,
+        schemaHash: null,
+        schemaVersion: null,
+        packHash: null,
+        retryOf: null,
+      },
+      {
+        system: composed.system,
+        input: `<untrusted_input>\n${delimitedJson(content)}\n</untrusted_input>`,
+        schema: translationJsonSchema(),
+        model: engine.model,
+        effort: engine.effort,
+        session: { mode: 'none' },
+        timeMs: agent.timeLimitSeconds * 1000,
+        task: { action: TRANSLATION_ACTION, context: { hash: sourceHash, content } },
+      },
+    );
+  let engine: Engine = { provider: resolved.provider, model: resolved.model, effort: resolved.effort };
+  let result = await call(provider, engine, resolved.source, 1);
+  // The engine couldn't answer at all: once more on the backup, when the agent has one.
+  const backup = fallbackAfter(resolved, result);
+  const backupProvider = backup ? deps.providers.get(backup.provider) : undefined;
+  if (backup && backupProvider) {
+    const first = result.state === 'error' ? result.message : '';
+    engine = { provider: backup.provider, model: backup.model, effort: backup.effort };
+    result = await call(backupProvider, engine, 'fallback', 2);
+    if (result.state !== 'ok') {
+      throw new DomainError('conflict', `The translation failed: ${first} Its backup failed too: ${result.message}`);
+    }
+  }
   if (result.state !== 'ok') throw new DomainError('conflict', `The translation failed: ${result.message}`);
   const parsed = translationOutput.safeParse(result.rawOutput);
   if (!parsed.success) throw new DomainError('conflict', 'The translation came back in the wrong shape.');

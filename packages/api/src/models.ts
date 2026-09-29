@@ -1,5 +1,6 @@
 // Models & providers (FDR-AGE-002): what each provider offers, the groups of agents and the agents
-// with their engines (one per group, an agent's own as an exception, for every project), statistics
+// with their engines (one per group, an agent's own as an exception, for every project) and their
+// backup engines (the same way), statistics
 // and consumption, and the calls of a run. Reading is a query of the matrix
 // (query.providers, only people); the changes are workspace settings, checked by their own section
 // of the matrix (403 before 422, like the bus).
@@ -10,6 +11,7 @@ import {
   consumption,
   currentAssignments,
   currentCatalogs,
+  currentFallbacks,
   loadAgentCatalog,
   providerStats,
   resolveEngine,
@@ -70,6 +72,7 @@ export function registerModelRoutes(app: FastifyInstance, r: ModelRoutes): void 
     const { db, providers } = deps();
     const catalog = await loadAgentCatalog();
     const current = await currentAssignments(db);
+    const backups = await currentFallbacks(db);
     const agents = await Promise.all(
       catalog.agents.map(async (a) => ({
         id: a.id,
@@ -82,10 +85,15 @@ export function registerModelRoutes(app: FastifyInstance, r: ModelRoutes): void 
         version: a.version,
         group: a.group,
         own: current.agents[a.id] ?? null,
+        own_fallback: backups.agents[a.id] ?? null,
         effective: await resolveEngine(db, providers, { agent: a.id }),
       })),
     );
-    const groups = catalog.groups.map((g) => ({ ...g, assignment: current.groups[g.id] ?? null }));
+    const groups = catalog.groups.map((g) => ({
+      ...g,
+      assignment: current.groups[g.id] ?? null,
+      fallback: backups.groups[g.id] ?? null,
+    }));
     return { groups, agents, skills: catalog.skills.map((s) => ({ id: s.id, description: s.description })) };
   });
 
@@ -110,6 +118,30 @@ export function registerModelRoutes(app: FastifyInstance, r: ModelRoutes): void 
   app.delete('/api/agents/:agent/assignment', async (req) => {
     const { agent } = req.params as { agent: string };
     await SETTINGS['agent.unassign'](deps(), r.actorOf(req), { agent });
+    return { ok: true };
+  });
+
+  app.put('/api/groups/:group/fallback', async (req) => {
+    const { group } = req.params as { group: string };
+    await SETTINGS['agent.set_fallback'](deps(), r.actorOf(req), { group, ...parseEngine(req.body) });
+    return { ok: true };
+  });
+
+  app.delete('/api/groups/:group/fallback', async (req) => {
+    const { group } = req.params as { group: string };
+    await SETTINGS['agent.remove_fallback'](deps(), r.actorOf(req), { group });
+    return { ok: true };
+  });
+
+  app.put('/api/agents/:agent/fallback', async (req) => {
+    const { agent } = req.params as { agent: string };
+    await SETTINGS['agent.set_fallback'](deps(), r.actorOf(req), { agent, ...parseEngine(req.body) });
+    return { ok: true };
+  });
+
+  app.delete('/api/agents/:agent/fallback', async (req) => {
+    const { agent } = req.params as { agent: string };
+    await SETTINGS['agent.remove_fallback'](deps(), r.actorOf(req), { agent });
     return { ok: true };
   });
 

@@ -5,7 +5,7 @@
 import { formatActor, human } from '@demiurgo/domain';
 import { describe, expect, it } from 'vitest';
 import { createSimulatedProvider } from '../src/agents/simulated.ts';
-import { currentAssignments, resolveEngine } from '../src/assignments/assignments.ts';
+import { currentAssignments, currentFallbacks, resolveEngine } from '../src/assignments/assignments.ts';
 import { mostCommonEngine, seedDefaultEngines } from '../src/assignments/defaults.ts';
 import { createProviderRegistry } from '../src/providers/registry.ts';
 import { useEnvironment } from './support/env.ts';
@@ -39,13 +39,23 @@ describe('default engines', () => {
         .execute();
     }
 
-    expect((await seedDefaultEngines(db)).toSorted()).toEqual(['echo', 'group:deep', 'group:quick', 'translator']);
+    expect((await seedDefaultEngines(db)).toSorted()).toEqual([
+      'backup:translator',
+      'echo',
+      'group:deep',
+      'group:quick',
+      'translator',
+    ]);
     const current = await currentAssignments(db);
     expect(current.groups.deep?.engine).toEqual(ASTRA);
     expect(current.groups.quick?.engine).toEqual(LUNA);
     // Only the exceptions keep their own engine: designer on Opus, and echo and translator, which have no group.
     expect(Object.keys(current.agents).toSorted()).toEqual(['designer', 'echo', 'translator']);
     expect(current.agents.designer?.engine).toEqual(OPUS);
+    // The translator runs at home and, when the local model is down, on Codex's light model.
+    const backups = await currentFallbacks(db);
+    expect(backups.agents.translator?.engine).toEqual(LUNA);
+    expect(backups.groups).toEqual({});
 
     // Every agent resolves to exactly the engine it had.
     const providers = createProviderRegistry([createSimulatedProvider()]);
@@ -60,5 +70,6 @@ describe('default engines', () => {
     // A second start leaves everything as it is.
     expect(await seedDefaultEngines(db)).toEqual([]);
     expect(await currentAssignments(db)).toEqual(current);
+    expect(await currentFallbacks(db)).toEqual(backups);
   });
 });

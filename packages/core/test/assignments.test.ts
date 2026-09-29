@@ -179,6 +179,7 @@ describe('assignments', () => {
         provider: 'codex',
         model: 'gpt-6-luna',
         effort: 'low',
+        fallback: null,
       });
     }
     // An agent of another group doesn't follow it.

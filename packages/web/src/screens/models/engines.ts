@@ -57,13 +57,33 @@ export function engineLabel(engine: Engine, catalogs: readonly Catalog[]): strin
   return [c?.label ?? engine.provider, model, ...(engine.effort ? [engine.effort] : [])].join(' · ');
 }
 
-const SOURCE_WORDS = { group: 'from its group', agent: 'its own model', override: 'this time' } as const;
+const SOURCE_WORDS = { group: 'from its group', agent: 'its own model', override: 'this time', fallback: 'its backup' } as const;
 
 /** What runs the agent, and where that comes from; or what the person has to do so it can run. */
 export function resolutionLine(r: Resolution | null, catalogs: readonly Catalog[]): { tone: 'ok' | 'problem'; text: string } {
   if (!r || r.status === 'unassigned') return { tone: 'problem', text: 'No model: DEMIURGO cannot run it.' };
-  if (r.status === 'unavailable') return { tone: 'problem', text: r.reason };
+  if (r.status === 'unavailable') {
+    const backup = r.fallback?.problem ? ` Its backup can't run either: ${r.fallback.problem}` : '';
+    return { tone: 'problem', text: `${r.reason}${backup}` };
+  }
+  if (r.source === 'fallback' && r.replaced) {
+    return {
+      tone: 'ok',
+      text: `${engineLabel(r, catalogs)} (its backup, because ${engineLabel(r.replaced, catalogs)} can't run: ${r.replaced.reason})`,
+    };
+  }
   return { tone: 'ok', text: `${engineLabel(r, catalogs)} (${SOURCE_WORDS[r.source]})` };
+}
+
+/** The backup a task falls back to, and where it comes from: «Codex · GPT-6-Luna · low (its own)». */
+export function fallbackLine(
+  own: Engine | null,
+  group: Engine | null,
+  catalogs: readonly Catalog[],
+): { engine: Engine; text: string } | null {
+  if (own) return { engine: own, text: `${engineLabel(own, catalogs)} (its own)` };
+  if (group) return { engine: group, text: `${engineLabel(group, catalogs)} (from its group)` };
+  return null;
 }
 
 export function agentOrder(a: string, b: string): number {
@@ -104,4 +124,21 @@ export function changeWords(
   return change.engine
     ? `${name} now uses ${engineLabel(change.engine, catalogs)} instead of its group's.`
     : `${name} follows its group again.`;
+}
+
+/**
+ * What a change of backup did: "Deep thinking falls back to Codex · GPT-6-Luna · low.", "Deep
+ * thinking has no backup now.", "Translation falls back to … instead of its group's backup.",
+ * "Translation takes its group's backup again." (or "has no backup now", without a group).
+ */
+export function fallbackChangeWords(
+  name: string,
+  change: { kind: 'group' | 'agent'; engine: Engine | null; inGroup: boolean },
+  catalogs: readonly Catalog[],
+): string {
+  if (change.engine) {
+    const instead = change.kind === 'agent' && change.inGroup ? " instead of its group's backup" : '';
+    return `${name} falls back to ${engineLabel(change.engine, catalogs)}${instead}.`;
+  }
+  return change.kind === 'agent' && change.inGroup ? `${name} takes its group's backup again.` : `${name} has no backup now.`;
 }

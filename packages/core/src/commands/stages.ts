@@ -2,7 +2,7 @@
 // questions; opening a stage opens its thread and raises them as the system; passing it is a
 // person's decision, allowed only when every mandatory question is covered.
 
-import { COVERED_QUESTION_STATES, STAGES, formatActor, nextStage, stageDefinition, system } from '@demiurgo/domain';
+import { COVERED_QUESTION_STATES, STAGES, formatActor, isDomainError, nextStage, stageDefinition, system } from '@demiurgo/domain';
 import { z } from 'zod';
 import { field, registerGuards, trimmed } from '../bus/guards.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
@@ -109,13 +109,32 @@ registerHandlers({
       // A stage covered before the definition existed (or whose definition was rejected) proposes it now.
       await proposeDefinitionIfCovered(ctx, id);
       const next = nextStage(stage);
-      if (next)
+      if (next) {
         await ctx.execute({
           command: 'stage.open',
           actor: system('design'),
           projectId: ctx.projectId,
           data: { stage: next.key, ...(thread ? { exploration_id: thread } : {}) },
         });
+        // DEMIURGO introduces the new stage and gives its questions their options, so the person can
+        // answer them with one click before writing anything. Without an engine it is skipped: the
+        // options come with the first reply.
+        if (thread)
+          try {
+            await ctx.execute({
+              command: 'run.request',
+              actor: system('design'),
+              projectId: ctx.projectId,
+              data: {
+                action: 'exploration_chat',
+                scope: { type: 'exploration', id: thread },
+                input: { stage_opened: next.key },
+              },
+            });
+          } catch (err) {
+            if (!isDomainError(err) || !['guard', 'validation'].includes(err.type)) throw err;
+          }
+      }
       return { entityId: id, after: { stage, next: next?.key ?? null } };
     },
   }),

@@ -373,6 +373,8 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
               stage: stage.stage,
               title: stageTitle,
               is_this_thread: stage.exploration_id === exploration.id,
+              // Opened just now, when the previous stage passed: nobody has written about it yet.
+              just_opened: input.stage_opened === stage.stage,
               uncovered_mandatory_questions: stageQuestions.map((q) => ({ id: q.id, question: q.question, state: q.state })),
             }
           : null,

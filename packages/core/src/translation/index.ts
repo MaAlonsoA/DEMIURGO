@@ -116,6 +116,35 @@ export async function sourceFields(
   }
 }
 
+// A screen asks for many translations at once and a local model has a short queue: a few at a time,
+// and a busy engine (HTTP 429, queue full) is asked again after a pause.
+const AT_ONCE = 2;
+const BUSY_RETRIES = 4;
+let running = 0;
+const queue: (() => void)[] = [];
+
+async function inTurn<T>(fn: () => Promise<T>): Promise<T> {
+  if (running >= AT_ONCE) await new Promise<void>((resolve) => queue.push(resolve));
+  running++;
+  try {
+    return await fn();
+  } finally {
+    running--;
+    queue.shift()?.();
+  }
+}
+
+const busy = (r: { state: string; message?: string }) =>
+  r.state === 'error' && /\b429\b|overloaded|queue is full|rate.?limit/i.test(r.message ?? '');
+
+async function patiently<T extends { state: string; message?: string }>(fn: () => Promise<T>): Promise<T> {
+  for (let i = 0; ; i++) {
+    const r = await inTurn(fn);
+    if (!busy(r) || i >= BUSY_RETRIES) return r;
+    await new Promise((resolve) => setTimeout(resolve, 1500 * 2 ** i));
+  }
+}
+
 /** Whether every text already reads as the target language (a reply, or an older record). */
 function alreadyIn(lang: Locale, fields: TranslationFields): boolean {
   const texts = Object.values(fields);
@@ -180,6 +209,8 @@ export async function translateFields(
   };
   const composed = composeSystem(agent, agent.skillDefinitions, []);
   const call = (on: Provider, engine: Engine, engineSource: AssignmentSource, attempt: 1 | 2) =>
+    patiently(() => callOnce(on, engine, engineSource, attempt));
+  const callOnce = (on: Provider, engine: Engine, engineSource: AssignmentSource, attempt: 1 | 2) =>
     callProvider(
       { db: deps.db, observer: deps.observer },
       on,

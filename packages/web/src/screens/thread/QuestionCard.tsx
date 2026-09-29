@@ -191,7 +191,7 @@ function SettledQuestion({
         </p>
         <QuestionMenu projectId={projectId} question={q} />
       </div>
-      <QuestionOutcome question={q} className="pl-1" />
+      <QuestionOutcome question={q} className="pl-1" reading={reading} />
       {reading.mark ? <div className="pl-1">{reading.mark}</div> : null}
     </div>
   );

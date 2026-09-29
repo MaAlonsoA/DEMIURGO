@@ -304,7 +304,7 @@ export function DeeperPanel({
           ) : null
         ) : (
           <Notice tone="neutral" title={t.notOpen}>
-            <QuestionOutcome question={q} />
+            <QuestionOutcome question={q} reading={shown} />
           </Notice>
         )}
       </div>

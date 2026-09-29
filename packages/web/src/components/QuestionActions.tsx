@@ -228,13 +228,23 @@ export function QuestionMenu({ projectId, question: q, label }: { projectId: str
 }
 
 /** A compact line saying where a settled question stands: the answer or the reason. */
-export function QuestionOutcome({ question: q, className }: { question: QuestionLike; className?: string }) {
+export function QuestionOutcome({
+  question: q,
+  className,
+  reading,
+}: {
+  question: QuestionLike;
+  className?: string;
+  /** The question read in the content's language (useReading), when the caller has it. */
+  reading?: { text: (key: string, original: string) => string };
+}) {
   const t = useMessages(QUESTION_ACTIONS);
+  const shown = (key: string, value: string) => (reading ? reading.text(key, value) : value);
   if (q.state === 'confirmed' && q.conclusion)
     return (
       <p className={cn('text-sm text-fg-2', className)}>
         <span className="font-medium text-fg">{t.answerLabel}</span>
-        {q.conclusion}
+        {shown('conclusion', q.conclusion)}
       </p>
     );
   if (q.state === 'inferred' && q.conclusion)
@@ -242,12 +252,12 @@ export function QuestionOutcome({ question: q, className }: { question: Question
       <div className={cn('flex flex-col gap-0.5 text-sm text-fg-2', className)}>
         <p>
           <span className="font-medium text-fg">{t.assumedLabel}</span>
-          {q.conclusion}
+          {shown('conclusion', q.conclusion)}
         </p>
         {q.reasoning ? (
           <p className="text-fg-3">
             {t.whyLabel}
-            {q.reasoning}
+            {shown('reasoning', q.reasoning)}
           </p>
         ) : null}
       </div>

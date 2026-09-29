@@ -11,55 +11,45 @@ import {
   type RecordType,
   differences,
   renderDocument,
-} from "@demiurgo/design";
-import type { Selectable } from "kysely";
-import type { Db } from "../db/connection.ts";
-import type { DB } from "../db/schema.ts";
+} from '@demiurgo/design';
+import type { Selectable } from 'kysely';
+import type { Db } from '../db/connection.ts';
+import type { DB } from '../db/schema.ts';
 
 // design/ keeps the version in progress of each record, which is either draft or approved.
 const DOCUMENT_STATUS: Record<string, DocumentStatus> = {
-  draft: "proposed",
-  approved: "approved",
+  draft: 'proposed',
+  approved: 'approved',
 };
 
 type Row<T extends keyof DB> = Selectable<DB[T]>;
 
 // The record types the design/ format predates get a folder of their own.
 const MORE_FOLDERS: Record<string, string> = {
-  product_definition: "product",
-  requirement: "requirements",
-  quality_requirement: "quality",
-  threat_model: "security",
-  production_readiness: "operations",
+  product_definition: 'product',
+  requirement: 'requirements',
+  quality_requirement: 'quality',
+  threat_model: 'security',
+  production_readiness: 'operations',
 };
-const folderOf = (type: string) =>
-  (FOLDERS as Record<string, string>)[type] ?? MORE_FOLDERS[type] ?? "records";
+const folderOf = (type: string) => (FOLDERS as Record<string, string>)[type] ?? MORE_FOLDERS[type] ?? 'records';
 
 /**
  * A criterion's "Derived from": its origin's, following the carry-over (kept or modified derives
  * from the same code in the previous version) up to the criterion that was born; null if it was
  * born without deriving.
  */
-export async function derivationOf(
-  db: Db,
-  criterionId: string,
-): Promise<string | null> {
+export async function derivationOf(db: Db, criterionId: string): Promise<string | null> {
   let cursor: string | null = criterionId;
   for (let i = 0; cursor && i < 1000; i++) {
     const c = await db
-      .selectFrom("criteria")
-      .select(["carry", "derived_from"])
-      .where("id", "=", cursor)
+      .selectFrom('criteria')
+      .select(['carry', 'derived_from'])
+      .where('id', '=', cursor)
       .executeTakeFirstOrThrow();
-    if (c.carry === "new") {
+    if (c.carry === 'new') {
       if (!c.derived_from) return null;
-      return (
-        await db
-          .selectFrom("criteria")
-          .select("code")
-          .where("id", "=", c.derived_from)
-          .executeTakeFirstOrThrow()
-      ).code;
+      return (await db.selectFrom('criteria').select('code').where('id', '=', c.derived_from).executeTakeFirstOrThrow()).code;
     }
     cursor = c.derived_from;
   }
@@ -69,25 +59,25 @@ export async function derivationOf(
 /** The design/ document of a specific version of a record, as it is exported. */
 export async function versionDocument(
   db: Db,
-  r: Row<"records">,
-  v: Row<"record_versions">,
+  r: Row<'records'>,
+  v: Row<'record_versions'>,
 ): Promise<{
   doc: RecordDocument;
   annexes: { path: string; content: string }[];
 }> {
   const criteria = await db
-    .selectFrom("criteria")
+    .selectFrom('criteria')
     .selectAll()
-    .where("record_version_id", "=", v.id)
-    .orderBy("position")
+    .where('record_version_id', '=', v.id)
+    .orderBy('position')
     .execute();
   const links = await db
-    .selectFrom("links")
-    .innerJoin("record_versions as target", "target.id", "links.to_id")
-    .innerJoin("records as rd", "rd.id", "target.record_id")
-    .select(["links.type", "rd.code", "target.n"])
-    .where("links.from_id", "=", v.id)
-    .orderBy("links.id")
+    .selectFrom('links')
+    .innerJoin('record_versions as target', 'target.id', 'links.to_id')
+    .innerJoin('records as rd', 'rd.id', 'target.record_id')
+    .select(['links.type', 'rd.code', 'target.n'])
+    .where('links.from_id', '=', v.id)
+    .orderBy('links.id')
     .execute();
   const annexes = (v.annexes ?? []) as { path: string; content: string }[];
   const derivedFrom = new Map<string, string>();
@@ -96,15 +86,15 @@ export async function versionDocument(
     if (origin) derivedFrom.set(c.id, origin);
   }
   const doc: RecordDocument = {
-    kind: "record",
+    kind: 'record',
     type: r.type as RecordType,
     code: r.code,
     title: v.title,
     version: v.n,
-    state: DOCUMENT_STATUS[v.state] ?? "proposed",
+    state: DOCUMENT_STATUS[v.state] ?? 'proposed',
     domain: r.domain,
     links: links.map((e) => ({
-      type: e.type as RecordDocument["links"][number]["type"],
+      type: e.type as RecordDocument['links'][number]['type'],
       target: { code: e.code, version: e.n },
     })),
     annexes: annexes.map((a) => a.path),
@@ -112,7 +102,7 @@ export async function versionDocument(
     criteria: criteria.map((c) => ({
       code: c.code,
       title: c.title,
-      verification: c.verification === "automatic" ? "automatic" : "manual",
+      verification: c.verification === 'automatic' ? 'automatic' : 'manual',
       check: c.check_text,
       statement: c.statement,
       ...(derivedFrom.has(c.id) ? { derivedFrom: derivedFrom.get(c.id) } : {}),
@@ -124,36 +114,28 @@ export async function versionDocument(
 }
 
 /** The design/ document of a specific version of a taxonomy. */
-export function taxonomyDocument(t: Row<"taxonomies">): TaxonomyDocument {
+export function taxonomyDocument(t: Row<'taxonomies'>): TaxonomyDocument {
   return {
-    kind: "taxonomy",
+    kind: 'taxonomy',
     code: t.code,
     title: t.title,
     version: t.version,
-    state: DOCUMENT_STATUS[t.state] ?? "proposed",
-    axes: t.axes as TaxonomyDocument["axes"],
-    sections: t.sections as TaxonomyDocument["sections"],
+    state: DOCUMENT_STATUS[t.state] ?? 'proposed',
+    axes: t.axes as TaxonomyDocument['axes'],
+    sections: t.sections as TaxonomyDocument['sections'],
   };
 }
 
-export async function exportDesign(
-  db: Db,
-  projectId: string,
-): Promise<Map<string, string>> {
-  const tree = new Map<string, string>([["README.md", README_DESIGN]]);
-  const records = await db
-    .selectFrom("records")
-    .selectAll()
-    .where("project_id", "=", projectId)
-    .orderBy("code")
-    .execute();
+export async function exportDesign(db: Db, projectId: string): Promise<Map<string, string>> {
+  const tree = new Map<string, string>([['README.md', README_DESIGN]]);
+  const records = await db.selectFrom('records').selectAll().where('project_id', '=', projectId).orderBy('code').execute();
   for (const r of records) {
     const v = await db
-      .selectFrom("record_versions")
+      .selectFrom('record_versions')
       .selectAll()
-      .where("record_id", "=", r.id)
-      .where("state", "<>", "discarded")
-      .orderBy("n", "desc")
+      .where('record_id', '=', r.id)
+      .where('state', '<>', 'discarded')
+      .orderBy('n', 'desc')
       .executeTakeFirst();
     if (!v) continue;
     const { doc, annexes } = await versionDocument(db, r, v);
@@ -161,30 +143,23 @@ export async function exportDesign(
     for (const a of annexes) tree.set(a.path, a.content);
   }
   const taxonomies = await db
-    .selectFrom("taxonomies")
+    .selectFrom('taxonomies')
     .selectAll()
-    .where("project_id", "=", projectId)
-    .where("state", "<>", "discarded")
-    .orderBy("code")
-    .orderBy("version", "desc")
+    .where('project_id', '=', projectId)
+    .where('state', '<>', 'discarded')
+    .orderBy('code')
+    .orderBy('version', 'desc')
     .execute();
   const visited = new Set<string>();
   for (const t of taxonomies) {
     if (visited.has(t.code)) continue;
     visited.add(t.code);
-    tree.set(
-      `${FOLDERS.taxonomy}/${t.code}.md`,
-      renderDocument(taxonomyDocument(t)),
-    );
+    tree.set(`${FOLDERS.taxonomy}/${t.code}.md`, renderDocument(taxonomyDocument(t)));
   }
   return tree;
 }
 
 /** Differences between the export and a tree (empty if they match byte for byte). */
-export async function compareExport(
-  db: Db,
-  projectId: string,
-  tree: ReadonlyMap<string, string>,
-): Promise<string[]> {
+export async function compareExport(db: Db, projectId: string, tree: ReadonlyMap<string, string>): Promise<string[]> {
   return differences(tree, await exportDesign(db, projectId));
 }

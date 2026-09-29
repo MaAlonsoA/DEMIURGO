@@ -16,6 +16,7 @@ export const NAV_LABELS = messages(
     sources: 'Sources',
     models: 'Models & providers',
     keys: 'Agent keys',
+    repository: 'Repository',
   },
   {
     needs: 'Te necesita',
@@ -26,6 +27,7 @@ export const NAV_LABELS = messages(
     sources: 'Fuentes',
     models: 'Modelos y proveedores',
     keys: 'Claves de agente',
+    repository: 'Repositorio',
   },
 );
 

@@ -6,6 +6,7 @@ import type { ComponentType } from 'react';
 import {
   ActivityIcon,
   CpuIcon,
+  FolderIcon,
   InboxIcon,
   type IconProps,
   KeyIcon,
@@ -18,7 +19,7 @@ import type { Locale } from '../i18n/locale.ts';
 import { useSafeLocale } from '../words.ts';
 import { NAV_LABELS } from './words.i18n.ts';
 
-export type NavKey = 'needs' | 'threads' | 'product' | 'activity' | 'knowledge' | 'sources' | 'models' | 'keys';
+export type NavKey = 'needs' | 'threads' | 'product' | 'activity' | 'knowledge' | 'sources' | 'models' | 'keys' | 'repository';
 
 export type NavItem = {
   key: NavKey;
@@ -94,6 +95,14 @@ export const NAV: NavItem[] = [
     icon: KeyIcon,
     group: 'settings',
     match: /^\/agent-keys(\/|$)/,
+  },
+  {
+    key: 'repository',
+    label: 'Repository',
+    to: '/p/$projectId/repository',
+    icon: FolderIcon,
+    group: 'settings',
+    match: /^\/repository(\/|$)/,
   },
 ];
 

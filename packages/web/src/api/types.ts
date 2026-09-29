@@ -1,19 +1,19 @@
 // Shapes of the API responses the UI reads. They mirror packages/core/src/queries/read.ts and
 // packages/api/src/queries.ts: when both disagree, the code of the API rules.
 
-import type { RunUsage } from "./models.ts";
+import type { RunUsage } from './models.ts';
 
-export type Epistemic = "confirmed" | "proposed" | "pending" | "unknown";
+export type Epistemic = 'confirmed' | 'proposed' | 'pending' | 'unknown';
 
 export type Actor =
-  | { type: "human"; person: string }
-  | { type: "agent_external"; name: string; session: string }
-  | { type: "agent_run"; run: string }
-  | { type: "system"; component: string; version: string };
+  | { type: 'human'; person: string }
+  | { type: 'agent_external'; name: string; session: string }
+  | { type: 'agent_run'; run: string }
+  | { type: 'system'; component: string; version: string };
 
 export type Session = {
   actor: Actor;
-  type: "person" | "agent";
+  type: 'person' | 'agent';
   csrf: string | null;
   /** The language the person reads in ('en' | 'es'); null follows the browser. */
   locale?: string | null;
@@ -38,7 +38,7 @@ export type Project = {
 };
 
 // Tables (GET /api/tables) and command contracts (GET /api/commands).
-export type ActorType = "human" | "agent_external" | "agent_run" | "system";
+export type ActorType = 'human' | 'agent_external' | 'agent_run' | 'system';
 export type CommandDef = {
   entity: string;
   allowed: ActorType[];
@@ -47,7 +47,7 @@ export type CommandDef = {
 };
 export type TransitionDef = {
   command: string;
-  from: "new" | string[];
+  from: 'new' | string[];
   to: string;
   guards?: string[];
 };
@@ -98,25 +98,25 @@ export type Readiness = {
 };
 
 export type RecordType =
-  | "decision"
-  | "fdr"
-  | "adr"
-  | "bug"
-  | "requirement"
-  | "quality_requirement"
-  | "threat_model"
-  | "production_readiness"
-  | "product_definition";
+  | 'decision'
+  | 'fdr'
+  | 'adr'
+  | 'bug'
+  | 'requirement'
+  | 'quality_requirement'
+  | 'threat_model'
+  | 'production_readiness'
+  | 'product_definition';
 
 /** Where a section of the product definition comes from, and how the person settled its question. */
 export type DefinitionSource = {
   section: string;
   key: string;
-  state: "confirmed" | "discarded" | "missing";
+  state: 'confirmed' | 'discarded' | 'missing';
   question: {
     id: string;
     question: string;
-    settled: "assumed" | "corrected" | "answered" | "left_open" | null;
+    settled: 'assumed' | 'corrected' | 'answered' | 'left_open' | null;
     settled_by: string | null;
     settled_at: string | null;
     inferred: string | null;
@@ -464,7 +464,7 @@ export type IncomingLink = {
   /** The version of this record it points to. */
   to_n: number;
   /** What the map draws for it; null for links the map doesn't draw (origin, covers). */
-  relation: "needs" | "follows" | "conflicts" | "affects" | null;
+  relation: 'needs' | 'follows' | 'conflicts' | 'affects' | null;
 };
 
 export type Message = {
@@ -479,7 +479,7 @@ export type Message = {
   created_at: string;
   epistemic_status: Epistemic | null;
   /** Where DEMIURGO's answer stands; null when the message asked for none. */
-  response: "waiting" | "requested" | "abandoned" | null;
+  response: 'waiting' | 'requested' | 'abandoned' | null;
   /** The run that answers it, once requested. */
   response_run: string | null;
   /** What Jev says the message is about, and how sure it is. */
@@ -531,10 +531,7 @@ export type ExplorationDetail = {
   children: { id: string; purpose: string; state: string }[];
 };
 
-export type Exploration = Omit<
-  ExplorationDetail,
-  "messages" | "questions" | "children"
-> & {
+export type Exploration = Omit<ExplorationDetail, 'messages' | 'questions' | 'children'> & {
   open_questions: number;
   last_activity: string;
 };
@@ -578,15 +575,7 @@ export type BatchDetail = {
 };
 
 export type ImportCounts = Record<
-  | "decision"
-  | "adr"
-  | "fdr"
-  | "bug"
-  | "versions"
-  | "criteria"
-  | "links"
-  | "taxonomies"
-  | "annexes",
+  'decision' | 'adr' | 'fdr' | 'bug' | 'versions' | 'criteria' | 'links' | 'taxonomies' | 'annexes',
   number
 >;
 
@@ -626,7 +615,7 @@ export type Run = {
   requested_model?: string | null;
   effort?: string | null;
   prompt_hash?: string | null;
-  session_mode?: "none" | "fresh" | "resumed" | null;
+  session_mode?: 'none' | 'fresh' | 'resumed' | null;
   provider_session_id?: string | null;
   delta_hash?: string | null;
   /** It ran on its backup engine: the one it replaced, and why. */
@@ -729,7 +718,7 @@ export type GraphNode = {
   epistemic_status: string;
   /** Taxonomy axis → category, from the node's classification. */
   areas: Record<string, string>;
-  state: "current" | "invalidated";
+  state: 'current' | 'invalidated';
   record: { code: string; version: number } | null;
 };
 
@@ -787,13 +776,13 @@ export type Taxonomy = {
 
 /** "What changed" since an event id (GET …/changes?since=): the events grouped by the thing they touch. */
 export type ChangedThing = {
-  kind: "record" | "exploration" | "batch" | "knowledge" | "project";
+  kind: 'record' | 'exploration' | 'batch' | 'knowledge' | 'project';
   /** Record code, exploration id, batch id, "knowledge" or the project id. */
   key: string;
   title: string | null;
   /** The record's type, or the batch's kind. */
   record_type?: string;
-  events: Omit<EventRow, "project_id" | "seq" | "before" | "after" | "cause">[];
+  events: Omit<EventRow, 'project_id' | 'seq' | 'before' | 'after' | 'cause'>[];
 };
 
 export type Changes = { latest: string; things: ChangedThing[] };
@@ -802,7 +791,7 @@ export type Changes = { latest: string; things: ChangedThing[] };
 export type AgentToken = {
   id: string;
   name: string;
-  state: "active" | "revoked";
+  state: 'active' | 'revoked';
   issued_by: string;
   created_at: string;
   revoked_at: string | null;
@@ -813,10 +802,10 @@ export type StageRow = {
   title: string;
   produces: string;
   /** When it opens: in the onboarding, before building (on the approved features) or before the first version. */
-  moment: "onboarding" | "before_build" | "before_release";
+  moment: 'onboarding' | 'before_build' | 'before_release';
   position: number;
   id: string | null;
-  state: "not_started" | "open" | "passed";
+  state: 'not_started' | 'open' | 'passed';
   exploration_id: string | null;
   passed_by: string | null;
   passed_at: string | null;

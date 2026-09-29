@@ -9,6 +9,7 @@ import { BatchScreen } from './screens/batch/Batch.tsx';
 import { KnowledgeScreen } from './screens/knowledge/Knowledge.tsx';
 import { NeedsYouScreen } from './screens/needs-you/NeedsYou.tsx';
 import { AgentKeysScreen } from './screens/agent-keys/AgentKeys.tsx';
+import { RepositoryScreen } from './screens/repository/Repository.tsx';
 import { NewRecordScreen } from './screens/new-record/NewRecord.tsx';
 import { NewVersionScreen } from './screens/new-version/NewVersion.tsx';
 import { NotFound } from './screens/not-found/NotFound.tsx';
@@ -72,13 +73,25 @@ const indexRoute = createRoute({
   path: '/',
   beforeLoad: async ({ context }) => {
     const landing = landingOf(await context.queryClient.fetchQuery(projectsQuery));
-    if (landing.to === '/p/$projectId') throw redirect({ to: landing.to, params: { projectId: landing.projectId } });
+    if (landing.to === '/p/$projectId')
+      throw redirect({
+        to: landing.to,
+        params: { projectId: landing.projectId },
+      });
     throw redirect({ to: landing.to });
   },
 });
 
-const projectsRoute = createRoute({ getParentRoute: () => authedRoute, path: '/projects', component: ProjectsScreen });
-const newProjectRoute = createRoute({ getParentRoute: () => authedRoute, path: '/new', component: NewProjectScreen });
+const projectsRoute = createRoute({
+  getParentRoute: () => authedRoute,
+  path: '/projects',
+  component: ProjectsScreen,
+});
+const newProjectRoute = createRoute({
+  getParentRoute: () => authedRoute,
+  path: '/new',
+  component: NewProjectScreen,
+});
 // Models & providers outside any project: the first project needs an engine before it exists.
 const workspaceModelsRoute = createRoute({
   getParentRoute: () => authedRoute,
@@ -96,7 +109,11 @@ const projectRoute = createRoute({
   },
 });
 
-const overviewRoute = createRoute({ getParentRoute: () => projectRoute, path: '/', component: OverviewScreen });
+const overviewRoute = createRoute({
+  getParentRoute: () => projectRoute,
+  path: '/',
+  component: OverviewScreen,
+});
 const originsRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: '/origins',
@@ -107,7 +124,11 @@ const originsRoute = createRoute({
   },
   component: OriginsScreen,
 });
-const mapRoute = createRoute({ getParentRoute: () => projectRoute, path: '/map', component: MapScreen });
+const mapRoute = createRoute({
+  getParentRoute: () => projectRoute,
+  path: '/map',
+  component: MapScreen,
+});
 const journeysRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: '/journeys',
@@ -140,7 +161,11 @@ const newVersionRoute = createRoute({
   path: '/records/$code/new-version',
   component: NewVersionScreen,
 });
-const threadsRoute = createRoute({ getParentRoute: () => projectRoute, path: '/threads', component: ThreadsScreen });
+const threadsRoute = createRoute({
+  getParentRoute: () => projectRoute,
+  path: '/threads',
+  component: ThreadsScreen,
+});
 const threadRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: '/threads/$explorationId',
@@ -158,7 +183,11 @@ const needsYouRoute = createRoute({
     s['catch-up'] === 1 || s['catch-up'] === '1' ? { 'catch-up': 1 } : {},
   component: NeedsYouScreen,
 });
-const batchRoute = createRoute({ getParentRoute: () => projectRoute, path: '/batches/$batchId', component: BatchScreen });
+const batchRoute = createRoute({
+  getParentRoute: () => projectRoute,
+  path: '/batches/$batchId',
+  component: BatchScreen,
+});
 const activityRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: '/activity',
@@ -168,7 +197,11 @@ const activityRoute = createRoute({
   },
   component: ActivityScreen,
 });
-const runRoute = createRoute({ getParentRoute: () => projectRoute, path: '/runs/$runId', component: RunScreen });
+const runRoute = createRoute({
+  getParentRoute: () => projectRoute,
+  path: '/runs/$runId',
+  component: RunScreen,
+});
 const knowledgeRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: '/knowledge',
@@ -178,9 +211,26 @@ const knowledgeRoute = createRoute({
   },
   component: KnowledgeScreen,
 });
-const sourcesRoute = createRoute({ getParentRoute: () => projectRoute, path: '/sources', component: SourcesScreen });
-const modelsRoute = createRoute({ getParentRoute: () => projectRoute, path: '/models', component: ModelsScreen });
-const agentKeysRoute = createRoute({ getParentRoute: () => projectRoute, path: '/agent-keys', component: AgentKeysScreen });
+const sourcesRoute = createRoute({
+  getParentRoute: () => projectRoute,
+  path: '/sources',
+  component: SourcesScreen,
+});
+const modelsRoute = createRoute({
+  getParentRoute: () => projectRoute,
+  path: '/models',
+  component: ModelsScreen,
+});
+const agentKeysRoute = createRoute({
+  getParentRoute: () => projectRoute,
+  path: '/agent-keys',
+  component: AgentKeysScreen,
+});
+const repositoryRoute = createRoute({
+  getParentRoute: () => projectRoute,
+  path: '/repository',
+  component: RepositoryScreen,
+});
 const startRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: '/start/$explorationId',
@@ -222,6 +272,7 @@ const routeTree = rootRoute.addChildren([
       sourcesRoute,
       modelsRoute,
       agentKeysRoute,
+      repositoryRoute,
       startRoute,
       startQuestionsRoute,
       startDoneRoute,

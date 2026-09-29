@@ -1,15 +1,23 @@
 // The checks of a version (its acceptance criteria; DESIGN.md §3.6, INV-REC-17, INV-BP-28): one row
 // each, in a single column so long Given/When/Then statements read comfortably — title, statement,
 // how it is checked, who checks it (Automatic or You, in words) and its code, with the verifiability
-// warnings of the readiness under the statement.
+// warnings of the readiness under the statement. On the current approved version each check says
+// whether it has evidence (how the person checked it, once built) and lets them record it.
 
-import { useId } from 'react';
+import { type FormEvent, useId, useState } from 'react';
+import { useCommand } from '../../api/commands.ts';
 import type { Criterion, Readiness } from '../../api/types.ts';
+import { announce } from '../../components/announce.tsx';
 import { Code } from '../../components/Badge.tsx';
-import { AlertTriangleIcon } from '../../components/icons.tsx';
-import { WhoAvatar } from '../../components/Who.tsx';
+import { Button } from '../../components/Button.tsx';
+import { Field, TextArea, TextInput } from '../../components/Field.tsx';
+import { AlertTriangleIcon, CheckCircleIcon, CircleDashedIcon } from '../../components/icons.tsx';
+import { ErrorNotice } from '../../components/Notice.tsx';
+import { Who, WhoAvatar } from '../../components/Who.tsx';
 import { useMessages } from '../../i18n/define.ts';
+import { useLocale } from '../../i18n/locale.ts';
 import { cn } from '../../lib/cn.ts';
+import { shortDate } from '../../lib/time.ts';
 import { warningsOf } from './logic.ts';
 import { CHECKS } from './words.i18n.ts';
 
@@ -31,7 +39,102 @@ export function VerificationMark({ verification, className }: { verification: st
   );
 }
 
-export function CheckList({ criteria, readiness }: { criteria: Criterion[]; readiness: Readiness | null }) {
+/** Where evidence can be recorded: the current approved version of a record, by a person. */
+export type Recording = { projectId: string; version: number } | null;
+
+/** The evidence of a check: who checked it, how and when, or that it is not checked yet. */
+function EvidenceLine({ criterion: c, recording }: { criterion: Criterion; recording: Recording }) {
+  const t = useMessages(CHECKS);
+  const locale = useLocale();
+  const command = useCommand(recording?.projectId ?? '');
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState('');
+  const [reference, setReference] = useState('');
+  const e = c.evidence ?? null;
+  if (!e && !recording) return null;
+  const submit = (ev: FormEvent) => {
+    ev.preventDefault();
+    const data = { criterion_id: c.id, note: note.trim(), ...(reference.trim() ? { reference: reference.trim() } : {}) };
+    command.mutate(
+      { command: 'evidence.record_manual', data },
+      {
+        onSuccess: () => {
+          announce(t.recorded(c.code));
+          setOpen(false);
+          setNote('');
+          setReference('');
+        },
+      },
+    );
+  };
+  return (
+    <div data-evidence={e ? 'checked' : 'unchecked'} className="flex flex-col gap-2 border-t border-edge-subtle pt-2 text-sm">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        {e ? (
+          <>
+            <span className="inline-flex items-center gap-1.5 font-medium text-success-text">
+              <CheckCircleIcon size={14} />
+              {t.checked}
+            </span>
+            {c.verification === 'automatic' && e.kind === 'manual' ? <span className="text-fg-2">{t.byHand}</span> : null}
+            {recording && e.version !== recording.version ? <span className="text-fg-2">{t.inherited(e.version)}</span> : null}
+            <span className="inline-flex items-center gap-1.5 text-xs text-fg-3">
+              <Who actor={e.by} size={16} />
+              {shortDate(e.at, locale)}
+            </span>
+          </>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 text-fg-2">
+            <CircleDashedIcon size={14} />
+            {t.notChecked}
+          </span>
+        )}
+        {recording && !open ? (
+          <Button size="sm" variant={e ? 'quiet' : 'secondary'} className="ml-auto" onClick={() => setOpen(true)}>
+            {e ? t.recordAgain : t.record}
+          </Button>
+        ) : null}
+      </div>
+      {e ? (
+        <p className="text-fg">
+          {e.note}
+          {e.reference ? <span className="ml-2 font-mono text-xs text-fg-2">{e.reference}</span> : null}
+        </p>
+      ) : null}
+      {open ? (
+        <form onSubmit={submit} className="flex flex-col gap-3" data-evidence-form>
+          <Field label={t.note} hint={t.noteHint}>
+            {(p) => (
+              <TextArea {...p} value={note} maxLength={2000} required autoGrow onChange={(x) => setNote(x.target.value)} />
+            )}
+          </Field>
+          <Field label={t.reference} optional>
+            {(p) => <TextInput {...p} value={reference} maxLength={500} onChange={(x) => setReference(x.target.value)} />}
+          </Field>
+          {command.error ? <ErrorNotice error={command.error} /> : null}
+          <div className="flex gap-2">
+            <Button type="submit" variant="primary" size="sm" pending={command.isPending} pendingLabel={t.saving}>
+              {t.save}
+            </Button>
+            <Button type="button" variant="quiet" size="sm" onClick={() => setOpen(false)}>
+              {t.cancel}
+            </Button>
+          </div>
+        </form>
+      ) : null}
+    </div>
+  );
+}
+
+export function CheckList({
+  criteria,
+  readiness,
+  recording = null,
+}: {
+  criteria: Criterion[];
+  readiness: Readiness | null;
+  recording?: Recording;
+}) {
   const t = useMessages(CHECKS);
   if (criteria.length === 0) {
     return (
@@ -71,6 +174,7 @@ export function CheckList({ criteria, readiness }: { criteria: Criterion[]; read
               </span>
               <VerificationMark verification={c.verification} className="ml-auto" />
             </div>
+            <EvidenceLine criterion={c} recording={recording} />
           </li>
         );
       })}
@@ -83,20 +187,26 @@ export function Checks({
   criteria,
   readiness,
   level = 2,
+  recording = null,
 }: {
   criteria: Criterion[];
   readiness: Readiness | null;
   level?: 2 | 3;
+  recording?: Recording;
 }) {
   const t = useMessages(CHECKS);
   const id = useId();
   const H = level === 3 ? 'h3' : 'h2';
+  const checked = criteria.filter((c) => c.evidence).length;
   return (
     <section aria-labelledby={id} className="flex flex-col gap-3">
       <H id={id} className="text-lg font-semibold text-fg">
         {t.checksTitle} <span className="font-normal text-fg-2">· {criteria.length}</span>
+        {recording || checked > 0 ? (
+          <span className="ml-2 text-sm font-normal text-fg-2">{t.progress(checked, criteria.length)}</span>
+        ) : null}
       </H>
-      <CheckList criteria={criteria} readiness={readiness} />
+      <CheckList criteria={criteria} readiness={readiness} recording={recording} />
     </section>
   );
 }

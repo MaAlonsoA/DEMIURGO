@@ -123,6 +123,11 @@ function RecordPage({
   const readinessQ = useQuery({ ...readinessQuery(projectId, version.id), enabled: record.type !== 'decision' });
   const ready = record.type === 'decision' ? null : (readinessQ.data ?? version.readiness);
   const stage = versionStage(version, ready);
+  // Evidence is recorded on the checks of the current approved version, once built.
+  const recording =
+    version.state === 'approved' && version.n === record.current && !!tables && canCreate(tables, 'evidence.record_manual')
+      ? { projectId, version: version.n }
+      : null;
   const thread = version.origin_exploration
     ? (state?.explorations.find((e) => e.id === version.origin_exploration)?.purpose ?? null)
     : null;
@@ -208,7 +213,7 @@ function RecordPage({
             ) : tab === 'history' ? (
               <HistoryTab projectId={projectId} record={record} />
             ) : hasChecks(record, version) ? (
-              <Checks criteria={version.criteria} readiness={ready} />
+              <Checks criteria={version.criteria} readiness={ready} recording={recording} />
             ) : (
               <p className="text-sm text-fg-2">{t.noChecksSection}</p>
             )
@@ -258,7 +263,7 @@ function RecordPage({
             </article>
             {hasChecks(record, version) ? (
               <ReviewArea part="checks">
-                <Checks criteria={version.criteria} readiness={ready} />
+                <Checks criteria={version.criteria} readiness={ready} recording={recording} />
               </ReviewArea>
             ) : null}
             {version.annexes.length > 0 ? <Annexes annexes={version.annexes} /> : null}

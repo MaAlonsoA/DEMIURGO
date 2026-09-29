@@ -36,6 +36,5 @@ registerGuards({
   attempts_remaining: pendingGuard('S4'),
   clarification_present: pendingGuard('S5'),
   red_test_on_base: pendingGuard('S3'),
-  ac_manual: pendingGuard('S4'),
   test_map_accepted: pendingGuard('S3'),
 });

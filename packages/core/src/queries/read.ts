@@ -165,9 +165,72 @@ async function architecturePassed(db: Db, projectId: string): Promise<boolean> {
   return stage !== undefined;
 }
 
-/** How built a record is (its evidence); nothing is recorded yet. */
-export async function implementationOf(_db: Db, _recordId: string): Promise<string> {
-  return 'not implemented';
+export type CriterionEvidence = {
+  kind: string;
+  note: string;
+  reference: string | null;
+  by: string;
+  at: string;
+  /** Version of the record the evidence was recorded on: an earlier one when it is inherited. */
+  version: number;
+};
+
+/**
+ * Evidence of a criterion: its latest, or, for a criterion carried over unchanged (`kept`), the one
+ * of the criterion it carries, following the chain. A modified or new criterion starts without.
+ */
+export async function evidenceOf(db: Db, criterionId: string): Promise<CriterionEvidence | null> {
+  let id: string | null = criterionId;
+  for (let hops = 0; id && hops < 50; hops++) {
+    const e = await db
+      .selectFrom('evidence')
+      .innerJoin('record_versions as v', 'v.id', 'evidence.record_version_id')
+      .select([
+        'evidence.kind',
+        'evidence.note',
+        'evidence.reference',
+        'evidence.recorded_by',
+        'evidence.created_at',
+        'v.n',
+      ])
+      .where('evidence.criterion_id', '=', id)
+      .orderBy('evidence.created_at', 'desc')
+      .orderBy('evidence.id', 'desc')
+      .executeTakeFirst();
+    if (e) {
+      return {
+        kind: e.kind,
+        note: e.note,
+        reference: e.reference,
+        by: e.recorded_by,
+        at: new Date(e.created_at as unknown as Date).toISOString(),
+        version: e.n,
+      };
+    }
+    const c = await db.selectFrom('criteria').select(['carry', 'derived_from']).where('id', '=', id).executeTakeFirst();
+    id = c?.carry === 'kept' ? c.derived_from : null;
+  }
+  return null;
+}
+
+/**
+ * How built a record is, over the criteria of its current version: not implemented (none has
+ * evidence), in progress (some) or implemented (all). Without a current version, not implemented.
+ */
+export async function implementationOf(db: Db, recordId: string): Promise<string> {
+  const current = await db
+    .selectFrom('record_versions')
+    .select('id')
+    .where('record_id', '=', recordId)
+    .where('state', '=', 'approved')
+    .orderBy('n', 'desc')
+    .executeTakeFirst();
+  if (!current) return 'not implemented';
+  const criteria = await db.selectFrom('criteria').select('id').where('record_version_id', '=', current.id).execute();
+  let checked = 0;
+  for (const c of criteria) if (await evidenceOf(db, c.id)) checked++;
+  if (checked === 0) return 'not implemented';
+  return checked === criteria.length ? 'implemented' : 'in progress';
 }
 
 /** The based_on targets of a version: what it rests on and, for a feature, the features it needs. */
@@ -498,15 +561,18 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
       approved_at: v.approved_at,
       origin_exploration: origin,
       inferred_questions: inferred,
-      criteria: criteria.map((c) => ({
-        id: c.id,
-        code: c.code,
-        title: c.title,
-        statement: c.statement,
-        verification: c.verification,
-        check: c.check_text,
-        carry: c.carry,
-      })),
+      criteria: await Promise.all(
+        criteria.map(async (c) => ({
+          id: c.id,
+          code: c.code,
+          title: c.title,
+          statement: c.statement,
+          verification: c.verification,
+          check: c.check_text,
+          carry: c.carry,
+          evidence: await evidenceOf(db, c.id),
+        })),
+      ),
       links,
       readiness: WITHOUT_READINESS.has(r.type) ? null : await versionReadiness(db, projectId, v.id),
     });
@@ -518,7 +584,7 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
     domain: r.domain,
     aspect: r.aspect,
     current,
-    implementation: 'not implemented',
+    implementation: await implementationOf(db, r.id),
     versions: detail,
     incoming: await incomingLinks(db, projectId, r.id, r.type),
   };

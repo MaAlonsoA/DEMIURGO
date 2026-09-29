@@ -353,6 +353,20 @@ export type CriteriaTable = {
   created_at: Generated<Timestamp>;
 };
 
+/** Evidence of a criterion: append-only, the latest row of a criterion is its evidence. */
+export type EvidenceTable = {
+  id: Generated<string>;
+  project_id: string;
+  criterion_id: string;
+  record_version_id: string;
+  kind: string;
+  note: string;
+  reference: string | null;
+  state: string;
+  recorded_by: string;
+  created_at: Generated<Timestamp>;
+};
+
 export type LinksTable = {
   id: Generated<string>;
   project_id: string;
@@ -610,6 +624,7 @@ export type DB = {
   classifier_evaluations: ClassifierEvaluationsTable;
   translations: TranslationsTable;
   glossary_terms: GlossaryTermsTable;
+  evidence: EvidenceTable;
   project_repos: ProjectReposTable;
   project_commits: ProjectCommitsTable;
 };

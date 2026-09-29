@@ -392,6 +392,19 @@ export type Criterion = {
   check: string;
   /** new, kept or modified. */
   carry: string;
+  /** Its latest evidence (inherited from the criterion it carries when kept), or null if unchecked. */
+  evidence?: CriterionEvidence | null;
+};
+
+export type CriterionEvidence = {
+  /** manual (the person recorded it) or system (the runner, later). */
+  kind: string;
+  note: string;
+  reference: string | null;
+  by: string;
+  at: string;
+  /** Version it was recorded on: an earlier one when inherited. */
+  version: number;
 };
 
 export type Link = {

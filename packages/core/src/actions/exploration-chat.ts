@@ -261,6 +261,10 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
           conclusion: q.conclusion,
           impact: q.impact,
           has_options: q.options.length > 0,
+          // The one being talked about carries its options, so Go deeper and the explainer weigh them.
+          ...(q.id === input.question_id && q.options.length > 0
+            ? { options: q.options.map((o) => ({ answer: o.answer, implies: o.implies })) }
+            : {}),
           multiple: q.multiple,
           // Not shown yet: it waits in the reserve for its turn (don't ask it again).
           shown: q.shown_at !== null,

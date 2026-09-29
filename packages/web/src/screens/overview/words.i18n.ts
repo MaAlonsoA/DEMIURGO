@@ -23,6 +23,7 @@ export const OVERVIEW = messages(
     withoutTag: 'Without a tag',
     threadsWithOpen: 'Threads with open questions',
     noFeaturesYet: 'No features yet. DEMIURGO drafts one from an approved decision, or you can write one yourself.',
+    epicsNote: 'Capabilities too big for one feature. Open one and ask DEMIURGO about it to split it into features.',
   },
   {
     theProduct: 'El producto',
@@ -39,6 +40,7 @@ export const OVERVIEW = messages(
     draftingNote: 'Funcionalidades que DEMIURGO está redactando a partir de una decisión aprobada.',
     withoutTag: 'Sin etiqueta',
     threadsWithOpen: 'Hilos con preguntas abiertas',
+    epicsNote: 'Capacidades demasiado grandes para una sola funcionalidad. Abre una y pregunta a DEMIURGO sobre ella para trocearla en funcionalidades.',
     noFeaturesYet:
       'Aún no hay funcionalidades. DEMIURGO redacta una a partir de una decisión aprobada, o puedes escribir una tú mismo.',
   },

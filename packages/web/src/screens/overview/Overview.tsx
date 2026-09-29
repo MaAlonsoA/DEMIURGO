@@ -323,8 +323,9 @@ function ProductSections({
 }) {
   const t = useMessages(OVERVIEW);
   const features = rows.filter((r) => r.type === 'fdr');
+  const epics = rows.filter((r) => r.type === 'epic');
   const aspectWords = useMessages(ASPECT_WORDS);
-  const aspectGroups = recordsByAspect(rows.filter((r) => r.type !== 'fdr' && r.type !== 'product_definition'));
+  const aspectGroups = recordsByAspect(rows.filter((r) => r.type !== 'fdr' && r.type !== 'epic' && r.type !== 'product_definition'));
   const open = explorations.filter((e) => e.open_questions > 0);
   const recordRow = (row: ProductRow) => (
     <RecordRow
@@ -338,6 +339,20 @@ function ProductSections({
   );
   return (
     <>
+      {epics.length > 0 ? (
+        <Section
+          id="epics"
+          title={
+            <>
+              {TYPE_WORDS_PLURAL.epic}
+              <Count n={epics.length} />
+            </>
+          }
+          note={t.epicsNote}
+        >
+          <RowList label={TYPE_WORDS_PLURAL.epic}>{epics.map(recordRow)}</RowList>
+        </Section>
+      ) : null}
       <Section
         id="features"
         title={

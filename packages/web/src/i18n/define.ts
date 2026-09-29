@@ -3,7 +3,7 @@
 // same keys and the same signatures: a missing or extra key doesn't compile. A message is a string
 // or a function for plurals and values.
 
-import { type Locale, useLocale } from './locale.ts';
+import { type Locale, useLocale, useReadingLocale } from './locale.ts';
 
 export type Message = string | ((...args: never[]) => string);
 
@@ -21,4 +21,9 @@ export function messages<E extends Record<string, Message>>(en: E, es: Translati
 /** The area's messages in the language shown now. */
 export function useMessages<E extends Record<string, Message>>(catalog: Catalog<E>): Translation<E> {
   return catalog[useLocale()];
+}
+
+/** The area's messages in the language the content is read in: for texts sent as the person's words. */
+export function useContentMessages<E extends Record<string, Message>>(catalog: Catalog<E>): Translation<E> {
+  return catalog[useReadingLocale()];
 }

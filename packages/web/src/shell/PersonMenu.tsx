@@ -10,7 +10,14 @@ import { ChevronsUpDownIcon, DatabaseIcon, LogOutIcon } from '../components/icon
 import { Menu, MenuItem, MenuLabel, MenuRadioItems, MenuSeparator } from '../components/Menu.tsx';
 import { WhoAvatar } from '../components/Who.tsx';
 import { useMessages } from '../i18n/define.ts';
-import { LOCALE_NAMES, type Locale, setLocaleChoice, useLocaleChoice } from '../i18n/locale.ts';
+import {
+  LOCALE_NAMES,
+  type Locale,
+  setLocaleChoice,
+  setReadingLocaleChoice,
+  useLocaleChoice,
+  useReadingLocaleChoice,
+} from '../i18n/locale.ts';
 import { cn } from '../lib/cn.ts';
 import { usePerson } from '../lib/hooks.ts';
 import { hasDevTools, openDevPanel } from '../screens/dev/snapshots.ts';
@@ -34,6 +41,7 @@ export function PersonMenu({
   const navigate = useNavigate();
   const theme = useTheme();
   const locale = useLocaleChoice();
+  const reading = useReadingLocaleChoice();
 
   // The language is the person's, kept in their session: the same on every device they sign in from.
   const chooseLocale = async (choice: Locale | 'browser') => {
@@ -96,6 +104,16 @@ export function PersonMenu({
         onChange={(choice) => void chooseLocale(choice)}
         options={[
           { value: 'browser', label: t.likeTheBrowser },
+          { value: 'en', label: LOCALE_NAMES.en },
+          { value: 'es', label: LOCALE_NAMES.es },
+        ]}
+      />
+      <MenuLabel>{t.readingLanguage}</MenuLabel>
+      <MenuRadioItems<Locale | 'interface'>
+        value={reading ?? 'interface'}
+        onChange={(choice) => setReadingLocaleChoice(choice === 'interface' ? null : choice)}
+        options={[
+          { value: 'interface', label: t.likeTheInterface },
           { value: 'en', label: LOCALE_NAMES.en },
           { value: 'es', label: LOCALE_NAMES.es },
         ]}

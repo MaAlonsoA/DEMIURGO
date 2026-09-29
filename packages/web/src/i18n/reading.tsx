@@ -11,7 +11,7 @@ import { LanguagesIcon } from '../components/icons.tsx';
 import { Tooltip } from '../components/Tooltip.tsx';
 import { cn } from '../lib/cn.ts';
 import { messages, useMessages } from './define.ts';
-import { useLocale } from './locale.ts';
+import { useReadingLocale } from './locale.ts';
 
 export type ReadingSubject = 'question' | 'message' | 'proposal' | 'record_version' | 'exploration';
 
@@ -51,7 +51,7 @@ export type Reading = {
 
 /** The prose of a record in the language shown now. `id` null (or reading in English) keeps the original. */
 export function useReading(projectId: string, subject: ReadingSubject, id: string | null | undefined): Reading {
-  const locale = useLocale();
+  const locale = useReadingLocale();
   const [original, setOriginal] = useState(false);
   const enabled = locale !== 'en' && !!id;
   const q = useQuery({ ...translationQuery(projectId, subject, id ?? '', locale), enabled });

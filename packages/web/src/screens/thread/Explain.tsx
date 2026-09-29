@@ -15,7 +15,7 @@ import { BookIcon } from '../../components/icons.tsx';
 import { Markdown } from '../../components/Markdown.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
 import { WorkingDot } from '../../components/status.tsx';
-import { useMessages } from '../../i18n/define.ts';
+import { useContentMessages, useMessages } from '../../i18n/define.ts';
 import { readingOf } from '../onboarding/day.ts';
 import { sideMessages } from './timeline.ts';
 import { EXPLAIN } from './words.i18n.ts';
@@ -26,6 +26,7 @@ export const EXPLAINER = 'explainer';
 /** Asking DEMIURGO to explain a question of a thread. */
 export function useExplain(projectId: string, explorationId: string) {
   const t = useMessages(EXPLAIN);
+  const request = useContentMessages(EXPLAIN).request;
   const post = useCommand(projectId);
   return {
     pending: post.isPending,
@@ -34,7 +35,7 @@ export function useExplain(projectId: string, explorationId: string) {
       post.mutate(
         {
           command: 'message.post',
-          data: { exploration_id: explorationId, question_id: questionId, text: t.request, respond: true, agent: EXPLAINER },
+          data: { exploration_id: explorationId, question_id: questionId, text: request, respond: true, agent: EXPLAINER },
         },
         { onSuccess: () => announce(t.asked) },
       ),

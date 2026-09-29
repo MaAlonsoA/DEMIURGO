@@ -63,3 +63,47 @@ export function useSessionLocale(): void {
     if (typeof document !== 'undefined') document.documentElement.lang = locale;
   }, [locale]);
 }
+
+// The language the person reads the project's content in (records, questions, the conversation),
+// apart from the interface's: someone may keep the interface in English and read the content in
+// Spanish. Null follows the interface. It lives in this browser.
+const READING_KEY = 'demiurgo.reading-locale';
+
+function storedReading(): Locale | null {
+  try {
+    const v = typeof localStorage === 'undefined' ? null : localStorage.getItem(READING_KEY);
+    return isLocale(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+let readingChoice: Locale | null = storedReading();
+
+/** Sets the content's language (null: like the interface). */
+export function setReadingLocaleChoice(next: Locale | null): void {
+  if (next === readingChoice) return;
+  readingChoice = next;
+  try {
+    if (next) localStorage.setItem(READING_KEY, next);
+    else localStorage.removeItem(READING_KEY);
+  } catch {
+    // Without storage the choice lasts until the page reloads.
+  }
+  for (const l of listeners) l();
+}
+
+/** The person's chosen content language, or null when it follows the interface. */
+export function useReadingLocaleChoice(): Locale | null {
+  return useSyncExternalStore(
+    subscribe,
+    () => readingChoice,
+    () => readingChoice,
+  );
+}
+
+/** The language the project's content is read in now. */
+export function useReadingLocale(): Locale {
+  const interfaceLocale = useLocale();
+  return useReadingLocaleChoice() ?? interfaceLocale;
+}

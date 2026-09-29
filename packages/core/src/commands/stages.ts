@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { field, registerGuards, trimmed } from '../bus/guards.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
 import { proposeDefinitionIfCovered } from '../definition/compose.ts';
+import { proposeQualityIfCovered } from '../definition/quality.ts';
 
 registerGuards({
   async stage_in_order({ ctx, data }) {
@@ -108,6 +109,7 @@ registerHandlers({
         .execute();
       // A stage covered before the definition existed (or whose definition was rejected) proposes it now.
       await proposeDefinitionIfCovered(ctx, id);
+      await proposeQualityIfCovered(ctx, id);
       const next = nextStage(stage);
       if (next) {
         await ctx.execute({

@@ -19,6 +19,7 @@ import { DEFAULT_AGENTS } from '../agents/catalog.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
 import { requireEngine } from './runs.ts';
 import { proposeDefinitionIfCovered } from '../definition/compose.ts';
+import { conclusionWithImplies, proposeQualityIfCovered } from '../definition/quality.ts';
 import type { Tx } from '../db/connection.ts';
 import { AGENT_TOKEN_PREFIX, secretFingerprint, newSecret } from '../secrets.ts';
 
@@ -473,7 +474,8 @@ registerHandlers({
   'question.confirm': handler({
     data: z.object({ conclusion: z.string().trim().max(3000).optional(), own_words: ownWords }).strict(),
     async apply(ctx, data, e) {
-      const conclusion = data.conclusion || trimmed(e?.row.conclusion);
+      // A picked option keeps what it implies: its targets and figures are part of the answer.
+      const conclusion = await conclusionWithImplies(ctx.trx, e?.id ?? '', data.conclusion || trimmed(e?.row.conclusion));
       await ctx.trx
         .updateTable('questions')
         .set({ conclusion, state_reason: null })
@@ -482,6 +484,8 @@ registerHandlers({
       await revealQuestions(ctx.trx, trimmed(e?.row.exploration_id), e?.id);
       // The last answer of the product definition stage proposes the definition (or its next version).
       await proposeDefinitionIfCovered(ctx, e?.row.stage_id as string | null);
+      // The last answer of Global quality proposes its quality requirements.
+      await proposeQualityIfCovered(ctx, e?.row.stage_id as string | null);
       return {
         entityId: e?.id ?? '',
         before: { conclusion: e?.row.conclusion ?? null },

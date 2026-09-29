@@ -4,6 +4,7 @@
 //   node packages/api/src/cli.ts create-project <name>
 //   node packages/api/src/cli.ts issue-agent-token <projectId> <agentName> <username>   (the person's password from stdin)
 //   node packages/api/src/cli.ts real-run <projectId> <action> <json-scope> [json-input]
+//   node packages/api/src/cli.ts propose-quality <projectId>                   (the NFRs of a covered Global quality stage)
 //   node packages/api/src/cli.ts evaluate-classifier <provider> <model> [effort|-] [test|dev|all] [v1|v1-en]   (spends quota)
 //     provider `jev` (TypeSafe, key TYPESAFE_API_KEY): sends the evaluation set out; it spends credits, ~0.01 USD
 //   node packages/api/src/cli.ts translate-records <projectId> [limit]         (proposes English versions; calls the translator)
@@ -36,6 +37,8 @@ import {
   inertEngine,
   proposeEnglishVersions,
   TRANSLATION_ACTOR,
+  QUALITY_ACTOR,
+  qualityBatch,
 } from '@demiurgo/core';
 import { readTree, replaceTree } from '@demiurgo/design';
 import { type Actor, formatActor, human, system } from '@demiurgo/domain';
@@ -162,6 +165,27 @@ const commands: Record<string, () => Promise<void>> = {
       console.log(JSON.stringify(r, null, 2));
       await services.observer.flush(5000);
     });
+  },
+
+  async 'propose-quality'() {
+    const [projectId] = args;
+    if (!projectId) throw new Error('Usage: propose-quality <projectId>');
+    const core = await startCore(config, cliLogger);
+    try {
+      const { db } = core.services;
+      const stage = await db
+        .selectFrom('stages')
+        .select('id')
+        .where('project_id', '=', projectId)
+        .where('stage', '=', 'quality')
+        .executeTakeFirst();
+      const data = await qualityBatch(db, projectId, stage?.id);
+      if (!data) throw new Error('Global quality is not covered, or its requirements were already proposed.');
+      const r = await executeCommand(core.services, { command: 'batch.submit', actor: QUALITY_ACTOR, projectId, data });
+      console.log(JSON.stringify({ batch: r.entityId, proposals: data.proposals.length }));
+    } finally {
+      await core.stop();
+    }
   },
 
   async 'real-run'() {

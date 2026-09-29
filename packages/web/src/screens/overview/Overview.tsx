@@ -38,6 +38,7 @@ import { DesignStages } from './Stages.tsx';
 import { FirstFeature } from '../thread/StageComplete.tsx';
 import { useReturnFocus } from '../record/returnFocus.ts';
 import { OVERVIEW } from './words.i18n.ts';
+import { epicGroups } from '../epics/logic.ts';
 import { ASPECT_WORDS } from '../../aspects.i18n.ts';
 import { recordsByAspect } from '../../aspects.ts';
 
@@ -322,16 +323,16 @@ function ProductSections({
   questionsWaiting: (threadId: string) => number;
 }) {
   const t = useMessages(OVERVIEW);
-  const features = rows.filter((r) => r.type === 'fdr');
-  const epics = rows.filter((r) => r.type === 'epic');
+  const { groups: epics, loose: features } = epicGroups(rows);
   const aspectWords = useMessages(ASPECT_WORDS);
   const aspectGroups = recordsByAspect(rows.filter((r) => r.type !== 'fdr' && r.type !== 'epic' && r.type !== 'product_definition'));
   const open = explorations.filter((e) => e.open_questions > 0);
-  const recordRow = (row: ProductRow) => (
+  const recordRow = (row: ProductRow, nested = false) => (
     <RecordRow
       key={row.code}
       projectId={projectId}
       row={row}
+      nested={nested}
       waiting={waitingOf(row)}
       change={changeOf(lens, lens.records, row.code)}
       onPreview={() => onPreview({ kind: 'record', code: row.code })}
@@ -350,36 +351,45 @@ function ProductSections({
           }
           note={t.epicsNote}
         >
-          <RowList label={TYPE_WORDS_PLURAL.epic}>{epics.map(recordRow)}</RowList>
-        </Section>
-      ) : null}
-      <Section
-        id="features"
-        title={
-          <>
-            {TYPE_WORDS_PLURAL.fdr}
-            <Count n={features.length} />
-          </>
-        }
-      >
-        {features.length === 0 ? (
-          <p className="text-sm text-fg-2">{t.noFeaturesYet}</p>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
-            {features.map((row) => (
-              <FeatureCard
-                key={row.code}
-                projectId={projectId}
-                row={row}
-                waiting={waitingOf(row)}
-                status={statusOf(row)}
-                change={changeOf(lens, lens.records, row.code)}
-                onPreview={() => onPreview({ kind: 'record', code: row.code })}
-              />
+          <div className="flex flex-col gap-3">
+            {epics.map((g) => (
+              <RowList key={g.epic.code} label={g.epic.title}>
+                {recordRow(g.epic)}
+                {g.features.map((f) => recordRow(f, true))}
+              </RowList>
             ))}
           </div>
-        )}
-      </Section>
+        </Section>
+      ) : null}
+      {features.length > 0 || epics.length === 0 ? (
+        <Section
+          id="features"
+          title={
+            <>
+              {TYPE_WORDS_PLURAL.fdr}
+              <Count n={features.length} />
+            </>
+          }
+        >
+          {features.length === 0 ? (
+            <p className="text-sm text-fg-2">{t.noFeaturesYet}</p>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {features.map((row) => (
+                <FeatureCard
+                  key={row.code}
+                  projectId={projectId}
+                  row={row}
+                  waiting={waitingOf(row)}
+                  status={statusOf(row)}
+                  change={changeOf(lens, lens.records, row.code)}
+                  onPreview={() => onPreview({ kind: 'record', code: row.code })}
+                />
+              ))}
+            </div>
+          )}
+        </Section>
+      ) : null}
       {aspectGroups.map((g) => (
         <Section
           key={g.key}
@@ -391,7 +401,7 @@ function ProductSections({
             </>
           }
         >
-          <RowList label={g.aspect ? aspectWords[g.aspect] : t.withoutTag}>{g.rows.map(recordRow)}</RowList>
+          <RowList label={g.aspect ? aspectWords[g.aspect] : t.withoutTag}>{g.rows.map((r) => recordRow(r))}</RowList>
         </Section>
       ))}
       {open.length > 0 ? (

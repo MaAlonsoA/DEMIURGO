@@ -10,6 +10,7 @@ export const NAV_LABELS = messages(
   {
     needs: 'Needs you',
     threads: 'Threads',
+    epics: 'Epics',
     product: 'Product',
     activity: 'Activity',
     knowledge: 'Knowledge',
@@ -21,6 +22,7 @@ export const NAV_LABELS = messages(
   {
     needs: 'Te necesita',
     threads: 'Hilos',
+    epics: 'Épicas',
     product: 'Producto',
     activity: 'Actividad',
     knowledge: 'Conocimiento',

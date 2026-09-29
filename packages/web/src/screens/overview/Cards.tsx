@@ -179,17 +179,20 @@ export function RecordRow({
   waiting,
   change,
   onPreview,
+  nested = false,
 }: {
   projectId: string;
   row: ProductRow;
   waiting: Waiting;
   change: ChangeMark;
   onPreview: () => void;
+  /** A feature shown under its epic. */
+  nested?: boolean;
 }) {
   const t = useMessages(CARDS);
   const needs = waitingCount(waiting);
   return (
-    <li data-record={row.code} data-card data-changed={change.changed ? 'true' : undefined} className={ROW}>
+    <li data-record={row.code} data-card data-changed={change.changed ? 'true' : undefined} className={cn(ROW, nested && 'pl-10')}>
       <ChangedEdge on={change.changed} />
       <TypeIcon type={row.type} size={16} className="shrink-0 text-fg-3" />
       <span className={ROW_TITLE}>

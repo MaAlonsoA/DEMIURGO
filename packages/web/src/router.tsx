@@ -32,6 +32,7 @@ import { ModelsScreen, WorkspaceModelsScreen } from './screens/models/ModelsAndP
 import { SourcesScreen } from './screens/sources/Sources.tsx';
 import { ThreadScreen } from './screens/thread/Thread.tsx';
 import { ThreadsScreen } from './screens/threads/Threads.tsx';
+import { EpicsScreen } from './screens/epics/Epics.tsx';
 
 export type RouterContext = { queryClient: QueryClient };
 
@@ -166,6 +167,11 @@ const threadsRoute = createRoute({
   path: '/threads',
   component: ThreadsScreen,
 });
+const epicsRoute = createRoute({
+  getParentRoute: () => projectRoute,
+  path: '/epics',
+  component: EpicsScreen,
+});
 const threadRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: '/threads/$explorationId',
@@ -263,6 +269,7 @@ const routeTree = rootRoute.addChildren([
       newRecordRoute,
       newVersionRoute,
       threadsRoute,
+      epicsRoute,
       threadRoute,
       needsYouRoute,
       batchRoute,

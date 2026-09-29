@@ -9,6 +9,7 @@ import {
   FolderIcon,
   InboxIcon,
   type IconProps,
+  JourneyIcon,
   KeyIcon,
   KnowledgeIcon,
   ProductIcon,
@@ -19,7 +20,7 @@ import type { Locale } from '../i18n/locale.ts';
 import { useSafeLocale } from '../words.ts';
 import { NAV_LABELS } from './words.i18n.ts';
 
-export type NavKey = 'needs' | 'threads' | 'product' | 'activity' | 'knowledge' | 'sources' | 'models' | 'keys' | 'repository';
+export type NavKey = 'needs' | 'threads' | 'epics' | 'product' | 'activity' | 'knowledge' | 'sources' | 'models' | 'keys' | 'repository';
 
 export type NavItem = {
   key: NavKey;
@@ -47,6 +48,14 @@ export const NAV: NavItem[] = [
     icon: ThreadsIcon,
     group: 'work',
     match: /^\/(threads|start)(\/|$)/,
+  },
+  {
+    key: 'epics',
+    label: 'Epics',
+    to: '/p/$projectId/epics',
+    icon: JourneyIcon,
+    group: 'work',
+    match: /^\/epics(\/|$)/,
   },
   {
     key: 'product',

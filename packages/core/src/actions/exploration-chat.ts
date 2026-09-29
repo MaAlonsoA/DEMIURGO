@@ -17,8 +17,8 @@ import { revealQuestions } from '../commands/exploration.ts';
 import { definitionChangeProposal } from '../definition/compose.ts';
 
 const BUILDER = 'exploration_chat@2';
-const BUDGET = { messages: 12_000, decisions: 4_000, sources: 6_000, knowledge: 4_000 };
-const LIMIT = { messages: 60, sources: 5, decisionChars: 400, sourceChars: 2000 };
+const BUDGET = { messages: 12_000, decisions: 4_000, records: 16_000, sources: 6_000, knowledge: 4_000 };
+const LIMIT = { messages: 60, sources: 5, decisionChars: 400, recordChars: 3000, sourceChars: 2000 };
 
 /** What the budget admits, in order, and what it leaves out: the first element that does not fit closes it. */
 function splitByBudget<T>(elements: T[], size: (e: T) => number, budget: number): { chosen: T[]; dropped: T[] } {
@@ -280,6 +280,44 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
       originalChars: d.title.length + d.fullChars,
       reason: 'budget:decisions',
     });
+  // The design records in force (product definition, requirements, NFRs, ADRs, threat model...): each
+  // stage builds on the ones before, so the agent reads what was approved, not only the answers.
+  const approved = await trx
+    .selectFrom('record_versions')
+    .innerJoin('records', 'records.id', 'record_versions.record_id')
+    .select(['records.id as recordId', 'records.code', 'records.type', 'record_versions.n', 'record_versions.title', 'record_versions.sections'])
+    .where('records.project_id', '=', projectId)
+    .where('records.type', 'in', ['product_definition', 'requirement', 'quality_requirement', 'adr', 'threat_model', 'production_readiness'])
+    .where('record_versions.state', '=', 'approved')
+    .orderBy('records.code')
+    .orderBy('record_versions.n', 'desc')
+    .execute();
+  const latest = approved.filter((r, i) => approved.findIndex((o) => o.recordId === r.recordId) === i);
+  const recordSplit = splitByBudget(
+    latest.map((r) => {
+      const full = (r.sections as { title: string; content: string }[]).map((x) => `${x.title}: ${x.content}`).join('\n');
+      return { code: r.code, type: r.type, version: r.n, title: r.title, content: full.slice(0, LIMIT.recordChars), recordId: r.recordId, fullChars: full.length };
+    }),
+    (r) => r.title.length + r.content.length,
+    BUDGET.records,
+  );
+  const designRecords = recordSplit.chosen.map(({ code, type, version, title, content }) => ({ code, type, version, title, content }));
+  for (const r of recordSplit.chosen)
+    manifest.entered({
+      section: 'design_records',
+      source: source('record', r.recordId, r.version),
+      text: r.content,
+      originalChars: r.fullChars,
+      reason: r.fullChars > r.content.length ? `excerpt:${LIMIT.recordChars}` : 'approved',
+    });
+  for (const r of recordSplit.dropped)
+    manifest.dropped({
+      section: 'design_records',
+      source: source('record', r.recordId, r.version),
+      text: r.content,
+      originalChars: r.fullChars,
+      reason: 'budget:records',
+    });
   const allSources = await trx
     .selectFrom('sources')
     .select(['id', 'name', 'content', 'registered_by'])
@@ -381,6 +419,7 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
         ...(aboutRecord ? { about_record: aboutRecord } : {}),
         ...(productDefinitionDraft ? { product_definition_draft: productDefinitionDraft } : {}),
         confirmed_decisions: decisionsSummary,
+        design_records: designRecords,
         untrusted_sources: chosenSources,
         knowledge: knowledge.nodes,
       },
@@ -455,7 +494,9 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
   }
   // A reply-only agent (the explainer) leaves its reply and the idea, nothing else, whatever it returned.
   if ((await loadAgentCatalog()).get(run.agent ?? '')?.replyOnly) return;
-  if (output.purpose) {
+  // The product's main thread keeps its product-wide purpose: each stage brings its own (design_stage).
+  const hostsStages = await trx.selectFrom('stages').select('id').where('exploration_id', '=', scope.id).executeTakeFirst();
+  if (output.purpose && !hostsStages) {
     const current = await trx
       .selectFrom('explorations')
       .select(['purpose', 'state'])

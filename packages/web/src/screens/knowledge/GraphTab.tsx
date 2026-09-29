@@ -3,23 +3,27 @@
 // opens a side sheet with its excerpt, its areas and its relations both ways, where every relation
 // is a link and every group can show all of its rows (INV-KNOW-06…11; the hover peek is gone).
 
-import { useQuery } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
-import { useMemo, useState } from 'react';
-import { graphQuery, taxonomiesQuery } from '../../api/queries.ts';
-import type { GraphNode, KnowledgeGraph, Taxonomy } from '../../api/types.ts';
-import { Code } from '../../components/Badge.tsx';
-import { Button, buttonClass } from '../../components/Button.tsx';
-import { EmptyState } from '../../components/EmptyState.tsx';
-import { ArrowRightIcon, ChevronDownIcon, KnowledgeIcon } from '../../components/icons.tsx';
-import { ErrorNotice } from '../../components/Notice.tsx';
-import { PreviewButton, PreviewSheet } from '../../components/Preview.tsx';
-import { Bone, Skeleton } from '../../components/Spinner.tsx';
-import { Certainty, EntityState } from '../../components/status.tsx';
-import { Segmented } from '../../components/Tabs.tsx';
-import { TypeIcon } from '../../components/types.tsx';
-import { useMessages } from '../../i18n/define.ts';
-import { cn } from '../../lib/cn.ts';
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
+import { graphQuery, taxonomiesQuery } from "../../api/queries.ts";
+import type { GraphNode, KnowledgeGraph, Taxonomy } from "../../api/types.ts";
+import { Code } from "../../components/Badge.tsx";
+import { Button, buttonClass } from "../../components/Button.tsx";
+import { EmptyState } from "../../components/EmptyState.tsx";
+import {
+  ArrowRightIcon,
+  ChevronDownIcon,
+  KnowledgeIcon,
+} from "../../components/icons.tsx";
+import { ErrorNotice } from "../../components/Notice.tsx";
+import { PreviewButton, PreviewSheet } from "../../components/Preview.tsx";
+import { Bone, Skeleton } from "../../components/Spinner.tsx";
+import { Certainty, EntityState } from "../../components/status.tsx";
+import { Segmented } from "../../components/Tabs.tsx";
+import { TypeIcon } from "../../components/types.tsx";
+import { useMessages } from "../../i18n/define.ts";
+import { cn } from "../../lib/cn.ts";
 import {
   type AreaAxis,
   NODE_TYPES,
@@ -29,19 +33,33 @@ import {
   groupRelations,
   nodeType,
   relationsOf,
-} from './graph.ts';
-import { parseAxes } from './taxonomy.ts';
-import { GRAPH_TAB } from './words.i18n.ts';
+} from "./graph.ts";
+import { parseAxes } from "./taxonomy.ts";
+import { GRAPH_TAB } from "./words.i18n.ts";
 
-export function GraphTab({ projectId, onTaxonomy }: { projectId: string; onTaxonomy: () => void }) {
+export function GraphTab({
+  projectId,
+  onTaxonomy,
+}: {
+  projectId: string;
+  onTaxonomy: () => void;
+}) {
   const t = useMessages(GRAPH_TAB);
   const graph = useQuery(graphQuery(projectId));
   const taxonomies = useQuery(taxonomiesQuery(projectId));
-  const [filter, setFilter] = useState<string>('all');
+  const [filter, setFilter] = useState<string>("all");
   const [preview, setPreview] = useState<string | null>(null);
-  const axis = useMemo(() => areaAxis(taxonomies.data ?? []), [taxonomies.data]);
-  const nodes = graph.data?.nodes ?? [];
-  const shown = filter === 'all' ? nodes : nodes.filter((n) => n.type === filter);
+  const axis = useMemo(
+    () => areaAxis(taxonomies.data ?? []),
+    [taxonomies.data],
+  );
+  // What holds now; what a newer version replaced is history, shown only on request.
+  const [history, setHistory] = useState(false);
+  const all = graph.data?.nodes ?? [];
+  const replaced = all.filter((n) => n.state === "invalidated").length;
+  const nodes = history ? all : all.filter((n) => n.state !== "invalidated");
+  const shown =
+    filter === "all" ? nodes : nodes.filter((n) => n.type === filter);
   const groups = useMemo(() => groupByArea(shown, axis), [shown, axis]);
 
   const error = graph.error ?? taxonomies.error;
@@ -56,7 +74,7 @@ export function GraphTab({ projectId, onTaxonomy }: { projectId: string; onTaxon
       />
     );
   if (graph.isPending || taxonomies.isPending) return <GraphSkeleton />;
-  if (!graph.data || nodes.length === 0) {
+  if (!graph.data || all.length === 0) {
     return (
       <EmptyState icon={<KnowledgeIcon size={24} />} title={t.empty}>
         {t.emptyBody}
@@ -66,7 +84,9 @@ export function GraphTab({ projectId, onTaxonomy }: { projectId: string; onTaxon
   const counts = Object.keys(NODE_TYPES)
     .map((type) => ({ type, n: nodes.filter((x) => x.type === type).length }))
     .filter((c) => c.n > 0);
-  const previewed = preview ? graph.data.nodes.find((n) => n.ref === preview) : undefined;
+  const previewed = preview
+    ? graph.data.nodes.find((n) => n.ref === preview)
+    : undefined;
 
   return (
     <div className="flex flex-col gap-6">
@@ -76,8 +96,13 @@ export function GraphTab({ projectId, onTaxonomy }: { projectId: string; onTaxon
             t.groupedBy(axis.name, axis.taxonomy.code, axis.taxonomy.version)
           ) : (
             <>
-              {t.noTaxonomy}{' '}
-              <Button size="sm" variant="secondary" onClick={onTaxonomy} className="ml-1 align-middle">
+              {t.noTaxonomy}{" "}
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={onTaxonomy}
+                className="ml-1 align-middle"
+              >
                 {t.openTaxonomy}
               </Button>
             </>
@@ -88,26 +113,55 @@ export function GraphTab({ projectId, onTaxonomy }: { projectId: string; onTaxon
           value={filter}
           onChange={setFilter}
           options={[
-            { value: 'all', label: t.all, count: nodes.length },
-            ...counts.map((c) => ({ value: c.type, label: nodeType(c.type).plural, count: c.n })),
+            { value: "all", label: t.all, count: nodes.length },
+            ...counts.map((c) => ({
+              value: c.type,
+              label: nodeType(c.type).plural,
+              count: c.n,
+            })),
           ]}
         />
+        {replaced > 0 ? (
+          <div>
+            <Button
+              size="sm"
+              variant="quiet"
+              aria-pressed={history}
+              onClick={() => setHistory((h) => !h)}
+            >
+              {history ? t.hideHistory : t.showHistory(replaced)}
+            </Button>
+          </div>
+        ) : null}
       </div>
       {groups.map((g) => {
-        const id = `area-${g.key || 'none'}`;
+        const id = `area-${g.key || "none"}`;
         return (
-          <section key={g.key || 'none'} aria-labelledby={id} data-area={g.key || 'none'} className="flex flex-col gap-2.5">
+          <section
+            key={g.key || "none"}
+            aria-labelledby={id}
+            data-area={g.key || "none"}
+            className="flex flex-col gap-2.5"
+          >
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
               <h2 id={id} className="text-base font-semibold text-fg">
                 {g.name}
               </h2>
-              <span className="text-sm text-fg-3 tabular-nums">{t.nodeCount(g.nodes.length)}</span>
-              {g.description ? <p className="w-full text-sm text-fg-2">{g.description}</p> : null}
+              <span className="text-sm text-fg-3 tabular-nums">
+                {t.nodeCount(g.nodes.length)}
+              </span>
+              {g.description ? (
+                <p className="w-full text-sm text-fg-2">{g.description}</p>
+              ) : null}
             </div>
             <ul className="grid grid-cols-1 gap-2 md:grid-cols-2">
               {g.nodes.map((n) => (
                 <li key={n.ref}>
-                  <NodeRow projectId={projectId} node={n} onPreview={() => setPreview(n.ref)} />
+                  <NodeRow
+                    projectId={projectId}
+                    node={n}
+                    onPreview={() => setPreview(n.ref)}
+                  />
                 </li>
               ))}
             </ul>
@@ -119,7 +173,7 @@ export function GraphTab({ projectId, onTaxonomy }: { projectId: string; onTaxon
         onOpenChange={(open) => {
           if (!open) setPreview(null);
         }}
-        title={previewed?.label ?? ''}
+        title={previewed?.label ?? ""}
         eyebrow={previewed ? <NodeEyebrow node={previewed} /> : null}
         footer={
           previewed?.record ? (
@@ -127,7 +181,7 @@ export function GraphTab({ projectId, onTaxonomy }: { projectId: string; onTaxon
               to="/p/$projectId/records/$code"
               params={{ projectId, code: previewed.record.code }}
               search={{ v: previewed.record.version }}
-              className={buttonClass({ variant: 'primary' })}
+              className={buttonClass({ variant: "primary" })}
             >
               {t.openRecord(previewed.record.code)}
               <ArrowRightIcon size={15} />
@@ -138,7 +192,13 @@ export function GraphTab({ projectId, onTaxonomy }: { projectId: string; onTaxon
         }
       >
         {previewed ? (
-          <NodePreview projectId={projectId} node={previewed} graph={graph.data} axis={axis} taxonomies={taxonomies.data ?? []} />
+          <NodePreview
+            projectId={projectId}
+            node={previewed}
+            graph={graph.data}
+            axis={axis}
+            taxonomies={taxonomies.data ?? []}
+          />
         ) : null}
       </PreviewSheet>
     </div>
@@ -147,7 +207,7 @@ export function GraphTab({ projectId, onTaxonomy }: { projectId: string; onTaxon
 
 /** How sure it is, or that it was invalidated (a newer version replaced it). */
 function NodeState({ node }: { node: GraphNode }) {
-  return node.state === 'invalidated' ? (
+  return node.state === "invalidated" ? (
     <EntityState entity="knowledge_node" state="invalidated" />
   ) : (
     <Certainty status={node.epistemic_status} />
@@ -158,7 +218,15 @@ function NodeState({ node }: { node: GraphNode }) {
  * A node of the list: its type, its title (a link to its record when it has one; a node without a
  * record says so instead of pretending to open), its state and its Preview button.
  */
-function NodeRow({ projectId, node, onPreview }: { projectId: string; node: GraphNode; onPreview: () => void }) {
+function NodeRow({
+  projectId,
+  node,
+  onPreview,
+}: {
+  projectId: string;
+  node: GraphNode;
+  onPreview: () => void;
+}) {
   const t = useMessages(GRAPH_TAB);
   const type = nodeType(node.type);
   const name = `${type.word}: ${node.label} (${node.ref})`;
@@ -222,18 +290,32 @@ function NodePreview({
   const areas = areaNames(node, taxonomies);
   return (
     <>
-      {node.excerpt ? <p className="text-sm whitespace-pre-line text-fg-2">{node.excerpt}</p> : null}
+      {node.excerpt ? (
+        <p className="text-sm whitespace-pre-line text-fg-2">{node.excerpt}</p>
+      ) : null}
       <p className="text-sm text-fg-2">
         <span className="font-medium text-fg">{t.whereItSits}</span>
-        {areas.length > 0 ? areas.join(' · ') : axis ? t.notClassifiedYet : t.noApprovedTaxonomy}
+        {areas.length > 0
+          ? areas.join(" · ")
+          : axis
+            ? t.notClassifiedYet
+            : t.noApprovedTaxonomy}
       </p>
-      <section aria-labelledby="preview-relations" className="flex flex-col gap-3 border-t border-edge-subtle pt-3">
+      <section
+        aria-labelledby="preview-relations"
+        className="flex flex-col gap-3 border-t border-edge-subtle pt-3"
+      >
         <h3 id="preview-relations" className="text-base font-semibold text-fg">
           {t.relations}
         </h3>
         {relations.length > 0 ? (
           groupRelations(relations).map((g) => (
-            <RelationGroup key={g.word} projectId={projectId} word={g.word} relations={g.relations} />
+            <RelationGroup
+              key={g.word}
+              projectId={projectId}
+              word={g.word}
+              relations={g.relations}
+            />
           ))
         ) : (
           <p className="text-sm text-fg-2">{t.noRelationsYet}</p>
@@ -243,10 +325,18 @@ function NodePreview({
   );
 }
 
-function RelationGroup({ projectId, word, relations }: { projectId: string; word: string; relations: Relation[] }) {
+function RelationGroup({
+  projectId,
+  word,
+  relations,
+}: {
+  projectId: string;
+  word: string;
+  relations: Relation[];
+}) {
   const t = useMessages(GRAPH_TAB);
   const [all, setAll] = useState(false);
-  const id = `rel-${word.replace(/\W+/g, '-')}`;
+  const id = `rel-${word.replace(/\W+/g, "-")}`;
   const shown = all ? relations : relations.slice(0, PER_GROUP);
   return (
     <div className="flex flex-col gap-1.5" data-relation-group={word}>
@@ -259,7 +349,11 @@ function RelationGroup({ projectId, word, relations }: { projectId: string; word
           const label = r.node?.label ?? r.ref;
           return (
             <li key={r.key} className="flex min-h-7 items-center gap-2 text-sm">
-              <TypeIcon type={r.node?.type ?? 'knowledge'} size={14} className="shrink-0 text-fg-3" />
+              <TypeIcon
+                type={r.node?.type ?? "knowledge"}
+                size={14}
+                className="shrink-0 text-fg-3"
+              />
               {record ? (
                 <Link
                   to="/p/$projectId/records/$code"
@@ -286,7 +380,10 @@ function RelationGroup({ projectId, word, relations }: { projectId: string; word
           className="inline-flex min-h-6 cursor-pointer items-center gap-1 self-start rounded-xs text-sm font-medium text-accent-text hover:underline"
         >
           {all ? t.showFewer : t.showAll(relations.length)}
-          <ChevronDownIcon size={14} className={cn('transition-transform', all && 'rotate-180')} />
+          <ChevronDownIcon
+            size={14}
+            className={cn("transition-transform", all && "rotate-180")}
+          />
         </button>
       ) : null}
     </div>
@@ -296,7 +393,9 @@ function RelationGroup({ projectId, word, relations }: { projectId: string; word
 /** Names of the node's categories, axis by axis, from the taxonomy that has them. */
 function areaNames(node: GraphNode, taxonomies: Taxonomy[]): string[] {
   const ordered = [...taxonomies].sort(
-    (a, b) => Number(b.state === 'approved') - Number(a.state === 'approved') || b.version - a.version,
+    (a, b) =>
+      Number(b.state === "approved") - Number(a.state === "approved") ||
+      b.version - a.version,
   );
   return Object.entries(node.areas).map(([axisCode, category]) => {
     for (const t of ordered) {

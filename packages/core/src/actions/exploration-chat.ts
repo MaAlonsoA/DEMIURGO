@@ -280,15 +280,15 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
       originalChars: d.title.length + d.fullChars,
       reason: 'budget:decisions',
     });
-  // The design records in force (product definition, requirements, NFRs, ADRs, threat model...): each
-  // stage builds on the ones before, so the agent reads what was approved, not only the answers.
+  // The design records the person accepted (product definition, requirements, NFRs, ADRs, threat
+  // model...), their latest version, approved or still a draft: each stage builds on the ones before.
   const approved = await trx
     .selectFrom('record_versions')
     .innerJoin('records', 'records.id', 'record_versions.record_id')
-    .select(['records.id as recordId', 'records.code', 'records.type', 'record_versions.n', 'record_versions.title', 'record_versions.sections'])
+    .select(['records.id as recordId', 'records.code', 'records.type', 'record_versions.n', 'record_versions.state', 'record_versions.title', 'record_versions.sections'])
     .where('records.project_id', '=', projectId)
     .where('records.type', 'in', ['product_definition', 'requirement', 'quality_requirement', 'adr', 'threat_model', 'production_readiness'])
-    .where('record_versions.state', '=', 'approved')
+    .where('record_versions.state', 'in', ['approved', 'draft'])
     .orderBy('records.code')
     .orderBy('record_versions.n', 'desc')
     .execute();
@@ -296,19 +296,19 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
   const recordSplit = splitByBudget(
     latest.map((r) => {
       const full = (r.sections as { title: string; content: string }[]).map((x) => `${x.title}: ${x.content}`).join('\n');
-      return { code: r.code, type: r.type, version: r.n, title: r.title, content: full.slice(0, LIMIT.recordChars), recordId: r.recordId, fullChars: full.length };
+      return { code: r.code, type: r.type, version: r.n, state: r.state, title: r.title, content: full.slice(0, LIMIT.recordChars), recordId: r.recordId, fullChars: full.length };
     }),
     (r) => r.title.length + r.content.length,
     BUDGET.records,
   );
-  const designRecords = recordSplit.chosen.map(({ code, type, version, title, content }) => ({ code, type, version, title, content }));
+  const designRecords = recordSplit.chosen.map(({ code, type, version, state, title, content }) => ({ code, type, version, state, title, content }));
   for (const r of recordSplit.chosen)
     manifest.entered({
       section: 'design_records',
       source: source('record', r.recordId, r.version),
       text: r.content,
       originalChars: r.fullChars,
-      reason: r.fullChars > r.content.length ? `excerpt:${LIMIT.recordChars}` : 'approved',
+      reason: r.fullChars > r.content.length ? `excerpt:${LIMIT.recordChars}` : r.state,
     });
   for (const r of recordSplit.dropped)
     manifest.dropped({

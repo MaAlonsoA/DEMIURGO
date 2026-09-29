@@ -1,4 +1,4 @@
-// A package from DEMIURGO (DESIGN.md §3.2): what it proposes, each record in full as it will be
+// A package (DESIGN.md §3.2): what it proposes, each record in full as it will be
 // recorded, decided whole. Its decision — Accept, Approve, Reject package — sits
 // above the content and again in a footer that stays at the bottom while the person reads, so it is
 // never far from what it approves (INVENTORY Part D §3, UX problem). When warnings block accepting,
@@ -17,12 +17,12 @@ import { PageBody, PageHeader, WithAside } from '../../components/Page.tsx';
 import { EntityState, StatusBadge } from '../../components/status.tsx';
 import { RelativeTime } from '../../components/Time.tsx';
 import { TypeIcon } from '../../components/types.tsx';
-import { WhoAvatar } from '../../components/Who.tsx';
-import { stateWord, whoOf } from '../../words.ts';
+import { stateWord } from '../../words.ts';
 import { useBatchCrumbs } from './Batch.tsx';
 import { withInbox } from './ItemBatch.tsx';
 import { acceptedRecord, obsoleteReason, proposalTitle } from './model.ts';
-import { BlockedNotice, DecisionBar, Evidence, IdeaCheck, OutOfDate, RecordChip, RunLine } from './parts.tsx';
+import { BasedOn, HowItWasMade } from './Basis.tsx';
+import { BlockedNotice, DecisionBar, IdeaCheck, OutOfDate, RecordChip } from './parts.tsx';
 import { type ProposalView as ProposalData, proposalIconType } from './proposal.ts';
 import { ProposalKind } from '../../components/AspectTag.tsx';
 import { ProposalBody } from './ProposalView.tsx';
@@ -52,7 +52,7 @@ export function DemiurgoPackage({ projectId, batch }: { projectId: string; batch
   const n = proposals.length;
   const single = n === 1 ? proposals[0] : undefined;
   const title = single ? proposalTitle(single) : t.defaultTitle;
-  const crumbs = useBatchCrumbs(projectId, t.packageFromDemiurgo);
+  const crumbs = useBatchCrumbs(projectId, t.package);
   const top = useRef<HTMLDivElement>(null);
   const topOnScreen = useOnScreen(top);
   const decision = usePackageDecision(projectId, batch, proposals);
@@ -63,11 +63,6 @@ export function DemiurgoPackage({ projectId, batch }: { projectId: string; batch
         crumbs={crumbs}
         eyebrow={
           <>
-            <span className="inline-flex items-center gap-1.5">
-              <WhoAvatar kind={whoOf(batch.producer).kind} size={18} />
-              {t.packageFromDemiurgo}
-            </span>
-            <span aria-hidden>·</span>
             <span>{t.proposalsCount(n)}</span>
             <EntityState entity="batch" state={batch.state} />
           </>
@@ -87,11 +82,7 @@ export function DemiurgoPackage({ projectId, batch }: { projectId: string; batch
         <WithAside asideLabel={t.aboutThisPackage} aside={<PackageAside projectId={projectId} batch={batch} rows={rows} />}>
           <div className="flex flex-col gap-8">
             <div ref={top}>{decision.panel(false)}</div>
-            {batch.run_id ? (
-              <Evidence title={t.draftedByDemiurgo}>
-                <RunLine projectId={projectId} runId={batch.run_id} />
-              </Evidence>
-            ) : null}
+            <HowItWasMade projectId={projectId} producer={batch.producer} runId={batch.run_id} />
             {proposals.map((p) => (
               <ProposedRecord key={p.id} projectId={projectId} proposal={p} rows={rows} single={n === 1} />
             ))}
@@ -142,6 +133,7 @@ function ProposedRecord({
       {p.state === 'superseded' ? <OutOfDate>{t.cannotAcceptAnymore(obsolete ?? t.obsoleteDefault)}</OutOfDate> : null}
       {reading.mark ? <div>{reading.mark}</div> : null}
       <ProposalBody projectId={projectId} proposal={shown} rows={rows} withGoal />
+      <BasedOn projectId={projectId} type={p.type} payload={p.payload} refs={p.basis_refs} rows={rows} />
       <IdeaCheck projectId={projectId} assessment={p.assessment} rows={rows} />
     </article>
   );
@@ -163,13 +155,7 @@ function PackageAside({ projectId, batch, rows }: { projectId: string; batch: Ba
           <p className="text-sm text-fg-2">{t.staleWarning}</p>
         </section>
       ) : null}
-      <section aria-label={t.whoProposes} className="flex items-start gap-3 rounded-lg border border-edge px-3.5 py-3">
-        <WhoAvatar kind={whoOf(batch.producer).kind} size={28} />
-        <div className="flex flex-col gap-0.5 text-sm">
-          <p className="font-medium text-fg">DEMIURGO</p>
-          <p className="text-fg-2">{t.demiurgoOnlyProposes}</p>
-        </div>
-      </section>
+      <p className="text-sm text-fg-2">{t.nothingChanges}</p>
     </>
   );
 }

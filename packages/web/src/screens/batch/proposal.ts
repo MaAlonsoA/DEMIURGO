@@ -3,10 +3,9 @@
 // decided. Pure, so Needs you, Catch up and the batch pages say the same thing. The `design_record`
 // type gets its own label and body here: the old view showed its raw type name (INVENTORY Part D §3).
 
-import type { BatchDetail, Dependency, IdeaAssessmentSummary } from '../../api/types.ts';
+import type { AspectCheck, BasisRefs, BatchDetail, Dependency, IdeaAssessmentSummary } from '../../api/types.ts';
 import { NOUNS, proposalNoun } from '../../aspects.i18n.ts';
 import type { Locale } from '../../i18n/locale.ts';
-import { whoOf } from '../../words.ts';
 import { batchView, proposalTitle } from './model.ts';
 
 /** A proposal as the views show it: the batch's fields plus what the inbox adds to pending ones. */
@@ -21,6 +20,10 @@ export type ProposalView = {
   /** The server's reasons why accepting would fail now (its dependencies changed). */
   obsolescence?: string[];
   assessment?: IdeaAssessmentSummary | null;
+  /** What Jev says the proposal's own text is about. */
+  aspect_check?: AspectCheck | null;
+  /** The threads behind the messages and questions it is based on. */
+  basis_refs?: BasisRefs;
 };
 
 /** What kind of change a proposal is, in one noun ("Proposal", "Review", "Thread"…); the aspect goes in a tag. */
@@ -148,20 +151,13 @@ export function outOfDateText(reason: string | null): string {
   return `${reason ?? 'What it was based on changed.'} It can't be accepted any more. Nothing is lost: it stays here as it came.`;
 }
 
-/** The heading of a batch by who produced it (INV-BATCH-03). */
-export function batchHeading(producer: string, n: number): { eyebrow: string; title: string } {
-  const who = whoOf(producer);
-  const changes = n === 1 ? 'change' : 'changes';
-  if (who.kind === 'agent')
-    return { eyebrow: `${n} ${n === 1 ? 'proposal' : 'proposals'} from an agent`, title: `${who.name} proposes ${n} ${changes}` };
-  if (who.kind === 'demiurgo')
-    return { eyebrow: `${n} ${n === 1 ? 'proposal' : 'proposals'} from DEMIURGO`, title: `DEMIURGO proposes ${n} ${changes}` };
-  if (who.kind === 'automatic')
-    return {
-      eyebrow: `${n} ${n === 1 ? 'review' : 'reviews'} from knowledge`,
-      title: `DEMIURGO's knowledge asks you to review ${n === 1 ? 'a record' : `${n} records`}`,
-    };
-  return { eyebrow: `${n} ${n === 1 ? 'proposal' : 'proposals'}`, title: `${n} ${n === 1 ? 'proposal' : 'proposals'} to decide` };
+/** The heading of a batch, the same whoever made it: how many proposals, and what to do with them. */
+export function batchHeading(n: number, locale: Locale = 'en'): { eyebrow: string; title: string } {
+  const es = locale === 'es';
+  return {
+    eyebrow: NOUNS[locale].proposals(n),
+    title: es ? `${NOUNS.es.proposals(n)} por decidir` : `${NOUNS.en.proposals(n)} to decide`,
+  };
 }
 
 /** The name of a batch page, as its h1 and the browser tab say it. */
@@ -170,7 +166,7 @@ export function batchTitle(batch: Pick<BatchDetail, 'kind' | 'resolution_mode' |
   if (view === 'import') return 'Imported from design/';
   if (view === 'package') {
     const single = batch.proposals.length === 1 ? batch.proposals[0] : undefined;
-    return (single ? proposalTitle(single) : '') || 'A package from DEMIURGO';
+    return (single ? proposalTitle(single) : '') || NOUNS.en.proposals(batch.proposals.length);
   }
-  return batchHeading(batch.producer, batch.proposals.length).title;
+  return batchHeading(batch.proposals.length).title;
 }

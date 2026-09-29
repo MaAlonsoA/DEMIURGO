@@ -5,7 +5,8 @@
 
 import type { Inbox, ProductState } from '../../api/types.ts';
 import { type Aspect } from '../../aspects.ts';
-import { EPISTEMIC_MARK, type MarkKind, whoOf } from '../../words.ts';
+import { ASPECT_WORDS } from '../../aspects.i18n.ts';
+import { EPISTEMIC_MARK, type MarkKind } from '../../words.ts';
 import { aspectOfNeed } from '../needs-you/titles.ts';
 import { type NeedItem, catchUpOrder, needsOf } from '../needs-you/order.ts';
 
@@ -43,15 +44,6 @@ function payloadTitle(payload: Record<string, unknown>): string | null {
   for (const k of ['title', 'purpose']) if (typeof payload[k] === 'string') return payload[k];
   const doc = payload.document as { title?: unknown } | undefined;
   return typeof doc?.title === 'string' ? doc.title : null;
-}
-
-/** Who proposes, as the reason line says it. */
-export function producerWords(producer: string): string {
-  const who = whoOf(producer);
-  if (who.kind === 'agent') return `From an agent · ${who.name}`;
-  if (who.kind === 'demiurgo') return 'From DEMIURGO';
-  if (who.kind === 'automatic') return 'Automatic';
-  return 'From you';
 }
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -95,7 +87,7 @@ function describe(n: NeedItem, state: ProductState | undefined): NeedsItem {
         label: 'Package',
         title:
           b.type === 'import' ? 'Imported from design/' : ((first && payloadTitle(first.payload)) ?? b.summary ?? 'A package'),
-        from: `${producerWords(b.producer)} · ${plural(b.proposals.length, 'proposal')}`,
+        from: plural(b.proposals.length, 'proposal'),
         mark: 'proposed',
         target: { to: '/p/$projectId/batches/$batchId', params: { batchId: b.id } },
         code: null,
@@ -107,7 +99,7 @@ function describe(n: NeedItem, state: ProductState | undefined): NeedsItem {
         ...base,
         label: 'Proposal',
         title: payloadTitle(p.payload) ?? n.batch.summary ?? 'A proposal',
-        from: `${producerWords(n.batch.producer)} · ${n.position} of ${n.batch.proposals.length} in its batch`,
+        from: `${base.aspect ? `${ASPECT_WORDS.en[base.aspect]} · ` : ''}${n.position} of ${n.batch.proposals.length}`,
         mark: p.obsolescence.length > 0 ? 'stale' : epistemic(p.epistemic_status),
         target: { to: '/p/$projectId/batches/$batchId', params: { batchId: n.batch.id } },
         code: null,

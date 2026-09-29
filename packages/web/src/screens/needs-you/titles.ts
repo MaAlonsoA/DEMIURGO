@@ -4,7 +4,6 @@
 
 import type { Exploration, ProductRow, Taxonomy } from '../../api/types.ts';
 import { type Aspect, aspectOfProposal, aspectOfType } from '../../aspects.ts';
-import { whoOf } from '../../words.ts';
 import { proposalTitle, rowOf, rowOfVersion } from '../batch/model.ts';
 import type { NeedItem } from './order.ts';
 import { TITLES } from './words.i18n.ts';
@@ -69,14 +68,6 @@ export function needTitle(item: NeedItem, rows: readonly ProductRow[], words: Wo
 
 export type ReasonContext = { rows: readonly ProductRow[]; threads: readonly Pick<Exploration, 'id' | 'purpose'>[] };
 
-/** The name of who produced a batch, in a few words. */
-export function producerWords(producer: string, words: Words = TITLES.en): string {
-  const who = whoOf(producer);
-  if (who.kind === 'agent') return words.producerAgent(who.name);
-  if (who.kind === 'automatic') return words.producerKnowledge;
-  return who.name;
-}
-
 /** Why a thing is in Needs you, in one line of the queue ("Asked by DEMIURGO in Global quality"). */
 export function needReason(item: NeedItem, ctx: ReasonContext, words: Words = TITLES.en): string {
   switch (item.kind) {
@@ -89,10 +80,12 @@ export function needReason(item: NeedItem, ctx: ReasonContext, words: Words = TI
     }
     case 'package': {
       const n = item.batch.proposals.length;
-      return words.packageReason(producerWords(item.batch.producer, words), n);
+      return words.packageReason(n);
     }
-    case 'proposal':
-      return words.proposalReason(producerWords(item.batch.producer, words), item.position, item.batch.proposals.length);
+    case 'proposal': {
+      const aspect = aspectOfProposal(item.proposal);
+      return words.proposalReason(aspect ? words.aspectWord(aspect) : null, item.position, item.batch.proposals.length);
+    }
     case 'version': {
       const aspect = aspectOfType(item.version.type);
       return words.versionReason(aspect ? words.aspectWord(aspect) : null, item.version.code, item.version.n);

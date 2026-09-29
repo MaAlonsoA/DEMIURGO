@@ -11,6 +11,8 @@ import { useCommand } from '../../api/commands.ts';
 import { entityEventsQuery, explorationQuery } from '../../api/queries.ts';
 import type { Exploration, ExplorationDetail, ProductState, Question, StageRow } from '../../api/types.ts';
 import { ActionBar } from '../../components/actions.tsx';
+import { type Aspect, isAspect } from '../../aspects.ts';
+import { AspectTag } from '../../components/AspectTag.tsx';
 import { announce } from '../../components/announce.tsx';
 import { Code } from '../../components/Badge.tsx';
 import { Card } from '../../components/Card.tsx';
@@ -26,6 +28,30 @@ import { useReading } from '../../i18n/reading.tsx';
 import { shortDate } from '../../lib/time.ts';
 import { whoOf } from '../../words.ts';
 import { HEADER } from './words.i18n.ts';
+
+/** The aspects the person's messages are about, most talked about first (Jev, when it is fairly sure). */
+export function talkedAspects(messages: ExplorationDetail['messages']): Aspect[] {
+  const counts = new Map<Aspect, number>();
+  for (const m of messages) {
+    if (!m.author.startsWith('human:') || !isAspect(m.aspect) || (m.aspect_confidence ?? 0) < 0.55) continue;
+    counts.set(m.aspect, (counts.get(m.aspect) ?? 0) + 1);
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([a]) => a);
+}
+
+function TalkedAbout({ messages }: { messages: ExplorationDetail['messages'] }) {
+  const words = useMessages(HEADER);
+  const aspects = talkedAspects(messages);
+  if (aspects.length === 0) return null;
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1.5" data-talked-about>
+      <span>{words.talkedAbout}</span>
+      {aspects.map((a) => (
+        <AspectTag key={a} aspect={a} />
+      ))}
+    </span>
+  );
+}
 
 export const short = (text: string, n = 56): string => (text.length > n ? `${text.slice(0, n - 1)}…` : text);
 
@@ -110,6 +136,7 @@ export function ThreadHeader({
             ) : null}
             {reading.mark ? <span className="basis-full">{reading.mark}</span> : null}
             <Provenance projectId={projectId} thread={t} parent={parent} threads={threads} products={products} />
+            <TalkedAbout messages={t.messages} />
           </>
         }
         actions={

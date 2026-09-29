@@ -169,7 +169,7 @@ describe('what needs you on the overview', () => {
       ['Accepted proposal to approve', 'Title B'],
       ['Question', 'How many guests?'],
     ]);
-    expect(items[0]?.from).toBe('From an agent · claude-code · 1 of 1 in its batch');
+    expect(items[0]?.from).toBe('1 of 1');
     expect(items[1]?.target).toEqual({ to: '/p/$projectId/records/$code', params: { code: 'B' }, search: { v: 1 } });
     expect(items[1]?.code).toBe('B');
   });

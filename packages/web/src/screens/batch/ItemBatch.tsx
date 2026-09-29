@@ -1,5 +1,4 @@
-// A batch decided one proposal at a time (DESIGN.md §3.2): an agent's, DEMIURGO's from a
-// conversation, or the reviews knowledge asks for. On the left, every proposal with its state and
+// A batch decided one proposal at a time (DESIGN.md §3.2). On the left, every proposal with its state and
 // how many are left to decide; in the middle, the one being read, in full, with its decision at
 // the bottom. Previous and Next move through them; after a decision the page goes to the next one
 // still to decide, puts the focus on its title and says so (R13, R80). Moving away from unsaved
@@ -17,16 +16,15 @@ import { Meter } from '../../components/Meter.tsx';
 import { PageBody, PageHeader } from '../../components/Page.tsx';
 import { EntityState, StatusBadge } from '../../components/status.tsx';
 import { DayTime } from '../../components/Time.tsx';
-import { WhoAvatar } from '../../components/Who.tsx';
 import { cn } from '../../lib/cn.ts';
-import { whoOf } from '../../words.ts';
+import { useLocale } from '../../i18n/locale.ts';
 import { useMessages } from '../../i18n/define.ts';
 import { useBatchCrumbs } from './Batch.tsx';
 import { EditGuard, useEditGuard } from './guard.tsx';
 import { proposalTitle } from './model.ts';
 import { ProposalKind } from '../../components/AspectTag.tsx';
 import { batchHeading, type ProposalView as ProposalData } from './proposal.ts';
-import { ProposalView, producerName } from './ProposalView.tsx';
+import { ProposalView } from './ProposalView.tsx';
 import { ITEM_BATCH } from './words.i18n.ts';
 
 /** The batch's proposals with what the inbox adds to the pending ones: the idea check and the warnings. */
@@ -68,8 +66,8 @@ function ItemBatchPage({ projectId, batch }: { projectId: string; batch: BatchDe
   // Out of date is not decided: it can't be accepted any more, and nobody chose that.
   const stale = proposals.filter((p) => p.state === 'superseded').length;
   const decided = n - left - stale;
-  const { eyebrow, title } = batchHeading(batch.producer, n);
-  const who = whoOf(batch.producer);
+  const locale = useLocale();
+  const { eyebrow, title } = batchHeading(n, locale);
   const crumbs = useBatchCrumbs(projectId, title);
   const guard = useEditGuard();
   const titleId = useId();
@@ -104,12 +102,7 @@ function ItemBatchPage({ projectId, batch }: { projectId: string; batch: BatchDe
     <>
       <PageHeader
         crumbs={crumbs}
-        eyebrow={
-          <span className="inline-flex items-center gap-1.5">
-            <WhoAvatar kind={who.kind} size={18} />
-            {eyebrow}
-          </span>
-        }
+        eyebrow={eyebrow}
         title={title}
         meta={
           <>
@@ -175,13 +168,6 @@ function ItemBatchPage({ projectId, batch }: { projectId: string; batch: BatchDe
                 ))}
               </ol>
             </nav>
-            <section aria-label={t.whoProposes} className="flex items-start gap-3 rounded-lg border border-edge px-3.5 py-3">
-              <WhoAvatar kind={who.kind} size={28} />
-              <div className="flex flex-col gap-0.5 text-sm">
-                <p className="font-medium text-fg">{producerName(batch.producer, t.demiurgosKnowledge)}</p>
-                <p className="text-fg-2">{t.whoExplains(who.kind)}</p>
-              </div>
-            </section>
           </div>
 
           <div className="flex min-w-0 flex-1 flex-col gap-4">

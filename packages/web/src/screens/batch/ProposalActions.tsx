@@ -15,13 +15,15 @@ import { announce } from '../../components/announce.tsx';
 import { Button } from '../../components/Button.tsx';
 import { ConfirmDialog, PromptDialog } from '../../components/Dialog.tsx';
 import { Field, TextArea, TextInput } from '../../components/Field.tsx';
+import { ASPECT_WORDS } from '../../aspects.i18n.ts';
 import { useMessages } from '../../i18n/define.ts';
 import { useLocale } from '../../i18n/locale.ts';
 import { useReportDirty } from './guard.tsx';
 import { APPROVABLE_TYPES, changedFields, EDITABLE_FIELDS, type EditableField, editedPayload, proposalTitle } from './model.ts';
 import { DecisionBar, Disclosure } from './parts.tsx';
 import { acceptEffects } from './proposal.ts';
-import { PROPOSAL_ACTIONS } from './words.i18n.ts';
+import { PROPOSAL_ACTIONS, PROPOSAL_VIEW } from './words.i18n.ts';
+import type { Aspect } from '../../aspects.ts';
 
 export type ProposalRef = { id: string; type: string; payload: Record<string, unknown>; state: string };
 
@@ -52,9 +54,12 @@ export function ProposalDecision({
   labels = {},
   onDone,
   sticky = true,
+  aspect = null,
 }: {
   projectId: string;
   proposal: ProposalRef;
+  /** Another aspect the person picked for it: accepting then sends their version with it. */
+  aspect?: Aspect | null;
   /** The server's reasons why accepting would fail now: Accept stays, inactive, with the reason. */
   blocked?: string[];
   /** Other words for a review: "Open a review", "Keep it as it is". */
@@ -64,6 +69,8 @@ export function ProposalDecision({
   sticky?: boolean;
 }) {
   const t = useMessages(PROPOSAL_ACTIONS);
+  const tv = useMessages(PROPOSAL_VIEW);
+  const aspectWords = useMessages(ASPECT_WORDS);
   const locale = useLocale();
   const command = useCommand(projectId);
   const client = useQueryClient();
@@ -73,6 +80,8 @@ export function ProposalDecision({
   const fields = EDITABLE_FIELDS[p.type] ?? [];
   const title = proposalTitle(p);
   const isBlocked = blocked.length > 0;
+  const retag = aspect && allows('proposal.accept_edited') ? aspect : null;
+  const withAspect = (payload: Record<string, unknown>) => (retag ? { ...payload, aspect: retag } : payload);
 
   const canAccept = allows('proposal.accept');
   const canApprove = canAccept && !isBlocked && APPROVABLE_TYPES.has(p.type);
@@ -136,7 +145,9 @@ export function ProposalDecision({
           pendingLabel={t.acceptingEllipsis}
           pending={command.isPending}
           error={dialog === 'edit' ? command.error : null}
-          onConfirm={() => run('proposal.accept_edited', { edit: editedPayload(p.payload, draft) }, t.yourVersionAccepted)}
+          onConfirm={() =>
+            run('proposal.accept_edited', { edit: withAspect(editedPayload(p.payload, draft)) }, t.yourVersionAccepted)
+          }
         />
       </ChangeForm>
     );
@@ -153,6 +164,7 @@ export function ProposalDecision({
         caption={
           canApprove ? (
             <div className="flex flex-col gap-1">
+              {retag ? <p data-retagged>{tv.retagged(aspectWords[retag])}</p> : null}
               <p>{t.draftCaption}</p>
               <Disclosure label={t.whatsTheDifference}>{t.draftDisclosure}</Disclosure>
             </div>
@@ -205,9 +217,15 @@ export function ProposalDecision({
         pending={command.isPending}
         error={dialog === 'accept' || dialog === 'approve' ? command.error : null}
         onConfirm={() =>
-          dialog === 'approve'
-            ? run('proposal.accept', { approve: true }, t.acceptedAndApproved)
-            : run('proposal.accept', {}, saidOnAccept)
+          retag
+            ? run(
+                'proposal.accept_edited',
+                { edit: withAspect(p.payload), approve: dialog === 'approve' },
+                dialog === 'approve' ? t.acceptedAndApproved : saidOnAccept,
+              )
+            : dialog === 'approve'
+              ? run('proposal.accept', { approve: true }, t.acceptedAndApproved)
+              : run('proposal.accept', {}, saidOnAccept)
         }
       />
       <PromptDialog

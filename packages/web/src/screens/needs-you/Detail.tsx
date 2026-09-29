@@ -35,7 +35,7 @@ import { AnswerHere } from './AnswerHere.tsx';
 import { Conflict } from './Conflict.tsx';
 import { DetailFrame, type NeedContext, stageOf, ThreadLink, Unblocks } from './frame.tsx';
 import type { NeedItem } from './order.ts';
-import { axisOf, needTitle, nodeName, packageTitle, producerWords, updateTitle } from './titles.ts';
+import { axisOf, needTitle, nodeName, packageTitle, updateTitle } from './titles.ts';
 import { DETAIL, TITLES } from './words.i18n.ts';
 
 export type DetailProps<K extends NeedItem['kind'] = NeedItem['kind']> = {
@@ -144,16 +144,7 @@ function PackageDetail({ item, ctx, titleId, top }: DetailProps<'package'>) {
       title={packageTitle(item, kindWords)}
       state={<StatusBadge kind="proposed" word={t.proposedWord} />}
       eyebrow={t.packageEyebrow(n)}
-      why={
-        <>
-          <WhoAvatar kind={whoOf(b.producer).kind} size={16} />
-          <span>
-            {t.fromWord} {producerWords(b.producer, kindWords)}
-          </span>
-          <span aria-hidden>·</span>
-          <RelativeTime iso={b.created} />
-        </>
-      }
+      why={<RelativeTime iso={b.created} />}
       line={b.summary && b.type !== 'import' ? b.summary : t.packageLineFallback}
       decision={
         <DecisionBar caption={t.packageCaption}>

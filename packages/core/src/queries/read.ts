@@ -144,6 +144,83 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
   });
 }
 
+export type BasisRefs = {
+  messages: {
+    id: string;
+    exploration_id: string;
+    exploration_purpose: string;
+    parent_purpose: string | null;
+    body: string;
+    aspect: string | null;
+    aspect_confidence: number | null;
+  }[];
+  questions: { id: string; question: string; exploration_id: string; exploration_purpose: string }[];
+};
+
+const isUuid = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f-]{36}$/i.test(v);
+
+/** The message and question ids a proposal payload says it is based on (basis, evidence, sources). */
+function basisIds(payload: unknown): { messages: string[]; questions: string[] } {
+  const p = (payload ?? {}) as Record<string, unknown>;
+  const messages: string[] = [];
+  const questions: string[] = [];
+  for (const b of Array.isArray(p.basis) ? (p.basis as { type?: unknown; id?: unknown }[]) : []) {
+    if (b.type === 'message' && isUuid(b.id)) messages.push(b.id);
+    if (b.type === 'question' && isUuid(b.id)) questions.push(b.id);
+  }
+  for (const e of Array.isArray(p.evidence) ? (p.evidence as { message_id?: unknown }[]) : [])
+    if (isUuid(e.message_id)) messages.push(e.message_id);
+  for (const s of Array.isArray(p.sources) ? (p.sources as { question_id?: unknown }[]) : [])
+    if (isUuid(s.question_id)) questions.push(s.question_id);
+  return { messages, questions };
+}
+
+/** The threads behind the messages and questions each proposal is based on, keyed by proposal id. */
+async function basisRefsOf(
+  db: Db,
+  projectId: string,
+  proposals: readonly { id: string; payload: unknown }[],
+): Promise<Map<string, BasisRefs>> {
+  const ids = proposals.map((p) => ({ id: p.id, ...basisIds(p.payload) }));
+  const messageIds = [...new Set(ids.flatMap((x) => x.messages))];
+  const questionIds = [...new Set(ids.flatMap((x) => x.questions))];
+  const messages = messageIds.length
+    ? await db
+        .selectFrom('messages as m')
+        .innerJoin('explorations as e', 'e.id', 'm.exploration_id')
+        .leftJoin('explorations as parent', 'parent.id', 'e.parent_id')
+        .select([
+          'm.id',
+          'm.exploration_id',
+          'e.purpose as exploration_purpose',
+          'parent.purpose as parent_purpose',
+          'm.body',
+          'm.aspect',
+          'm.aspect_confidence',
+        ])
+        .where('m.project_id', '=', projectId)
+        .where('m.id', 'in', messageIds)
+        .execute()
+    : [];
+  const questions = questionIds.length
+    ? await db
+        .selectFrom('questions as q')
+        .innerJoin('explorations as e', 'e.id', 'q.exploration_id')
+        .select(['q.id', 'q.question', 'q.exploration_id', 'e.purpose as exploration_purpose'])
+        .where('e.project_id', '=', projectId)
+        .where('q.id', 'in', questionIds)
+        .execute()
+    : [];
+  const out = new Map<string, BasisRefs>();
+  for (const x of ids) {
+    out.set(x.id, {
+      messages: messages.filter((m) => x.messages.includes(m.id)),
+      questions: questions.filter((q) => x.questions.includes(q.id)),
+    });
+  }
+  return out;
+}
+
 export async function inbox(db: Db, projectId: string) {
   const batches = await db
     .selectFrom('proposal_batches')
@@ -164,6 +241,7 @@ export async function inbox(db: Db, projectId: string) {
       .orderBy('position')
       .execute();
     if (proposals.length === 0) continue;
+    const refs = await basisRefsOf(db, projectId, proposals);
     const withWarning = [];
     for (const p of proposals) {
       const deps = [...((l.dependencies ?? []) as Dependency[]), ...((p.dependencies ?? []) as Dependency[])];
@@ -178,6 +256,8 @@ export async function inbox(db: Db, projectId: string) {
         // Only what an agent proposes of its own is checked against the knowledge (knowledge/workflows.ts).
         assessment: ASSESSED.has(p.type) ? await assessmentOf(db, p.id) : null,
         dependencies: (p.dependencies ?? []) as Dependency[],
+        aspect_check: p.aspect_check ?? null,
+        basis_refs: refs.get(p.id) ?? { messages: [], questions: [] },
       });
     }
     batchItems.push({
@@ -566,10 +646,15 @@ export async function batchDetail(db: Db, projectId: string, id: string) {
   if (!l) throw new DomainError('not_found', 'The batch does not exist.');
   const proposals = await db.selectFrom('proposals').selectAll().where('batch_id', '=', id).orderBy('position').execute();
   const importCounts = l.kind === 'import' ? await importCountsOf(db, l.id, proposals) : null;
+  const refs = l.kind === 'import' ? new Map<string, BasisRefs>() : await basisRefsOf(db, projectId, proposals);
   return {
     ...l,
     ...(importCounts ? { import_counts: importCounts } : {}),
-    proposals: proposals.map((p) => ({ ...p, epistemic_status: epistemicOfProposal(p.state) })),
+    proposals: proposals.map((p) => ({
+      ...p,
+      epistemic_status: epistemicOfProposal(p.state),
+      basis_refs: refs.get(p.id) ?? { messages: [], questions: [] },
+    })),
   };
 }
 

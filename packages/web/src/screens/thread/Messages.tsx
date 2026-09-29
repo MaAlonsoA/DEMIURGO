@@ -38,6 +38,7 @@ export function PersonMessage({ message: m, by }: { message: Message; by: 'you' 
   return (
     <article
       data-message-by={by}
+      id={`message-${m.id}`}
       data-message={m.id}
       data-trace={`message:${m.id}`}
       aria-labelledby={headId}

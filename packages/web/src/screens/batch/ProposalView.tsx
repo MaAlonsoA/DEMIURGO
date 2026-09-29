@@ -1,15 +1,16 @@
 // One proposal, read in full (DESIGN.md §3.1.1), the same in Needs you, Catch up and the batch page:
-// who proposes it and where it sits in its batch; what kind of change it is, its state, its title
-// and why in the author's words; what it changes, by type (prose for text, rows for checks); the
-// evidence — what DEMIURGO knows about it, what it starts from, the run that drafted it — and then
-// the decision. Once decided, the decision gives way to what happened; out of date, to why (R22,
+// where it sits in its batch; its noun and aspect tag (which the person can change), its state, its
+// title and why; what it changes, by type (prose for text, rows for checks); what it is based on,
+// what DEMIURGO knows about it, how it was made (folded), and then the decision. Once decided, the decision gives way to what happened; out of date, to why (R22,
 // R67, P3 evidence before narration).
 
+import { type Aspect, aspectOfProposal } from '../../aspects.ts';
 import { ProposalKind } from '../../components/AspectTag.tsx';
+import { useAllows } from '../../components/actions.tsx';
 import { useLocale } from '../../i18n/locale.ts';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import type { ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { definitionQuery } from '../../api/queries.ts';
 import type { ProductRow } from '../../api/types.ts';
 import { ArrowRightIcon } from '../../components/icons.tsx';
@@ -17,13 +18,12 @@ import { Markdown } from '../../components/Markdown.tsx';
 import { EntityState, StatusBadge } from '../../components/status.tsx';
 import { RelativeTime } from '../../components/Time.tsx';
 import { TypeIcon } from '../../components/types.tsx';
-import { WhoAvatar, whoName } from '../../components/Who.tsx';
 import { useReadingOf } from '../../i18n/reading.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
-import { whoOf } from '../../words.ts';
 import { acceptedRecord, obsoleteReason, proposalTitle, rowOfVersion } from './model.ts';
-import { BlockedNotice, ChecksList, Evidence, IdeaCheck, linkClass, OutOfDate, RecordChip, RunLine, Sections } from './parts.tsx';
+import { AspectDoubt, AspectPicker, BasedOn, HowItWasMade, RETAGGABLE } from './Basis.tsx';
+import { BlockedNotice, ChecksList, Evidence, IdeaCheck, linkClass, OutOfDate, RecordChip, Sections } from './parts.tsx';
 import { ProposalDecision } from './ProposalActions.tsx';
 import {
   outOfDateText,
@@ -37,15 +37,8 @@ import {
 import { DEFINITION } from '../overview/words.i18n.ts';
 import { keyOfSection } from '../overview/definition.ts';
 import { PROPOSAL_VIEW } from './words.i18n.ts';
-import { Quote } from '../../components/Quote.tsx';
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
-
-/** The name of who proposes: an agent by its name, DEMIURGO, or DEMIURGO's knowledge. */
-export function producerName(producer: string, knowledgeLabel: string): string {
-  const who = whoOf(producer);
-  return who.kind === 'automatic' ? knowledgeLabel : whoName(who);
-}
 
 /** A text field of the payload as prose under its heading; nothing when it is empty. */
 function Prose({ title, text }: { title: string; text: string }) {
@@ -73,7 +66,7 @@ function Checks({ proposal: p }: { proposal: ProposalData }) {
   );
 }
 
-/** A change to a section of the definition: what it would say, what it says now, and the person's words it rests on. */
+/** A change to a section of the definition: what it would say and what it says now (its evidence is under "Based on"). */
 function DefinitionChangeBody({ projectId, proposal: p }: { projectId: string; proposal: ProposalData }) {
   const t = useMessages(PROPOSAL_VIEW);
   const words = useMessages(DEFINITION);
@@ -82,7 +75,6 @@ function DefinitionChangeBody({ projectId, proposal: p }: { projectId: string; p
   const title = str(p.payload.section);
   const key = keyOfSection(title);
   const now = definition?.versions.find((v) => v.n === base?.version)?.sections.find((s) => s.title === title)?.content ?? null;
-  const evidence = Array.isArray(p.payload.evidence) ? (p.payload.evidence as { message_id: string; quote: string }[]) : [];
   return (
     <div className="flex flex-col gap-4" data-body="definition_change">
       <p className="text-sm text-fg-2">{t.definitionChangeOf(key ? words.section(key) : title)}</p>
@@ -91,16 +83,6 @@ function DefinitionChangeBody({ projectId, proposal: p }: { projectId: string; p
         <section className="flex flex-col gap-1" data-definition-before>
           <h3 className="text-sm font-semibold text-fg-2">{t.nowItSays}</h3>
           <Markdown className="text-fg-3 line-through">{now}</Markdown>
-        </section>
-      ) : null}
-      {evidence.length > 0 ? (
-        <section className="flex flex-col gap-1">
-          <h3 className="text-sm font-semibold text-fg-2">{t.inTheirWords}</h3>
-          {evidence.map((e) => (
-            <p key={`${e.message_id}:${e.quote}`} className="text-sm text-fg-2" data-trace={`message:${e.message_id}`}>
-              <Quote text={e.quote} />
-            </p>
-          ))}
         </section>
       ) : null}
     </div>
@@ -121,7 +103,6 @@ export function ProposalBody({
   withGoal?: boolean;
 }) {
   const t = useMessages(PROPOSAL_VIEW);
-  const based = p.payload.based_on as { code?: string; version?: number } | undefined;
   if (p.type === 'decision') {
     return (
       <div className="flex flex-col gap-4" data-body="decision">
@@ -138,11 +119,6 @@ export function ProposalBody({
         <Prose title={t.scope} text={str(p.payload.scope)} />
         <Prose title={t.outOfScope} text={str(p.payload.out_of_scope)} />
         <Prose title={t.behavior} text={str(p.payload.behavior)} />
-        {based?.code ? (
-          <p className="flex flex-wrap items-center gap-2 text-sm text-fg-2">
-            {t.based} <RecordChip projectId={projectId} code={based.code} version={based.version ?? null} rows={rows} />
-          </p>
-        ) : null}
         <Checks proposal={p} />
       </div>
     );
@@ -245,7 +221,13 @@ export function ProposalView({
   const shown = { ...p, payload: reading.value };
   const title = proposalTitle(shown);
   const why = proposalWhy(shown);
-  const who = whoOf(producer);
+  const allows = useAllows('proposal', p.state);
+  // The aspect the person picked for it (task: one click before accepting); null keeps its own.
+  const [picked, setPicked] = useState<Aspect | null>(null);
+  const own = aspectOfProposal(p);
+  const retaggable = p.state === 'pending' && RETAGGABLE.has(p.type) && allows('proposal.accept_edited');
+  const aspect = retaggable && picked ? picked : own;
+  const tagged = { ...p, payload: { ...p.payload, ...(aspect ? { aspect } : {}) } };
   const obsolete = obsoleteReason(p);
   const outOfDate = p.state === 'superseded';
   const warnings = p.state === 'pending' ? (p.obsolescence ?? []) : [];
@@ -261,18 +243,7 @@ export function ProposalView({
     >
       <header className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-fg-2">
-          <span
-            className="inline-flex items-center gap-1.5 font-medium text-fg"
-            title={producerName(producer, t.demiurgosKnowledge)}
-          >
-            <WhoAvatar kind={who.kind} size={18} />
-            {producerName(producer, t.demiurgosKnowledge)}
-          </span>
-          <span>{t.proposes}</span>
-          <span aria-hidden>·</span>
-          <span className="tabular-nums">
-            {position} of {count}
-          </span>
+          <span className="tabular-nums">{t.positionOf(position, count)}</span>
           {createdAt ? (
             <>
               <span aria-hidden>·</span>
@@ -284,10 +255,12 @@ export function ProposalView({
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="inline-flex items-center gap-1.5 font-medium text-fg-2">
             <TypeIcon type={proposalIconType(p)} size={15} className="text-fg-3" />
-            <ProposalKind proposal={p} />
+            <ProposalKind proposal={tagged} />
           </span>
+          {retaggable ? <AspectPicker value={aspect} onChange={setPicked} /> : null}
           {outOfDate ? <StatusBadge kind="stale" word="Out of date" /> : <EntityState entity="proposal" state={p.state} />}
         </div>
+        {retaggable && !picked ? <AspectDoubt current={own} check={p.aspect_check} onChoose={setPicked} /> : null}
         <h2 id={titleId} tabIndex={-1} className="text-xl font-semibold text-fg outline-none">
           {title}
         </h2>
@@ -316,12 +289,9 @@ export function ProposalView({
           </div>
         </Evidence>
       ) : null}
+      <BasedOn projectId={projectId} type={p.type} payload={p.payload} refs={p.basis_refs} rows={rows} />
       {p.type !== 'review' ? <IdeaCheck projectId={projectId} assessment={p.assessment} rows={rows} /> : null}
-      {runId ? (
-        <Evidence title={t.draftedByDemiurgo}>
-          <RunLine projectId={projectId} runId={runId} />
-        </Evidence>
-      ) : null}
+      <HowItWasMade projectId={projectId} producer={producer} runId={runId} />
 
       {/* Direct children of the article, so the decision bar sticks along the whole proposal. */}
       {p.state === 'pending' ? (
@@ -330,6 +300,7 @@ export function ProposalView({
           <ProposalDecision
             projectId={projectId}
             proposal={p}
+            aspect={retaggable && picked && picked !== own ? picked : null}
             blocked={warnings}
             {...(p.type === 'review' ? { labels: { accept: t.openReview, reject: t.keepAsIs } } : {})}
             {...(onDone ? { onDone } : {})}

@@ -47,3 +47,14 @@ export function aspectOfRecord(r: { type: string; aspect?: string | null }): Asp
 
 /** Proposal kinds that are one more "Proposal" (they make or change a record); the others have their own noun. */
 export const PROPOSAL_NOUN_KINDS = new Set(['decision', 'fdr', 'design_record', 'product_definition', 'definition_change']);
+
+export type AspectGroup<T> = { key: Aspect | 'none'; aspect: Aspect | null; rows: T[] };
+
+/** Records grouped by aspect in the fixed order, then those without one; only the groups with rows. */
+export function recordsByAspect<T extends { type: string; aspect?: string | null }>(rows: readonly T[]): AspectGroup<T>[] {
+  const groups: AspectGroup<T>[] = [
+    ...ASPECTS.map((a) => ({ key: a, aspect: a, rows: rows.filter((r) => aspectOfRecord(r) === a) })),
+    { key: 'none' as const, aspect: null, rows: rows.filter((r) => aspectOfRecord(r) === null) },
+  ];
+  return groups.filter((g) => g.rows.length > 0);
+}

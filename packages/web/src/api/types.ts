@@ -212,6 +212,25 @@ export type InboxProposal = {
   obsolescence: string[];
   assessment: IdeaAssessmentSummary | null;
   dependencies: Dependency[];
+  /** What Jev says the proposal's own text is about; null until classified. */
+  aspect_check?: AspectCheck | null;
+  basis_refs?: BasisRefs;
+};
+
+export type AspectCheck = { aspect: string; confidence: number };
+
+/** The threads behind the messages and questions a proposal is based on. */
+export type BasisRefs = {
+  messages: {
+    id: string;
+    exploration_id: string;
+    exploration_purpose: string;
+    parent_purpose: string | null;
+    body: string;
+    aspect: string | null;
+    aspect_confidence: number | null;
+  }[];
+  questions: { id: string; question: string; exploration_id: string; exploration_purpose: string }[];
 };
 
 export type IdeaFinding = {
@@ -407,6 +426,9 @@ export type Message = {
   response: 'waiting' | 'requested' | 'abandoned' | null;
   /** The run that answers it, once requested. */
   response_run: string | null;
+  /** What Jev says the message is about, and how sure it is. */
+  aspect?: string | null;
+  aspect_confidence?: number | null;
 };
 
 export type Question = {
@@ -471,6 +493,8 @@ export type Proposal = {
   resolved_at: string | null;
   created_at: string;
   epistemic_status: Epistemic;
+  aspect_check?: AspectCheck | null;
+  basis_refs?: BasisRefs;
 };
 
 export type BatchDetail = {

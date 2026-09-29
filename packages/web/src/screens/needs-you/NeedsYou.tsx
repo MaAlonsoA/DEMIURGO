@@ -283,7 +283,7 @@ function NeedsList({
             />
           ) : null}
           {showDetail && current ? (
-            <div className="flex min-w-0 max-w-3xl flex-1 flex-col gap-4">
+            <div className="flex min-w-0 flex-1 flex-col gap-4">
               {!wide ? (
                 <Button variant="quiet" size="sm" icon={<ArrowLeftIcon size={14} />} onClick={back} className="w-fit">
                   {t.backToNeedsYou}

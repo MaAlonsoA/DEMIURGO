@@ -105,7 +105,15 @@ export function PageHeader({
   );
 }
 
-/** The scrolling body of a page. `width`: reading column, wide page, or full width. */
+/** The width of a reading column (a conversation, a first-run flow): the only fixed page width. */
+export const READING_COLUMN = 'max-w-3xl';
+
+/**
+ * The scrolling body of a page. `width`: a reading column (a conversation, a form), or the whole
+ * width ('wide' and 'full' are the same). Pages use the whole screen: no cap on 'wide', so a big
+ * screen is never half empty (test/unit/page-width.test.ts guards it). Long prose keeps its line
+ * length inside (max-w-prose), not the page.
+ */
 export function PageBody({
   children,
   width = 'wide',
@@ -117,16 +125,7 @@ export function PageBody({
 }) {
   return (
     // Left-aligned like the page header, so the title and the content always start on the same line.
-    <div
-      className={cn(
-        'w-full px-4 py-6 sm:px-6 lg:px-8',
-        width === 'reading' && 'max-w-3xl',
-        width === 'wide' && 'max-w-7xl',
-        className,
-      )}
-    >
-      {children}
-    </div>
+    <div className={cn('w-full px-4 py-6 sm:px-6 lg:px-8', width === 'reading' && READING_COLUMN, className)}>{children}</div>
   );
 }
 

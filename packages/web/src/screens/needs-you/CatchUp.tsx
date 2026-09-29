@@ -192,7 +192,7 @@ export function CatchUp({ ctx, items }: { ctx: NeedContext; items: NeedItem[] })
             </div>
           </section>
 
-          <div className="order-1 flex min-w-0 max-w-3xl flex-1 flex-col gap-5 xl:order-2">
+          <div className="order-1 flex min-w-0 flex-1 flex-col gap-5 xl:order-2">
             {current ? (
               <NeedDetail key={current.key} item={current} ctx={ctx} titleId={DETAIL_TITLE} top={bar} />
             ) : (

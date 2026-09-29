@@ -17,7 +17,7 @@ import { Button } from '../../components/Button.tsx';
 import { Field, TextArea, TextInput } from '../../components/Field.tsx';
 import { ArrowRightIcon, PencilIcon, ShieldIcon } from '../../components/icons.tsx';
 import { ErrorNotice, Notice } from '../../components/Notice.tsx';
-import { usePageTitle } from '../../components/Page.tsx';
+import { READING_COLUMN, usePageTitle } from '../../components/Page.tsx';
 import { StateIcon } from '../../components/status.tsx';
 import { cn } from '../../lib/cn.ts';
 import { useTables } from '../../lib/hooks.ts';
@@ -156,7 +156,7 @@ export function NewProjectScreen() {
 
   return (
     <WorkspaceFrame current="new">
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 pt-10 pb-16 sm:px-6 sm:pt-16">
+      <div className={`mx-auto flex w-full flex-col gap-8 px-4 pt-10 pb-16 sm:px-6 sm:pt-16 ${READING_COLUMN}`}>
         <div className="flex flex-col gap-3">
           <p className="text-sm font-medium text-accent-text">{t.eyebrow}</p>
           <h1 id="page-title" tabIndex={-1} className="text-3xl font-semibold text-fg outline-none">

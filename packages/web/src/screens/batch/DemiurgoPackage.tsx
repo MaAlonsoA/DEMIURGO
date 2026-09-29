@@ -84,7 +84,7 @@ export function DemiurgoPackage({ projectId, batch }: { projectId: string; batch
       />
       <PageBody>
         <WithAside asideLabel={t.aboutThisPackage} aside={<PackageAside projectId={projectId} batch={batch} rows={rows} />}>
-          <div className="flex max-w-3xl flex-col gap-8">
+          <div className="flex flex-col gap-8">
             <div ref={top}>{decision.panel(false)}</div>
             {batch.run_id ? (
               <Evidence title={t.draftedByDemiurgo}>

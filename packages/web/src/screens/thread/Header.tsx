@@ -136,7 +136,7 @@ export function ThreadHeader({
         <PurposeHistory projectId={projectId} explorationId={t.id} />
         {!dialog && command.error ? <ErrorNotice error={command.error} /> : null}
         {t.state === 'concluded' && t.state_reason ? (
-          <Card tone="success" padding="sm" data-thread-conclusion className="flex max-w-3xl flex-col gap-0.5">
+          <Card tone="success" padding="sm" data-thread-conclusion className="flex flex-col gap-0.5">
             <span className="text-sm font-medium text-success-text">{words.conclusion}</span>
             <p className="text-base whitespace-pre-wrap text-fg">{t.state_reason}</p>
           </Card>
@@ -144,7 +144,7 @@ export function ThreadHeader({
         {t.state === 'set_aside' ? (
           <div
             data-thread-conclusion
-            className="flex max-w-3xl flex-col gap-0.5 rounded-lg border border-dashed border-edge-strong px-3 py-3"
+            className="flex flex-col gap-0.5 rounded-lg border border-dashed border-edge-strong px-3 py-3"
           >
             <span className="text-sm font-medium text-fg-2">{words.whySetAside}</span>
             <p className="text-base whitespace-pre-wrap text-fg">{t.state_reason || words.noReasonGiven}</p>
@@ -230,7 +230,7 @@ function PurposeHistory({ projectId, explorationId }: { projectId: string; explo
     .toReversed();
   if (versions.length < 2) return null;
   return (
-    <details data-purpose-history className="max-w-3xl text-sm">
+    <details data-purpose-history className="text-sm">
       <summary className="w-fit cursor-pointer font-medium text-fg-2 select-none hover:text-fg">
         {words.earlierSummaries(versions.length - 1)}
       </summary>

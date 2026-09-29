@@ -140,7 +140,7 @@ export function UpToDate({ projectId }: { projectId: string }) {
             </>
           }
         >
-          <div className="flex max-w-3xl flex-col gap-8">
+          <div className="flex flex-col gap-8">
             <section aria-labelledby={todayId} className="flex flex-col gap-3">
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <h2 id={todayId} className="text-lg font-semibold text-fg">

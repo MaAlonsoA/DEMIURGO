@@ -12,7 +12,7 @@ import { buttonClass } from '../../components/Button.tsx';
 import { EmptyState } from '../../components/EmptyState.tsx';
 import { ChevronRightIcon, FolderIcon, PlusIcon } from '../../components/icons.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
-import { usePageTitle } from '../../components/Page.tsx';
+import { READING_COLUMN, usePageTitle } from '../../components/Page.tsx';
 import { RowsSkeleton } from '../../components/Spinner.tsx';
 import { StatusBadge } from '../../components/status.tsx';
 import { useMessages } from '../../i18n/define.ts';
@@ -28,7 +28,7 @@ export function ProjectsScreen() {
   const list = projects.data ?? [];
   return (
     <WorkspaceFrame current="projects">
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 pt-10 pb-16 sm:px-6">
+      <div className={`mx-auto flex w-full flex-col gap-6 px-4 pt-10 pb-16 sm:px-6 ${READING_COLUMN}`}>
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
           <div className="flex min-w-0 flex-col gap-1">
             <h1 id="page-title" tabIndex={-1} className="text-xl font-semibold text-fg outline-none">

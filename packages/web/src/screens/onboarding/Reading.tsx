@@ -25,6 +25,7 @@ import { RunStateBadge } from '../../components/runState.tsx';
 import { EntityState, StateIcon, StatusBadge } from '../../components/status.tsx';
 import { Elapsed, RelativeTime, useNow } from '../../components/Time.tsx';
 import { WhoAvatar } from '../../components/Who.tsx';
+import { READING_COLUMN } from '../../components/Page.tsx';
 import { cn } from '../../lib/cn.ts';
 import { useTables } from '../../lib/hooks.ts';
 import { between, dayTime } from '../../lib/time.ts';
@@ -118,7 +119,10 @@ export function LiveReading({
   const t = useMessages(READING);
   useAnnounceEnd(reading, 'idea');
   return (
-    <section aria-labelledby="page-title" className="mx-auto flex w-full max-w-3xl flex-col gap-7 px-4 pt-10 pb-16 sm:px-6">
+    <section
+      aria-labelledby="page-title"
+      className={`mx-auto flex w-full flex-col gap-7 px-4 pt-10 pb-16 sm:px-6 ${READING_COLUMN}`}
+    >
       <div className="flex flex-col gap-1.5">
         <p className="text-sm text-fg-2">{name ?? t.yourNewProduct}</p>
         <h1 id="page-title" tabIndex={-1} className="text-2xl font-semibold text-fg outline-none">

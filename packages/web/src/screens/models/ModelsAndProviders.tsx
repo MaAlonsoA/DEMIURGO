@@ -72,7 +72,7 @@ function ModelsAndProviders() {
           </span>
         }
         title={t.title}
-        meta={<span className="max-w-3xl">{t.meta}</span>}
+        meta={<span className="max-w-prose">{t.meta}</span>}
         actions={
           <Button
             data-refresh-providers

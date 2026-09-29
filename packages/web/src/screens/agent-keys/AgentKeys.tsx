@@ -100,7 +100,7 @@ export function AgentKeysScreen() {
           </span>
         }
         title={t.title}
-        meta={<span className="max-w-3xl">{t.meta}</span>}
+        meta={<span className="max-w-prose">{t.meta}</span>}
         actions={
           <Button
             variant="primary"
@@ -114,7 +114,7 @@ export function AgentKeysScreen() {
           </Button>
         }
       />
-      <PageBody width="full" className="mx-0 max-w-4xl">
+      <PageBody width="full">
         <div className="flex flex-col gap-8">
           {issued ? (
             <section

@@ -19,7 +19,7 @@ export function RebuildTab({ projectId }: { projectId: string }) {
   const version = useQuery(knowledgeQuery(projectId)).data?.graph_version;
   const r = rebuild.data;
   return (
-    <Card className="flex max-w-3xl flex-col gap-5" padding="none">
+    <Card className="flex flex-col gap-5" padding="none">
       <div className="flex flex-wrap items-start justify-between gap-4 px-5 pt-5">
         <div className="flex max-w-xl flex-col gap-1">
           <h2 className="text-base font-semibold text-fg">{t.title}</h2>

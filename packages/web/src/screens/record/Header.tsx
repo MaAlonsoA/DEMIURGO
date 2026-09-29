@@ -38,17 +38,11 @@ import { HEADER } from './words.i18n.ts';
 type Dialog = null | 'approve' | 'discard';
 
 /** The overview section each type of record is listed in (its heading's id), for the breadcrumb. */
-const SECTION_OF: Record<string, string> = {
-  fdr: 'features-title',
-  decision: 'decisions-title',
-  adr: 'decisions-title',
-  bug: 'bugs-title',
-  requirement: 'stage-records-title',
-  quality_requirement: 'stage-records-title',
-  threat_model: 'stage-records-title',
-  production_readiness: 'stage-records-title',
-  product_definition: 'definition-title',
-};
+function sectionOf(record: { type: string; aspect?: string | null }): string {
+  if (record.type === 'fdr') return 'features-title';
+  if (record.type === 'product_definition') return 'definition-title';
+  return `aspect-${aspectOfRecord(record) ?? 'none'}-title`;
+}
 
 export function recordCrumbs(
   projectId: string,
@@ -61,7 +55,7 @@ export function recordCrumbs(
     { label: words.product, link: { to: '/p/$projectId', params: { projectId } } },
     {
       label: TYPE_WORDS_PLURAL[record.type],
-      link: { to: '/p/$projectId', params: { projectId }, hash: SECTION_OF[record.type] ?? '' },
+      link: { to: '/p/$projectId', params: { projectId }, hash: sectionOf(record) },
     },
     more.length > 0
       ? { label: title, link: { to: '/p/$projectId/records/$code', params: { projectId, code: record.code } } }

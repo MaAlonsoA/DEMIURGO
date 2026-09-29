@@ -3,6 +3,7 @@
 // threads set aside. The record on screen is the current one.
 
 import type { Inbox, ProductRow, ProductState } from '../../api/types.ts';
+import { recordsByAspect } from '../../aspects.ts';
 import { EPISTEMIC_MARK, type MarkKind } from '../../words.ts';
 import { rowStage, type Waiting, waitingCount, waitingFor, waitingPhrase } from '../record/logic.ts';
 import { RAIL, type RailWords } from './words.i18n.ts';
@@ -72,24 +73,11 @@ export type NavRecord = { code: string; title: string; current: boolean; mark: M
 export type NavGroup = { key: string; title: string; records: NavRecord[] };
 export type Navigator = { project: string; groups: NavGroup[]; parked: { id: string; purpose: string }[] };
 
-/** The groups of the records navigator, in the order of the product: features first, bugs last. */
-const NAV_GROUPS: { key: ProductRow['type']; titleKey: keyof RailWords }[] = [
-  { key: 'product_definition', titleKey: 'groupDefinition' },
-  { key: 'fdr', titleKey: 'groupFeatures' },
-  { key: 'decision', titleKey: 'groupDecisions' },
-  { key: 'adr', titleKey: 'groupTech' },
-  { key: 'requirement', titleKey: 'groupRequirements' },
-  { key: 'quality_requirement', titleKey: 'groupQuality' },
-  { key: 'threat_model', titleKey: 'groupThreatModels' },
-  { key: 'production_readiness', titleKey: 'groupProductionReadiness' },
-  { key: 'bug', titleKey: 'groupBugs' },
-];
-
 /**
- * Every record of the product grouped by type — bugs, requirements, quality, threat models and
- * production readiness included, which the old rail left out (INVENTORY INV-BP, UX problem) — the
- * features with their status and the rest with their certainty, and the threads set aside. Only
- * non-empty groups, except Features, which says when there is none.
+ * Every record of the product: the product definition first, then one group per aspect in the fixed
+ * order (Product, Feature, Quality, Architecture, Security, Operations, Other) and those without a
+ * tag last — the features with their status and the rest with their certainty — and the threads set
+ * aside. Only non-empty groups, except Feature, which says when there is none.
  */
 export function navigatorOf(
   state: ProductState | undefined,
@@ -99,16 +87,26 @@ export function navigatorOf(
 ): Navigator {
   if (!state) return { project: '', groups: [], parked: [] };
   const rows = [...state.designs, ...state.decisions];
-  const groups = NAV_GROUPS.map((g) => ({
-    key: g.key,
-    title: words[g.titleKey],
-    records: rows
-      .filter((r) => r.type === g.key)
-      .map((r) => ({
-        ...node(r, current),
-        ...(r.type === 'fdr' ? { status: featureStatus(r, waitingFor(r.code, inbox, r.origin_exploration), words) } : {}),
-      })),
-  })).filter((g) => g.key === 'fdr' || g.records.length > 0);
+  const toNav = (r: ProductRow): NavRecord => ({
+    ...node(r, current),
+    ...(r.type === 'fdr' ? { status: featureStatus(r, waitingFor(r.code, inbox, r.origin_exploration), words) } : {}),
+  });
+  const definition = rows.filter((r) => r.type === 'product_definition');
+  const byAspect = recordsByAspect(rows.filter((r) => r.type !== 'product_definition'));
+  if (!byAspect.some((g) => g.key === 'feature')) {
+    const at = byAspect.findIndex((g) => g.key !== 'product');
+    byAspect.splice(at < 0 ? byAspect.length : at, 0, { key: 'feature', aspect: 'feature', rows: [] });
+  }
+  const groups: NavGroup[] = [
+    ...(definition.length > 0
+      ? [{ key: 'product_definition', title: words.groupDefinition, records: definition.map(toNav) }]
+      : []),
+    ...byAspect.map((g) => ({
+      key: g.key,
+      title: g.aspect ? words.groupAspect(g.aspect) : words.groupNone,
+      records: g.rows.map(toNav),
+    })),
+  ];
   return {
     project: state.project.name,
     groups,

@@ -2,6 +2,8 @@
 // Questions tabs, and the tab chrome around its sections). Record content itself — questions,
 // answers, thread purposes — is never translated here: only the interface words around it.
 
+import type { Aspect } from '../../aspects.ts';
+import { ASPECT_WORDS } from '../../aspects.i18n.ts';
 import { messages, type Translation } from '../../i18n/define.ts';
 
 // --- History (history.ts): the events of a record's versions, "who · what · when". Tested with
@@ -63,7 +65,7 @@ export const HISTORY_TAB = messages(
   },
 );
 
-// --- Rail (rail.ts): the feature status word and the record-type group titles. Tested with fixed
+// --- Rail (rail.ts): the feature status word and the group titles (one per aspect). Tested with fixed
 // English strings in test/unit/blueprint-rail.test.ts, so featureStatus()/navigatorOf() default
 // their words parameter to RAIL.en and keep those tests passing unchanged. ---
 
@@ -73,15 +75,9 @@ const RAIL_EN = {
   inDoubt: 'In doubt',
   draft: 'Draft',
   notReady: 'Not ready',
-  groupFeatures: 'Features',
-  groupDecisions: 'Decisions',
-  groupTech: 'Tech decisions',
-  groupRequirements: 'Requirements',
-  groupQuality: 'Quality requirements',
-  groupThreatModels: 'Threat models',
-  groupProductionReadiness: 'Production readiness',
   groupDefinition: 'Product definition',
-  groupBugs: 'Bugs',
+  groupAspect: (a: Aspect): string => ASPECT_WORDS.en[a],
+  groupNone: 'Without a tag',
 };
 
 export const RAIL = messages(RAIL_EN, {
@@ -90,15 +86,9 @@ export const RAIL = messages(RAIL_EN, {
   inDoubt: 'En duda',
   draft: 'Borrador',
   notReady: 'No está lista',
-  groupFeatures: 'Funcionalidades',
-  groupDecisions: 'Decisiones',
-  groupTech: 'Decisiones técnicas',
-  groupRequirements: 'Requisitos',
-  groupQuality: 'Requisitos de calidad',
-  groupThreatModels: 'Modelos de amenaza',
-  groupProductionReadiness: 'Preparación para producción',
   groupDefinition: 'Definición del producto',
-  groupBugs: 'Errores',
+  groupAspect: (a: Aspect): string => ASPECT_WORDS.es[a],
+  groupNone: 'Sin etiqueta',
 });
 
 export type RailWords = Translation<typeof RAIL_EN>;

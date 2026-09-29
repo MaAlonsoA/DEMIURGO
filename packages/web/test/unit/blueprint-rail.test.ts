@@ -150,7 +150,7 @@ describe('the blueprint rail', () => {
 });
 
 describe('the records navigator', () => {
-  it('AC-INT-001-04 covers every record type — bugs and the stage records too — in the product order, marking the one on screen', () => {
+  it('AC-INT-001-04 covers every record type — bugs and the stage records too — grouped by aspect in the fixed order, marking the one on screen', () => {
     const s = state([
       row('FDR-CAT-001'),
       row('DEC-EVE-001'),
@@ -163,14 +163,12 @@ describe('the records navigator', () => {
     ]);
     const nav = navigatorOf(s, emptyInbox(), 'BUG-CAT-001');
     expect(nav.groups.map((g) => [g.title, g.records.map((r) => r.code)])).toEqual([
-      ['Features', ['FDR-CAT-001']],
-      ['Decisions', ['DEC-EVE-001']],
-      ['Tech decisions', ['ADR-STK-001']],
-      ['Requirements', ['REQ-CAT-001']],
-      ['Quality requirements', ['NFR-CAT-001']],
-      ['Threat models', ['THR-CAT-001']],
-      ['Production readiness', ['PRR-CAT-001']],
-      ['Bugs', ['BUG-CAT-001']],
+      ['Feature', ['FDR-CAT-001', 'REQ-CAT-001']],
+      ['Quality', ['NFR-CAT-001']],
+      ['Architecture', ['ADR-STK-001']],
+      ['Security', ['THR-CAT-001']],
+      ['Operations', ['PRR-CAT-001']],
+      ['Without a tag', ['BUG-CAT-001', 'DEC-EVE-001']],
     ]);
     expect(
       nav.groups
@@ -182,10 +180,10 @@ describe('the records navigator', () => {
     expect(nav.groups[1]?.records[0]?.status).toBeUndefined();
   });
 
-  it('AC-INT-001-04 keeps the Features group when there is none, and hides the other empty groups', () => {
+  it('AC-INT-001-04 keeps the Feature group when there is none, and hides the other empty groups', () => {
     expect(navigatorOf(state([row('DEC-EVE-001')]), undefined, '').groups.map((g) => [g.title, g.records.length])).toEqual([
-      ['Features', 0],
-      ['Decisions', 1],
+      ['Feature', 0],
+      ['Without a tag', 1],
     ]);
     expect(navigatorOf(undefined, undefined, '')).toEqual({ project: '', groups: [], parked: [] });
   });

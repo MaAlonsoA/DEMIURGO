@@ -37,8 +37,8 @@ import { DefinitionWhyPanel, ProductDefinitionSection } from './Definition.tsx';
 import { DesignStages } from './Stages.tsx';
 import { useReturnFocus } from '../record/returnFocus.ts';
 import { OVERVIEW } from './words.i18n.ts';
-
-const STAGE_RECORD_TYPES = new Set(['requirement', 'quality_requirement', 'threat_model', 'production_readiness']);
+import { ASPECT_WORDS } from '../../aspects.i18n.ts';
+import { recordsByAspect } from '../../aspects.ts';
 
 function changeOf(lens: Lens, changed: Map<string, string | null>, key: string): ChangeMark {
   if (!lens.on || !changed.has(key)) return UNCHANGED;
@@ -286,7 +286,7 @@ function Overview({ projectId }: { projectId: string }) {
   );
 }
 
-/** One section per kind of record, and the threads with open questions (INV-OVW-11…19). */
+/** The features, one section per aspect for the other records, and the threads with open questions (INV-OVW-11…19). */
 function ProductSections({
   projectId,
   rows,
@@ -308,9 +308,8 @@ function ProductSections({
 }) {
   const t = useMessages(OVERVIEW);
   const features = rows.filter((r) => r.type === 'fdr');
-  const decisions = rows.filter((r) => r.type === 'decision' || r.type === 'adr');
-  const stageRecords = rows.filter((r) => STAGE_RECORD_TYPES.has(r.type));
-  const bugs = rows.filter((r) => r.type === 'bug');
+  const aspectWords = useMessages(ASPECT_WORDS);
+  const aspectGroups = recordsByAspect(rows.filter((r) => r.type !== 'fdr' && r.type !== 'product_definition'));
   const open = explorations.filter((e) => e.open_questions > 0);
   const recordRow = (row: ProductRow) => (
     <RecordRow
@@ -351,45 +350,20 @@ function ProductSections({
           </div>
         )}
       </Section>
-      {decisions.length > 0 ? (
+      {aspectGroups.map((g) => (
         <Section
-          id="decisions"
+          key={g.key}
+          id={`aspect-${g.key}`}
           title={
             <>
-              {t.decisionsAndTech}
-              <Count n={decisions.length} />
+              {g.aspect ? aspectWords[g.aspect] : t.withoutTag}
+              <Count n={g.rows.length} />
             </>
           }
         >
-          <RowList label={t.decisionsAndTech}>{decisions.map(recordRow)}</RowList>
+          <RowList label={g.aspect ? aspectWords[g.aspect] : t.withoutTag}>{g.rows.map(recordRow)}</RowList>
         </Section>
-      ) : null}
-      {stageRecords.length > 0 ? (
-        <Section
-          id="stage-records"
-          title={
-            <>
-              {t.requirementsQuality}
-              <Count n={stageRecords.length} />
-            </>
-          }
-        >
-          <RowList label={t.requirementsQuality}>{stageRecords.map(recordRow)}</RowList>
-        </Section>
-      ) : null}
-      {bugs.length > 0 ? (
-        <Section
-          id="bugs"
-          title={
-            <>
-              {TYPE_WORDS_PLURAL.bug}
-              <Count n={bugs.length} />
-            </>
-          }
-        >
-          <RowList label={TYPE_WORDS_PLURAL.bug}>{bugs.map(recordRow)}</RowList>
-        </Section>
-      ) : null}
+      ))}
       {open.length > 0 ? (
         <Section
           id="open-threads"

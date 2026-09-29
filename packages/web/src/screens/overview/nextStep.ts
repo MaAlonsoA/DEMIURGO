@@ -3,7 +3,7 @@
 
 import type { ProductRow, StageRow } from '../../api/types.ts';
 import type { EpicRef } from '../epics/DesignNext.tsx';
-import type { PlannedFeature } from '../epics/logic.ts';
+import type { EpicLine } from '../epics/logic.ts';
 import type { EpicState } from '../epics/plans.ts';
 
 export type NextStep =
@@ -12,7 +12,7 @@ export type NextStep =
   | { kind: 'pass_architecture'; threadId: string | null }
   | { kind: 'close_gaps'; code: string; title: string; left: number }
   | { kind: 'continue'; title: string; code: string | null; threadId: string | null }
-  | { kind: 'design_next'; epic: EpicRef; line: PlannedFeature }
+  | { kind: 'design_next'; epic: EpicRef; line: EpicLine }
   | { kind: 'check_walk'; code: string; title: string }
   | { kind: 'release' };
 

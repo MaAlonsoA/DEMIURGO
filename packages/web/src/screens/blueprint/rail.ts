@@ -5,7 +5,7 @@
 import type { Inbox, ProductRow, ProductState } from '../../api/types.ts';
 import { recordsByAspect } from '../../aspects.ts';
 import { EPISTEMIC_MARK, type MarkKind } from '../../words.ts';
-import { epicGroups } from '../epics/logic.ts';
+import { epicGroups, epicPlan, plannedOf } from '../epics/logic.ts';
 import { rowStage, type Waiting, waitingCount, waitingFor, waitingPhrase } from '../record/logic.ts';
 import { RAIL, type RailWords } from './words.i18n.ts';
 
@@ -14,7 +14,9 @@ export type FeatureStatus =
   | { kind: 'ready'; word: string }
   | { kind: 'doubt'; word: string }
   | { kind: 'draft'; word: string }
-  | { kind: 'not-ready'; word: string };
+  | { kind: 'not-ready'; word: string }
+  /** A feature of an epic's list not designed yet. */
+  | { kind: 'planned'; word: string };
 
 /**
  * One word for a feature: what waits for the person comes first (the blue count), then how far it
@@ -78,6 +80,8 @@ export type NavRecord = {
   status?: FeatureStatus;
   /** A feature listed under its epic. */
   nested?: boolean;
+  /** The record the link opens, when not its own (a planned feature opens its epic). */
+  opens?: string;
 };
 export type NavGroup = { key: string; title: string; records: NavRecord[] };
 export type Navigator = { project: string; groups: NavGroup[]; parked: { id: string; purpose: string }[] };
@@ -109,9 +113,30 @@ export function navigatorOf(
     const at = byAspect.findIndex((g) => g.key !== 'product');
     byAspect.splice(at < 0 ? byAspect.length : at, 0, { key: 'feature', aspect: 'feature', rows: [] });
   }
+  // An epic, then its list in order (a feature not designed yet opens the epic), then the features
+  // that rest on it outside its list.
   const navOf = (r: ProductRow): NavRecord[] => {
-    const own = r.type === 'epic' ? epics.find((g) => g.epic.code === r.code)?.features : undefined;
-    return [toNav(r), ...(own ?? []).map((f) => ({ ...toNav(f), nested: true }))];
+    const group = r.type === 'epic' ? epics.find((g) => g.epic.code === r.code) : undefined;
+    if (!group) return [toNav(r)];
+    const plan = epicPlan(r, plannedOf(state, r.code), group.features, rows, state.explorations);
+    return [
+      toNav(r),
+      ...plan.lines.map(
+        (l): NavRecord =>
+          l.row
+            ? { ...toNav(l.row), nested: true }
+            : {
+                code: l.code,
+                title: l.name,
+                current: false,
+                mark: 'open',
+                status: { kind: 'planned', word: words.planned },
+                nested: true,
+                opens: r.code,
+              },
+      ),
+      ...plan.outside.map((f) => ({ ...toNav(f), nested: true })),
+    ];
   };
   const groups: NavGroup[] = [
     ...(definition.length > 0

@@ -1,11 +1,9 @@
-// Every epic with its plan (its list, each line's state), from the epics' current versions: what the
-// board, the Epics page and "Next step" read.
+// Every epic with its plan (its planned features, each with its state), from the product state: what
+// the board, the Epics page and "Next step" read.
 
-import { useQueries } from '@tanstack/react-query';
-import { recordQuery } from '../../api/queries.ts';
 import type { ProductRow, ProductState } from '../../api/types.ts';
 import type { EpicRef } from './DesignNext.tsx';
-import { type EpicPlan, epicGroups, epicPlan, featuresSection } from './logic.ts';
+import { type EpicPlan, epicGroups, epicPlan, plannedOf } from './logic.ts';
 
 export type EpicState = {
   epic: ProductRow;
@@ -17,26 +15,28 @@ export type EpicState = {
   delivered: boolean;
 };
 
-export function useEpicPlans(projectId: string, state: ProductState | undefined): EpicState[] | undefined {
-  const rows = state ? [...state.designs, ...state.decisions] : [];
-  const { groups } = epicGroups(rows);
-  const records = useQueries({ queries: groups.map((g) => recordQuery(projectId, g.epic.code)) });
-  if (!state || records.some((r) => !r.data)) return undefined;
-  return groups.map((g, i) => {
-    const record = records[i]?.data;
-    const current = record?.versions.find((v) => v.n === record.current);
-    const shown = current ?? record?.versions.find((v) => v.id === g.epic.latest_id);
-    const plan = epicPlan(g.epic, featuresSection(shown?.sections ?? []), g.features, rows, state.explorations);
+/** What "Design the next one" needs of an epic: its current version; null while it is a draft. */
+export function epicRef(epic: ProductRow): EpicRef | null {
+  return epic.current_id
+    ? { code: epic.code, title: epic.title, currentId: epic.current_id, versionIds: [epic.current_id, epic.latest_id] }
+    : null;
+}
+
+export function epicPlans(state: ProductState): EpicState[] {
+  const rows = [...state.designs, ...state.decisions];
+  return epicGroups(rows).groups.map((g) => {
+    const plan = epicPlan(g.epic, plannedOf(state, g.epic.code), g.features, rows, state.explorations);
     return {
       epic: g.epic,
       features: g.features,
       plan,
-      ref:
-        record && current
-          ? { code: record.code, title: current.title, currentId: current.id, versionIds: record.versions.map((v) => v.id) }
-          : null,
+      ref: epicRef(g.epic),
       delivered:
         g.epic.implementation === 'implemented' && plan.lines.length > 0 && plan.lines.every((l) => l.state === 'built'),
     };
   });
+}
+
+export function useEpicPlans(_projectId: string, state: ProductState | undefined): EpicState[] | undefined {
+  return state ? epicPlans(state) : undefined;
 }

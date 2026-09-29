@@ -3,7 +3,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { inboxQuery, projectsQuery, recordQuery, stateQuery } from '../../api/queries.ts';
+import { inboxQuery, projectsQuery, stateQuery } from '../../api/queries.ts';
 import type { Inbox, ProductRow, ProductState } from '../../api/types.ts';
 import { buttonClass } from '../../components/Button.tsx';
 import { EmptyState } from '../../components/EmptyState.tsx';
@@ -19,7 +19,8 @@ import { CopyBriefButton } from '../record/CopyBrief.tsx';
 import { LineMark, LineName, progressWords } from '../record/EpicBoard.tsx';
 import { waitingFor } from '../record/logic.ts';
 import { DesignNextButton } from './DesignNext.tsx';
-import { type EpicGroup, epicGroups, epicPlan, featuresSection } from './logic.ts';
+import { type EpicGroup, epicGroups, epicPlan, plannedOf } from './logic.ts';
+import { epicRef } from './plans.ts';
 import { EPIC_BOARD, EPICS } from './words.i18n.ts';
 
 /** One epic in small: its progress, each line of its list with its state, and the next step. */
@@ -37,11 +38,9 @@ function EpicSummary({
   const t = useMessages(EPICS);
   const b = useMessages(EPIC_BOARD);
   const navigate = useNavigate();
-  const record = useQuery(recordQuery(projectId, group.epic.code)).data;
   const rows = [...state.designs, ...state.decisions];
-  const current = record?.versions.find((v) => v.n === record.current);
-  const shown = current ?? record?.versions.find((v) => v.id === group.epic.latest_id);
-  const plan = epicPlan(group.epic, featuresSection(shown?.sections ?? []), group.features, rows, state.explorations);
+  const plan = epicPlan(group.epic, plannedOf(state, group.epic.code), group.features, rows, state.explorations);
+  const ref = epicRef(group.epic);
   const row = (r: ProductRow) => (
     <RecordRow
       key={r.code}
@@ -52,7 +51,6 @@ function EpicSummary({
       onPreview={() => void navigate({ to: '/p/$projectId/records/$code', params: { projectId, code: r.code } })}
     />
   );
-  if (!record) return group.features.length === 0 ? <p className="text-sm text-fg-2">{t.noFeatures}</p> : null;
   if (plan.lines.length === 0) {
     return group.features.length === 0 ? (
       <p className="text-sm text-fg-2">{t.noFeatures}</p>
@@ -64,7 +62,7 @@ function EpicSummary({
     <div className="flex flex-col gap-3" data-epic-summary={group.epic.code}>
       <p className="text-sm tabular-nums text-fg-2">
         {progressWords(b, plan.counts, plan.lines.length)}
-        {!current ? ` · ${b.approveFirst}` : null}
+        {!ref ? ` · ${b.approveFirst}` : null}
       </p>
       <ol className="flex flex-col divide-y divide-edge-subtle rounded-lg border border-edge bg-panel">
         {plan.lines.map((l, i) => (
@@ -73,19 +71,7 @@ function EpicSummary({
             <LineName projectId={projectId} line={l} />
             {l.blockedBy.length > 0 ? <span className="text-sm text-warning-text">{b.blockedBy(l.blockedBy.join(', '))}</span> : null}
             <span className="ml-auto flex items-center gap-3">
-              {current && plan.next === l ? (
-                <DesignNextButton
-                  projectId={projectId}
-                  epic={{
-                    code: record.code,
-                    title: current.title,
-                    currentId: current.id,
-                    versionIds: record.versions.map((v) => v.id),
-                  }}
-                  line={l}
-                  size="sm"
-                />
-              ) : null}
+              {ref && plan.next === l ? <DesignNextButton projectId={projectId} epic={ref} line={l} size="sm" /> : null}
               {l.state === 'ready' && l.row ? <CopyBriefButton projectId={projectId} code={l.row.code} size="sm" /> : null}
               <LineMark state={l.state} />
             </span>
@@ -115,7 +101,7 @@ export function EpicsScreen() {
 
   const s = state.data;
   const { groups } = epicGroups(s ? [...s.designs, ...s.decisions] : []);
-  const featureCount = groups.reduce((n, g) => n + g.features.length, 0);
+  const featureCount = s ? groups.reduce((n, g) => n + Math.max(plannedOf(s, g.epic.code).length, g.features.length), 0) : 0;
 
   return (
     <>

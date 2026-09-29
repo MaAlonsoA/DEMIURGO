@@ -11,7 +11,7 @@ import { announce } from '../../components/announce.tsx';
 import { Button } from '../../components/Button.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
 import { messages, useMessages } from '../../i18n/define.ts';
-import { type PlannedFeature, epicThread, featurePurpose } from './logic.ts';
+import { type EpicLine, epicThread, featurePurpose } from './logic.ts';
 
 const WORDS = messages(
   {
@@ -34,7 +34,7 @@ export function useDesignNext(projectId: string) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const t = useMessages(WORDS);
-  const start = async (epic: EpicRef, line: PlannedFeature) => {
+  const start = async (epic: EpicRef, line: EpicLine) => {
     setPending(true);
     setError(null);
     try {
@@ -76,7 +76,7 @@ export function DesignNextButton({
 }: {
   projectId: string;
   epic: EpicRef;
-  line: PlannedFeature;
+  line: EpicLine;
   named?: boolean;
   size?: 'sm';
 }) {

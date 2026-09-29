@@ -1,8 +1,10 @@
-// An epic and its features (spec «Entrega por épicas», 1c). A feature belongs to the epic it is
-// based on; without that link, to the epic of its domain. The epic's "Features" section is the plan:
-// each line "Name: phrase" is matched to a feature by title, and gets the state of its delivery.
+// An epic and its features (spec «Entrega por épicas», 1c). The epic's list is its planned features:
+// records from the moment it lists them, each with its reserved code, in order; designing one makes
+// the feature record with that code. A feature belongs to the epic it is based on; without that
+// link, to the epic of its domain. Older epics wrote the list as text in a "Features" section: it
+// is read only to offer turning it into records.
 
-import type { ExplorationSummary, ProductRow, ProductState } from '../../api/types.ts';
+import type { ExplorationSummary, PlannedFeatureRow, ProductRow, ProductState } from '../../api/types.ts';
 import { isFeatureThread } from '../../components/ask.ts';
 
 export type EpicGroup = { epic: ProductRow; features: ProductRow[] };
@@ -68,7 +70,10 @@ export function featuresSection(sections: readonly { title: string; content: str
 export type LineState = 'built' | 'ready' | 'approved' | 'designing' | 'unstarted';
 
 export type EpicLine = PlannedFeature & {
-  /** The feature record the line names, if designed. */
+  /** The planned feature: its id and reserved code (its record's code once designed). */
+  id: string;
+  code: string;
+  /** The feature record, once designed. */
   row: ProductRow | null;
   /** The active thread where it is being designed, if any. */
   thread: ExplorationSummary | null;
@@ -79,44 +84,43 @@ export type EpicLine = PlannedFeature & {
 
 export type EpicPlan = {
   lines: EpicLine[];
-  /** Features of the epic that no line names: the epic needs a new version that does. */
+  /** Features of the epic its list doesn't have (designed apart): the list can add them. */
   outside: ProductRow[];
   /** The first line not started, when the epic is approved: what "Design the next one" opens. */
   next: EpicLine | null;
   counts: Record<LineState, number>;
 };
 
-/** Purpose of the thread where a feature of an epic is designed. */
-export function featurePurpose(line: PlannedFeature, epicCode: string): string {
-  return `Design "${line.name}" (${epicCode})${line.phrase ? `: ${line.phrase}` : ''}`;
+/** Purpose of the thread where a feature of an epic is designed: the explorer reads the code from it. */
+export function featurePurpose(line: PlannedFeature & { code: string }, epicCode: string): string {
+  return `Design "${line.name}" (${line.code}, ${epicCode})${line.phrase ? `: ${line.phrase}` : ''}`;
 }
 
-
-/** The name a thread's purpose cites between quotes (`Design "Name" (EPC-…)`), normalized. */
+/** The name a thread's purpose cites between quotes (`Design "Name" (…)`), normalized. */
 const citedName = (purpose: string): string | null => {
   const m = /"([^"]+)"/.exec(purpose);
   return m?.[1] ? normalizeName(m[1]) : null;
 };
 
-const matches = (title: string, name: string): boolean => {
-  const t = normalizeName(title);
-  const n = normalizeName(name);
-  return n !== '' && (t === n || t.startsWith(n));
-};
+/** The planned features of an epic, in order. */
+export function plannedOf(state: Pick<ProductState, 'planned'>, epicCode: string): PlannedFeatureRow[] {
+  return (state.planned ?? []).filter((p) => p.epic_code === epicCode).sort((a, b) => a.position - b.position);
+}
 
 export function epicPlan(
   epic: ProductRow,
-  section: string,
+  planned: readonly PlannedFeatureRow[],
   features: readonly ProductRow[],
   rows: readonly ProductRow[],
   threads: readonly ExplorationSummary[],
 ): EpicPlan {
-  const used = new Set<string>();
   const built = (code: string) => rows.find((r) => r.code === code)?.implementation === 'implemented';
-  const lines = plannedFeatures(section).map((p): EpicLine => {
-    const row = features.find((f) => !used.has(f.code) && matches(f.title, p.name)) ?? null;
-    if (row) used.add(row.code);
-    const thread = threads.find((t) => t.state === 'active' && citedName(t.purpose) === normalizeName(p.name)) ?? null;
+  const lines = planned.map((p): EpicLine => {
+    const row = rows.find((r) => r.code === p.code) ?? null;
+    const thread =
+      threads.find(
+        (t) => t.state === 'active' && (t.purpose.includes(`(${p.code},`) || citedName(t.purpose) === normalizeName(p.name)),
+      ) ?? null;
     const state: LineState =
       row?.implementation === 'implemented'
         ? 'built'
@@ -127,13 +131,23 @@ export function epicPlan(
             : row || thread
               ? 'designing'
               : 'unstarted';
-    return { ...p, row, thread, state, blockedBy: (row?.needs ?? []).filter((c) => !built(c)) };
+    return {
+      id: p.id,
+      code: p.code,
+      name: row?.title ?? p.name,
+      phrase: p.summary,
+      row,
+      thread,
+      state,
+      blockedBy: (row?.needs ?? []).filter((c) => !built(c)),
+    };
   });
+  const listed = new Set(planned.map((p) => p.code));
   const counts: Record<LineState, number> = { built: 0, ready: 0, approved: 0, designing: 0, unstarted: 0 };
   for (const l of lines) counts[l.state]++;
   return {
     lines,
-    outside: features.filter((f) => !used.has(f.code)),
+    outside: features.filter((f) => !listed.has(f.code)),
     next: epic.current !== null ? (lines.find((l) => l.state === 'unstarted') ?? null) : null,
     counts,
   };

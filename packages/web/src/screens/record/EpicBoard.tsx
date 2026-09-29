@@ -1,6 +1,7 @@
 // The board of an epic (spec «Entrega por épicas», 2a), above its sections: how far its delivery
-// goes, each feature of its list with its state, the one button that designs the next, the features
-// outside the list, the walk-through ("Done when") and the epic's threads.
+// goes, each feature of its list (a record with its code from the start) with its state, the one
+// button that designs the next, changing the list by hand, the features outside the list, the
+// walk-through ("Done when") and the epic's threads.
 
 import { Link } from '@tanstack/react-router';
 import { type ReactNode, useId } from 'react';
@@ -13,9 +14,22 @@ import {
   CircleIcon,
 } from '../../components/icons.tsx';
 import { useMessages } from '../../i18n/define.ts';
+import { canCreate } from '../../api/tables.ts';
+import { useTables } from '../../lib/hooks.ts';
 import { cn } from '../../lib/cn.ts';
-import { DesignNextButton, type EpicRef } from '../epics/DesignNext.tsx';
-import { type EpicLine, type LineState, epicGroups, epicPlan, epicThreads, featuresSection } from '../epics/logic.ts';
+import { DesignNextButton } from '../epics/DesignNext.tsx';
+import {
+  type EpicLine,
+  type LineState,
+  epicGroups,
+  epicPlan,
+  epicThreads,
+  featuresSection,
+  plannedFeatures,
+  plannedOf,
+} from '../epics/logic.ts';
+import { AddFeature, ConvertList, LineControls } from '../epics/PlanEditing.tsx';
+import { epicRef } from '../epics/plans.ts';
 import { EPIC_BOARD } from '../epics/words.i18n.ts';
 import { CopyBriefButton } from './CopyBrief.tsx';
 
@@ -66,6 +80,7 @@ export function LineName({ projectId, line }: { projectId: string; line: EpicLin
       </Link>
     );
   }
+  const code = <span className="ml-2 font-mono text-xs text-fg-3">{line.code}</span>;
   if (line.thread) {
     return (
       <Link
@@ -74,10 +89,16 @@ export function LineName({ projectId, line }: { projectId: string; line: EpicLin
         className="font-medium text-fg hover:underline"
       >
         {line.name}
+        {code}
       </Link>
     );
   }
-  return <span className="font-medium text-fg">{line.name}</span>;
+  return (
+    <span className="font-medium text-fg">
+      {line.name}
+      {code}
+    </span>
+  );
 }
 
 export function EpicBoard({
@@ -91,18 +112,19 @@ export function EpicBoard({
 }) {
   const t = useMessages(EPIC_BOARD);
   const id = useId();
+  const tables = useTables();
   if (!state) return null;
   const rows = [...state.designs, ...state.decisions];
   const epic = rows.find((r) => r.code === record.code);
   if (!epic) return null;
   const features = epicGroups(rows).groups.find((g) => g.epic.code === record.code)?.features ?? [];
-  // The plan is the current version's list; a draft epic shows the list it proposes.
+  const planned = plannedOf(state, record.code);
+  const plan = epicPlan(epic, planned, features, rows, state.explorations);
+  const ref = epicRef(epic);
+  const editable = !!tables && canCreate(tables, 'planned_feature.add');
+  // An older epic wrote its list as text: offered once, until its features are records.
   const shown = record.versions.find((v) => v.n === record.current) ?? record.versions.find((v) => v.id === epic.latest_id);
-  const plan = epicPlan(epic, featuresSection(shown?.sections ?? []), features, rows, state.explorations);
-  const current = record.versions.find((v) => v.n === record.current);
-  const ref: EpicRef | null = current
-    ? { code: record.code, title: current.title, currentId: current.id, versionIds: record.versions.map((v) => v.id) }
-    : null;
+  const textList = planned.length === 0 ? plannedFeatures(featuresSection(shown?.sections ?? [])) : [];
   const threads = epicThreads(
     state.explorations,
     record.versions.map((v) => v.id),
@@ -122,7 +144,9 @@ export function EpicBoard({
       </div>
       <p className="max-w-prose text-sm text-fg-2">{t.planNote}</p>
       {!ref ? <p className="text-sm text-fg-2">{t.approveFirst}</p> : null}
-      {plan.lines.length === 0 ? (
+      {textList.length > 0 && editable ? (
+        <ConvertList projectId={projectId} epicId={record.id} lines={textList} />
+      ) : plan.lines.length === 0 ? (
         <p className="text-sm text-fg-2">{t.noList}</p>
       ) : (
         <ol className="flex flex-col divide-y divide-edge-subtle">
@@ -132,6 +156,7 @@ export function EpicBoard({
                 <span className="w-5 shrink-0 text-sm tabular-nums text-fg-3">{i + 1}.</span>
                 <LineName projectId={projectId} line={l} />
                 <span className="ml-auto flex items-center gap-3">
+                  {editable ? <LineControls projectId={projectId} line={l} index={i} count={plan.lines.length} /> : null}
                   {l.state === 'ready' && l.row ? <CopyBriefButton projectId={projectId} code={l.row.code} size="sm" /> : null}
                   <LineMark state={l.state} />
                 </span>
@@ -149,6 +174,7 @@ export function EpicBoard({
           ))}
         </ol>
       )}
+      {editable && textList.length === 0 ? <AddFeature projectId={projectId} epicId={record.id} /> : null}
       {plan.outside.length > 0 ? (
         <div className="flex flex-col gap-1.5 border-t border-edge-subtle pt-3" data-epic-outside>
           <h3 className="text-base font-semibold text-fg">{t.outside}</h3>

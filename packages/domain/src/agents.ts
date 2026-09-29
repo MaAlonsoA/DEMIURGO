@@ -302,6 +302,20 @@ export const explorationChatOutput = z
                 .describe(
                   'For a feature (fdr): the approved features of the same epic it depends on and that must be built first, each with its current version; null when it depends on none.',
                 ),
+              features: z
+                .array(z.object({ name: recordText(120), summary: recordText(300) }).strict())
+                .max(20)
+                .nullable()
+                .describe(
+                  'For an epic: its features in order, the smallest end-to-end walk first, each with a short name and one sentence of what it lets the person do; null for any other record.',
+                ),
+              code: z
+                .string()
+                .regex(/^FDR-[A-Z]{3}-\d{3}$/)
+                .nullable()
+                .describe(
+                  'For a feature (fdr) designed from a planned feature (`planned_feature` in the context): its `planned_feature.code`; null otherwise.',
+                ),
               sections: z
                 .array(z.object({ title: recordText(120), content: recordText(6000) }).strict())
                 .min(1)
@@ -337,6 +351,42 @@ export const explorationChatOutput = z
                 .describe('The record the thread is about (about_record), which has an approved version.'),
               section: recordText(120).describe("The title of one of the sections of that record's current version."),
               content: recordText(6000).describe('The whole section as it should read after the change, in English.'),
+              reason: recordText(1000),
+              quotes: z
+                .array(text(QUOTE_MAX))
+                .min(1)
+                .max(3)
+                .describe("The person's exact words in this thread the change rests on, copied verbatim in their language."),
+            })
+            .strict(),
+          // The list of features of the epic the thread is about changes because the person decided so here.
+          z
+            .object({
+              type: z.literal('feature_plan'),
+              epic: z
+                .string()
+                .regex(/^EPC-[A-Z]{3}-\d{3}$/)
+                .describe('The epic the thread is about (about_record), draft or approved.'),
+              action: z.enum(['add', 'drop', 'move']),
+              code: z
+                .string()
+                .regex(/^FDR-[A-Z]{3}-\d{3}$/)
+                .nullable()
+                .describe(
+                  'For drop and move: the code of the feature, one of `about_record.features`; null for add. A drop only applies to a feature that is still `planned`.',
+                ),
+              name: recordText(120).nullable().describe('For add: the short name of the new feature; null otherwise.'),
+              summary: recordText(300)
+                .nullable()
+                .describe('For add: one sentence of what the new feature lets the person do; null otherwise.'),
+              position: z
+                .number()
+                .int()
+                .positive()
+                .nullable()
+                .describe(
+                  'For add: the place in the list (1 is the first), null to put it last; for move: the new place; null for drop.',
+                ),
               reason: recordText(1000),
               quotes: z
                 .array(text(QUOTE_MAX))

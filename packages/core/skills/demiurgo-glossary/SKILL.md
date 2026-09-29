@@ -5,7 +5,8 @@ description: DEMIURGO's vocabulary, so every agent uses the words the same way.
 - **Exploration** (thread): a conversation with a purpose; it raises questions and ends in decisions or new explorations.
 - **Question**: something that must be known to decide. Pending, inferred (DEMIURGO concluded it), confirmed (the person did), postponed or discarded.
 - **Decision**: a choice with its context, the decision itself and its consequences. Only the person approves it.
-- **Epic** (EPC): a capability of the first version too big for one feature. It has a goal, its features in order (the smallest end-to-end walk first) and what "done" means for the whole walk. The person approves it; adding a feature to it is a new version.
+- **Epic** (EPC): a capability of the first version too big for one feature. It has a goal, its features in order (the smallest end-to-end walk first) and what "done" means for the whole walk. The person approves it. Its features are the list it keeps (each with a name, one sentence and its reserved FDR code): the list changes on its own (add, drop, move), never as text in a section of the epic.
+- **Planned feature**: a feature its epic lists that is not designed yet. Designing it makes its FDR with that same code; only a planned one can be dropped, and a code is never reused.
 - **FDR**: a feature design (goal, scope, out of scope, behavior) with acceptance criteria.
 - **AC** (acceptance criterion): an observable statement that says when the feature is done.
 - **Proposal**: anything an agent suggests. It has no effect until the person accepts it.

@@ -205,20 +205,33 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
           .where('records.project_id', '=', projectId)
           .executeTakeFirst()
       : undefined;
-  // The version in force, when it is newer than the one the thread was opened on (a change it
-  // proposed was approved): the agent reads, and proposes changes to, what the record says now.
+  // The latest version (a draft or approved), when it is newer than the one the thread was opened on
+  // (a change it proposed was accepted or approved): the agent reads, and proposes changes to, what
+  // the record says now.
   const inForce = opened
     ? await trx
         .selectFrom('record_versions')
         .innerJoin('records', 'records.id', 'record_versions.record_id')
         .select(aboutColumns)
         .where('record_versions.record_id', '=', opened.recordId)
-        .where('record_versions.state', '=', 'approved')
+        .where('record_versions.state', 'in', ['approved', 'draft'])
         .where('record_versions.n', '>', opened.n)
         .orderBy('record_versions.n', 'desc')
         .executeTakeFirst()
     : undefined;
   const about = inForce ?? opened;
+  // The features an epic lists that are still in its list, in order: planned or already designed.
+  const epicFeatures =
+    about?.type === 'epic'
+      ? await trx
+          .selectFrom('planned_features')
+          .select(['code', 'name', 'summary', 'position', 'state'])
+          .where('epic_id', '=', about.recordId)
+          .where('state', '<>', 'dropped')
+          .orderBy('position')
+          .orderBy('created_at')
+          .execute()
+      : null;
   const aboutRecord = about
     ? {
         code: about.code,
@@ -229,8 +242,21 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
         state: about.state,
         title: about.title,
         sections: about.sections as { title: string; content: string }[],
+        ...(epicFeatures ? { features: epicFeatures } : {}),
       }
     : null;
+  // A feature thread (`Design "<name>" (FDR-…, EPC-…): …`): the planned feature it designs, while it is planned.
+  const plannedCode = /\bFDR-[A-Z]{3}-\d{3}\b/.exec(exploration.purpose)?.[0];
+  const planned = plannedCode ? await plannedFeatureByCode(trx, projectId, plannedCode) : undefined;
+  const plannedFeature =
+    planned?.state === 'planned' ? { code: planned.code, name: planned.name, summary: planned.summary } : null;
+  if (plannedFeature)
+    manifest.entered({
+      section: 'planned_feature',
+      source: source('exploration', exploration.id),
+      text: JSON.stringify(plannedFeature),
+      reason: 'thread purpose',
+    });
   if (about && aboutRecord)
     manifest.entered({
       section: 'about_record',
@@ -454,6 +480,7 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
           : null,
         ...(nextStep ? { next_step: nextStep } : {}),
         ...(aboutRecord ? { about_record: aboutRecord } : {}),
+        ...(plannedFeature ? { planned_feature: plannedFeature } : {}),
         ...(productDefinitionDraft ? { product_definition_draft: productDefinitionDraft } : {}),
         confirmed_decisions: decisionsSummary,
         design_records: designRecords,
@@ -543,7 +570,27 @@ registerChecker('exploration_chat', async ({ db, run, output }) => {
     }
   }
   for (const p of output.proposals) {
-    if (p.type !== 'design_record' || p.record_type !== 'fdr' || !p.needs) continue;
+    if (p.type === 'feature_plan') {
+      const problem = await featurePlanProblem(db, run.project_id, (run.scope as { id: string }).id, p);
+      if (problem) notes.push(problem);
+      continue;
+    }
+    if (p.type !== 'design_record') continue;
+    if (p.record_type === 'epic' && p.sections.some(isFeaturesSection))
+      notes.push(
+        'An epic has no "Features" section: its features go in `features` (each with a `name` and a `summary`), never as text in a section. The section was left out.',
+      );
+    if (p.features && p.record_type !== 'epic')
+      notes.push('`features` is only for an epic (`record_type` `epic`): leave it null for any other record.');
+    if (p.code && p.record_type !== 'fdr')
+      notes.push(
+        '`code` is only for a feature (`record_type` `fdr`) designed from a planned feature: leave it null for any other record.',
+      );
+    if (p.code && p.record_type === 'fdr' && (await plannedFeatureByCode(db, run.project_id, p.code))?.state !== 'planned')
+      notes.push(
+        `${p.code} in \`code\` is not a planned feature of this project (it may be designed or dropped already). \`code\` is the \`planned_feature.code\` of the context: leave it null otherwise.`,
+      );
+    if (p.record_type !== 'fdr' || !p.needs) continue;
     const found = await neededFeatures(db, run.project_id, p.needs);
     for (const n of p.needs)
       if (!found.some((f) => f.code === n.code && f.version === n.version))
@@ -553,6 +600,98 @@ registerChecker('exploration_chat', async ({ db, run, output }) => {
   }
   return notes;
 });
+
+/** An epic's features are its planned features, never a section of text. */
+const isFeaturesSection = (s: { title: string }) => s.title.trim().toLowerCase() === 'features';
+
+/** A feature an epic lists (reserved code, name, sentence and state), by its code. */
+async function plannedFeatureByCode(db: Db, projectId: string, code: string) {
+  return db
+    .selectFrom('planned_features')
+    .select(['id', 'code', 'name', 'summary', 'state', 'epic_id'])
+    .where('project_id', '=', projectId)
+    .where('code', '=', code)
+    .executeTakeFirst();
+}
+
+/** The record a thread was opened on (a version of it), whatever that version's state. */
+async function threadRecord(db: Db, projectId: string, explorationId: string) {
+  const thread = await db
+    .selectFrom('explorations')
+    .select(['origin_type', 'origin_id'])
+    .where('id', '=', explorationId)
+    .executeTakeFirst();
+  if (thread?.origin_type !== 'record_version' || !thread.origin_id) return null;
+  const record = await db
+    .selectFrom('record_versions')
+    .innerJoin('records', 'records.id', 'record_versions.record_id')
+    .select(['records.id as recordId', 'records.code', 'records.type'])
+    .where('record_versions.id', '=', thread.origin_id)
+    .where('records.project_id', '=', projectId)
+    .executeTakeFirst();
+  return record ?? null;
+}
+
+type FeaturePlan = {
+  epic: string;
+  action: 'add' | 'drop' | 'move';
+  code: string | null;
+  name: string | null;
+  summary: string | null;
+  position: number | null;
+};
+
+/**
+ * Why a change to an epic's list of features can't stand, in words the agent reads; null when it can.
+ * It lands on the epic the thread is about (a draft or approved one), on a feature of its list that
+ * is there (a drop, only while it is still planned), with what the action needs.
+ */
+async function featurePlanProblem(db: Db, projectId: string, explorationId: string, plan: FeaturePlan): Promise<string | null> {
+  const target = await threadRecord(db, projectId, explorationId);
+  if (target?.type !== 'epic') return 'A feature_plan only applies to an epic, and this thread is not about one.';
+  if (plan.epic !== target.code)
+    return `A feature_plan only applies to the epic this thread is about (${target.code}), not to ${plan.epic}.`;
+  if (plan.action === 'add')
+    return plan.name && plan.summary
+      ? null
+      : 'Adding a feature needs its `name` and its `summary` (one sentence of what it lets the person do).';
+  if (!plan.code) return `A ${plan.action} needs the \`code\` of the feature: one of \`about_record.features\`.`;
+  const feature = await plannedFeatureByCode(db, projectId, plan.code);
+  if (!feature || feature.epic_id !== target.recordId || feature.state === 'dropped')
+    return `${plan.code} is not in the list of ${target.code}: its features are in \`about_record.features\`.`;
+  if (plan.action === 'drop' && feature.state !== 'planned')
+    return `${plan.code} is already designed, so it can't be dropped from the list: only a feature that is still planned can.`;
+  if (plan.action === 'move' && plan.position === null) return 'A move needs the new `position` of the feature.';
+  return null;
+}
+
+/**
+ * The proposal of a change to the epic's list of features, ready for its batch; null when it can't
+ * stand (see `featurePlanProblem`) or none of its quotes is in what the person wrote in the thread.
+ */
+async function featurePlanProposal(
+  trx: Db,
+  projectId: string,
+  explorationId: string,
+  plan: FeaturePlan & { reason: string; quotes: readonly string[] },
+  said: readonly { id: string; body: string }[],
+) {
+  const evidence = plan.quotes.flatMap((quote) => findQuote(quote, said) ?? []);
+  if (evidence.length === 0) return null;
+  if (await featurePlanProblem(trx, projectId, explorationId, plan)) return null;
+  // A drop or a move carries the feature's name as it is now, so the card says which one it is.
+  const named = plan.action !== 'add' && plan.code ? (await plannedFeatureByCode(trx, projectId, plan.code))?.name : undefined;
+  const only =
+    plan.action === 'add'
+      ? { name: plan.name, summary: plan.summary, ...(plan.position !== null ? { position: plan.position } : {}) }
+      : plan.action === 'drop'
+        ? { code: plan.code, ...(named ? { name: named } : {}) }
+        : { code: plan.code, ...(named ? { name: named } : {}), position: plan.position };
+  return {
+    type: 'feature_plan',
+    payload: { epic: { code: plan.epic }, action: plan.action, ...only, reason: plan.reason, evidence },
+  };
+}
 
 /** The approved features (at that version) among the references an agent gave as what a feature needs. */
 async function neededFeatures(db: Db, projectId: string, refs: readonly { code: string; version: number }[]) {
@@ -580,19 +719,7 @@ async function neededFeatures(db: Db, projectId: string, refs: readonly { code: 
  * definition (whose changes go through `definition_change`).
  */
 async function recordChangeTarget(db: Db, projectId: string, explorationId: string) {
-  const thread = await db
-    .selectFrom('explorations')
-    .select(['origin_type', 'origin_id'])
-    .where('id', '=', explorationId)
-    .executeTakeFirst();
-  if (thread?.origin_type !== 'record_version' || !thread.origin_id) return null;
-  const record = await db
-    .selectFrom('record_versions')
-    .innerJoin('records', 'records.id', 'record_versions.record_id')
-    .select(['records.id as recordId', 'records.code', 'records.type'])
-    .where('record_versions.id', '=', thread.origin_id)
-    .where('records.project_id', '=', projectId)
-    .executeTakeFirst();
+  const record = await threadRecord(db, projectId, explorationId);
   if (!record || record.type === 'product_definition') return null;
   const current = await db
     .selectFrom('record_versions')
@@ -772,6 +899,11 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
       if (change) proposals.push(change);
       continue;
     }
+    if (p.type === 'feature_plan') {
+      const plan = await featurePlanProposal(trx, run.project_id, scope.id, p, said);
+      if (plan) proposals.push(plan);
+      continue;
+    }
     if (p.type !== 'definition_change') {
       // "Based on": the person's words it rests on and the question being talked about.
       const { type, quotes, ...fields } = p;
@@ -780,6 +912,15 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
       // A feature's needs: approved features only; the ones that aren't are dropped (the checker told the agent).
       const needs = p.type === 'design_record' && p.record_type === 'fdr' ? await neededFeatures(trx, run.project_id, p.needs ?? []) : [];
       delete payload.needs;
+      if (p.type === 'design_record') {
+        // An epic has no "Features" section: they travel in `features` (unless that would leave it without sections).
+        const kept = p.sections.filter((s) => !isFeaturesSection(s));
+        if (p.record_type === 'epic' && kept.length > 0) payload.sections = kept;
+        // An epic's features only travel with an epic; a feature's planned code only with a planned feature of this project.
+        if (p.record_type !== 'epic' || !p.features?.length) delete payload.features;
+        if (p.record_type !== 'fdr' || !p.code || (await plannedFeatureByCode(trx, run.project_id, p.code))?.state !== 'planned')
+          delete payload.code;
+      }
       const basis = [
         ...quotes.flatMap((quote) => {
           const found = findQuote(quote, said);

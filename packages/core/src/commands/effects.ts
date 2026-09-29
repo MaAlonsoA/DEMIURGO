@@ -25,6 +25,23 @@ async function createRecord(ctx: CommandContext, data: Record<string, unknown>, 
   return { type: 'record', code: res.code, recordId: res.recordId, versionId: res.versionId, version: 1, approved: approve };
 }
 
+/**
+ * The planned feature a feature record is designed from, by its reserved code: it has to be still planned;
+ * its epic's domain is the one its code was reserved with.
+ */
+async function plannedToDesign(ctx: CommandContext, code: string) {
+  const f = await ctx.trx
+    .selectFrom('planned_features')
+    .innerJoin('records as epic', 'epic.id', 'planned_features.epic_id')
+    .select(['planned_features.id', 'planned_features.code', 'planned_features.state', 'epic.domain'])
+    .where('planned_features.project_id', '=', ctx.projectId)
+    .where('planned_features.code', '=', code)
+    .executeTakeFirst();
+  if (f?.state !== 'planned')
+    throw new DomainError('conflict', `${code} is not a planned feature any more: it may be designed or dropped already.`);
+  return f;
+}
+
 /** The links a version has going out (the ones that count), as a new version takes them over. */
 async function outgoingLinks(ctx: CommandContext, versionId: string) {
   const links = await ctx.trx
@@ -103,13 +120,18 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
     );
   },
 
+  // A design-stage record. A feature (fdr) that names the planned feature it designs takes its reserved code
+  // (and its epic's domain) and ties that planned feature to the record; an epic lists its features in order,
+  // and each becomes a planned feature of its own, reserving its code.
   async design_record(ctx, { proposalId, payload, approve }) {
     const c = PAYLOADS.design_record.parse(payload);
-    return createRecord(
+    const planned = c.record_type === 'fdr' && c.code ? await plannedToDesign(ctx, c.code) : null;
+    const created = await createRecord(
       ctx,
       {
         type: c.record_type,
-        domain: c.domain ?? 'producto',
+        ...(planned ? { code: planned.code } : {}),
+        domain: planned?.domain ?? c.domain ?? 'producto',
         ...(c.aspect ? { aspect: c.aspect } : {}),
         title: c.title,
         sections: c.sections,
@@ -120,6 +142,24 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
       },
       approve,
     );
+    if (planned)
+      await ctx.execute({
+        command: 'planned_feature.design',
+        actor: ctx.actor,
+        entityId: planned.id,
+        data: { record_id: String(created.recordId) },
+      });
+    if (c.record_type !== 'epic' || !c.features?.length) return created;
+    const features: string[] = [];
+    for (const f of c.features) {
+      const r = await ctx.execute({
+        command: 'planned_feature.add',
+        actor: ctx.actor,
+        data: { epic_id: created.recordId, name: f.name, summary: f.summary },
+      });
+      features.push((r.result as { code: string }).code);
+    }
+    return { ...created, features };
   },
 
   // The English version of a record written in another language: a new version with the same
@@ -321,6 +361,51 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
       version: res.version,
       approved: approve,
     };
+  },
+
+  // A change to the list of features of an epic, decided in its thread: one planned feature added, dropped
+  // or moved. The list is not a version, so there is nothing to approve.
+  async feature_plan(ctx, { payload }) {
+    const c = PAYLOADS.feature_plan.parse(payload);
+    const epic = await ctx.trx
+      .selectFrom('records')
+      .select(['id', 'type'])
+      .where('project_id', '=', ctx.projectId)
+      .where('code', '=', c.epic.code)
+      .executeTakeFirst();
+    if (epic?.type !== 'epic') throw new DomainError('not_found', `There is no epic ${c.epic.code}.`);
+    if (c.action === 'add') {
+      const r = await ctx.execute({
+        command: 'planned_feature.add',
+        actor: ctx.actor,
+        data: { epic_id: epic.id, name: c.name, summary: c.summary, ...(c.position ? { position: c.position } : {}) },
+      });
+      return { type: 'planned_feature', action: c.action, code: (r.result as { code: string }).code };
+    }
+    const feature = c.code
+      ? await ctx.trx
+          .selectFrom('planned_features')
+          .select(['id', 'state'])
+          .where('project_id', '=', ctx.projectId)
+          .where('epic_id', '=', epic.id)
+          .where('code', '=', c.code)
+          .executeTakeFirst()
+      : undefined;
+    if (!c.code || !feature || feature.state === 'dropped')
+      throw new DomainError('conflict', `${c.code ?? 'The feature'} is not in the list of ${c.epic.code} any more.`);
+    if (c.action === 'drop') {
+      if (feature.state !== 'planned')
+        throw new DomainError('conflict', `${c.code} is already designed, so it can't be dropped from the list.`);
+      await ctx.execute({ command: 'planned_feature.drop', actor: ctx.actor, entityId: feature.id, data: { reason: c.reason } });
+    } else {
+      await ctx.execute({
+        command: 'planned_feature.move',
+        actor: ctx.actor,
+        entityId: feature.id,
+        data: { position: c.position ?? 1 },
+      });
+    }
+    return { type: 'planned_feature', action: c.action, code: c.code };
   },
 
   // Accepting a review proposed by knowledge doesn't change the record: it opens an

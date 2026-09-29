@@ -61,6 +61,9 @@ export const fdrPayload = z
   })
   .strict();
 
+/** A feature an epic lists: its name and one sentence of what it lets the person do. */
+export const plannedFeatureInput = z.object({ name: text(120), summary: text(500) }).strict();
+
 /** A design-stage record (requirement, quality requirement, threat model, production readiness or ADR). */
 export const designRecordPayload = z
   .object({
@@ -79,6 +82,13 @@ export const designRecordPayload = z
     based_on: recordReference.optional(),
     /** A feature's siblings it depends on (approved features): one `based_on` link each, and they have to be built first. */
     needs: z.array(recordReference).max(6).optional(),
+    /** An epic's features, in order (the smallest end-to-end walk first): accepting the epic makes each a planned feature. */
+    features: z.array(plannedFeatureInput).max(20).optional(),
+    /** A feature (fdr) designed from a planned feature of its epic: the code that feature reserved. */
+    code: z
+      .string()
+      .regex(/^FDR-[A-Z]{3}-\d{3}$/)
+      .optional(),
     aspect: aspectSchema.optional(),
     basis,
   })
@@ -173,7 +183,7 @@ export const definitionChangePayload = z
   .strict();
 
 /**
- * A change to one section of an approved record (an epic's features, for one), proposed by an agent
+ * A change to one section of an approved record, proposed by an agent
  * from what the person decided in the thread that is about that record, on their own words there
  * (`evidence`, checked by the server). Accepting it makes the next version of the record: the one
  * in force with only that section replaced; `record` is the version it changes.
@@ -191,12 +201,50 @@ export const recordChangePayload = z
   })
   .strict();
 
+/**
+ * A change to the list of features of an epic, proposed by an agent from what the person decided in
+ * the thread that is about the epic (draft or approved), on their own words there (`evidence`,
+ * checked by the server). Accepting it adds, drops or moves one planned feature: there is no version
+ * to approve.
+ */
+export const featurePlanPayload = z
+  .object({
+    epic: z.object({ code: z.string().regex(/^EPC-[A-Z]{3}-\d{3}$/) }).strict(),
+    action: z.enum(['add', 'drop', 'move']),
+    /** The feature dropped or moved (its reserved FDR code). */
+    code: z
+      .string()
+      .regex(/^FDR-[A-Z]{3}-\d{3}$/)
+      .nullish(),
+    /** The feature added: its name and one sentence. */
+    name: text(120).nullish(),
+    summary: text(500).nullish(),
+    /** Where the feature goes (add: at the end when absent) or its new place (move); 1-based. */
+    position: z.number().int().positive().nullish(),
+    reason: text(1000),
+    evidence: z
+      .array(z.object({ message_id: z.string().uuid(), quote: text(QUOTE_MAX) }).strict())
+      .min(1)
+      .max(3),
+  })
+  .strict()
+  .superRefine((c, ctx) => {
+    const need = (ok: boolean, path: string, message: string) => {
+      if (!ok) ctx.addIssue({ code: 'custom', path: [path], message });
+    };
+    if (c.action === 'add') {
+      need(!!c.name, 'name', 'An added feature needs a name.');
+      need(!!c.summary, 'summary', 'An added feature needs a sentence saying what it does.');
+    } else need(!!c.code, 'code', `A ${c.action} needs the code of the feature.`);
+    if (c.action === 'move') need(c.position != null, 'position', 'A move needs the new place.');
+  });
+
 export const AGENT_PROPOSAL_TYPES = ['decision', 'exploration', 'fdr', 'design_record'] as const;
 
 /**
  * Proposal types. `imported_record` and `imported_taxonomy` are only created by the design/ import;
- * `record_translation` and `product_definition`, by the system; `definition_change` and `record_change`, by DEMIURGO's
- * agents in a thread.
+ * `record_translation` and `product_definition`, by the system; `definition_change`, `record_change` and
+ * `feature_plan`, by DEMIURGO's agents in a thread.
  */
 export const PAYLOADS = {
   decision: decisionPayload,
@@ -208,6 +256,7 @@ export const PAYLOADS = {
   product_definition: productDefinitionPayload,
   definition_change: definitionChangePayload,
   record_change: recordChangePayload,
+  feature_plan: featurePlanPayload,
   imported_record: z.object({ document: z.record(z.string(), z.unknown()), path: z.string() }).strict(),
   imported_taxonomy: z.object({ document: z.record(z.string(), z.unknown()), path: z.string() }).strict(),
 } as const;

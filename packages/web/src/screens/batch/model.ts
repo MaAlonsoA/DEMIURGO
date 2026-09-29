@@ -96,6 +96,12 @@ export function proposalTitle(p: { type: string; payload: Record<string, unknown
   if (p.type === 'exploration') return str(p.payload.purpose);
   if (p.type === 'definition_change') return `Product definition: ${str(p.payload.section)}`;
   if (p.type === 'record_change') return `${str((p.payload.record as { code?: unknown } | undefined)?.code)}: ${str(p.payload.section)}`;
+  if (p.type === 'feature_plan') {
+    const epic = str((p.payload.epic as { code?: unknown } | undefined)?.code);
+    const action = str(p.payload.action);
+    if (action === 'add') return `${epic}: add “${str(p.payload.name)}”`;
+    return `${epic}: ${action === 'drop' ? 'drop' : 'move'} ${str(p.payload.code)}`;
+  }
   const doc = p.payload.document as { title?: unknown } | undefined;
   return str(p.payload.title) || str(doc?.title);
 }

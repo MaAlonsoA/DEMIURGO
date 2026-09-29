@@ -187,6 +187,8 @@ describe('Codex provider', () => {
       { type: 'string', enum: ['exploration'] },
       { type: 'string', enum: ['design_record'] },
       { type: 'string', enum: ['definition_change'] },
+      { type: 'string', enum: ['record_change'] },
+      { type: 'string', enum: ['feature_plan'] },
     ]);
   });
 

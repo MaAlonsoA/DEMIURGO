@@ -42,6 +42,8 @@ export function aspectOfProposal(p: { type: string; payload: Record<string, unkn
   if (isAspect(p.payload.aspect)) return p.payload.aspect;
   if (p.type === 'design_record') return aspectOfType(typeof p.payload.record_type === 'string' ? p.payload.record_type : null);
   if (p.type === 'definition_change') return 'product';
+  // A change to an epic's list of features is about the epic.
+  if (p.type === 'feature_plan') return 'epic';
   // A change to a record is about what the record is: its code's prefix says its type.
   if (p.type === 'record_change') {
     const code = (p.payload.record as { code?: unknown } | undefined)?.code;
@@ -65,7 +67,7 @@ export function aspectOfRecord(r: { type: string; aspect?: string | null }): Asp
 }
 
 /** Proposal kinds that are one more "Proposal" (they make or change a record); the others have their own noun. */
-export const PROPOSAL_NOUN_KINDS = new Set(['decision', 'fdr', 'design_record', 'product_definition', 'definition_change', 'record_change']);
+export const PROPOSAL_NOUN_KINDS = new Set(['decision', 'fdr', 'design_record', 'product_definition', 'definition_change', 'record_change', 'feature_plan']);
 
 export type AspectGroup<T> = { key: Aspect | 'none'; aspect: Aspect | null; rows: T[] };
 

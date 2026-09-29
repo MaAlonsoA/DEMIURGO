@@ -110,6 +110,28 @@ function RecordChangeBody({ projectId, proposal: p }: { projectId: string; propo
   );
 }
 
+/** A change to an epic's list of features decided in its thread: what it does to the list. */
+function FeaturePlanBody({ proposal: p }: { proposal: ProposalData }) {
+  const t = useMessages(PROPOSAL_VIEW);
+  const epic = str((p.payload.epic as { code?: unknown } | undefined)?.code);
+  const action = str(p.payload.action);
+  const code = str(p.payload.code);
+  const name = str(p.payload.name);
+  const position = typeof p.payload.position === 'number' ? p.payload.position : null;
+  return (
+    <div className="flex flex-col gap-2" data-body="feature_plan">
+      <p className="text-sm text-fg-2">{t.featurePlanOf(epic)}</p>
+      <p className="text-md text-fg" data-feature-plan={action}>
+        {action === 'add'
+          ? t.featurePlanAdd(name, position, str(p.payload.summary))
+          : action === 'drop'
+            ? t.featurePlanDrop(code, name)
+            : t.featurePlanMove(code, name, position)}
+      </p>
+    </div>
+  );
+}
+
 /** What a proposal changes, by its type (INV-PROP-10). The title and the why are above it. */
 export function ProposalBody({
   projectId,
@@ -125,6 +147,7 @@ export function ProposalBody({
 }) {
   const t = useMessages(PROPOSAL_VIEW);
   const needs = (Array.isArray(p.payload.needs) ? p.payload.needs : []) as { code: string; version?: number }[];
+  const features = (Array.isArray(p.payload.features) ? p.payload.features : []) as { name?: unknown; summary?: unknown }[];
   if (p.type === 'decision') {
     return (
       <div className="flex flex-col gap-4" data-body="decision">
@@ -157,12 +180,26 @@ export function ProposalBody({
           </p>
         ) : null}
         <Sections sections={payloadSections(p.payload)} />
+        {features.length > 0 ? (
+          <section className="flex flex-col gap-1" data-features>
+            <h3 className="text-sm font-semibold text-fg-2">{t.features(features.length)}</h3>
+            <ol className="flex list-decimal flex-col gap-1 pl-5 text-md text-fg">
+              {features.map((f, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: an epic lists its features in order, and two may share a name
+                <li key={`${str(f.name)}-${i}`}>
+                  <span className="font-medium">{str(f.name)}</span>: {str(f.summary)}
+                </li>
+              ))}
+            </ol>
+          </section>
+        ) : null}
         <Checks proposal={p} />
       </div>
     );
   }
   if (p.type === 'definition_change') return <DefinitionChangeBody projectId={projectId} proposal={p} />;
   if (p.type === 'record_change') return <RecordChangeBody projectId={projectId} proposal={p} />;
+  if (p.type === 'feature_plan') return <FeaturePlanBody proposal={p} />;
   if (p.type === 'exploration') {
     return (
       <div className="flex flex-col gap-1" data-body="exploration">

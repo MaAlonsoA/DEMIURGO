@@ -27,6 +27,8 @@ import { DISCARD_TRIGGER, onAuthorityEvent } from './reactions.ts';
 const text = (max: number) => z.string().trim().min(1).max(max);
 const uuid = z.string().uuid();
 const RE_CODE = /^(DEC|FDR|ADR|BUG)-[A-Z]{3}-\d{3}$/;
+// What a link points to: any record, an epic (EPC) or the definition (DEF) too.
+const RE_TARGET = /^[A-Z]{3}-[A-Z]{3}-\d{3}$/;
 const LINK_TYPES = ['based_on', 'design_of', 'covers', 'origin', 'conflicts_with', 'derived_from'] as const;
 
 const L = VERSION_LIMITS;
@@ -61,7 +63,7 @@ export type CriterionInput = z.infer<typeof criterionInputSchema>;
 export const linkInputSchema = z
   .object({
     type: z.enum(LINK_TYPES),
-    target: z.object({ code: z.string().regex(RE_CODE), version: z.number().int().positive() }).strict(),
+    target: z.object({ code: z.string().regex(RE_TARGET), version: z.number().int().positive() }).strict(),
   })
   .strict();
 

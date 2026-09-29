@@ -45,6 +45,7 @@ export function proposalIconType(p: Pick<ProposalView, 'type' | 'payload'>): str
   if (p.type === 'imported_taxonomy') return 'taxonomy';
   if (p.type === 'record_translation') return 'package';
   if (p.type === 'product_definition' || p.type === 'definition_change') return 'product_definition';
+  if (p.type === 'feature_plan') return 'epic';
   if (p.type === 'record_change') return typeOfCode(str((p.payload.record as { code?: unknown } | undefined)?.code)) ?? 'idea';
   return 'idea';
 }
@@ -75,6 +76,7 @@ export function proposalLine(p: Pick<ProposalView, 'type' | 'payload'>): string 
   if (p.type === 'review') return str(p.payload.reason);
   if (p.type === 'exploration') return str(p.payload.purpose);
   if (p.type === 'definition_change' || p.type === 'record_change') return str(p.payload.content);
+  if (p.type === 'feature_plan') return str(p.payload.summary) || str(p.payload.reason);
   if (p.type === 'design_record' || p.type === 'record_translation' || p.type === 'product_definition')
     return payloadSections(p.payload)[0]?.content ?? '';
   return '';
@@ -84,7 +86,8 @@ export function proposalLine(p: Pick<ProposalView, 'type' | 'payload'>): string 
 export function proposalWhy(p: Pick<ProposalView, 'type' | 'payload'>): string {
   if (p.type === 'decision') return str(p.payload.context);
   if (p.type === 'fdr') return str(p.payload.goal);
-  if (p.type === 'review' || p.type === 'definition_change' || p.type === 'record_change') return str(p.payload.reason);
+  if (p.type === 'review' || p.type === 'definition_change' || p.type === 'record_change' || p.type === 'feature_plan')
+    return str(p.payload.reason);
   return '';
 }
 
@@ -135,16 +138,49 @@ export function acceptEffects(p: Pick<ProposalView, 'type' | 'payload'>, approve
             : 'You keep working on it: the new version is recorded as an accepted proposal, not settled yet.',
         ];
   }
+  if (p.type === 'feature_plan') {
+    const epic = str((p.payload.epic as { code?: unknown } | undefined)?.code) || (es ? 'la épica' : 'the epic');
+    const action = str(p.payload.action);
+    const code = str(p.payload.code);
+    return es
+      ? [
+          action === 'add'
+            ? `DEMIURGO añade «${str(p.payload.name)}» a la lista de funcionalidades de ${epic} y le reserva su código.`
+            : action === 'drop'
+              ? `DEMIURGO quita ${code} de la lista de funcionalidades de ${epic}. Su código no se vuelve a usar.`
+              : `DEMIURGO mueve ${code} a otro puesto de la lista de funcionalidades de ${epic}.`,
+          'No hay nada que aprobar: la lista no es una versión de la épica.',
+        ]
+      : [
+          action === 'add'
+            ? `DEMIURGO adds “${str(p.payload.name)}” to the list of features of ${epic} and reserves its code.`
+            : action === 'drop'
+              ? `DEMIURGO drops ${code} from the list of features of ${epic}. Its code is never reused.`
+              : `DEMIURGO moves ${code} to another place in the list of features of ${epic}.`,
+          'There is nothing to approve: the list is not a version of the epic.',
+        ];
+  }
+  const listed = p.type === 'design_record' && Array.isArray(p.payload.features) ? p.payload.features.length : 0;
+  const listing =
+    listed > 0
+      ? [
+          es
+            ? `Sus ${listed} funcionalidades quedan en su lista al momento, cada una con su código reservado.`
+            : `Its ${listed} features go into its list at once, each with its code reserved.`,
+        ]
+      : [];
   if (approve)
     return [
       es
         ? 'Queda asentada: DEMIURGO y los siguientes pasos parten de ella.'
         : 'It is settled: DEMIURGO and the next steps build on it.',
+      ...listing,
     ];
   return [
     es
       ? 'Sigues trabajando en ella: queda como propuesta aceptada, aún sin asentar.'
       : 'You keep working on it: it is recorded as an accepted proposal, not settled yet.',
+    ...listing,
   ];
 }
 

@@ -9,6 +9,7 @@ import {
   DEFINITION_SECTIONS,
   DEFINITION_STAGE,
   type DefinitionSectionTitle,
+  type DefinitionSource,
   type Section,
   composeDefinition,
   definitionChangeNote,
@@ -29,6 +30,15 @@ export async function definitionStageId(trx: Db, projectId: string): Promise<str
     .where('stage', '=', DEFINITION_STAGE)
     .executeTakeFirst();
   return stage?.id ?? null;
+}
+
+/** The sources a version was proposed with (its proposal's), or none when it came another way. */
+export async function versionSources(trx: Db, origin: unknown): Promise<DefinitionSource[]> {
+  const o = origin as { type?: string; id?: string } | null;
+  if (o?.type !== 'proposal' || !o.id) return [];
+  const p = await trx.selectFrom('proposals').select(['type', 'payload']).where('id', '=', o.id).executeTakeFirst();
+  if (p?.type !== 'product_definition') return [];
+  return ((p.payload as { sources?: DefinitionSource[] }).sources ?? []).slice();
 }
 
 export type ProposeOptions = {
@@ -79,7 +89,7 @@ export async function proposeDefinitionIfCovered(
   const base = record
     ? await ctx.trx
         .selectFrom('record_versions')
-        .select(['n', 'sections'])
+        .select(['n', 'sections', 'origin'])
         .where('record_id', '=', record.id)
         .where('state', '<>', 'discarded')
         .orderBy('n', 'desc')
@@ -88,6 +98,10 @@ export async function proposeDefinitionIfCovered(
   let changeNote: string | undefined;
   let summary = 'The product definition, composed from the answers you confirmed.';
   if (record && base) {
+    // The sections a stage of principles added (principles.ts) stay as they are, with their sources.
+    const own = new Set<string>(DEFINITION_SECTIONS.map((s) => s.title));
+    composed.sections.push(...(base.sections as Section[]).filter((s) => !own.has(s.title)));
+    composed.sources.push(...(await versionSources(ctx.trx, base.origin)).filter((s) => !own.has(s.section)));
     const changed = definitionChanges(base.sections as Section[], composed.sections);
     if (changed.length === 0) return;
     const reasons = [];

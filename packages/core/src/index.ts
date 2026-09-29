@@ -29,7 +29,7 @@ export * from './secrets.ts';
 export * from './startup.ts';
 export * from './queries/read.ts';
 export * from './queries/definition.ts';
-export { QUALITY_ACTOR, qualityBatch } from './definition/quality.ts';
+export { principlesBatch } from './definition/principles.ts';
 export { classifyAspects } from './classifier/aspect.ts';
 export * from './queries/trace.ts';
 export * from './queries/web.ts';

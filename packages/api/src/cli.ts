@@ -4,7 +4,7 @@
 //   node packages/api/src/cli.ts create-project <name>
 //   node packages/api/src/cli.ts issue-agent-token <projectId> <agentName> <username>   (the person's password from stdin)
 //   node packages/api/src/cli.ts real-run <projectId> <action> <json-scope> [json-input]
-//   node packages/api/src/cli.ts propose-quality <projectId>                   (the NFRs of a covered Global quality stage)
+//   node packages/api/src/cli.ts propose-principles <projectId> <stage>        (a covered stage of principles, as the definition's next version)
 //   node packages/api/src/cli.ts supersede-batch <projectId> <batchId> <reason>  (withdraws a pending batch; decides nothing)
 //   node packages/api/src/cli.ts classify-messages <projectId>                 (Jev: aspect of the messages not classified yet)
 //   node packages/api/src/cli.ts evaluate-classifier <provider> <model> [effort|-] [test|dev|all] [v1|v1-en]   (spends quota)
@@ -39,8 +39,7 @@ import {
   inertEngine,
   proposeEnglishVersions,
   TRANSLATION_ACTOR,
-  QUALITY_ACTOR,
-  qualityBatch,
+  principlesBatch,
   classifyAspects,
 } from '@demiurgo/core';
 import { readTree, replaceTree } from '@demiurgo/design';
@@ -170,9 +169,9 @@ const commands: Record<string, () => Promise<void>> = {
     });
   },
 
-  async 'propose-quality'() {
-    const [projectId] = args;
-    if (!projectId) throw new Error('Usage: propose-quality <projectId>');
+  async 'propose-principles'() {
+    const [projectId, stageKey] = args;
+    if (!projectId || !stageKey) throw new Error('Usage: propose-principles <projectId> <stage>');
     const core = await startCore(config, cliLogger);
     try {
       const { db } = core.services;
@@ -180,12 +179,12 @@ const commands: Record<string, () => Promise<void>> = {
         .selectFrom('stages')
         .select('id')
         .where('project_id', '=', projectId)
-        .where('stage', '=', 'quality')
+        .where('stage', '=', stageKey)
         .executeTakeFirst();
-      const data = await qualityBatch(db, projectId, stage?.id);
-      if (!data) throw new Error('Global quality is not covered, or its requirements were already proposed.');
-      const r = await executeCommand(core.services, { command: 'batch.submit', actor: QUALITY_ACTOR, projectId, data });
-      console.log(JSON.stringify({ batch: r.entityId, proposals: data.proposals.length }));
+      const data = await principlesBatch(db, projectId, stage?.id);
+      if (!data) throw new Error('The stage is not covered, there is no definition, another one is pending, or it already says it.');
+      const r = await executeCommand(core.services, { command: 'batch.submit', actor: system('definition'), projectId, data });
+      console.log(JSON.stringify({ batch: r.entityId }));
     } finally {
       await core.stop();
     }

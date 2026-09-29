@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { field, registerGuards, trimmed } from '../bus/guards.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
 import { proposeDefinitionIfCovered } from '../definition/compose.ts';
-import { proposeQualityIfCovered } from '../definition/quality.ts';
+import { proposePrinciplesIfCovered } from '../definition/principles.ts';
 
 registerGuards({
   async stage_in_order({ ctx, data }) {
@@ -23,6 +23,18 @@ registerGuards({
     const previous = i > 0 ? STAGES[i - 1] : undefined;
     if (previous && !opened.some((s) => s.stage === previous.key && s.state === 'passed'))
       return `The ${previous.title} stage has to pass first.`;
+    // The product's architecture rests on what is going to be built: at least one approved feature.
+    if (STAGES[i]?.moment === 'before_build' && previous?.moment !== 'before_build') {
+      const feature = await ctx.trx
+        .selectFrom('records')
+        .innerJoin('record_versions', 'record_versions.record_id', 'records.id')
+        .select('records.id')
+        .where('records.project_id', '=', ctx.projectId)
+        .where('records.type', 'in', ['fdr', 'requirement'])
+        .where('record_versions.state', '=', 'approved')
+        .executeTakeFirst();
+      if (!feature) return `The ${STAGES[i]?.title} stage rests on the features: approve at least one feature first.`;
+    }
     return null;
   },
   async stage_covered({ ctx, entity }) {
@@ -109,7 +121,7 @@ registerHandlers({
         .execute();
       // A stage covered before the definition existed (or whose definition was rejected) proposes it now.
       await proposeDefinitionIfCovered(ctx, id);
-      await proposeQualityIfCovered(ctx, id);
+      await proposePrinciplesIfCovered(ctx, id);
       const next = nextStage(stage);
       if (next) {
         await ctx.execute({

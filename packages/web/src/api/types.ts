@@ -711,6 +711,8 @@ export type StageRow = {
   key: string;
   title: string;
   produces: string;
+  /** When it opens: in the onboarding, before building (on the approved features) or before the first version. */
+  moment: 'onboarding' | 'before_build' | 'before_release';
   position: number;
   id: string | null;
   state: 'not_started' | 'open' | 'passed';

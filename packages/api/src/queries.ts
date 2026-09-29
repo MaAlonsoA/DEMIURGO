@@ -316,6 +316,7 @@ registerQueries([
           key: def.key,
           title: def.title,
           produces: def.produces,
+          moment: def.moment,
           position,
           id: row?.id ?? null,
           state: row?.state ?? 'not_started',

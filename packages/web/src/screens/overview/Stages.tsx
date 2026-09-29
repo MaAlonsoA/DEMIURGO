@@ -170,15 +170,15 @@ export function DesignStages({ projectId }: { projectId: string }) {
           <ErrorNotice error={stages.error} onRetry={() => void stages.refetch()} />
         ) : !stages.data ? (
           <Skeleton label={t.loadingStages}>
-            <div className="grid gap-2 sm:grid-cols-5">
-              {[0, 1, 2, 3, 4].map((i) => (
+            <div className="grid gap-2 sm:grid-cols-6">
+              {[0, 1, 2, 3, 4, 5].map((i) => (
                 <Bone key={i} className="h-24 rounded-lg" />
               ))}
             </div>
           </Skeleton>
         ) : list.length === 0 ? null : (
           <T.Root value={selected?.key ?? ''} onValueChange={setChosen} className="flex flex-col gap-3">
-            <T.List aria-label={t.designStages} className="grid gap-2 sm:grid-cols-5">
+            <T.List aria-label={t.designStages} className="grid gap-2 sm:grid-cols-6">
               {list.map((s) => (
                 <T.Trigger
                   key={s.key}
@@ -218,7 +218,8 @@ export function DesignStages({ projectId }: { projectId: string }) {
                 <StageDetail
                   projectId={projectId}
                   stage={s}
-                  next={list[i + 1]}
+                  previous={list[i - 1]}
+                  next={list[i + 1]?.moment === s.moment ? list[i + 1] : undefined}
                   pendingDefinition={s.key === DEFINITION_STAGE ? pendingDefinition : null}
                 />
               </T.Content>
@@ -233,11 +234,13 @@ export function DesignStages({ projectId }: { projectId: string }) {
 function StageDetail({
   projectId,
   stage: s,
+  previous,
   next,
   pendingDefinition,
 }: {
   projectId: string;
   stage: StageRow;
+  previous: StageRow | undefined;
   next: StageRow | undefined;
   pendingDefinition: { kind: 'draft' | 'proposed'; id: string } | null;
 }) {
@@ -274,7 +277,36 @@ function StageDetail({
         </p>
       ) : null}
       {s.state === 'not_started' ? (
-        <p className="text-sm text-fg-2">{s.position === 0 ? t.opensWhenStart : t.opensWhenPasses}</p>
+        <p className="text-sm text-fg-2">
+          {s.position === 0
+            ? t.opensWhenStart
+            : s.moment === previous?.moment
+              ? t.opensWhenPasses
+              : s.moment === 'before_build'
+                ? t.opensBeforeBuild
+                : t.opensBeforeRelease}
+        </p>
+      ) : null}
+      {s.state === 'not_started' && previous?.state === 'passed' && s.moment !== previous.moment ? (
+        <div className="flex flex-col gap-2">
+          {command.error ? <ErrorNotice error={command.error} /> : null}
+          <div>
+            <Button
+              size="sm"
+              data-command="stage.open"
+              pending={command.isPending}
+              pendingLabel={t.preparing}
+              onClick={() =>
+                command.mutate(
+                  { command: 'stage.open', data: { stage: s.key } },
+                  { onSuccess: () => announce(t.startedAnnounce(s.title)) },
+                )
+              }
+            >
+              {s.moment === 'before_build' ? t.prepareBuild : t.prepareRelease}
+            </Button>
+          </div>
+        </div>
       ) : null}
       {pendingDefinition ? <PendingDefinition projectId={projectId} pending={pendingDefinition} /> : null}
       {s.exploration_id || canPass ? (

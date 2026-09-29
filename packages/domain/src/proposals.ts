@@ -143,7 +143,8 @@ export const productDefinitionPayload = z
           })
           .strict(),
       )
-      .max(12),
+      // One per section, and one per answer in the sections of principles.
+      .max(40),
     change_note: z.string().trim().max(2000).optional(),
   })
   .strict();

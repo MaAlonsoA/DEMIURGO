@@ -20,7 +20,7 @@ import { handler, registerHandlers } from '../bus/handlers.ts';
 import { requireEngine } from './runs.ts';
 import { classifyMessage } from '../classifier/aspect.ts';
 import { proposeDefinitionIfCovered } from '../definition/compose.ts';
-import { conclusionWithImplies, proposeQualityIfCovered } from '../definition/quality.ts';
+import { conclusionWithImplies, proposePrinciplesIfCovered } from '../definition/principles.ts';
 import type { Tx } from '../db/connection.ts';
 import { AGENT_TOKEN_PREFIX, secretFingerprint, newSecret } from '../secrets.ts';
 
@@ -491,7 +491,7 @@ registerHandlers({
       // The last answer of the product definition stage proposes the definition (or its next version).
       await proposeDefinitionIfCovered(ctx, e?.row.stage_id as string | null);
       // The last answer of Global quality proposes its quality requirements.
-      await proposeQualityIfCovered(ctx, e?.row.stage_id as string | null);
+      await proposePrinciplesIfCovered(ctx, e?.row.stage_id as string | null);
       return {
         entityId: e?.id ?? '',
         before: { conclusion: e?.row.conclusion ?? null },

@@ -11,6 +11,7 @@ import {
 } from '@demiurgo/domain';
 import type { CommandContext } from '../bus/types.ts';
 import { definitionStageId, proposeDefinitionIfCovered } from '../definition/compose.ts';
+import { proposeCoveredPrinciples } from '../definition/principles.ts';
 import { resolveReference } from './records.ts';
 
 export type Effect = Record<string, unknown>;
@@ -172,8 +173,10 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
   async product_definition(ctx, { proposalId, payload, approve }) {
     const c = PAYLOADS.product_definition.parse(payload);
     const origin = { type: 'proposal', id: proposalId };
-    const waiting = async () =>
-      proposeDefinitionIfCovered(ctx, await definitionStageId(ctx.trx, ctx.projectId), { resolving: proposalId });
+    const waiting = async () => {
+      await proposeDefinitionIfCovered(ctx, await definitionStageId(ctx.trx, ctx.projectId), { resolving: proposalId });
+      await proposeCoveredPrinciples(ctx, proposalId);
+    };
     if (!c.record) {
       const created = await createRecord(
         ctx,

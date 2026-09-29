@@ -7,10 +7,28 @@
 // References: ISO/IEC/IEEE 29148 and Volere (measurable fit criteria), EARS, arc42/C4/ADR,
 // STRIDE threat modeling, the Kubernetes KEP production readiness review and Google SRE's PRR.
 
-export type StageQuestion = { key: string; question: string; reason: string; impact: 'high' | 'medium' | 'low' };
+export type StageQuestion = {
+  key: string;
+  question: string;
+  reason: string;
+  impact: 'high' | 'medium' | 'low';
+  /** In a stage of principles, the label of its line in the definition section. */
+  label?: string;
+};
+
+/**
+ * When a stage opens, by what it needs to rest on. The onboarding leaves principles (the product
+ * definition and its sections); the product's architecture waits until there is a feature to build;
+ * its security and operations, until the first version is being prepared.
+ */
+export type StageMoment = 'onboarding' | 'before_build' | 'before_release';
+
 export type StageDefinition = {
   key: string;
   title: string;
+  moment: StageMoment;
+  /** A stage of principles: the section of the product definition its answers make. */
+  principles?: string;
   /** What the stage leaves on record once passed. */
   produces: string;
   purpose: string;
@@ -21,6 +39,7 @@ export const STAGES: readonly StageDefinition[] = [
   {
     key: 'requirements',
     title: 'Product definition',
+    moment: 'onboarding',
     produces:
       'The product definition (DEF): what the product is for, how you will know it works, its principles, users, problem, first version, what is out and its constraints. Then one feature (FDR) per capability.',
     purpose:
@@ -79,36 +98,43 @@ export const STAGES: readonly StageDefinition[] = [
   {
     key: 'quality',
     title: 'Global quality',
-    produces: 'Quality requirements (NFR) that apply to every feature.',
+    moment: 'onboarding',
+    principles: 'Quality goals',
+    produces: "The product's quality goals, a section of the product definition that every feature keeps to.",
     purpose:
       'Global quality: product-wide performance, availability, usability, accessibility, data and operability targets, each measurable (ISO/IEC 25010, arc42 quality scenarios).',
     questions: [
       {
         key: 'performance',
+        label: 'Performance',
         question: 'What response times and load must the product handle (users, data volume, peaks)?',
         reason: 'Performance targets shape the architecture.',
         impact: 'high',
       },
       {
         key: 'availability',
+        label: 'Availability and recovery',
         question: 'How available must it be, and what happens if it is down (acceptable downtime, data loss)?',
         reason: 'Availability and recovery targets drive infrastructure and cost.',
         impact: 'high',
       },
       {
         key: 'usability',
+        label: 'Usability and accessibility',
         question: 'Who must be able to use it without help, and what accessibility level is required?',
         reason: 'Usability and accessibility are requirements, not polish.',
         impact: 'medium',
       },
       {
         key: 'data',
+        label: 'Data retention and ownership',
         question: 'What data does it keep, for how long, and who owns it?',
         reason: 'Retention and ownership affect storage, privacy and compliance.',
         impact: 'medium',
       },
       {
         key: 'quality_scenarios',
+        label: 'Priority quality scenario',
         question: 'Which quality scenario matters most, stated as stimulus → response → measure?',
         reason: 'arc42: quality goals must be concrete scenarios to be tested.',
         impact: 'medium',
@@ -116,9 +142,57 @@ export const STAGES: readonly StageDefinition[] = [
     ],
   },
   {
+    key: 'principles',
+    title: 'Architecture and security principles',
+    moment: 'onboarding',
+    principles: 'Architecture and security principles',
+    produces:
+      'The architecture and security principles, a section of the product definition. Only the decisions they force are proposed now; the rest waits for the features.',
+    purpose:
+      'Architecture and security principles: who and what the product talks to, what the constraints and quality goals already force, what must be protected, from whom, and who may do what. Only what the definition supports; the rest is decided with the features.',
+    questions: [
+      {
+        key: 'context',
+        label: 'Context',
+        question: 'Which people and external systems does the product talk to?',
+        reason: 'The context fixes the boundaries, and it follows from the definition.',
+        impact: 'high',
+      },
+      {
+        key: 'forced_decisions',
+        label: 'Forced by the constraints',
+        question: 'Which hard-to-reverse choices do the constraints and quality goals already force (where it runs, for how many people, where the data lives)?',
+        reason: 'Only a choice forced by what is already known can be decided before the features.',
+        impact: 'high',
+      },
+      {
+        key: 'assets',
+        label: 'What must be protected',
+        question: 'What must be protected (data, credentials, money, reputation)?',
+        reason: 'The assets follow from the definition and guide every feature.',
+        impact: 'high',
+      },
+      {
+        key: 'actors',
+        label: 'Who could misuse it',
+        question: 'Who could attack or misuse the product, and with what access?',
+        reason: 'Knowing who threatens it tells each feature what to guard against.',
+        impact: 'medium',
+      },
+      {
+        key: 'access',
+        label: 'Who may do what',
+        question: 'Who gets in, and what may each kind of person do?',
+        reason: 'Access is a principle every feature keeps to.',
+        impact: 'medium',
+      },
+    ],
+  },
+  {
     key: 'architecture',
     title: 'Architecture',
-    produces: 'The architecture decisions (ADR) every feature builds on.',
+    moment: 'before_build',
+    produces: 'The architecture decisions (ADR) the features need to be built, based on the approved features.',
     purpose:
       'Architecture: context, building blocks, key decisions with their reasons and the risks they carry (arc42, C4, ADRs).',
     questions: [
@@ -157,6 +231,7 @@ export const STAGES: readonly StageDefinition[] = [
   {
     key: 'security',
     title: 'Security baseline',
+    moment: 'before_release',
     produces: 'The product threat model (THR); each feature adds only its own threats.',
     purpose:
       'Security baseline: what we protect, from whom, the threats per component and their mitigations (threat modeling, STRIDE).',
@@ -197,6 +272,7 @@ export const STAGES: readonly StageDefinition[] = [
   {
     key: 'production',
     title: 'Operations baseline',
+    moment: 'before_release',
     produces: 'How the product is deployed, observed and supported (PRR); each feature adds its own rollout.',
     purpose:
       'Operations baseline: how it is deployed, observed, rolled back and supported (Kubernetes KEP production readiness review, Google SRE PRR).',
@@ -239,10 +315,11 @@ export function stageDefinition(key: string): StageDefinition | undefined {
   return STAGES.find((s) => s.key === key);
 }
 
-/** The stage after a given one, or null when it is the last. */
+/** The stage that opens when a given one passes: the next one of the same moment, or null. */
 export function nextStage(key: string): StageDefinition | null {
   const i = STAGES.findIndex((s) => s.key === key);
-  return i >= 0 && i + 1 < STAGES.length ? (STAGES[i + 1] ?? null) : null;
+  const next = i >= 0 ? STAGES[i + 1] : undefined;
+  return next && next.moment === STAGES[i]?.moment ? next : null;
 }
 
 /** States of a mandatory question that count as covered: confirmed, or discarded with a reason. */

@@ -39,6 +39,7 @@ import { ThreadAside } from './Aside.tsx';
 import { Composer, type ComposerHandle } from './Composer.tsx';
 import { Conversation, type ConversationHandle } from './Conversation.tsx';
 import { DeeperPanel } from './Deeper.tsx';
+import { useExplain } from './Explain.tsx';
 import { DraftsProvider, useDraftsState, useSendDrafts } from './drafts.tsx';
 import { DraftsBar } from './DraftsBar.tsx';
 import { ThreadHeader, short } from './Header.tsx';
@@ -85,6 +86,7 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
   const tables = useTables();
   const allows = useAllows('exploration', thread.data?.state);
   const resume = useCommand(projectId);
+  const explain = useExplain(projectId, explorationId);
   const drafts = useDraftsState(explorationId);
   const wide = useWide();
 
@@ -213,6 +215,10 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
     if (deeperId === id) closeDeeper();
     else setDeeperId(id);
   };
+  const onExplain = (id: string) => {
+    setDeeperId(id);
+    explain.ask(id);
+  };
   const onOwnWords = (id: string) => {
     if (answeringId === id) {
       setAnsweringId(null);
@@ -297,6 +303,8 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
                   answeringId={answeringQuestion?.id ?? null}
                   onDeeper={onDeeper}
                   onOwnWords={onOwnWords}
+                  onExplain={onExplain}
+                  explaining={explain.pending}
                   onUnseen={setUnseen}
                 />
               </>

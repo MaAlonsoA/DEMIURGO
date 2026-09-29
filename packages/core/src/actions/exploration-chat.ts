@@ -7,6 +7,7 @@
 
 import { COVERED_QUESTION_STATES, DomainError, quoteFound, stageDefinition, system } from '@demiurgo/domain';
 import { sql } from 'kysely';
+import { loadAgentCatalog } from '../agents/catalog.ts';
 import { registerBuilder } from '../context/build.ts';
 import { knowledgeForContext } from '../context/knowledge.ts';
 import { type FragmentSource, ManifestBuilder, recordKnowledge } from '../context/manifest.ts';
@@ -303,6 +304,8 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
       respond: false,
     },
   });
+  // A reply-only agent (the explainer) leaves its reply and nothing else, whatever it returned.
+  if ((await loadAgentCatalog()).get(run.agent ?? '')?.replyOnly) return;
   if (output.purpose) {
     const current = await trx
       .selectFrom('explorations')

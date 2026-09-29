@@ -1,12 +1,13 @@
 // Day 1, "What I understood from your idea": the product definition stage's questions still open,
 // in the definition's order. What DEMIURGO read in the idea comes with the person's own words it
 // rests on; what the idea doesn't say waits for an answer (with its likely options) or can be left
-// open on purpose. One button confirms it all; the system then drafts the product definition, which
-// waits for the person's approval on the Product page.
+// open on purpose. When the person doesn't know what to answer, "Explain it simply" explains the
+// question under it. One button confirms it all; the system then drafts the product definition,
+// which waits for the person's approval on the Product page.
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { ApiError } from '../../api/client.ts';
 import { runCommand } from '../../api/commands.ts';
 import { explorationQuery, keys, stagesQuery } from '../../api/queries.ts';
@@ -18,6 +19,7 @@ import { ErrorNotice } from '../../components/Notice.tsx';
 import { Section } from '../../components/Page.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { DEFINITION } from '../overview/words.i18n.ts';
+import { ExplainButton, Explanation, useExplain } from '../thread/Explain.tsx';
 import { type Answer, blockCalls, initialAnswer, missingAnswers, openItems } from './confirm.ts';
 import { CONFIRM } from './words.i18n.ts';
 
@@ -43,10 +45,10 @@ export function DefinitionAnswers({ projectId }: { projectId: string }) {
       </Section>
     ) : null;
   }
-  return <Block projectId={projectId} items={items} />;
+  return <Block projectId={projectId} explorationId={items[0]?.exploration_id ?? ''} items={items} />;
 }
 
-function Block({ projectId, items }: { projectId: string; items: Question[] }) {
+function Block({ projectId, explorationId, items }: { projectId: string; explorationId: string; items: Question[] }) {
   const t = useMessages(CONFIRM);
   const client = useQueryClient();
   const navigate = useNavigate();
@@ -57,6 +59,7 @@ function Block({ projectId, items }: { projectId: string; items: Question[] }) {
   const set = (q: Question, a: Partial<Answer>) => setAnswers((all) => ({ ...all, [q.id]: { ...answerOf(q), ...a } }));
   const missing = missingAnswers(items, answers);
   const calls = blockCalls(items, answers);
+  const explain = useExplain(projectId, explorationId);
 
   async function confirm() {
     setError(null);
@@ -81,9 +84,17 @@ function Block({ projectId, items }: { projectId: string; items: Question[] }) {
     <Section id="definition-answers" title={t.title} note={t.note}>
       <ol className="flex flex-col" data-definition-answers>
         {items.map((q) => (
-          <Item key={q.id} q={q} answer={answerOf(q)} onChange={(a) => set(q, a)} />
+          <Item
+            key={q.id}
+            q={q}
+            answer={answerOf(q)}
+            onChange={(a) => set(q, a)}
+            explanation={<Explanation projectId={projectId} explorationId={explorationId} questionId={q.id} />}
+            explainButton={<ExplainButton question={q} pending={explain.pending} onExplain={() => explain.ask(q.id)} />}
+          />
         ))}
       </ol>
+      {explain.error ? <ErrorNotice error={explain.error} /> : null}
       {error ? <ErrorNotice error={error} /> : null}
       <div className="flex flex-wrap items-center gap-3 border-t border-edge pt-4">
         <Button
@@ -101,7 +112,20 @@ function Block({ projectId, items }: { projectId: string; items: Question[] }) {
   );
 }
 
-function Item({ q, answer, onChange }: { q: Question; answer: Answer; onChange: (a: Partial<Answer>) => void }) {
+function Item({
+  q,
+  answer,
+  onChange,
+  explanation,
+  explainButton,
+}: {
+  q: Question;
+  answer: Answer;
+  onChange: (a: Partial<Answer>) => void;
+  /** What DEMIURGO explained about the question, when the person asked. */
+  explanation: ReactNode;
+  explainButton: ReactNode;
+}) {
   const t = useMessages(CONFIRM);
   const d = useMessages(DEFINITION);
   const read = q.state === 'inferred';
@@ -123,7 +147,8 @@ function Item({ q, answer, onChange }: { q: Question; answer: Answer; onChange: 
               {t.answerAfterAll}
             </Button>
           ) : (
-            <span className="flex gap-1">
+            <span className="flex flex-wrap justify-end gap-1">
+              {explainButton}
               {read ? (
                 <Button
                   size="sm"
@@ -178,6 +203,7 @@ function Item({ q, answer, onChange }: { q: Question; answer: Answer; onChange: 
         ) : (
           <p className="max-w-prose text-base text-fg">{answer.text}</p>
         )}
+        {explanation}
       </div>
       <aside className="flex flex-col gap-1.5 text-sm text-fg-2">
         <p className="font-medium text-fg-2">{read ? t.readInIdea : t.notInIdea}</p>

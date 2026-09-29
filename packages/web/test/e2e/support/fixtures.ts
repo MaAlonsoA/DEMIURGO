@@ -125,16 +125,20 @@ export async function designTree(): Promise<Record<string, string>> {
   return Object.fromEntries(Object.entries(tree).sort(([a], [b]) => (a < b ? -1 : 1)));
 }
 
-/** No serious or critical accessibility violation on the page (AC-WEB-001-03). */
+/**
+ * No serious or critical accessibility violation on the page (AC-WEB-001-03). A control disabled
+ * for an instant while a change saves is not the page: axe looks again until it settles, and a
+ * violation that stays fails.
+ */
 export async function expectAccessible(page: Page, what: string): Promise<void> {
-  const results = await new AxeBuilder({ page }).analyze();
-  const serious = results.violations
-    .filter((v) => v.impact === 'serious' || v.impact === 'critical')
-    .map(
-      (v) =>
-        `${v.id}: ${v.help} (${v.nodes.map((n) => `${n.target.join(' ')} ${n.html.slice(0, 160)} ${n.failureSummary ?? ''}`).join(' | ')})`,
-    );
-  expect(serious, `axe on ${what}`).toEqual([]);
+  const serious = async () =>
+    (await new AxeBuilder({ page }).analyze()).violations
+      .filter((v) => v.impact === 'serious' || v.impact === 'critical')
+      .map(
+        (v) =>
+          `${v.id}: ${v.help} (${v.nodes.map((n) => `${n.target.join(' ')} ${n.html.slice(0, 160)} ${n.failureSummary ?? ''}`).join(' | ')})`,
+      );
+  await expect.poll(serious, { message: `axe on ${what}`, timeout: 5000, intervals: [250, 500, 1000] }).toEqual([]);
 }
 
 /** A new browser context without a session, like the configured ones. */

@@ -64,6 +64,8 @@ const agentFront = z
     group: z.string().min(1).optional(),
     session: z.enum(['thread', 'none']),
     time_limit: z.number().int().min(10).max(1800).default(300),
+    // Only its reply is used: nothing else it returns is applied (see AgentDefinition.replyOnly).
+    reply_only: z.boolean().default(false),
   })
   .strict();
 
@@ -134,6 +136,7 @@ async function load(root: string): Promise<AgentCatalog> {
     for (const s of missing) problems.push(`${id}: unknown skill "${s}".`);
     if (f.group !== undefined && !groups.some((g) => g.id === f.group)) problems.push(`${id}: unknown group "${f.group}".`);
     if (!parts.body) problems.push(`${id}: AGENT.md has no instructions.`);
+    if (f.reply_only && f.action !== 'exploration_chat') problems.push(`${id}: only a conversation agent can be reply_only.`);
     if (missing.length > 0) continue;
     const definition: AgentDefinition = {
       id,
@@ -143,6 +146,7 @@ async function load(root: string): Promise<AgentCatalog> {
       skills: f.skills,
       session: f.session,
       timeLimitSeconds: f.time_limit,
+      ...(f.reply_only ? { replyOnly: true as const } : {}),
       body: parts.body,
     };
     const skillDefinitions = f.skills.map((s) => skills.get(s) as SkillDefinition);

@@ -11,6 +11,7 @@ import {
   daySummary,
   decisionRequest,
   isDecisionRequest,
+  mainRuns,
   pendingInOrder,
   personMessages,
   promptOf,
@@ -26,6 +27,7 @@ import {
 } from '../../src/screens/onboarding/day.ts';
 import { landingOf } from '../../src/screens/onboarding/landing.ts';
 import { shortDate } from '../../src/lib/time.ts';
+import { explanationOf } from '../../src/screens/thread/Explain.tsx';
 
 const at = (s: number) => new Date(Date.UTC(2026, 8, 24, 10, 0, s)).toISOString();
 const T = (s: number) => Date.parse(at(s));
@@ -141,6 +143,38 @@ describe('the idea and its thread', () => {
       message('m3', 'human:ana', 9, { body: 'A correction' }),
     ];
     expect(personMessages(messages).map((m) => m.body)).toEqual(['The idea', 'A correction']);
+  });
+
+  it('leaves a question explained or talked through on its own out of reading the idea', () => {
+    const messages = [
+      message('m1', 'human:ana', 1, { body: 'The idea' }),
+      message('m2', 'agent:run:r1', 5),
+      // "Explain it simply" on a question: the request, answered by r2 and, after it failed, by r2b.
+      message('m3', 'human:ana', 9, { question_id: 'q1', response: 'requested', response_run: 'r2' }),
+      message('m4', 'agent:run:r2b', 20, { question_id: 'q1', run_id: 'r2b' }),
+    ];
+    const runs = [
+      run('r1', 'completed', 1),
+      run('r2', 'failed', 10, { agent: 'explainer' }),
+      run('r2b', 'completed', 15, { agent: 'explainer', retry_of: 'r2' }),
+    ];
+    expect(personMessages(messages).map((m) => m.id)).toEqual(['m1']);
+    expect(mainRuns(messages, runs).map((r) => r.id)).toEqual(['r1']);
+    expect(readingsOf(messages, mainRuns(messages, runs)).map((r) => r.id)).toEqual(['r1']);
+    // The explanation of the question is the explainer's last reply there.
+    expect(explanationOf(messages, runs, 'q1')).toEqual({ reply: messages[3], writing: false, failed: null });
+    // While the first try fails, it says so; while it runs, it's being written.
+    expect(explanationOf(messages.slice(0, 3), runs.slice(0, 2), 'q1')).toMatchObject({
+      reply: null,
+      writing: false,
+      failed: runs[1],
+    });
+    const running = [run('r1', 'completed', 1), run('r2', 'running', 10, { agent: 'explainer' })];
+    expect(explanationOf(messages.slice(0, 3), running, 'q1')).toMatchObject({
+      writing: true,
+      failed: null,
+    });
+    expect(explanationOf(messages, runs, 'q2')).toEqual({ reply: null, writing: false, failed: null });
   });
 
   it('offers examples that fill a name and an idea', () => {

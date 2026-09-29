@@ -548,3 +548,36 @@ export const ANSWER_WORDS = messages(
     assumedFromConversation: 'DEMIURGO lo ha supuesto de la conversación.',
   },
 );
+
+// "Explain it simply" (Explain.tsx): the button on a question, what it sends as the person's message,
+// and the explanation under the question on Day 1.
+export const EXPLAIN = messages(
+  {
+    button: 'Explain it simply',
+    buttonFor: (question: string) => `Explain it simply: ${question}`,
+    request:
+      'Explain this question to me more simply, with an example, the pros and cons of each answer and what each one implies.',
+    asked: 'DEMIURGO is explaining the question.',
+    title: 'Explained simply',
+    explaining: 'DEMIURGO is explaining…',
+    couldntExplain: "DEMIURGO couldn't explain it this time.",
+    retry: 'Retry',
+    retrying: 'Retrying…',
+    hide: 'Hide the explanation',
+    show: 'Show the explanation',
+  },
+  {
+    button: 'Explícamelo',
+    buttonFor: (question: string) => `Explícamelo: ${question}`,
+    request:
+      'Explícame esta pregunta de forma más sencilla, con un ejemplo, los pros y contras de cada respuesta y lo que implica cada una.',
+    asked: 'DEMIURGO está explicando la pregunta.',
+    title: 'Explicado de forma sencilla',
+    explaining: 'DEMIURGO está explicándolo…',
+    couldntExplain: 'DEMIURGO no ha podido explicarlo esta vez.',
+    retry: 'Reintentar',
+    retrying: 'Reintentando…',
+    hide: 'Ocultar la explicación',
+    show: 'Ver la explicación',
+  },
+);

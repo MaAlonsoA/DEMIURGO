@@ -36,6 +36,8 @@ export function Conversation({
   answeringId,
   onDeeper,
   onOwnWords,
+  onExplain,
+  explaining,
   onUnseen,
   ref,
 }: {
@@ -49,6 +51,9 @@ export function Conversation({
   answeringId: string | null;
   onDeeper: (questionId: string) => void;
   onOwnWords: (questionId: string) => void;
+  /** "Explain it simply": opens Go deeper on the question and asks for the explanation. */
+  onExplain: (questionId: string) => void;
+  explaining: boolean;
   /** How many items arrived while the reader was away from the end. */
   onUnseen: (n: number) => void;
   ref?: Ref<ConversationHandle>;
@@ -122,6 +127,8 @@ export function Conversation({
                 answering={answeringId === q.id}
                 onDeeper={() => onDeeper(q.id)}
                 onOwnWords={() => onOwnWords(q.id)}
+                onExplain={() => onExplain(q.id)}
+                explaining={explaining}
               />
             );
           }

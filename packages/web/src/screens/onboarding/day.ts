@@ -41,10 +41,12 @@ export function purposeOf(idea: string): string {
 const time = (iso: string | null | undefined): number => (iso ? Date.parse(iso) : 0);
 const byTime = <T extends { created_at: string }>(a: T, b: T) => time(a.created_at) - time(b.created_at);
 const isPerson = (m: Pick<Message, 'author'>) => m.author.startsWith('human:');
+/** A message of a question's side conversation (Go deeper, Explain it simply): not part of reading the idea. */
+const isSide = (m: Pick<Message, 'question_id'>) => m.question_id !== null;
 
-/** The person's messages in the thread, oldest first: the first one is the idea. */
+/** The person's messages in the thread, oldest first: the first one is the idea. Side conversations aside. */
 export function personMessages(messages: readonly Message[]): Message[] {
-  return messages.filter(isPerson).sort(byTime);
+  return messages.filter((m) => isPerson(m) && !isSide(m)).sort(byTime);
 }
 
 export type ReadingPhase = 'catching_up' | 'waiting' | 'working' | 'failed' | 'cancelled' | 'read' | 'unanswered';
@@ -127,6 +129,19 @@ export function promptOf(run: RunListItem, messages: readonly Message[], runs: r
       .filter((m) => time(m.created_at) <= requested)
       .at(-1) ?? null
   );
+}
+
+/**
+ * The thread's runs without the ones that answered a question's side conversation, nor their
+ * retries: explaining a question or going deeper into it is not a reading of the idea.
+ */
+export function mainRuns(messages: readonly Message[], runs: readonly RunListItem[]): RunListItem[] {
+  const side = new Set<string>();
+  for (const m of messages.filter(isSide)) {
+    if (m.response_run) side.add(m.response_run);
+    if (m.run_id) side.add(m.run_id);
+  }
+  return runs.filter((r) => !side.has(r.id) && !side.has(rootOf(r, runs).id));
 }
 
 /**

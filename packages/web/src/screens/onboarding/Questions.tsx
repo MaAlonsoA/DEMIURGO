@@ -52,6 +52,7 @@ import {
 import { useDay, useSend } from './hooks.ts';
 import { AnswerRow, DayError, DaySkeleton, FromYourIdea, ObservationList, Reply } from './parts.tsx';
 import { ReadingStatus } from './Reading.tsx';
+import { ExplainButton, Explanation, useExplain } from '../thread/Explain.tsx';
 
 type Walk = { ids: string[]; index: number };
 
@@ -191,6 +192,7 @@ function Ask({
 }) {
   const t = useMessages(QUESTIONS);
   const command = useCommand(projectId);
+  const explain = useExplain(projectId, q.exploration_id);
   const allows = useAllows('question', q.state);
   const stages = useQuery(stagesQuery(projectId)).data;
   const stage = q.stage_id ? stages?.find((s) => s.id === q.stage_id) : undefined;
@@ -268,6 +270,11 @@ function Ask({
           ]}
         />
       ) : null}
+      <div className="flex flex-col items-start gap-2">
+        <ExplainButton question={q} pending={explain.pending} onExplain={() => explain.ask(q.id)} />
+        <Explanation projectId={projectId} explorationId={q.exploration_id} questionId={q.id} />
+        {explain.error ? <ErrorNotice error={explain.error} compact /> : null}
+      </div>
       {canAnswer ? (
         <form
           id={`answer-${q.id}`}

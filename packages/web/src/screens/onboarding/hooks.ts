@@ -9,7 +9,7 @@ import { useCommand } from '../../api/commands.ts';
 import { explorationQuery, projectsQuery, runsQuery, stagesQuery } from '../../api/queries.ts';
 import { isActive } from '../../components/runState.tsx';
 import { useNow } from '../../components/Time.tsx';
-import { personMessages, readingOf } from './day.ts';
+import { mainRuns, personMessages, readingOf } from './day.ts';
 
 export function useDay(projectId: string, explorationId: string) {
   const [waiting, setWaiting] = useState(false);
@@ -32,12 +32,14 @@ export function useDay(projectId: string, explorationId: string) {
   const people = thread.data ? personMessages(thread.data.messages) : [];
   const idea = people[0];
   const latest = people.at(-1);
+  // A question explained or talked through on its own isn't a reading of the idea.
+  const main = runs.data && thread.data ? mainRuns(thread.data.messages, runs.data) : runs.data;
   const now = useNow(waiting || (runs.data ?? []).some((r) => isActive(r.state)));
-  const reading = readingOf(runs.data ?? [], latest);
+  const reading = readingOf(main ?? [], latest);
   useEffect(() => setWaiting(reading.phase === 'waiting' || reading.phase === 'catching_up'), [reading.phase]);
   return {
     thread: merged,
-    runs: runs.data,
+    runs: main,
     project,
     idea,
     latest,

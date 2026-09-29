@@ -7,7 +7,7 @@ describe('record language in the agents', () => {
   it('every agent that writes records is told to write them in English and to reply in the person language', async () => {
     const catalog = await loadAgentCatalog();
     const writers = catalog.agents.filter((a) => a.action === 'exploration_chat' || a.action === 'design_proposal');
-    expect(writers.map((a) => a.id).toSorted()).toEqual(['designer', 'explorer', 'onboarding']);
+    expect(writers.map((a) => a.id).toSorted()).toEqual(['designer', 'explainer', 'explorer', 'onboarding']);
     for (const agent of writers) {
       const { system } = composeSystem(agent, agent.skillDefinitions, []);
       expect(`${agent.id}: ${system}`).toContain('is always written in English');

@@ -20,6 +20,11 @@ export type AgentDefinition = {
   skills: readonly string[];
   session: SessionPolicy;
   timeLimitSeconds: number;
+  /**
+   * Only its reply is used (the explainer): it can't infer, ask, suggest options, propose or change
+   * the thread, whatever it returns. Absent on the others, so their version doesn't change.
+   */
+  replyOnly?: true;
   body: string;
 };
 

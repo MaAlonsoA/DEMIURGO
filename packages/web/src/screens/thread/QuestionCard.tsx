@@ -2,7 +2,8 @@
 // question is a card: what it asks, why it matters, and its options as a real radio or checkbox
 // group with a legend that says whether one or several can be picked (R93). Picking drafts the
 // answer — nothing is sent until "Confirm and send". It can also be answered in the person's own
-// words (the composer shows that it answers this question), talked through in "Go deeper", or
+// words (the composer shows that it answers this question), talked through in "Go deeper",
+// explained in plain words ("Explain it simply", which opens Go deeper with the explanation), or
 // parked, dropped and reopened from its "More actions" menu. A settled question is a quiet line
 // with its state in words and its answer or reason.
 
@@ -16,6 +17,7 @@ import { EntityState } from '../../components/status.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { useReading } from '../../i18n/reading.tsx';
 import { cn } from '../../lib/cn.ts';
+import { ExplainButton } from './Explain.tsx';
 import { ASSUMED, answerChoices, draftOf, isOpenQuestion, pickedChoices, withExclusive } from './answers.ts';
 import { useDrafts } from './drafts.tsx';
 import { ANSWER_WORDS, QUESTION_CARD } from './words.i18n.ts';
@@ -30,6 +32,8 @@ export function QuestionCard({
   answering,
   onDeeper,
   onOwnWords,
+  onExplain,
+  explaining,
 }: {
   projectId: string;
   question: Question;
@@ -43,6 +47,9 @@ export function QuestionCard({
   answering: boolean;
   onDeeper: () => void;
   onOwnWords: () => void;
+  onExplain: () => void;
+  /** An explanation is being asked for right now. */
+  explaining: boolean;
 }) {
   const t = useMessages(QUESTION_CARD);
   const answerWords = useMessages(ANSWER_WORDS);
@@ -138,6 +145,7 @@ export function QuestionCard({
             {deeperOpen ? t.goingDeeper : t.goDeeper}
             {sideCount > 0 ? t.messagesCount(sideCount) : ''}
           </Button>
+          <ExplainButton question={q} pending={explaining} onExplain={onExplain} />
           <Button size="sm" variant="quiet" icon={<PencilIcon size={14} />} aria-pressed={answering} onClick={onOwnWords}>
             {t.answerOwnWords}
           </Button>

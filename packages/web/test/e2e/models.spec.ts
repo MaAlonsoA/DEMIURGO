@@ -79,6 +79,26 @@ test('AC-AGE-002-02 the person opens Models & providers from the sidebar, sees t
   await shot(page, 'models-390');
 });
 
+test('a backup engine per group, set and removed where it is chosen, said once it applies and shown on its tasks', async ({
+  page,
+  person,
+}) => {
+  const projectId = await person.createProject('Backups');
+  await page.goto(`/p/${projectId}/models`);
+  const quick = page.getByRole('region', { name: 'Quick' });
+  const backup = quick.locator('[data-group-backup="quick"]');
+  const classifier = quick.locator('[data-agent="knowledge_classifier"]');
+  await expect(backup).toContainText('No backup');
+  await backup.getByRole('button', { name: 'Add a backup for Quick' }).click();
+  await expect(backup.getByRole('group', { name: 'Quick, backup' })).toBeVisible();
+  await expect(backup.locator('[data-changed]')).toContainText('Quick falls back to');
+  await expect(classifier.locator('[data-backup]')).toContainText('(from its group)');
+  await expectAccessible(page, 'Models & providers with a backup');
+  await backup.getByRole('button', { name: 'Remove the backup' }).click();
+  await expect(backup.locator('[data-changed]')).toContainText('Quick has no backup now.');
+  await expect(classifier.locator('[data-backup]')).toHaveCount(0);
+});
+
 test('AC-AGE-002-02 before any project, Models & providers is reachable from New project and from Your projects', async ({
   page,
   person,
@@ -92,7 +112,7 @@ test('AC-AGE-002-02 before any project, Models & providers is reachable from New
   // The same choice as inside a project: the groups with their tasks.
   const onboarding = page.getByRole('region', { name: 'Deep thinking' }).locator('[data-agent="onboarding"]');
   await expect(onboarding.locator('[data-effective]')).toContainText('(from its group)');
-  await expect(page.getByRole('group', { name: 'Quick' })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Quick', exact: true })).toBeVisible();
   // The workspace frame keeps the way out: the person's menu with Sign out.
   await expect(page.getByRole('button', { name: /Signed in as/ })).toBeVisible();
   await expectAccessible(page, 'Models & providers of the workspace');

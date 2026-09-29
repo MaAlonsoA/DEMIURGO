@@ -271,7 +271,8 @@ async function invokeInSpan(s: Services, runId: string): Promise<InvokeResult> {
   const control = new AbortController();
   controllers.set(runId, control);
   try {
-    const schema = runSchemaOf(action, pack.content);
+    // A reply-only agent isn't asked for question options: nothing but its reply is applied.
+    const schema = runSchemaOf(action, agent.replyOnly ? null : pack.content);
     // The texts as sent, with their full hashes (§5.5), before the call.
     s.observer.text('system_prompt', systemPrompt);
     const inputHash = s.observer.text('input', input);

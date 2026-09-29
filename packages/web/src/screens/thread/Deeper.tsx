@@ -3,7 +3,8 @@
 // sends, Shift+Enter adds a line, D-013), then settles the question with an option, their own words
 // or one of DEMIURGO's replies — as a draft in the main thread, confirmed with the others. What is
 // being written survives closing the panel; "DEMIURGO is writing…" and a failed answer are status
-// messages, and a failure offers Retry and the run's details right here (INVENTORY Part C).
+// messages, and a failure offers Retry and the run's details right here (INVENTORY Part C). "Explain
+// it simply" asks the explainer for the question in plain words, with examples, pros and cons.
 
 import { Link } from '@tanstack/react-router';
 import { type KeyboardEvent, type Ref, useEffect, useId, useImperativeHandle, useRef, useState } from 'react';
@@ -27,6 +28,7 @@ import { failureWord } from '../../words.ts';
 import { readingOf } from '../onboarding/day.ts';
 import { MAX_ANSWER, answerChoices, draftOf, isOpenQuestion, pickedChoices, plainText, withExclusive } from './answers.ts';
 import { useDrafts } from './drafts.tsx';
+import { ExplainButton, useExplain } from './Explain.tsx';
 import { Observations } from './Messages.tsx';
 import { sideMessages } from './timeline.ts';
 import { ANSWER_WORDS, DEEPER } from './words.i18n.ts';
@@ -59,6 +61,7 @@ export function DeeperPanel({
   const drafts = useDrafts();
   const post = useCommand(projectId);
   const retry = useCommand(projectId);
+  const explain = useExplain(projectId, thread.id);
   const talkId = useId();
   const open = isOpenQuestion(q);
   const canTalk = !!tables && canCreate(tables, 'message.post') && thread.state === 'active' && open;
@@ -123,6 +126,12 @@ export function DeeperPanel({
           {q.question}
         </h2>
         <p className="text-sm text-fg-2">{t.waitsHere}</p>
+        {canTalk ? (
+          <div className="flex flex-col items-start gap-1">
+            <ExplainButton question={q} pending={explain.pending || writing} onExplain={() => explain.ask(q.id)} />
+            {explain.error ? <ErrorNotice error={explain.error} compact /> : null}
+          </div>
+        ) : null}
       </header>
 
       <div ref={scroller} className="flex min-h-40 flex-1 flex-col gap-3 overflow-y-auto px-5 py-4">

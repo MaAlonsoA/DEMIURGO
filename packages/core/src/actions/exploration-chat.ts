@@ -439,7 +439,21 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
       respond: false,
     },
   });
-  // A reply-only agent (the explainer) leaves its reply and nothing else, whatever it returned.
+  // In a side conversation (Go deeper, and the explanation inside it), the answer it led to becomes one
+  // more option of the question while it is open.
+  if (questionId && output.conversation_option) {
+    const q = await trx.selectFrom('questions').select(['state']).where('id', '=', questionId).executeTakeFirst();
+    if (q?.state === 'pending' || q?.state === 'inferred') {
+      await execute({
+        ...base,
+        command: 'question.set_conversation_option',
+        actor: system('exploration'),
+        entityId: questionId,
+        data: output.conversation_option,
+      });
+    }
+  }
+  // A reply-only agent (the explainer) leaves its reply and the idea, nothing else, whatever it returned.
   if ((await loadAgentCatalog()).get(run.agent ?? '')?.replyOnly) return;
   if (output.purpose) {
     const current = await trx
@@ -479,19 +493,6 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
         multiple: q.multiple,
       },
     });
-  }
-  // In a side conversation, the answer it led to becomes one more option of the question while it is open.
-  if (questionId && output.conversation_option) {
-    const q = await trx.selectFrom('questions').select(['state']).where('id', '=', questionId).executeTakeFirst();
-    if (q?.state === 'pending' || q?.state === 'inferred') {
-      await execute({
-        ...base,
-        command: 'question.set_conversation_option',
-        actor: system('exploration'),
-        entityId: questionId,
-        data: output.conversation_option,
-      });
-    }
   }
   for (const suggestion of output.question_options) {
     if (suggestion.options.length === 0 && !suggestion.question) continue;

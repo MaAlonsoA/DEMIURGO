@@ -30,15 +30,19 @@ import { DayTime } from '../../components/Time.tsx';
 import { whoName } from '../../components/Who.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { useLocale } from '../../i18n/locale.ts';
+import { cn } from '../../lib/cn.ts';
 import { useReading } from '../../i18n/reading.tsx';
 import { whoOf } from '../../words.ts';
 import {
+  type DefinitionKey,
   type SectionChange,
   currentVersion,
+  draftVersion,
   keyOfSection,
   previousVersion,
   reasonFor,
   sectionChanges,
+  sectionTrace,
   sourceOf,
 } from './definition.ts';
 import { DEFINITION } from './words.i18n.ts';
@@ -47,16 +51,29 @@ import { Quote } from '../../components/Quote.tsx';
 type View = 'document' | 'changes' | 'history';
 
 /** A thread a section changed in, with the person's words there. */
-type FromThread = { explorationId: string | null; evidence: DefinitionEvidence[] };
+type FromThread = {
+  explorationId: string | null;
+  evidence: DefinitionEvidence[];
+};
 
-export function ProductDefinitionSection({ projectId }: { projectId: string }) {
+export function ProductDefinitionSection({
+  projectId,
+  whyOpen,
+  onWhy,
+}: {
+  projectId: string;
+  /** The title of the section whose provenance shows in the side column, if any. */
+  whyOpen: string | null;
+  onWhy: (title: string | null) => void;
+}) {
   const t = useMessages(DEFINITION);
   const q = useQuery(definitionQuery(projectId));
   const [view, setView] = useState<View>('document');
   const d = q.data;
   if (q.error) return <ErrorNotice error={q.error} compact onRetry={() => void q.refetch()} />;
   const current = currentVersion(d);
-  if (!d || (!current && !d.proposal)) return null;
+  const draft = draftVersion(d);
+  if (!d || (!current && !d.proposal && !draft)) return null;
   const previous = current ? previousVersion(d, current) : null;
   const toggle = (v: View) => setView((was) => (was === v ? 'document' : v));
   const approver = current?.approved_by ? whoOf(current.approved_by) : null;
@@ -92,6 +109,7 @@ export function ProductDefinitionSection({ projectId }: { projectId: string }) {
       <div data-definition className="flex flex-col gap-8">
         {current && d.changes.length > 0 ? <ThreadChanges projectId={projectId} changes={d.changes} current={current} /> : null}
         {d.proposal ? <Proposed projectId={projectId} d={d} current={current} /> : null}
+        {!d.proposal && draft ? <Draft projectId={projectId} version={draft} current={current} /> : null}
         {current ? (
           view === 'history' ? (
             <History d={d} />
@@ -101,6 +119,8 @@ export function ProductDefinitionSection({ projectId }: { projectId: string }) {
               version={current}
               previous={view === 'changes' ? previous : null}
               canChange={!d.proposal}
+              whyOpen={whyOpen}
+              onWhy={onWhy}
             />
           )
         ) : null}
@@ -194,7 +214,10 @@ function ThreadChange({
         </p>
         <ThreadNote
           projectId={projectId}
-          from={{ explorationId: change.exploration_id, evidence: change.evidence }}
+          from={{
+            explorationId: change.exploration_id,
+            evidence: change.evidence,
+          }}
           label={t.decidedInThread}
         />
       </aside>
@@ -228,6 +251,55 @@ function ThreadNote({ projectId, from, label }: { projectId: string; from: FromT
         </p>
       ))}
     </>
+  );
+}
+
+/** A version accepted without approving it: it only counts once the person approves it. */
+function Draft({
+  projectId,
+  version,
+  current,
+}: {
+  projectId: string;
+  version: DefinitionVersion;
+  current: DefinitionVersion | null;
+}) {
+  const t = useMessages(DEFINITION);
+  const approve = useCommand(projectId);
+  return (
+    <div
+      data-trace={`record_version:${version.id}`}
+      data-definition-draft
+      className="flex flex-col gap-3 border-l-2 border-accent pl-5"
+    >
+      <div className="flex flex-col gap-1">
+        <h3 className="text-base font-semibold text-fg">{current ? t.draftNextTitle : t.draftTitle}</h3>
+        <p className="max-w-prose text-sm text-fg-2">{t.draftNote}</p>
+      </div>
+      <Document projectId={projectId} version={version} previous={current} canChange={false} />
+      {approve.error ? <ErrorNotice error={approve.error} /> : null}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="primary"
+          pending={approve.isPending}
+          pendingLabel={t.approving}
+          onClick={() =>
+            approve.mutate(
+              {
+                command: 'record_version.approve',
+                entityId: version.id,
+                data: {},
+              },
+              {
+                onSuccess: () => announce(current ? t.changeApproved : t.approved),
+              },
+            )
+          }
+        >
+          {current ? t.approveNext : t.approve}
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -266,8 +338,14 @@ function Proposed({ projectId, d, current }: { projectId: string; d: ProductDefi
           pendingLabel={t.approving}
           onClick={() =>
             accept.mutate(
-              { command: 'proposal.accept', entityId: p.id, data: { approve: true } },
-              { onSuccess: () => announce(p.base ? t.changeApproved : t.approved) },
+              {
+                command: 'proposal.accept',
+                entityId: p.id,
+                data: { approve: true },
+              },
+              {
+                onSuccess: () => announce(p.base ? t.changeApproved : t.approved),
+              },
             )
           }
         >
@@ -291,31 +369,50 @@ function Document({
   version,
   previous,
   canChange,
+  whyOpen = null,
+  onWhy,
 }: {
   projectId: string;
   version: DefinitionVersion;
   previous: DefinitionVersion | null;
   canChange: boolean;
+  whyOpen?: string | null;
+  onWhy?: (title: string | null) => void;
 }) {
   const reading = useReading(projectId, 'record_version', version.id);
   const changes = sectionChanges(previous?.sections ?? null, version.sections);
   const fromThread = version.from_thread
-    ? { explorationId: version.from_thread.exploration_id, evidence: version.from_thread.evidence }
+    ? {
+        explorationId: version.from_thread.exploration_id,
+        evidence: version.from_thread.evidence,
+      }
     : null;
   return (
     <article data-trace={`record_version:${version.id}`} data-definition-version={version.n} className="flex flex-col gap-3">
       {reading.mark ? <div>{reading.mark}</div> : null}
-      <Sections
-        projectId={projectId}
-        changes={previous ? changes.filter((c) => c.changed) : changes}
-        folded={previous ? changes.filter((c) => !c.changed) : []}
-        text={(c) => reading.text(`sections.${version.sections.findIndex((s) => s.title === c.title)}.content`, c.content)}
-        reasons={previous ? version.reasons : []}
-        sources={version.sources}
-        fromThread={previous ? fromThread : null}
-        showBefore={!!previous}
-        canChange={canChange && !previous}
-      />
+      {!previous && onWhy ? (
+        <Canvas
+          projectId={projectId}
+          changes={changes}
+          text={(c) => reading.text(`sections.${version.sections.findIndex((s) => s.title === c.title)}.content`, c.content)}
+          sources={version.sources}
+          canChange={canChange}
+          whyOpen={whyOpen}
+          onWhy={onWhy}
+        />
+      ) : (
+        <Sections
+          projectId={projectId}
+          changes={previous ? changes.filter((c) => c.changed) : changes}
+          folded={previous ? changes.filter((c) => !c.changed) : []}
+          text={(c) => reading.text(`sections.${version.sections.findIndex((s) => s.title === c.title)}.content`, c.content)}
+          reasons={previous ? version.reasons : []}
+          sources={version.sources}
+          fromThread={previous ? fromThread : null}
+          showBefore={!!previous}
+          canChange={canChange && !previous}
+        />
+      )}
     </article>
   );
 }
@@ -370,6 +467,190 @@ function Sections({
           canChange={canChange}
         />
       ))}
+    </div>
+  );
+}
+
+/** Where each section sits on the canvas: its cell's width in a grid of six columns, in reading order. */
+const CANVAS: { key: DefinitionKey; span: string }[] = [
+  { key: 'purpose', span: 'md:col-span-6' },
+  { key: 'problem', span: 'md:col-span-2' },
+  { key: 'stakeholders', span: 'md:col-span-2' },
+  { key: 'outcomes', span: 'md:col-span-2' },
+  { key: 'features', span: 'md:col-span-4' },
+  { key: 'principles', span: 'md:col-span-2' },
+  { key: 'constraints', span: 'md:col-span-3' },
+  { key: 'scope_out', span: 'md:col-span-3' },
+];
+
+/** The definition in force on one screen: a grid of six columns split by hairlines, the full text of every section. */
+function Canvas({
+  projectId,
+  changes,
+  text,
+  sources,
+  canChange,
+  whyOpen,
+  onWhy,
+}: {
+  projectId: string;
+  changes: SectionChange[];
+  text: (c: SectionChange) => string;
+  sources: DefinitionSource[];
+  canChange: boolean;
+  whyOpen: string | null;
+  onWhy: (title: string | null) => void;
+}) {
+  const t = useMessages(DEFINITION);
+  const placed = new Set<string>();
+  const cells = CANVAS.flatMap(({ key, span }) => {
+    const c = changes.find((x) => keyOfSection(x.title) === key);
+    if (!c) return [];
+    placed.add(c.title);
+    return [{ c, key, span }];
+  });
+  // Sections the template does not know still show, full width, after the rest.
+  const extra = changes.filter((c) => !placed.has(c.title)).map((c) => ({ c, key: null, span: 'md:col-span-6' }));
+  return (
+    <div className="grid grid-cols-1 border-l border-t border-edge md:grid-cols-6" data-definition-canvas>
+      {[...cells, ...extra].map(({ c, key, span }) => (
+        <CanvasCell
+          key={c.title}
+          projectId={projectId}
+          label={key ? t.section(key) : c.title}
+          change={c}
+          content={text(c)}
+          question={sourceOf(sources, c.title)?.question ?? null}
+          className={span}
+          large={key === 'purpose'}
+          canChange={canChange}
+          whyOpen={whyOpen === c.title}
+          onWhy={() => onWhy(whyOpen === c.title ? null : c.title)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function CanvasCell({
+  projectId,
+  label,
+  change,
+  content,
+  question,
+  className,
+  large,
+  canChange,
+  whyOpen,
+  onWhy,
+}: {
+  projectId: string;
+  label: string;
+  change: SectionChange;
+  content: string;
+  question: DefinitionSource['question'] | null;
+  className: string;
+  large: boolean;
+  canChange: boolean;
+  whyOpen: boolean;
+  onWhy: () => void;
+}) {
+  const t = useMessages(DEFINITION);
+  const [editing, setEditing] = useState(false);
+  return (
+    <section
+      data-definition-section={keyOfSection(change.title) ?? change.title}
+      className={cn('flex min-w-0 flex-col gap-2 border-b border-r border-edge px-4 py-4', large && 'bg-sunken', className)}
+    >
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-base font-semibold text-fg">{label}</h3>
+        <div className="flex shrink-0 items-baseline gap-1">
+          {canChange && question && !editing ? (
+            <Button size="sm" variant="quiet" onClick={() => setEditing(true)}>
+              {t.change}
+            </Button>
+          ) : null}
+          <Button size="sm" variant="quiet" aria-pressed={whyOpen} onClick={onWhy}>
+            {t.whyLink}
+          </Button>
+        </div>
+      </div>
+      {editing && question ? (
+        <ChangeForm
+          projectId={projectId}
+          questionId={question.id}
+          label={label}
+          initial={question.own_words ?? change.content}
+          onDone={() => setEditing(false)}
+        />
+      ) : (
+        <Markdown size={large ? 'md' : 'sm'} className={large ? 'max-w-prose' : undefined}>
+          {content}
+        </Markdown>
+      )}
+    </section>
+  );
+}
+
+/**
+ * The side column while a section's "Why" is open: why it says what it says, how it was settled, the
+ * person's words and the versions that changed it.
+ */
+export function DefinitionWhyPanel({ projectId, title, onClose }: { projectId: string; title: string; onClose: () => void }) {
+  const t = useMessages(DEFINITION);
+  const locale = useLocale();
+  const d = useQuery(definitionQuery(projectId)).data;
+  const current = currentVersion(d);
+  if (!d || !current) return null;
+  const key = keyOfSection(title);
+  const label = key ? t.section(key) : title;
+  const previous = previousVersion(d, current);
+  const changed = !!previous && sectionChanges(previous.sections, current.sections).find((c) => c.title === title)?.changed;
+  const fromThread =
+    changed && current.from_thread
+      ? {
+          explorationId: current.from_thread.exploration_id,
+          evidence: current.from_thread.evidence,
+        }
+      : null;
+  const trace = sectionTrace(d.versions, title);
+  return (
+    <div className="flex flex-col gap-4 border-l border-edge pl-5" data-definition-why-panel={key ?? title}>
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-base font-semibold text-fg">
+          {t.whyPanelTitle}
+          <span className="font-normal text-fg-2">{` · ${label}`}</span>
+        </h3>
+        <Button size="sm" variant="quiet" onClick={onClose}>
+          {t.close}
+        </Button>
+      </div>
+      <SideNote
+        projectId={projectId}
+        source={sourceOf(current.sources, title)}
+        why={reasonFor(current.reasons, title, locale)}
+        fromThread={fromThread}
+      />
+      {trace.length > 0 ? (
+        <div className="flex flex-col gap-1.5 text-sm text-fg-2">
+          <span className="font-medium text-fg">{t.trace}</span>
+          <ol className="flex flex-col">
+            {trace.map((v) => (
+              <li
+                key={v.id}
+                data-trace={`record_version:${v.id}`}
+                className="grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-2 border-t border-edge py-2 first:border-t-0"
+              >
+                <span className="font-mono text-fg">{t.versionLine(v.n)}</span>
+                <span className="flex flex-col gap-0.5">
+                  <span className="whitespace-pre-line text-fg">{v.change_note ?? t.firstVersion}</span>
+                  <DayTime iso={v.approved_at ?? v.created_at} />
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -462,7 +743,7 @@ function SideNote({
   const t = useMessages(DEFINITION);
   const q = source?.question ?? null;
   return (
-    <aside className="flex flex-col gap-1.5 text-sm text-fg-2" {...(q ? { 'data-trace': `question:${q.id}` } : {})}>
+    <div className="flex flex-col gap-1.5 text-sm text-fg-2" {...(q ? { 'data-trace': `question:${q.id}` } : {})}>
       {why ? (
         <p data-definition-why>
           <span className="font-medium text-fg">{t.why}</span>
@@ -502,7 +783,7 @@ function SideNote({
           <p className="text-xs text-fg-3">{`${t.from} · ${q.question}`}</p>
         </>
       )}
-    </aside>
+    </div>
   );
 }
 
@@ -535,8 +816,16 @@ function ChangeForm({
     setPending(true);
     setError(null);
     try {
-      await command.mutateAsync({ command: 'question.reopen', entityId: questionId, data: { reason: why.trim() } });
-      await command.mutateAsync({ command: 'question.confirm', entityId: questionId, data: { conclusion: text.trim() } });
+      await command.mutateAsync({
+        command: 'question.reopen',
+        entityId: questionId,
+        data: { reason: why.trim() },
+      });
+      await command.mutateAsync({
+        command: 'question.confirm',
+        entityId: questionId,
+        data: { conclusion: text.trim() },
+      });
       announce(t.changeProposed);
       onDone();
     } catch (err) {

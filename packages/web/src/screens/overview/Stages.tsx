@@ -10,7 +10,7 @@ import { Link } from '@tanstack/react-router';
 import { Tabs as T } from 'radix-ui';
 import { useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
-import { stagesQuery } from '../../api/queries.ts';
+import { definitionQuery, stagesQuery } from '../../api/queries.ts';
 import { canCreate } from '../../api/tables.ts';
 import type { StageRow } from '../../api/types.ts';
 import { useActions } from '../../components/actions.tsx';
@@ -30,7 +30,54 @@ import { useTables } from '../../lib/hooks.ts';
 import { useMessages } from '../../i18n/define.ts';
 import { whoOf } from '../../words.ts';
 import { useReturnFocus } from '../record/returnFocus.ts';
+import { draftVersion } from './definition.ts';
 import { STAGES } from './words.i18n.ts';
+
+/** The stage whose answers compose the product definition. */
+const DEFINITION_STAGE = 'requirements';
+
+/** The product definition waiting for the person's approval: a draft version, or a drafted proposal. */
+function usePendingDefinition(projectId: string) {
+  const d = useQuery(definitionQuery(projectId)).data;
+  const draft = draftVersion(d);
+  if (d?.proposal) return { kind: 'proposed' as const, id: d.proposal.id };
+  if (draft) return { kind: 'draft' as const, id: draft.id };
+  return null;
+}
+
+/** On the definition stage: the definition is not in force yet, and the way to approve it. */
+function PendingDefinition({ projectId, pending }: { projectId: string; pending: { kind: 'draft' | 'proposed'; id: string } }) {
+  const t = useMessages(STAGES);
+  const approve = useCommand(projectId);
+  return (
+    <div data-stage-definition={pending.kind} className="flex flex-col gap-2 border-l-2 border-accent pl-4">
+      <p className="text-sm font-medium text-fg">{pending.kind === 'draft' ? t.definitionDraft : t.definitionProposed}</p>
+      <p className="max-w-prose text-sm text-fg-2">{t.definitionDraftNote}</p>
+      {approve.error ? <ErrorNotice error={approve.error} /> : null}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          size="sm"
+          variant="primary"
+          pending={approve.isPending}
+          pendingLabel={t.approving}
+          onClick={() =>
+            approve.mutate(
+              pending.kind === 'draft'
+                ? { command: 'record_version.approve', entityId: pending.id, data: {} }
+                : { command: 'proposal.accept', entityId: pending.id, data: { approve: true } },
+              { onSuccess: () => announce(t.definitionApproved) },
+            )
+          }
+        >
+          {t.approveDefinition}
+        </Button>
+        <a href="#definition" className={buttonClass({ size: 'sm', variant: 'quiet' })}>
+          {t.seeDefinition}
+        </a>
+      </div>
+    </div>
+  );
+}
 
 const STAGE_ICON = {
   not_started: { tone: TONE.neutral, Icon: CircleDashedIcon },
@@ -88,6 +135,7 @@ export function DesignStages({ projectId }: { projectId: string }) {
   const canStart = !started && !!first && !!tables && canCreate(tables, 'stage.open');
   const [chosen, setChosen] = useState<string | null>(null);
   const selected = list.find((s) => s.key === chosen) ?? current ?? list.find((s) => s.state === 'not_started') ?? list.at(-1);
+  const pendingDefinition = usePendingDefinition(projectId);
 
   return (
     <Section
@@ -156,13 +204,23 @@ export function DesignStages({ projectId }: { projectId: string }) {
                       />
                     </span>
                     <span className="text-xs text-fg-2 tabular-nums">{t.answeredOf(s.covered, s.total)}</span>
+                    {s.key === DEFINITION_STAGE && pendingDefinition ? (
+                      <span className="text-xs font-medium text-accent-text">
+                        {pendingDefinition.kind === 'draft' ? t.definitionDraft : t.definitionProposed}
+                      </span>
+                    ) : null}
                   </span>
                 </T.Trigger>
               ))}
             </T.List>
             {list.map((s, i) => (
               <T.Content key={s.key} value={s.key} className="outline-none focus-visible:outline-2">
-                <StageDetail projectId={projectId} stage={s} next={list[i + 1]} />
+                <StageDetail
+                  projectId={projectId}
+                  stage={s}
+                  next={list[i + 1]}
+                  pendingDefinition={s.key === DEFINITION_STAGE ? pendingDefinition : null}
+                />
               </T.Content>
             ))}
           </T.Root>
@@ -172,7 +230,17 @@ export function DesignStages({ projectId }: { projectId: string }) {
   );
 }
 
-function StageDetail({ projectId, stage: s, next }: { projectId: string; stage: StageRow; next: StageRow | undefined }) {
+function StageDetail({
+  projectId,
+  stage: s,
+  next,
+  pendingDefinition,
+}: {
+  projectId: string;
+  stage: StageRow;
+  next: StageRow | undefined;
+  pendingDefinition: { kind: 'draft' | 'proposed'; id: string } | null;
+}) {
   const t = useMessages(STAGES);
   const command = useCommand(projectId);
   const actions = useActions('stage', s.state === 'not_started' ? undefined : s.state);
@@ -208,12 +276,13 @@ function StageDetail({ projectId, stage: s, next }: { projectId: string; stage: 
       {s.state === 'not_started' ? (
         <p className="text-sm text-fg-2">{s.position === 0 ? t.opensWhenStart : t.opensWhenPasses}</p>
       ) : null}
+      {pendingDefinition ? <PendingDefinition projectId={projectId} pending={pendingDefinition} /> : null}
       {s.exploration_id || canPass ? (
         <div className="flex flex-wrap items-center gap-2">
           {canPass ? (
             <Button
               size="sm"
-              variant={missing === 0 ? 'primary' : 'secondary'}
+              variant={missing === 0 && !pendingDefinition ? 'primary' : 'secondary'}
               data-command="stage.pass"
               onClick={() => {
                 command.reset();

@@ -33,6 +33,12 @@ export function keyOfSection(title: string): DefinitionKey | null {
   return KEY_OF_TITLE[title] ?? null;
 }
 
+/** A version accepted but not approved yet, newer than the one in force. */
+export function draftVersion(d: ProductDefinition | undefined): DefinitionVersion | null {
+  const latest = d?.versions[0];
+  return latest && latest.state === 'draft' ? latest : null;
+}
+
 /** The version in force: the latest approved one. */
 export function currentVersion(d: ProductDefinition | undefined): DefinitionVersion | null {
   return d?.versions.find((v) => v.state === 'approved') ?? null;
@@ -43,7 +49,12 @@ export function previousVersion(d: ProductDefinition, v: DefinitionVersion): Def
   return d.versions.find((x) => x.n < v.n && x.state !== 'discarded') ?? null;
 }
 
-export type SectionChange = { title: string; content: string; before: string | null; changed: boolean };
+export type SectionChange = {
+  title: string;
+  content: string;
+  before: string | null;
+  changed: boolean;
+};
 
 /** Each section next to what it said before; a section is changed when its text differs. */
 export function sectionChanges(before: readonly Section[] | null, after: readonly Section[]): SectionChange[] {
@@ -72,4 +83,14 @@ export function reasonFor(reasons: readonly DefinitionReason[], title: string, l
 /** The source of a section, by its title. */
 export function sourceOf(sources: readonly DefinitionSource[], title: string): DefinitionSource | null {
   return sources.find((s) => s.section === title) ?? null;
+}
+
+/** The approved versions that introduced or changed a section's text, newest first. */
+export function sectionTrace(versions: readonly DefinitionVersion[], title: string): DefinitionVersion[] {
+  const approved = versions.filter((v) => v.state === 'approved');
+  const text = (v: DefinitionVersion | undefined) => v?.sections.find((s) => s.title === title)?.content.trim() ?? null;
+  return approved.filter((v, i) => {
+    const now = text(v);
+    return now !== null && now !== text(approved[i + 1]);
+  });
 }

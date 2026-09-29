@@ -284,6 +284,14 @@ export const STAGES = messages(
     opensWhenStart: 'It opens when you start the design stages.',
     opensWhenPasses: 'It opens when the stage before it passes.',
     passStage: 'Pass stage',
+    definitionDraft: 'Product definition: draft, not in force yet',
+    definitionProposed: 'Product definition: drafted, waiting for your approval',
+    definitionDraftNote:
+      'Keep exploring it in the thread; approve it when it says what you want. Until then agents read it as a draft.',
+    definitionApproved: 'Product definition approved.',
+    approveDefinition: 'Approve the definition',
+    approving: 'Approving…',
+    seeDefinition: 'See the definition',
     openThreadOf: (title: string) => `Open the thread of ${title}`,
     openThread: 'Open thread',
     notReadyToPass: (missing: number, total: number) =>
@@ -315,6 +323,14 @@ export const STAGES = messages(
     opensWhenStart: 'Se abre cuando empieces las etapas de diseño.',
     opensWhenPasses: 'Se abre cuando la etapa anterior se supera.',
     passStage: 'Superar etapa',
+    definitionDraft: 'Definición del producto: en borrador, aún no vigente',
+    definitionProposed: 'Definición del producto: redactada, pendiente de tu aprobación',
+    definitionDraftNote:
+      'Sigue explorándola en el hilo y apruébala cuando diga lo que quieres. Hasta entonces los agentes la leen como borrador.',
+    definitionApproved: 'Definición del producto aprobada.',
+    approveDefinition: 'Aprobar la definición',
+    approving: 'Aprobando…',
+    seeDefinition: 'Ver la definición',
     openThreadOf: (title: string) => `Abrir el hilo de ${title}`,
     openThread: 'Abrir hilo',
     notReadyToPass: (missing: number, total: number) =>
@@ -373,6 +389,9 @@ export const DEFINITION = messages(
     proposedNote: 'DEMIURGO put it together from the answers you confirmed. Nothing is recorded until you approve it.',
     proposedNextTitle: 'A change is proposed',
     proposedNextNote: 'An answer changed, so the definition changes with it. It stays as it is until you approve the change.',
+    draftTitle: 'Your product definition, accepted and waiting for your approval',
+    draftNextTitle: 'A change accepted and waiting for your approval',
+    draftNote: 'You accepted it without approving it, so it does not count yet. Approve it to make it the definition in force.',
     approve: 'Approve the definition',
     approveNext: 'Approve the change',
     approving: 'Approving…',
@@ -392,6 +411,10 @@ export const DEFINITION = messages(
     unchanged: 'Unchanged',
     before: 'Before',
     why: 'Why',
+    whyLink: 'Why ›',
+    whyPanelTitle: 'Why it says this',
+    close: 'Close',
+    trace: 'How it changed',
     changed: 'changed',
     settled: (how: string): string =>
       (
@@ -440,6 +463,9 @@ export const DEFINITION = messages(
     proposedNote: 'DEMIURGO la ha montado con las respuestas que confirmaste. No queda registrada hasta que la apruebes.',
     proposedNextTitle: 'Se propone un cambio',
     proposedNextNote: 'Cambió una respuesta y la definición cambia con ella. Sigue igual hasta que apruebes el cambio.',
+    draftTitle: 'La definición de tu producto, aceptada y pendiente de tu aprobación',
+    draftNextTitle: 'Un cambio aceptado y pendiente de tu aprobación',
+    draftNote: 'La aceptaste sin aprobarla, así que aún no cuenta. Apruébala para que sea la definición vigente.',
     approve: 'Aprobar la definición',
     approveNext: 'Aprobar el cambio',
     approving: 'Aprobando…',
@@ -459,6 +485,10 @@ export const DEFINITION = messages(
     unchanged: 'Sin cambios',
     before: 'Antes',
     why: 'Por qué',
+    whyLink: 'Por qué ›',
+    whyPanelTitle: 'Por qué dice esto',
+    close: 'Cerrar',
+    trace: 'Cómo ha cambiado',
     changed: 'cambiada',
     settled: (how: string): string =>
       (

@@ -33,7 +33,7 @@ import { WhileAway } from './lens/WhileAway.tsx';
 import { NeedsSummary } from './NeedsColumn.tsx';
 import { DraftPreview, type PreviewTarget, RecordPreview } from './Previews.tsx';
 import { draftingRuns, featureStatus, productProgress, recentlyDecided, workingRuns } from './progress.ts';
-import { ProductDefinitionSection } from './Definition.tsx';
+import { DefinitionWhyPanel, ProductDefinitionSection } from './Definition.tsx';
 import { DesignStages } from './Stages.tsx';
 import { useReturnFocus } from '../record/returnFocus.ts';
 import { OVERVIEW } from './words.i18n.ts';
@@ -86,6 +86,7 @@ function Overview({ projectId }: { projectId: string }) {
   const tables = useTables();
   const lens = useLens(projectId, state.data);
   const [preview, setPreviewState] = useState<PreviewTarget>(null);
+  const [whyOpen, setWhyOpen] = useState<string | null>(null);
   const focus = useReturnFocus();
   const setPreview = (target: PreviewTarget) => {
     if (target) focus.capture();
@@ -144,7 +145,9 @@ function Overview({ projectId }: { projectId: string }) {
   const previewRun = preview?.kind === 'draft' ? runs.find((r) => r.id === preview.runId) : undefined;
   const previewFrom = previewRun?.scope.id ? versions.get(previewRun.scope.id) : undefined;
 
-  const aside = (
+  const aside = whyOpen ? (
+    <DefinitionWhyPanel projectId={projectId} title={whyOpen} onClose={() => setWhyOpen(null)} />
+  ) : (
     <>
       <NeedsSummary projectId={projectId} state={s} inbox={inbox} />
       <RunningNow
@@ -187,7 +190,7 @@ function Overview({ projectId }: { projectId: string }) {
           ) : (
             <div className="flex flex-col gap-10">
               {lens.on ? <WhileAway projectId={projectId} lens={lens} /> : null}
-              <ProductDefinitionSection projectId={projectId} />
+              <ProductDefinitionSection projectId={projectId} whyOpen={whyOpen} onWhy={setWhyOpen} />
               <DesignStages projectId={projectId} />
               {blank ? (
                 <EmptyState

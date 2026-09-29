@@ -20,7 +20,8 @@ How each answer is written (in English, short, only what the person said or clea
   "<this> over <that>" or a short imperative, with its reason when the person gave one.
 - Users: who uses it, the first one first, and what each needs to do.
 - Problem: what goes wrong today without the product, in the person's terms.
-- First version: the capabilities it must have, one per line. Each becomes a feature to design. The
+- First version: the capabilities it must have, one per line. Each becomes a feature to design, or an
+  epic split into features when it is too big for one (see demiurgo-glossary). The
   capabilities the idea names are its first version, even when it names only one.
 - Out of scope: what the first version leaves out, one per line.
 - Constraints: what is fixed (platform, budget, deadlines, regulations, existing systems).

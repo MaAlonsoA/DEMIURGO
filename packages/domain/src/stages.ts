@@ -77,7 +77,7 @@ export const STAGES: readonly StageDefinition[] = [
       },
       {
         key: 'features',
-        question: 'Which features must the first version have? Each one becomes a feature to design.',
+        question: 'Which features must the first version have? Each one becomes a feature to design, or an epic of several features if it is too big for one.',
         reason: 'The features are where the requirements and their checks live.',
         impact: 'high',
       },

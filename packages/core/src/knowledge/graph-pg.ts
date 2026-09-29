@@ -7,6 +7,7 @@ import type { Db } from '../db/connection.ts';
 
 const TYPES_WITH_AUTHORITY = new Set([
   'decision',
+  'epic',
   'fdr',
   'adr',
   'bug',

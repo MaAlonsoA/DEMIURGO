@@ -12,6 +12,7 @@ export type { RecordType };
 
 export const WRITABLE_TYPES: readonly RecordType[] = [
   'decision',
+  'epic',
   'fdr',
   'adr',
   'bug',

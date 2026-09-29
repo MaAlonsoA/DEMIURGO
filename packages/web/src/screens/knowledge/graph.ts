@@ -15,6 +15,7 @@ export type NodeKind = { word: string; plural: string; order: number };
 export const NODE_TYPES: Record<string, NodeKind> = {
   decision: { word: 'Decision', plural: 'Decisions', order: 0 },
   adr: { word: 'Tech decision', plural: 'Tech decisions', order: 1 },
+  epic: { word: 'Epic', plural: 'Epics', order: 1.5 },
   fdr: { word: 'Feature', plural: 'Features', order: 2 },
   bug: { word: 'Bug', plural: 'Bugs', order: 3 },
   requirement: { word: 'Requirement', plural: 'Requirements', order: 4 },

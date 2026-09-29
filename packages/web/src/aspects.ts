@@ -11,6 +11,7 @@ export function isAspect(v: unknown): v is Aspect {
 
 const TYPE_ASPECT: Record<string, Aspect> = {
   product_definition: 'product',
+  epic: 'feature',
   fdr: 'feature',
   requirement: 'feature',
   quality_requirement: 'quality',

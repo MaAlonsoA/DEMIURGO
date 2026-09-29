@@ -99,6 +99,7 @@ export type Readiness = {
 
 export type RecordType =
   | 'decision'
+  | 'epic'
   | 'fdr'
   | 'adr'
   | 'bug'

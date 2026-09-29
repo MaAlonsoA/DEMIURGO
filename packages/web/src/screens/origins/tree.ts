@@ -291,6 +291,7 @@ const quoted = (s: string) => `“${s}”`;
 const LED_TO_ORDER: RecordType[] = [
   'product_definition',
   'decision',
+  'epic',
   'fdr',
   'adr',
   'bug',

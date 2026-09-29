@@ -64,7 +64,7 @@ export const fdrPayload = z
 /** A design-stage record (requirement, quality requirement, threat model, production readiness or ADR). */
 export const designRecordPayload = z
   .object({
-    record_type: z.enum(['fdr', 'requirement', 'quality_requirement', 'threat_model', 'production_readiness', 'adr']),
+    record_type: z.enum(['epic', 'fdr', 'requirement', 'quality_requirement', 'threat_model', 'production_readiness', 'adr']),
     title: text(200),
     sections: z
       .array(z.object({ title: text(120), content: text(10_000) }).strict())
@@ -75,6 +75,8 @@ export const designRecordPayload = z
       .string()
       .regex(/^[a-z][a-z_]*$/)
       .optional(),
+    /** A feature's epic: the record it rests on. */
+    based_on: recordReference.optional(),
     aspect: aspectSchema.optional(),
     basis,
   })

@@ -27,6 +27,7 @@ type Row<T extends keyof DB> = Selectable<DB[T]>;
 // The record types the design/ format predates get a folder of their own.
 const MORE_FOLDERS: Record<string, string> = {
   product_definition: 'product',
+  epic: 'epics',
   requirement: 'requirements',
   quality_requirement: 'quality',
   threat_model: 'security',

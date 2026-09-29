@@ -23,6 +23,7 @@ export const ASPECT_DESCRIPTIONS: Record<Aspect, string> = {
 const BY_TYPE: Record<string, Aspect> = {
   product_definition: 'product',
   definition_change: 'product',
+  epic: 'feature',
   fdr: 'feature',
   requirement: 'feature',
   quality_requirement: 'quality',

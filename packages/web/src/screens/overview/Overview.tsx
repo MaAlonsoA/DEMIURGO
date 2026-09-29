@@ -128,7 +128,7 @@ function Overview({ projectId }: { projectId: string }) {
   const firstFeature =
     !!mainThread &&
     !!s &&
-    !rows.some((r) => r.type === 'fdr') &&
+    !rows.some((r) => r.type === 'fdr' || r.type === 'epic') &&
     !s.explorations.some((e) => e.parent_id === mainThread);
 
   const actions: ReactNode = (

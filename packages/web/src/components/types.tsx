@@ -12,6 +12,7 @@ import {
   CpuIcon,
   DecisionIcon,
   FeatureIcon,
+  JourneyIcon,
   GaugeIcon,
   HelpIcon,
   IdeaIcon,
@@ -30,6 +31,7 @@ import {
 
 export const RECORD_ICON: Record<RecordType, ComponentType<IconProps>> = {
   decision: DecisionIcon,
+  epic: JourneyIcon,
   fdr: FeatureIcon,
   adr: CpuIcon,
   bug: BugIcon,
@@ -69,6 +71,7 @@ export function TypeIcon({ type, size = 16, className }: { type: string; size?: 
 
 const PREFIX: Record<string, RecordType> = {
   DEC: 'decision',
+  EPC: 'epic',
   FDR: 'fdr',
   ADR: 'adr',
   BUG: 'bug',

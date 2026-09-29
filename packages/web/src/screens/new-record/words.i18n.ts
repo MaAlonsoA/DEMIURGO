@@ -33,6 +33,7 @@ export const NEW_RECORD = messages(
       (
         ({
           decision: 'Something decided about the product: what, and what follows from it.',
+          epic: 'An epic: a capability too big for one feature, with its goal, its features in order and when it is done.',
           fdr: 'A feature: what it is for, what it covers and how it behaves, with the checks that prove it.',
           adr: 'A technical choice: the options weighed, the one taken and its consequences, with its checks.',
           bug: 'Something that does not work: how to reproduce it, what was expected and what happened.',
@@ -76,6 +77,7 @@ export const NEW_RECORD = messages(
       (
         ({
           decision: 'Algo decidido sobre el producto: qué, y qué se sigue de ello.',
+          epic: 'Una épica: una capacidad demasiado grande para una sola funcionalidad, con su objetivo, sus funcionalidades en orden y cuándo está hecha.',
           fdr: 'Una funcionalidad: para qué sirve, qué cubre y cómo se comporta, con las comprobaciones que lo demuestran.',
           adr: 'Una elección técnica: las opciones sopesadas, la elegida y sus consecuencias, con sus comprobaciones.',
           bug: 'Algo que no funciona: cómo reproducirlo, qué se esperaba y qué pasó.',

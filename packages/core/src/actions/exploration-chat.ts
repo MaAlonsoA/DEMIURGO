@@ -297,7 +297,7 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
     .innerJoin('records', 'records.id', 'record_versions.record_id')
     .select(['records.id as recordId', 'records.code', 'records.type', 'record_versions.n', 'record_versions.state', 'record_versions.title', 'record_versions.sections'])
     .where('records.project_id', '=', projectId)
-    .where('records.type', 'in', ['product_definition', 'fdr', 'requirement', 'quality_requirement', 'adr', 'threat_model', 'production_readiness'])
+    .where('records.type', 'in', ['product_definition', 'epic', 'fdr', 'requirement', 'quality_requirement', 'adr', 'threat_model', 'production_readiness'])
     .where('record_versions.state', 'in', ['approved', 'draft'])
     .orderBy('records.code')
     .orderBy('record_versions.n', 'desc')
@@ -458,7 +458,7 @@ async function firstFeatureStep(trx: Tx, projectId: string, explorationId: strin
     .selectFrom('records')
     .select('id')
     .where('project_id', '=', projectId)
-    .where('type', 'in', ['fdr', 'requirement'])
+    .where('type', 'in', ['epic', 'fdr', 'requirement'])
     .executeTakeFirst();
   if (feature) return null;
   const children = await trx
@@ -635,7 +635,9 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
     }
     if (p.type !== 'definition_change') {
       // "Based on": the person's words it rests on and the question being talked about.
-      const { type, quotes, ...payload } = p;
+      const { type, quotes, ...fields } = p;
+      // Fields the agent leaves null (an epic's name, a feature's epic) are left out of the payload.
+      const payload = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== null));
       const basis = [
         ...quotes.flatMap((quote) => {
           const found = findQuote(quote, said);

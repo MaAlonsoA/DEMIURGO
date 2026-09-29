@@ -187,6 +187,7 @@ export function commandWord(command: string): string {
 
 /** Names of the UI for the back's record types (spec §6, "Nombres"). */
 export const TYPE_WORDS: Record<RecordType, string> = {
+  epic: 'Epic',
   fdr: 'Feature',
   adr: 'Tech decision',
   decision: 'Decision',
@@ -199,6 +200,7 @@ export const TYPE_WORDS: Record<RecordType, string> = {
 };
 
 export const TYPE_WORDS_PLURAL: Record<RecordType, string> = {
+  epic: 'Epics',
   fdr: 'Features',
   adr: 'Tech decisions',
   decision: 'Decisions',
@@ -417,6 +419,7 @@ export function useCommandWord(command: string): string {
 }
 
 const TYPE_WORDS_ES: Record<RecordType, string> = {
+  epic: 'Épica',
   fdr: 'Funcionalidad',
   adr: 'Decisión técnica',
   decision: 'Decisión',
@@ -429,6 +432,7 @@ const TYPE_WORDS_ES: Record<RecordType, string> = {
 };
 
 const TYPE_WORDS_PLURAL_ES: Record<RecordType, string> = {
+  epic: 'Épicas',
   fdr: 'Funcionalidades',
   adr: 'Decisiones técnicas',
   decision: 'Decisiones',

@@ -5,6 +5,7 @@
 import type { Inbox, ProductRow, ProductState } from '../../api/types.ts';
 import { recordsByAspect } from '../../aspects.ts';
 import { EPISTEMIC_MARK, type MarkKind } from '../../words.ts';
+import { epicGroups } from '../epics/logic.ts';
 import { rowStage, type Waiting, waitingCount, waitingFor, waitingPhrase } from '../record/logic.ts';
 import { RAIL, type RailWords } from './words.i18n.ts';
 
@@ -69,15 +70,24 @@ export function railOf(
   };
 }
 
-export type NavRecord = { code: string; title: string; current: boolean; mark: MarkKind; status?: FeatureStatus };
+export type NavRecord = {
+  code: string;
+  title: string;
+  current: boolean;
+  mark: MarkKind;
+  status?: FeatureStatus;
+  /** A feature listed under its epic. */
+  nested?: boolean;
+};
 export type NavGroup = { key: string; title: string; records: NavRecord[] };
 export type Navigator = { project: string; groups: NavGroup[]; parked: { id: string; purpose: string }[] };
 
 /**
  * Every record of the product: the product definition first, then one group per aspect in the fixed
- * order (Product, Feature, Quality, Architecture, Security, Operations, Other) and those without a
- * tag last — the features with their status and the rest with their certainty — and the threads set
- * aside. Only non-empty groups, except Feature, which says when there is none.
+ * order (Product, Epic, Feature, Quality, Architecture, Security, Operations, Other) and those
+ * without a tag last — each epic with its features under it, the features with their status and the
+ * rest with their certainty — and the threads set aside. Only non-empty groups, except Feature,
+ * which says when there is none while there is no epic either.
  */
 export function navigatorOf(
   state: ProductState | undefined,
@@ -92,11 +102,17 @@ export function navigatorOf(
     ...(r.type === 'fdr' ? { status: featureStatus(r, waitingFor(r.code, inbox, r.origin_exploration), words) } : {}),
   });
   const definition = rows.filter((r) => r.type === 'product_definition');
-  const byAspect = recordsByAspect(rows.filter((r) => r.type !== 'product_definition'));
-  if (!byAspect.some((g) => g.key === 'feature')) {
+  const epics = epicGroups(rows).groups;
+  const inEpic = new Set(epics.flatMap((g) => g.features.map((f) => f.code)));
+  const byAspect = recordsByAspect(rows.filter((r) => r.type !== 'product_definition' && !inEpic.has(r.code)));
+  if (!byAspect.some((g) => g.key === 'epic' || g.key === 'feature')) {
     const at = byAspect.findIndex((g) => g.key !== 'product');
     byAspect.splice(at < 0 ? byAspect.length : at, 0, { key: 'feature', aspect: 'feature', rows: [] });
   }
+  const navOf = (r: ProductRow): NavRecord[] => {
+    const own = r.type === 'epic' ? epics.find((g) => g.epic.code === r.code)?.features : undefined;
+    return [toNav(r), ...(own ?? []).map((f) => ({ ...toNav(f), nested: true }))];
+  };
   const groups: NavGroup[] = [
     ...(definition.length > 0
       ? [{ key: 'product_definition', title: words.groupDefinition, records: definition.map(toNav) }]
@@ -104,7 +120,7 @@ export function navigatorOf(
     ...byAspect.map((g) => ({
       key: g.key,
       title: g.aspect ? words.groupAspect(g.aspect) : words.groupNone,
-      records: g.rows.map(toNav),
+      records: g.rows.flatMap(navOf),
     })),
   ];
   return {

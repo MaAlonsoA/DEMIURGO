@@ -32,6 +32,8 @@ export const EPICS = messages(
 export const EPIC_BOARD = messages(
   {
     title: 'Features of this epic',
+    planNote:
+      'The list is the plan the epic writes in its "Features" section: each line is only text until it is designed in its own thread, and then it becomes a feature record.',
     progress: (built: number, total: number) => `${built} of ${total} built`,
     ready: (n: number) => `${n} ready to build`,
     designing: (n: number) => `${n} in design`,
@@ -39,7 +41,7 @@ export const EPIC_BOARD = messages(
     state_ready: 'Ready to build',
     state_approved: 'Approved',
     state_designing: 'In design',
-    state_unstarted: 'Not started',
+    state_unstarted: 'Only in the list',
     blockedBy: (codes: string) => `Blocked by ${codes}, not built yet`,
     approveFirst: 'Approve the epic to start designing its features.',
     noList: 'The epic lists no features yet: its "Features" section names them, one per line ("Name: what it does").',
@@ -57,6 +59,8 @@ export const EPIC_BOARD = messages(
   },
   {
     title: 'Funcionalidades de esta épica',
+    planNote:
+      'La lista es el plan que la épica escribe en su sección «Features»: cada línea es solo texto hasta que se diseña en su propio hilo, y entonces pasa a ser un registro de funcionalidad.',
     progress: (built: number, total: number) => `${built} de ${total} construidas`,
     ready: (n: number) => `${n} ${n === 1 ? 'lista' : 'listas'} para construir`,
     designing: (n: number) => `${n} en diseño`,
@@ -64,7 +68,7 @@ export const EPIC_BOARD = messages(
     state_ready: 'Lista para construir',
     state_approved: 'Aprobada',
     state_designing: 'En diseño',
-    state_unstarted: 'Sin empezar',
+    state_unstarted: 'Solo en la lista',
     blockedBy: (codes: string) => `Bloqueada por ${codes}, que aún no está construida`,
     approveFirst: 'Aprueba la épica para empezar a diseñar sus funcionalidades.',
     noList: 'La épica aún no nombra funcionalidades: su sección «Features» las lista, una por línea («Nombre: qué hace»).',

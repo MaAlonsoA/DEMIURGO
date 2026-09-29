@@ -232,7 +232,7 @@ export function AspectPicker({ value, onChange }: { value: Aspect | null; onChan
       <MenuRadioItems
         value={value ?? ''}
         onChange={(v) => isAspect(v) && onChange(v)}
-        options={ASPECTS.map((a) => ({ value: a, label: words[a] }))}
+        options={ASPECTS.filter((a) => a !== 'epic').map((a) => ({ value: a, label: words[a] }))}
       />
     </Menu>
   );

@@ -120,6 +120,7 @@ export function EpicBoard({
           <span className="text-sm tabular-nums text-fg-2">{progressWords(t, plan.counts, plan.lines.length)}</span>
         ) : null}
       </div>
+      <p className="max-w-prose text-sm text-fg-2">{t.planNote}</p>
       {!ref ? <p className="text-sm text-fg-2">{t.approveFirst}</p> : null}
       {plan.lines.length === 0 ? (
         <p className="text-sm text-fg-2">{t.noList}</p>

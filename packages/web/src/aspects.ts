@@ -1,8 +1,9 @@
 // The aspect of a proposal or a record: what part of the product it is about (product, a feature,
 // quality, architecture…). The interface names things by one noun ("Proposal", "Record") plus
-// this aspect as a tag, never by the internal record type (FDR, ADR, NFR, "Design record"). Pure.
+// this aspect as a tag, never by the internal record type (FDR, ADR, NFR, "Design record"). An epic
+// is its own tag: it groups features, it is not one. Pure.
 
-export const ASPECTS = ['product', 'feature', 'quality', 'architecture', 'security', 'operations', 'other'] as const;
+export const ASPECTS = ['product', 'epic', 'feature', 'quality', 'architecture', 'security', 'operations', 'other'] as const;
 export type Aspect = (typeof ASPECTS)[number];
 
 export function isAspect(v: unknown): v is Aspect {
@@ -11,7 +12,7 @@ export function isAspect(v: unknown): v is Aspect {
 
 const TYPE_ASPECT: Record<string, Aspect> = {
   product_definition: 'product',
-  epic: 'feature',
+  epic: 'epic',
   fdr: 'feature',
   requirement: 'feature',
   quality_requirement: 'quality',
@@ -57,8 +58,9 @@ export function aspectOfProposal(p: { type: string; payload: Record<string, unkn
   return aspectOfType(p.type);
 }
 
-/** The aspect of a record row: the one it has, else its type's. */
+/** The aspect of a record row: an epic's is always Epic; else the one it has, else its type's. */
 export function aspectOfRecord(r: { type: string; aspect?: string | null }): Aspect | null {
+  if (r.type === 'epic') return 'epic';
   return isAspect(r.aspect) ? r.aspect : aspectOfType(r.type);
 }
 

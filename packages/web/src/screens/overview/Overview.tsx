@@ -9,7 +9,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { type ReactNode, useState } from 'react';
-import { definitionQuery, explorationsQuery, inboxQuery, projectsQuery, runsQuery, stateQuery } from '../../api/queries.ts';
+import { definitionQuery, explorationsQuery, inboxQuery, projectsQuery, runsQuery, stagesQuery, stateQuery } from '../../api/queries.ts';
 import { canCreate } from '../../api/tables.ts';
 import type { ExplorationSummary, ProductRow } from '../../api/types.ts';
 import { AskBox } from '../../components/AskBox.tsx';
@@ -35,6 +35,7 @@ import { DraftPreview, type PreviewTarget, RecordPreview } from './Previews.tsx'
 import { draftingRuns, featureStatus, productProgress, recentlyDecided, workingRuns } from './progress.ts';
 import { DefinitionWhyPanel, ProductDefinitionSection } from './Definition.tsx';
 import { DesignStages } from './Stages.tsx';
+import { FirstFeature } from '../thread/StageComplete.tsx';
 import { useReturnFocus } from '../record/returnFocus.ts';
 import { OVERVIEW } from './words.i18n.ts';
 import { ASPECT_WORDS } from '../../aspects.i18n.ts';
@@ -118,6 +119,17 @@ function Overview({ projectId }: { projectId: string }) {
   const blank = empty && !definition.data?.record && !definition.data?.proposal;
   const versions = s ? versionIndex(s) : new Map();
   const newRecord = !!tables && canCreate(tables, 'record.create');
+  // After the onboarding and before any feature: the invitation to design the first one, in the
+  // thread that hosted the onboarding stages, wherever that thread is (even closed).
+  const stages = useQuery(stagesQuery(projectId)).data;
+  const onboarding = stages?.filter((x) => x.moment === 'onboarding') ?? [];
+  const mainThread = onboarding.every((x) => x.state === 'passed') ? onboarding[0]?.exploration_id : null;
+  const mainState = s?.explorations.find((e) => e.id === mainThread)?.state;
+  const firstFeature =
+    !!mainThread &&
+    !!s &&
+    !rows.some((r) => r.type === 'fdr') &&
+    !s.explorations.some((e) => e.parent_id === mainThread);
 
   const actions: ReactNode = (
     <>
@@ -191,6 +203,9 @@ function Overview({ projectId }: { projectId: string }) {
             <div className="flex flex-col gap-10">
               {lens.on ? <WhileAway projectId={projectId} lens={lens} /> : null}
               <ProductDefinitionSection projectId={projectId} whyOpen={whyOpen} onWhy={setWhyOpen} />
+              {firstFeature && mainThread ? (
+                <FirstFeature projectId={projectId} explorationId={mainThread} active={mainState === 'active'} goToThread />
+              ) : null}
               <DesignStages projectId={projectId} />
               {blank ? (
                 <EmptyState

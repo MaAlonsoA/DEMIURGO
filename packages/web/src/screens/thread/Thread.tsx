@@ -317,7 +317,7 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
             {stage && stageDone && active ? (
               <StageComplete projectId={projectId} stage={stage} next={nextStage?.title ?? null} />
             ) : null}
-            {onboardingDone && !stage && active ? <FirstFeature projectId={projectId} explorationId={t.id} /> : null}
+            {onboardingDone && !stage ? <FirstFeature projectId={projectId} explorationId={t.id} active={active} /> : null}
             {reserve > 0 && active ? (
               <p data-reserve className="rounded-md border border-dashed border-edge-strong px-3 py-2 text-sm text-fg-2">
                 {words.reserve(reserve)}

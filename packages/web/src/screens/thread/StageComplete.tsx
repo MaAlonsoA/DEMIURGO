@@ -2,6 +2,7 @@
 // covered, and passing it is the person's call. Passing is decisive, so it asks first and says what
 // comes next (INVENTORY §2 #24, R22).
 
+import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
 import type { StageRow } from '../../api/types.ts';
@@ -65,14 +66,40 @@ export function StageComplete({ projectId, stage, next }: { projectId: string; s
 }
 
 /**
- * After the onboarding, while no feature thread hangs from this one: the next step is designing the
- * first feature. The button asks DEMIURGO where to start; its reply offers the candidates from the
- * definition's first version, each one a thread the person can open.
+ * After the onboarding, while no feature thread hangs from the main thread: the next step is designing
+ * the first feature. The button asks DEMIURGO where to start, in the main thread (resumed first if it
+ * was closed); its reply offers the candidates from the definition's first version, each one a thread
+ * the person can open. It shows in that thread and on the product overview, which goes to the thread.
  */
-export function FirstFeature({ projectId, explorationId }: { projectId: string; explorationId: string }) {
+export function FirstFeature({
+  projectId,
+  explorationId,
+  active,
+  goToThread = false,
+}: {
+  projectId: string;
+  explorationId: string;
+  active: boolean;
+  goToThread?: boolean;
+}) {
   const t = useMessages(FIRST_FEATURE);
   const request = useContentMessages(FIRST_FEATURE).request;
   const post = useCommand(projectId);
+  const navigate = useNavigate();
+  const [pending, setPending] = useState(false);
+  const ask = async () => {
+    setPending(true);
+    try {
+      if (!active) await post.mutateAsync({ command: 'exploration.resume', entityId: explorationId });
+      await post.mutateAsync({ command: 'message.post', data: { exploration_id: explorationId, text: request, respond: true } });
+      announce(t.asked);
+      if (goToThread) void navigate({ to: '/p/$projectId/threads/$explorationId', params: { projectId, explorationId } });
+    } catch {
+      // The error shows under the button.
+    } finally {
+      setPending(false);
+    }
+  };
   return (
     <Card tone="accent" data-first-feature className="flex flex-col gap-3">
       <p className="flex items-start gap-2 text-base text-fg">
@@ -82,17 +109,7 @@ export function FirstFeature({ projectId, explorationId }: { projectId: string; 
           {t.next}
         </span>
       </p>
-      <Button
-        variant="primary"
-        className="self-start"
-        disabled={post.isPending}
-        onClick={() =>
-          post.mutate(
-            { command: 'message.post', data: { exploration_id: explorationId, text: request, respond: true } },
-            { onSuccess: () => announce(t.asked) },
-          )
-        }
-      >
+      <Button variant="primary" className="self-start" disabled={pending} onClick={() => void ask()}>
         {t.ask}
       </Button>
       {post.error ? <ErrorNotice error={post.error} compact /> : null}

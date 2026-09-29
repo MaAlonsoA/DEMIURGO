@@ -103,10 +103,6 @@ export const PLAN_EDITING = messages(
     dropAsk: 'Drop it from the list?',
     dropYes: 'Drop',
     dropped: (name: string) => `"${name}" dropped from the list.`,
-    convertNote: (n: number) =>
-      `This epic wrote its list as text (${n} ${n === 1 ? 'line' : 'lines'}). Turn it into records: each line gets its code, in this order.`,
-    convert: 'Turn the list into records',
-    converted: (n: number) => `${n} ${n === 1 ? 'feature' : 'features'} added to the list.`,
   },
   {
     add: 'Añadir funcionalidad',
@@ -124,9 +120,5 @@ export const PLAN_EDITING = messages(
     dropAsk: '¿Quitarla de la lista?',
     dropYes: 'Quitar',
     dropped: (name: string) => `«${name}» quitada de la lista.`,
-    convertNote: (n: number) =>
-      `Esta épica escribió su lista como texto (${n} ${n === 1 ? 'línea' : 'líneas'}). Pásala a registros: cada línea tendrá su código, en este orden.`,
-    convert: 'Pasar la lista a registros',
-    converted: (n: number) => `${n} ${n === 1 ? 'funcionalidad añadida' : 'funcionalidades añadidas'} a la lista.`,
   },
 );

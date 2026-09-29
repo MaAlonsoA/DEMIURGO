@@ -1,16 +1,14 @@
 // Changing an epic's list by hand: add a feature (it reserves its code), move or drop one not designed
-// yet, and turn an older epic's text list into records. The epic's thread proposes the same changes.
+// yet. The epic's thread proposes the same changes.
 
-import { useQueryClient } from '@tanstack/react-query';
 import { type FormEvent, useState } from 'react';
-import { runCommand, useCommand } from '../../api/commands.ts';
-import { keys } from '../../api/queries.ts';
+import { useCommand } from '../../api/commands.ts';
 import { announce } from '../../components/announce.tsx';
 import { Button } from '../../components/Button.tsx';
 import { Field, TextInput } from '../../components/Field.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
 import { useMessages } from '../../i18n/define.ts';
-import type { EpicLine, PlannedFeature } from './logic.ts';
+import type { EpicLine } from './logic.ts';
 import { PLAN_EDITING } from './words.i18n.ts';
 
 /** "Add a feature": its name and one sentence; it goes to the end of the list with its code. */
@@ -121,50 +119,5 @@ export function LineControls({
       )}
       {command.error ? <ErrorNotice error={command.error} compact /> : null}
     </span>
-  );
-}
-
-/** An older epic wrote its list as text: turn each line into a feature with its code, in order. */
-export function ConvertList({ projectId, epicId, lines }: { projectId: string; epicId: string; lines: PlannedFeature[] }) {
-  const t = useMessages(PLAN_EDITING);
-  const client = useQueryClient();
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<unknown>(null);
-  const convert = async () => {
-    setPending(true);
-    setError(null);
-    try {
-      for (const l of lines) {
-        await runCommand(projectId, {
-          command: 'planned_feature.add',
-          data: { epic_id: epicId, name: l.name, summary: l.phrase || l.name },
-        });
-      }
-      announce(t.converted(lines.length));
-    } catch (e) {
-      setError(e);
-    } finally {
-      setPending(false);
-      void client.invalidateQueries({ queryKey: keys.project(projectId) });
-    }
-  };
-  return (
-    <div className="flex flex-col gap-2 rounded-md border border-dashed border-edge-strong px-3 py-3" data-convert-list>
-      <p className="max-w-prose text-sm text-fg-2">{t.convertNote(lines.length)}</p>
-      <ol className="flex list-decimal flex-col gap-0.5 pl-5 text-sm text-fg-2">
-        {lines.map((l, i) => (
-          <li key={`${i}-${l.name}`}>
-            <span className="text-fg">{l.name}</span>
-            {l.phrase ? `: ${l.phrase}` : null}
-          </li>
-        ))}
-      </ol>
-      <div>
-        <Button variant="primary" size="sm" pending={pending} onClick={() => void convert()}>
-          {t.convert}
-        </Button>
-      </div>
-      {error ? <ErrorNotice error={error} compact /> : null}
-    </div>
   );
 }

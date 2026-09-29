@@ -1,8 +1,7 @@
 // An epic and its features (spec «Entrega por épicas», 1c). The epic's list is its planned features:
 // records from the moment it lists them, each with its reserved code, in order; designing one makes
 // the feature record with that code. A feature belongs to the epic it is based on; without that
-// link, to the epic of its domain. Older epics wrote the list as text in a "Features" section: it
-// is read only to offer turning it into records.
+// link, to the epic of its domain.
 
 import type { ExplorationSummary, PlannedFeatureRow, ProductRow, ProductState } from '../../api/types.ts';
 import { isFeatureThread } from '../../components/ask.ts';
@@ -42,30 +41,8 @@ export function normalizeName(s: string): string {
     .trim();
 }
 
+/** A feature of an epic's list: its name and the sentence that says what it does. */
 export type PlannedFeature = { name: string; phrase: string };
-
-/** The lines of an epic's "Features" section: "Name: phrase" (or "Name — phrase"), list marks off. */
-export function plannedFeatures(content: string): PlannedFeature[] {
-  const out: PlannedFeature[] = [];
-  for (const raw of content.split('\n')) {
-    const line = raw
-      .trim()
-      .replace(/^(?:[-*+]|\d+[.)])\s+/, '')
-      .replace(/\*\*/g, '')
-      .trim();
-    if (line === '') continue;
-    const m = /^(.+?)\s*(?::|\s—\s|\s–\s|\s-\s)\s*(.+)$/.exec(line);
-    const name = (m?.[1] ?? line).trim();
-    if (name.length > 120) continue;
-    out.push({ name, phrase: (m?.[2] ?? '').trim() });
-  }
-  return out;
-}
-
-/** The "Features" section of a version's sections, or empty. */
-export function featuresSection(sections: readonly { title: string; content: string }[]): string {
-  return sections.find((s) => normalizeName(s.title) === 'features')?.content ?? '';
-}
 
 export type LineState = 'built' | 'ready' | 'approved' | 'designing' | 'unstarted';
 

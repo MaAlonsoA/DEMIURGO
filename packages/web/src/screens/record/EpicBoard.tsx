@@ -24,11 +24,9 @@ import {
   epicGroups,
   epicPlan,
   epicThreads,
-  featuresSection,
-  plannedFeatures,
   plannedOf,
 } from '../epics/logic.ts';
-import { AddFeature, ConvertList, LineControls } from '../epics/PlanEditing.tsx';
+import { AddFeature, LineControls } from '../epics/PlanEditing.tsx';
 import { epicRef } from '../epics/plans.ts';
 import { EPIC_BOARD } from '../epics/words.i18n.ts';
 import { CopyBriefButton } from './CopyBrief.tsx';
@@ -122,9 +120,6 @@ export function EpicBoard({
   const plan = epicPlan(epic, planned, features, rows, state.explorations);
   const ref = epicRef(epic);
   const editable = !!tables && canCreate(tables, 'planned_feature.add');
-  // An older epic wrote its list as text: offered once, until its features are records.
-  const shown = record.versions.find((v) => v.n === record.current) ?? record.versions.find((v) => v.id === epic.latest_id);
-  const textList = planned.length === 0 ? plannedFeatures(featuresSection(shown?.sections ?? [])) : [];
   const threads = epicThreads(
     state.explorations,
     record.versions.map((v) => v.id),
@@ -144,9 +139,7 @@ export function EpicBoard({
       </div>
       <p className="max-w-prose text-sm text-fg-2">{t.planNote}</p>
       {!ref ? <p className="text-sm text-fg-2">{t.approveFirst}</p> : null}
-      {textList.length > 0 && editable ? (
-        <ConvertList projectId={projectId} epicId={record.id} lines={textList} />
-      ) : plan.lines.length === 0 ? (
+      {plan.lines.length === 0 ? (
         <p className="text-sm text-fg-2">{t.noList}</p>
       ) : (
         <ol className="flex flex-col divide-y divide-edge-subtle">
@@ -174,7 +167,7 @@ export function EpicBoard({
           ))}
         </ol>
       )}
-      {editable && textList.length === 0 ? <AddFeature projectId={projectId} epicId={record.id} /> : null}
+      {editable ? <AddFeature projectId={projectId} epicId={record.id} /> : null}
       {plan.outside.length > 0 ? (
         <div className="flex flex-col gap-1.5 border-t border-edge-subtle pt-3" data-epic-outside>
           <h3 className="text-base font-semibold text-fg">{t.outside}</h3>

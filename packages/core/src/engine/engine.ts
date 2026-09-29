@@ -273,8 +273,9 @@ async function invokeInSpan(s: Services, runId: string): Promise<InvokeResult> {
   const control = new AbortController();
   controllers.set(runId, control);
   try {
-    // A reply-only agent isn't asked for question options: nothing but its reply is applied.
-    const schema = runSchemaOf(action, agent.replyOnly ? null : pack.content);
+    // A reply-only agent isn't asked for question options: only its reply and, on the question in
+    // progress, the idea it leads to are applied.
+    const schema = runSchemaOf(action, agent.replyOnly ? replyOnlyContent(pack.content) : pack.content);
     // The texts as sent, with their full hashes (§5.5), before the call.
     s.observer.text('system_prompt', systemPrompt);
     const inputHash = s.observer.text('input', input);
@@ -627,6 +628,12 @@ async function failForInfrastructure(runId: string, projectId: string, e: unknow
     },
     (state) => state,
   );
+}
+
+/** What shapes a reply-only agent's schema: only the question in progress, never the questions. */
+function replyOnlyContent(content: unknown): unknown {
+  const q = content && typeof content === 'object' ? (content as { question_in_progress?: unknown }).question_in_progress : null;
+  return typeof q === 'string' ? { question_in_progress: q } : null;
 }
 
 const runWorkflowRegistered = DBOS.registerWorkflow(runWorkflow, { name: 'demiurgo.run' });

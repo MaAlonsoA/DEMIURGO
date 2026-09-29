@@ -45,7 +45,7 @@ export function DeeperPanel({
   onTalk,
   onClose,
   headingRef,
-  folded = false,
+  compact = false,
 }: {
   projectId: string;
   thread: ExplorationDetail;
@@ -56,8 +56,11 @@ export function DeeperPanel({
   onTalk: (text: string) => void;
   onClose: () => void;
   headingRef?: Ref<HTMLHeadingElement>;
-  /** Settling waits behind a button, so the conversation has the room (Go deeper over Day 1). */
-  folded?: boolean;
+  /**
+   * The options to settle the question keep to a part of the panel, with their own scroll, and can be
+   * hidden, so the conversation has the room (Go deeper over Day 1).
+   */
+  compact?: boolean;
 }) {
   const t = useMessages(DEEPER);
   const tables = useTables();
@@ -104,7 +107,7 @@ export function DeeperPanel({
   };
 
   const settle = useRef<{ fill: (text: string) => void }>(null);
-  const [settling, setSettling] = useState(!folded);
+  const [settling, setSettling] = useState(true);
 
   return (
     <section id="thread-deeper" aria-labelledby={`${talkId}-title`} className="flex min-h-full flex-col" data-deeper={q.id}>
@@ -238,18 +241,18 @@ export function DeeperPanel({
         {open ? (
           drafts && thread.state === 'active' ? (
             <>
-              {folded ? (
+              {compact ? (
                 <Button
                   size="sm"
-                  variant="secondary"
-                  className="self-start"
+                  variant="quiet"
+                  className="-mb-2 self-start"
                   aria-expanded={settling}
                   onClick={() => setSettling(!settling)}
                 >
-                  {t.settleIt}
+                  {settling ? t.hideOptions : t.showOptions}
                 </Button>
               ) : null}
-              <div hidden={!settling}>
+              <div hidden={!settling} className={compact ? 'max-h-[40vh] overflow-y-auto' : undefined}>
                 <Settle ref={settle} question={q} onDone={onClose} />
               </div>
             </>

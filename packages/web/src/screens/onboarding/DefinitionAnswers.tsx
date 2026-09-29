@@ -195,7 +195,7 @@ function Block({ projectId, thread, items }: { projectId: string; thread: Explor
               onTalk={(text) => setTalks((all) => ({ ...all, [deeper.id]: text }))}
               onClose={() => setDeeperId(null)}
               headingRef={deeperHeading}
-              folded
+              compact
             />
           ) : null}
         </Sheet>
@@ -266,7 +266,7 @@ function Item({
           <p className="text-sm text-fg-2">{t.leftOpen}</p>
         ) : editing ? (
           <>
-            {!read && q.options && q.options.length > 0 ? (
+            {q.options && q.options.length > 0 ? (
               <div className="flex flex-wrap gap-2" role="group" aria-label={q.question}>
                 {q.options.map((o) => (
                   <Button

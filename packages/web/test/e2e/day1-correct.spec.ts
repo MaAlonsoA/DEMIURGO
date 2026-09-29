@@ -39,6 +39,8 @@ test('Day 1: a correction is saved or discarded, and "Talk it through" settles a
   const users = item(page, 'Who uses it');
   const read = (await users.locator('[data-answer-text]').textContent()) ?? '';
   await users.getByRole('button', { name: 'Correct' }).click();
+  // Correcting a reading offers the question's options too.
+  await expect(users.getByRole('group').getByRole('button').first()).toBeVisible();
   await users.getByLabel('Your answer: Who uses it').fill(CORRECTED);
   await users.getByRole('button', { name: 'Save' }).click();
   await expect(users).toHaveAttribute('data-answer-state', 'corrected');
@@ -62,16 +64,19 @@ test('Day 1: a correction is saved or discarded, and "Talk it through" settles a
   await principles.getByRole('button', { name: 'Talk it through' }).click();
   const deeper = page.locator(`[data-deeper="${asked}"]`);
   await expect(deeper).toBeVisible();
-  // The conversation has the room: settling waits behind a button, and the panel can be widened.
-  await expect(deeper.getByRole('button', { name: 'Use as answer', exact: true })).toHaveCount(0);
+  // The options are there from the start; hiding them leaves the room to the conversation, and the
+  // panel can be widened.
+  await expect(deeper.getByRole('radio').first()).toBeVisible();
+  await expect(deeper.getByRole('button', { name: 'Use as answer', exact: true })).toBeVisible();
   const sheet = page.getByRole('dialog', { name: 'Go deeper' });
   const narrow = (await sheet.boundingBox())?.width ?? 0;
   expect(narrow).toBeGreaterThan(600);
   await sheet.getByRole('separator', { name: 'Resize Go deeper' }).press('Shift+ArrowLeft');
   await expect.poll(async () => (await sheet.boundingBox())?.width ?? 0).toBeGreaterThan(narrow + 90);
-  await deeper.getByRole('button', { name: 'Settle it…' }).click();
-  await expect(deeper.getByRole('button', { name: 'Use as answer', exact: true })).toBeVisible();
-  await deeper.getByRole('button', { name: 'Settle it…' }).click();
+  await deeper.getByRole('button', { name: 'Hide the options' }).click();
+  await expect(deeper.getByRole('radio')).toHaveCount(0);
+  await deeper.getByRole('button', { name: 'Show the options' }).click();
+  await expect(deeper.getByRole('radio').first()).toBeVisible();
   await deeper.getByLabel('Talk it through').fill('Should speed come before safety?');
   await deeper.getByRole('button', { name: 'Send' }).click();
   await expect(deeper.getByRole('button', { name: 'Use this reply as the answer' })).toBeVisible({ timeout: 45_000 });

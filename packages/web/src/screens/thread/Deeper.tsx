@@ -45,6 +45,7 @@ export function DeeperPanel({
   onTalk,
   onClose,
   headingRef,
+  folded = false,
 }: {
   projectId: string;
   thread: ExplorationDetail;
@@ -55,6 +56,8 @@ export function DeeperPanel({
   onTalk: (text: string) => void;
   onClose: () => void;
   headingRef?: Ref<HTMLHeadingElement>;
+  /** Settling waits behind a button, so the conversation has the room (Go deeper over Day 1). */
+  folded?: boolean;
 }) {
   const t = useMessages(DEEPER);
   const tables = useTables();
@@ -101,6 +104,7 @@ export function DeeperPanel({
   };
 
   const settle = useRef<{ fill: (text: string) => void }>(null);
+  const [settling, setSettling] = useState(!folded);
 
   return (
     <section id="thread-deeper" aria-labelledby={`${talkId}-title`} className="flex min-h-full flex-col" data-deeper={q.id}>
@@ -156,7 +160,10 @@ export function DeeperPanel({
                   size="sm"
                   variant="quiet"
                   className="self-start"
-                  onClick={() => settle.current?.fill(plainText(m.body).slice(0, MAX_ANSWER))}
+                  onClick={() => {
+                    setSettling(true);
+                    settle.current?.fill(plainText(m.body).slice(0, MAX_ANSWER));
+                  }}
                 >
                   {t.useReplyAsAnswer}
                 </Button>
@@ -230,7 +237,22 @@ export function DeeperPanel({
         ) : null}
         {open ? (
           drafts && thread.state === 'active' ? (
-            <Settle ref={settle} question={q} onDone={onClose} />
+            <>
+              {folded ? (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="self-start"
+                  aria-expanded={settling}
+                  onClick={() => setSettling(!settling)}
+                >
+                  {t.settleIt}
+                </Button>
+              ) : null}
+              <div hidden={!settling}>
+                <Settle ref={settle} question={q} onDone={onClose} />
+              </div>
+            </>
           ) : null
         ) : (
           <Notice tone="neutral" title={t.notOpen}>

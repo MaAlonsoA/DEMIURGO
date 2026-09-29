@@ -178,6 +178,7 @@ function Block({ projectId, thread, items }: { projectId: string; thread: Explor
             if (!o) setDeeperId(null);
           }}
           label={t.talkLabel}
+          wide
           onOpenAutoFocus={(e) => {
             e.preventDefault();
             deeperHeading.current?.focus();
@@ -194,6 +195,7 @@ function Block({ projectId, thread, items }: { projectId: string; thread: Explor
               onTalk={(text) => setTalks((all) => ({ ...all, [deeper.id]: text }))}
               onClose={() => setDeeperId(null)}
               headingRef={deeperHeading}
+              folded
             />
           ) : null}
         </Sheet>

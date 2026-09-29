@@ -1,10 +1,13 @@
 // Under 1024 px the thread's side panel has no room beside the conversation (DESIGN.md §3.3, §6.3):
 // its content — Go deeper, or the questions and the threads inside — opens as a sheet over the page
 // instead. The sheet is a modal dialog: the focus goes in, Esc closes it, and the focus returns to
-// what opened it (R95).
+// what opened it (R95). A wide sheet (Go deeper over Day 1) has room for the conversation and a
+// separator on its left edge to widen or narrow it, like the thread's side panel.
 
 import { Dialog as D } from 'radix-ui';
-import { type ReactNode, useSyncExternalStore } from 'react';
+import { type CSSProperties, type ReactNode, useSyncExternalStore } from 'react';
+import { ResizeHandle, type Size, useResizableWidth } from '../../components/SidePanel.tsx';
+import { cn } from '../../lib/cn.ts';
 
 const WIDE = '(min-width: 1024px)';
 
@@ -21,12 +24,20 @@ export function useWide(): boolean {
   );
 }
 
+const WIDE_SHEET: Size = {
+  key: 'dm-wide-sheet-width',
+  min: 360,
+  initial: () => (typeof window === 'undefined' ? 720 : Math.round(window.innerWidth * 0.5)),
+  max: () => (typeof window === 'undefined' ? 1200 : Math.max(360, Math.round(window.innerWidth * 0.9))),
+};
+
 export function Sheet({
   open,
   onOpenChange,
   label,
   children,
   onOpenAutoFocus,
+  wide = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -34,7 +45,10 @@ export function Sheet({
   label: string;
   children: ReactNode;
   onOpenAutoFocus?: (e: Event) => void;
+  /** Half the window to start with, and resizable. */
+  wide?: boolean;
 }) {
+  const [width, setWidth] = useResizableWidth(WIDE_SHEET);
   return (
     <D.Root open={open} onOpenChange={onOpenChange}>
       <D.Portal>
@@ -42,10 +56,23 @@ export function Sheet({
         <D.Content
           aria-describedby={undefined}
           {...(onOpenAutoFocus ? { onOpenAutoFocus } : {})}
-          className="fixed inset-y-0 right-0 z-50 flex w-full animate-enter flex-col overflow-y-auto border-l border-edge bg-panel shadow-dialog sm:w-[480px] sm:max-w-[92vw]"
+          className={cn(
+            'fixed inset-y-0 right-0 z-50 flex w-full animate-enter flex-col border-l border-edge bg-panel shadow-dialog sm:max-w-[92vw]',
+            wide ? 'sm:w-(--sheet-width)' : 'overflow-y-auto sm:w-[480px]',
+          )}
+          style={wide ? ({ '--sheet-width': `${width}px` } as CSSProperties) : undefined}
         >
           <D.Title className="sr-only">{label}</D.Title>
-          {children}
+          {wide ? (
+            <>
+              <span className="hidden sm:contents">
+                <ResizeHandle label={label} size={WIDE_SHEET} width={width} onWidth={setWidth} />
+              </span>
+              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
+            </>
+          ) : (
+            children
+          )}
         </D.Content>
       </D.Portal>
     </D.Root>

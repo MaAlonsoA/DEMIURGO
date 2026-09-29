@@ -62,6 +62,16 @@ test('Day 1: a correction is saved or discarded, and "Talk it through" settles a
   await principles.getByRole('button', { name: 'Talk it through' }).click();
   const deeper = page.locator(`[data-deeper="${asked}"]`);
   await expect(deeper).toBeVisible();
+  // The conversation has the room: settling waits behind a button, and the panel can be widened.
+  await expect(deeper.getByRole('button', { name: 'Use as answer', exact: true })).toHaveCount(0);
+  const sheet = page.getByRole('dialog', { name: 'Go deeper' });
+  const narrow = (await sheet.boundingBox())?.width ?? 0;
+  expect(narrow).toBeGreaterThan(600);
+  await sheet.getByRole('separator', { name: 'Resize Go deeper' }).press('Shift+ArrowLeft');
+  await expect.poll(async () => (await sheet.boundingBox())?.width ?? 0).toBeGreaterThan(narrow + 90);
+  await deeper.getByRole('button', { name: 'Settle it…' }).click();
+  await expect(deeper.getByRole('button', { name: 'Use as answer', exact: true })).toBeVisible();
+  await deeper.getByRole('button', { name: 'Settle it…' }).click();
   await deeper.getByLabel('Talk it through').fill('Should speed come before safety?');
   await deeper.getByRole('button', { name: 'Send' }).click();
   await expect(deeper.getByRole('button', { name: 'Use this reply as the answer' })).toBeVisible({ timeout: 45_000 });

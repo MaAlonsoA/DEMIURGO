@@ -196,8 +196,10 @@ export const questionOption = z.object({ answer: recordText(300), implies: recor
  */
 export const conversationOption = z
   .object({
-    answer: recordText(300).describe('In English: the answer as the person would pick it, short and self-contained.'),
-    implies: recordText(300).describe('In English: what choosing it implies for the design.'),
+    answer: recordText(600).describe(
+      'In English: the answer as the person would pick it, self-contained, with everything the conversation added.',
+    ),
+    implies: recordText(600).describe('In English: what choosing it implies for the design.'),
   })
   .strict();
 

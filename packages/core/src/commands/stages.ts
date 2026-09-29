@@ -149,6 +149,24 @@ registerHandlers({
             if (!isDomainError(err) || !['guard', 'validation'].includes(err.type)) throw err;
           }
       }
+      // The last onboarding stage passed: DEMIURGO invites the person to design the first feature,
+      // with options drawn from the definition's first version (the explorer's reply).
+      const def = stageDefinition(stage);
+      if (!next && def?.moment === 'onboarding' && thread)
+        try {
+          await ctx.execute({
+            command: 'run.request',
+            actor: system('design'),
+            projectId: ctx.projectId,
+            data: {
+              action: 'exploration_chat',
+              scope: { type: 'exploration', id: thread },
+              input: { onboarding_done: true },
+            },
+          });
+        } catch (err) {
+          if (!isDomainError(err) || !['guard', 'validation'].includes(err.type)) throw err;
+        }
       return { entityId: id, after: { stage, next: next?.key ?? null } };
     },
   }),

@@ -44,7 +44,7 @@ import { DraftsProvider, useDraftsState, useSendDrafts } from './drafts.tsx';
 import { DraftsBar } from './DraftsBar.tsx';
 import { ThreadHeader, short } from './Header.tsx';
 import { Sheet, useWide } from './Sheet.tsx';
-import { StageComplete } from './StageComplete.tsx';
+import { FirstFeature, StageComplete } from './StageComplete.tsx';
 import { buildTimeline, draftableDecisions } from './timeline.ts';
 import { THREAD } from './words.i18n.ts';
 
@@ -202,6 +202,10 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
   const stage = stages?.find((x) => x.exploration_id === t.id && x.state === 'open');
   const nextStage = stage ? stages?.find((x) => x.position === stage.position + 1) : undefined;
   const stageDone = !!stage && stage.total > 0 && stage.covered === stage.total;
+  // The onboarding passed in this thread and no feature thread hangs from it yet.
+  const onboarding = stages?.filter((x) => x.moment === 'onboarding') ?? [];
+  const onboardingDone =
+    onboarding.length > 0 && onboarding.every((x) => x.state === 'passed' && x.exploration_id === t.id) && t.children.length === 0;
   const reserve = t.questions.filter((q) => !isShown(q) && isOpenQuestion(q)).length;
   const parent = t.parent_id ? threads?.find((x) => x.id === t.parent_id) : undefined;
   const canFork = !!tables && canCreate(tables, 'exploration.open');
@@ -313,6 +317,7 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
             {stage && stageDone && active ? (
               <StageComplete projectId={projectId} stage={stage} next={nextStage?.title ?? null} />
             ) : null}
+            {onboardingDone && !stage && active ? <FirstFeature projectId={projectId} explorationId={t.id} /> : null}
             {reserve > 0 && active ? (
               <p data-reserve className="rounded-md border border-dashed border-edge-strong px-3 py-2 text-sm text-fg-2">
                 {words.reserve(reserve)}

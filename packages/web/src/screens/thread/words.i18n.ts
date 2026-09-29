@@ -482,6 +482,25 @@ export const STAGE_COMPLETE = messages(
   },
 );
 
+export const FIRST_FEATURE = messages(
+  {
+    done: 'The onboarding is done.',
+    next: ' Next comes designing the first feature. DEMIURGO suggests where to start, from the first version in your definition, and why each option is a good start.',
+    ask: 'Where do I start?',
+    request:
+      'The onboarding is done. Where should I start designing the first feature? Give me the options from the first version, with why each one is a good start.',
+    asked: 'DEMIURGO is suggesting where to start.',
+  },
+  {
+    done: 'El onboarding está hecho.',
+    next: ' Ahora toca diseñar la primera funcionalidad. DEMIURGO te sugiere por dónde empezar, a partir de la primera versión de tu definición, y por qué cada opción es un buen comienzo.',
+    ask: '¿Por dónde empiezo?',
+    request:
+      'El onboarding está hecho. ¿Por dónde empiezo a diseñar la primera funcionalidad? Dame las opciones de la primera versión, con el porqué de cada una.',
+    asked: 'DEMIURGO está sugiriendo por dónde empezar.',
+  },
+);
+
 export const THREAD = messages(
   {
     threadsCrumb: 'Threads',

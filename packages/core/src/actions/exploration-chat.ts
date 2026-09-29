@@ -5,7 +5,7 @@
 // decision, source and knowledge node it weighed, with the journal event or version it derives
 // from and what happened to it. The pack itself is the same as `exploration_chat@1` produced.
 
-import { COVERED_QUESTION_STATES, DomainError, findQuote, stageDefinition, system } from '@demiurgo/domain';
+import { COVERED_QUESTION_STATES, DomainError, STAGES, findQuote, stageDefinition, system } from '@demiurgo/domain';
 import { sql } from 'kysely';
 import { loadAgentCatalog } from '../agents/catalog.ts';
 import { registerBuilder } from '../context/build.ts';
@@ -156,6 +156,16 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
   for (const q of allQuestions)
     if (q.state === 'discarded')
       manifest.dropped({ section: 'questions', source: source('question', q.id), text: q.question, reason: 'state:discarded' });
+  // After the onboarding (every onboarding stage passed in this thread) and before any feature
+  // exists, the next step is designing the first feature: the explorer offers where to start.
+  const nextStep = stage ? null : await firstFeatureStep(trx, projectId, exploration.id, input.onboarding_done === true);
+  if (nextStep)
+    manifest.entered({
+      section: 'design_stage',
+      source: source('exploration', exploration.id),
+      text: 'Onboarding done: design the first feature',
+      reason: 'next_step:first_feature',
+    });
   const stageTitle = stage ? (stageDefinition(stage.stage)?.title ?? stage.stage) : '';
   if (stage)
     manifest.entered({
@@ -416,6 +426,7 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
               uncovered_mandatory_questions: stageQuestions.map((q) => ({ id: q.id, question: q.question, state: q.state })),
             }
           : null,
+        ...(nextStep ? { next_step: nextStep } : {}),
         ...(aboutRecord ? { about_record: aboutRecord } : {}),
         ...(productDefinitionDraft ? { product_definition_draft: productDefinitionDraft } : {}),
         confirmed_decisions: decisionsSummary,
@@ -427,6 +438,42 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
     manifest: manifest.build(),
   };
 });
+
+/**
+ * The step after the onboarding, while no feature exists yet: the thread that hosted the onboarding
+ * stages, all of them passed. `feature_threads` are the threads already opened from it, so the
+ * explorer doesn't offer them again.
+ */
+async function firstFeatureStep(trx: Tx, projectId: string, explorationId: string, justArrived: boolean) {
+  const onboarding = STAGES.filter((s) => s.moment === 'onboarding').map((s) => s.key);
+  const passed = await trx
+    .selectFrom('stages')
+    .select('stage')
+    .where('project_id', '=', projectId)
+    .where('exploration_id', '=', explorationId)
+    .where('state', '=', 'passed')
+    .execute();
+  if (!onboarding.every((k) => passed.some((p) => p.stage === k))) return null;
+  const feature = await trx
+    .selectFrom('records')
+    .select('id')
+    .where('project_id', '=', projectId)
+    .where('type', 'in', ['fdr', 'requirement'])
+    .executeTakeFirst();
+  if (feature) return null;
+  const children = await trx
+    .selectFrom('explorations')
+    .select('purpose')
+    .where('parent_id', '=', explorationId)
+    .where('state', '=', 'active')
+    .orderBy('created_at')
+    .execute();
+  return {
+    step: 'design_first_feature',
+    just_arrived: justArrived,
+    feature_threads: children.map((c) => c.purpose),
+  };
+}
 
 /** What the person wrote in the thread, most recent first: where an agent's quotes have to be. */
 function saidInThread(db: Db, explorationId: string) {

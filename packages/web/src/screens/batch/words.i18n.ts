@@ -377,6 +377,7 @@ export const PROPOSAL_VIEW = messages(
     englishVersionNote:
       'Records are kept in English. This is the same content, translated by DEMIURGO: accepting it makes it a new version of the record, with every check carried over.',
     definitionChangeOf: (section: string) => `A change to “${section}” in the product definition, decided in a thread.`,
+    recordChangeOf: (code: string, section: string) => `A change to “${section}” in ${code}, decided in a thread.`,
     itWouldSay: 'It would say',
     nowItSays: 'Now it says',
     openReview: 'Open a review',
@@ -423,6 +424,7 @@ export const PROPOSAL_VIEW = messages(
     englishVersionNote:
       'Los registros se guardan en inglés. Es el mismo contenido, traducido por DEMIURGO: al aceptarlo pasa a ser una versión nueva del registro, con todas sus comprobaciones.',
     definitionChangeOf: (section: string) => `Un cambio en «${section}» de la definición del producto, decidido en un hilo.`,
+    recordChangeOf: (code: string, section: string) => `Un cambio en «${section}» de ${code}, decidido en un hilo.`,
     itWouldSay: 'Diría',
     nowItSays: 'Ahora dice',
     openReview: 'Abrir una revisión',

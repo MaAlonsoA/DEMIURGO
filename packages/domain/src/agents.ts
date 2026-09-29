@@ -320,6 +320,24 @@ export const explorationChatOutput = z
                 .describe("The person's exact words in this thread the change rests on, copied verbatim in their language."),
             })
             .strict(),
+          // A section of the record the thread is about changes because the person decided so here.
+          z
+            .object({
+              type: z.literal('record_change'),
+              code: z
+                .string()
+                .regex(/^[A-Z]{3}-[A-Z]{3}-\d{3}$/)
+                .describe('The record the thread is about (about_record), which has an approved version.'),
+              section: recordText(120).describe("The title of one of the sections of that record's current version."),
+              content: recordText(6000).describe('The whole section as it should read after the change, in English.'),
+              reason: recordText(1000),
+              quotes: z
+                .array(text(QUOTE_MAX))
+                .min(1)
+                .max(3)
+                .describe("The person's exact words in this thread the change rests on, copied verbatim in their language."),
+            })
+            .strict(),
         ]),
       )
       .max(15),

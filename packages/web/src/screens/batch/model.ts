@@ -95,12 +95,13 @@ export function proposalTitle(p: { type: string; payload: Record<string, unknown
   }
   if (p.type === 'exploration') return str(p.payload.purpose);
   if (p.type === 'definition_change') return `Product definition: ${str(p.payload.section)}`;
+  if (p.type === 'record_change') return `${str((p.payload.record as { code?: unknown } | undefined)?.code)}: ${str(p.payload.section)}`;
   const doc = p.payload.document as { title?: unknown } | undefined;
   return str(p.payload.title) || str(doc?.title);
 }
 
 /** Which proposals can be approved in the same gesture as accepting them (they create a record). */
-export const APPROVABLE_TYPES = new Set(['decision', 'fdr', 'design_record', 'record_translation', 'product_definition']);
+export const APPROVABLE_TYPES = new Set(['decision', 'fdr', 'design_record', 'record_translation', 'record_change', 'product_definition']);
 
 export type EditableField = { key: string; label: string; max: number; multiline: boolean };
 

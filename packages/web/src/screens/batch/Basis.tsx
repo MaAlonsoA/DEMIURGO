@@ -55,7 +55,7 @@ export function basisItems(
       if (row) add(`r:${row.code}`, { kind: 'record', code: row.code, version: null });
     } else if (b.type === 'source') add(`s:${id}`, { kind: 'source', quote: str(b.quote) });
   }
-  if (type === 'definition_change' && Array.isArray(payload.evidence))
+  if ((type === 'definition_change' || type === 'record_change') && Array.isArray(payload.evidence))
     for (const e of payload.evidence as { message_id?: string; quote?: string }[])
       add(`m:${str(e.message_id)}:${str(e.quote)}`, { kind: 'message', id: str(e.message_id), quote: str(e.quote) });
   if (type === 'product_definition' && Array.isArray(payload.sources))

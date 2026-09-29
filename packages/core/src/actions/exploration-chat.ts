@@ -5,7 +5,15 @@
 // decision, source and knowledge node it weighed, with the journal event or version it derives
 // from and what happened to it. The pack itself is the same as `exploration_chat@1` produced.
 
-import { COVERED_QUESTION_STATES, DomainError, STAGES, findQuote, stageDefinition, system } from '@demiurgo/domain';
+import {
+  COVERED_QUESTION_STATES,
+  DomainError,
+  STAGES,
+  type Section,
+  findQuote,
+  stageDefinition,
+  system,
+} from '@demiurgo/domain';
 import { sql } from 'kysely';
 import { loadAgentCatalog } from '../agents/catalog.ts';
 import { registerBuilder } from '../context/build.ts';
@@ -176,29 +184,47 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
     });
   // The record the thread was opened about (Ask DEMIURGO about this): whole, with its state, so the
   // agent answers about it without asking the person to paste it.
-  const about =
+  const aboutColumns = [
+    'records.id as recordId',
+    'records.code',
+    'records.type',
+    'records.domain',
+    'record_versions.id',
+    'record_versions.n',
+    'record_versions.state',
+    'record_versions.title',
+    'record_versions.sections',
+  ] as const;
+  const opened =
     exploration.origin_type === 'record_version' && exploration.origin_id
       ? await trx
           .selectFrom('record_versions')
           .innerJoin('records', 'records.id', 'record_versions.record_id')
-          .select([
-            'records.id as recordId',
-            'records.code',
-            'records.type',
-            'record_versions.id',
-            'record_versions.n',
-            'record_versions.state',
-            'record_versions.title',
-            'record_versions.sections',
-          ])
+          .select(aboutColumns)
           .where('record_versions.id', '=', exploration.origin_id)
           .where('records.project_id', '=', projectId)
           .executeTakeFirst()
       : undefined;
+  // The version in force, when it is newer than the one the thread was opened on (a change it
+  // proposed was approved): the agent reads, and proposes changes to, what the record says now.
+  const inForce = opened
+    ? await trx
+        .selectFrom('record_versions')
+        .innerJoin('records', 'records.id', 'record_versions.record_id')
+        .select(aboutColumns)
+        .where('record_versions.record_id', '=', opened.recordId)
+        .where('record_versions.state', '=', 'approved')
+        .where('record_versions.n', '>', opened.n)
+        .orderBy('record_versions.n', 'desc')
+        .executeTakeFirst()
+    : undefined;
+  const about = inForce ?? opened;
   const aboutRecord = about
     ? {
         code: about.code,
         type: about.type,
+        // The name an epic's features share: the `domain` their proposals carry.
+        domain: about.domain,
         version: about.n,
         state: about.state,
         title: about.title,
@@ -495,13 +521,92 @@ registerChecker('exploration_chat', async ({ db, run, output }) => {
     ...output.inferences.flatMap((i) => i.quotes),
     ...output.proposals.flatMap((p) => ('quotes' in p ? p.quotes : [])),
   ];
-  return quotes
+  const notes = quotes
     .filter((quote) => !findQuote(quote, said))
     .map(
       (quote) =>
         `The quote "${quote}" is not in what the person wrote in this thread. Copy their words exactly as they wrote them, or leave the quote out.`,
     );
+  // A change to a record only lands on the one the thread is about, on a section it has.
+  const changes = output.proposals.filter((p) => p.type === 'record_change');
+  if (changes.length > 0) {
+    const target = await recordChangeTarget(db, run.project_id, (run.scope as { id: string }).id);
+    for (const c of changes) {
+      if (!target || c.code !== target.code)
+        notes.push(
+          `A record_change only applies to the record this thread is about${target ? ` (${target.code})` : ', and this thread is not about an approved record'}, not to ${c.code}.`,
+        );
+      else if (!target.sections.some((x) => x.title === c.section))
+        notes.push(
+          `${target.code} has no section titled "${c.section}": its sections are ${target.sections.map((x) => `"${x.title}"`).join(', ')}.`,
+        );
+    }
+  }
+  return notes;
 });
+
+/**
+ * The record the thread is about, at the version in force: where a `record_change` can land. Null
+ * when the thread is not about a record, the record has no approved version or it is the product
+ * definition (whose changes go through `definition_change`).
+ */
+async function recordChangeTarget(db: Db, projectId: string, explorationId: string) {
+  const thread = await db
+    .selectFrom('explorations')
+    .select(['origin_type', 'origin_id'])
+    .where('id', '=', explorationId)
+    .executeTakeFirst();
+  if (thread?.origin_type !== 'record_version' || !thread.origin_id) return null;
+  const record = await db
+    .selectFrom('record_versions')
+    .innerJoin('records', 'records.id', 'record_versions.record_id')
+    .select(['records.id as recordId', 'records.code', 'records.type'])
+    .where('record_versions.id', '=', thread.origin_id)
+    .where('records.project_id', '=', projectId)
+    .executeTakeFirst();
+  if (!record || record.type === 'product_definition') return null;
+  const current = await db
+    .selectFrom('record_versions')
+    .select(['n', 'sections'])
+    .where('record_id', '=', record.recordId)
+    .where('state', '=', 'approved')
+    .orderBy('n', 'desc')
+    .executeTakeFirst();
+  if (!current) return null;
+  return { recordId: record.recordId, code: record.code, version: current.n, sections: current.sections as Section[] };
+}
+
+/**
+ * The proposal of a change to a section of the record the thread is about, ready for its batch; null
+ * when it can't stand: another record, no approved version, a section it doesn't have, the text it
+ * already says, or none of its quotes in what the person wrote in the thread (`said`).
+ */
+async function recordChangeProposal(
+  trx: Db,
+  projectId: string,
+  explorationId: string,
+  change: { code: string; section: string; content: string; reason: string; quotes: readonly string[] },
+  said: readonly { id: string; body: string }[],
+) {
+  const evidence = change.quotes.flatMap((quote) => findQuote(quote, said) ?? []);
+  if (evidence.length === 0) return null;
+  const target = await recordChangeTarget(trx, projectId, explorationId);
+  if (!target || target.code !== change.code) return null;
+  const now = target.sections.find((s) => s.title === change.section)?.content;
+  if (now === undefined || now.trim() === change.content.trim()) return null;
+  return {
+    type: 'record_change',
+    payload: {
+      record: { code: target.code, version: target.version },
+      section: change.section,
+      content: change.content,
+      reason: change.reason,
+      evidence,
+    },
+    // Changing the version in force: if the record changes first, this one is out of date.
+    dependencies: [{ type: 'record', id: target.recordId, code: target.code, version: target.version }],
+  };
+}
 
 registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
   const actor = { type: 'agent_run' as const, run: run.id };
@@ -631,6 +736,11 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
     if (p.type === 'exploration') {
       const { type, ...payload } = p;
       proposals.push({ type, payload });
+      continue;
+    }
+    if (p.type === 'record_change') {
+      const change = await recordChangeProposal(trx, run.project_id, scope.id, p, said);
+      if (change) proposals.push(change);
       continue;
     }
     if (p.type !== 'definition_change') {

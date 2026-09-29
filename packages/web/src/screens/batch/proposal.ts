@@ -6,6 +6,7 @@
 import type { AspectCheck, BasisRefs, BatchDetail, Dependency, IdeaAssessmentSummary } from '../../api/types.ts';
 import { NOUNS, proposalNoun } from '../../aspects.i18n.ts';
 import type { Locale } from '../../i18n/locale.ts';
+import { typeOfCode } from '../../components/types.tsx';
 import { batchView, proposalTitle } from './model.ts';
 
 /** A proposal as the views show it: the batch's fields plus what the inbox adds to pending ones. */
@@ -44,6 +45,7 @@ export function proposalIconType(p: Pick<ProposalView, 'type' | 'payload'>): str
   if (p.type === 'imported_taxonomy') return 'taxonomy';
   if (p.type === 'record_translation') return 'package';
   if (p.type === 'product_definition' || p.type === 'definition_change') return 'product_definition';
+  if (p.type === 'record_change') return typeOfCode(str((p.payload.record as { code?: unknown } | undefined)?.code)) ?? 'idea';
   return 'idea';
 }
 
@@ -72,7 +74,7 @@ export function proposalLine(p: Pick<ProposalView, 'type' | 'payload'>): string 
   if (p.type === 'fdr') return str(p.payload.goal);
   if (p.type === 'review') return str(p.payload.reason);
   if (p.type === 'exploration') return str(p.payload.purpose);
-  if (p.type === 'definition_change') return str(p.payload.content);
+  if (p.type === 'definition_change' || p.type === 'record_change') return str(p.payload.content);
   if (p.type === 'design_record' || p.type === 'record_translation' || p.type === 'product_definition')
     return payloadSections(p.payload)[0]?.content ?? '';
   return '';
@@ -82,7 +84,7 @@ export function proposalLine(p: Pick<ProposalView, 'type' | 'payload'>): string 
 export function proposalWhy(p: Pick<ProposalView, 'type' | 'payload'>): string {
   if (p.type === 'decision') return str(p.payload.context);
   if (p.type === 'fdr') return str(p.payload.goal);
-  if (p.type === 'review' || p.type === 'definition_change') return str(p.payload.reason);
+  if (p.type === 'review' || p.type === 'definition_change' || p.type === 'record_change') return str(p.payload.reason);
   return '';
 }
 
@@ -113,6 +115,24 @@ export function acceptEffects(p: Pick<ProposalView, 'type' | 'payload'>, approve
       : [
           `DEMIURGO changes “${section}” in the product definition, as it says here.`,
           'It is settled at once: accepting it approves it. What it said before stays in its history.',
+        ];
+  }
+  if (p.type === 'record_change') {
+    const r = p.payload.record as { code?: string; version?: number } | undefined;
+    const section = str(p.payload.section);
+    const code = r?.code ?? (es ? 'el registro' : 'the record');
+    return es
+      ? [
+          `DEMIURGO cambia «${section}» en ${code}, tal como dice aquí: una versión nueva del registro, con sus comprobaciones y enlaces.`,
+          approve
+            ? 'Queda asentada: aprobarla la pone en vigor.'
+            : 'Sigues trabajando en ella: la versión nueva queda como propuesta aceptada, aún sin asentar.',
+        ]
+      : [
+          `DEMIURGO changes “${section}” in ${code}, as it says here: a new version of the record, with its checks and links.`,
+          approve
+            ? 'It is settled: approving it puts it in force.'
+            : 'You keep working on it: the new version is recorded as an accepted proposal, not settled yet.',
         ];
   }
   if (approve)

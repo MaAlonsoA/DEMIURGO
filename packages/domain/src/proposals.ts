@@ -170,11 +170,30 @@ export const definitionChangePayload = z
   })
   .strict();
 
+/**
+ * A change to one section of an approved record (an epic's features, for one), proposed by an agent
+ * from what the person decided in the thread that is about that record, on their own words there
+ * (`evidence`, checked by the server). Accepting it makes the next version of the record: the one
+ * in force with only that section replaced; `record` is the version it changes.
+ */
+export const recordChangePayload = z
+  .object({
+    record: recordReference,
+    section: text(120),
+    content: text(10_000),
+    reason: text(1000),
+    evidence: z
+      .array(z.object({ message_id: z.string().uuid(), quote: text(QUOTE_MAX) }).strict())
+      .min(1)
+      .max(3),
+  })
+  .strict();
+
 export const AGENT_PROPOSAL_TYPES = ['decision', 'exploration', 'fdr', 'design_record'] as const;
 
 /**
  * Proposal types. `imported_record` and `imported_taxonomy` are only created by the design/ import;
- * `record_translation` and `product_definition`, by the system; `definition_change`, by DEMIURGO's
+ * `record_translation` and `product_definition`, by the system; `definition_change` and `record_change`, by DEMIURGO's
  * agents in a thread.
  */
 export const PAYLOADS = {
@@ -186,6 +205,7 @@ export const PAYLOADS = {
   record_translation: recordTranslationPayload,
   product_definition: productDefinitionPayload,
   definition_change: definitionChangePayload,
+  record_change: recordChangePayload,
   imported_record: z.object({ document: z.record(z.string(), z.unknown()), path: z.string() }).strict(),
   imported_taxonomy: z.object({ document: z.record(z.string(), z.unknown()), path: z.string() }).strict(),
 } as const;

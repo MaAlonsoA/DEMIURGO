@@ -11,7 +11,7 @@ import { useLocale } from '../../i18n/locale.ts';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { type ReactNode, useState } from 'react';
-import { definitionQuery } from '../../api/queries.ts';
+import { definitionQuery, recordQuery } from '../../api/queries.ts';
 import type { ProductRow } from '../../api/types.ts';
 import { ArrowRightIcon } from '../../components/icons.tsx';
 import { Markdown } from '../../components/Markdown.tsx';
@@ -89,6 +89,27 @@ function DefinitionChangeBody({ projectId, proposal: p }: { projectId: string; p
   );
 }
 
+/** A change to a section of a record decided in its thread: what it would say and what it says now. */
+function RecordChangeBody({ projectId, proposal: p }: { projectId: string; proposal: ProposalData }) {
+  const t = useMessages(PROPOSAL_VIEW);
+  const base = p.payload.record as { code?: string; version?: number } | undefined;
+  const title = str(p.payload.section);
+  const record = useQuery({ ...recordQuery(projectId, base?.code ?? ''), enabled: !!base?.code }).data;
+  const now = record?.versions.find((v) => v.n === base?.version)?.sections.find((s) => s.title === title)?.content ?? null;
+  return (
+    <div className="flex flex-col gap-4" data-body="record_change">
+      <p className="text-sm text-fg-2">{t.recordChangeOf(base?.code ?? '', title)}</p>
+      <Prose title={t.itWouldSay} text={str(p.payload.content)} />
+      {now ? (
+        <section className="flex flex-col gap-1" data-record-before>
+          <h3 className="text-sm font-semibold text-fg-2">{t.nowItSays}</h3>
+          <Markdown className="text-fg-3 line-through">{now}</Markdown>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
 /** What a proposal changes, by its type (INV-PROP-10). The title and the why are above it. */
 export function ProposalBody({
   projectId,
@@ -132,6 +153,7 @@ export function ProposalBody({
     );
   }
   if (p.type === 'definition_change') return <DefinitionChangeBody projectId={projectId} proposal={p} />;
+  if (p.type === 'record_change') return <RecordChangeBody projectId={projectId} proposal={p} />;
   if (p.type === 'exploration') {
     return (
       <div className="flex flex-col gap-1" data-body="exploration">

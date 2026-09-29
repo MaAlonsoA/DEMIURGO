@@ -20,6 +20,17 @@ const TYPE_ASPECT: Record<string, Aspect> = {
   production_readiness: 'operations',
 };
 
+const CODE_PREFIX_TYPE: Record<string, string> = {
+  DEF: 'product_definition',
+  EPC: 'epic',
+  FDR: 'fdr',
+  REQ: 'requirement',
+  NFR: 'quality_requirement',
+  ADR: 'adr',
+  THR: 'threat_model',
+  PRR: 'production_readiness',
+};
+
 /** The aspect of a record or proposal type; null when only its content decides (a decision, a bug). */
 export function aspectOfType(type: string | null | undefined): Aspect | null {
   return type ? (TYPE_ASPECT[type] ?? null) : null;
@@ -30,6 +41,11 @@ export function aspectOfProposal(p: { type: string; payload: Record<string, unkn
   if (isAspect(p.payload.aspect)) return p.payload.aspect;
   if (p.type === 'design_record') return aspectOfType(typeof p.payload.record_type === 'string' ? p.payload.record_type : null);
   if (p.type === 'definition_change') return 'product';
+  // A change to a record is about what the record is: its code's prefix says its type.
+  if (p.type === 'record_change') {
+    const code = (p.payload.record as { code?: unknown } | undefined)?.code;
+    return aspectOfType(typeof code === 'string' ? CODE_PREFIX_TYPE[code.slice(0, 3)] : null);
+  }
   if (p.type === 'imported_record') {
     const doc = p.payload.document as { type?: unknown } | undefined;
     return aspectOfType(typeof doc?.type === 'string' ? doc.type : null);
@@ -47,7 +63,7 @@ export function aspectOfRecord(r: { type: string; aspect?: string | null }): Asp
 }
 
 /** Proposal kinds that are one more "Proposal" (they make or change a record); the others have their own noun. */
-export const PROPOSAL_NOUN_KINDS = new Set(['decision', 'fdr', 'design_record', 'product_definition', 'definition_change']);
+export const PROPOSAL_NOUN_KINDS = new Set(['decision', 'fdr', 'design_record', 'product_definition', 'definition_change', 'record_change']);
 
 export type AspectGroup<T> = { key: Aspect | 'none'; aspect: Aspect | null; rows: T[] };
 

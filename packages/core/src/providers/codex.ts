@@ -25,7 +25,7 @@ import { type ProcessEnd, isExecutableNotFound, nodeLauncher } from '../agents/p
 import { allowedEnv, otelResourceAttributes, processEnv } from '../env.ts';
 import { codexHome, findCodexTranscript } from '../observe/transcripts.ts';
 import type { CliProviderOptions } from './claude.ts';
-import { strictSchema } from './schema-variants.ts';
+import { dropOptionalNulls, strictSchema } from './schema-variants.ts';
 import { lineSplitter, messageOf, waitForOutcome } from './stream.ts';
 
 export const CODEX_PROVIDER = 'codex';
@@ -403,7 +403,7 @@ export function createCodexProvider(options: CliProviderOptions = {}): Provider 
         }
         let rawOutput: unknown;
         try {
-          rawOutput = JSON.parse(text);
+          rawOutput = dropOptionalNulls(inv.schema, JSON.parse(text));
         } catch {
           return withSession(error('agent_error', `Codex's final answer is not JSON: ${truncate(text, 300)}`, end.stdout, usage));
         }

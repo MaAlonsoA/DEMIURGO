@@ -446,3 +446,14 @@ export const TASK_SIZE = messages(
     unsized: (n: number) => (n === 1 ? '1 sin tamaño' : `${n} sin tamaño`),
   },
 );
+
+export const PENDING_PROPOSALS = messages(
+  {
+    title: 'Waiting for your decision',
+    openBatch: 'Open the batch',
+  },
+  {
+    title: 'Esperando tu decisión',
+    openBatch: 'Abrir el lote',
+  },
+);

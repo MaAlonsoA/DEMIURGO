@@ -36,6 +36,7 @@ import { TaskBoard } from './TaskBoard.tsx';
 import { TaskSizePanel } from './TaskSize.tsx';
 import { RecordHeader } from './Header.tsx';
 import { ancestorsOf } from './hierarchy.ts';
+import { PendingProposals } from './PendingProposals.tsx';
 import { PlannedFeaturePage } from './PlannedFeature.tsx';
 import { isEarlierDraft, selectVersion, versionIndex, versionStage } from './logic.ts';
 import { RecordNotices } from './Notices.tsx';
@@ -91,7 +92,7 @@ export function RecordScreen() {
     if (planned && state.data) {
       return (
         <Frame projectId={projectId} code={code}>
-          <PlannedFeaturePage projectId={projectId} planned={planned} state={state.data} />
+          <PlannedFeaturePage projectId={projectId} planned={planned} state={state.data} inbox={inbox.data} />
         </Frame>
       );
     }
@@ -264,6 +265,12 @@ function RecordPage({
         aside={aside}
         main={
           <>
+            <PendingProposals
+              projectId={projectId}
+              code={record.code}
+              inbox={inbox}
+              rows={state ? [...state.designs, ...state.decisions] : []}
+            />
             <RecordNotices
               projectId={projectId}
               record={record}

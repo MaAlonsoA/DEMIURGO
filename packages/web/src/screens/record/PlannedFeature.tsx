@@ -3,7 +3,7 @@
 // from its epic in the breadcrumb; once designed, its FDR takes this same code and this address.
 
 import { Link } from '@tanstack/react-router';
-import type { PlannedFeatureRow, ProductState } from '../../api/types.ts';
+import type { Inbox, PlannedFeatureRow, ProductState } from '../../api/types.ts';
 import { canCreate } from '../../api/tables.ts';
 import { Code } from '../../components/Badge.tsx';
 import { buttonClass } from '../../components/Button.tsx';
@@ -17,6 +17,7 @@ import { LineControls } from '../epics/PlanEditing.tsx';
 import { epicRef } from '../epics/plans.ts';
 import { PLANNED_FEATURE } from '../epics/words.i18n.ts';
 import { LineMark } from './EpicBoard.tsx';
+import { PendingProposals } from './PendingProposals.tsx';
 import { recordCrumbs } from './Header.tsx';
 import { HEADER } from './words.i18n.ts';
 
@@ -24,10 +25,12 @@ export function PlannedFeaturePage({
   projectId,
   planned,
   state,
+  inbox,
 }: {
   projectId: string;
   planned: PlannedFeatureRow;
   state: ProductState;
+  inbox?: Inbox | undefined;
 }) {
   const t = useMessages(PLANNED_FEATURE);
   const h = useMessages(HEADER);
@@ -87,6 +90,7 @@ export function PlannedFeaturePage({
         }
       />
       <div className="flex flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+        <PendingProposals projectId={projectId} code={planned.code} inbox={inbox} rows={rows} />
         <p className="max-w-prose text-md text-fg">{planned.summary}</p>
         <section className="flex max-w-prose flex-col gap-2" data-planned-next>
           <h2 className="text-base font-semibold text-fg">{t.nextStep}</h2>

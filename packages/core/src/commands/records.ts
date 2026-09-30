@@ -6,6 +6,8 @@ import {
   aspectOfType,
   designSystemSpec,
   screenDesignSpec,
+  missingComponents,
+  missingComponentsReason,
   aspectSchema,
   DomainError,
   VERSION_LIMITS,
@@ -25,6 +27,7 @@ import { trimmed, field, registerGuards } from '../bus/guards.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
 import type { CommandContext } from '../bus/types.ts';
 import type { Tx } from '../db/connection.ts';
+import { approvedDesignSystem, screenDesignChecks } from '../design/screens.ts';
 import { reviewObsolescence } from './proposals.ts';
 import { appendSize } from './sizes.ts';
 import { jevAllowed } from '../classifier/aspect.ts';
@@ -505,10 +508,28 @@ async function createVersion(
   return { id, n: number, code: record.code, warnings };
 }
 
+/**
+ * The design handoff (a person pastes the screens designed in Claude Design): the screen design created
+ * or approved by a person passes the same checks as one proposed by an agent. Its spec must be valid
+ * against the feature version it rests on (422) and use only components the approved design system has (409).
+ */
+async function assertScreenDesign(trx: Tx, projectId: string, spec: unknown, missingOnly = false): Promise<void> {
+  const parsed = screenDesignSpec.safeParse(spec);
+  if (!parsed.success) throw new DomainError('validation', 'A screen design needs its machine-readable spec (feature, screens and flow).');
+  if (!missingOnly) {
+    const problems = await screenDesignChecks(trx, projectId, parsed.data);
+    if (problems.length > 0) throw new DomainError('validation', problems.join(' '));
+  }
+  const dsy = await approvedDesignSystem(trx, projectId);
+  const reason = missingComponentsReason(missingComponents(parsed.data, dsy?.components ?? []));
+  if (reason) throw new DomainError('conflict', reason);
+}
+
 registerHandlers({
   'record.create': handler({
     data: newRecordSchema,
     async apply(ctx, data, _e, to) {
+      if (data.type === 'screen_design') await assertScreenDesign(ctx.trx, ctx.projectId, data.spec);
       if (data.type === 'product_definition') {
         const existing = await ctx.trx
           .selectFrom('records')
@@ -585,6 +606,8 @@ registerHandlers({
   'record_version.create': handler({
     data: newVersionSchema,
     async apply(ctx, data, _e, to) {
+      const kind = await ctx.trx.selectFrom('records').select('type').where('id', '=', data.record_id).executeTakeFirst();
+      if (kind?.type === 'screen_design') await assertScreenDesign(ctx.trx, ctx.projectId, data.spec);
       const v = await createVersion(ctx, data.record_id, data, to);
       // A task's new content (its first version or a later one): Jev's size opinion, after the commit (FDR-DEL-006).
       const rec = await ctx.trx.selectFrom('records').select('type').where('id', '=', data.record_id).executeTakeFirst();
@@ -605,7 +628,9 @@ registerHandlers({
   'record_version.approve': handler({
     data: z.object({ note: z.string().trim().max(2000).optional() }).strict(),
     async apply(ctx, data, e) {
-      const v = e?.row as { id: string; record_id: string; n: number };
+      const v = e?.row as { id: string; record_id: string; n: number; spec?: unknown };
+      const kind = await ctx.trx.selectFrom('records').select('type').where('id', '=', v.record_id).executeTakeFirst();
+      if (kind?.type === 'screen_design') await assertScreenDesign(ctx.trx, ctx.projectId, v.spec, true);
       const previous = await ctx.trx
         .selectFrom('record_versions')
         .selectAll()

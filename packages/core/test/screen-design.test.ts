@@ -166,4 +166,47 @@ describe('the screen design of a feature', () => {
     expect(fdr.screens).toMatchObject({ no_ui: true, screen_count: 0 });
     await expect(planTasks(other.versionId)).resolves.toBeTruthy();
   });
+  // The design handoff: a person pastes the screens designed in Claude Design. Humans cannot submit batches,
+  // so the web uses record.create / record_version.create + record_version.approve, with the same checks.
+  it('a person hands off the screens they designed: refused with no effect while components are missing, then v1, then v2', async () => {
+    const other = await newFeature('Handoff');
+    const sections = ['Flow', 'Screens', 'States', 'Components'].map((title) => ({ title, content: prose(title) }));
+    const links = [{ type: 'based_on', target: { code: other.code, version: 1 } }];
+    const spec = (components: string[]) => scrPayload({ code: other.code, version: 1 }, { screens: [screen('all', [1, 2, 3], components)] }).spec;
+    const scrCount = async () =>
+      (await db().selectFrom('records').select('id').where('project_id', '=', projectId).where('type', '=', 'screen_design').execute()).length;
+    const before = await scrCount();
+
+    const refused = await cmd('record.create', { type: 'screen_design', domain: 'recetas', title: 'Screens', sections, spec: spec(['Button', 'Card']), links }).catch(
+      (e: unknown) => e,
+    );
+    expect(refused).toMatchObject({ type: 'conflict', message: expect.stringMatching(/Add Card to the design system first/) });
+    expect(await scrCount()).toBe(before);
+
+    const unserved = await cmd('record.create', {
+      type: 'screen_design',
+      domain: 'recetas',
+      title: 'Screens',
+      sections,
+      spec: scrPayload({ code: other.code, version: 1 }, { screens: [screen('all', [1], ['Button'])] }).spec,
+      links,
+    }).catch((e: unknown) => e);
+    expect(unserved).toMatchObject({ type: 'validation', message: expect.stringMatching(/steps 2, 3 are not served/) });
+    expect(await scrCount()).toBe(before);
+
+    const first = (await cmd('record.create', { type: 'screen_design', domain: 'recetas', title: 'Screens', sections, spec: spec(['Button']), links })).result as {
+      code: string;
+      recordId: string;
+      versionId: string;
+    };
+    await cmd('record_version.approve', {}, first.versionId);
+    expect(await recordDetail(db(), projectId, other.code)).toMatchObject({ screens: { code: first.code, version: 1, state: 'approved', screen_count: 1 } });
+
+    const second = (
+      await cmd('record_version.create', { record_id: first.recordId, title: 'Screens', sections, spec: spec(['Button']), links, change_note: 'Pasted again.' })
+    ).result as { versionId: string; version: number };
+    await cmd('record_version.approve', {}, second.versionId);
+    expect(second.version).toBe(2);
+    expect(await recordDetail(db(), projectId, other.code)).toMatchObject({ screens: { code: first.code, version: 2, state: 'approved' } });
+  });
 });

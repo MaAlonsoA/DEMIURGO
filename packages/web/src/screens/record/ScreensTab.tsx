@@ -17,10 +17,12 @@ import { featureEpicThread } from '../epics/logic.ts';
 import { copyText } from './brief.ts';
 import { Block } from './Delivery.tsx';
 import { buildScreenBrief } from './screenBrief.ts';
+import { PasteScreens } from './PasteScreens.tsx';
+import { PASTE } from './paste.i18n.ts';
 import { SCREENS } from './words.i18n.ts';
 
 /** The approved design system of the project, loaded like its own page does. */
-function useApprovedSystem(projectId: string, state: ProductState | undefined) {
+export function useApprovedSystem(projectId: string, state: ProductState | undefined) {
   const row = state?.designs.find((r) => r.type === 'design_system') ?? null;
   const record = useQuery({ ...recordQuery(projectId, row?.code ?? ''), enabled: Boolean(row) });
   const d = record.data;
@@ -104,7 +106,9 @@ function Start({
   system: { code: string; version: number; spec: DesignSystemSpec };
 }) {
   const t = useMessages(SCREENS);
+  const p = useMessages(PASTE);
   const [busy, setBusy] = useState(false);
+  const [pasting, setPasting] = useState(false);
   const thread = version.origin_exploration ?? (state ? featureEpicThread(state, record.code) : null);
   const copy = async () => {
     setBusy(true);
@@ -159,6 +163,29 @@ function Start({
           <li>{t.guide4}</li>
           <li>{t.guide5}</li>
         </ol>
+        {/* The design handoff: the designer hands the designed screens to development. */}
+        {pasting ? (
+          <PasteScreens
+            target={{
+              projectId,
+              feature: {
+                code: record.code,
+                version: version.n,
+                domain: record.domain,
+                title: version.title,
+                behavior: version.sections.find((s) => s.title === 'Behavior')?.content ?? '',
+              },
+              components: system.spec.components.map((c) => c.name),
+            }}
+            onClose={() => setPasting(false)}
+          />
+        ) : (
+          <div>
+            <Button size="sm" variant="primary" onClick={() => setPasting(true)} data-paste-screens-open>
+              {p.open}
+            </Button>
+          </div>
+        )}
       </section>
     </div>
   );

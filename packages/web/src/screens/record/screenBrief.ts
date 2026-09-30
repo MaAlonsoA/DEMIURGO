@@ -73,7 +73,7 @@ export function buildScreenBrief(input: ScreenBriefInput): string {
     '1. The flow: the screens and the transitions between them (what triggers each one and which step it serves).',
     '2. For every screen, its four states: empty, loading, error and with data.',
     '3. Use only the components and tokens above. If a screen needs a component that is not listed, name it instead of inventing a look.',
-    '4. Export each state as self-contained HTML: inline CSS, no scripts, no external URLs.',
+    '4. Export each screen, in its four states (empty, loading, error, with data), as one self-contained HTML file per state: inline CSS, no scripts, no external URLs. The person pastes each state back into DEMIURGO.',
   );
   return out.join('\n');
 }

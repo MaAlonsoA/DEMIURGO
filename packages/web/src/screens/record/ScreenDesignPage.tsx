@@ -3,8 +3,11 @@
 // states (empty, loading, error, with data) drawn in a sandbox. Wireflow: Nielsen Norman Group.
 // The machine part is `spec` of the version, immutable; a missing component blocks accepting it.
 
+import { useQuery } from '@tanstack/react-query';
 import { Link, useSearch } from '@tanstack/react-router';
 import { useState } from 'react';
+import { recordQuery } from '../../api/queries.ts';
+import { Button } from '../../components/Button.tsx';
 import type { Inbox, ProductState, RecordDetail, RecordVersion } from '../../api/types.ts';
 import { Code } from '../../components/Badge.tsx';
 import { SandboxedPreview } from '../../components/SandboxedPreview.tsx';
@@ -19,6 +22,9 @@ import { ancestorsOf } from './hierarchy.ts';
 import { Columns } from './Layout.tsx';
 import { ContextPanel, VersionsPanel } from './RecordAside.tsx';
 import { versionIndex } from './logic.ts';
+import { PasteScreens } from './PasteScreens.tsx';
+import { PASTE } from './paste.i18n.ts';
+import { useApprovedSystem } from './ScreensTab.tsx';
 import { SCREENS } from './words.i18n.ts';
 
 type ScreenState = 'empty' | 'loading' | 'error' | 'data';
@@ -53,6 +59,13 @@ export function ScreenDesignPage({
 }) {
   const t = useMessages(SCREENS);
   const s = useMessages(SECTIONS);
+  const p = useMessages(PASTE);
+  const [pasting, setPasting] = useState(false);
+  const { system } = useApprovedSystem(projectId, state);
+  const featureCode = ((version.spec ?? null) as ScreenSpec | null)?.feature.code ?? '';
+  const featureRecord = useQuery({ ...recordQuery(projectId, featureCode), enabled: featureCode !== '' });
+  const feature = featureRecord.data;
+  const featureVersion = feature && feature.current !== null ? feature.versions.find((v) => v.n === feature.current) : undefined;
   const search = useSearch({ strict: false }) as { tab?: string; v?: number };
   const tab = search.tab === 'history' ? 'history' : 'overview';
   const spec = (version.spec ?? null) as ScreenSpec | null;
@@ -139,6 +152,32 @@ export function ScreenDesignPage({
             <p className="text-sm text-fg-2">{t.noSpec}</p>
           ) : (
             <>
+              {/* The design handoff: a new version from the screens designed in Claude Design. */}
+              {pasting && feature && featureVersion && system ? (
+                <Block title={p.newVersion}>
+                  <PasteScreens
+                    target={{
+                      projectId,
+                      feature: {
+                        code: feature.code,
+                        version: featureVersion.n,
+                        domain: feature.domain,
+                        title: featureVersion.title,
+                        behavior: featureVersion.sections.find((x) => x.title === 'Behavior')?.content ?? '',
+                      },
+                      components: system.spec.components.map((c) => c.name),
+                      existing: { recordId: record.id, title: version.title, spec },
+                    }}
+                    onClose={() => setPasting(false)}
+                  />
+                </Block>
+              ) : feature && featureVersion && system ? (
+                <div>
+                  <Button size="sm" variant="primary" onClick={() => setPasting(true)} data-paste-screens-open>
+                    {p.newVersion}
+                  </Button>
+                </div>
+              ) : null}
               {missing.length > 0 ? <MissingBanner projectId={projectId} names={missing} /> : null}
               {spec.no_ui ? (
                 <Block title={t.noUiTitle}>

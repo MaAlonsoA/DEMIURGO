@@ -11,6 +11,10 @@ import {
   READINESS_BASES,
   type Readiness,
   type RecordType,
+  type TaskBuildState,
+  criterionState,
+  featureDone,
+  taskBuildState,
   epistemicOfObservation,
   epistemicOfQuestion,
   epistemicOfProposal,
@@ -252,6 +256,8 @@ export type CriterionEvidence = {
   at: string;
   /** Version of the record the evidence was recorded on: an earlier one when it is inherited. */
   version: number;
+  /** pass or fail; a row without a result counts as pass. */
+  result: 'pass' | 'fail' | null;
 };
 
 /**
@@ -270,6 +276,7 @@ export async function evidenceOf(db: Db, criterionId: string): Promise<Criterion
         'evidence.reference',
         'evidence.pr_url',
         'evidence.test_name',
+        'evidence.result',
         'evidence.recorded_by',
         'evidence.created_at',
         'v.n',
@@ -288,6 +295,7 @@ export async function evidenceOf(db: Db, criterionId: string): Promise<Criterion
         by: e.recorded_by,
         at: new Date(e.created_at as unknown as Date).toISOString(),
         version: e.n,
+        result: e.result === 'fail' ? 'fail' : e.result === 'pass' ? 'pass' : null,
       };
     }
     const c = await db.selectFrom('criteria').select(['carry', 'derived_from']).where('id', '=', id).executeTakeFirst();
@@ -595,6 +603,8 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
   if (!r) throw new DomainError('not_found', `Record ${code} does not exist.`);
   const versions = await db.selectFrom('record_versions').selectAll().where('record_id', '=', r.id).orderBy('n').execute();
   const current = await currentOf(db, r.id);
+  // Delivery: the tasks of a feature (or the feature of a task) and their computed build states.
+  const delivery = r.type === 'fdr' ? await featureDelivery(db, projectId, r.id, current) : null;
   const detail = [];
   for (const v of versions) {
     const criteria = await db
@@ -644,23 +654,35 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
       approved_at: v.approved_at,
       origin_exploration: origin,
       inferred_questions: inferred,
+      practice_sources: (v.practice_sources ?? []) as unknown[],
       criteria: await Promise.all(
-        criteria.map(async (c) => ({
-          id: c.id,
-          code: c.code,
-          title: c.title,
-          statement: c.statement,
-          verification: c.verification,
-          check: c.check_text,
-          step: c.step,
-          carry: c.carry,
-          evidence: await evidenceOf(db, c.id),
-        })),
+        criteria.map(async (c) => {
+          const evidence = await evidenceOf(db, c.id);
+          const covering = delivery && v.n === current ? delivery.tasks.filter((t) => t.covers.includes(c.code)) : [];
+          return {
+            id: c.id,
+            code: c.code,
+            title: c.title,
+            statement: c.statement,
+            verification: c.verification,
+            check: c.check_text,
+            step: c.step,
+            carry: c.carry,
+            given: c.given_text ?? null,
+            when: c.when_text ?? null,
+            then: c.then_text ?? null,
+            evidence,
+            evidence_result: evidence?.result ?? null,
+            state: criterionState({ verification: c.verification, evidence, tasks: covering.map((t) => t.build) }),
+          };
+        }),
       ),
       links,
       readiness: WITHOUT_READINESS.has(r.type) ? null : await versionReadiness(db, projectId, v.id),
     });
   }
+  const implementation = await implementationOf(db, r.id);
+  const currentDetail = detail.find((d) => d.current);
   return {
     id: r.id,
     code: r.code,
@@ -668,13 +690,159 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
     domain: r.domain,
     aspect: r.aspect,
     current,
-    implementation: await implementationOf(db, r.id),
+    implementation,
+    size: r.type === 'fdr' || r.type === 'task' ? await latestSize(db, r.id) : null,
+    ...(r.type === 'task' ? { build: await taskBuildOf(db, projectId, r.id, implementation === 'implemented') } : {}),
+    ...(delivery
+      ? {
+          tasks: delivery.tasks,
+          uncovered: currentDetail ? currentDetail.criteria.filter((c) => !delivery.covered.has(c.code)).map((c) => c.code) : [],
+          dod: currentDetail
+            ? featureDone({
+                criteria: currentDetail.criteria.map((c) => ({ code: c.code, state: c.state })),
+                tasks: delivery.tasks.filter((t) => !t.dropped).map((t) => ({ code: t.code, state: t.build })),
+                uncovered: currentDetail.criteria.filter((c) => !delivery.covered.has(c.code)).map((c) => c.code),
+              })
+            : null,
+        }
+      : {}),
     // A task's effort size, outside its versions (FDR-DEL-006).
     effort: r.type === 'task' ? await taskSizeView(db, r.id) : null,
     covers: r.type === 'task' ? await taskCoversOf(db, r.id) : null,
     versions: detail,
     incoming: await incomingLinks(db, projectId, r.id, r.type),
   };
+}
+
+/** The latest size of a record (task or feature), or null. */
+async function latestSize(db: Db, recordId: string): Promise<string | null> {
+  const row = await db
+    .selectFrom('task_sizes')
+    .select('size')
+    .where('record_id', '=', recordId)
+    .orderBy('created_at', 'desc')
+    .orderBy('id', 'desc')
+    .executeTakeFirst();
+  return row?.size ?? null;
+}
+
+type BuildRequestRow = { task_id: string; state: string; pr_url: string | null };
+
+/** The request that says where a task is: the open one, else the latest done, else none. */
+function requestOf(rows: readonly BuildRequestRow[]): BuildRequestRow | null {
+  return (
+    rows.find((r) => r.state === 'requested' || r.state === 'in_review') ?? rows.find((r) => r.state === 'done') ?? null
+  );
+}
+
+/** Build requests of the given tasks, newest first, grouped by task. */
+async function requestsByTask(db: Db, taskIds: string[]): Promise<Map<string, BuildRequestRow[]>> {
+  const out = new Map<string, BuildRequestRow[]>();
+  if (taskIds.length === 0) return out;
+  const rows = await db
+    .selectFrom('build_requests')
+    .select(['task_id', 'state', 'pr_url'])
+    .where('task_id', 'in', taskIds)
+    .orderBy('requested_at', 'desc')
+    .execute();
+  for (const r of rows) out.set(r.task_id, [...(out.get(r.task_id) ?? []), r]);
+  return out;
+}
+
+/** Codes of the criteria of a feature's current version whose latest evidence failed. */
+async function failingCodesOf(db: Db, featureRecordId: string): Promise<Set<string>> {
+  const n = await currentOf(db, featureRecordId);
+  const out = new Set<string>();
+  if (n === null) return out;
+  const criteria = await db
+    .selectFrom('criteria')
+    .innerJoin('record_versions as v', 'v.id', 'criteria.record_version_id')
+    .select(['criteria.id', 'criteria.code'])
+    .where('v.record_id', '=', featureRecordId)
+    .where('v.n', '=', n)
+    .execute();
+  for (const c of criteria) if ((await evidenceOf(db, c.id))?.result === 'fail') out.add(c.code);
+  return out;
+}
+
+/** The feature record a task is based on (through its shown version), or null. */
+async function featureRecordOfTask(db: Db, taskId: string): Promise<string | null> {
+  const v = await db
+    .selectFrom('record_versions')
+    .select(['id', 'state'])
+    .where('record_id', '=', taskId)
+    .orderBy(sql`(state = 'approved')`, 'desc')
+    .orderBy('n', 'desc')
+    .executeTakeFirst();
+  if (!v) return null;
+  const f = await db
+    .selectFrom('links')
+    .innerJoin('record_versions as t', 't.id', 'links.to_id')
+    .innerJoin('records as rd', 'rd.id', 't.record_id')
+    .select('rd.id')
+    .where('links.from_id', '=', v.id)
+    .where('links.type', '=', 'based_on')
+    .where('rd.type', '=', 'fdr')
+    .executeTakeFirst();
+  return f?.id ?? null;
+}
+
+/** A task's computed build state and the request behind it. */
+async function taskBuildOf(db: Db, projectId: string, taskId: string, implemented: boolean) {
+  const request = requestOf((await requestsByTask(db, [taskId])).get(taskId) ?? []);
+  const feature = await featureRecordOfTask(db, taskId);
+  const covers = await taskCoversOf(db, taskId);
+  const failing = feature ? await failingCodesOf(db, feature) : new Set<string>();
+  const state: TaskBuildState = taskBuildState({
+    request,
+    implemented,
+    coveredFailing: covers.some((c) => failing.has(c)),
+  });
+  void projectId;
+  return { state, request: request ? { state: request.state, pr_url: request.pr_url } : null };
+}
+
+/**
+ * The tasks of a feature: task records whose shown version (the current one, else the latest) is
+ * based on any version of it, with size, covers and computed build state, and the criterion codes
+ * of its current version that they cover.
+ */
+async function featureDelivery(db: Db, projectId: string, featureId: string, featureCurrent: number | null) {
+  const rows = await db
+    .selectFrom('links')
+    .innerJoin('record_versions as tv', 'tv.id', 'links.from_id')
+    .innerJoin('records as task', 'task.id', 'tv.record_id')
+    .innerJoin('record_versions as fv', 'fv.id', 'links.to_id')
+    .select(['task.id', 'task.code', 'tv.n', 'tv.title', 'tv.state'])
+    .where('links.type', '=', 'based_on')
+    .where('fv.record_id', '=', featureId)
+    .where('task.type', '=', 'task')
+    .where('task.project_id', '=', projectId)
+    .execute();
+  // Shown version per task: the highest approved, else the highest of any state.
+  const shown = new Map<string, (typeof rows)[number]>();
+  for (const t of rows) {
+    const seen = shown.get(t.id);
+    const rank = (x: { n: number; state: string }) => (x.state === 'approved' ? 1_000_000 : 0) + x.n;
+    if (!seen || rank(t) > rank(seen)) shown.set(t.id, t);
+  }
+  const tasks = [...shown.values()].sort((a, b) => a.code.localeCompare(b.code));
+  const ids = tasks.map((t) => t.id);
+  const requests = await requestsByTask(db, ids);
+  const failing = featureCurrent === null ? new Set<string>() : await failingCodesOf(db, featureId);
+  const out = [];
+  const covered = new Set<string>();
+  for (const t of tasks) {
+    const covers = await taskCoversOf(db, t.id);
+    for (const c of covers) covered.add(c);
+    const build = taskBuildState({
+      request: requestOf(requests.get(t.id) ?? []),
+      implemented: (await implementationOf(db, t.id)) === 'implemented',
+      coveredFailing: covers.some((c) => failing.has(c)),
+    });
+    out.push({ code: t.code, title: t.title, size: await latestSize(db, t.id), covers, build });
+  }
+  return { tasks: out as { code: string; title: string; size: string | null; covers: string[]; build: TaskBuildState; dropped?: boolean }[], covered };
 }
 
 /**

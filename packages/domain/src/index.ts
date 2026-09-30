@@ -20,3 +20,4 @@ export * from './views.ts';
 export * from './translation.ts';
 export * from './knowledge-inputs.ts';
 export * from './sizes.ts';
+export * from './delivery.ts';

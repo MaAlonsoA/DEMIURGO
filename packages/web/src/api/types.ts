@@ -411,6 +411,9 @@ export type Inbox = {
   }[];
 };
 
+export type CriterionState = 'verified' | 'failing' | 'in_pr' | 'no_evidence' | 'check_by_hand' | 'not_started';
+export type TaskBuildState = 'to_do' | 'requested' | 'in_pr' | 'merged' | 'failing';
+
 export type Criterion = {
   id: string;
   code: string;
@@ -425,6 +428,14 @@ export type Criterion = {
   carry: string;
   /** Its latest evidence (inherited from the criterion it carries when kept), or null if unchecked. */
   evidence?: CriterionEvidence | null;
+  /** The Given / When / Then parts, null when the criterion has none. */
+  given?: string | null;
+  when?: string | null;
+  then?: string | null;
+  /** Result of its latest evidence (pass or fail); null without evidence or without a result. */
+  evidence_result?: 'pass' | 'fail' | null;
+  /** Computed delivery state (never stored). */
+  state?: CriterionState;
 };
 
 export type CriterionEvidence = {
@@ -438,6 +449,7 @@ export type CriterionEvidence = {
   at: string;
   /** Version it was recorded on: an earlier one when inherited. */
   version: number;
+  result?: 'pass' | 'fail' | null;
 };
 
 export type Link = {
@@ -486,8 +498,19 @@ export type RecordVersion = {
     conclusion: string | null;
   }[];
   criteria: Criterion[];
+  /** Real practices the version rests on (free-form objects). */
+  practice_sources?: unknown[];
   links: Link[];
   readiness: Readiness | null;
+};
+
+export type FeatureTask = {
+  code: string;
+  title: string;
+  size: string | null;
+  covers: string[];
+  build: TaskBuildState;
+  dropped?: boolean;
 };
 
 export type RecordDetail = {
@@ -501,6 +524,14 @@ export type RecordDetail = {
   implementation: string;
   effort?: TaskEffort | null;
   covers?: string[] | null;
+  /** Latest size (feature or task), null otherwise. */
+  size?: string | null;
+  /** Task only: computed build state and its build request. */
+  build?: { state: TaskBuildState; request: { state: string; pr_url: string | null } | null };
+  /** Feature only: its tasks, the criteria of its current version no task covers, and its Definition of Done. */
+  tasks?: FeatureTask[];
+  uncovered?: string[];
+  dod?: { done: boolean; missing: string[] } | null;
   versions: RecordVersion[];
   /** What connects to it: links of the other records' shown version that point to one of its versions. */
   incoming: IncomingLink[];

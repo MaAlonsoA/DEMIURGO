@@ -5,6 +5,7 @@
 // `screen_design` proposal that the person accepts and approves.
 
 import { DomainError, behaviorSteps, missingComponents, screenDesignProblems } from '@demiurgo/domain';
+import { approvedBasis } from '../context/approved-basis.ts';
 import { registerBuilder } from '../context/build.ts';
 import { knowledgeForContext } from '../context/knowledge.ts';
 import { ManifestBuilder, recordKnowledge } from '../context/manifest.ts';
@@ -15,7 +16,9 @@ import { packContentOf } from './drafting.ts';
 import { featureTasksOf } from './exploration-chat.ts';
 
 const BUILDER = 'screen_design@1';
-const BUDGET = { feature: 12_000, design_system: 30_000, existing: 20_000, knowledge: 4_000 };
+/** Quality attributes that bear on a screen (ISO/IEC 25010 names: usability, accessibility as part of it, performance efficiency). */
+const UI_QUALITIES = /usab|accessib|a11y|performance|responsive|latenc|load time/i;
+const BUDGET = { feature: 12_000, design_system: 30_000, existing: 20_000, basis: 12_000, knowledge: 4_000 };
 
 /** What the agent needs of a design system: its parts without the specimens (the agent draws from names, states and tokens). */
 export type DsyForScreens = {
@@ -166,6 +169,14 @@ registerBuilder('screen_design', async ({ trx, projectId, scope, graphVersion })
     ? { code: existing.code, version: existing.n, state: existing.state, feature_version: existing.featureVersion, spec: existing.spec }
     : null;
   if (existing) manifest.entered({ section: 'existing', source: { type: 'record', id: existing.recordId, version: existing.n, eventSeq: null }, text: JSON.stringify(existing.spec), reason: 'current' });
+  // The quality requirements that shape an interface (usability, accessibility, performance), in full.
+  const basis = await approvedBasis(trx, projectId, {
+    kinds: ['quality_requirement'],
+    budget: BUDGET.basis,
+    section: 'basis',
+    manifest,
+    qualityFilter: (r) => UI_QUALITIES.test(r.text),
+  });
   const knowledge = await knowledgeForContext(trx, projectId, `${v.title} ${text('Goal')} ${text('Scope')}`, BUDGET.knowledge);
   recordKnowledge(manifest, knowledge);
   return {
@@ -174,8 +185,19 @@ registerBuilder('screen_design', async ({ trx, projectId, scope, graphVersion })
       constructor: BUILDER,
       budget: BUDGET,
       graph_version: graphVersion,
-      dependencies: [{ type: 'record', id: v.recordId, version: v.n }, ...knowledge.dependencies],
-      content: { feature: content, design_system: dsy, existing_screen_design, knowledge: knowledge.nodes },
+      dependencies: [
+        { type: 'record', id: v.recordId, version: v.n },
+        ...basis.dependencies.map((d) => ({ type: 'record', id: d.id, version: d.version })),
+        ...knowledge.dependencies,
+      ],
+      content: {
+        feature: content,
+        design_system: dsy,
+        approved_quality_requirements: basis.records.map(({ type: _t, ...r }) => r),
+        ...(basis.omitted.length > 0 ? { omitted_for_budget: basis.omitted } : {}),
+        existing_screen_design,
+        knowledge: knowledge.nodes,
+      },
     },
     manifest: manifest.build(),
   };

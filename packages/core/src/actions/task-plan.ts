@@ -3,9 +3,11 @@
 // it into one package the person accepts in a step, depending on the feature's version.
 
 import { DomainError, behaviorSteps } from '@demiurgo/domain';
+import { approvedBasis } from '../context/approved-basis.ts';
 import { registerBuilder } from '../context/build.ts';
 import { knowledgeForContext } from '../context/knowledge.ts';
 import { ManifestBuilder, recordKnowledge } from '../context/manifest.ts';
+import { approvedDesignSystem as approvedDesignSystemFull } from './screen-design.ts';
 import { approvedDesignSystem, screensOfFeatureVersion } from '../design/screens.ts';
 import type { Db } from '../db/connection.ts';
 import { registerApplier, registerChecker } from './appliers.ts';
@@ -13,7 +15,7 @@ import { packContentOf, sourcesPayload } from './drafting.ts';
 import { featureTasksOf } from './exploration-chat.ts';
 
 const BUILDER = 'task_plan@1';
-const BUDGET = { feature: 12_000, related: 4_000, knowledge: 4_000 };
+const BUDGET = { feature: 12_000, related: 4_000, basis: 40_000, knowledge: 4_000 };
 const CUT = { related: 40 };
 
 /** Whether the project has a task yet: the first feature's first task is the walking skeleton. */
@@ -93,7 +95,7 @@ registerBuilder('task_plan', async ({ trx, projectId, scope, graphVersion }) => 
     .innerJoin('records', 'records.id', 'record_versions.record_id')
     .select(['records.id as recordId', 'records.code', 'records.type', 'record_versions.n', 'record_versions.title'])
     .where('records.project_id', '=', projectId)
-    .where('records.type', 'in', ['requirement', 'quality_requirement', 'adr', 'threat_model', 'production_readiness'])
+    .where('records.type', 'in', ['requirement', 'production_readiness'])
     .where('record_versions.state', '=', 'approved')
     .orderBy('records.code')
     .limit(CUT.related)
@@ -105,6 +107,21 @@ registerBuilder('task_plan', async ({ trx, projectId, scope, graphVersion }) => 
       text: r.title,
       reason: 'approved',
     });
+  // The decisions, the threat model and the quality requirements in full: a task cites them and follows them.
+  const basis = await approvedBasis(trx, projectId, {
+    kinds: ['adr', 'threat_model', 'quality_requirement'],
+    budget: BUDGET.basis,
+    section: 'basis',
+    manifest,
+  });
+  const design = await approvedDesignSystemFull(trx, projectId);
+  if (design)
+    manifest.entered({
+      section: 'basis',
+      source: { type: 'record', id: design.recordId, version: design.version, eventSeq: null },
+      text: JSON.stringify(design.principles),
+      reason: 'approved',
+    });
   const knowledge = await knowledgeForContext(trx, projectId, `${v.title} ${text('Goal')} ${text('Scope')}`, BUDGET.knowledge);
   recordKnowledge(manifest, knowledge);
   return {
@@ -113,7 +130,12 @@ registerBuilder('task_plan', async ({ trx, projectId, scope, graphVersion }) => 
       constructor: BUILDER,
       budget: BUDGET,
       graph_version: graphVersion,
-      dependencies: [{ type: 'record', id: v.recordId, version: v.n }, ...knowledge.dependencies],
+      dependencies: [
+        { type: 'record', id: v.recordId, version: v.n },
+        ...basis.dependencies.map((d) => ({ type: 'record', id: d.id, version: d.version })),
+        ...(design ? [{ type: 'record', id: design.recordId, version: design.version }] : []),
+        ...knowledge.dependencies,
+      ],
       content: {
         feature: content,
         existing_tasks: feature.tasks,
@@ -123,6 +145,13 @@ registerBuilder('task_plan', async ({ trx, projectId, scope, graphVersion }) => 
           ? { screens: { no_ui: screens.spec.no_ui, screens: screens.spec.screens.map((x) => ({ id: x.id, name: x.name, purpose: x.purpose, steps: x.steps, components: x.components })), flow: screens.spec.flow } }
           : {}),
         approved_records: related.map((r) => ({ code: r.code, type: r.type, version: r.n, title: r.title })),
+        // Full text of what the plan must respect; `trimmed` ones end in «[trimmed]», `omitted` ones did not fit at all.
+        approved_decisions: basis.records.filter((r) => r.type === 'adr').map(({ type: _t, ...r }) => r),
+        approved_threat_model: basis.records.filter((r) => r.type === 'threat_model').map(({ type: _t, ...r }) => r),
+        approved_quality_requirements: basis.records.filter((r) => r.type === 'quality_requirement').map(({ type: _t, ...r }) => r),
+        ...(basis.omitted.length > 0 ? { omitted_for_budget: basis.omitted } : {}),
+        design_system_principles: design ? { code: design.code, version: design.version, principles: design.principles } : null,
+        basis_dependencies: [...basis.dependencies, ...(design ? [{ type: 'record' as const, id: design.recordId, code: design.code, version: design.version }] : [])],
         knowledge: knowledge.nodes,
       },
     },
@@ -130,7 +159,12 @@ registerBuilder('task_plan', async ({ trx, projectId, scope, graphVersion }) => 
   };
 });
 
-type PackContent = { feature: { code: string; version: number; domain: string | null }; uncovered: string[]; first_feature: boolean };
+type PackContent = {
+  feature: { code: string; version: number; domain: string | null };
+  uncovered: string[];
+  first_feature: boolean;
+  basis_dependencies?: { type: 'record'; id: string; code: string; version: number }[];
+};
 
 registerChecker('task_plan', async ({ db, run, output }) => {
   const pack = await packContentOf<PackContent>(db, run);
@@ -178,7 +212,7 @@ registerApplier('task_plan', async ({ trx, execute, run, output }) => {
       resolution: 'item',
       run_id: run.id,
       context_pack_id: run.context_pack_id ?? undefined,
-      dependencies: [{ type: 'record', id: record.id, code: f.code, version: f.version }],
+      dependencies: [{ type: 'record', id: record.id, code: f.code, version: f.version }, ...(pack.basis_dependencies ?? [])],
       proposals: output.tasks.map((t) => ({
         type: 'design_record',
         payload: {

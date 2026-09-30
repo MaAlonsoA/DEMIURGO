@@ -20,6 +20,7 @@ import {
 import { sql } from 'kysely';
 import { loadAgentCatalog } from '../agents/catalog.ts';
 import { type Builder, type Built, registerBuilder } from '../context/build.ts';
+import { splitByBudget } from '../context/approved-basis.ts';
 import { knowledgeForContext } from '../context/knowledge.ts';
 import { type FragmentSource, ManifestBuilder, recordKnowledge } from '../context/manifest.ts';
 import type { Db, Tx } from '../db/connection.ts';
@@ -33,21 +34,6 @@ import { definitionChangeProposal } from '../definition/compose.ts';
 const BUILDER = 'exploration_chat@2';
 const BUDGET = { messages: 12_000, decisions: 4_000, records: 16_000, sources: 6_000, knowledge: 4_000 };
 const LIMIT = { messages: 60, sources: 5, decisionChars: 400, recordChars: 3000, sourceChars: 2000 };
-
-/** What the budget admits, in order, and what it leaves out: the first element that does not fit closes it. */
-function splitByBudget<T>(elements: T[], size: (e: T) => number, budget: number): { chosen: T[]; dropped: T[] } {
-  const chosen: T[] = [];
-  let used = 0;
-  let i = 0;
-  for (; i < elements.length; i++) {
-    const e = elements[i] as T;
-    const t = size(e);
-    if (used + t > budget) break;
-    chosen.push(e);
-    used += t;
-  }
-  return { chosen, dropped: elements.slice(i) };
-}
 
 /** The `seq` of the journal event that created each message (`message.post`), by message id. */
 async function messageEventSeqs(trx: Tx, projectId: string, ids: string[]): Promise<Map<string, number>> {

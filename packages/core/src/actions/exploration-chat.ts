@@ -621,6 +621,13 @@ registerChecker('exploration_chat', async ({ db, run, output }) => {
         `${p.code} in \`code\` is not a planned feature of this project (it may be designed or dropped already). \`code\` is the \`planned_feature.code\` of the context: leave it null otherwise.`,
       );
     if (p.record_type === 'task') {
+      if (!p.size || !p.size_reason)
+        notes.push('A task has its `size` (XS, S, M, L or XL) and a one-line `size_reason`: fill both in every task.');
+      else if (p.size === 'XL' && !p.split)
+        notes.push('An XL task says in `split` how it could be split into smaller tasks.');
+    } else if (p.size || p.size_reason || p.split)
+      notes.push('`size`, `size_reason` and `split` are only for a task: leave them null for any other record.');
+    if (p.record_type === 'task') {
       const feature = p.based_on ? await featureTasksOf(db, run.project_id, p.based_on.code) : null;
       if (!feature)
         notes.push('A task rests on its feature: `based_on` is `feature_tasks.code` and `feature_tasks.version`.');
@@ -1005,6 +1012,12 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
         if (p.record_type === 'epic' && kept.length > 0) payload.sections = kept;
         // An epic's features only travel with an epic; a feature's planned code only with a planned feature of this project.
         if (p.record_type !== 'epic' || !p.features?.length) delete payload.features;
+        // A task's size and why travel only with a task; how to split, only with an XL one.
+        if (p.record_type !== 'task') {
+          delete payload.size;
+          delete payload.size_reason;
+        }
+        if (p.record_type !== 'task' || p.size !== 'XL') delete payload.split;
         if (p.record_type !== 'fdr' || !p.code || (await plannedFeatureByCode(trx, run.project_id, p.code))?.state !== 'planned')
           delete payload.code;
       }

@@ -1,6 +1,7 @@
 // Proposal payloads by type: the schema used to validate them on creation and on
 // accepting with changes. An agent only proposes; accepting is always a person's job.
 
+import { taskSizeSchema } from './sizes.ts';
 import { z } from 'zod';
 import { proposedCriterion } from './agents.ts';
 import { aspectSchema } from './aspects.ts';
@@ -89,6 +90,10 @@ export const designRecordPayload = z
       .string()
       .regex(/^FDR-[A-Z]{3}-\d{3}$/)
       .optional(),
+    /** A task's effort size (FDR-DEL-006), the one-line reason, and for an XL how it could be split. */
+    size: taskSizeSchema.optional(),
+    size_reason: text(300).optional(),
+    split: text(600).optional(),
     aspect: aspectSchema.optional(),
     basis,
   })

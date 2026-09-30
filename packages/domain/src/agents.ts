@@ -2,6 +2,7 @@
 // it against the action's schema and, if it fails, the run ends in `invalid_output` with no effect
 // at all (I7).
 
+import { TASK_SIZES } from './sizes.ts';
 import { aspectSchema } from './aspects.ts';
 import { z } from 'zod';
 import { DEFINITION_SECTION_TITLES, QUOTE_MAX } from './definition.ts';
@@ -326,6 +327,18 @@ export const explorationChatOutput = z
                 .describe(
                   'For a feature (fdr) designed from a planned feature (`planned_feature` in the context): its `planned_feature.code`; null otherwise.',
                 ),
+              size: z
+                .enum(TASK_SIZES)
+                .nullable()
+                .describe(
+                  "For a task: its relative effort size, XS (1 point), S (2), M (3), L (5) or XL (8), never a duration; null for any other record.",
+                ),
+              size_reason: recordText(300)
+                .nullable()
+                .describe('For a task: one line on why that size (e.g. "touches one screen and one command"); null otherwise.'),
+              split: recordText(600)
+                .nullable()
+                .describe('For an XL task: how it could be split into smaller tasks (nothing is split automatically); null otherwise.'),
               sections: z
                 .array(z.object({ title: recordText(120), content: recordText(6000) }).strict())
                 .min(1)

@@ -12,7 +12,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { type ReactNode, useState } from 'react';
 import { definitionQuery, recordQuery } from '../../api/queries.ts';
-import type { ProductRow } from '../../api/types.ts';
+import type { ProductRow, TaskSize } from '../../api/types.ts';
+import { SIZE_POINTS } from '../../sizes.ts';
 import { ArrowRightIcon } from '../../components/icons.tsx';
 import { Markdown } from '../../components/Markdown.tsx';
 import { EntityState, StatusBadge } from '../../components/status.tsx';
@@ -178,6 +179,19 @@ export function ProposalBody({
               <RecordChip key={n.code} projectId={projectId} code={n.code} version={n.version ?? null} rows={rows} />
             ))}
           </p>
+        ) : null}
+        {p.payload.record_type === 'task' && typeof p.payload.size === 'string' ? (
+          <section className="flex flex-col gap-1" data-proposed-size={p.payload.size}>
+            <h3 className="text-sm font-semibold text-fg-2">
+              {t.proposedSize(p.payload.size, SIZE_POINTS[p.payload.size as TaskSize] ?? 0)}
+            </h3>
+            {p.payload.size_reason ? <p className="text-md text-fg">{str(p.payload.size_reason)}</p> : null}
+            {p.payload.split ? (
+              <p className="text-md text-fg" data-split>
+                <span className="font-medium">{t.splitHow}:</span> {str(p.payload.split)}
+              </p>
+            ) : null}
+          </section>
         ) : null}
         <Sections sections={payloadSections(p.payload)} />
         {features.length > 0 ? (

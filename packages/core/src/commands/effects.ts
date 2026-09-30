@@ -125,6 +125,13 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
   // and each becomes a planned feature of its own, reserving its code.
   async design_record(ctx, { proposalId, payload, approve }) {
     const c = PAYLOADS.design_record.parse(payload);
+    // A task comes with its size and why (FDR-DEL-006); an XL one also says how it could be split.
+    if (c.record_type === 'task') {
+      if (!c.size || !c.size_reason)
+        throw new DomainError('validation', 'A task proposal needs its size (XS, S, M, L or XL) and a one-line reason.');
+      if (c.size === 'XL' && !c.split)
+        throw new DomainError('validation', 'An XL task proposal has to say how the task could be split.');
+    }
     const planned = c.record_type === 'fdr' && c.code ? await plannedToDesign(ctx, c.code) : null;
     // A task is in its feature's area, whatever the proposal said.
     const feature =
@@ -143,6 +150,7 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
         ...(planned ? { code: planned.code } : {}),
         domain: planned?.domain ?? feature?.domain ?? c.domain ?? 'producto',
         ...(c.aspect ? { aspect: c.aspect } : {}),
+        ...(c.record_type === 'task' ? { size: c.size } : {}),
         title: c.title,
         sections: c.sections,
         criteria: c.criteria.map((k) => ({ carry: 'new', ...k })),

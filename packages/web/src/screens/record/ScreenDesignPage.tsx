@@ -30,7 +30,7 @@ import { SCREENS } from './words.i18n.ts';
 type ScreenState = 'empty' | 'loading' | 'error' | 'data';
 const STATES: ScreenState[] = ['empty', 'loading', 'error', 'data'];
 
-type ScreenSpec = {
+export type ScreenSpec = {
   feature: { code: string; version: number };
   no_ui: null | { reason: string };
   screens: {
@@ -215,7 +215,7 @@ function MissingBanner({ projectId, names }: { projectId: string; names: string[
 }
 
 /** The flow as an ordered list: from, to, the trigger and the step it serves. */
-function FlowBlock({ spec }: { spec: ScreenSpec }) {
+export function FlowBlock({ spec }: { spec: ScreenSpec }) {
   const t = useMessages(SCREENS);
   const name = (id: string) => spec.screens.find((x) => x.id === id)?.name ?? t.unknownScreen;
   return (
@@ -247,7 +247,7 @@ function FlowBlock({ spec }: { spec: ScreenSpec }) {
   );
 }
 
-function ScreensBlock({ projectId, spec, missing }: { projectId: string; spec: ScreenSpec; missing: string[] }) {
+export function ScreensBlock({ projectId, spec, missing }: { projectId: string; spec: ScreenSpec; missing: string[] }) {
   const t = useMessages(SCREENS);
   return (
     <Block id="screens" title={t.screens} note={t.screenCount(spec.screens.length)}>

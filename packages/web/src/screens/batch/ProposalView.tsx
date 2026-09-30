@@ -38,6 +38,7 @@ import {
 } from './proposal.ts';
 import { SystemSpecView } from '../design-system/DesignSystem.tsx';
 import type { DesignSystemSpec } from '../../api/types.ts';
+import { FlowBlock, ScreensBlock, type ScreenSpec } from '../record/ScreenDesignPage.tsx';
 import { DEFINITION } from '../overview/words.i18n.ts';
 import { keyOfSection } from '../overview/definition.ts';
 import { PROPOSAL_VIEW } from './words.i18n.ts';
@@ -329,6 +330,15 @@ export function ProposalBody({
     return spec?.tokens ? (
       <div className="flex flex-col gap-4" data-body="design_system">
         <SystemSpecView spec={spec} />
+      </div>
+    ) : null;
+  }
+  if (p.type === 'screen_design') {
+    const spec = p.payload.spec as ScreenSpec | undefined;
+    return spec && Array.isArray(spec.screens) && !spec.no_ui ? (
+      <div className="flex flex-col gap-6" data-body="screen_design">
+        <FlowBlock spec={spec} />
+        <ScreensBlock projectId={projectId} spec={spec} missing={[]} />
       </div>
     ) : null;
   }

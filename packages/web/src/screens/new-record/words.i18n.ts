@@ -49,6 +49,8 @@ export const NEW_RECORD = messages(
             'What the product is, what it builds first and how: composed from the answers of the product definition stage.',
           design_system:
             'How the product looks and moves: principles, tokens, components, patterns, motion and accessibility.',
+          screen_design:
+            'The screens of a feature: its flow, each screen in its states and the design-system components it uses.',
         }) as Record<RecordType, string>
       )[type],
   },
@@ -98,6 +100,8 @@ export const NEW_RECORD = messages(
             'Qué es el producto, qué construye primero y cómo: se compone con las respuestas de la etapa de definición.',
           design_system:
             'Cómo se ve y se mueve el producto: principios, tokens, componentes, patrones, movimiento y accesibilidad.',
+          screen_design:
+            'Las pantallas de una funcionalidad: su flujo, cada pantalla en sus estados y los componentes del sistema de diseño que usa.',
         }) as Record<RecordType, string>
       )[type],
   },

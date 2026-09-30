@@ -6,6 +6,7 @@ import {
   DomainError,
   MAX_EXTERNAL_AGENT_PROPOSALS,
   type ProposalType,
+  type ScreenDesignSpec,
   isProposalType,
   dependencySchema,
   formatActor,
@@ -16,6 +17,7 @@ import { trimmed, field, registerGuards } from '../bus/guards.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
 import type { CommandContext, LoadedEntity } from '../bus/types.ts';
 import type { Db, Tx } from '../db/connection.ts';
+import { screenDesignChecks } from '../design/screens.ts';
 import { classifyBatch } from '../classifier/aspect.ts';
 import { APPLICATIONS, type Effect } from './effects.ts';
 import { onAuthorityEvent } from './reactions.ts';
@@ -129,7 +131,7 @@ registerGuards({
     return null;
   },
 
-  valid_payload: ({ ctx, data }) => {
+  valid_payload: async ({ ctx, data }) => {
     const type = trimmed(field(data, 'type'));
     if (!isProposalType(type)) return `Unknown proposal type: "${type}".`;
     if (ctx.actor.type === 'agent_external' && !['decision', 'exploration', 'fdr', 'design_record'].includes(type)) {
@@ -148,6 +150,15 @@ registerGuards({
       return `Only the design/ importer proposes "${type}".`;
     }
     const r = PAYLOADS[type].safeParse(field(data, 'payload'));
+    // A screen design is checked against the feature version it rests on (its steps), which the payload alone can't know.
+    if (r.success && type === 'screen_design') {
+      try {
+        const problems = await screenDesignChecks(ctx.trx, ctx.projectId, (r.data as { spec: ScreenDesignSpec }).spec);
+        return problems.length ? `The proposal is invalid: spec: ${problems.join('; ')}` : null;
+      } catch (e) {
+        return e instanceof DomainError ? e.message : 'The proposal is invalid: its feature could not be read.';
+      }
+    }
     return r.success
       ? null
       : `The proposal is invalid: ${r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`;

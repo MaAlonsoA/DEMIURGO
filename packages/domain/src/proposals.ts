@@ -8,6 +8,7 @@ import { VERSION_LIMITS } from './records.ts';
 import { aspectSchema } from './aspects.ts';
 import { DEFINITION_SECTION_TITLES, QUOTE_MAX } from './definition.ts';
 import { designSystemProblems, designSystemSpec } from './design-system.ts';
+import { screenDesignProblems, screenDesignSpec } from './screen-design.ts';
 
 const text = (max: number) => z.string().trim().min(1).max(max);
 
@@ -252,6 +253,25 @@ export const designSystemPayload = z
   });
 
 /**
+ * The screens of a feature, proposed by the screens agent. Sections are English prose; the machine part
+ * is `spec`, checked here without the feature's step count and again against it where the feature is
+ * known (the proposal guard and the applier). Accepting it creates the SCR record, or its next version.
+ */
+export const screenDesignPayload = z
+  .object({
+    title: text(200),
+    sections: z
+      .object({ Flow: text(10_000), Screens: text(10_000), States: text(10_000), Components: text(10_000) })
+      .strict(),
+    spec: screenDesignSpec,
+    change_note: z.string().trim().max(2000).optional(),
+  })
+  .strict()
+  .superRefine((c, ctx) => {
+    for (const problem of screenDesignProblems(c.spec, null)) ctx.addIssue({ code: 'custom', path: ['spec'], message: problem });
+  });
+
+/**
  * A change to one section of the approved product definition, proposed by an agent from what the
  * person decided in a thread, on their own words there (`evidence`, checked by the server). Accepting
  * it changes that section's answer (its question reopened with the reason and confirmed with the new
@@ -389,6 +409,7 @@ export const PAYLOADS = {
   record_translation: recordTranslationPayload,
   product_definition: productDefinitionPayload,
   design_system: designSystemPayload,
+  screen_design: screenDesignPayload,
   definition_change: definitionChangePayload,
   record_change: recordChangePayload,
   feature_plan: featurePlanPayload,

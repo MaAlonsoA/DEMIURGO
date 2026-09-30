@@ -40,6 +40,7 @@ export const DEFAULT_AGENTS: Readonly<Record<AgentAction, string>> = {
   task_plan: 'task_planner',
   design_directions: 'design_director',
   design_system_plan: 'design_system_designer',
+  screen_design: 'screen_designer',
   pr_review: 'pr_reviewer',
 };
 

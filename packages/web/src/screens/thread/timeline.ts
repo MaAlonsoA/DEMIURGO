@@ -19,15 +19,15 @@ const time = (iso: string | null | undefined): number => (iso ? Date.parse(iso) 
 
 /** What DEMIURGO can draft from a thread, as the API says it (one dedicated agent per kind). */
 export type ThreadDraft = {
-  kind: 'epic' | 'feature' | 'tasks' | 'design_directions' | 'design_system';
+  kind: 'epic' | 'feature' | 'tasks' | 'design_directions' | 'design_system' | 'screens';
   why: string | null;
   suggested: boolean;
-  action: 'epic_plan' | 'feature_design' | 'task_plan' | 'design_directions' | 'design_system_plan';
+  action: 'epic_plan' | 'feature_design' | 'task_plan' | 'design_directions' | 'design_system_plan' | 'screen_design';
   scope: { type: string; id: string };
 };
 
 /** The runs whose batch is a draft of a record. */
-export const DRAFT_ACTIONS: readonly string[] = ['design_proposal', 'epic_plan', 'feature_design', 'task_plan', 'design_system_plan'];
+export const DRAFT_ACTIONS: readonly string[] = ['design_proposal', 'epic_plan', 'feature_design', 'task_plan', 'design_system_plan', 'screen_design'];
 
 export const isActive = (run: Pick<RunListItem, 'state'>): boolean => run.state === 'queued' || run.state === 'running';
 

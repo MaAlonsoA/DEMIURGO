@@ -61,9 +61,9 @@ export const COMPOSER = messages(
     sentAnswersHere: 'Sent. DEMIURGO answers here.',
     drafting: (code: string) => `DEMIURGO is drafting a feature from ${code}.`,
     draftKind: (k: string) =>
-      k === 'design_directions' ? 'Propose visual directions' : k === 'design_system' ? 'Draft the design system' : `Draft the ${k}`,
+      k === 'design_directions' ? 'Propose visual directions' : k === 'design_system' ? 'Draft the design system' : k === 'screens' ? 'Design the screens' : `Draft the ${k}`,
     draftingKind: (k: string) =>
-      k === 'design_directions' ? 'Proposing visual directions…' : k === 'design_system' ? 'Drafting the design system…' : `Drafting the ${k}…`,
+      k === 'design_directions' ? 'Proposing visual directions…' : k === 'design_system' ? 'Drafting the design system…' : k === 'screens' ? 'Designing the screens…' : `Drafting the ${k}…`,
     draftStarted: 'Asked DEMIURGO to draft it. You review it before anything changes.',
     thinksEnough: (why: string) => `DEMIURGO thinks there's enough: ${why}`,
   },
@@ -98,11 +98,15 @@ export const COMPOSER = messages(
     draftKind: (k: string) =>
       k === 'design_directions'
         ? 'Proponer direcciones visuales'
-        : `Redactar ${k === 'epic' ? 'la épica' : k === 'feature' ? 'la funcionalidad' : k === 'design_system' ? 'el sistema de diseño' : 'las tareas'}`,
+        : k === 'screens'
+          ? 'Diseñar las pantallas'
+          : `Redactar ${k === 'epic' ? 'la épica' : k === 'feature' ? 'la funcionalidad' : k === 'design_system' ? 'el sistema de diseño' : 'las tareas'}`,
     draftingKind: (k: string) =>
       k === 'design_directions'
         ? 'Proponiendo direcciones visuales…'
-        : `Redactando ${k === 'epic' ? 'la épica' : k === 'feature' ? 'la funcionalidad' : k === 'design_system' ? 'el sistema de diseño' : 'las tareas'}…`,
+        : k === 'screens'
+          ? 'Diseñando las pantallas…'
+          : `Redactando ${k === 'epic' ? 'la épica' : k === 'feature' ? 'la funcionalidad' : k === 'design_system' ? 'el sistema de diseño' : 'las tareas'}…`,
     draftStarted: 'Le has pedido a DEMIURGO que lo redacte. Lo revisas tú antes de que cambie nada.',
     thinksEnough: (why: string) => `DEMIURGO cree que ya hay bastante: ${why}`,
   },
@@ -406,6 +410,7 @@ export const RUN_CARDS = messages(
     draftingTasks: 'Drafting the tasks…',
     draftingDirections: 'Proposing visual directions…',
     draftingDesignSystem: 'Drafting the design system…',
+    draftingScreens: 'Designing the screens…',
     directionsTitle: 'Visual directions',
     directionsNote: 'Nothing is decided until you choose one and approve the system.',
     chooseThis: 'Choose this',
@@ -457,6 +462,7 @@ export const RUN_CARDS = messages(
     draftingTasks: 'Redactando las tareas…',
     draftingDirections: 'Proponiendo direcciones visuales…',
     draftingDesignSystem: 'Redactando el sistema de diseño…',
+    draftingScreens: 'Diseñando las pantallas…',
     directionsTitle: 'Direcciones visuales',
     directionsNote: 'No se decide nada hasta que elijas una y apruebes el sistema.',
     chooseThis: 'Elegir esta',

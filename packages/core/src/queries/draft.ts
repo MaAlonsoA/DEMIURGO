@@ -6,14 +6,15 @@ import { sql } from 'kysely';
 import { designSystemPathOf } from '@demiurgo/domain';
 import { chosenDirection } from '../actions/design-directions.ts';
 import { epicProblem } from '../actions/epic-plan.ts';
+import { approvedDesignSystem, hasApprovedScreens } from '../actions/screen-design.ts';
 import { plannedFeatureByCode } from '../actions/exploration-chat.ts';
 import type { Db } from '../db/connection.ts';
 
 export type ThreadDraft = {
-  kind: 'epic' | 'feature' | 'tasks' | 'design_directions' | 'design_system';
+  kind: 'epic' | 'feature' | 'tasks' | 'design_directions' | 'design_system' | 'screens';
   why: string | null;
   suggested: boolean;
-  action: 'epic_plan' | 'feature_design' | 'task_plan' | 'design_directions' | 'design_system_plan';
+  action: 'epic_plan' | 'feature_design' | 'task_plan' | 'design_directions' | 'design_system_plan' | 'screen_design';
   scope: { type: string; id: string };
 };
 
@@ -72,7 +73,14 @@ export async function threadDraft(
       : undefined;
   const featureRecord = opened?.type === 'fdr' ? opened.recordId : planned?.state === 'designed' ? await recordOfPlanned(db, planned.id) : null;
   const version = featureRecord ? await approvedVersionOf(db, featureRecord) : null;
-  if (version) return offer('tasks', 'task_plan', { type: 'record_version', id: version });
+  if (version) {
+    // With an approved design system, the screens come first (design goes one step ahead of delivery: Cagan and
+    // Patton, SVPG): the tasks are offered once the current version has approved screens. Without a design
+    // system nothing changes: the tasks are offered right away.
+    if ((await approvedDesignSystem(db, projectId)) && !(await hasApprovedScreens(db, projectId, version)))
+      return offer('screens', 'screen_design', { type: 'record_version', id: version });
+    return offer('tasks', 'task_plan', { type: 'record_version', id: version });
+  }
   // A thread about a capability that is an epic: only once its agent said it has enough.
   if (ready?.kind === 'epic' && !(await epicProblem(db, projectId, thread.id)))
     return offer('epic', 'epic_plan', { type: 'exploration', id: thread.id });

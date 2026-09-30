@@ -14,6 +14,7 @@ export const RECORD_TYPES = [
   'production_readiness',
   'product_definition',
   'design_system',
+  'screen_design',
 ] as const;
 export type RecordType = (typeof RECORD_TYPES)[number];
 
@@ -30,6 +31,7 @@ export const RECORD_PREFIX: Record<RecordType, string> = {
   production_readiness: 'PRR',
   product_definition: 'DEF',
   design_system: 'DSY',
+  screen_design: 'SCR',
 };
 
 // Cockburn, Writing Effective Use Cases: "Use 3 to 9 steps" in the main success scenario.
@@ -73,6 +75,9 @@ export const RECORD_TEMPLATES: Record<RecordType, { sections: readonly string[];
     sections: ['Principles', 'Visual direction', 'Tokens', 'Components', 'Patterns', 'Motion', 'Accessibility', 'Governance'],
     requiresCriteria: false,
   },
+  // The screens of one feature: its flow, each screen with its states and the design-system components
+  // it uses. Based on its FDR version; the machine part is the version's `spec` (domain/screen-design.ts).
+  screen_design: { sections: ['Flow', 'Screens', 'States', 'Components'], requiresCriteria: false },
 };
 
 export type Section = { title: string; content: string };

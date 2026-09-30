@@ -6,6 +6,7 @@ import { DomainError, behaviorSteps } from '@demiurgo/domain';
 import { registerBuilder } from '../context/build.ts';
 import { knowledgeForContext } from '../context/knowledge.ts';
 import { ManifestBuilder, recordKnowledge } from '../context/manifest.ts';
+import { approvedDesignSystem, screensOfFeatureVersion } from '../design/screens.ts';
 import type { Db } from '../db/connection.ts';
 import { registerApplier, registerChecker } from './appliers.ts';
 import { packContentOf, sourcesPayload } from './drafting.ts';
@@ -44,6 +45,14 @@ registerBuilder('task_plan', async ({ trx, projectId, scope, graphVersion }) => 
   const feature = await featureTasksOf(trx, projectId, v.code);
   if (!feature || feature.version !== v.n)
     throw new DomainError('validation', `${v.code} v${v.n} is not the current approved version of the feature: plan its tasks from the current one.`);
+  // With an approved design system, the screens come first: the tasks are planned with them in front (`no_ui`
+  // counts as designed). Without a design system nothing changes.
+  let screens: Awaited<ReturnType<typeof screensOfFeatureVersion>> = null;
+  if (await approvedDesignSystem(trx, projectId)) {
+    screens = await screensOfFeatureVersion(trx, projectId, { code: v.code, version: v.n }, true);
+    if (!screens)
+      throw new DomainError('validation', `${v.code} v${v.n} has no approved screen design: design its screens (or say it has no interface) before planning its tasks.`);
+  }
   const sections = v.sections as { title: string; content: string }[];
   const text = (t: string) => sections.find((s) => s.title === t)?.content ?? '';
   const criteria = await trx
@@ -110,6 +119,9 @@ registerBuilder('task_plan', async ({ trx, projectId, scope, graphVersion }) => 
         existing_tasks: feature.tasks,
         uncovered: feature.uncovered,
         first_feature: firstFeature,
+        ...(screens?.spec
+          ? { screens: { no_ui: screens.spec.no_ui, screens: screens.spec.screens.map((x) => ({ id: x.id, name: x.name, purpose: x.purpose, steps: x.steps, components: x.components })), flow: screens.spec.flow } }
+          : {}),
         approved_records: related.map((r) => ({ code: r.code, type: r.type, version: r.n, title: r.title })),
         knowledge: knowledge.nodes,
       },

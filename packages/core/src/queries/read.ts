@@ -7,6 +7,7 @@ import {
   AGENT_PROPOSAL_TYPES,
   type DesignSystemSpec,
   designSystemWarnings,
+  screenDesignSpec,
   type Dependency,
   type ReadinessInput,
   DomainError,
@@ -28,12 +29,13 @@ import {
 import type { Db } from '../db/connection.ts';
 import { staleDependencies } from '../commands/proposals.ts';
 import { epicOrder } from '../commands/epic-order.ts';
+import { approvedDesignSystem, missingIn, screensOfFeatureVersion } from '../design/screens.ts';
 import { threadDraft } from './draft.ts';
 import { githubConfig } from '../github/client.ts';
 import { taskViewOfRecord } from './task-view.ts';
 
 /** Records that are not built, so they have no readiness: a decision, and the product definition. */
-const WITHOUT_READINESS: ReadonlySet<string> = new Set(['decision', 'product_definition']);
+const WITHOUT_READINESS: ReadonlySet<string> = new Set(['decision', 'product_definition', 'screen_design']);
 
 type Dep = { type: string; id: string; code?: string; version: number };
 
@@ -663,7 +665,7 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
       practice_sources: (v.practice_sources ?? []) as unknown[],
       // A design system's machine-readable part and its advisory warnings (null / empty for other records).
       spec: v.spec ?? null,
-      warnings: v.spec ? designSystemWarnings(v.spec as DesignSystemSpec) : [],
+      warnings: v.spec && r.type === 'design_system' ? designSystemWarnings(v.spec as DesignSystemSpec) : [],
       criteria: await Promise.all(
         criteria.map(async (c) => {
           const evidence = await evidenceOf(db, c.id);
@@ -692,6 +694,12 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
   }
   const implementation = await implementationOf(db, r.id);
   const currentDetail = detail.find((d) => d.current);
+  // A screen design: what the approved design system lacks for it. A feature: the screen design of its current version.
+  const dsy = r.type === 'screen_design' || r.type === 'fdr' ? await approvedDesignSystem(db, projectId) : null;
+  const shownVersion = currentDetail ?? detail[detail.length - 1];
+  const screenSpec = r.type === 'screen_design' ? screenDesignSpec.safeParse(shownVersion?.spec) : null;
+  const featureScreens =
+    r.type === 'fdr' && current !== null ? await screensOfFeatureVersion(db, projectId, { code: r.code, version: current }) : null;
   return {
     id: r.id,
     code: r.code,
@@ -721,6 +729,28 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
     covers: r.type === 'task' ? await taskCoversOf(db, r.id) : null,
     // A task's whole page (its feature, order, criteria, dependencies, provenance and development).
     ...(r.type === 'task' ? { task: await taskViewOfRecord(db, projectId, r.id) } : {}),
+    // A screen design's gaps against the approved design system (null for other records).
+    ...(r.type === 'screen_design'
+      ? {
+          dsy: dsy ? { code: dsy.code, version: dsy.version } : null,
+          missing_components: missingIn(screenSpec?.success ? screenSpec.data : null, dsy),
+        }
+      : {}),
+    // A feature's screen design, the one based on its current version (null when it has none).
+    ...(r.type === 'fdr'
+      ? {
+          screens: featureScreens
+            ? {
+                code: featureScreens.code,
+                version: featureScreens.version,
+                state: featureScreens.state,
+                no_ui: featureScreens.no_ui,
+                screen_count: featureScreens.screen_count,
+                missing_components: missingIn(featureScreens.spec, dsy),
+              }
+            : null,
+        }
+      : {}),
     versions: detail,
     incoming: await incomingLinks(db, projectId, r.id, r.type),
   };

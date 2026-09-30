@@ -42,6 +42,7 @@ export const RECORD_ICON: Record<RecordType, ComponentType<IconProps>> = {
   production_readiness: RocketIcon,
   product_definition: ProductIcon,
   design_system: ProductIcon,
+  screen_design: ProductIcon,
 };
 
 const OTHER_ICON: Record<string, ComponentType<IconProps>> = {
@@ -84,6 +85,7 @@ const PREFIX: Record<string, RecordType> = {
   PRR: 'production_readiness',
   DEF: 'product_definition',
   DSY: 'design_system',
+  SCR: 'screen_design',
 };
 
 /** The record type a code belongs to ("NFR-EVE-002" → quality_requirement), or null. */

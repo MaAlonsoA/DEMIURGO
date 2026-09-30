@@ -200,6 +200,7 @@ export const TYPE_WORDS: Record<RecordType, string> = {
   production_readiness: 'Production readiness',
   product_definition: 'Product definition',
   design_system: 'Design system',
+  screen_design: 'Screen design',
 };
 
 export const TYPE_WORDS_PLURAL: Record<RecordType, string> = {
@@ -215,6 +216,7 @@ export const TYPE_WORDS_PLURAL: Record<RecordType, string> = {
   production_readiness: 'Production readiness',
   product_definition: 'Product definition',
   design_system: 'Design system',
+  screen_design: 'Screen designs',
 };
 
 /** Failure kinds of a run, in product words. */
@@ -242,6 +244,7 @@ export const ACTION_WORDS: Record<string, string> = {
   task_plan: 'Plan the tasks',
   design_directions: 'Propose visual directions',
   design_system_plan: 'Draft the design system',
+  screen_design: 'Design the screens',
   coherence_review: 'Coherence review',
   echo: 'Echo',
 };
@@ -448,6 +451,7 @@ const TYPE_WORDS_ES: Record<RecordType, string> = {
   production_readiness: 'Preparación para producción',
   product_definition: 'Definición del producto',
   design_system: 'Sistema de diseño',
+  screen_design: 'Diseño de pantallas',
 };
 
 const TYPE_WORDS_PLURAL_ES: Record<RecordType, string> = {
@@ -463,6 +467,7 @@ const TYPE_WORDS_PLURAL_ES: Record<RecordType, string> = {
   production_readiness: 'Preparación para producción',
   product_definition: 'Definición del producto',
   design_system: 'Sistemas de diseño',
+  screen_design: 'Diseños de pantallas',
 };
 
 /** TYPE_WORDS in the language given. */

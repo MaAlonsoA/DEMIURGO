@@ -48,6 +48,8 @@ import { stateWord } from '../../words.ts';
 import { RecordHeader } from './Header.tsx';
 import { Columns, Frame } from './Layout.tsx';
 import { TaskPage } from './TaskPage.tsx';
+import { ScreenDesignPage } from './ScreenDesignPage.tsx';
+import { ScreensTab } from './ScreensTab.tsx';
 import { TasksTab } from './TasksTab.tsx';
 import { ancestorsOf } from './hierarchy.ts';
 import { PendingProposals } from './PendingProposals.tsx';
@@ -127,6 +129,13 @@ export function RecordScreen() {
       </Frame>
     );
   }
+  if (r.type === 'screen_design') {
+    return (
+      <Frame projectId={projectId} code={code}>
+        <ScreenDesignPage key={r.code} projectId={projectId} record={r} version={version} state={state.data} inbox={inbox.data} />
+      </Frame>
+    );
+  }
   return (
     <Frame projectId={projectId} code={code}>
       <RecordPage key={r.code} projectId={projectId} record={r} version={version} state={state.data} inbox={inbox.data} />
@@ -152,9 +161,9 @@ function RecordPage({
   // The version read in the person's language; the actions act on the English one (same id).
   const reading = useReading(projectId, 'record_version', stored.id);
   const version = readVersion(stored, reading.text);
-  // The Tasks tab is a feature's: on any other record the address falls back to the Overview.
+  // The Screens and Tasks tabs are a feature's: on any other record the address falls back to the Overview.
   const rawTab = useRecordTab();
-  const tab = rawTab === 'tasks' && record.type !== 'fdr' ? 'overview' : rawTab;
+  const tab = (rawTab === 'tasks' || rawTab === 'screens') && record.type !== 'fdr' ? 'overview' : rawTab;
   const tables = useTables();
   const readinessQ = useQuery({ ...readinessQuery(projectId, version.id), enabled: record.type !== 'decision' });
   const ready = record.type === 'decision' ? null : (readinessQ.data ?? version.readiness);
@@ -222,7 +231,7 @@ function RecordPage({
     />
   );
   const readinessPanel = <ReadinessPanel projectId={projectId} version={version} readiness={ready} stage={stage} />;
-  const railed = delivery !== null && (leanOverview || tab === 'tasks');
+  const railed = delivery !== null && (leanOverview || tab === 'tasks' || tab === 'screens');
   const aside = railed ? (
     <Rail
       projectId={projectId}
@@ -294,7 +303,7 @@ function RecordPage({
     </>
   );
 
-  if (tab === 'questions' || tab === 'history' || tab === 'checks' || tab === 'tasks') {
+  if (tab === 'questions' || tab === 'history' || tab === 'checks' || tab === 'tasks' || tab === 'screens') {
     return (
       <>
         {header}
@@ -303,6 +312,8 @@ function RecordPage({
           main={
             tab === 'questions' ? (
               <QuestionsList projectId={projectId} questions={questions} />
+            ) : tab === 'screens' ? (
+              <ScreensTab projectId={projectId} record={record} version={version} state={state} />
             ) : tab === 'tasks' ? (
               <TasksTab projectId={projectId} record={record} draft={draftTasks} />
             ) : tab === 'history' ? (

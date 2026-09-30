@@ -8,6 +8,7 @@ import { VERSION_LIMITS } from './records.ts';
 import { z } from 'zod';
 import { DEFINITION_SECTION_TITLES, QUOTE_MAX } from './definition.ts';
 import { designSystemSpec, designTokens } from './design-system.ts';
+import { screenDesignSpec } from './screen-design.ts';
 
 export const AGENT_ACTIONS = [
   'echo',
@@ -19,6 +20,7 @@ export const AGENT_ACTIONS = [
   'task_plan',
   'design_directions',
   'design_system_plan',
+  'screen_design',
   'pr_review',
 ] as const;
 export type AgentAction = (typeof AGENT_ACTIONS)[number];
@@ -671,6 +673,29 @@ export const designSystemPlanOutput = z
   })
   .strict();
 
+/** screen_design: a dedicated agent designs the screens of an approved feature with the project's approved design system. */
+export const screenDesignOutput = z
+  .object({
+    reply: text(2000).describe("One to three sentences in the person's language."),
+    result: z
+      .object({
+        title: recordText(200),
+        sections: z
+          .object({
+            Flow: recordText(10_000),
+            Screens: recordText(10_000),
+            States: recordText(10_000),
+            Components: recordText(10_000),
+          })
+          .strict(),
+        spec: screenDesignSpec,
+        change_note: recordText(2000).nullable().describe('When the feature already has a screen design: what changes and why; null otherwise.'),
+      })
+      .strict(),
+    sources: practiceSources,
+  })
+  .strict();
+
 /** pr_review: the verdict of the reviewer agent on a build request's pull request. */
 export const PR_REVIEW_MAX_COMMENTS = 40;
 export const prReviewOutput = z
@@ -747,6 +772,7 @@ export const OUTPUT_SCHEMAS = {
   task_plan: taskPlanOutput,
   design_directions: designDirectionsOutput,
   design_system_plan: designSystemPlanOutput,
+  screen_design: screenDesignOutput,
   pr_review: prReviewOutput,
 } as const satisfies Record<AgentAction, z.ZodType>;
 

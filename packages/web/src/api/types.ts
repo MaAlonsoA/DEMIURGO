@@ -109,7 +109,8 @@ export type RecordType =
   | 'threat_model'
   | 'production_readiness'
   | 'product_definition'
-  | 'design_system';
+  | 'design_system'
+  | 'screen_design';
 
 /** Where a section of the product definition comes from, and how the person settled its question. */
 export type DefinitionSource = {
@@ -625,6 +626,11 @@ export type RecordDetail = {
   id: string;
   /** Design system only: non-blocking notes on the shown version. */
   warnings?: string[];
+  /** Screen design only: the approved design system it is checked against, and the components it uses that the system lacks. */
+  dsy?: { code: string; version: number } | null;
+  missing_components?: string[];
+  /** Feature only: the screen design based on its current version (null when it has none). */
+  screens?: { code: string; version: number; state: string; no_ui: boolean; screen_count: number; missing_components: string[] } | null;
   code: string;
   type: RecordType;
   domain: string;
@@ -739,10 +745,10 @@ export type ExplorationDetail = {
   children: { id: string; purpose: string; state: string }[];
   /** What its "Draft" button writes (one dedicated agent per kind), or null when nothing can be drafted here. */
   draft?: {
-    kind: 'epic' | 'feature' | 'tasks' | 'design_directions' | 'design_system';
+    kind: 'epic' | 'feature' | 'tasks' | 'design_directions' | 'design_system' | 'screens';
     why: string | null;
     suggested: boolean;
-    action: 'epic_plan' | 'feature_design' | 'task_plan' | 'design_directions' | 'design_system_plan';
+    action: 'epic_plan' | 'feature_design' | 'task_plan' | 'design_directions' | 'design_system_plan' | 'screen_design';
     scope: { type: string; id: string };
   } | null;
 };

@@ -5,6 +5,7 @@
 import {
   aspectOfType,
   designSystemSpec,
+  screenDesignSpec,
   aspectSchema,
   DomainError,
   VERSION_LIMITS,
@@ -87,7 +88,7 @@ const versionContentSchema = {
   // The practice sources (unverified) the version was based on.
   practice_sources: practiceSources.optional(),
   // A design system's machine-readable part (tokens, components, patterns): part of the immutable content.
-  spec: designSystemSpec.optional(),
+  spec: z.union([designSystemSpec, screenDesignSpec]).optional(),
   discarded: z.array(z.string()).default([]),
   links: z.array(linkInputSchema).max(L.links).default([]),
   // Annexes in order (tables as data): stored and exported as-is.

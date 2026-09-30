@@ -7,4 +7,5 @@ import './feature-design.ts';
 import './task-plan.ts';
 import './design-directions.ts';
 import './design-system-plan.ts';
+import './screen-design.ts';
 import './pr-review.ts';

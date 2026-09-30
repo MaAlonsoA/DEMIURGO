@@ -29,6 +29,7 @@ type Row<T extends keyof DB> = Selectable<DB[T]>;
 const MORE_FOLDERS: Record<string, string> = {
   product_definition: 'product',
   design_system: 'design-system',
+  screen_design: 'screens',
   epic: 'epics',
   task: 'tasks',
   requirement: 'requirements',
@@ -147,6 +148,7 @@ export async function exportDesign(db: Db, projectId: string): Promise<Map<strin
     for (const a of annexes) tree.set(a.path, a.content);
     // A design system's machine-readable part, next to its prose.
     if (r.type === 'design_system' && v.spec) tree.set('design-system/spec.json', `${canonicalJson(v.spec)}\n`);
+    if (r.type === 'screen_design' && v.spec) tree.set(`screens/${r.code}.spec.json`, `${canonicalJson(v.spec)}\n`);
   }
   const taxonomies = await db
     .selectFrom('taxonomies')

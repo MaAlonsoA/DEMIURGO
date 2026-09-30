@@ -92,7 +92,7 @@ export function withSection(
   };
   return {
     pack: { ...built.pack, content: { ...(built.pack.content as Record<string, unknown>), [section]: value } },
-    manifest: { ...built.manifest, fragments: [...fragments, fragment] },
+    manifest: { ...built.manifest, candidates: fragments.length + 1, fragments: [...fragments, fragment] },
   };
 }
 

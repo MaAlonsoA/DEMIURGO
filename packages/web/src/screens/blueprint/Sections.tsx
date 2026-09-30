@@ -78,6 +78,13 @@ export function RecordTabs({
         ...(record.type === 'fdr'
           ? [
               {
+                key: 'screens',
+                label: t.tabScreens,
+                current: tab === 'screens',
+                link: link('screens'),
+                ...(record.screens ? { count: record.screens.screen_count } : {}),
+              },
+              {
                 key: 'tasks',
                 label: t.tabTasks,
                 current: tab === 'tasks',

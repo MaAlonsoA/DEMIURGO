@@ -18,6 +18,7 @@ const TYPES_WITH_AUTHORITY = new Set([
   'production_readiness',
   'product_definition',
   'design_system',
+  'screen_design',
   'criterion',
 ]);
 

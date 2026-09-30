@@ -6,7 +6,10 @@ import {
   DESIGN_SYSTEM_SECTION_TITLES,
   DomainError,
   PAYLOADS,
+  SCREEN_DESIGN_SECTION_TITLES,
   type ProposalType,
+  missingComponentsReason,
+  missingComponents,
   type Section,
   behaviorSteps,
   criterionStatement,
@@ -14,6 +17,7 @@ import {
   recordChangeSections,
 } from '@demiurgo/domain';
 import type { CommandContext } from '../bus/types.ts';
+import { approvedDesignSystem, screenDesignChecks } from '../design/screens.ts';
 import { definitionStageId, proposeDefinitionIfCovered } from '../definition/compose.ts';
 import { proposeCoveredPrinciples } from '../definition/principles.ts';
 import { type CriterionInput, resolveReference } from './records.ts';
@@ -386,6 +390,77 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
       type: 'record',
       code: res.code,
       recordId: existing.id,
+      versionId: res.versionId,
+      version: res.version,
+      approved: approve,
+    };
+  },
+
+  // The screens of a feature: the first accepted proposal creates its SCR record, a later one adds the next
+  // version. It rests on the feature version it names (a `based_on` link). Accepting is refused, with no
+  // effect, while the screens use components the approved design system does not have.
+  async screen_design(ctx, { proposalId, payload, approve }) {
+    const c = PAYLOADS.screen_design.parse(payload);
+    const problems = await screenDesignChecks(ctx.trx, ctx.projectId, c.spec);
+    if (problems.length > 0) throw new DomainError('validation', problems.join(' '));
+    const dsy = await approvedDesignSystem(ctx.trx, ctx.projectId);
+    const reason = missingComponentsReason(missingComponents(c.spec, dsy?.components ?? []));
+    if (reason) throw new DomainError('conflict', reason);
+    const origin = { type: 'proposal', id: proposalId };
+    const sections = SCREEN_DESIGN_SECTION_TITLES.map((title) => ({ title, content: c.sections[title] }));
+    const feature = await ctx.trx
+      .selectFrom('records')
+      .select(['id', 'domain'])
+      .where('project_id', '=', ctx.projectId)
+      .where('code', '=', c.spec.feature.code)
+      .where('type', '=', 'fdr')
+      .executeTakeFirstOrThrow();
+    const links = [{ type: 'based_on', target: c.spec.feature }];
+    // One screen design per feature: the one that already rests on any version of it.
+    const existing = await ctx.trx
+      .selectFrom('links')
+      .innerJoin('record_versions as sv', 'sv.id', 'links.from_id')
+      .innerJoin('record_versions as fv', 'fv.id', 'links.to_id')
+      .select('sv.record_id')
+      .where('links.type', '=', 'based_on')
+      .where('fv.record_id', '=', feature.id)
+      .where('sv.project_id', '=', ctx.projectId)
+      .where((eb) =>
+        eb.exists(
+          eb
+            .selectFrom('records as s')
+            .select('s.id')
+            .whereRef('s.id', '=', 'sv.record_id')
+            .where('s.type', '=', 'screen_design'),
+        ),
+      )
+      .executeTakeFirst();
+    if (!existing) {
+      return createRecord(
+        ctx,
+        { type: 'screen_design', domain: feature.domain, title: c.title, sections, spec: c.spec, links, origin },
+        approve,
+      );
+    }
+    const r = await ctx.execute({
+      command: 'record_version.create',
+      actor: ctx.actor,
+      data: {
+        record_id: existing.record_id,
+        title: c.title,
+        sections,
+        spec: c.spec,
+        links,
+        change_note: c.change_note ?? 'The screens changed.',
+        origin,
+      },
+    });
+    const res = r.result as { versionId: string; version: number; code: string };
+    if (approve) await ctx.execute({ command: 'record_version.approve', actor: ctx.actor, entityId: res.versionId, data: {} });
+    return {
+      type: 'record',
+      code: res.code,
+      recordId: existing.record_id,
       versionId: res.versionId,
       version: res.version,
       approved: approve,

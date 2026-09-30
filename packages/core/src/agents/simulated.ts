@@ -419,6 +419,54 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
     };
   },
 
+  screen_design(p) {
+    const c = obj(p.context.content);
+    const feature = obj(c.feature);
+    const code = txt(feature.code, 'FDR-AAA-001');
+    const title = truncate(txt(feature.title, 'Feature'), 100);
+    const steps = list(feature.steps).map((s, i) => Number(obj(s).n) || i + 1);
+    const names = list(obj(c.design_system).components)
+      .map((k) => txt(obj(k).name))
+      .filter(Boolean);
+    const used = names.slice(0, 2);
+    const html = (state: string, body: string) =>
+      `<style>:root{--color-text:#161616;--color-bg:#ffffff;--space-4:16px;--radius-md:4px}.s{font-family:system-ui;padding:var(--space-4);color:var(--color-text);background:var(--color-bg);border-radius:var(--radius-md)}</style><main class="s" data-state="${state}">${body}</main>`;
+    return {
+      reply: `Here are the screens for "${title}".`,
+      result: {
+        title: `Screens: ${title}`,
+        sections: {
+          Flow: 'One screen: the person opens it, does the work and sees the result.',
+          Screens: `${title}: the whole feature on one screen.`,
+          States: 'Empty, loading, error and with data, all drawn with the design tokens.',
+          Components: `It uses ${used.join(' and ') || 'the components of the design system'}.`,
+        },
+        spec: {
+          feature: { code, version: Number(feature.version) || 1 },
+          no_ui: null,
+          screens: [
+            {
+              id: 'main',
+              name: title,
+              purpose: `Lets the person do "${title}" from start to finish.`,
+              steps: steps.length > 0 ? steps : [1],
+              components: used,
+              states: {
+                empty: html('empty', '<h1>Nothing here yet</h1><p>Add the first item to get started.</p>'),
+                loading: html('loading', '<p role="status" aria-busy="true">Loading…</p>'),
+                error: html('error', '<p role="alert">Something went wrong. Try again.</p>'),
+                data: html('data', `<h1>${title}</h1><p>Here is what you have.</p>`),
+              },
+            },
+          ],
+          flow: [],
+        },
+        change_note: null,
+      },
+      sources: [],
+    };
+  },
+
   pr_review(p) {
     const c = obj(p.context.content);
     const diff = txt(c.diff);

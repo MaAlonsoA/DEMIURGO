@@ -10,6 +10,7 @@ export * from './tables.ts';
 export * from './tables/schemas.ts';
 export * from './proposals.ts';
 export * from './design-system.ts';
+export * from './screen-design.ts';
 export * from './design-guard.ts';
 export * from './public-design-systems.ts';
 export * from './records.ts';

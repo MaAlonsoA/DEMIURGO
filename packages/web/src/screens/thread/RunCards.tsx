@@ -56,7 +56,9 @@ const doingWord = (action: string, t: typeof RUN_CARDS.en): string =>
               ? t.draftingDirections
               : action === 'design_system_plan'
                 ? t.draftingDesignSystem
-                : t.working;
+                : action === 'screen_design'
+                  ? t.draftingScreens
+                  : t.working;
 
 /** The time a run has taken so far, never empty while it is active. */
 function elapsed(run: Pick<Run, 'state' | 'created_at' | 'started_at' | 'finished_at'>, now: number): string {

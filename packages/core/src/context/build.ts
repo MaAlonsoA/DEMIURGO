@@ -78,6 +78,7 @@ const RECORD_WRITERS: ReadonlySet<AgentAction> = new Set([
   'task_plan',
   'design_directions',
   'design_system_plan',
+  'screen_design',
 ]);
 
 /** A fragment added after the builder's own: next in sequence and in position. */

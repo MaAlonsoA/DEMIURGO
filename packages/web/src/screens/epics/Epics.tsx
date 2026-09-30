@@ -14,14 +14,17 @@ import { PageBody, PageHeader, Section, usePageTitle } from '../../components/Pa
 import { Bone, Skeleton } from '../../components/Spinner.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { attentionByCode, attentionOf, type Attention } from '../../lib/attention.ts';
-import { useProjectId } from '../../lib/hooks.ts';
+import { useProjectId, useTables } from '../../lib/hooks.ts';
+import { canCreate } from '../../api/tables.ts';
+import { useCommand } from '../../api/commands.ts';
+import { Button } from '../../components/Button.tsx';
 import { RecordRow, RowList, UNCHANGED } from '../overview/Cards.tsx';
 import { AttentionMark } from '../record/AttentionMark.tsx';
 import { CopyBriefButton } from '../record/CopyBrief.tsx';
 import { LineMark, LineName, progressWords } from '../record/EpicBoard.tsx';
 import { waitingFor } from '../record/logic.ts';
 import { DesignNextButton } from './DesignNext.tsx';
-import { type EpicGroup, epicGroups, epicPlan, plannedOf } from './logic.ts';
+import { type EpicGroup, epicGroups, epicPlan, epicStatus, plannedOf } from './logic.ts';
 import { epicRef } from './plans.ts';
 import { EPIC_BOARD, EPICS } from './words.i18n.ts';
 
@@ -96,6 +99,30 @@ function EpicSummary({
   );
 }
 
+/** Up and down in the backlog order: the person ranks the epics by hand. */
+function EpicMoves({ projectId, epic, index, count }: { projectId: string; epic: ProductRow; index: number; count: number }) {
+  const t = useMessages(EPICS);
+  const command = useCommand(projectId);
+  const move = (direction: 'up' | 'down') =>
+    command.mutate({ command: 'record.move_epic', entityId: epic.id ?? '', data: { direction } });
+  return (
+    <span className="inline-flex items-center gap-1" data-epic-moves={epic.code}>
+      <Button size="sm" variant="quiet" disabled={index === 0 || command.isPending} onClick={() => move('up')} aria-label={t.moveUp(epic.title)}>
+        ↑
+      </Button>
+      <Button
+        size="sm"
+        variant="quiet"
+        disabled={index === count - 1 || command.isPending}
+        onClick={() => move('down')}
+        aria-label={t.moveDown(epic.title)}
+      >
+        ↓
+      </Button>
+    </span>
+  );
+}
+
 /** The epic's own code and those of its features, designed or not. */
 function epicCodes(state: ProductState, g: EpicGroup): string[] {
   const rows = [...state.designs, ...state.decisions];
@@ -113,6 +140,8 @@ export function EpicsScreen() {
 
   const s = state.data;
   const attention = attentionByCode(inbox.data);
+  const tables = useTables();
+  const canMove = !!tables && canCreate(tables, 'record.move_epic');
   const { groups } = epicGroups(s ? [...s.designs, ...s.decisions] : []);
   const featureCount = s ? groups.reduce((n, g) => n + Math.max(plannedOf(s, g.epic.code).length, g.features.length), 0) : 0;
 
@@ -141,7 +170,7 @@ export function EpicsScreen() {
             {t.noneHint}
           </EmptyState>
         ) : (
-          groups.map((g) => (
+          groups.map((g, i) => (
             <Section
               key={g.epic.code}
               id={`epic-${g.epic.code}`}
@@ -153,6 +182,10 @@ export function EpicsScreen() {
               note={g.epic.summary ?? undefined}
               actions={
                 <span className="flex items-center gap-3">
+                <span className="text-sm text-fg-2" data-epic-status={epicStatus(epicPlan(g.epic, plannedOf(s, g.epic.code), g.features, [...s.designs, ...s.decisions], s.explorations))}>
+                  {t[`status_${epicStatus(epicPlan(g.epic, plannedOf(s, g.epic.code), g.features, [...s.designs, ...s.decisions], s.explorations))}`]}
+                </span>
+                {canMove ? <EpicMoves projectId={projectId} epic={g.epic} index={i} count={groups.length} /> : null}
                 {s && attentionOf(attention, epicCodes(s, g)) > 0 ? <AttentionMark projectId={projectId} code={g.epic.code} /> : null}
                 <Certainty status={g.epic.epistemic_status} />
                 <Link

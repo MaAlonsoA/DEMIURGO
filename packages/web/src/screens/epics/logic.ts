@@ -21,7 +21,10 @@ export function epicOf(feature: ProductRow, epics: readonly ProductRow[]): Produ
 
 /** The epics with the features that belong to each, and the features of no epic. */
 export function epicGroups(rows: ProductRow[]): { groups: EpicGroup[]; loose: ProductRow[] } {
-  const epics = rows.filter((r) => r.type === 'epic');
+  // The person's backlog order; the epics not placed yet go last, by code.
+  const epics = rows
+    .filter((r) => r.type === 'epic')
+    .sort((a, b) => (a.epic_position ?? Infinity) - (b.epic_position ?? Infinity) || a.code.localeCompare(b.code));
   const features = rows.filter((r) => r.type === 'fdr');
   return {
     groups: epics.map((epic) => ({ epic, features: features.filter((f) => epicOf(f, epics)?.code === epic.code) })),
@@ -128,6 +131,14 @@ export function epicPlan(
     next: epic.current !== null ? (lines.find((l) => l.state === 'unstarted') ?? null) : null,
     counts,
   };
+}
+
+export type EpicStatus = 'not_started' | 'in_progress' | 'done';
+
+/** Where the epic's delivery is: done once every listed feature is built; in progress once any is designed or being built. */
+export function epicStatus(plan: EpicPlan): EpicStatus {
+  if (plan.lines.length > 0 && plan.counts.built === plan.lines.length) return 'done';
+  return plan.lines.some((l) => l.state !== 'unstarted') ? 'in_progress' : 'not_started';
 }
 
 /** The epic's own active thread: born from one of its versions, not a feature's; the latest. */

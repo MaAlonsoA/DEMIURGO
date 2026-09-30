@@ -234,6 +234,7 @@ export function ProposalDecision({
         title={t.rejectDialogTitle(rejectLabel, title)}
         description={t.rejectDialogDescription}
         label={t.reasonLabel}
+        required={p.type !== 'review'}
         submit={rejectLabel}
         pendingLabel={p.type === 'review' ? t.keepingEllipsis : t.rejectingEllipsis}
         tone={p.type === 'review' ? 'primary' : 'danger'}

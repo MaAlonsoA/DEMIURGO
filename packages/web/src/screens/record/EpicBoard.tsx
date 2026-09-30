@@ -25,6 +25,7 @@ import {
   type EpicLine,
   type LineState,
   epicGroups,
+  epicStatus,
   epicPlan,
   epicThreads,
   plannedOf,
@@ -127,9 +128,10 @@ export function EpicBoard({
         <h2 id={id} className="text-lg font-semibold text-fg">
           {t.title}
         </h2>
-        {plan.lines.length > 0 ? (
-          <span className="text-sm tabular-nums text-fg-2">{progressWords(t, plan.counts, plan.lines.length)}</span>
-        ) : null}
+        <span className="text-sm tabular-nums text-fg-2" data-epic-status={epicStatus(plan)}>
+          <span className="font-medium text-fg">{t[`status_${epicStatus(plan)}`]}</span>
+          {plan.lines.length > 0 ? ` · ${progressWords(t, plan.counts, plan.lines.length)}` : null}
+        </span>
       </div>
       <p className="max-w-prose text-sm text-fg-2">{t.planNote}</p>
       {!ref ? <p className="text-sm text-fg-2">{t.approveFirst}</p> : null}

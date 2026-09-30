@@ -22,6 +22,45 @@ import { onAuthorityEvent } from './reactions.ts';
 
 const uuid = z.string().uuid();
 
+/** The thread a proposal came from: the exploration its batch's run answered in; null when it has none. */
+async function originThread(ctx: CommandContext, batchId: string): Promise<string | null> {
+  const run = await ctx.trx
+    .selectFrom('proposal_batches as b')
+    .innerJoin('ai_runs as r', 'r.id', 'b.run_id')
+    .select('r.scope')
+    .where('b.id', '=', batchId)
+    .where('r.action', '=', 'exploration_chat')
+    .executeTakeFirst();
+  const id = (run?.scope as { id?: string } | undefined)?.id;
+  if (!id) return null;
+  const row = await ctx.trx
+    .selectFrom('explorations')
+    .select('id')
+    .where('id', '=', id)
+    .where('state', '=', 'active')
+    .executeTakeFirst();
+  return row?.id ?? null;
+}
+
+/** "Declined <title>: <reason>" in the origin thread, as a message from the system (it never asks for an answer). */
+async function postDeclineNote(ctx: CommandContext, entity: LoadedEntity, reason: string): Promise<void> {
+  const exploration = await originThread(ctx, trimmed(entity.row.batch_id));
+  if (!exploration) return;
+  const payload = (entity.row.payload ?? {}) as Record<string, unknown>;
+  const title = [payload.title, payload.question, payload.name, payload.purpose].find((v) => typeof v === 'string' && v) as
+    | string
+    | undefined;
+  await ctx.execute({
+    command: 'message.post',
+    actor: system('proposals'),
+    data: {
+      exploration_id: exploration,
+      text: `Declined ${(title ?? String(entity.row.type)).slice(0, 200)}: ${reason}`,
+      respond: false,
+    },
+  });
+}
+
 const proposalInputSchema = z
   .object({ type: z.string(), payload: z.record(z.string(), z.unknown()), dependencies: z.array(dependencySchema).default([]) })
   .strict();
@@ -440,6 +479,8 @@ registerHandlers({
         })
         .where('id', '=', entity.id)
         .execute();
+      // A declined proposal with a reason tells its thread why, so the next run does not repeat it.
+      if (data.reason) await postDeclineNote(ctx, entity, data.reason);
       await closeIfResolved(ctx, trimmed(entity.row.batch_id), entity.id);
       return { entityId: entity.id, after: { reason: data.reason ?? null } };
     },

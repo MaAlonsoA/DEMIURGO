@@ -40,7 +40,9 @@ export const RECORD_TEMPLATES: Record<RecordType, { sections: readonly string[];
   // of their own from the moment it lists them (planned_features, in order, the smallest end-to-end
   // walk first); each FDR rests on it. Its criteria check the whole walk, not what its features
   // already check. Older versions still carry a "Features" section: an extra section is allowed.
-  epic: { sections: ['Goal', 'Done when'], requiresCriteria: true },
+  // Goal (naming the product outcome it serves), Out of scope (what it deliberately leaves out) and
+  // Done when. Versions written before "Out of scope" existed still pass: they only get a warning.
+  epic: { sections: ['Goal', 'Out of scope', 'Done when'], requiresCriteria: true },
   fdr: { sections: ['Goal', 'Scope', 'Out of scope', 'Behavior'], requiresCriteria: true },
   // A task: a piece of the construction of a feature, small enough to build and check on its own. It
   // rests on its feature (based_on the FDR) and covers some of the feature's criteria (`covers`); it
@@ -81,14 +83,19 @@ export const VERSION_LIMITS = {
 } as const;
 
 /** Reasons why some sections don't meet their type's template (empty if they do). */
-export function templateGaps(type: RecordType, sections: readonly Section[]): string[] {
+export function templateGaps(type: RecordType, sections: readonly Section[], forApproval = false): string[] {
   const gaps: string[] = [];
   const template = RECORD_TEMPLATES[type];
+  // An epic version written before "Out of scope" existed can still be approved (a warning says so).
+  const expected =
+    forApproval && type === 'epic' && !sections.some((s) => s.title.startsWith('Out of scope'))
+      ? template.sections.filter((t) => t !== 'Out of scope')
+      : template.sections;
   // A title may add a note in parentheses to the template's name ("Scenario (stimulus → response)").
   const bare = (title: string) => title.replace(/\s*\([^)]*\)\s*$/, '');
   let i = 0;
-  for (const s of sections) if (bare(s.title) === template.sections[i]) i++;
-  if (i < template.sections.length) gaps.push(`Missing template sections: ${template.sections.slice(i).join(', ')}.`);
+  for (const s of sections) if (bare(s.title) === expected[i]) i++;
+  if (i < expected.length) gaps.push(`Missing template sections: ${expected.slice(i).join(', ')}.`);
   for (const s of sections) if (s.content.trim() === '') gaps.push(`Section "${s.title}" is empty.`);
   const titles = sections.map((s) => s.title);
   if (new Set(titles).size !== titles.length) gaps.push('There are repeated sections.');
@@ -158,6 +165,8 @@ export type ReadinessInput = {
   architecturePassed: boolean;
   /** An epic's listed features (not dropped), and whether each one has its approved design yet. */
   features?: { code: string; name: string; designed: boolean }[];
+  /** An epic version: whether it has an "Out of scope" section (older ones do not: a warning). */
+  hasOutOfScope?: boolean;
   /** Other links of this version that are pending review. */
   linksUnderReview: string[];
   /** Pending, postponed or assumed (inferred, not confirmed) questions in the origin exploration. */
@@ -251,9 +260,7 @@ export function readiness(e: ReadinessInput): Readiness {
   }
   if (e.type === 'epic') {
     if (e.features && e.features.length === 0) reasons.push('It has no features yet.');
-    for (const f of e.features ?? []) {
-      if (!f.designed) reasons.push(`Its feature ${f.code} (${f.name}) is not designed and approved yet.`);
-    }
+    // Approving an epic does not wait for its features to be designed: they are designed one by one.
   }
   for (const linkRef of e.linksUnderReview) reasons.push(`The link with ${linkRef} is pending review.`);
   // Every question of its thread still open is named; an answer DEMIURGO assumed blocks too, until
@@ -263,6 +270,7 @@ export function readiness(e: ReadinessInput): Readiness {
   }
   if (e.pendingProposals > 0) reasons.push(`There are ${e.pendingProposals} pending proposal(s) affecting it.`);
   const warnings = e.criteria.flatMap((c) => verifiabilityWarnings(c.code, c.statement));
+  if (e.type === 'epic' && e.hasOutOfScope === false) warnings.push('It has no "Out of scope" section: say what this epic deliberately leaves out.');
   return { ready: reasons.length === 0, reasons, warnings };
 }
 

@@ -207,7 +207,19 @@ export const proposedCriterion = z
 
 /** A predefined answer to a question and what choosing it implies for the design. */
 // `exclusive`: in a multiple-choice question, choosing it clears the others (e.g. "None for now").
-export const questionOption = z.object({ answer: recordText(300), implies: recordText(300), exclusive: z.boolean() }).strict();
+// `recommended`: the one option the agent advises (at most one per question); `downside`: its main cost.
+export const questionOption = z
+  .object({
+    answer: recordText(300),
+    implies: recordText(300),
+    exclusive: z.boolean(),
+    recommended: z.boolean().optional(),
+    downside: recordText(300).optional(),
+  })
+  .strict();
+const atMostOneRecommended = (options: { recommended?: boolean | undefined }[]) =>
+  options.filter((o) => o.recommended).length <= 1;
+const optionList = z.array(questionOption).max(4).refine(atMostOneRecommended, 'At most one option may be recommended.');
 
 /**
  * The answer a side conversation about one question (Go deeper) leads to, worded as one more option:
@@ -240,7 +252,7 @@ export const explorationChatOutput = z
             // Whether the person may pick several options (e.g. what is out of scope).
             multiple: z.boolean(),
             // 2 to 4 likely answers the person can pick with one click; empty when none fits.
-            options: z.array(questionOption).max(4),
+            options: optionList,
           })
           .strict(),
       )
@@ -252,7 +264,7 @@ export const explorationChatOutput = z
         z
           .object({
             question_id: z.string().uuid(),
-            options: z.array(questionOption).max(4),
+            options: optionList,
             multiple: z.boolean(),
             question: recordText(500).nullable(),
             reason: recordText(500).nullable(),

@@ -115,7 +115,8 @@ export const CAPABILITIES = {
       "allowed": [
         "human",
         "agent_external",
-        "agent_run"
+        "agent_run",
+        "system"
       ],
       "decisive": false,
       "description": "Post a message in a thread with the actor as author."
@@ -242,6 +243,14 @@ export const CAPABILITIES = {
       "decisive": false,
       "description": "Keep the size of a task against a disputing second opinion."
     },
+    "record.move_epic": {
+      "entity": "record",
+      "allowed": [
+        "human"
+      ],
+      "decisive": false,
+      "description": "Move an epic up or down in the product backlog order."
+    },
     "record_version.create": {
       "entity": "record_version",
       "allowed": [
@@ -269,7 +278,8 @@ export const CAPABILITIES = {
     "record_version.discard": {
       "entity": "record_version",
       "allowed": [
-        "human"
+        "human",
+        "system"
       ],
       "decisive": false,
       "description": "Discard a draft version."
@@ -1383,6 +1393,16 @@ export const TRANSITIONS = {
           "to": "registered",
           "guards": [
             "task_record"
+          ]
+        },
+        {
+          "command": "record.move_epic",
+          "from": [
+            "registered"
+          ],
+          "to": "registered",
+          "guards": [
+            "epic_record"
           ]
         }
       ]

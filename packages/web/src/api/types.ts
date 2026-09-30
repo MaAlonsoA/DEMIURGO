@@ -203,6 +203,7 @@ export type TaskEffort = {
 };
 
 export type ProductRow = {
+  id?: string;
   code: string;
   type: RecordType;
   domain: string;
@@ -214,6 +215,8 @@ export type ProductRow = {
   epistemic_status: Epistemic;
   readiness: Readiness | null;
   implementation: string;
+  /** The person's place of an epic in the backlog (1 first); null for other records or an epic not placed yet. */
+  epic_position?: number | null;
   /** Code of what it rests on (an epic, the product definition or a decision), if any. */
   based_on: string | null;
   /** Codes of the features this feature needs built first. */
@@ -341,7 +344,7 @@ export type InboxQuestion = {
   question: string;
   reason?: string | null;
   /** Predefined answers proposed by the agent, with what each one implies. */
-  options?: { answer: string; implies: string; exclusive?: boolean }[];
+  options?: { answer: string; implies: string; exclusive?: boolean; recommended?: boolean; downside?: string }[];
   /** Several options may be picked. */
   multiple?: boolean;
   state: string;
@@ -551,7 +554,7 @@ export type Question = {
   created_at: string;
   epistemic_status: Epistemic;
   /** Predefined answers proposed by the agent, with what each one implies. */
-  options?: { answer: string; implies: string; exclusive?: boolean }[];
+  options?: { answer: string; implies: string; exclusive?: boolean; recommended?: boolean; downside?: string }[];
   /** The answer its side conversation (Go deeper) led to, worded by DEMIURGO as one more option. */
   conversation_option?: { answer: string; implies: string } | null;
   stage_id?: string | null;

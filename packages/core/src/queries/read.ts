@@ -21,6 +21,7 @@ import {
 } from '@demiurgo/domain';
 import type { Db } from '../db/connection.ts';
 import { staleDependencies } from '../commands/proposals.ts';
+import { epicOrder } from '../commands/epic-order.ts';
 
 /** Records that are not built, so they have no readiness: a decision, and the product definition. */
 const WITHOUT_READINESS: ReadonlySet<string> = new Set(['decision', 'product_definition']);
@@ -96,7 +97,7 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
     .orderBy('position')
     .execute();
   const behaviorSection =
-    v.type === 'fdr'
+    v.type === 'fdr' || v.type === 'epic'
       ? (
           await db.selectFrom('record_versions').select('sections').where('id', '=', versionId).executeTakeFirstOrThrow()
         ).sections
@@ -164,7 +165,7 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
   const pendingProposals = pending.filter((p) =>
     [...((p.dependencies ?? []) as Dep[]), ...((p.batchDeps ?? []) as Dep[])].some((d) => d.id === v.recordId),
   ).length;
-  // An epic is ready when every feature of its list has its approved design.
+  // An epic lists its features; approving it does not wait for their designs.
   const features =
     v.type === 'epic'
       ? await Promise.all(
@@ -196,6 +197,9 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
       step: c.step,
     })),
     ...(v.type === 'fdr' ? { behaviorSteps: behaviorStepCount } : {}),
+    ...(v.type === 'epic'
+      ? { hasOutOfScope: (behaviorSection as { title: string }[]).some((sec) => sec.title.startsWith('Out of scope')) }
+      : {}),
     basedOn,
     needs,
     architecturePassed: await architecturePassed(db, projectId),
@@ -733,6 +737,7 @@ export async function productState(db: Db, projectId: string) {
   const project = await db.selectFrom('projects').select(['id', 'name', 'state']).where('id', '=', projectId).executeTakeFirst();
   if (!project) throw new DomainError('not_found', 'The project does not exist.');
   const records = await db.selectFrom('records').selectAll().where('project_id', '=', projectId).orderBy('code').execute();
+  const epicPositions = await epicOrder(db, projectId);
   const rows = [];
   for (const r of records) {
     const latest = await db
@@ -759,6 +764,7 @@ export async function productState(db: Db, projectId: string) {
               .executeTakeFirstOrThrow()
           ).id;
     rows.push({
+      id: r.id,
       code: r.code,
       type: r.type,
       domain: r.domain,
@@ -769,6 +775,8 @@ export async function productState(db: Db, projectId: string) {
       epistemic_status: current !== null ? 'confirmed' : epistemicOfVersion(latest.state),
       readiness: WITHOUT_READINESS.has(r.type) ? null : await versionReadiness(db, projectId, currentId ?? latest.id),
       implementation: await implementationOf(db, r.id),
+      // The person's order of the epics (the ranked backlog); null for any other record.
+      epic_position: r.type === 'epic' ? (epicPositions.get(r.id) ?? null) : null,
       ...(await basisOf(db, currentId ?? latest.id, r.type as RecordType)),
       summary: firstParagraph(latest.sections as { title: string; content: string }[]),
       checks: Number(checks.n),

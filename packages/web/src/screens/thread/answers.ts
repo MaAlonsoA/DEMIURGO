@@ -20,7 +20,7 @@ export const ASSUMED = 'assumed';
 /** The value of the answer the question's side conversation led to. */
 export const CONVERSATION = 'conversation';
 
-export type AnswerChoice = { value: string; answer: string; implies: string; exclusive: boolean; highlight?: boolean };
+export type AnswerChoice = { value: string; answer: string; implies: string; exclusive: boolean; highlight?: boolean; recommended?: boolean; downside?: string };
 
 type Answerable = Pick<Question, 'state' | 'conclusion' | 'reasoning' | 'options' | 'multiple' | 'conversation_option'>;
 
@@ -55,7 +55,7 @@ export function answerChoices(q: Answerable, words = ANSWER_WORDS.en): AnswerCho
           },
         ]
       : []),
-    ...(q.options ?? []).map((o, k) => ({ value: String(k), answer: o.answer, implies: o.implies, exclusive: !!o.exclusive })),
+    ...(q.options ?? []).map((o, k) => ({ value: String(k), answer: o.answer, implies: o.implies, exclusive: !!o.exclusive, ...(o.recommended ? { recommended: true } : {}), ...(o.downside ? { downside: o.downside } : {}) })),
   ];
 }
 

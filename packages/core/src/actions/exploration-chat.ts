@@ -126,6 +126,20 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
     .orderBy('id')
     .execute();
   const questions = allQuestions.filter((q) => q.state !== 'discarded');
+  // Proposals of this thread the person declined with a reason (the latest five): not to be repeated as they were.
+  const declinedRows = await sql<{ type: string; payload: Record<string, unknown>; resolution: { reason?: string | null } | null }>`
+    select p.type, p.payload, p.resolution
+    from proposals p
+    join proposal_batches b on b.id = p.batch_id
+    join ai_runs r on r.id = b.run_id
+    where p.project_id = ${projectId}::uuid and p.state = 'rejected' and r.action = 'exploration_chat'
+      and r.scope->>'id' = ${exploration.id} and coalesce(p.resolution->>'reason', '') <> ''
+    order by p.resolved_at desc nulls last limit 5`.execute(trx);
+  const declined = declinedRows.rows.map((p) => ({
+    title: [p.payload.title, p.payload.question, p.payload.name, p.payload.purpose].find((v) => typeof v === 'string' && v) ?? p.type,
+    type: p.type,
+    reason: p.resolution?.reason ?? '',
+  }));
   // Design engine: the project's open stage and its mandatory questions not covered yet. They go
   // with the questions so the agent can infer them from any thread.
   const stage = await trx
@@ -504,6 +518,7 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
         purpose: exploration.purpose,
         question_in_progress: typeof input.question_id === 'string' ? input.question_id : null,
         messages: chosen.map((m) => ({ author: m.author, type: m.kind, question: m.question_id, text: m.body })),
+        declined_proposals: declined,
         questions: questions.map((q) => ({
           id: q.id,
           question: q.question,
@@ -515,7 +530,7 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
           // The one being talked about carries its options, so Go deeper and the explainer weigh them,
           // and the answer its conversation led to so far, which the next reply refines.
           ...(q.id === input.question_id && q.options.length > 0
-            ? { options: q.options.map((o) => ({ answer: o.answer, implies: o.implies })) }
+            ? { options: q.options.map((o) => ({ answer: o.answer, implies: o.implies, recommended: o.recommended ?? false, downside: o.downside ?? null })) }
             : {}),
           ...(q.id === input.question_id && q.conversation_option ? { conversation_option: q.conversation_option } : {}),
           multiple: q.multiple,

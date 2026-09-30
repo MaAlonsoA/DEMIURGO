@@ -112,9 +112,23 @@ export function QuestionCard({
           onChange={(next) => set(draftOf(q, withExclusive(choices, picked, next)))}
           choices={choices.map((c) => ({
             value: c.value,
-            label:
-              c.value === ASSUMED ? reading.text('conclusion', c.answer) : reading.text(`options.${c.value}.answer`, c.answer),
-            detail: c.value === ASSUMED ? c.implies : reading.text(`options.${c.value}.implies`, c.implies),
+            label: (
+              <>
+                {c.value === ASSUMED ? reading.text('conclusion', c.answer) : reading.text(`options.${c.value}.answer`, c.answer)}
+                {c.recommended ? <span className="ml-2 text-sm font-medium text-accent-text">{t.recommended}</span> : null}
+              </>
+            ),
+            detail: (
+              <>
+                {c.value === ASSUMED ? c.implies : reading.text(`options.${c.value}.implies`, c.implies)}
+                {c.downside ? (
+                  <span className="block text-fg-3">
+                    {t.downside}
+                    {c.downside}
+                  </span>
+                ) : null}
+              </>
+            ),
           }))}
         />
       ) : null}

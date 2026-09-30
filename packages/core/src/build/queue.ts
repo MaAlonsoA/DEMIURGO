@@ -89,7 +89,7 @@ function epicOf(
 
 /**
  * Build order: a feature's tasks follow the tasks of the features it needs; otherwise epic order (by
- * code until the project has an explicit epic order), the epic's feature order, then the order in
+ * the person's backlog order, then by code), the epic's feature order, then the order in
  * which the tasks were proposed.
  */
 function orderFeatures(
@@ -97,8 +97,15 @@ function orderFeatures(
   rows: Rows,
   position: Map<string, number>,
 ): Map<string, number> {
+  // The epic's place in the person's backlog order; epics without a place (and features of no epic) last, by code.
+  const epicKey = (f: StateRow): string => {
+    const epic = epicOf(f, rows);
+    if (!epic) return "￿";
+    const place = epic.epic_position;
+    return place == null ? `~${epic.code}` : String(place).padStart(6, "0");
+  };
   const key = (f: StateRow): [string, number, string] => [
-    epicOf(f, rows)?.code ?? "￿",
+    epicKey(f),
     position.get(f.code) ?? Number.MAX_SAFE_INTEGER,
     f.code,
   ];

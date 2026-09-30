@@ -13,6 +13,11 @@ export const EPICS = messages(
     open: 'Open the epic',
     features: 'Features',
     noFeatures: 'No features yet. Open the epic to add them, or ask for them in its thread.',
+    status_not_started: 'Not started',
+    status_in_progress: 'In progress',
+    status_done: 'Done',
+    moveUp: (title: string) => `Move "${title}" up in the backlog`,
+    moveDown: (title: string) => `Move "${title}" down in the backlog`,
   },
   {
     title: 'Épicas',
@@ -26,6 +31,11 @@ export const EPICS = messages(
     open: 'Abrir la épica',
     features: 'Funcionalidades',
     noFeatures: 'Aún no tiene funcionalidades. Abre la épica para añadirlas, o pídelas en su hilo.',
+    status_not_started: 'Sin empezar',
+    status_in_progress: 'En curso',
+    status_done: 'Terminada',
+    moveUp: (title: string) => `Subir «${title}» en la lista de trabajo`,
+    moveDown: (title: string) => `Bajar «${title}» en la lista de trabajo`,
   },
 );
 
@@ -34,6 +44,9 @@ export const EPIC_BOARD = messages(
     title: 'Features of this epic',
     planNote:
       'Each feature of the list is a record with its code from the moment it is in the list. Designing it in its own thread fills it in. Change the list here or ask in the epic\'s thread.',
+    status_not_started: 'Not started',
+    status_in_progress: 'In progress',
+    status_done: 'Done',
     progress: (built: number, total: number) => `${built} of ${total} built`,
     ready: (n: number) => `${n} ready to build`,
     designing: (n: number) => `${n} in design`,
@@ -61,6 +74,9 @@ export const EPIC_BOARD = messages(
     title: 'Funcionalidades de esta épica',
     planNote:
       'Cada funcionalidad de la lista es un registro con su código desde que está en la lista. Al diseñarla en su propio hilo se rellena. Cambia la lista aquí o pídelo en el hilo de la épica.',
+    status_not_started: 'Sin empezar',
+    status_in_progress: 'En curso',
+    status_done: 'Terminada',
     progress: (built: number, total: number) => `${built} de ${total} construidas`,
     ready: (n: number) => `${n} ${n === 1 ? 'lista' : 'listas'} para construir`,
     designing: (n: number) => `${n} en diseño`,

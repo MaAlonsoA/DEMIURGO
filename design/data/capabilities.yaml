@@ -29,7 +29,7 @@ commands:
   stage.open: { entity: stage, allowed: [human, system], decisive: false, description: "Open the next design stage: its thread and its mandatory questions." }
   stage.pass: { entity: stage, allowed: [human], decisive: true, description: "Pass a design stage once all its mandatory questions are covered; the next one opens." }
 
-  message.post: { entity: message, allowed: [human, agent_external, agent_run], decisive: false, description: "Post a message in a thread with the actor as author." }
+  message.post: { entity: message, allowed: [human, agent_external, agent_run, system], decisive: false, description: "Post a message in a thread with the actor as author." }
   message.abandon_response: { entity: message, allowed: [system], decisive: false, description: "Give up the answer to a message whose knowledge stayed out of date." }
   source.register: { entity: source, allowed: [human, agent_external], decisive: false, description: "Register a source as untrusted input." }
   glossary.set: { entity: glossary_term, allowed: [human], decisive: true, description: "Fix the English term the project uses for a word, so records and translations use it the same way." }
@@ -47,10 +47,11 @@ commands:
   record.create: { entity: record, allowed: [human], decisive: false, description: "Create a record (decision, FDR, ADR or bug) with its version 1 in draft." }
   record.set_size: { entity: record, allowed: [human], decisive: false, description: "Set the effort size of a task without a new version." }
   record.keep_size: { entity: record, allowed: [human], decisive: false, description: "Keep the size of a task against a disputing second opinion." }
+  record.move_epic: { entity: record, allowed: [human], decisive: false, description: "Move an epic up or down in the product backlog order." }
   record_version.create: { entity: record_version, allowed: [human], decisive: false, description: "Create a new version with explicit carry-over of its criteria." }
   record_version.approve: { entity: record_version, allowed: [human], decisive: true, description: "Approve a version without creating another one." }
   record_version.supersede: { entity: record_version, allowed: [system], decisive: false, description: "Mark the previous approved version as superseded." }
-  record_version.discard: { entity: record_version, allowed: [human], decisive: false, description: "Discard a draft version." }
+  record_version.discard: { entity: record_version, allowed: [human, system], decisive: false, description: "Discard a draft version." }
   planned_feature.add: { entity: planned_feature, allowed: [human], decisive: false, description: "Add a feature to an epic's list, reserving its code." }
   planned_feature.move: { entity: planned_feature, allowed: [human], decisive: false, description: "Move a feature to another place in its epic's list." }
   planned_feature.drop: { entity: planned_feature, allowed: [human], decisive: false, description: "Drop a feature not designed yet from its epic's list." }

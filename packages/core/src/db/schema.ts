@@ -252,7 +252,7 @@ export type QuestionsTable = {
   raised_by: string;
   stage_id: string | null;
   stage_key: string | null;
-  options: ColumnType<{ answer: string; implies: string; exclusive?: boolean }[], string | undefined, string>;
+  options: ColumnType<{ answer: string; implies: string; exclusive?: boolean; recommended?: boolean; downside?: string }[], string | undefined, string>;
   /** The answer its side conversation (Go deeper) led to, worded as one more option; null while none. */
   conversation_option: ColumnType<{ answer: string; implies: string } | null, string | null | undefined, string | null>;
   multiple: Generated<boolean>;
@@ -376,6 +376,16 @@ export type TaskCoversTable = {
   project_id: string;
   record_id: string;
   codes: string[];
+  set_by: string;
+  created_at: Generated<Timestamp>;
+};
+
+/** The person's order of the epics: append-only, each move writes the whole order; the latest row of an epic is its place. */
+export type EpicPositionsTable = {
+  id: Generated<string>;
+  project_id: string;
+  record_id: string;
+  position: number;
   set_by: string;
   created_at: Generated<Timestamp>;
 };
@@ -707,6 +717,7 @@ export type DB = {
   evidence: EvidenceTable;
   planned_features: PlannedFeaturesTable;
   task_sizes: TaskSizesTable;
+  epic_positions: EpicPositionsTable;
   task_covers: TaskCoversTable;
   task_size_opinions: TaskSizeOpinionsTable;
   task_size_dismissals: TaskSizeDismissalsTable;

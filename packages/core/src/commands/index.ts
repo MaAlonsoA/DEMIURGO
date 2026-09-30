@@ -10,6 +10,7 @@ import './sizes.ts';
 import './evidence.ts';
 import './builds.ts';
 import './planned.ts';
+import './epic-order.ts';
 import './proposals.ts';
 import '../definition/english.ts';
 import '../actions/index.ts';

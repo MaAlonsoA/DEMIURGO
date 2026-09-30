@@ -200,7 +200,7 @@ registerGuards({
         .select('type')
         .where('id', '=', v?.record_id ?? '')
         .executeTakeFirstOrThrow();
-      const gaps = templateGaps(r.type as RecordType, v?.sections ?? []);
+      const gaps = templateGaps(r.type as RecordType, v?.sections ?? [], true);
       return gaps.length ? gaps.join(' ') : null;
     }
     let type = field(data, 'type') as RecordType | undefined;
@@ -588,6 +588,23 @@ registerHandlers({
         });
         // What rested on the previous version is not flagged wholesale: the knowledge update of this
         // version compares every one of them and returns as a review only what it contradicts, quoted.
+      }
+      // Earlier drafts of the same record can no longer be approved (a later version is): close them.
+      const earlierDrafts = await ctx.trx
+        .selectFrom('record_versions')
+        .select('id')
+        .where('record_id', '=', v.record_id)
+        .where('state', '=', 'draft')
+        .where('n', '<', v.n)
+        .orderBy('n')
+        .execute();
+      for (const d of earlierDrafts) {
+        await ctx.execute({
+          command: 'record_version.discard',
+          actor: system('versions'),
+          entityId: d.id,
+          data: { reason: `Superseded by v${v.n}, which was approved.` },
+        });
       }
       await reviewObsolescence(ctx, { record: v.record_id });
       await onAuthorityEvent(ctx, { type: 'record_version', id: v.id, version: v.n });

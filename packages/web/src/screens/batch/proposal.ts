@@ -208,12 +208,17 @@ export function outOfDateText(reason: string | null): string {
 }
 
 /** The heading of a batch, the same whoever made it: how many proposals, and what to do with them. */
-export function batchHeading(n: number, locale: Locale = 'en'): { eyebrow: string; title: string } {
+export function batchHeading(n: number, locale: Locale = 'en', left: number = n): { eyebrow: string; title: string } {
   const es = locale === 'es';
-  return {
-    eyebrow: NOUNS[locale].proposals(n),
-    title: es ? `${NOUNS.es.proposals(n)} por decidir` : `${NOUNS.en.proposals(n)} to decide`,
-  };
+  const title =
+    left === 0
+      ? es
+        ? `${NOUNS.es.proposals(n)}: todo decidido`
+        : `${NOUNS.en.proposals(n)}: all decided`
+      : es
+        ? `${NOUNS.es.proposals(left)} por decidir`
+        : `${NOUNS.en.proposals(left)} to decide`;
+  return { eyebrow: NOUNS[locale].proposals(n), title };
 }
 
 /** The name of a batch page, as its h1 and the browser tab say it. */
@@ -224,5 +229,5 @@ export function batchTitle(batch: Pick<BatchDetail, 'kind' | 'resolution_mode' |
     const single = batch.proposals.length === 1 ? batch.proposals[0] : undefined;
     return (single ? proposalTitle(single) : '') || NOUNS.en.proposals(batch.proposals.length);
   }
-  return batchHeading(batch.proposals.length).title;
+  return batchHeading(batch.proposals.length, 'en', batch.proposals.filter((p) => p.state === 'pending').length).title;
 }

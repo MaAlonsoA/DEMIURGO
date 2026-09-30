@@ -67,7 +67,7 @@ function ItemBatchPage({ projectId, batch }: { projectId: string; batch: BatchDe
   const stale = proposals.filter((p) => p.state === 'superseded').length;
   const decided = n - left - stale;
   const locale = useLocale();
-  const { eyebrow, title } = batchHeading(n, locale);
+  const { eyebrow, title } = batchHeading(n, locale, left);
   const crumbs = useBatchCrumbs(projectId, title);
   const guard = useEditGuard();
   const titleId = useId();

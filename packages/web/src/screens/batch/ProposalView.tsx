@@ -36,6 +36,8 @@ import {
   proposalWhy,
   resolvedText,
 } from './proposal.ts';
+import { SystemSpecView } from '../design-system/DesignSystem.tsx';
+import type { DesignSystemSpec } from '../../api/types.ts';
 import { DEFINITION } from '../overview/words.i18n.ts';
 import { keyOfSection } from '../overview/definition.ts';
 import { PROPOSAL_VIEW } from './words.i18n.ts';
@@ -321,6 +323,14 @@ export function ProposalBody({
         <Checks proposal={p} />
       </div>
     );
+  }
+  if (p.type === 'design_system') {
+    const spec = p.payload.spec as DesignSystemSpec | undefined;
+    return spec?.tokens ? (
+      <div className="flex flex-col gap-4" data-body="design_system">
+        <SystemSpecView spec={spec} />
+      </div>
+    ) : null;
   }
   if (p.type === 'definition_change') return <DefinitionChangeBody projectId={projectId} proposal={p} />;
   if (p.type === 'record_change') return <RecordChangeBody projectId={projectId} proposal={p} />;

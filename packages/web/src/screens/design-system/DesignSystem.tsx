@@ -100,7 +100,6 @@ function SystemDocument({ detail, version }: { detail: RecordDetail; version: Re
   const t = useMessages(DESIGN_SYSTEM);
   const spec = version.spec;
   if (!spec) return <p className="text-fg-2">{t.noSpec}</p>;
-  const { tokens } = spec;
   return (
     <div className="flex flex-col gap-10">
       {version.n !== detail.current ? <p className="text-sm text-fg-2">{t.draftNote}</p> : null}
@@ -113,6 +112,16 @@ function SystemDocument({ detail, version }: { detail: RecordDetail; version: Re
           </ul>
         </Section>
       ) : null}
+      <SystemSpecView spec={spec} />
+    </div>
+  );
+}
+
+/** A design system's spec drawn deterministically: shared by the living page and the proposal that drafts it. */
+export function SystemSpecView({ spec }: { spec: DesignSystemSpec }) {
+  const { tokens } = spec;
+  return (
+    <div className="flex flex-col gap-10">
       <Base base={spec.base} />
       <Principles items={spec.principles} />
       <Colors colors={tokens.color} />

@@ -9,6 +9,12 @@ productiva, y aquí se parchea en caliente lo que echa en falta. La regla es que
 sea perfecto: rápido antes que bonito. Ningún parche llega tal cual a la versión productiva. Estas
 reglas anulan el resto de este fichero y las de cualquier skill.
 
+- **Como lo haría un equipo profesional de primer nivel.** Todo lo que DEMIURGO propone y guía
+  (toma de requisitos, historias y criterios, diseño, arquitectura, tareas, construcción, pruebas,
+  revisión y entrega) replica cómo trabaja en la vida real un equipo de desarrollo top tier. Al
+  proponer un cambio o una opción, di qué práctica real sigue (p. ej. criterios de aceptación
+  Dado/Cuando/Entonces, flujo principal de un caso de uso, walking skeleton, definición de hecho) y
+  no inventes procesos que ningún equipo serio usaría.
 - **Sin proceso.**
   - No se usan brainstorming, specs, planes, TDD, revisión final ni ninguna skill de superpowers.
   - No se escriben documentos en `docs/` ni en `design/`, ni artifacts.

@@ -82,6 +82,14 @@ export function codexTelemetryEnv(trace: ProviderTrace | undefined): Record<stri
   };
 }
 
+/**
+ * The read-only sandbox tells the model that network access is restricted, and in long threads it
+ * then says it «cannot consult the web» although `web_search="live"` is on (seen 01-10: the explorer
+ * refused to compare hosting prices). Web search is not a command: say so explicitly.
+ */
+export const CODEX_WEB_NOTE =
+  'The web_search tool is available in this session: the sandbox restricts network access for shell commands only. When facts, prices, versions or sources must be checked, use web_search and cite the pages you used.';
+
 export function codexArguments(inv: ProviderInvocation, files: { schema: string; last: string }, cwd: string): string[] {
   const options = [
     '--json',
@@ -93,7 +101,7 @@ export function codexArguments(inv: ProviderInvocation, files: { schema: string;
     inv.model,
     ...(inv.effort ? ['-c', `model_reasoning_effort=${tomlString(inv.effort)}`] : []),
     '-c',
-    `developer_instructions=${tomlString(inv.system)}`,
+    `developer_instructions=${tomlString(`${inv.system}\n\n${CODEX_WEB_NOTE}`)}`,
     '-c',
     'sandbox_mode="read-only"',
     '-c',

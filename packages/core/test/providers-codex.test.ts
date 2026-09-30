@@ -10,6 +10,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import type { LaunchCommand } from '../src/agents/process.ts';
 import {
   CODEX_DISABLED_FEATURES,
+  CODEX_WEB_NOTE,
   codexArguments,
   codexOtelConfig,
   createCodexProvider,
@@ -154,7 +155,7 @@ describe('Codex provider', () => {
     expect(valuesOf(args, '-c')).toEqual(
       expect.arrayContaining([
         'model_reasoning_effort="high"',
-        `developer_instructions=${JSON.stringify(invocation().system)}`,
+        `developer_instructions=${JSON.stringify(`${invocation().system}\n\n${CODEX_WEB_NOTE}`)}`,
         'sandbox_mode="read-only"',
         'web_search="live"',
       ]),
@@ -198,7 +199,7 @@ describe('Codex provider', () => {
     expect(JSON.parse(toml)).toBe(system);
     expect(toml).not.toContain('\n');
     const args = codexArguments(invocation({ system }), { schema: 's.json', last: 'l.json' }, 'dir');
-    expect(valuesOf(args, '-c')).toContain(`developer_instructions=${toml}`);
+    expect(valuesOf(args, '-c')).toContain(`developer_instructions=${tomlString(`${system}\n\n${CODEX_WEB_NOTE}`)}`);
   });
 
   it('AC-AGE-002-09 a resumed session uses exec resume with its id, without -C, and keeps the schema', () => {

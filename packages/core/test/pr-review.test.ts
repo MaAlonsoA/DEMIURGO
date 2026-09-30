@@ -61,7 +61,7 @@ beforeAll(async () => {
   await cmd('record_version.approve', {}, feature.versionId);
   const taskRun = await draftRun('task_plan', { type: 'record_version', id: feature.versionId });
   const proposals = await accepted(taskRun.id);
-  await cmd('batch.accept_package', { approve: true }, proposals[0]?.batchId);
+  for (const p of proposals) await cmd('proposal.accept', { approve: true }, p.id);
   const detail = await recordDetail(db(), projectId, planned.code);
   const task = detail.tasks?.[0];
   codes = task?.covers ?? [];

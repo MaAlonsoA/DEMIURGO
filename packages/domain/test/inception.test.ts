@@ -9,6 +9,7 @@ const empty: InceptionInput = {
   pending: [],
   designSystemThread: null,
   capabilityThreads: [],
+  approvedDecisions: 0,
   designSystem: null,
   epics: [],
   features: [],
@@ -145,8 +146,15 @@ describe("the inception path", () => {
       kind: "open_stage",
       stage: "architecture",
     });
+    // Passed with no approved ADR, the stage has decided nothing: Architecture stays current.
+    const noDecision = inceptionPath({
+      ...withFeature,
+      stages: [...withFeature.stages, passed("architecture")],
+    });
+    expect(noDecision.current).toBe("architecture");
     const afterArch = inceptionPath({
       ...withFeature,
+      approvedDecisions: 1,
       stages: [...withFeature.stages, passed("architecture")],
     });
     expect(afterArch.current).toBe("security");
@@ -155,6 +163,7 @@ describe("the inception path", () => {
     );
     const ready = inceptionPath({
       ...withFeature,
+      approvedDecisions: 1,
       stages: [
         ...withFeature.stages,
         passed("architecture"),
@@ -164,6 +173,7 @@ describe("the inception path", () => {
     expect(ready.current).toBe("repository");
     const built = inceptionPath({
       ...withFeature,
+      approvedDecisions: 1,
       stages: [
         ...withFeature.stages,
         passed("architecture"),
@@ -178,6 +188,7 @@ describe("the inception path", () => {
     });
     const all = inceptionPath({
       ...withFeature,
+      approvedDecisions: 1,
       stages: [
         ...withFeature.stages,
         passed("architecture"),

@@ -92,6 +92,8 @@ export type InceptionInput = {
   designSystemThread: string | null;
   /** Active threads opened to design a capability (an epic or a feature) of the first version, oldest first. */
   capabilityThreads: string[];
+  /** Approved architecture decisions (ADR). */
+  approvedDecisions: number;
   designSystem: InceptionRecord | null;
   epics: InceptionRecord[];
   /** Features (FDR) in order: the first of the first epic, else the oldest. */
@@ -258,8 +260,12 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       why: "The decisions about how the product is built, based on the first features.",
       blocks: "Tasks",
       source: "arc42, C4 model, MADR",
-      done: passed("architecture"),
-      action: () => stageAction("architecture"),
+      // The stage exists to decide: it is done once it has passed with at least one approved ADR
+      // (our convention; an Architecture stage with no decision leaves the tasks without a basis).
+      done: passed("architecture") && input.approvedDecisions > 0,
+      action: () =>
+        pendingOf("adr", "decision") ??
+        (passed("architecture") ? { kind: "answer_stage", stage: "architecture", thread: stage("architecture")?.thread ?? null } : stageAction("architecture")),
     },
     {
       key: "security",

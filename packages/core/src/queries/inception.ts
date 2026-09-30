@@ -193,6 +193,18 @@ export async function inceptionOf(
         .orderBy("e.created_at")
         .execute()
     ).map((e) => e.id),
+    approvedDecisions: Number(
+      (
+        await db
+          .selectFrom("records")
+          .innerJoin("record_versions as v", "v.record_id", "records.id")
+          .select(sql<string>`count(distinct records.id)`.as("n"))
+          .where("records.project_id", "=", projectId)
+          .where("records.type", "in", ["adr", "decision"])
+          .where("v.state", "=", "approved")
+          .executeTakeFirst()
+      )?.n ?? 0,
+    ),
     definitionProposal: Boolean(
       await db
         .selectFrom("proposals")

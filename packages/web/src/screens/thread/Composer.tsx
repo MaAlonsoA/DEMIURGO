@@ -260,10 +260,9 @@ export function Composer({
           className="w-full resize-none bg-transparent px-3 py-1.5 text-md text-fg outline-none placeholder:text-fg-3 disabled:cursor-not-allowed"
         />
         <div className="flex flex-wrap items-center gap-2 border-t border-edge-subtle px-2 py-2">
-          {canRequest && !answering ? (
+          {canRequest && !answering && !noDecision ? (
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-              <DraftIt decisions={decisions ?? []} disabled={busy || noDecision} pending={sending === 'draft'} onPick={draft} />
-              {noDecision ? <span className="text-xs text-fg-2">{t.needsDecision}</span> : null}
+              <DraftIt decisions={decisions ?? []} disabled={busy} pending={sending === 'draft'} onPick={draft} />
             </div>
           ) : null}
           <div className="ml-auto flex items-center gap-2">

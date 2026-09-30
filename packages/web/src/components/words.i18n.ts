@@ -227,11 +227,11 @@ export const QUOTE = messages({ showMore: 'Show more', showLess: 'Show less' }, 
 /** BehaviorSteps.tsx: the checks under each step of the Behavior. */
 export const BEHAVIOR_STEPS = messages(
   {
-    noCheckForStep: 'No check covers this step yet',
+    noCheckForStep: 'No criterion covers this step yet',
     notTiedToStep: 'Not tied to a step',
   },
   {
-    noCheckForStep: 'Ninguna comprobación cubre este paso todavía',
+    noCheckForStep: 'Ningún criterio cubre este paso todavía',
     notTiedToStep: 'Sin paso asociado',
   },
 );

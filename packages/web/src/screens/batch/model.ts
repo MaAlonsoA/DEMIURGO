@@ -22,7 +22,7 @@ export function countRows(counts: { origin: ImportCounts | null; package: Import
   const rows: [string, (c: ImportCounts) => number][] = [
     ['Records', records],
     ['Versions', (c) => c.versions],
-    ['Checks', (c) => c.criteria],
+    ['Acceptance criteria', (c) => c.criteria],
     ['Links', (c) => c.links],
     ['Taxonomies', (c) => c.taxonomies],
     ['Annexes', (c) => c.annexes],

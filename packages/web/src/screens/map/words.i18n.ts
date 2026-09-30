@@ -35,8 +35,8 @@ export const MAP_WORDS = messages(
     inDoubt: 'In doubt',
     notReady: 'Not ready',
     featureLabel: 'Feature',
-    checksCount: (n: number) => `${n} ${n === 1 ? 'check' : 'checks'}`,
-    checksNotRun: (n: number) => `${n} ${n === 1 ? 'check' : 'checks'} · none has run: nothing is built yet.`,
+    checksCount: (n: number) => `${n} ${n === 1 ? 'criterion' : 'criteria'}`,
+    checksNotRun: (n: number) => `${n} ${n === 1 ? 'criterion' : 'criteria'} · none has run: nothing is built yet.`,
     howToReadTitle: 'How to read the map',
     legendIntro:
       'One column per area. Features are cards; the decisions they follow are below them. Point at something to light up what it is connected to; select it to see it here.',
@@ -99,9 +99,9 @@ export const MAP_WORDS = messages(
     inDoubt: 'En duda',
     notReady: 'No lista',
     featureLabel: 'Funcionalidad',
-    checksCount: (n: number) => `${n} ${n === 1 ? 'comprobación' : 'comprobaciones'}`,
+    checksCount: (n: number) => `${n} ${n === 1 ? 'criterio' : 'criterios'}`,
     checksNotRun: (n: number) =>
-      `${n} ${n === 1 ? 'comprobación' : 'comprobaciones'} · ninguna se ha ejecutado: aún no está construido.`,
+      `${n} ${n === 1 ? 'criterio' : 'criterios'} · ninguno se ha ejecutado: aún no está construido.`,
     howToReadTitle: 'Cómo leer el mapa',
     legendIntro:
       'Una columna por área. Las funcionalidades son tarjetas; las decisiones que siguen están debajo. Señala algo para iluminar a qué está conectado; selecciónalo para verlo aquí.',

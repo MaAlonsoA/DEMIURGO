@@ -192,7 +192,7 @@ export const SEARCH_TAB = messages(
     searchLabel: 'Search the knowledge',
     placeholder: 'A word or a phrase, as it was written',
     search: 'Search',
-    introBody: 'Search what DEMIURGO knows: decisions, features, tech decisions and their checks, as they were written.',
+    introBody: 'Search what DEMIURGO knows: decisions, features, tech decisions and their acceptance criteria, as they were written.',
     searching: 'Searching',
     nothingMatches: (q: string) => `Nothing matches “${q}”`,
     clearSearch: 'Clear the search',
@@ -207,7 +207,7 @@ export const SEARCH_TAB = messages(
     placeholder: 'Una palabra o una frase, tal como se escribió',
     search: 'Buscar',
     introBody:
-      'Busca en lo que sabe DEMIURGO: decisiones, funcionalidades, decisiones técnicas y sus comprobaciones, tal como se escribieron.',
+      'Busca en lo que sabe DEMIURGO: decisiones, funcionalidades, decisiones técnicas y sus criterios de aceptación, tal como se escribieron.',
     searching: 'Buscando',
     nothingMatches: (q: string) => `Nada coincide con «${q}»`,
     clearSearch: 'Borrar la búsqueda',

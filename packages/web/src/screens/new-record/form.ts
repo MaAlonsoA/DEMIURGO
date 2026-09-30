@@ -106,11 +106,11 @@ export function recordMissing(form: RecordForm): string[] {
   }
   for (const s of form.sections) if (blank(s.content)) out.push(`Write the ${s.title} section.`);
   if (RECORD_TEMPLATES[form.type].requiresCriteria && form.checks.length === 0) {
-    out.push(`Add at least one check: a ${TYPE_WORDS[form.type].toLowerCase()} needs them.`);
+    out.push(`Add at least one acceptance criterion: a ${TYPE_WORDS[form.type].toLowerCase()} needs them.`);
   }
   const newOnes = form.checks.filter(incomplete).length;
-  if (newOnes === 1) out.push('Give the new check a title, a statement and how it is checked.');
-  if (newOnes > 1) out.push(`Give the ${newOnes} new checks a title, a statement and how they are checked.`);
+  if (newOnes === 1) out.push('Give the new criterion a title, a statement and how it is verified.');
+  if (newOnes > 1) out.push(`Give the ${newOnes} new criteria a title, a statement and how they are verified.`);
   return out;
 }
 

@@ -24,7 +24,7 @@ export const NODE_TYPES: Record<string, NodeKind> = {
   threat_model: { word: 'Threat model', plural: 'Threat models', order: 6 },
   production_readiness: { word: 'Production readiness', plural: 'Production readiness', order: 7 },
   product_definition: { word: 'Product definition', plural: 'Product definition', order: -1 },
-  criterion: { word: 'Check', plural: 'Checks', order: 8 },
+  criterion: { word: 'Acceptance criterion', plural: 'Acceptance criteria', order: 8 },
   // Search results that are not in the graph: the project's threads and its parked ideas.
   thread: { word: 'Thread', plural: 'Threads', order: 9 },
   idea: { word: 'Idea', plural: 'Ideas', order: 10 },

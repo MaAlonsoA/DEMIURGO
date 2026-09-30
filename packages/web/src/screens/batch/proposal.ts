@@ -130,13 +130,13 @@ export function acceptEffects(p: Pick<ProposalView, 'type' | 'payload'>, approve
     const what = recordChangeWhat(p.payload, locale);
     return es
       ? [
-          `DEMIURGO cambia ${what} en ${code}, tal como dice aquí: una versión nueva del registro, con sus comprobaciones y enlaces.`,
+          `DEMIURGO cambia ${what} en ${code}, tal como dice aquí: una versión nueva del registro, con sus criterios de aceptación y enlaces.`,
           approve
             ? 'Queda asentada: aprobarla la pone en vigor.'
             : 'Sigues trabajando en ella: la versión nueva queda como propuesta aceptada, aún sin asentar.',
         ]
       : [
-          `DEMIURGO changes ${what} in ${code}, as it says here: a new version of the record, with its checks and links.`,
+          `DEMIURGO changes ${what} in ${code}, as it says here: a new version of the record, with its acceptance criteria and links.`,
           approve
             ? 'It is settled: approving it puts it in force.'
             : 'You keep working on it: the new version is recorded as an accepted proposal, not settled yet.',

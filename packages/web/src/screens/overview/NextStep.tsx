@@ -19,7 +19,7 @@ const WORDS = messages(
     approveEpicBody: (title: string) =>
       `Read "${title}": its goal, its features in order and when it is done. Approving it starts the design of its features, one at a time.`,
     build: (title: string) => `Build "${title}"`,
-    buildBody: 'It is ready to build: build it outside with its brief, then record the evidence of each check.',
+    buildBody: 'It is ready to build: build it outside with its brief, then record the evidence of each criterion.',
     passArchitecture: 'Pass the Architecture stage',
     passArchitectureBody: 'A feature is approved: before building it, settle the architecture in its stage.',
     closeGaps: (title: string) => `Close what "${title}" is missing`,
@@ -35,7 +35,7 @@ const WORDS = messages(
     openThread: 'Open its thread',
     seeMissing: 'See what is missing',
     goToStages: 'Go to the stages',
-    openChecks: 'Open its checks',
+    openChecks: 'Open its acceptance criteria',
   },
   {
     eyebrow: 'Siguiente paso',
@@ -43,7 +43,7 @@ const WORDS = messages(
     approveEpicBody: (title: string) =>
       `Lee «${title}»: su objetivo, sus funcionalidades en orden y cuándo está terminada. Al aprobarla empieza el diseño de sus funcionalidades, de una en una.`,
     build: (title: string) => `Construir «${title}»`,
-    buildBody: 'Está lista para construir: constrúyela fuera con su encargo y apunta después la evidencia de cada comprobación.',
+    buildBody: 'Está lista para construir: constrúyela fuera con su encargo y apunta después la evidencia de cada criterio.',
     passArchitecture: 'Pasar la etapa Arquitectura',
     passArchitectureBody: 'Hay una funcionalidad aprobada: antes de construirla, cierra la arquitectura en su etapa.',
     closeGaps: (title: string) => `Cerrar lo que le falta a «${title}»`,
@@ -59,7 +59,7 @@ const WORDS = messages(
     openThread: 'Abrir su hilo',
     seeMissing: 'Ver lo que falta',
     goToStages: 'Ir a las etapas',
-    openChecks: 'Abrir sus comprobaciones',
+    openChecks: 'Abrir sus criterios de aceptación',
   },
 );
 

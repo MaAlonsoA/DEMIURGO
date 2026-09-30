@@ -18,15 +18,15 @@ export const NEW_RECORD = messages(
     areaError: (hint: string) => `Lowercase letters and underscores only, like ${hint}.`,
     size: 'Size',
     sizeOption: (size: string, points: number) => `${size} · ${points} points`,
-    checks: 'Checks',
+    checks: 'Acceptance criteria',
     checksNoteRequired: (type: string) => `A ${type.toLowerCase()} needs at least one: how you'll know it holds.`,
     checksNoteOptional: 'How you will know it holds.',
-    addACheck: 'Add a check',
+    addACheck: 'Add a criterion',
     thisNewRecord: 'This new record',
     draft: 'Draft',
     versionOneAsDraft: 'Version 1 is saved as a draft. Nothing is decided until you approve it.',
     summary: (type: string, checks: number, links: number) =>
-      `${type}, version 1 as a draft${checks > 0 ? ` · ${checks} ${checks === 1 ? 'check' : 'checks'}` : ''}${
+      `${type}, version 1 as a draft${checks > 0 ? ` · ${checks} ${checks === 1 ? 'criterion' : 'criteria'}` : ''}${
         links > 0 ? ` · ${links} ${links === 1 ? 'link' : 'links'}` : ''
       }`,
     savedAnnounce: (code: string, version: number) => `Saved: ${code} v${version} is a draft.`,
@@ -36,9 +36,9 @@ export const NEW_RECORD = messages(
         ({
           decision: 'Something decided about the product: what, and what follows from it.',
           epic: 'An epic: a capability too big for one feature, with its goal, its features in order and when it is done.',
-          fdr: 'A feature: what it is for, what it covers and how it behaves, with the checks that prove it.',
-          task: 'A task of a feature: a piece of its construction, small enough to build and check on its own, with its own checks.',
-          adr: 'A technical choice: the options weighed, the one taken and its consequences, with its checks.',
+          fdr: 'A feature: what it is for, what it covers and how it behaves, with the acceptance criteria that prove it.',
+          task: 'A task of a feature: a piece of its construction, small enough to build and check on its own, with its own acceptance criteria.',
+          adr: 'A technical choice: the options weighed, the one taken and its consequences, with its acceptance criteria.',
           bug: 'Something that does not work: how to reproduce it, what was expected and what happened.',
           requirement:
             'A requirement in EARS form ("When <trigger>, the system shall <response>"), with the measurable criterion that shows it is met.',
@@ -63,17 +63,17 @@ export const NEW_RECORD = messages(
     areaError: (hint: string) => `Solo minúsculas y guiones bajos, como ${hint}.`,
     size: 'Tamaño',
     sizeOption: (size: string, points: number) => `${size} · ${points} puntos`,
-    checks: 'Comprobaciones',
-    checksNoteRequired: (type: string) => `${type} necesita al menos una: cómo sabrás que se cumple.`,
+    checks: 'Criterios de aceptación',
+    checksNoteRequired: (type: string) => `${type} necesita al menos uno: cómo sabrás que se cumple.`,
     checksNoteOptional: 'Cómo sabrás que se cumple.',
     // `type` ya llega en minúsculas y en español (p. ej. «funcionalidad»); no se antepone artículo
     // porque el género varía según el tipo de registro.
-    addACheck: 'Añadir una comprobación',
+    addACheck: 'Añadir un criterio',
     thisNewRecord: 'Este registro nuevo',
     draft: 'Borrador',
     versionOneAsDraft: 'La versión 1 se guarda como borrador. Nada se decide hasta que lo apruebes.',
     summary: (type: string, checks: number, links: number) =>
-      `${type}, versión 1 como borrador${checks > 0 ? ` · ${checks} ${checks === 1 ? 'comprobación' : 'comprobaciones'}` : ''}${
+      `${type}, versión 1 como borrador${checks > 0 ? ` · ${checks} ${checks === 1 ? 'criterio' : 'criterios'}` : ''}${
         links > 0 ? ` · ${links} ${links === 1 ? 'enlace' : 'enlaces'}` : ''
       }`,
     savedAnnounce: (code: string, version: number) => `Guardado: ${code} v${version} es un borrador.`,
@@ -83,9 +83,9 @@ export const NEW_RECORD = messages(
         ({
           decision: 'Algo decidido sobre el producto: qué, y qué se sigue de ello.',
           epic: 'Una épica: una capacidad demasiado grande para una sola funcionalidad, con su objetivo, sus funcionalidades en orden y cuándo está hecha.',
-          fdr: 'Una funcionalidad: para qué sirve, qué cubre y cómo se comporta, con las comprobaciones que lo demuestran.',
-          task: 'Una tarea de una funcionalidad: un trozo de su construcción, lo bastante pequeño para hacerlo y comprobarlo por sí solo, con sus propias comprobaciones.',
-          adr: 'Una elección técnica: las opciones sopesadas, la elegida y sus consecuencias, con sus comprobaciones.',
+          fdr: 'Una funcionalidad: para qué sirve, qué cubre y cómo se comporta, con los criterios de aceptación que lo demuestran.',
+          task: 'Una tarea de una funcionalidad: un trozo de su construcción, lo bastante pequeño para hacerlo y comprobarlo por sí solo, con sus propios criterios de aceptación.',
+          adr: 'Una elección técnica: las opciones sopesadas, la elegida y sus consecuencias, con sus criterios de aceptación.',
           bug: 'Algo que no funciona: cómo reproducirlo, qué se esperaba y qué pasó.',
           requirement:
             'Un requisito en forma EARS ("Cuando <disparador>, el sistema deberá <respuesta>"), con el criterio medible que demuestra que se cumple.',

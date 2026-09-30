@@ -62,15 +62,15 @@ export function missing(form: VersionForm): string[] {
   if (blank(form.title)) out.push('Give the version a title.');
   for (const s of form.sections) if (blank(s.content)) out.push(`Write the ${s.title} section.`);
   const undecided = form.checks.filter((c) => c.code !== null && c.choice === null).length;
-  if (undecided > 0) out.push(`Choose Keep, Change or Drop for ${undecided} ${undecided === 1 ? 'check' : 'checks'}.`);
+  if (undecided > 0) out.push(`Choose Keep, Change or Drop for ${undecided} ${undecided === 1 ? 'criterion' : 'criteria'}.`);
   for (const c of form.checks) {
     if (c.code !== null && c.choice === 'change' && incomplete(c)) {
       out.push(`Give ${c.code} a title, a statement and how it is checked.`);
     }
   }
   const newOnes = form.checks.filter((c) => c.code === null && incomplete(c)).length;
-  if (newOnes === 1) out.push('Give the new check a title, a statement and how it is checked.');
-  if (newOnes > 1) out.push(`Give the ${newOnes} new checks a title, a statement and how they are checked.`);
+  if (newOnes === 1) out.push('Give the new criterion a title, a statement and how it is verified.');
+  if (newOnes > 1) out.push(`Give the ${newOnes} new criteria a title, a statement and how they are verified.`);
   return out;
 }
 

@@ -181,9 +181,9 @@ export const QUESTIONS_TAB = messages(
     itAffects: 'It affects',
     beforeItCanBeBuilt: 'Before it can be built',
     howWellKnowItWorks: "How we'll know it works",
-    noChecksYet: 'This version has no checks yet.',
+    noChecksYet: 'This version has no acceptance criteria yet.',
     later: 'Later',
-    laterDecision: 'Becomes a decision and adds checks on its own (later increment). Today confirming only answers the question.',
+    laterDecision: 'Becomes a decision and adds acceptance criteria on its own (later increment). Today confirming only answers the question.',
   },
   {
     confirmNowShows: (question) => `Si confirmas ahora se muestra: ${question}`,
@@ -211,10 +211,10 @@ export const QUESTIONS_TAB = messages(
     itAffects: 'Afecta a',
     beforeItCanBeBuilt: 'Antes de poder construirse',
     howWellKnowItWorks: 'Cómo sabremos que funciona',
-    noChecksYet: 'Esta versión aún no tiene comprobaciones.',
+    noChecksYet: 'Esta versión aún no tiene criterios de aceptación.',
     later: 'Más adelante',
     laterDecision:
-      'Se convierte en una decisión y añade comprobaciones por su cuenta (incremento posterior). Hoy confirmar solo responde la pregunta.',
+      'Se convierte en una decisión y añade criterios de aceptación por su cuenta (incremento posterior). Hoy confirmar solo responde la pregunta.',
   },
 );
 
@@ -225,14 +225,14 @@ export const SECTIONS = messages(
     recordSectionsLabel: 'Record sections',
     tabOverview: 'Overview',
     tabQuestions: 'Questions',
-    tabChecks: 'Checks',
+    tabChecks: 'Acceptance criteria',
     tabHistory: 'History',
   },
   {
     recordSectionsLabel: 'Secciones del registro',
     tabOverview: 'Resumen',
     tabQuestions: 'Preguntas',
-    tabChecks: 'Comprobaciones',
+    tabChecks: 'Criterios de aceptación',
     tabHistory: 'Historial',
   },
 );

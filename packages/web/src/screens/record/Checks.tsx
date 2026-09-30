@@ -108,7 +108,11 @@ export function EvidenceLine({
           <>
             <span className="inline-flex items-center gap-1.5 font-medium text-success-text">
               <CheckCircleIcon size={14} />
-              {t.checked}
+              {e.test_name && e.kind !== "manual"
+                ? t.verifiedByTest(e.test_name)
+                : e.kind === "manual"
+                  ? t.checkedByHand
+                  : t.checked}
             </span>
             {c.verification === "automatic" && e.kind === "manual" ? (
               <span className="text-fg-2">
@@ -158,7 +162,7 @@ export function EvidenceLine({
               {e.pr_url}
             </a>
           ) : null}
-          {e.test_name ? (
+          {e.test_name && e.kind === "manual" ? (
             <span className="ml-2 font-mono text-xs text-fg-2">
               {t.testLabel}
               {e.test_name}
@@ -298,7 +302,7 @@ export function CheckList({
             ) : null}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-edge-subtle pt-2 text-sm text-fg-2">
               <span>
-                <span className="font-medium text-fg">{t.how}</span>
+                <span className="font-medium text-fg">{t.howVerified}</span>
                 {c.check}
               </span>
               <VerificationMark

@@ -261,6 +261,24 @@ El método permite iteraciones y regreso a decisiones anteriores mediante reglas
 
 El marco principal de referencia para el ciclo de vida del software será **ISO/IEC/IEEE 12207:2026**, que describe procesos aplicables de forma iterativa e incremental sin imponer nombres de artefactos, un modelo de ciclo de vida o una metodología. Se complementará con **ISO/IEC/IEEE 29148:2018** para ingeniería de requisitos y **ISO/IEC/IEEE 29119-2:2021** para procesos de pruebas. Como guía práctica de trazabilidad y verificación se consultarán la [matriz de verificación de requisitos de NASA](https://www.nasa.gov/reference/appendix-d-requirements-verification-matrix/) y su guía de [verificación del producto](https://www.nasa.gov/reference/5-3-product-verification/), atendiendo al origen, método, resultados y evidencia.
 
+### Como lo haría un equipo profesional de primer nivel
+
+Acordado el 30-09-2026. DEMIURGO replica cómo trabaja en la vida real un equipo de desarrollo top tier, una factoría de software. Todo lo que propone, muestra y guía sigue una práctica real con nombre, y no inventa procesos que ningún equipo serio usaría. Este es el criterio para decidir qué diseñar en la v3 y para revisar lo que ya existe.
+
+Prácticas adoptadas (en la v2.3 y como base del diseño de la v3):
+
+- **Cada cosa se decide en su sitio.** Una propuesta sobre un registro se decide en su ficha, una pregunta en su hilo, el plan de una épica en la épica y la definición en Producto. La bandeja de avisos solo indica qué espera y lleva allí, como las notificaciones de GitHub. Cada lista marca «Te espera» con una sola regla.
+- **Funcionalidad = historia con flujo principal y criterios BDD.** El comportamiento es el flujo principal de un caso de uso, en 4 a 7 pasos numerados. Cada criterio de aceptación va en formato Dado/Cuando/Entonces y dice qué paso comprueba. Ningún paso queda sin criterio (Definition of Ready).
+- **Historias pequeñas (INVEST).** Una funcionalidad tiene como máximo 8 criterios; si no cabe, se divide.
+- **Tareas = subtareas de la historia.** Una tarea es un trozo de implementación con objetivo, alcance y tamaño, y dice qué criterios de su funcionalidad cubre; los criterios viven en la historia.
+- **GitHub flow y ATDD al construir.** Cada tarea tiene una rama y un pull request, y cada criterio automático una prueba cuyo título empieza por su código. La evidencia enlaza el pull request y la prueba, y «hecho» lo marca la persona tras el merge.
+- **El diseño se revisa como un RFC, no en ramas.** El paso de borrador a aprobado es la revisión del diseño, y muestra los cambios desde la última versión aprobada como el diff de un pull request. Un rechazo vuelve al hilo con su motivo, como «Request changes».
+- **Seguridad desde el diseño (SDL/STRIDE).** El análisis de amenazas se hace antes de construir, junto a la arquitectura, y cada mitigación es un criterio de la funcionalidad o tarea que la construye.
+- **Metas de calidad medibles.** Una meta sin número no se da por buena.
+- **Walking skeleton.** La primera funcionalidad se diseña y se construye de punta a punta con la infraestructura mínima, antes de ensanchar.
+- **Preguntas como alternativas de un RFC.** Cada opción trae su coste y una recomendada.
+- **Épicas con fuera de alcance y estado, y un backlog ordenado por la persona.**
+
 Estas referencias se adaptarán al producto; no se afirma conformidad ni certificación, ni que formen una tríada universal. DEMIURGO debe aportar el rigor del método sin exigir que el usuario conozca la terminología o gestione documentos normativos. El catálogo de etapas y la adaptación concreta de prácticas siguen abiertos. ([ISO/IEC/IEEE 12207:2026](https://www.iso.org/standard/90219.html), [ISO/IEC/IEEE 29148:2018](https://www.iso.org/standard/72089.html), [ISO/IEC/IEEE 29119-2:2021](https://www.iso.org/standard/79428.html))
 
 ## 5. Propuestas y cuestiones abiertas

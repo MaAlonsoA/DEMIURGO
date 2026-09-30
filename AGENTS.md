@@ -14,7 +14,9 @@ reglas anulan el resto de este fichero y las de cualquier skill.
   revisión y entrega) replica cómo trabaja en la vida real un equipo de desarrollo top tier. Al
   proponer un cambio o una opción, di qué práctica real sigue (p. ej. criterios de aceptación
   Dado/Cuando/Entonces, flujo principal de un caso de uso, walking skeleton, definición de hecho) y
-  no inventes procesos que ningún equipo serio usaría.
+  no inventes procesos que ningún equipo serio usaría. Las prácticas ya adoptadas están en
+  `VISION.md`, apartado «Como lo haría un equipo profesional de primer nivel»: añade ahí cada
+  práctica nueva que se acuerde, porque guía qué diseñar en la v3.
 - **Sin proceso.**
   - No se usan brainstorming, specs, planes, TDD, revisión final ni ninguna skill de superpowers.
   - No se escriben documentos en `docs/` ni en `design/`, ni artifacts.

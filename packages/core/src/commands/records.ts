@@ -344,6 +344,9 @@ async function createVersion(
     throw new DomainError('validation', `Version ${data.number} is not later than the last one (${n}).`);
   }
   const number = data.number ?? n + 1;
+  // A design system's machine-readable spec travels with its text: a version made without one (a
+  // record_change edits sections only) keeps the previous version's.
+  const spec = data.spec ?? (record.type === 'design_system' ? ((base?.spec as typeof data.spec | null) ?? undefined) : undefined);
   const priors = base
     ? await ctx.trx.selectFrom('criteria').selectAll().where('record_version_id', '=', base.id).orderBy('position').execute()
     : [];
@@ -448,7 +451,7 @@ async function createVersion(
     })),
     annexes: data.annexes,
     increment: data.increment ?? null,
-    ...(data.spec ? { spec: data.spec } : {}),
+    ...(spec ? { spec } : {}),
   };
   const { id } = await ctx.trx
     .insertInto('record_versions')
@@ -465,7 +468,7 @@ async function createVersion(
       author: formatActor(ctx.actor),
       content_hash: fingerprint(content),
       practice_sources: data.practice_sources?.length ? JSON.stringify(data.practice_sources) : null,
-      spec: data.spec ? JSON.stringify(data.spec) : null,
+      spec: spec ? JSON.stringify(spec) : null,
       state: to,
     })
     .returning('id')

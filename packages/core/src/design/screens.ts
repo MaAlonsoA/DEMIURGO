@@ -12,19 +12,37 @@ import {
 } from '@demiurgo/domain';
 import type { Db } from '../db/connection.ts';
 
+/**
+ * A design system version's machine-readable spec: its own, or, when that version was made from text
+ * alone (an older record_change did not carry it), the most recent earlier version's that has one.
+ */
+export async function designSystemSpecOf(db: Db, recordId: string, n: number, own: unknown): Promise<unknown> {
+  if (own) return own;
+  const earlier = await db
+    .selectFrom('record_versions')
+    .select('spec')
+    .where('record_id', '=', recordId)
+    .where('n', '<', n)
+    .where('state', '<>', 'discarded')
+    .where('spec', 'is not', null)
+    .orderBy('n', 'desc')
+    .executeTakeFirst();
+  return earlier?.spec ?? null;
+}
+
 /** The project's approved design system: its code, version and component names; null without one. */
 export async function approvedDesignSystem(db: Db, projectId: string): Promise<{ code: string; version: number; components: string[] } | null> {
   const row = await db
     .selectFrom('record_versions')
     .innerJoin('records', 'records.id', 'record_versions.record_id')
-    .select(['records.code', 'record_versions.n', 'record_versions.spec'])
+    .select(['records.code', 'record_versions.n', 'record_versions.record_id', 'record_versions.spec'])
     .where('records.project_id', '=', projectId)
     .where('records.type', '=', 'design_system')
     .where('record_versions.state', '=', 'approved')
     .orderBy('record_versions.n', 'desc')
     .executeTakeFirst();
   if (!row) return null;
-  const parsed = designSystemSpec.safeParse(row.spec);
+  const parsed = designSystemSpec.safeParse(await designSystemSpecOf(db, row.record_id, row.n, row.spec));
   return { code: row.code, version: row.n, components: parsed.success ? parsed.data.components.map((c) => c.name) : [] };
 }
 

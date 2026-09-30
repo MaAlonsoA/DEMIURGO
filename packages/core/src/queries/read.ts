@@ -29,7 +29,7 @@ import {
 import type { Db } from '../db/connection.ts';
 import { staleDependencies } from '../commands/proposals.ts';
 import { epicOrder } from '../commands/epic-order.ts';
-import { approvedDesignSystem, missingIn, screensOfFeatureVersion } from '../design/screens.ts';
+import { approvedDesignSystem, designSystemSpecOf, missingIn, screensOfFeatureVersion } from '../design/screens.ts';
 import { threadDraft } from './draft.ts';
 import { githubConfig } from '../github/client.ts';
 import { taskViewOfRecord } from './task-view.ts';
@@ -645,6 +645,7 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
           .orderBy('created_at')
           .execute()
       : [];
+    const spec = r.type === 'design_system' ? await designSystemSpecOf(db, r.id, v.n, v.spec) : (v.spec ?? null);
     detail.push({
       id: v.id,
       n: v.n,
@@ -664,8 +665,8 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
       inferred_questions: inferred,
       practice_sources: (v.practice_sources ?? []) as unknown[],
       // A design system's machine-readable part and its advisory warnings (null / empty for other records).
-      spec: v.spec ?? null,
-      warnings: v.spec && r.type === 'design_system' ? designSystemWarnings(v.spec as DesignSystemSpec) : [],
+      spec,
+      warnings: spec && r.type === 'design_system' ? designSystemWarnings(spec as DesignSystemSpec) : [],
       criteria: await Promise.all(
         criteria.map(async (c) => {
           const evidence = await evidenceOf(db, c.id);

@@ -11,9 +11,11 @@
 //   node packages/api/src/cli.ts evaluate-classifier <provider> <model> [effort|-] [test|dev|all] [v1|v1-en]   (spends quota)
 //     provider `jev` (TypeSafe, key TYPESAFE_API_KEY): sends the evaluation set out; it spends credits, ~0.01 USD
 //   node packages/api/src/cli.ts translate-records <projectId> [limit]         (proposes English versions; calls the translator)
+//   node packages/api/src/cli.ts evidence-junit <projectId> <file.xml> [--pr <url>] [--ref <sha>]   (posts CI results to the running API; token in DEMIURGO_AGENT_TOKEN, URL in DEMIURGO_URL or http://127.0.0.1:8100)
 //   node packages/api/src/cli.ts import-design <projectId> [dir]                (creates the H1 pending batch)
 //   node packages/api/src/cli.ts export-design <projectId> [--check dir | --out dir | dir]
 
+import { readFileSync } from 'node:fs';
 import {
   typeSafeEvaluationKey,
   type Observer,
@@ -95,6 +97,32 @@ const commands: Record<string, () => Promise<void>> = {
     } finally {
       await c.close();
     }
+  },
+
+  // Runs from CI: the agent token (an agent's credential, never printed) comes from the environment.
+  async 'evidence-junit'() {
+    const [projectId, file] = args;
+    if (!projectId || !file) throw new Error('Usage: evidence-junit <projectId> <file.xml> [--pr <url>] [--ref <sha>]');
+    const token = process.env.DEMIURGO_AGENT_TOKEN;
+    if (!token) throw new Error('DEMIURGO_AGENT_TOKEN is not set.');
+    const flag = (name: string): string | undefined => {
+      const i = args.indexOf(name);
+      return i >= 0 ? args[i + 1] : undefined;
+    };
+    const query = new URLSearchParams();
+    const pr = flag('--pr');
+    const ref = flag('--ref');
+    if (pr) query.set('pr_url', pr);
+    if (ref) query.set('reference', ref);
+    const base = process.env.DEMIURGO_URL ?? 'http://127.0.0.1:8100';
+    const res = await fetch(`${base}/api/projects/${projectId}/evidence/junit${query.size ? `?${query}` : ''}`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/xml' },
+      body: readFileSync(file, 'utf8'),
+    });
+    const text = await res.text();
+    console.log(text);
+    if (!res.ok) process.exitCode = 1;
   },
 
   async 'create-person'() {

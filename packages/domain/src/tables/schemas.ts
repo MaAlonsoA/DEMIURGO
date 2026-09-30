@@ -94,7 +94,9 @@ export const MINIMUM_AUTHORITY_STATES: Readonly<Record<string, readonly string[]
 
 /** Commands each agent type can run: converse, register sources and propose. */
 export const ALLOWED_AGENT_COMMANDS: Readonly<Record<'agent_external' | 'agent_run', readonly string[]>> = {
-  agent_external: ['message.post', 'source.register', 'batch.submit', 'proposal.create'],
+  // evidence.ingest_junit: a CI job with an agent token reports its test results; it decides nothing (the
+  // evidence is recorded by system:ci-junit and only shows a criterion as verified or failing).
+  agent_external: ['message.post', 'source.register', 'batch.submit', 'proposal.create', 'evidence.ingest_junit'],
   agent_run: ['message.post', 'batch.submit', 'proposal.create'],
 };
 

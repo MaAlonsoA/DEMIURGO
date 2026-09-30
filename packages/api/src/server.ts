@@ -244,6 +244,28 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
     };
   });
 
+  // CI results (JUnit XML) become evidence of the criteria whose code starts each test title. JSON
+  // `{ junit, pr_url?, reference? }` or the raw XML with `pr_url` and `reference` in the query string.
+  app.addContentTypeParser(['application/xml', 'text/xml'], { parseAs: 'string', bodyLimit: 6 * 1024 * 1024 }, (_req, body, done) =>
+    done(null, body),
+  );
+  app.post('/api/projects/:projectId/evidence/junit', { bodyLimit: 6 * 1024 * 1024 }, async (req) => {
+    const actor = actorOf(req);
+    const { projectId } = req.params as { projectId: string };
+    checkAgentScope(req, projectId);
+    const query = z.object({ pr_url: z.string().optional(), reference: z.string().optional() }).parse(req.query ?? {});
+    const data =
+      typeof req.body === 'string'
+        ? { junit: req.body, ...(query.pr_url ? { pr_url: query.pr_url } : {}), ...(query.reference ? { reference: query.reference } : {}) }
+        : (req.body ?? {});
+    const root = interactionRoot(req, actor, 'evidence.ingest_junit', '/api/projects/:projectId/evidence/junit', projectId);
+    const { r, interactionId } = await services.observer.interaction(root, async (ctx) => ({
+      r: await executeCommand(services, { command: 'evidence.ingest_junit', actor, projectId, data }),
+      interactionId: ctx.id,
+    }));
+    return { result: r.result ?? null, seq: r.seq, interaction_id: interactionId };
+  });
+
   app.get('/api/tables', async (req) => {
     requireQuery(req, 'query.tables');
     return { capabilities: CAPABILITIES, transitions: TRANSITIONS };

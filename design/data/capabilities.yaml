@@ -137,6 +137,7 @@ commands:
   work_step.fail: { entity: work_step, allowed: [system], decisive: false, description: "Mark a work step as failed with its failure_kind." }
   work_step.cancel: { entity: work_step, allowed: [system], decisive: false, description: "Cancel a work step." }
   evidence.record: { entity: evidence, allowed: [system], decisive: false, description: "Record evidence for a system gate." }
+  evidence.ingest_junit: { entity: evidence, allowed: [agent_external, human], decisive: false, description: "Record system evidence for criteria from the JUnit results of a CI run (test titles start with the criterion code)." }
   evidence.record_manual: { entity: evidence, allowed: [human], decisive: false, description: "Record human evidence for a manual AC." }
 
   build_request.request: { entity: build_request, allowed: [human], decisive: false, description: "Record a request to build a ready task, with its brief frozen; nothing is launched." }

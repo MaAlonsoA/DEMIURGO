@@ -874,6 +874,15 @@ export const CAPABILITIES = {
       "decisive": false,
       "description": "Record evidence for a system gate."
     },
+    "evidence.ingest_junit": {
+      "entity": "evidence",
+      "allowed": [
+        "agent_external",
+        "human"
+      ],
+      "decisive": false,
+      "description": "Record system evidence for criteria from the JUnit results of a CI run (test titles start with the criterion code)."
+    },
     "evidence.record_manual": {
       "entity": "evidence",
       "allowed": [
@@ -2321,6 +2330,14 @@ export const TRANSITIONS = {
       "transitions": [
         {
           "command": "evidence.record",
+          "from": "new",
+          "to": "recorded",
+          "guards": [
+            "ac_manual"
+          ]
+        },
+        {
+          "command": "evidence.ingest_junit",
           "from": "new",
           "to": "recorded"
         },

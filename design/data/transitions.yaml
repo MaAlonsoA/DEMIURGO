@@ -327,7 +327,8 @@ entities:
     states: { recorded: Recorded }
     authority: []
     transitions:
-      - { command: evidence.record, from: new, to: recorded }
+      - { command: evidence.record, from: new, to: recorded, guards: [ac_manual] }
+      - { command: evidence.ingest_junit, from: new, to: recorded }
       - { command: evidence.record_manual, from: new, to: recorded, guards: [ac_manual] }
 
   build_request:

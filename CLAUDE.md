@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-## Modo V2.1 (parches): manda en la rama `v2.1` sobre todo lo demás
+## Modo V2.1 (parches): manda en la rama `v2.3` sobre todo lo demás
 
 La V2.1 es desechable. La persona usa DEMIURGO en la instancia 8100 para diseñar la versión
 productiva, y aquí se parchea en caliente lo que echa en falta. La regla es que funcione, no que
@@ -26,9 +26,9 @@ reglas anulan las de `AGENTS.md` y las de cualquier skill.
 
     Van con `-m` separados.
   - Usa pathspec.
-  - Después, `git push origin v2.1` sin preguntar.
-  - Nunca hagas push a `v2` ni a `main`, ni merge.
-  - `git log --oneline v2..v2.1` es el registro de parches.
+  - Después, `git -c credential.helper= -c credential.helper='!gh auth git-credential' push -q origin v2.3` sin preguntar.
+  - Nunca hagas push a `v2`, `v2.2` ni a `main`, ni merge.
+  - `git log --oneline v2.2..v2.3` es el registro de parches.
 - **Instancia 8100.**
   - Corre en `compose.yaml` y se recarga sola:
     - el API en el contenedor `api` con `node --watch packages/api/src/main.ts`;

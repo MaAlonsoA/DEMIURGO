@@ -621,6 +621,19 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     return stop('merge', 'changes_requested');
   }
   const armed = await stage(r, 'merge', async () => {
+    if (repo.value.protection === 'demiurgo') {
+      // GitHub Free private repo: no branch protection or auto-merge, so DEMIURGO applies the same rule itself.
+      const checks = await d.github.checkRunsFor(cfg, owner, repoName, headSha);
+      const ci = checks.find((c) => c.name === 'ci');
+      const red: string[] = [];
+      if (!ci || ci.status !== 'completed' || ci.conclusion !== 'success') red.push(`ci (${ci ? (ci.conclusion ?? ci.status) : 'missing'})`);
+      // demiurgo/review is the status set on the head SHA in `publish`; demiurgo/design was set green in `status`
+      // (a failing design check stops the attempt before the push), so both come from this same run.
+      if (!approved) red.push(REVIEW_STATUS);
+      if (red.length > 0) throw new DomainError('validation', `Not merged: required checks are not green: ${red.join(', ')}.`);
+      await d.github.mergePullRequest(cfg, owner, repoName, pull.number);
+      return { value: 'direct', detail: { via: 'merge', protection: 'demiurgo', pr_url: pull.url }, outcome: 'waiting' as const };
+    }
     if (!pull.nodeId) throw new DomainError('not_found', 'The pull request has no node id to enable auto-merge on.');
     try {
       await d.github.enableAutoMerge(cfg, pull.nodeId);

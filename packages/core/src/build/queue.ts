@@ -56,7 +56,7 @@ export type BuildQueue = {
   /** Open requests on tasks no longer in the queue or Waiting (built, for instance): stale. */
   stale: QueueTask[];
   totals: { tasks: number; points: number; unsized: number };
-  repository: { path: string | null; branch: string };
+  repository: { path: string | null; branch: string; merge_rule_by_demiurgo: boolean };
 };
 
 const DEFAULT_BRANCH = "main";
@@ -65,16 +65,22 @@ const DEFAULT_BRANCH = "main";
 export async function repositoryOf(
   db: Db,
   projectId: string,
-): Promise<{ path: string | null; branch: string }> {
+): Promise<{ path: string | null; branch: string; merge_rule_by_demiurgo: boolean }> {
   const root = projectsDir();
   const repo = await db
     .selectFrom("project_repos")
     .select("dir")
     .where("project_id", "=", projectId)
     .executeTakeFirst();
+  const gh = await db
+    .selectFrom("project_github")
+    .select("protection")
+    .where("project_id", "=", projectId)
+    .executeTakeFirst();
   return {
     path: root && repo ? join(root, repo.dir) : null,
     branch: DEFAULT_BRANCH,
+    merge_rule_by_demiurgo: gh?.protection === "demiurgo",
   };
 }
 

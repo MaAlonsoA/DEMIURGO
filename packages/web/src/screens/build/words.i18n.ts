@@ -11,6 +11,7 @@ export const BUILD = messages(
     unsized: (n: number) => `${n} without size`,
     repository: (path: string | null, branch: string) =>
       path ? `Repository ${path}, branch ${branch}` : `No repository folder configured · branch ${branch}`,
+    mergeRule: 'Merge rule enforced by DEMIURGO (branch protection is not available on this GitHub plan)',
     queue: 'Ready to build',
     empty: 'No task is ready to build. Approved tasks that wait on something are listed under Waiting.',
     loading: 'Loading the build queue',
@@ -54,6 +55,7 @@ export const BUILD = messages(
     unsized: (n: number) => `${n} sin tamaño`,
     repository: (path: string | null, branch: string) =>
       path ? `Repositorio ${path}, rama ${branch}` : `Sin carpeta de repositorio configurada · rama ${branch}`,
+    mergeRule: 'Regla de fusión aplicada por DEMIURGO (la protección de ramas no está disponible en este plan de GitHub)',
     queue: 'Listas para construir',
     empty: 'Ninguna tarea está lista para construir. Las tareas aprobadas que esperan algo están en En espera.',
     loading: 'Cargando la cola de construcción',

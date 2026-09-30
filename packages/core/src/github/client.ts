@@ -123,7 +123,17 @@ export const repoNameFor = (dir: string) =>
 
 export const REQUIRED_CHECKS = ['ci', 'demiurgo/review', 'demiurgo/design'];
 
-export type ProjectGithub = { owner: string; repo: string; url: string };
+export type ProjectGithub = { owner: string; repo: string; url: string; protection: 'github' | 'demiurgo' };
+
+/**
+ * GitHub answers 403 (or 404) to these calls when the plan lacks the feature. Per GitHub Docs,
+ * protected branches ("About protected branches", https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)
+ * and auto-merge ("Automatically merging a pull request", https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/automatically-merging-a-pull-request)
+ * are available in public repositories with GitHub Free, and in public and private repositories only
+ * with Pro, Team and Enterprise. A private repo on Free therefore has neither, and DEMIURGO enforces
+ * the rule itself (build/orchestrator.ts, merge stage).
+ */
+const planLimited = (e: unknown) => /\((403|404)\)/.test(e instanceof Error ? e.message : String(e));
 
 /** Creates (if missing) the project's private repo, links the local one, pushes main and protects it. Idempotent. */
 export async function ensureProjectRepo(db: Db, projectId: string, cfg: GithubConfig): Promise<ProjectGithub> {
@@ -140,30 +150,48 @@ export async function ensureProjectRepo(db: Db, projectId: string, cfg: GithubCo
     const path = who.data?.type === 'Organization' ? `/orgs/${owner}/repos` : '/user/repos';
     await call(cfg, 'POST', path, { body: { name: repo, private: true, auto_init: false } });
   }
-  await call(cfg, 'PATCH', `/repos/${owner}/${repo}`, {
-    body: { allow_auto_merge: true, delete_branch_on_merge: true, allow_squash_merge: true },
-  });
+  let protection: 'github' | 'demiurgo' = 'github';
+  try {
+    await call(cfg, 'PATCH', `/repos/${owner}/${repo}`, {
+      body: { allow_auto_merge: true, delete_branch_on_merge: true, allow_squash_merge: true },
+    });
+  } catch (e) {
+    if (!planLimited(e)) throw e;
+    protection = 'demiurgo';
+    // The repo still needs squash merges and branch cleanup, which every plan allows.
+    await call(cfg, 'PATCH', `/repos/${owner}/${repo}`, { body: { delete_branch_on_merge: true, allow_squash_merge: true } });
+  }
 
   const url = `https://github.com/${owner}/${repo}.git`;
   const remotes = (await git(repoDir, ['remote'])).split('\n').map((r) => r.trim());
   await git(repoDir, remotes.includes('origin') ? ['remote', 'set-url', 'origin', url] : ['remote', 'add', 'origin', url]);
   await pushBranch(repoDir, 'main', cfg);
 
-  await call(cfg, 'PUT', `/repos/${owner}/${repo}/branches/main/protection`, {
-    body: {
-      required_status_checks: { strict: true, contexts: REQUIRED_CHECKS },
-      enforce_admins: false,
-      required_pull_request_reviews: { required_approving_review_count: 0 },
-      restrictions: null,
-    },
-  });
+  try {
+    await call(cfg, 'PUT', `/repos/${owner}/${repo}/branches/main/protection`, {
+      body: {
+        required_status_checks: { strict: true, contexts: REQUIRED_CHECKS },
+        enforce_admins: false,
+        required_pull_request_reviews: { required_approving_review_count: 0 },
+        restrictions: null,
+      },
+    });
+  } catch (e) {
+    if (!planLimited(e)) throw e;
+    protection = 'demiurgo';
+  }
+  if (protection === 'demiurgo') {
+    console.warn(
+      `[github] ${owner}/${repo}: branch protection or auto-merge is not available on this GitHub plan (private repo on Free); DEMIURGO enforces the merge rule itself (${REQUIRED_CHECKS.join(', ')} must be green).`,
+    );
+  }
 
   await db
     .insertInto('project_github')
-    .values({ project_id: projectId, owner, repo })
-    .onConflict((oc) => oc.column('project_id').doNothing())
+    .values({ project_id: projectId, owner, repo, protection })
+    .onConflict((oc) => oc.column('project_id').doUpdateSet({ protection }))
     .execute();
-  return { owner, repo, url: `https://github.com/${owner}/${repo}` };
+  return { owner, repo, url: `https://github.com/${owner}/${repo}`, protection };
 }
 
 // ---------------------------------------------------------------------------------- pull requests

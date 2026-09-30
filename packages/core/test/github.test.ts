@@ -111,7 +111,7 @@ describe('github', () => {
         return { status: 200, json: {} };
       });
       const linked = await ensureProjectRepo(s.db, projectId, cfg);
-      expect(linked).toEqual({ owner: 'ana', repo: 'gh-app', url: 'https://github.com/ana/gh-app' });
+      expect(linked).toEqual({ owner: 'ana', repo: 'gh-app', url: 'https://github.com/ana/gh-app', protection: 'github' });
       const create = calls.find((c) => c.method === 'POST');
       expect(create?.url).toBe('https://api.github.com/user/repos');
       expect(create?.body).toEqual({ name: 'gh-app', private: true, auto_init: false });
@@ -122,7 +122,7 @@ describe('github', () => {
       });
       const protection = calls.find((c) => c.method === 'PUT');
       expect(protection?.url).toContain('/repos/ana/gh-app/branches/main/protection');
-      expect(protection?.body.required_status_checks).toEqual({ strict: true, contexts: ['ci', 'demiurgo/review'] });
+      expect(protection?.body.required_status_checks).toEqual({ strict: true, contexts: ['ci', 'demiurgo/review', 'demiurgo/design'] });
       expect(protection?.body.restrictions).toBeNull();
       expect(execFileSync('git', ['-C', bare, 'rev-parse', 'main'], { encoding: 'utf8' }).trim()).toBe(g('rev-parse', 'main').trim());
       expect(readFileSync(join(dir, '.git', 'config'), 'utf8')).toContain('url = https://github.com/ana/gh-app.git');
@@ -133,6 +133,48 @@ describe('github', () => {
       expect(again.calls.some((c) => c.method === 'POST')).toBe(false);
       const links = await s.db.selectFrom('project_github').selectAll().where('project_id', '=', projectId).execute();
       expect(links).toHaveLength(1);
+      expect(links[0]?.protection).toBe('github');
+    } finally {
+      for (const k of Object.keys(process.env)) if (!(k in saved)) delete process.env[k];
+      process.env.DEMIURGO_PROJECTS_DIR = saved.DEMIURGO_PROJECTS_DIR;
+      if (saved.DEMIURGO_PROJECTS_DIR === undefined) delete process.env.DEMIURGO_PROJECTS_DIR;
+    }
+  });
+
+  it('a private repo on GitHub Free (403 on auto-merge and protection) still sets up, and records that DEMIURGO enforces the merge rule', async () => {
+    const s = environment().services;
+    const { projectId } = await executeCommand(s, { command: 'project.create', actor: human('ana'), data: { name: 'Gh Free' } });
+    const root = mkdtempSync(join(tmpdir(), 'dmg-gh-'));
+    const dir = join(root, 'gh-free');
+    mkdirSync(dir);
+    const g = (...a: string[]) => execFileSync('git', ['-C', dir, ...a], { encoding: 'utf8' });
+    g('init', '-q', '-b', 'main');
+    g('config', 'user.email', 't@t');
+    g('config', 'user.name', 't');
+    writeFileSync(join(dir, 'README.md'), 'x');
+    g('add', '.');
+    g('commit', '-q', '-m', 'init');
+    const bare = join(root, 'remote.git');
+    execFileSync('git', ['init', '-q', '--bare', '-b', 'main', bare]);
+    const saved = { ...process.env };
+    process.env.DEMIURGO_PROJECTS_DIR = root;
+    process.env.GIT_CONFIG_COUNT = '1';
+    process.env.GIT_CONFIG_KEY_0 = `url.${bare}.insteadOf`;
+    process.env.GIT_CONFIG_VALUE_0 = 'https://github.com/ana/gh-free.git';
+    await s.db.insertInto('project_repos').values({ project_id: projectId, dir: 'gh-free' }).execute();
+    try {
+      const upgrade = { message: 'Upgrade to GitHub Pro or make this repository public to enable this feature.' };
+      const { calls, cfg } = mock((c) => {
+        if (c.method === 'GET' && c.url.endsWith('/repos/ana/gh-free')) return { status: 200, json: {} };
+        if (c.method === 'PATCH' && c.body?.allow_auto_merge) return { status: 403, json: upgrade };
+        if (c.method === 'PUT') return { status: 403, json: upgrade };
+        return { status: 200, json: {} };
+      });
+      const linked = await ensureProjectRepo(s.db, projectId, cfg);
+      expect(linked.protection).toBe('demiurgo');
+      expect(calls.filter((c) => c.method === 'PATCH').at(-1)?.body).toEqual({ delete_branch_on_merge: true, allow_squash_merge: true });
+      const link = await s.db.selectFrom('project_github').selectAll().where('project_id', '=', projectId).executeTakeFirstOrThrow();
+      expect(link.protection).toBe('demiurgo');
     } finally {
       for (const k of Object.keys(process.env)) if (!(k in saved)) delete process.env[k];
       process.env.DEMIURGO_PROJECTS_DIR = saved.DEMIURGO_PROJECTS_DIR;

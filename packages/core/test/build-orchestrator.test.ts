@@ -129,7 +129,7 @@ const junit = (failing: boolean) =>
 const diffWith = () =>
   `diff --git a/tests/x.test.ts b/tests/x.test.ts\n+++ b/tests/x.test.ts\n${codes.map((c) => `+it('${c} does what the criterion says', () => {});`).join('\n')}\n`;
 
-type Calls = { statuses: { state: string; sha: string; context: string }[]; autoMerge: string[]; reviews: number; opened: number; polls: { ci: number; merge: number }; prompts: string[] };
+type Calls = { statuses: { state: string; sha: string; context: string }[]; autoMerge: string[]; merges: number; reviews: number; opened: number; polls: { ci: number; merge: number }; prompts: string[] };
 let calls: Calls;
 let builderRuns = 0;
 
@@ -147,10 +147,10 @@ function writeDesign(dir: string, violating: boolean): void {
   );
 }
 
-function fakes(opts: { ciConclusion: 'success' | 'failure'; design?: 'violating' | 'clean' }): Partial<BuildDeps> {
-  calls = { statuses: [], autoMerge: [], reviews: 0, opened: 0, polls: { ci: 0, merge: 0 }, prompts: [] };
+function fakes(opts: { ciConclusion: 'success' | 'failure'; design?: 'violating' | 'clean'; protection?: 'demiurgo'; ciFlipsRed?: boolean }): Partial<BuildDeps> {
+  calls = { statuses: [], autoMerge: [], merges: 0, reviews: 0, opened: 0, polls: { ci: 0, merge: 0 }, prompts: [] };
   const github = {
-    ensureProjectRepo: async () => ({ owner: 'acme', repo: 'recipes', url: 'https://github.com/acme/recipes' }),
+    ensureProjectRepo: async () => ({ owner: 'acme', repo: 'recipes', url: 'https://github.com/acme/recipes', protection: opts.protection ?? 'github' }),
     // A real push, to the local bare remote.
     pushBranch,
     openPullRequest: async () => {
@@ -172,9 +172,13 @@ function fakes(opts: { ciConclusion: 'success' | 'failure'; design?: 'violating'
     enableAutoMerge: async (_c: unknown, id: string) => {
       calls.autoMerge.push(id);
     },
-    mergePullRequest: async () => undefined,
+    mergePullRequest: async () => {
+      calls.merges++;
+    },
     checkRunsFor: async () => {
       calls.polls.ci++;
+      // With ciFlipsRed, CI is green while it is awaited and red when DEMIURGO re-checks it before merging.
+      if (opts.ciFlipsRed && calls.polls.ci >= 3) return [{ name: 'ci', status: 'completed', conclusion: 'failure', detailsUrl: null }];
       return calls.polls.ci < 2
         ? [{ name: 'ci', status: 'in_progress', conclusion: null, detailsUrl: null }]
         : [{ name: 'ci', status: 'completed', conclusion: opts.ciConclusion, detailsUrl: null }];
@@ -353,5 +357,38 @@ describe('build.start', () => {
     expect(calls.statuses.map((s) => `${s.context}:${s.state}`)).toContain('demiurgo/design:success');
     const design = (await steps(requestId)).filter((s) => s.stage === 'design' && s.outcome === 'ok').at(-1);
     expect(design?.detail).toMatchObject({ version: 'DSY-001@1', violations: [] });
+  });
+
+  it('GitHub plan without protection: DEMIURGO merges itself (squash) when ci, review and design are green, without auto-merge', async () => {
+    setBuildDeps(fakes({ ciConclusion: 'success', protection: 'demiurgo' }));
+    const requestId = await newRequest();
+    await cmd('build.start', { task: taskCode });
+    expect(await finished(requestId, 1)).toBe('done');
+    expect(calls.autoMerge).toEqual([]);
+    expect(calls.merges).toBe(1);
+    const merge = (await steps(requestId)).find((s) => s.stage === 'merge' && s.outcome === 'waiting');
+    expect(merge?.detail).toMatchObject({ via: 'merge', protection: 'demiurgo' });
+  });
+
+  it('GitHub plan without protection: a red check on the head SHA at merge time means no merge and a failed attempt with the reason', async () => {
+    setBuildDeps(fakes({ ciConclusion: 'success', protection: 'demiurgo', ciFlipsRed: true }));
+    const requestId = await newRequest();
+    await cmd('build.start', { task: taskCode });
+    expect(await finished(requestId, 1)).toBe('failed:merge');
+    expect(calls.merges).toBe(0);
+    expect(calls.autoMerge).toEqual([]);
+    const failed = (await steps(requestId)).find((s) => s.stage === 'merge' && s.outcome === 'failed');
+    expect(JSON.stringify(failed?.detail)).toContain('required checks are not green: ci (failure)');
+  });
+
+  it('GitHub plan without protection: a reviewer that asked for changes never reaches the merge', async () => {
+    // The previous test left its request open (the merge failed): withdraw it so a new one can start.
+    await db().updateTable('build_requests').set({ state: 'withdrawn', withdrawn_by: 'human:ana', withdrawn_at: new Date() }).where('project_id', '=', projectId).where('state', '=', 'in_review').execute();
+    setBuildDeps(fakes({ ciConclusion: 'failure', protection: 'demiurgo' }));
+    const requestId = await newRequest();
+    await cmd('build.start', { task: taskCode });
+    expect(await finished(requestId, 1)).toBe('changes_requested:merge');
+    expect(calls.merges).toBe(0);
+    expect(calls.statuses.filter((s) => s.context === 'demiurgo/review').map((s) => s.state)).toEqual(['pending', 'failure']);
   });
 });

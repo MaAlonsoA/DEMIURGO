@@ -351,6 +351,12 @@ export function BuildScreen() {
                   <span className="text-fg-3">
                     {t.repository(q.repository.path, q.repository.branch)}
                   </span>
+                  {q.repository.merge_rule_by_demiurgo ? (
+                    <>
+                      <span aria-hidden>·</span>
+                      <span className="text-fg-3">{t.mergeRule}</span>
+                    </>
+                  ) : null}
                 </span>
               }
             >

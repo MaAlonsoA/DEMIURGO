@@ -654,6 +654,8 @@ export type ProjectGithubTable = {
   project_id: string;
   owner: string;
   repo: string;
+  /** Who enforces the merge rule: GitHub (branch protection) or DEMIURGO (plan without it). */
+  protection: Generated<'github' | 'demiurgo'>;
   created_at: Generated<Timestamp>;
 };
 

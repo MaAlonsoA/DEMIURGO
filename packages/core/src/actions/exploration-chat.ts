@@ -1088,6 +1088,10 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
       .where('id', '=', suggestion.question_id)
       .executeTakeFirst();
     if (q?.state !== 'pending') continue;
+    // Only the thread a question lives in gives it options: a run in another thread (a side thread
+    // about durability, say) sees the product's open stage questions too, and its options would be
+    // about its own topic.
+    if (q.exploration_id !== scope.id) continue;
     let options = suggestion.options;
     if (q.stage_id && q.stage_key) {
       const st = await trx.selectFrom('stages').select('stage').where('id', '=', q.stage_id).executeTakeFirst();

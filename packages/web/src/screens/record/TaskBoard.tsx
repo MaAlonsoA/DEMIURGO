@@ -14,7 +14,7 @@ import type { LineState } from '../epics/logic.ts';
 import { CopyBriefButton } from './CopyBrief.tsx';
 import { LineMark } from './EpicBoard.tsx';
 import { effortTotals } from '../../sizes.ts';
-import { SizeText } from './TaskSize.tsx';
+import { SizeDisputeText, SizeText } from './TaskSize.tsx';
 import { TASK_BOARD, TASK_SIZE } from './words.i18n.ts';
 
 const stateOf = (r: ProductRow): LineState =>
@@ -87,6 +87,7 @@ export function TaskBoard({
                     <span className="ml-2 font-mono text-xs text-fg-3">{r.code}</span>
                   </Link>
                   <SizeText effort={r.effort} />
+                  <SizeDisputeText effort={r.effort} />
                   <span className="text-sm tabular-nums text-fg-3">{t.checks(r.checks)}</span>
                   <span className="ml-auto flex items-center gap-3">
                     {s === 'ready' ? <CopyBriefButton projectId={projectId} code={r.code} size="sm" /> : null}

@@ -6,6 +6,7 @@ import { useId } from 'react';
 import { useCommand } from '../../api/commands.ts';
 import type { RecordDetail, TaskEffort, TaskSize } from '../../api/types.ts';
 import { announce } from '../../components/announce.tsx';
+import { Button } from '../../components/Button.tsx';
 import { useAllows } from '../../components/actions.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
 import { useMessages } from '../../i18n/define.ts';
@@ -24,10 +25,22 @@ export function SizeText({ effort }: { effort: TaskEffort | null | undefined }) 
   );
 }
 
+/** "Size disputed · You: S · second opinion: L", while a second opinion is two or more sizes away and not dismissed. */
+export function SizeDisputeText({ effort }: { effort: TaskEffort | null | undefined }) {
+  const t = useMessages(TASK_SIZE);
+  if (effort?.dispute !== 'disputed' || !effort.size || !effort.opinion) return null;
+  return (
+    <span className="text-sm text-fg" data-size-disputed>
+      <span className="font-medium">{t.disputed}</span> · {t.both(effort.size, effort.opinion.size)}
+    </span>
+  );
+}
+
 export function TaskSizePanel({ projectId, record }: { projectId: string; record: RecordDetail }) {
   const t = useMessages(TASK_SIZE);
   const id = useId();
   const command = useCommand(projectId);
+  const keep = useCommand(projectId);
   const allows = useAllows('record', 'registered');
   const writable = allows('record.set_size');
   const effort = record.effort ?? null;
@@ -72,6 +85,22 @@ export function TaskSizePanel({ projectId, record }: { projectId: string; record
           })}
         </div>
       ) : null}
+      {effort?.dispute === 'disputed' && size ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <SizeDisputeText effort={effort} />
+          {allows('record.keep_size') ? (
+            <Button
+              size="sm"
+              disabled={keep.isPending}
+              data-keep-size
+              onClick={() => keep.mutate({ command: 'record.keep_size', entityId: record.id, data: { size } })}
+            >
+              {t.keep(size)}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+      {keep.error ? <ErrorNotice error={keep.error} /> : null}
       <p className="max-w-prose text-sm text-fg-3">{t.note}</p>
       {size === 'XL' ? (
         <p className="text-sm font-medium text-fg" data-split-note>

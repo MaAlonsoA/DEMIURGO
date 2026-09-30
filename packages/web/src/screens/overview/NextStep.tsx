@@ -10,7 +10,8 @@ import { ArrowRightIcon } from '../../components/icons.tsx';
 import { messages, useMessages } from '../../i18n/define.ts';
 import { DesignNextButton } from '../epics/DesignNext.tsx';
 import { useEpicPlans } from '../epics/plans.ts';
-import { type NextStep as Step, nextStep } from './nextStep.ts';
+import { InceptionActionButton } from './Inception.tsx';
+import { inceptionStep, type NextStep as Step, nextStep } from './nextStep.ts';
 
 const WORDS = messages(
   {
@@ -63,7 +64,7 @@ const WORDS = messages(
   },
 );
 
-function StepCard({ step, title, body, action }: { step: Step['kind']; title: string; body: ReactNode; action: ReactNode }) {
+function StepCard({ step, title, body, action }: { step: Step['kind'] | 'inception'; title: string; body: ReactNode; action: ReactNode }) {
   const t = useMessages(WORDS);
   return (
     <Card tone="accent" data-next-step={step} className="flex flex-col gap-3">
@@ -79,7 +80,20 @@ function StepCard({ step, title, body, action }: { step: Step['kind']; title: st
 
 const linkClass = buttonClass({ variant: 'primary' });
 
-export function NextStepCard({
+export function NextStepCard(props: { projectId: string; state: ProductState; rows: ProductRow[]; stages: StageRow[] }) {
+  const inception = inceptionStep(props.state.inception);
+  if (!inception) return <RecordsNextStep {...props} />;
+  return (
+    <StepCard
+      step="inception"
+      title={inception.title}
+      body={inception.why}
+      action={<InceptionActionButton projectId={props.projectId} step={inception} />}
+    />
+  );
+}
+
+function RecordsNextStep({
   projectId,
   state,
   rows,

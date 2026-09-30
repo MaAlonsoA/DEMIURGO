@@ -37,6 +37,8 @@ import { DefinitionWhyPanel, ProductDefinitionSection } from './Definition.tsx';
 import { DesignStages } from './Stages.tsx';
 import { FirstFeature } from '../thread/StageComplete.tsx';
 import { NextStepCard } from './NextStep.tsx';
+import { InceptionSection } from './Inception.tsx';
+import { inceptionStep } from './nextStep.ts';
 import { useReturnFocus } from '../record/returnFocus.ts';
 import { OVERVIEW } from './words.i18n.ts';
 import { epicGroups } from '../epics/logic.ts';
@@ -204,8 +206,12 @@ function Overview({ projectId }: { projectId: string }) {
           ) : (
             <div className="flex flex-col gap-10">
               {lens.on ? <WhileAway projectId={projectId} lens={lens} /> : null}
+              {/* While the project is getting to its first build, the path goes first and carries the
+                  one next step itself (no second card repeating it); afterwards it sits below. */}
+              {inceptionStep(s.inception) ? <InceptionSection projectId={projectId} path={s.inception} /> : null}
               <ProductDefinitionSection projectId={projectId} whyOpen={whyOpen} onWhy={setWhyOpen} />
-              {firstFeature && mainThread ? (
+              {inceptionStep(s.inception) ? null : <InceptionSection projectId={projectId} path={s.inception} />}
+              {inceptionStep(s.inception) ? null : firstFeature && mainThread ? (
                 <FirstFeature projectId={projectId} explorationId={mainThread} active={mainState === 'active'} goToThread />
               ) : rows.some((r) => r.type === 'fdr' || r.type === 'epic') ? (
                 <NextStepCard projectId={projectId} state={s} rows={rows} stages={stages ?? []} />

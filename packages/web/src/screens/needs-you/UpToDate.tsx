@@ -25,6 +25,7 @@ import { useMessages } from '../../i18n/define.ts';
 import { useLocale } from '../../i18n/locale.ts';
 import { cn } from '../../lib/cn.ts';
 import { ACTION_WORDS, PRODUCT_WORDS, whoOf } from '../../words.ts';
+import { InceptionNext, useInceptionCurrent } from '../overview/Inception.tsx';
 import type { LensLine } from '../overview/lens/lines.ts';
 import { todayLines } from './today.ts';
 import { UP_TO_DATE } from './words.i18n.ts';
@@ -96,6 +97,7 @@ export function UpToDate({ projectId }: { projectId: string }) {
   const threads = new Map((state.data?.explorations ?? []).map((e) => [e.id, e.purpose]));
   const today = new Date(now);
   const n = lines?.length ?? 0;
+  const inception = useInceptionCurrent(projectId);
   const todayId = useId();
   const productId = useId();
   const progress = productProgress(rows, all);
@@ -133,7 +135,7 @@ export function UpToDate({ projectId }: { projectId: string }) {
               <Card padding="md" className="flex flex-col gap-1.5 bg-sunken" data-close>
                 <p className="flex items-center gap-2 font-medium text-fg">
                   <CheckCircleIcon size={16} className="text-success-text" />
-                  {PRODUCT_WORDS.nothingNeedsYou}
+                  {inception ? <InceptionNext projectId={projectId} step={inception} /> : PRODUCT_WORDS.nothingNeedsYou}
                 </p>
                 <p className="text-sm text-fg-2">{t.everythingSaved}</p>
               </Card>

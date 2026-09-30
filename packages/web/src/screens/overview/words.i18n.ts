@@ -270,7 +270,7 @@ export const STAGES = messages(
     notStarted: 'Not started',
     open: 'Open',
     passed: 'Passed',
-    productDesign: 'Product design',
+    productDesign: 'Product-wide stages',
     now: (title: string) => `now: ${title}`,
     stagesNote: 'What holds for the whole product. Each feature then has its own requirements, acceptance criteria and Ready to build.',
     starting: 'Starting…',
@@ -314,7 +314,7 @@ export const STAGES = messages(
     notStarted: 'Sin empezar',
     open: 'Abierta',
     passed: 'Superada',
-    productDesign: 'Diseño del producto',
+    productDesign: 'Etapas de todo el producto',
     now: (title: string) => `ahora: ${title}`,
     stagesNote:
       'Lo que rige para todo el producto. Cada funcionalidad tiene luego sus propios requisitos, criterios de aceptación y Listo para construir.',

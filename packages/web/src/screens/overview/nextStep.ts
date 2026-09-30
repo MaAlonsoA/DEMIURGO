@@ -1,7 +1,7 @@
 // "Next step" on the Product page (spec «Entrega por épicas», 2b): once there is an epic or a
 // feature, one action, the first that applies, epics by code.
 
-import type { ProductRow, StageRow } from '../../api/types.ts';
+import type { InceptionPath, InceptionStep, ProductRow, StageRow } from '../../api/types.ts';
 import type { EpicRef } from '../epics/DesignNext.tsx';
 import type { EpicLine } from '../epics/logic.ts';
 import type { EpicState } from '../epics/plans.ts';
@@ -46,4 +46,12 @@ export function nextStep(rows: readonly ProductRow[], epics: readonly EpicState[
   const release = stages.filter((s) => s.moment === 'before_release');
   if (epics.length > 0 && epics.every((e) => e.delivered) && release.some((s) => s.state !== 'passed')) return { kind: 'release' };
   return null;
+}
+
+/** The inception step that takes NEXT STEP's place: the current one, until only the build is left. */
+export function inceptionStep(path: InceptionPath | undefined): InceptionStep | null {
+  if (!path || path.current === null) return null;
+  const step = path.steps.find((s) => s.key === path.current && s.state === 'current');
+  if (!step || step.action?.kind === 'build') return null;
+  return step;
 }

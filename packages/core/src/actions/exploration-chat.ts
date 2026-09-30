@@ -190,7 +190,7 @@ export async function explorationPack({ trx, projectId, scope, input, graphVersi
     manifest.entered({
       section: 'design_stage',
       source: source('exploration', exploration.id),
-      text: 'Onboarding done: design the first feature',
+      text: nextStep.step === 'start_design_system' ? 'Onboarding done: start the design system' : 'Onboarding done: design the first feature',
       reason: 'next_step:first_feature',
     });
   const stageTitle = stage ? (stageDefinition(stage.stage)?.title ?? stage.stage) : '';
@@ -433,7 +433,7 @@ export async function explorationPack({ trx, projectId, scope, input, graphVersi
     .innerJoin('records', 'records.id', 'record_versions.record_id')
     .select(['records.id as recordId', 'records.code', 'records.type', 'record_versions.n', 'record_versions.state', 'record_versions.title', 'record_versions.sections'])
     .where('records.project_id', '=', projectId)
-    .where('records.type', 'in', ['product_definition', 'epic', 'fdr', 'task', 'requirement', 'quality_requirement', 'adr', 'threat_model', 'production_readiness'])
+    .where('records.type', 'in', ['product_definition', 'design_system', 'epic', 'fdr', 'task', 'requirement', 'quality_requirement', 'adr', 'threat_model', 'production_readiness'])
     .where('record_versions.state', 'in', ['approved', 'draft'])
     .orderBy('records.code')
     .orderBy('record_versions.n', 'desc')
@@ -621,6 +621,16 @@ async function firstFeatureStep(trx: Tx, projectId: string, explorationId: strin
     .where('type', 'in', ['epic', 'fdr', 'requirement'])
     .executeTakeFirst();
   if (feature) return null;
+  // VISION.md, Arranque 4: the design system comes before the first screen, so before the first
+  // feature. Without an approved one, the step to offer is starting it (Design system tab).
+  const designSystem = await trx
+    .selectFrom('records')
+    .innerJoin('record_versions', 'record_versions.record_id', 'records.id')
+    .select('records.id')
+    .where('records.project_id', '=', projectId)
+    .where('records.type', '=', 'design_system')
+    .where('record_versions.state', '=', 'approved')
+    .executeTakeFirst();
   const children = await trx
     .selectFrom('explorations')
     .select('purpose')
@@ -629,7 +639,7 @@ async function firstFeatureStep(trx: Tx, projectId: string, explorationId: strin
     .orderBy('created_at')
     .execute();
   return {
-    step: 'design_first_feature',
+    step: designSystem ? 'design_first_feature' : 'start_design_system',
     just_arrived: justArrived,
     feature_threads: children.map((c) => c.purpose),
   };

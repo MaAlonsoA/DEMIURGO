@@ -33,6 +33,7 @@ import { approvedDesignSystem, designSystemSpecOf, latestScreensOfFeature, missi
 import { threadDraft } from './draft.ts';
 import { githubConfig } from '../github/client.ts';
 import { taskViewOfRecord } from './task-view.ts';
+import { inceptionOf } from './inception.ts';
 
 /** Records that are not built, so they have no readiness: a decision, and the product definition. */
 const WITHOUT_READINESS: ReadonlySet<string> = new Set(['decision', 'product_definition', 'screen_design']);
@@ -213,7 +214,8 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
       : {}),
     basedOn,
     needs,
-    architecturePassed: await architecturePassed(db, projectId),
+    architecturePassed: await stagePassed(db, projectId, 'architecture'),
+    securityPassed: await stagePassed(db, projectId, 'security'),
     linksUnderReview,
     openQuestions,
     pendingProposals,
@@ -242,12 +244,12 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
   return own;
 }
 
-async function architecturePassed(db: Db, projectId: string): Promise<boolean> {
+async function stagePassed(db: Db, projectId: string, key: string): Promise<boolean> {
   const stage = await db
     .selectFrom('stages')
     .select('id')
     .where('project_id', '=', projectId)
-    .where('stage', '=', 'architecture')
+    .where('stage', '=', key)
     .where('state', '=', 'passed')
     .executeTakeFirst();
   return stage !== undefined;
@@ -1127,6 +1129,8 @@ export async function productState(db: Db, projectId: string) {
       open_questions: Number(open.find((a) => a.exploration_id === e.id)?.n ?? 0),
     })),
     inbox: { total: b.total },
+    // Where the project is on its way to the walking skeleton, and what comes next (domain/inception.ts).
+    inception: await inceptionOf(db, projectId),
   };
 }
 

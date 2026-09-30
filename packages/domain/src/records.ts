@@ -177,6 +177,8 @@ export type ReadinessInput = {
   needs: { code: string; implementation: string }[];
   /** Whether the Architecture stage (before_build) has passed: a feature is not built before it. */
   architecturePassed: boolean;
+  /** Whether the Security baseline stage (before_build) has passed: a feature is not built before it. */
+  securityPassed: boolean;
   /** An epic's listed features (not dropped), and whether each one has its approved design yet. */
   features?: { code: string; name: string; designed: boolean }[];
   /** An epic version: whether it has an "Out of scope" section (older ones do not: a warning). */
@@ -266,6 +268,7 @@ export function readiness(e: ReadinessInput): Readiness {
   }
   if (e.type === 'fdr') {
     if (!e.architecturePassed) reasons.push('The Architecture stage has not passed.');
+    if (!e.securityPassed) reasons.push('The Security baseline stage has not passed.');
     for (const n of e.needs) {
       if (n.implementation !== 'implemented') reasons.push(`It needs ${n.code}, which is not built yet.`);
     }

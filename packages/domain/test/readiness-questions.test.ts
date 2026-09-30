@@ -22,6 +22,7 @@ const ready: ReadinessInput = {
   ],
   needs: [],
   architecturePassed: true,
+  securityPassed: true,
   linksUnderReview: [],
   openQuestions: [],
   pendingProposals: 0,
@@ -55,5 +56,12 @@ describe('the questions of its thread in the readiness', () => {
       questionReason('postponed', 'Guests?'),
       questionReason('inferred', 'Refunds?'),
     ]);
+  });
+
+  it('a feature is not ready before the Security baseline stage has passed', () => {
+    expect(readiness(ready).ready).toBe(true);
+    const r = readiness({ ...ready, securityPassed: false });
+    expect(r.ready).toBe(false);
+    expect(r.reasons).toContain('The Security baseline stage has not passed.');
   });
 });

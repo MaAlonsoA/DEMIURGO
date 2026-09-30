@@ -19,6 +19,7 @@ import { useMessages } from '../../i18n/define.ts';
 import { useProductWord } from '../../words.ts';
 import { minutesOf, needsOf } from '../needs-you/order.ts';
 import { type NeedsItem, justRatified, needsItems, packagesNote } from './needs.ts';
+import { InceptionNext, useInceptionCurrent } from './Inception.tsx';
 import { NEEDS_COLUMN } from './words.i18n.ts';
 
 const SHOWN = 4;
@@ -58,6 +59,7 @@ export function NeedsSummary({
   const needsYouWord = useProductWord('needsYou');
   const nothingNeedsYouWord = useProductWord('nothingNeedsYou');
   const id = useId();
+  const inception = useInceptionCurrent(projectId);
   const data = inbox.data;
   const items = data ? needsItems(data, state) : [];
   const total = data?.total ?? 0;
@@ -98,7 +100,13 @@ export function NeedsSummary({
           </div>
         </Skeleton>
       ) : !waiting ? (
+        inception ? (
+        <p className="text-sm">
+          <InceptionNext projectId={projectId} step={inception} />
+        </p>
+      ) : (
         <p className="text-sm text-fg-2">{nothingNeedsYouWord}</p>
+      )
       ) : (
         <>
           <p className="text-sm text-fg-2">{ratified ? t.everythingProposed : t.inCatchUpOrder}</p>

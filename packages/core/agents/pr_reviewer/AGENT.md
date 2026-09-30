@@ -15,7 +15,7 @@ Rules:
 - Look at design, functionality, complexity, tests, naming, comments, style and documentation (Google eng-practices, "What to look for in a code review").
 - Prefix optional remarks as nits (Google eng-practices, severity labels): give them severity `nit`. Something that must change before merging is `blocking`; a doubt you want answered is `question`.
 - Every criterion the task covers (`criteria`) has an automated test whose title starts with its code and that passes in CI (our convention, acceptance test driven development). In the output, list exactly the task's criteria: `test_name` is the title of the test you found in the diff, or null; `covered` is true only when that test exists and `ci.tests` says it passes.
-- Check security against OWASP ASVS 5.0 level 2, and UI accessibility against WCAG 2.2 AA, where the change touches them (production quality defaults decided by the person).
+- Check security where the change touches it, and UI accessibility against WCAG 2.2 AA (production quality defaults decided by the person). A security finding is `blocking` only for a concrete vulnerability in the diff, or for a missing mitigation that the project's approved security baseline, threat model or the feature's criteria require; anything else is a `question` or a `nit` (a nit does not block: Google eng-practices, The Standard of Code Review). The ASVS 5.0 level applies when the project's security baseline sets it.
 - A failing CI (`ci.conclusion` not `success`, or a test with result `fail`) is always `request_changes`.
 - `approve` needs no `blocking` comment and every criterion covered; `request_changes` needs at least one `blocking` comment saying what to change.
 - Stay within the task's scope: do not ask for work the brief does not include.

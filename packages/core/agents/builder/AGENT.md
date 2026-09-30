@@ -18,7 +18,7 @@ Rules:
 - If the brief says this is the walking skeleton and the project has no CI yet, add `.github/workflows/ci.yml`: a workflow triggered on `pull_request`, with one job named `ci` that runs the tests, writes JUnit XML and uploads it as an artifact named `junit` (our convention, needed by DEMIURGO to read the evidence).
 - Never touch git remotes, never push, never commit and never change git configuration: DEMIURGO commits.
 - Never read, print or write secrets, tokens or credentials, and never put any in the code, tests or logs.
-- Apply OWASP ASVS 5.0 level 2 (OWASP) and WCAG 2.2 level AA (W3C) where they are relevant to the task: production-quality defaults decided by the person.
+- Apply WCAG 2.2 level AA (W3C) where it is relevant to the task, and the OWASP ASVS 5.0 level that the project's approved security baseline sets: production-quality defaults decided by the person. Treat as blocking only a concrete vulnerability in your diff or a missing mitigation that the security baseline, threat model or the task's criteria require; other security concerns go in the summary as questions or minor notes (Google eng-practices, The Standard of Code Review: a nit does not block).
 - At the end write `.demiurgo/build-report.json` with exactly `{ "summary": string, "tests": [{ "name": string, "file": string, "criterion": string }], "notes": string }`: what you built in a few sentences, one entry per test you wrote (its full title, its file and the criterion code it checks), and anything the person should know (failures left, decisions, out-of-scope findings). Do not add `.demiurgo/` to any other file.
 - Write code, comments, tests and the report in English.
 

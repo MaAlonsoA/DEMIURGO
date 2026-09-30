@@ -10,6 +10,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { executeCommand } from '../src/bus/bus.ts';
 import { buildContext } from '../src/context/build.ts';
 import { definitionChangeProposal } from '../src/definition/compose.ts';
+import { inceptionOf } from '../src/queries/inception.ts';
 import { productDefinition } from '../src/queries/definition.ts';
 import { newDecision } from './support/recipes.ts';
 import { useEnvironment } from './support/env.ts';
@@ -180,6 +181,25 @@ describe('the definition is composed from the confirmed answers and proposed to 
       .executeTakeFirstOrThrow();
     expect(v).toMatchObject({ type: 'product_definition', state: 'approved', approved_by: 'human:ana' });
     expect(v.origin).toEqual({ type: 'proposal', id: proposal?.id });
+  });
+
+  it('approving the first version passes the Product definition stage and opens the next one', async () => {
+    const stages = await environment()
+      .services.db.selectFrom('stages')
+      .select(['stage', 'state', 'passed_by'])
+      .where('project_id', '=', projectId)
+      .orderBy('position')
+      .execute();
+    expect(stages.map((s) => [s.stage, s.state])).toEqual([
+      ['requirements', 'passed'],
+      ['quality', 'open'],
+    ]);
+    expect(stages[0]?.passed_by).toBe('human:ana');
+    // The inception path moves on: the definition is done and the next step is the quality stage.
+    const path = await inceptionOf(environment().services.db, projectId);
+    expect(path.steps[0]).toMatchObject({ key: 'definition', state: 'done' });
+    expect(path).toMatchObject({ current: 'quality', done: 1 });
+    expect(path.steps.find((s) => s.state === 'current')?.action).toMatchObject({ kind: 'answer_stage', stage: 'quality' });
   });
 
   it('there is one definition per project', async () => {

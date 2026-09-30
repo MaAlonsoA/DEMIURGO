@@ -18,6 +18,7 @@ import { EntityState, StatusBadge } from '../../components/status.tsx';
 import { useRouteParams } from '../../lib/hooks.ts';
 import { useMessages } from '../../i18n/define.ts';
 import { NotFound } from '../not-found/NotFound.tsx';
+import { InceptionNext, useInceptionCurrent } from '../overview/Inception.tsx';
 import { daySummary, reviewTarget, understandingOf, writtenBy } from './day.ts';
 import { useDay } from './hooks.ts';
 import { AnswerRow, AsideHeading, DayError, DaySkeleton, LaterFeatures, ObservationList, TaxonomyNote } from './parts.tsx';
@@ -29,6 +30,7 @@ export function DayDoneScreen() {
   const day = useDay(projectId, explorationId);
   usePageTitle([t.pageTitle, day.project?.name]);
   const products = useQuery(stateQuery(projectId)).data;
+  const inception = useInceptionCurrent(projectId);
   const batchIds = [...new Set((day.runs ?? []).flatMap((r) => (r.batch_id ? [r.batch_id] : [])))];
   const batches = useQueries({ queries: batchIds.map((id) => batchQuery(projectId, id)) });
 
@@ -143,7 +145,9 @@ export function DayDoneScreen() {
               ) : null}
               <TaxonomyNote projectId={projectId} />
               <div className="flex flex-col gap-1 rounded-lg border border-success-edge bg-success-soft px-4 py-3.5">
-                <p className="text-base font-semibold text-fg">{t.youCanClose}</p>
+                <p className="text-base font-semibold text-fg">
+                  {inception ? <InceptionNext projectId={projectId} step={inception} /> : t.youCanClose}
+                </p>
                 <p className="text-sm text-fg-2">{t.everythingSaved}</p>
               </div>
             </>

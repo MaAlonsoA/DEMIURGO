@@ -259,7 +259,33 @@ export type PlannedFeatureRow = {
   state: 'planned' | 'designed';
 };
 
+export type InceptionAction =
+  | { kind: 'answer_stage'; stage: string; thread: string | null }
+  | { kind: 'pass_stage'; stage: string; stageId: string; thread: string | null }
+  | { kind: 'open_stage'; stage: string }
+  | { kind: 'approve'; code: string }
+  | { kind: 'design_system' }
+  | { kind: 'epics' }
+  | { kind: 'feature'; code: string }
+  | { kind: 'repository' }
+  | { kind: 'build'; code: string | null };
+
+export type InceptionStep = {
+  key: string;
+  title: string;
+  state: 'done' | 'current' | 'todo' | 'skipped';
+  why: string;
+  blocks: string | null;
+  source: string;
+  action: InceptionAction | null;
+};
+
+/** The path from a new project to its first build (absent on an older API). */
+export type InceptionPath = { steps: InceptionStep[]; current: string | null; done: number; total: number };
+
 export type ProductState = {
+  /** Where the project is on the way to its first build (absent on an older API). */
+  inception?: InceptionPath;
   project: { id: string; name: string; state: string };
   /** The features each epic lists, in order (absent on an older API). */
   planned?: PlannedFeatureRow[];

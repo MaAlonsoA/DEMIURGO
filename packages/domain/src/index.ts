@@ -17,6 +17,7 @@ export * from './records.ts';
 export * from './definition.ts';
 export * from './run-schema.ts';
 export * from './stages.ts';
+export * from './inception.ts';
 export * from './text.ts';
 export * from './knowledge.ts';
 export * from './compose.ts';

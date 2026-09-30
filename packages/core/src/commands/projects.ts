@@ -1,7 +1,9 @@
 // Project commands.
 
 import { z } from 'zod';
+import { formatActor } from '@demiurgo/domain';
 import { handler, registerHandlers } from '../bus/handlers.ts';
+import { renameRepo } from '../repo/repo.ts';
 
 registerHandlers({
   'project.create': handler({
@@ -23,6 +25,7 @@ registerHandlers({
     async apply(ctx, data, e) {
       const id = e?.id ?? '';
       await ctx.trx.updateTable('projects').set({ name: data.name }).where('id', '=', id).execute();
+      ctx.afterCommit(() => void renameRepo(ctx.services, id, formatActor(ctx.actor)));
       return { entityId: id, before: { name: e?.row.name ?? null }, after: { name: data.name } };
     },
   }),

@@ -6,7 +6,7 @@
 // a time per project; a failure is logged and the next event writes everything again.
 
 import { execFile } from 'node:child_process';
-import { mkdir, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { replaceTree } from '@demiurgo/design';
@@ -35,22 +35,26 @@ const slug = (name: string) =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '') || 'project';
 
+const readmeOf = (name: string) =>
+  `# ${name}\n\nThe design of ${name}, written by DEMIURGO: \`design/\` is a copy of what was accepted and approved there, one commit per change. Change it in DEMIURGO, not here.\n`;
+
+/** The folder name for a project: its slug, with the id's tail if another folder already has it. */
+async function folderFor(root: string, name: string, projectId: string): Promise<string> {
+  const base = slug(name);
+  const taken = await readdir(root).catch(() => [] as string[]);
+  return taken.includes(base) ? `${base}-${projectId.slice(-8)}` : base;
+}
+
 /** The project's repository folder, created with git and its README the first time. */
 async function ensureRepo(db: Db, root: string, projectId: string): Promise<string> {
   const known = await db.selectFrom('project_repos').select('dir').where('project_id', '=', projectId).executeTakeFirst();
   if (known) return join(root, known.dir);
   const project = await db.selectFrom('projects').select('name').where('id', '=', projectId).executeTakeFirstOrThrow();
-  let name = slug(project.name);
-  const taken = await readdir(root).catch(() => [] as string[]);
-  if (taken.includes(name)) name = `${name}-${projectId.slice(-8)}`;
+  const name = await folderFor(root, project.name, projectId);
   const dir = join(root, name);
   await mkdir(join(dir, DESIGN_DIR), { recursive: true });
   await git(dir, ['init', '-q', '-b', 'main']);
-  await writeFile(
-    join(dir, 'README.md'),
-    `# ${project.name}\n\nThe design of ${project.name}, written by DEMIURGO: \`design/\` is a copy of what was accepted and approved there, one commit per change. Change it in DEMIURGO, not here.\n`,
-    'utf8',
-  );
+  await writeFile(join(dir, 'README.md'), readmeOf(project.name), 'utf8');
   await db.insertInto('project_repos').values({ project_id: projectId, dir: name }).execute();
   return dir;
 }
@@ -148,6 +152,67 @@ export function syncRepo(services: Pick<Services, 'db' | 'logger'>, projectId: s
         error: String(err),
       });
       return null;
+    });
+  queues.set(projectId, next);
+  return next;
+}
+
+/** Moves the repository folder to the project's new name, rewrites the README and commits it. */
+async function rename_(services: Pick<Services, 'db' | 'logger'>, projectId: string, actor: string): Promise<void> {
+  const root = projectsDir();
+  if (!root) return;
+  const { db } = services;
+  const known = await db.selectFrom('project_repos').select('dir').where('project_id', '=', projectId).executeTakeFirst();
+  if (!known) return;
+  const project = await db.selectFrom('projects').select('name').where('id', '=', projectId).executeTakeFirstOrThrow();
+  const others = (await readdir(root).catch(() => [] as string[])).filter((d) => d !== known.dir);
+  const base = slug(project.name);
+  const next = others.includes(base) ? `${base}-${projectId.slice(-8)}` : base;
+  const oldDir = join(root, known.dir);
+  const dir = join(root, next);
+  // The previous name comes from the README's title, since the project row already has the new one.
+  const oldName = (await readFile(join(oldDir, 'README.md'), 'utf8').catch(() => ''))
+    .split('\n')[0]
+    ?.replace(/^#\s*/, '')
+    .trim();
+  if (next !== known.dir) {
+    await rename(oldDir, dir);
+    await db.updateTable('project_repos').set({ dir: next }).where('project_id', '=', projectId).execute();
+  }
+  await writeFile(join(dir, 'README.md'), readmeOf(project.name), 'utf8');
+  await git(dir, ['add', '-A']);
+  const status = (await git(dir, ['status', '--porcelain'])).stdout.trim();
+  if (!status) return;
+  const files = status.split('\n').map((l) => l.slice(3).trim());
+  const title = `Project renamed: ${oldName || known.dir} \u2192 ${project.name}`;
+  const who = parseActor(actor);
+  const author = who.type === 'human' ? `${who.person} <${who.person}@demiurgo.local>` : 'DEMIURGO <demiurgo@demiurgo.local>';
+  await git(dir, [
+    '-c',
+    'user.name=DEMIURGO',
+    '-c',
+    'user.email=demiurgo@demiurgo.local',
+    'commit',
+    '-q',
+    `--author=${author}`,
+    '-m',
+    title,
+  ]);
+  const sha = (await git(dir, ['rev-parse', 'HEAD'])).stdout.trim();
+  await db
+    .insertInto('project_commits')
+    .values({ project_id: projectId, sha, message: title, actor, record_version_id: null, files: JSON.stringify(files) })
+    .execute();
+  services.logger.info('Repository renamed', { projectId, dir: next, sha: sha.slice(0, 7) });
+}
+
+/** Follows a project's rename in its repository, after the syncs already queued for it. */
+export function renameRepo(services: Pick<Services, 'db' | 'logger'>, projectId: string, actor: string): Promise<void> {
+  const next = (queues.get(projectId) ?? Promise.resolve())
+    .catch(() => undefined)
+    .then(() => rename_(services, projectId, actor))
+    .catch((err: unknown) => {
+      services.logger.error('Could not rename the repository', { projectId, error: String(err) });
     });
   queues.set(projectId, next);
   return next;

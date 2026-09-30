@@ -27,10 +27,10 @@ import { ErrorNotice } from '../../components/Notice.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { useTables } from '../../lib/hooks.ts';
-import type { Draftable } from './timeline.ts';
+import type { Draftable, ThreadDraft } from './timeline.ts';
 import { COMPOSER } from './words.i18n.ts';
 
-type Sending = 'send' | 'ask' | 'draft' | 'resume';
+type Sending = 'send' | 'ask' | 'draft' | 'resume' | 'draftRecord';
 
 export type ComposerHandle = {
   focus: () => void;
@@ -47,6 +47,8 @@ export function Composer({
   active,
   inactiveNote,
   decisions,
+  threadDraft,
+  drafting,
   answering,
   onStopAnswering,
   onAnswer,
@@ -59,6 +61,10 @@ export function Composer({
   active: boolean;
   inactiveNote: string;
   decisions: Draftable[] | undefined;
+  /** The record DEMIURGO can draft from this thread, when it can (one dedicated agent per kind). */
+  threadDraft?: ThreadDraft | null;
+  /** A run of that draft is already working. */
+  drafting?: boolean;
   /** The question the person chose to answer in their own words, if any. */
   answering: { id: string; question: string } | null;
   onStopAnswering: () => void;
@@ -150,6 +156,11 @@ export function Composer({
       'draft',
       { command: 'run.request', data: { action: 'design_proposal', scope: { type: 'record_version', id: d.versionId } } },
       () => announce(t.drafting(d.code)),
+    );
+
+  const draftRecord = (d: ThreadDraft) =>
+    run('draftRecord', { command: 'run.request', data: { action: d.action, scope: d.scope } }, () =>
+      announce(t.draftStarted),
     );
 
   const onSubmit = (e: FormEvent) => {
@@ -263,6 +274,27 @@ export function Composer({
           {canRequest && !answering && !noDecision ? (
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
               <DraftIt decisions={decisions ?? []} disabled={busy} pending={sending === 'draft'} onPick={draft} />
+            </div>
+          ) : null}
+          {canRequest && !answering && threadDraft ? (
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+              <Button
+                size="sm"
+                variant={threadDraft.suggested ? 'primary' : 'secondary'}
+                icon={<WandIcon size={14} />}
+                data-command="run.request"
+                type="button"
+                data-draft-kind={threadDraft.kind}
+                disabled={drafting || (busy && sending !== 'draftRecord')}
+                pending={sending === 'draftRecord' || drafting}
+                pendingLabel={t.draftingKind(threadDraft.kind)}
+                onClick={() => draftRecord(threadDraft)}
+              >
+                {t.draftKind(threadDraft.kind)}
+              </Button>
+              {threadDraft.suggested && threadDraft.why ? (
+                <span className="text-xs text-fg-3">{t.thinksEnough(threadDraft.why)}</span>
+              ) : null}
             </div>
           ) : null}
           <div className="ml-auto flex items-center gap-2">

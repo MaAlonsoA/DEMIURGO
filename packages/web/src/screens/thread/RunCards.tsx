@@ -41,7 +41,17 @@ const actionWord = (run: Pick<RunListItem, 'action'>) => ACTION_WORDS[run.action
 
 /** What a run in progress is doing, in a few words. */
 const doingWord = (action: string, t: typeof RUN_CARDS.en): string =>
-  action === 'exploration_chat' ? t.answering : action === 'design_proposal' ? t.drafting : t.working;
+  action === 'exploration_chat'
+    ? t.answering
+    : action === 'design_proposal'
+      ? t.drafting
+      : action === 'epic_plan'
+        ? t.draftingEpic
+        : action === 'feature_design'
+          ? t.draftingFeature
+          : action === 'task_plan'
+            ? t.draftingTasks
+            : t.working;
 
 /** The time a run has taken so far, never empty while it is active. */
 function elapsed(run: Pick<Run, 'state' | 'created_at' | 'started_at' | 'finished_at'>, now: number): string {

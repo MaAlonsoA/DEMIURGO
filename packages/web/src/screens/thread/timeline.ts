@@ -17,6 +17,18 @@ export type TimelineItem =
 
 const time = (iso: string | null | undefined): number => (iso ? Date.parse(iso) : 0);
 
+/** What DEMIURGO can draft from a thread, as the API says it (one dedicated agent per kind). */
+export type ThreadDraft = {
+  kind: 'epic' | 'feature' | 'tasks';
+  why: string | null;
+  suggested: boolean;
+  action: 'epic_plan' | 'feature_design' | 'task_plan';
+  scope: { type: string; id: string };
+};
+
+/** The runs whose batch is a draft of a record. */
+export const DRAFT_ACTIONS: readonly string[] = ['design_proposal', 'epic_plan', 'feature_design', 'task_plan'];
+
 export const isActive = (run: Pick<RunListItem, 'state'>): boolean => run.state === 'queued' || run.state === 'running';
 
 /** How a run shows in its thread, or null when its messages already say it all. */
@@ -25,7 +37,7 @@ export function runDisplay(run: RunListItem, runs: readonly RunListItem[]): RunD
   const retried = runs.some((r) => r.retry_of === run.id);
   if (run.state === 'failed' || run.state === 'interrupted') return retried ? 'retried' : 'failed';
   if (run.state === 'cancelled') return 'cancelled';
-  if (run.state === 'completed' && run.batch_id && run.action === 'design_proposal') return 'draft';
+  if (run.state === 'completed' && run.batch_id && DRAFT_ACTIONS.includes(run.action)) return 'draft';
   return null;
 }
 

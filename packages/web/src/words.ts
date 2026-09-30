@@ -235,6 +235,9 @@ export function failureWord(kind: string | null, state?: string): string {
 export const ACTION_WORDS: Record<string, string> = {
   exploration_chat: 'Conversation',
   design_proposal: 'Draft',
+  epic_plan: 'Draft an epic',
+  feature_design: 'Draft a feature',
+  task_plan: 'Plan the tasks',
   coherence_review: 'Coherence review',
   echo: 'Echo',
 };

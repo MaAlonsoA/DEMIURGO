@@ -45,7 +45,7 @@ import { DraftsBar } from './DraftsBar.tsx';
 import { ThreadHeader, short } from './Header.tsx';
 import { Sheet, useWide } from './Sheet.tsx';
 import { FirstFeature, StageComplete } from './StageComplete.tsx';
-import { buildTimeline, draftableDecisions } from './timeline.ts';
+import { type ThreadDraft, buildTimeline, draftableDecisions, isActive } from './timeline.ts';
 import { THREAD } from './words.i18n.ts';
 
 export function ThreadScreen() {
@@ -349,6 +349,10 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
                 active={active}
                 inactiveNote={t.state === 'concluded' ? words.concludedNote : words.setAsideNote}
                 decisions={decisions}
+                threadDraft={(t as { draft?: ThreadDraft | null }).draft ?? null}
+                drafting={(runs.data ?? []).some(
+                  (r) => isActive(r) && r.action === (t as { draft?: ThreadDraft | null }).draft?.action,
+                )}
                 answering={answeringQuestion ? { id: answeringQuestion.id, question: answeringQuestion.question } : null}
                 onStopAnswering={() => setAnsweringId(null)}
                 onAnswer={(id, text) => {

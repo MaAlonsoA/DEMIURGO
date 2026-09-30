@@ -90,8 +90,8 @@ async function classifierOf(
   };
 }
 
-export function agentClassifiers(services: () => Services): (projectId: string) => Promise<Classifier> {
-  return async (projectId) => {
+export function agentClassifiers(services: () => Services): (projectId: string, use?: 'strong') => Promise<Classifier> {
+  return async (projectId, use) => {
     const s = services();
     const catalog = await loadAgentCatalog();
     const agent = catalog.get(CLASSIFIER_AGENT);
@@ -100,6 +100,7 @@ export function agentClassifiers(services: () => Services): (projectId: string) 
     if (!base.ok) return unavailableClassifier(base.problem);
     const reviewerAgent = catalog.get(REVIEWER_AGENT);
     const reviewer = reviewerAgent ? await classifierOf(s, projectId, reviewerAgent) : null;
+    if (use === 'strong' && reviewer?.ok) return reviewer.classifier;
     return reviewer?.ok ? createCascadeClassifier(base.classifier, reviewer.classifier) : base.classifier;
   };
 }

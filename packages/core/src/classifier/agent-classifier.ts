@@ -20,7 +20,8 @@ import { z } from 'zod';
 /** Limits of Jev's primitives, so the substitute accepts the same. */
 export const MAX_CHOICE_OPTIONS = 255;
 export const SCORE_LEVELS = { min: 2, max: 10 } as const;
-const MAX_JUSTIFICATION = 300;
+// Room for a conflict's two verbatim quotes.
+const MAX_JUSTIFICATION = 600;
 
 export type Primitive = 'choice' | 'score' | 'noul';
 

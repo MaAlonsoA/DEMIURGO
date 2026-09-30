@@ -31,7 +31,7 @@ export async function startRuntime(config: Config, logger: Logger = consoleLogge
     get providers() {
       return core.services.providers;
     },
-    classifierFor: (projectId: string) => core.services.classifierFor(projectId),
+    classifierFor: (projectId: string, use?: 'strong') => core.services.classifierFor(projectId, use),
     get agentSessionsDir() {
       return core.services.agentSessionsDir;
     },

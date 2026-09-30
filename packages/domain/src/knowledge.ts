@@ -55,21 +55,54 @@ export type Change = {
 export type Candidate = { ref: string; type: string; label: string; text: string; reason: string };
 
 const MAX_CANDIDATES = 12;
+const CANDIDATE_TEXT = 5000;
+/** The product definition is the root every record rests on: it goes nearly whole. */
+const DEFINITION_TEXT = 12000;
+const CHANGE_TEXT = 12000;
 
 /**
- * Deterministic candidate preselection (§7.3 step 2): the record's graph neighbors,
- * text matches and nodes with the same categories. Bounded and ordered.
+ * A record's text with its criteria first: they are its checkable statements, where contradictions
+ * usually live, so a long prose is what gets cut, never them.
+ */
+export function textWithCriteria(g: Graph, node: Pick<Node, 'ref' | 'text'>, limit: number): string {
+  const byRef = new Map(currentNodes(g).map((n) => [n.ref, n]));
+  const criteria = currentEdges(g)
+    .filter((a) => a.type === 'contains' && a.from === node.ref)
+    .map((a) => byRef.get(a.to))
+    .filter((n): n is Node => n !== undefined && n.type === 'criterion')
+    .map((c) => `- ${c.label}: ${c.text.split('\nCheck:')[0]}`);
+  return (criteria.length > 0 ? `Criteria:\n${criteria.join('\n')}\n\n${node.text}` : node.text).slice(0, limit);
+}
+
+/** The approved change's text as the classifier and the quote check see it: prose plus its criteria. */
+export function changeText(change: Change): string {
+  const criteria = change.companions
+    .filter((n) => n.type === 'criterion')
+    .map((c) => `- ${c.label}: ${c.text.split('\nCheck:')[0]}`);
+  return (criteria.length > 0 ? `Criteria:\n${criteria.join('\n')}\n\n${change.main.text}` : change.main.text).slice(0, CHANGE_TEXT);
+}
+
+/**
+ * Deterministic candidate preselection (§7.3 step 2). Knowledge looks for two things: statements
+ * that cannot hold together with the change, and records that describe the same behavior, so
+ * their build reuses one implementation. Candidates are the product definition (every record
+ * rests on it), the structural neighbors of what the change rests on (its siblings), text
+ * matches and nodes with the same categories. Derived `related` edges never seed candidates:
+ * they grow with every update and would crowd out the records that matter. A task is only
+ * compared with its sibling tasks. Bounded and ordered.
  */
 export function selectCandidates(g: Graph, change: Change, categories: Readonly<Record<string, string>>): Candidate[] {
-  // Excluded: the change itself, what it supersedes (decided by precedence) and what it links to
-  // (that relationship was already declared by the person in the authority).
+  // Excluded: the change itself and what it supersedes (decided by precedence). What a record
+  // rests on is compared too (a feature can contradict the one it builds on), except a task's
+  // feature: a task only details it.
+  const task = change.main.type === 'task';
   const own = new Set([
     change.main.ref,
     ...change.companions.map((n) => n.ref),
     ...change.supersedes,
-    ...change.edges.map((a) => a.to),
+    ...(task ? change.edges.map((a) => a.to) : []),
   ]);
-  const current = currentNodes(g).filter((n) => !own.has(n.ref) && n.type !== 'criterion');
+  const current = currentNodes(g).filter((n) => !own.has(n.ref) && n.type !== 'criterion' && (!task || n.type === 'task'));
   const byRef = new Map(current.map((n) => [n.ref, n]));
   const chosen = new Map<string, { node: Node; reason: string; weight: number }>();
   const add = (n: Node | undefined, reason: string, weight: number) => {
@@ -77,18 +110,25 @@ export function selectCandidates(g: Graph, change: Change, categories: Readonly<
     const existing = chosen.get(n.ref);
     if (!existing || existing.weight < weight) chosen.set(n.ref, { node: n, reason, weight });
   };
-  // Neighbors at distance 1 of what the change supersedes or links to.
+  if (!task && change.main.type !== 'product_definition') {
+    for (const n of current) if (n.type === 'product_definition' && n.epistemic === 'confirmed') add(n, 'product definition', 5);
+  }
+  for (const a of change.edges) if (a.type !== 'contains') add(byRef.get(a.to), `rests on it (${a.type})`, 4);
+  // Structural neighbors at distance 1 of what the change supersedes or links to.
   const seeds = new Set([...change.supersedes, ...change.edges.map((a) => a.to)]);
   for (const a of currentEdges(g)) {
+    if (a.type === 'related' || a.type === 'contains') continue;
     if (seeds.has(a.from)) add(byRef.get(a.to), `neighbor of ${a.from} (${a.type})`, 3);
     if (seeds.has(a.to)) add(byRef.get(a.from), `neighbor of ${a.to} (${a.type})`, 3);
   }
-  const text = `${change.main.label}. ${change.main.text}`;
-  for (const n of current) {
-    const sim = similarity(text, `${n.label}. ${n.text}`);
-    if (sim >= 0.08) add(n, `text match (${sim.toFixed(2)})`, 1 + sim);
-    const common = Object.entries(categories).filter(([axis, c]) => c !== 'other' && n.categories[axis] === c);
-    if (common.length > 0) add(n, `same category (${common.map(([e, c]) => `${e}=${c}`).join(', ')})`, 2 + common.length / 10);
+  if (!task) {
+    const text = `${change.main.label}. ${change.main.text}`;
+    for (const n of current) {
+      const sim = similarity(text, `${n.label}. ${n.text}`);
+      if (sim >= 0.08) add(n, `text match (${sim.toFixed(2)})`, 1 + sim);
+      const common = Object.entries(categories).filter(([axis, c]) => c !== 'other' && n.categories[axis] === c);
+      if (common.length > 0) add(n, `same category (${common.map(([e, c]) => `${e}=${c}`).join(', ')})`, 2 + common.length / 10);
+    }
   }
   return [...chosen.values()]
     .sort((a, b) => b.weight - a.weight || (a.node.ref < b.node.ref ? -1 : 1))
@@ -97,17 +137,48 @@ export function selectCandidates(g: Graph, change: Change, categories: Readonly<
       ref: node.ref,
       type: node.type,
       label: node.label,
-      text: node.text.slice(0, 1500),
+      text: textWithCriteria(g, node, node.type === 'product_definition' ? DEFINITION_TEXT : CANDIDATE_TEXT),
       reason,
     }));
 }
 
+/** Version of the question knowledge asks about a change: part of the cache key. */
+export const CHANGE_CONTRACT = 'conflict-quotes-1';
+
 export function hashVerdictsInput(classifier: string, change: Change, candidates: readonly Candidate[]): string {
   return fingerprint({
     classifier,
-    change: { ref: change.main.ref, label: change.main.label, text: change.main.text },
+    contract: CHANGE_CONTRACT,
+    change: { ref: change.main.ref, label: change.main.label, text: changeText(change) },
     candidates: candidates.map((c) => ({ ref: c.ref, label: c.label, text: c.text })),
   });
+}
+
+/** The two statements a conflict verdict quotes, as `Change: "…" Candidate: "…"`. */
+export function quotesOf(justification: string): { change: string; candidate: string } | null {
+  const pick = (label: string) =>
+    new RegExp(`${label}\\s*:\\s*["“«]([^"”»]{8,})["”»]`, 'i').exec(justification)?.[1]?.trim() ?? null;
+  const change = pick('Change');
+  const candidate = pick('Candidate');
+  return change && candidate ? { change, candidate } : null;
+}
+
+const plain = (s: string): string =>
+  s
+    .toLowerCase()
+    .replace(/[*_`#>]/g, '')
+    .replace(/[“”«»"]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[–—]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[.;,:]+$/, '');
+
+/** A verdict that asks the person to change a record must quote both sides verbatim. */
+export function quotesHold(justification: string, changeSide: string, candidateSide: string): boolean {
+  const q = quotesOf(justification);
+  if (!q) return false;
+  return plain(changeSide).includes(plain(q.change)) && plain(candidateSide).includes(plain(q.candidate));
 }
 
 export function hashCategoriesInput(classifier: string, taxonomy: string, change: Change): string {
@@ -224,6 +295,7 @@ export function buildPlan(
     if (!node) continue;
     const verdict = r.choice as Verdict;
     if (verdict === 'keep') continue;
+    if (verdict === 'relate' && node.type === 'product_definition') continue;
     if (verdict === 'relate') {
       // A relation is derived knowledge: with high confidence it's applied; otherwise it's recorded
       // (the cascade already routed medium confidence through the reviewer, if any) and not applied.
@@ -243,7 +315,17 @@ export function buildPlan(
       invalidate.add(r.id);
       continue;
     }
-    // update, invalidate, add or other over something with authority (or with low confidence): to the person.
+    // Only a conflict the person can see reaches them: both clashing statements quoted verbatim.
+    // Undecided evidence ("other") or a conflict without its quotes stays recorded in the update.
+    if (verdict === 'other') {
+      plan.notApplied.push({ ref: r.id, verdict, confidence: r.confidence, path: 'undecided' });
+      continue;
+    }
+    if (!quotesHold(r.justification, changeText(change), textWithCriteria(g, node, Number.MAX_SAFE_INTEGER))) {
+      plan.notApplied.push({ ref: r.id, verdict, confidence: r.confidence, path: 'unquoted' });
+      continue;
+    }
+    // update, invalidate or add over something with authority (or with low confidence): to the person.
     plan.reviews.push({ ref: r.id, verdict, confidence: r.confidence, reason: r.justification });
   }
   plan.invalidate = [...invalidate].sort();

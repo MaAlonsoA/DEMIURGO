@@ -5,7 +5,7 @@
 
 import {
   itemsForCategories,
-  itemsForVerdicts,
+  itemsForChange,
   type Candidate,
   type Change,
   type Classifier,
@@ -126,7 +126,7 @@ export async function classifyChange(
   const valid = taxonomy && verifyCategories(taxonomy.axes, categories).ok ? categories : [];
   const candidates = selectCandidates(graph, change, applicableCategories(valid));
   const verdictsHash = hashVerdictsInput(classifier.id, change, candidates);
-  const r = await respondWithCache(db, classifier, verdictsHash, itemsForVerdicts(change, candidates));
+  const r = await respondWithCache(db, classifier, verdictsHash, itemsForChange(change, candidates));
   if (r.toSave) toSave.push(r.toSave);
   return {
     classifierId: classifier.id,
@@ -211,7 +211,9 @@ async function classifyInSpan(s: Services, updateId: string, projectId: string):
     const change = await deriveChange(s.db, trigger);
     if (!change) return { type: 'no_change' };
     const graph = await loadGraph(s.db, projectId);
-    const classifier = await s.classifierFor(projectId);
+    // Records other than tasks are checked for contradictions by the stronger engine; a task is
+    // only compared with its sibling tasks, where the quick one is enough.
+    const classifier = await s.classifierFor(projectId, change.main.type === 'task' ? undefined : 'strong');
     const data = await classifyChange(s.db, classifier, graph, change, await currentTaxonomy(s.db, projectId));
     return { type: 'classified', data };
   } catch (e) {

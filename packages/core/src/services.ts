@@ -23,8 +23,12 @@ export type Services = {
   clock: () => Date;
   /** The engines this process can run: each run resolves its own (FDR-AGE-002). */
   providers: ProviderRegistry;
-  /** The knowledge classifier of a project: the engine assigned to knowledge_classifier. */
-  classifierFor(projectId: string): Promise<Classifier>;
+  /**
+   * The knowledge classifier of a project: the engine assigned to knowledge_classifier. `strong`
+   * asks for the reviewer's engine directly: finding contradictions needs its judgment, which the
+   * quick engine does not have.
+   */
+  classifierFor(projectId: string, use?: 'strong'): Promise<Classifier>;
   /** Where conversations with a provider session keep their stable folder. */
   agentSessionsDir: string;
   engine: WorkflowEngine;

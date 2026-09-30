@@ -27,9 +27,9 @@ export const TITLES = messages(
       )[kind],
     verdictWord: (verdict: string): string =>
       ({
-        update: 'may need an update',
+        update: 'may contradict the change',
         invalidate: 'may no longer hold',
-        add: 'may need something added',
+        add: 'may lack something the change adds',
         other: 'may be affected',
       })[verdict] ?? 'may be affected',
     packageImported: 'Imported from design/',
@@ -96,9 +96,9 @@ export const TITLES = messages(
     verdictWord: (verdict: string): string =>
       (
         ({
-          update: 'puede necesitar una actualización',
+          update: 'puede contradecir el cambio',
           invalidate: 'puede que ya no sea válido',
-          add: 'puede necesitar que se añada algo',
+          add: 'puede que le falte algo que añade el cambio',
           other: 'puede verse afectado',
         }) as Record<string, string>
       )[verdict] ?? 'puede verse afectado',

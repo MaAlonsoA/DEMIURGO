@@ -46,7 +46,12 @@ export function PlannedFeaturePage({
   const editable = !!tables && canCreate(tables, 'planned_feature.add');
   const waiting = pendingProposalsOf(inbox, planned.code) > 0;
   const status: Status = line?.thread ? { word: t.st_designing, tone: 'accent' } : { word: t.st_planned, tone: 'neutral' };
-  const primary = line?.thread ? (
+  const primary = waiting && line?.thread ? (
+    // The pending proposal's Accept is the page's primary action: the thread stays one click away.
+    <Link to="/p/$projectId/threads/$explorationId" params={{ projectId, explorationId: line.thread.id }} className={buttonClass()}>
+      {t.openThread}
+    </Link>
+  ) : line?.thread ? (
     <PrimaryAction projectId={projectId} primary={{ kind: 'thread', id: line.thread.id }} draft={draft} />
   ) : ref && line ? (
     <PrimaryAction projectId={projectId} primary={{ kind: 'design', epic: ref, line, label: t.designThis }} draft={draft} />

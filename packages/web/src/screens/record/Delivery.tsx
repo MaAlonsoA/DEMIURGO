@@ -302,7 +302,8 @@ export function DeliveryBanner({ projectId, banner }: { projectId: string; banne
   const t = useMessages(DELIVERY);
   const a = banner.action;
   const action = !a ? undefined : 'anchor' in a ? (
-    <a href={`#${a.anchor}`} className={buttonClass({ variant: banner.tone === 'accent' ? 'primary' : 'secondary' })}>
+    // It points to a place on the page whose own action (Accept, record the check) is the primary one.
+    <a href={`#${a.anchor}`} className={buttonClass({ variant: 'secondary' })}>
       {a.label}
     </a>
   ) : 'code' in a ? (

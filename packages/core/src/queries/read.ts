@@ -17,6 +17,7 @@ import {
   epistemicOfVersion,
   readiness,
   relationOf,
+  behaviorSteps,
 } from '@demiurgo/domain';
 import type { Db } from '../db/connection.ts';
 import { staleDependencies } from '../commands/proposals.ts';
@@ -90,10 +91,19 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
   if (!v) throw new DomainError('not_found', 'The version does not exist.');
   const criteria = await db
     .selectFrom('criteria')
-    .select(['code', 'verification', 'check_text', 'statement'])
+    .select(['code', 'verification', 'check_text', 'statement', 'step'])
     .where('record_version_id', '=', versionId)
     .orderBy('position')
     .execute();
+  const behaviorSection =
+    v.type === 'fdr'
+      ? (
+          await db.selectFrom('record_versions').select('sections').where('id', '=', versionId).executeTakeFirstOrThrow()
+        ).sections
+      : [];
+  const behaviorStepCount = behaviorSteps(
+    (behaviorSection as { title: string; content: string }[]).find((s) => s.title === 'Behavior')?.content ?? '',
+  ).length;
   const links = await db
     .selectFrom('links')
     .innerJoin('record_versions as target', 'target.id', 'links.to_id')
@@ -183,7 +193,9 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
       verification: c.verification,
       check: c.check_text,
       statement: c.statement,
+      step: c.step,
     })),
+    ...(v.type === 'fdr' ? { behaviorSteps: behaviorStepCount } : {}),
     basedOn,
     needs,
     architecturePassed: await architecturePassed(db, projectId),
@@ -630,6 +642,7 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
           statement: c.statement,
           verification: c.verification,
           check: c.check_text,
+          step: c.step,
           carry: c.carry,
           evidence: await evidenceOf(db, c.id),
         })),

@@ -42,6 +42,7 @@ const criterionContent = {
   statement: text(L.statement),
   verification: z.enum(['automatic', 'manual']),
   check: text(L.check),
+  step: z.number().int().min(1).nullable().optional(),
 };
 export const criterionInputSchema = z.discriminatedUnion('carry', [
   z
@@ -369,6 +370,7 @@ async function createVersion(
         statement: p.statement,
         verification: p.verification,
         check: p.check_text,
+        step: p.step,
         carry: 'kept',
         derivation: p.id,
       };
@@ -382,6 +384,7 @@ async function createVersion(
         statement: c.statement,
         verification: c.verification,
         check: c.check,
+        step: c.step === undefined ? p.step : c.step,
         carry: 'modified',
         derivation: p.id,
       };
@@ -400,6 +403,7 @@ async function createVersion(
       statement: c.statement,
       verification: c.verification,
       check: c.check,
+      step: c.step ?? null,
       carry: 'new',
       derivation: c.derived_from ? (derived.get(c.derived_from) ?? null) : null,
     };
@@ -409,12 +413,13 @@ async function createVersion(
   const content = {
     title: data.title,
     sections: data.sections,
-    criteria: criteria.map(({ code, title, statement, verification, check }) => ({
+    criteria: criteria.map(({ code, title, statement, verification, check, step }) => ({
       code,
       title,
       statement,
       verification,
       check,
+      ...(step == null ? {} : { step }),
     })),
     annexes: data.annexes,
     increment: data.increment ?? null,
@@ -448,6 +453,7 @@ async function createVersion(
         statement: c.statement,
         verification: c.verification,
         check: c.check,
+        step: c.step,
         carry: c.carry,
         derived_from_id: c.derivation,
         position: i + 1,
@@ -645,6 +651,7 @@ registerHandlers({
           statement: d.statement,
           verification: d.verification,
           check_text: d.check,
+          step: d.step ?? null,
           derived_from: d.derived_from_id,
           carry: d.carry,
           position: d.position,

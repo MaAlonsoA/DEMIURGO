@@ -223,3 +223,15 @@ export const ASK_BOX = messages(
 
 /** Quote.tsx: a long quote of the person's words folds behind "Show more". */
 export const QUOTE = messages({ showMore: 'Show more', showLess: 'Show less' }, { showMore: 'Ver más', showLess: 'Ver menos' });
+
+/** BehaviorSteps.tsx: the checks under each step of the Behavior. */
+export const BEHAVIOR_STEPS = messages(
+  {
+    noCheckForStep: 'No check covers this step yet',
+    notTiedToStep: 'Not tied to a step',
+  },
+  {
+    noCheckForStep: 'Ninguna comprobación cubre este paso todavía',
+    notTiedToStep: 'Sin paso asociado',
+  },
+);

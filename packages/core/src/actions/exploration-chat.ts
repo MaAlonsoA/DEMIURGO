@@ -7,6 +7,7 @@
 
 import {
   COVERED_QUESTION_STATES,
+  behaviorSteps,
   type CriterionChange,
   DomainError,
   STAGES,
@@ -237,7 +238,7 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
   const aboutCriteria = about
     ? await trx
         .selectFrom('criteria')
-        .select(['code', 'title', 'statement', 'verification', 'check_text'])
+        .select(['code', 'title', 'statement', 'verification', 'check_text', 'step'])
         .where('record_version_id', '=', about.id)
         .orderBy('position')
         .execute()
@@ -260,6 +261,7 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
                 statement: c.statement,
                 verification: c.verification,
                 check: c.check_text,
+                step: c.step,
               })),
             }
           : {}),
@@ -640,6 +642,14 @@ registerChecker('exploration_chat', async ({ db, run, output }) => {
       notes.push(
         `${p.code} in \`code\` is not a planned feature of this project (it may be designed or dropped already). \`code\` is the \`planned_feature.code\` of the context: leave it null otherwise.`,
       );
+    if (p.record_type === 'fdr') {
+      const n = behaviorSteps(p.sections.find((s) => s.title === 'Behavior')?.content ?? '').length;
+      for (const k of p.criteria)
+        if (k.step === null || k.step === undefined || k.step > n)
+          notes.push(
+            `A feature criterion ("${k.title}") sets \`step\` to the number (1 to ${n}) of the Behavior step it checks, not ${k.step ?? 'null'}.`,
+          );
+    }
     if (p.record_type === 'task') {
       if (!p.size || !p.size_reason)
         notes.push('A task has its `size` (XS, S, M, L or XL) and a one-line `size_reason`: fill both in every task.');
@@ -863,6 +873,7 @@ type ProposedRecordChange = {
     statement: string | null;
     verification: 'automatic' | 'manual' | null;
     check: string | null;
+    step: number | null;
   }[];
   reason: string;
   quotes: readonly string[];
@@ -900,7 +911,7 @@ function criterionChanges(target: ChangeTarget, c: ProposedRecordChange): Criter
   return c.criteria.flatMap((k): CriterionChange[] => {
     if (k.action === 'drop') return k.code && target.criteria.includes(k.code) ? [{ action: 'drop', code: k.code }] : [];
     if (!k.title || !k.statement || !k.verification || !k.check) return [];
-    const content = { title: k.title, statement: k.statement, verification: k.verification, check: k.check };
+    const content = { title: k.title, statement: k.statement, verification: k.verification, check: k.check, step: k.step };
     if (k.action === 'add') return [{ action: 'add', ...content }];
     return k.code && target.criteria.includes(k.code) ? [{ action: 'modify', code: k.code, ...content }] : [];
   });

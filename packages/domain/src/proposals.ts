@@ -42,6 +42,9 @@ export const decisionPayload = z
   })
   .strict();
 
+/** A criterion as stored in a payload: `step` may be missing in payloads written before it existed. */
+const payloadCriterion = proposedCriterion.extend({ step: proposedCriterion.shape.step.optional() });
+
 export const explorationPayload = z.object({ purpose: text(1000) }).strict();
 
 export const fdrPayload = z
@@ -51,7 +54,7 @@ export const fdrPayload = z
     scope: text(5000),
     out_of_scope: text(5000),
     behavior: text(10_000),
-    criteria: z.array(proposedCriterion).min(1).max(12),
+    criteria: z.array(payloadCriterion).min(1).max(12),
     based_on: recordReference.optional(),
     domain: z
       .string()
@@ -74,7 +77,7 @@ export const designRecordPayload = z
       .array(z.object({ title: text(120), content: text(10_000) }).strict())
       .min(1)
       .max(8),
-    criteria: z.array(proposedCriterion).min(1).max(12),
+    criteria: z.array(payloadCriterion).min(1).max(12),
     domain: z
       .string()
       .regex(/^[a-z][a-z_]*$/)
@@ -205,6 +208,7 @@ const criterionText = {
   statement: text(1500),
   verification: z.enum(['automatic', 'manual']),
   check: text(600),
+  step: z.number().int().min(1).nullable().optional(),
 };
 
 /** A change to one criterion of a record: a new one, the whole new content of one, or one dropped. */

@@ -414,6 +414,8 @@ export type Criterion = {
   /** automatic or manual. */
   verification: string;
   check: string;
+  /** The 1-based step of the Behavior it checks; null when it is not tied to one. */
+  step?: number | null;
   /** new, kept or modified. */
   carry: string;
   /** Its latest evidence (inherited from the criterion it carries when kept), or null if unchecked. */

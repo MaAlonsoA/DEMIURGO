@@ -43,7 +43,7 @@ export type ImportedDocument = {
   state: string;
   domain?: string;
   sections: { title: string; content: string }[];
-  criteria: { code: string; title: string; statement: string; verification: string; check: string }[];
+  criteria: { code: string; title: string; statement: string; verification: string; check: string; step?: number | null }[];
   links: { type: string; target: { code: string; version: number } }[];
   annexes: string[];
 };

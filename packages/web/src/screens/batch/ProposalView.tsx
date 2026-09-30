@@ -15,7 +15,7 @@ import { definitionQuery, recordQuery } from '../../api/queries.ts';
 import type { ProductRow, TaskSize } from '../../api/types.ts';
 import { SIZE_POINTS } from '../../sizes.ts';
 import { ArrowRightIcon } from '../../components/icons.tsx';
-import { BehaviorSteps } from '../../components/BehaviorSteps.tsx';
+import { BEHAVIOR_TITLE, BehaviorSteps, stepCount } from '../../components/BehaviorSteps.tsx';
 import { Markdown } from '../../components/Markdown.tsx';
 import { EntityState, StatusBadge } from '../../components/status.tsx';
 import { RelativeTime } from '../../components/Time.tsx';
@@ -57,15 +57,23 @@ function Checks({ proposal: p }: { proposal: ProposalData }) {
   const t = useMessages(PROPOSAL_VIEW);
   const checks = payloadChecks(p.payload);
   if (checks.length === 0) return null;
+  const steps = stepCount(behaviorText(p.payload));
   return (
     <section className="flex flex-col gap-2">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
         <h3 className="text-sm font-semibold text-fg-2">{t.checksCount(checks.length)}</h3>
         {p.state === 'pending' ? <span className="text-xs text-fg-3">{t.codesGivenOnAccept}</span> : null}
       </div>
-      <ChecksList checks={checks} />
+      <ChecksList checks={checks} steps={steps} />
     </section>
   );
+}
+
+/** The Behavior of a proposal: the fdr's own field or its Behavior section. */
+function behaviorText(payload: Record<string, unknown>): string {
+  const own = str(payload.behavior);
+  if (own.trim()) return own;
+  return payloadSections(payload).find((s) => s.title === BEHAVIOR_TITLE)?.content ?? '';
 }
 
 /** A change to a section of the definition: what it would say and what it says now (its evidence is under "Based on"). */
@@ -208,7 +216,7 @@ export function ProposalBody({
         {str(p.payload.behavior).trim() ? (
           <section className="flex flex-col gap-1">
             <h3 className="text-sm font-semibold text-fg-2">{t.behavior}</h3>
-            <BehaviorSteps text={str(p.payload.behavior)} />
+            <BehaviorSteps text={str(p.payload.behavior)} criteria={payloadChecks(p.payload)} />
           </section>
         ) : null}
         <Checks proposal={p} />
@@ -239,7 +247,7 @@ export function ProposalBody({
             ) : null}
           </section>
         ) : null}
-        <Sections sections={payloadSections(p.payload)} />
+        <Sections sections={payloadSections(p.payload)} criteria={payloadChecks(p.payload)} />
         {features.length > 0 ? (
           <section className="flex flex-col gap-1" data-features>
             <h3 className="text-sm font-semibold text-fg-2">{t.features(features.length)}</h3>
@@ -277,7 +285,7 @@ export function ProposalBody({
           {r?.code ? <RecordChip projectId={projectId} code={r.code} version={r.version ?? null} rows={rows} /> : null}
         </p>
         <p className="text-sm text-fg-2">{t.englishVersionNote}</p>
-        <Sections sections={payloadSections(p.payload)} />
+        <Sections sections={payloadSections(p.payload)} criteria={payloadChecks(p.payload)} />
         <Checks proposal={p} />
       </div>
     );

@@ -62,7 +62,7 @@ export function payloadSections(payload: Record<string, unknown>): PayloadSectio
     .filter((s) => s.title || s.content);
 }
 
-export type PayloadCheck = { code?: string; title: string; statement: string; verification: string; check: string };
+export type PayloadCheck = { code?: string; title: string; statement: string; verification: string; check: string; step?: number | null };
 
 /** The checks (acceptance criteria) a proposal carries, as they came. */
 export function payloadChecks(payload: Record<string, unknown>): PayloadCheck[] {

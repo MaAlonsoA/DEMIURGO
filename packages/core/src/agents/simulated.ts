@@ -194,19 +194,21 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
         goal: truncate(`Turn decision ${txt(d.code)} into product: ${txt(d.decision, title)}`, 2900),
         scope: "The decision's main walkthrough, start to finish, for a single person.",
         out_of_scope: 'External integrations and multiple concurrent users.',
-        behavior: `The person completes the main walkthrough of "${title}" and sees the result confirmed.`,
+        behavior: `1. The person completes the main walkthrough of "${title}".\n2. They see the result confirmed.`,
         criteria: [
           {
             title: 'Main walkthrough',
             statement: `Given an empty project, when the person completes the "${title}" walkthrough, then they see the result saved.`,
             verification: 'automatic',
             check: 'An end-to-end test runs through the flow and checks the result.',
+            step: 1,
           },
           {
             title: 'Understandable error',
             statement: 'Given an invalid input, when the person submits it, then they see a message that explains what to fix.',
             verification: 'automatic',
             check: 'A test submits an invalid input and checks the message.',
+            step: 2,
           },
         ],
       },

@@ -9,7 +9,7 @@ description: DEMIURGO's vocabulary, so every agent uses the words the same way.
 - **Planned feature**: a feature its epic lists that is not designed yet. Designing it makes its FDR with that same code; only a planned one can be dropped, and a code is never reused.
 - **FDR**: a feature design (goal, scope, out of scope, behavior) with acceptance criteria.
 - **Task** (TSK): a piece of the construction of a feature, small enough to build and check on its own. It rests on its approved feature and has its own acceptance criteria, finer than the feature's. It comes from the feature's thread or is written by hand; the person approves it.
-- **AC** (acceptance criterion): an observable statement that says when the feature is done.
+- **AC** (acceptance criterion): an observable statement, "Given …, when …, then …", that says when the feature is done. In a feature it checks one Behavior step (`step`, 1-based); the Behavior is the main flow in 4 to 7 numbered steps.
 - **Proposal**: anything an agent suggests. It has no effect until the person accepts it.
 - **Authority**: what the person approved. Agents never create authority; they only propose.
 

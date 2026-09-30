@@ -13,7 +13,7 @@ import { inboxQuery, readinessQuery, recordQuery, stagesQuery, stateQuery } from
 import { canCreate } from '../../api/tables.ts';
 import type { Inbox, ProductState, RecordDetail, RecordVersion } from '../../api/types.ts';
 import { AskBox, type AskBoxHandle } from '../../components/AskBox.tsx';
-import { SectionContent } from '../../components/BehaviorSteps.tsx';
+import { SectionContent, stepCount, BEHAVIOR_TITLE } from '../../components/BehaviorSteps.tsx';
 import { Markdown } from '../../components/Markdown.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
 import { PageHeader, usePageTitle } from '../../components/Page.tsx';
@@ -249,7 +249,7 @@ function RecordPage({
             ) : tab === 'history' ? (
               <HistoryTab projectId={projectId} record={record} />
             ) : hasChecks(record, version) ? (
-              <Checks criteria={version.criteria} readiness={ready} recording={recording} />
+              <Checks criteria={version.criteria} readiness={ready} recording={recording} steps={stepCount(behaviorOf(version))} />
             ) : (
               <p className="text-sm text-fg-2">{t.noChecksSection}</p>
             )
@@ -304,14 +304,14 @@ function RecordPage({
                 {(s) => (
                   <section key={s.title} className="flex flex-col gap-2">
                     <h2 className="text-lg font-semibold text-fg">{s.title}</h2>
-                    <SectionContent title={s.title} text={s.content} className="max-w-prose" />
+                    <SectionContent title={s.title} text={s.content} className="max-w-prose" criteria={version.criteria} />
                   </section>
                 )}
               </ReviewSections>
             </article>
             {hasChecks(record, version) ? (
               <ReviewArea part="checks">
-                <Checks criteria={version.criteria} readiness={ready} recording={recording} />
+                <Checks criteria={version.criteria} readiness={ready} recording={recording} steps={stepCount(behaviorOf(version))} />
               </ReviewArea>
             ) : null}
             {version.annexes.length > 0 ? <Annexes annexes={version.annexes} /> : null}
@@ -321,6 +321,10 @@ function RecordPage({
     </ReviewProvider>
   );
 }
+
+/** The text of a version's Behavior section ('' when it has none). */
+const behaviorOf = (v: { sections: { title: string; content: string }[] }) =>
+  v.sections.find((s) => s.title === BEHAVIOR_TITLE)?.content ?? '';
 
 /** A version with its prose in the language shown: title, section contents and criteria. */
 function readVersion(v: RecordVersion, text: (key: string, original: string) => string): RecordVersion {

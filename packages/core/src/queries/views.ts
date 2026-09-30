@@ -77,7 +77,7 @@ export async function productJourneys(db: Db, projectId: string) {
     if (steps.length === 0) continue;
     const criteria = await db
       .selectFrom('criteria')
-      .select(['code', 'title', 'statement', 'verification'])
+      .select(['code', 'title', 'statement', 'verification', 'step'])
       .where('record_version_id', '=', version.id)
       .orderBy('position')
       .execute();
@@ -90,7 +90,7 @@ export async function productJourneys(db: Db, projectId: string) {
       readiness: f.readiness,
       origin_exploration: f.origin_exploration,
       steps,
-      paths: criteria.map((c) => ({ code: c.code, title: c.title, verification: c.verification, ...criterionPath(c.statement) })),
+      paths: criteria.map((c) => ({ code: c.code, title: c.title, verification: c.verification, step: c.step, ...criterionPath(c.statement) })),
       gaps: gaps.map((q) => ({
         id: q.id,
         question: q.question,

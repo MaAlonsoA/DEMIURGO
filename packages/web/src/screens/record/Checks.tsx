@@ -9,6 +9,8 @@ import { useCommand } from '../../api/commands.ts';
 import type { Criterion, Readiness } from '../../api/types.ts';
 import { announce } from '../../components/announce.tsx';
 import { Code } from '../../components/Badge.tsx';
+import { checkAnchor, isUntied } from '../../components/BehaviorSteps.tsx';
+import { BEHAVIOR_STEPS } from '../../components/words.i18n.ts';
 import { Button } from '../../components/Button.tsx';
 import { Field, TextArea, TextInput } from '../../components/Field.tsx';
 import { AlertTriangleIcon, CheckCircleIcon, CircleDashedIcon } from '../../components/icons.tsx';
@@ -130,12 +132,16 @@ export function CheckList({
   criteria,
   readiness,
   recording = null,
+  steps = 0,
 }: {
   criteria: Criterion[];
   readiness: Readiness | null;
   recording?: Recording;
+  /** How many Behavior steps the record has; checks not tied to one say so. */
+  steps?: number;
 }) {
   const t = useMessages(CHECKS);
+  const ts = useMessages(BEHAVIOR_STEPS);
   if (criteria.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-edge-strong px-4 py-6 text-center text-sm text-fg-2">
@@ -148,10 +154,11 @@ export function CheckList({
       {criteria.map((c) => {
         const warnings = warningsOf(c.code, readiness);
         return (
-          <li key={c.id} data-check={c.code} className="flex flex-col gap-1.5 py-3">
+          <li key={c.id} id={checkAnchor(c.code)} data-check={c.code} className="flex scroll-mt-16 flex-col gap-1.5 py-3">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <Code>{c.code}</Code>
               <h3 className="text-md font-semibold text-fg">{c.title}</h3>
+              {isUntied(c, steps) ? <span className="text-xs text-fg-3">{ts.notTiedToStep}</span> : null}
             </div>
             <p className="text-sm text-fg-2">{c.statement}</p>
             {warnings.length > 0 ? (
@@ -188,11 +195,13 @@ export function Checks({
   readiness,
   level = 2,
   recording = null,
+  steps = 0,
 }: {
   criteria: Criterion[];
   readiness: Readiness | null;
   level?: 2 | 3;
   recording?: Recording;
+  steps?: number;
 }) {
   const t = useMessages(CHECKS);
   const id = useId();
@@ -208,7 +217,7 @@ export function Checks({
           <span className="font-normal text-fg-2">· {criteria.length}</span>
         )}
       </H>
-      <CheckList criteria={criteria} readiness={readiness} recording={recording} />
+      <CheckList criteria={criteria} readiness={readiness} recording={recording} steps={steps} />
     </section>
   );
 }

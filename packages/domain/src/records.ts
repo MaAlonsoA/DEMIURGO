@@ -130,7 +130,9 @@ export type ReadinessInput = {
   version: VersionSummary;
   /** Last approved version of the record (the current one), if any. */
   current: number | null;
-  criteria: { code: string; verification: string; check: string; statement: string }[];
+  criteria: { code: string; verification: string; check: string; statement: string; step?: number | null }[];
+  /** How many numbered steps the Behavior section of a feature has (Definition of Ready: each has a criterion). */
+  behaviorSteps?: number;
   /**
    * "based_on" links to what it rests on (READINESS_BASES: an epic, the product definition or a
    * decision for a feature; a feature, the definition or a decision for an ADR): linked version, that
@@ -202,6 +204,17 @@ export function readiness(e: ReadinessInput): Readiness {
     if (!['automatic', 'manual'].includes(c.verification) || c.check.trim() === '') {
       reasons.push(`Criterion ${c.code} doesn't say how it's checked.`);
     }
+  }
+  // Features written before criteria named their step (all null) keep their readiness as it was.
+  if (e.type === 'fdr' && e.behaviorSteps !== undefined && e.criteria.some((c) => c.step != null)) {
+    const n = e.behaviorSteps;
+    for (const c of e.criteria) {
+      if (c.step == null || c.step < 1 || c.step > n) {
+        reasons.push(`Criterion ${c.code} doesn't say which Behavior step it checks (1 to ${n}).`);
+      }
+    }
+    const missing = Array.from({ length: n }, (_, i) => i + 1).filter((s) => !e.criteria.some((c) => c.step === s));
+    if (missing.length > 0) reasons.push(`Behavior ${missing.length === 1 ? 'step' : 'steps'} ${missing.join(', ')} ha${missing.length === 1 ? 's' : 've'} no criterion.`);
   }
   if (e.type === 'fdr' || e.type === 'adr' || e.type === 'task') {
     if (e.basedOn.length === 0) {

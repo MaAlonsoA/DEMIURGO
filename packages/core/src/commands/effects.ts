@@ -7,6 +7,7 @@ import {
   PAYLOADS,
   type ProposalType,
   type Section,
+  behaviorSteps,
   definitionChangeNote,
   recordChangeSections,
 } from '@demiurgo/domain';
@@ -14,6 +15,14 @@ import type { CommandContext } from '../bus/types.ts';
 import { definitionStageId, proposeDefinitionIfCovered } from '../definition/compose.ts';
 import { proposeCoveredPrinciples } from '../definition/principles.ts';
 import { type CriterionInput, resolveReference } from './records.ts';
+
+/** A feature criterion that names a Behavior step that doesn't exist is invalid output: nothing is applied. */
+function assertStepsInRange(behavior: string, criteria: readonly { step?: number | null }[]): void {
+  const n = behaviorSteps(behavior).length;
+  for (const k of criteria)
+    if (k.step != null && k.step > n)
+      throw new DomainError('validation', `A criterion checks Behavior step ${k.step}, but the Behavior has ${n} steps.`);
+}
 
 export type Effect = Record<string, unknown>;
 export type EffectInput = { proposalId: string; payload: unknown; approve: boolean };
@@ -117,6 +126,7 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
 
   async fdr(ctx, { proposalId, payload, approve }) {
     const c = PAYLOADS.fdr.parse(payload);
+    assertStepsInRange(c.behavior, c.criteria);
     return createRecord(
       ctx,
       {
@@ -150,6 +160,8 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
       if (c.size === 'XL' && !c.split)
         throw new DomainError('validation', 'An XL task proposal has to say how the task could be split.');
     }
+    if (c.record_type === 'fdr')
+      assertStepsInRange(c.sections.find((s) => s.title === 'Behavior')?.content ?? '', c.criteria);
     const planned = c.record_type === 'fdr' && c.code ? await plannedToDesign(ctx, c.code) : null;
     // A task is in its feature's area, whatever the proposal said.
     const feature =
@@ -208,7 +220,7 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
     if (!v) throw new DomainError('not_found', `There is no ${c.record.code}@${c.record.version}.`);
     const source = await ctx.trx
       .selectFrom('criteria')
-      .select(['code', 'verification'])
+      .select(['code', 'verification', 'step'])
       .where('record_version_id', '=', v.versionId)
       .orderBy('position')
       .execute();
@@ -223,6 +235,7 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
         statement: t.statement,
         verification: k.verification,
         check: t.check,
+        step: k.step,
       };
     });
     const r = await ctx.execute({

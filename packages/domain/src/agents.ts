@@ -187,12 +187,21 @@ const recordText = (max: number) => text(max).describe('In English.');
 
 export const echoOutput = z.object({ reply: text(2000) }).strict();
 
+/** The Behavior step (1-based) a criterion checks; null only for records without Behavior (tasks, epics). */
+const stepRef = z
+  .number()
+  .int()
+  .min(1)
+  .nullable()
+  .describe('The 1-based number of the Behavior step this criterion checks; null only for records without a Behavior section.');
+
 export const proposedCriterion = z
   .object({
     title: recordText(160),
     statement: recordText(1500),
     verification: z.enum(['automatic', 'manual']),
     check: recordText(600),
+    step: stepRef,
   })
   .strict();
 
@@ -394,9 +403,10 @@ export const explorationChatOutput = z
                         .nullable()
                         .describe('For modify and drop: the code of one of `about_record.criteria`; null for add.'),
                       title: recordText(160).nullable().describe('For add and modify: the whole new title; null for drop.'),
-                      statement: recordText(1500).nullable().describe('For add and modify: the whole new statement (EARS); null for drop.'),
+                      statement: recordText(1500).nullable().describe('For add and modify: the whole new statement (Given/when/then); null for drop.'),
                       verification: z.enum(['automatic', 'manual']).nullable().describe('For add and modify; null for drop.'),
                       check: recordText(600).nullable().describe('For add and modify: how it is checked; null for drop.'),
+                      step: stepRef.describe('For add and modify of a feature criterion: the Behavior step it checks; null otherwise.'),
                     })
                     .strict(),
                 )

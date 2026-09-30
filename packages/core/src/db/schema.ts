@@ -349,6 +349,7 @@ export type CriteriaTable = {
   derived_from: string | null;
   carry: string;
   position: number;
+  step: number | null;
   state: string;
   created_at: Generated<Timestamp>;
 };

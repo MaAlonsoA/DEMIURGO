@@ -103,10 +103,16 @@ export const designRecordPayload = z
 export const reviewPayload = z
   .object({
     record: recordReference,
-    verdict: z.enum(['invalidate', 'update', 'add', 'other']),
+    // contradiction and duplicate come from a coherence review of an epic (FDR-KNO-056).
+    verdict: z.enum(['invalidate', 'update', 'add', 'other', 'contradiction', 'duplicate']),
     reason: text(2000),
     change: z.object({ type: z.string(), id: z.string(), version: z.number().int().nullable() }).strict(),
     confidence: z.number().min(0).max(1),
+    // A coherence finding: the other record, a verbatim passage of each (checked by code) and what to change.
+    other: recordReference.optional(),
+    quotes: z.object({ record: text(300), other: text(300) }).strict().optional(),
+    suggestion: text(600).optional(),
+    epic: z.string().optional(),
   })
   .strict();
 

@@ -48,6 +48,7 @@ export const keys = {
   explorations: (p: string) => ['p', p, 'explorations'] as const,
   exploration: (p: string, id: string) => ['p', p, 'exploration', id] as const,
   record: (p: string, code: string) => ['p', p, 'record', code] as const,
+  coherence: (p: string, code: string) => ['p', p, 'coherence', code] as const,
   definition: (p: string) => ['p', p, 'definition'] as const,
   readiness: (p: string, versionId: string) => ['p', p, 'readiness', versionId] as const,
   batch: (p: string, id: string) => ['p', p, 'batch', id] as const,
@@ -149,6 +150,33 @@ export const recordQuery = (p: string, code: string) =>
   queryOptions({
     queryKey: keys.record(p, code),
     queryFn: () => get<RecordDetail>(`${P(p)}/records/${encodeURIComponent(code)}`),
+  });
+
+/** The last coherence review of an epic (FDR-KNO-056). */
+export type CoherenceStatus = {
+  epic: string;
+  run: {
+    id: string;
+    state: string;
+    running: boolean;
+    created_at: string;
+    finished_at: string | null;
+    failure_kind: string | null;
+    error: string | null;
+  } | null;
+  read?: string[];
+  omitted?: string[];
+  found?: number;
+  dropped?: number;
+  proposed?: number;
+  pending?: number;
+  batch?: string | null;
+};
+
+export const coherenceQuery = (p: string, code: string) =>
+  queryOptions({
+    queryKey: keys.coherence(p, code),
+    queryFn: () => get<CoherenceStatus>(`${P(p)}/records/${encodeURIComponent(code)}/coherence`),
   });
 
 export const definitionQuery = (p: string) =>

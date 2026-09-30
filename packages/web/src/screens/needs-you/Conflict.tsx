@@ -30,6 +30,10 @@ type Review = {
   verdict?: string;
   reason?: string;
   confidence?: number;
+  // A coherence finding (FDR-KNO-056): the other record and a verbatim passage of each.
+  other?: { code?: string; version?: number };
+  quotes?: { record?: string; other?: string };
+  epic?: string;
 };
 
 export function Conflict({ item, ctx, titleId, top, title }: DetailProps<'conflict'> & { title: string }) {
@@ -41,7 +45,10 @@ export function Conflict({ item, ctx, titleId, top, title }: DetailProps<'confli
   const change = review.change?.id ? rowOfVersion(ctx.rows, review.change.id) : undefined;
   const changeName = change ? `“${change.title}”` : t.newerChange;
   const verdict = titleWords.verdictWord(review.verdict ?? '');
-  const recommendation = t.recommends(record ? `“${record.title}”` : code, changeName, verdict);
+  const coherence = !!review.quotes;
+  const recommendation = coherence
+    ? t.coherenceSays(review.verdict ?? '', record ? `“${record.title}”` : code, changeName)
+    : t.recommends(record ? `“${record.title}”` : code, changeName, verdict);
   const sure = Math.round((review.confidence ?? 0) * 100);
   const warnings = item.proposal.obsolescence;
   return (
@@ -52,12 +59,12 @@ export function Conflict({ item, ctx, titleId, top, title }: DetailProps<'confli
       top={top}
       title={title}
       code={code ? `${code} v${review.record?.version ?? ''}` : undefined}
-      state={<StatusBadge kind="conflict" word={item.approved ? t.withApproved : t.withEarlier} />}
+      state={<StatusBadge kind="conflict" word={coherence ? t.foundReadingEpic : item.approved ? t.withApproved : t.withEarlier} />}
       why={
         <>
-          <span>{t.becauseOf(changeName)}</span>
+          <span>{coherence ? t.fromCoherence(review.epic ?? '') : t.becauseOf(changeName)}</span>
           {change ? <Code>{`${change.code}${review.change?.version ? ` v${review.change.version}` : ''}`}</Code> : null}
-          {review.reason ? <span>· {review.reason}</span> : null}
+          {review.reason && !coherence ? <span>· {review.reason}</span> : null}
         </>
       }
       decision={
@@ -75,14 +82,20 @@ export function Conflict({ item, ctx, titleId, top, title }: DetailProps<'confli
       }
     >
       <div className="grid items-stretch gap-3 lg:grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)]">
-        <Side projectId={ctx.projectId} label={t.toReview} code={code} version={review.record?.version ?? null} />
+        <Side projectId={ctx.projectId} label={t.toReview} code={code} version={review.record?.version ?? null} quote={review.quotes?.record} />
         <span className="flex items-center justify-center" role="img" aria-label={t.mayContradict}>
           <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-danger-edge bg-danger-soft text-danger-text">
             <AlertTriangleIcon size={15} />
           </span>
         </span>
         {change ? (
-          <Side projectId={ctx.projectId} label={t.theChange} code={change.code} version={review.change?.version ?? null} />
+          <Side
+            projectId={ctx.projectId}
+            label={coherence ? t.otherRecord : t.theChange}
+            code={change.code}
+            version={review.change?.version ?? null}
+            quote={review.quotes?.other}
+          />
         ) : (
           <div className="rounded-lg border border-dashed border-edge-strong px-3.5 py-3 text-sm text-fg-2">
             <p className="font-medium text-fg">{t.theChange}</p>
@@ -93,14 +106,28 @@ export function Conflict({ item, ctx, titleId, top, title }: DetailProps<'confli
       <Card padding="md" className="flex flex-col gap-1.5 bg-sunken" data-recommendation>
         <p className="text-sm font-medium text-fg">{t.whatDemiurgoRecommends}</p>
         <p className="text-base text-fg">{recommendation}</p>
-        {review.reason ? <p className="text-sm text-fg-2">{t.why(review.reason, sure)}</p> : null}
+        {review.reason ? (
+          <p className="text-sm text-fg-2">{coherence ? t.coherenceWhy(review.reason) : t.why(review.reason, sure)}</p>
+        ) : null}
       </Card>
     </DetailFrame>
   );
 }
 
-/** One side of the conflict: the record, the version in question, its text and who approved it. */
-function Side({ projectId, label, code, version }: { projectId: string; label: string; code: string; version: number | null }) {
+/** One side of the conflict: the record, the version in question, its text (or the passage in question) and who approved it. */
+function Side({
+  projectId,
+  label,
+  code,
+  version,
+  quote,
+}: {
+  projectId: string;
+  label: string;
+  code: string;
+  version: number | null;
+  quote?: string | undefined;
+}) {
   const t = useMessages(CONFLICT);
   const detail = useQuery({ ...recordQuery(projectId, code), enabled: code !== '' }).data;
   const v: RecordVersion | undefined = detail?.versions.find((x) => x.n === version) ?? detail?.versions.at(-1);
@@ -128,9 +155,15 @@ function Side({ projectId, label, code, version }: { projectId: string; label: s
       <p className="font-medium text-fg">
         {v.title} <Code className="whitespace-nowrap">{`${detail.code} v${v.n}`}</Code>
       </p>
-      <Markdown size="sm" className="line-clamp-4">
-        {text}
-      </Markdown>
+      {quote ? (
+        <blockquote className="border-l-2 border-danger-edge pl-3 text-sm text-fg" data-quote>
+          “{quote}”
+        </blockquote>
+      ) : (
+        <Markdown size="sm" className="line-clamp-4">
+          {text}
+        </Markdown>
+      )}
       <p className="mt-auto flex items-center gap-1.5 text-xs text-fg-2">
         <WhoAvatar kind={whoOf(by).kind} size={16} />
         {v.approved_by ? (

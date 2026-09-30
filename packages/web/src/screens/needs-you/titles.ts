@@ -72,6 +72,8 @@ export type ReasonContext = { rows: readonly ProductRow[]; threads: readonly Pic
 export function needReason(item: NeedItem, ctx: ReasonContext, words: Words = TITLES.en): string {
   switch (item.kind) {
     case 'conflict':
+      // A coherence finding (FDR-KNO-056) was found reading the whole epic, not after one change.
+      if (item.proposal.payload.quotes) return words.foundByCoherence(String(item.proposal.payload.epic ?? ''));
       return item.approved ? words.foundApproved : words.foundEarlier;
     case 'question': {
       const q = item.question;

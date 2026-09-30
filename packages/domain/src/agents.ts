@@ -7,7 +7,7 @@ import { aspectSchema } from './aspects.ts';
 import { z } from 'zod';
 import { DEFINITION_SECTION_TITLES, QUOTE_MAX } from './definition.ts';
 
-export const AGENT_ACTIONS = ['echo', 'exploration_chat', 'design_proposal'] as const;
+export const AGENT_ACTIONS = ['echo', 'exploration_chat', 'design_proposal', 'coherence_review'] as const;
 export type AgentAction = (typeof AGENT_ACTIONS)[number];
 
 /** Closed failure kinds (docs/investigacion-stack-2026-09-24.md §8). */
@@ -467,10 +467,43 @@ export const designProposalOutput = z
   })
   .strict();
 
+/** The most findings a coherence review returns, and the longest quote of each side. */
+export const COHERENCE_MAX_FINDINGS = 10;
+export const COHERENCE_QUOTE_MAX = 120;
+
+const recordCode = z.string().regex(/^[A-Z]{3}-[A-Z]{3}-\d{3}$/);
+
+/** coherence_review (FDR-KNO-056): what reading a whole epic at once finds, each finding with its two quotes. */
+export const coherenceOutput = z
+  .object({
+    findings: z
+      .array(
+        z
+          .object({
+            kind: z
+              .enum(['contradiction', 'duplicate'])
+              .describe(
+                'contradiction: two statements that cannot both be true. duplicate: two records that specify the same behaviour, data, command or screen, so building both would make two versions of it.',
+              ),
+            record: recordCode.describe('The record to change, one of `records`.'),
+            quote: text(COHERENCE_QUOTE_MAX).describe("A passage of that record's text, copied verbatim."),
+            other: recordCode.describe('The other record, one of `records`, different from `record`.'),
+            other_quote: text(COHERENCE_QUOTE_MAX).describe("A passage of the other record's text, copied verbatim."),
+            explanation: recordText(600).describe('Why both cannot stand as they are, in one or two sentences.'),
+            suggestion: recordText(300).describe('One line: what to change in `record`.'),
+          })
+          .strict(),
+      )
+      .max(COHERENCE_MAX_FINDINGS)
+      .describe('Most serious first; empty when the records are coherent.'),
+  })
+  .strict();
+
 export const OUTPUT_SCHEMAS = {
   echo: echoOutput,
   exploration_chat: explorationChatOutput,
   design_proposal: designProposalOutput,
+  coherence_review: coherenceOutput,
 } as const satisfies Record<AgentAction, z.ZodType>;
 
 export type ActionOutput<A extends AgentAction> = z.infer<(typeof OUTPUT_SCHEMAS)[A]>;

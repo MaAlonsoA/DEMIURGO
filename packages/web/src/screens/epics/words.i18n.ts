@@ -157,3 +157,44 @@ export const PLANNED_FEATURE = messages(
     notFound: (code: string) => `la funcionalidad ${code}`,
   },
 );
+
+export const COHERENCE = messages(
+  {
+    title: 'Coherence',
+    check: 'Check coherence',
+    running: 'Reading the epic…',
+    note: 'Reads the whole epic at once (the definition, its features and decisions, and what they link to) for contradictions and duplicated behaviour that checking two records at a time cannot see. Each issue quotes both records.',
+    suggest: 'All features designed: check their coherence before building.',
+    startedPrefix: 'Reading since',
+    checkedPrefix: '· checked',
+    seeRun: 'See the run',
+    noIssues: 'Coherence checked: no issues.',
+    issues: (n: number, pending: number) => `${n} issue(s) found, ${pending} still to decide.`,
+    dropped: (n: number) => `${n} finding(s) dropped: their quotes are not in the records.`,
+    alreadyPending: (n: number) => `${n} already pending from an earlier review.`,
+    read: (n: number, codes: readonly string[]) => `Read ${n} record(s): ${codes.join(', ')}.`,
+    omitted: (codes: readonly string[]) =>
+      `Left out, over the budget: ${codes.length} record(s)${codes.length > 0 ? `, such as ${codes.slice(0, 5).join(', ')}` : ''}.`,
+    seeIssues: 'Decide the issues',
+    failed: (why: string) => `The last review did not finish. ${why}`,
+  },
+  {
+    title: 'Coherencia',
+    check: 'Revisar la coherencia',
+    running: 'Leyendo la épica…',
+    note: 'Lee la épica entera de una vez (la definición, sus funcionalidades y decisiones, y lo que enlazan) buscando contradicciones y comportamiento duplicado que no se ven comparando los registros de dos en dos. Cada problema cita los dos registros.',
+    suggest: 'Todas las funcionalidades diseñadas: revisa su coherencia antes de construir.',
+    startedPrefix: 'Leyendo desde',
+    checkedPrefix: '· revisada',
+    seeRun: 'Ver la ejecución',
+    noIssues: 'Coherencia revisada: sin problemas.',
+    issues: (n: number, pending: number) => `${n} problema(s) encontrado(s), ${pending} por decidir.`,
+    dropped: (n: number) => `${n} hallazgo(s) descartado(s): sus citas no están en los registros.`,
+    alreadyPending: (n: number) => `${n} ya pendiente(s) de una revisión anterior.`,
+    read: (n: number, codes: readonly string[]) => `Leídos ${n} registro(s): ${codes.join(', ')}.`,
+    omitted: (codes: readonly string[]) =>
+      `Fuera, por el límite: ${codes.length} registro(s)${codes.length > 0 ? `, como ${codes.slice(0, 5).join(', ')}` : ''}.`,
+    seeIssues: 'Decidir los problemas',
+    failed: (why: string) => `La última revisión no terminó. ${why}`,
+  },
+);

@@ -335,7 +335,8 @@ registerHandlers({
       await reviewObsolescence(ctx, { batch: id });
       // Every idea from an agent (external or from a run, including design packages) is
       // assessed against the knowledge base (§7.7), outside the transaction.
-      if (batchType === 'agent' || runId !== null) {
+      // A knowledge batch holds reviews, not ideas: nothing to assess.
+      if (batchType === 'agent' || (runId !== null && batchType !== 'knowledge')) {
         const { services, projectId } = ctx;
         ctx.afterCommit(() => services.engine.startAssessment(id, projectId));
       }

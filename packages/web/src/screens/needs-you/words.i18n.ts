@@ -31,6 +31,8 @@ export const TITLES = messages(
         invalidate: 'may no longer hold',
         add: 'may lack something the change adds',
         other: 'may be affected',
+        contradiction: 'contradicts another record',
+        duplicate: 'may duplicate another record',
       })[verdict] ?? 'may be affected',
     packageImported: 'Imported from design/',
     packageFallback: 'A package',
@@ -42,6 +44,7 @@ export const TITLES = messages(
     linkTitle: (from: string, to: string) => `${from} is based on ${to}`,
     foundApproved: 'Found by knowledge · with something you approved',
     foundEarlier: 'Found by knowledge · with an earlier version',
+    foundByCoherence: (epic: string) => `Found by the coherence review of ${epic}`,
     itsThread: 'its thread',
     askedByIn: (isHuman: boolean, thread: string) => `${isHuman ? 'Asked by you' : 'Asked by DEMIURGO'} in ${thread}`,
     packageReason: (n: number) => `${n} ${n === 1 ? 'proposal' : 'proposals'}, decided whole`,
@@ -100,6 +103,8 @@ export const TITLES = messages(
           invalidate: 'puede que ya no sea válido',
           add: 'puede que le falte algo que añade el cambio',
           other: 'puede verse afectado',
+          contradiction: 'contradice otro registro',
+          duplicate: 'puede duplicar otro registro',
         }) as Record<string, string>
       )[verdict] ?? 'puede verse afectado',
     packageImported: 'Importado desde design/',
@@ -112,6 +117,7 @@ export const TITLES = messages(
     linkTitle: (from: string, to: string) => `${from} se basa en ${to}`,
     foundApproved: 'Encontrado por el conocimiento · con algo que aprobaste',
     foundEarlier: 'Encontrado por el conocimiento · con una versión anterior',
+    foundByCoherence: (epic: string) => `Lo encontró la revisión de coherencia de ${epic}`,
     itsThread: 'su hilo',
     askedByIn: (isHuman: boolean, thread: string) => `${isHuman ? 'Preguntada por ti' : 'Preguntada por DEMIURGO'} en ${thread}`,
     packageReason: (n: number) => `${n} ${n === 1 ? 'propuesta' : 'propuestas'}, se decide entero`,
@@ -283,6 +289,14 @@ export const CONFLICT = messages(
     keepAsIs: 'Keep it as it is',
     approvedWord: 'Approved',
     draftedWord: 'Drafted',
+    otherRecord: 'The other record',
+    coherenceSays: (kind: string, subject: string, other: string) =>
+      kind === 'duplicate'
+        ? `${subject} and ${other} specify the same thing: building both would make two versions of it. DEMIURGO recommends reviewing ${subject}; nothing changes until you do.`
+        : `${subject} and ${other} say things that cannot both be true. DEMIURGO recommends reviewing ${subject}; nothing changes until you do.`,
+    coherenceWhy: (reason: string) => `Why: ${reason}`,
+    fromCoherence: (epic: string) => `Found by the coherence review of ${epic}`,
+    foundReadingEpic: 'Found reading the whole epic',
   },
   {
     newerChange: 'un cambio más nuevo',
@@ -301,6 +315,14 @@ export const CONFLICT = messages(
     keepAsIs: 'Dejarlo como está',
     approvedWord: 'Aprobada',
     draftedWord: 'Redactada',
+    otherRecord: 'El otro registro',
+    coherenceSays: (kind: string, subject: string, other: string) =>
+      kind === 'duplicate'
+        ? `${subject} y ${other} especifican lo mismo: construir los dos daría dos versiones de lo mismo. DEMIURGO recomienda revisar ${subject}; nada cambia hasta que tú lo hagas.`
+        : `${subject} y ${other} dicen cosas que no pueden ser ciertas a la vez. DEMIURGO recomienda revisar ${subject}; nada cambia hasta que tú lo hagas.`,
+    coherenceWhy: (reason: string) => `Por qué: ${reason}`,
+    fromCoherence: (epic: string) => `Lo encontró la revisión de coherencia de ${epic}`,
+    foundReadingEpic: 'Encontrado leyendo la épica entera',
   },
 );
 

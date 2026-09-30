@@ -39,6 +39,7 @@ import {
   productDefinition,
   buildQueue,
   composeBrief,
+  coherenceStatus,
 } from '@demiurgo/core';
 import type { Credential } from './credentials.ts';
 
@@ -214,6 +215,12 @@ registerQueries([
     respond: async ({ services, params }) => ({
       brief: await composeBrief(services.db, uuid(params.projectId, 'project'), params.code ?? ''),
     }),
+  },
+  {
+    // The last coherence review of an epic (FDR-KNO-056): what it read, found, dropped and left pending.
+    path: '/api/projects/:projectId/records/:code/coherence',
+    queryName: 'query.records',
+    respond: ({ services, params }) => coherenceStatus(services.db, uuid(params.projectId, 'project'), params.code ?? ''),
   },
   {
     path: '/api/projects/:projectId/versions/:versionId/readiness',

@@ -179,6 +179,11 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
     return output;
   },
 
+  // The simulated reviewer finds the records coherent.
+  coherence_review() {
+    return { findings: [] };
+  },
+
   design_proposal(p) {
     const c = obj(p.context.content);
     const d = obj(c.decision);

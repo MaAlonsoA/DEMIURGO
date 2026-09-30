@@ -175,6 +175,12 @@ const plain = (s: string): string =>
     .replace(/[.;,:]+$/, '');
 
 /** A verdict that asks the person to change a record must quote both sides verbatim. */
+/** Whether a quote (at least 8 characters) is in a text, ignoring case, markdown, quote and dash styles and spacing. */
+export function quoteIn(quote: string, text: string): boolean {
+  const q = plain(quote);
+  return q.length >= 8 && plain(text).includes(q);
+}
+
 export function quotesHold(justification: string, changeSide: string, candidateSide: string): boolean {
   const q = quotesOf(justification);
   if (!q) return false;

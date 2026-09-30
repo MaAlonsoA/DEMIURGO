@@ -29,6 +29,7 @@ import {
 import { AddFeature, LineControls } from '../epics/PlanEditing.tsx';
 import { epicRef } from '../epics/plans.ts';
 import { EPIC_BOARD } from '../epics/words.i18n.ts';
+import { CoherenceCheck } from './CoherenceCheck.tsx';
 import { CopyBriefButton } from './CopyBrief.tsx';
 
 const MARK: Record<LineState, ReactNode> = {
@@ -171,6 +172,14 @@ export function EpicBoard({
             ))}
           </ul>
         </div>
+      ) : null}
+      {ref ? (
+        <CoherenceCheck
+          projectId={projectId}
+          epicId={record.id}
+          code={record.code}
+          allDesigned={plan.lines.length > 0 && plan.lines.every((l) => l.state !== 'unstarted' && l.state !== 'designing')}
+        />
       ) : null}
       <p className="border-t border-edge-subtle pt-3 text-sm text-fg-2">
         <span className="font-medium text-fg">{t.doneWhen}: </span>

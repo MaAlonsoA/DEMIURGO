@@ -162,6 +162,7 @@ export function BuildStepper({ build }: { build: NonNullable<RecordDetail['build
             <span className="font-medium">{t[`s_${s.stage}` as const]}</span>
             <span>{t[`o_${s.outcome}` as const]}</span>
             {s.stage === 'design' ? <DesignDetail step={s} /> : null}
+            {s.outcome === 'failed' && s.stage !== 'design' ? <FailureReason step={s} /> : null}
           </li>
         ))}
       </ol>
@@ -191,6 +192,18 @@ export function BuildStepper({ build }: { build: NonNullable<RecordDetail['build
         </p>
       ) : null}
     </div>
+  );
+}
+
+/** The reason a step failed (its recorded error), cut to one short line; the full text is in the tooltip. */
+function FailureReason({ step }: { step: BuildStep }) {
+  const error = (step.detail as { error?: unknown } | null)?.error;
+  if (typeof error !== 'string' || error.trim() === '') return null;
+  const line = error.replace(/\s+/g, ' ').trim();
+  return (
+    <span className="min-w-0 max-w-prose truncate text-fg-3" title={line} data-step-error>
+      {line.length > 160 ? `${line.slice(0, 160)}…` : line}
+    </span>
   );
 }
 

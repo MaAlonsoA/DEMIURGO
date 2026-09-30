@@ -33,6 +33,7 @@ import { executeCommand } from '../bus/bus.ts';
 import { systemInteraction } from '../engine/observe.ts';
 import { engineServices } from '../engine/registry.ts';
 import * as github from '../github/client.ts';
+import { redactConfigured } from '../github/client.ts';
 import { taskCoversOf } from '../queries/sizes.ts';
 import { projectsDir } from '../repo/repo.ts';
 import { BUILDER_MAX_TIME_MS, type BuildReport, runBuilder } from '../runner/builder.ts';
@@ -120,7 +121,8 @@ async function record(r: Run, stage: Stage, outcome: Outcome, detail?: Record<st
   });
 }
 
-const messageOf = (e: unknown): string => (isDomainError(e) ? [e.message, ...(e.reasons)].join(' ') : e instanceof Error ? e.message : String(e));
+const messageOf = (e: unknown): string =>
+  redactConfigured(isDomainError(e) ? [e.message, ...(e.reasons)].join(' ') : e instanceof Error ? e.message : String(e));
 
 type StageResult<T> = { value?: T; outcome?: 'ok' | 'waiting' | 'failed' | 'changes_requested'; detail?: Record<string, unknown>; extra?: Extra };
 type Done<T> = { ok: true; value: T } | { ok: false; outcome: 'failed' | 'changes_requested' };

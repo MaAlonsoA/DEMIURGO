@@ -92,24 +92,45 @@ async function graphql(cfg: GithubConfig, query: string, variables: Record<strin
 
 // ---------------------------------------------------------------------------------- git
 
-async function git(dir: string, args: string[], token?: string): Promise<string> {
+/**
+ * Environment that authenticates git's HTTPS calls to github.com for one child process only: the
+ * credential travels in GIT_CONFIG_* variables, so it is in no file, no remote URL and no argv.
+ */
+export function gitAuthEnv(cfg: GithubConfig | null = githubConfig()): Record<string, string> {
+  if (!cfg) return {};
+  const basic = Buffer.from(`x-access-token:${cfg.token}`).toString('base64');
+  return {
+    GIT_CONFIG_COUNT: '1',
+    GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
+    GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${basic}`,
+  };
+}
+
+/** Text with the configured GitHub token removed (no-op when there is none). */
+export function redactConfigured(text: string): string {
+  const token = process.env.DEMIURGO_GITHUB_TOKEN?.trim();
+  return token ? redactToken(text, token) : text;
+}
+
+/** Runs git in `dir`; `network` calls carry the GitHub credential and their errors are scrubbed of it. */
+export async function runGit(dir: string, args: string[], opts: { network?: boolean } = {}): Promise<string> {
   try {
     const { stdout } = await run('git', ['-C', dir, ...args], {
       maxBuffer: 16 * 1024 * 1024,
-      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0', ...(opts.network ? gitAuthEnv() : {}) },
     });
     return stdout;
   } catch (e) {
     const err = e as { stderr?: string; message: string };
-    const text = `git ${args.filter((a) => !a.startsWith('http.extraHeader')).join(' ')} failed: ${err.stderr || err.message}`;
-    throw new DomainError('validation', token ? redactToken(text, token) : text);
+    throw new DomainError('validation', redactConfigured(`git ${args.join(' ')} failed: ${err.stderr || err.message}`));
   }
 }
 
-/** Pushes a branch with a credential that lives only in this command's arguments. */
-export async function pushBranch(repoDir: string, branch: string, cfg: GithubConfig): Promise<void> {
-  const basic = Buffer.from(`x-access-token:${cfg.token}`).toString('base64');
-  await git(repoDir, ['-c', `http.extraHeader=Authorization: Basic ${basic}`, 'push', 'origin', branch], cfg.token);
+const git = (dir: string, args: string[]) => runGit(dir, args);
+
+/** Pushes a branch; the credential lives only in this child process's environment. */
+export async function pushBranch(repoDir: string, branch: string, _cfg?: GithubConfig): Promise<void> {
+  await runGit(repoDir, ['push', 'origin', branch], { network: true });
 }
 
 // ---------------------------------------------------------------------------------- repository

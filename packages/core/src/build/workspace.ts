@@ -8,6 +8,7 @@ import { mkdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { projectsDir } from '../repo/repo.ts';
+import { runGit } from '../github/client.ts';
 
 const run = promisify(execFile);
 const git = (dir: string, args: string[]) => run('git', ['-C', dir, ...args], { maxBuffer: 16 * 1024 * 1024 });
@@ -55,7 +56,7 @@ export async function prepareWorktree(input: { repoDir: string; taskCode: string
     const branch = input.existingBranch;
     if (existsSync(path)) return { path, branch };
     await git(input.repoDir, ['worktree', 'prune']);
-    if (origin) await git(input.repoDir, ['fetch', 'origin', branch]).catch(() => undefined);
+    if (origin) await runGit(input.repoDir, ['fetch', 'origin', branch], { network: true }).catch(() => undefined);
     if (await branchExists(input.repoDir, `refs/heads/${branch}`)) {
       await git(input.repoDir, ['worktree', 'add', path, branch]);
     } else {
@@ -68,7 +69,7 @@ export async function prepareWorktree(input: { repoDir: string; taskCode: string
   if (existsSync(path)) return { path, branch };
   let base = 'main';
   if (origin) {
-    await git(input.repoDir, ['fetch', 'origin', 'main']);
+    await runGit(input.repoDir, ['fetch', 'origin', 'main'], { network: true });
     base = 'origin/main';
   }
   await git(input.repoDir, ['worktree', 'add', '-b', branch, path, base]);

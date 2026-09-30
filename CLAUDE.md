@@ -20,9 +20,12 @@ reglas anulan las de `AGENTS.md` y las de cualquier skill.
   - No ejecutes `gate:all`. Si una prueba se rompe, déjala rota y di cuál es.
 - **Un commit por parche.**
   - Título con el prefijo `patch:`, por ejemplo `patch: Enter envía el mensaje del hilo`.
-  - El cuerpo lleva dos líneas, que lee el companion con la skill `puesta-al-dia`:
+  - El cuerpo lleva estas líneas, que lee el companion con la skill `puesta-al-dia`:
     - `Pedido: «<las palabras de la persona, tal cual>»`;
-    - `Dónde: <pantalla o acción>`.
+    - `Dónde: <pantalla o acción>`;
+    - `Diseño: <códigos en DEMIURGO-dogfood>` (`FDR-…`, `TSK-…`), cuando el parche construye algo
+      diseñado allí. El diseño va antes que el código, y la evidencia de cada criterio se registra
+      en dogfood con el commit.
 
     Van con `-m` separados.
   - Usa pathspec.
@@ -30,9 +33,12 @@ reglas anulan las de `AGENTS.md` y las de cualquier skill.
   - Nunca hagas push a `v2`, `v2.2` ni a `main`, ni merge.
   - `git log --oneline v2.2..v2.3` es el registro de parches.
 - **Instancia 8100.**
-  - Corre en `compose.yaml` y se recarga sola:
-    - el API en el contenedor `api` con `node --watch packages/api/src/main.ts`;
-    - la web en el contenedor `web-build` con `pnpm --filter @demiurgo/web exec vite build --watch`.
+  - Corre en `compose.yaml`:
+    - el API en el contenedor `api` con `node --watch packages/api/src/main.ts`. En este Mac el
+      `--watch` no ve los cambios del bind-mount: tras un parche de servidor, `docker compose restart
+      api`, siempre sin nada en curso;
+    - la web en el contenedor `web-build` con `pnpm --filter @demiurgo/web exec vite build --watch`,
+      que sí se recarga sola.
   - Si no corre, relánzala con `pnpm stack:up` (`docker compose up -d --build --wait`); las variables
     salen de `.env`. Un cambio en `.env` se aplica con `docker compose up -d api`.
 - **Los datos de la instancia no son desechables**: contienen el diseño real.

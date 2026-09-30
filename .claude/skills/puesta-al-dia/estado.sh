@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Read-only snapshot of the V2.1 work: patches in git and what the person did inside DEMIURGO.
+# Read-only snapshot of the V2.3 work: patches in git and what the person did inside DEMIURGO.
 # Usage: bash .claude/skills/puesta-al-dia/estado.sh [days]   (default: 7 days of DEMIURGO activity)
 set -u
 cd "$(git rev-parse --show-toplevel)" || exit 1
 DAYS="${1:-7}"
 
-echo "## Patches (git log v2..v2.1, newest first)"
-git log v2..v2.1 --date=format:'%Y-%m-%d %H:%M' --format='--- %h %ad %s%n%b' --stat=100 | sed '/^$/d'
+echo "## Patches (git log v2.2..v2.3, newest first)"
+git log v2.2..v2.3 --date=format:'%Y-%m-%d %H:%M' --format='--- %h %ad %s%n%b' --stat=100 | sed '/^$/d'
 
 q() {
   docker exec -e PGOPTIONS='-c default_transaction_read_only=on' demiurgo-v2-postgres-1 \

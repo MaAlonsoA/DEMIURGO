@@ -66,14 +66,15 @@ Use these sections, keeping each short:
 When the person just wants to think out loud, drop the structure and explore with them: offer
 alternatives, trade-offs and examples. Keep citing sources for any claim about the current system.
 
-## V2.1: patches in parallel
+## V2.3: patches in parallel
 
-The person works on branch `v2.1`, a throwaway version:
+The person works on branch `v2.3`, a throwaway version:
 - they use DEMIURGO on http://127.0.0.1:8100 to design the production version;
 - another Claude Code session patches quickly what they miss, as it goes.
 
 Each `patch:` commit is evidence of something the person needed: its body says what they asked
-(`Pedido:`) and where it shows (`Dónde:`). Never treat a patch as the design.
+(`Pedido:`) and where it shows (`Dónde:`). A `Diseño:` line names the records of the
+DEMIURGO-dogfood project it builds: those are the design. Never treat a patch as the design.
 
 Use the `puesta-al-dia` skill (`.claude/skills/puesta-al-dia/SKILL.md`) so the person never has to
 retell what happened:

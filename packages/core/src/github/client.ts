@@ -133,6 +133,38 @@ export async function pushBranch(repoDir: string, branch: string, _cfg?: GithubC
   await runGit(repoDir, ['push', 'origin', branch], { network: true });
 }
 
+/**
+ * Brings origin's main (merged pull requests: application code) into the local main, which carries
+ * DEMIURGO's design/ commits, so the push that follows is a fast-forward. A merge commit keeps both
+ * histories (squash-merged PRs cannot be rebased onto cleanly). The two sides touch different paths;
+ * if they conflict anyway the merge is aborted, leaving the repo clean, and the step fails.
+ */
+export async function integrateOriginMain(repoDir: string): Promise<void> {
+  try {
+    await runGit(repoDir, ['fetch', 'origin', 'main'], { network: true });
+  } catch (e) {
+    // A brand-new remote has no main yet: nothing to integrate, the push creates it.
+    if (/couldn't find remote ref/i.test(e instanceof Error ? e.message : String(e))) return;
+    throw e;
+  }
+  const behind = Number((await runGit(repoDir, ['rev-list', '--count', 'main..origin/main'])).trim());
+  if (!behind) return;
+  try {
+    await runGit(repoDir, [
+      '-c', 'user.name=DEMIURGO',
+      '-c', 'user.email=demiurgo@demiurgo.local',
+      '-c', 'commit.gpgsign=false',
+      'merge', '--no-edit', 'origin/main',
+    ]);
+  } catch (e) {
+    await runGit(repoDir, ['merge', '--abort']).catch(() => undefined);
+    throw new DomainError(
+      'validation',
+      `Could not merge origin/main into the project's main (the merge was aborted, the repository is unchanged): ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------------- repository
 
 export const repoNameFor = (dir: string) =>
@@ -186,6 +218,7 @@ export async function ensureProjectRepo(db: Db, projectId: string, cfg: GithubCo
   const url = `https://github.com/${owner}/${repo}.git`;
   const remotes = (await git(repoDir, ['remote'])).split('\n').map((r) => r.trim());
   await git(repoDir, remotes.includes('origin') ? ['remote', 'set-url', 'origin', url] : ['remote', 'add', 'origin', url]);
+  await integrateOriginMain(repoDir);
   await pushBranch(repoDir, 'main', cfg);
 
   try {

@@ -377,7 +377,7 @@ export const PROPOSAL_VIEW = messages(
     englishVersionNote:
       'Records are kept in English. This is the same content, translated by DEMIURGO: accepting it makes it a new version of the record, with every check carried over.',
     definitionChangeOf: (section: string) => `A change to “${section}” in the product definition, decided in a thread.`,
-    recordChangeOf: (code: string, section: string) => `A change to “${section}” in ${code}, decided in a thread.`,
+    recordChangeOf: (code: string, what: string) => `A change to ${what} in ${code}, decided in a thread.`,
     featurePlanOf: (epic: string) => `A change to the list of features of ${epic}, decided in a thread.`,
     featurePlanAdd: (name: string, position: number | null, summary: string) =>
       `Add “${name}” ${position ? `at ${position}` : 'at the end'}: ${summary}`,
@@ -437,7 +437,7 @@ export const PROPOSAL_VIEW = messages(
     englishVersionNote:
       'Los registros se guardan en inglés. Es el mismo contenido, traducido por DEMIURGO: al aceptarlo pasa a ser una versión nueva del registro, con todas sus comprobaciones.',
     definitionChangeOf: (section: string) => `Un cambio en «${section}» de la definición del producto, decidido en un hilo.`,
-    recordChangeOf: (code: string, section: string) => `Un cambio en «${section}» de ${code}, decidido en un hilo.`,
+    recordChangeOf: (code: string, what: string) => `Un cambio en ${what} de ${code}, decidido en un hilo.`,
     featurePlanOf: (epic: string) => `Un cambio en la lista de funcionalidades de ${epic}, decidido en un hilo.`,
     featurePlanAdd: (name: string, position: number | null, summary: string) =>
       `Añadir «${name}» ${position ? `en el puesto ${position}` : 'al final'}: ${summary}`,

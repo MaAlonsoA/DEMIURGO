@@ -512,6 +512,7 @@ async function applyInSpan(s: Services, runId: string, projectId: string, r: Inv
         .execute();
       const base = { actor: ENGINE, projectId, entityId: runId, cause: { run: runId } };
       const action = run.action as AgentAction;
+      let problems: string[] = [];
       if (r.state === 'error') {
         await execute({
           ...base,
@@ -551,6 +552,21 @@ async function applyInSpan(s: Services, runId: string, projectId: string, r: Inv
             data: {
               failure_kind: 'invalid_output',
               error: summarizeErrors(v.error.issues),
+              usage: r.usage,
+              model: r.model,
+              session: sessionData(r),
+              fallback: r.fallback ?? null,
+            },
+          });
+          state = 'failed';
+        } else if ((problems = await problemsOf(trx, run, r.rawOutput)).length > 0) {
+          // What the action's checker still finds after the one correction: no effect besides the run's own failure.
+          await execute({
+            ...base,
+            command: 'run.fail',
+            data: {
+              failure_kind: 'invalid_output',
+              error: problems.slice(0, 8).join('; '),
               usage: r.usage,
               model: r.model,
               session: sessionData(r),

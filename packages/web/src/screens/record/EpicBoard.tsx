@@ -15,6 +15,9 @@ import {
 } from '../../components/icons.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { canCreate } from '../../api/tables.ts';
+import { useQuery } from '@tanstack/react-query';
+import { inboxQuery } from '../../api/queries.ts';
+import { attentionByCode } from '../../lib/attention.ts';
 import { useTables } from '../../lib/hooks.ts';
 import { cn } from '../../lib/cn.ts';
 import { DesignNextButton } from '../epics/DesignNext.tsx';
@@ -29,6 +32,7 @@ import {
 import { AddFeature, LineControls } from '../epics/PlanEditing.tsx';
 import { epicRef } from '../epics/plans.ts';
 import { EPIC_BOARD } from '../epics/words.i18n.ts';
+import { AttentionMark } from './AttentionMark.tsx';
 import { CoherenceCheck } from './CoherenceCheck.tsx';
 import { CopyBriefButton } from './CopyBrief.tsx';
 
@@ -100,6 +104,7 @@ export function EpicBoard({
   const t = useMessages(EPIC_BOARD);
   const id = useId();
   const tables = useTables();
+  const attention = attentionByCode(useQuery(inboxQuery(projectId)).data);
   if (!state) return null;
   const rows = [...state.designs, ...state.decisions];
   const epic = rows.find((r) => r.code === record.code);
@@ -140,6 +145,7 @@ export function EpicBoard({
                 <span className="ml-auto flex items-center gap-3">
                   {editable ? <LineControls projectId={projectId} line={l} index={i} count={plan.lines.length} /> : null}
                   {l.state === 'ready' && l.row ? <CopyBriefButton projectId={projectId} code={l.row.code} size="sm" /> : null}
+                  {attention.has(l.row?.code ?? l.code) ? <AttentionMark projectId={projectId} code={l.row?.code ?? l.code} /> : null}
                   <LineMark state={l.state} />
                 </span>
               </div>
@@ -168,6 +174,7 @@ export function EpicBoard({
                   <span className="mr-2 font-mono text-xs text-fg-3">{f.code}</span>
                   {f.title}
                 </Link>
+                {attention.has(f.code) ? <AttentionMark projectId={projectId} code={f.code} className="ml-3" /> : null}
               </li>
             ))}
           </ul>

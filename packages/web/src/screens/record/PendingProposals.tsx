@@ -5,20 +5,15 @@ import { Link } from '@tanstack/react-router';
 import { useId } from 'react';
 import type { Inbox, InboxProposal, ProductRow, Proposal } from '../../api/types.ts';
 import { useMessages } from '../../i18n/define.ts';
+import { pendingProposalBatches, proposalTargetCode } from '../../lib/attention.ts';
 import { cn } from '../../lib/cn.ts';
 import { linkClass } from '../batch/parts.tsx';
 import { ProposalView } from '../batch/ProposalView.tsx';
 import { PENDING_PROPOSALS } from './words.i18n.ts';
 
-/** The code of the record a proposal is about, when it has one (definition, thread and plan proposals do not). */
-export function proposalTargetCode(p: Pick<InboxProposal, 'type' | 'payload'>): string | null {
-  const str = (v: unknown) => (typeof v === 'string' && v ? v : null);
-  if (p.type === 'design_record') return str(p.payload.code);
-  if (p.type === 'record_change') return str((p.payload.record as { code?: unknown } | undefined)?.code);
-  return null;
-}
-
 /** The one record a batch's proposals are about, when there is exactly one (else its page is the way in). */
+export { proposalTargetCode };
+
 export function singleTargetCode(proposals: readonly Pick<Proposal, 'type' | 'payload'>[]): string | null {
   const codes = new Set(proposals.map((p) => proposalTargetCode(p)));
   const [only] = codes;
@@ -38,8 +33,7 @@ export function PendingProposals({
 }) {
   const t = useMessages(PENDING_PROPOSALS);
   const id = useId();
-  const found = (inbox?.batches ?? [])
-    .filter((b) => b.type !== 'knowledge' && b.resolution !== 'package')
+  const found = pendingProposalBatches(inbox)
     .flatMap((b) =>
       b.proposals
         .map((proposal, i) => ({ batch: b, proposal, position: i + 1 }))

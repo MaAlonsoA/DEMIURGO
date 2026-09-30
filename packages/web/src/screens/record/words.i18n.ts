@@ -457,3 +457,5 @@ export const PENDING_PROPOSALS = messages(
     openBatch: 'Abrir el lote',
   },
 );
+
+export const ATTENTION = messages({ waiting: 'Waiting for you' }, { waiting: 'Te espera' });

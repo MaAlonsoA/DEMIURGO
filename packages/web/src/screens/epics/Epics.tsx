@@ -13,8 +13,10 @@ import { ErrorNotice } from '../../components/Notice.tsx';
 import { PageBody, PageHeader, Section, usePageTitle } from '../../components/Page.tsx';
 import { Bone, Skeleton } from '../../components/Spinner.tsx';
 import { useMessages } from '../../i18n/define.ts';
+import { attentionByCode, attentionOf, type Attention } from '../../lib/attention.ts';
 import { useProjectId } from '../../lib/hooks.ts';
 import { RecordRow, RowList, UNCHANGED } from '../overview/Cards.tsx';
+import { AttentionMark } from '../record/AttentionMark.tsx';
 import { CopyBriefButton } from '../record/CopyBrief.tsx';
 import { LineMark, LineName, progressWords } from '../record/EpicBoard.tsx';
 import { waitingFor } from '../record/logic.ts';
@@ -29,11 +31,13 @@ function EpicSummary({
   group,
   state,
   inbox,
+  attention,
 }: {
   projectId: string;
   group: EpicGroup;
   state: ProductState;
   inbox: Inbox | undefined;
+  attention: Map<string, Attention>;
 }) {
   const t = useMessages(EPICS);
   const b = useMessages(EPIC_BOARD);
@@ -73,6 +77,7 @@ function EpicSummary({
             <span className="ml-auto flex items-center gap-3">
               {ref && plan.next === l ? <DesignNextButton projectId={projectId} epic={ref} line={l} size="sm" /> : null}
               {l.state === 'ready' && l.row ? <CopyBriefButton projectId={projectId} code={l.row.code} size="sm" /> : null}
+              {attention.has(l.row?.code ?? l.code) ? <AttentionMark projectId={projectId} code={l.row?.code ?? l.code} /> : null}
               <LineMark state={l.state} />
             </span>
           </li>
@@ -91,6 +96,13 @@ function EpicSummary({
   );
 }
 
+/** The epic's own code and those of its features, designed or not. */
+function epicCodes(state: ProductState, g: EpicGroup): string[] {
+  const rows = [...state.designs, ...state.decisions];
+  const plan = epicPlan(g.epic, plannedOf(state, g.epic.code), g.features, rows, state.explorations);
+  return [g.epic.code, ...plan.lines.map((l) => l.row?.code ?? l.code), ...plan.outside.map((f) => f.code)];
+}
+
 export function EpicsScreen() {
   const t = useMessages(EPICS);
   const projectId = useProjectId();
@@ -100,6 +112,7 @@ export function EpicsScreen() {
   usePageTitle([t.title, project?.name]);
 
   const s = state.data;
+  const attention = attentionByCode(inbox.data);
   const { groups } = epicGroups(s ? [...s.designs, ...s.decisions] : []);
   const featureCount = s ? groups.reduce((n, g) => n + Math.max(plannedOf(s, g.epic.code).length, g.features.length), 0) : 0;
 
@@ -140,6 +153,7 @@ export function EpicsScreen() {
               note={g.epic.summary ?? undefined}
               actions={
                 <span className="flex items-center gap-3">
+                {s && attentionOf(attention, epicCodes(s, g)) > 0 ? <AttentionMark projectId={projectId} code={g.epic.code} /> : null}
                 <Certainty status={g.epic.epistemic_status} />
                 <Link
                   to="/p/$projectId/records/$code"
@@ -151,7 +165,7 @@ export function EpicsScreen() {
                 </span>
               }
             >
-              <EpicSummary projectId={projectId} group={g} state={s} inbox={inbox.data} />
+              <EpicSummary projectId={projectId} group={g} state={s} inbox={inbox.data} attention={attention} />
             </Section>
           ))
         )}

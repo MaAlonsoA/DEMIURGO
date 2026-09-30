@@ -16,9 +16,11 @@ import { ErrorNotice } from '../../components/Notice.tsx';
 import { Bone, Skeleton } from '../../components/Spinner.tsx';
 import { StateIcon, StateText } from '../../components/status.tsx';
 import { useMessages } from '../../i18n/define.ts';
+import { attentionByCode, attentionOf } from '../../lib/attention.ts';
 import { cn } from '../../lib/cn.ts';
 import { useTables } from '../../lib/hooks.ts';
 import { MARKS } from '../../words.ts';
+import { AttentionMark } from '../record/AttentionMark.tsx';
 import { type FeatureStatus, type NavRecord, navigatorOf } from './rail.ts';
 import { NAVIGATOR, RAIL } from './words.i18n.ts';
 
@@ -80,7 +82,7 @@ function FeatureStatusText({ status }: { status: FeatureStatus }) {
   }
 }
 
-function RecordLink({ projectId, record }: { projectId: string; record: NavRecord }) {
+function RecordLink({ projectId, record, waiting }: { projectId: string; record: NavRecord; waiting: boolean }) {
   return (
     <li>
       <Link
@@ -104,6 +106,7 @@ function RecordLink({ projectId, record }: { projectId: string; record: NavRecor
             {MARKS[record.mark].name}
           </span>
         )}
+        {waiting ? <AttentionMark code={record.code} /> : null}
       </Link>
     </li>
   );
@@ -130,6 +133,7 @@ export function RecordsNavigator({ projectId, code }: { projectId: string; code:
   const state = useQuery(stateQuery(projectId));
   const inbox = useQuery(inboxQuery(projectId)).data;
   const tables = useTables();
+  const attention = attentionByCode(inbox);
   const nav = navigatorOf(state.data, inbox, code, railWords);
   const listId = useId();
   const toggle = () =>
@@ -208,9 +212,12 @@ export function RecordsNavigator({ projectId, code }: { projectId: string; code:
             {nav.groups.map((g) => (
               <Group key={g.key} title={g.title}>
                 {g.records.length === 0 ? <li className="px-2.5 text-xs text-fg-2">{t.noFeaturesYet}</li> : null}
-                {g.records.map((r) => (
-                  <RecordLink key={r.code} projectId={projectId} record={r} />
-                ))}
+                {g.records.map((r, i) => {
+                  // A record with nothing of its own still shows the mark when what nests under it waits.
+                  const codes = [r.code];
+                  for (let j = i + 1; j < g.records.length && g.records[j]?.nested; j++) codes.push(g.records[j]!.code);
+                  return <RecordLink key={r.code} projectId={projectId} record={r} waiting={attentionOf(attention, r.nested ? [r.code] : codes) > 0} />;
+                })}
               </Group>
             ))}
             <div className="flex flex-col gap-1">

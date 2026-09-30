@@ -4,12 +4,18 @@
 
 import type { Inbox, InboxProposal } from '../api/types.ts';
 
-/** The code of the record a proposal is about, when it has one (definition, thread and plan proposals do not). */
+/** The code of the record a proposal is about, when it has one (definition and thread proposals do not; an epic's plan proposal targets the epic). */
 export function proposalTargetCode(p: Pick<InboxProposal, 'type' | 'payload'>): string | null {
   const str = (v: unknown) => (typeof v === 'string' && v ? v : null);
   if (p.type === 'design_record') return str(p.payload.code);
   if (p.type === 'record_change') return str((p.payload.record as { code?: unknown } | undefined)?.code);
+  if (p.type === 'feature_plan') return str((p.payload.epic as { code?: unknown } | undefined)?.code);
   return null;
+}
+
+/** Proposals to the product definition: decided on the Product page. */
+export function isDefinitionProposal(p: Pick<InboxProposal, 'type'>): boolean {
+  return p.type === 'product_definition' || p.type === 'definition_change';
 }
 
 /** The batches whose proposals are decided one by one on a record's page (not knowledge nor package resolutions). */

@@ -413,7 +413,8 @@ export const QUEUE = messages(
       )[key],
     waitingSince: 'waiting since',
     listboxLabel: 'What needs you',
-    homeWord: (to: 'record' | 'thread' | 'batch'): string => ({ record: 'On its page', thread: 'In its thread', batch: 'In its batch' })[to],
+    homeWord: (to: 'record' | 'thread' | 'batch' | 'product'): string =>
+      ({ record: 'On its page', thread: 'In its thread', batch: 'In its batch', product: 'On the Product page' })[to],
     decideHere: 'Decided here',
   },
   {
@@ -431,7 +432,8 @@ export const QUEUE = messages(
       )[key],
     waitingSince: 'esperando desde',
     listboxLabel: 'Lo que te necesita',
-    homeWord: (to: 'record' | 'thread' | 'batch'): string => ({ record: 'En su página', thread: 'En su hilo', batch: 'En su lote' })[to],
+    homeWord: (to: 'record' | 'thread' | 'batch' | 'product'): string =>
+      ({ record: 'En su página', thread: 'En su hilo', batch: 'En su lote', product: 'En la página de Producto' })[to],
     decideHere: 'Se decide aquí',
   },
 );

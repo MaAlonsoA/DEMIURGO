@@ -5,6 +5,7 @@
 // sent with the answers) and "Fork into a new thread". A message that asked DEMIURGO for an answer
 // says when that answer waits for knowledge to catch up, so asking never looks like nothing happened.
 
+import { singleTargetCode } from '../record/PendingProposals.tsx';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useId, useState } from 'react';
@@ -180,7 +181,10 @@ export function Observations({ projectId, items, divided = true }: { projectId: 
 
 function Observation({ projectId, observation: o }: { projectId: string; observation: Message }) {
   const reading = useReading(projectId, 'message', o.id);
-  const w = OBSERVATION_WORDS[o.kind ?? 'unknown'] ?? { word: 'Unknown', mark: 'unknown' as const };
+  const w = OBSERVATION_WORDS[o.kind ?? 'unknown'] ?? {
+    word: 'Unknown',
+    mark: 'unknown' as const,
+  };
   return (
     <li data-observation={o.kind} className="flex flex-wrap items-start gap-x-2 gap-y-1 text-base">
       <StatusBadge kind={w.mark === 'unknown' ? 'unknown' : 'proposed'} className="mt-0.5" />
@@ -205,6 +209,7 @@ function Proposed({ projectId, batchId }: { projectId: string; batchId: string }
   const forks = b.proposals.filter((p) => p.type === 'exploration');
   const rest = b.proposals.filter((p) => p.type !== 'exploration');
   const pending = b.state === 'pending' && rest.some((p) => p.state === 'pending');
+  const target = singleTargetCode(rest);
   return (
     <>
       {forks.map((p) => (
@@ -233,17 +238,31 @@ function Proposed({ projectId, batchId }: { projectId: string; batchId: string }
             <AspectTag key={a} aspect={a} />
           ))}
           {!pending ? <EntityState entity="batch" state={b.state} /> : null}
-          <Link
-            to="/p/$projectId/batches/$batchId"
-            params={{ projectId, batchId: b.id }}
-            className={cn(
-              'inline-flex min-h-6 items-center gap-1 text-sm font-medium hover:underline',
-              pending ? 'text-accent-text' : 'text-fg-2 hover:text-fg',
-            )}
-          >
-            {pending ? t.review : t.open}
-            <ArrowRightIcon size={12} />
-          </Link>
+          {target ? (
+            <Link
+              to="/p/$projectId/records/$code"
+              params={{ projectId, code: target }}
+              className={cn(
+                'inline-flex min-h-6 items-center gap-1 text-sm font-medium hover:underline',
+                pending ? 'text-accent-text' : 'text-fg-2 hover:text-fg',
+              )}
+            >
+              {pending ? t.review : t.open}
+              <ArrowRightIcon size={12} />
+            </Link>
+          ) : (
+            <Link
+              to="/p/$projectId/batches/$batchId"
+              params={{ projectId, batchId: b.id }}
+              className={cn(
+                'inline-flex min-h-6 items-center gap-1 text-sm font-medium hover:underline',
+                pending ? 'text-accent-text' : 'text-fg-2 hover:text-fg',
+              )}
+            >
+              {pending ? t.review : t.open}
+              <ArrowRightIcon size={12} />
+            </Link>
+          )}
         </div>
       ) : null}
     </>
@@ -262,7 +281,10 @@ const purposeOf = (p: Pick<Proposal, 'payload'>): string => {
 function ForkSuggestion({ projectId, proposal: p }: { projectId: string; proposal: Proposal }) {
   const t = useMessages(MESSAGES);
   const drafts = useDrafts();
-  const threads = useQuery({ ...explorationsQuery(projectId), enabled: p.state !== 'pending' }).data;
+  const threads = useQuery({
+    ...explorationsQuery(projectId),
+    enabled: p.state !== 'pending',
+  }).data;
   const purpose = purposeOf(p);
   const choice = drafts?.forks[p.id];
   const labelId = useId();

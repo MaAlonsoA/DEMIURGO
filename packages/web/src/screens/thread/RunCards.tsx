@@ -5,6 +5,7 @@
 // agent itself said, and offers Retry and Retry with another engine — the one that fits first. A
 // retried or cancelled run stays as a quiet line; a draft that left its package says where to review it.
 
+import { singleTargetCode } from '../record/PendingProposals.tsx';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
@@ -290,6 +291,7 @@ function DraftReady({ projectId, run }: { projectId: string; run: RunListItem })
   const title = payload?.title ?? t.aFeature;
   const checks = payload?.criteria?.length ?? 0;
   const pending = batch.data.state === 'pending';
+  const target = singleTargetCode(batch.data.proposals);
   return (
     <Card
       data-run-card="draft"
@@ -305,18 +307,33 @@ function DraftReady({ projectId, run }: { projectId: string; run: RunListItem })
         <span className="font-semibold">{title}</span> <span className="text-fg-2">{t.withChecks(checks)}</span>
       </p>
       {!pending ? <EntityState entity="batch" state={batch.data.state} /> : null}
-      <Link
-        to="/p/$projectId/batches/$batchId"
-        params={{ projectId, batchId: batch.data.id }}
-        className={
-          pending
-            ? 'inline-flex min-h-6 items-center gap-1 text-sm font-medium text-accent-text hover:underline'
-            : 'inline-flex min-h-6 items-center gap-1 text-sm font-medium text-fg-2 hover:text-fg hover:underline'
-        }
-      >
-        {pending ? t.review : t.open}
-        <ArrowRightIcon size={12} />
-      </Link>
+      {target ? (
+        <Link
+          to="/p/$projectId/records/$code"
+          params={{ projectId, code: target }}
+          className={
+            pending
+              ? 'inline-flex min-h-6 items-center gap-1 text-sm font-medium text-accent-text hover:underline'
+              : 'inline-flex min-h-6 items-center gap-1 text-sm font-medium text-fg-2 hover:text-fg hover:underline'
+          }
+        >
+          {pending ? t.review : t.open}
+          <ArrowRightIcon size={12} />
+        </Link>
+      ) : (
+        <Link
+          to="/p/$projectId/batches/$batchId"
+          params={{ projectId, batchId: batch.data.id }}
+          className={
+            pending
+              ? 'inline-flex min-h-6 items-center gap-1 text-sm font-medium text-accent-text hover:underline'
+              : 'inline-flex min-h-6 items-center gap-1 text-sm font-medium text-fg-2 hover:text-fg hover:underline'
+          }
+        >
+          {pending ? t.review : t.open}
+          <ArrowRightIcon size={12} />
+        </Link>
+      )}
     </Card>
   );
 }

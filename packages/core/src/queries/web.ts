@@ -28,11 +28,33 @@ export async function explorationsList(db: Db, projectId: string) {
     .where('project_id', '=', projectId)
     .groupBy('exploration_id')
     .execute();
+  // Records each thread's proposals target (pending or accepted): by the thread of their run.
+  const targeted = await db
+    .selectFrom('proposals')
+    .innerJoin('proposal_batches', 'proposal_batches.id', 'proposals.batch_id')
+    .innerJoin('ai_runs', 'ai_runs.id', 'proposal_batches.run_id')
+    .select(['proposals.type', 'proposals.payload', 'ai_runs.scope'])
+    .where('proposal_batches.project_id', '=', projectId)
+    .where('proposals.type', 'in', ['design_record', 'record_change'])
+    .where('proposals.state', 'in', ['pending', 'accepted', 'accepted_edited'])
+    .execute();
+  const affects = new Map<string, Set<string>>();
+  for (const t of targeted) {
+    const scope = t.scope as { type: string; id?: string } | null;
+    const payload = t.payload as {
+      code?: unknown;
+      record?: { code?: unknown };
+    } | null;
+    const code = t.type === 'design_record' ? payload?.code : payload?.record?.code;
+    if (scope?.type !== 'exploration' || !scope.id || typeof code !== 'string' || !code) continue;
+    affects.set(scope.id, (affects.get(scope.id) ?? new Set()).add(code));
+  }
   return explorations.map((e) => {
     const message = last.find((m) => m.exploration_id === e.id)?.at as Date | string | undefined;
     return {
       ...e,
       open_questions: Number(open.find((q) => q.exploration_id === e.id)?.n ?? 0),
+      affects: [...(affects.get(e.id) ?? [])],
       last_activity: message ?? e.created_at,
     };
   });
@@ -88,7 +110,11 @@ export async function runsList(db: Db, projectId: string, filter: { exploration?
       exploration = origins.get(scope.id) ?? null;
     }
     if (filter.exploration && exploration !== filter.exploration) continue;
-    rows.push({ ...r, exploration_id: exploration, batch_id: batches.find((b) => b.run_id === r.id)?.id ?? null });
+    rows.push({
+      ...r,
+      exploration_id: exploration,
+      batch_id: batches.find((b) => b.run_id === r.id)?.id ?? null,
+    });
   }
   return rows;
 }
@@ -166,7 +192,13 @@ export async function knowledgeGraph(db: Db, projectId: string) {
   };
 }
 
-type Finding = { finding: string; citation: string; epistemic_status?: string; confidence?: number; justification?: string };
+type Finding = {
+  finding: string;
+  citation: string;
+  epistemic_status?: string;
+  confidence?: number;
+  justification?: string;
+};
 
 /** Idea assessments, newest first: the verdict of each finding and the node or record it cites. */
 export async function ideaAssessments(db: Db, projectId: string) {
@@ -315,12 +347,20 @@ export async function changesSince(db: Db, projectId: string, since: string) {
     const known = explorations.get(id);
     if (known) return known;
     const e = await db.selectFrom('explorations').select('purpose').where('id', '=', id).executeTakeFirst();
-    const s: Subject = { kind: 'exploration', key: id, title: e?.purpose ?? null };
+    const s: Subject = {
+      kind: 'exploration',
+      key: id,
+      title: e?.purpose ?? null,
+    };
     explorations.set(id, s);
     return s;
   };
   const project: Subject = { kind: 'project', key: projectId, title: null };
-  const knowledge: Subject = { kind: 'knowledge', key: 'knowledge', title: null };
+  const knowledge: Subject = {
+    kind: 'knowledge',
+    key: 'knowledge',
+    title: null,
+  };
 
   const subjectOf = async (e: (typeof events)[number]): Promise<Subject> => {
     const id = e.entity_id;
@@ -371,7 +411,12 @@ export async function changesSince(db: Db, projectId: string, since: string) {
           .select(['summary', 'kind'])
           .where('id', '=', batchId)
           .executeTakeFirst();
-        return { kind: 'batch', key: batchId, title: b?.summary ?? null, record_type: b?.kind ?? 'unknown' };
+        return {
+          kind: 'batch',
+          key: batchId,
+          title: b?.summary ?? null,
+          record_type: b?.kind ?? 'unknown',
+        };
       }
       default:
         return KNOWLEDGE_ENTITIES.has(e.entity_type) ? knowledge : project;

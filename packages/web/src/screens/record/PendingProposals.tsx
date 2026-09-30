@@ -3,7 +3,7 @@
 
 import { Link } from '@tanstack/react-router';
 import { useId } from 'react';
-import type { Inbox, InboxProposal, ProductRow } from '../../api/types.ts';
+import type { Inbox, InboxProposal, ProductRow, Proposal } from '../../api/types.ts';
 import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { linkClass } from '../batch/parts.tsx';
@@ -16,6 +16,13 @@ export function proposalTargetCode(p: Pick<InboxProposal, 'type' | 'payload'>): 
   if (p.type === 'design_record') return str(p.payload.code);
   if (p.type === 'record_change') return str((p.payload.record as { code?: unknown } | undefined)?.code);
   return null;
+}
+
+/** The one record a batch's proposals are about, when there is exactly one (else its page is the way in). */
+export function singleTargetCode(proposals: readonly Pick<Proposal, 'type' | 'payload'>[]): string | null {
+  const codes = new Set(proposals.map((p) => proposalTargetCode(p)));
+  const [only] = codes;
+  return codes.size === 1 && only ? only : null;
 }
 
 export function PendingProposals({

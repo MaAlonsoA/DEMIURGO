@@ -7,7 +7,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { type KeyboardEvent, type MouseEvent, useMemo, useRef, useState } from 'react';
-import { explorationsQuery, projectsQuery } from '../../api/queries.ts';
+import { explorationsQuery, projectsQuery, stateQuery } from '../../api/queries.ts';
 import { canCreate } from '../../api/tables.ts';
 import type { Exploration } from '../../api/types.ts';
 import { Count } from '../../components/Badge.tsx';
@@ -83,7 +83,11 @@ export function ThreadsScreen() {
               label={t.showThreads}
               value={filter}
               onChange={setFilter}
-              options={FILTERS.map((f) => ({ value: f.value, label: f.label, count: counts[f.value] }))}
+              options={FILTERS.map((f) => ({
+                value: f.value,
+                label: f.label,
+                count: counts[f.value],
+              }))}
             />
             <ThreadTree projectId={projectId} threads={list} filter={filter} onShowAll={() => setFilter('all')} />
           </>
@@ -119,6 +123,13 @@ function ThreadTree({
     set_aside: words.noSetAside,
   };
   const navigate = useNavigate();
+  const state = useQuery(stateQuery(projectId)).data;
+  const titles = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of [...(state?.decisions ?? []), ...(state?.designs ?? [])]) m.set(r.code, r.title);
+    for (const f of state?.planned ?? []) if (!m.has(f.code)) m.set(f.code, f.name);
+    return m;
+  }, [state]);
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [focusId, setFocusId] = useState<string | null>(null);
   const grid = useRef<HTMLDivElement>(null);
@@ -135,7 +146,10 @@ function ThreadTree({
 
   const current = rows.find((r) => r.thread.id === focusId) ?? rows[0];
   const open = (id: string) =>
-    void navigate({ to: '/p/$projectId/threads/$explorationId', params: { projectId, explorationId: id } });
+    void navigate({
+      to: '/p/$projectId/threads/$explorationId',
+      params: { projectId, explorationId: id },
+    });
   const toggle = (id: string, to?: boolean) =>
     setCollapsed((c) => {
       const next = new Set(c);
@@ -264,6 +278,23 @@ function ThreadTree({
                       {t.purpose}
                     </Link>
                   </div>
+                  {(t.affects?.length ?? 0) > 0 ? (
+                    <p className="flex flex-wrap gap-x-3 gap-y-0.5 pl-[30px] text-sm text-fg-2">
+                      {(t.affects ?? []).map((code) => (
+                        <Link
+                          key={code}
+                          to="/p/$projectId/records/$code"
+                          params={{ projectId, code }}
+                          tabIndex={-1}
+                          title={titles.get(code)}
+                          className="min-w-0 hover:text-fg hover:underline"
+                        >
+                          <span className="font-mono">{code}</span>
+                          {titles.get(code) ? <span className="text-fg-3"> {titles.get(code)}</span> : null}
+                        </Link>
+                      ))}
+                    </p>
+                  ) : null}
                   {/* Under 768 px the other columns fold into one line under the title. */}
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pl-[30px] text-sm text-fg-2 md:hidden">
                     <EntityState entity="exploration" state={t.state} />

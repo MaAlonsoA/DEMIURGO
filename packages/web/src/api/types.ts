@@ -576,6 +576,8 @@ export type ExplorationDetail = {
 
 export type Exploration = Omit<ExplorationDetail, 'messages' | 'questions' | 'children'> & {
   open_questions: number;
+  /** Codes of the records its proposals target (pending or accepted). */
+  affects?: string[];
   last_activity: string;
 };
 

@@ -28,6 +28,7 @@ export * from './env.ts';
 export * from './secrets.ts';
 export * from './startup.ts';
 export * from './queries/read.ts';
+export * from './queries/task-view.ts';
 export * from './queries/definition.ts';
 export { principlesBatch } from './definition/principles.ts';
 export { projectsDir, syncRepo } from './repo/repo.ts';

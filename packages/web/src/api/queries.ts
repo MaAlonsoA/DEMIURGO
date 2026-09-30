@@ -4,6 +4,7 @@
 import { queryOptions } from '@tanstack/react-query';
 import { ApiError, get, setCsrf } from './client.ts';
 import type {
+  TaskView,
   AgentToken,
   BatchDetail,
   BuildQueue,
@@ -150,6 +151,13 @@ export const recordQuery = (p: string, code: string) =>
   queryOptions({
     queryKey: keys.record(p, code),
     queryFn: () => get<RecordDetail>(`${P(p)}/records/${encodeURIComponent(code)}`),
+  });
+
+/** A task the task planner proposed (pending, accepted or rejected), read as the task page reads a record. */
+export const taskDraftQuery = (p: string, proposalId: string) =>
+  queryOptions({
+    queryKey: ['p', p, 'task-draft', proposalId] as const,
+    queryFn: () => get<TaskView>(`${P(p)}/task-drafts/${encodeURIComponent(proposalId)}`),
   });
 
 /** The last coherence review of an epic (FDR-KNO-056). */

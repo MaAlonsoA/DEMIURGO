@@ -55,7 +55,7 @@ export type Words = (typeof DELIVERY)['en'];
 export type StatusTone = 'neutral' | 'accent' | 'warning' | 'success' | 'danger';
 export type Status = { word: string; tone: StatusTone };
 
-const TONE_TEXT: Record<StatusTone, string> = {
+export const TONE_TEXT: Record<StatusTone, string> = {
   neutral: 'text-fg-2',
   accent: 'text-accent-text',
   warning: 'text-warning-text',
@@ -98,7 +98,7 @@ export type Primary =
 
 export type Delivery = { status: Status; banner: Banner | null; primary: Primary | null };
 
-const BUILD_TONE: Record<TaskBuildState, StatusTone> = {
+export const BUILD_TONE: Record<TaskBuildState, StatusTone> = {
   to_do: 'neutral',
   requested: 'accent',
   in_pr: 'warning',
@@ -106,7 +106,7 @@ const BUILD_TONE: Record<TaskBuildState, StatusTone> = {
   failing: 'danger',
 };
 
-const liveTasks = (r: RecordDetail): FeatureTask[] => (r.tasks ?? []).filter((x) => !x.dropped);
+export const liveTasks = (r: RecordDetail): FeatureTask[] => (r.tasks ?? []).filter((x) => !x.dropped);
 
 /**
  * Status, banner and primary action of a record page. The banner comes first and takes the person's
@@ -340,7 +340,7 @@ export function DeliveryBanner({ projectId, banner }: { projectId: string; banne
 
 // ---------------------------------------------------------------- criteria as checks
 
-const CRITERION: Record<CriterionState, { tone: string; icon: ReactNode }> = {
+export const CRITERION: Record<CriterionState, { tone: string; icon: ReactNode }> = {
   verified: { tone: 'text-success-text', icon: <CheckCircleIcon size={16} /> },
   failing: { tone: 'text-danger-text', icon: <XCircleIcon size={16} /> },
   in_pr: { tone: 'text-warning-text', icon: <CircleHalfIcon size={16} /> },
@@ -509,243 +509,51 @@ export function Flow({ version, recording }: { version: RecordVersion; recording
   );
 }
 
-/**
- * The tasks the planning agent proposed for the feature, as drafts in its own backlog. Each title
- * opens the draft's own page (its proposal in the batch page). Decided one by one when the batch
- * resolves item by item; an older package is accepted or rejected whole with the package's commands.
- */
-function TaskDrafts({ projectId, drafts }: { projectId: string; drafts: readonly TaskDraft[] }) {
-  const t = useMessages(DELIVERY);
-  const command = useCommand(projectId);
-  const allowsBatch = useAllows('batch', 'pending');
-  const [dialog, setDialog] = useState<null | 'accept' | 'reject'>(null);
-  const batchId = drafts[0]?.batch_id;
-  if (!batchId) return null;
-  // One batch per planning run: the package decision goes to the first one; the rest follow when it is decided.
-  const inBatch = drafts.filter((d) => d.batch_id === batchId);
-  const byItem = drafts.some((d) => d.resolution === 'item');
-  const run = (name: 'batch.accept_package' | 'batch.reject_package', said: string) =>
-    command.mutate(
-      { command: name, entityId: batchId, data: {} },
-      {
-        onSuccess: () => {
-          setDialog(null);
-          announce(said);
-        },
-      },
-    );
-  return (
-    <div data-task-drafts className="flex flex-col gap-2 rounded-md bg-sunken px-3 py-2">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4">
-        <h3 className="text-sm font-semibold text-fg">{t.draftTasks2}</h3>
-        <span className="text-sm text-fg-2">{t.draftsNote(byItem ? drafts.length : inBatch.length)}</span>
-      </div>
-      <ul className="flex flex-col divide-y divide-edge-subtle">
-        {drafts.map((d) => (
-          <TaskDraftRow key={d.proposal_id} projectId={projectId} draft={d} />
-        ))}
-      </ul>
-      <p className="text-sm text-fg-2">{byItem ? t.draftsHintItem : t.draftsHint}</p>
-      {!byItem ? (
-        <>
-          {command.error && !dialog ? <ErrorNotice error={command.error} /> : null}
-          <div className="flex flex-wrap gap-2">
-            {allowsBatch('batch.accept_package') ? (
-              <Button variant="primary" size="sm" data-command="batch.accept_package" onClick={() => { command.reset(); setDialog('accept'); }}>
-                {t.acceptDrafts}
-              </Button>
-            ) : null}
-            {allowsBatch('batch.reject_package') ? (
-              <Button variant="quiet-danger" size="sm" data-command="batch.reject_package" onClick={() => { command.reset(); setDialog('reject'); }}>
-                {t.rejectDrafts}
-              </Button>
-            ) : null}
-          </div>
-          <ConfirmDialog
-            open={dialog === 'accept'}
-            onOpenChange={(o) => !o && setDialog(null)}
-            title={t.acceptDraftsTitle}
-            description={<p>{t.acceptDraftsBody(inBatch.length)}</p>}
-            confirm={t.acceptDrafts}
-            pendingLabel={t.accepting}
-            pending={command.isPending}
-            error={dialog === 'accept' ? command.error : null}
-            onConfirm={() => run('batch.accept_package', t.draftsAccepted)}
-          />
-          <ConfirmDialog
-            open={dialog === 'reject'}
-            onOpenChange={(o) => !o && setDialog(null)}
-            title={t.rejectDraftsTitle}
-            description={<p>{t.rejectDraftsBody}</p>}
-            confirm={t.rejectDrafts}
-            pendingLabel={t.rejecting}
-            tone="danger"
-            pending={command.isPending}
-            error={dialog === 'reject' ? command.error : null}
-            onConfirm={() => run('batch.reject_package', t.draftsRejected)}
-          />
-        </>
-      ) : null}
-    </div>
-  );
-}
-
-/** One draft: its title links to its own page; Accept and Reject only when its batch is decided item by item. */
-function TaskDraftRow({ projectId, draft: d }: { projectId: string; draft: TaskDraft }) {
-  const t = useMessages(DELIVERY);
-  const command = useCommand(projectId);
-  const allows = useAllows('proposal', 'pending');
-  const [dialog, setDialog] = useState<null | 'accept' | 'reject'>(null);
-  const item = d.resolution === 'item';
-  const run = (name: 'proposal.accept' | 'proposal.reject', data: Record<string, unknown>, said: string) =>
-    command.mutate(
-      { command: name, entityId: d.proposal_id, data },
-      {
-        onSuccess: () => {
-          setDialog(null);
-          announce(said);
-        },
-      },
-    );
-  return (
-    <li data-task-draft={d.proposal_id} className="flex flex-col gap-0.5 py-2">
-      <div className="flex flex-wrap items-baseline gap-x-3">
-        <Link
-          to="/p/$projectId/batches/$batchId"
-          params={{ projectId, batchId: d.batch_id }}
-          search={{ p: d.proposal_id }}
-          className="min-w-0 text-sm font-medium text-accent-text hover:underline"
-        >
-          {d.title}
-        </Link>
-        <span className="ml-auto flex items-center gap-3 text-sm text-fg-2">
-          {d.size ? <span className="tabular-nums">{d.size}</span> : null}
-          <span className="font-medium text-warning-text">{t.draftLabel}</span>
-        </span>
-      </div>
-      {d.covers.length > 0 ? <span className="text-sm text-fg-2">{t.covers}: {d.covers.join(', ')}</span> : null}
-      {item ? (
-        <>
-          {command.error && !dialog ? <ErrorNotice error={command.error} /> : null}
-          <div className="flex flex-wrap gap-2 pt-1">
-            {allows('proposal.accept') ? (
-              <Button variant="primary" size="sm" data-command="proposal.accept" onClick={() => { command.reset(); setDialog('accept'); }}>
-                {t.acceptDraft}
-              </Button>
-            ) : null}
-            {allows('proposal.reject') ? (
-              <Button variant="quiet-danger" size="sm" data-command="proposal.reject" onClick={() => { command.reset(); setDialog('reject'); }}>
-                {t.rejectDraft}
-              </Button>
-            ) : null}
-          </div>
-          <ConfirmDialog
-            open={dialog === 'accept'}
-            onOpenChange={(o) => !o && setDialog(null)}
-            title={t.acceptDraftTitle(d.title)}
-            description={<p>{t.acceptDraftBody}</p>}
-            confirm={t.acceptDraft}
-            pendingLabel={t.accepting}
-            pending={command.isPending}
-            error={dialog === 'accept' ? command.error : null}
-            onConfirm={() => run('proposal.accept', {}, t.draftAccepted)}
-          />
-          <PromptDialog
-            open={dialog === 'reject'}
-            onOpenChange={(o) => !o && setDialog(null)}
-            title={t.rejectDraftTitle(d.title)}
-            description={t.rejectDraftBody}
-            label={t.reasonLabel}
-            required
-            submit={t.rejectDraft}
-            pendingLabel={t.rejecting}
-            tone="danger"
-            pending={command.isPending}
-            error={dialog === 'reject' ? command.error : null}
-            onSubmit={(text) => run('proposal.reject', text ? { reason: text } : {}, t.draftRejected)}
-          />
-        </>
-      ) : null}
-    </li>
-  );
-}
-
-/** Tasks of a feature: how many are done, in a PR and to do, with their sizes and what each covers. */
+/** Tasks of a feature on its overview: one line (done, in PR, to do, drafts waiting) and a link to its Tasks tab. */
 export function TasksRollup({
   projectId,
   record,
-  draft,
   primaryIsDraft,
 }: {
   projectId: string;
   record: RecordDetail;
-  draft: DraftTasks;
   /** The header's primary is "Draft the tasks": this section only says what comes next. */
   primaryIsDraft: boolean;
 }) {
   const t = useMessages(DELIVERY);
-  const tables = useTables();
   const tasks = liveTasks(record);
   const done = tasks.filter((x) => x.build === 'merged').length;
   const inPr = tasks.filter((x) => x.build === 'in_pr' || x.build === 'requested').length;
   const failing = tasks.filter((x) => x.build === 'failing').length;
   const todo = tasks.length - done - inPr - failing;
   const effort = effortTotals(tasks.map((x) => ({ size: (x.size as never) ?? null, built: x.build === 'merged' })));
-  const writable = record.current !== null && !!tables && canCreate(tables, 'record.create');
+  const drafts = (record.task_drafts ?? []).length;
   const uncovered = tasks.length > 0 ? (record.uncovered ?? []) : [];
-  const drafts = record.task_drafts ?? [];
+  const summary = [
+    tasks.length > 0 ? t.rollup(done, inPr, todo) : null,
+    failing > 0 ? t.failingN(failing) : null,
+    drafts > 0 ? t.draftsNote(drafts) : null,
+    effort.total > 0 ? effort.summary : null,
+  ].filter(Boolean);
   return (
-    <Block
-      id="tasks"
-      title={t.tasks}
-      note={
-        tasks.length > 0
-          ? [t.rollup(done, inPr, todo), failing > 0 ? t.failingN(failing) : null, effort.total > 0 ? effort.summary : null]
-              .filter(Boolean)
-              .join(' · ')
-          : undefined
-      }
-    >
-      {drafts.length > 0 ? <TaskDrafts projectId={projectId} drafts={drafts} /> : null}
-      {tasks.length === 0 ? (
-        drafts.length > 0 ? null : <p className="text-sm text-fg-2">{primaryIsDraft ? t.noTasksNext : t.noTasks}</p>
+    <Block id="tasks" title={t.tasks}>
+      {summary.length === 0 ? (
+        <p className="text-sm text-fg-2">{primaryIsDraft ? t.noTasksNext : t.noTasks}</p>
       ) : (
-        <ul className="flex flex-col divide-y divide-edge-subtle">
-          {tasks.map((x) => (
-            <li key={x.code} data-task={x.code} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-2">
-              <Link
-                to="/p/$projectId/records/$code"
-                params={{ projectId, code: x.code }}
-                className="min-w-0 text-sm font-medium text-fg hover:underline"
-              >
-                <span className="mr-2 font-mono text-xs text-fg-3">{x.code}</span>
-                {x.title}
-              </Link>
-              <span className="ml-auto flex items-center gap-3 text-sm text-fg-2">
-                {x.size ? <span className="tabular-nums">{x.size}</span> : null}
-                <span className={cn('font-medium', TONE_TEXT[BUILD_TONE[x.build]])}>{t[`st_${x.build}` as const]}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
+        <p className="text-sm text-fg-2">
+          {summary.join(' · ')}{' '}
+          <Link
+            to="/p/$projectId/records/$code"
+            params={{ projectId, code: record.code }}
+            search={{ tab: 'tasks' } as never}
+            className="font-medium text-accent-text hover:underline"
+            data-open-tasks
+          >
+            {t.openTasks}
+          </Link>
+        </p>
       )}
       {uncovered.length > 0 ? <p className="text-sm text-fg-2">{t.uncovered(uncovered.join(', '))}</p> : null}
-      {draft.error ? <ErrorNotice error={draft.error} /> : null}
-      {draft.asked ? <p className="text-sm text-fg-2">{t.draftAsked}</p> : null}
-      {writable ? (
-        <div>
-          <Link
-            to="/p/$projectId/records/new"
-            params={{ projectId }}
-            search={{ type: 'task', basedOn: record.code }}
-            className={buttonClass({ variant: 'quiet', size: 'sm' })}
-            data-add-task
-          >
-            <PlusIcon size={14} />
-            {t.addTask}
-          </Link>
-        </div>
-      ) : null}
     </Block>
   );
 }
@@ -790,14 +598,12 @@ export function FeatureBody({
   record,
   version,
   recording,
-  draft,
   primaryIsDraft,
 }: {
   projectId: string;
   record: RecordDetail;
   version: RecordVersion;
   recording: Recording;
-  draft: DraftTasks;
   primaryIsDraft: boolean;
 }) {
   const t = useMessages(DELIVERY);
@@ -808,7 +614,7 @@ export function FeatureBody({
       <Flow version={version} recording={recording} />
       <Prose version={version} title="Out of scope" label={t.outOfScope} />
       {version.state === 'draft' ? null : (
-        <TasksRollup projectId={projectId} record={record} draft={draft} primaryIsDraft={primaryIsDraft} />
+        <TasksRollup projectId={projectId} record={record} primaryIsDraft={primaryIsDraft} />
       )}
       <PracticeSources version={version} />
       <OtherSections version={version} used={['Goal', 'Scope', 'Behavior', 'Out of scope']} />
@@ -877,7 +683,7 @@ export function TaskBody({
 
 // ---------------------------------------------------------------- the properties rail
 
-function Prop({ label, children, wide }: { label: string; children: ReactNode; wide?: boolean }) {
+export function Prop({ label, children, wide }: { label: string; children: ReactNode; wide?: boolean }) {
   return (
     <div className={cn('flex min-w-0 flex-col gap-0.5', wide && 'col-span-2 @4xl:col-span-1')}>
       <dt className="text-xs font-medium text-fg-3">{label}</dt>
@@ -886,7 +692,7 @@ function Prop({ label, children, wide }: { label: string; children: ReactNode; w
   );
 }
 
-function CodeLinks({
+export function CodeLinks({
   projectId,
   items,
   limit = 4,
@@ -1000,16 +806,5 @@ export function Rail({
       </dl>
       {extra}
     </div>
-  );
-}
-
-/** The History fold at the foot of the page. */
-export function HistoryFold({ children }: { children: ReactNode }) {
-  const t = useMessages(DELIVERY);
-  return (
-    <details className="group border-t border-edge pt-4" data-history-fold>
-      <summary className="cursor-pointer text-lg font-semibold text-fg">{t.history}</summary>
-      <div className="mt-4 grid gap-8 @3xl:grid-cols-2">{children}</div>
-    </details>
   );
 }

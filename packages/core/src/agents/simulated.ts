@@ -347,6 +347,8 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
         size_reason: 'It touches one screen and one command.',
         split: null,
         walking_skeleton: i === 0 && c.first_feature === true,
+        // Each part builds on the one before it.
+        depends_on: i === 0 ? [] : [i],
       })),
       sources: [],
     };

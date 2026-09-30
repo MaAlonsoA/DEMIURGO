@@ -87,6 +87,7 @@ export function RecordHeader({
   onApproved,
   ancestors = [],
   lean,
+  tabs,
 }: {
   projectId: string;
   record: RecordDetail;
@@ -100,6 +101,8 @@ export function RecordHeader({
    * rest of the actions in a menu. `reviewable`: the guided review approves, not the header.
    */
   lean?: { status: Status; primary: ReactNode; reviewable: boolean };
+  /** Replaces the section tabs (a task has Overview and History only). */
+  tabs?: ReactNode;
 }) {
   const t = useMessages(HEADER);
   const d = useMessages(DELIVERY);
@@ -277,7 +280,7 @@ export function RecordHeader({
           </div>
           )
         }
-        tabs={<RecordTabs projectId={projectId} record={record} version={version} tab={tab} />}
+        tabs={tabs ?? <RecordTabs projectId={projectId} record={record} version={version} tab={tab} />}
       />
 
       <ConfirmDialog

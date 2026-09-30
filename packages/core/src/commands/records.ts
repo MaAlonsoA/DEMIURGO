@@ -35,7 +35,7 @@ const uuid = z.string().uuid();
 const RE_CODE = /^(DEC|FDR|ADR|BUG)-[A-Z]{3}-\d{3}$/;
 // What a link points to: any record, an epic (EPC) or the definition (DEF) too.
 const RE_TARGET = /^[A-Z]{3}-[A-Z]{3}-\d{3}$/;
-const LINK_TYPES = ['based_on', 'design_of', 'covers', 'origin', 'conflicts_with', 'derived_from'] as const;
+const LINK_TYPES = ['based_on', 'design_of', 'covers', 'origin', 'conflicts_with', 'derived_from', 'depends_on'] as const;
 
 const L = VERSION_LIMITS;
 const sectionSchema = z.object({ title: text(L.sectionTitle), content: z.string().max(L.section) }).strict();

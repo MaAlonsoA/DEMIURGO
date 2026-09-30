@@ -23,6 +23,7 @@ import { OriginsScreen } from './screens/origins/Origins.tsx';
 import { OverviewScreen } from './screens/overview/Overview.tsx';
 import { ProjectsScreen } from './screens/projects/Projects.tsx';
 import { RecordScreen } from './screens/record/Record.tsx';
+import { TaskDraftScreen } from './screens/record/TaskPage.tsx';
 import { RunScreen } from './screens/run/Run.tsx';
 import { SignInScreen, safeNext } from './screens/sign-in/SignIn.tsx';
 import { AppRoot } from './shell/AppRoot.tsx';
@@ -154,11 +155,18 @@ const buildRoute = createRoute({
 const recordRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: '/records/$code',
-  validateSearch: (s: Record<string, unknown>): { v?: number } => {
+  validateSearch: (s: Record<string, unknown>): { v?: number; tab?: string } => {
     const v = Number(s.v);
-    return Number.isInteger(v) && v > 0 ? { v } : {};
+    const tab = text(s.tab);
+    return { ...(Number.isInteger(v) && v > 0 ? { v } : {}), ...(tab ? { tab } : {}) };
   },
   component: RecordScreen,
+});
+// A draft task (a pending proposal of the task plan) has its own page under its feature.
+const taskDraftRoute = createRoute({
+  getParentRoute: () => projectRoute,
+  path: '/records/$code/tasks/$proposalId',
+  component: TaskDraftScreen,
 });
 const newRecordRoute = createRoute({
   getParentRoute: () => projectRoute,
@@ -286,6 +294,7 @@ const routeTree = rootRoute.addChildren([
       journeysRoute,
       buildRoute,
       recordRoute,
+      taskDraftRoute,
       newRecordRoute,
       newVersionRoute,
       threadsRoute,

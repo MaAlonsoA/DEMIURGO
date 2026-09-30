@@ -226,6 +226,7 @@ export const SECTIONS = messages(
     tabOverview: 'Overview',
     tabQuestions: 'Questions',
     tabChecks: 'Acceptance criteria',
+    tabTasks: 'Tasks',
     tabHistory: 'History',
   },
   {
@@ -233,6 +234,7 @@ export const SECTIONS = messages(
     tabOverview: 'Resumen',
     tabQuestions: 'Preguntas',
     tabChecks: 'Criterios de aceptación',
+    tabTasks: 'Tareas',
     tabHistory: 'Historial',
   },
 );

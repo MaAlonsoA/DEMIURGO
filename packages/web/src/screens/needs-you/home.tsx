@@ -8,7 +8,7 @@ import { isDefinitionProposal, proposalTargetCode, taskDraftsFeature } from '../
 import type { NeedItem } from './order.ts';
 
 export type Home =
-  | { to: 'record'; code: string; version?: number; hash?: string }
+  | { to: 'record'; code: string; version?: number; hash?: string; tab?: 'tasks' }
   | { to: 'thread'; id: string }
   | { to: 'batch'; id: string }
   | { to: 'product' };
@@ -24,7 +24,7 @@ export function homeOf(item: NeedItem): Home | null {
       return { to: 'record', code: item.version.code, version: item.version.n };
     case 'package': {
       const feature = taskDraftsFeature(item.batch);
-      if (feature) return { to: 'record', code: feature, hash: 'tasks' };
+      if (feature) return { to: 'record', code: feature, tab: 'tasks' };
       return item.batch.proposals.length > 0 && item.batch.proposals.every(isDefinitionProposal)
         ? { to: 'product' }
         : { to: 'batch', id: item.batch.id };
@@ -57,7 +57,7 @@ export function HomeLink({
         <Link
           to="/p/$projectId/records/$code"
           params={{ projectId, code: home.code }}
-          {...(home.version !== undefined ? { search: { v: home.version } } : {})}
+          {...(home.version !== undefined ? { search: { v: home.version } } : home.tab ? { search: { tab: home.tab } } : {})}
           {...(home.hash ? { hash: home.hash } : {})}
           className={className}
           {...rest}

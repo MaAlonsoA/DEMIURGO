@@ -9,6 +9,7 @@ import { executeCommand } from '../src/bus/bus.ts';
 import { waitForRun } from '../src/engine/engine.ts';
 import { waitForKnowledge } from '../src/knowledge/workflows.ts';
 import { explorationDetail, recordDetail } from '../src/queries/read.ts';
+import { taskDraftView } from '../src/queries/task-view.ts';
 import { useEnvironment } from './support/env.ts';
 
 const environment = useEnvironment({
@@ -188,9 +189,56 @@ describe('the drafting agents', () => {
     expect(criteria.length).toBeGreaterThan(0);
     expect(new Set(payloads.flatMap((x) => x.covers ?? []))).toEqual(new Set(criteria));
 
+    // The draft page: the feature, the criteria with their text, the order, the dependency and where it comes from.
+    const last = proposals.length - 1;
+    const draft = await taskDraftView(db(), projectId, proposals[last]!.id);
+    expect(draft).toMatchObject({
+      draft: { state: 'pending', siblings: proposals.length },
+      code: null,
+      state: 'proposed',
+      feature: { code: state.featureCode },
+      order: { n: proposals.length, of: proposals.length },
+    });
+    expect(draft.feature.epic?.code).toBe(state.epic?.code);
+    expect(draft.covers.map((c) => c.code).sort()).toEqual([...(payloads[last]?.covers ?? [])].sort());
+    expect(draft.covers.every((c) => c.statement.length > 0 && c.given !== null)).toBe(true);
+    expect(draft.provenance.proposed_by).toMatchObject({ agent: 'task_planner', run_id: run.id });
+    expect(draft.provenance.thread).not.toBeNull();
+    if (proposals.length > 1) {
+      expect(draft.depends_on.map((d) => d.ref)).toEqual([proposals[last - 1]!.id]);
+      expect(payloads[last]).toMatchObject({ depends_on_titles: [(payloads[last - 1] as { title?: string }).title] });
+      const first = await taskDraftView(db(), projectId, proposals[0]!.id);
+      expect(first.blocks.map((d) => d.ref)).toEqual([proposals[1]!.id]);
+    }
+
     for (const p of proposals) await cmd('proposal.accept', { approve: true }, p.id);
     const after = await recordDetail(db(), projectId, state.featureCode);
     expect(after.tasks).toHaveLength(proposals.length);
+    // The accepted task: same page, now a record, with the link to what it waits for and who decided.
+    const codes = (after.tasks ?? []).map((t) => t.code);
+    const lastTask = await recordDetail(db(), projectId, codes[last]!);
+    expect(lastTask.task).toMatchObject({
+      draft: null,
+      code: codes[last],
+      feature: { code: state.featureCode },
+      order: { n: proposals.length, of: proposals.length },
+      version: { n: 1, state: 'approved' },
+    });
+    expect(lastTask.task?.covers.length).toBeGreaterThan(0);
+    expect(lastTask.task?.covers.every((c) => c.statement.length > 0)).toBe(true);
+    expect(lastTask.task?.provenance).toMatchObject({ proposed_by: { agent: 'task_planner' }, accepted_by: 'human:ana' });
+    expect(lastTask.task?.provenance.approved_at).not.toBeNull();
+    expect(lastTask.task?.history).toHaveLength(1);
+    expect(lastTask.task?.dod.some((d) => d.item === 'Pull request reviewed and merged' && !d.met)).toBe(true);
+    if (proposals.length > 1) {
+      expect(lastTask.task?.depends_on.map((d) => d.code)).toEqual([codes[last - 1]]);
+      const firstTask = await recordDetail(db(), projectId, codes[0]!);
+      expect(firstTask.task?.blocks.map((d) => d.code)).toEqual([codes[last]]);
+      const link = await db().selectFrom('links').select('type').where('type', '=', 'depends_on').execute();
+      expect(link.length).toBeGreaterThan(0);
+    }
+    // The accepted draft still reads as a page with the code it got.
+    expect((await taskDraftView(db(), projectId, proposals[0]!.id)).draft?.state).toBe('accepted');
     for (const t of after.tasks ?? []) expect(t.size).toBeTruthy();
     expect(after.tasks?.flatMap((t) => t.covers).sort()).toEqual([...criteria].sort());
     expect(after.uncovered).toEqual([]);

@@ -30,13 +30,14 @@ import { staleDependencies } from '../commands/proposals.ts';
 import { epicOrder } from '../commands/epic-order.ts';
 import { threadDraft } from './draft.ts';
 import { githubConfig } from '../github/client.ts';
+import { taskViewOfRecord } from './task-view.ts';
 
 /** Records that are not built, so they have no readiness: a decision, and the product definition. */
 const WITHOUT_READINESS: ReadonlySet<string> = new Set(['decision', 'product_definition']);
 
 type Dep = { type: string; id: string; code?: string; version: number };
 
-async function currentOf(db: Db, recordId: string): Promise<number | null> {
+export async function currentOf(db: Db, recordId: string): Promise<number | null> {
   const v = await db
     .selectFrom('record_versions')
     .select('n')
@@ -718,6 +719,8 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
     // A task's effort size, outside its versions (FDR-DEL-006).
     effort: r.type === 'task' ? await taskSizeView(db, r.id) : null,
     covers: r.type === 'task' ? await taskCoversOf(db, r.id) : null,
+    // A task's whole page (its feature, order, criteria, dependencies, provenance and development).
+    ...(r.type === 'task' ? { task: await taskViewOfRecord(db, projectId, r.id) } : {}),
     versions: detail,
     incoming: await incomingLinks(db, projectId, r.id, r.type),
   };
@@ -756,7 +759,7 @@ async function taskDraftsOf(db: Db, projectId: string, code: string) {
 }
 
 /** The latest size of a record (task or feature), or null. */
-async function latestSize(db: Db, recordId: string): Promise<string | null> {
+export async function latestSize(db: Db, recordId: string): Promise<string | null> {
   const row = await db
     .selectFrom('task_sizes')
     .select('size')
@@ -829,7 +832,7 @@ async function featureRecordOfTask(db: Db, taskId: string): Promise<string | nul
 }
 
 /** A task's computed build state and the request behind it. */
-async function taskBuildOf(db: Db, projectId: string, taskId: string, implemented: boolean) {
+export async function taskBuildOf(db: Db, projectId: string, taskId: string, implemented: boolean) {
   const request = requestOf((await requestsByTask(db, [taskId])).get(taskId) ?? []);
   const feature = await featureRecordOfTask(db, taskId);
   const covers = await taskCoversOf(db, taskId);
@@ -893,7 +896,7 @@ async function taskBuildOf(db: Db, projectId: string, taskId: string, implemente
  * based on any version of it, with size, covers and computed build state, and the criterion codes
  * of its current version that they cover.
  */
-async function featureDelivery(db: Db, projectId: string, featureId: string, featureCurrent: number | null) {
+export async function featureDelivery(db: Db, projectId: string, featureId: string, featureCurrent: number | null) {
   const rows = await db
     .selectFrom('links')
     .innerJoin('record_versions as tv', 'tv.id', 'links.from_id')

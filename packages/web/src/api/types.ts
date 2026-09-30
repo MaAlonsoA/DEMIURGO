@@ -566,6 +566,61 @@ export type FeatureTask = {
   dropped?: boolean;
 };
 
+type TaskLink = { ref: string; title: string; code: string | null; state: string };
+
+/** A task's whole page: the same shape for an approved task and for a draft the task planner proposed. */
+export type TaskView = {
+  draft: null | {
+    proposal_id: string;
+    batch_id: string;
+    resolution: 'item' | 'package';
+    state: 'pending' | 'accepted' | 'rejected';
+    siblings: number;
+  };
+  code: string | null;
+  title: string;
+  state: string;
+  version: { n: number; state: string; change_note: string | null } | null;
+  goal: string;
+  scope: string;
+  size: 'XS' | 'S' | 'M' | 'L' | 'XL' | null;
+  size_reason: string | null;
+  split: string | null;
+  walking_skeleton: boolean;
+  feature: { code: string; version: number; title: string; current_version: number; epic: { code: string; title: string } | null };
+  order: { n: number; of: number };
+  covers: {
+    code: string;
+    title: string;
+    given: string | null;
+    when: string | null;
+    then: string | null;
+    statement: string;
+    step: number | null;
+    state: string;
+  }[];
+  depends_on: TaskLink[];
+  blocks: TaskLink[];
+  dod: { item: string; met: boolean }[];
+  development: {
+    branch: string | null;
+    pr_url: string | null;
+    pr_number: number | null;
+    checks: { name: string; state: string }[];
+    review: { verdict: string; summary: string } | null;
+    evidence: { criterion: string; result: string; test_name: string | null }[];
+  } | null;
+  sources: { title: string; url: string | null; note: string | null }[];
+  provenance: {
+    proposed_by: { agent: string; run_id: string; engine: string | null } | null;
+    thread: { id: string; title: string } | null;
+    accepted_by: string | null;
+    accepted_at: string | null;
+    approved_at: string | null;
+  };
+  history: { n: number; state: string; change_note: string | null; created_at: string; author: string }[];
+};
+
 export type RecordDetail = {
   id: string;
   /** Design system only: non-blocking notes on the shown version. */
@@ -597,6 +652,8 @@ export type RecordDetail = {
   tasks?: FeatureTask[];
   /** Feature only: the tasks proposed and still undecided, drafts of one package per planning run. */
   task_drafts?: TaskDraft[];
+  /** Task only: its whole page. */
+  task?: TaskView | null;
   uncovered?: string[];
   dod?: { done: boolean; missing: string[] } | null;
   versions: RecordVersion[];
@@ -1040,5 +1097,5 @@ export type BuildQueue = {
   waiting: (QueueTask & { reasons: string[] })[];
   stale: QueueTask[];
   totals: { tasks: number; points: number; unsized: number };
-  repository: { path: string | null; branch: string };
+  repository: { path: string | null; branch: string; merge_rule_by_demiurgo?: boolean };
 };

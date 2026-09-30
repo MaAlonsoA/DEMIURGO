@@ -130,6 +130,11 @@ registerChecker('task_plan', async ({ db, run, output }) => {
     const unknown = t.covers.filter((c) => !feature.criteria.includes(c));
     if (unknown.length > 0)
       notes.push(`Task ${i + 1} ("${t.title}") covers ${unknown.join(', ')}, which ${unknown.length > 1 ? 'are' : 'is'} not a criterion of ${feature.code}: \`covers\` only lists \`feature.criteria\` codes.`);
+    const bad = t.depends_on.filter((d) => d >= i + 1);
+    if (bad.length > 0)
+      notes.push(
+        `Task ${i + 1} ("${t.title}") depends on ${bad.join(', ')}: \`depends_on\` only lists positions of EARLIER tasks (1 to ${i}), never itself or a later one.`,
+      );
     if (t.size === 'XL' && !t.split) notes.push(`Task ${i + 1} ("${t.title}") is XL: say in \`split\` how it could be split into smaller tasks.`);
     if (t.walking_skeleton && (i !== 0 || !pack.first_feature))
       notes.push(
@@ -183,6 +188,9 @@ registerApplier('task_plan', async ({ trx, execute, run, output }) => {
           size: t.size,
           size_reason: t.size_reason,
           ...(t.split ? { split: t.split } : {}),
+          ...(t.depends_on.length > 0
+            ? { depends_on_titles: [...new Set(t.depends_on.flatMap((d) => output.tasks[d - 1]?.title ?? []))] }
+            : {}),
           ...sourcesPayload(output.sources),
         },
       })),

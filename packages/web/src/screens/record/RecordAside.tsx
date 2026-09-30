@@ -307,6 +307,7 @@ export function VersionsPanel({ projectId, record, shown }: { projectId: string;
         {record.versions.toReversed().map((v) => {
           const w = stateWord('record_version', v.state);
           const selected = v.n === shown.n;
+          const who = whoOf(v.author);
           return (
             <li key={v.id} data-version={v.n}>
               <Link
@@ -314,18 +315,21 @@ export function VersionsPanel({ projectId, record, shown }: { projectId: string;
                 params={{ projectId, code: record.code }}
                 search={{ v: v.n }}
                 aria-current={selected ? 'page' : undefined}
-                className={cn(
-                  'flex min-h-9 items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-hover',
-                  selected && 'bg-selected',
-                )}
+                className={cn('flex min-h-9 flex-col gap-0.5 rounded-md px-2 py-1.5 text-sm hover:bg-hover', selected && 'bg-selected')}
               >
-                <Code className={cn('w-7 font-semibold', selected ? 'text-fg' : 'text-fg-2')}>v{v.n}</Code>
-                <StatusBadge kind={w.mark} word={w.word} />
-                {v.current ? <span className="text-xs text-fg-2">{t.current}</span> : null}
-                <span className="ml-auto flex items-center gap-1.5 text-xs text-fg-2">
-                  <WhoAvatar kind={whoOf(v.author).kind} size={16} />
-                  <RelativeTime iso={v.created_at} />
+                <span className="flex items-center gap-2">
+                  <Code className={cn('w-7 font-semibold', selected ? 'text-fg' : 'text-fg-2')}>v{v.n}</Code>
+                  <StatusBadge kind={w.mark} word={w.word} />
+                  {v.current ? <span className="text-xs text-fg-2">{t.current}</span> : null}
+                  <span className="ml-auto text-xs text-fg-2">
+                    <RelativeTime iso={v.created_at} />
+                  </span>
                 </span>
+                <span className="flex items-center gap-1.5 text-xs text-fg-2">
+                  <WhoAvatar kind={who.kind} size={14} />
+                  {whoName(who)}
+                </span>
+                <span className="line-clamp-2 text-xs text-fg-2">{v.change_note ?? (v.n === 1 ? t.firstVersionNote : t.noChangeNote)}</span>
               </Link>
             </li>
           );

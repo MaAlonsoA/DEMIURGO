@@ -1,7 +1,7 @@
-// The sections of a record (canvas B2): Overview, Questions, Checks and History, in ?tab=. The
+// The sections of a record (canvas B2): Overview, Questions, Checks, Tasks (features only) and History, in ?tab=. The
 // version shown (?v=) is kept when moving between them.
 
-export const RECORD_TABS = ['overview', 'questions', 'checks', 'history'] as const;
+export const RECORD_TABS = ['overview', 'questions', 'checks', 'tasks', 'history'] as const;
 export type RecordTab = (typeof RECORD_TABS)[number];
 
 export function tabOf(value: unknown): RecordTab {

@@ -7,7 +7,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useSearch } from '@tanstack/react-router';
-import { type ReactNode, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { ApiError } from '../../api/client.ts';
 import { isBuildRunningOf } from './AgentBuild.tsx';
 import { inboxQuery, readinessQuery, recordQuery, stagesQuery, stateQuery } from '../../api/queries.ts';
@@ -21,11 +21,9 @@ import { PageHeader, usePageTitle } from '../../components/Page.tsx';
 import { PageSkeleton } from '../../components/Spinner.tsx';
 import { useAllows } from '../../components/actions.tsx';
 import { useMessages } from '../../i18n/define.ts';
-import { cn } from '../../lib/cn.ts';
 import { useReading } from '../../i18n/reading.tsx';
 import { useRouteParams, useTables } from '../../lib/hooks.ts';
 import { HistoryTab } from '../blueprint/HistoryTab.tsx';
-import { RecordsNavigator } from '../blueprint/Navigator.tsx';
 import { IfYouConfirm, QuestionsList, useQuestions } from '../blueprint/QuestionsTab.tsx';
 import { hasChecks, useRecordTab } from '../blueprint/Sections.tsx';
 import { NotFound } from '../not-found/NotFound.tsx';
@@ -39,7 +37,6 @@ import { TaskSizePanel } from './TaskSize.tsx';
 import {
   DeliveryBanner,
   FeatureBody,
-  HistoryFold,
   PrimaryAction,
   Rail,
   TaskBody,
@@ -49,6 +46,9 @@ import {
 import { pendingProposalBatches, proposalTargetCode } from '../../lib/attention.ts';
 import { stateWord } from '../../words.ts';
 import { RecordHeader } from './Header.tsx';
+import { Columns, Frame } from './Layout.tsx';
+import { TaskPage } from './TaskPage.tsx';
+import { TasksTab } from './TasksTab.tsx';
 import { ancestorsOf } from './hierarchy.ts';
 import { PendingProposals } from './PendingProposals.tsx';
 import { PlannedFeaturePage } from './PlannedFeature.tsx';
@@ -59,36 +59,6 @@ import { ReviewArea, ReviewBand, ReviewProvider, ReviewSections, useReview } fro
 import { canReview } from './review.ts';
 import { takeSaveWarnings } from './saved.ts';
 import { DELIVERY, RECORD } from './words.i18n.ts';
-
-/** The navigator beside the page; the page is a size container, so its columns follow its own width. */
-function Frame({ projectId, code, children }: { projectId: string; code: string; children: ReactNode }) {
-  return (
-    <div className="flex min-h-full flex-1 flex-col lg:flex-row">
-      <RecordsNavigator projectId={projectId} code={code} />
-      <div className="@container min-w-0 flex-1">{children}</div>
-    </div>
-  );
-}
-
-/** Main content and its side column: stacked, then side by side from a 56rem wide content area. */
-function Columns({ main, aside, asideFirst = false }: { main: ReactNode; aside: ReactNode; asideFirst?: boolean }) {
-  const t = useMessages(RECORD);
-  return (
-    <div className="flex flex-col gap-8 px-4 py-6 sm:px-6 lg:px-8 @4xl:flex-row @4xl:items-start">
-      <div className="flex min-w-0 flex-1 flex-col gap-8">{main}</div>
-      <aside
-        aria-label={t.aboutRecord}
-        className={cn(
-          'flex w-full shrink-0 flex-col gap-8 @4xl:sticky @4xl:top-3 @4xl:w-80 @6xl:w-96',
-          // A delivery page's properties come right under the header on a phone, not far down.
-          asideFirst && 'order-first @4xl:order-last @4xl:w-72 @6xl:w-80',
-        )}
-      >
-        {aside}
-      </aside>
-    </div>
-  );
-}
 
 export function RecordScreen() {
   const t = useMessages(RECORD);
@@ -149,6 +119,14 @@ export function RecordScreen() {
       </Frame>
     );
   }
+  if (r.type === 'task' && r.task) {
+    // A task is the last link of the hierarchy and has its own page (the same one its draft has).
+    return (
+      <Frame projectId={projectId} code={code}>
+        <TaskPage key={r.code} projectId={projectId} task={r.task} record={r} version={version} state={state.data} inbox={inbox.data} />
+      </Frame>
+    );
+  }
   return (
     <Frame projectId={projectId} code={code}>
       <RecordPage key={r.code} projectId={projectId} record={r} version={version} state={state.data} inbox={inbox.data} />
@@ -174,7 +152,9 @@ function RecordPage({
   // The version read in the person's language; the actions act on the English one (same id).
   const reading = useReading(projectId, 'record_version', stored.id);
   const version = readVersion(stored, reading.text);
-  const tab = useRecordTab();
+  // The Tasks tab is a feature's: on any other record the address falls back to the Overview.
+  const rawTab = useRecordTab();
+  const tab = rawTab === 'tasks' && record.type !== 'fdr' ? 'overview' : rawTab;
   const tables = useTables();
   const readinessQ = useQuery({ ...readinessQuery(projectId, version.id), enabled: record.type !== 'decision' });
   const ready = record.type === 'decision' ? null : (readinessQ.data ?? version.readiness);
@@ -242,14 +222,28 @@ function RecordPage({
     />
   );
   const readinessPanel = <ReadinessPanel projectId={projectId} version={version} readiness={ready} stage={stage} />;
-  const aside = leanOverview ? (
+  const railed = delivery !== null && (leanOverview || tab === 'tasks');
+  const aside = railed ? (
     <Rail
       projectId={projectId}
       record={record}
       version={version}
       ready={ready}
       status={delivery.status}
-      extra={record.type === 'task' ? <TaskSizePanel projectId={projectId} record={record} /> : null}
+      extra={
+        <>
+          {record.type === 'task' ? <TaskSizePanel projectId={projectId} record={record} /> : null}
+          <VersionsPanel projectId={projectId} record={record} shown={version} />
+          <ContextPanel
+            projectId={projectId}
+            code={record.code}
+            version={version}
+            thread={thread}
+            targets={state ? versionIndex(state, inbox) : undefined}
+            incoming={record.incoming}
+          />
+        </>
+      }
     />
   ) : tab === 'questions' ? (
       <>
@@ -300,7 +294,7 @@ function RecordPage({
     </>
   );
 
-  if (tab === 'questions' || tab === 'history' || tab === 'checks') {
+  if (tab === 'questions' || tab === 'history' || tab === 'checks' || tab === 'tasks') {
     return (
       <>
         {header}
@@ -309,6 +303,8 @@ function RecordPage({
           main={
             tab === 'questions' ? (
               <QuestionsList projectId={projectId} questions={questions} />
+            ) : tab === 'tasks' ? (
+              <TasksTab projectId={projectId} record={record} draft={draftTasks} />
             ) : tab === 'history' ? (
               <HistoryTab projectId={projectId} record={record} />
             ) : hasChecks(record, version) ? (
@@ -371,7 +367,6 @@ function RecordPage({
                     record={record}
                     version={version}
                     recording={recordingFor}
-                    draft={draftTasks}
                     primaryIsDraft={delivery.primary?.kind === 'draft_tasks'}
                   />
                 ) : record.type === 'epic' ? (
@@ -384,17 +379,6 @@ function RecordPage({
                   <BriefCard projectId={projectId} code={record.code} />
                 ) : null}
                 {askBox}
-                <HistoryFold>
-                  <ContextPanel
-                    projectId={projectId}
-                    code={record.code}
-                    version={version}
-                    thread={thread}
-                    targets={state ? versionIndex(state, inbox) : undefined}
-                    incoming={record.incoming}
-                  />
-                  <VersionsPanel projectId={projectId} record={record} shown={version} />
-                </HistoryFold>
               </>
             ) : (
               <>

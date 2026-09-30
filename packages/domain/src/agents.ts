@@ -602,6 +602,10 @@ export const taskPlanOutput = z
             size_reason: recordText(300),
             split: recordText(600).nullable().describe('For an XL task: how it could be split; null otherwise.'),
             walking_skeleton: z.boolean().describe("True only for the project's very first task, when the context says `first_feature`."),
+            depends_on: z
+              .array(z.number().int().min(1).max(19))
+              .max(19)
+              .describe('The 1-based positions of EARLIER tasks in this list that must be done before this one starts; empty when none.'),
           })
           .strict(),
       )

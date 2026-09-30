@@ -75,6 +75,17 @@ export function RecordTabs({
               },
             ]
           : []),
+        ...(record.type === 'fdr'
+          ? [
+              {
+                key: 'tasks',
+                label: t.tabTasks,
+                current: tab === 'tasks',
+                link: link('tasks'),
+                count: (record.tasks ?? []).filter((x) => !x.dropped).length + (record.task_drafts ?? []).length,
+              },
+            ]
+          : []),
         { key: 'history', label: t.tabHistory, current: tab === 'history', link: link('history') },
       ]}
     />

@@ -30,6 +30,38 @@ export type Effect = Record<string, unknown>;
 export type EffectInput = { proposalId: string; payload: unknown; approve: boolean };
 export type Application = (ctx: CommandContext, e: EffectInput) => Promise<Effect>;
 
+/**
+ * The tasks of the same feature a task waits for, by title: one `depends_on` link each, to the task's
+ * latest version. A dependency that is still a draft has no record yet: nothing is linked (the task
+ * pages read the title from the proposal until it is there).
+ */
+async function dependencyLinks(ctx: CommandContext, feature: { code: string }, titles: readonly string[]) {
+  if (titles.length === 0) return [];
+  const rows = await ctx.trx
+    .selectFrom('links')
+    .innerJoin('record_versions as tv', 'tv.id', 'links.from_id')
+    .innerJoin('records as task', 'task.id', 'tv.record_id')
+    .innerJoin('record_versions as fv', 'fv.id', 'links.to_id')
+    .innerJoin('records as f', 'f.id', 'fv.record_id')
+    .select(['task.code', 'tv.n', 'tv.title'])
+    .where('links.type', '=', 'based_on')
+    .where('f.code', '=', feature.code)
+    .where('task.type', '=', 'task')
+    .where('task.project_id', '=', ctx.projectId)
+    .orderBy('tv.n')
+    .execute();
+  const latest = new Map<string, { code: string; n: number }>();
+  for (const r of rows) latest.set(r.code, { code: r.code, n: r.n });
+  const byTitle = new Map<string, { code: string; n: number }>();
+  for (const r of rows) if (latest.get(r.code)?.n === r.n) byTitle.set(r.title.trim().toLowerCase(), { code: r.code, n: r.n });
+  const out: { type: string; target: { code: string; version: number } }[] = [];
+  for (const t of titles) {
+    const hit = byTitle.get(t.trim().toLowerCase());
+    if (hit) out.push({ type: 'depends_on', target: { code: hit.code, version: hit.n } });
+  }
+  return out;
+}
+
 async function createRecord(ctx: CommandContext, data: Record<string, unknown>, approve: boolean): Promise<Effect> {
   const r = await ctx.execute({ command: 'record.create', actor: ctx.actor, data });
   const res = r.result as { recordId: string; code: string; versionId: string };
@@ -191,7 +223,10 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
         sections: c.sections,
         criteria: c.criteria.map((k) => ({ carry: 'new', ...k, statement: criterionStatement(k) })),
         // What it rests on, then the features it needs (a `based_on` link each: the map reads them as "needs").
-        links: [...(c.based_on ? [c.based_on] : []), ...(c.needs ?? [])].map((target) => ({ type: 'based_on', target })),
+        links: [
+          ...[...(c.based_on ? [c.based_on] : []), ...(c.needs ?? [])].map((target) => ({ type: 'based_on', target })),
+          ...(c.record_type === 'task' && c.based_on ? await dependencyLinks(ctx, c.based_on, c.depends_on_titles ?? []) : []),
+        ],
         origin: { type: 'proposal', id: proposalId },
       },
       approve,

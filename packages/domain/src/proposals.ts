@@ -127,6 +127,8 @@ export const designRecordPayload = z
     size: taskSizeSchema.optional(),
     size_reason: text(300).optional(),
     split: text(600).optional(),
+    /** A task's dependencies: the titles of the tasks of the same feature that must be done first (it is blocked by them). */
+    depends_on_titles: z.array(text(200)).max(19).optional(),
     aspect: aspectSchema.optional(),
     basis,
   })

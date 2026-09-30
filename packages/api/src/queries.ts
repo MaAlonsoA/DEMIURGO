@@ -23,6 +23,7 @@ import {
   explorationDetail,
   batchDetail,
   recordDetail,
+  taskDraftView,
   productState,
   versionReadiness,
   explorationsList,
@@ -195,6 +196,13 @@ registerQueries([
     path: '/api/projects/:projectId/records/:code',
     queryName: 'query.records',
     respond: ({ services, params }) => recordDetail(services.db, uuid(params.projectId, 'project'), params.code ?? ''),
+  },
+  {
+    // A task proposed by the task planner (pending, accepted or rejected), read as the task page reads a record.
+    path: '/api/projects/:projectId/task-drafts/:proposalId',
+    queryName: 'query.records',
+    respond: ({ services, params }) =>
+      taskDraftView(services.db, uuid(params.projectId, 'project'), uuid(params.proposalId, 'proposal')),
   },
   {
     // The product definition: its versions with the question each section comes from, and the proposed one.

@@ -459,3 +459,42 @@ export const PENDING_PROPOSALS = messages(
 );
 
 export const ATTENTION = messages({ waiting: 'Waiting for you' }, { waiting: 'Te espera' });
+
+export const CHANGES = messages(
+  {
+    title: (n: number) => `Changes since v${n}`,
+    none: (n: number) => `Nothing differs from v${n}.`,
+    summary: (s: number, a: number, c: number, r: number) =>
+      `${s} ${s === 1 ? 'section' : 'sections'} changed; checks: ${a} added, ${c} changed, ${r} removed.`,
+    titleChanged: 'Title',
+    now: 'Now',
+    before: 'Before',
+    added: 'Added',
+    changed: 'Changed',
+    removed: 'Removed',
+    sectionAdded: 'New section',
+    sectionRemoved: 'Section removed',
+    checksHeading: 'Checks',
+    checkWord: 'Check: ',
+    show: 'Show changes',
+    hide: 'Hide changes',
+  },
+  {
+    title: (n: number) => `Cambios desde la v${n}`,
+    none: (n: number) => `Nada difiere de la v${n}.`,
+    summary: (s: number, a: number, c: number, r: number) =>
+      `${s} ${s === 1 ? 'sección cambiada' : 'secciones cambiadas'}; comprobaciones: ${a} añadidas, ${c} cambiadas, ${r} quitadas.`,
+    titleChanged: 'Título',
+    now: 'Ahora',
+    before: 'Antes',
+    added: 'Añadida',
+    changed: 'Cambiada',
+    removed: 'Quitada',
+    sectionAdded: 'Sección nueva',
+    sectionRemoved: 'Sección quitada',
+    checksHeading: 'Comprobaciones',
+    checkWord: 'Comprobación: ',
+    show: 'Ver los cambios',
+    hide: 'Ocultar los cambios',
+  },
+);

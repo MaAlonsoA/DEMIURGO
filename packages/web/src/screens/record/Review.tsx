@@ -18,6 +18,7 @@ import { ArrowRightIcon, CheckIcon } from '../../components/icons.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { type ReviewPart, type ReviewPartKey, reviewBanner, reviewParts, reviewStep } from './review.ts';
+import { ChangesSince, baseVersion } from './Changes.tsx';
 import { REVIEW } from './words.i18n.ts';
 
 const reducedMotion = (): ScrollBehavior =>
@@ -78,7 +79,11 @@ export function useReview(record: RecordDetail, version: RecordVersion, reviewab
     setStep(0);
     window.scrollTo({ top: 0, behavior: reducedMotion() });
   }, [ended]);
-  return { step: reviewable ? step : 0, parts: reviewParts(record.type, version, t), setStep };
+  return {
+    step: reviewable ? step : 0,
+    parts: reviewParts(record.type, version, t),
+    setStep,
+  };
 }
 
 /** The sections of the record, grouped by the part of the review they belong to. */
@@ -141,35 +146,41 @@ export function ReviewBand({
   if (review.step === 0) {
     const banner = reviewBanner(version, t);
     return (
-      <div
-        data-review-banner
-        className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border border-accent-edge bg-accent-soft px-4 py-3"
-      >
-        <Count n={1} label={t.needsYou} />
-        <div className="flex min-w-0 flex-1 basis-60 flex-col">
-          <p className="text-base font-semibold text-fg">{banner.title}</p>
-          <p className="text-sm text-fg-2">{banner.detail}</p>
+      <>
+        <div
+          data-review-banner
+          className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border border-accent-edge bg-accent-soft px-4 py-3"
+        >
+          <Count n={1} label={t.needsYou} />
+          <div className="flex min-w-0 flex-1 basis-60 flex-col">
+            <p className="text-base font-semibold text-fg">{banner.title}</p>
+            <p className="text-sm text-fg-2">{banner.detail}</p>
+          </div>
+          <Button ref={start} variant="primary" onClick={() => review.setStep(1)}>
+            {t.startReview}
+          </Button>
         </div>
-        <Button ref={start} variant="primary" onClick={() => review.setStep(1)}>
-          {t.startReview}
-        </Button>
-      </div>
+        <ChangesSince record={record} version={version} />
+      </>
     );
   }
   return (
-    <ReviewBar
-      projectId={projectId}
-      record={record}
-      version={version}
-      review={review}
-      ask={ask}
-      canNewVersion={canNewVersion}
-      onApproved={onApproved}
-      onLeave={() => {
-        focusStart.current = true;
-        review.setStep(0);
-      }}
-    />
+    <>
+      <ReviewBar
+        projectId={projectId}
+        record={record}
+        version={version}
+        review={review}
+        ask={ask}
+        canNewVersion={canNewVersion}
+        onApproved={onApproved}
+        onLeave={() => {
+          focusStart.current = true;
+          review.setStep(0);
+        }}
+      />
+      {baseVersion(record, version) ? <ChangesSince record={record} version={version} /> : null}
+    </>
   );
 }
 
@@ -347,7 +358,11 @@ function ReviewBar({
           // mutateAsync: the answer may come after the approval's own event has already ended the
           // review (this bar unmounts), and what follows must still happen.
           void command
-            .mutateAsync({ command: 'record_version.approve', entityId: version.id, data: {} })
+            .mutateAsync({
+              command: 'record_version.approve',
+              entityId: version.id,
+              data: {},
+            })
             .then(() => {
               setConfirming(false);
               setStep(0);

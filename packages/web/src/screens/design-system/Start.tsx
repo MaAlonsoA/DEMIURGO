@@ -3,21 +3,25 @@
 // scratch`, see domain/public-design-systems.ts) and its first message says the chosen path.
 // The public systems' URLs and licenses are checked in that domain file.
 
-import { useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { DESIGN_SYSTEM_PURPOSE, PUBLIC_DESIGN_SYSTEMS, designSystemPurpose } from '../../../../domain/src/public-design-systems.ts';
 import { runCommand } from '../../api/commands.ts';
 import { explorationsQuery, keys, stateQuery } from '../../api/queries.ts';
 import { announce } from '../../components/announce.tsx';
 import { openThreadData, threadFor } from '../../components/ask.ts';
-import { Button } from '../../components/Button.tsx';
+import { Button, buttonClass } from '../../components/Button.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
 import { messages, useContentMessages, useMessages } from '../../i18n/define.ts';
 
 const START = messages(
   {
     title: 'No design system yet',
+    proposed: 'DEMIURGO has proposed the design system: review it and approve it.',
+    review: 'Review the proposal',
+    inProgress: 'The design system is being designed in its thread.',
+    continueIt: 'Continue in the thread',
     intro: 'A design system is chosen once and then every screen is built from it. There are two ways to start.',
     publicTitle: 'Start from a public system',
     publicBody: 'Adopt a published, documented system as the base and give it your own personality.',
@@ -32,9 +36,15 @@ const START = messages(
     helpRequest:
       'Which base for the design system fits this product best: Primer, Carbon, Material 3, shadcn/ui or designing it from scratch? Compare them against the product definition and the quality goals (mobile use, WCAG 2.2 AA…), with the source of each claim, and recommend one.',
     started: 'DEMIURGO is asking about the principles in the new thread.',
+    startRequest: (base: string) => `Design system: start from ${base}`,
+    scratchRequest: 'Design system: design from scratch',
   },
   {
     title: 'Todavía no hay sistema de diseño',
+    proposed: 'DEMIURGO ha propuesto el sistema de diseño: revísalo y apruébalo.',
+    review: 'Revisar la propuesta',
+    inProgress: 'El sistema de diseño se está diseñando en su hilo.',
+    continueIt: 'Seguir en el hilo',
     intro: 'El sistema de diseño se elige una vez y de él sale cada pantalla. Hay dos maneras de empezar.',
     publicTitle: 'Partir de un sistema público',
     publicBody: 'Adoptar como base un sistema publicado y documentado, y darle tu propia personalidad.',
@@ -49,6 +59,8 @@ const START = messages(
     helpRequest:
       '¿Qué base para el sistema de diseño encaja mejor con este producto: Primer, Carbon, Material 3, shadcn/ui o diseñarlo desde cero? Compáralas con la definición del producto y los objetivos de calidad (uso en móvil, WCAG 2.2 AA…), con la fuente de cada afirmación, y recomienda una.',
     started: 'DEMIURGO pregunta por los principios en el hilo nuevo.',
+    startRequest: (base: string) => `Sistema de diseño: partir de ${base}`,
+    scratchRequest: 'Sistema de diseño: diseñarlo desde cero',
   },
 );
 
@@ -69,7 +81,7 @@ export function DesignSystemStart({ projectId }: { projectId: string }) {
       let thread = state.explorations.find((e) => e.state === 'active' && e.purpose.startsWith(`${DESIGN_SYSTEM_PURPOSE}:`))?.id;
       if (!thread) {
         thread = (await runCommand(projectId, { command: 'exploration.open', data: { purpose: designSystemPurpose(base) } })).entity_id;
-        const text = base ? `Design system: start from ${base}` : 'Design system: design from scratch';
+        const text = base ? reading.startRequest(base) : reading.scratchRequest;
         await runCommand(projectId, { command: 'message.post', data: { exploration_id: thread, text, respond: true } });
         announce(t.started);
       }
@@ -101,8 +113,29 @@ export function DesignSystemStart({ projectId }: { projectId: string }) {
     }
   };
 
+  // Already under way: the path of the project says where (a proposal to review or its thread).
+  const state = useQuery(stateQuery(projectId)).data;
+  const step = state?.inception?.steps.find((x) => x.key === 'design_system');
+  const underWay =
+    step?.action?.kind === 'review_batch' ? (
+      <p className="flex flex-wrap items-center gap-3 border-l-2 border-accent-edge bg-accent-soft px-3 py-2 text-fg">
+        {t.proposed}
+        <Link to="/p/$projectId/batches/$batchId" params={{ projectId, batchId: step.action.batch }} className={buttonClass({ variant: 'primary', size: 'sm' })}>
+          {t.review}
+        </Link>
+      </p>
+    ) : step?.action?.kind === 'thread' ? (
+      <p className="flex flex-wrap items-center gap-3 border-l-2 border-accent-edge bg-accent-soft px-3 py-2 text-fg">
+        {t.inProgress}
+        <Link to="/p/$projectId/threads/$explorationId" params={{ projectId, explorationId: step.action.thread }} className={buttonClass({ variant: 'primary', size: 'sm' })}>
+          {t.continueIt}
+        </Link>
+      </p>
+    ) : null;
+
   return (
     <div className="flex flex-col gap-6">
+      {underWay}
       <div className="flex flex-col gap-1">
         <h2 className="text-lg font-semibold text-fg">{t.title}</h2>
         <p className="max-w-prose text-fg-2">{t.intro}</p>

@@ -7,6 +7,7 @@ import {
   inceptionPath,
 } from "@demiurgo/domain";
 import { epicOrderList } from "../commands/epic-order.ts";
+import { sql } from "kysely";
 import type { Db } from "../db/connection.ts";
 import { implementationOf, versionReadiness } from "./read.ts";
 
@@ -160,6 +161,26 @@ export async function inceptionOf(
     hasInterface: true,
     stages,
     definition: rec(ofType("product_definition")[0]),
+    pending: (
+      await db
+        .selectFrom("proposals")
+        .select(["type", "batch_id", sql<string | null>`payload->>'record_type'`.as("record_type")])
+        .where("project_id", "=", projectId)
+        .where("state", "=", "pending")
+        .orderBy("created_at")
+        .execute()
+    ).map((p) => ({ type: p.type === "design_record" ? (p.record_type ?? p.type) : p.type, batch: p.batch_id })),
+    designSystemThread:
+      (
+        await db
+          .selectFrom("explorations")
+          .select("id")
+          .where("project_id", "=", projectId)
+          .where("state", "=", "active")
+          .where("purpose", "like", "Design system:%")
+          .orderBy("created_at", "desc")
+          .executeTakeFirst()
+      )?.id ?? null,
     definitionProposal: Boolean(
       await db
         .selectFrom("proposals")

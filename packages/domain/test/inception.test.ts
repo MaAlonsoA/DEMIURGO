@@ -6,6 +6,8 @@ const empty: InceptionInput = {
   stages: [],
   definition: null,
   definitionProposal: false,
+  pending: [],
+  designSystemThread: null,
   designSystem: null,
   epics: [],
   features: [],

@@ -42,7 +42,11 @@ export type InceptionAction =
   /** A proposed definition (or a change to it) waits: review and approve it on Product. */
   | { kind: "review_definition" }
   /** Ask DEMIURGO, in the product's main thread, for the story map of the first version. */
-  | { kind: "plan_backlog"; thread: string | null };
+  | { kind: "plan_backlog"; thread: string | null }
+  /** A proposal DEMIURGO made for this step waits in its batch. */
+  | { kind: "review_batch"; batch: string }
+  /** The step is being worked on in a thread: continue there. */
+  | { kind: "thread"; thread: string };
 
 export type InceptionStep = {
   key: InceptionStepKey;
@@ -82,6 +86,10 @@ export type InceptionInput = {
   definition: InceptionRecord | null;
   /** A product definition proposal (the first draft or a change to a section) is pending. */
   definitionProposal: boolean;
+  /** Pending proposals of new records, by record type (epic, fdr, design_system, screen_design, task…). */
+  pending: { type: string; batch: string }[];
+  /** The active thread where the design system is being designed, if any. */
+  designSystemThread: string | null;
   designSystem: InceptionRecord | null;
   epics: InceptionRecord[];
   /** Features (FDR) in order: the first of the first epic, else the oldest. */
@@ -137,6 +145,10 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
     r && !r.approved ? { kind: "approve", code: r.code } : null;
 
   const first = input.firstFeature;
+  const pendingOf = (...types: string[]): InceptionAction | null => {
+    const p = input.pending.find((x) => types.includes(x.type));
+    return p ? { kind: "review_batch", batch: p.batch } : null;
+  };
   const draftEpic = input.epics.find((e) => !e.approved);
   const draftFeature = input.features.find((f) => !f.approved);
 
@@ -188,7 +200,10 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
         "Alla Kholmatova, Design Systems; Brad Frost, Atomic Design",
       done: input.designSystem?.approved === true,
       skipped: !input.hasInterface,
-      action: () => draftOf(input.designSystem) ?? { kind: "design_system" },
+      action: () =>
+        draftOf(input.designSystem) ??
+        pendingOf("design_system") ??
+        (input.designSystemThread ? { kind: "thread", thread: input.designSystemThread } : { kind: "design_system" }),
     },
     {
       key: "backlog",
@@ -203,7 +218,7 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       action: () =>
         (input.epics.length > 0
           ? draftOf(draftEpic)
-          : draftOf(draftFeature)) ?? {
+          : draftOf(draftFeature)) ?? pendingOf("epic", "fdr") ?? {
           kind: "plan_backlog",
           thread: stage("requirements")?.thread ?? null,
         },
@@ -218,7 +233,7 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       action: () =>
         draftFeature
           ? { kind: "approve", code: draftFeature.code }
-          : { kind: "epics" },
+          : (pendingOf("fdr") ?? { kind: "epics" }),
     },
     {
       key: "screens",
@@ -230,6 +245,7 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       skipped: !input.hasInterface,
       action: () =>
         draftOf(first?.screens) ??
+        pendingOf("screen_design") ??
         (first ? { kind: "feature", code: first.code } : null),
     },
     {
@@ -259,11 +275,8 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       done: (first?.tasks ?? []).some((t) => t.approved),
       action: () => {
         const draft = (first?.tasks ?? []).find((t) => !t.approved);
-        return draft
-          ? { kind: "approve", code: draft.code }
-          : first
-            ? { kind: "feature", code: first.code }
-            : null;
+        if (draft) return { kind: "approve", code: draft.code };
+        return pendingOf("task") ?? (first ? { kind: "feature", code: first.code } : null);
       },
     },
     {

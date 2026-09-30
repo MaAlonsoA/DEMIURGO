@@ -121,6 +121,14 @@ export function selectCandidates(g: Graph, change: Change, categories: Readonly<
     if (seeds.has(a.from)) add(byRef.get(a.to), `neighbor of ${a.from} (${a.type})`, 3);
     if (seeds.has(a.to)) add(byRef.get(a.from), `neighbor of ${a.to} (${a.type})`, 3);
   }
+  // What rested on the version this change replaces is always compared, whatever the limit: knowledge,
+  // not a blanket flag, says which of them the new version contradicts.
+  const dependents = new Map<string, Node>();
+  for (const a of currentEdges(g)) {
+    if (a.type === 'related' || a.type === 'contains' || !change.supersedes.includes(a.to)) continue;
+    const n = byRef.get(a.from);
+    if (n) dependents.set(n.ref, n);
+  }
   if (!task) {
     const text = `${change.main.label}. ${change.main.text}`;
     for (const n of current) {
@@ -130,9 +138,12 @@ export function selectCandidates(g: Graph, change: Change, categories: Readonly<
       if (common.length > 0) add(n, `same category (${common.map(([e, c]) => `${e}=${c}`).join(', ')})`, 2 + common.length / 10);
     }
   }
-  return [...chosen.values()]
-    .sort((a, b) => b.weight - a.weight || (a.node.ref < b.node.ref ? -1 : 1))
-    .slice(0, MAX_CANDIDATES)
+  for (const n of dependents.values()) chosen.delete(n.ref);
+  const rest = [...chosen.values()].sort((a, b) => b.weight - a.weight || (a.node.ref < b.node.ref ? -1 : 1)).slice(0, MAX_CANDIDATES);
+  const resting = [...dependents.values()]
+    .sort((a, b) => (a.ref < b.ref ? -1 : 1))
+    .map((node) => ({ node, reason: 'rests on the version it replaces' }));
+  return [...resting, ...rest]
     .map(({ node, reason }) => ({
       ref: node.ref,
       type: node.type,

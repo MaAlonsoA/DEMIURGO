@@ -1,6 +1,7 @@
 // Read models for Pillar 1: product state, inbox, explorations, records with
 // their readiness, and batches. These are derived functions: nothing is stored (§4 of the plan).
 
+import { sql } from 'kysely';
 import { taskSizeView } from './sizes.ts';
 import {
   AGENT_PROPOSAL_TYPES,
@@ -34,6 +35,22 @@ async function currentOf(db: Db, recordId: string): Promise<number | null> {
     .orderBy('n', 'desc')
     .executeTakeFirst();
   return v?.n ?? null;
+}
+
+/**
+ * Whether knowledge has checked what rests on a record against its version `n`: the update that
+ * version triggered is applied (a contradiction found comes back as a review, which blocks too).
+ */
+async function knowledgeChecked(db: Db, recordId: string, n: number): Promise<boolean> {
+  const v = await db.selectFrom('record_versions').select('id').where('record_id', '=', recordId).where('n', '=', n).executeTakeFirst();
+  if (!v) return false;
+  const u = await db
+    .selectFrom('knowledge_updates')
+    .select('state')
+    .where(sql<boolean>`trigger->>'id' = ${v.id}`)
+    .orderBy('created_at', 'desc')
+    .executeTakeFirst();
+  return u?.state === 'applied';
 }
 
 /** Origin exploration of a version: follows its origin (proposal → batch → run → scope). */
@@ -98,13 +115,15 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
   const bases = READINESS_BASES[v.type as RecordType] ?? [];
   for (const e of links) {
     if (e.type === 'based_on' && bases.includes(e.targetType as RecordType)) {
+      const current = await currentOf(db, e.recordId);
       basedOn.push({
         code: e.code,
         type: e.targetType,
         version: e.n,
         versionState: e.targetState,
-        current: await currentOf(db, e.recordId),
+        current,
         linkState: e.state,
+        checked: current !== null && current !== e.n ? await knowledgeChecked(db, e.recordId, current) : true,
       });
       continue;
     }

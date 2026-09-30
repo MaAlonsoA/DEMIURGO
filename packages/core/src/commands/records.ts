@@ -572,21 +572,8 @@ registerHandlers({
           entityId: previous.id,
           data: {},
         });
-        // Anything based on the previous version is left pending review (it's never changed on its own).
-        const links = await ctx.trx
-          .selectFrom('links')
-          .select('id')
-          .where('to_id', '=', previous.id)
-          .where('state', 'in', ['current', 'kept', 'changed'])
-          .execute();
-        for (const l of links) {
-          await ctx.execute({
-            command: 'link.flag_review',
-            actor: system('versions'),
-            entityId: l.id,
-            data: { reason: `There is a new version (v${v.n}) of the linked record.` },
-          });
-        }
+        // What rested on the previous version is not flagged wholesale: the knowledge update of this
+        // version compares every one of them and returns as a review only what it contradicts, quoted.
       }
       await reviewObsolescence(ctx, { record: v.record_id });
       await onAuthorityEvent(ctx, { type: 'record_version', id: v.id, version: v.n });

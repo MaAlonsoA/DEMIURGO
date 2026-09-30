@@ -143,6 +143,8 @@ export type ReadinessInput = {
     versionState: string;
     current: number | null;
     linkState: string;
+    /** Knowledge has compared it with the current version, when it rests on an older one. */
+    checked?: boolean;
   }[];
   /** Features this feature needs (based_on links to other features), with how built each one is. */
   needs: { code: string; implementation: string }[];
@@ -214,8 +216,10 @@ export function readiness(e: ReadinessInput): Readiness {
     for (const d of e.basedOn) {
       if (d.current === null) {
         reasons.push(`The ${BASIS_NOUN[d.type] ?? 'record'} it is based on, ${d.code}, is not approved.`);
-      } else if (d.current !== d.version) {
-        reasons.push(`It is based on ${d.code} v${d.version}, but the current one is v${d.current}.`);
+      } else if (d.current !== d.version && d.checked === false && d.linkState !== 'kept') {
+        // An older basis holds once knowledge has checked it against the current version (a
+        // contradiction comes back as a review) or the person kept the link.
+        reasons.push(`It is based on ${d.code} v${d.version}; knowledge has not yet checked it against v${d.current}.`);
       }
       if (d.linkState === 'needs_review') reasons.push(`The link with ${d.code} is pending review.`);
     }

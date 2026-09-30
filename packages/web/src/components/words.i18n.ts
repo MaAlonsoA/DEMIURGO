@@ -235,3 +235,31 @@ export const BEHAVIOR_STEPS = messages(
     notTiedToStep: 'Sin paso asociado',
   },
 );
+
+/** SandboxedPreview.tsx: the viewer of what an agent drew (theme, width, full screen). */
+export const PREVIEW_VIEWER = messages(
+  {
+    toolbar: 'Preview controls',
+    theme: 'Theme',
+    light: 'Light',
+    dark: 'Dark',
+    noDark: 'No dark theme drawn',
+    width: 'Width',
+    phone: 'Phone 360',
+    desktop: 'Desktop',
+    fullScreen: 'Full screen',
+    close: 'Close',
+  },
+  {
+    toolbar: 'Controles de la vista previa',
+    theme: 'Tema',
+    light: 'Claro',
+    dark: 'Oscuro',
+    noDark: 'Sin tema oscuro dibujado',
+    width: 'Ancho',
+    phone: 'Móvil 360',
+    desktop: 'Escritorio',
+    fullScreen: 'Pantalla completa',
+    close: 'Cerrar',
+  },
+);

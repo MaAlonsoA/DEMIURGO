@@ -17,7 +17,7 @@ import type { Run, RunListItem } from '../../api/types.ts';
 import { useAllows } from '../../components/actions.tsx';
 import { announce } from '../../components/announce.tsx';
 import { Button } from '../../components/Button.tsx';
-import { SandboxedPreview } from '../../components/SandboxedPreview.tsx';
+import { PreviewDialog, SandboxedPreview } from '../../components/SandboxedPreview.tsx';
 import { Card } from '../../components/Card.tsx';
 import { ConfirmDialog } from '../../components/Dialog.tsx';
 import { ArrowRightIcon, PackageIcon, RetryIcon, StopIcon } from '../../components/icons.tsx';
@@ -116,6 +116,8 @@ function DirectionsCard({ projectId, run }: { projectId: string; run: RunListIte
   const detail = useQuery(runQuery(projectId, run.id));
   const thread = useQuery({ ...explorationQuery(projectId, run.exploration_id ?? ''), enabled: !!run.exploration_id });
   const directions = ((detail.data?.output as { directions?: StoredDirection[] } | null)?.directions ?? []) as StoredDirection[];
+  const [viewing, setViewing] = useState<string | null>(null);
+  const viewed = directions.find((d) => d.name === viewing);
   const prefix = 'I choose direction: ';
   const chosen = thread.data?.messages
     .filter((m) => m.body.startsWith(prefix) && Date.parse(m.created_at) >= Date.parse(run.created_at))
@@ -147,7 +149,7 @@ function DirectionsCard({ projectId, run }: { projectId: string; run: RunListIte
             <h4 className="font-semibold text-fg">{d.name}</h4>
             <p className="max-w-prose text-sm text-fg-2">{d.why}</p>
             <SandboxedPreview html={d.tile_html} title={t.tileTitle(d.name)} height={280} />
-            <div>
+            <div className="flex flex-wrap items-center gap-3">
               <Button
                 size="sm"
                 variant={chosen === d.name ? 'primary' : 'secondary'}
@@ -159,17 +161,28 @@ function DirectionsCard({ projectId, run }: { projectId: string; run: RunListIte
               >
                 {chosen === d.name ? t.chosen(d.name) : t.chooseThis}
               </Button>
+              <Button size="sm" variant="quiet" data-direction-details={d.name} aria-label={t.viewDirectionAria(d.name)} onClick={() => setViewing(d.name)}>
+                {t.details}
+              </Button>
             </div>
           </section>
         ))}
       </div>
       {command.error ? <ErrorNotice error={command.error} compact /> : null}
-      <DetailsLink projectId={projectId} run={run} />
+      <DetailsLink projectId={projectId} run={run} label={t.seeRun} />
+      {viewed ? (
+        <PreviewDialog
+          open
+          onOpenChange={(open) => !open && setViewing(null)}
+          html={viewed.tile_html}
+          title={t.tileTitle(viewed.name)}
+        />
+      ) : null}
     </Card>
   );
 }
 
-function DetailsLink({ projectId, run }: { projectId: string; run: RunListItem }) {
+function DetailsLink({ projectId, run, label }: { projectId: string; run: RunListItem; label?: string }) {
   const t = useMessages(RUN_CARDS);
   return (
     <Link
@@ -178,7 +191,7 @@ function DetailsLink({ projectId, run }: { projectId: string; run: RunListItem }
       aria-label={t.detailsAria(actionWord(run).toLowerCase())}
       className="inline-flex min-h-6 items-center gap-1 text-sm font-medium text-fg-2 hover:text-fg hover:underline"
     >
-      {t.details}
+      {label ?? t.details}
       <ArrowRightIcon size={12} />
     </Link>
   );

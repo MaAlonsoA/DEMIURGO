@@ -922,6 +922,14 @@ export const CAPABILITIES = {
       ],
       "decisive": false,
       "description": "Withdraw an open build request, keeping its history."
+    },
+    "pr_review.record": {
+      "entity": "pr_review",
+      "allowed": [
+        "system"
+      ],
+      "decisive": false,
+      "description": "Record the verdict of the reviewer agent on the pull request of a build request (the required status demiurgo/review); applied by the system from its validated output."
     }
   },
   "queries": {
@@ -2388,6 +2396,21 @@ export const TRANSITIONS = {
             "in_review"
           ],
           "to": "withdrawn"
+        }
+      ]
+    },
+    "pr_review": {
+      "label": "PR review",
+      "implemented_in": "S4",
+      "states": {
+        "recorded": "Recorded"
+      },
+      "authority": [],
+      "transitions": [
+        {
+          "command": "pr_review.record",
+          "from": "new",
+          "to": "recorded"
         }
       ]
     }

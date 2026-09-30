@@ -144,6 +144,7 @@ commands:
   build_request.submit_review: { entity: build_request, allowed: [human], decisive: false, description: "Record the pull request of an open build request: it goes into review." }
   build_request.complete: { entity: build_request, allowed: [human], decisive: false, description: "Mark a build request in review as done, after the pull request is merged." }
   build_request.withdraw: { entity: build_request, allowed: [human], decisive: false, description: "Withdraw an open build request, keeping its history." }
+  pr_review.record: { entity: pr_review, allowed: [system], decisive: false, description: "Record the verdict of the reviewer agent on the pull request of a build request (the required status demiurgo/review); applied by the system from its validated output." }
 
 # Queries: read-only. The external agent can only read, converse, register sources and propose.
 queries:

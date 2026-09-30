@@ -9,6 +9,7 @@ import './records.ts';
 import './sizes.ts';
 import './evidence.ts';
 import './builds.ts';
+import './pr-reviews.ts';
 import './planned.ts';
 import './epic-order.ts';
 import './proposals.ts';

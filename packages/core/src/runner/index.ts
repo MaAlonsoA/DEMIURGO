@@ -37,3 +37,12 @@ export {
   probeSpec,
   probeViolations,
 } from './probe.ts';
+export {
+  BUILDER_LABEL,
+  builderArguments,
+  buildReportSchema,
+  runBuilder,
+  type BuildReport,
+  type BuilderResult,
+  type BuilderSpec,
+} from './builder.ts';

@@ -647,6 +647,15 @@ export type ProjectReposTable = {
   created_at: Timestamp;
 };
 
+/** The project's private GitHub repository: owner and name. */
+export type ProjectGithubTable = {
+  id: Generated<string>;
+  project_id: string;
+  owner: string;
+  repo: string;
+  created_at: Generated<Timestamp>;
+};
+
 /** Each commit DEMIURGO made in a project's repository, with what it recorded; derived. */
 export type ProjectCommitsTable = {
   id: Generated<string>;
@@ -677,6 +686,19 @@ export type BuildRequestsTable = {
   in_review_at: Timestamp | null;
   done_by: string | null;
   done_at: Timestamp | null;
+};
+
+export type PrReviewsTable = {
+  id: Generated<string>;
+  project_id: string;
+  build_request_id: string;
+  run_id: string;
+  verdict: string;
+  summary: string;
+  comments: unknown;
+  criteria: unknown;
+  published_at: NullableTimestamp;
+  created_at: Generated<Timestamp>;
 };
 
 export type DB = {
@@ -727,8 +749,10 @@ export type DB = {
   task_size_opinions: TaskSizeOpinionsTable;
   task_size_dismissals: TaskSizeDismissalsTable;
   project_repos: ProjectReposTable;
+  project_github: ProjectGithubTable;
   build_requests: BuildRequestsTable;
   project_commits: ProjectCommitsTable;
+  pr_reviews: PrReviewsTable;
 };
 
 export type Row<T extends keyof DB> = Selectable<DB[T]>;

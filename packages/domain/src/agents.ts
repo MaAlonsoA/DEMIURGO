@@ -16,6 +16,7 @@ export const AGENT_ACTIONS = [
   'epic_plan',
   'feature_design',
   'task_plan',
+  'pr_review',
 ] as const;
 export type AgentAction = (typeof AGENT_ACTIONS)[number];
 
@@ -608,6 +609,40 @@ export const taskPlanOutput = z
   })
   .strict();
 
+/** pr_review: the verdict of the reviewer agent on a build request's pull request. */
+export const PR_REVIEW_MAX_COMMENTS = 40;
+export const prReviewOutput = z
+  .object({
+    verdict: z.enum(['approve', 'request_changes']),
+    summary: text(1500).describe('What the change does and why the verdict, in a few sentences.'),
+    comments: z
+      .array(
+        z
+          .object({
+            path: z.string().trim().min(1).max(500),
+            line: z.number().int().positive().nullable().describe('The line in the new file, or null for the whole file.'),
+            severity: z.enum(['blocking', 'nit', 'question']),
+            body: text(1500),
+          })
+          .strict(),
+      )
+      .max(PR_REVIEW_MAX_COMMENTS),
+    criteria: z
+      .array(
+        z
+          .object({
+            code: z.string().regex(/^AC-[A-Z]{3}-\d{3}-\d{2}$/),
+            test_name: z.string().trim().min(1).max(500).nullable().describe('The title of the automated test that checks it, or null when there is none.'),
+            covered: z.boolean(),
+            note: text(500),
+          })
+          .strict(),
+      )
+      .describe('Exactly the criteria the task covers, one entry each.'),
+    sources: practiceSources,
+  })
+  .strict();
+
 /** The most findings a coherence review returns, and the longest quote of each side. */
 export const COHERENCE_MAX_FINDINGS = 10;
 export const COHERENCE_QUOTE_MAX = 120;
@@ -648,6 +683,7 @@ export const OUTPUT_SCHEMAS = {
   epic_plan: epicPlanOutput,
   feature_design: featureDesignOutput,
   task_plan: taskPlanOutput,
+  pr_review: prReviewOutput,
 } as const satisfies Record<AgentAction, z.ZodType>;
 
 export type ActionOutput<A extends AgentAction> = z.infer<(typeof OUTPUT_SCHEMAS)[A]>;

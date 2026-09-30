@@ -26,6 +26,9 @@ export const CLASSIFICATION_ACTION = 'knowledge_classification';
 /** Action of the translator: reading translations of records, never an agent run. */
 export const TRANSLATION_ACTION = 'translation';
 
+/** Action of the builder: it edits code in an isolated container, never a structured run. */
+export const BUILD_ACTION = 'task_build';
+
 /** Default agent of each action, when the web section doesn't name one. */
 export const DEFAULT_AGENTS: Readonly<Record<AgentAction, string>> = {
   echo: 'echo',
@@ -35,6 +38,7 @@ export const DEFAULT_AGENTS: Readonly<Record<AgentAction, string>> = {
   epic_plan: 'epic_planner',
   feature_design: 'feature_designer',
   task_plan: 'task_planner',
+  pr_review: 'pr_reviewer',
 };
 
 export type LoadedAgent = AgentDefinition & {
@@ -123,7 +127,7 @@ async function load(root: string): Promise<AgentCatalog> {
       }
     }
   }
-  const actions = new Set<string>([...AGENT_ACTIONS, CLASSIFICATION_ACTION, TRANSLATION_ACTION]);
+  const actions = new Set<string>([...AGENT_ACTIONS, CLASSIFICATION_ACTION, TRANSLATION_ACTION, BUILD_ACTION]);
   const agents: LoadedAgent[] = [];
   for (const id of await folders(join(root, 'agents'))) {
     const parts = splitFrontMatter(await readFile(join(root, 'agents', id, 'AGENT.md'), 'utf8').catch(() => ''));

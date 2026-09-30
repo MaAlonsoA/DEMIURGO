@@ -6,6 +6,7 @@
 //   node packages/api/src/cli.ts real-run <projectId> <action> <json-scope> [json-input]
 //   node packages/api/src/cli.ts propose-principles <projectId> <stage>        (a covered stage of principles, as the definition's next version)
 //   node packages/api/src/cli.ts sync-repo <projectId>                         (writes design/ to the project's repository and commits it)
+//   node packages/api/src/cli.ts github-setup <projectId>                       (creates the project's private GitHub repo, pushes main, protects it; prints owner/repo)
 //   node packages/api/src/cli.ts supersede-batch <projectId> <batchId> <reason>  (withdraws a pending batch; decides nothing)
 //   node packages/api/src/cli.ts classify-messages <projectId>                 (Jev: aspect of the messages not classified yet)
 //   node packages/api/src/cli.ts evaluate-classifier <provider> <model> [effort|-] [test|dev|all] [v1|v1-en]   (spends quota)
@@ -46,6 +47,8 @@ import {
   syncRepo,
   projectsDir,
   classifyAspects,
+  githubConfig,
+  ensureProjectRepo,
 } from '@demiurgo/core';
 import { readTree, replaceTree } from '@demiurgo/design';
 import { type Actor, formatActor, human, system } from '@demiurgo/domain';
@@ -259,6 +262,17 @@ const commands: Record<string, () => Promise<void>> = {
         discarded: false,
       });
       console.log(JSON.stringify({ commit: sha }));
+    });
+  },
+
+  async 'github-setup'() {
+    const [projectId] = args;
+    if (!projectId) throw new Error('Usage: github-setup <projectId>');
+    const cfg = githubConfig();
+    if (!cfg) throw new Error('Set DEMIURGO_GITHUB_TOKEN and DEMIURGO_GITHUB_OWNER first.');
+    await withDatabase(async (c) => {
+      const linked = await ensureProjectRepo(c.db, projectId, cfg);
+      console.log(JSON.stringify(linked));
     });
   },
 

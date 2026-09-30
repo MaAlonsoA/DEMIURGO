@@ -22,6 +22,10 @@ export const DEFAULT_AGENT_ENGINES: Readonly<Record<string, Engine>> = {
   epic_planner: { provider: 'claude', model: 'opus', effort: 'high' },
   feature_designer: { provider: 'claude', model: 'opus', effort: 'high' },
   task_planner: { provider: 'claude', model: 'opus', effort: 'high' },
+  // The reviewer runs on another engine than the builder, so the review is independent.
+  pr_reviewer: { provider: 'codex', model: 'gpt-6.1-sol', effort: 'high' },
+  // The builder writes code in an isolated container with the person's subscription.
+  builder: { provider: 'claude', model: 'opus', effort: 'high' },
   echo: { provider: 'opencode', model: 'qwen-local/qwen3.8-27b', effort: 'high' },
   // Reading translations run often and stay at home: the local model, at no quota.
   translator: { provider: 'opencode', model: 'qwen-local/qwen3.8-27b', effort: 'medium' },

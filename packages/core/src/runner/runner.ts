@@ -55,11 +55,11 @@ export const RUNNER_LABEL = 'demiurgo.runner=1';
 export const RUNNER_USER = '1000:1000';
 export const TMPFS_RUNNER = '/tmp:rw,noexec,nosuid,size=64m';
 
-const NAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/;
+export const NAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/;
 const DEFAULT_OUTPUT_LIMIT = 1024 * 1024;
 const DOCKER_COMMAND_MS = 15_000;
-const STOP_RETRIES = 10;
-const RETRY_PAUSE_MS = 1000;
+export const STOP_RETRIES = 10;
+export const RETRY_PAUSE_MS = 1000;
 
 /**
  * Host environment variables passed to the docker CLI: only what's needed to find the
@@ -155,7 +155,7 @@ export function dockerArguments(input: JobSpecInput, containerName: string): str
 }
 
 /** Accumulates a stream's output without exceeding the given cap. */
-function collector(limit: number): { add(chunk: Buffer): void; text(): string } {
+export function collector(limit: number): { add(chunk: Buffer): void; text(): string } {
   const chunks: Buffer[] = [];
   let bytes = 0;
   let truncated = false;
@@ -178,7 +178,7 @@ function collector(limit: number): { add(chunk: Buffer): void; text(): string } 
 }
 
 /** Runs an auxiliary docker command (kill, rm) with no shell and a maximum time. */
-function runDockerCommand(binary: string, args: string[], environment: Record<string, string>): Promise<number | null> {
+export function runDockerCommand(binary: string, args: string[], environment: Record<string, string>): Promise<number | null> {
   return new Promise((resolve) => {
     let child: ReturnType<typeof spawn>;
     try {
@@ -198,10 +198,10 @@ function runDockerCommand(binary: string, args: string[], environment: Record<st
   });
 }
 
-const pause = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+export const pause = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** CLI errors that indicate the daemon isn't available. */
-const DEAD_DAEMON_PATTERN = /error during connect|Cannot connect to the Docker daemon|docker daemon is not running/i;
+export const DEAD_DAEMON_PATTERN = /error during connect|Cannot connect to the Docker daemon|docker daemon is not running/i;
 
 /**
  * Runs a job in an ephemeral, hardened container. Throws `InvalidJobSpec` if the spec

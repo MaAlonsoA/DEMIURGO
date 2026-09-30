@@ -52,6 +52,8 @@ services:
       DEMIURGO_DATABASE_URL: postgres://demiurgo:${DEMIURGO_DB_PASSWORD}@postgres:5432/demiurgo_v2
       DEMIURGO_HOST: 0.0.0.0
       DEMIURGO_PORT: "8100"
+      DEMIURGO_GITHUB_TOKEN: ${DEMIURGO_GITHUB_TOKEN:-}
+      DEMIURGO_GITHUB_OWNER: ${DEMIURGO_GITHUB_OWNER:-}
       DEMIURGO_ORIGINS: ${DEMIURGO_ORIGINS:-http://localhost:8100,http://127.0.0.1:8100}
       DEMIURGO_ENVIRONMENT: ${DEMIURGO_ENVIRONMENT:-real}
       DEMIURGO_DEV_TOOLS: ${DEMIURGO_DEV_TOOLS:-1}
@@ -66,6 +68,7 @@ services:
       # Jev (TypeSafe) clasifica el aspecto de mensajes y propuestas, solo con el ADR aprobado.
       TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
       DEMIURGO_PROJECTS_DIR: /projects
+      DEMIURGO_PROJECTS_HOST_DIR: ${HOME}/Development/Demiurgo-projects
       DEMIURGO_PROJECTS_LABEL: ~/Development/Demiurgo-projects
     ports:
       - "127.0.0.1:8100:8100"

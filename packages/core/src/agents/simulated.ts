@@ -285,6 +285,30 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
     };
   },
 
+  pr_review(p) {
+    const c = obj(p.context.content);
+    const diff = txt(c.diff);
+    const codes = list(c.criteria)
+      .map((k) => txt(obj(k).code))
+      .filter(Boolean);
+    // A criterion is covered when the diff has a test title that starts with its code.
+    const titleOf = (code: string) => new RegExp(`['"\`](${code}[^'"\`]*)['"\`]`).exec(diff)?.[1] ?? null;
+    const criteria = codes.map((code) => {
+      const test = titleOf(code);
+      return { code, test_name: test, covered: test !== null, note: test ? 'A test with this code is in the diff.' : 'No test title starting with this code is in the diff.' };
+    });
+    const missing = criteria.filter((k) => !k.covered).map((k) => k.code);
+    if (missing.length === 0)
+      return { verdict: 'approve', summary: 'Every criterion of the task has a test in the diff.', comments: [], criteria, sources: [] };
+    return {
+      verdict: 'request_changes',
+      summary: `No test is in the diff for ${missing.join(', ')}.`,
+      comments: [{ path: 'tests', line: null, severity: 'blocking', body: `Add an automated test whose title starts with ${missing.join(', ')}.` }],
+      criteria,
+      sources: [],
+    };
+  },
+
   design_proposal(p) {
     const c = obj(p.context.content);
     const d = obj(c.decision);

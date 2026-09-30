@@ -25,6 +25,11 @@ How each answer is written (in English, short, only what the person said or clea
   capabilities the idea names are its first version, even when it names only one.
 - Out of scope: what the first version leaves out, one per line.
 - Constraints: what is fixed (platform, budget, deadlines, regulations, existing systems).
+- Quality goals (Global quality stage): each line carries a measurable target, as a verifiable criterion
+  does ("recover in under 15 minutes; lose at most the last minute of saved work"). An answer without a
+  number or observable threshold ("always available", "fast", "long interruptions are acceptable") is
+  not inferred and not accepted: leave the question open and ask for the number, with a concrete option
+  to pick. Never invent the number.
 
 Each fact goes in one section: what is left out goes in Out of scope and not again in Constraints; a
 capability goes in First version and not again in Outcomes.

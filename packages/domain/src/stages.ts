@@ -102,33 +102,33 @@ export const STAGES: readonly StageDefinition[] = [
     principles: 'Quality goals',
     produces: "The product's quality goals, a section of the product definition that every feature keeps to.",
     purpose:
-      'Global quality: product-wide performance, availability, usability, accessibility, data and operability targets, each measurable (ISO/IEC 25010, arc42 quality scenarios).',
+      'Global quality: product-wide performance, availability, usability, accessibility, data and operability targets, each with a measurable target (ISO/IEC 25010, arc42 quality scenarios). Treat an answer with no number or observable threshold (e.g. availability without how much saved work may be lost, "fast", "acceptable downtime") the way an unverifiable criterion is treated: do not accept it, and ask again for the measure with a concrete option (for example "how much saved work may you lose at most: none, the last minute?"). Only a measured answer is ready to confirm; the person may still discard the question with a reason.',
     questions: [
       {
         key: 'performance',
         label: 'Performance',
-        question: 'What response times and load must the product handle (users, data volume, peaks)?',
+        question: 'What response times and load must the product handle, as numbers (users, data volume, peaks)?',
         reason: 'Performance targets shape the architecture.',
         impact: 'high',
       },
       {
         key: 'availability',
         label: 'Availability and recovery',
-        question: 'How available must it be, and what happens if it is down (acceptable downtime, data loss)?',
+        question: 'How available must it be, and what happens if it is down? Give the numbers: acceptable downtime (recovery time) and how much saved work may be lost at most (recovery point).',
         reason: 'Availability and recovery targets drive infrastructure and cost.',
         impact: 'high',
       },
       {
         key: 'usability',
         label: 'Usability and accessibility',
-        question: 'Who must be able to use it without help, and what accessibility level is required?',
+        question: 'Who must be able to use it without help, and what accessibility level is required (a named standard and level, or a task and time to do it)?',
         reason: 'Usability and accessibility are requirements, not polish.',
         impact: 'medium',
       },
       {
         key: 'data',
         label: 'Data retention and ownership',
-        question: 'What data does it keep, for how long, and who owns it?',
+        question: 'What data does it keep, for how long (a period), and who owns it?',
         reason: 'Retention and ownership affect storage, privacy and compliance.',
         impact: 'medium',
       },
@@ -136,7 +136,7 @@ export const STAGES: readonly StageDefinition[] = [
         key: 'quality_scenarios',
         label: 'Priority quality scenario',
         question: 'Which quality scenario matters most, stated as stimulus → response → measure?',
-        reason: 'arc42: quality goals must be concrete scenarios to be tested.',
+        reason: 'arc42: quality goals must be concrete scenarios to be tested. The architecture stage cites this scenario as the basis of an ADR, and the feature that builds it turns it into an automated criterion.',
         impact: 'medium',
       },
     ],
@@ -194,14 +194,8 @@ export const STAGES: readonly StageDefinition[] = [
     moment: 'before_build',
     produces: 'The architecture decisions (ADR) the features need to be built, based on the approved features.',
     purpose:
-      'Architecture: context, building blocks, key decisions with their reasons and the risks they carry (arc42, C4, ADRs).',
+      'Architecture: building blocks, key decisions with their reasons and the risks they carry (arc42, C4, ADRs). The system context (C4 level 1) is not asked again: read it from the "Architecture and security principles" section of the product definition. A decision may be based on the priority quality scenario of the "Quality goals" section, and then it cites that scenario.',
     questions: [
-      {
-        key: 'context',
-        question: 'What is the system context: which people and external systems interact with it (C4 level 1)?',
-        reason: 'The context fixes the boundaries and interfaces.',
-        impact: 'high',
-      },
       {
         key: 'containers',
         question: 'What are the main building blocks (apps, services, stores) and how do they communicate (C4 level 2)?',
@@ -210,7 +204,7 @@ export const STAGES: readonly StageDefinition[] = [
       },
       {
         key: 'key_decisions',
-        question: 'Which architecture decisions are significant and hard to reverse? Record each one as an ADR.',
+        question: 'Which architecture decisions are significant and hard to reverse? Record each one as an ADR, based on a feature, a constraint or the priority quality scenario of the definition (cite it).',
         reason: 'ADRs keep the why of each decision with its alternatives.',
         impact: 'high',
       },
@@ -231,23 +225,11 @@ export const STAGES: readonly StageDefinition[] = [
   {
     key: 'security',
     title: 'Security baseline',
-    moment: 'before_release',
+    moment: 'before_build',
     produces: 'The product threat model (THR); each feature adds only its own threats.',
     purpose:
-      'Security baseline: what we protect, from whom, the threats per component and their mitigations (threat modeling, STRIDE).',
+      'Security baseline, done at design time, right after the architecture (shift-left, SDL): the threats per component and their mitigations (threat modeling, STRIDE). What is protected, who could misuse it and who may do what are not asked again: read them from the "Architecture and security principles" section of the product definition, and the components from the architecture stage. Each mitigation is proposed as a criterion of the feature (FDR) or task (TSK) that builds it, so it is built and proved with it, not as a loose statement.',
     questions: [
-      {
-        key: 'assets',
-        question: 'What assets must be protected (data, credentials, money, reputation)?',
-        reason: 'Threat modeling starts from what is worth attacking.',
-        impact: 'high',
-      },
-      {
-        key: 'actors',
-        question: 'Who could attack or misuse the system, and with what access?',
-        reason: 'Attackers and trust boundaries define the threat surface.',
-        impact: 'high',
-      },
       {
         key: 'threats',
         question:
@@ -257,7 +239,7 @@ export const STAGES: readonly StageDefinition[] = [
       },
       {
         key: 'mitigations',
-        question: 'What mitigation covers each relevant threat, and how is it verified?',
+        question: 'What mitigation covers each relevant threat, and which feature (FDR) or task (TSK) builds it as a criterion, so it is verified with evidence?',
         reason: 'A threat without a verified mitigation is an accepted risk.',
         impact: 'high',
       },

@@ -191,10 +191,36 @@ etiqueta de aspecto y el código de la épica ya dicen de qué parte del product
 - **GitHub flow**: cada tarea tiene su rama y su pull request. No se usa GitFlow.
 - **ATDD** (pruebas de aceptación primero): cada criterio automático tiene una prueba cuyo título
   empieza por su código.
-- La **evidencia** enlaza el pull request y la prueba. Es del criterio, no de la tarea.
-- «Hecho» lo marca la persona después del merge.
-- Una tarea marcada como hecha no demuestra por sí sola que se cumplan sus criterios. La evidencia
-  vale para el resultado concreto que se comprobó.
+- La **evidencia** la registra DEMIURGO sola desde la integración continua (CI): el resultado de
+  cada prueba del pull request, con su enlace. Es del criterio, no de la tarea. No se escribe a mano.
+- **El agente construye solo.** DEMIURGO lanza el agente de cada tarea en el orden del backlog; el
+  agente trabaja en su rama y abre el pull request. Si todas las pruebas de CI pasan, se fusiona sin
+  esperar a la persona y la tarea queda hecha. Si algo falla, el agente lo intenta arreglar y, si no
+  puede, se lo muestra a la persona en la ficha de la tarea.
+- Una tarea hecha no demuestra por sí sola que se cumplan sus criterios. La evidencia vale para el
+  resultado concreto que se comprobó.
+
+### Calidad de producción
+
+Una aplicación tiene calidad de producción cuando cumple los estándares por defecto de un equipo
+serio, comprobados sobre una versión concreta:
+
+- todos los criterios de aceptación tienen su prueba en verde;
+- no hay vulnerabilidades altas ni críticas (OWASP Top 10, análisis de dependencias);
+- accesibilidad WCAG 2.2 AA en las interfaces;
+- se cumplen las metas de calidad con número de la definición.
+
+Una excepción solo vale si la persona la acepta por escrito, con su motivo. Una valoración favorable
+de la IA no basta.
+
+### Entrega y operación
+
+- Cómo se entrega depende del tipo de aplicación: una web se despliega y aloja; un juego o una
+  herramienta se distribuye de otra forma. El alojamiento web es una opción, no un requisito.
+- **Observabilidad** como en cualquier servicio serio: registros, métricas y trazas (OpenTelemetry)
+  de la aplicación entregada, alertas sobre sus metas de calidad, y cada incidencia convertida en
+  algo que la persona entiende por su efecto en el producto. El trabajo de la IA se ve igual: estado,
+  bloqueos y consumo de cada ejecución.
 
 ### Revisión y cambios
 
@@ -257,29 +283,26 @@ Este uso sobre sí mismo es una prueba importante de que el producto aporta valo
 
 ## 7. Pendiente de decidir
 
-Lo que sigue está abierto. Se decide en la v3, dentro de DEMIURGO.
+Casi todo está decidido. Lo que sigue queda para después o ya tiene rumbo fijado:
 
-- **El arranque como conversación** (idea para la v3, 29-09). La lista de respuestas del día 1 no
-  convence; se prefería la conversación con panel lateral.
-- **Un vocabulario único de nombres** (idea para la v3, 29-09). La misma funcionalidad se llamó de
-  tres formas distintas en tres pantallas. DEMIURGO debería guardar un nombre por cosa y avisar
-  cuando el diseño, los textos o el código la llaman distinto.
-- **Cómo se listan las épicas y los hilos.** Hoy no se ve bien qué hilos pertenecen a qué épica.
-- **Evidencia desde la integración continua.** Hoy la evidencia se escribe a mano. Falta leer los
-  resultados de las pruebas del pull request y registrarlos solos.
-- **Orquestación automática de agentes.** Hoy la persona copia el encargo y lanza la construcción.
-  Falta decidir cuánto hace DEMIURGO solo y dónde escala a la persona.
-- **Entrega y alojamiento.** Cómo se ejecuta, distribuye o despliega cada tipo de aplicación. El
-  alojamiento web es una opción, no un requisito universal.
-- **Observabilidad.** Cómo se ve el trabajo de la IA (estado, bloqueos, consumo) y la aplicación ya
-  entregada, y cómo se actúa ante un fallo.
-- **Qué demuestra la calidad de producción.** No se puede afirmar que una aplicación la tiene sin
-  condiciones medibles comprobadas sobre un resultado concreto. Faltan umbrales, excepciones y quién
-  acepta el riesgo. Una valoración favorable de la IA no basta.
-- **El mapa de conocimiento.** Cómo se ve y se navega la red de ideas, preguntas, decisiones y
-  pruebas.
-- **Incorporar aplicaciones existentes**, no solo empezar desde una idea.
-- **El equipo.** Quién decide qué cuando trabajan varias personas.
+- **El arranque como conversación.** El primer día se hace como una conversación con panel lateral,
+  no como una lista de respuestas. Se diseña en la v3.
+- **Un vocabulario único de nombres.** DEMIURGO guarda un nombre por cosa y avisa cuando el diseño,
+  los textos o el código llaman distinto a lo mismo. Se diseña en la v3.
+- **Las fichas de épica, funcionalidad y tarea, y cómo se listan épicas e hilos.** Se están
+  rediseñando con buenas prácticas de interfaz (octubre de 2026).
+- **Sin mapa de conocimiento aparte.** Como en Linear o Jira, cada ficha muestra «En qué se basa» y
+  «Qué depende de esto», y hay búsqueda. No hay una pantalla de grafo.
+- **Incorporar aplicaciones existentes**, no solo empezar desde una idea. Entra en el alcance, más
+  adelante.
+- **El equipo** (quién decide qué cuando trabajan varias personas) se decide después de la v3. La v3
+  es para una persona.
+
+## Referencias
+
+Como marco del ciclo de vida se consultan ISO/IEC/IEEE 12207, 29148 (requisitos) y 29119-2
+(pruebas), y la guía de verificación de producto de la NASA. Se adaptan al producto; no se afirma
+conformidad ni certificación.
 
 ## 8. Glosario
 

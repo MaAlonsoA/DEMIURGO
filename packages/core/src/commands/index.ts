@@ -8,6 +8,7 @@ import './glossary.ts';
 import './records.ts';
 import './sizes.ts';
 import './evidence.ts';
+import './builds.ts';
 import './planned.ts';
 import './proposals.ts';
 import '../definition/english.ts';

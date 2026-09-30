@@ -1,9 +1,8 @@
-// Needs you (DESIGN.md §3.1, J1): the attention set. Everything that waits for the person, in a
-// split view — the queue on the left, the selected thing in full on the right with its decision
-// at the bottom (one column under 1280 px, with "Back to Needs you"). A decided thing leaves; the
-// next one is selected, takes the focus and is announced (R13, R80). The header reconciles the
-// server's count with the rows when packages count each proposal (INVENTORY Part D §1, UX
-// problem). With ?catch-up=1 it is Catch up; with nothing left, "You're up to date".
+// Needs you (DESIGN.md §3.1, J1): an index of what waits for the person, not a place to work. Each
+// row links to where the thing lives (its record, its thread, its batch), where it is decided. The
+// few things with no home yet (conflicts, links, classifications, failed updates) are picked to show
+// their detail beside the list. A decided thing leaves; the next one is announced (R13, R80). With
+// ?catch-up=1 it is Catch up; with nothing left, "You're up to date".
 
 import { useMutationState, useQuery } from '@tanstack/react-query';
 import { Link, useSearch } from '@tanstack/react-router';
@@ -24,6 +23,7 @@ import { EditGuard, useEditGuard } from '../batch/guard.tsx';
 import { CatchUp, DETAIL_TITLE } from './CatchUp.tsx';
 import { NeedDetail, saidWithCount } from './Detail.tsx';
 import type { NeedContext } from './frame.tsx';
+import { homeOf } from './home.tsx';
 import { groupsOf, minutesOf, type NeedItem, needsOf } from './order.ts';
 import { optionId, Queue } from './Queue.tsx';
 import { countSummary, entityOf, saidOf } from './titles.ts';
@@ -186,7 +186,8 @@ function NeedsList({
   const guard = useEditGuard();
   const stable = useStableOrder(items);
   const groups = groupsOf(stable, orderWords);
-  const flat = groups.flatMap((g) => g.items);
+  // Only what has no home yet is picked to show its detail; the rest links to where it lives.
+  const flat = groups.flatMap((g) => g.items).filter((i) => !homeOf(i));
   const [chosen, setChosen] = useState<string | undefined>(() => readSelected(ctx.projectId));
   const [open, setOpen] = useState(false);
 
@@ -214,10 +215,9 @@ function NeedsList({
     }
   }, [currentKey, chosen, ctx.projectId]);
 
-  const select = (key: string, focus: boolean) =>
+  const select = (key: string) =>
     guard.guard(() => {
       setChosen(key);
-      if (focus) focusSoon(optionId(key));
     });
   const enter = (key: string) =>
     guard.guard(() => {
@@ -231,8 +231,8 @@ function NeedsList({
       if (currentKey) focusSoon(optionId(currentKey));
     });
 
-  const showQueue = wide || !open;
-  const showDetail = wide || open;
+  const showQueue = wide || !open || !current;
+  const showDetail = current && (wide || open);
 
   return (
     <>
@@ -276,10 +276,12 @@ function NeedsList({
               groups={groups}
               ctx={ctx}
               selected={currentKey}
-              onSelect={select}
-              onPick={(key) => (wide ? select(key, false) : enter(key))}
-              onEnter={enter}
-              className="w-full shrink-0 xl:sticky xl:top-4 xl:max-h-[calc(100vh-32px)] xl:w-[380px] xl:overflow-y-auto xl:pr-1"
+              onPick={(key) => (wide ? select(key) : enter(key))}
+              className={
+                current
+                  ? 'w-full shrink-0 xl:sticky xl:top-4 xl:max-h-[calc(100vh-32px)] xl:w-[380px] xl:overflow-y-auto xl:pr-1'
+                  : 'w-full'
+              }
             />
           ) : null}
           {showDetail && current ? (

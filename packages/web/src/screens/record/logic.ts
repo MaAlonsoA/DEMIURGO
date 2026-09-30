@@ -3,6 +3,7 @@
 
 import type { Inbox, ProductRow, ProductState, Readiness, RecordDetail, RecordVersion } from '../../api/types.ts';
 import type { Stage } from '../../components/Meter.tsx';
+import { pendingProposalsOf } from '../../lib/attention.ts';
 
 /** First bar: full when ready, rust when an approved current version stopped being ready, else empty. */
 export function stageOf(readiness: Readiness | null | undefined, approvedCurrent: boolean): Stage {
@@ -65,19 +66,15 @@ export function versionIndex(state: ProductState | undefined, inbox?: Inbox): Ma
 
 export type Waiting = { versions: number; proposals: number; links: number; questions: number };
 
-/** What of this record waits for the person: its drafts, proposals that depend on it, its links to review, its thread's questions. */
+/** What of this record waits for the person: its drafts, the pending proposals that target it (the one rule of lib/attention.ts), its links to review, its thread's questions. */
 export function waitingFor(code: string, inbox: Inbox | undefined, originThread: string | null): Waiting {
   if (!inbox) return { versions: 0, proposals: 0, links: 0, questions: 0 };
-  const proposals = inbox.batches.reduce((n, b) => {
-    const onBatch = b.dependencies.some((d) => d.code === code);
-    return n + b.proposals.filter((p) => onBatch || p.dependencies.some((d) => d.code === code)).length;
-  }, 0);
   const questions = originThread
     ? [...inbox.questions_to_confirm, ...inbox.open_questions].filter((q) => q.exploration_id === originThread).length
     : 0;
   return {
     versions: inbox.versions_to_approve.filter((v) => v.code === code).length,
-    proposals,
+    proposals: pendingProposalsOf(inbox, code),
     links: inbox.links_under_review.filter((l) => l.from_code === code).length,
     questions,
   };

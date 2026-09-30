@@ -17,6 +17,14 @@ export function pendingProposalBatches(inbox: Inbox | undefined): Inbox['batches
   return (inbox?.batches ?? []).filter((b) => b.type !== 'knowledge' && b.resolution !== 'package');
 }
 
+/** The pending proposals that target a record's code: the one rule every count of proposals uses. */
+export function pendingProposalsOf(inbox: Inbox | undefined, code: string): number {
+  return pendingProposalBatches(inbox).reduce(
+    (n, b) => n + b.proposals.filter((p) => p.state === 'pending' && proposalTargetCode(p) === code).length,
+    0,
+  );
+}
+
 export type Attention = { proposals: number; drafts: number };
 
 /** Per record code: its pending proposals and its drafts to approve. Codes with nothing are absent. */

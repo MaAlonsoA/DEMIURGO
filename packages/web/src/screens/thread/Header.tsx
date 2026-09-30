@@ -309,7 +309,7 @@ function Provenance({
         <span>
           {words.inside}{' '}
           <Link to="/p/$projectId/threads/$explorationId" params={{ projectId, explorationId: parent.id }} className={linkClass}>
-            {parent.purpose}
+            {threadTitle(parent.purpose)}
           </Link>
         </span>
       ),

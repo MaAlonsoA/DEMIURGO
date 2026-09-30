@@ -595,6 +595,8 @@ export async function explorationPack({ trx, projectId, scope, input, graphVersi
             }
           : null,
         ...(nextStep ? { next_step: nextStep } : {}),
+        // Opened just now from a proposal: nobody has written yet, DEMIURGO takes the first turn.
+        ...(input.thread_opened === true ? { thread_just_opened: true } : {}),
         ...(aboutRecord ? { about_record: aboutRecord } : {}),
         ...(plannedFeature ? { planned_feature: plannedFeature } : {}),
         ...(designSystem ? { design_system: designSystem } : {}),

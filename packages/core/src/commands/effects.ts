@@ -159,6 +159,10 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
       actor: ctx.actor,
       data: { purpose: c.purpose, ...(parent ? { parent_id: parent } : {}), origin: { type: 'proposal', id: proposalId } },
     });
+    // A thread the person opens from a proposal starts with DEMIURGO's first turn (what it settles
+    // and its first questions), requested once knowledge is up to date: it never opens empty.
+    const thread = r.entityId;
+    ctx.afterCommit(() => ctx.services.engine.startDeferredRun(`thread_opened:${thread}`, ctx.projectId, thread, { thread_opened: true }));
     return { type: 'exploration', id: r.entityId };
   },
 

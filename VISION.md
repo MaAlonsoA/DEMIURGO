@@ -112,7 +112,7 @@ que las valida nuestro sistema
 
 ### Arranque
 
-El arranque de un proyecto tiene tres etapas. Cada una termina en algo aprobado y comprobable por sí
+El arranque de un proyecto tiene tres etapas, y una cuarta si el producto tiene interfaz. Cada una termina en algo aprobado y comprobable por sí
 solo.
 
 1. **Definición del producto.** DEMIURGO infiere lo que puede de la idea y cita la frase en que se
@@ -123,6 +123,8 @@ solo.
    pregunta el número (por ejemplo, «¿cuánto trabajo guardado puedes perder como mucho?»).
 3. **Principios de arquitectura y seguridad.** El arranque deja principios, no decisiones. Una
    decisión necesita algo en lo que basarse y dos opciones reales (convención nuestra).
+4. **Sistema de diseño**, si el producto tiene interfaz: principios, dirección visual y la base del
+   sistema, antes de la primera pantalla (ver «Diseño de interfaz»).
 
 Después se diseña la primera funcionalidad, que arranca con el walking skeleton (ver abajo). La **arquitectura** real se abre cuando hay al menos una
 funcionalidad aprobada. La **seguridad** se analiza antes de construir, junto a la arquitectura: es
@@ -202,6 +204,93 @@ Una funcionalidad es una **historia** que aporta algo útil al usuario. Se escri
 
 La funcionalidad incluye el detalle de experiencia, datos o contratos que haga falta para
 construirla y comprobarla. No hay documentos paralelos de requisitos ni de diseño detallado.
+
+### Diseño de interfaz (UI/UX)
+
+El diseño de interfaz va a dos niveles, como en un equipo serio: el **sistema de diseño**, una vez
+por producto, y el **diseño de pantallas**, en cada funcionalidad. El diseño va un paso por delante de
+la construcción: lo que sale de *discovery* entra en *delivery* (Marty Cagan y Jeff Patton, SVPG;
+Cagan lo llama hoy *continuous discovery* y *continuous delivery*).
+
+**Sistema de diseño (DSY).** Hay uno por proyecto, versionado, y solo lo aprueba la persona. «No
+diseñamos páginas, diseñamos sistemas de componentes» (Brad Frost, *Atomic Design*). Se hace por fases:
+
+1. **Principios**: para quién es, qué transmite, densidad, tema claro u oscuro y nivel de
+   accesibilidad (Alla Kholmatova, *Design Systems*).
+2. **Inventario** de lo que ya existe, cuando ya hay producto (Brad Frost, *interface inventory*).
+3. **Dirección visual**: 2 o 3 *style tiles* comparables (tipografía, color, unos cuantos elementos y
+   su movimiento) antes de cualquier maqueta (Samantha Warren). La persona elige una.
+4. **Estilos base** (*perceptual patterns*) y **componentes** (*functional patterns*), según
+   Kholmatova.
+5. **Biblioteca y gobierno**: cómo se propone, se revisa y se añade una pieza (Brad Frost, «A Design
+   System Governance Process»).
+
+Hay dos caminos, y los dos dan el mismo resultado:
+
+- **partir de un sistema público** (Primer, Carbon, Material 3, shadcn/ui) y ajustar su personalidad;
+- **diseñarlo desde cero**.
+
+No se diseña todo al principio. Se empieza con una base visual sólida y de 12 a 16 componentes
+(Nathan Curtis, EightShapes, «Starting a Design System»); menos de 12 da un aviso, no un bloqueo. El
+resto crece con las funcionalidades.
+
+Qué cuenta como **completo** no tiene lista oficial. La nuestra es convención nuestra, tomada de lo
+que cubren Material 3, Carbon y Atlassian:
+
+- principios;
+- tokens en formato W3C DTCG (color claro y oscuro, tipografía, espaciado, radios, sombras y
+  movimiento);
+- componentes con todos sus estados (normal, hover, foco, pulsado, deshabilitado y, si aplica,
+  cargando y error; Material 3);
+- patrones;
+- guía de movimiento:
+  - estilo productivo o expresivo (Carbon, Material 3);
+  - curvas de entrada, salida y estándar (Carbon);
+  - duraciones por token;
+  - respetar «reducir movimiento» (WCAG 2.2, 2.3.3);
+- contraste WCAG 2.2 AA;
+- gobierno.
+
+Que el resultado no parezca hecho por una IA es objetivo de la persona: se consigue decidiendo de
+verdad los principios, la dirección visual y el movimiento, sin aceptar valores por defecto. DEMIURGO
+muestra el sistema como una página viva que dibuja sus propios tokens, sin IA: colores, escala de
+tipos y demos de movimiento. Cada componente se ve con sus estados en una vista previa aislada.
+
+Claude Design es opcional. Quien lo tenga puede importar allí el sistema aprobado para usar su editor
+visual. El proceso y la aprobación viven en DEMIURGO.
+
+**Guardarraíles deterministas.** Que el código cumpla el sistema no depende de que un agente se
+acuerde. Lo comprueba código, como un equipo serio lo comprueba con lint y CI:
+
+- **Solo tokens.** Fuera del sistema no hay colores, duraciones, curvas, tamaños de letra, radios ni
+  sombras escritos a mano (como `stylelint-declaration-strict-value`).
+- **Solo componentes del sistema.** Fuera del sistema no se escriben piezas básicas (`<button>`,
+  `<input>`, `<select>`, `<textarea>`, `<dialog>`) ni se importan otras librerías de interfaz (como
+  `eslint-plugin-primer-react` o `no-restricted-imports` de ESLint).
+- **El código del sistema es el manifiesto aprobado.** Un componente que no está en la versión
+  aprobada del sistema hace fallar la comprobación. Una pieza nueva se propone al sistema, que decide
+  si es reutilizable o un caso único (un *snowflake*), y solo entra con una versión nueva que aprueba
+  la persona. Así no pueden aparecer dos paneles laterales distintos que hacen lo mismo.
+- **Los tokens del código son los aprobados**: se comparan por su huella.
+
+DEMIURGO lo publica como la comprobación obligatoria `demiurgo/design`, junto a `ci` y
+`demiurgo/review`. Adaptar estas prácticas como una comprobación propia es convención nuestra. La
+revisión obligatoria del responsable con `CODEOWNERS` de GitHub no sirve aquí, porque el autor del
+pull request y el responsable son la misma cuenta; ese papel lo cumple la regla del manifiesto. Que
+«este componente nuevo es el mismo que aquel» es cuestión de criterio: un agente puede avisar, pero
+decide la persona. El alcance inicial son las aplicaciones web (convención nuestra).
+
+**Diseño de pantallas (en cada funcionalidad, antes de las tareas).** Se diseña en este orden:
+
+1. el flujo principal convertido en pantallas y transiciones (*wireflow*, Nielsen Norman Group);
+2. un boceto de cada pantalla con sus estados: vacío, cargando, error y con datos;
+3. un prototipo con el sistema de diseño, que la persona aprueba.
+
+Las pantallas declaran qué componentes del sistema usan. Si falta alguno, DEMIURGO crea la propuesta
+de cambio al sistema, y las tareas no se planifican hasta que se decide. Las tareas y sus criterios se
+refieren a esas pantallas. Con Claude Design, la persona diseña allí con un encargo que prepara
+DEMIURGO y trae el resultado. Sin él, un agente de DEMIURGO propone las pantallas con el sistema del
+proyecto. Esta parte está por diseñar en detalle.
 
 ### Decisiones (ADR)
 
@@ -313,6 +402,7 @@ Los códigos sirven para enlazar y versionar; la persona ve primero el nombre. E
 | FDR | Funcionalidad | Flujo principal en 3–9 pasos y criterios Dado/Cuando/Entonces ligados a sus pasos | Su épica o la definición |
 | ADR | Decisión de arquitectura | Contexto, opciones, elección, motivo y consecuencias (MADR) | Una funcionalidad o una restricción u objetivo de la definición |
 | TSK | Tarea | Objetivo, alcance, tamaño XS–XL y `covers` (criterios que cubre) | Su funcionalidad aprobada |
+| DSY | Sistema de diseño | Principios, dirección visual, tokens (con movimiento), componentes con sus estados, patrones, accesibilidad y gobierno; su parte legible por máquina es la que comprueba `demiurgo/design` | La definición; uno por proyecto |
 | AC | Criterio de aceptación | Una condición observable Dado/Cuando/Entonces, con su código y el paso que comprueba | Vive dentro de su funcionalidad; no es un documento aparte |
 
 Todos los registros tienen un código estable, versiones con su nota de cambio y enlaces a la versión
@@ -327,6 +417,7 @@ concreta en que se basan.
 | **Ficha de registro** | Leer un registro, revisar su borrador con los cambios desde la última versión, y aceptar o rechazar las propuestas que lo afectan. |
 | **Hilos** | Conversar con los agentes y contestar preguntas. Cada hilo muestra los registros a los que afecta y su «Revisar» lleva a la ficha. |
 | **Needs you** | Solo un índice: cada aviso lleva a su ficha, hilo o épica. Las listas marcan «Te espera» con una sola regla. |
+| **Sistema de diseño** (pestaña de Producto) | Elegir el camino (sistema público o desde cero), ver el sistema aprobado como página viva y proponer cambios. |
 | **Construir** | La cola de tareas listas, en orden, con su tamaño y su encargo (el texto para quien construye). Pedir o retirar una construcción. |
 
 ## 6. Cómo se construye DEMIURGO con DEMIURGO
@@ -392,4 +483,8 @@ conformidad ni certificación.
 | RFC | Request for Comments: documento de propuesta que el equipo revisa antes de aprobarlo. Nuestro «Cambios desde la vN» es convención nuestra, inspirada en los apéndices de cambios de los borradores del IETF; no es un estándar establecido. |
 | STRIDE / SDL | Método de Microsoft para buscar amenazas de seguridad en el diseño, antes de construir. |
 | Tarea (TSK) | Trozo de implementación de una funcionalidad, con tamaño y los criterios que cubre. |
+| Sistema de diseño (DSY) | Tokens, componentes con sus estados, patrones y reglas que definen cómo se ve y se mueve el producto; uno por proyecto (Brad Frost; Alla Kholmatova). |
+| Snowflake | Pieza hecha para un solo caso que acaba duplicando otra del sistema de diseño. |
+| Style tile | Muestra de dirección visual (tipografía, color, unos elementos) para decidir el estilo antes de las maquetas (Samantha Warren). |
+| Token de diseño | Valor con nombre (color, tamaño, duración, curva) que comparten el diseño y el código; formato W3C DTCG. |
 | Walking skeleton | La porción de punta a punta más fina, con funcionalidad trivial, que prueba que se puede construir, desplegar y probar todo; se hace una vez, como primera tarea de la primera funcionalidad (Freeman y Pryce; Cockburn). |

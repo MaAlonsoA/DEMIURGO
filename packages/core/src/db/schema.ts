@@ -632,6 +632,21 @@ export type ProjectCommitsTable = {
   created_at: Timestamp;
 };
 
+/** A request to build a ready task (FDR-BUI-002): its frozen brief and who asked; launches nothing. */
+export type BuildRequestsTable = {
+  id: Generated<string>;
+  project_id: string;
+  task_id: string;
+  task_version_id: string;
+  feature_version_id: string | null;
+  brief: string;
+  requested_by: string;
+  requested_at: Generated<Timestamp>;
+  state: Generated<string>;
+  withdrawn_by: string | null;
+  withdrawn_at: Timestamp | null;
+};
+
 export type DB = {
   projects: ProjectsTable;
   events: EventsTable;
@@ -678,6 +693,7 @@ export type DB = {
   task_size_opinions: TaskSizeOpinionsTable;
   task_size_dismissals: TaskSizeDismissalsTable;
   project_repos: ProjectReposTable;
+  build_requests: BuildRequestsTable;
   project_commits: ProjectCommitsTable;
 };
 

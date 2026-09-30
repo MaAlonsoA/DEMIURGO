@@ -138,6 +138,9 @@ commands:
   evidence.record: { entity: evidence, allowed: [system], decisive: false, description: "Record evidence for a system gate." }
   evidence.record_manual: { entity: evidence, allowed: [human], decisive: false, description: "Record human evidence for a manual AC." }
 
+  build_request.request: { entity: build_request, allowed: [human], decisive: false, description: "Record a request to build a ready task, with its brief frozen; nothing is launched." }
+  build_request.withdraw: { entity: build_request, allowed: [human], decisive: false, description: "Withdraw an open build request, keeping its history." }
+
 # Queries: read-only. The external agent can only read, converse, register sources and propose.
 queries:
   query.projects: { allowed: [human], description: "List projects." }

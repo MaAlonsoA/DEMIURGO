@@ -871,6 +871,22 @@ export const CAPABILITIES = {
       ],
       "decisive": false,
       "description": "Record human evidence for a manual AC."
+    },
+    "build_request.request": {
+      "entity": "build_request",
+      "allowed": [
+        "human"
+      ],
+      "decisive": false,
+      "description": "Record a request to build a ready task, with its brief frozen; nothing is launched."
+    },
+    "build_request.withdraw": {
+      "entity": "build_request",
+      "allowed": [
+        "human"
+      ],
+      "decisive": false,
+      "description": "Withdraw an open build request, keeping its history."
     }
   },
   "queries": {
@@ -2279,6 +2295,29 @@ export const TRANSITIONS = {
           "guards": [
             "ac_manual"
           ]
+        }
+      ]
+    },
+    "build_request": {
+      "label": "Build request",
+      "implemented_in": "S4",
+      "states": {
+        "requested": "Requested",
+        "withdrawn": "Withdrawn"
+      },
+      "authority": [],
+      "transitions": [
+        {
+          "command": "build_request.request",
+          "from": "new",
+          "to": "requested"
+        },
+        {
+          "command": "build_request.withdraw",
+          "from": [
+            "requested"
+          ],
+          "to": "withdrawn"
         }
       ]
     }

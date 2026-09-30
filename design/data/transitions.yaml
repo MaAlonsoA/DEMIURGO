@@ -328,3 +328,12 @@ entities:
     transitions:
       - { command: evidence.record, from: new, to: recorded }
       - { command: evidence.record_manual, from: new, to: recorded, guards: [ac_manual] }
+
+  build_request:
+    label: Build request
+    implemented_in: S4
+    states: { requested: Requested, withdrawn: Withdrawn }
+    authority: []
+    transitions:
+      - { command: build_request.request, from: new, to: requested }
+      - { command: build_request.withdraw, from: [requested], to: withdrawn }

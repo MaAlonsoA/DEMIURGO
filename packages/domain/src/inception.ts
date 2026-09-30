@@ -146,7 +146,7 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       title: "Product definition",
       why: "It says what the product is for and for whom: everything else is checked against it.",
       blocks: null,
-      source: "VISION.md · Arranque 1; ISO/IEC/IEEE 29148",
+      source: "ISO/IEC/IEEE 29148 (stakeholder requirements)",
       done: input.definition?.approved === true && passed("requirements"),
       // The definition closes when the person approves it (that also passes its stage).
       action: () =>
@@ -159,7 +159,7 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       title: "Quality goals",
       why: "Quality goals turn «good enough» into scenarios that can be checked.",
       blocks: null,
-      source: "VISION.md · Arranque 2; arc42 §10 quality scenarios",
+      source: "arc42 §10, quality scenarios",
       // Passing the stage proposes its section of the definition: done once that is approved too.
       // A pending definition change belongs to the latest onboarding stage: once «principles» is
       // open, it is that stage's section.
@@ -172,7 +172,7 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       title: "Architecture and security principles",
       why: "Principles settle the choices that would otherwise be reopened in every feature.",
       blocks: null,
-      source: "VISION.md · Arranque 3",
+      source: "arc42 §2 constraints, §3 context and scope",
       // Passing the stage proposes its section of the definition: done once that is approved too.
       done: passed("principles") && !input.definitionProposal,
       // Covering the stage proposes its section of the definition; approving it passes the stage.
@@ -185,7 +185,7 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       why: "The screens are drawn with one set of components and tokens, decided before the first screen.",
       blocks: "Screens",
       source:
-        "VISION.md · Arranque 4; Kholmatova, Design Systems; Frost, Atomic Design",
+        "Alla Kholmatova, Design Systems; Brad Frost, Atomic Design",
       done: input.designSystem?.approved === true,
       skipped: !input.hasInterface,
       action: () => draftOf(input.designSystem) ?? { kind: "design_system" },
@@ -213,7 +213,7 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       title: "First feature designed",
       why: "One feature designed end to end (flow, criteria) is what the rest of the design rests on.",
       blocks: null,
-      source: "VISION.md · Funcionalidades; walking skeleton (Freeman & Pryce)",
+      source: "Walking skeleton (Freeman & Pryce, GOOS); INVEST (Bill Wake)",
       done: approvedFeature,
       action: () =>
         draftFeature
@@ -225,7 +225,7 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       title: "Screens of the first feature",
       why: "The screens show what the person will see before any task is planned.",
       blocks: "Tasks",
-      source: "VISION.md · Diseño de pantallas (antes de las tareas)",
+      source: "Wireflows (Nielsen Norman Group)",
       done: first?.screens?.approved === true,
       skipped: !input.hasInterface,
       action: () =>
@@ -237,7 +237,7 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       title: "Architecture",
       why: "The decisions about how the product is built, based on the first features.",
       blocks: "Tasks",
-      source: "VISION.md; arc42, C4, MADR",
+      source: "arc42, C4 model, MADR",
       done: passed("architecture"),
       action: () => stageAction("architecture"),
     },
@@ -246,7 +246,7 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       title: "Security baseline",
       why: "The threats and mitigations the first tasks have to include.",
       blocks: "Build",
-      source: "VISION.md; Microsoft SDL, STRIDE",
+      source: "Microsoft SDL, STRIDE",
       done: passed("security"),
       action: () => stageAction("security"),
     },
@@ -255,7 +255,7 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       title: "Tasks of the first feature",
       why: "The plan of the first feature, resting on its approved decisions and mitigations.",
       blocks: "Build",
-      source: "VISION.md · Tareas",
+      source: "Traceability of requirements to tasks (Wiegers & Beatty)",
       done: (first?.tasks ?? []).some((t) => t.approved),
       action: () => {
         const draft = (first?.tasks ?? []).find((t) => !t.approved);
@@ -271,7 +271,7 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       title: "Repository",
       why: "The code lives in a GitHub repository where each task becomes a pull request.",
       blocks: "Build",
-      source: "VISION.md · Construcción (GitHub flow)",
+      source: "GitHub flow",
       done: input.repository,
       action: () => ({ kind: "repository" }),
     },

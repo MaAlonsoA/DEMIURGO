@@ -16,7 +16,6 @@ import type { CommandContext, Db } from '../bus/types.ts';
 import { DEFINITION_ACTOR, versionSources } from './compose.ts';
 
 const SEP = ' · ';
-const DASH = ' — ';
 
 type Option = { answer: string; implies: string };
 
@@ -38,9 +37,13 @@ export async function conclusionWithImplies(trx: Db, questionId: string, conclus
     .executeTakeFirst();
   // The product definition composes its sections from the short answers.
   if (!q?.stage || q.stage === DEFINITION_STAGE) return conclusion;
+  // Each measurable goal is also a quality requirement (NFR) with its scenario and measure (decision
+  // of the mission, VISION.md Arranque), so the section keeps only the answer the person chose: the
+  // option's explanation could read as a different commitment (seen: «…rather than prescribing
+  // indefinite retention» after choosing «no automatic expiry»).
   const picked = pickedOptions(conclusion, q.options, q.conversation_option);
   if (!picked) return conclusion;
-  return picked.map((o) => (o.implies ? `${o.answer}${DASH}${o.implies}` : o.answer)).join('\n');
+  return picked.map((o) => o.answer).join('\n');
 }
 
 /** Proposes the definition's next version with a covered stage's principles. */

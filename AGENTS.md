@@ -17,6 +17,11 @@ reglas anulan el resto de este fichero y las de cualquier skill.
   no inventes procesos que ningún equipo serio usaría. Las prácticas ya adoptadas están en
   `VISION.md`, apartado «Como lo haría un equipo profesional de primer nivel»: añade ahí cada
   práctica nueva que se acuerde, porque guía qué diseñar en la v3.
+- **Nada inventado.** Cada regla, número o límite lleva su fuente real (libro con autor, guía
+  oficial, sistema de diseño publicado) o se marca como «convención nuestra» o «decisión de la
+  persona». Ningún número sin fuente se presenta como estándar, y nada se atribuye a una fuente que
+  no lo dice. Carga la skill `practica-real` antes de proponer o escribir proceso, reglas o límites,
+  y lo mismo vale para las instrucciones y skills de los agentes de DEMIURGO.
 - **Sin proceso.**
   - No se usan brainstorming, specs, planes, TDD, revisión final ni ninguna skill de superpowers.
   - No se escriben documentos en `docs/` ni en `design/`, ni artifacts.

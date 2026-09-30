@@ -878,7 +878,8 @@ export const CAPABILITIES = {
       "entity": "evidence",
       "allowed": [
         "agent_external",
-        "human"
+        "human",
+        "system"
       ],
       "decisive": false,
       "description": "Record system evidence for criteria from the JUnit results of a CI run (test titles start with the criterion code)."
@@ -902,7 +903,8 @@ export const CAPABILITIES = {
     "build_request.submit_review": {
       "entity": "build_request",
       "allowed": [
-        "human"
+        "human",
+        "system"
       ],
       "decisive": false,
       "description": "Record the pull request of an open build request: it goes into review."
@@ -910,7 +912,8 @@ export const CAPABILITIES = {
     "build_request.complete": {
       "entity": "build_request",
       "allowed": [
-        "human"
+        "human",
+        "system"
       ],
       "decisive": false,
       "description": "Mark a build request in review as done, after the pull request is merged."
@@ -922,6 +925,22 @@ export const CAPABILITIES = {
       ],
       "decisive": false,
       "description": "Withdraw an open build request, keeping its history."
+    },
+    "build.start": {
+      "entity": "build_step",
+      "allowed": [
+        "human"
+      ],
+      "decisive": false,
+      "description": "Start the durable GitHub flow that builds a task with an open build request: builder agent, pull request, CI, evidence, reviewer agent and merge."
+    },
+    "build_step.record": {
+      "entity": "build_step",
+      "allowed": [
+        "system"
+      ],
+      "decisive": false,
+      "description": "Record one stage of a build (started, ok, failed, waiting or changes requested) with its detail."
     },
     "pr_review.record": {
       "entity": "pr_review",
@@ -2396,6 +2415,29 @@ export const TRANSITIONS = {
             "in_review"
           ],
           "to": "withdrawn"
+        }
+      ]
+    },
+    "build_step": {
+      "label": "Build step",
+      "implemented_in": "S4",
+      "states": {
+        "recorded": "Recorded"
+      },
+      "authority": [],
+      "transitions": [
+        {
+          "command": "build.start",
+          "from": "new",
+          "to": "recorded",
+          "guards": [
+            "build_can_start"
+          ]
+        },
+        {
+          "command": "build_step.record",
+          "from": "new",
+          "to": "recorded"
         }
       ]
     },

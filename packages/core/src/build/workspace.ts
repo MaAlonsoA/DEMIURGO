@@ -3,6 +3,7 @@
 // edits code. DEMIURGO commits after the agent exits; the agent never sees git credentials.
 
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -20,9 +21,9 @@ const parseAuthor = (author: string): { name: string; email: string } => {
   return m ? { name: m[1] || 'DEMIURGO builder', email: m[2] as string } : { name: author, email: 'builder@demiurgo.local' };
 };
 
-/** Branch name for a task build: `task/<code lowercase>-<first 8 of the build id>`. */
+/** Branch name for a task build: `task/<code lowercase>-<last 8 hex of the build id>` (a uuidv7 starts with its timestamp: the tail is the random part). */
 export function branchName(taskCode: string, buildId: string): string {
-  return `task/${taskCode.toLowerCase().replace(/[^a-z0-9-]+/g, '-')}-${buildId.slice(0, 8)}`;
+  return `task/${taskCode.toLowerCase().replace(/[^a-z0-9-]+/g, '-')}-${buildId.replace(/-/g, '').slice(-8)}`;
 }
 
 async function hasOrigin(repoDir: string): Promise<boolean> {
@@ -30,15 +31,43 @@ async function hasOrigin(repoDir: string): Promise<boolean> {
   return stdout.split('\n').map((l) => l.trim()).includes('origin');
 }
 
-/** Creates the branch from `main` (or `origin/main` after fetching it) in a new worktree. */
-export async function prepareWorktree(input: { repoDir: string; taskCode: string; buildId: string }): Promise<Worktree> {
+async function branchExists(repoDir: string, ref: string): Promise<boolean> {
+  try {
+    await git(repoDir, ['rev-parse', '--verify', '--quiet', ref]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Creates the branch from `main` (or `origin/main` after fetching it) in a new worktree. With an
+ * `existingBranch` (a second attempt on the same pull request) it reuses the worktree if it is still
+ * there, else checks the branch out (from the local branch, or from origin's).
+ */
+export async function prepareWorktree(input: { repoDir: string; taskCode: string; buildId: string; existingBranch?: string | null }): Promise<Worktree> {
   const root = projectsDir();
   if (!root) throw new Error('DEMIURGO_PROJECTS_DIR is not set.');
-  const branch = branchName(input.taskCode, input.buildId);
   const path = join(root, '.worktrees', input.buildId);
   await mkdir(join(root, '.worktrees'), { recursive: true });
+  const origin = await hasOrigin(input.repoDir);
+  if (input.existingBranch) {
+    const branch = input.existingBranch;
+    if (existsSync(path)) return { path, branch };
+    await git(input.repoDir, ['worktree', 'prune']);
+    if (origin) await git(input.repoDir, ['fetch', 'origin', branch]).catch(() => undefined);
+    if (await branchExists(input.repoDir, `refs/heads/${branch}`)) {
+      await git(input.repoDir, ['worktree', 'add', path, branch]);
+    } else {
+      await git(input.repoDir, ['worktree', 'add', '-b', branch, path, `origin/${branch}`]);
+    }
+    return { path, branch };
+  }
+  const branch = branchName(input.taskCode, input.buildId);
+  // A step that repeats after a crash finds its worktree already made.
+  if (existsSync(path)) return { path, branch };
   let base = 'main';
-  if (await hasOrigin(input.repoDir)) {
+  if (origin) {
     await git(input.repoDir, ['fetch', 'origin', 'main']);
     base = 'origin/main';
   }

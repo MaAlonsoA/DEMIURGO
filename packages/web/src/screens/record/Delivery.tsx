@@ -40,6 +40,7 @@ import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { useTables } from '../../lib/hooks.ts';
 import { effortTotals } from '../../sizes.ts';
+import { AgentBuildButton, BuildStepper, ConnectGithubLine, isBuildRunning, needsRebuild } from './AgentBuild.tsx';
 import { DesignNextButton } from '../epics/DesignNext.tsx';
 import type { EpicLine } from '../epics/logic.ts';
 import type { EpicRef } from '../epics/DesignNext.tsx';
@@ -88,6 +89,7 @@ export type Primary =
   | { kind: 'build_next'; code: string }
   | { kind: 'start_build'; code: string; title: string }
   | { kind: 'follow_build' }
+  | { kind: 'agent_build'; code: string; again: boolean }
   | { kind: 'pr'; url: string }
   | { kind: 'design'; epic: EpicRef; line: EpicLine; label: string }
   | { kind: 'thread'; id: string };
@@ -180,7 +182,10 @@ export function deliveryOf(input: {
     } else if (record.type === 'task' && record.build) {
       const b = record.build;
       if (b.state === 'to_do' && ready?.ready && input.canRequestBuild) primary = { kind: 'start_build', code: record.code, title: version.title };
-      else if (b.state === 'requested') primary = { kind: 'follow_build' };
+      else if (b.state === 'requested' && b.github) {
+        // Running: no primary, the stages are shown. Otherwise build (or build again after a stop).
+        if (!isBuildRunning(b.steps)) primary = { kind: 'agent_build', code: record.code, again: needsRebuild(b.steps) };
+      } else if (b.state === 'requested') primary = { kind: 'follow_build' };
       else if (b.state === 'in_pr' && b.request?.pr_url) primary = { kind: 'pr', url: b.request.pr_url };
     } else if (record.type === 'epic' && epic?.next && epic.ref)
       primary = { kind: 'design', epic: epic.ref, line: epic.next, label: t.designNext };
@@ -241,6 +246,8 @@ export function PrimaryAction({
           {t.buildNext}
         </Link>
       );
+    case 'agent_build':
+      return <AgentBuildButton projectId={projectId} code={primary.code} again={primary.again} />;
     case 'follow_build':
       return (
         <Link to="/p/$projectId/build" params={{ projectId }} className={buttonClass({ variant: 'primary' })}>
@@ -694,6 +701,7 @@ export function TaskBody({
             ) : null}
             {build.state === 'to_do' ? <CopyBriefButton projectId={projectId} code={record.code} size="sm" /> : null}
           </div>
+          {build.github ? <BuildStepper build={build} /> : <ConnectGithubLine />}
         </Block>
       ) : null}
       <OtherSections version={version} used={['Goal', 'Scope']} />

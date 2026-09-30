@@ -10,6 +10,8 @@ export type WorkflowEngine = {
   cancelRun(runId: string): Promise<void>;
   startUpdate(updateId: string, projectId: string): Promise<void>;
   startAssessment(batchId: string, projectId: string): Promise<void>;
+  /** The durable GitHub build of a build request (one workflow per attempt). */
+  startBuild(buildRequestId: string, projectId: string, attempt: number): Promise<void>;
   startResponse(messageId: string, projectId: string, explorationId: string, questionId?: string, agent?: string): Promise<void>;
 };
 
@@ -50,12 +52,18 @@ export function inertEngine(): WorkflowEngine & {
   updates: string[];
   assessments: string[];
   responses: string[];
+  builds: string[];
 } {
   const runs: string[] = [];
   const updates: string[] = [];
   const assessments: string[] = [];
   const responses: string[] = [];
+  const builds: string[] = [];
   return {
+    builds,
+    startBuild: async (id, _p, attempt) => {
+      builds.push(`${id}:${attempt}`);
+    },
     runs,
     updates,
     assessments,

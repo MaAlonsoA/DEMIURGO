@@ -28,10 +28,14 @@ import { Who } from "../../components/Who.tsx";
 import { announce } from "../../components/announce.tsx";
 import { useMessages } from "../../i18n/define.ts";
 import { useProjectId } from "../../lib/hooks.ts";
+import { AgentBuildButton } from "../record/AgentBuild.tsx";
+import { AGENT_BUILD } from "../record/agentBuild.i18n.ts";
 import { CopyBriefButton } from "../record/CopyBrief.tsx";
 import { BUILD } from "./words.i18n.ts";
 
 type Words = typeof BUILD.en;
+
+const runningStage = (task: QueueTask) => task.stage?.outcome === 'started' || task.stage?.outcome === 'waiting';
 
 function TaskLine({
   projectId,
@@ -82,6 +86,7 @@ function TaskLine({
 }
 
 function RequestState({ task, t }: { task: QueueTask; t: Words }) {
+  const a = useMessages(AGENT_BUILD);
   const r = task.request;
   if (!r) return <span className="text-sm font-medium text-fg">{t.ready}</span>;
   return (
@@ -94,6 +99,11 @@ function RequestState({ task, t }: { task: QueueTask; t: Words }) {
           <span className="font-medium text-fg">· {t.inReview}</span>
         ) : null}
       </span>
+      {task.stage ? (
+        <span className="font-medium text-fg" data-stage>
+          {a[`s_${task.stage.stage}` as const]} · {a[`o_${task.stage.outcome}` as const]}
+        </span>
+      ) : null}
       {r.pr_url ? (
         <a
           href={r.pr_url}
@@ -221,6 +231,15 @@ function Actions({
             {t.markDone}
           </Button>
         ) : null}
+        {task.github && task.request && !runningStage(task) ? (
+          <AgentBuildButton
+            projectId={projectId}
+            code={task.code}
+            variant="secondary"
+            size="sm"
+            again={task.stage ? task.stage.outcome === 'failed' || task.stage.outcome === 'changes_requested' : false}
+          />
+        ) : null}
         {task.request ? (
           <Button
             size="sm"
@@ -283,7 +302,14 @@ function Actions({
 export function BuildScreen() {
   const t = useMessages(BUILD);
   const projectId = useProjectId();
-  const queue = useQuery(buildQueueQuery(projectId));
+  // While an automatic build runs the server moves on its own: look again every 10 s.
+  const queue = useQuery({
+    ...buildQueueQuery(projectId),
+    refetchInterval: (q) =>
+      [...(q.state.data?.ready ?? []), ...(q.state.data?.waiting ?? []), ...(q.state.data?.stale ?? [])].some(runningStage)
+        ? 10_000
+        : false,
+  });
   const project = (useQuery(projectsQuery).data ?? []).find(
     (p) => p.id === projectId,
   );

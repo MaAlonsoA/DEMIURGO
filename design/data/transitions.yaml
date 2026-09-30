@@ -342,6 +342,15 @@ entities:
       - { command: build_request.complete, from: [in_review], to: done }
       - { command: build_request.withdraw, from: [requested, in_review], to: withdrawn }
 
+  build_step:
+    label: Build step
+    implemented_in: S4
+    states: { recorded: Recorded }
+    authority: []
+    transitions:
+      - { command: build.start, from: new, to: recorded, guards: [build_can_start] }
+      - { command: build_step.record, from: new, to: recorded }
+
   pr_review:
     label: PR review
     implemented_in: S4

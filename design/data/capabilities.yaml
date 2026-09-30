@@ -137,13 +137,15 @@ commands:
   work_step.fail: { entity: work_step, allowed: [system], decisive: false, description: "Mark a work step as failed with its failure_kind." }
   work_step.cancel: { entity: work_step, allowed: [system], decisive: false, description: "Cancel a work step." }
   evidence.record: { entity: evidence, allowed: [system], decisive: false, description: "Record evidence for a system gate." }
-  evidence.ingest_junit: { entity: evidence, allowed: [agent_external, human], decisive: false, description: "Record system evidence for criteria from the JUnit results of a CI run (test titles start with the criterion code)." }
+  evidence.ingest_junit: { entity: evidence, allowed: [agent_external, human, system], decisive: false, description: "Record system evidence for criteria from the JUnit results of a CI run (test titles start with the criterion code)." }
   evidence.record_manual: { entity: evidence, allowed: [human], decisive: false, description: "Record human evidence for a manual AC." }
 
   build_request.request: { entity: build_request, allowed: [human], decisive: false, description: "Record a request to build a ready task, with its brief frozen; nothing is launched." }
-  build_request.submit_review: { entity: build_request, allowed: [human], decisive: false, description: "Record the pull request of an open build request: it goes into review." }
-  build_request.complete: { entity: build_request, allowed: [human], decisive: false, description: "Mark a build request in review as done, after the pull request is merged." }
+  build_request.submit_review: { entity: build_request, allowed: [human, system], decisive: false, description: "Record the pull request of an open build request: it goes into review." }
+  build_request.complete: { entity: build_request, allowed: [human, system], decisive: false, description: "Mark a build request in review as done, after the pull request is merged." }
   build_request.withdraw: { entity: build_request, allowed: [human], decisive: false, description: "Withdraw an open build request, keeping its history." }
+  build.start: { entity: build_step, allowed: [human], decisive: false, description: "Start the durable GitHub flow that builds a task with an open build request: builder agent, pull request, CI, evidence, reviewer agent and merge." }
+  build_step.record: { entity: build_step, allowed: [system], decisive: false, description: "Record one stage of a build (started, ok, failed, waiting or changes requested) with its detail." }
   pr_review.record: { entity: pr_review, allowed: [system], decisive: false, description: "Record the verdict of the reviewer agent on the pull request of a build request (the required status demiurgo/review); applied by the system from its validated output." }
 
 # Queries: read-only. The external agent can only read, converse, register sources and propose.

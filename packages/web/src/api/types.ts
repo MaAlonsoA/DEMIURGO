@@ -414,6 +414,10 @@ export type Inbox = {
 export type CriterionState = 'verified' | 'failing' | 'in_pr' | 'no_evidence' | 'check_by_hand' | 'not_started';
 export type TaskBuildState = 'to_do' | 'requested' | 'in_pr' | 'merged' | 'failing';
 
+export type BuildStage = 'repo' | 'worktree' | 'builder' | 'commit' | 'push' | 'pr' | 'status' | 'ci' | 'evidence' | 'review' | 'publish' | 'merge';
+export type BuildOutcome = 'started' | 'ok' | 'failed' | 'waiting' | 'changes_requested';
+export type BuildStep = { attempt: number; stage: BuildStage; outcome: BuildOutcome; detail: unknown; at: string };
+
 export type Criterion = {
   id: string;
   code: string;
@@ -527,7 +531,17 @@ export type RecordDetail = {
   /** Latest size (feature or task), null otherwise. */
   size?: string | null;
   /** Task only: computed build state and its build request. */
-  build?: { state: TaskBuildState; request: { state: string; pr_url: string | null } | null };
+  build?: {
+    state: TaskBuildState;
+    request: { state: string; pr_url: string | null } | null;
+    /** Automatic build (builder agent, pull request, CI, reviewer agent, merge). */
+    steps?: BuildStep[];
+    pr_url?: string | null;
+    branch?: string | null;
+    review?: { verdict: 'approve' | 'request_changes'; summary: string; comments_count: number } | null;
+    /** Whether GitHub is configured for an automatic build. */
+    github?: boolean;
+  };
   /** Feature only: its tasks, the criteria of its current version no task covers, and its Definition of Done. */
   tasks?: FeatureTask[];
   uncovered?: string[];
@@ -964,6 +978,8 @@ export type QueueTask = {
   points: number | null;
   checks: number;
   request: BuildRequestView | null;
+  github?: boolean;
+  stage?: { stage: BuildStage; outcome: BuildOutcome } | null;
 };
 
 export type BuildQueue = {

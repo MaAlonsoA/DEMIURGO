@@ -5,7 +5,7 @@ import { messages } from '../../i18n/define.ts';
 export const BUILD = messages(
   {
     title: 'Build',
-    meta: 'The tasks that can be built now, in build order. Starting a build only records the request: nothing is launched yet.',
+    meta: 'The tasks that can be built now, in build order. Starting a build records the request; then you build it from the brief, or an agent builds it when GitHub is connected.',
     totals: (tasks: number, points: number) =>
       `${tasks} ${tasks === 1 ? 'task' : 'tasks'} · about ${points} ${points === 1 ? 'point' : 'points'}`,
     unsized: (n: number) => `${n} without size`,
@@ -26,7 +26,7 @@ export const BUILD = messages(
     withdrawLabel: (code: string) => `Withdraw the build request of ${code}`,
     confirmTitle: (code: string) => `Start build of ${code}?`,
     confirmBody:
-      'This records a build request with the current brief, your name and the time. Nothing is launched: no agent, process or worktree starts yet.',
+      'This records a build request with the current brief, your name and the time. Nothing is launched yet: an agent only starts when you choose «Build with an agent».',
     confirm: 'Record the request',
     requestedDone: (code: string) => `Build of ${code} requested.`,
     withdrawn: (code: string) => `Build request of ${code} withdrawn.`,
@@ -48,7 +48,7 @@ export const BUILD = messages(
   },
   {
     title: 'Construir',
-    meta: 'Las tareas que se pueden construir ya, en orden de construcción. Empezar una construcción solo apunta la petición: todavía no se lanza nada.',
+    meta: 'Las tareas que se pueden construir ya, en orden de construcción. Empezar una construcción apunta la petición; después la construyes tú con el encargo, o un agente si GitHub está conectado.',
     totals: (tasks: number, points: number) =>
       `${tasks} ${tasks === 1 ? 'tarea' : 'tareas'} · unos ${points} ${points === 1 ? 'punto' : 'puntos'}`,
     unsized: (n: number) => `${n} sin tamaño`,
@@ -69,7 +69,7 @@ export const BUILD = messages(
     withdrawLabel: (code: string) => `Retirar la petición de construcción de ${code}`,
     confirmTitle: (code: string) => `¿Empezar la construcción de ${code}?`,
     confirmBody:
-      'Esto apunta una petición de construcción con el encargo actual, tu nombre y la hora. No se lanza nada: todavía no arranca ningún agente, proceso ni worktree.',
+      'Esto apunta una petición de construcción con el encargo actual, tu nombre y la hora. Todavía no se lanza nada: un agente solo arranca cuando eliges «Construir con un agente».',
     confirm: 'Apuntar la petición',
     requestedDone: (code: string) => `Construcción de ${code} pedida.`,
     withdrawn: (code: string) => `Petición de construcción de ${code} retirada.`,

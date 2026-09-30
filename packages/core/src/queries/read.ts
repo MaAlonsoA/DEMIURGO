@@ -27,6 +27,7 @@ import type { Db } from '../db/connection.ts';
 import { staleDependencies } from '../commands/proposals.ts';
 import { epicOrder } from '../commands/epic-order.ts';
 import { threadDraft } from './draft.ts';
+import { githubConfig } from '../github/client.ts';
 
 /** Records that are not built, so they have no readiness: a decision, and the product definition. */
 const WITHOUT_READINESS: ReadonlySet<string> = new Set(['decision', 'product_definition']);
@@ -799,8 +800,53 @@ async function taskBuildOf(db: Db, projectId: string, taskId: string, implemente
     implemented,
     coveredFailing: covers.some((c) => failing.has(c)),
   });
-  void projectId;
-  return { state, request: request ? { state: request.state, pr_url: request.pr_url } : null };
+  // The automatic build (builder agent, pull request, CI, reviewer agent, merge): the open request's, else the latest's.
+  const latest = (
+    await db
+      .selectFrom('build_requests')
+      .select(['id', 'pr_url', 'branch'])
+      .where('project_id', '=', projectId)
+      .where('task_id', '=', taskId)
+      .orderBy('requested_at', 'desc')
+      .orderBy('id', 'desc')
+      .execute()
+  )[0];
+  const steps = latest
+    ? await db
+        .selectFrom('build_steps')
+        .select(['attempt', 'stage', 'outcome', 'detail', 'created_at'])
+        .where('build_request_id', '=', latest.id)
+        .orderBy('attempt')
+        .orderBy('created_at')
+        .orderBy('id')
+        .execute()
+    : [];
+  const review = latest
+    ? await db
+        .selectFrom('pr_reviews')
+        .select(['verdict', 'summary', 'comments'])
+        .where('build_request_id', '=', latest.id)
+        .orderBy('created_at', 'desc')
+        .orderBy('id', 'desc')
+        .executeTakeFirst()
+    : undefined;
+  return {
+    state,
+    request: request ? { state: request.state, pr_url: request.pr_url } : null,
+    steps: steps.map((x) => ({
+      attempt: x.attempt,
+      stage: x.stage,
+      outcome: x.outcome,
+      detail: x.detail,
+      at: new Date(x.created_at as unknown as Date).toISOString(),
+    })),
+    pr_url: latest?.pr_url ?? null,
+    branch: latest?.branch ?? null,
+    review: review
+      ? { verdict: review.verdict, summary: review.summary, comments_count: (review.comments as unknown[]).length }
+      : null,
+    github: githubConfig() !== null,
+  };
 }
 
 /**

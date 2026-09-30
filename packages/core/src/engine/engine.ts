@@ -40,6 +40,7 @@ import type { Db, Tx } from '../db/connection.ts';
 import type { Row } from '../db/schema.ts';
 import { traceParentOf } from '../observe/trace-contexts.ts';
 import type { WorkflowEngine, Services } from '../services.ts';
+import { startBuildWorkflow } from '../build/orchestrator.ts';
 import { stepSpan, systemInteraction } from './observe.ts';
 import { starters, reconcilers, setEngineServices, engineServices } from './registry.ts';
 
@@ -858,6 +859,9 @@ export const dbosEngine: WorkflowEngine = {
   },
   async startAssessment(batchId, projectId) {
     await startOutsideWorkflow(() => starters.assessment(batchId, projectId));
+  },
+  async startBuild(buildRequestId, projectId, attempt) {
+    await startOutsideWorkflow(() => startBuildWorkflow(buildRequestId, projectId, attempt));
   },
   async startResponse(messageId, projectId, explorationId, questionId, agent) {
     await startOutsideWorkflow(async () => {

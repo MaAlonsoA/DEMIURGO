@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSearch } from '@tanstack/react-router';
 import { type ReactNode, useRef, useState } from 'react';
 import { ApiError } from '../../api/client.ts';
+import { isBuildRunningOf } from './AgentBuild.tsx';
 import { inboxQuery, readinessQuery, recordQuery, stagesQuery, stateQuery } from '../../api/queries.ts';
 import { canCreate } from '../../api/tables.ts';
 import type { Inbox, ProductState, RecordDetail, RecordVersion } from '../../api/types.ts';
@@ -93,7 +94,11 @@ export function RecordScreen() {
   const t = useMessages(RECORD);
   const { projectId, code = '' } = useRouteParams();
   const search = useSearch({ strict: false }) as { v?: number };
-  const record = useQuery(recordQuery(projectId, code));
+  // While an automatic build runs the server moves on its own: look again every 10 s.
+  const record = useQuery({
+    ...recordQuery(projectId, code),
+    refetchInterval: (q) => (isBuildRunningOf(q.state.data) ? 10_000 : false),
+  });
   const state = useQuery(stateQuery(projectId));
   const inbox = useQuery(inboxQuery(projectId));
   usePageTitle([

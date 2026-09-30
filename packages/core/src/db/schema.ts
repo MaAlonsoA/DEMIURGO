@@ -686,6 +686,20 @@ export type BuildRequestsTable = {
   in_review_at: Timestamp | null;
   done_by: string | null;
   done_at: Timestamp | null;
+  branch: string | null;
+  pr_number: number | null;
+  head_sha: string | null;
+};
+
+export type BuildStepsTable = {
+  id: Generated<string>;
+  project_id: string;
+  build_request_id: string;
+  attempt: number;
+  stage: string;
+  outcome: string;
+  detail: NullableJson;
+  created_at: Generated<Timestamp>;
 };
 
 export type PrReviewsTable = {
@@ -753,6 +767,7 @@ export type DB = {
   build_requests: BuildRequestsTable;
   project_commits: ProjectCommitsTable;
   pr_reviews: PrReviewsTable;
+  build_steps: BuildStepsTable;
 };
 
 export type Row<T extends keyof DB> = Selectable<DB[T]>;

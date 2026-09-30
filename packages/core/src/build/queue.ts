@@ -12,6 +12,7 @@ import {
 } from "@demiurgo/domain";
 import { sql } from "kysely";
 import type { Db } from "../db/connection.ts";
+import { githubConfig } from "../github/client.ts";
 import { productState } from "../queries/read.ts";
 import { taskCoversOf } from "../queries/sizes.ts";
 import { projectsDir } from "../repo/repo.ts";
@@ -41,6 +42,10 @@ export type QueueTask = {
   points: number | null;
   checks: number;
   request: BuildRequestView | null;
+  /** GitHub is connected: a request can be built by an agent. */
+  github: boolean;
+  /** The latest stage of the open request's latest automatic build attempt, or null. */
+  stage: { stage: string; outcome: string } | null;
 };
 
 export type WaitingTask = QueueTask & { reasons: string[] };
@@ -193,6 +198,22 @@ export async function buildQueue(
         .execute()
     : [];
   const vn = new Map(versions.map((v) => [v.id, v.n]));
+  const github = githubConfig() !== null;
+  const stepRows = open.length
+    ? await db
+        .selectFrom("build_steps")
+        .select(["build_request_id", "attempt", "stage", "outcome"])
+        .where("build_request_id", "in", open.map((o) => o.id))
+        .orderBy("attempt")
+        .orderBy("created_at")
+        .orderBy("id")
+        .execute()
+    : [];
+  const latestStage = (requestId: string) => {
+    const mine = stepRows.filter((x) => x.build_request_id === requestId);
+    const last = mine.at(-1);
+    return last ? { stage: last.stage, outcome: last.outcome } : null;
+  };
 
   const requestOf = (
     task: StateRow,
@@ -237,6 +258,11 @@ export async function buildQueue(
       points: size ? SIZE_POINTS[size] : null,
       checks: task.checks,
       request: requestOf(task, feature),
+      github,
+      stage: (() => {
+        const r = requestOf(task, feature);
+        return r ? latestStage(r.id) : null;
+      })(),
     };
   };
 

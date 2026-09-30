@@ -92,12 +92,12 @@ describe('worktree helpers', () => {
   });
 
   it('names the branch from the task code and the build id', () => {
-    expect(branchName('TSK-ABC-001', 'abcdef123456')).toBe('task/tsk-abc-001-abcdef12');
+    expect(branchName('TSK-ABC-001', 'abcdef123456')).toBe('task/tsk-abc-001-ef123456');
   });
 
   it('prepares a worktree, reports the diff, commits and removes it', async () => {
     const wt = await prepareWorktree({ repoDir: repo, taskCode: 'TSK-A-1', buildId: '0123456789abcdef' });
-    expect(wt.branch).toBe('task/tsk-a-1-01234567');
+    expect(wt.branch).toBe('task/tsk-a-1-89abcdef');
     expect(wt.path).toBe(join(root, '.worktrees', '0123456789abcdef'));
     expect(sh(wt.path, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe(wt.branch);
     expect(await commitAll(wt.path, 'nothing')).toBeNull();

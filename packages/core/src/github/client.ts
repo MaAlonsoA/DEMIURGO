@@ -249,6 +249,11 @@ export async function enableAutoMerge(cfg: GithubConfig, pullRequestNodeId: stri
   );
 }
 
+/** Squash-merges a pull request now (branch protection still demands the required checks). */
+export async function mergePullRequest(cfg: GithubConfig, owner: string, repo: string, number: number): Promise<void> {
+  await call(cfg, 'PUT', `/repos/${owner}/${repo}/pulls/${number}/merge`, { body: { merge_method: 'squash' } });
+}
+
 export type CheckRun = { name: string; status: string; conclusion: string | null; detailsUrl: string | null };
 
 export async function checkRunsFor(cfg: GithubConfig, owner: string, repo: string, sha: string): Promise<CheckRun[]> {

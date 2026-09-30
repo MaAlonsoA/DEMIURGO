@@ -8,7 +8,7 @@ export const SIZE_POINTS: Readonly<Record<TaskSize, number>> = { XS: 1, S: 2, M:
 
 /** The build brief's size line: "Size: M (3 points)", or "Size: No size" with no number for a legacy task. */
 export function sizeLine(size: TaskSize | null | undefined): string {
-  return size ? `Size: ${size} (${SIZE_POINTS[size]} points)` : 'Size: No size';
+  return size ? `Size: ${size} (${SIZE_POINTS[size]} ${SIZE_POINTS[size] === 1 ? 'point' : 'points'})` : 'Size: No size';
 }
 
 export type SizedTask = { size: TaskSize | null; built: boolean; dropped?: boolean };

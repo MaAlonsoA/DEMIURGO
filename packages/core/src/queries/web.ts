@@ -282,9 +282,11 @@ export async function changesSince(db: Db, projectId: string, since: string) {
     ])
     .where('project_id', '=', projectId)
     .where('id', '>', since)
-    .orderBy('id')
+    // The newest 5000 when there are more: a busy day must not freeze on its first hours.
+    .orderBy('id', 'desc')
     .limit(5000)
-    .execute();
+    .execute()
+    .then((rows) => rows.toReversed());
   const records = new Map<string, Subject>();
   const recordSubject = async (recordId: string): Promise<Subject> => {
     const known = records.get(recordId);

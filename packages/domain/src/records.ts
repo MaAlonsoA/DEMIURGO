@@ -80,8 +80,10 @@ export const VERSION_LIMITS = {
 export function templateGaps(type: RecordType, sections: readonly Section[]): string[] {
   const gaps: string[] = [];
   const template = RECORD_TEMPLATES[type];
+  // A title may add a note in parentheses to the template's name ("Scenario (stimulus → response)").
+  const bare = (title: string) => title.replace(/\s*\([^)]*\)\s*$/, '');
   let i = 0;
-  for (const s of sections) if (s.title === template.sections[i]) i++;
+  for (const s of sections) if (bare(s.title) === template.sections[i]) i++;
   if (i < template.sections.length) gaps.push(`Missing template sections: ${template.sections.slice(i).join(', ')}.`);
   for (const s of sections) if (s.content.trim() === '') gaps.push(`Section "${s.title}" is empty.`);
   const titles = sections.map((s) => s.title);

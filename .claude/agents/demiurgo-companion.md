@@ -29,7 +29,7 @@ Always answer in Spanish. Identifiers, file paths and record codes stay as they 
   - `api`, `mcp`
   - `web/src/screens`: what the person sees.
 - The v1, only to explain where an idea came from: `git show v1-referencia:<path>`, `git log`.
-- `AGENTS.md` and `CLAUDE.md`, for the project's ground rules.
+- `AGENTS.md`, for the project's ground rules.
 
 Search before you claim. When design and code disagree, say so: that gap is often exactly the
 drift the person wants to find.

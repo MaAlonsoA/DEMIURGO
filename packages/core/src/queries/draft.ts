@@ -7,6 +7,7 @@ import { designSystemPathOf } from '@demiurgo/domain';
 import { chosenDirection } from '../actions/design-directions.ts';
 import { epicProblem } from '../actions/epic-plan.ts';
 import { approvedDesignSystem, hasApprovedScreens } from '../actions/screen-design.ts';
+import { standaloneOfThread } from '../actions/feature-design.ts';
 import { plannedFeatureByCode } from '../actions/exploration-chat.ts';
 import type { Db } from '../db/connection.ts';
 
@@ -81,6 +82,9 @@ export async function threadDraft(
       return offer('screens', 'screen_design', { type: 'record_version', id: version });
     return offer('tasks', 'task_plan', { type: 'record_version', id: version });
   }
+  // A standalone feature (no epic lists it): once its agent said it has enough, it rests on the definition.
+  if (!code && ready?.kind === 'feature' && !(await standaloneOfThread(db, projectId, thread.id)).problem)
+    return offer('feature', 'feature_design', { type: 'exploration', id: thread.id });
   // A thread about a capability that is an epic: only once its agent said it has enough.
   if (ready?.kind === 'epic' && !(await epicProblem(db, projectId, thread.id)))
     return offer('epic', 'epic_plan', { type: 'exploration', id: thread.id });

@@ -2,6 +2,7 @@
 // big and must be split. The checker is the programmatic gate after the model call (Anthropic,
 // "Building effective agents"): what it finds goes back to the agent once (engine.ts `corrected`).
 
+import { sql } from 'kysely';
 import { DomainError, MAIN_FLOW_STEPS } from '@demiurgo/domain';
 import { registerBuilder } from '../context/build.ts';
 import type { Db } from '../db/connection.ts';
@@ -18,12 +19,45 @@ type Designable =
       problem?: undefined;
       planned: { id: string; code: string; name: string; summary: string; position: number; epicId: string };
       epic: { id: string; code: string; domain: string; version: number; title: string };
+      standalone?: undefined;
+    }
+  // A feature that belongs to no epic: it rests directly on the approved product definition.
+  | {
+      problem?: undefined;
+      standalone: { code: string; domain: string; version: number; title: string };
+      planned?: undefined;
+      epic?: undefined;
     };
+
+/** The approved product definition a standalone feature rests on, or why there is none. */
+export async function standaloneOfThread(db: Db, projectId: string, explorationId: string): Promise<Designable> {
+  const existing = await sql<{ id: string }>`
+    select p.id
+    from proposals p
+    join proposal_batches b on b.id = p.batch_id
+    join ai_runs r on r.id = b.run_id
+    where p.project_id = ${projectId}::uuid and p.type = 'design_record' and p.payload->>'record_type' = 'fdr'
+      and p.state in ('pending', 'accepted') and r.action = 'feature_design' and r.scope->>'id' = ${explorationId}
+    limit 1`.execute(db);
+  if (existing.rows.length > 0) return { problem: 'A feature drafted from this thread is already proposed or accepted.' };
+  const def = await db
+    .selectFrom('records')
+    .innerJoin('record_versions', 'record_versions.record_id', 'records.id')
+    .select(['records.code', 'records.domain', 'record_versions.n', 'record_versions.title'])
+    .where('records.project_id', '=', projectId)
+    .where('records.type', '=', 'product_definition')
+    .where('record_versions.state', '=', 'approved')
+    .orderBy('record_versions.n', 'desc')
+    .executeTakeFirst();
+  if (!def) return { problem: 'The product definition is not approved yet: a feature that belongs to no epic rests on it.' };
+  return { standalone: { code: def.code, domain: def.domain ?? '', version: def.n, title: def.title } };
+}
 
 async function featureOfThread(db: Db, projectId: string, explorationId: string): Promise<Designable> {
   const thread = await db.selectFrom('explorations').select('purpose').where('id', '=', explorationId).executeTakeFirst();
   const code = /\bFDR-[A-Z]{3}-\d{3}\b/.exec(thread?.purpose ?? '')?.[0];
-  const found = code ? await plannedFeatureByCode(db, projectId, code) : undefined;
+  if (!code) return standaloneOfThread(db, projectId, explorationId);
+  const found = await plannedFeatureByCode(db, projectId, code);
   if (!found) return { problem: 'This thread does not design a planned feature of an epic.' };
   if (found.state !== 'planned')
     return { problem: `${found.code} is already ${found.state === 'designed' ? 'designed' : 'dropped'}: only a planned feature is designed.` };
@@ -48,6 +82,11 @@ registerBuilder('feature_design', async (a) => {
   const f = await featureOfThread(a.trx, a.projectId, a.scope.id);
   if (f.problem !== undefined) throw new DomainError('validation', f.problem);
   const built = relabelPack(await explorationPack(a), BUILDER);
+  if (f.standalone) {
+    const d = f.standalone;
+    const feature_design = { standalone: true, definition: { code: d.code, version: d.version, title: d.title }, siblings: [] };
+    return withSection(built, 'feature_design', feature_design, { type: 'exploration', id: a.scope.id, version: null, eventSeq: null }, 'standalone feature');
+  }
   // The epic's list with what each sibling has: its approved version is what `needs` refers to.
   const siblings = await a.trx
     .selectFrom('planned_features')
@@ -82,6 +121,7 @@ registerChecker('feature_design', async ({ db, run, output }) => {
   if (f.problem !== undefined) return [f.problem];
   const notes: string[] = [];
   const result = output.result;
+  if (result.kind === 'split' && f.standalone) return ['A feature that belongs to no epic is not split here: if it is too big, say so in `reply` and design its smallest end-to-end walk.'];
   if (result.kind === 'split') {
     const names = result.features.map((x) => x.name.trim().toLowerCase());
     if (new Set(names).size !== names.length) notes.push('Two of the features of the split have the same name.');
@@ -104,6 +144,7 @@ registerChecker('feature_design', async ({ db, run, output }) => {
       notes.push(`${n.code} v${n.version} in \`needs\` is not an approved feature at that version: \`needs\` only names approved siblings, with their current version.`);
       continue;
     }
+    if (f.standalone) continue;
     const sibling = await plannedFeatureByCode(db, run.project_id, n.code);
     if (sibling?.epic_id !== f.planned.epicId || n.code === f.planned.code)
       notes.push(`${n.code} in \`needs\` is not another feature of ${f.epic.code}: \`needs\` only names siblings of the same epic.`);
@@ -120,6 +161,7 @@ registerApplier('feature_design', async ({ trx, execute, run, output }) => {
   const common = { batch_type: 'agent' as const, resolution: 'item' as const, run_id: run.id, context_pack_id: run.context_pack_id ?? undefined };
   const result = output.result;
   if (result.kind === 'split') {
+    if (f.standalone) throw new DomainError('conflict', 'A feature that belongs to no epic is not split.');
     const reason = `Too big for one feature (${result.pattern}): ${result.reason}`.slice(0, 1000);
     const plan = { epic: { code: f.epic.code }, reason, evidence: [], split_by_agent: true };
     await execute({
@@ -151,10 +193,10 @@ registerApplier('feature_design', async ({ trx, execute, run, output }) => {
           type: 'design_record',
           payload: {
             record_type: 'fdr',
-            code: f.planned.code,
+            ...(f.planned ? { code: f.planned.code } : {}),
             title: x.title,
-            domain: f.epic.domain,
-            based_on: { code: f.epic.code, version: f.epic.version },
+            domain: f.planned ? f.epic.domain : f.standalone.domain || 'producto',
+            based_on: f.planned ? { code: f.epic.code, version: f.epic.version } : { code: f.standalone.code, version: f.standalone.version },
             sections: [
               { title: 'Goal', content: x.goal },
               { title: 'Scope', content: x.scope },

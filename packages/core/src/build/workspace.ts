@@ -4,7 +4,7 @@
 
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { projectsDir } from '../repo/repo.ts';
@@ -113,4 +113,28 @@ export function hostPathOf(containerPath: string): string {
     throw new Error(`${containerPath} is not inside ${trimmed}.`);
   }
   return host.replace(/\/+$/, '') + containerPath.slice(trimmed.length);
+}
+
+/** Text files this large or larger are skipped by the design check (bundles, generated files). */
+const MAX_CHECKED_BYTES = 512 * 1024;
+
+/**
+ * The tracked files of the worktree (after the commit) that `keep` selects, with their content,
+ * for the deterministic design check. Paths are relative and use `/`.
+ */
+export async function readWorktreeFiles(path: string, keep: (file: string) => boolean): Promise<{ path: string; content: string }[]> {
+  const { stdout } = await git(path, ['ls-files', '-z']);
+  const out: { path: string; content: string }[] = [];
+  for (const file of stdout.split('\0').filter((f) => f && keep(f))) {
+    const full = join(path, file);
+    const info = await stat(full).catch(() => null);
+    if (!info?.isFile() || info.size >= MAX_CHECKED_BYTES) continue;
+    out.push({ path: file, content: await readFile(full, 'utf8') });
+  }
+  return out;
+}
+
+/** One file of the worktree, or null if it is not there. */
+export async function readWorktreeFile(path: string, file: string): Promise<string | null> {
+  return readFile(join(path, file), 'utf8').catch(() => null);
 }

@@ -2,11 +2,12 @@
 // runs everything; this only reads its steps (GitHub checks style: a glyph and a word per stage).
 
 import { useQueryClient } from '@tanstack/react-query';
+import { Link, useParams } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
 import type { BuildOutcome, BuildStep, RecordDetail } from '../../api/types.ts';
 import { announce } from '../../components/announce.tsx';
-import { Button } from '../../components/Button.tsx';
+import { Button, buttonClass } from '../../components/Button.tsx';
 import { ConfirmDialog } from '../../components/Dialog.tsx';
 import { AlertTriangleIcon, CheckCircleIcon, CircleDotIcon, CircleHalfIcon, XCircleIcon } from '../../components/icons.tsx';
 import { useMessages } from '../../i18n/define.ts';
@@ -127,11 +128,28 @@ const OUTCOME_TEXT: Record<BuildOutcome, string> = {
   changes_requested: 'text-danger-text',
 };
 
+type DesignViolationView = { rule: number; path: string; line: number; message: string };
+
+/** Components the builder asked for («NEEDS COMPONENT: <Name>») and the ones rule 3 found outside the manifest. */
+export function neededComponents(steps: BuildStep[]): string[] {
+  const names = new Set<string>();
+  for (const s of steps) {
+    const d = s.detail as { report?: { notes?: string } | null; violations?: DesignViolationView[] } | null;
+    for (const m of (d?.report?.notes ?? '').matchAll(/NEEDS COMPONENT:\s*([A-Z][A-Za-z0-9]*)/g)) names.add(m[1] as string);
+    for (const v of d?.violations ?? []) {
+      const m = v.rule === 3 ? /^([A-Z][A-Za-z0-9]*) is not in the approved design system/.exec(v.message) : null;
+      if (m) names.add(m[1] as string);
+    }
+  }
+  return [...names];
+}
+
 /** One line per stage of the latest attempt (its latest step), the PR link and the review verdict. */
 export function BuildStepper({ build }: { build: NonNullable<RecordDetail['build']> }) {
   const t = useMessages(AGENT_BUILD);
   const attempt = latestAttempt(build.steps);
   if (attempt.length === 0 && !build.pr_url) return null;
+  const { projectId } = useParams({ strict: false }) as { projectId?: string };
   const byStage = new Map<string, BuildStep>();
   for (const s of attempt) byStage.set(s.stage, s);
   const url = build.pr_url ?? build.request?.pr_url ?? null;
@@ -143,9 +161,23 @@ export function BuildStepper({ build }: { build: NonNullable<RecordDetail['build
             <Glyph outcome={s.outcome} />
             <span className="font-medium">{t[`s_${s.stage}` as const]}</span>
             <span>{t[`o_${s.outcome}` as const]}</span>
+            {s.stage === 'design' ? <DesignDetail step={s} /> : null}
           </li>
         ))}
       </ol>
+      {projectId
+        ? neededComponents(attempt).map((name) => (
+            <Link
+              key={name}
+              to="/p/$projectId/design-system"
+              params={{ projectId }}
+              className={buttonClass({ variant: 'secondary', size: 'sm', className: 'self-start' })}
+              data-propose-component={name}
+            >
+              {t.proposeComponent(name)}
+            </Link>
+          ))
+        : null}
       {url ? (
         <a href={url} target="_blank" rel="noreferrer" className="text-accent-text hover:underline">
           {t.pullRequest}: {url}
@@ -159,6 +191,29 @@ export function BuildStepper({ build }: { build: NonNullable<RecordDetail['build
         </p>
       ) : null}
     </div>
+  );
+}
+
+function DesignDetail({ step }: { step: BuildStep }) {
+  const t = useMessages(AGENT_BUILD);
+  const d = step.detail as { note?: string; violations?: DesignViolationView[] } | null;
+  const violations = d?.violations ?? [];
+  if (violations.length === 0) return d?.note ? <span className="text-fg-3">{d.note === 'no design system yet' ? t.noDesign : d.note}</span> : null;
+  return (
+    <details className="text-fg-2" data-design-violations>
+      <summary className="cursor-pointer">{t.violations(violations.length)}</summary>
+      <ul className="mt-1 flex flex-col gap-0.5 pl-4">
+        {violations.map((v, i) => (
+          <li key={`${v.path}:${v.line}:${i}`}>
+            <code>
+              {v.path}
+              {v.line ? `:${v.line}` : ''}
+            </code>{' '}
+            {v.message}
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 

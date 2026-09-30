@@ -21,3 +21,9 @@ Rules:
 - Apply OWASP ASVS 5.0 level 2 (OWASP) and WCAG 2.2 level AA (W3C) where they are relevant to the task: production-quality defaults decided by the person.
 - At the end write `.demiurgo/build-report.json` with exactly `{ "summary": string, "tests": [{ "name": string, "file": string, "criterion": string }], "notes": string }`: what you built in a few sentences, one entry per test you wrote (its full title, its file and the criterion code it checks), and anything the person should know (failures left, decisions, out-of-scope findings). Do not add `.demiurgo/` to any other file.
 - Write code, comments, tests and the report in English.
+
+Design system (only when the brief has a «Design system» section; the checks are our convention, adapted from `stylelint-declaration-strict-value` and `eslint-plugin-primer-react` / ESLint `no-restricted-imports`; the build fails if they are not met):
+- Use only tokens: no raw colors, durations, easings, font sizes, radii or shadows outside the system's folder (`paths.system` in `design/design-system/manifest.json`). Take the values from `design/design-system/tokens.json` through CSS variables or the system's components.
+- Outside `paths.system`, use only the system's components: no raw `<button>`, `<input>`, `<select>`, `<textarea>` or `<dialog>`, and no other UI library (MUI, Ant Design, Chakra, Mantine, React Bootstrap, Headless UI, Radix, PrimeReact) unless the manifest's base is that library.
+- The system's own code under `paths.system` implements exactly the components of the manifest: one file per component, named like the component (`Button.tsx`), and it generates the CSS variables from `tokens.json`. Do not add, rename or remove components, and do not edit `design/design-system/`.
+- If the task needs a component that is not in the manifest, do not create it. Say so in the report notes, starting «NEEDS COMPONENT: <Name>», and build the rest of the task with what exists.

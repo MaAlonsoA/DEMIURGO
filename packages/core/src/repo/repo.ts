@@ -10,7 +10,14 @@ import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { replaceTree } from '@demiurgo/design';
-import { formatActor, parseActor } from '@demiurgo/domain';
+import {
+  DESIGN_SYSTEM_DIR,
+  designSystemArtifacts,
+  designSystemReadme,
+  designSystemSpec,
+  formatActor,
+  parseActor,
+} from '@demiurgo/domain';
 import type { CommandContext } from '../bus/types.ts';
 import { DISCARD_TRIGGER, registerAuthorityReaction } from '../commands/reactions.ts';
 import type { Db } from '../db/connection.ts';
@@ -93,6 +100,32 @@ async function messageOf(db: Db, projectId: string, change: Change): Promise<{ t
   };
 }
 
+/**
+ * The files of the project's approved design system (step 7): design/design-system/tokens.json,
+ * manifest.json and README.md, written from the approved version's spec so the builder and the
+ * `demiurgo/design` check read the same thing. Empty without an approved system.
+ */
+async function designSystemFiles(db: Db, projectId: string): Promise<Map<string, string>> {
+  const row = await db
+    .selectFrom('record_versions')
+    .innerJoin('records', 'records.id', 'record_versions.record_id')
+    .select(['records.code', 'record_versions.n', 'record_versions.spec'])
+    .where('records.project_id', '=', projectId)
+    .where('records.type', '=', 'design_system')
+    .where('record_versions.state', '=', 'approved')
+    .orderBy('record_versions.n', 'desc')
+    .executeTakeFirst();
+  const files = new Map<string, string>();
+  if (!row?.spec) return files;
+  const parsed = designSystemSpec.safeParse(row.spec);
+  if (!parsed.success) return files;
+  const { manifest, manifestJson, tokensJson } = designSystemArtifacts(row.code, row.n, parsed.data);
+  files.set('tokens.json', tokensJson);
+  files.set('manifest.json', manifestJson);
+  files.set('README.md', designSystemReadme(manifest));
+  return files;
+}
+
 /** Writes design/ and commits it if anything changed; the commit is kept to show it. */
 async function sync(services: Pick<Services, 'db' | 'logger'>, projectId: string, change: Change): Promise<string | null> {
   const root = projectsDir();
@@ -100,6 +133,13 @@ async function sync(services: Pick<Services, 'db' | 'logger'>, projectId: string
   const { db } = services;
   const dir = await ensureRepo(db, root, projectId);
   await replaceTree(join(dir, DESIGN_DIR), await exportDesign(db, projectId));
+  // Written beside the exported tree, not through export.ts (another agent owns it).
+  const system = await designSystemFiles(db, projectId);
+  if (system.size > 0) {
+    const systemDir = join(dir, ...DESIGN_SYSTEM_DIR.split('/'));
+    await mkdir(systemDir, { recursive: true });
+    for (const [name, text] of system) await writeFile(join(systemDir, name), text, 'utf8');
+  }
   await git(dir, ['add', '-A']);
   const status = (await git(dir, ['status', '--porcelain'])).stdout.trim();
   if (!status) return null;

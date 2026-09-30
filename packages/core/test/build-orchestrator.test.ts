@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { human } from '@demiurgo/domain';
+import { canonicalPrettyJson, human, sha256Hex } from '@demiurgo/domain';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createSimulatedProvider } from '../src/agents/simulated.ts';
 import { executeCommand } from '../src/bus/bus.ts';
@@ -84,7 +84,8 @@ beforeAll(async () => {
   await cmd('record_version.approve', {}, feature.versionId);
   featureVersionId = feature.versionId;
   const taskRun = await draftRun('task_plan', { type: 'record_version', id: feature.versionId });
-  await cmd('batch.accept_package', { approve: true }, (await accepted(taskRun.id))[0]?.batchId);
+  // Task drafts are resolved one by one (batch_type agent, resolution item).
+  for (const p of await accepted(taskRun.id)) await cmd('proposal.accept', { approve: true }, p.id);
   const task = (await recordDetail(db(), projectId, planned.code)).tasks?.[0];
   codes = task?.covers ?? [];
   taskCode = task?.code ?? '';
@@ -132,7 +133,21 @@ type Calls = { statuses: { state: string; sha: string; context: string }[]; auto
 let calls: Calls;
 let builderRuns = 0;
 
-function fakes(opts: { ciConclusion: 'success' | 'failure' }): Partial<BuildDeps> {
+const APPROVED_TOKENS = { color: { bg: { $value: { light: '#ffffff', dark: '#000000' }, $type: 'color' } } };
+
+/** Writes an approved design system (as DEMIURGO's sync would) and an app file that breaks or keeps its rules. */
+function writeDesign(dir: string, violating: boolean): void {
+  mkdirSync(join(dir, 'design', 'design-system'), { recursive: true });
+  const manifest = { version: 'DSY-001@1', paths: { system: 'src/design-system/' }, components: [], tokens_hash: sha256Hex(canonicalPrettyJson(APPROVED_TOKENS)), base: { kind: 'scratch' } };
+  writeFileSync(join(dir, 'design', 'design-system', 'manifest.json'), canonicalPrettyJson(manifest));
+  writeFileSync(join(dir, 'design', 'design-system', 'tokens.json'), canonicalPrettyJson(APPROVED_TOKENS));
+  writeFileSync(
+    join(dir, 'src', 'App.tsx'),
+    violating ? "export const App = () => <button style={{ color: '#ff0000' }}>Share</button>;\n" : 'export const App = () => <main />;\n',
+  );
+}
+
+function fakes(opts: { ciConclusion: 'success' | 'failure'; design?: 'violating' | 'clean' }): Partial<BuildDeps> {
   calls = { statuses: [], autoMerge: [], reviews: 0, opened: 0, polls: { ci: 0, merge: 0 }, prompts: [] };
   const github = {
     ensureProjectRepo: async () => ({ owner: 'acme', repo: 'recipes', url: 'https://github.com/acme/recipes' }),
@@ -179,6 +194,7 @@ function fakes(opts: { ciConclusion: 'success' | 'failure' }): Partial<BuildDeps
       const dir = options?.worktreePath ?? '';
       mkdirSync(join(dir, 'src'), { recursive: true });
       writeFileSync(join(dir, 'src', 'recipes.ts'), `export const share = () => ${++builderRuns};\n`);
+      if (opts.design) writeDesign(dir, opts.design === 'violating');
       mkdirSync(join(dir, '.demiurgo'), { recursive: true });
       const report = {
         summary: 'Recipes can be shared.',
@@ -261,7 +277,7 @@ describe('build.start', () => {
 
     const rows = await steps(requestId);
     const ok = new Set(rows.filter((s) => s.outcome === 'ok').map((s) => s.stage));
-    for (const stage of ['repo', 'worktree', 'builder', 'commit', 'push', 'pr', 'status', 'ci', 'evidence', 'review', 'publish', 'merge']) {
+    for (const stage of ['repo', 'worktree', 'builder', 'commit', 'design', 'push', 'pr', 'status', 'ci', 'evidence', 'review', 'publish', 'merge']) {
       expect(ok.has(stage), `${stage} is ok`).toBe(true);
     }
     expect(rows.some((s) => s.outcome === 'failed')).toBe(false);
@@ -271,8 +287,10 @@ describe('build.start', () => {
     const evidence = await db().selectFrom('evidence').selectAll().where('project_id', '=', projectId).where('pr_url', '=', 'https://github.com/acme/recipes/pull/7').execute();
     expect(evidence.length).toBeGreaterThanOrEqual(codes.length);
 
-    expect(calls.statuses.map((s) => s.state)).toEqual(['pending', 'success']);
-    expect(calls.statuses.every((s) => s.context === 'demiurgo/review' && s.sha === request.head_sha)).toBe(true);
+    expect(calls.statuses.map((s) => `${s.context}:${s.state}`)).toEqual(['demiurgo/review:pending', 'demiurgo/design:success', 'demiurgo/review:success']);
+    expect(calls.statuses.every((s) => s.sha === request.head_sha)).toBe(true);
+    // No approved design system in this project: the stage passes with its note.
+    expect(rows.find((s) => s.stage === 'design' && s.outcome === 'ok')?.detail).toMatchObject({ note: 'no design system yet', violations: [] });
     expect(calls.autoMerge).toEqual(['PR_node']);
     expect(calls.reviews).toBe(1);
     const review = await db().selectFrom('pr_reviews').selectAll().where('build_request_id', '=', requestId).executeTakeFirstOrThrow();
@@ -294,7 +312,7 @@ describe('build.start', () => {
 
     const request = await db().selectFrom('build_requests').selectAll().where('id', '=', requestId).executeTakeFirstOrThrow();
     expect(request.state).toBe('in_review');
-    expect(calls.statuses.map((s) => s.state)).toEqual(['pending', 'failure']);
+    expect(calls.statuses.filter((s) => s.context === 'demiurgo/review').map((s) => s.state)).toEqual(['pending', 'failure']);
     expect(calls.autoMerge).toEqual([]);
     const rows = await steps(requestId);
     expect(rows.at(-1)).toMatchObject({ stage: 'merge', outcome: 'changes_requested' });
@@ -310,5 +328,30 @@ describe('build.start', () => {
     const after = await db().selectFrom('build_requests').selectAll().where('id', '=', requestId).executeTakeFirstOrThrow();
     expect(after.state).toBe('done');
     expect(after.branch).toBe(request.branch);
+  });
+
+  it('the design guard fails the attempt before the push, and the next attempt gets the violations and the manifest', async () => {
+    setBuildDeps(fakes({ ciConclusion: 'success', design: 'violating' }));
+    const requestId = await newRequest();
+    await cmd('build.start', { task: taskCode });
+    expect(await finished(requestId, 1)).toBe('failed:design');
+
+    const rows = await steps(requestId);
+    const failed = rows.find((s) => s.stage === 'design' && s.outcome === 'failed');
+    const detail = failed?.detail as { violations: { rule: number; path: string; line: number }[]; error: string };
+    expect(detail.violations.map((v) => `${v.rule}:${v.path}:${v.line}`)).toEqual(expect.arrayContaining(['1:src/App.tsx:1', '2:src/App.tsx:1']));
+    expect(rows.some((s) => s.stage === 'push')).toBe(false);
+    expect(calls.statuses).toEqual([]);
+
+    setBuildDeps(fakes({ ciConclusion: 'success', design: 'clean' }));
+    expect((await cmd('build.start', { task: taskCode })).result).toMatchObject({ attempt: 2 });
+    expect(await finished(requestId, 2)).toBe('done');
+    expect(calls.prompts[0]).toContain('# Design system (DSY-001@1)');
+    expect(calls.prompts[0]).toContain('"tokens_hash"');
+    expect(calls.prompts[0]).toContain('The design-system check (demiurgo/design) failed');
+    expect(calls.prompts[0]).toContain('src/App.tsx:1 (rule 2)');
+    expect(calls.statuses.map((s) => `${s.context}:${s.state}`)).toContain('demiurgo/design:success');
+    const design = (await steps(requestId)).filter((s) => s.stage === 'design' && s.outcome === 'ok').at(-1);
+    expect(design?.detail).toMatchObject({ version: 'DSY-001@1', violations: [] });
   });
 });

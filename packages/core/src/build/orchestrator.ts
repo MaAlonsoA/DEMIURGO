@@ -3,7 +3,12 @@
 // CI is green). One DBOS workflow per attempt, one step per stage; every stage leaves its build_step
 // (started, ok, failed, waiting or changes_requested) through the `build_step.record` command:
 //
-//   repo → worktree → builder → commit → push → pr → status → ci → evidence → review → publish → merge
+//   repo → worktree → builder → commit → design → push → pr → status → ci → evidence → review → publish → merge
+//
+// `design` is the deterministic design-system guard (packages/domain/src/design-guard.ts): with an
+// approved design system in the worktree's design/design-system/, violations fail the attempt before
+// anything is pushed and come back to the next attempt as feedback. Its commit status
+// `demiurgo/design` is published in `status`, on the pushed head, next to the pending review status.
 //
 // A stage that fails stops the attempt. Changes requested (the reviewer's verdict or a red CI) ends it
 // too, and the person can press Build again: the next attempt continues on the same branch and pull
@@ -12,7 +17,16 @@
 // anything: it only builds, records evidence and lets GitHub merge once its required checks pass.
 
 import { DBOS } from '@dbos-inc/dbos-sdk';
-import { DomainError, isDomainError, system } from '@demiurgo/domain';
+import {
+  DESIGN_MANIFEST_PATH,
+  DESIGN_TOKENS_PATH,
+  type DesignManifest,
+  type DesignViolation,
+  DomainError,
+  designGuard,
+  isDomainError,
+  system,
+} from '@demiurgo/domain';
 import { loadAgentCatalog } from '../agents/catalog.ts';
 import { resolutionProblem, resolveEngine } from '../assignments/assignments.ts';
 import { executeCommand } from '../bus/bus.ts';
@@ -23,12 +37,13 @@ import { taskCoversOf } from '../queries/sizes.ts';
 import { projectsDir } from '../repo/repo.ts';
 import { BUILDER_MAX_TIME_MS, type BuildReport, runBuilder } from '../runner/builder.ts';
 import type { Services } from '../services.ts';
-import { commitAll, hostPathOf, prepareWorktree, removeWorktree } from './workspace.ts';
+import { commitAll, hostPathOf, prepareWorktree, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const BUILD = system('build', '1');
 const REVIEW_STATUS = 'demiurgo/review';
+const DESIGN_STATUS = 'demiurgo/design';
 const RETRIES = { retriesAllowed: true, maxAttempts: 3, intervalSeconds: 1 } as const;
 
 export type GithubApi = Pick<
@@ -90,7 +105,7 @@ export function resetBuildDeps(): void {
 
 export const buildWorkflowId = (buildRequestId: string, attempt: number): string => `build:${buildRequestId}:${attempt}`;
 
-type Stage = 'repo' | 'worktree' | 'builder' | 'commit' | 'push' | 'pr' | 'status' | 'ci' | 'evidence' | 'review' | 'publish' | 'merge';
+type Stage = 'repo' | 'worktree' | 'builder' | 'commit' | 'design' | 'push' | 'pr' | 'status' | 'ci' | 'evidence' | 'review' | 'publish' | 'merge';
 type Outcome = 'started' | 'ok' | 'failed' | 'waiting' | 'changes_requested';
 
 type Run = { projectId: string; requestId: string; attempt: number };
@@ -182,7 +197,7 @@ async function load(s: Services, r: Run): Promise<Loaded> {
   };
 }
 
-type Feedback = { blocking: string[]; failing: string[] };
+type Feedback = { blocking: string[]; failing: string[]; design: string[] };
 
 /** What the previous attempt got wrong: the reviewer's blocking comments and the tests that failed. */
 async function feedbackOf(s: Services, r: Run): Promise<Feedback> {
@@ -207,15 +222,58 @@ async function feedbackOf(s: Services, r: Run): Promise<Feedback> {
     .orderBy('id', 'desc')
     .executeTakeFirst();
   const recorded = ((evidence?.detail as { recorded?: { code: string; result: string }[] } | null)?.recorded ?? []).filter((t) => t.result === 'fail');
-  return { blocking, failing: recorded.map((t) => t.code) };
+  const design = await s.db
+    .selectFrom('build_steps')
+    .select(['outcome', 'detail'])
+    .where('build_request_id', '=', r.requestId)
+    .where('stage', '=', 'design')
+    .where('outcome', 'in', ['ok', 'failed'])
+    .orderBy('created_at', 'desc')
+    .orderBy('id', 'desc')
+    .executeTakeFirst();
+  const violations = design?.outcome === 'failed' ? ((design.detail as { violations?: DesignViolation[] } | null)?.violations ?? []) : [];
+  return { blocking, failing: recorded.map((t) => t.code), design: violations.map(violationLine) };
 }
 
-function promptOf(body: string, brief: string, attempt: number, f: Feedback): string {
-  const lines = [body, '', '# Brief', brief];
-  if (attempt > 1 && (f.blocking.length > 0 || f.failing.length > 0)) {
+const violationLine = (v: DesignViolation): string => `${v.path}${v.line ? `:${v.line}` : ''} (rule ${v.rule}): ${v.message}`;
+
+/** The approved design system as the worktree has it (written by DEMIURGO's sync), or null. */
+async function designSystemOf(worktree: string): Promise<{ manifest: DesignManifest; manifestText: string; tokens: unknown; tokensText: string } | null> {
+  const manifestText = await readWorktreeFile(worktree, DESIGN_MANIFEST_PATH);
+  if (manifestText === null) return null;
+  const tokensText = (await readWorktreeFile(worktree, DESIGN_TOKENS_PATH)) ?? '{}';
+  return { manifest: JSON.parse(manifestText) as DesignManifest, manifestText, tokens: JSON.parse(tokensText), tokensText };
+}
+
+/** Tokens longer than this go into the brief as a path only. */
+const TOKENS_INLINE_MAX = 8000;
+
+function designSection(d: { manifest: DesignManifest; manifestText: string; tokensText: string } | null): string[] {
+  if (!d) return [];
+  return [
+    '',
+    `# Design system (${d.manifest.version})`,
+    `The project has an approved design system: follow the "Design system" rules. Its code lives in ${d.manifest.paths.system}. Do not edit ${DESIGN_MANIFEST_PATH} or ${DESIGN_TOKENS_PATH}.`,
+    `## ${DESIGN_MANIFEST_PATH}`,
+    d.manifestText.trim(),
+    `## ${DESIGN_TOKENS_PATH}`,
+    d.tokensText.length <= TOKENS_INLINE_MAX ? d.tokensText.trim() : `(too long to inline: read ${DESIGN_TOKENS_PATH})`,
+  ];
+}
+
+function promptOf(
+  body: string,
+  brief: string,
+  attempt: number,
+  f: Feedback,
+  design: { manifest: DesignManifest; manifestText: string; tokensText: string } | null = null,
+): string {
+  const lines = [body, '', '# Brief', brief, ...designSection(design)];
+  if (attempt > 1 && (f.blocking.length > 0 || f.failing.length > 0 || f.design.length > 0)) {
     lines.push('', `# Feedback on the previous attempt (this is attempt ${attempt} on the same branch)`);
     if (f.blocking.length > 0) lines.push('The reviewer asked for these changes:', ...f.blocking.map((b) => `- ${b}`));
     if (f.failing.length > 0) lines.push(`The tests of these criteria failed in CI: ${f.failing.join(', ')}.`);
+    if (f.design.length > 0) lines.push('The design-system check (demiurgo/design) failed, fix these:', ...f.design.map((v) => `- ${v}`));
   } else if (attempt > 1) {
     lines.push('', `# Feedback on the previous attempt (this is attempt ${attempt} on the same branch)`, 'The previous attempt did not merge; check the tests and the review comments on the pull request.');
   }
@@ -273,14 +331,15 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     const resolution = await resolveEngine(s0.db, s0.providers, { agent: agent.id });
     const problem = resolutionProblem(agent.id, resolution);
     if (problem || resolution.status !== 'ok') throw new DomainError('guard', problem ?? 'The builder has no engine.');
-    const feedback = attempt > 1 ? await feedbackOf(s0, r) : { blocking: [], failing: [] };
+    const feedback = attempt > 1 ? await feedbackOf(s0, r) : { blocking: [], failing: [], design: [] };
+    const designSystem = await designSystemOf(worktree.path).catch(() => null);
     const result = await d.runBuilder(
       {
         worktreeHostPath: hostPathOf(worktree.path),
         provider: resolution.provider as 'claude' | 'codex',
         model: resolution.model,
         effort: resolution.effort ?? 'medium',
-        prompt: promptOf(agent.body, info.brief, attempt, feedback),
+        prompt: promptOf(agent.body, info.brief, attempt, feedback, designSystem),
         maxTimeMs: Math.min(agent.timeLimitSeconds * 1000, BUILDER_MAX_TIME_MS),
         limits: { cpus: 2, memoryMb: 4096, pids: 512 },
       },
@@ -314,6 +373,22 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
   });
   if (!committed.ok) return stop('commit', committed.outcome);
   const headSha = committed.value;
+
+  // design: the deterministic design-system guard; no approved system yet means nothing to check
+  const designed = await stage(r, 'design', async () => {
+    const approved = await designSystemOf(worktree.path);
+    if (!approved) return { value: { note: 'no design system yet' }, detail: { note: 'no design system yet', violations: [] } };
+    const keep = (file: string) => /\.(css|scss|html|jsx|tsx|vue|svelte)$/.test(file) || file.endsWith('/tokens.json') || file === 'tokens.json';
+    const files = await readWorktreeFiles(worktree.path, keep);
+    const result = designGuard(files, approved.manifest, approved.tokens);
+    const detail = { version: approved.manifest.version, checked: files.length, violations: result.violations };
+    if (!result.ok) {
+      return { outcome: 'failed' as const, detail: { ...detail, error: `${result.violations.length} design-system ${result.violations.length === 1 ? 'violation' : 'violations'}: ${result.violations.slice(0, 5).map(violationLine).join(' | ')}` } };
+    }
+    return { value: { note: `Uses the approved design system ${approved.manifest.version}.` }, detail };
+  });
+  if (!designed.ok) return stop('design', designed.outcome);
+  const designNote = designed.value.note;
 
   // push
   const pushed = await stage(r, 'push', async () => {
@@ -370,6 +445,14 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       context: REVIEW_STATUS,
       state: 'pending',
       description: "Waiting for CI and for DEMIURGO's reviewer agent.",
+      target_url: pull.url,
+    });
+    // The design check already passed before the push (a failure stops the attempt first): the
+    // required status goes on the pushed head, with or without an approved design system.
+    await d.github.setCommitStatus(cfg, owner, repoName, headSha, {
+      context: DESIGN_STATUS,
+      state: 'success',
+      description: designNote.charAt(0).toUpperCase() + designNote.slice(1),
       target_url: pull.url,
     });
     return { value: true };

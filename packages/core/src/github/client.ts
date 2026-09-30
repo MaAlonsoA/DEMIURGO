@@ -121,7 +121,7 @@ export const repoNameFor = (dir: string) =>
     .replace(/[^A-Za-z0-9._-]+/g, '-')
     .replace(/^[-.]+|-+$/g, '') || 'project';
 
-export const REQUIRED_CHECKS = ['ci', 'demiurgo/review'];
+export const REQUIRED_CHECKS = ['ci', 'demiurgo/review', 'demiurgo/design'];
 
 export type ProjectGithub = { owner: string; repo: string; url: string };
 

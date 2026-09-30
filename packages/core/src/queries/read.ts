@@ -154,7 +154,7 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
           })),
         )
       : undefined;
-  return readiness({
+  const own = readiness({
     code: v.code,
     type: v.type as RecordType,
     version: { n: v.n, state: v.state },
@@ -173,6 +173,27 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
     pendingProposals,
     ...(features ? { features } : {}),
   });
+  // A task is built as a piece of its feature (FDR-BUI-002): it is ready only when its feature is
+  // ready to build too (approved basis, built needs, Architecture passed). The Build queue and the
+  // task board read this same result.
+  if (v.type === 'task') {
+    for (const b of basedOn) {
+      if (b.type !== 'fdr' || b.current === null) continue;
+      const feature = await db
+        .selectFrom('record_versions')
+        .innerJoin('records', 'records.id', 'record_versions.record_id')
+        .select('record_versions.id')
+        .where('records.project_id', '=', projectId)
+        .where('records.code', '=', b.code)
+        .where('record_versions.n', '=', b.current)
+        .executeTakeFirst();
+      if (!feature) continue;
+      const f = await versionReadiness(db, projectId, feature.id);
+      for (const reason of f.reasons) own.reasons.push(`Feature ${b.code}: ${reason}`);
+    }
+    own.ready = own.reasons.length === 0;
+  }
+  return own;
 }
 
 async function architecturePassed(db: Db, projectId: string): Promise<boolean> {

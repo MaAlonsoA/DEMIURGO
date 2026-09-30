@@ -35,6 +35,7 @@ export { classifyAspects } from './classifier/aspect.ts';
 export * from './queries/trace.ts';
 export * from './queries/web.ts';
 export * from './queries/views.ts';
+export * from './build/queue.ts';
 export * from './context/knowledge.ts';
 export * from './knowledge/index.ts';
 export * from './engine/inline.ts';

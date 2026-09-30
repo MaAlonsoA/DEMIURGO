@@ -37,6 +37,8 @@ import {
   readingTranslation,
   projectGlossary,
   productDefinition,
+  buildQueue,
+  composeBrief,
 } from '@demiurgo/core';
 import type { Credential } from './credentials.ts';
 
@@ -198,6 +200,20 @@ registerQueries([
     path: '/api/projects/:projectId/definition',
     queryName: 'query.records',
     respond: ({ services, params }) => productDefinition(services.db, uuid(params.projectId, 'project')),
+  },
+  {
+    // The Build page (FDR-BUI-002): ready tasks in build order, Waiting with its reasons, open requests.
+    path: '/api/projects/:projectId/build',
+    queryName: 'query.records',
+    respond: ({ services, params }) => buildQueue(services.db, uuid(params.projectId, 'project')),
+  },
+  {
+    // The server-composed build brief of a ready record: what Copy brief copies and a request freezes.
+    path: '/api/projects/:projectId/records/:code/brief',
+    queryName: 'query.records',
+    respond: async ({ services, params }) => ({
+      brief: await composeBrief(services.db, uuid(params.projectId, 'project'), params.code ?? ''),
+    }),
   },
   {
     path: '/api/projects/:projectId/versions/:versionId/readiness',

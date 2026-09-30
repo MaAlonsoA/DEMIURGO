@@ -201,10 +201,12 @@ export function Checks({
   return (
     <section aria-labelledby={id} className="flex flex-col gap-3">
       <H id={id} className="text-lg font-semibold text-fg">
-        {t.checksTitle} <span className="font-normal text-fg-2">· {criteria.length}</span>
+        {t.checksTitle}{' '}
         {recording || checked > 0 ? (
-          <span className="ml-2 text-sm font-normal text-fg-2">{t.progress(checked, criteria.length)}</span>
-        ) : null}
+          <span className="font-normal text-fg-2">· {t.progress(checked, criteria.length)}</span>
+        ) : (
+          <span className="font-normal text-fg-2">· {criteria.length}</span>
+        )}
       </H>
       <CheckList criteria={criteria} readiness={readiness} recording={recording} />
     </section>

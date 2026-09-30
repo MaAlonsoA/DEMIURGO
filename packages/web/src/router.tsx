@@ -27,6 +27,7 @@ import { SignInScreen, safeNext } from './screens/sign-in/SignIn.tsx';
 import { AppRoot } from './shell/AppRoot.tsx';
 import { ProjectShell } from './shell/ProjectShell.tsx';
 import { JourneysScreen } from './screens/journeys/Journeys.tsx';
+import { BuildScreen } from './screens/build/Build.tsx';
 import { MapScreen } from './screens/map/Map.tsx';
 import { ModelsScreen, WorkspaceModelsScreen } from './screens/models/ModelsAndProviders.tsx';
 import { SourcesScreen } from './screens/sources/Sources.tsx';
@@ -138,6 +139,11 @@ const journeysRoute = createRoute({
     return j ? { j } : {};
   },
   component: JourneysScreen,
+});
+const buildRoute = createRoute({
+  getParentRoute: () => projectRoute,
+  path: '/build',
+  component: BuildScreen,
 });
 const recordRoute = createRoute({
   getParentRoute: () => projectRoute,
@@ -266,6 +272,7 @@ const routeTree = rootRoute.addChildren([
       originsRoute,
       mapRoute,
       journeysRoute,
+      buildRoute,
       recordRoute,
       newRecordRoute,
       newVersionRoute,

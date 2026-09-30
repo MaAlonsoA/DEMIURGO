@@ -1,0 +1,76 @@
+// Interface words of the Build page (FDR-BUI-002): the queue of ready tasks, Waiting and requests.
+
+import { messages } from '../../i18n/define.ts';
+
+export const BUILD = messages(
+  {
+    title: 'Build',
+    meta: 'The tasks that can be built now, in build order. Starting a build only records the request: nothing is launched yet.',
+    totals: (tasks: number, points: number) =>
+      `${tasks} ${tasks === 1 ? 'task' : 'tasks'} · about ${points} ${points === 1 ? 'point' : 'points'}`,
+    unsized: (n: number) => `${n} without size`,
+    repository: (path: string | null, branch: string) =>
+      path ? `Repository ${path}, branch ${branch}` : `No repository folder configured · branch ${branch}`,
+    queue: 'Ready to build',
+    empty: 'No task is ready to build. Approved tasks that wait on something are listed under Waiting.',
+    loading: 'Loading the build queue',
+    size: (size: string, points: number) => `${size} · ${points} ${points === 1 ? 'point' : 'points'}`,
+    noSize: 'No size',
+    checks: (n: number) => `${n} ${n === 1 ? 'check' : 'checks'}`,
+    ready: 'Ready',
+    requested: 'Requested by',
+    staleNote: 'Stale:',
+    start: 'Start build',
+    startLabel: (code: string) => `Start build of ${code}`,
+    withdraw: 'Withdraw',
+    withdrawLabel: (code: string) => `Withdraw the build request of ${code}`,
+    confirmTitle: (code: string) => `Start build of ${code}?`,
+    confirmBody:
+      'This records a build request with the current brief, your name and the time. Nothing is launched: no agent, process or worktree starts yet.',
+    confirm: 'Record the request',
+    requestedDone: (code: string) => `Build of ${code} requested.`,
+    withdrawn: (code: string) => `Build request of ${code} withdrawn.`,
+    waiting: 'Waiting',
+    waitingNote: 'Approved tasks not built yet that cannot be built now, and why.',
+    noWaiting: 'Nothing is waiting.',
+    stale: 'Stale requests',
+    staleSection: 'Open requests on tasks that were built or changed since.',
+    feature: 'Feature',
+    epic: 'Epic',
+  },
+  {
+    title: 'Construir',
+    meta: 'Las tareas que se pueden construir ya, en orden de construcción. Empezar una construcción solo apunta la petición: todavía no se lanza nada.',
+    totals: (tasks: number, points: number) =>
+      `${tasks} ${tasks === 1 ? 'tarea' : 'tareas'} · unos ${points} ${points === 1 ? 'punto' : 'puntos'}`,
+    unsized: (n: number) => `${n} sin tamaño`,
+    repository: (path: string | null, branch: string) =>
+      path ? `Repositorio ${path}, rama ${branch}` : `Sin carpeta de repositorio configurada · rama ${branch}`,
+    queue: 'Listas para construir',
+    empty: 'Ninguna tarea está lista para construir. Las tareas aprobadas que esperan algo están en En espera.',
+    loading: 'Cargando la cola de construcción',
+    size: (size: string, points: number) => `${size} · ${points} ${points === 1 ? 'punto' : 'puntos'}`,
+    noSize: 'Sin tamaño',
+    checks: (n: number) => `${n} ${n === 1 ? 'comprobación' : 'comprobaciones'}`,
+    ready: 'Lista',
+    requested: 'Pedida por',
+    staleNote: 'Caducada:',
+    start: 'Empezar construcción',
+    startLabel: (code: string) => `Empezar la construcción de ${code}`,
+    withdraw: 'Retirar',
+    withdrawLabel: (code: string) => `Retirar la petición de construcción de ${code}`,
+    confirmTitle: (code: string) => `¿Empezar la construcción de ${code}?`,
+    confirmBody:
+      'Esto apunta una petición de construcción con el encargo actual, tu nombre y la hora. No se lanza nada: todavía no arranca ningún agente, proceso ni worktree.',
+    confirm: 'Apuntar la petición',
+    requestedDone: (code: string) => `Construcción de ${code} pedida.`,
+    withdrawn: (code: string) => `Petición de construcción de ${code} retirada.`,
+    waiting: 'En espera',
+    waitingNote: 'Tareas aprobadas sin construir que no se pueden construir ahora, y por qué.',
+    noWaiting: 'No hay nada en espera.',
+    stale: 'Peticiones caducadas',
+    staleSection: 'Peticiones abiertas de tareas que se construyeron o cambiaron desde entonces.',
+    feature: 'Funcionalidad',
+    epic: 'Épica',
+  },
+);

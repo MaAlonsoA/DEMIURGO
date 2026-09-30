@@ -12,6 +12,7 @@ import {
   JourneyIcon,
   KeyIcon,
   KnowledgeIcon,
+  PlayIcon,
   ProductIcon,
   SourcesIcon,
   ThreadsIcon,
@@ -20,7 +21,7 @@ import type { Locale } from '../i18n/locale.ts';
 import { useSafeLocale } from '../words.ts';
 import { NAV_LABELS } from './words.i18n.ts';
 
-export type NavKey = 'needs' | 'threads' | 'epics' | 'product' | 'activity' | 'knowledge' | 'sources' | 'models' | 'keys' | 'repository';
+export type NavKey = 'needs' | 'threads' | 'epics' | 'product' | 'build' | 'activity' | 'knowledge' | 'sources' | 'models' | 'keys' | 'repository';
 
 export type NavItem = {
   key: NavKey;
@@ -64,6 +65,14 @@ export const NAV: NavItem[] = [
     icon: ProductIcon,
     group: 'work',
     match: /^(\/?$|\/(map|journeys|origins|records)(\/|$))/,
+  },
+  {
+    key: 'build',
+    label: 'Build',
+    to: '/p/$projectId/build',
+    icon: PlayIcon,
+    group: 'work',
+    match: /^\/build(\/|$)/,
   },
   {
     key: 'activity',

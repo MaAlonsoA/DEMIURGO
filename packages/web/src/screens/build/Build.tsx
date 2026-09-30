@@ -1,0 +1,256 @@
+// The project's Build page (FDR-BUI-002): the tasks that can be built now, in the server's build
+// order (never re-sorted here), with their size, checks and brief; "Start build" records a request
+// after one confirmation (nothing is launched), "Withdraw" closes it. Below, Waiting lists the approved
+// tasks that cannot be built yet with the server's reasons, and the open requests that went stale.
+
+import { useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
+import { useState } from 'react';
+import { useCommand } from '../../api/commands.ts';
+import { buildQueueQuery, projectsQuery } from '../../api/queries.ts';
+import type { QueueTask } from '../../api/types.ts';
+import { Code } from '../../components/Badge.tsx';
+import { Button } from '../../components/Button.tsx';
+import { ConfirmDialog } from '../../components/Dialog.tsx';
+import { EmptyState } from '../../components/EmptyState.tsx';
+import { PlayIcon } from '../../components/icons.tsx';
+import { ErrorNotice } from '../../components/Notice.tsx';
+import { PageBody, PageHeader, Section, usePageTitle } from '../../components/Page.tsx';
+import { Bone, Skeleton } from '../../components/Spinner.tsx';
+import { RelativeTime } from '../../components/Time.tsx';
+import { Who } from '../../components/Who.tsx';
+import { announce } from '../../components/announce.tsx';
+import { useMessages } from '../../i18n/define.ts';
+import { useProjectId } from '../../lib/hooks.ts';
+import { CopyBriefButton } from '../record/CopyBrief.tsx';
+import { BUILD } from './words.i18n.ts';
+
+type Words = typeof BUILD.en;
+
+function TaskLine({ projectId, task, t }: { projectId: string; task: QueueTask; t: Words }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <Link to="/p/$projectId/records/$code" params={{ projectId, code: task.code }} className="font-medium text-fg hover:underline">
+          {task.title}
+          <span className="ml-2 font-mono text-xs text-fg-3">{task.code}</span>
+        </Link>
+        <span className="text-sm tabular-nums text-fg-2" data-size>
+          {task.size && task.points !== null ? t.size(task.size, task.points) : t.noSize}
+        </span>
+        <span className="text-sm tabular-nums text-fg-3" data-checks>
+          {t.checks(task.checks)}
+        </span>
+      </div>
+      <p className="flex flex-wrap gap-x-2 text-sm text-fg-2">
+        {task.feature ? (
+          <span>
+            {t.feature} <Code>{task.feature.code}</Code> {task.feature.title}
+          </span>
+        ) : null}
+        {task.epic ? (
+          <>
+            <span aria-hidden>·</span>
+            <span>
+              {t.epic} <Code>{task.epic.code}</Code> {task.epic.title}
+            </span>
+          </>
+        ) : null}
+      </p>
+    </div>
+  );
+}
+
+function RequestState({ task, t }: { task: QueueTask; t: Words }) {
+  const r = task.request;
+  if (!r) return <span className="text-sm font-medium text-fg">{t.ready}</span>;
+  return (
+    <span className="flex flex-col gap-0.5 text-sm text-fg-2" data-requested>
+      <span className="flex flex-wrap items-center gap-x-1.5">
+        <Who actor={r.requested_by} size={16} prefix={t.requested} />
+        <span aria-hidden>,</span>
+        <RelativeTime iso={r.requested_at} />
+      </span>
+      {r.stale ? (
+        <span className="font-medium text-fg" data-stale>
+          {t.staleNote} {r.stale_reasons.join(' ')}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function Actions({ projectId, task, t, canStart }: { projectId: string; task: QueueTask; t: Words; canStart: boolean }) {
+  const [confirming, setConfirming] = useState(false);
+  const request = useCommand(projectId);
+  const withdraw = useCommand(projectId);
+  const start = () => {
+    if (request.isPending) return;
+    request.mutate(
+      { command: 'build_request.request', data: { task: task.code } },
+      {
+        onSuccess: () => {
+          setConfirming(false);
+          announce(t.requestedDone(task.code));
+        },
+      },
+    );
+  };
+  return (
+    <div className="flex flex-col items-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {canStart ? <CopyBriefButton projectId={projectId} code={task.code} size="sm" /> : null}
+        {task.request ? (
+          <Button
+            size="sm"
+            variant="quiet"
+            pending={withdraw.isPending}
+            disabled={withdraw.isPending}
+            aria-label={t.withdrawLabel(task.code)}
+            data-withdraw={task.code}
+            onClick={() =>
+              withdraw.mutate(
+                { command: 'build_request.withdraw', entityId: task.request?.id },
+                { onSuccess: () => announce(t.withdrawn(task.code)) },
+              )
+            }
+          >
+            {t.withdraw}
+          </Button>
+        ) : canStart ? (
+          <Button
+            size="sm"
+            variant="primary"
+            icon={<PlayIcon size={14} />}
+            aria-label={t.startLabel(task.code)}
+            data-start-build={task.code}
+            onClick={() => {
+              request.reset();
+              setConfirming(true);
+            }}
+          >
+            {t.start}
+          </Button>
+        ) : null}
+      </div>
+      {withdraw.error ? <ErrorNotice error={withdraw.error} compact /> : null}
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={(open) => {
+          if (!request.isPending) setConfirming(open);
+        }}
+        title={t.confirmTitle(task.code)}
+        description={<p>{t.confirmBody}</p>}
+        confirm={t.confirm}
+        onConfirm={start}
+        pending={request.isPending}
+        error={request.error}
+      />
+    </div>
+  );
+}
+
+export function BuildScreen() {
+  const t = useMessages(BUILD);
+  const projectId = useProjectId();
+  const queue = useQuery(buildQueueQuery(projectId));
+  const project = (useQuery(projectsQuery).data ?? []).find((p) => p.id === projectId);
+  usePageTitle([t.title, project?.name]);
+  const q = queue.data;
+
+  return (
+    <>
+      <PageHeader title={t.title} meta={t.meta} />
+      <PageBody className="flex flex-col gap-8">
+        {queue.error ? <ErrorNotice error={queue.error} /> : null}
+        {!q ? (
+          queue.isPending ? (
+            <Skeleton label={t.loading}>
+              <Bone className="h-6 w-64" />
+              <Bone className="h-16 w-full" />
+            </Skeleton>
+          ) : null
+        ) : (
+          <>
+            <Section
+              id="build-queue"
+              title={t.queue}
+              note={
+                <span className="flex flex-wrap gap-x-2 tabular-nums" data-build-totals>
+                  <span>{t.totals(q.totals.tasks, q.totals.points)}</span>
+                  {q.totals.unsized > 0 ? (
+                    <>
+                      <span aria-hidden>·</span>
+                      <span className="text-fg-3">{t.unsized(q.totals.unsized)}</span>
+                    </>
+                  ) : null}
+                  <span aria-hidden>·</span>
+                  <span className="text-fg-3">{t.repository(q.repository.path, q.repository.branch)}</span>
+                </span>
+              }
+            >
+              {q.ready.length === 0 ? (
+                <EmptyState title={t.empty} />
+              ) : (
+                <ol className="flex flex-col divide-y divide-edge-subtle rounded-lg border border-edge bg-panel px-4" data-build-queue>
+                  {q.ready.map((task) => (
+                    <li key={task.code} data-queue-task={task.code} className="flex flex-wrap items-start justify-between gap-3 py-3">
+                      <TaskLine projectId={projectId} task={task} t={t} />
+                      <div className="ml-auto flex flex-col items-end gap-2">
+                        <RequestState task={task} t={t} />
+                        <Actions projectId={projectId} task={task} t={t} canStart />
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </Section>
+
+            <Section id="build-waiting" title={t.waiting} note={t.waitingNote}>
+              {q.waiting.length === 0 ? (
+                <p className="text-sm text-fg-2">{t.noWaiting}</p>
+              ) : (
+                <ul className="flex flex-col divide-y divide-edge-subtle" data-build-waiting>
+                  {q.waiting.map((task) => (
+                    <li key={task.code} data-waiting-task={task.code} className="flex flex-wrap items-start justify-between gap-3 py-3">
+                      <div className="flex min-w-0 flex-col gap-1">
+                        <TaskLine projectId={projectId} task={task} t={t} />
+                        <ul className="flex list-disc flex-col gap-0.5 pl-5 text-sm text-fg-2">
+                          {task.reasons.map((r) => (
+                            <li key={r}>{r}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      {task.request ? (
+                        <div className="ml-auto flex flex-col items-end gap-2">
+                          <RequestState task={task} t={t} />
+                          <Actions projectId={projectId} task={task} t={t} canStart={false} />
+                        </div>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Section>
+
+            {q.stale.length > 0 ? (
+              <Section id="build-stale" title={t.stale} note={t.staleSection}>
+                <ul className="flex flex-col divide-y divide-edge-subtle" data-build-stale>
+                  {q.stale.map((task) => (
+                    <li key={task.code} className="flex flex-wrap items-start justify-between gap-3 py-3">
+                      <TaskLine projectId={projectId} task={task} t={t} />
+                      <div className="ml-auto flex flex-col items-end gap-2">
+                        <RequestState task={task} t={t} />
+                        <Actions projectId={projectId} task={task} t={t} canStart={false} />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </Section>
+            ) : null}
+          </>
+        )}
+      </PageBody>
+    </>
+  );
+}

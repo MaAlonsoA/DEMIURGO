@@ -13,7 +13,9 @@ import {
   type Section,
   findQuote,
   stageDefinition,
+  stageQuestionReference,
   system,
+  withReferenceOption,
 } from '@demiurgo/domain';
 import { sql } from 'kysely';
 import { loadAgentCatalog } from '../agents/catalog.ts';
@@ -164,6 +166,7 @@ export async function explorationPack({ trx, projectId, scope, input, graphVersi
           'conversation_option',
           'multiple',
           'shown_at',
+          'stage_key',
         ])
         .where('stage_id', '=', stage.id)
         .where('stage_key', 'is not', null)
@@ -578,7 +581,17 @@ export async function explorationPack({ trx, projectId, scope, input, graphVersi
               is_this_thread: stage.exploration_id === exploration.id,
               // Opened just now, when the previous stage passed: nobody has written about it yet.
               just_opened: input.stage_opened === stage.stage,
-              uncovered_mandatory_questions: stageQuestions.map((q) => ({ id: q.id, question: q.question, state: q.state })),
+              // The stage that passed right before this one opened (e.g. `quality`).
+              ...(input.stage_opened === stage.stage && typeof input.stage_passed === 'string' ? { previous_stage_passed: input.stage_passed } : {}),
+              uncovered_mandatory_questions: stageQuestions.map((q) => {
+                const ref = stage && q.stage_key ? stageQuestionReference(stage.stage, q.stage_key) : undefined;
+                return {
+                  id: q.id,
+                  question: q.question,
+                  state: q.state,
+                  ...(ref ? { reference_answer: { answer: ref.answer, source: ref.source } } : {}),
+                };
+              }),
             }
           : null,
         ...(nextStep ? { next_step: nextStep } : {}),
@@ -1069,17 +1082,29 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
     if (suggestion.options.length === 0 && !suggestion.question) continue;
     const q = await trx
       .selectFrom('questions')
-      .select(['state', 'exploration_id'])
+      .select(['state', 'exploration_id', 'stage_id', 'stage_key'])
       .where('id', '=', suggestion.question_id)
       .executeTakeFirst();
     if (q?.state !== 'pending') continue;
+    let options = suggestion.options;
+    if (q.stage_id && q.stage_key) {
+      const st = await trx.selectFrom('stages').select('stage').where('id', '=', q.stage_id).executeTakeFirst();
+      const reference = st ? stageQuestionReference(st.stage, q.stage_key) : undefined;
+      if (reference && options.length > 0) {
+        const gated = withReferenceOption(options, reference);
+        if (gated.added) {
+          options = gated.options as typeof options;
+          console.info(`[exploration-chat] reference option added by the system to question ${suggestion.question_id} (${st?.stage}/${q.stage_key})`);
+        }
+      }
+    }
     await execute({
       ...base,
       command: 'question.suggest_options',
       actor: system('exploration'),
       entityId: suggestion.question_id,
       data: {
-        options: suggestion.options,
+        options,
         multiple: suggestion.multiple,
         ...(suggestion.question ? { question: suggestion.question } : {}),
         ...(suggestion.reason ? { reason: suggestion.reason } : {}),

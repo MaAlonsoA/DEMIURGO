@@ -14,6 +14,20 @@ export type StageQuestion = {
   impact: 'high' | 'medium' | 'low';
   /** In a stage of principles, the label of its line in the definition section. */
   label?: string;
+  /**
+   * A well-founded answer the options of this question must include (the system adds it when the
+   * model leaves it out: structured output guarantees the schema, not the business rules).
+   */
+  reference?: ReferenceAnswer;
+};
+
+export type ReferenceAnswer = {
+  answer: string;
+  implies: string;
+  /** The real source of the answer, or which part is our convention. */
+  source: string;
+  /** Regex source, case-insensitive: an option that matches already covers the reference. */
+  mentions: string;
 };
 
 /**
@@ -124,6 +138,13 @@ export const STAGES: readonly StageDefinition[] = [
         question: 'Who must be able to use it without help, and what accessibility level is required (a named standard and level, or a task and time to do it)?',
         reason: 'Usability and accessibility are requirements, not polish.',
         impact: 'medium',
+        reference: {
+          answer: 'Meet WCAG 2.2 level AA in every screen, and complete the main tasks without help on a phone.',
+          implies: 'Every screen is checked against the WCAG 2.2 A and AA success criteria.',
+          source:
+            'W3C WCAG 2.2 (https://www.w3.org/TR/WCAG22/). WCAG defines levels A, AA and AAA without mandating one; AA is our convention unless a law applies.',
+          mentions: 'WCAG',
+        },
       },
       {
         key: 'data',
@@ -131,6 +152,14 @@ export const STAGES: readonly StageDefinition[] = [
         question: 'What data does it keep, for how long (a period), and who owns it?',
         reason: 'Retention and ownership affect storage, privacy and compliance.',
         impact: 'medium',
+        reference: {
+          answer:
+            'Keep my records with no automatic expiry while I want them; they are mine, and I can export or delete them at any time. Keep nothing that is not needed.',
+          implies: "Retention follows the owner's request; export and deletion are features.",
+          source:
+            'GDPR art. 5(1)(c) data minimisation, 5(1)(e) storage limitation, art. 17 erasure and art. 20 portability (https://gdpr-info.eu/art-5-gdpr/).',
+          mentions: '(export|portab).*(delet|eras)|(delet|eras).*(export|portab)',
+        },
       },
       {
         key: 'quality_scenarios',
@@ -306,3 +335,40 @@ export function nextStage(key: string): StageDefinition | null {
 
 /** States of a mandatory question that count as covered: confirmed, or discarded with a reason. */
 export const COVERED_QUESTION_STATES = ['confirmed', 'discarded'] as const;
+
+/** The reference answer of a stage question, if it has one. */
+export function stageQuestionReference(stageKey: string, questionKey: string): ReferenceAnswer | undefined {
+  return stageDefinition(stageKey)?.questions.find((q) => q.key === questionKey)?.reference;
+}
+
+type ReferenceOptionShape = { answer: string; implies: string; exclusive: boolean; recommended?: boolean; downside?: string };
+
+const OPTION_TEXT_MAX = 300;
+const clip = (text: string) => (text.length <= OPTION_TEXT_MAX ? text : `${text.slice(0, OPTION_TEXT_MAX - 1).trimEnd()}…`);
+
+/**
+ * Deterministic gate on the options prepared for a question: if none mentions the reference answer,
+ * adds it (at most 4 options: replaces the last non-recommended one when full). Pure.
+ */
+export function withReferenceOption<T extends ReferenceOptionShape>(
+  options: T[],
+  reference: ReferenceAnswer,
+): { options: (T | ReferenceOptionShape)[]; added: boolean } {
+  const re = new RegExp(reference.mentions, 'i');
+  if (options.some((o) => re.test(`${o.answer} ${o.implies}`))) return { options, added: false };
+  const option: ReferenceOptionShape = {
+    answer: clip(reference.answer),
+    implies: clip(`${reference.implies} Source: ${reference.source}`),
+    exclusive: false,
+    recommended: false,
+  };
+  const next: (T | ReferenceOptionShape)[] = [...options];
+  if (next.length < 4) next.push(option);
+  else {
+    let i = next.length - 1;
+    while (i >= 0 && (next[i] as ReferenceOptionShape).recommended) i--;
+    if (i < 0) return { options, added: false };
+    next[i] = option;
+  }
+  return { options: next, added: true };
+}

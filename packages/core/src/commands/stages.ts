@@ -57,7 +57,14 @@ registerHandlers({
   'stage.open': handler({
     // The stages live in the product's main thread: the one given, else the project's first root
     // thread, else a thread of their own (opened by the system, so it doesn't start the stages again).
-    data: z.object({ stage: z.string().trim().min(1).max(40), exploration_id: z.string().uuid().optional() }).strict(),
+    data: z
+      .object({
+        stage: z.string().trim().min(1).max(40),
+        exploration_id: z.string().uuid().optional(),
+        // The stage that just passed, when this one opens because of it (stage.pass).
+        after: z.string().trim().min(1).max(40).optional(),
+      })
+      .strict(),
     async apply(ctx, data, _e, to) {
       const def = stageDefinition(data.stage);
       if (!def) throw new Error(`Unknown stage ${data.stage}`);
@@ -114,7 +121,10 @@ registerHandlers({
       const exploration = thread.entityId;
       if (ctx.cause.sourceCommand !== 'exploration.open')
         ctx.afterCommit(() =>
-          ctx.services.engine.startDeferredRun(`stage_opened:${id}`, ctx.projectId, exploration, { stage_opened: def.key }),
+          ctx.services.engine.startDeferredRun(`stage_opened:${id}`, ctx.projectId, exploration, {
+            stage_opened: def.key,
+            ...(data.after ? { stage_passed: data.after } : {}),
+          }),
         );
       return { entityId: id, after: { stage: def.key, exploration } };
     },
@@ -140,7 +150,7 @@ registerHandlers({
           command: 'stage.open',
           actor: system('design'),
           projectId: ctx.projectId,
-          data: { stage: next.key, ...(thread ? { exploration_id: thread } : {}) },
+          data: { stage: next.key, after: stage, ...(thread ? { exploration_id: thread } : {}) },
         });
         // The new stage's introduction is requested by stage.open (deferred until knowledge is up to date).
       }

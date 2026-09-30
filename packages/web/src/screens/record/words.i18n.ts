@@ -30,6 +30,7 @@ export const HEADER = messages(
     approvedBy: 'Approved by ',
     you: 'you',
     newVersion: 'New version',
+    reviewInThread: 'Review in a thread',
     approveTitle: (_n: number, title: string) => `Approve “${title}”?`,
     approveDescription: (current: number | null, n: number) =>
       `It is settled: DEMIURGO and the next steps build on it${current !== null && current < n ? `, instead of what was approved before` : ''}.`,
@@ -50,6 +51,7 @@ export const HEADER = messages(
     approvedBy: 'Aprobado por ',
     you: 'tú',
     newVersion: 'Nueva versión',
+    reviewInThread: 'Revisar en un hilo',
     approveTitle: (_n: number, title: string) => `¿Aprobar «${title}»?`,
     approveDescription: (current: number | null, n: number) =>
       `Queda asentada: DEMIURGO y los siguientes pasos parten de ella${current !== null && current < n ? ', en lugar de lo aprobado antes' : ''}.`,

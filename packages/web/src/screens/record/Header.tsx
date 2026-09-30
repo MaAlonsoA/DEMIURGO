@@ -8,7 +8,7 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { type ReactNode, useState } from 'react';
 import { ApiError } from '../../api/client.ts';
 import { useCommand } from '../../api/commands.ts';
-import { keys, readinessQuery } from '../../api/queries.ts';
+import { explorationsQuery, keys, readinessQuery } from '../../api/queries.ts';
 import { canCreate } from '../../api/tables.ts';
 import type { RecordDetail, RecordType, RecordVersion } from '../../api/types.ts';
 import { ActionButtons, useActions } from '../../components/actions.tsx';
@@ -120,6 +120,31 @@ export function RecordHeader({
   const canApprove = !earlier && actions.some((a) => a.command === 'record_version.approve');
   const newVersion = !earlier && record.versions.length > 0 && !!tables && canCreate(tables, 'record_version.create');
 
+  // Review it in a thread: a thread whose origin is the record's current version, where its agent can
+  // propose the formal change. An active one is reused.
+  const explorations = useQuery({ ...explorationsQuery(projectId), enabled: !!lean });
+  const reviewed = record.versions.find((v) => v.current);
+  const canReview = !!reviewed && !!tables && canCreate(tables, 'exploration.open');
+  const reviewInThread = () => {
+    if (!reviewed) return;
+    const go = (explorationId: string) =>
+      void navigate({ to: '/p/$projectId/threads/$explorationId', params: { projectId, explorationId } });
+    const existing = explorations.data?.find(
+      (e) => e.state !== 'concluded' && e.origin_type === 'record_version' && e.origin_id === reviewed.id,
+    );
+    if (existing) return go(existing.id);
+    command.mutate(
+      {
+        command: 'exploration.open',
+        data: {
+          purpose: `Review ${record.code} v${reviewed.n}: a change the person wants to make`.slice(0, 1000),
+          origin: { type: 'record_version', id: reviewed.id, version: reviewed.n },
+        },
+      },
+      { onSuccess: (r) => go(r.entity_id) },
+    );
+  };
+
   const open = (d: Dialog) => {
     command.reset();
     focus.capture();
@@ -228,6 +253,11 @@ export function RecordHeader({
                     }
                   >
                     {t.newVersion}
+                  </MenuItem>
+                ) : null}
+                {canReview ? (
+                  <MenuItem icon={<PencilIcon size={14} />} onSelect={reviewInThread}>
+                    {t.reviewInThread}
                   </MenuItem>
                 ) : null}
                 {actions.some((a) => a.command === 'record_version.discard') ? (

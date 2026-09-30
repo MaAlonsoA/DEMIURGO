@@ -24,6 +24,7 @@ import type { Db, Tx } from '../db/connection.ts';
 import { registerApplier, registerChecker } from './appliers.ts';
 import { designThreadOf } from './drafting.ts';
 import { taskCoversOf } from '../queries/sizes.ts';
+import { screensOfFeatureVersion } from '../design/screens.ts';
 import { revealQuestions } from '../commands/exploration.ts';
 import { definitionChangeProposal } from '../definition/compose.ts';
 
@@ -259,6 +260,12 @@ export async function explorationPack({ trx, projectId, scope, input, graphVersi
         .orderBy('position')
         .execute()
     : [];
+  // The screen design that follows a feature version (its screens, by name, step and component): what a
+  // change to the feature would touch, for an exact impact analysis. Its tasks are in `feature_tasks`.
+  const aboutScreens =
+    about?.type === 'fdr'
+      ? await screensOfFeatureVersion(trx, projectId, { code: about.code, version: about.n })
+      : null;
   const aboutRecord = about
     ? {
         code: about.code,
@@ -282,6 +289,24 @@ export async function explorationPack({ trx, projectId, scope, input, graphVersi
             }
           : {}),
         ...(epicFeatures ? { features: epicFeatures } : {}),
+        ...(aboutScreens
+          ? {
+              dependents: {
+                screen_design: {
+                  code: aboutScreens.code,
+                  version: aboutScreens.version,
+                  state: aboutScreens.state,
+                  no_ui: aboutScreens.no_ui,
+                  screens: (aboutScreens.spec?.screens ?? []).map((s) => ({
+                    id: s.id,
+                    name: s.name,
+                    steps: s.steps,
+                    components: s.components,
+                  })),
+                },
+              },
+            }
+          : {}),
       }
     : null;
   // A feature thread (`Design "<name>" (FDR-…, EPC-…): …`): the planned feature it designs, while it is planned.

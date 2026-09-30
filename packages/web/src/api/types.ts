@@ -108,7 +108,8 @@ export type RecordType =
   | 'quality_requirement'
   | 'threat_model'
   | 'production_readiness'
-  | 'product_definition';
+  | 'product_definition'
+  | 'design_system';
 
 /** Where a section of the product definition comes from, and how the person settled its question. */
 export type DefinitionSource = {

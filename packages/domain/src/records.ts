@@ -13,6 +13,7 @@ export const RECORD_TYPES = [
   'threat_model',
   'production_readiness',
   'product_definition',
+  'design_system',
 ] as const;
 export type RecordType = (typeof RECORD_TYPES)[number];
 
@@ -28,6 +29,7 @@ export const RECORD_PREFIX: Record<RecordType, string> = {
   threat_model: 'THR',
   production_readiness: 'PRR',
   product_definition: 'DEF',
+  design_system: 'DSY',
 };
 
 // Cockburn, Writing Effective Use Cases: "Use 3 to 9 steps" in the main success scenario.
@@ -62,6 +64,13 @@ export const RECORD_TEMPLATES: Record<RecordType, { sections: readonly string[];
   // stage's confirmed answers (domain/definition.ts). One per project; its changes are versions.
   product_definition: {
     sections: ['Purpose', 'Outcomes', 'Principles', 'Users', 'Problem', 'First version', 'Out of scope', 'Constraints'],
+    requiresCriteria: false,
+  },
+  // How the product looks and moves: one per project, versioned. Its machine-readable part (tokens,
+  // components, patterns) is the version's `spec` (domain/design-system.ts). Sections are our
+  // convention, taken from what Material 3, Carbon and Atlassian document.
+  design_system: {
+    sections: ['Principles', 'Visual direction', 'Tokens', 'Components', 'Patterns', 'Motion', 'Accessibility', 'Governance'],
     requiresCriteria: false,
   },
 };

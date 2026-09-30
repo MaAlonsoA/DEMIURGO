@@ -47,6 +47,8 @@ export const NEW_RECORD = messages(
           production_readiness: 'How it rolls out and back, how it is monitored, how it fails and scales, and who supports it.',
           product_definition:
             'What the product is, what it builds first and how: composed from the answers of the product definition stage.',
+          design_system:
+            'How the product looks and moves: principles, tokens, components, patterns, motion and accessibility.',
         }) as Record<RecordType, string>
       )[type],
   },
@@ -94,6 +96,8 @@ export const NEW_RECORD = messages(
           production_readiness: 'Cómo se despliega y se revierte, cómo se vigila, cómo falla y escala, y quién lo soporta.',
           product_definition:
             'Qué es el producto, qué construye primero y cómo: se compone con las respuestas de la etapa de definición.',
+          design_system:
+            'Cómo se ve y se mueve el producto: principios, tokens, componentes, patrones, movimiento y accesibilidad.',
         }) as Record<RecordType, string>
       )[type],
   },

@@ -199,6 +199,7 @@ export const TYPE_WORDS: Record<RecordType, string> = {
   threat_model: 'Threat model',
   production_readiness: 'Production readiness',
   product_definition: 'Product definition',
+  design_system: 'Design system',
 };
 
 export const TYPE_WORDS_PLURAL: Record<RecordType, string> = {
@@ -213,6 +214,7 @@ export const TYPE_WORDS_PLURAL: Record<RecordType, string> = {
   threat_model: 'Threat models',
   production_readiness: 'Production readiness',
   product_definition: 'Product definition',
+  design_system: 'Design system',
 };
 
 /** Failure kinds of a run, in product words. */
@@ -443,6 +445,7 @@ const TYPE_WORDS_ES: Record<RecordType, string> = {
   threat_model: 'Modelo de amenazas',
   production_readiness: 'Preparación para producción',
   product_definition: 'Definición del producto',
+  design_system: 'Sistema de diseño',
 };
 
 const TYPE_WORDS_PLURAL_ES: Record<RecordType, string> = {
@@ -457,6 +460,7 @@ const TYPE_WORDS_PLURAL_ES: Record<RecordType, string> = {
   threat_model: 'Modelos de amenazas',
   production_readiness: 'Preparación para producción',
   product_definition: 'Definición del producto',
+  design_system: 'Sistemas de diseño',
 };
 
 /** TYPE_WORDS in the language given. */

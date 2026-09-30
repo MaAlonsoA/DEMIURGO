@@ -12,6 +12,7 @@ export function isAspect(v: unknown): v is Aspect {
 
 const TYPE_ASPECT: Record<string, Aspect> = {
   product_definition: 'product',
+  design_system: 'product',
   epic: 'epic',
   fdr: 'feature',
   task: 'feature',
@@ -24,6 +25,7 @@ const TYPE_ASPECT: Record<string, Aspect> = {
 
 const CODE_PREFIX_TYPE: Record<string, string> = {
   DEF: 'product_definition',
+  DSY: 'design_system',
   EPC: 'epic',
   FDR: 'fdr',
   TSK: 'task',

@@ -332,6 +332,7 @@ export type VersionsTable = {
   author: string;
   content_hash: string;
   practice_sources: NullableJson;
+  spec: NullableJson;
   state: string;
   created_at: Generated<Timestamp>;
   approved_at: NullableTimestamp;

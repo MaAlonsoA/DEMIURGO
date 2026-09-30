@@ -290,6 +290,7 @@ const quoted = (s: string) => `“${s}”`;
 /** The order in which "It led to …" lists what came from a thread. */
 const LED_TO_ORDER: RecordType[] = [
   'product_definition',
+  'design_system',
   'decision',
   'epic',
   'fdr',

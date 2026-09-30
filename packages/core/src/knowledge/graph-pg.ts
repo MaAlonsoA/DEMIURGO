@@ -17,6 +17,7 @@ const TYPES_WITH_AUTHORITY = new Set([
   'threat_model',
   'production_readiness',
   'product_definition',
+  'design_system',
   'criterion',
 ]);
 

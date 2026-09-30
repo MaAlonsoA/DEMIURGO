@@ -224,7 +224,7 @@ const MAX_RELATED = 8;
 
 /**
  * What knowledge found describes the same behavior, data or component as the record being built
- * (its `related` edges, and its feature's): built first, with the commit of its latest evidence.
+ * (its `related` edges): built first, with the commit of its latest evidence.
  * The brief names them so the coding agent reuses that code instead of writing a second version.
  */
 async function relatedWork(db: Db, projectId: string, codes: readonly string[], rows: Rows): Promise<string[]> {
@@ -325,7 +325,8 @@ export async function composeBrief(
     const built = (c: string) => rows.byCode.get(c)?.implementation === 'implemented';
     lines.push(`Depends on: ${needs.map((c) => `${c} (${built(c) ? 'built' : 'not built yet'})`).join(', ')}.`);
   }
-  const related = await relatedWork(db, projectId, [row.code, ...(feature ? [feature.code] : [])], rows);
+  // Only the record's own edges: its feature's are too broad to point at the code to reuse.
+  const related = await relatedWork(db, projectId, [row.code], rows);
   if (related.length > 0) {
     lines.push('Related work: it covers the same behavior; reuse or extend its code, do not write a second version:', ...related);
   }

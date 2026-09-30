@@ -8,6 +8,7 @@ const empty: InceptionInput = {
   definitionProposal: false,
   pending: [],
   designSystemThread: null,
+  capabilityThreads: [],
   designSystem: null,
   epics: [],
   features: [],

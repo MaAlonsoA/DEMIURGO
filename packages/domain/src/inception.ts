@@ -90,6 +90,8 @@ export type InceptionInput = {
   pending: { type: string; batch: string }[];
   /** The active thread where the design system is being designed, if any. */
   designSystemThread: string | null;
+  /** Active threads opened to design a capability (an epic or a feature) of the first version, oldest first. */
+  capabilityThreads: string[];
   designSystem: InceptionRecord | null;
   epics: InceptionRecord[];
   /** Features (FDR) in order: the first of the first epic, else the oldest. */
@@ -218,7 +220,9 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       action: () =>
         (input.epics.length > 0
           ? draftOf(draftEpic)
-          : draftOf(draftFeature)) ?? pendingOf("epic", "fdr") ?? {
+          : draftOf(draftFeature)) ??
+        pendingOf("epic", "fdr") ??
+        (input.capabilityThreads[0] ? { kind: "thread", thread: input.capabilityThreads[0] } : null) ?? {
           kind: "plan_backlog",
           thread: stage("requirements")?.thread ?? null,
         },

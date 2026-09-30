@@ -181,6 +181,18 @@ export async function inceptionOf(
           .orderBy("created_at", "desc")
           .executeTakeFirst()
       )?.id ?? null,
+    capabilityThreads: (
+      await db
+        .selectFrom("explorations as e")
+        .innerJoin("stages as s", "s.exploration_id", "e.parent_id")
+        .select("e.id")
+        .where("e.project_id", "=", projectId)
+        .where("s.stage", "=", "requirements")
+        .where("e.state", "=", "active")
+        .where("e.purpose", "not like", "Design system:%")
+        .orderBy("e.created_at")
+        .execute()
+    ).map((e) => e.id),
     definitionProposal: Boolean(
       await db
         .selectFrom("proposals")

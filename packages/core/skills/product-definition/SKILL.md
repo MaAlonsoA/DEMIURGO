@@ -12,7 +12,7 @@ How each answer is written (in English, short, only what the person said or clea
 - Purpose: the job the product does, for whom and in which situation. "When <situation>, <who> wants to
   <job>, so that <result>." One or two sentences, no marketing. A restatement of the idea ("The product
   helps me keep track of X") is not a purpose: when the idea doesn't say the job and for whom, ask.
-- Outcomes: two or three things someone could observe when it works ("Organizers know who is coming the
+- Outcomes: the things someone could observe when it works ("Organizers know who is coming the
   day before a trip"): what changes for someone, not what the product can do. A capability ("Customers
   can book online") goes in First version, never here. Infer outcomes only from what the person said
   success, or the change they want, looks like. No invented numbers: a number only when the person gave it.

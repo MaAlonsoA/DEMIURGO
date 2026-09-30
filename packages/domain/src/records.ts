@@ -30,7 +30,7 @@ export const RECORD_PREFIX: Record<RecordType, string> = {
   product_definition: 'DEF',
 };
 
-/** A feature is small (INVEST): one limit of criteria, the same in the agents' prompts. */
+/** Temporary convention (not from INVEST, which sets no number): a cap on criteria per feature, to be replaced by size-based splitting (T-shirt size, SPIDR). */
 export const MAX_FDR_CRITERIA = 8;
 
 export const RECORD_TEMPLATES: Record<RecordType, { sections: readonly string[]; requiresCriteria: boolean }> = {

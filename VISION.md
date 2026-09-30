@@ -58,8 +58,9 @@ sistema aplica reglas fijas: quién puede hacer qué y qué cambios de estado es
 
 **Como lo haría un equipo profesional de primer nivel.** DEMIURGO replica cómo trabaja un equipo de
 desarrollo real y de primer nivel. Cada cosa que propone, muestra o guía sigue una práctica real con
-nombre (por ejemplo, criterios Dado/Cuando/Entonces o *walking skeleton*). No inventa procesos que
-ningún equipo serio usaría. Es el criterio para decidir qué diseñar en la v3 y para revisar lo que
+nombre (por ejemplo, criterios Dado/Cuando/Entonces o *walking skeleton*), con su fuente citada. No inventa
+procesos que ningún equipo serio usaría ni presenta como estándar un número sin fuente: lo que es
+convención nuestra se dice así. Es el criterio para decidir qué diseñar en la v3 y para revisar lo que
 ya existe.
 
 **Cada cosa en su sitio.** Una propuesta sobre un registro se decide en su ficha. Una pregunta, en su
@@ -114,24 +115,27 @@ solo.
 2. **Metas de calidad.** Cada meta lleva un número. Una meta sin número no se da por buena: se
    pregunta el número (por ejemplo, «¿cuánto trabajo guardado puedes perder como mucho?»).
 3. **Principios de arquitectura y seguridad.** El arranque deja principios, no decisiones. Una
-   decisión necesita algo en lo que basarse y dos opciones reales.
+   decisión necesita algo en lo que basarse y dos opciones reales (convención nuestra).
 
 Después se diseña la primera funcionalidad. La **arquitectura** real se abre cuando hay al menos una
 funcionalidad aprobada. La **seguridad** se analiza antes de construir, junto a la arquitectura: es
 el modelo de amenazas (qué puede salir mal y cómo se evita, con el método STRIDE del SDL de
-Microsoft). No repite preguntas ya contestadas en la definición. Cada mitigación se convierte en un
+Microsoft; fuente: Microsoft Security Development Lifecycle). No repite preguntas ya contestadas en la definición. Cada mitigación se convierte en un
 criterio de la funcionalidad o la tarea que la construye.
 
 ### Walking skeleton
 
-La primera funcionalidad se diseña y se construye de punta a punta con la infraestructura mínima,
-antes de ensanchar. Ese *walking skeleton* (esqueleto que ya camina) demuestra que el recorrido
+Solo la primera funcionalidad del proyecto se diseña y se construye de punta a punta con la
+infraestructura mínima, antes de ensanchar (Alistair Cockburn; Freeman y Pryce, *Growing
+Object-Oriented Software, Guided by Tests*). Ese *walking skeleton* (esqueleto que ya camina) demuestra que el recorrido
 entero funciona. La infraestructura necesaria entra como tareas de esa funcionalidad, no como un
 proyecto aparte.
 
 ### Épicas y backlog
 
-Una épica agrupa funcionalidades que juntas cumplen una capacidad. Tiene:
+Una épica agrupa funcionalidades que juntas cumplen una capacidad (una épica es una historia
+demasiado grande para una iteración; Mike Cohn). En DEMIURGO solo existe cuando una capacidad no cabe
+en una funcionalidad (convención nuestra). Tiene:
 
 - **Objetivo**, que nombra el resultado de la definición al que sirve.
 - **Fuera de alcance**, lo que deja fuera a propósito, para poder decir que no a lo que se cuela.
@@ -140,33 +144,42 @@ Una épica agrupa funcionalidades que juntas cumplen una capacidad. Tiene:
   construidas).
 - Sus funcionalidades, que son registros desde que se listan, en el orden que decide la persona.
 
-Las épicas forman un **backlog** (lista ordenada de trabajo pendiente) cuyo orden fija la persona. Ese
+Las épicas forman un **backlog** (lista ordenada de trabajo pendiente; Scrum Guide) cuyo orden fija la persona. Ese
 orden manda en la cola de construcción. Una épica crece por versiones.
 
 La épica es la unidad de entrega: el conjunto de trabajo que se entrega junto. No existe un «Change
 Set» aparte ni estados propios para él; bastan el estado de la épica y los de sus funcionalidades.
 
-Una funcionalidad está **comprometida** cuando está aprobada y ocupa un lugar en el orden de su
-épica. Antes es una propuesta revisable, no trabajo prometido.
+Una funcionalidad está **planificada** cuando está aprobada y ocupa un lugar en el orden de su
+épica. Antes es una propuesta revisable, no trabajo prometido. (Se dice «planificada» y no
+«comprometida»: la Scrum Guide dejó de hablar de compromiso para los elementos del backlog en 2011.)
 
 ### Funcionalidades
 
-Una funcionalidad es una **historia** pequeña que aporta algo útil al usuario. Se escribe así:
+Una funcionalidad es una **historia** que aporta algo útil al usuario. Se escribe así:
 
-- **Comportamiento**: el flujo principal de un caso de uso, en 4 a 7 pasos numerados.
+- **Comportamiento**: el flujo principal de un caso de uso, en 3 a 9 pasos numerados (Alistair
+  Cockburn, *Writing Effective Use Cases*).
 - **Criterios de aceptación**: cada uno en formato Dado/Cuando/Entonces (BDD, desarrollo guiado por
-  comportamiento) y ligado al paso que comprueba.
-- **Como mucho 8 criterios** (INVEST: historias independientes, pequeñas y comprobables). Si no cabe,
-  se divide en varias funcionalidades de su épica.
-- **Definition of Ready** (lista para construir): ningún paso sin criterio.
+  comportamiento; Dan North) y ligado al paso que comprueba. Ligar cada criterio a un paso es
+  convención nuestra.
+- **Pequeña y comprobable** (INVEST, Bill Wake: la historia debe ser *Small* y *Testable*). INVEST no
+  fija un número de criterios y aquí no hay tope. El agente estima su talla (XS a XL) y, si es XL (no
+  cabe en una iteración), la divide con patrones de división de historias (SPIDR, Mike Cohn; patrones
+  de Richard Lawrence) en varias funcionalidades de su épica.
+- **Definition of Ready** (lista para construir): ningún paso sin criterio. La Scrum Guide deja la
+  Definition of Ready y la Definition of Done a cada equipo, así que su contenido es convención
+  nuestra.
 
 La funcionalidad incluye el detalle de experiencia, datos o contratos que haga falta para
 construirla y comprobarla. No hay documentos paralelos de requisitos ni de diseño detallado.
 
 ### Decisiones (ADR)
 
-Un ADR recoge una decisión de arquitectura con opciones reales y consecuencias: contexto, opciones,
-elección, motivo y consecuencias. Solo se crea cuando hace falta. Se basa en una funcionalidad o en
+Un ADR recoge una decisión de arquitectura con opciones reales y consecuencias, en el formato MADR
+(Markdown Architectural Decision Records: contexto, opciones, elección, motivo y consecuencias; no la
+plantilla original de Nygard, que no lleva opciones). Que haya al menos dos opciones reales es
+convención nuestra. Solo se crea cuando hace falta. Se basa en una funcionalidad o en
 una restricción u objetivo de la definición. Una regla técnica nueva no se decide de forma implícita
 al escribir una funcionalidad.
 
@@ -181,22 +194,27 @@ revisa): cada opción trae su coste y una va marcada como recomendada.
 Una tarea es un trozo de implementación de una funcionalidad. Tiene objetivo, alcance, tamaño (XS a
 XL; solo una persona lo cambia) y `covers`: los códigos de los criterios de su funcionalidad que
 cubre. No tiene criterios propios: los criterios viven en la funcionalidad. Todo criterio de una
-funcionalidad debe estar cubierto por alguna tarea.
+funcionalidad debe estar cubierto por alguna tarea. Convención nuestra, para la trazabilidad de
+requisito a implementación: que las tareas listen los criterios que cubren y que los puntos sean
+XS=1, S=2, M=3, L=5, XL=8 (tallas relativas, nunca duración).
 
 Las tareas no se clasifican por área técnica (frontend, backend) ni por dominio funcional. La
 etiqueta de aspecto y el código de la épica ya dicen de qué parte del producto se trata.
 
 ### Construcción y evidencia
 
-- **GitHub flow**: cada tarea tiene su rama y su pull request. No se usa GitFlow.
-- **ATDD** (pruebas de aceptación primero): cada criterio automático tiene una prueba cuyo título
-  empieza por su código.
+- **GitHub flow** (documentación de GitHub): cada tarea tiene su rama y su pull request. No se usa
+  GitFlow.
+- **ATDD** (pruebas de aceptación primero): cada criterio automático tiene una prueba. Que su título
+  empiece por el código del criterio es convención nuestra.
 - La **evidencia** la registra DEMIURGO sola desde la integración continua (CI): el resultado de
   cada prueba del pull request, con su enlace. Es del criterio, no de la tarea. No se escribe a mano.
 - **El agente construye solo.** DEMIURGO lanza el agente de cada tarea en el orden del backlog; el
-  agente trabaja en su rama y abre el pull request. Si todas las pruebas de CI pasan, se fusiona sin
-  esperar a la persona y la tarea queda hecha. Si algo falla, el agente lo intenta arreglar y, si no
-  puede, se lo muestra a la persona en la ficha de la tarea.
+  agente trabaja en su rama y abre el pull request. Un agente revisor lo revisa como lo haría un
+  compañero. Si lo aprueba y todas las comprobaciones de CI pasan, el pull request se fusiona solo y
+  la tarea queda hecha. Es decisión de la persona y está cerca del GitHub flow, que exige una
+  aprobación antes de fusionar (documentación de GitHub). Si algo falla o el revisor no aprueba, el
+  agente lo intenta arreglar y, si no puede, se lo muestra a la persona en la ficha de la tarea.
 - Una tarea hecha no demuestra por sí sola que se cumplan sus criterios. La evidencia vale para el
   resultado concreto que se comprobó.
 
@@ -206,8 +224,10 @@ Una aplicación tiene calidad de producción cuando cumple los estándares por d
 serio, comprobados sobre una versión concreta:
 
 - todos los criterios de aceptación tienen su prueba en verde;
-- no hay vulnerabilidades altas ni críticas (OWASP Top 10, análisis de dependencias);
-- accesibilidad WCAG 2.2 AA en las interfaces;
+- no hay vulnerabilidades altas ni críticas y se cumple OWASP ASVS nivel 2, el recomendado para la
+  mayoría de las aplicaciones (OWASP Application Security Verification Standard; el Top 10 es solo
+  concienciación), más análisis de dependencias;
+- accesibilidad WCAG 2.2 AA en las interfaces (W3C);
 - se cumplen las metas de calidad con número de la definición.
 
 Una excepción solo vale si la persona la acepta por escrito, con su motivo. Una valoración favorable
@@ -217,14 +237,14 @@ de la IA no basta.
 
 - Cómo se entrega depende del tipo de aplicación: una web se despliega y aloja; un juego o una
   herramienta se distribuye de otra forma. El alojamiento web es una opción, no un requisito.
-- **Observabilidad** como en cualquier servicio serio: registros, métricas y trazas (OpenTelemetry)
+- **Observabilidad** como en cualquier servicio serio: registros, métricas y trazas (OpenTelemetry, CNCF)
   de la aplicación entregada, alertas sobre sus metas de calidad, y cada incidencia convertida en
   algo que la persona entiende por su efecto en el producto. El trabajo de la IA se ve igual: estado,
   bloqueos y consumo de cada ejecución.
 
 ### Revisión y cambios
 
-El diseño se revisa como un RFC dentro de DEMIURGO, no en ramas:
+El diseño se revisa como un RFC dentro de DEMIURGO, no en ramas (práctica de RFC de equipos de ingeniería):
 
 - Un registro pasa de borrador a aprobado. Ese paso es la revisión del diseño.
 - El borrador muestra «Cambios desde la vN» sección a sección, como el diff de un pull request, con
@@ -245,8 +265,8 @@ Los códigos sirven para enlazar y versionar; la persona ve primero el nombre. E
 | --- | --- | --- | --- |
 | DEF | Definición del producto | Propósito, usuarios, problema, funcionalidades de la primera versión, fuera de alcance, restricciones, metas de calidad con número, principios de arquitectura y seguridad | La idea y las respuestas de la persona |
 | EPC | Épica | Objetivo, fuera de alcance, terminada cuando, estado y funcionalidades en orden | La definición |
-| FDR | Funcionalidad | Flujo principal en 4–7 pasos y hasta 8 criterios Dado/Cuando/Entonces ligados a sus pasos | Su épica o la definición |
-| ADR | Decisión de arquitectura | Contexto, opciones, elección, motivo y consecuencias | Una funcionalidad o una restricción u objetivo de la definición |
+| FDR | Funcionalidad | Flujo principal en 3–9 pasos y criterios Dado/Cuando/Entonces ligados a sus pasos | Su épica o la definición |
+| ADR | Decisión de arquitectura | Contexto, opciones, elección, motivo y consecuencias (MADR) | Una funcionalidad o una restricción u objetivo de la definición |
 | TSK | Tarea | Objetivo, alcance, tamaño XS–XL y `covers` (criterios que cubre) | Su funcionalidad aprobada |
 | AC | Criterio de aceptación | Una condición observable Dado/Cuando/Entonces, con su código y el paso que comprueba | Vive dentro de su funcionalidad; no es un documento aparte |
 
@@ -308,21 +328,21 @@ conformidad ni certificación.
 
 | Término | Significado |
 | --- | --- |
-| ADR | Architecture Decision Record: registro de una decisión de arquitectura con opciones y consecuencias. |
+| ADR | Architecture Decision Record: registro de una decisión de arquitectura con opciones y consecuencias (formato MADR). |
 | ATDD | Acceptance Test-Driven Development: cada criterio automático tiene su prueba, escrita a partir del criterio. |
 | Backlog | Lista ordenada del trabajo pendiente; aquí, las épicas en el orden que fija la persona. |
-| Comprometida | Funcionalidad aprobada que ocupa un lugar en el orden de su épica. |
+| Planificada | Funcionalidad aprobada que ocupa un lugar en el orden de su épica. |
 | Criterio de aceptación (AC) | Condición observable Dado/Cuando/Entonces que debe cumplirse para aceptar una funcionalidad. |
-| Definition of Ready | Condición para empezar a construir: ningún paso de la funcionalidad sin criterio. |
+| Definition of Ready | Condición para empezar a construir. Su contenido lo decide cada equipo (Scrum Guide); el nuestro: ningún paso de la funcionalidad sin criterio. |
 | Encargo | El texto que recibe quien construye una tarea: qué hacer, qué criterios cubre y qué ya existe. |
 | Épica (EPC) | Conjunto ordenado de funcionalidades para una capacidad que no cabe en una sola; es la unidad de entrega. |
 | Evidencia | Prueba de que un criterio se cumple: el pull request y la prueba que lo comprueba. |
-| Funcionalidad (FDR) | Historia pequeña con flujo principal en pasos y hasta 8 criterios. |
-| GitHub flow | Una rama y un pull request por cambio, que se integra tras revisarlo. |
+| Funcionalidad (FDR) | Historia pequeña y comprobable (INVEST) con flujo principal en 3 a 9 pasos y sus criterios. |
+| GitHub flow | Una rama y un pull request por cambio, que se fusiona tras aprobarse y pasar la CI. Aquí lo aprueba un agente revisor (decisión de la persona). |
 | Hilo | Conversación con los agentes sobre un tema; de ella salen preguntas y propuestas. |
-| INVEST | Regla para historias: independientes, negociables, valiosas, estimables, pequeñas y comprobables. |
+| INVEST | Regla para historias (Bill Wake): independientes, negociables, valiosas, estimables, pequeñas (*Small*) y comprobables (*Testable*). No fija un número de criterios. |
 | Propuesta | Cómo llega cualquier cosa de la IA; no vale nada hasta que la persona la acepta o la aprueba. |
 | RFC | Request for Comments: documento de propuesta que el equipo revisa antes de aprobarlo. |
 | STRIDE / SDL | Método de Microsoft para buscar amenazas de seguridad en el diseño, antes de construir. |
 | Tarea (TSK) | Trozo de implementación de una funcionalidad, con tamaño y los criterios que cubre. |
-| Walking skeleton | La primera funcionalidad construida de punta a punta con lo mínimo, antes de ensanchar. |
+| Walking skeleton | La primera funcionalidad del proyecto construida de punta a punta con lo mínimo, antes de ensanchar (Cockburn; Freeman y Pryce). |

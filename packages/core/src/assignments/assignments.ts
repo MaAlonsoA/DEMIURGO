@@ -271,8 +271,11 @@ export async function resolveEngine(
   return { status: 'unavailable', source: chosen.source, reason: problem, ...chosen.engine, fallback };
 }
 
-/** The failures that mean the engine couldn't answer at all: its provider couldn't be reached or didn't answer in time. */
-const UNREACHABLE: readonly FailureKind[] = ['infra', 'timeout'];
+/**
+ * The failures that mean the engine couldn't answer at all: its provider couldn't be reached, didn't
+ * answer in time, or refused because a usage, rate or quota limit was hit.
+ */
+const UNREACHABLE: readonly FailureKind[] = ['infra', 'timeout', 'quota'];
 
 /** Whether a call failed because its engine couldn't answer at all (not a wrong answer, not a cancel). */
 export function couldNotAnswer(result: { state: string; failureKind?: FailureKind }): boolean {

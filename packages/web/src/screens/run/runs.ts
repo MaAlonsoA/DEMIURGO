@@ -137,6 +137,8 @@ export function nextStep(run: Pick<Run, 'state' | 'failure_kind'>): string | nul
       return 'Retry gives it another go; another engine may answer faster.';
     case 'agent_error':
       return 'Retry runs it again on the same context, or retry it once with another engine.';
+    case 'quota':
+      return 'The engine hit its usage limit: retry once it resets, or retry it once with another engine.';
     case 'stale_knowledge':
       return 'Retry runs it again once DEMIURGO has caught up with your latest changes.';
     default:

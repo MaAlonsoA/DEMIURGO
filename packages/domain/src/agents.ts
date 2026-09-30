@@ -10,8 +10,16 @@ export const AGENT_ACTIONS = ['echo', 'exploration_chat', 'design_proposal'] as 
 export type AgentAction = (typeof AGENT_ACTIONS)[number];
 
 /** Closed failure kinds (docs/investigacion-stack-2026-09-24.md §8). */
-export const FAILURE_KINDS = ['infra', 'timeout', 'invalid_output', 'agent_error', 'cancelled', 'stale_knowledge'] as const;
+export const FAILURE_KINDS = ['infra', 'timeout', 'invalid_output', 'agent_error', 'cancelled', 'stale_knowledge', 'quota'] as const;
 export type FailureKind = (typeof FAILURE_KINDS)[number];
+
+/** Words an engine uses when the subscription's usage limit, a rate limit or a quota stopped it. */
+const QUOTA_WORDS = /usage limit|rate[ _-]?limit|quota|\b429\b|too many requests/i;
+
+/** Whether an engine's error text says it hit a usage, rate or quota limit (`quota`, which falls back). */
+export function isQuotaError(text: string | null | undefined): boolean {
+  return !!text && QUOTA_WORDS.test(text);
+}
 
 export type Usage = {
   inputTokens: number;

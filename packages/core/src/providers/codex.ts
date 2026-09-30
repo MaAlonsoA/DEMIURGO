@@ -18,6 +18,7 @@ import {
   type ProviderModel,
   type ProviderTrace,
   type Usage,
+  isQuotaError,
 } from '@demiurgo/domain';
 import { type ClaudeExecutable, lineLength, resolveExecutable } from '../agents/claude-cli.ts';
 import { type ProcessEnd, isExecutableNotFound, nodeLauncher } from '../agents/process.ts';
@@ -397,7 +398,8 @@ export function createCodexProvider(options: CliProviderOptions = {}): Provider 
         };
         if (!text) {
           const detail = summary.error ?? (end.stderr.trim() || `it ended with code ${end.code ?? 'unknown'}`);
-          return withSession(error('agent_error', `Codex gave no final answer: ${truncate(detail)}`, end.stdout, usage));
+          const kind = isQuotaError(detail) || isQuotaError(end.stderr) ? 'quota' : 'agent_error';
+          return withSession(error(kind, `Codex gave no final answer: ${truncate(detail)}`, end.stdout, usage));
         }
         let rawOutput: unknown;
         try {
@@ -406,7 +408,8 @@ export function createCodexProvider(options: CliProviderOptions = {}): Provider 
           return withSession(error('agent_error', `Codex's final answer is not JSON: ${truncate(text, 300)}`, end.stdout, usage));
         }
         if (end.code !== 0 && summary.error) {
-          return withSession(error('agent_error', `Codex returned an error: ${truncate(summary.error)}`, end.stdout, usage));
+          const kind = isQuotaError(summary.error) ? 'quota' : 'agent_error';
+          return withSession(error(kind, `Codex returned an error: ${truncate(summary.error)}`, end.stdout, usage));
         }
         return withSession({
           state: 'ok',

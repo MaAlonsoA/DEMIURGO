@@ -223,6 +223,7 @@ export const FAILURE_WORDS: Record<string, string> = {
   infra: 'DEMIURGO restarted while it was running. Nothing was changed.',
   cancelled: 'You cancelled it. Nothing was changed.',
   stale_knowledge: 'The knowledge changed while it was running. Nothing was changed.',
+  quota: 'The engine hit its usage or rate limit. Nothing was changed.',
 };
 
 export function failureWord(kind: string | null, state?: string): string {
@@ -481,6 +482,7 @@ const FAILURE_WORDS_ES: Record<string, string> = {
   infra: 'DEMIURGO se reinició mientras se ejecutaba. No se cambió nada.',
   cancelled: 'Lo cancelaste. No se cambió nada.',
   stale_knowledge: 'El conocimiento cambió mientras se ejecutaba. No se cambió nada.',
+  quota: 'El motor llegó a su límite de uso. No se cambió nada.',
 };
 
 /** failureWord in the language given. */

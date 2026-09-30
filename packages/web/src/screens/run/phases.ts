@@ -30,7 +30,7 @@ export const PHASE_STATE_WORDS: Record<PhaseState, string> = {
 type RunFacts = Pick<Run, 'state' | 'failure_kind' | 'created_at' | 'started_at' | 'finished_at' | 'context_pack_id'>;
 
 /** Failures that happen while the engine works; the others happen once it answered. */
-const MODEL_FAILURES = new Set(['agent_error', 'timeout']);
+const MODEL_FAILURES = new Set(['agent_error', 'timeout', 'quota']);
 const RESULT_FAILURES = new Set(['invalid_output', 'stale_knowledge']);
 
 export function phasesOf(

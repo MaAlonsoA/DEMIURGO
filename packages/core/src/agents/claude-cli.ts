@@ -5,7 +5,7 @@
 
 import { readFile, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import type { AgentResult, Usage } from '@demiurgo/domain';
+import { type AgentResult, type Usage, isQuotaError } from '@demiurgo/domain';
 import { z } from 'zod';
 import { type ProcessEnd, readVariable } from './process.ts';
 
@@ -194,6 +194,14 @@ function describeEnd(end: ProcessEnd): string {
   return end.signal ? `by signal ${end.signal}` : `with code ${end.code ?? 'unknown'}`;
 }
 
+/**
+ * Whether the stream carries a `rate_limit_event` that refused the call (the CLI sends one per call;
+ * only a rejected one means the usage limit stopped it).
+ */
+function rateLimitRejected(stdout: string): boolean {
+  return /"type"\s*:\s*"rate_limit_event"[^\n]*"status"\s*:\s*"rejected"/.test(stdout);
+}
+
 /** Converts what the CLI printed into an `AgentResult`. Doesn't validate the structured output. */
 export function normalizeClaudeOutput(
   end: ProcessEnd,
@@ -209,7 +217,7 @@ export function normalizeClaudeOutput(
     const stderr = end.stderr.trim() ? ` Error output: ${truncate(end.stderr)}` : '';
     return {
       state: 'error',
-      failureKind: 'agent_error',
+      failureKind: isQuotaError(end.stderr) || rateLimitRejected(end.stdout) ? 'quota' : 'agent_error',
       message: `The Claude CLI ended ${describeEnd(end)} without a readable JSON result.${stderr}`,
       model: requestedModel,
       ...common,
@@ -221,9 +229,11 @@ export function normalizeClaudeOutput(
   if (r.is_error === true || end.code !== 0) {
     const apiState = typeof r.api_error_status === 'number' ? ` (HTTP ${r.api_error_status})` : '';
     const detail = r.result ?? r.subtype ?? (end.stderr.trim() || 'no detail');
+    const quota =
+      r.api_error_status === 429 || isQuotaError(detail) || isQuotaError(end.stderr) || rateLimitRejected(end.stdout);
     return {
       state: 'error',
-      failureKind: 'agent_error',
+      failureKind: quota ? 'quota' : 'agent_error',
       message: `The Claude CLI returned an error ${describeEnd(end)}${apiState}: ${truncate(detail)}`,
       usage,
       model,

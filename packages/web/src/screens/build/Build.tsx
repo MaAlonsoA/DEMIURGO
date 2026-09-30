@@ -3,7 +3,7 @@
 // after one confirmation (nothing is launched), "Withdraw" closes it. Below, Waiting lists the approved
 // tasks that cannot be built yet with the server's reasons, and the open requests that went stale.
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
@@ -84,6 +84,9 @@ function Actions({ projectId, task, t, canStart }: { projectId: string; task: Qu
   const [confirming, setConfirming] = useState(false);
   const request = useCommand(projectId);
   const withdraw = useCommand(projectId);
+  const client = useQueryClient();
+  // The queue changes with the request: refresh it now, not only when the live event arrives.
+  const refresh = () => void client.invalidateQueries({ queryKey: buildQueueQuery(projectId).queryKey });
   const start = () => {
     if (request.isPending) return;
     request.mutate(
@@ -91,6 +94,7 @@ function Actions({ projectId, task, t, canStart }: { projectId: string; task: Qu
       {
         onSuccess: () => {
           setConfirming(false);
+          refresh();
           announce(t.requestedDone(task.code));
         },
       },
@@ -111,7 +115,12 @@ function Actions({ projectId, task, t, canStart }: { projectId: string; task: Qu
             onClick={() =>
               withdraw.mutate(
                 { command: 'build_request.withdraw', entityId: task.request?.id },
-                { onSuccess: () => announce(t.withdrawn(task.code)) },
+                {
+                  onSuccess: () => {
+                    refresh();
+                    announce(t.withdrawn(task.code));
+                  },
+                },
               )
             }
           >

@@ -512,12 +512,18 @@ function Development({
           {dev.checks.length > 0 ? (
             <Prop label={t.checksLabel} wide>
               <ul className="flex flex-col gap-1">
-                {dev.checks.map((c) => (
-                  <li key={c.name} className="flex items-baseline gap-2" data-check-run={c.name}>
-                    <code className="font-code text-sm">{c.name}</code>
-                    <span className={cn('text-xs font-medium', checkTone(c.state))}>{t.checkState(c.state)}</span>
-                  </li>
-                ))}
+                {dev.checks.map((c) => {
+                  // The review check reflects the verdict: a finished review step is not a passed review.
+                  const changes = c.name === 'demiurgo/review' && c.state === 'success' && dev.review?.verdict === 'request_changes';
+                  return (
+                    <li key={c.name} className="flex items-baseline gap-2" data-check-run={c.name}>
+                      <code className="font-code text-sm">{c.name}</code>
+                      <span className={cn('text-xs font-medium', checkTone(changes ? 'failure' : c.state))}>
+                        {changes ? t.verdictChanges : t.checkState(c.state)}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             </Prop>
           ) : null}

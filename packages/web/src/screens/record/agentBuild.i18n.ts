@@ -6,6 +6,10 @@ export const AGENT_BUILD = messages(
   {
     build: 'Build with an agent',
     buildAgain: 'Build again',
+    addressReview: 'Address the review',
+    reviewConfirmTitle: (code: string) => `Address the review of ${code}?`,
+    reviewConfirmText:
+      "DEMIURGO's builder agent continues on the same branch and pull request, with the reviewer's comments as feedback. CI and the review run again and it merges only if CI is green and the review approves. It uses your subscription quota.",
     building: 'Starting…',
     confirmTitle: (code: string) => `Build ${code} with an agent?`,
     confirmText:
@@ -41,6 +45,10 @@ export const AGENT_BUILD = messages(
   {
     build: 'Construir con un agente',
     buildAgain: 'Volver a construir',
+    addressReview: 'Atender la revisión',
+    reviewConfirmTitle: (code: string) => `¿Atender la revisión de ${code}?`,
+    reviewConfirmText:
+      'El agente constructor de DEMIURGO continúa en la misma rama y pull request, con los comentarios del revisor como indicaciones. Vuelven a pasar la CI y la revisión, y se fusiona solo si la CI está en verde y la revisión aprueba. Usa la cuota de tu suscripción.',
     building: 'Empezando…',
     confirmTitle: (code: string) => `¿Construir ${code} con un agente?`,
     confirmText:

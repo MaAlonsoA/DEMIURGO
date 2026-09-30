@@ -46,12 +46,15 @@ export function AgentBuildButton({
   projectId,
   code,
   again = false,
+  review = false,
   variant = 'primary',
   size,
 }: {
   projectId: string;
   code: string;
   again?: boolean;
+  /** The last attempt ended with requested changes: the button reads "Address the review". */
+  review?: boolean;
   variant?: 'primary' | 'secondary';
   size?: 'sm';
 }) {
@@ -59,6 +62,7 @@ export function AgentBuildButton({
   const [confirming, setConfirming] = useState(false);
   const command = useCommand(projectId);
   const client = useQueryClient();
+  const label = review ? t.addressReview : again ? t.buildAgain : t.build;
   return (
     <>
       <Button
@@ -70,9 +74,9 @@ export function AgentBuildButton({
         }}
         data-primary={variant === 'primary' ? 'agent-build' : undefined}
         data-agent-build={code}
-        aria-label={size ? `${again ? t.buildAgain : t.build} ${code}` : undefined}
+        aria-label={size ? `${label} ${code}` : undefined}
       >
-        {again ? t.buildAgain : t.build}
+        {label}
       </Button>
       <ConfirmDialog
         open={confirming}
@@ -82,9 +86,9 @@ export function AgentBuildButton({
             setConfirming(false);
           }
         }}
-        title={t.confirmTitle(code)}
-        description={<p>{t.confirmText}</p>}
-        confirm={again ? t.buildAgain : t.build}
+        title={review ? t.reviewConfirmTitle(code) : t.confirmTitle(code)}
+        description={<p>{review ? t.reviewConfirmText : t.confirmText}</p>}
+        confirm={label}
         pendingLabel={t.building}
         pending={command.isPending}
         error={confirming ? command.error : null}

@@ -42,7 +42,7 @@ import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { useTables } from '../../lib/hooks.ts';
 import { effortTotals } from '../../sizes.ts';
-import { AgentBuildButton, BuildStepper, ConnectGithubLine, isBuildRunning, needsRebuild } from './AgentBuild.tsx';
+import { AgentBuildButton, BuildStepper, ConnectGithubLine, isBuildRunning, lastOutcome, needsRebuild } from './AgentBuild.tsx';
 import { DesignNextButton } from '../epics/DesignNext.tsx';
 import type { EpicLine } from '../epics/logic.ts';
 import type { EpicRef } from '../epics/DesignNext.tsx';
@@ -92,7 +92,7 @@ export type Primary =
   | { kind: 'build_next'; code: string }
   | { kind: 'start_build'; code: string; title: string }
   | { kind: 'follow_build' }
-  | { kind: 'agent_build'; code: string; again: boolean }
+  | { kind: 'agent_build'; code: string; again: boolean; review?: boolean }
   | { kind: 'pr'; url: string }
   | { kind: 'design'; epic: EpicRef; line: EpicLine; label: string }
   | { kind: 'thread'; id: string };
@@ -191,6 +191,9 @@ export function deliveryOf(input: {
         // Running: no primary, the stages are shown. Otherwise build (or build again after a stop).
         if (!isBuildRunning(b.steps)) primary = { kind: 'agent_build', code: record.code, again: needsRebuild(b.steps) };
       } else if (b.state === 'requested') primary = { kind: 'follow_build' };
+      else if (b.state === 'in_pr' && b.github && !isBuildRunning(b.steps) && lastOutcome(b.steps) === 'changes_requested')
+        // The reviewer (or red CI) asked for changes: the next attempt continues on the same branch and pull request.
+        primary = { kind: 'agent_build', code: record.code, again: true, review: true };
       else if (b.state === 'in_pr' && b.request?.pr_url) primary = { kind: 'pr', url: b.request.pr_url };
     } else if (record.type === 'epic' && epic?.next && epic.ref)
       primary = { kind: 'design', epic: epic.ref, line: epic.next, label: t.designNext };
@@ -264,7 +267,7 @@ export function PrimaryAction({
         </Link>
       );
     case 'agent_build':
-      return <AgentBuildButton projectId={projectId} code={primary.code} again={primary.again} />;
+      return <AgentBuildButton projectId={projectId} code={primary.code} again={primary.again} review={primary.review} />;
     case 'follow_build':
       return (
         <Link to="/p/$projectId/build" params={{ projectId }} className={buttonClass({ variant: 'primary' })}>

@@ -24,6 +24,8 @@ import type { CommandContext } from '../bus/types.ts';
 import type { Tx } from '../db/connection.ts';
 import { reviewObsolescence } from './proposals.ts';
 import { appendSize } from './sizes.ts';
+import { jevAllowed } from '../classifier/aspect.ts';
+import { classifyTaskSize } from '../classifier/size.ts';
 import { DISCARD_TRIGGER, onAuthorityEvent } from './reactions.ts';
 
 const text = (max: number) => z.string().trim().min(1).max(max);
@@ -530,6 +532,13 @@ registerHandlers({
     data: newVersionSchema,
     async apply(ctx, data, _e, to) {
       const v = await createVersion(ctx, data.record_id, data, to);
+      // A task's new content (its first version or a later one): Jev's size opinion, after the commit (FDR-DEL-006).
+      const rec = await ctx.trx.selectFrom('records').select('type').where('id', '=', data.record_id).executeTakeFirst();
+      if (rec?.type === 'task' && jevAllowed()) {
+        const services = ctx.services;
+        const projectId = ctx.projectId;
+        ctx.afterCommit(() => void classifyTaskSize(services, projectId, data.record_id, v.id));
+      }
       return {
         entityId: v.id,
         version: v.n,

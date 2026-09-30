@@ -103,6 +103,13 @@ El diseño sigue una jerarquía. Cada nivel se basa en el anterior:
 Una propuesta no es un nivel: es cómo llega cualquier cosa. Las funcionalidades van antes que las
 decisiones: no se decide sin algo en lo que basarse.
 
+Los agentes siguen «Building effective agents» de Anthropic: un agente especializado por artefacto
+(enrutado) y una puerta de validación en código entre pasos (encadenado de prompts con puerta
+programática; https://www.anthropic.com/engineering/building-effective-agents). Las salidas
+estructuradas garantizan el esquema, no las reglas de negocio ni las longitudes de las listas, así
+que las valida nuestro sistema
+(https://platform.claude.com/docs/en/build-with-claude/structured-outputs).
+
 ### Arranque
 
 El arranque de un proyecto tiene tres etapas. Cada una termina en algo aprobado y comprobable por sí
@@ -117,7 +124,7 @@ solo.
 3. **Principios de arquitectura y seguridad.** El arranque deja principios, no decisiones. Una
    decisión necesita algo en lo que basarse y dos opciones reales (convención nuestra).
 
-Después se diseña la primera funcionalidad. La **arquitectura** real se abre cuando hay al menos una
+Después se diseña la primera funcionalidad, que arranca con el walking skeleton (ver abajo). La **arquitectura** real se abre cuando hay al menos una
 funcionalidad aprobada. La **seguridad** se analiza antes de construir, junto a la arquitectura: es
 el modelo de amenazas (qué puede salir mal y cómo se evita, con el método STRIDE del SDL de
 Microsoft; fuente: Microsoft Security Development Lifecycle). No repite preguntas ya contestadas en la definición. Cada mitigación se convierte en un
@@ -125,11 +132,13 @@ criterio de la funcionalidad o la tarea que la construye.
 
 ### Walking skeleton
 
-Solo la primera funcionalidad del proyecto se diseña y se construye de punta a punta con la
-infraestructura mínima, antes de ensanchar (Alistair Cockburn; Freeman y Pryce, *Growing
-Object-Oriented Software, Guided by Tests*). Ese *walking skeleton* (esqueleto que ya camina) demuestra que el recorrido
-entero funciona. La infraestructura necesaria entra como tareas de esa funcionalidad, no como un
-proyecto aparte.
+El *walking skeleton* (esqueleto que ya camina) es la porción de punta a punta más fina, con una
+funcionalidad deliberadamente trivial, que demuestra que se puede construir, desplegar y probar todo
+el recorrido (Freeman y Pryce, *Growing Object-Oriented Software, Guided by Tests*; Alistair Cockburn:
+«una implementación diminuta… una pequeña función de punta a punta»). Se hace una sola vez, al
+empezar el proyecto, como la primera tarea de la primera funcionalidad; no es diseñar y construir
+entera la primera funcionalidad. La infraestructura mínima que necesita entra como tareas de esa
+funcionalidad, no como un proyecto aparte.
 
 ### Épicas y backlog
 
@@ -140,36 +149,56 @@ en una funcionalidad (convención nuestra). Tiene:
 - **Objetivo**, que nombra el resultado de la definición al que sirve.
 - **Fuera de alcance**, lo que deja fuera a propósito, para poder decir que no a lo que se cuela.
 - **Terminada cuando**, la condición de cierre.
+
+  Estos tres campos son convención nuestra (la hipótesis de épica de SAFe también lleva dentro y fuera
+  de alcance; solo lo confirman fuentes secundarias).
 - **Estado**: sin empezar, en curso o terminada (cuando todas sus funcionalidades vivas están
-  construidas).
+  construidas). Coincide con las tres categorías de estado por defecto de Jira (por hacer, en curso,
+  hecho).
 - Sus funcionalidades, que son registros desde que se listan, en el orden que decide la persona.
 
 Las épicas forman un **backlog** (lista ordenada de trabajo pendiente; Scrum Guide) cuyo orden fija la persona. Ese
-orden manda en la cola de construcción. Una épica crece por versiones.
+orden manda en la cola de construcción. Una épica crece por versiones. El backlog se refina de forma
+continua, no en una fase única (Scrum Guide).
+
+La primera versión es una porción fina que recorre toda la columna vertebral del mapa de historias
+(Jeff Patton: «el sistema más pequeño posible que daría funcionalidad de punta a punta»;
+https://jpattonassociates.com/the-new-backlog/), no la primera funcionalidad de cada épica.
 
 La épica es la unidad de entrega: el conjunto de trabajo que se entrega junto. No existe un «Change
 Set» aparte ni estados propios para él; bastan el estado de la épica y los de sus funcionalidades.
 
 Una funcionalidad está **planificada** cuando está aprobada y ocupa un lugar en el orden de su
 épica. Antes es una propuesta revisable, no trabajo prometido. (Se dice «planificada» y no
-«comprometida»: la Scrum Guide dejó de hablar de compromiso para los elementos del backlog en 2011.)
+«comprometida»: en 2011 la Scrum Guide sustituyó el «commit» del equipo de desarrollo en la Sprint
+Planning por «forecast» (pronóstico; scrum.org, «Commitment vs. Forecast»); desde 2020 «compromiso»
+nombra el Product Goal, el Sprint Goal y la Definition of Done.)
 
 ### Funcionalidades
 
 Una funcionalidad es una **historia** que aporta algo útil al usuario. Se escribe así:
 
 - **Comportamiento**: el flujo principal de un caso de uso, en 3 a 9 pasos numerados (Alistair
-  Cockburn, *Writing Effective Use Cases*).
+  Cockburn, *Writing Effective Use Cases*: «Use 3 to 9 steps»; en otros textos suyos, 3 a 11).
+  Rechazar lo que quede fuera de 3 a 9 es convención nuestra.
 - **Criterios de aceptación**: cada uno en formato Dado/Cuando/Entonces (BDD, desarrollo guiado por
   comportamiento; Dan North) y ligado al paso que comprueba. Ligar cada criterio a un paso es
   convención nuestra.
 - **Pequeña y comprobable** (INVEST, Bill Wake: la historia debe ser *Small* y *Testable*). INVEST no
-  fija un número de criterios y aquí no hay tope. El agente estima su talla (XS a XL) y, si es XL (no
-  cabe en una iteración), la divide con patrones de división de historias (SPIDR, Mike Cohn; patrones
-  de Richard Lawrence) en varias funcionalidades de su épica.
-- **Definition of Ready** (lista para construir): ningún paso sin criterio. La Scrum Guide deja la
-  Definition of Ready y la Definition of Done a cada equipo, así que su contenido es convención
-  nuestra.
+  fija un número de criterios y aquí no hay tope. El agente estima su talla (XS a XL; Cohn admite
+  tallas de camiseta y sugiere pasarlas a números). Se divide una historia cuando es demasiado grande
+  para caber con holgura en una iteración o cuando el dueño del producto priorizaría distinto sus
+  criterios (Mike Cohn). «XL significa dividir» es convención nuestra sobre eso. La división es en
+  porciones verticales (Bill Wake, 2003, «slice the cake» y *Twenty ways to split stories*), con
+  patrones de Richard Lawrence (Humanizing Work) y SPIDR (Cohn), en varias funcionalidades de su
+  épica.
+- **Definition of Ready** (lista para construir): ningún paso sin criterio. La Scrum Guide 2020 no
+  tiene «Definition of Ready»: dice que los elementos que pueden quedar Hechos en un Sprint están
+  «listos para su selección». Nuestra DoR es convención nuestra.
+- **Definition of Done** (hecha), que Scrum sí exige (Scrum Guide 2020, https://scrumguides.org/scrum-guide.html).
+  Para una funcionalidad, convención nuestra: cada criterio verificado por una prueba en verde en CI
+  (o comprobado a mano si es manual), sus pull requests revisados y fusionados, y las comprobaciones de
+  calidad de producción en verde.
 
 La funcionalidad incluye el detalle de experiencia, datos o contratos que haga falta para
 construirla y comprobarla. No hay documentos paralelos de requisitos ni de diseño detallado.
@@ -212,8 +241,14 @@ etiqueta de aspecto y el código de la épica ya dicen de qué parte del product
 - **El agente construye solo.** DEMIURGO lanza el agente de cada tarea en el orden del backlog; el
   agente trabaja en su rama y abre el pull request. Un agente revisor lo revisa como lo haría un
   compañero. Si lo aprueba y todas las comprobaciones de CI pasan, el pull request se fusiona solo y
-  la tarea queda hecha. Es decisión de la persona y está cerca del GitHub flow, que exige una
-  aprobación antes de fusionar (documentación de GitHub). Si algo falla o el revisor no aprueba, el
+  la tarea queda hecha. Exigir las comprobaciones de estado obligatorias antes de fusionar es la
+  protección de rama de GitHub, y el auto-merge es comportamiento estándar: «Auto-merge merges a pull
+  request automatically after all required reviews and status checks pass» (documentación de GitHub,
+  https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/automatically-merging-a-pull-request).
+  Lo único que es decisión de la persona es que quien aprueba sea un agente. El agente revisor sigue
+  un estándar de revisión: aprobar en cuanto el cambio mejora con seguridad la salud general del
+  código, aunque no sea perfecto (Google eng-practices,
+  https://google.github.io/eng-practices/review/reviewer/standard.html). Si algo falla o el revisor no aprueba, el
   agente lo intenta arreglar y, si no puede, se lo muestra a la persona en la ficha de la tarea.
 - Una tarea hecha no demuestra por sí sola que se cumplan sus criterios. La evidencia vale para el
   resultado concreto que se comprobó.
@@ -224,8 +259,9 @@ Una aplicación tiene calidad de producción cuando cumple los estándares por d
 serio, comprobados sobre una versión concreta:
 
 - todos los criterios de aceptación tienen su prueba en verde;
-- no hay vulnerabilidades altas ni críticas y se cumple OWASP ASVS nivel 2, el recomendado para la
-  mayoría de las aplicaciones (OWASP Application Security Verification Standard; el Top 10 es solo
+- no hay vulnerabilidades altas ni críticas y se cumple OWASP ASVS nivel 2 («Most applications should be striving to achieve this level»,
+  ASVS 5.0, con la salvedad de que cada organización debe analizar sus riesgos y decidir el nivel;
+  https://github.com/OWASP/ASVS/blob/master/5.0/en/0x03-What-is-the-ASVS.md; el Top 10 es solo
   concienciación), más análisis de dependencias;
 - accesibilidad WCAG 2.2 AA en las interfaces (W3C);
 - se cumplen las metas de calidad con número de la definición.
@@ -247,8 +283,9 @@ de la IA no basta.
 El diseño se revisa como un RFC dentro de DEMIURGO, no en ramas (práctica de RFC de equipos de ingeniería):
 
 - Un registro pasa de borrador a aprobado. Ese paso es la revisión del diseño.
-- El borrador muestra «Cambios desde la vN» sección a sección, como el diff de un pull request, con
-  los criterios añadidos, cambiados o quitados.
+- El borrador muestra «Cambios desde la vN» sección a sección, con los criterios añadidos,
+  cambiados o quitados. Es convención nuestra, inspirada en los apéndices de cambios de los borradores
+  del IETF y en el diff de un pull request; no es un estándar establecido.
 - Un rechazo vuelve al hilo con su motivo, como «Request changes». El agente lo ve y no repite lo
   mismo sin atender el motivo.
 - Al aprobar una versión, los borradores anteriores del mismo registro se cierran.
@@ -292,8 +329,9 @@ La estrategia es usar una versión mínima para diseñar la siguiente, más comp
   Es desechable: lo que importa es que funcione.
 - Dentro de ella, la persona diseña la **v3**, la versión productiva, en el proyecto DEMIURGOv3. Lo
   hace paso a paso, jugando el papel de un usuario nuevo real.
-- El primer paso es el walking skeleton: diseñar entera la primera funcionalidad (FDR-GUI-005) y
-  construirla con la infraestructura mínima.
+- El primer paso es diseñar la primera funcionalidad (FDR-GUI-005). Su primera tarea es el walking
+  skeleton: la porción de punta a punta más fina, con funcionalidad trivial, que prueba que se puede
+  construir, desplegar y probar todo el recorrido.
 - La v3 hereda el **conocimiento y los motivos** acumulados, con su origen. No hereda tareas
   terminadas ni evidencias: se referían a otro código.
 - Lo que la v2.3 echa en falta se anota como parche o como idea para la v3. Ningún parche pasa tal
@@ -333,7 +371,8 @@ conformidad ni certificación.
 | Backlog | Lista ordenada del trabajo pendiente; aquí, las épicas en el orden que fija la persona. |
 | Planificada | Funcionalidad aprobada que ocupa un lugar en el orden de su épica. |
 | Criterio de aceptación (AC) | Condición observable Dado/Cuando/Entonces que debe cumplirse para aceptar una funcionalidad. |
-| Definition of Ready | Condición para empezar a construir. Su contenido lo decide cada equipo (Scrum Guide); el nuestro: ningún paso de la funcionalidad sin criterio. |
+| Definition of Ready | Condición para empezar a construir. La Scrum Guide 2020 no la define; es convención nuestra: ningún paso de la funcionalidad sin criterio. |
+| Definition of Done | Condición para dar algo por hecho; Scrum la exige y cada equipo fija su contenido. Convención nuestra para una funcionalidad: cada criterio verificado por una prueba en verde en CI (o a mano si es manual), sus pull requests revisados y fusionados, y la calidad de producción en verde. |
 | Encargo | El texto que recibe quien construye una tarea: qué hacer, qué criterios cubre y qué ya existe. |
 | Épica (EPC) | Conjunto ordenado de funcionalidades para una capacidad que no cabe en una sola; es la unidad de entrega. |
 | Evidencia | Prueba de que un criterio se cumple: el pull request y la prueba que lo comprueba. |
@@ -342,7 +381,7 @@ conformidad ni certificación.
 | Hilo | Conversación con los agentes sobre un tema; de ella salen preguntas y propuestas. |
 | INVEST | Regla para historias (Bill Wake): independientes, negociables, valiosas, estimables, pequeñas (*Small*) y comprobables (*Testable*). No fija un número de criterios. |
 | Propuesta | Cómo llega cualquier cosa de la IA; no vale nada hasta que la persona la acepta o la aprueba. |
-| RFC | Request for Comments: documento de propuesta que el equipo revisa antes de aprobarlo. |
+| RFC | Request for Comments: documento de propuesta que el equipo revisa antes de aprobarlo. Nuestro «Cambios desde la vN» es convención nuestra, inspirada en los apéndices de cambios de los borradores del IETF; no es un estándar establecido. |
 | STRIDE / SDL | Método de Microsoft para buscar amenazas de seguridad en el diseño, antes de construir. |
 | Tarea (TSK) | Trozo de implementación de una funcionalidad, con tamaño y los criterios que cubre. |
-| Walking skeleton | La primera funcionalidad del proyecto construida de punta a punta con lo mínimo, antes de ensanchar (Cockburn; Freeman y Pryce). |
+| Walking skeleton | La porción de punta a punta más fina, con funcionalidad trivial, que prueba que se puede construir, desplegar y probar todo; se hace una vez, como primera tarea de la primera funcionalidad (Freeman y Pryce; Cockburn). |

@@ -43,18 +43,35 @@ async function plannedToDesign(ctx: CommandContext, code: string) {
   return f;
 }
 
-/** The links a version has going out (the ones that count), as a new version takes them over. */
-async function outgoingLinks(ctx: CommandContext, versionId: string) {
+/**
+ * The links a version has going out (the ones that count), as a new version takes them over. A change
+ * written now against the current basis (`rebase`) keeps even a link pending review and points each one
+ * to its target's current approved version.
+ */
+async function outgoingLinks(ctx: CommandContext, versionId: string, rebase = false) {
   const links = await ctx.trx
     .selectFrom('links')
     .innerJoin('record_versions as target', 'target.id', 'links.to_id')
     .innerJoin('records', 'records.id', 'target.record_id')
-    .select(['links.type', 'records.code', 'target.n'])
+    .select(['links.type', 'records.id as recordId', 'records.code', 'target.n'])
     .where('links.from_id', '=', versionId)
     .where('links.to_type', '=', 'record_version')
-    .where('links.state', 'in', ['current', 'kept', 'changed'])
+    .where('links.state', 'in', rebase ? ['current', 'kept', 'changed', 'needs_review'] : ['current', 'kept', 'changed'])
     .execute();
-  return links.map((l) => ({ type: l.type, target: { code: l.code, version: l.n } }));
+  const out: { type: string; target: { code: string; version: number } }[] = [];
+  for (const l of links) {
+    const current = rebase
+      ? await ctx.trx
+          .selectFrom('record_versions')
+          .select('n')
+          .where('record_id', '=', l.recordId)
+          .where('state', '=', 'approved')
+          .orderBy('n', 'desc')
+          .executeTakeFirst()
+      : undefined;
+    out.push({ type: l.type, target: { code: l.code, version: current?.n ?? l.n } });
+  }
+  return out;
 }
 
 export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
@@ -388,7 +405,7 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
         sections,
         criteria,
         discarded,
-        links: await outgoingLinks(ctx, v.versionId),
+        links: await outgoingLinks(ctx, v.versionId, true),
         change_note: c.reason,
         origin: { type: 'proposal', id: proposalId },
       },

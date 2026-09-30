@@ -13,6 +13,7 @@ import { inboxQuery, readinessQuery, recordQuery, stagesQuery, stateQuery } from
 import { canCreate } from '../../api/tables.ts';
 import type { Inbox, ProductState, RecordDetail, RecordVersion } from '../../api/types.ts';
 import { AskBox, type AskBoxHandle } from '../../components/AskBox.tsx';
+import { SectionContent } from '../../components/BehaviorSteps.tsx';
 import { Markdown } from '../../components/Markdown.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
 import { PageHeader, usePageTitle } from '../../components/Page.tsx';
@@ -303,7 +304,7 @@ function RecordPage({
                 {(s) => (
                   <section key={s.title} className="flex flex-col gap-2">
                     <h2 className="text-lg font-semibold text-fg">{s.title}</h2>
-                    <Markdown className="max-w-prose">{s.content}</Markdown>
+                    <SectionContent title={s.title} text={s.content} className="max-w-prose" />
                   </section>
                 )}
               </ReviewSections>

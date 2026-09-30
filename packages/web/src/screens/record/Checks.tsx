@@ -144,16 +144,16 @@ export function CheckList({
     );
   }
   return (
-    <ol className="flex flex-col gap-3">
+    <ol className="flex flex-col divide-y divide-edge-subtle border-y border-edge-subtle">
       {criteria.map((c) => {
         const warnings = warningsOf(c.code, readiness);
         return (
-          <li key={c.id} data-check={c.code} className="flex flex-col gap-2 rounded-lg border border-edge bg-panel px-4 py-3">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-              <h3 className="text-base font-semibold text-fg">{c.title}</h3>
+          <li key={c.id} data-check={c.code} className="flex flex-col gap-1.5 py-3">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <Code>{c.code}</Code>
+              <h3 className="text-md font-semibold text-fg">{c.title}</h3>
             </div>
-            <p className="text-md text-fg">{c.statement}</p>
+            <p className="text-sm text-fg-2">{c.statement}</p>
             {warnings.length > 0 ? (
               <div
                 data-verifiability

@@ -9,6 +9,7 @@ import { type ReactNode, useId, useState } from 'react';
 import { runQuery } from '../../api/queries.ts';
 import type { IdeaAssessmentSummary, ProductRow } from '../../api/types.ts';
 import { Code } from '../../components/Badge.tsx';
+import { SectionContent } from '../../components/BehaviorSteps.tsx';
 import { ArrowRightIcon, ChevronDownIcon, ChevronRightIcon } from '../../components/icons.tsx';
 import { Markdown } from '../../components/Markdown.tsx';
 import { Notice } from '../../components/Notice.tsx';
@@ -79,12 +80,12 @@ function Verification({ verification }: { verification: string }) {
 export function ChecksList({ checks, className }: { checks: PayloadCheck[]; className?: string }) {
   const t = useMessages(PARTS);
   return (
-    <ol className={cn('flex flex-col divide-y divide-edge-subtle rounded-lg border border-edge bg-panel', className)}>
+    <ol className={cn('flex flex-col divide-y divide-edge-subtle border-y border-edge-subtle', className)}>
       {checks.map((c, i) => (
-        <li key={c.code ?? `${c.title}-${i}`} className="flex flex-col gap-1 px-3.5 py-3" data-check={c.code ?? i}>
-          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-            <p className="font-medium text-fg">{c.title}</p>
+        <li key={c.code ?? `${c.title}-${i}`} className="flex flex-col gap-1 py-3" data-check={c.code ?? i}>
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             {c.code ? <Code>{c.code}</Code> : null}
+            <p className="font-semibold text-fg">{c.title}</p>
           </div>
           <p className="text-sm text-fg-2">{c.statement}</p>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-fg-2">
@@ -110,7 +111,7 @@ export function Sections({ sections, level = 3 }: { sections: PayloadSection[]; 
         // biome-ignore lint/suspicious/noArrayIndexKey: sections may repeat a title
         <section key={`${s.title}-${i}`} className="flex flex-col gap-1">
           {s.title ? <H className="text-sm font-semibold text-fg-2">{s.title}</H> : null}
-          {s.content ? <Markdown>{s.content}</Markdown> : <p className="text-sm text-fg-3">{t.empty}</p>}
+          {s.content ? <SectionContent title={s.title} text={s.content} /> : <p className="text-sm text-fg-3">{t.empty}</p>}
         </section>
       ))}
     </div>

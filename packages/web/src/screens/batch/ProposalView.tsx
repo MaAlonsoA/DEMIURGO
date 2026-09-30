@@ -15,6 +15,7 @@ import { definitionQuery, recordQuery } from '../../api/queries.ts';
 import type { ProductRow, TaskSize } from '../../api/types.ts';
 import { SIZE_POINTS } from '../../sizes.ts';
 import { ArrowRightIcon } from '../../components/icons.tsx';
+import { BehaviorSteps } from '../../components/BehaviorSteps.tsx';
 import { Markdown } from '../../components/Markdown.tsx';
 import { EntityState, StatusBadge } from '../../components/status.tsx';
 import { RelativeTime } from '../../components/Time.tsx';
@@ -204,7 +205,12 @@ export function ProposalBody({
         {withGoal ? <Prose title={t.goal} text={str(p.payload.goal)} /> : null}
         <Prose title={t.scope} text={str(p.payload.scope)} />
         <Prose title={t.outOfScope} text={str(p.payload.out_of_scope)} />
-        <Prose title={t.behavior} text={str(p.payload.behavior)} />
+        {str(p.payload.behavior).trim() ? (
+          <section className="flex flex-col gap-1">
+            <h3 className="text-sm font-semibold text-fg-2">{t.behavior}</h3>
+            <BehaviorSteps text={str(p.payload.behavior)} />
+          </section>
+        ) : null}
         <Checks proposal={p} />
       </div>
     );

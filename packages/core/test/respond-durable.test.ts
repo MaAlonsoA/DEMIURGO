@@ -2,7 +2,7 @@
 // knowledge is up to date, and knowledge that goes stale again right before the request makes it
 // wait again instead of dropping the answer.
 
-import { human } from '@demiurgo/domain';
+import { STAGES, human } from '@demiurgo/domain';
 import { sql } from 'kysely';
 import { describe, expect, it } from 'vitest';
 import { executeCommand } from '../src/bus/bus.ts';
@@ -112,5 +112,30 @@ describe('durable answer to a message', () => {
     const { rows } = await sql<{ response: string | null }>`
       select response from messages where id = ${posted.entityId}::uuid`.execute(s.db);
     expect(rows[0]?.response).toBeNull();
+  });
+
+  it('a deferred system request waits for knowledge and asks for the run with its input, once per key', async () => {
+    const s = environment().services;
+    const projectId = (await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Deferred' } })).projectId;
+    const thread = (await executeCommand(s, { command: 'exploration.open', actor: ana, projectId, data: { purpose: 'Menus' } }))
+      .entityId;
+    const { rows } = await sql<{ id: string }>`
+      insert into knowledge_updates (project_id, trigger, trigger_seq, state)
+      values (${projectId}::uuid, '{"type":"test"}'::jsonb, 0, 'classifying') returning id`.execute(s.db);
+    const busy = rows[0]?.id ?? '';
+    const input = { stage_opened: STAGES[0]?.key ?? '' };
+    await s.engine.startDeferredRun('stage_opened:test', projectId, thread, input);
+    await s.engine.startDeferredRun('stage_opened:test', projectId, thread, input);
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(await runsOf(thread)).toBe(0);
+    await sql`update knowledge_updates set state = 'applied', finished_at = now() where id = ${busy}::uuid`.execute(s.db);
+    expect(await eventually(async () => (await runsOf(thread)) === 1, 10_000)).toBe(true);
+    await new Promise((r) => setTimeout(r, 1000));
+    expect(await runsOf(thread)).toBe(1);
+    // The input reaches the run's context: the stage counts as just opened.
+    const { rows: packs } = await sql<{ n: number }>`
+      select count(*)::int as n from ai_runs r join context_packs c on c.id = r.context_pack_id
+      where r.scope->>'id' = ${thread} and c.content::text ~ '"just_opened": ?true'`.execute(s.db);
+    expect(packs[0]?.n).toBe(1);
   });
 });

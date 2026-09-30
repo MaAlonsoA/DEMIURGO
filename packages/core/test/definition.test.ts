@@ -297,6 +297,23 @@ describe('passing the stage proposes the definition when there is none', () => {
     await cmd('stage.pass', {}, stage.id);
     expect((await definitionProposals()).map((p) => p.state)).toEqual(['rejected', 'pending']);
   });
+
+  it('passing a stage defers the introduction of the next one, once, keyed by the new stage', async () => {
+    const s = environment().services;
+    projectId = (await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Gym' } })).projectId;
+    await cmd('exploration.open', { purpose: 'Book a gym slot' });
+    for (const q of await stageQuestions()) await cmd('question.confirm', { conclusion: answer(q.stage_key ?? '') }, q.id);
+    const stages = () =>
+      s.db.selectFrom('stages').select(['id', 'stage']).where('project_id', '=', projectId).orderBy('position').execute();
+    const [first] = await stages();
+    const deferred = (environment().engine as unknown as { deferred: string[] }).deferred;
+    expect(deferred).not.toContain(`stage_opened:${first?.id}`);
+    await cmd('stage.pass', {}, first?.id);
+    const all = await stages();
+    const next = all[1];
+    expect(next).toBeDefined();
+    expect(deferred.filter((k) => k === `stage_opened:${next?.id}`)).toHaveLength(1);
+  });
 });
 
 /** A new project whose definition is approved: every answer confirmed and the proposal accepted. */

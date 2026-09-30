@@ -2,7 +2,7 @@
 // questions; opening a stage opens its thread and raises them as the system; passing it is a
 // person's decision, allowed only when every mandatory question is covered.
 
-import { COVERED_QUESTION_STATES, STAGES, formatActor, isDomainError, nextStage, stageDefinition, system } from '@demiurgo/domain';
+import { COVERED_QUESTION_STATES, STAGES, formatActor, nextStage, stageDefinition, system } from '@demiurgo/domain';
 import { z } from 'zod';
 import { field, registerGuards, trimmed } from '../bus/guards.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
@@ -104,7 +104,19 @@ registerHandlers({
           },
         });
       }
-      return { entityId: id, after: { stage: def.key, exploration: thread.entityId } };
+      // DEMIURGO introduces the stage and gives its questions their options, so the person can
+      // answer with one click before writing anything. The request waits for knowledge to be up to
+      // date (the approvals that opened the stage are still being processed) and is made once per
+      // stage; without an engine assigned it is dropped, and the options come with the first reply.
+      // The first stage opened together with the product's first thread (exploration.open) is the
+      // exception: nobody has said anything yet, and the first message is answered by the
+      // conversation, so no run is requested behind the person's back.
+      const exploration = thread.entityId;
+      if (ctx.cause.sourceCommand !== 'exploration.open')
+        ctx.afterCommit(() =>
+          ctx.services.engine.startDeferredRun(`stage_opened:${id}`, ctx.projectId, exploration, { stage_opened: def.key }),
+        );
+      return { entityId: id, after: { stage: def.key, exploration } };
     },
   }),
 
@@ -130,43 +142,15 @@ registerHandlers({
           projectId: ctx.projectId,
           data: { stage: next.key, ...(thread ? { exploration_id: thread } : {}) },
         });
-        // DEMIURGO introduces the new stage and gives its questions their options, so the person can
-        // answer them with one click before writing anything. Without an engine it is skipped: the
-        // options come with the first reply.
-        if (thread)
-          try {
-            await ctx.execute({
-              command: 'run.request',
-              actor: system('design'),
-              projectId: ctx.projectId,
-              data: {
-                action: 'exploration_chat',
-                scope: { type: 'exploration', id: thread },
-                input: { stage_opened: next.key },
-              },
-            });
-          } catch (err) {
-            if (!isDomainError(err) || !['guard', 'validation'].includes(err.type)) throw err;
-          }
+        // The new stage's introduction is requested by stage.open (deferred until knowledge is up to date).
       }
       // The last onboarding stage passed: DEMIURGO invites the person to design the first feature,
       // with options drawn from the definition's first version (the explorer's reply).
       const def = stageDefinition(stage);
       if (!next && def?.moment === 'onboarding' && thread)
-        try {
-          await ctx.execute({
-            command: 'run.request',
-            actor: system('design'),
-            projectId: ctx.projectId,
-            data: {
-              action: 'exploration_chat',
-              scope: { type: 'exploration', id: thread },
-              input: { onboarding_done: true },
-            },
-          });
-        } catch (err) {
-          if (!isDomainError(err) || !['guard', 'validation'].includes(err.type)) throw err;
-        }
+        ctx.afterCommit(() =>
+          ctx.services.engine.startDeferredRun(`onboarding_done:${thread}`, ctx.projectId, thread, { onboarding_done: true }),
+        );
       return { entityId: id, after: { stage, next: next?.key ?? null } };
     },
   }),

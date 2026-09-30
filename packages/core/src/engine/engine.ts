@@ -665,6 +665,7 @@ async function requestResponse(
   explorationId: string,
   questionId: string | null,
   agent: string | null,
+  input: Record<string, unknown> | null = null,
 ): Promise<'requested' | 'stale'> {
   const s = requireServices();
   return stepSpan(
@@ -672,7 +673,7 @@ async function requestResponse(
     SPAN.responseRequest,
     messageEntity(workflow),
     { [ATTR.projectId]: projectId, [ATTR.entityId]: messageOf(workflow) },
-    () => requestResponseInSpan(s, workflow, projectId, explorationId, questionId, agent),
+    () => requestResponseInSpan(s, workflow, projectId, explorationId, questionId, agent, input),
     (r) => r,
   );
 }
@@ -684,6 +685,7 @@ async function requestResponseInSpan(
   explorationId: string,
   questionId: string | null,
   agent: string | null,
+  input: Record<string, unknown> | null = null,
 ): Promise<'requested' | 'stale'> {
   return inTransaction(s, async (execute, trx) => {
     await sql`select 1 from projects where id = ${projectId}::uuid for update`.execute(trx);
@@ -700,13 +702,15 @@ async function requestResponseInSpan(
       try {
         await execute({
           command: 'run.request',
-          actor: system('conversation'),
+          // A person's message is answered by the conversation; a system request (a stage opened)
+          // is the design engine's.
+          actor: system(messageOf(workflow) ? 'conversation' : 'design'),
           projectId,
           data: {
             action: 'exploration_chat',
             ...(agent ? { agent } : {}),
             scope: { type: 'exploration', id: explorationId },
-            input: questionId ? { question_id: questionId } : {},
+            input: questionId ? { question_id: questionId } : (input ?? {}),
             ...(messageOf(workflow) ? { answers_message: messageOf(workflow) } : {}),
           },
         });
@@ -811,6 +815,8 @@ async function respondWorkflow(
   explorationId: string,
   questionId: string | null,
   agent: string | null = null,
+  // Appended last so workflows recorded with four arguments still recover.
+  input: Record<string, unknown> | null = null,
 ): Promise<void> {
   const workflow = DBOS.workflowID ?? `response:${explorationId}`;
   let waited = 0;
@@ -823,7 +829,7 @@ async function respondWorkflow(
       waited += pause;
     }
     await onStepComplete?.('freshness', workflow);
-    const requested = await DBOS.runStep(() => requestResponse(workflow, projectId, explorationId, questionId, agent ?? null), {
+    const requested = await DBOS.runStep(() => requestResponse(workflow, projectId, explorationId, questionId, agent ?? null, input), {
       name: 'request',
       ...RETRIES,
     });
@@ -870,6 +876,18 @@ export const dbosEngine: WorkflowEngine = {
         explorationId,
         questionId ?? null,
         agent ?? null,
+      );
+    });
+  },
+  async startDeferredRun(key, projectId, explorationId, input) {
+    // Same key, same workflow: a run is never requested twice for it.
+    await startOutsideWorkflow(async () => {
+      await DBOS.startWorkflow(respondWorkflowRegistered, { workflowID: `deferred:${key}` })(
+        projectId,
+        explorationId,
+        null,
+        null,
+        input,
       );
     });
   },

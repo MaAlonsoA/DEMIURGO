@@ -13,6 +13,11 @@ export type WorkflowEngine = {
   /** The durable GitHub build of a build request (one workflow per attempt). */
   startBuild(buildRequestId: string, projectId: string, attempt: number): Promise<void>;
   startResponse(messageId: string, projectId: string, explorationId: string, questionId?: string, agent?: string): Promise<void>;
+  /**
+   * Requests an exploration_chat run in that thread with that input as soon as knowledge is up to
+   * date (a job queue instead of "try again"). Idempotent per key: the same key never requests twice.
+   */
+  startDeferredRun(key: string, projectId: string, explorationId: string, input: Record<string, unknown>): Promise<void>;
 };
 
 export type Logger = {
@@ -52,12 +57,14 @@ export function inertEngine(): WorkflowEngine & {
   updates: string[];
   assessments: string[];
   responses: string[];
+  deferred: string[];
   builds: string[];
 } {
   const runs: string[] = [];
   const updates: string[] = [];
   const assessments: string[] = [];
   const responses: string[] = [];
+  const deferred: string[] = [];
   const builds: string[] = [];
   return {
     builds,
@@ -68,6 +75,10 @@ export function inertEngine(): WorkflowEngine & {
     updates,
     assessments,
     responses,
+    deferred,
+    startDeferredRun: async (key) => {
+      deferred.push(key);
+    },
     startResponse: async (id) => {
       responses.push(id);
     },

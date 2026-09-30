@@ -6,14 +6,19 @@ import { applyStep, classifyStep, rejectOnError } from '../knowledge/update.ts';
 import { calculateAssessments, pendingFor, recordAssessments, recordAssessmentFailure } from '../knowledge/workflows.ts';
 import type { WorkflowEngine, Services } from '../services.ts';
 
-export type InlineEngine = WorkflowEngine & { runs: string[]; responses: string[] };
+export type InlineEngine = WorkflowEngine & { runs: string[]; responses: string[]; deferred: string[] };
 
 export function createInlineEngine(services: () => Services): InlineEngine {
   const runs: string[] = [];
   const responses: string[] = [];
+  const deferred: string[] = [];
   return {
     runs,
     responses,
+    deferred,
+    startDeferredRun: async (key) => {
+      deferred.push(key);
+    },
     startRun: async (id) => {
       runs.push(id);
     },

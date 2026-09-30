@@ -103,6 +103,8 @@ export const newRecordSchema = z
     // A task's effort size (FDR-DEL-006): required for a new task; null only for one brought in from
     // design/ without it (legacy, "No size"). Kept outside the versioned content.
     size: taskSizeSchema.nullable().optional(),
+    // A task's covered feature criteria (codes), outside its versioned content.
+    covers: z.array(z.string().regex(/^AC-[A-Z]{3}-\d{3}-\d{2}$/)).max(12).optional(),
     ...versionContentSchema,
   })
   .strict();
@@ -514,7 +516,13 @@ registerHandlers({
         .returning('id')
         .executeTakeFirstOrThrow();
       if (data.type === 'task' && data.size) await appendSize(ctx, id, data.size, null);
-      const { type: _t, code: _c, domain: _d, aspect: _a, size: _s, ...content } = data;
+      if (data.type !== 'task' && data.covers?.length) throw new DomainError('validation', 'Only a task covers criteria.');
+      if (data.type === 'task' && data.covers?.length)
+        await ctx.trx
+          .insertInto('task_covers')
+          .values({ project_id: ctx.projectId, record_id: id, codes: [...new Set(data.covers)], set_by: formatActor(ctx.actor) })
+          .execute();
+      const { type: _t, code: _c, domain: _d, aspect: _a, size: _s, covers: _cv, ...content } = data;
       const v = await ctx.execute({
         command: 'record_version.create',
         actor: ctx.actor,

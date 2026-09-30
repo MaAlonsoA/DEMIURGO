@@ -30,6 +30,9 @@ export const RECORD_PREFIX: Record<RecordType, string> = {
   product_definition: 'DEF',
 };
 
+/** A feature is small (INVEST): one limit of criteria, the same in the agents' prompts. */
+export const MAX_FDR_CRITERIA = 8;
+
 export const RECORD_TEMPLATES: Record<RecordType, { sections: readonly string[]; requiresCriteria: boolean }> = {
   decision: { sections: ['Context', 'Decision', 'Consequences'], requiresCriteria: false },
   adr: { sections: ['Context', 'Options', 'Decision', 'Consequences'], requiresCriteria: true },
@@ -40,8 +43,9 @@ export const RECORD_TEMPLATES: Record<RecordType, { sections: readonly string[];
   epic: { sections: ['Goal', 'Done when'], requiresCriteria: true },
   fdr: { sections: ['Goal', 'Scope', 'Out of scope', 'Behavior'], requiresCriteria: true },
   // A task: a piece of the construction of a feature, small enough to build and check on its own. It
-  // rests on its feature (based_on the FDR) and has its own criteria, finer than the feature's.
-  task: { sections: ['Goal', 'Scope'], requiresCriteria: true },
+  // rests on its feature (based_on the FDR) and covers some of the feature's criteria (`covers`); it
+  // has none of its own (older tasks keep theirs).
+  task: { sections: ['Goal', 'Scope'], requiresCriteria: false },
   bug: { sections: ['Reproduction', 'Expected', 'Observed'], requiresCriteria: true },
   // Design stages: a requirement in EARS with its Volere fit criterion; quality scenarios (arc42);
   // a STRIDE threat model; the production readiness review (KEP PRR, Google SRE).
@@ -238,6 +242,8 @@ export function readiness(e: ReadinessInput): Readiness {
     }
   }
   if (e.type === 'fdr') {
+    if (e.criteria.length > MAX_FDR_CRITERIA)
+      reasons.push(`Too big: ${e.criteria.length} criteria (max ${MAX_FDR_CRITERIA}); split it into features of its epic.`);
     if (!e.architecturePassed) reasons.push('The Architecture stage has not passed.');
     for (const n of e.needs) {
       if (n.implementation !== 'implemented') reasons.push(`It needs ${n.code}, which is not built yet.`);

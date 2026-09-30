@@ -363,12 +363,23 @@ export type EvidenceTable = {
   kind: string;
   note: string;
   reference: string | null;
+  pr_url: string | null;
+  test_name: string | null;
   state: string;
   recorded_by: string;
   created_at: Generated<Timestamp>;
 };
 
 /** A task's size: append-only, its latest row is the size (FDR-DEL-006). */
+export type TaskCoversTable = {
+  id: Generated<string>;
+  project_id: string;
+  record_id: string;
+  codes: string[];
+  set_by: string;
+  created_at: Generated<Timestamp>;
+};
+
 export type TaskSizesTable = {
   id: Generated<string>;
   project_id: string;
@@ -646,6 +657,11 @@ export type BuildRequestsTable = {
   state: Generated<string>;
   withdrawn_by: string | null;
   withdrawn_at: Timestamp | null;
+  pr_url: string | null;
+  in_review_by: string | null;
+  in_review_at: Timestamp | null;
+  done_by: string | null;
+  done_at: Timestamp | null;
 };
 
 export type DB = {
@@ -691,6 +707,7 @@ export type DB = {
   evidence: EvidenceTable;
   planned_features: PlannedFeaturesTable;
   task_sizes: TaskSizesTable;
+  task_covers: TaskCoversTable;
   task_size_opinions: TaskSizeOpinionsTable;
   task_size_dismissals: TaskSizeDismissalsTable;
   project_repos: ProjectReposTable;

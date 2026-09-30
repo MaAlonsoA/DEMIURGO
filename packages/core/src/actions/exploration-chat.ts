@@ -10,6 +10,7 @@ import {
   behaviorSteps,
   type CriterionChange,
   DomainError,
+  MAX_FDR_CRITERIA,
   STAGES,
   type Section,
   findQuote,
@@ -23,6 +24,7 @@ import { knowledgeForContext } from '../context/knowledge.ts';
 import { type FragmentSource, ManifestBuilder, recordKnowledge } from '../context/manifest.ts';
 import type { Db, Tx } from '../db/connection.ts';
 import { registerApplier, registerChecker } from './appliers.ts';
+import { taskCoversOf } from '../queries/sizes.ts';
 import { revealQuestions } from '../commands/exploration.ts';
 import { definitionChangeProposal } from '../definition/compose.ts';
 
@@ -642,6 +644,9 @@ registerChecker('exploration_chat', async ({ db, run, output }) => {
       notes.push(
         `${p.code} in \`code\` is not a planned feature of this project (it may be designed or dropped already). \`code\` is the \`planned_feature.code\` of the context: leave it null otherwise.`,
       );
+    if (p.covers && p.record_type !== 'task') notes.push('`covers` is only for a task: leave it null for any other record.');
+    if (p.record_type === 'fdr' && p.criteria.length > MAX_FDR_CRITERIA)
+      notes.push(`A feature has at most ${MAX_FDR_CRITERIA} criteria, not ${p.criteria.length}: say it is too big and propose splitting it.`);
     if (p.record_type === 'fdr') {
       const n = behaviorSteps(p.sections.find((s) => s.title === 'Behavior')?.content ?? '').length;
       for (const k of p.criteria)
@@ -651,6 +656,11 @@ registerChecker('exploration_chat', async ({ db, run, output }) => {
           );
     }
     if (p.record_type === 'task') {
+      if (p.criteria.length > 0)
+        notes.push('A task has no criteria of its own: leave `criteria` empty and list in `covers` the feature criteria it implements.');
+      const known = p.based_on ? (await featureTasksOf(db, run.project_id, p.based_on.code))?.criteria ?? [] : [];
+      if (!p.covers?.length || p.covers.some((c) => !known.includes(c)))
+        notes.push('A task lists in `covers` at least one code of `feature_tasks.criteria`, and only those.');
       if (!p.size || !p.size_reason)
         notes.push('A task has its `size` (XS, S, M, L or XL) and a one-line `size_reason`: fill both in every task.');
       else if (p.size === 'XL' && !p.split)
@@ -703,7 +713,7 @@ export async function featureTasksOf(db: Db, projectId: string, code: string) {
     .innerJoin('record_versions as tv', 'tv.record_id', 't.id')
     .innerJoin('links', 'links.from_id', 'tv.id')
     .innerJoin('record_versions as fv', 'fv.id', 'links.to_id')
-    .select(['t.code', 'tv.title', 'tv.state', 'tv.n'])
+    .select(['t.id', 't.code', 'tv.title', 'tv.state', 'tv.n'])
     .where('t.project_id', '=', projectId)
     .where('t.type', '=', 'task')
     .where('links.type', '=', 'based_on')
@@ -712,10 +722,28 @@ export async function featureTasksOf(db: Db, projectId: string, code: string) {
     .orderBy('t.code')
     .orderBy('tv.n', 'desc')
     .execute();
-  const tasks = rows
-    .filter((r, i) => rows.findIndex((o) => o.code === r.code) === i)
-    .map((r) => ({ code: r.code, title: r.title, state: r.state }));
+  const tasks = await Promise.all(
+    rows
+      .filter((r, i) => rows.findIndex((o) => o.code === r.code) === i)
+      .map(async (r) => ({ code: r.code, title: r.title, state: r.state, covers: await taskCoversOf(db, r.id) })),
+  );
+  // The feature's current criteria, and which of them no task covers yet.
+  const criteria = current
+    ? (
+        await db
+          .selectFrom('criteria')
+          .innerJoin('record_versions as v', 'v.id', 'criteria.record_version_id')
+          .select('criteria.code')
+          .where('v.record_id', '=', feature.id)
+          .where('v.n', '=', current.n)
+          .orderBy('criteria.position')
+          .execute()
+      ).map((c) => c.code)
+    : [];
+  const covered = new Set(tasks.flatMap((t) => t.covers));
   return {
+    criteria,
+    uncovered: criteria.filter((c) => !covered.has(c)),
     code: feature.code,
     title: versions[0]?.title ?? feature.code,
     domain: feature.domain,
@@ -1110,6 +1138,7 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
         if (p.record_type !== 'epic' || !p.features?.length) delete payload.features;
         // A task's size and why travel only with a task; how to split, only with an XL one.
         if (p.record_type !== 'task') {
+          delete payload.covers;
           delete payload.size;
           delete payload.size_reason;
         }

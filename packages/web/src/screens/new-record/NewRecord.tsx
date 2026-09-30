@@ -71,7 +71,7 @@ export function NewRecordScreen() {
   usePageTitle([t.newRecord, state.data?.project.name]);
   const domains = [...new Set([...(state.data?.decisions ?? []), ...(state.data?.designs ?? [])].map((r) => r.domain))].sort();
   const miss = recordMissing(form);
-  const needsChecks = form.type !== 'decision';
+  const needsChecks = form.type !== 'decision' && form.type !== 'task';
   const guard = useLeaveGuard(recordDirty(form) && JSON.stringify(form) !== JSON.stringify(seed) && !command.isSuccess);
   const areaInvalid = form.domain.trim() !== '' && !DOMAIN.test(form.domain.trim());
   const typeWord = useTypeWord(form.type);

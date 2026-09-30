@@ -223,6 +223,8 @@ export type ProductRow = {
   /** Criteria of the latest version. */
   checks: number;
   effort?: TaskEffort | null;
+  /** A task's covered feature criteria (codes); null for any other record. */
+  covers?: string[] | null;
   latest_id: string;
   current_id: string | null;
   updated_at: string;
@@ -427,6 +429,8 @@ export type CriterionEvidence = {
   kind: string;
   note: string;
   reference: string | null;
+  pr_url?: string | null;
+  test_name?: string | null;
   by: string;
   at: string;
   /** Version it was recorded on: an earlier one when inherited. */
@@ -493,6 +497,7 @@ export type RecordDetail = {
   current: number | null;
   implementation: string;
   effort?: TaskEffort | null;
+  covers?: string[] | null;
   versions: RecordVersion[];
   /** What connects to it: links of the other records' shown version that point to one of its versions. */
   incoming: IncomingLink[];
@@ -899,6 +904,9 @@ export type BuildRequestView = {
   task_version: number | null;
   requested_by: string;
   requested_at: string;
+  /** requested, or in_review once the pull request is recorded. */
+  state: string;
+  pr_url: string | null;
   stale: boolean;
   stale_reasons: string[];
 };

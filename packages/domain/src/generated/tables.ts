@@ -880,6 +880,22 @@ export const CAPABILITIES = {
       "decisive": false,
       "description": "Record a request to build a ready task, with its brief frozen; nothing is launched."
     },
+    "build_request.submit_review": {
+      "entity": "build_request",
+      "allowed": [
+        "human"
+      ],
+      "decisive": false,
+      "description": "Record the pull request of an open build request: it goes into review."
+    },
+    "build_request.complete": {
+      "entity": "build_request",
+      "allowed": [
+        "human"
+      ],
+      "decisive": false,
+      "description": "Mark a build request in review as done, after the pull request is merged."
+    },
     "build_request.withdraw": {
       "entity": "build_request",
       "allowed": [
@@ -2303,6 +2319,8 @@ export const TRANSITIONS = {
       "implemented_in": "S4",
       "states": {
         "requested": "Requested",
+        "in_review": "In review",
+        "done": "Done",
         "withdrawn": "Withdrawn"
       },
       "authority": [],
@@ -2313,9 +2331,24 @@ export const TRANSITIONS = {
           "to": "requested"
         },
         {
-          "command": "build_request.withdraw",
+          "command": "build_request.submit_review",
           "from": [
             "requested"
+          ],
+          "to": "in_review"
+        },
+        {
+          "command": "build_request.complete",
+          "from": [
+            "in_review"
+          ],
+          "to": "done"
+        },
+        {
+          "command": "build_request.withdraw",
+          "from": [
+            "requested",
+            "in_review"
           ],
           "to": "withdrawn"
         }

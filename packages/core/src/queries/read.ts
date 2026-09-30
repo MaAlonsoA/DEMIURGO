@@ -2,7 +2,7 @@
 // their readiness, and batches. These are derived functions: nothing is stored (§4 of the plan).
 
 import { sql } from 'kysely';
-import { taskSizeView } from './sizes.ts';
+import { taskCoversOf, taskSizeView } from './sizes.ts';
 import {
   AGENT_PROPOSAL_TYPES,
   type Dependency,
@@ -242,6 +242,8 @@ export type CriterionEvidence = {
   kind: string;
   note: string;
   reference: string | null;
+  pr_url: string | null;
+  test_name: string | null;
   by: string;
   at: string;
   /** Version of the record the evidence was recorded on: an earlier one when it is inherited. */
@@ -262,6 +264,8 @@ export async function evidenceOf(db: Db, criterionId: string): Promise<Criterion
         'evidence.kind',
         'evidence.note',
         'evidence.reference',
+        'evidence.pr_url',
+        'evidence.test_name',
         'evidence.recorded_by',
         'evidence.created_at',
         'v.n',
@@ -275,6 +279,8 @@ export async function evidenceOf(db: Db, criterionId: string): Promise<Criterion
         kind: e.kind,
         note: e.note,
         reference: e.reference,
+        pr_url: e.pr_url,
+        test_name: e.test_name,
         by: e.recorded_by,
         at: new Date(e.created_at as unknown as Date).toISOString(),
         version: e.n,
@@ -661,6 +667,7 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
     implementation: await implementationOf(db, r.id),
     // A task's effort size, outside its versions (FDR-DEL-006).
     effort: r.type === 'task' ? await taskSizeView(db, r.id) : null,
+    covers: r.type === 'task' ? await taskCoversOf(db, r.id) : null,
     versions: detail,
     incoming: await incomingLinks(db, projectId, r.id, r.type),
   };
@@ -766,6 +773,7 @@ export async function productState(db: Db, projectId: string) {
       summary: firstParagraph(latest.sections as { title: string; content: string }[]),
       checks: Number(checks.n),
       effort: r.type === 'task' ? await taskSizeView(db, r.id) : null,
+      covers: r.type === 'task' ? await taskCoversOf(db, r.id) : null,
       latest_id: latest.id,
       current_id: currentId,
       updated_at: latest.approved_at ?? latest.created_at,

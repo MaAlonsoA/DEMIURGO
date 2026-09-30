@@ -180,7 +180,7 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
         ...(planned ? { code: planned.code } : {}),
         domain: planned?.domain ?? feature?.domain ?? c.domain ?? 'producto',
         ...(c.aspect ? { aspect: c.aspect } : {}),
-        ...(c.record_type === 'task' ? { size: c.size } : {}),
+        ...(c.record_type === 'task' ? { size: c.size, ...(c.covers?.length ? { covers: c.covers } : {}) } : {}),
         title: c.title,
         sections: c.sections,
         criteria: c.criteria.map((k) => ({ carry: 'new', ...k })),

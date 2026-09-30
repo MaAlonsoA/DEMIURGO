@@ -3,40 +3,60 @@
 // after one confirmation (nothing is launched), "Withdraw" closes it. Below, Waiting lists the approved
 // tasks that cannot be built yet with the server's reasons, and the open requests that went stale.
 
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
-import { useState } from 'react';
-import { useCommand } from '../../api/commands.ts';
-import { buildQueueQuery, projectsQuery } from '../../api/queries.ts';
-import type { QueueTask } from '../../api/types.ts';
-import { Code } from '../../components/Badge.tsx';
-import { Button } from '../../components/Button.tsx';
-import { ConfirmDialog } from '../../components/Dialog.tsx';
-import { EmptyState } from '../../components/EmptyState.tsx';
-import { PlayIcon } from '../../components/icons.tsx';
-import { ErrorNotice } from '../../components/Notice.tsx';
-import { PageBody, PageHeader, Section, usePageTitle } from '../../components/Page.tsx';
-import { Bone, Skeleton } from '../../components/Spinner.tsx';
-import { RelativeTime } from '../../components/Time.tsx';
-import { Who } from '../../components/Who.tsx';
-import { announce } from '../../components/announce.tsx';
-import { useMessages } from '../../i18n/define.ts';
-import { useProjectId } from '../../lib/hooks.ts';
-import { CopyBriefButton } from '../record/CopyBrief.tsx';
-import { BUILD } from './words.i18n.ts';
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { useState } from "react";
+import { useCommand } from "../../api/commands.ts";
+import { buildQueueQuery, projectsQuery } from "../../api/queries.ts";
+import type { QueueTask } from "../../api/types.ts";
+import { Code } from "../../components/Badge.tsx";
+import { Button } from "../../components/Button.tsx";
+import { ConfirmDialog } from "../../components/Dialog.tsx";
+import { TextInput } from "../../components/Field.tsx";
+import { EmptyState } from "../../components/EmptyState.tsx";
+import { PlayIcon } from "../../components/icons.tsx";
+import { ErrorNotice } from "../../components/Notice.tsx";
+import {
+  PageBody,
+  PageHeader,
+  Section,
+  usePageTitle,
+} from "../../components/Page.tsx";
+import { Bone, Skeleton } from "../../components/Spinner.tsx";
+import { RelativeTime } from "../../components/Time.tsx";
+import { Who } from "../../components/Who.tsx";
+import { announce } from "../../components/announce.tsx";
+import { useMessages } from "../../i18n/define.ts";
+import { useProjectId } from "../../lib/hooks.ts";
+import { CopyBriefButton } from "../record/CopyBrief.tsx";
+import { BUILD } from "./words.i18n.ts";
 
 type Words = typeof BUILD.en;
 
-function TaskLine({ projectId, task, t }: { projectId: string; task: QueueTask; t: Words }) {
+function TaskLine({
+  projectId,
+  task,
+  t,
+}: {
+  projectId: string;
+  task: QueueTask;
+  t: Words;
+}) {
   return (
     <div className="flex min-w-0 flex-col gap-1">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <Link to="/p/$projectId/records/$code" params={{ projectId, code: task.code }} className="font-medium text-fg hover:underline">
+        <Link
+          to="/p/$projectId/records/$code"
+          params={{ projectId, code: task.code }}
+          className="font-medium text-fg hover:underline"
+        >
           {task.title}
           <span className="ml-2 font-mono text-xs text-fg-3">{task.code}</span>
         </Link>
         <span className="text-sm tabular-nums text-fg-2" data-size>
-          {task.size && task.points !== null ? t.size(task.size, task.points) : t.noSize}
+          {task.size && task.points !== null
+            ? t.size(task.size, task.points)
+            : t.noSize}
         </span>
         <span className="text-sm tabular-nums text-fg-3" data-checks>
           {t.checks(task.checks)}
@@ -70,27 +90,56 @@ function RequestState({ task, t }: { task: QueueTask; t: Words }) {
         <Who actor={r.requested_by} size={16} prefix={t.requested} />
         <span aria-hidden>,</span>
         <RelativeTime iso={r.requested_at} />
+        {r.state === "in_review" ? (
+          <span className="font-medium text-fg">· {t.inReview}</span>
+        ) : null}
       </span>
+      {r.pr_url ? (
+        <a
+          href={r.pr_url}
+          target="_blank"
+          rel="noreferrer"
+          className="font-mono text-xs text-fg-2 underline"
+          data-pr-url
+        >
+          {r.pr_url}
+        </a>
+      ) : null}
       {r.stale ? (
         <span className="font-medium text-fg" data-stale>
-          {t.staleNote} {r.stale_reasons.join(' ')}
+          {t.staleNote} {r.stale_reasons.join(" ")}
         </span>
       ) : null}
     </span>
   );
 }
 
-function Actions({ projectId, task, t, canStart }: { projectId: string; task: QueueTask; t: Words; canStart: boolean }) {
+function Actions({
+  projectId,
+  task,
+  t,
+  canStart,
+}: {
+  projectId: string;
+  task: QueueTask;
+  t: Words;
+  canStart: boolean;
+}) {
   const [confirming, setConfirming] = useState(false);
   const request = useCommand(projectId);
   const withdraw = useCommand(projectId);
+  const review = useCommand(projectId);
+  const [pr, setPr] = useState("");
   const client = useQueryClient();
   // The queue changes with the request: refresh it now, not only when the live event arrives.
-  const refresh = () => void client.invalidateQueries({ queryKey: buildQueueQuery(projectId).queryKey });
+  const refresh = () =>
+    void client.invalidateQueries({
+      queryKey: buildQueueQuery(projectId).queryKey,
+    });
   const start = () => {
     if (request.isPending) return;
     request.mutate(
-      { command: 'build_request.request', data: { task: task.code } },
+      { command: "build_request.request", data: { task: task.code } },
       {
         onSuccess: () => {
           setConfirming(false);
@@ -103,7 +152,75 @@ function Actions({ projectId, task, t, canStart }: { projectId: string; task: Qu
   return (
     <div className="flex flex-col items-end gap-2">
       <div className="flex flex-wrap items-center justify-end gap-2">
-        {canStart ? <CopyBriefButton projectId={projectId} code={task.code} size="sm" /> : null}
+        {canStart ? (
+          <CopyBriefButton projectId={projectId} code={task.code} size="sm" />
+        ) : null}
+        {task.request?.state === "requested" ? (
+          <form
+            className="flex items-center gap-2"
+            data-pr-form
+            onSubmit={(ev) => {
+              ev.preventDefault();
+              if (!pr.trim() || review.isPending) return;
+              review.mutate(
+                {
+                  command: "build_request.submit_review",
+                  entityId: task.request?.id,
+                  data: { pr_url: pr.trim() },
+                },
+                {
+                  onSuccess: () => {
+                    setPr("");
+                    refresh();
+                    announce(t.inReviewDone(task.code));
+                  },
+                },
+              );
+            }}
+          >
+            <TextInput
+              aria-label={t.prUrlLabel(task.code)}
+              placeholder={t.prUrl}
+              value={pr}
+              maxLength={500}
+              onChange={(x) => setPr(x.target.value)}
+            />
+            <Button
+              type="submit"
+              size="sm"
+              variant="secondary"
+              pending={review.isPending}
+              disabled={!pr.trim()}
+            >
+              {t.toReview}
+            </Button>
+          </form>
+        ) : null}
+        {task.request?.state === "in_review" ? (
+          <Button
+            size="sm"
+            variant="primary"
+            pending={review.isPending}
+            aria-label={t.markDoneLabel(task.code)}
+            data-mark-done={task.code}
+            onClick={() =>
+              review.mutate(
+                {
+                  command: "build_request.complete",
+                  entityId: task.request?.id,
+                },
+                {
+                  onSuccess: () => {
+                    refresh();
+                    announce(t.doneDone(task.code));
+                  },
+                },
+              )
+            }
+          >
+            {t.markDone}
+          </Button>
+        ) : null}
         {task.request ? (
           <Button
             size="sm"
@@ -114,7 +231,10 @@ function Actions({ projectId, task, t, canStart }: { projectId: string; task: Qu
             data-withdraw={task.code}
             onClick={() =>
               withdraw.mutate(
-                { command: 'build_request.withdraw', entityId: task.request?.id },
+                {
+                  command: "build_request.withdraw",
+                  entityId: task.request?.id,
+                },
                 {
                   onSuccess: () => {
                     refresh();
@@ -142,6 +262,7 @@ function Actions({ projectId, task, t, canStart }: { projectId: string; task: Qu
           </Button>
         ) : null}
       </div>
+      {review.error ? <ErrorNotice error={review.error} compact /> : null}
       {withdraw.error ? <ErrorNotice error={withdraw.error} compact /> : null}
       <ConfirmDialog
         open={confirming}
@@ -163,7 +284,9 @@ export function BuildScreen() {
   const t = useMessages(BUILD);
   const projectId = useProjectId();
   const queue = useQuery(buildQueueQuery(projectId));
-  const project = (useQuery(projectsQuery).data ?? []).find((p) => p.id === projectId);
+  const project = (useQuery(projectsQuery).data ?? []).find(
+    (p) => p.id === projectId,
+  );
   usePageTitle([t.title, project?.name]);
   const q = queue.data;
 
@@ -185,29 +308,48 @@ export function BuildScreen() {
               id="build-queue"
               title={t.queue}
               note={
-                <span className="flex flex-wrap gap-x-2 tabular-nums" data-build-totals>
+                <span
+                  className="flex flex-wrap gap-x-2 tabular-nums"
+                  data-build-totals
+                >
                   <span>{t.totals(q.totals.tasks, q.totals.points)}</span>
                   {q.totals.unsized > 0 ? (
                     <>
                       <span aria-hidden>·</span>
-                      <span className="text-fg-3">{t.unsized(q.totals.unsized)}</span>
+                      <span className="text-fg-3">
+                        {t.unsized(q.totals.unsized)}
+                      </span>
                     </>
                   ) : null}
                   <span aria-hidden>·</span>
-                  <span className="text-fg-3">{t.repository(q.repository.path, q.repository.branch)}</span>
+                  <span className="text-fg-3">
+                    {t.repository(q.repository.path, q.repository.branch)}
+                  </span>
                 </span>
               }
             >
               {q.ready.length === 0 ? (
                 <EmptyState title={t.empty} />
               ) : (
-                <ol className="flex flex-col divide-y divide-edge-subtle rounded-lg border border-edge bg-panel px-4" data-build-queue>
+                <ol
+                  className="flex flex-col divide-y divide-edge-subtle rounded-lg border border-edge bg-panel px-4"
+                  data-build-queue
+                >
                   {q.ready.map((task) => (
-                    <li key={task.code} data-queue-task={task.code} className="flex flex-wrap items-start justify-between gap-3 py-3">
+                    <li
+                      key={task.code}
+                      data-queue-task={task.code}
+                      className="flex flex-wrap items-start justify-between gap-3 py-3"
+                    >
                       <TaskLine projectId={projectId} task={task} t={t} />
                       <div className="ml-auto flex flex-col items-end gap-2">
                         <RequestState task={task} t={t} />
-                        <Actions projectId={projectId} task={task} t={t} canStart />
+                        <Actions
+                          projectId={projectId}
+                          task={task}
+                          t={t}
+                          canStart
+                        />
                       </div>
                     </li>
                   ))}
@@ -219,9 +361,16 @@ export function BuildScreen() {
               {q.waiting.length === 0 ? (
                 <p className="text-sm text-fg-2">{t.noWaiting}</p>
               ) : (
-                <ul className="flex flex-col divide-y divide-edge-subtle" data-build-waiting>
+                <ul
+                  className="flex flex-col divide-y divide-edge-subtle"
+                  data-build-waiting
+                >
                   {q.waiting.map((task) => (
-                    <li key={task.code} data-waiting-task={task.code} className="flex flex-wrap items-start justify-between gap-3 py-3">
+                    <li
+                      key={task.code}
+                      data-waiting-task={task.code}
+                      className="flex flex-wrap items-start justify-between gap-3 py-3"
+                    >
                       <div className="flex min-w-0 flex-col gap-1">
                         <TaskLine projectId={projectId} task={task} t={t} />
                         <ul className="flex list-disc flex-col gap-0.5 pl-5 text-sm text-fg-2">
@@ -233,7 +382,12 @@ export function BuildScreen() {
                       {task.request ? (
                         <div className="ml-auto flex flex-col items-end gap-2">
                           <RequestState task={task} t={t} />
-                          <Actions projectId={projectId} task={task} t={t} canStart={false} />
+                          <Actions
+                            projectId={projectId}
+                            task={task}
+                            t={t}
+                            canStart={false}
+                          />
                         </div>
                       ) : null}
                     </li>
@@ -244,13 +398,24 @@ export function BuildScreen() {
 
             {q.stale.length > 0 ? (
               <Section id="build-stale" title={t.stale} note={t.staleSection}>
-                <ul className="flex flex-col divide-y divide-edge-subtle" data-build-stale>
+                <ul
+                  className="flex flex-col divide-y divide-edge-subtle"
+                  data-build-stale
+                >
                   {q.stale.map((task) => (
-                    <li key={task.code} className="flex flex-wrap items-start justify-between gap-3 py-3">
+                    <li
+                      key={task.code}
+                      className="flex flex-wrap items-start justify-between gap-3 py-3"
+                    >
                       <TaskLine projectId={projectId} task={task} t={t} />
                       <div className="ml-auto flex flex-col items-end gap-2">
                         <RequestState task={task} t={t} />
-                        <Actions projectId={projectId} task={task} t={t} canStart={false} />
+                        <Actions
+                          projectId={projectId}
+                          task={task}
+                          t={t}
+                          canStart={false}
+                        />
                       </div>
                     </li>
                   ))}

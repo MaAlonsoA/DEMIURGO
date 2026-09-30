@@ -4,35 +4,48 @@
 // warnings of the readiness under the statement. On the current approved version each check says
 // whether it has evidence (how the person checked it, once built) and lets them record it.
 
-import { type FormEvent, useId, useState } from 'react';
-import { useCommand } from '../../api/commands.ts';
-import type { Criterion, Readiness } from '../../api/types.ts';
-import { announce } from '../../components/announce.tsx';
-import { Code } from '../../components/Badge.tsx';
-import { checkAnchor, isUntied } from '../../components/BehaviorSteps.tsx';
-import { BEHAVIOR_STEPS } from '../../components/words.i18n.ts';
-import { Button } from '../../components/Button.tsx';
-import { Field, TextArea, TextInput } from '../../components/Field.tsx';
-import { AlertTriangleIcon, CheckCircleIcon, CircleDashedIcon } from '../../components/icons.tsx';
-import { ErrorNotice } from '../../components/Notice.tsx';
-import { Who, WhoAvatar } from '../../components/Who.tsx';
-import { useMessages } from '../../i18n/define.ts';
-import { useLocale } from '../../i18n/locale.ts';
-import { cn } from '../../lib/cn.ts';
-import { shortDate } from '../../lib/time.ts';
-import { warningsOf } from './logic.ts';
-import { CHECKS } from './words.i18n.ts';
+import { type FormEvent, useId, useState } from "react";
+import { useCommand } from "../../api/commands.ts";
+import type { Criterion, Readiness } from "../../api/types.ts";
+import { announce } from "../../components/announce.tsx";
+import { Code } from "../../components/Badge.tsx";
+import { checkAnchor, isUntied } from "../../components/BehaviorSteps.tsx";
+import { BEHAVIOR_STEPS } from "../../components/words.i18n.ts";
+import { Button } from "../../components/Button.tsx";
+import { Field, TextArea, TextInput } from "../../components/Field.tsx";
+import {
+  AlertTriangleIcon,
+  CheckCircleIcon,
+  CircleDashedIcon,
+} from "../../components/icons.tsx";
+import { ErrorNotice } from "../../components/Notice.tsx";
+import { Who, WhoAvatar } from "../../components/Who.tsx";
+import { useMessages } from "../../i18n/define.ts";
+import { useLocale } from "../../i18n/locale.ts";
+import { cn } from "../../lib/cn.ts";
+import { shortDate } from "../../lib/time.ts";
+import { warningsOf } from "./logic.ts";
+import { CHECKS } from "./words.i18n.ts";
 
 /** Who checks it: a test on its own (Automatic) or the person by hand (You), in words. */
-export function VerificationMark({ verification, className }: { verification: string; className?: string }) {
+export function VerificationMark({
+  verification,
+  className,
+}: {
+  verification: string;
+  className?: string;
+}) {
   const t = useMessages(CHECKS);
-  const you = verification === 'manual';
+  const you = verification === "manual";
   return (
     <span
-      className={cn('inline-flex items-center gap-1.5 text-xs text-fg-2', className)}
+      className={cn(
+        "inline-flex items-center gap-1.5 text-xs text-fg-2",
+        className,
+      )}
       title={you ? t.verifyManualTitle : t.verifyAutoTitle}
     >
-      <WhoAvatar kind={you ? 'you' : 'automatic'} size={16} />
+      <WhoAvatar kind={you ? "you" : "automatic"} size={16} />
       <span>
         {t.checkedBy}
         <span className="font-medium text-fg">{you ? t.you : t.automatic}</span>
@@ -45,32 +58,51 @@ export function VerificationMark({ verification, className }: { verification: st
 export type Recording = { projectId: string; version: number } | null;
 
 /** The evidence of a check: who checked it, how and when, or that it is not checked yet. */
-function EvidenceLine({ criterion: c, recording }: { criterion: Criterion; recording: Recording }) {
+function EvidenceLine({
+  criterion: c,
+  recording,
+}: {
+  criterion: Criterion;
+  recording: Recording;
+}) {
   const t = useMessages(CHECKS);
   const locale = useLocale();
-  const command = useCommand(recording?.projectId ?? '');
+  const command = useCommand(recording?.projectId ?? "");
   const [open, setOpen] = useState(false);
-  const [note, setNote] = useState('');
-  const [reference, setReference] = useState('');
+  const [note, setNote] = useState("");
+  const [reference, setReference] = useState("");
+  const [prUrl, setPrUrl] = useState("");
+  const [testName, setTestName] = useState("");
   const e = c.evidence ?? null;
   if (!e && !recording) return null;
   const submit = (ev: FormEvent) => {
     ev.preventDefault();
-    const data = { criterion_id: c.id, note: note.trim(), ...(reference.trim() ? { reference: reference.trim() } : {}) };
+    const data = {
+      criterion_id: c.id,
+      note: note.trim(),
+      ...(reference.trim() ? { reference: reference.trim() } : {}),
+      ...(prUrl.trim() ? { pr_url: prUrl.trim() } : {}),
+      ...(testName.trim() ? { test_name: testName.trim() } : {}),
+    };
     command.mutate(
-      { command: 'evidence.record_manual', data },
+      { command: "evidence.record_manual", data },
       {
         onSuccess: () => {
           announce(t.recorded(c.code));
           setOpen(false);
-          setNote('');
-          setReference('');
+          setNote("");
+          setReference("");
+          setPrUrl("");
+          setTestName("");
         },
       },
     );
   };
   return (
-    <div data-evidence={e ? 'checked' : 'unchecked'} className="flex flex-col gap-2 border-t border-edge-subtle pt-2 text-sm">
+    <div
+      data-evidence={e ? "checked" : "unchecked"}
+      className="flex flex-col gap-2 border-t border-edge-subtle pt-2 text-sm"
+    >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         {e ? (
           <>
@@ -78,8 +110,14 @@ function EvidenceLine({ criterion: c, recording }: { criterion: Criterion; recor
               <CheckCircleIcon size={14} />
               {t.checked}
             </span>
-            {c.verification === 'automatic' && e.kind === 'manual' ? <span className="text-fg-2">{t.byHand}</span> : null}
-            {recording && e.version !== recording.version ? <span className="text-fg-2">{t.inherited(e.version)}</span> : null}
+            {c.verification === "automatic" && e.kind === "manual" ? (
+              <span className="text-fg-2">
+                {t.byHand} · {t.unverifiedByCi}
+              </span>
+            ) : null}
+            {recording && e.version !== recording.version ? (
+              <span className="text-fg-2">{t.inherited(e.version)}</span>
+            ) : null}
             <span className="inline-flex items-center gap-1.5 text-xs text-fg-3">
               <Who actor={e.by} size={16} />
               {shortDate(e.at, locale)}
@@ -92,7 +130,12 @@ function EvidenceLine({ criterion: c, recording }: { criterion: Criterion; recor
           </span>
         )}
         {recording && !open ? (
-          <Button size="sm" variant={e ? 'quiet' : 'secondary'} className="ml-auto" onClick={() => setOpen(true)}>
+          <Button
+            size="sm"
+            variant={e ? "quiet" : "secondary"}
+            className="ml-auto"
+            onClick={() => setOpen(true)}
+          >
             {e ? t.recordAgain : t.record}
           </Button>
         ) : null}
@@ -100,25 +143,94 @@ function EvidenceLine({ criterion: c, recording }: { criterion: Criterion; recor
       {e ? (
         <p className="text-fg">
           {e.note}
-          {e.reference ? <span className="ml-2 font-mono text-xs text-fg-2">{e.reference}</span> : null}
+          {e.reference ? (
+            <span className="ml-2 font-mono text-xs text-fg-2">
+              {e.reference}
+            </span>
+          ) : null}
+          {e.pr_url ? (
+            <a
+              href={e.pr_url}
+              target="_blank"
+              rel="noreferrer"
+              className="ml-2 font-mono text-xs text-fg-2 underline"
+            >
+              {e.pr_url}
+            </a>
+          ) : null}
+          {e.test_name ? (
+            <span className="ml-2 font-mono text-xs text-fg-2">
+              {t.testLabel}
+              {e.test_name}
+            </span>
+          ) : null}
         </p>
       ) : null}
       {open ? (
-        <form onSubmit={submit} className="flex flex-col gap-3" data-evidence-form>
+        <form
+          onSubmit={submit}
+          className="flex flex-col gap-3"
+          data-evidence-form
+        >
           <Field label={t.note} hint={t.noteHint}>
             {(p) => (
-              <TextArea {...p} value={note} maxLength={2000} required autoGrow onChange={(x) => setNote(x.target.value)} />
+              <TextArea
+                {...p}
+                value={note}
+                maxLength={2000}
+                required
+                autoGrow
+                onChange={(x) => setNote(x.target.value)}
+              />
+            )}
+          </Field>
+          <Field label={t.testName} hint={t.testNameHint} optional>
+            {(p) => (
+              <TextInput
+                {...p}
+                value={testName}
+                maxLength={300}
+                onChange={(x) => setTestName(x.target.value)}
+              />
+            )}
+          </Field>
+          <Field label={t.prUrl} optional>
+            {(p) => (
+              <TextInput
+                {...p}
+                value={prUrl}
+                maxLength={500}
+                onChange={(x) => setPrUrl(x.target.value)}
+              />
             )}
           </Field>
           <Field label={t.reference} optional>
-            {(p) => <TextInput {...p} value={reference} maxLength={500} onChange={(x) => setReference(x.target.value)} />}
+            {(p) => (
+              <TextInput
+                {...p}
+                value={reference}
+                maxLength={500}
+                onChange={(x) => setReference(x.target.value)}
+              />
+            )}
           </Field>
           {command.error ? <ErrorNotice error={command.error} /> : null}
           <div className="flex gap-2">
-            <Button type="submit" variant="primary" size="sm" pending={command.isPending} pendingLabel={t.saving}>
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              pending={command.isPending}
+              pendingLabel={t.saving}
+            >
               {t.save}
             </Button>
-            <Button type="button" variant="quiet" size="sm" onClick={() => setOpen(false)}>
+            <Button
+              type="button"
+              variant="quiet"
+              size="sm"
+              onClick={() => setOpen(false)}
+            >
               {t.cancel}
             </Button>
           </div>
@@ -154,11 +266,18 @@ export function CheckList({
       {criteria.map((c) => {
         const warnings = warningsOf(c.code, readiness);
         return (
-          <li key={c.id} id={checkAnchor(c.code)} data-check={c.code} className="flex scroll-mt-16 flex-col gap-1.5 py-3">
+          <li
+            key={c.id}
+            id={checkAnchor(c.code)}
+            data-check={c.code}
+            className="flex scroll-mt-16 flex-col gap-1.5 py-3"
+          >
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <Code>{c.code}</Code>
               <h3 className="text-md font-semibold text-fg">{c.title}</h3>
-              {isUntied(c, steps) ? <span className="text-xs text-fg-3">{ts.notTiedToStep}</span> : null}
+              {isUntied(c, steps) ? (
+                <span className="text-xs text-fg-3">{ts.notTiedToStep}</span>
+              ) : null}
             </div>
             <p className="text-sm text-fg-2">{c.statement}</p>
             {warnings.length > 0 ? (
@@ -166,7 +285,10 @@ export function CheckList({
                 data-verifiability
                 className="flex items-start gap-2 rounded-md border border-warning-edge bg-warning-soft px-3 py-2 text-sm text-fg"
               >
-                <AlertTriangleIcon size={14} className="mt-0.5 shrink-0 text-warning-text" />
+                <AlertTriangleIcon
+                  size={14}
+                  className="mt-0.5 shrink-0 text-warning-text"
+                />
                 <ul className="flex flex-col gap-0.5">
                   {warnings.map((w) => (
                     <li key={w}>{w}</li>
@@ -179,7 +301,10 @@ export function CheckList({
                 <span className="font-medium text-fg">{t.how}</span>
                 {c.check}
               </span>
-              <VerificationMark verification={c.verification} className="ml-auto" />
+              <VerificationMark
+                verification={c.verification}
+                className="ml-auto"
+              />
             </div>
             <EvidenceLine criterion={c} recording={recording} />
           </li>
@@ -205,19 +330,26 @@ export function Checks({
 }) {
   const t = useMessages(CHECKS);
   const id = useId();
-  const H = level === 3 ? 'h3' : 'h2';
+  const H = level === 3 ? "h3" : "h2";
   const checked = criteria.filter((c) => c.evidence).length;
   return (
     <section aria-labelledby={id} className="flex flex-col gap-3">
       <H id={id} className="text-lg font-semibold text-fg">
-        {t.checksTitle}{' '}
+        {t.checksTitle}{" "}
         {recording || checked > 0 ? (
-          <span className="font-normal text-fg-2">· {t.progress(checked, criteria.length)}</span>
+          <span className="font-normal text-fg-2">
+            · {t.progress(checked, criteria.length)}
+          </span>
         ) : (
           <span className="font-normal text-fg-2">· {criteria.length}</span>
         )}
       </H>
-      <CheckList criteria={criteria} readiness={readiness} recording={recording} steps={steps} />
+      <CheckList
+        criteria={criteria}
+        readiness={readiness}
+        recording={recording}
+        steps={steps}
+      />
     </section>
   );
 }

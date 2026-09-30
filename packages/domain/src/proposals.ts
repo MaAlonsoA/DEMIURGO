@@ -77,11 +77,14 @@ export const designRecordPayload = z
       .array(z.object({ title: text(120), content: text(10_000) }).strict())
       .min(1)
       .max(8),
-    criteria: z.array(payloadCriterion).min(1).max(12),
+    // A task has none of its own: it covers criteria of its feature (`covers`).
+    criteria: z.array(payloadCriterion).max(12),
     domain: z
       .string()
       .regex(/^[a-z][a-z_]*$/)
       .optional(),
+    /** A task's covered criteria: codes of its feature's criteria it implements. */
+    covers: z.array(z.string().regex(/^AC-[A-Z]{3}-\d{3}-\d{2}$/)).max(12).optional(),
     /** A feature's epic: the record it rests on. */
     based_on: recordReference.optional(),
     /** A feature's siblings it depends on (approved features): one `based_on` link each, and they have to be built first. */

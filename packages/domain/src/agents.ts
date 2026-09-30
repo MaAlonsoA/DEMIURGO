@@ -336,6 +336,13 @@ export const explorationChatOutput = z
                 .describe(
                   'For a feature (fdr) designed from a planned feature (`planned_feature` in the context): its `planned_feature.code`; null otherwise.',
                 ),
+              covers: z
+                .array(z.string().regex(/^AC-[A-Z]{3}-\d{3}-\d{2}$/))
+                .max(12)
+                .nullable()
+                .describe(
+                  "For a task: the codes of its feature's acceptance criteria (`feature_tasks.criteria`) it implements; null for any other record.",
+                ),
               size: z
                 .enum(TASK_SIZES)
                 .nullable()
@@ -352,7 +359,7 @@ export const explorationChatOutput = z
                 .array(z.object({ title: recordText(120), content: recordText(6000) }).strict())
                 .min(1)
                 .max(8),
-              criteria: z.array(proposedCriterion).min(1).max(12),
+              criteria: z.array(proposedCriterion).max(12),
               quotes: z
                 .array(text(QUOTE_MAX))
                 .max(3)

@@ -102,6 +102,11 @@ export function TaskSizePanel({ projectId, record }: { projectId: string; record
       ) : null}
       {keep.error ? <ErrorNotice error={keep.error} /> : null}
       <p className="max-w-prose text-sm text-fg-3">{t.note}</p>
+      {record.covers?.length ? (
+        <p className="font-mono text-sm text-fg-2" data-covers>
+          {t.covers(record.covers.join(', '))}
+        </p>
+      ) : null}
       {size === 'XL' ? (
         <p className="text-sm font-medium text-fg" data-split-note>
           {t.split}

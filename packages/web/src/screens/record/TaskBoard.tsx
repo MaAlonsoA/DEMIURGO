@@ -39,6 +39,10 @@ export function TaskBoard({
   const writable = !!tables && canCreate(tables, 'record.create');
   const built = tasks.filter((r) => r.implementation === 'implemented').length;
   // Effort (FDR-DEL-006): per size, about how many points, and how many are not built yet.
+  // Criteria of the feature's current version that no task covers.
+  const currentVersion = record.versions.find((v) => v.n === record.current);
+  const covered = new Set(tasks.flatMap((r) => r.covers ?? []));
+  const uncovered = tasks.length > 0 ? (currentVersion?.criteria ?? []).map((c) => c.code).filter((c) => !covered.has(c)) : [];
   const effort = effortTotals(tasks.map((r) => ({ size: r.effort?.size ?? null, built: r.implementation === 'implemented' })));
 
   return (
@@ -50,6 +54,11 @@ export function TaskBoard({
         {tasks.length > 0 ? <span className="text-sm tabular-nums text-fg-2">{t.count(built, tasks.length)}</span> : null}
       </div>
       <p className="max-w-prose text-sm text-fg-2">{t.note}</p>
+      {uncovered.length > 0 ? (
+        <p className="text-sm text-fg" data-uncovered>
+          {t.uncovered(uncovered.join(', '))}
+        </p>
+      ) : null}
       {effort.total > 0 || effort.unsized > 0 ? (
         <p className="flex flex-wrap gap-x-2 text-sm tabular-nums text-fg-2" data-effort>
           {effort.summary ? <span data-effort-counts>{effort.summary}</span> : null}
@@ -88,7 +97,15 @@ export function TaskBoard({
                   </Link>
                   <SizeText effort={r.effort} />
                   <SizeDisputeText effort={r.effort} />
-                  <span className="text-sm tabular-nums text-fg-3">{t.checks(r.checks)}</span>
+                  {r.covers?.length ? (
+                    <span className="font-mono text-xs text-fg-3" data-covers>
+                      {t.covers(r.covers.join(', '))}
+                    </span>
+                  ) : r.checks > 0 ? (
+                    <span className="text-sm tabular-nums text-fg-3">{t.checks(r.checks)}</span>
+                  ) : (
+                    <span className="text-sm text-fg-3">{t.coversNone}</span>
+                  )}
                   <span className="ml-auto flex items-center gap-3">
                     {s === 'ready' ? <CopyBriefButton projectId={projectId} code={r.code} size="sm" /> : null}
                     <LineMark state={s} />

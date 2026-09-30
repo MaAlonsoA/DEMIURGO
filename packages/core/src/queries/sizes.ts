@@ -43,3 +43,15 @@ export async function taskSizeView(db: Db, recordId: string): Promise<TaskSizeVi
     dispute: sizeDisputeOf(size, opinion?.size ?? null, dismissed),
   };
 }
+
+/** The feature criterion codes a task covers (its latest row); empty for a task without any. */
+export async function taskCoversOf(db: Db, recordId: string): Promise<string[]> {
+  const row = await db
+    .selectFrom('task_covers')
+    .select('codes')
+    .where('record_id', '=', recordId)
+    .orderBy('created_at', 'desc')
+    .orderBy('id', 'desc')
+    .executeTakeFirst();
+  return row?.codes ?? [];
+}

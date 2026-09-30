@@ -213,8 +213,8 @@ export function batchHeading(n: number, locale: Locale = 'en', left: number = n)
   const title =
     left === 0
       ? es
-        ? `${NOUNS.es.proposals(n)}: todo decidido`
-        : `${NOUNS.en.proposals(n)}: all decided`
+        ? `${NOUNS.es.proposals(n)}: nada por decidir`
+        : `${NOUNS.en.proposals(n)}: nothing left to decide`
       : es
         ? `${NOUNS.es.proposals(left)} por decidir`
         : `${NOUNS.en.proposals(left)} to decide`;

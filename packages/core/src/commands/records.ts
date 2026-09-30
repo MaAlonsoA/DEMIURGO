@@ -5,7 +5,7 @@
 import {
   aspectOfType,
   COVERED_QUESTION_STATES,
-  DEFINITION_STAGE,
+  STAGES,
   designSystemSpec,
   screenDesignSpec,
   missingComponents,
@@ -530,25 +530,31 @@ async function assertScreenDesign(trx: Tx, projectId: string, spec: unknown, mis
   if (reason) throw new DomainError('conflict', reason);
 }
 
-/** Pass the open Product definition stage when every one of its mandatory questions is covered. */
+/**
+ * Pass the open onboarding stages whose mandatory questions are all covered, in order: approving
+ * the definition (or the change that adds a stage's section to it) is the person's decision on
+ * those stages, so they need not hunt for «Pass stage».
+ */
 async function passDefinitionStage(ctx: CommandContext): Promise<void> {
-  const stage = await ctx.trx
-    .selectFrom('stages')
-    .select('id')
-    .where('project_id', '=', ctx.projectId)
-    .where('stage', '=', DEFINITION_STAGE)
-    .where('state', '=', 'open')
-    .executeTakeFirst();
-  if (!stage) return;
-  const uncovered = await ctx.trx
-    .selectFrom('questions')
-    .select('id')
-    .where('stage_id', '=', stage.id)
-    .where('stage_key', 'is not', null)
-    .where('state', 'not in', [...COVERED_QUESTION_STATES])
-    .executeTakeFirst();
-  if (uncovered) return;
-  await ctx.execute({ command: 'stage.pass', actor: ctx.actor, projectId: ctx.projectId, entityId: stage.id, data: {} });
+  for (const key of STAGES.filter((s) => s.moment === 'onboarding').map((s) => s.key)) {
+    const stage = await ctx.trx
+      .selectFrom('stages')
+      .select('id')
+      .where('project_id', '=', ctx.projectId)
+      .where('stage', '=', key)
+      .where('state', '=', 'open')
+      .executeTakeFirst();
+    if (!stage) continue;
+    const uncovered = await ctx.trx
+      .selectFrom('questions')
+      .select('id')
+      .where('stage_id', '=', stage.id)
+      .where('stage_key', 'is not', null)
+      .where('state', 'not in', [...COVERED_QUESTION_STATES])
+      .executeTakeFirst();
+    if (uncovered) return;
+    await ctx.execute({ command: 'stage.pass', actor: ctx.actor, projectId: ctx.projectId, entityId: stage.id, data: {} });
+  }
 }
 
 registerHandlers({
@@ -702,7 +708,7 @@ registerHandlers({
       // Approving the product definition for the first time passes stage 1 (Product definition) when
       // its questions are all covered: the person's approval is the decision, so they need not hunt
       // for «Pass stage». Stage 2 opens as it does whenever a stage passes.
-      if (kind?.type === 'product_definition' && !previous && ctx.actor.type === 'human') await passDefinitionStage(ctx);
+      if (kind?.type === 'product_definition' && ctx.actor.type === 'human') await passDefinitionStage(ctx);
       return { entityId: v.id, version: v.n, after: { note: data.note ?? null, supersedes: previous?.n ?? null } };
     },
   }),

@@ -159,7 +159,9 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       blocks: null,
       source: "VISION.md · Arranque 2; arc42 §10 quality scenarios",
       // Passing the stage proposes its section of the definition: done once that is approved too.
-      done: passed("quality") && !input.definitionProposal,
+      // A pending definition change belongs to the latest onboarding stage: once «principles» is
+      // open, it is that stage's section.
+      done: passed("quality") && !(input.definitionProposal && !stage("principles")),
       action: () =>
         passed("quality") ? { kind: "review_definition" } : stageAction("quality"),
     },
@@ -171,8 +173,9 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       source: "VISION.md · Arranque 3",
       // Passing the stage proposes its section of the definition: done once that is approved too.
       done: passed("principles") && !input.definitionProposal,
+      // Covering the stage proposes its section of the definition; approving it passes the stage.
       action: () =>
-        passed("principles") ? { kind: "review_definition" } : stageAction("principles"),
+        input.definitionProposal && stage("principles") ? { kind: "review_definition" } : stageAction("principles"),
     },
     {
       key: "design_system",

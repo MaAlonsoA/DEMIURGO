@@ -388,6 +388,9 @@ export const PROPOSAL_VIEW = messages(
     needs: 'Needs',
     proposedSize: (size: string, points: number) => `Size: ${size} (${points} points)`,
     splitHow: 'How it could be split',
+    coversHeading: (n: number, feature: string) => `Covers ${n === 1 ? '1 acceptance criterion' : `${n} acceptance criteria`} of ${feature}`,
+    practices: 'Practices it rests on',
+    unverifiedSources: 'not verified',
     itWouldSay: 'It would say',
     nowItSays: 'Now it says',
     criterionAction: (action: string) =>
@@ -448,6 +451,9 @@ export const PROPOSAL_VIEW = messages(
     needs: 'Necesita',
     proposedSize: (size: string, points: number) => `Tamaño: ${size} (${points} puntos)`,
     splitHow: 'Cómo se podría dividir',
+    coversHeading: (n: number, feature: string) => `Cubre ${n === 1 ? '1 criterio de aceptación' : `${n} criterios de aceptación`} de ${feature}`,
+    practices: 'Prácticas en las que se apoya',
+    unverifiedSources: 'sin verificar',
     itWouldSay: 'Diría',
     nowItSays: 'Ahora dice',
     criterionAction: (action: string) =>

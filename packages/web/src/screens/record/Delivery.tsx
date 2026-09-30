@@ -25,7 +25,7 @@ import { Code } from '../../components/Badge.tsx';
 import { checkAnchor, SectionContent, stepsOf } from '../../components/BehaviorSteps.tsx';
 import { Button, buttonClass } from '../../components/Button.tsx';
 import { useAllows } from '../../components/actions.tsx';
-import { ConfirmDialog } from '../../components/Dialog.tsx';
+import { ConfirmDialog, PromptDialog } from '../../components/Dialog.tsx';
 import {
   AlertTriangleIcon,
   CheckCircleIcon,
@@ -510,18 +510,20 @@ export function Flow({ version, recording }: { version: RecordVersion; recording
 }
 
 /**
- * The tasks the planning agent proposed for the feature, as drafts in its own backlog. They come as
- * one package, so they are accepted or rejected together with the package's commands.
+ * The tasks the planning agent proposed for the feature, as drafts in its own backlog. Each title
+ * opens the draft's own page (its proposal in the batch page). Decided one by one when the batch
+ * resolves item by item; an older package is accepted or rejected whole with the package's commands.
  */
 function TaskDrafts({ projectId, drafts }: { projectId: string; drafts: readonly TaskDraft[] }) {
   const t = useMessages(DELIVERY);
   const command = useCommand(projectId);
-  const allows = useAllows('batch', 'pending');
+  const allowsBatch = useAllows('batch', 'pending');
   const [dialog, setDialog] = useState<null | 'accept' | 'reject'>(null);
   const batchId = drafts[0]?.batch_id;
   if (!batchId) return null;
-  // One package per planning run: the decision goes to the first one; the rest follow when it is decided.
+  // One batch per planning run: the package decision goes to the first one; the rest follow when it is decided.
   const inBatch = drafts.filter((d) => d.batch_id === batchId);
+  const byItem = drafts.some((d) => d.resolution === 'item');
   const run = (name: 'batch.accept_package' | 'batch.reject_package', said: string) =>
     command.mutate(
       { command: name, entityId: batchId, data: {} },
@@ -536,60 +538,135 @@ function TaskDrafts({ projectId, drafts }: { projectId: string; drafts: readonly
     <div data-task-drafts className="flex flex-col gap-2 rounded-md bg-sunken px-3 py-2">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4">
         <h3 className="text-sm font-semibold text-fg">{t.draftTasks2}</h3>
-        <span className="text-sm text-fg-2">{t.draftsNote(inBatch.length)}</span>
+        <span className="text-sm text-fg-2">{t.draftsNote(byItem ? drafts.length : inBatch.length)}</span>
       </div>
       <ul className="flex flex-col divide-y divide-edge-subtle">
-        {inBatch.map((d) => (
-          <li key={d.proposal_id} data-task-draft={d.proposal_id} className="flex flex-col gap-0.5 py-2">
-            <div className="flex flex-wrap items-baseline gap-x-3">
-              <span className="min-w-0 text-sm font-medium text-fg">{d.title}</span>
-              <span className="ml-auto flex items-center gap-3 text-sm text-fg-2">
-                {d.size ? <span className="tabular-nums">{d.size}</span> : null}
-                <span className="font-medium text-warning-text">{t.draftLabel}</span>
-              </span>
-            </div>
-            {d.covers.length > 0 ? <span className="text-sm text-fg-2">{t.covers}: {d.covers.join(', ')}</span> : null}
-          </li>
+        {drafts.map((d) => (
+          <TaskDraftRow key={d.proposal_id} projectId={projectId} draft={d} />
         ))}
       </ul>
-      <p className="text-sm text-fg-2">{t.draftsHint}</p>
-      {command.error && !dialog ? <ErrorNotice error={command.error} /> : null}
-      <div className="flex flex-wrap gap-2">
-        {allows('batch.accept_package') ? (
-          <Button variant="primary" size="sm" data-command="batch.accept_package" onClick={() => { command.reset(); setDialog('accept'); }}>
-            {t.acceptDrafts}
-          </Button>
-        ) : null}
-        {allows('batch.reject_package') ? (
-          <Button variant="quiet-danger" size="sm" data-command="batch.reject_package" onClick={() => { command.reset(); setDialog('reject'); }}>
-            {t.rejectDrafts}
-          </Button>
-        ) : null}
-      </div>
-      <ConfirmDialog
-        open={dialog === 'accept'}
-        onOpenChange={(o) => !o && setDialog(null)}
-        title={t.acceptDraftsTitle}
-        description={<p>{t.acceptDraftsBody(inBatch.length)}</p>}
-        confirm={t.acceptDrafts}
-        pendingLabel={t.accepting}
-        pending={command.isPending}
-        error={dialog === 'accept' ? command.error : null}
-        onConfirm={() => run('batch.accept_package', t.draftsAccepted)}
-      />
-      <ConfirmDialog
-        open={dialog === 'reject'}
-        onOpenChange={(o) => !o && setDialog(null)}
-        title={t.rejectDraftsTitle}
-        description={<p>{t.rejectDraftsBody}</p>}
-        confirm={t.rejectDrafts}
-        pendingLabel={t.rejecting}
-        tone="danger"
-        pending={command.isPending}
-        error={dialog === 'reject' ? command.error : null}
-        onConfirm={() => run('batch.reject_package', t.draftsRejected)}
-      />
+      <p className="text-sm text-fg-2">{byItem ? t.draftsHintItem : t.draftsHint}</p>
+      {!byItem ? (
+        <>
+          {command.error && !dialog ? <ErrorNotice error={command.error} /> : null}
+          <div className="flex flex-wrap gap-2">
+            {allowsBatch('batch.accept_package') ? (
+              <Button variant="primary" size="sm" data-command="batch.accept_package" onClick={() => { command.reset(); setDialog('accept'); }}>
+                {t.acceptDrafts}
+              </Button>
+            ) : null}
+            {allowsBatch('batch.reject_package') ? (
+              <Button variant="quiet-danger" size="sm" data-command="batch.reject_package" onClick={() => { command.reset(); setDialog('reject'); }}>
+                {t.rejectDrafts}
+              </Button>
+            ) : null}
+          </div>
+          <ConfirmDialog
+            open={dialog === 'accept'}
+            onOpenChange={(o) => !o && setDialog(null)}
+            title={t.acceptDraftsTitle}
+            description={<p>{t.acceptDraftsBody(inBatch.length)}</p>}
+            confirm={t.acceptDrafts}
+            pendingLabel={t.accepting}
+            pending={command.isPending}
+            error={dialog === 'accept' ? command.error : null}
+            onConfirm={() => run('batch.accept_package', t.draftsAccepted)}
+          />
+          <ConfirmDialog
+            open={dialog === 'reject'}
+            onOpenChange={(o) => !o && setDialog(null)}
+            title={t.rejectDraftsTitle}
+            description={<p>{t.rejectDraftsBody}</p>}
+            confirm={t.rejectDrafts}
+            pendingLabel={t.rejecting}
+            tone="danger"
+            pending={command.isPending}
+            error={dialog === 'reject' ? command.error : null}
+            onConfirm={() => run('batch.reject_package', t.draftsRejected)}
+          />
+        </>
+      ) : null}
     </div>
+  );
+}
+
+/** One draft: its title links to its own page; Accept and Reject only when its batch is decided item by item. */
+function TaskDraftRow({ projectId, draft: d }: { projectId: string; draft: TaskDraft }) {
+  const t = useMessages(DELIVERY);
+  const command = useCommand(projectId);
+  const allows = useAllows('proposal', 'pending');
+  const [dialog, setDialog] = useState<null | 'accept' | 'reject'>(null);
+  const item = d.resolution === 'item';
+  const run = (name: 'proposal.accept' | 'proposal.reject', data: Record<string, unknown>, said: string) =>
+    command.mutate(
+      { command: name, entityId: d.proposal_id, data },
+      {
+        onSuccess: () => {
+          setDialog(null);
+          announce(said);
+        },
+      },
+    );
+  return (
+    <li data-task-draft={d.proposal_id} className="flex flex-col gap-0.5 py-2">
+      <div className="flex flex-wrap items-baseline gap-x-3">
+        <Link
+          to="/p/$projectId/batches/$batchId"
+          params={{ projectId, batchId: d.batch_id }}
+          search={{ p: d.proposal_id }}
+          className="min-w-0 text-sm font-medium text-accent-text hover:underline"
+        >
+          {d.title}
+        </Link>
+        <span className="ml-auto flex items-center gap-3 text-sm text-fg-2">
+          {d.size ? <span className="tabular-nums">{d.size}</span> : null}
+          <span className="font-medium text-warning-text">{t.draftLabel}</span>
+        </span>
+      </div>
+      {d.covers.length > 0 ? <span className="text-sm text-fg-2">{t.covers}: {d.covers.join(', ')}</span> : null}
+      {item ? (
+        <>
+          {command.error && !dialog ? <ErrorNotice error={command.error} /> : null}
+          <div className="flex flex-wrap gap-2 pt-1">
+            {allows('proposal.accept') ? (
+              <Button variant="primary" size="sm" data-command="proposal.accept" onClick={() => { command.reset(); setDialog('accept'); }}>
+                {t.acceptDraft}
+              </Button>
+            ) : null}
+            {allows('proposal.reject') ? (
+              <Button variant="quiet-danger" size="sm" data-command="proposal.reject" onClick={() => { command.reset(); setDialog('reject'); }}>
+                {t.rejectDraft}
+              </Button>
+            ) : null}
+          </div>
+          <ConfirmDialog
+            open={dialog === 'accept'}
+            onOpenChange={(o) => !o && setDialog(null)}
+            title={t.acceptDraftTitle(d.title)}
+            description={<p>{t.acceptDraftBody}</p>}
+            confirm={t.acceptDraft}
+            pendingLabel={t.accepting}
+            pending={command.isPending}
+            error={dialog === 'accept' ? command.error : null}
+            onConfirm={() => run('proposal.accept', {}, t.draftAccepted)}
+          />
+          <PromptDialog
+            open={dialog === 'reject'}
+            onOpenChange={(o) => !o && setDialog(null)}
+            title={t.rejectDraftTitle(d.title)}
+            description={t.rejectDraftBody}
+            label={t.reasonLabel}
+            required
+            submit={t.rejectDraft}
+            pendingLabel={t.rejecting}
+            tone="danger"
+            pending={command.isPending}
+            error={dialog === 'reject' ? command.error : null}
+            onSubmit={(text) => run('proposal.reject', text ? { reason: text } : {}, t.draftRejected)}
+          />
+        </>
+      ) : null}
+    </li>
   );
 }
 

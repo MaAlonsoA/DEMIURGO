@@ -4,6 +4,7 @@
 
 import { questionReason } from '../../../../domain/src/records.ts';
 import type { Inbox, InboxBatch, InboxLink, InboxProposal, InboxQuestion, InboxVersion, ProductRow } from '../../api/types.ts';
+import { taskDraftsFeature } from '../../lib/attention.ts';
 import { ORDER } from './words.i18n.ts';
 
 export type Classification = Inbox['classifications_to_review'][number];
@@ -118,7 +119,8 @@ export function needsOf(inbox: Inbox, rows: readonly ProductRow[]): NeedItem[] {
   const blocking = new Set(questions.filter((q) => unblocksOf(q, rows).length > 0).map((q) => q.key));
   needs.push(...questions.filter((q) => blocking.has(q.key)), ...questions.filter((q) => !blocking.has(q.key)));
   for (const b of inbox.batches.filter((x) => x.type !== 'knowledge' && x.proposals.length > 0)) {
-    if (b.resolution === 'package') needs.push({ kind: 'package', key: `package:${b.id}`, batch: b });
+    // The tasks planned for one feature are one line, package or item by item: they are decided on its page.
+    if (b.resolution === 'package' || taskDraftsFeature(b)) needs.push({ kind: 'package', key: `package:${b.id}`, batch: b });
     else
       b.proposals.forEach((proposal, i) =>
         needs.push({ kind: 'proposal', key: `proposal:${proposal.id}`, batch: b, proposal, position: i + 1 }),

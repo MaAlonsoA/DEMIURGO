@@ -199,6 +199,11 @@ const needsYouRoute = createRoute({
 const batchRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: '/batches/$batchId',
+  // `p`: the proposal of the batch to open on (a task draft's own page).
+  validateSearch: (s: Record<string, unknown>): { p?: string } => {
+    const id = text(s.p);
+    return id ? { p: id } : {};
+  },
   component: BatchScreen,
 });
 const activityRoute = createRoute({

@@ -18,7 +18,7 @@ export function packageTitle(
 ): string {
   // The tasks planned for one feature are one thing: "9 draft tasks for FDR-X title".
   const feature = taskDraftsFeature(item.batch);
-  if (feature) return words.taskDraftsTitle(item.batch.proposals.length, feature, rowOf(rows, feature)?.title ?? '');
+  if (feature) return words.taskDraftsTitle(item.batch.proposals.filter((p) => p.state === 'pending').length || item.batch.proposals.length, feature, rowOf(rows, feature)?.title ?? '');
   if (item.batch.type === 'import') return words.packageImported;
   const first = item.batch.proposals[0];
   return (first ? proposalTitle(first) : '') || words.packageFallback;

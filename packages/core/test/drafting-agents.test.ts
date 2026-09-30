@@ -175,7 +175,7 @@ describe('the drafting agents', () => {
     state.featureVersion = state.feature.versionId;
   });
 
-  it('task_plan proposes one package of tasks that together cover every criterion, and accepting it creates them', async () => {
+  it('task_plan proposes a batch of tasks, each decided on its own, that together cover every criterion, and accepting it creates them', async () => {
     const run = await draftRun('task_plan', { type: 'record_version', id: state.featureVersion });
     expect(run.state).toBe('completed');
     const proposals = await proposalsOf(run.id);
@@ -188,7 +188,7 @@ describe('the drafting agents', () => {
     expect(criteria.length).toBeGreaterThan(0);
     expect(new Set(payloads.flatMap((x) => x.covers ?? []))).toEqual(new Set(criteria));
 
-    await cmd('batch.accept_package', { approve: true }, proposals[0]?.batchId);
+    for (const p of proposals) await cmd('proposal.accept', { approve: true }, p.id);
     const after = await recordDetail(db(), projectId, state.featureCode);
     expect(after.tasks).toHaveLength(proposals.length);
     for (const t of after.tasks ?? []) expect(t.size).toBeTruthy();

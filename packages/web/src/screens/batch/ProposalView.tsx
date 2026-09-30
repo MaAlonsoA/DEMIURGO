@@ -182,6 +182,62 @@ function FeaturePlanBody({ proposal: p }: { proposal: ProposalData }) {
   );
 }
 
+/** A task draft's covered criteria (with their text, from the feature's current version) and practice sources. */
+function TaskExtras({ projectId, payload }: { projectId: string; payload: Record<string, unknown> }) {
+  const t = useMessages(PROPOSAL_VIEW);
+  const feature = str((payload.based_on as { code?: unknown } | undefined)?.code);
+  const covers = (Array.isArray(payload.covers) ? payload.covers : []).filter((c): c is string => typeof c === 'string');
+  const record = useQuery({ ...recordQuery(projectId, feature), enabled: feature !== '' && covers.length > 0 }).data;
+  const criteria = (record?.versions.find((v) => v.current) ?? record?.versions[0])?.criteria ?? [];
+  const sources = (Array.isArray(payload.sources) ? payload.sources : []).filter(
+    (x): x is { title: string; url?: string; used_for?: string } => !!x && typeof (x as { title?: unknown }).title === 'string',
+  );
+  return (
+    <>
+      {covers.length > 0 ? (
+        <section className="flex flex-col gap-1.5" data-task-covers>
+          <h3 className="text-sm font-semibold text-fg-2">{t.coversHeading(covers.length, feature)}</h3>
+          <ul className="flex flex-col gap-1.5">
+            {covers.map((code) => {
+              const c = criteria.find((x) => x.code === code);
+              return (
+                <li key={code} className="flex flex-col text-md text-fg">
+                  <span>
+                    <span className="font-medium tabular-nums">{code}</span>
+                    {c ? ` ${c.title}` : ''}
+                  </span>
+                  {c?.statement ? <span className="text-sm text-fg-2">{c.statement}</span> : null}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
+      {sources.length > 0 ? (
+        <section className="flex flex-col gap-1.5" data-task-sources>
+          <h3 className="text-sm font-semibold text-fg-2">
+            {t.practices} <span className="font-normal text-fg-3">({t.unverifiedSources})</span>
+          </h3>
+          <ul className="flex flex-col gap-1.5">
+            {sources.map((x) => (
+              <li key={`${x.title}-${x.url}`} className="flex flex-col text-sm">
+                {x.url ? (
+                  <a href={x.url} target="_blank" rel="noreferrer" className="font-medium text-accent-text hover:underline">
+                    {x.title}
+                  </a>
+                ) : (
+                  <span className="font-medium text-fg">{x.title}</span>
+                )}
+                {x.used_for ? <span className="text-fg-2">{x.used_for}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+    </>
+  );
+}
+
 /** What a proposal changes, by its type (INV-PROP-10). The title and the why are above it. */
 export function ProposalBody({
   projectId,
@@ -248,6 +304,7 @@ export function ProposalBody({
           </section>
         ) : null}
         <Sections sections={payloadSections(p.payload)} criteria={payloadChecks(p.payload)} />
+        {p.payload.record_type === 'task' ? <TaskExtras projectId={projectId} payload={p.payload} /> : null}
         {features.length > 0 ? (
           <section className="flex flex-col gap-1" data-features>
             <h3 className="text-sm font-semibold text-fg-2">{t.features(features.length)}</h3>

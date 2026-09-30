@@ -157,8 +157,8 @@ registerApplier('task_plan', async ({ trx, execute, run, output }) => {
     actor: { type: 'agent_run', run: run.id },
     data: {
       summary: `Tasks planned for ${f.code} v${f.version}: ${output.tasks.length} tasks.`,
-      batch_type: 'system_package',
-      resolution: 'package',
+      batch_type: 'agent',
+      resolution: 'item',
       run_id: run.id,
       context_pack_id: run.context_pack_id ?? undefined,
       dependencies: [{ type: 'record', id: record.id, code: f.code, version: f.version }],

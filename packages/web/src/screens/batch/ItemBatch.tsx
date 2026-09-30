@@ -5,7 +5,7 @@
 // "Change" edits asks first. Never an "accept all" (INV-PROP-21).
 
 import { useQuery } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
+import { Link, useSearch } from '@tanstack/react-router';
 import { useEffect, useId, useRef, useState } from 'react';
 import { inboxQuery, stateQuery } from '../../api/queries.ts';
 import type { BatchDetail, InboxProposal, ProductRow } from '../../api/types.ts';
@@ -51,7 +51,9 @@ function ItemBatchPage({ projectId, batch }: { projectId: string; batch: BatchDe
   const rows: ProductRow[] = state ? [...state.decisions, ...state.designs] : [];
   const proposals = withInbox(batch, inbox?.batches.find((b) => b.id === batch.id)?.proposals ?? []);
   const n = proposals.length;
-  const firstPending = Math.max(
+  const wanted = (useSearch({ strict: false }) as { p?: string }).p;
+  const wantedIndex = wanted ? proposals.findIndex((p) => p.id === wanted) : -1;
+  const firstPending = wantedIndex >= 0 ? wantedIndex : Math.max(
     0,
     proposals.findIndex((p) => p.state === 'pending'),
   );

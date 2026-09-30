@@ -200,7 +200,10 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
   const items = buildTimeline(t.messages, runs.data ?? [], shown);
   const decisions = products ? draftableDecisions(products.decisions, t.id) : undefined;
   const stage = stages?.find((x) => x.exploration_id === t.id && x.state === 'open');
-  const nextStage = stage ? stages?.find((x) => x.position === stage.position + 1) : undefined;
+  // Passing only opens the next stage of the same moment; the next moment opens by its own step.
+  const nextStage = stage
+    ? stages?.find((x) => x.position === stage.position + 1 && x.moment === stage.moment)
+    : undefined;
   const stageDone = !!stage && stage.total > 0 && stage.covered === stage.total;
   // The onboarding passed in this thread and no feature thread hangs from it yet.
   const onboarding = stages?.filter((x) => x.moment === 'onboarding') ?? [];

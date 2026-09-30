@@ -466,7 +466,7 @@ export const STAGE_COMPLETE = messages(
     passStage: 'Pass stage',
     passTitle: (title: string) => `Pass ${title}?`,
     passDescription: (next: string | null) =>
-      `Its answers stay as they are, confirmed by you. ${next ? `${next} opens next, with its own questions in this thread.` : 'It is the last design stage.'}`,
+      `Its answers stay as they are, confirmed by you. ${next ? `${next} opens next, with its own questions in this thread.` : 'Nothing else opens now.'}`,
     passing: 'Passing…',
     passed: (title: string, next: string | null) => (next ? `${title} passed. ${next} opens next.` : `${title} passed.`),
   },
@@ -476,7 +476,7 @@ export const STAGE_COMPLETE = messages(
     passStage: 'Pasar etapa',
     passTitle: (title: string) => `¿Pasar ${title}?`,
     passDescription: (next: string | null) =>
-      `Sus respuestas quedan como están, confirmadas por ti. ${next ? `${next} se abre a continuación, con sus propias preguntas en este hilo.` : 'Es la última etapa de diseño.'}`,
+      `Sus respuestas quedan como están, confirmadas por ti. ${next ? `${next} se abre a continuación, con sus propias preguntas en este hilo.` : 'Ahora no se abre nada más.'}`,
     passing: 'Pasando…',
     passed: (title: string, next: string | null) => (next ? `${title} pasada. A continuación, ${next}.` : `${title} pasada.`),
   },

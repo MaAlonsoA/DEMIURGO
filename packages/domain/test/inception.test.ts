@@ -5,6 +5,7 @@ const empty: InceptionInput = {
   hasInterface: true,
   stages: [],
   definition: null,
+  definitionProposal: false,
   designSystem: null,
   epics: [],
   features: [],
@@ -23,6 +24,24 @@ const passed = (key: string) => ({
 const ok = (code: string) => ({ code, approved: true });
 
 describe("the inception path", () => {
+  it("a proposed definition asks to review and approve it, and a passed stage waits for its section to be approved", () => {
+    const drafted = inceptionPath({
+      ...empty,
+      definitionProposal: true,
+      stages: [{ key: "requirements", id: "r", state: "open", thread: "t", uncovered: 0 }],
+    });
+    expect(drafted.current).toBe("definition");
+    expect(drafted.steps[0]?.action).toEqual({ kind: "review_definition" });
+    const section = inceptionPath({
+      ...empty,
+      definition: ok("DEF-PRO-001"),
+      definitionProposal: true,
+      stages: [passed("requirements"), passed("quality")],
+    });
+    expect(section.current).toBe("quality");
+    expect(section.steps[1]?.action).toEqual({ kind: "review_definition" });
+  });
+
   it("lists the twelve steps in order with the first one current", () => {
     const p = inceptionPath(empty);
     expect(p.steps.map((s) => s.key)).toEqual([

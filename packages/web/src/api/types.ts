@@ -268,7 +268,8 @@ export type InceptionAction =
   | { kind: 'epics' }
   | { kind: 'feature'; code: string }
   | { kind: 'repository' }
-  | { kind: 'build'; code: string | null };
+  | { kind: 'build'; code: string | null }
+  | { kind: 'review_definition' };
 
 export type InceptionStep = {
   key: string;

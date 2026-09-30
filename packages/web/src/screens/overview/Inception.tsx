@@ -38,6 +38,7 @@ export const INCEPTION = messages(
     repository: 'Connect the repository',
     build: 'Go to Build',
     goToStages: 'Go to the stages',
+    reviewDefinition: 'Review and approve the definition',
     nextUp: (title: string) => `Next: ${title}`,
   },
   {
@@ -59,6 +60,7 @@ export const INCEPTION = messages(
     repository: 'Conectar el repositorio',
     build: 'Ir a Construir',
     goToStages: 'Ir a las etapas',
+    reviewDefinition: 'Revisar y aprobar la definición',
     nextUp: (title: string) => `Siguiente: ${title}`,
   },
 );
@@ -163,6 +165,13 @@ export function InceptionActionButton({ projectId, step }: { projectId: string; 
       return link('/p/$projectId/repository', { projectId }, t.repository);
     case 'build':
       return link('/p/$projectId/build', { projectId }, action.code ? t.open(action.code) : t.build);
+    case 'review_definition':
+      return (
+        <a href="#definition" className={primary}>
+          {t.reviewDefinition}
+          <ArrowRightIcon size={15} />
+        </a>
+      );
   }
 }
 

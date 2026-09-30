@@ -38,7 +38,9 @@ export type InceptionAction =
   | { kind: "epics" }
   | { kind: "feature"; code: string }
   | { kind: "repository" }
-  | { kind: "build"; code: string | null };
+  | { kind: "build"; code: string | null }
+  /** A proposed definition (or a change to it) waits: review and approve it on Product. */
+  | { kind: "review_definition" };
 
 export type InceptionStep = {
   key: InceptionStepKey;
@@ -76,6 +78,8 @@ export type InceptionInput = {
     uncovered: number;
   }[];
   definition: InceptionRecord | null;
+  /** A product definition proposal (the first draft or a change to a section) is pending. */
+  definitionProposal: boolean;
   designSystem: InceptionRecord | null;
   epics: InceptionRecord[];
   /** Features (FDR) in order: the first of the first epic, else the oldest. */
@@ -142,7 +146,11 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       blocks: null,
       source: "VISION.md · Arranque 1; ISO/IEC/IEEE 29148",
       done: input.definition?.approved === true && passed("requirements"),
-      action: () => draftOf(input.definition) ?? stageAction("requirements"),
+      // The definition closes when the person approves it (that also passes its stage).
+      action: () =>
+        input.definitionProposal
+          ? { kind: "review_definition" }
+          : (draftOf(input.definition) ?? stageAction("requirements")),
     },
     {
       key: "quality",
@@ -150,8 +158,10 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       why: "Quality goals turn «good enough» into scenarios that can be checked.",
       blocks: null,
       source: "VISION.md · Arranque 2; arc42 §10 quality scenarios",
-      done: passed("quality"),
-      action: () => stageAction("quality"),
+      // Passing the stage proposes its section of the definition: done once that is approved too.
+      done: passed("quality") && !input.definitionProposal,
+      action: () =>
+        passed("quality") ? { kind: "review_definition" } : stageAction("quality"),
     },
     {
       key: "principles",
@@ -159,8 +169,10 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       why: "Principles settle the choices that would otherwise be reopened in every feature.",
       blocks: null,
       source: "VISION.md · Arranque 3",
-      done: passed("principles"),
-      action: () => stageAction("principles"),
+      // Passing the stage proposes its section of the definition: done once that is approved too.
+      done: passed("principles") && !input.definitionProposal,
+      action: () =>
+        passed("principles") ? { kind: "review_definition" } : stageAction("principles"),
     },
     {
       key: "design_system",

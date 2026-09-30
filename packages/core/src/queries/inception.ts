@@ -160,6 +160,15 @@ export async function inceptionOf(
     hasInterface: true,
     stages,
     definition: rec(ofType("product_definition")[0]),
+    definitionProposal: Boolean(
+      await db
+        .selectFrom("proposals")
+        .select("id")
+        .where("project_id", "=", projectId)
+        .where("type", "=", "product_definition")
+        .where("state", "=", "pending")
+        .executeTakeFirst(),
+    ),
     designSystem: rec(ofType("design_system")[0]),
     epics: ofType("epic").map((r) => rec(r) as InceptionRecord),
     features: ordered.map((r) => rec(r) as InceptionRecord),

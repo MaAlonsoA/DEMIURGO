@@ -22,7 +22,7 @@ import { TypeIcon } from '../../components/types.tsx';
 import { useReadingOf } from '../../i18n/reading.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
-import { acceptedRecord, obsoleteReason, proposalTitle, rowOfVersion } from './model.ts';
+import { acceptedRecord, obsoleteReason, proposalTitle, recordChangeParts, recordChangeWhat, rowOfVersion } from './model.ts';
 import { AspectDoubt, AspectPicker, BasedOn, HowItWasMade, RETAGGABLE } from './Basis.tsx';
 import { BlockedNotice, ChecksList, Evidence, IdeaCheck, linkClass, OutOfDate, RecordChip, Sections } from './parts.tsx';
 import { ProposalDecision } from './ProposalActions.tsx';
@@ -90,21 +90,61 @@ function DefinitionChangeBody({ projectId, proposal: p }: { projectId: string; p
   );
 }
 
-/** A change to a section of a record decided in its thread: what it would say and what it says now. */
+/** A change to a record decided in its thread: each section as it would say and says now, then its criteria. */
 function RecordChangeBody({ projectId, proposal: p }: { projectId: string; proposal: ProposalData }) {
   const t = useMessages(PROPOSAL_VIEW);
+  const locale = useLocale();
   const base = p.payload.record as { code?: string; version?: number } | undefined;
-  const title = str(p.payload.section);
+  const { sections, criteria } = recordChangeParts(p.payload);
   const record = useQuery({ ...recordQuery(projectId, base?.code ?? ''), enabled: !!base?.code }).data;
-  const now = record?.versions.find((v) => v.n === base?.version)?.sections.find((s) => s.title === title)?.content ?? null;
+  const version = record?.versions.find((v) => v.n === base?.version);
   return (
     <div className="flex flex-col gap-4" data-body="record_change">
-      <p className="text-sm text-fg-2">{t.recordChangeOf(base?.code ?? '', title)}</p>
-      <Prose title={t.itWouldSay} text={str(p.payload.content)} />
-      {now ? (
-        <section className="flex flex-col gap-1" data-record-before>
-          <h3 className="text-sm font-semibold text-fg-2">{t.nowItSays}</h3>
-          <Markdown className="text-fg-3 line-through">{now}</Markdown>
+      <p className="text-sm text-fg-2">{t.recordChangeOf(base?.code ?? '', recordChangeWhat(p.payload, locale))}</p>
+      {sections.map((x) => {
+        const now = version?.sections.find((s) => s.title === x.section)?.content ?? null;
+        return (
+          <section key={x.section} className="flex flex-col gap-2" data-record-section={x.section}>
+            <h3 className="text-base font-semibold text-fg">{x.section}</h3>
+            <Prose title={t.itWouldSay} text={x.content} />
+            {now ? (
+              <section className="flex flex-col gap-1" data-record-before>
+                <h4 className="text-sm font-semibold text-fg-2">{t.nowItSays}</h4>
+                <Markdown className="text-fg-3 line-through">{now}</Markdown>
+              </section>
+            ) : null}
+          </section>
+        );
+      })}
+      {criteria.length > 0 ? (
+        <section className="flex flex-col gap-2" data-record-criteria>
+          <h3 className="text-sm font-semibold text-fg-2">{t.checksCount(criteria.length)}</h3>
+          <ol className="flex flex-col divide-y divide-edge-subtle rounded-lg border border-edge bg-panel">
+            {criteria.map((k, i) => {
+              const before = k.code ? version?.criteria.find((c) => c.code === k.code) : undefined;
+              return (
+                <li key={`${k.code}-${i}`} className="flex flex-col gap-1 px-3.5 py-3" data-criterion-change={k.action}>
+                  <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                    <span className="font-medium text-fg-2">{t.criterionAction(k.action)}</span>
+                    {k.code ? <span className="font-mono text-xs text-fg-3">{k.code}</span> : null}
+                  </p>
+                  {k.action === 'drop' ? (
+                    <p className="text-sm text-fg-3 line-through">{before ? `${before.title}: ${before.statement}` : k.code}</p>
+                  ) : (
+                    <>
+                      <p className="font-medium text-fg">{k.title}</p>
+                      <p className="text-sm text-fg-2">{k.statement}</p>
+                      <p className="text-xs text-fg-2">
+                        <span className="text-fg-3">{t.checkWord}</span>
+                        {k.check}
+                      </p>
+                      {before ? <p className="text-xs text-fg-3 line-through">{`${before.title}: ${before.statement}`}</p> : null}
+                    </>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
         </section>
       ) : null}
     </div>

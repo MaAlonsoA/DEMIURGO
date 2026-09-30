@@ -364,7 +364,7 @@ export const explorationChatOutput = z
                 .describe("The person's exact words in this thread the change rests on, copied verbatim in their language."),
             })
             .strict(),
-          // A section of the record the thread is about changes because the person decided so here.
+          // The record the thread is about changes (sections and criteria) because the person decided so here.
           z
             .object({
               type: z.literal('record_change'),
@@ -372,8 +372,36 @@ export const explorationChatOutput = z
                 .string()
                 .regex(/^[A-Z]{3}-[A-Z]{3}-\d{3}$/)
                 .describe('The record the thread is about (about_record), which has an approved version.'),
-              section: recordText(120).describe("The title of one of the sections of that record's current version."),
-              content: recordText(6000).describe('The whole section as it should read after the change, in English.'),
+              sections: z
+                .array(
+                  z
+                    .object({
+                      section: recordText(120).describe("The title of one of the sections of that record's current version."),
+                      content: recordText(6000).describe('The whole section as it should read after the change, in English.'),
+                    })
+                    .strict(),
+                )
+                .max(8)
+                .describe('Only the sections that change, each whole; empty when only criteria change.'),
+              criteria: z
+                .array(
+                  z
+                    .object({
+                      action: z.enum(['add', 'modify', 'drop']),
+                      code: z
+                        .string()
+                        .regex(/^AC-[A-Z]{3}-\d{3}-\d{2}$/)
+                        .nullable()
+                        .describe('For modify and drop: the code of one of `about_record.criteria`; null for add.'),
+                      title: recordText(160).nullable().describe('For add and modify: the whole new title; null for drop.'),
+                      statement: recordText(1500).nullable().describe('For add and modify: the whole new statement (EARS); null for drop.'),
+                      verification: z.enum(['automatic', 'manual']).nullable().describe('For add and modify; null for drop.'),
+                      check: recordText(600).nullable().describe('For add and modify: how it is checked; null for drop.'),
+                    })
+                    .strict(),
+                )
+                .max(12)
+                .describe('Only the criteria that change: added, modified (whole new content) or dropped; the rest are kept. Empty when only sections change.'),
               reason: recordText(1000),
               quotes: z
                 .array(text(QUOTE_MAX))

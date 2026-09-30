@@ -3,6 +3,7 @@
 // cites. Nothing here decides what is allowed: that comes from the tables.
 
 import type { BatchDetail, ImportCounts, ProductRow, Proposal, RecordType } from '../../api/types.ts';
+import type { Locale } from '../../i18n/locale.ts';
 
 export type BatchView = 'import' | 'package' | 'items';
 
@@ -95,7 +96,7 @@ export function proposalTitle(p: { type: string; payload: Record<string, unknown
   }
   if (p.type === 'exploration') return str(p.payload.purpose);
   if (p.type === 'definition_change') return `Product definition: ${str(p.payload.section)}`;
-  if (p.type === 'record_change') return `${str((p.payload.record as { code?: unknown } | undefined)?.code)}: ${str(p.payload.section)}`;
+  if (p.type === 'record_change') return `${str((p.payload.record as { code?: unknown } | undefined)?.code)}: ${recordChangeWhat(p.payload)}`;
   if (p.type === 'feature_plan') {
     const epic = str((p.payload.epic as { code?: unknown } | undefined)?.code);
     const action = str(p.payload.action);
@@ -200,4 +201,46 @@ export function rowOf(rows: readonly ProductRow[], code: string): ProductRow | u
 /** The record whose latest or current version is this one, among the product's rows. */
 export function rowOfVersion(rows: readonly ProductRow[], versionId: string): ProductRow | undefined {
   return rows.find((r) => r.latest_id === versionId || r.current_id === versionId);
+}
+
+export type CriterionChangeView = {
+  action: 'add' | 'modify' | 'drop';
+  code: string;
+  title: string;
+  statement: string;
+  verification: string;
+  check: string;
+};
+
+/** What a record change changes: whole sections (the older one-section form too) and criteria. */
+export function recordChangeParts(payload: Record<string, unknown>): {
+  sections: { section: string; content: string }[];
+  criteria: CriterionChangeView[];
+} {
+  const one = str(payload.section) ? [{ section: str(payload.section), content: str(payload.content) }] : [];
+  const many = Array.isArray(payload.sections)
+    ? (payload.sections as { section?: unknown; content?: unknown }[]).map((x) => ({ section: str(x.section), content: str(x.content) }))
+    : [];
+  const criteria = Array.isArray(payload.criteria)
+    ? (payload.criteria as Record<string, unknown>[]).map((k) => ({
+        action: (k.action === 'modify' || k.action === 'drop' ? k.action : 'add') as CriterionChangeView['action'],
+        code: str(k.code),
+        title: str(k.title),
+        statement: str(k.statement),
+        verification: str(k.verification),
+        check: str(k.check),
+      }))
+    : [];
+  return { sections: [...one, ...many], criteria };
+}
+
+/** What a record change touches, in a few words: its sections by name and how many criteria. */
+export function recordChangeWhat(payload: Record<string, unknown>, locale: Locale = 'en'): string {
+  const { sections, criteria } = recordChangeParts(payload);
+  const es = locale === 'es';
+  const parts = [
+    ...sections.map((x) => (es ? `«${x.section}»` : `“${x.section}”`)),
+    ...(criteria.length > 0 ? [es ? `${criteria.length} ${criteria.length === 1 ? 'criterio' : 'criterios'}` : `${criteria.length} ${criteria.length === 1 ? 'criterion' : 'criteria'}`] : []),
+  ];
+  return parts.length <= 1 ? (parts[0] ?? '') : `${parts.slice(0, -1).join(', ')} ${es ? 'y' : 'and'} ${parts.at(-1)}`;
 }

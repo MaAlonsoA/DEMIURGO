@@ -390,6 +390,9 @@ export const PROPOSAL_VIEW = messages(
     splitHow: 'How it could be split',
     itWouldSay: 'It would say',
     nowItSays: 'Now it says',
+    criterionAction: (action: string) =>
+      (({ add: 'New criterion', modify: 'Changed criterion', drop: 'Dropped criterion' }) as Record<string, string>)[action] ?? action,
+    checkWord: 'Check: ',
     openReview: 'Open a review',
     keepAsIs: 'Keep it as it is',
     openRecord: (code: string) => `Open ${code}`,
@@ -447,6 +450,9 @@ export const PROPOSAL_VIEW = messages(
     splitHow: 'Cómo se podría dividir',
     itWouldSay: 'Diría',
     nowItSays: 'Ahora dice',
+    criterionAction: (action: string) =>
+      (({ add: 'Criterio nuevo', modify: 'Criterio cambiado', drop: 'Criterio quitado' }) as Record<string, string>)[action] ?? action,
+    checkWord: 'Comprobación: ',
     openReview: 'Abrir una revisión',
     keepAsIs: 'Mantenerlo como está',
     openRecord: (code: string) => `Abrir ${code}`,

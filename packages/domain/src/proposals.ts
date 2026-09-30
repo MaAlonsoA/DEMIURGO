@@ -193,18 +193,59 @@ export const definitionChangePayload = z
  * (`evidence`, checked by the server). Accepting it makes the next version of the record: the one
  * in force with only that section replaced; `record` is the version it changes.
  */
+const acCode = z.string().regex(/^AC-[A-Z]{3}-\d{3}-\d{2}$/);
+const criterionText = {
+  title: text(160),
+  statement: text(1500),
+  verification: z.enum(['automatic', 'manual']),
+  check: text(600),
+};
+
+/** A change to one criterion of a record: a new one, the whole new content of one, or one dropped. */
+export const criterionChange = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('add'), ...criterionText }).strict(),
+  z.object({ action: z.literal('modify'), code: acCode, ...criterionText }).strict(),
+  z.object({ action: z.literal('drop'), code: acCode }).strict(),
+]);
+export type CriterionChange = z.infer<typeof criterionChange>;
+
+/**
+ * A change to a record decided in the thread about it: whole sections replaced and criteria added,
+ * modified or dropped, all in one new version. `section` and `content` are the older one-section form.
+ */
 export const recordChangePayload = z
   .object({
     record: recordReference,
-    section: text(120),
-    content: text(10_000),
+    section: text(120).optional(),
+    content: text(10_000).optional(),
+    sections: z
+      .array(z.object({ section: text(120), content: text(10_000) }).strict())
+      .max(12)
+      .optional(),
+    criteria: z.array(criterionChange).max(24).optional(),
     reason: text(1000),
     evidence: z
       .array(z.object({ message_id: z.string().uuid(), quote: text(QUOTE_MAX) }).strict())
       .min(1)
       .max(3),
   })
-  .strict();
+  .strict()
+  .superRefine((c, ctx) => {
+    if ((c.section === undefined) !== (c.content === undefined))
+      ctx.addIssue({ code: 'custom', message: 'A section needs its content, and content its section.' });
+    if (recordChangeSections(c).length === 0 && (c.criteria ?? []).length === 0)
+      ctx.addIssue({ code: 'custom', message: 'A record change changes at least one section or criterion.' });
+  });
+export type RecordChange = z.infer<typeof recordChangePayload>;
+
+/** The sections a record change replaces, whichever form it came in. */
+export function recordChangeSections(c: {
+  section?: string | undefined;
+  content?: string | undefined;
+  sections?: readonly { section: string; content: string }[] | undefined;
+}): { section: string; content: string }[] {
+  return [...(c.section !== undefined && c.content !== undefined ? [{ section: c.section, content: c.content }] : []), ...(c.sections ?? [])];
+}
 
 /**
  * A change to the list of features of an epic, proposed by an agent from what the person decided in

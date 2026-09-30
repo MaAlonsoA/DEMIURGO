@@ -7,7 +7,7 @@ import type { AspectCheck, BasisRefs, BatchDetail, Dependency, IdeaAssessmentSum
 import { NOUNS, proposalNoun } from '../../aspects.i18n.ts';
 import type { Locale } from '../../i18n/locale.ts';
 import { typeOfCode } from '../../components/types.tsx';
-import { batchView, proposalTitle } from './model.ts';
+import { batchView, proposalTitle, recordChangeParts, recordChangeWhat } from './model.ts';
 
 /** A proposal as the views show it: the batch's fields plus what the inbox adds to pending ones. */
 export type ProposalView = {
@@ -75,7 +75,11 @@ export function proposalLine(p: Pick<ProposalView, 'type' | 'payload'>): string 
   if (p.type === 'fdr') return str(p.payload.goal);
   if (p.type === 'review') return str(p.payload.reason);
   if (p.type === 'exploration') return str(p.payload.purpose);
-  if (p.type === 'definition_change' || p.type === 'record_change') return str(p.payload.content);
+  if (p.type === 'definition_change') return str(p.payload.content);
+  if (p.type === 'record_change') {
+    const { sections, criteria } = recordChangeParts(p.payload);
+    return sections[0]?.content ?? criteria[0]?.statement ?? criteria[0]?.code ?? '';
+  }
   if (p.type === 'feature_plan') return str(p.payload.summary) || str(p.payload.reason);
   if (p.type === 'design_record' || p.type === 'record_translation' || p.type === 'product_definition')
     return payloadSections(p.payload)[0]?.content ?? '';
@@ -122,17 +126,17 @@ export function acceptEffects(p: Pick<ProposalView, 'type' | 'payload'>, approve
   }
   if (p.type === 'record_change') {
     const r = p.payload.record as { code?: string; version?: number } | undefined;
-    const section = str(p.payload.section);
     const code = r?.code ?? (es ? 'el registro' : 'the record');
+    const what = recordChangeWhat(p.payload, locale);
     return es
       ? [
-          `DEMIURGO cambia «${section}» en ${code}, tal como dice aquí: una versión nueva del registro, con sus comprobaciones y enlaces.`,
+          `DEMIURGO cambia ${what} en ${code}, tal como dice aquí: una versión nueva del registro, con sus comprobaciones y enlaces.`,
           approve
             ? 'Queda asentada: aprobarla la pone en vigor.'
             : 'Sigues trabajando en ella: la versión nueva queda como propuesta aceptada, aún sin asentar.',
         ]
       : [
-          `DEMIURGO changes “${section}” in ${code}, as it says here: a new version of the record, with its checks and links.`,
+          `DEMIURGO changes ${what} in ${code}, as it says here: a new version of the record, with its checks and links.`,
           approve
             ? 'It is settled: approving it puts it in force.'
             : 'You keep working on it: the new version is recorded as an accepted proposal, not settled yet.',

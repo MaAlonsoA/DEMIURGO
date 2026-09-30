@@ -8,11 +8,12 @@ import {
   type ProposalType,
   type Section,
   definitionChangeNote,
+  recordChangeSections,
 } from '@demiurgo/domain';
 import type { CommandContext } from '../bus/types.ts';
 import { definitionStageId, proposeDefinitionIfCovered } from '../definition/compose.ts';
 import { proposeCoveredPrinciples } from '../definition/principles.ts';
-import { resolveReference } from './records.ts';
+import { type CriterionInput, resolveReference } from './records.ts';
 
 export type Effect = Record<string, unknown>;
 export type EffectInput = { proposalId: string; payload: unknown; approve: boolean };
@@ -335,9 +336,10 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
     };
   },
 
-  // A change to one section of a record, proposed in the thread that is about it (an epic's features,
-  // for one): the next version is the one it changes with only that section replaced, every criterion
-  // kept and the links it had. Accepting it makes the version (a draft); approving it puts it in force.
+  // A change to a record, proposed in the thread that is about it (an epic's features, for one): the
+  // next version is the one it changes with those sections replaced, those criteria added, modified or
+  // dropped, the rest kept, and the links it had. Accepting it makes the version (a draft); approving
+  // it puts it in force.
   async record_change(ctx, { proposalId, payload, approve }) {
     const c = PAYLOADS.record_change.parse(payload);
     const v = await resolveReference(ctx.trx, ctx.projectId, c.record.code, c.record.version);
@@ -347,15 +349,36 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
       .select(['title', 'sections'])
       .where('id', '=', v.versionId)
       .executeTakeFirstOrThrow();
-    if (!(base.sections as Section[]).some((s) => s.title === c.section))
-      throw new DomainError('conflict', `${c.record.code} v${c.record.version} has no section "${c.section}".`);
-    const sections = (base.sections as Section[]).map((s) => (s.title === c.section ? { title: s.title, content: c.content } : s));
-    const criteria = await ctx.trx
+    const changed = new Map(recordChangeSections(c).map((x) => [x.section, x.content]));
+    for (const title of changed.keys())
+      if (!(base.sections as Section[]).some((s) => s.title === title))
+        throw new DomainError('conflict', `${c.record.code} v${c.record.version} has no section "${title}".`);
+    const sections = (base.sections as Section[]).map((s) => ({ title: s.title, content: changed.get(s.title) ?? s.content }));
+    const priors = await ctx.trx
       .selectFrom('criteria')
       .select('code')
       .where('record_version_id', '=', v.versionId)
       .orderBy('position')
       .execute();
+    const byCode = new Map((c.criteria ?? []).flatMap((k) => (k.action === 'add' ? [] : [[k.code, k] as const])));
+    for (const code of byCode.keys())
+      if (!priors.some((p) => p.code === code))
+        throw new DomainError('conflict', `${c.record.code} v${c.record.version} has no criterion ${code}.`);
+    const criteria: CriterionInput[] = [
+      ...priors.flatMap((p): CriterionInput[] => {
+        const k = byCode.get(p.code);
+        if (!k) return [{ carry: 'kept' as const, code: p.code }];
+        if (k.action === 'drop') return [];
+        const { action: _, code, ...content } = k;
+        return [{ carry: 'modified' as const, derived_from: code, ...content }];
+      }),
+      ...(c.criteria ?? []).flatMap((k): CriterionInput[] => {
+        if (k.action !== 'add') return [];
+        const { action: _, ...content } = k;
+        return [{ carry: 'new' as const, ...content }];
+      }),
+    ];
+    const discarded = (c.criteria ?? []).flatMap((k) => (k.action === 'drop' ? [k.code] : []));
     const r = await ctx.execute({
       command: 'record_version.create',
       actor: ctx.actor,
@@ -363,7 +386,8 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
         record_id: v.recordId,
         title: base.title,
         sections,
-        criteria: criteria.map((k) => ({ carry: 'kept' as const, code: k.code })),
+        criteria,
+        discarded,
         links: await outgoingLinks(ctx, v.versionId),
         change_note: c.reason,
         origin: { type: 'proposal', id: proposalId },

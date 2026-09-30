@@ -7,6 +7,7 @@
 
 import {
   COVERED_QUESTION_STATES,
+  type CriterionChange,
   DomainError,
   STAGES,
   type Section,
@@ -232,6 +233,15 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
           .orderBy('created_at')
           .execute()
       : null;
+  // Its criteria, so a change to the record can modify or drop them by code.
+  const aboutCriteria = about
+    ? await trx
+        .selectFrom('criteria')
+        .select(['code', 'title', 'statement', 'verification', 'check_text'])
+        .where('record_version_id', '=', about.id)
+        .orderBy('position')
+        .execute()
+    : [];
   const aboutRecord = about
     ? {
         code: about.code,
@@ -242,6 +252,17 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
         state: about.state,
         title: about.title,
         sections: about.sections as { title: string; content: string }[],
+        ...(aboutCriteria.length > 0
+          ? {
+              criteria: aboutCriteria.map((c) => ({
+                code: c.code,
+                title: c.title,
+                statement: c.statement,
+                verification: c.verification,
+                check: c.check_text,
+              })),
+            }
+          : {}),
         ...(epicFeatures ? { features: epicFeatures } : {}),
       }
     : null;
@@ -584,8 +605,10 @@ registerChecker('exploration_chat', async ({ db, run, output }) => {
       (quote) =>
         `The quote "${quote}" is not in what the person wrote in this thread. Copy their words exactly as they wrote them, or leave the quote out.`,
     );
-  // A change to a record only lands on the one the thread is about, on a section it has.
+  // A change to a record only lands on the one the thread is about, on sections and criteria it has.
   const changes = output.proposals.filter((p) => p.type === 'record_change');
+  if (changes.length > 1)
+    notes.push('Propose one record_change with every section and criterion that changes: two changes of one record would outdate each other.');
   if (changes.length > 0) {
     const target = await recordChangeTarget(db, run.project_id, (run.scope as { id: string }).id);
     for (const c of changes) {
@@ -593,10 +616,7 @@ registerChecker('exploration_chat', async ({ db, run, output }) => {
         notes.push(
           `A record_change only applies to the record this thread is about${target ? ` (${target.code})` : ', and this thread is not about an approved record'}, not to ${c.code}.`,
         );
-      else if (!target.sections.some((x) => x.title === c.section))
-        notes.push(
-          `${target.code} has no section titled "${c.section}": its sections are ${target.sections.map((x) => `"${x.title}"`).join(', ')}.`,
-        );
+      else notes.push(...recordChangeProblems(target, c));
     }
   }
   for (const p of output.proposals) {
@@ -817,39 +837,104 @@ async function recordChangeTarget(db: Db, projectId: string, explorationId: stri
   if (!record || record.type === 'product_definition') return null;
   const current = await db
     .selectFrom('record_versions')
-    .select(['n', 'sections'])
+    .select(['id', 'n', 'sections'])
     .where('record_id', '=', record.recordId)
     .where('state', '=', 'approved')
     .orderBy('n', 'desc')
     .executeTakeFirst();
   if (!current) return null;
-  return { recordId: record.recordId, code: record.code, version: current.n, sections: current.sections as Section[] };
+  const criteria = await db.selectFrom('criteria').select('code').where('record_version_id', '=', current.id).execute();
+  return {
+    recordId: record.recordId,
+    code: record.code,
+    version: current.n,
+    sections: current.sections as Section[],
+    criteria: criteria.map((c) => c.code),
+  };
+}
+
+type ProposedRecordChange = {
+  code: string;
+  sections: readonly { section: string; content: string }[];
+  criteria: readonly {
+    action: 'add' | 'modify' | 'drop';
+    code: string | null;
+    title: string | null;
+    statement: string | null;
+    verification: 'automatic' | 'manual' | null;
+    check: string | null;
+  }[];
+  reason: string;
+  quotes: readonly string[];
+};
+
+type ChangeTarget = NonNullable<Awaited<ReturnType<typeof recordChangeTarget>>>;
+
+/** What a record change gets wrong about the record it lands on, in words the agent reads. */
+function recordChangeProblems(target: ChangeTarget, c: ProposedRecordChange): string[] {
+  const notes: string[] = [];
+  if (c.sections.length === 0 && c.criteria.length === 0) notes.push('A record_change changes at least one section or criterion.');
+  for (const s of c.sections)
+    if (!target.sections.some((x) => x.title === s.section))
+      notes.push(
+        `${target.code} has no section titled "${s.section}": its sections are ${target.sections.map((x) => `"${x.title}"`).join(', ')}.`,
+      );
+  const seen = new Set<string>();
+  for (const k of c.criteria) {
+    if (k.action !== 'add') {
+      if (!k.code || !target.criteria.includes(k.code))
+        notes.push(
+          `To ${k.action} a criterion, \`code\` is one of ${target.code}'s criteria (${target.criteria.join(', ') || 'it has none'}), not ${k.code ?? 'null'}.`,
+        );
+      else if (seen.has(k.code)) notes.push(`${k.code} changes twice: say once what happens to it.`);
+      else seen.add(k.code);
+    }
+    if (k.action !== 'drop' && (!k.title || !k.statement || !k.verification || !k.check))
+      notes.push(`To ${k.action} a criterion, give its whole title, statement, verification and check.`);
+  }
+  return notes;
+}
+
+/** The criterion changes that stand on the record's criteria; the rest are left out (the checker said why). */
+function criterionChanges(target: ChangeTarget, c: ProposedRecordChange): CriterionChange[] {
+  return c.criteria.flatMap((k): CriterionChange[] => {
+    if (k.action === 'drop') return k.code && target.criteria.includes(k.code) ? [{ action: 'drop', code: k.code }] : [];
+    if (!k.title || !k.statement || !k.verification || !k.check) return [];
+    const content = { title: k.title, statement: k.statement, verification: k.verification, check: k.check };
+    if (k.action === 'add') return [{ action: 'add', ...content }];
+    return k.code && target.criteria.includes(k.code) ? [{ action: 'modify', code: k.code, ...content }] : [];
+  });
 }
 
 /**
- * The proposal of a change to a section of the record the thread is about, ready for its batch; null
- * when it can't stand: another record, no approved version, a section it doesn't have, the text it
- * already says, or none of its quotes in what the person wrote in the thread (`said`).
+ * The proposal of a change to the record the thread is about (its sections and criteria), ready for
+ * its batch; null when it can't stand: another record, no approved version, nothing that it changes
+ * (sections it doesn't have or already says, criteria it doesn't have), or none of its quotes in
+ * what the person wrote in the thread (`said`).
  */
 async function recordChangeProposal(
   trx: Db,
   projectId: string,
   explorationId: string,
-  change: { code: string; section: string; content: string; reason: string; quotes: readonly string[] },
+  change: ProposedRecordChange,
   said: readonly { id: string; body: string }[],
 ) {
   const evidence = change.quotes.flatMap((quote) => findQuote(quote, said) ?? []);
   if (evidence.length === 0) return null;
   const target = await recordChangeTarget(trx, projectId, explorationId);
   if (!target || target.code !== change.code) return null;
-  const now = target.sections.find((s) => s.title === change.section)?.content;
-  if (now === undefined || now.trim() === change.content.trim()) return null;
+  const sections = change.sections.filter((s) => {
+    const now = target.sections.find((x) => x.title === s.section)?.content;
+    return now !== undefined && now.trim() !== s.content.trim();
+  });
+  const criteria = criterionChanges(target, change);
+  if (sections.length === 0 && criteria.length === 0) return null;
   return {
     type: 'record_change',
     payload: {
       record: { code: target.code, version: target.version },
-      section: change.section,
-      content: change.content,
+      ...(sections.length > 0 ? { sections } : {}),
+      ...(criteria.length > 0 ? { criteria } : {}),
       reason: change.reason,
       evidence,
     },

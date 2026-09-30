@@ -1021,6 +1021,7 @@ export const SCREENS = messages(
     openScreens: 'Open the screen design',
     screenCount: (n: number) => (n === 1 ? '1 screen' : `${n} screens`),
     noUi: 'No interface',
+    outdated: (code: string, v: number, fv: number, now: number) => `${code} v${v} was designed for v${fv} of this feature: it needs a new version for v${now}.`,
     missingSummary: (names: string) => `Missing from the design system: ${names}.`,
     startTitle: 'Design the screens',
     startIntro:
@@ -1076,6 +1077,7 @@ export const SCREENS = messages(
     openScreens: 'Abrir el diseño de pantallas',
     screenCount: (n: number) => (n === 1 ? '1 pantalla' : `${n} pantallas`),
     noUi: 'Sin interfaz',
+    outdated: (code: string, v: number, fv: number, now: number) => `${code} v${v} se diseñó para la v${fv} de esta funcionalidad: necesita una versión nueva para la v${now}.`,
     missingSummary: (names: string) => `Faltan en el sistema de diseño: ${names}.`,
     startTitle: 'Diseñar las pantallas',
     startIntro:

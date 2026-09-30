@@ -182,7 +182,9 @@ export function deliveryOf(input: {
       const next = tasks.find((x) => x.build === 'to_do');
       // With an approved design system the screens come before the tasks (Cagan and Patton, SVPG).
       const screensFirst = !!record.dsy && record.screens?.state !== 'approved';
-      if (tasks.length === 0 && (record.task_drafts ?? []).length === 0) primary = screensFirst ? { kind: 'design_screens', code: record.code } : { kind: 'draft_tasks' };
+      // Even with tasks from an older version: the current version still needs its screens.
+      if (screensFirst) primary = { kind: 'design_screens', code: record.code };
+      else if (tasks.length === 0 && (record.task_drafts ?? []).length === 0) primary = { kind: 'draft_tasks' };
       else if (next) primary = { kind: 'build_next', code: next.code };
     } else if (record.type === 'task' && record.build) {
       const b = record.build;

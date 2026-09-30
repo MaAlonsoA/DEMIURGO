@@ -29,7 +29,7 @@ import {
 import type { Db } from '../db/connection.ts';
 import { staleDependencies } from '../commands/proposals.ts';
 import { epicOrder } from '../commands/epic-order.ts';
-import { approvedDesignSystem, designSystemSpecOf, missingIn, screensOfFeatureVersion } from '../design/screens.ts';
+import { approvedDesignSystem, designSystemSpecOf, latestScreensOfFeature, missingIn, screensOfFeatureVersion } from '../design/screens.ts';
 import { threadDraft } from './draft.ts';
 import { githubConfig } from '../github/client.ts';
 import { taskViewOfRecord } from './task-view.ts';
@@ -701,6 +701,8 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
   const screenSpec = r.type === 'screen_design' ? screenDesignSpec.safeParse(shownVersion?.spec) : null;
   const featureScreens =
     r.type === 'fdr' && current !== null ? await screensOfFeatureVersion(db, projectId, { code: r.code, version: current }) : null;
+  // No screens on the current version: the ones on an older version, which need a new version.
+  const outdatedScreens = r.type === 'fdr' && current !== null && !featureScreens ? await latestScreensOfFeature(db, projectId, r.code) : null;
   return {
     id: r.id,
     code: r.code,
@@ -751,6 +753,7 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
                 missing_components: missingIn(featureScreens.spec, dsy),
               }
             : null,
+          screens_outdated: outdatedScreens,
         }
       : {}),
     versions: detail,

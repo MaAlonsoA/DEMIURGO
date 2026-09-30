@@ -632,6 +632,8 @@ export type RecordDetail = {
   /** Feature: `dsy` is the approved design system (screens come before tasks while there is one). */
   /** Feature only: the screen design based on its current version (null when it has none). */
   screens?: { code: string; version: number; state: string; no_ui: boolean; screen_count: number; missing_components: string[] } | null;
+  /** Feature: the screens that rest on an older version (when the current one has none). */
+  screens_outdated?: { code: string; version: number; state: string; feature_version: number; no_ui: boolean; screen_count: number } | null;
   code: string;
   type: RecordType;
   domain: string;

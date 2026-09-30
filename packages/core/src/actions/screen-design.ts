@@ -9,6 +9,7 @@ import { registerBuilder } from '../context/build.ts';
 import { knowledgeForContext } from '../context/knowledge.ts';
 import { ManifestBuilder, recordKnowledge } from '../context/manifest.ts';
 import type { Db } from '../db/connection.ts';
+import { designSystemSpecOf } from '../design/screens.ts';
 import { registerApplier, registerChecker } from './appliers.ts';
 import { packContentOf } from './drafting.ts';
 import { featureTasksOf } from './exploration-chat.ts';
@@ -38,8 +39,11 @@ export async function approvedDesignSystem(db: Db, projectId: string): Promise<D
     .where('record_versions.state', '=', 'approved')
     .orderBy('record_versions.n', 'desc')
     .executeTakeFirst();
-  if (!v?.spec) return null;
-  const spec = v.spec as {
+  if (!v) return null;
+  // A version made from text alone may carry no spec of its own: it inherits the previous one's.
+  const own = await designSystemSpecOf(db, v.recordId, v.n, v.spec);
+  if (!own) return null;
+  const spec = own as {
     principles?: string[];
     tokens?: unknown;
     components?: { name: string; purpose: string; variants: string[]; states: string[]; interactive: boolean }[];

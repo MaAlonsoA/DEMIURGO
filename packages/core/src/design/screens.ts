@@ -108,6 +108,28 @@ export async function screensOfFeatureVersion(
   return { code: row.code, version: row.n, state: row.state, no_ui: !!spec?.no_ui, screen_count: spec?.screens.length ?? 0, spec };
 }
 
+/** The newest screen design of a feature on any of its versions (for telling the person its screens rest on an older version). */
+export async function latestScreensOfFeature(db: Db, projectId: string, featureCode: string) {
+  const row = await db
+    .selectFrom('links')
+    .innerJoin('record_versions as sv', 'sv.id', 'links.from_id')
+    .innerJoin('records as s', 's.id', 'sv.record_id')
+    .innerJoin('record_versions as fv', 'fv.id', 'links.to_id')
+    .innerJoin('records as f', 'f.id', 'fv.record_id')
+    .select(['s.code', 'sv.n', 'sv.state', 'sv.spec', 'fv.n as featureVersion'])
+    .where('links.type', '=', 'based_on')
+    .where('s.project_id', '=', projectId)
+    .where('s.type', '=', 'screen_design')
+    .where('f.code', '=', featureCode)
+    .where('sv.state', 'in', ['draft', 'approved'])
+    .orderBy('sv.n', 'desc')
+    .executeTakeFirst();
+  if (!row) return null;
+  const parsed = screenDesignSpec.safeParse(row.spec);
+  const spec = parsed.success ? parsed.data : null;
+  return { code: row.code, version: row.n, state: row.state, feature_version: row.featureVersion, no_ui: !!spec?.no_ui, screen_count: spec?.screens.length ?? 0 };
+}
+
 /** The components a screen design uses that the approved design system lacks (all of them when there is none). */
 export function missingIn(spec: ScreenDesignSpec | null, dsy: { components: string[] } | null): string[] {
   return spec ? missingComponents(spec, dsy?.components ?? []) : [];

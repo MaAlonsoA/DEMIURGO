@@ -46,6 +46,7 @@ export function ScreensTab({
   const t = useMessages(SCREENS);
   const { loading, system } = useApprovedSystem(projectId, state);
   const screens = record.screens ?? null;
+  const outdated = record.screens_outdated ?? null;
   return (
     <Block id="screens" title={t.screensTitle} note={screens ? t.summaryNote : undefined}>
       {screens ? (
@@ -86,7 +87,23 @@ export function ScreensTab({
           </div>
         </div>
       ) : (
-        <Start projectId={projectId} record={record} version={version} state={state} system={system} />
+        <>
+          {outdated ? (
+            <div data-screens-outdated className="mb-4 flex flex-col gap-2 text-sm">
+              <p className="text-fg">{t.outdated(outdated.code, outdated.version, outdated.feature_version, version.n)}</p>
+              <div>
+                <Link
+                  to="/p/$projectId/records/$code"
+                  params={{ projectId, code: outdated.code }}
+                  className={buttonClass({ variant: 'secondary', size: 'sm' })}
+                >
+                  {t.openScreens}
+                </Link>
+              </div>
+            </div>
+          ) : null}
+          <Start projectId={projectId} record={record} version={version} state={state} system={system} />
+        </>
       )}
     </Block>
   );

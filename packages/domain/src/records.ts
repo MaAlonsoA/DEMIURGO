@@ -148,6 +148,8 @@ export type ReadinessInput = {
   needs: { code: string; implementation: string }[];
   /** Whether the Architecture stage (before_build) has passed: a feature is not built before it. */
   architecturePassed: boolean;
+  /** An epic's listed features (not dropped), and whether each one has its approved design yet. */
+  features?: { code: string; name: string; designed: boolean }[];
   /** Other links of this version that are pending review. */
   linksUnderReview: string[];
   /** Pending, postponed or assumed (inferred, not confirmed) questions in the origin exploration. */
@@ -222,6 +224,12 @@ export function readiness(e: ReadinessInput): Readiness {
     if (!e.architecturePassed) reasons.push('The Architecture stage has not passed.');
     for (const n of e.needs) {
       if (n.implementation !== 'implemented') reasons.push(`It needs ${n.code}, which is not built yet.`);
+    }
+  }
+  if (e.type === 'epic') {
+    if (e.features && e.features.length === 0) reasons.push('It has no features yet.');
+    for (const f of e.features ?? []) {
+      if (!f.designed) reasons.push(`Its feature ${f.code} (${f.name}) is not designed and approved yet.`);
     }
   }
   for (const linkRef of e.linksUnderReview) reasons.push(`The link with ${linkRef} is pending review.`);

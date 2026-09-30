@@ -134,6 +134,25 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
   const pendingProposals = pending.filter((p) =>
     [...((p.dependencies ?? []) as Dep[]), ...((p.batchDeps ?? []) as Dep[])].some((d) => d.id === v.recordId),
   ).length;
+  // An epic is ready when every feature of its list has its approved design.
+  const features =
+    v.type === 'epic'
+      ? await Promise.all(
+          (
+            await db
+              .selectFrom('planned_features')
+              .select(['code', 'name', 'record_id'])
+              .where('epic_id', '=', v.recordId)
+              .where('state', '!=', 'dropped')
+              .orderBy('position')
+              .execute()
+          ).map(async (f) => ({
+            code: f.code,
+            name: f.name,
+            designed: f.record_id ? (await currentOf(db, f.record_id)) !== null : false,
+          })),
+        )
+      : undefined;
   return readiness({
     code: v.code,
     type: v.type as RecordType,
@@ -151,6 +170,7 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
     linksUnderReview,
     openQuestions,
     pendingProposals,
+    ...(features ? { features } : {}),
   });
 }
 

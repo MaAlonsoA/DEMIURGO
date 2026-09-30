@@ -41,6 +41,7 @@ import {
   buildQueue,
   composeBrief,
   coherenceStatus,
+  githubConfig,
 } from '@demiurgo/core';
 import type { Credential } from './credentials.ts';
 
@@ -402,8 +403,24 @@ registerQueries([
         .orderBy('project_commits.created_at', 'desc')
         .limit(50)
         .execute();
+      const gh = await services.db
+        .selectFrom('project_github')
+        .select(['owner', 'repo', 'protection', 'created_at'])
+        .where('project_id', '=', projectId)
+        .executeTakeFirst();
       return {
         dir: repo ? `${process.env.DEMIURGO_PROJECTS_LABEL ?? 'projects'}/${repo.dir}` : null,
+        // The link only: the token never leaves the environment, `github_configured` just says it is there.
+        github: gh
+          ? {
+              owner: gh.owner,
+              repo: gh.repo,
+              url: `https://github.com/${gh.owner}/${gh.repo}`,
+              protection: gh.protection,
+              connected_at: gh.created_at,
+            }
+          : null,
+        github_configured: githubConfig() !== null,
         commits: commits.map((c) => ({
           sha: c.sha,
           message: c.message,

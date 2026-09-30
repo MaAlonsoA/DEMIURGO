@@ -151,10 +151,15 @@ export async function integrateOriginMain(repoDir: string): Promise<void> {
   if (!behind) return;
   try {
     await runGit(repoDir, [
-      '-c', 'user.name=DEMIURGO',
-      '-c', 'user.email=demiurgo@demiurgo.local',
-      '-c', 'commit.gpgsign=false',
-      'merge', '--no-edit', 'origin/main',
+      '-c',
+      'user.name=DEMIURGO',
+      '-c',
+      'user.email=demiurgo@demiurgo.local',
+      '-c',
+      'commit.gpgsign=false',
+      'merge',
+      '--no-edit',
+      'origin/main',
     ]);
   } catch (e) {
     await runGit(repoDir, ['merge', '--abort']).catch(() => undefined);
@@ -188,8 +193,12 @@ export type ProjectGithub = { owner: string; repo: string; url: string; protecti
  */
 const planLimited = (e: unknown) => /\((403|404)\)/.test(e instanceof Error ? e.message : String(e));
 
-/** Creates (if missing) the project's private repo, links the local one, pushes main and protects it. Idempotent. */
-export async function ensureProjectRepo(db: Db, projectId: string, cfg: GithubConfig): Promise<ProjectGithub> {
+/**
+ * Creates (if missing) the project's private repo, links the local one, pushes main and protects it.
+ * Idempotent, and it writes nothing to the database: the `repository.connect` command saves the link
+ * with its event, after this has run outside any transaction.
+ */
+export async function provisionProjectRepo(db: Db, projectId: string, cfg: GithubConfig): Promise<ProjectGithub> {
   const known = await db.selectFrom('project_repos').select('dir').where('project_id', '=', projectId).executeTakeFirst();
   const root = projectsDir();
   if (!known || !root) throw new DomainError('not_found', 'The project has no local repository yet.');
@@ -240,12 +249,18 @@ export async function ensureProjectRepo(db: Db, projectId: string, cfg: GithubCo
     );
   }
 
+  return { owner, repo, url: `https://github.com/${owner}/${repo}`, protection };
+}
+
+/** Provisions the repo and links it in `project_github` (no event). The build orchestrator uses it. */
+export async function ensureProjectRepo(db: Db, projectId: string, cfg: GithubConfig): Promise<ProjectGithub> {
+  const linked = await provisionProjectRepo(db, projectId, cfg);
   await db
     .insertInto('project_github')
-    .values({ project_id: projectId, owner, repo, protection })
-    .onConflict((oc) => oc.column('project_id').doUpdateSet({ protection }))
+    .values({ project_id: projectId, owner: linked.owner, repo: linked.repo, protection: linked.protection })
+    .onConflict((oc) => oc.column('project_id').doUpdateSet({ protection: linked.protection }))
     .execute();
-  return { owner, repo, url: `https://github.com/${owner}/${repo}`, protection };
+  return linked;
 }
 
 // ---------------------------------------------------------------------------------- pull requests
@@ -316,7 +331,9 @@ export async function postReview(
     body: {
       event: 'COMMENT',
       body: review.body,
-      ...(withComments ? { comments: review.comments.map((c) => ({ path: c.path, line: c.line, side: 'RIGHT', body: c.body })) } : {}),
+      ...(withComments
+        ? { comments: review.comments.map((c) => ({ path: c.path, line: c.line, side: 'RIGHT', body: c.body })) }
+        : {}),
     },
     okStatuses: withComments ? [422] : [],
   });

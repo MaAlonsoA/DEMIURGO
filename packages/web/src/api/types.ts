@@ -1089,6 +1089,10 @@ export type GlossaryEntry = {
 /** The project's repository and the commits DEMIURGO made in it (GET …/commits), newest first. */
 export type ProjectCommits = {
   dir: string | null;
+  /** The project's private GitHub repository, or null while it is not connected. */
+  github: { owner: string; repo: string; url: string; protection: 'github' | 'demiurgo'; connected_at: string } | null;
+  /** Whether this DEMIURGO has the GitHub token and owner (never the token itself). */
+  github_configured: boolean;
   commits: {
     sha: string;
     message: string;

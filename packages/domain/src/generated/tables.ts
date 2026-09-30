@@ -36,6 +36,14 @@ export const CAPABILITIES = {
       "decisive": false,
       "description": "Rename a project."
     },
+    "repository.connect": {
+      "entity": "project",
+      "allowed": [
+        "human"
+      ],
+      "decisive": false,
+      "description": "Create the project's private GitHub repository, push main with design/ and protect it; connecting an already connected project changes nothing."
+    },
     "agent_token.issue": {
       "entity": "agent_token",
       "allowed": [
@@ -1116,6 +1124,13 @@ export const TRANSITIONS = {
         },
         {
           "command": "project.rename",
+          "from": [
+            "active"
+          ],
+          "to": "active"
+        },
+        {
+          "command": "repository.connect",
           "from": [
             "active"
           ],

@@ -4,7 +4,10 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
+import { useCommand } from '../../api/commands.ts';
+import type { ProjectCommits } from '../../api/types.ts';
 import { commitsQuery, projectsQuery } from '../../api/queries.ts';
+import { Button } from '../../components/Button.tsx';
 import { Code } from '../../components/Badge.tsx';
 import { EmptyState } from '../../components/EmptyState.tsx';
 import { FolderIcon } from '../../components/icons.tsx';
@@ -17,6 +20,46 @@ import { useMessages } from '../../i18n/define.ts';
 import { useProjectId } from '../../lib/hooks.ts';
 import { whoOf } from '../../words.ts';
 import { REPOSITORY } from './words.i18n.ts';
+
+function GithubSection({ projectId, data }: { projectId: string; data: ProjectCommits }) {
+  const t = useMessages(REPOSITORY);
+  const connect = useCommand(projectId);
+  const { github } = data;
+  return (
+    <Section title={t.github}>
+      <div data-github className="flex max-w-prose flex-col gap-2 text-sm text-fg">
+        {github ? (
+          <>
+            <p>
+              {t.githubPrivate}{' '}
+              <a href={github.url} target="_blank" rel="noreferrer" className="underline">
+                {github.owner}/{github.repo}
+              </a>
+            </p>
+            <p className="text-fg-2">{github.protection === 'github' ? t.protectionGithub : t.protectionDemiurgo}</p>
+            <p className="text-fg-2">{t.githubFlow}</p>
+          </>
+        ) : data.github_configured ? (
+          <>
+            <p className="text-fg-2">{t.githubCreateBody}</p>
+            <div>
+              <Button
+                variant="primary"
+                pending={connect.isPending}
+                onClick={() => connect.mutate({ command: 'repository.connect', entityId: projectId })}
+              >
+                {connect.isPending ? t.githubCreating : t.githubCreate}
+              </Button>
+            </div>
+            {connect.error ? <ErrorNotice error={connect.error} /> : null}
+          </>
+        ) : (
+          <p className="text-fg-2">{t.githubNotConfigured}</p>
+        )}
+      </div>
+    </Section>
+  );
+}
 
 export function RepositoryScreen() {
   const t = useMessages(REPOSITORY);
@@ -47,6 +90,7 @@ export function RepositoryScreen() {
           </EmptyState>
         ) : (
           <div className="flex flex-col gap-8">
+            <GithubSection projectId={projectId} data={q.data} />
             <Section title={t.folder}>
               <Code className="text-sm text-fg">{q.data.dir}</Code>
             </Section>

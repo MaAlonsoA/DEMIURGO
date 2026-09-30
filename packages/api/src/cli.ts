@@ -6,7 +6,7 @@
 //   node packages/api/src/cli.ts real-run <projectId> <action> <json-scope> [json-input]
 //   node packages/api/src/cli.ts propose-principles <projectId> <stage>        (a covered stage of principles, as the definition's next version)
 //   node packages/api/src/cli.ts sync-repo <projectId>                         (writes design/ to the project's repository and commits it)
-//   node packages/api/src/cli.ts github-setup <projectId>                       (creates the project's private GitHub repo, pushes main, protects it; prints owner/repo)
+//   node packages/api/src/cli.ts github-setup <projectId> <username>            (a person's act, password on stdin; creates the project's private GitHub repo, pushes main, protects it; prints owner/repo)
 //   node packages/api/src/cli.ts supersede-batch <projectId> <batchId> <reason>  (withdraws a pending batch; decides nothing)
 //   node packages/api/src/cli.ts classify-messages <projectId>                 (Jev: aspect of the messages not classified yet)
 //   node packages/api/src/cli.ts evaluate-classifier <provider> <model> [effort|-] [test|dev|all] [v1|v1-en]   (spends quota)
@@ -265,14 +265,30 @@ const commands: Record<string, () => Promise<void>> = {
     });
   },
 
+  // Connecting the repository is a person's act (repository.connect): the person's password is
+  // checked first. It only needs the bus, like issue-agent-token.
   async 'github-setup'() {
-    const [projectId] = args;
-    if (!projectId) throw new Error('Usage: github-setup <projectId>');
-    const cfg = githubConfig();
-    if (!cfg) throw new Error('Set DEMIURGO_GITHUB_TOKEN and DEMIURGO_GITHUB_OWNER first.');
+    const [projectId, username] = args;
+    if (!projectId || !username)
+      throw new Error("Usage: github-setup <projectId> <username> (the person's password is read from stdin)");
+    const password = await readInput();
     await withDatabase(async (c) => {
-      const linked = await ensureProjectRepo(c.db, projectId, cfg);
-      console.log(JSON.stringify(linked));
+      await verifyPerson(c.db, username, password);
+      const services = {
+        db: c.db,
+        clock: () => new Date(),
+        providers: createProviders(config),
+        classifierFor: () => Promise.reject(new Error('Connecting the repository classifies nothing.')),
+        agentSessionsDir: config.agentSessionsDir,
+        engine: inertEngine(),
+        logger: cliLogger,
+        observer: createObserver(config.observe, cliLogger),
+      };
+      const actor = human(username);
+      const r = await interaction(services.observer, actor, projectId, () =>
+        executeCommand(services, { command: 'repository.connect', actor, projectId, entityId: projectId, data: {} }),
+      );
+      console.log(JSON.stringify(r.result));
     });
   },
 

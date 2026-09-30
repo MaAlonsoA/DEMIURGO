@@ -1,5 +1,6 @@
 // Imports every command module so they register their handlers and guards.
 import './projects.ts';
+import './repository.ts';
 import './packs.ts';
 import './runs.ts';
 import './exploration.ts';

@@ -36,6 +36,9 @@ export const TITLES = messages(
       })[verdict] ?? 'may be affected',
     packageImported: 'Imported from design/',
     packageFallback: 'A package',
+    taskDraftsTitle: (n: number, code: string, title: string) =>
+      `${n} draft ${n === 1 ? 'task' : 'tasks'} for ${code}${title ? ` ${title}` : ''}`,
+    taskDraftsReason: 'Planned with the feature, decided on its page',
     recordFallback: 'A record',
     updateWithTitle: (title: string) => `Knowledge couldn't take in ${title}`,
     updateAcceptedProposal: "Knowledge couldn't take in an accepted proposal",
@@ -109,6 +112,9 @@ export const TITLES = messages(
       )[verdict] ?? 'puede verse afectado',
     packageImported: 'Importado desde design/',
     packageFallback: 'Un paquete',
+    taskDraftsTitle: (n: number, code: string, title: string) =>
+      `${n} ${n === 1 ? 'tarea en borrador' : 'tareas en borrador'} para ${code}${title ? ` ${title}` : ''}`,
+    taskDraftsReason: 'Se planifican con la funcionalidad y se deciden en su página',
     recordFallback: 'Un registro',
     updateWithTitle: (title: string) => `El conocimiento no pudo incorporar ${title}`,
     updateAcceptedProposal: 'El conocimiento no pudo incorporar una propuesta aceptada',

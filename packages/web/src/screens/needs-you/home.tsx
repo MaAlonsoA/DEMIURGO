@@ -4,11 +4,11 @@
 
 import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
-import { isDefinitionProposal, proposalTargetCode } from '../../lib/attention.ts';
+import { isDefinitionProposal, proposalTargetCode, taskDraftsFeature } from '../../lib/attention.ts';
 import type { NeedItem } from './order.ts';
 
 export type Home =
-  | { to: 'record'; code: string; version?: number }
+  | { to: 'record'; code: string; version?: number; hash?: string }
   | { to: 'thread'; id: string }
   | { to: 'batch'; id: string }
   | { to: 'product' };
@@ -22,10 +22,13 @@ export function homeOf(item: NeedItem): Home | null {
       return { to: 'thread', id: item.question.exploration_id };
     case 'version':
       return { to: 'record', code: item.version.code, version: item.version.n };
-    case 'package':
+    case 'package': {
+      const feature = taskDraftsFeature(item.batch);
+      if (feature) return { to: 'record', code: feature, hash: 'tasks' };
       return item.batch.proposals.length > 0 && item.batch.proposals.every(isDefinitionProposal)
         ? { to: 'product' }
         : { to: 'batch', id: item.batch.id };
+    }
     case 'proposal': {
       if (isDefinitionProposal(item.proposal)) return { to: 'product' };
       const code = proposalTargetCode(item.proposal);
@@ -55,6 +58,7 @@ export function HomeLink({
           to="/p/$projectId/records/$code"
           params={{ projectId, code: home.code }}
           {...(home.version !== undefined ? { search: { v: home.version } } : {})}
+          {...(home.hash ? { hash: home.hash } : {})}
           className={className}
           {...rest}
         >

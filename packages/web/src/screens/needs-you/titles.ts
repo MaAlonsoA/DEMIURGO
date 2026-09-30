@@ -4,13 +4,21 @@
 
 import type { Exploration, ProductRow, Taxonomy } from '../../api/types.ts';
 import { type Aspect, aspectOfProposal, aspectOfType } from '../../aspects.ts';
+import { taskDraftsFeature } from '../../lib/attention.ts';
 import { proposalTitle, rowOf, rowOfVersion } from '../batch/model.ts';
 import type { NeedItem } from './order.ts';
 import { TITLES } from './words.i18n.ts';
 
 type Words = typeof TITLES.en;
 
-export function packageTitle(item: Extract<NeedItem, { kind: 'package' }>, words: Words = TITLES.en): string {
+export function packageTitle(
+  item: Extract<NeedItem, { kind: 'package' }>,
+  words: Words = TITLES.en,
+  rows: readonly ProductRow[] = [],
+): string {
+  // The tasks planned for one feature are one thing: "9 draft tasks for FDR-X title".
+  const feature = taskDraftsFeature(item.batch);
+  if (feature) return words.taskDraftsTitle(item.batch.proposals.length, feature, rowOf(rows, feature)?.title ?? '');
   if (item.batch.type === 'import') return words.packageImported;
   const first = item.batch.proposals[0];
   return (first ? proposalTitle(first) : '') || words.packageFallback;
@@ -52,7 +60,7 @@ export function needTitle(item: NeedItem, rows: readonly ProductRow[], words: Wo
     case 'question':
       return item.question.question;
     case 'package':
-      return packageTitle(item, words);
+      return packageTitle(item, words, rows);
     case 'proposal':
       return proposalTitle(item.proposal) || words.proposalFallback;
     case 'version':
@@ -82,7 +90,7 @@ export function needReason(item: NeedItem, ctx: ReasonContext, words: Words = TI
     }
     case 'package': {
       const n = item.batch.proposals.length;
-      return words.packageReason(n);
+      return taskDraftsFeature(item.batch) ? words.taskDraftsReason : words.packageReason(n);
     }
     case 'proposal': {
       const aspect = aspectOfProposal(item.proposal);

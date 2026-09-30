@@ -18,11 +18,13 @@ import type {
   RecordDetail,
   RecordVersion,
   TaskBuildState,
+  TaskDraft,
 } from '../../api/types.ts';
 import { announce } from '../../components/announce.tsx';
 import { Code } from '../../components/Badge.tsx';
 import { checkAnchor, SectionContent, stepsOf } from '../../components/BehaviorSteps.tsx';
 import { Button, buttonClass } from '../../components/Button.tsx';
+import { useAllows } from '../../components/actions.tsx';
 import { ConfirmDialog } from '../../components/Dialog.tsx';
 import {
   AlertTriangleIcon,
@@ -177,7 +179,7 @@ export function deliveryOf(input: {
   if (!banner?.action && current) {
     if (record.type === 'fdr') {
       const next = tasks.find((x) => x.build === 'to_do');
-      if (tasks.length === 0) primary = { kind: 'draft_tasks' };
+      if (tasks.length === 0 && (record.task_drafts ?? []).length === 0) primary = { kind: 'draft_tasks' };
       else if (next) primary = { kind: 'build_next', code: next.code };
     } else if (record.type === 'task' && record.build) {
       const b = record.build;
@@ -507,6 +509,90 @@ export function Flow({ version, recording }: { version: RecordVersion; recording
   );
 }
 
+/**
+ * The tasks the planning agent proposed for the feature, as drafts in its own backlog. They come as
+ * one package, so they are accepted or rejected together with the package's commands.
+ */
+function TaskDrafts({ projectId, drafts }: { projectId: string; drafts: readonly TaskDraft[] }) {
+  const t = useMessages(DELIVERY);
+  const command = useCommand(projectId);
+  const allows = useAllows('batch', 'pending');
+  const [dialog, setDialog] = useState<null | 'accept' | 'reject'>(null);
+  const batchId = drafts[0]?.batch_id;
+  if (!batchId) return null;
+  // One package per planning run: the decision goes to the first one; the rest follow when it is decided.
+  const inBatch = drafts.filter((d) => d.batch_id === batchId);
+  const run = (name: 'batch.accept_package' | 'batch.reject_package', said: string) =>
+    command.mutate(
+      { command: name, entityId: batchId, data: {} },
+      {
+        onSuccess: () => {
+          setDialog(null);
+          announce(said);
+        },
+      },
+    );
+  return (
+    <div data-task-drafts className="flex flex-col gap-2 rounded-md bg-sunken px-3 py-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4">
+        <h3 className="text-sm font-semibold text-fg">{t.draftTasks2}</h3>
+        <span className="text-sm text-fg-2">{t.draftsNote(inBatch.length)}</span>
+      </div>
+      <ul className="flex flex-col divide-y divide-edge-subtle">
+        {inBatch.map((d) => (
+          <li key={d.proposal_id} data-task-draft={d.proposal_id} className="flex flex-col gap-0.5 py-2">
+            <div className="flex flex-wrap items-baseline gap-x-3">
+              <span className="min-w-0 text-sm font-medium text-fg">{d.title}</span>
+              <span className="ml-auto flex items-center gap-3 text-sm text-fg-2">
+                {d.size ? <span className="tabular-nums">{d.size}</span> : null}
+                <span className="font-medium text-warning-text">{t.draftLabel}</span>
+              </span>
+            </div>
+            {d.covers.length > 0 ? <span className="text-sm text-fg-2">{t.covers}: {d.covers.join(', ')}</span> : null}
+          </li>
+        ))}
+      </ul>
+      <p className="text-sm text-fg-2">{t.draftsHint}</p>
+      {command.error && !dialog ? <ErrorNotice error={command.error} /> : null}
+      <div className="flex flex-wrap gap-2">
+        {allows('batch.accept_package') ? (
+          <Button variant="primary" size="sm" data-command="batch.accept_package" onClick={() => { command.reset(); setDialog('accept'); }}>
+            {t.acceptDrafts}
+          </Button>
+        ) : null}
+        {allows('batch.reject_package') ? (
+          <Button variant="quiet-danger" size="sm" data-command="batch.reject_package" onClick={() => { command.reset(); setDialog('reject'); }}>
+            {t.rejectDrafts}
+          </Button>
+        ) : null}
+      </div>
+      <ConfirmDialog
+        open={dialog === 'accept'}
+        onOpenChange={(o) => !o && setDialog(null)}
+        title={t.acceptDraftsTitle}
+        description={<p>{t.acceptDraftsBody(inBatch.length)}</p>}
+        confirm={t.acceptDrafts}
+        pendingLabel={t.accepting}
+        pending={command.isPending}
+        error={dialog === 'accept' ? command.error : null}
+        onConfirm={() => run('batch.accept_package', t.draftsAccepted)}
+      />
+      <ConfirmDialog
+        open={dialog === 'reject'}
+        onOpenChange={(o) => !o && setDialog(null)}
+        title={t.rejectDraftsTitle}
+        description={<p>{t.rejectDraftsBody}</p>}
+        confirm={t.rejectDrafts}
+        pendingLabel={t.rejecting}
+        tone="danger"
+        pending={command.isPending}
+        error={dialog === 'reject' ? command.error : null}
+        onConfirm={() => run('batch.reject_package', t.draftsRejected)}
+      />
+    </div>
+  );
+}
+
 /** Tasks of a feature: how many are done, in a PR and to do, with their sizes and what each covers. */
 export function TasksRollup({
   projectId,
@@ -530,8 +616,10 @@ export function TasksRollup({
   const effort = effortTotals(tasks.map((x) => ({ size: (x.size as never) ?? null, built: x.build === 'merged' })));
   const writable = record.current !== null && !!tables && canCreate(tables, 'record.create');
   const uncovered = tasks.length > 0 ? (record.uncovered ?? []) : [];
+  const drafts = record.task_drafts ?? [];
   return (
     <Block
+      id="tasks"
       title={t.tasks}
       note={
         tasks.length > 0
@@ -541,8 +629,9 @@ export function TasksRollup({
           : undefined
       }
     >
+      {drafts.length > 0 ? <TaskDrafts projectId={projectId} drafts={drafts} /> : null}
       {tasks.length === 0 ? (
-        <p className="text-sm text-fg-2">{primaryIsDraft ? t.noTasksNext : t.noTasks}</p>
+        drafts.length > 0 ? null : <p className="text-sm text-fg-2">{primaryIsDraft ? t.noTasksNext : t.noTasks}</p>
       ) : (
         <ul className="flex flex-col divide-y divide-edge-subtle">
           {tasks.map((x) => (

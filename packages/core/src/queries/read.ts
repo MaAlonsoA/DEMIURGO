@@ -607,6 +607,7 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
   const current = await currentOf(db, r.id);
   // Delivery: the tasks of a feature (or the feature of a task) and their computed build states.
   const delivery = r.type === 'fdr' ? await featureDelivery(db, projectId, r.id, current) : null;
+  const taskDrafts = r.type === 'fdr' ? await taskDraftsOf(db, projectId, r.code) : [];
   const detail = [];
   for (const v of versions) {
     const criteria = await db
@@ -698,6 +699,7 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
     ...(delivery
       ? {
           tasks: delivery.tasks,
+          task_drafts: taskDrafts,
           uncovered: currentDetail ? currentDetail.criteria.filter((c) => !delivery.covered.has(c.code)).map((c) => c.code) : [],
           dod: currentDetail
             ? featureDone({
@@ -714,6 +716,38 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
     versions: detail,
     incoming: await incomingLinks(db, projectId, r.id, r.type),
   };
+}
+
+/**
+ * The tasks the task-planning agent proposed for a feature and nobody has decided yet: pending
+ * design_record proposals of a task based on it. They are shown as drafts on the feature's page;
+ * they come in a package, so they are accepted or rejected together (`batch_id`).
+ */
+async function taskDraftsOf(db: Db, projectId: string, code: string) {
+  const rows = await db
+    .selectFrom('proposals')
+    .innerJoin('proposal_batches', 'proposal_batches.id', 'proposals.batch_id')
+    .select(['proposals.id', 'proposals.batch_id', 'proposals.payload', 'proposal_batches.state as batch_state', 'proposal_batches.resolution_mode'])
+    .where('proposals.project_id', '=', projectId)
+    .where('proposals.type', '=', 'design_record')
+    .where('proposals.state', '=', 'pending')
+    .where('proposal_batches.state', '=', 'pending')
+    .where(sql<boolean>`proposals.payload->>'record_type' = 'task'`)
+    .where(sql<boolean>`proposals.payload->'based_on'->>'code' = ${code}`)
+    .orderBy('proposal_batches.created_at')
+    .orderBy('proposals.position')
+    .execute();
+  return rows.map((p) => {
+    const payload = p.payload as { title?: string; size?: string; covers?: string[] };
+    return {
+      proposal_id: p.id,
+      batch_id: p.batch_id,
+      resolution: p.resolution_mode,
+      title: payload.title ?? '',
+      size: payload.size ?? null,
+      covers: payload.covers ?? [],
+    };
+  });
 }
 
 /** The latest size of a record (task or feature), or null. */

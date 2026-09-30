@@ -508,6 +508,15 @@ export type RecordVersion = {
   readiness: Readiness | null;
 };
 
+export type TaskDraft = {
+  proposal_id: string;
+  batch_id: string;
+  resolution: 'item' | 'package';
+  title: string;
+  size: string | null;
+  covers: string[];
+};
+
 export type FeatureTask = {
   code: string;
   title: string;
@@ -544,6 +553,8 @@ export type RecordDetail = {
   };
   /** Feature only: its tasks, the criteria of its current version no task covers, and its Definition of Done. */
   tasks?: FeatureTask[];
+  /** Feature only: the tasks proposed and still undecided, drafts of one package per planning run. */
+  task_drafts?: TaskDraft[];
   uncovered?: string[];
   dod?: { done: boolean; missing: string[] } | null;
   versions: RecordVersion[];

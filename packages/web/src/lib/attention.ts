@@ -18,6 +18,22 @@ export function isDefinitionProposal(p: Pick<InboxProposal, 'type'>): boolean {
   return p.type === 'product_definition' || p.type === 'definition_change';
 }
 
+/**
+ * The feature code when the batch is a set of task drafts for one feature (what the task-planning
+ * agent proposes): they are decided on that feature's page, not in Needs you one by one.
+ */
+export function taskDraftsFeature(batch: Pick<Inbox['batches'][number], 'proposals'>): string | null {
+  const codes = new Set<string | null>();
+  for (const p of batch.proposals) {
+    const based = p.payload.based_on as { code?: unknown } | undefined;
+    codes.add(
+      p.type === 'design_record' && p.payload.record_type === 'task' && typeof based?.code === 'string' ? based.code : null,
+    );
+  }
+  const [only] = codes;
+  return codes.size === 1 && only ? only : null;
+}
+
 /** The batches whose proposals are decided one by one on a record's page (not knowledge nor package resolutions). */
 export function pendingProposalBatches(inbox: Inbox | undefined): Inbox['batches'] {
   return (inbox?.batches ?? []).filter((b) => b.type !== 'knowledge' && b.resolution !== 'package');

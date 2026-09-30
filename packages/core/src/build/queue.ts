@@ -5,6 +5,7 @@
 
 import { join } from 'node:path';
 import { DomainError, SIZE_POINTS, type TaskSize, sizeLine } from '@demiurgo/domain';
+import { sql } from 'kysely';
 import type { Db } from '../db/connection.ts';
 import { productState } from '../queries/read.ts';
 import { projectsDir } from '../repo/repo.ts';
@@ -219,6 +220,46 @@ function goalOf(sections: readonly { title: string; content: string }[]): string
 
 const sentence = (s: string) => s.trim().replace(/[.\s]+$/, '');
 
+const MAX_RELATED = 8;
+
+/**
+ * What knowledge found describes the same behavior, data or component as the record being built
+ * (its `related` edges, and its feature's): built first, with the commit of its latest evidence.
+ * The brief names them so the coding agent reuses that code instead of writing a second version.
+ */
+async function relatedWork(db: Db, projectId: string, codes: readonly string[], rows: Rows): Promise<string[]> {
+  const found = await sql<{ code: string }>`
+    select distinct split_part(other.ref, '@', 1) as code
+    from knowledge_edges e
+    join knowledge_nodes a on a.id = e.from_node and a.valid_to is null
+    join knowledge_nodes b on b.id = e.to_node and b.valid_to is null
+    join knowledge_nodes other on other.id = case when split_part(a.ref, '@', 1) = any(${[...codes]}::text[]) then b.id else a.id end
+    where e.project_id = ${projectId}::uuid and e.kind = 'related' and e.valid_to is null
+      and (split_part(a.ref, '@', 1) = any(${[...codes]}::text[]) or split_part(b.ref, '@', 1) = any(${[...codes]}::text[]))`.execute(db);
+  const related = found.rows
+    .map((r) => rows.byCode.get(r.code))
+    .filter((r): r is StateRow => r !== undefined && !codes.includes(r.code) && ['fdr', 'task', 'adr'].includes(r.type))
+    .sort((a, b) => Number(b.implementation === 'implemented') - Number(a.implementation === 'implemented') || (a.code < b.code ? -1 : 1))
+    .slice(0, MAX_RELATED);
+  const lines: string[] = [];
+  for (const r of related) {
+    const evidence = r.current_id
+      ? await db
+          .selectFrom('evidence')
+          .select('reference')
+          .where('record_version_id', '=', r.current_id)
+          .where('reference', 'is not', null)
+          .orderBy('created_at', 'desc')
+          .executeTakeFirst()
+      : undefined;
+    const built = r.implementation === 'implemented';
+    lines.push(
+      `- ${r.code} "${r.title}" (${built ? `built${evidence?.reference ? `, ${evidence.reference}` : ''}` : 'not built yet'})`,
+    );
+  }
+  return lines;
+}
+
 /**
  * The build brief of a ready record (FDR-DEL-008, FDR-BUI-002): English plain text that starts with
  * "Build <code>", from its current approved version, with its size (a task), its criteria and checks,
@@ -283,6 +324,10 @@ export async function composeBrief(
   if (needs.length > 0) {
     const built = (c: string) => rows.byCode.get(c)?.implementation === 'implemented';
     lines.push(`Depends on: ${needs.map((c) => `${c} (${built(c) ? 'built' : 'not built yet'})`).join(', ')}.`);
+  }
+  const related = await relatedWork(db, projectId, [row.code, ...(feature ? [feature.code] : [])], rows);
+  if (related.length > 0) {
+    lines.push('Related work: it covers the same behavior; reuse or extend its code, do not write a second version:', ...related);
   }
   lines.push(
     'When done, list each criterion with how it was checked (test name or steps) and the commit.',

@@ -8,11 +8,12 @@ import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { DESIGN_SYSTEM_PURPOSE, PUBLIC_DESIGN_SYSTEMS, designSystemPurpose } from '../../../../domain/src/public-design-systems.ts';
 import { runCommand } from '../../api/commands.ts';
-import { keys, stateQuery } from '../../api/queries.ts';
+import { explorationsQuery, keys, stateQuery } from '../../api/queries.ts';
 import { announce } from '../../components/announce.tsx';
+import { openThreadData, threadFor } from '../../components/ask.ts';
 import { Button } from '../../components/Button.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
-import { messages, useMessages } from '../../i18n/define.ts';
+import { messages, useContentMessages, useMessages } from '../../i18n/define.ts';
 
 const START = messages(
   {
@@ -26,6 +27,10 @@ const START = messages(
     scratchTitle: 'Design from scratch',
     scratchBody: 'Define the principles, tokens, components and patterns of the product yourself, guided by DEMIURGO.',
     scratch: 'Design from scratch',
+    notSure: 'Not sure which fits? DEMIURGO compares them against your product definition.',
+    help: 'Help me choose',
+    helpRequest:
+      'Which base for the design system fits this product best: Primer, Carbon, Material 3, shadcn/ui or designing it from scratch? Compare them against the product definition and the quality goals (mobile use, WCAG 2.2 AA…), with the source of each claim, and recommend one.',
     started: 'DEMIURGO is asking about the principles in the new thread.',
   },
   {
@@ -39,12 +44,17 @@ const START = messages(
     scratchTitle: 'Diseñarlo desde cero',
     scratchBody: 'Definir tú los principios, los tokens, los componentes y los patrones del producto, guiado por DEMIURGO.',
     scratch: 'Diseñarlo desde cero',
+    notSure: '¿No sabes cuál encaja? DEMIURGO los compara con la definición de tu producto.',
+    help: 'Ayúdame a elegir',
+    helpRequest:
+      '¿Qué base para el sistema de diseño encaja mejor con este producto: Primer, Carbon, Material 3, shadcn/ui o diseñarlo desde cero? Compáralas con la definición del producto y los objetivos de calidad (uso en móvil, WCAG 2.2 AA…), con la fuente de cada afirmación, y recomienda una.',
     started: 'DEMIURGO pregunta por los principios en el hilo nuevo.',
   },
 );
 
 export function DesignSystemStart({ projectId }: { projectId: string }) {
   const t = useMessages(START);
+  const reading = useContentMessages(START);
   const client = useQueryClient();
   const navigate = useNavigate();
   const [pending, setPending] = useState<string | null>(null);
@@ -72,11 +82,36 @@ export function DesignSystemStart({ projectId }: { projectId: string }) {
     }
   };
 
+  const help = async () => {
+    setPending('help');
+    setError(null);
+    try {
+      // The product's main thread (the one «Ask DEMIURGO about the whole product» uses), found fresh or opened.
+      const subject = { kind: 'product', name: '' } as const;
+      const threads = await client.fetchQuery({ ...explorationsQuery(projectId), staleTime: 0 });
+      let thread = threadFor(threads, subject)?.id;
+      if (!thread) thread = (await runCommand(projectId, { command: 'exploration.open', data: openThreadData(subject) })).entity_id;
+      await runCommand(projectId, { command: 'message.post', data: { exploration_id: thread, text: reading.helpRequest, respond: true } });
+      void client.invalidateQueries({ queryKey: keys.project(projectId) });
+      void navigate({ to: '/p/$projectId/threads/$explorationId', params: { projectId, explorationId: thread } });
+    } catch (e) {
+      setError(e);
+    } finally {
+      setPending(null);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
         <h2 className="text-lg font-semibold text-fg">{t.title}</h2>
         <p className="max-w-prose text-fg-2">{t.intro}</p>
+        <p className="flex max-w-prose flex-wrap items-center gap-x-3 gap-y-2 text-fg-2">
+          {t.notSure}
+          <Button size="sm" variant="secondary" pending={pending === 'help'} disabled={pending !== null} onClick={() => void help()}>
+            {t.help}
+          </Button>
+        </p>
       </div>
       <section className="flex flex-col gap-2" aria-labelledby="ds-public">
         <h3 id="ds-public" className="font-semibold text-fg">

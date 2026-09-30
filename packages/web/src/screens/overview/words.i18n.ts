@@ -22,7 +22,7 @@ export const OVERVIEW = messages(
     draftingNote: 'Features DEMIURGO is writing from an approved decision.',
     withoutTag: 'Without a tag',
     threadsWithOpen: 'Threads with open questions',
-    noFeaturesYet: 'No features yet. DEMIURGO drafts one from an approved decision, or you can write one yourself.',
+    noFeaturesYet: 'No features yet. Ask DEMIURGO to design one in a thread, or write one yourself.',
     epicsNote: 'Capabilities too big for one feature. Open one and ask DEMIURGO about it to split it into features.',
   },
   {
@@ -42,7 +42,7 @@ export const OVERVIEW = messages(
     threadsWithOpen: 'Hilos con preguntas abiertas',
     epicsNote: 'Capacidades demasiado grandes para una sola funcionalidad. Abre una y pregunta a DEMIURGO sobre ella para trocearla en funcionalidades.',
     noFeaturesYet:
-      'Aún no hay funcionalidades. DEMIURGO redacta una a partir de una decisión aprobada, o puedes escribir una tú mismo.',
+      'Aún no hay funcionalidades. Pide a DEMIURGO que diseñe una en un hilo, o escríbela tú.',
   },
 );
 
@@ -286,7 +286,7 @@ export const STAGES = messages(
     opensBeforeBuild: 'It opens when you prepare to build: it rests on the features, so it needs at least one approved feature.',
     opensBeforeRelease: 'It opens when you prepare the first version, once Architecture has passed.',
     moment: (m: string): string =>
-      m === 'onboarding' ? 'Now: the principles' : m === 'before_build' ? 'Before building' : 'Before the first version',
+      m === 'onboarding' ? 'First: the principles' : m === 'before_build' ? 'Before building' : 'Before the first version',
     prepareBuild: 'Prepare to build',
     prepareRelease: 'Prepare the first version',
     preparing: 'Opening…',
@@ -332,7 +332,7 @@ export const STAGES = messages(
       'Se abre cuando te prepares para construir: se basa en las funcionalidades, así que necesita al menos una funcionalidad aprobada.',
     opensBeforeRelease: 'Se abre cuando prepares la primera versión, una vez superada Architecture.',
     moment: (m: string): string =>
-      m === 'onboarding' ? 'Ahora: los principios' : m === 'before_build' ? 'Antes de construir' : 'Antes de la primera versión',
+      m === 'onboarding' ? 'Primero: los principios' : m === 'before_build' ? 'Antes de construir' : 'Antes de la primera versión',
     prepareBuild: 'Preparar para construir',
     prepareRelease: 'Preparar la primera versión',
     preparing: 'Abriendo…',

@@ -250,6 +250,14 @@ etiqueta de aspecto y el código de la épica ya dicen de qué parte del product
   código, aunque no sea perfecto (Google eng-practices,
   https://google.github.io/eng-practices/review/reviewer/standard.html). Si algo falla o el revisor no aprueba, el
   agente lo intenta arreglar y, si no puede, se lo muestra a la persona en la ficha de la tarea.
+- **Dónde y cómo se construye (decisiones de la persona, 30-09).** Cada proyecto tiene un repo
+  privado en GitHub. El agente constructor escribe código y ejecuta pruebas solo dentro de un
+  contenedor aislado, sin credenciales de GitHub, y solo cuando la persona pulsa «Construir con un
+  agente». DEMIURGO hace el commit, el push y el pull request. Como en GitHub el autor de un pull
+  request no puede aprobarlo, el veredicto del revisor es la comprobación obligatoria
+  `demiurgo/review`, junto a `ci` (convención nuestra dentro de la protección de rama de GitHub). La
+  CI del proyecto la añade la primera tarea, el walking skeleton, y publica sus resultados JUnit
+  como artefacto `junit` (convención nuestra).
 - Una tarea hecha no demuestra por sí sola que se cumplan sus criterios. La evidencia vale para el
   resultado concreto que se comprobó.
 

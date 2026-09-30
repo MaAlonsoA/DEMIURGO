@@ -114,6 +114,7 @@ export const DEV_PANEL = messages(
     noSnapshots: 'No snapshots yet.',
     saved: (label: string) => `Saved “${label}”`,
     projectTitle: (name: string) => `This project · ${name}`,
+    wholeDatabase: 'Whole database',
     projectLine:
       'Only this project: its records, threads, runs and knowledge. Other projects keep running. GitHub is not rewound.',
     saveProjectSnapshot: 'Save project snapshot',
@@ -158,6 +159,7 @@ export const DEV_PANEL = messages(
     noSnapshots: 'Todavía no hay instantáneas.',
     saved: (label: string) => `Guardada «${label}»`,
     projectTitle: (name: string) => `Este proyecto · ${name}`,
+    wholeDatabase: 'Toda la base de datos',
     projectLine:
       'Solo este proyecto: sus registros, hilos, ejecuciones y conocimiento. Los demás proyectos siguen funcionando. GitHub no se rebobina.',
     saveProjectSnapshot: 'Guardar instantánea del proyecto',

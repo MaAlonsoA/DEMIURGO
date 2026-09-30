@@ -30,6 +30,7 @@ import { Button, buttonClass } from '../../components/Button.tsx';
 import { ArrowLeftIcon, ChevronDownIcon, PanelRightIcon } from '../../components/icons.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
 import { PageBody, PageHeader, usePageTitle } from '../../components/Page.tsx';
+import { threadTitle } from '../../lib/thread-title.ts';
 import { ResizablePanel } from '../../components/SidePanel.tsx';
 import { Bone, Skeleton } from '../../components/Spinner.tsx';
 import { useMessages } from '../../i18n/define.ts';
@@ -100,7 +101,7 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
   const deeperHeading = useRef<HTMLHeadingElement>(null);
 
   const t = thread.data;
-  usePageTitle([t ? short(t.purpose, 60) : 'Thread', project?.name]);
+  usePageTitle([t ? short(threadTitle(t.purpose), 60) : 'Thread', project?.name]);
 
   // The suggested threads of the conversation's runs: their state tells which fork drafts still count.
   const batchIds = [

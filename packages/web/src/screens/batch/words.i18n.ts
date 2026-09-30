@@ -278,6 +278,25 @@ export const ITEM_BATCH = messages(
   },
 );
 
+export const APPROVE_ALL = messages(
+  {
+    button: (n: number) => `Approve all ${n}`,
+    progress: (k: number, n: number) => `Approving ${k} of ${n}…`,
+    dialogTitle: (n: number) => `Approve these ${n} proposals?`,
+    dialogBody: 'They are settled: DEMIURGO and the next steps build on them.',
+    stoppedAfter: (done: number, n: number) => `Stopped: ${done} of ${n} approved.`,
+    allApproved: (n: number) => `${n} proposals approved.`,
+  },
+  {
+    button: (n: number) => `Aprobar las ${n}`,
+    progress: (k: number, n: number) => `Aprobando ${k} de ${n}…`,
+    dialogTitle: (n: number) => `¿Aprobar estas ${n} propuestas?`,
+    dialogBody: 'Quedan asentadas: DEMIURGO y los siguientes pasos parten de ellas.',
+    stoppedAfter: (done: number, n: number) => `Detenido: ${done} de ${n} aprobadas.`,
+    allApproved: (n: number) => `${n} propuestas aprobadas.`,
+  },
+);
+
 export const PROPOSAL_ACTIONS = messages(
   {
     twoThingsHappen: 'Two things happen:',

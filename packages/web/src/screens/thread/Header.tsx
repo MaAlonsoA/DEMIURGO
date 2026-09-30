@@ -25,6 +25,8 @@ import { EntityState } from '../../components/status.tsx';
 import { Who, whoName } from '../../components/Who.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { useReading } from '../../i18n/reading.tsx';
+import { cn } from '../../lib/cn.ts';
+import { hasMoreThanTitle, threadTitle } from '../../lib/thread-title.ts';
 import { shortDate } from '../../lib/time.ts';
 import { whoOf } from '../../words.ts';
 import { HEADER } from './words.i18n.ts';
@@ -80,6 +82,8 @@ export function ThreadHeader({
   const [dialog, setDialog] = useState<Dialog>(null);
   const reading = useReading(projectId, 'exploration', t.id);
   const purpose = reading.text('purpose', t.purpose);
+  const title = threadTitle(purpose);
+  const showFull = hasMoreThanTitle(purpose);
   const clamp = useClamp(purpose);
   const open = (d: Dialog) => {
     command.reset();
@@ -99,10 +103,10 @@ export function ThreadHeader({
   const crumbs: Crumb[] = [{ label: words.threadsCrumb, link: { to: '/p/$projectId/threads', params: { projectId } } }];
   if (parent)
     crumbs.push({
-      label: short(parent.purpose, 40),
+      label: short(threadTitle(parent.purpose), 40),
       link: { to: '/p/$projectId/threads/$explorationId', params: { projectId, explorationId: parent.id } },
     });
-  crumbs.push({ label: short(purpose, 48) });
+  crumbs.push({ label: short(title, 48) });
 
   return (
     <div data-thread-header>
@@ -117,14 +121,15 @@ export function ThreadHeader({
             </span>
           </>
         }
-        title={
-          <span ref={clamp.ref} className={clamp.all ? 'block' : 'line-clamp-3'}>
-            {purpose}
-          </span>
-        }
+        title={title}
         meta={
           <>
-            {clamp.overflows || clamp.all ? (
+            {showFull ? (
+              <span ref={clamp.ref} data-thread-purpose className={cn('basis-full text-base whitespace-pre-wrap text-fg-2', clamp.all ? 'block' : 'line-clamp-3')}>
+                {purpose}
+              </span>
+            ) : null}
+            {showFull && (clamp.overflows || clamp.all) ? (
               <button
                 type="button"
                 onClick={clamp.toggle}

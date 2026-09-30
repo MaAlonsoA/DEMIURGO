@@ -98,6 +98,7 @@ function Block({ projectId, thread, items }: { projectId: string; thread: Explor
     setAnswers((all) => ({ ...all, [q.id]: { ...(all[q.id] ?? initialAnswer(q)), ...a } }));
   const missing = missingAnswers(items, answers);
   const calls = blockCalls(items, answers);
+  const [total, setTotal] = useState<number | null>(null);
   const explain = useExplain(projectId, explorationId);
   const deeper = items.find((q) => q.id === deeperId) ?? null;
 
@@ -126,6 +127,8 @@ function Block({ projectId, thread, items }: { projectId: string; thread: Explor
   async function confirm() {
     setError(null);
     setProgress(0);
+    // The questions leave the list as they are confirmed: the count is fixed when confirming starts.
+    setTotal(calls.length);
     try {
       for (const [i, call] of calls.entries()) {
         await runCommand(projectId, call);
@@ -165,7 +168,7 @@ function Block({ projectId, thread, items }: { projectId: string; thread: Explor
           variant="primary"
           disabled={missing > 0}
           pending={progress !== null}
-          pendingLabel={t.confirming(progress ?? 0, calls.length)}
+          pendingLabel={t.confirming(progress ?? 0, total ?? calls.length)}
           onClick={() => void confirm()}
         >
           {t.confirm}

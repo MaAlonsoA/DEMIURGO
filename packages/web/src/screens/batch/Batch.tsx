@@ -17,6 +17,7 @@ import { Bone, Skeleton } from '../../components/Spinner.tsx';
 import { isNotFound } from '../../components/explain.ts';
 import { useMessages } from '../../i18n/define.ts';
 import { useRouteParams } from '../../lib/hooks.ts';
+import { threadTitle } from '../../lib/thread-title.ts';
 import { DemiurgoPackage } from './DemiurgoPackage.tsx';
 import { ImportPackage } from './ImportPackage.tsx';
 import { ItemBatch } from './ItemBatch.tsx';
@@ -63,7 +64,7 @@ export function useBatchCrumbs(projectId: string, current: string): Crumb[] {
     return [
       { label: t.threads, link: { to: '/p/$projectId/threads', params: { projectId } } },
       {
-        label: thread?.purpose ?? t.thread,
+        label: thread ? threadTitle(thread.purpose) : t.thread,
         link: { to: '/p/$projectId/threads/$explorationId', params: { projectId, explorationId: origin.threadId } },
       },
       { label: current },

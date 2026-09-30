@@ -21,7 +21,7 @@ import {
   saveProjectSnapshot,
   saveSnapshot,
 } from '../api/dev.ts';
-import { projectsQuery, sessionQuery } from '../api/queries.ts';
+import { keys, projectsQuery, sessionQuery } from '../api/queries.ts';
 import { Button } from '../components/Button.tsx';
 import { ConfirmDialog, Dialog } from '../components/Dialog.tsx';
 import { Field, TextInput } from '../components/Field.tsx';
@@ -116,6 +116,7 @@ function Panel() {
         description={t.snapshotsDescription(list.data?.database ?? '…')}
       >
         {projectId ? <ProjectSection projectId={projectId} disabled={busy} onBusy={() => setSaved(null)} /> : null}
+        {projectId ? <h3 className="text-base font-semibold text-fg">{t.wholeDatabase}</h3> : null}
         <form onSubmit={save} className="flex items-end gap-2">
           <Field label={t.label} optional className="flex-1">
             {(p) => (
@@ -233,11 +234,13 @@ function ProjectSection({ projectId, disabled, onBusy }: { projectId: string; di
       if (a.kind === 'drop') return dropProjectSnapshot(a.snapshot.name);
       return deleteProject(projectId);
     },
-    onSuccess: (r, a) => {
+    onSuccess: async (r, a) => {
       setConfirm(null);
       if (a.kind === 'delete') {
         setTyped('');
-        void navigate({ to: '/projects' });
+        // Leave the project first, so its queries are no longer mounted when they are invalidated (404s).
+        await navigate({ to: '/projects' });
+        client.removeQueries({ queryKey: keys.project(projectId) });
       } else if (a.kind === 'save') {
         const saved = (r as { snapshot: ProjectSnapshot }).snapshot;
         setLabel('');

@@ -22,6 +22,7 @@ import { Segmented } from '../../components/Tabs.tsx';
 import { RelativeTime } from '../../components/Time.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
+import { threadTitle } from '../../lib/thread-title.ts';
 import { useProjectId, useTables } from '../../lib/hooks.ts';
 import { OpenThreadDialog } from './OpenThreadDialog.tsx';
 import { type StateFilter, type TreeRow, filterRows, stateCounts, threadTree, treeRows, visibleRows } from './tree.ts';
@@ -275,7 +276,7 @@ function ThreadTree({
                       tabIndex={-1}
                       className="line-clamp-2 min-w-0 font-medium text-fg hover:underline"
                     >
-                      {t.purpose}
+                      {threadTitle(t.purpose)}
                     </Link>
                   </div>
                   {(t.affects?.length ?? 0) > 0 ? (

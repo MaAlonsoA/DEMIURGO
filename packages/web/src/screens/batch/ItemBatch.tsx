@@ -2,7 +2,7 @@
 // how many are left to decide; in the middle, the one being read, in full, with its decision at
 // the bottom. Previous and Next move through them; after a decision the page goes to the next one
 // still to decide, puts the focus on its title and says so (R13, R80). Moving away from unsaved
-// "Change" edits asks first. Never an "accept all" (INV-PROP-21).
+// "Change" edits asks first. "Approve all" only runs the per-item Approve, one by one, after one confirmation.
 
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearch } from '@tanstack/react-router';
@@ -19,6 +19,7 @@ import { DayTime } from '../../components/Time.tsx';
 import { cn } from '../../lib/cn.ts';
 import { useLocale } from '../../i18n/locale.ts';
 import { useMessages } from '../../i18n/define.ts';
+import { ApproveAll } from './ApproveAll.tsx';
 import { useBatchCrumbs } from './Batch.tsx';
 import { EditGuard, useEditGuard } from './guard.tsx';
 import { proposalTitle } from './model.ts';
@@ -132,6 +133,7 @@ function ItemBatchPage({ projectId, batch }: { projectId: string; batch: BatchDe
                   {left > 0 ? t.toDecide(left) : stale > 0 ? t.nothingLeftToDecide : t.allDecided}
                 </span>
               </div>
+              <ApproveAll projectId={projectId} proposals={proposals} />
               <ol className="flex flex-col gap-1">
                 {proposals.map((p, i) => (
                   <li key={p.id}>

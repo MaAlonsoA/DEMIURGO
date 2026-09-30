@@ -8,7 +8,10 @@ export const EPICS = messages(
     loading: 'Loading epics',
     noneYet: 'No epics yet',
     noneHint:
-      'An epic is a capability of the first version too big for one feature. When the product definition is done, DEMIURGO proposes some from the Product page.',
+      'An epic is a capability of the first version too big for one feature. On Product, «Map the first version» asks DEMIURGO for the story map.',
+    proposed: 'Proposed',
+    proposedBy: 'Proposed by DEMIURGO ·',
+    review: 'Review',
     goToProduct: 'Go to Product',
     open: 'Open the epic',
     features: 'Features',
@@ -26,7 +29,10 @@ export const EPICS = messages(
     loading: 'Cargando épicas',
     noneYet: 'Aún no hay épicas',
     noneHint:
-      'Una épica es una capacidad de la primera versión demasiado grande para una sola funcionalidad. Cuando la definición del producto está hecha, DEMIURGO propone algunas desde la página de Producto.',
+      'Una épica es una capacidad de la primera versión demasiado grande para una sola funcionalidad. En Producto, «Mapear la primera versión» pide a DEMIURGO el mapa de historias.',
+    proposed: 'Propuestas',
+    proposedBy: 'Propuesta de DEMIURGO ·',
+    review: 'Revisar',
     goToProduct: 'Ir a Producto',
     open: 'Abrir la épica',
     features: 'Funcionalidades',

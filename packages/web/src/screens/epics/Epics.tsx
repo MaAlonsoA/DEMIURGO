@@ -8,6 +8,7 @@ import type { Inbox, ProductRow, ProductState } from '../../api/types.ts';
 import { buttonClass } from '../../components/Button.tsx';
 import { EmptyState } from '../../components/EmptyState.tsx';
 import { JourneyIcon } from '../../components/icons.tsx';
+import { RelativeTime } from '../../components/Time.tsx';
 import { Certainty } from '../../components/status.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
 import { PageBody, PageHeader, Section, usePageTitle } from '../../components/Page.tsx';
@@ -130,6 +131,15 @@ function epicCodes(state: ProductState, g: EpicGroup): string[] {
   return [g.epic.code, ...plan.lines.map((l) => l.row?.code ?? l.code), ...plan.outside.map((f) => f.code)];
 }
 
+/** Epics DEMIURGO drafted that nobody has accepted yet: an index line each, decided on the batch page. */
+function proposedEpics(inbox: Inbox | undefined) {
+  return (inbox?.batches ?? []).flatMap((b) =>
+    b.proposals
+      .filter((p) => p.state === 'pending' && p.type === 'design_record' && p.payload.record_type === 'epic')
+      .map((p) => ({ id: p.id, batchId: b.id, created: b.created, title: typeof p.payload.title === 'string' ? p.payload.title : '' })),
+  );
+}
+
 export function EpicsScreen() {
   const t = useMessages(EPICS);
   const projectId = useProjectId();
@@ -142,6 +152,7 @@ export function EpicsScreen() {
   const attention = attentionByCode(inbox.data);
   const tables = useTables();
   const canMove = !!tables && canCreate(tables, 'record.move_epic');
+  const proposed = proposedEpics(inbox.data);
   const { groups } = epicGroups(s ? [...s.designs, ...s.decisions] : []);
   const featureCount = s ? groups.reduce((n, g) => n + Math.max(plannedOf(s, g.epic.code).length, g.features.length), 0) : 0;
 
@@ -156,7 +167,7 @@ export function EpicsScreen() {
           </Skeleton>
         ) : !s ? (
           <ErrorNotice error={state.error} onRetry={() => void state.refetch()} />
-        ) : groups.length === 0 ? (
+        ) : groups.length === 0 && proposed.length === 0 ? (
           <EmptyState
             size="spacious"
             icon={<JourneyIcon size={28} />}
@@ -170,7 +181,28 @@ export function EpicsScreen() {
             {t.noneHint}
           </EmptyState>
         ) : (
-          groups.map((g, i) => (
+          <>
+          {proposed.length > 0 ? (
+            <Section id="epics-proposed" title={t.proposed}>
+              <ul className="flex flex-col divide-y divide-edge-subtle" data-epics-proposed>
+                {proposed.map((e) => (
+                  <li key={e.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
+                    <span className="font-medium text-fg">{e.title}</span>
+                    <RelativeTime iso={e.created} prefix={t.proposedBy} className="text-sm text-fg-2" />
+                    <Link
+                      to="/p/$projectId/batches/$batchId"
+                      params={{ projectId, batchId: e.batchId }}
+                      className={buttonClass({ size: 'sm' })}
+                      aria-label={`${t.review}: ${e.title}`}
+                    >
+                      {t.review}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          ) : null}
+          {groups.map((g, i) => (
             <Section
               key={g.epic.code}
               id={`epic-${g.epic.code}`}
@@ -200,7 +232,8 @@ export function EpicsScreen() {
             >
               <EpicSummary projectId={projectId} group={g} state={s} inbox={inbox.data} attention={attention} />
             </Section>
-          ))
+          ))}
+          </>
         )}
       </PageBody>
     </>

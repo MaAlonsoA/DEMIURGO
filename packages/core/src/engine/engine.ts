@@ -919,14 +919,18 @@ async function reconcileRunsIn(s: Services): Promise<void> {
     .execute();
   for (const r of liveRuns) {
     const workflow = await DBOS.getWorkflowStatus(workflowRunId(r.id));
-    const alive = workflow && ['PENDING', 'ENQUEUED', 'SUCCESS'].includes(workflow.status);
+    // A workflow that finished (SUCCESS) always leaves its run completed or failed; a run still
+    // open with a finished workflow was put back by a project snapshot and is interrupted too.
+    const alive = workflow && ['PENDING', 'ENQUEUED'].includes(workflow.status);
     if (alive) continue;
     if (!workflow && r.state === 'queued') {
       await dbosEngine.startRun(r.id, r.project_id);
       continue;
     }
     const reason = workflow
-      ? `The run's workflow ended in ${workflow.status} without completing it; retry it.`
+      ? workflow.status === 'SUCCESS'
+        ? 'The run was left open although its workflow had finished (restored from a snapshot); retry it.'
+        : `The run's workflow ended in ${workflow.status} without completing it; retry it.`
       : 'The process was interrupted with no workflow to resume; retry it with the same context pack.';
     await executeCommand(s, {
       command: r.state === 'running' ? 'run.interrupt' : 'run.fail',

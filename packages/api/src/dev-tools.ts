@@ -22,7 +22,8 @@ import {
   snapshotTarget,
   traceEntity,
 } from '@demiurgo/core';
-import { DomainError } from '@demiurgo/domain';
+import { DomainError, system } from '@demiurgo/domain';
+import { executeCommand } from '@demiurgo/core';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { Runtime } from './runtime.ts';
@@ -134,7 +135,9 @@ export function registerDevRoutes(app: FastifyInstance, dev: DevTools, services:
   app.post('/api/dev/project-snapshots/:name/restore', async (req) => {
     requirePerson(req);
     const { name } = req.params as { name: string };
-    return dev.restoreProject(name).then((r) => ({ restored: r.restored, git: r.git }));
+    const r = await dev.restoreProject(name);
+    const settled = await afterProjectRestore(services, r.restored.project.id);
+    return { restored: r.restored, git: `${r.git} ${settled}`.trim() };
   });
 
   app.delete('/api/dev/project-snapshots/:name', async (req) => {
@@ -153,4 +156,59 @@ export function registerDevRoutes(app: FastifyInstance, dev: DevTools, services:
     await dev.reset();
     return { reset: true };
   });
+}
+
+/**
+ * A project snapshot keeps its runs as they were at that moment, but the durable engine (DBOS) is not
+ * part of it: a run saved while running has no workflow left, and a stage's deferred introduction is
+ * remembered as done. So, after a restore, the runs saved mid-way are marked interrupted (the person
+ * can retry them) and every open stage whose questions still have no options asks for its
+ * introduction again, under a new key.
+ */
+async function afterProjectRestore(services: Services, projectId: string): Promise<string> {
+  const db = services.db;
+  const running = await db
+    .selectFrom('ai_runs')
+    .select('id')
+    .where('project_id', '=', projectId)
+    .where('state', '=', 'running')
+    .execute();
+  for (const run of running)
+    await executeCommand(services, {
+      command: 'run.interrupt',
+      actor: system('dev-tools'),
+      projectId,
+      entityId: run.id,
+      data: { reason: 'Restored from a snapshot: this run was in progress when the snapshot was saved.' },
+    });
+  const queued = await db.selectFrom('ai_runs').select('id').where('project_id', '=', projectId).where('state', '=', 'queued').execute();
+  for (const run of queued) await services.engine.startRun(run.id, projectId);
+  const stages = await db
+    .selectFrom('stages')
+    .select(['id', 'stage', 'exploration_id'])
+    .where('project_id', '=', projectId)
+    .where('state', '=', 'open')
+    .execute();
+  let asked = 0;
+  for (const st of stages) {
+    if (!st.exploration_id) continue;
+    const bare = await db
+      .selectFrom('questions')
+      .select('id')
+      .where('stage_id', '=', st.id)
+      .where('state', '=', 'pending')
+      .where((eb) => eb.or([eb('options', 'is', null), eb(eb.fn('jsonb_array_length', ['options']), '=', 0)]))
+      .executeTakeFirst();
+    if (!bare) continue;
+    await services.engine.startDeferredRun(`stage_opened:${st.id}:restored:${Date.now()}`, projectId, st.exploration_id, {
+      stage_opened: st.stage,
+    });
+    asked++;
+  }
+  const parts = [
+    running.length ? `${running.length} run(s) saved mid-way marked interrupted.` : '',
+    queued.length ? `${queued.length} queued run(s) started.` : '',
+    asked ? `${asked} open stage(s) asked again for their options.` : '',
+  ];
+  return parts.filter(Boolean).join(' ');
 }

@@ -4,7 +4,7 @@
 import type { AgentInfo, Catalog, Engine, ProviderModel, Resolution } from '../../api/models.ts';
 
 const PROVIDER_ORDER = ['claude', 'codex', 'opencode', 'simulated'];
-const AGENT_ORDER = ['onboarding', 'explorer', 'designer', 'knowledge_classifier', 'knowledge_reviewer', 'echo'];
+const AGENT_ORDER = ['onboarding', 'explorer', 'epic_planner', 'feature_designer', 'task_planner', 'designer', 'knowledge_classifier', 'knowledge_reviewer', 'echo'];
 
 const rank = (list: string[], id: string): number => {
   const i = list.indexOf(id);

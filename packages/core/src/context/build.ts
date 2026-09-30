@@ -70,7 +70,13 @@ export async function buildContext(
 }
 
 /** The actions whose output becomes records: they write them in English with the project's terms. */
-const RECORD_WRITERS: ReadonlySet<AgentAction> = new Set(['exploration_chat', 'design_proposal']);
+const RECORD_WRITERS: ReadonlySet<AgentAction> = new Set([
+  'exploration_chat',
+  'design_proposal',
+  'epic_plan',
+  'feature_design',
+  'task_plan',
+]);
 
 /** A fragment added after the builder's own: next in sequence and in position. */
 function appended(

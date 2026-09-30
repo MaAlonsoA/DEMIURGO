@@ -8,7 +8,15 @@ import { VERSION_LIMITS } from './records.ts';
 import { z } from 'zod';
 import { DEFINITION_SECTION_TITLES, QUOTE_MAX } from './definition.ts';
 
-export const AGENT_ACTIONS = ['echo', 'exploration_chat', 'design_proposal', 'coherence_review'] as const;
+export const AGENT_ACTIONS = [
+  'echo',
+  'exploration_chat',
+  'design_proposal',
+  'coherence_review',
+  'epic_plan',
+  'feature_design',
+  'task_plan',
+] as const;
 export type AgentAction = (typeof AGENT_ACTIONS)[number];
 
 /** Closed failure kinds (docs/investigacion-stack-2026-09-24.md §8). */
@@ -183,6 +191,9 @@ export interface Provider {
 
 const text = (max: number) => z.string().trim().min(1).max(max);
 
+/** The design records a conversation may still propose: the ones that are not delivery records (epic, feature, task). */
+export const NON_DELIVERY_RECORD_TYPES = ['requirement', 'quality_requirement', 'threat_model', 'production_readiness', 'adr'] as const;
+
 /** A text that becomes part of the project's record: always in English (only `reply` follows the person). */
 const recordText = (max: number) => text(max).describe('In English.');
 
@@ -340,63 +351,13 @@ export const explorationChatOutput = z
             })
             .strict(),
           z.object({ type: z.literal('exploration'), purpose: recordText(500) }).strict(),
+          // Requirements, quality requirements, threat models, production readiness and ADRs. Epics, features and
+          // tasks are drafted by their own agents (epic_plan, feature_design, task_plan), never in a conversation.
           z
             .object({
               type: z.literal('design_record'),
-              record_type: z.enum(['epic', 'fdr', 'task', 'requirement', 'quality_requirement', 'threat_model', 'production_readiness', 'adr']),
+              record_type: z.enum(NON_DELIVERY_RECORD_TYPES),
               title: recordText(160),
-              domain: z
-                .string()
-                .regex(/^[a-z][a-z_]*$/)
-                .nullable()
-                .describe("The epic's short name in snake_case (its first three letters make the code, e.g. guided_design → EPC-GUI-001, FDR-GUI-001): an epic's own, its features' and their tasks' too (a task takes its feature's); null for other records."),
-              based_on: z
-                .object({ code: z.string().regex(/^[A-Z]{3}-[A-Z]{3}-\d{3}$/), version: z.number().int().positive() })
-                .strict()
-                .nullable()
-                .describe(
-                  'For a feature (fdr): the approved epic it belongs to, with its current version; for a task: its approved feature (`feature_tasks.code` and `feature_tasks.version`); null otherwise.',
-                ),
-              needs: z
-                .array(z.object({ code: z.string().regex(/^[A-Z]{3}-[A-Z]{3}-\d{3}$/), version: z.number().int().positive() }).strict())
-                .max(6)
-                .nullable()
-                .describe(
-                  'For a feature (fdr): the approved features of the same epic it depends on and that must be built first, each with its current version; null when it depends on none.',
-                ),
-              features: z
-                .array(z.object({ name: recordText(120), summary: recordText(300) }).strict())
-                .max(20)
-                .nullable()
-                .describe(
-                  'For an epic: its features in order, the smallest end-to-end walk first, each with a short name and one sentence of what it lets the person do; null for any other record.',
-                ),
-              code: z
-                .string()
-                .regex(/^FDR-[A-Z]{3}-\d{3}$/)
-                .nullable()
-                .describe(
-                  'For a feature (fdr) designed from a planned feature (`planned_feature` in the context): its `planned_feature.code`; null otherwise.',
-                ),
-              covers: z
-                .array(z.string().regex(/^AC-[A-Z]{3}-\d{3}-\d{2}$/))
-                .max(VERSION_LIMITS.criteria)
-                .nullable()
-                .describe(
-                  "For a task: the codes of its feature's acceptance criteria (`feature_tasks.criteria`) it implements; null for any other record.",
-                ),
-              size: z
-                .enum(TASK_SIZES)
-                .nullable()
-                .describe(
-                  "For a task: its relative effort size, XS (1 point), S (2), M (3), L (5) or XL (8), never a duration; null for any other record.",
-                ),
-              size_reason: recordText(300)
-                .nullable()
-                .describe('For a task: one line on why that size (e.g. "touches one screen and one command"); null otherwise.'),
-              split: recordText(600)
-                .nullable()
-                .describe('For an XL task: how it could be split into smaller tasks (nothing is split automatically); null otherwise.'),
               sections: z
                 .array(z.object({ title: recordText(120), content: recordText(6000) }).strict())
                 .min(1)
@@ -508,6 +469,16 @@ export const explorationChatOutput = z
         ]),
       )
       .max(15),
+    // Whether the thread has enough to draft an epic, a feature or its tasks: the person presses "Draft"
+    // and a dedicated agent writes it. Null when it is not ready.
+    ready_to_draft: z
+      .object({
+        kind: z.enum(['epic', 'feature', 'tasks']),
+        why: recordText(300).describe('One sentence on why the thread has enough to draft it now.'),
+      })
+      .strict()
+      .nullable()
+      .default(null),
   })
   .strict();
 
@@ -523,6 +494,117 @@ export const designProposalOutput = z
         criteria: z.array(proposedCriterion).min(1).max(VERSION_LIMITS.criteria),
       })
       .strict(),
+  })
+  .strict();
+
+/** A feature the epic lists (or a split produces): a short name and one sentence of what it lets the person do. */
+const plannedFeatureOutput = z.object({ name: recordText(120), summary: recordText(300) }).strict();
+
+const recordRef = z.object({ code: z.string().regex(/^[A-Z]{3}-[A-Z]{3}-\d{3}$/), version: z.number().int().positive() }).strict();
+
+/** epic_plan: a dedicated agent drafts the epic of a thread from the whole conversation. */
+export const epicPlanOutput = z
+  .object({
+    reply: text(2000).describe("One to three sentences in the person's language: what the draft covers and what to look at first."),
+    epic: z
+      .object({
+        title: recordText(160),
+        domain: z
+          .string()
+          .regex(/^[a-z][a-z_]*$/)
+          .describe("The epic's short name in snake_case (its first three letters make the code, e.g. guided_design → EPC-GUI-001, FDR-GUI-001)."),
+        goal: recordText(1000).describe('One clause naming the outcome of the product definition it serves.'),
+        out_of_scope: recordText(3000).describe('What the epic deliberately leaves out: what the product definition leaves out or what later epics take.'),
+        done_when: recordText(1500).describe('A short paragraph: when the epic counts as done.'),
+        criteria: z
+          .array(gwtCriterion.omit({ step: true }))
+          .min(1)
+          .max(VERSION_LIMITS.criteria)
+          .describe('Given/When/Then criteria that check the whole walk of the epic, not one feature.'),
+        features: z
+          .array(plannedFeatureOutput)
+          .min(1)
+          .max(20)
+          .describe('The epic\'s features in order, the thinnest end-to-end walk first.'),
+      })
+      .strict(),
+    sources: practiceSources,
+  })
+  .strict();
+
+/** The splitting patterns of SPIDR (Mike Cohn) and Richard Lawrence's story-splitting flowchart, closed to what the schema names. */
+export const SPLIT_PATTERNS = ['spike', 'paths', 'interfaces', 'data', 'rules', 'other'] as const;
+
+/** feature_design: a dedicated agent designs one planned feature, or says it must be split. */
+export const featureDesignOutput = z
+  .object({
+    reply: text(2000).describe("One to three sentences in the person's language."),
+    result: z.discriminatedUnion('kind', [
+      z
+        .object({
+          kind: z.literal('feature'),
+          feature: z
+            .object({
+              title: recordText(160),
+              goal: recordText(3000),
+              scope: recordText(3000),
+              out_of_scope: recordText(3000),
+              steps: z
+                .array(recordText(300))
+                .min(1)
+                .max(20)
+                .describe('The main success scenario, one short line per step: what the person does and sees. No rules or edge cases.'),
+              criteria: z.array(gwtCriterion).min(1).max(VERSION_LIMITS.criteria),
+              size: z.enum(['XS', 'S', 'M', 'L']).describe('Relative T-shirt size against its sibling features; an XL is not a feature: split it.'),
+              size_reason: recordText(300),
+              needs: z
+                .array(recordRef)
+                .max(6)
+                .describe('The approved sibling features of the same epic that must be built first, each with its current version; empty when none.'),
+            })
+            .strict(),
+        })
+        .strict(),
+      z
+        .object({
+          kind: z.literal('split'),
+          reason: recordText(600).describe('Why it is too big to be one feature.'),
+          pattern: z.enum(SPLIT_PATTERNS),
+          features: z.array(plannedFeatureOutput).min(2).max(8).describe('The features that replace it, in order.'),
+        })
+        .strict(),
+    ]),
+    sources: practiceSources,
+  })
+  .strict();
+
+/** task_plan: a dedicated agent breaks an approved feature into tasks. */
+export const taskPlanOutput = z
+  .object({
+    reply: text(2000).describe("One to three sentences in the person's language."),
+    tasks: z
+      .array(
+        z
+          .object({
+            title: recordText(160),
+            goal: recordText(1500),
+            scope: recordText(1500),
+            covers: z
+              .array(z.string().regex(/^AC-[A-Z]{3}-\d{3}-\d{2}$/))
+              .min(1)
+              .max(VERSION_LIMITS.criteria)
+              .describe("The codes of the feature's criteria this task implements."),
+            size: z.enum(TASK_SIZES),
+            size_reason: recordText(300),
+            split: recordText(600).nullable().describe('For an XL task: how it could be split; null otherwise.'),
+            walking_skeleton: z.boolean().describe("True only for the project's very first task, when the context says `first_feature`."),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(20)
+      .describe('In the order they are built.'),
+    sources: practiceSources,
   })
   .strict();
 
@@ -563,6 +645,9 @@ export const OUTPUT_SCHEMAS = {
   exploration_chat: explorationChatOutput,
   design_proposal: designProposalOutput,
   coherence_review: coherenceOutput,
+  epic_plan: epicPlanOutput,
+  feature_design: featureDesignOutput,
+  task_plan: taskPlanOutput,
 } as const satisfies Record<AgentAction, z.ZodType>;
 
 export type ActionOutput<A extends AgentAction> = z.infer<(typeof OUTPUT_SCHEMAS)[A]>;

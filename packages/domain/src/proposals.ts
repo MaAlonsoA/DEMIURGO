@@ -307,13 +307,17 @@ export const featurePlanPayload = z
     /** Where the feature goes (add: at the end when absent) or its new place (move); 1-based. */
     position: z.number().int().positive().nullish(),
     reason: text(1000),
+    /** The person's words the change rests on; may be empty only in a split proposed by the feature_design agent. */
     evidence: z
       .array(z.object({ message_id: z.string().uuid(), quote: text(QUOTE_MAX) }).strict())
-      .min(1)
       .max(3),
+    /** True in the drop and adds of a feature the agent says is too big (kind `split`): no quote from the person is needed. */
+    split_by_agent: z.boolean().optional(),
   })
   .strict()
   .superRefine((c, ctx) => {
+    if (c.evidence.length === 0 && !c.split_by_agent)
+      ctx.addIssue({ code: 'custom', path: ['evidence'], message: 'A change needs at least one quote from the person.' });
     const need = (ok: boolean, path: string, message: string) => {
       if (!ok) ctx.addIssue({ code: 'custom', path: [path], message });
     };

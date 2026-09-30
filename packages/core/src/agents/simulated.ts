@@ -108,6 +108,7 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
             .map((q) => ({ question_id: q.id, options: SIMULATED_OPTIONS, multiple: false, question: null, reason: null })),
       inferences: [],
       proposals: [],
+      ready_to_draft: null,
     };
     // A side conversation (Go deeper): the answer it led to, worded from the person's last words there.
     if (obj(p.schema?.properties).conversation_option) {
@@ -182,6 +183,106 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
   // The simulated reviewer finds the records coherent.
   coherence_review() {
     return { findings: [] };
+  },
+
+  epic_plan(p) {
+    const c = obj(p.context.content);
+    const title = truncate(txt(c.purpose, 'Capability'), 120);
+    return {
+      reply: 'Here is a draft of the epic with its features in order.',
+      epic: {
+        title,
+        domain: 'simulated_epic',
+        goal: `Let the person complete the capability "${title}" end to end.`,
+        out_of_scope: 'Integrations with other systems and multiple concurrent users.',
+        done_when: 'A person can walk the whole capability from start to finish and see the result saved.',
+        criteria: [
+          {
+            title: 'Whole walk',
+            given: 'an empty project',
+            when: 'the person walks the whole capability',
+            then: 'they reach the end and see the result saved',
+            verification: 'automatic',
+            check: 'An end-to-end test walks the capability and checks the result.',
+          },
+        ],
+        features: [
+          { name: 'Thinnest walk', summary: 'Lets the person go through the capability from start to end in its simplest form.' },
+          { name: 'Edit and correct', summary: 'Lets the person change what they entered before finishing.' },
+          { name: 'Review the result', summary: 'Lets the person see and share the outcome.' },
+        ],
+      },
+      sources: [],
+    };
+  },
+
+  feature_design(p) {
+    const c = obj(p.context.content);
+    const name = truncate(txt(obj(obj(c.feature_design).planned_feature).name, 'Feature'), 120);
+    const step = (title: string, given: string, when: string, then: string, n: number) => ({
+      title,
+      given,
+      when,
+      then,
+      verification: 'automatic',
+      check: `A test checks: ${title}.`,
+      step: n,
+    });
+    return {
+      reply: 'Here is the design of the feature.',
+      result: {
+        kind: 'feature',
+        feature: {
+          title: name,
+          goal: `Let the person do "${name}".`,
+          scope: 'The main walk, start to finish, for a single person.',
+          out_of_scope: 'External integrations and multiple concurrent users.',
+          steps: [
+            'The person opens the screen and sees what they can do.',
+            'They enter the information.',
+            'They confirm it.',
+            'They see the result saved.',
+          ],
+          criteria: [
+            step('Screen opens', 'a project', 'the person opens the screen', 'they see the available actions', 1),
+            step('Information entered', 'the screen is open', 'the person enters valid information', 'it is accepted', 2),
+            step('Invalid information', 'the screen is open', 'the person enters invalid information', 'they see a message that explains what to fix', 2),
+            step('Confirmation', 'valid information is entered', 'the person confirms', 'the system records it', 3),
+            step('Result shown', 'the information is recorded', 'the person looks at the result', 'they see it saved', 4),
+          ],
+          size: 'M',
+          size_reason: 'It touches one screen and one command.',
+          needs: [],
+        },
+      },
+      sources: [],
+    };
+  },
+
+  task_plan(p) {
+    const c = obj(p.context.content);
+    const uncovered = list(c.uncovered).filter((x): x is string => typeof x === 'string');
+    const all = list(obj(c.feature).criteria)
+      .map((k) => txt(obj(k).code))
+      .filter(Boolean);
+    const codes = uncovered.length > 0 ? uncovered : all.slice(0, 1);
+    const half = Math.ceil(codes.length / 2);
+    const groups = codes.length > 1 ? [codes.slice(0, half), codes.slice(half)] : [codes];
+    const title = truncate(txt(obj(c.feature).title, 'Feature'), 100);
+    return {
+      reply: `Here are the tasks for "${title}".`,
+      tasks: groups.map((covers, i) => ({
+        title: `${title}: part ${i + 1}`,
+        goal: `Build part ${i + 1} of "${title}".`,
+        scope: 'One vertical slice through every layer, checkable on its own.',
+        covers,
+        size: 'M',
+        size_reason: 'It touches one screen and one command.',
+        split: null,
+        walking_skeleton: i === 0 && c.first_feature === true,
+      })),
+      sources: [],
+    };
   },
 
   design_proposal(p) {

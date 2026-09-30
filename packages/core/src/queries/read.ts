@@ -26,6 +26,7 @@ import {
 import type { Db } from '../db/connection.ts';
 import { staleDependencies } from '../commands/proposals.ts';
 import { epicOrder } from '../commands/epic-order.ts';
+import { threadDraft } from './draft.ts';
 
 /** Records that are not built, so they have no readiness: a decision, and the product definition. */
 const WITHOUT_READINESS: ReadonlySet<string> = new Set(['decision', 'product_definition']);
@@ -1029,6 +1030,8 @@ export async function explorationDetail(db: Db, projectId: string, id: string) {
     })),
     questions: questions.map((q) => ({ ...q, epistemic_status: epistemicOfQuestion(q.state) })),
     children,
+    // What its "Draft" button writes (an epic, a feature or its tasks), or null when nothing can be drafted here.
+    draft: await threadDraft(db, projectId, e),
   };
 }
 

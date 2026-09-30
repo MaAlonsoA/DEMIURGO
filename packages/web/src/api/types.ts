@@ -613,9 +613,17 @@ export type ExplorationDetail = {
   messages: Message[];
   questions: Question[];
   children: { id: string; purpose: string; state: string }[];
+  /** What its "Draft" button writes (one dedicated agent per kind), or null when nothing can be drafted here. */
+  draft?: {
+    kind: 'epic' | 'feature' | 'tasks';
+    why: string | null;
+    suggested: boolean;
+    action: 'epic_plan' | 'feature_design' | 'task_plan';
+    scope: { type: string; id: string };
+  } | null;
 };
 
-export type Exploration = Omit<ExplorationDetail, 'messages' | 'questions' | 'children'> & {
+export type Exploration = Omit<ExplorationDetail, 'messages' | 'questions' | 'children' | 'draft'> & {
   open_questions: number;
   /** Codes of the records its proposals target (pending or accepted). */
   affects?: string[];

@@ -29,7 +29,7 @@ async function originThread(ctx: CommandContext, batchId: string): Promise<strin
     .innerJoin('ai_runs as r', 'r.id', 'b.run_id')
     .select('r.scope')
     .where('b.id', '=', batchId)
-    .where('r.action', '=', 'exploration_chat')
+    .where('r.action', 'in', ['exploration_chat', 'epic_plan', 'feature_design'])
     .executeTakeFirst();
   const id = (run?.scope as { id?: string } | undefined)?.id;
   if (!id) return null;

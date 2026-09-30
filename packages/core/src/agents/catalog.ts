@@ -32,6 +32,9 @@ export const DEFAULT_AGENTS: Readonly<Record<AgentAction, string>> = {
   exploration_chat: 'explorer',
   design_proposal: 'designer',
   coherence_review: 'coherence_reviewer',
+  epic_plan: 'epic_planner',
+  feature_design: 'feature_designer',
+  task_plan: 'task_planner',
 };
 
 export type LoadedAgent = AgentDefinition & {

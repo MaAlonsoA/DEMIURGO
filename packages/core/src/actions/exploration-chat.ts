@@ -7,7 +7,6 @@
 
 import {
   COVERED_QUESTION_STATES,
-  behaviorSteps,
   type CriterionChange,
   DomainError,
   STAGES,
@@ -18,7 +17,7 @@ import {
 } from '@demiurgo/domain';
 import { sql } from 'kysely';
 import { loadAgentCatalog } from '../agents/catalog.ts';
-import { registerBuilder } from '../context/build.ts';
+import { type Builder, type Built, registerBuilder } from '../context/build.ts';
 import { knowledgeForContext } from '../context/knowledge.ts';
 import { type FragmentSource, ManifestBuilder, recordKnowledge } from '../context/manifest.ts';
 import type { Db, Tx } from '../db/connection.ts';
@@ -67,7 +66,8 @@ const source = (type: string, id: string, version: number | null = null, eventSe
   eventSeq,
 });
 
-registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graphVersion }) => {
+/** The context pack of a thread; the drafting agents (epic_plan, feature_design) read the same one. */
+export async function explorationPack({ trx, projectId, scope, input, graphVersion }: Parameters<Builder>[0]): Promise<Built> {
   const manifest = new ManifestBuilder(BUILDER, graphVersion, BUDGET);
   const exploration = await trx
     .selectFrom('explorations')
@@ -559,7 +559,9 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
     },
     manifest: manifest.build(),
   };
-});
+}
+
+registerBuilder('exploration_chat', explorationPack);
 
 /**
  * The step after the onboarding, while no feature exists yet: the thread that hosted the onboarding
@@ -598,7 +600,7 @@ async function firstFeatureStep(trx: Tx, projectId: string, explorationId: strin
 }
 
 /** What the person wrote in the thread, most recent first: where an agent's quotes have to be. */
-function saidInThread(db: Db, explorationId: string) {
+export function saidInThread(db: Db, explorationId: string) {
   return db
     .selectFrom('messages')
     .select(['id', 'body'])
@@ -641,61 +643,7 @@ registerChecker('exploration_chat', async ({ db, run, output }) => {
     if (p.type === 'feature_plan') {
       const problem = await featurePlanProblem(db, run.project_id, (run.scope as { id: string }).id, p);
       if (problem) notes.push(problem);
-      continue;
     }
-    if (p.type !== 'design_record') continue;
-    if (p.record_type === 'epic' && p.sections.some(isFeaturesSection))
-      notes.push(
-        'An epic has no "Features" section: its features go in `features` (each with a `name` and a `summary`), never as text in a section. The section was left out.',
-      );
-    if (p.features && p.record_type !== 'epic')
-      notes.push('`features` is only for an epic (`record_type` `epic`): leave it null for any other record.');
-    if (p.code && p.record_type !== 'fdr')
-      notes.push(
-        '`code` is only for a feature (`record_type` `fdr`) designed from a planned feature: leave it null for any other record.',
-      );
-    if (p.code && p.record_type === 'fdr' && (await plannedFeatureByCode(db, run.project_id, p.code))?.state !== 'planned')
-      notes.push(
-        `${p.code} in \`code\` is not a planned feature of this project (it may be designed or dropped already). \`code\` is the \`planned_feature.code\` of the context: leave it null otherwise.`,
-      );
-    if (p.covers && p.record_type !== 'task') notes.push('`covers` is only for a task: leave it null for any other record.');
-    if (p.record_type === 'fdr') {
-      const n = behaviorSteps(p.sections.find((s) => s.title === 'Behavior')?.content ?? '').length;
-      for (const k of p.criteria)
-        if (k.step === null || k.step === undefined || k.step > n)
-          notes.push(
-            `A feature criterion ("${k.title}") sets \`step\` to the number (1 to ${n}) of the Behavior step it checks, not ${k.step ?? 'null'}.`,
-          );
-    }
-    if (p.record_type === 'task') {
-      if (p.criteria.length > 0)
-        notes.push('A task has no criteria of its own: leave `criteria` empty and list in `covers` the feature criteria it implements.');
-      const known = p.based_on ? (await featureTasksOf(db, run.project_id, p.based_on.code))?.criteria ?? [] : [];
-      if (!p.covers?.length || p.covers.some((c) => !known.includes(c)))
-        notes.push('A task lists in `covers` at least one code of `feature_tasks.criteria`, and only those.');
-      if (!p.size || !p.size_reason)
-        notes.push('A task has its `size` (XS, S, M, L or XL) and a one-line `size_reason`: fill both in every task.');
-      else if (p.size === 'XL' && !p.split)
-        notes.push('An XL task says in `split` how it could be split into smaller tasks.');
-    } else if (p.record_type !== 'fdr' && (p.size || p.size_reason))
-      notes.push('`size` and `size_reason` are only for a task or a feature: leave them null for any other record.');
-    else if (p.split) notes.push('`split` is only for a task: leave it null for any other record.');
-    if (p.record_type === 'task') {
-      const feature = p.based_on ? await featureTasksOf(db, run.project_id, p.based_on.code) : null;
-      if (!feature)
-        notes.push('A task rests on its feature: `based_on` is `feature_tasks.code` and `feature_tasks.version`.');
-      else if (!feature.approved || feature.version !== p.based_on?.version)
-        notes.push(
-          `${feature.code} is ${feature.approved ? `approved at v${feature.version}` : 'not approved yet'}: a task rests on the current approved version of its feature, so propose none until then.`,
-        );
-    }
-    if (p.record_type !== 'fdr' || !p.needs) continue;
-    const found = await neededFeatures(db, run.project_id, p.needs);
-    for (const n of p.needs)
-      if (!found.some((f) => f.code === n.code && f.version === n.version))
-        notes.push(
-          `${n.code} v${n.version} in \`needs\` is not an approved feature at that version. \`needs\` only names approved features listed in design_records, with their current version.`,
-        );
   }
   return notes;
 });
@@ -766,11 +714,8 @@ export async function featureTasksOf(db: Db, projectId: string, code: string) {
   };
 }
 
-/** An epic's features are its planned features, never a section of text. */
-const isFeaturesSection = (s: { title: string }) => s.title.trim().toLowerCase() === 'features';
-
 /** A feature an epic lists (reserved code, name, sentence and state), by its code. */
-async function plannedFeatureByCode(db: Db, projectId: string, code: string) {
+export async function plannedFeatureByCode(db: Db, projectId: string, code: string) {
   return db
     .selectFrom('planned_features')
     .select(['id', 'code', 'name', 'summary', 'state', 'epic_id'])
@@ -780,7 +725,7 @@ async function plannedFeatureByCode(db: Db, projectId: string, code: string) {
 }
 
 /** The record a thread was opened on (a version of it), whatever that version's state. */
-async function threadRecord(db: Db, projectId: string, explorationId: string) {
+export async function threadRecord(db: Db, projectId: string, explorationId: string) {
   const thread = await db
     .selectFrom('explorations')
     .select(['origin_type', 'origin_id'])
@@ -859,7 +804,7 @@ async function featurePlanProposal(
 }
 
 /** The approved features (at that version) among the references an agent gave as what a feature needs. */
-async function neededFeatures(db: Db, projectId: string, refs: readonly { code: string; version: number }[]) {
+export async function neededFeatures(db: Db, projectId: string, refs: readonly { code: string; version: number }[]) {
   const found: { id: string; code: string; version: number }[] = [];
   for (const ref of refs) {
     if (found.some((f) => f.code === ref.code)) continue;
@@ -1138,27 +1083,7 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
     if (p.type !== 'definition_change') {
       // "Based on": the person's words it rests on and the question being talked about.
       const { type, quotes, ...fields } = p;
-      // Fields the agent leaves null (an epic's name, a feature's epic) are left out of the payload.
       const payload = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== null));
-      // A feature's needs: approved features only; the ones that aren't are dropped (the checker told the agent).
-      const needs = p.type === 'design_record' && p.record_type === 'fdr' ? await neededFeatures(trx, run.project_id, p.needs ?? []) : [];
-      delete payload.needs;
-      if (p.type === 'design_record') {
-        // An epic has no "Features" section: they travel in `features` (unless that would leave it without sections).
-        const kept = p.sections.filter((s) => !isFeaturesSection(s));
-        if (p.record_type === 'epic' && kept.length > 0) payload.sections = kept;
-        // An epic's features only travel with an epic; a feature's planned code only with a planned feature of this project.
-        if (p.record_type !== 'epic' || !p.features?.length) delete payload.features;
-        // A task's size and why travel only with a task; how to split, only with an XL one.
-        if (p.record_type !== 'task') delete payload.covers;
-        if (p.record_type !== 'task' && p.record_type !== 'fdr') {
-          delete payload.size;
-          delete payload.size_reason;
-        }
-        if (p.record_type !== 'task' || p.size !== 'XL') delete payload.split;
-        if (p.record_type !== 'fdr' || !p.code || (await plannedFeatureByCode(trx, run.project_id, p.code))?.state !== 'planned')
-          delete payload.code;
-      }
       const basis = [
         ...quotes.flatMap((quote) => {
           const found = findQuote(quote, said);
@@ -1168,13 +1093,7 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
       ];
       proposals.push({
         type,
-        payload: {
-          ...payload,
-          ...(needs.length > 0 ? { needs: needs.map((n) => ({ code: n.code, version: n.version })) } : {}),
-          ...(basis.length > 0 ? { basis } : {}),
-        },
-        // Each needed feature, like the epic it is based on, must still be at that version when it is accepted.
-        ...(needs.length > 0 ? { dependencies: needs.map((n) => ({ type: 'record', ...n })) } : {}),
+        payload: { ...payload, ...(basis.length > 0 ? { basis } : {}) },
       });
       continue;
     }

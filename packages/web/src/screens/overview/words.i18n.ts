@@ -438,7 +438,7 @@ export const DEFINITION = messages(
           left_open: 'Left open on purpose',
         }) as Record<string, string>
       )[how] ?? '',
-    notAsked: 'Not asked when this stage opened',
+    notAsked: 'Composed from the answers of its stage',
     from: 'From the question',
     change: 'Change',
     changeLabel: (section: string) => `What it should say: ${section}`,
@@ -512,7 +512,7 @@ export const DEFINITION = messages(
           left_open: 'Dejada abierta a propósito',
         }) as Record<string, string>
       )[how] ?? '',
-    notAsked: 'No se preguntó cuando se abrió esta etapa',
+    notAsked: 'Compuesta con las respuestas de su etapa',
     from: 'De la pregunta',
     change: 'Cambiar',
     changeLabel: (section: string) => `Qué debe decir: ${section}`,

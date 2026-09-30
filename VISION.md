@@ -126,6 +126,19 @@ solo.
 4. **Sistema de diseño**, si el producto tiene interfaz: principios, dirección visual y la base del
    sistema, antes de la primera pantalla (ver «Diseño de interfaz»).
 
+Cada meta de calidad con número que la persona confirma queda además como un requisito de calidad
+(NFR) con su escenario y su medida (arc42 §10, escenarios de calidad), para poder verificarla y
+citarla desde una funcionalidad; la sección de la definición la resume (decisión de la misión, 01-10).
+
+Todo el camino hasta la primera construcción es una sola lista que Producto muestra con el paso
+actual y su acción: definición, metas de calidad, principios, sistema de diseño, épicas y
+funcionalidades de la primera versión, primera funcionalidad, sus pantallas, arquitectura, seguridad
+base, tareas, repositorio y walking skeleton construido. La lista y su orden son convención nuestra.
+Arquitectura y seguridad van antes de las tareas, porque el plan de tareas se apoya en los ADR y en
+las mitigaciones aprobados, y la seguridad base bloquea *Build* igual que la arquitectura (decisiones
+de la misión, 01-10; el SDL de Microsoft sitúa el modelado de amenazas en la fase de diseño, antes de
+implementar).
+
 Después se diseña la primera funcionalidad, que arranca con el walking skeleton (ver abajo). La **arquitectura** real se abre cuando hay al menos una
 funcionalidad aprobada. La **seguridad** se analiza antes de construir, junto a la arquitectura: es
 el modelo de amenazas (qué puede salir mal y cómo se evita, con el método STRIDE del SDL de

@@ -40,7 +40,9 @@ export type InceptionAction =
   | { kind: "repository" }
   | { kind: "build"; code: string | null }
   /** A proposed definition (or a change to it) waits: review and approve it on Product. */
-  | { kind: "review_definition" };
+  | { kind: "review_definition" }
+  /** Ask DEMIURGO, in the product's main thread, for the story map of the first version. */
+  | { kind: "plan_backlog"; thread: string | null };
 
 export type InceptionStep = {
   key: InceptionStepKey;
@@ -201,7 +203,10 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       action: () =>
         (input.epics.length > 0
           ? draftOf(draftEpic)
-          : draftOf(draftFeature)) ?? { kind: "epics" },
+          : draftOf(draftFeature)) ?? {
+          kind: "plan_backlog",
+          thread: stage("requirements")?.thread ?? null,
+        },
     },
     {
       key: "first_feature",

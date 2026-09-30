@@ -269,7 +269,8 @@ export type InceptionAction =
   | { kind: 'feature'; code: string }
   | { kind: 'repository' }
   | { kind: 'build'; code: string | null }
-  | { kind: 'review_definition' };
+  | { kind: 'review_definition' }
+  | { kind: 'plan_backlog'; thread: string | null };
 
 export type InceptionStep = {
   key: string;

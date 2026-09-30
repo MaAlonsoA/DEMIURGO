@@ -3,7 +3,7 @@
 // server computes the path (state.inception); an older server sends none and nothing shows.
 
 import { useQuery } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
 import { stateQuery } from '../../api/queries.ts';
@@ -15,7 +15,7 @@ import { ArrowRightIcon } from '../../components/icons.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
 import { Section } from '../../components/Page.tsx';
 import { cn } from '../../lib/cn.ts';
-import { messages, useMessages } from '../../i18n/define.ts';
+import { messages, useContentMessages, useMessages } from '../../i18n/define.ts';
 import { STAGES } from './words.i18n.ts';
 
 export const INCEPTION = messages(
@@ -39,6 +39,9 @@ export const INCEPTION = messages(
     build: 'Go to Build',
     goToStages: 'Go to the stages',
     reviewDefinition: 'Review and approve the definition',
+    planBacklog: 'Map the first version',
+    planBacklogRequest:
+      'Map the first version of the product definition as a story map (Jeff Patton, User Story Mapping): its capabilities in the order a person uses them, the thinnest end-to-end slice first (the walking skeleton), and for each capability whether it is one feature or an epic of several. Propose one thread per capability so I can design them one by one, and say where you would start.',
     nextUp: (title: string) => `Next: ${title}`,
   },
   {
@@ -61,6 +64,9 @@ export const INCEPTION = messages(
     build: 'Ir a Construir',
     goToStages: 'Ir a las etapas',
     reviewDefinition: 'Revisar y aprobar la definición',
+    planBacklog: 'Mapear la primera versión',
+    planBacklogRequest:
+      'Mapea la primera versión de la definición del producto como un mapa de historias (Jeff Patton, User Story Mapping): sus capacidades en el orden en que las usa una persona, primero la porción más fina de punta a punta (el walking skeleton), y para cada capacidad si es una funcionalidad o una épica de varias. Propón un hilo por capacidad para diseñarlas una a una, y dime por cuál empezarías.',
     nextUp: (title: string) => `Siguiente: ${title}`,
   },
 );
@@ -106,6 +112,35 @@ function PassStageButton({ projectId, step, action }: { projectId: string; step:
         }
       />
     </>
+  );
+}
+
+/** Asks DEMIURGO for the story map in the main thread (resumed if closed) and goes there. */
+function PlanBacklogButton({ projectId, thread }: { projectId: string; thread: string }) {
+  const t = useMessages(INCEPTION);
+  const request = useContentMessages(INCEPTION).planBacklogRequest;
+  const command = useCommand(projectId);
+  const navigate = useNavigate();
+  return (
+    <div className="flex flex-col gap-2">
+      {command.error ? <ErrorNotice error={command.error} /> : null}
+      <div>
+        <Button
+          variant="primary"
+          pending={command.isPending}
+          onClick={async () => {
+            try {
+              await command.mutateAsync({ command: 'message.post', data: { exploration_id: thread, text: request, respond: true } });
+              void navigate({ to: '/p/$projectId/threads/$explorationId', params: { projectId, explorationId: thread } });
+            } catch {
+              // The error shows above the button.
+            }
+          }}
+        >
+          {t.planBacklog}
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -165,6 +200,8 @@ export function InceptionActionButton({ projectId, step }: { projectId: string; 
       return link('/p/$projectId/repository', { projectId }, t.repository);
     case 'build':
       return link('/p/$projectId/build', { projectId }, action.code ? t.open(action.code) : t.build);
+    case 'plan_backlog':
+      return action.thread ? <PlanBacklogButton projectId={projectId} thread={action.thread} /> : link('/p/$projectId/epics', { projectId }, t.epics);
     case 'review_definition':
       return (
         <a href="#definition" className={primary}>

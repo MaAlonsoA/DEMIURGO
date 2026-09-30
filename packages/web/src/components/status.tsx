@@ -158,7 +158,15 @@ export function EntityState({
   className?: string;
 }) {
   const w = useStateWord(entity, state);
-  return <StatusBadge kind={w.mark} word={w.word} {...(size ? { size } : {})} {...(className ? { className } : {})} />;
+  return (
+    <StatusBadge
+      kind={w.mark}
+      word={w.word}
+      {...(w.phrase ? { title: `${w.word} · ${w.phrase}` } : {})}
+      {...(size ? { size } : {})}
+      {...(className ? { className } : {})}
+    />
+  );
 }
 
 /** How sure the product is of something (the API's epistemic status), as a badge. */

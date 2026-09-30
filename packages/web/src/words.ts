@@ -46,7 +46,8 @@ export const MARKS: Record<MarkKind, { name: string; phrase: string }> = {
   done: { name: 'Done', phrase: 'Finished without problems.' },
 };
 
-export type Word = { word: string; mark: MarkKind };
+/** A state's word and mark; `phrase` replaces the mark's tooltip when the mark's own phrase would mislead. */
+export type Word = { word: string; mark: MarkKind; phrase?: string };
 
 /** Entities the UI shows, with every state of their table (a unit test checks it's complete). */
 export const STATE_WORDS: Record<string, Record<string, Word>> = {
@@ -105,7 +106,7 @@ export const STATE_WORDS: Record<string, Record<string, Word>> = {
     resolved: { word: 'Resolved', mark: 'confirmed' },
   },
   exploration: {
-    active: { word: 'Active', mark: 'open' },
+    active: { word: 'Active', mark: 'open', phrase: 'Open thread: you can keep talking in it.' },
     concluded: { word: 'Concluded', mark: 'confirmed' },
     set_aside: { word: 'Set aside', mark: 'parked' },
   },
@@ -363,12 +364,17 @@ const STATE_WORDS_ES: Record<string, Record<string, string>> = {
   source: { registered: 'Registrada' },
 };
 
+const STATE_PHRASES_ES: Record<string, Record<string, string>> = {
+  exploration: { active: 'Hilo abierto: puedes seguir hablando en él.' },
+};
+
 /** stateWord in the language given: the mark never changes, only the word. */
 export function stateWordFor(locale: Locale, entity: string, state: string, fallbackLabel?: string): Word {
   const base = stateWord(entity, state, fallbackLabel);
   if (locale !== 'es') return base;
   const word = STATE_WORDS_ES[entity]?.[state];
-  return word ? { word, mark: base.mark } : base;
+  const phrase = STATE_PHRASES_ES[entity]?.[state];
+  return word ? { word, mark: base.mark, ...(phrase ? { phrase } : {}) } : base;
 }
 
 /** stateWord in the language shown now. */

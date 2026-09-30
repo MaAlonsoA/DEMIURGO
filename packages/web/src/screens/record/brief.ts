@@ -2,6 +2,7 @@
 // someone else (a person or an agent in the project's repository), in English, from its record.
 
 import type { ProductRow, RecordDetail, RecordVersion } from '../../api/types.ts';
+import { sizeLine } from '../../sizes.ts';
 import { epicOf } from '../epics/logic.ts';
 
 /** Folder of each record type in the project's `design/` (packages/core/src/design/export.ts). */
@@ -51,6 +52,8 @@ export function buildBrief(record: RecordDetail, version: RecordVersion, rows: r
     `Build ${record.code} "${version.title}" (v${version.n})${of}.`,
     `Design in this repository: ${paths.join(' and ')}.`,
     `Goal: ${goalOf(version.sections)}`,
+    // A task's current effort size (FDR-DEL-006): "Size: M (3 points)", or "Size: No size" with no number.
+    ...(record.type === 'task' ? [sizeLine(record.effort?.size ?? row?.effort?.size)] : []),
     'Acceptance criteria:',
     ...version.criteria.map(
       (c) => `- ${c.code} · ${c.title}: ${sentence(c.statement)}. Check (${c.verification}): ${sentence(c.check)}.`,

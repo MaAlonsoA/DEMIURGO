@@ -163,7 +163,7 @@ entities:
     states: { queued: Queued, running: Running, completed: Completed, failed: Failed, cancelled: Cancelled, interrupted: Interrupted }
     authority: []
     transitions:
-      - { command: run.request, from: new, to: queued, guards: [graph_up_to_date] }
+      - { command: run.request, from: new, to: queued, guards: [graph_up_to_date, no_draft_pending] }
       - { command: run.retry, from: new, to: queued, guards: [original_run_finished] }
       - { command: run.begin, from: [queued], to: running }
       - { command: run.complete, from: [running], to: completed }

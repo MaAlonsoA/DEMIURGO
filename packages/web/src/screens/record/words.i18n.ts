@@ -564,6 +564,7 @@ export const DELIVERY = messages(
     // Primary actions.
     draftTasks: 'Draft the tasks',
     designScreens: 'Design the screens',
+    reviewDraft: 'Review the draft',
     drafting: 'Asking…',
     draftAsked: 'DEMIURGO is drafting the tasks. The proposal will show up here to review.',
     buildNext: 'Build next task',
@@ -708,6 +709,7 @@ export const DELIVERY = messages(
     openPr: 'Abrir el PR',
     draftTasks: 'Redactar las tareas',
     designScreens: 'Diseñar las pantallas',
+    reviewDraft: 'Revisar el borrador',
     drafting: 'Pidiéndolo…',
     draftAsked: 'DEMIURGO está redactando las tareas. La propuesta aparecerá aquí para revisarla.',
     buildNext: 'Construir la siguiente tarea',

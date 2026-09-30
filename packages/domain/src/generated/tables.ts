@@ -1742,7 +1742,8 @@ export const TRANSITIONS = {
           "from": "new",
           "to": "queued",
           "guards": [
-            "graph_up_to_date"
+            "graph_up_to_date",
+            "no_draft_pending"
           ]
         },
         {

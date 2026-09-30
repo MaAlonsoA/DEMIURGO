@@ -9,6 +9,7 @@ import { epicProblem } from '../actions/epic-plan.ts';
 import { approvedDesignSystem, hasApprovedScreens } from '../actions/screen-design.ts';
 import { standaloneOfThread } from '../actions/feature-design.ts';
 import { plannedFeatureByCode } from '../actions/exploration-chat.ts';
+import { type PendingDraft, pendingDraft } from '../actions/pending-draft.ts';
 import type { Db } from '../db/connection.ts';
 
 export type ThreadDraft = {
@@ -17,6 +18,8 @@ export type ThreadDraft = {
   suggested: boolean;
   action: 'epic_plan' | 'feature_design' | 'task_plan' | 'design_directions' | 'design_system_plan' | 'screen_design';
   scope: { type: string; id: string };
+  /** A draft of this action for this scope is already in flight: a run working or a proposal waiting (`batchId`). */
+  pending: PendingDraft | null;
 };
 
 type Ready = { kind?: string; why?: string } | null;
@@ -46,21 +49,29 @@ export async function threadDraft(
     order by created_at desc, id desc
     limit 1`.execute(db);
   const ready = latest.rows[0]?.ready ?? null;
-  const offer = (kind: ThreadDraft['kind'], action: ThreadDraft['action'], scope: ThreadDraft['scope']): ThreadDraft => {
+  const offer = async (
+    kind: ThreadDraft['kind'],
+    action: ThreadDraft['action'],
+    scope: ThreadDraft['scope'],
+  ): Promise<ThreadDraft> => {
     const said = ready?.kind === kind;
-    return { kind, why: said ? (ready?.why ?? null) : null, suggested: said, action, scope };
+    const pending = await pendingDraft(db, projectId, action, scope.id);
+    return { kind, why: said ? (ready?.why ?? null) : null, suggested: said, action, scope, pending };
   };
   // A design-system thread (its purpose starts with `Design system:`): visual directions once its agent
   // says it has the principles, and the system itself after the person chose a direction.
   if (designSystemPathOf(thread.purpose)) {
     const scope = { type: 'exploration', id: thread.id };
-    if (await chosenDirection(db, projectId, thread.id)) return { kind: 'design_system', why: null, suggested: true, action: 'design_system_plan', scope };
+    if (await chosenDirection(db, projectId, thread.id)) {
+      const pending = await pendingDraft(db, projectId, 'design_system_plan', scope.id);
+      return { kind: 'design_system', why: null, suggested: true, action: 'design_system_plan', scope, pending };
+    }
     return ready?.kind === 'design_directions' ? offer('design_directions', 'design_directions', scope) : null;
   }
   // A feature thread: its planned feature is still to design.
   const code = /\bFDR-[A-Z]{3}-\d{3}\b/.exec(thread.purpose)?.[0];
   const planned = code ? await plannedFeatureByCode(db, projectId, code) : undefined;
-  if (planned?.state === 'planned') return offer('feature', 'feature_design', { type: 'exploration', id: thread.id });
+  if (planned?.state === 'planned') return await offer('feature', 'feature_design', { type: 'exploration', id: thread.id });
   // An approved feature (the thread is about it, or designed it): its tasks.
   const opened =
     thread.origin_type === 'record_version' && thread.origin_id
@@ -86,15 +97,15 @@ export async function threadDraft(
     // Patton, SVPG): the tasks are offered once the current version has approved screens. Without a design
     // system nothing changes: the tasks are offered right away.
     if ((await approvedDesignSystem(db, projectId)) && !(await hasApprovedScreens(db, projectId, version)))
-      return offer('screens', 'screen_design', { type: 'record_version', id: version });
-    return offer('tasks', 'task_plan', { type: 'record_version', id: version });
+      return await offer('screens', 'screen_design', { type: 'record_version', id: version });
+    return await offer('tasks', 'task_plan', { type: 'record_version', id: version });
   }
   // A standalone feature (no epic lists it): once its agent said it has enough, it rests on the definition.
   if (!code && ready?.kind === 'feature' && !(await standaloneOfThread(db, projectId, thread.id)).problem)
-    return offer('feature', 'feature_design', { type: 'exploration', id: thread.id });
+    return await offer('feature', 'feature_design', { type: 'exploration', id: thread.id });
   // A thread about a capability that is an epic: only once its agent said it has enough.
   if (ready?.kind === 'epic' && !(await epicProblem(db, projectId, thread.id)))
-    return offer('epic', 'epic_plan', { type: 'exploration', id: thread.id });
+    return await offer('epic', 'epic_plan', { type: 'exploration', id: thread.id });
   return null;
 }
 

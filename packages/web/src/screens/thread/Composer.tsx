@@ -20,7 +20,8 @@ import { useCommand } from '../../api/commands.ts';
 import { canCreate } from '../../api/tables.ts';
 import { Code, Tag } from '../../components/Badge.tsx';
 import { announce } from '../../components/announce.tsx';
-import { Button } from '../../components/Button.tsx';
+import { Link } from '@tanstack/react-router';
+import { Button, buttonClass } from '../../components/Button.tsx';
 import { ChevronDownIcon, CloseIcon, DecisionIcon, SendIcon, WandIcon } from '../../components/icons.tsx';
 import { Menu, MenuItem, MenuLabel } from '../../components/Menu.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
@@ -159,9 +160,7 @@ export function Composer({
     );
 
   const draftRecord = (d: ThreadDraft) =>
-    run('draftRecord', { command: 'run.request', data: { action: d.action, scope: d.scope } }, () =>
-      announce(t.draftStarted),
-    );
+    run('draftRecord', { command: 'run.request', data: { action: d.action, scope: d.scope } }, () => announce(t.draftStarted));
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -278,21 +277,33 @@ export function Composer({
           ) : null}
           {canRequest && !answering && threadDraft ? (
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-              <Button
-                size="sm"
-                variant={threadDraft.suggested ? 'primary' : 'secondary'}
-                icon={<WandIcon size={14} />}
-                data-command="run.request"
-                type="button"
-                data-draft-kind={threadDraft.kind}
-                disabled={drafting || (busy && sending !== 'draftRecord')}
-                pending={sending === 'draftRecord' || drafting}
-                pendingLabel={t.draftingKind(threadDraft.kind)}
-                onClick={() => draftRecord(threadDraft)}
-              >
-                {t.draftKind(threadDraft.kind)}
-              </Button>
-              {threadDraft.suggested && threadDraft.why ? (
+              {threadDraft.pending?.batchId ? (
+                <Link
+                  to="/p/$projectId/batches/$batchId"
+                  params={{ projectId, batchId: threadDraft.pending.batchId }}
+                  className={buttonClass({ size: 'sm', variant: 'primary' })}
+                  data-draft-kind={threadDraft.kind}
+                  data-draft-review=""
+                >
+                  {t.reviewDraft}
+                </Link>
+              ) : (
+                <Button
+                  size="sm"
+                  variant={threadDraft.suggested ? 'primary' : 'secondary'}
+                  icon={<WandIcon size={14} />}
+                  data-command="run.request"
+                  type="button"
+                  data-draft-kind={threadDraft.kind}
+                  disabled={drafting || !!threadDraft.pending || (busy && sending !== 'draftRecord')}
+                  pending={sending === 'draftRecord' || drafting || !!threadDraft.pending}
+                  pendingLabel={t.draftingKind(threadDraft.kind)}
+                  onClick={() => draftRecord(threadDraft)}
+                >
+                  {t.draftKind(threadDraft.kind)}
+                </Button>
+              )}
+              {threadDraft.suggested && !threadDraft.pending?.batchId && threadDraft.why ? (
                 <span className="text-xs text-fg-3">{t.thinksEnough(threadDraft.why)}</span>
               ) : null}
             </div>

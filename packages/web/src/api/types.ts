@@ -779,6 +779,7 @@ export type ExplorationDetail = {
   /** What its "Draft" button writes (one dedicated agent per kind), or null when nothing can be drafted here. */
   draft?: {
     kind: 'epic' | 'feature' | 'tasks' | 'design_directions' | 'design_system' | 'screens';
+    pending?: { runId: string | null; batchId: string | null } | null;
     why: string | null;
     suggested: boolean;
     action: 'epic_plan' | 'feature_design' | 'task_plan' | 'design_directions' | 'design_system_plan' | 'screen_design';

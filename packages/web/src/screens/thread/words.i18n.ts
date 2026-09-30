@@ -64,6 +64,7 @@ export const COMPOSER = messages(
       k === 'design_directions' ? 'Propose visual directions' : k === 'design_system' ? 'Draft the design system' : k === 'screens' ? 'Design the screens' : `Draft the ${k}`,
     draftingKind: (k: string) =>
       k === 'design_directions' ? 'Proposing visual directions…' : k === 'design_system' ? 'Drafting the design system…' : k === 'screens' ? 'Designing the screens…' : `Drafting the ${k}…`,
+    reviewDraft: 'Review the draft',
     draftStarted: 'Asked DEMIURGO to draft it. You review it before anything changes.',
     thinksEnough: (why: string) => `DEMIURGO thinks there's enough: ${why}`,
   },
@@ -107,6 +108,7 @@ export const COMPOSER = messages(
         : k === 'screens'
           ? 'Diseñando las pantallas…'
           : `Redactando ${k === 'epic' ? 'la épica' : k === 'feature' ? 'la funcionalidad' : k === 'design_system' ? 'el sistema de diseño' : 'las tareas'}…`,
+    reviewDraft: 'Revisar el borrador',
     draftStarted: 'Le has pedido a DEMIURGO que lo redacte. Lo revisas tú antes de que cambie nada.',
     thinksEnough: (why: string) => `DEMIURGO cree que ya hay bastante: ${why}`,
   },

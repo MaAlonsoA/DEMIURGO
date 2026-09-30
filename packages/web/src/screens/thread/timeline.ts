@@ -24,6 +24,8 @@ export type ThreadDraft = {
   suggested: boolean;
   action: 'epic_plan' | 'feature_design' | 'task_plan' | 'design_directions' | 'design_system_plan' | 'screen_design';
   scope: { type: string; id: string };
+  /** A draft of this is already in flight: `batchId` when a proposal waits for review, null while a run is working. */
+  pending?: { runId: string | null; batchId: string | null } | null;
 };
 
 /** The runs whose batch is a draft of a record. */

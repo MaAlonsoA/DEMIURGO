@@ -24,6 +24,7 @@ import {
 import { trimmed, field, registerGuards } from '../bus/guards.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
 import type { CommandContext } from '../bus/types.ts';
+import { DRAFTING_ACTIONS, pendingDraft } from '../actions/pending-draft.ts';
 import { buildContext } from '../context/build.ts';
 import { graphUpToDate, graphVersion } from '../context/graph.ts';
 
@@ -411,6 +412,17 @@ registerHandlers({
 });
 
 registerGuards({
+  // A drafting action is not asked twice for the same scope while its draft is being written or waits for review.
+  async no_draft_pending({ ctx, data }) {
+    const action = trimmed(field(data, 'action'));
+    const scopeId = trimmed(field(field(data, 'scope'), 'id'));
+    if (!DRAFTING_ACTIONS.includes(action) || !scopeId) return null;
+    const p = await pendingDraft(ctx.trx, ctx.projectId, action, scopeId);
+    if (!p) return null;
+    return p.batchId
+      ? 'There is already a draft waiting for your review. Review it, or reject it, before asking for another.'
+      : 'DEMIURGO is already drafting this. Wait for the draft before asking for another.';
+  },
   async graph_up_to_date({ ctx }) {
     const f = await graphUpToDate(ctx.trx, ctx.projectId);
     return f.upToDate

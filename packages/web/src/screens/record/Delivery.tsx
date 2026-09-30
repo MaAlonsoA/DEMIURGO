@@ -88,7 +88,7 @@ export type Banner = { tone: 'accent' | 'danger'; text: string; action: BannerAc
 
 export type Primary =
   | { kind: 'draft_tasks' }
-  | { kind: 'design_screens'; code: string }
+  | { kind: 'design_screens'; code: string; review?: boolean }
   | { kind: 'build_next'; code: string }
   | { kind: 'start_build'; code: string; title: string }
   | { kind: 'follow_build' }
@@ -185,7 +185,7 @@ export function deliveryOf(input: {
       // With an approved design system the screens come before the tasks (Cagan and Patton, SVPG).
       const screensFirst = !!record.dsy && record.screens?.state !== 'approved';
       // Even with tasks from an older version: the current version still needs its screens.
-      if (screensFirst) primary = { kind: 'design_screens', code: record.code };
+      if (screensFirst) primary = { kind: 'design_screens', code: record.code, review: !!record.screens };
       else if (tasks.length === 0 && (record.task_drafts ?? []).length === 0) primary = { kind: 'draft_tasks' };
       else if (next) primary = { kind: 'build_next', code: next.code };
     } else if (record.type === 'task' && record.build) {
@@ -256,7 +256,7 @@ export function PrimaryAction({
           className={buttonClass({ variant: 'primary' })}
           data-primary="design-screens"
         >
-          {t.designScreens}
+          {primary.review ? t.reviewDraft : t.designScreens}
         </Link>
       );
     case 'build_next':

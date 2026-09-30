@@ -40,6 +40,17 @@ const fake: DevTools = {
   reset: async () => {
     calls.push('reset');
   },
+  listProject: async () => [],
+  saveProject: async () => {
+    throw new Error('not in this test');
+  },
+  restoreProject: async () => {
+    throw new Error('not in this test');
+  },
+  dropProject: async () => {
+    throw new Error('not in this test');
+  },
+  deleteProject: async () => 0,
 };
 
 const off = useApi();

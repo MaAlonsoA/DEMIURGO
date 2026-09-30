@@ -4,11 +4,18 @@
 // Saving, restoring and resetting restart the core in place (see runtime.ts).
 
 import {
+  type ProjectSnapshot,
+  type RestoreResult,
   type Services,
   type Snapshot,
+  deleteProjectData,
+  dropProjectSnapshot,
   dropSnapshot,
   findSnapshot,
+  listProjectSnapshots,
   listSnapshots,
+  restoreProjectSnapshot,
+  saveProjectSnapshot,
   resetDatabase,
   restoreSnapshot,
   saveSnapshot,
@@ -29,6 +36,12 @@ export type DevTools = {
   restore(ref: string): Promise<Snapshot>;
   drop(ref: string): Promise<Snapshot>;
   reset(): Promise<void>;
+  /** Per-project snapshots: the core keeps running, nothing restarts. */
+  listProject(projectId: string): Promise<ProjectSnapshot[]>;
+  saveProject(projectId: string, label: string): Promise<ProjectSnapshot>;
+  restoreProject(ref: string): Promise<RestoreResult>;
+  dropProject(ref: string): Promise<ProjectSnapshot>;
+  deleteProject(projectId: string): Promise<number>;
 };
 
 export function createDevTools(runtime: Runtime, databaseUrl: string): DevTools {
@@ -45,6 +58,14 @@ export function createDevTools(runtime: Runtime, databaseUrl: string): DevTools 
     },
     drop: (ref) => dropSnapshot(target, ref),
     reset: () => runtime.restart(() => resetDatabase(target)),
+    listProject: (projectId) => listProjectSnapshots(target, projectId),
+    saveProject: (projectId, label) => saveProjectSnapshot(target, projectId, label),
+    restoreProject: (ref) => restoreProjectSnapshot(target, ref),
+    dropProject: (ref) => dropProjectSnapshot(target, ref),
+    async deleteProject(projectId) {
+      const rows = await deleteProjectData(target, projectId);
+      return Object.values(rows).reduce((a, b) => a + b, 0);
+    },
   };
 }
 
@@ -54,6 +75,14 @@ function requirePerson(req: FastifyRequest): void {
 }
 
 const saveBody = z.object({ label: z.string().max(60).optional() });
+
+const projectParams = z.object({ projectId: z.string().uuid() });
+
+function projectIdOf(req: FastifyRequest): string {
+  const p = projectParams.safeParse(req.params);
+  if (!p.success) throw new DomainError('validation', 'The project id must be a uuid.');
+  return p.data.projectId;
+}
 
 const traceQuery = z.object({ project: z.string().uuid(), type: z.string().min(1).max(40), id: z.string().uuid() });
 
@@ -87,6 +116,36 @@ export function registerDevRoutes(app: FastifyInstance, dev: DevTools, services:
     requirePerson(req);
     const { name } = req.params as { name: string };
     return { dropped: await dev.drop(name) };
+  });
+
+  app.get('/api/dev/projects/:projectId/snapshots', async (req) => {
+    requirePerson(req);
+    return { snapshots: await dev.listProject(projectIdOf(req)) };
+  });
+
+  app.post('/api/dev/projects/:projectId/snapshots', async (req) => {
+    requirePerson(req);
+    const projectId = projectIdOf(req);
+    const body = saveBody.safeParse(req.body ?? {});
+    if (!body.success) throw new DomainError('validation', 'The label is at most 60 characters.');
+    return { snapshot: await dev.saveProject(projectId, body.data.label ?? '') };
+  });
+
+  app.post('/api/dev/project-snapshots/:name/restore', async (req) => {
+    requirePerson(req);
+    const { name } = req.params as { name: string };
+    return dev.restoreProject(name).then((r) => ({ restored: r.restored, git: r.git }));
+  });
+
+  app.delete('/api/dev/project-snapshots/:name', async (req) => {
+    requirePerson(req);
+    const { name } = req.params as { name: string };
+    return { dropped: await dev.dropProject(name) };
+  });
+
+  app.delete('/api/dev/projects/:projectId', async (req) => {
+    requirePerson(req);
+    return { deleted: true, rows: await dev.deleteProject(projectIdOf(req)) };
   });
 
   app.post('/api/dev/reset', async (req) => {

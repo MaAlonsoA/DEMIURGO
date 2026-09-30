@@ -4,17 +4,28 @@
 //   pnpm snap restore <name|label> [--force]
 //   pnpm snap drop <name|label>
 //   pnpm snap reset [--force]
+//   pnpm snap project-save <projectId> [label]   (one project; the API keeps running, no --force needed)
+//   pnpm snap project-list [projectId]
+//   pnpm snap project-restore <name|label>
+//   pnpm snap project-drop <name|label>
+//   pnpm snap project-delete <projectId>
 // With the API connected, save/restore/reset refuse: use the dev panel in the web, stop the API, or
 // pass --force, which cuts its connections off (restart the API afterwards).
 
 import {
+  type ProjectSnapshot,
   type Snapshot,
   connectedSessions,
+  deleteProjectData,
+  dropProjectSnapshot,
   dropSnapshot,
+  listProjectSnapshots,
   listSnapshots,
   readConfig,
   resetDatabase,
+  restoreProjectSnapshot,
   restoreSnapshot,
+  saveProjectSnapshot,
   saveSnapshot,
   snapshotTarget,
   terminateSessions,
@@ -23,7 +34,7 @@ import { DomainError } from '@demiurgo/domain';
 
 const args = process.argv.slice(2);
 const force = args.includes('--force');
-const [command, ref] = args.filter((a) => a !== '--force');
+const [command, ref, extra] = args.filter((a) => a !== '--force');
 const config = readConfig();
 if (!config.devTools) {
   console.error('The dev tools are off: set DEMIURGO_DEV_TOOLS=1 (never on the real instance).');
@@ -35,6 +46,9 @@ const describe = (s: Snapshot): string => {
   const projects = s.projects.map((p) => `${p.name} (${p.events} events)`).join(', ') || 'no projects';
   return `${s.name}  «${s.label}»  ${s.created_at.slice(0, 16).replace('T', ' ')} UTC  ${projects}  ${(s.size_bytes / 1e6).toFixed(1)} MB`;
 };
+
+const describeProject = (s: ProjectSnapshot): string =>
+  `${s.name}  «${s.label}»  ${s.created_at.slice(0, 16).replace('T', ' ')} UTC  ${s.project.name} (${s.project.id}, ${s.project.events} events)  ${(s.size_bytes / 1e6).toFixed(1)} MB`;
 
 /** The live database must be idle: another client (the API) would block the copy or lose its database. */
 async function requireIdle(): Promise<void> {
@@ -72,6 +86,25 @@ const commands: Record<string, () => Promise<void>> = {
   },
   async drop() {
     console.log(`Dropped ${describe(await dropSnapshot(target, required('name|label')))}`);
+  },
+  async 'project-save'() {
+    console.log(`Saved ${describeProject(await saveProjectSnapshot(target, required('projectId'), extra ?? ''))}`);
+  },
+  async 'project-list'() {
+    const all = await listProjectSnapshots(target, ref);
+    if (all.length === 0) console.log(`No project snapshots of ${target.database}.`);
+    for (const s of all) console.log(describeProject(s));
+  },
+  async 'project-restore'() {
+    const r = await restoreProjectSnapshot(target, required('name|label'));
+    console.log(`Restored ${describeProject(r.restored)}\n${r.git}`);
+  },
+  async 'project-drop'() {
+    console.log(`Dropped ${describeProject(await dropProjectSnapshot(target, required('name|label')))}`);
+  },
+  async 'project-delete'() {
+    const rows = await deleteProjectData(target, required('projectId'));
+    console.log(`Deleted the project: ${Object.values(rows).reduce((a, b) => a + b, 0)} rows`, rows);
   },
   async reset() {
     await requireIdle();

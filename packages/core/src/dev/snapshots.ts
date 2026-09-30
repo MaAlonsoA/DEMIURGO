@@ -25,7 +25,7 @@ export type Snapshot = {
 
 export type DatabaseSession = { pid: number; application: string; client: string | null };
 
-const MAX_NAME = 63;
+export const MAX_NAME = 63;
 const IDENTIFIER = /^[a-z][a-z0-9_]*$/;
 const RESERVED = new Set(['postgres', 'template0', 'template1']);
 
@@ -38,7 +38,7 @@ const metadata = z.object({
 });
 type Metadata = z.infer<typeof metadata>;
 
-function urlWith(base: string, database: string): string {
+export function urlWith(base: string, database: string): string {
   const u = new URL(base);
   u.pathname = `/${database}`;
   return u.toString();
@@ -46,7 +46,7 @@ function urlWith(base: string, database: string): string {
 
 const id = escapeIdentifier;
 
-async function withClient<T>(url: string, f: (c: Client) => Promise<T>): Promise<T> {
+export async function withClient<T>(url: string, f: (c: Client) => Promise<T>): Promise<T> {
   const c = new Client({ connectionString: url });
   await c.connect();
   try {

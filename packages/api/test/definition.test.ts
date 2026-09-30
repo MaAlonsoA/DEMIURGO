@@ -24,6 +24,17 @@ const fake: DevTools = {
     throw new Error('not in this test');
   },
   reset: async () => undefined,
+  listProject: async () => [],
+  saveProject: async () => {
+    throw new Error('not in this test');
+  },
+  restoreProject: async () => {
+    throw new Error('not in this test');
+  },
+  dropProject: async () => {
+    throw new Error('not in this test');
+  },
+  deleteProject: async () => 0,
 };
 
 const api = useApi({ durable: true }, { devTools: fake });

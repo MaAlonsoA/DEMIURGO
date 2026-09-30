@@ -156,6 +156,11 @@ const devTools =
         restore: noSnapshots,
         drop: noSnapshots,
         reset: noSnapshots,
+        listProject: async () => [],
+        saveProject: noSnapshots,
+        restoreProject: noSnapshots,
+        dropProject: noSnapshots,
+        deleteProject: noSnapshots,
       }
     : undefined;
 const app = await createServer({

@@ -58,7 +58,7 @@ export function VerificationMark({
 export type Recording = { projectId: string; version: number } | null;
 
 /** The evidence of a check: who checked it, how and when, or that it is not checked yet. */
-function EvidenceLine({
+export function EvidenceLine({
   criterion: c,
   recording,
 }: {

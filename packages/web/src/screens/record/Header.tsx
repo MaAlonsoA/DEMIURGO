@@ -4,8 +4,8 @@
 // the version picker (INVENTORY INV-REC, UX problem: button order). The section tabs close it.
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
-import { useState } from 'react';
+import { Link, useNavigate } from '@tanstack/react-router';
+import { type ReactNode, useState } from 'react';
 import { ApiError } from '../../api/client.ts';
 import { useCommand } from '../../api/commands.ts';
 import { keys, readinessQuery } from '../../api/queries.ts';
@@ -14,9 +14,10 @@ import type { RecordDetail, RecordType, RecordVersion } from '../../api/types.ts
 import { ActionButtons, useActions } from '../../components/actions.tsx';
 import { announce } from '../../components/announce.tsx';
 import { Code } from '../../components/Badge.tsx';
-import { buttonClass } from '../../components/Button.tsx';
+import { Button, buttonClass } from '../../components/Button.tsx';
 import { ConfirmDialog, PromptDialog } from '../../components/Dialog.tsx';
-import { PencilIcon } from '../../components/icons.tsx';
+import { MoreIcon, PencilIcon } from '../../components/icons.tsx';
+import { Menu, MenuItem, MenuLabel, MenuSeparator } from '../../components/Menu.tsx';
 import { Readiness } from '../../components/Meter.tsx';
 import { type Crumb, PageHeader } from '../../components/Page.tsx';
 import { EntityState } from '../../components/status.tsx';
@@ -25,7 +26,7 @@ import { TypeIcon } from '../../components/types.tsx';
 import { Who, whoName } from '../../components/Who.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { useTables } from '../../lib/hooks.ts';
-import { TYPE_WORDS_PLURAL, whoOf } from '../../words.ts';
+import { TYPE_WORDS_PLURAL, stateWord, whoOf } from '../../words.ts';
 import { RecordKind } from '../../components/AspectTag.tsx';
 import { aspectOfRecord } from '../../aspects.ts';
 import { RecordTabs } from '../blueprint/Sections.tsx';
@@ -33,7 +34,8 @@ import type { RecordTab } from '../blueprint/tabs.ts';
 import { isEarlierDraft, versionStage } from './logic.ts';
 import { useReturnFocus } from './returnFocus.ts';
 import { VersionPicker } from './VersionPicker.tsx';
-import { HEADER } from './words.i18n.ts';
+import { StatusWord, type Status } from './Delivery.tsx';
+import { DELIVERY, HEADER } from './words.i18n.ts';
 
 type Dialog = null | 'approve' | 'discard';
 
@@ -84,6 +86,7 @@ export function RecordHeader({
   tab,
   onApproved,
   ancestors = [],
+  lean,
 }: {
   projectId: string;
   record: RecordDetail;
@@ -92,8 +95,15 @@ export function RecordHeader({
   onApproved: () => void;
   /** Its epic and feature above it, from the top. */
   ancestors?: readonly CrumbAncestor[];
+  /**
+   * The delivery pages (epic, feature, task): one status word, one primary action (or none) and the
+   * rest of the actions in a menu. `reviewable`: the guided review approves, not the header.
+   */
+  lean?: { status: Status; primary: ReactNode; reviewable: boolean };
 }) {
   const t = useMessages(HEADER);
+  const d = useMessages(DELIVERY);
+  const navigate = useNavigate();
   const tables = useTables();
   const client = useQueryClient();
   const actions = useActions('record_version', version.state);
@@ -104,6 +114,7 @@ export function RecordHeader({
   const readiness = useQuery({ ...readinessQuery(projectId, version.id), enabled: record.type !== 'decision' });
   const ready = record.type === 'decision' ? null : (readiness.data ?? version.readiness);
   const stage = versionStage(version, ready);
+  const canApprove = !earlier && actions.some((a) => a.command === 'record_version.approve');
   const newVersion = !earlier && record.versions.length > 0 && !!tables && canCreate(tables, 'record_version.create');
 
   const open = (d: Dialog) => {
@@ -138,6 +149,14 @@ export function RecordHeader({
       <PageHeader
         crumbs={recordCrumbs(projectId, record, version.title, [], t, ancestors)}
         eyebrow={
+          lean ? (
+            <>
+              <Code>
+                {record.code} · v{version.n}
+              </Code>
+              <StatusWord status={lean.status} />
+            </>
+          ) : (
           <>
             <span className="inline-flex items-center gap-1.5">
               <TypeIcon type={record.type} size={15} className="text-fg-3" />
@@ -158,6 +177,7 @@ export function RecordHeader({
             {version.current ? <span className="text-sm text-fg-2">{t.current}</span> : null}
             {ready ? <Readiness stage={stage} blocking={ready.reasons.length} /> : null}
           </>
+          )
         }
         title={version.title}
         meta={
@@ -177,6 +197,62 @@ export function RecordHeader({
           </>
         }
         actions={
+          lean ? (
+            <div data-record-actions className="flex flex-wrap items-center gap-2">
+              {lean.primary ??
+                (canApprove && !lean.reviewable ? (
+                  <Button variant="primary" onClick={() => open('approve')} data-command="record_version.approve">
+                    {t.approve}
+                  </Button>
+                ) : null)}
+              <Menu
+                align="end"
+                label={d.menuLabel}
+                trigger={
+                  <button type="button" aria-label={d.menuLabel} className={buttonClass({ variant: 'quiet' })}>
+                    <MoreIcon size={16} />
+                  </button>
+                }
+              >
+                {canApprove && (lean.primary || lean.reviewable) ? (
+                  <MenuItem onSelect={() => open('approve')}>{d.approveMenu}</MenuItem>
+                ) : null}
+                {newVersion ? (
+                  <MenuItem
+                    icon={<PencilIcon size={14} />}
+                    onSelect={() =>
+                      void navigate({ to: '/p/$projectId/records/$code/new-version', params: { projectId, code: record.code } })
+                    }
+                  >
+                    {t.newVersion}
+                  </MenuItem>
+                ) : null}
+                {actions.some((a) => a.command === 'record_version.discard') ? (
+                  <MenuItem danger onSelect={() => open('discard')}>
+                    {t.discard}
+                  </MenuItem>
+                ) : null}
+                <MenuSeparator />
+                <MenuLabel>{d.versionsLabel}</MenuLabel>
+                {record.versions.toReversed().map((v) => (
+                  <MenuItem
+                    key={v.id}
+                    className={v.n === version.n ? 'bg-selected' : undefined}
+                    hint={v.current ? d.current : undefined}
+                    onSelect={() =>
+                      void navigate({
+                        to: '/p/$projectId/records/$code',
+                        params: { projectId, code: record.code },
+                        search: { v: v.n },
+                      })
+                    }
+                  >
+                    v{v.n} · {stateWord('record_version', v.state).word}
+                  </MenuItem>
+                ))}
+              </Menu>
+            </div>
+          ) : (
           <div data-record-actions className="flex flex-wrap items-center gap-2">
             <ActionButtons
               actions={actions}
@@ -199,6 +275,7 @@ export function RecordHeader({
               <VersionPicker projectId={projectId} record={record} shown={version} />
             </ActionButtons>
           </div>
+          )
         }
         tabs={<RecordTabs projectId={projectId} record={record} version={version} tab={tab} />}
       />

@@ -41,7 +41,7 @@ export function PendingProposals({
     );
   if (found.length === 0) return null;
   return (
-    <section aria-label={t.title} data-pending-proposals className="flex flex-col gap-4">
+    <section id="proposal" aria-label={t.title} data-pending-proposals className="flex scroll-mt-16 flex-col gap-4">
       <h2 className="text-lg font-semibold text-fg">{t.title}</h2>
       {found.map(({ batch: b, proposal, position }) => (
         <ProposalView

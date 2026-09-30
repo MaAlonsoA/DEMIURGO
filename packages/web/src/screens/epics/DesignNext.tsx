@@ -73,12 +73,15 @@ export function DesignNextButton({
   line,
   named = false,
   size,
+  label,
 }: {
   projectId: string;
   epic: EpicRef;
   line: EpicLine;
   named?: boolean;
   size?: 'sm';
+  /** Overrides the words of the button. */
+  label?: string;
 }) {
   const t = useMessages(WORDS);
   const design = useDesignNext(projectId);
@@ -90,7 +93,7 @@ export function DesignNextButton({
         pending={design.pending}
         onClick={() => void design.start(epic, line)}
       >
-        {named ? t.designNamed(line.name) : t.design}
+        {label ?? (named ? t.designNamed(line.name) : t.design)}
       </Button>
       {design.error ? <ErrorNotice error={design.error} compact /> : null}
     </span>

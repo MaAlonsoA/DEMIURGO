@@ -1,11 +1,10 @@
-// The board of an epic (spec «Entrega por épicas», 2a), above its sections: how far its delivery
-// goes, each feature of its list (a record with its code from the start) with its state, the one
-// button that designs the next, changing the list by hand, the features outside the list, the
-// walk-through ("Done when") and the epic's threads.
+// The body of an epic: Goal, its Features in order with their state and progress, Done when (its
+// criteria), Out of scope, and folded the list editing, the coherence check and its threads. The one
+// button that designs the next feature lives in the page header.
 
 import { Link } from '@tanstack/react-router';
-import { type ReactNode, useId } from 'react';
-import type { ProductState, RecordDetail } from '../../api/types.ts';
+import type { ReactNode } from 'react';
+import type { ProductState, RecordDetail, RecordVersion } from '../../api/types.ts';
 import {
   CheckCircleIcon,
   CircleDashedIcon,
@@ -20,12 +19,10 @@ import { inboxQuery } from '../../api/queries.ts';
 import { attentionByCode } from '../../lib/attention.ts';
 import { useTables } from '../../lib/hooks.ts';
 import { cn } from '../../lib/cn.ts';
-import { DesignNextButton } from '../epics/DesignNext.tsx';
 import {
   type EpicLine,
   type LineState,
   epicGroups,
-  epicStatus,
   epicPlan,
   epicThreads,
   plannedOf,
@@ -35,7 +32,10 @@ import { epicRef } from '../epics/plans.ts';
 import { EPIC_BOARD } from '../epics/words.i18n.ts';
 import { AttentionMark } from './AttentionMark.tsx';
 import { CoherenceCheck } from './CoherenceCheck.tsx';
-import { CopyBriefButton } from './CopyBrief.tsx';
+import { Block, CriteriaList, OtherSections, Prose, sectionOf } from './Delivery.tsx';
+import type { Recording } from './Checks.tsx';
+import { Markdown } from '../../components/Markdown.tsx';
+import { DELIVERY } from './words.i18n.ts';
 
 const MARK: Record<LineState, ReactNode> = {
   built: <CheckCircleIcon size={14} className="text-success-text" />,
@@ -93,130 +93,147 @@ export function LineName({ projectId, line }: { projectId: string; line: EpicLin
   );
 }
 
-export function EpicBoard({
-  projectId,
-  record,
-  state,
-}: {
-  projectId: string;
-  record: RecordDetail;
-  state: ProductState | undefined;
-}) {
-  const t = useMessages(EPIC_BOARD);
-  const id = useId();
-  const tables = useTables();
-  const attention = attentionByCode(useQuery(inboxQuery(projectId)).data);
-  if (!state) return null;
+/** The plan of an epic, from the product state (null until it loads or for another record). */
+export function useEpicPlan(state: ProductState | undefined, record: RecordDetail) {
+  if (!state || record.type !== 'epic') return null;
   const rows = [...state.designs, ...state.decisions];
   const epic = rows.find((r) => r.code === record.code);
   if (!epic) return null;
   const features = epicGroups(rows).groups.find((g) => g.epic.code === record.code)?.features ?? [];
-  const planned = plannedOf(state, record.code);
-  const plan = epicPlan(epic, planned, features, rows, state.explorations);
-  const ref = epicRef(epic);
-  const editable = !!tables && canCreate(tables, 'planned_feature.add');
-  const threads = epicThreads(
-    state.explorations,
-    record.versions.map((v) => v.id),
-    features,
-  );
-  const allBuilt = plan.lines.length > 0 && plan.lines.every((l) => l.state === 'built');
+  const plan = epicPlan(epic, plannedOf(state, record.code), features, rows, state.explorations);
+  return { epic, features, plan, ref: epicRef(epic) };
+}
 
+export function EpicBody({
+  projectId,
+  record,
+  version,
+  state,
+  recording,
+}: {
+  projectId: string;
+  record: RecordDetail;
+  version: RecordVersion;
+  state: ProductState | undefined;
+  recording: Recording;
+}) {
+  const t = useMessages(EPIC_BOARD);
+  const d = useMessages(DELIVERY);
+  const tables = useTables();
+  const attention = attentionByCode(useQuery(inboxQuery(projectId)).data);
+  const found = useEpicPlan(state, record);
+  const editable = !!tables && canCreate(tables, 'planned_feature.add');
+  const doneText = sectionOf(version, 'Done when')?.content.trim();
+  const plan = found?.plan;
+  const threads =
+    found && state
+      ? epicThreads(
+          state.explorations,
+          record.versions.map((v) => v.id),
+          found.features,
+        )
+      : [];
   return (
-    <section aria-labelledby={id} data-epic-board className="flex flex-col gap-4 rounded-lg border border-edge bg-panel px-4 py-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 id={id} className="text-lg font-semibold text-fg">
-          {t.title}
-        </h2>
-        <span className="text-sm tabular-nums text-fg-2" data-epic-status={epicStatus(plan)}>
-          <span className="font-medium text-fg">{t[`status_${epicStatus(plan)}`]}</span>
-          {plan.lines.length > 0 ? ` · ${progressWords(t, plan.counts, plan.lines.length)}` : null}
-        </span>
-      </div>
-      <p className="max-w-prose text-sm text-fg-2">{t.planNote}</p>
-      {!ref ? <p className="text-sm text-fg-2">{t.approveFirst}</p> : null}
-      {plan.lines.length === 0 ? (
-        <p className="text-sm text-fg-2">{t.noList}</p>
-      ) : (
-        <ol className="flex flex-col divide-y divide-edge-subtle">
-          {plan.lines.map((l, i) => (
-            <li key={`${i}-${l.name}`} data-epic-line={l.name} className="flex flex-col gap-1.5 py-2.5">
-              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span className="w-5 shrink-0 text-sm tabular-nums text-fg-3">{i + 1}.</span>
-                <LineName projectId={projectId} line={l} />
-                <span className="ml-auto flex items-center gap-3">
-                  {editable ? <LineControls projectId={projectId} line={l} index={i} count={plan.lines.length} /> : null}
-                  {l.state === 'ready' && l.row ? <CopyBriefButton projectId={projectId} code={l.row.code} size="sm" /> : null}
-                  {attention.has(l.row?.code ?? l.code) ? <AttentionMark projectId={projectId} code={l.row?.code ?? l.code} /> : null}
-                  <LineMark state={l.state} />
-                </span>
-              </div>
-              {l.phrase ? <p className="pl-8 text-sm text-fg-2">{l.phrase}</p> : null}
-              {l.blockedBy.length > 0 ? (
-                <p className="pl-8 text-sm text-warning-text">{t.blockedBy(l.blockedBy.join(', '))}</p>
-              ) : null}
-              {ref && plan.next === l ? (
-                <div className="pl-8 pt-1">
-                  <DesignNextButton projectId={projectId} epic={ref} line={l} size="sm" />
-                </div>
-              ) : null}
-            </li>
-          ))}
-        </ol>
-      )}
-      {editable ? <AddFeature projectId={projectId} epicId={record.id} /> : null}
-      {plan.outside.length > 0 ? (
-        <div className="flex flex-col gap-1.5 border-t border-edge-subtle pt-3" data-epic-outside>
-          <h3 className="text-base font-semibold text-fg">{t.outside}</h3>
-          <p className="text-sm text-fg-2">{t.outsideNote}</p>
-          <ul className="flex flex-col gap-1">
-            {plan.outside.map((f) => (
-              <li key={f.code} className="text-sm">
-                <Link to="/p/$projectId/records/$code" params={{ projectId, code: f.code }} className="text-fg hover:underline">
-                  <span className="mr-2 font-mono text-xs text-fg-3">{f.code}</span>
-                  {f.title}
-                </Link>
-                {attention.has(f.code) ? <AttentionMark projectId={projectId} code={f.code} className="ml-3" /> : null}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-      {ref ? (
-        <CoherenceCheck
-          projectId={projectId}
-          epicId={record.id}
-          code={record.code}
-          allDesigned={plan.lines.length > 0 && plan.lines.every((l) => l.state !== 'unstarted' && l.state !== 'designing')}
-        />
-      ) : null}
-      <p className="border-t border-edge-subtle pt-3 text-sm text-fg-2">
-        <span className="font-medium text-fg">{t.doneWhen}: </span>
-        {record.implementation === 'implemented' ? t.walkChecked : t.walkUnchecked}
-        {record.implementation !== 'implemented' && !allBuilt && plan.lines.length > 0 ? ` ${t.walkEarly}` : null}
-      </p>
-      <div className="flex flex-col gap-1.5 border-t border-edge-subtle pt-3" data-epic-threads>
-        <h3 className="text-base font-semibold text-fg">{t.threads}</h3>
-        {threads.length === 0 ? (
-          <p className="text-sm text-fg-2">{t.noThreads}</p>
+    <>
+      <Prose version={version} title="Goal" label={d.goal} />
+      <Block
+        title={d.features}
+        note={plan && plan.lines.length > 0 ? progressWords(t, plan.counts, plan.lines.length) : undefined}
+      >
+        {!found || !plan ? null : plan.lines.length === 0 ? (
+          <p className="text-sm text-fg-2">{d.noFeatures}</p>
         ) : (
-          <ul className="flex flex-col gap-1">
-            {threads.map((th) => (
-              <li key={th.id} className={cn('flex flex-wrap items-baseline gap-x-2 text-sm', th.parent_id && 'pl-4')}>
-                <Link
-                  to="/p/$projectId/threads/$explorationId"
-                  params={{ projectId, explorationId: th.id }}
-                  className="text-fg hover:underline"
-                >
-                  {th.purpose}
-                </Link>
-                {th.open_questions > 0 ? <span className="text-fg-2">· {t.openQuestions(th.open_questions)}</span> : null}
-                {th.state !== 'active' ? <span className="text-fg-3">· {t.closed}</span> : null}
+          <ol className="flex flex-col divide-y divide-edge-subtle">
+            {plan.lines.map((l, i) => (
+              <li key={`${i}-${l.name}`} data-epic-line={l.name} className="flex flex-col gap-0.5 py-2.5">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span className="w-5 shrink-0 text-sm tabular-nums text-fg-3">{i + 1}.</span>
+                  <LineName projectId={projectId} line={l} />
+                  <span className="ml-auto flex items-center gap-3">
+                    {attention.has(l.row?.code ?? l.code) ? <AttentionMark projectId={projectId} code={l.row?.code ?? l.code} /> : null}
+                    <LineMark state={l.state} />
+                  </span>
+                </div>
+                {l.phrase ? <p className="pl-8 text-sm text-fg-2">{l.phrase}</p> : null}
+                {l.blockedBy.length > 0 ? (
+                  <p className="pl-8 text-sm text-warning-text">{t.blockedBy(l.blockedBy.join(', '))}</p>
+                ) : null}
               </li>
             ))}
-          </ul>
+          </ol>
         )}
-      </div>
-    </section>
+      </Block>
+      <Block title={d.doneWhen}>
+        {doneText ? <Markdown className="max-w-prose">{doneText}</Markdown> : null}
+        <CriteriaList criteria={version.criteria} recording={recording} />
+      </Block>
+      <Prose version={version} title="Out of scope" label={d.outOfScope} empty={d.notWritten} />
+      <OtherSections version={version} used={['Goal', 'Done when', 'Out of scope']} />
+      {found && plan ? (
+        <details className="flex flex-col" data-epic-more>
+          <summary className="cursor-pointer text-sm text-fg-2 hover:text-fg">{d.changeList}</summary>
+          <div className="mt-4 flex flex-col gap-4">
+            {plan.lines.length > 0 && editable ? (
+              <ol className="flex flex-col divide-y divide-edge-subtle">
+                {plan.lines.map((l, i) => (
+                  <li key={`${i}-${l.name}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
+                    <span className="w-5 shrink-0 text-sm tabular-nums text-fg-3">{i + 1}.</span>
+                    <span className="min-w-0 flex-1 text-sm text-fg">{l.name}</span>
+                    <LineControls projectId={projectId} line={l} index={i} count={plan.lines.length} />
+                  </li>
+                ))}
+              </ol>
+            ) : null}
+            {editable ? <AddFeature projectId={projectId} epicId={record.id} /> : null}
+            {plan.outside.length > 0 ? (
+              <div className="flex flex-col gap-1.5" data-epic-outside>
+                <h3 className="text-base font-semibold text-fg">{t.outside}</h3>
+                <p className="text-sm text-fg-2">{t.outsideNote}</p>
+                <ul className="flex flex-col gap-1">
+                  {plan.outside.map((f) => (
+                    <li key={f.code} className="text-sm">
+                      <Link to="/p/$projectId/records/$code" params={{ projectId, code: f.code }} className="text-fg hover:underline">
+                        <span className="mr-2 font-mono text-xs text-fg-3">{f.code}</span>
+                        {f.title}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {found.ref ? (
+              <CoherenceCheck
+                projectId={projectId}
+                epicId={record.id}
+                code={record.code}
+                allDesigned={plan.lines.length > 0 && plan.lines.every((l) => l.state !== 'unstarted' && l.state !== 'designing')}
+              />
+            ) : null}
+            <div className="flex flex-col gap-1.5" data-epic-threads>
+              <h3 className="text-base font-semibold text-fg">{t.threads}</h3>
+              {threads.length === 0 ? (
+                <p className="text-sm text-fg-2">{t.noThreads}</p>
+              ) : (
+                <ul className="flex flex-col gap-1">
+                  {threads.map((th) => (
+                    <li key={th.id} className={cn('flex flex-wrap items-baseline gap-x-2 text-sm', th.parent_id && 'pl-4')}>
+                      <Link
+                        to="/p/$projectId/threads/$explorationId"
+                        params={{ projectId, explorationId: th.id }}
+                        className="text-fg hover:underline"
+                      >
+                        {th.purpose}
+                      </Link>
+                      {th.open_questions > 0 ? <span className="text-fg-2">· {t.openQuestions(th.open_questions)}</span> : null}
+                      {th.state !== 'active' ? <span className="text-fg-3">· {t.closed}</span> : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </details>
+      ) : null}
+    </>
   );
 }

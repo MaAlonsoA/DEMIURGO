@@ -26,6 +26,12 @@ export function stepCount(text: string): number {
 export const isUntied = (c: { step?: number | null }, steps: number) =>
   steps > 0 && (c.step == null || c.step < 1 || c.step > steps);
 
+/** The steps of a Behavior text, parsed the way it is shown (empty when the text is not steps). */
+export function stepsOf(text: string) {
+  const listed = /\n\s*\n/.test(text) || /^\s*(?:[-*]|\d+\.)\s/m.test(text);
+  return behaviorSteps(listed ? text : text.replace(/\n/g, '\n\n'));
+}
+
 export function BehaviorSteps({ text, criteria = [] }: { text: string; criteria?: StepCheck[] }) {
   const t = useMessages(BEHAVIOR_STEPS);
   // One paragraph per line (no blank lines, no list marks) is also one step per line.

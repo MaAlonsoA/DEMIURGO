@@ -50,6 +50,7 @@ export function RecordNotices({
   next,
   justApproved,
   warnings,
+  lean = false,
 }: {
   projectId: string;
   record: RecordDetail;
@@ -60,6 +61,8 @@ export function RecordNotices({
   justApproved: boolean;
   /** What the save of this version said (record_version.create's warnings). */
   warnings: string[];
+  /** A delivery page: what is ready is said by its properties rail, not by a banner. */
+  lean?: boolean;
 }) {
   const t = useMessages(NOTICES);
   const earlier = isEarlierDraft(record, version);
@@ -67,7 +70,8 @@ export function RecordNotices({
     r.startsWith(`Version ${version.n} is a draft earlier`),
   );
   const newer = newerDraft(record, version);
-  const ready = !!readiness?.ready && version.current;
+  // The product definition is designed, not built: it never says "ready to build".
+  const ready = !!readiness?.ready && version.current && !lean && record.type !== 'product_definition';
   const items: ReactNode[] = [];
 
   if (warnings.length > 0)

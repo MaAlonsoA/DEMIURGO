@@ -20,6 +20,7 @@ import { PageHeader, usePageTitle } from '../../components/Page.tsx';
 import { PageSkeleton } from '../../components/Spinner.tsx';
 import { useAllows } from '../../components/actions.tsx';
 import { useMessages } from '../../i18n/define.ts';
+import { cn } from '../../lib/cn.ts';
 import { useReading } from '../../i18n/reading.tsx';
 import { useRouteParams, useTables } from '../../lib/hooks.ts';
 import { HistoryTab } from '../blueprint/HistoryTab.tsx';
@@ -31,11 +32,21 @@ import { needsItems } from '../overview/needs.ts';
 import { Checks } from './Checks.tsx';
 import { ChangesSince } from './Changes.tsx';
 import { BriefCard } from './CopyBrief.tsx';
-import { EpicBoard } from './EpicBoard.tsx';
-import { featureEpicThread } from '../epics/logic.ts';
-import { FeatureJourney } from './FeatureJourney.tsx';
-import { TaskBoard } from './TaskBoard.tsx';
+import { EpicBody, useEpicPlan } from './EpicBoard.tsx';
+import { epicStatus, featureEpicThread } from '../epics/logic.ts';
 import { TaskSizePanel } from './TaskSize.tsx';
+import {
+  DeliveryBanner,
+  FeatureBody,
+  HistoryFold,
+  PrimaryAction,
+  Rail,
+  TaskBody,
+  deliveryOf,
+  useDraftTasks,
+} from './Delivery.tsx';
+import { pendingProposalBatches, proposalTargetCode } from '../../lib/attention.ts';
+import { stateWord } from '../../words.ts';
 import { RecordHeader } from './Header.tsx';
 import { ancestorsOf } from './hierarchy.ts';
 import { PendingProposals } from './PendingProposals.tsx';
@@ -46,7 +57,7 @@ import { ContextPanel, ReadinessPanel, VersionsPanel } from './RecordAside.tsx';
 import { ReviewArea, ReviewBand, ReviewProvider, ReviewSections, useReview } from './Review.tsx';
 import { canReview } from './review.ts';
 import { takeSaveWarnings } from './saved.ts';
-import { RECORD } from './words.i18n.ts';
+import { DELIVERY, RECORD } from './words.i18n.ts';
 
 /** The navigator beside the page; the page is a size container, so its columns follow its own width. */
 function Frame({ projectId, code, children }: { projectId: string; code: string; children: ReactNode }) {
@@ -59,14 +70,18 @@ function Frame({ projectId, code, children }: { projectId: string; code: string;
 }
 
 /** Main content and its side column: stacked, then side by side from a 56rem wide content area. */
-function Columns({ main, aside }: { main: ReactNode; aside: ReactNode }) {
+function Columns({ main, aside, asideFirst = false }: { main: ReactNode; aside: ReactNode; asideFirst?: boolean }) {
   const t = useMessages(RECORD);
   return (
     <div className="flex flex-col gap-8 px-4 py-6 sm:px-6 lg:px-8 @4xl:flex-row @4xl:items-start">
       <div className="flex min-w-0 flex-1 flex-col gap-8">{main}</div>
       <aside
         aria-label={t.aboutRecord}
-        className="flex w-full shrink-0 flex-col gap-8 @4xl:sticky @4xl:top-3 @4xl:w-80 @6xl:w-96"
+        className={cn(
+          'flex w-full shrink-0 flex-col gap-8 @4xl:sticky @4xl:top-3 @4xl:w-80 @6xl:w-96',
+          // A delivery page's properties come right under the header on a phone, not far down.
+          asideFirst && 'order-first @4xl:order-last @4xl:w-72 @6xl:w-80',
+        )}
       >
         {aside}
       </aside>
@@ -150,6 +165,7 @@ function RecordPage({
   inbox: Inbox | undefined;
 }) {
   const t = useMessages(RECORD);
+  const deliveryWords = useMessages(DELIVERY);
   // The version read in the person's language; the actions act on the English one (same id).
   const reading = useReading(projectId, 'record_version', stored.id);
   const version = readVersion(stored, reading.text);
@@ -181,6 +197,28 @@ function RecordPage({
   const [saved] = useState(() => ({ n: version.n, warnings: takeSaveWarnings(record.code, version.n) }));
   const shownWarnings = approved === null && saved.n === version.n ? saved.warnings : [];
 
+  // The delivery pages (epic, feature, task): status word, primary action, one banner, a rail.
+  const lean = record.type === 'fdr' || record.type === 'epic' || record.type === 'task';
+  const epicFound = useEpicPlan(state, record);
+  const wanted = new Set([record.code, ...(epicFound?.plan.lines.map((l) => l.code) ?? [])]);
+  const pendingCodes = pendingProposalBatches(inbox)
+    .flatMap((b) => b.proposals.filter((p) => p.state === 'pending').map((p) => proposalTargetCode(p)))
+    .filter((c): c is string => !!c && wanted.has(c));
+  const draftTasks = useDraftTasks(projectId, record.versions.find((v) => v.n === record.current)?.id ?? version.id);
+  const delivery = lean
+    ? deliveryOf({
+        t: deliveryWords,
+        record,
+        version,
+        ready,
+        pending: pendingCodes,
+        epic: epicFound ? { status: epicStatus(epicFound.plan), next: epicFound.plan.next, ref: epicFound.ref } : null,
+        canRequestBuild: !!tables && canCreate(tables, 'build_request.request'),
+        stateWord: stateWord('record_version', version.state).word,
+      })
+    : null;
+  const leanOverview = lean && delivery !== null && tab === 'overview' && review.step === 0;
+
   const askBox = (
     <AskBox
       key={record.code}
@@ -199,8 +237,16 @@ function RecordPage({
     />
   );
   const readinessPanel = <ReadinessPanel projectId={projectId} version={version} readiness={ready} stage={stage} />;
-  const aside =
-    tab === 'questions' ? (
+  const aside = leanOverview ? (
+    <Rail
+      projectId={projectId}
+      record={record}
+      version={version}
+      ready={ready}
+      status={delivery.status}
+      extra={record.type === 'task' ? <TaskSizePanel projectId={projectId} record={record} /> : null}
+    />
+  ) : tab === 'questions' ? (
       <>
         {questions.selected ? <IfYouConfirm question={questions.selected} version={version} readiness={ready} /> : null}
         {readinessPanel}
@@ -233,6 +279,17 @@ function RecordPage({
         tab={tab}
         onApproved={() => setApproved(version.id)}
         ancestors={ancestorsOf(state, record.code)}
+        {...(delivery
+          ? {
+              lean: {
+                status: delivery.status,
+                primary: delivery.primary ? (
+                  <PrimaryAction projectId={projectId} primary={delivery.primary} draft={draftTasks} />
+                ) : null,
+                reviewable,
+              },
+            }
+          : {})}
       />
       {reading.mark ? <div className="-mt-2 mb-4">{reading.mark}</div> : null}
     </>
@@ -260,29 +317,35 @@ function RecordPage({
     );
   }
 
+  const banner = leanOverview && delivery.banner ? <DeliveryBanner projectId={projectId} banner={delivery.banner} /> : null;
+  const proposals = (
+    <PendingProposals projectId={projectId} code={record.code} inbox={inbox} rows={state ? [...state.designs, ...state.decisions] : []} />
+  );
+  const recordingFor = recording;
+
   return (
     <ReviewProvider review={review}>
       {header}
       <Columns
         aside={aside}
+        asideFirst={leanOverview}
         main={
           <>
-            <PendingProposals
-              projectId={projectId}
-              code={record.code}
-              inbox={inbox}
-              rows={state ? [...state.designs, ...state.decisions] : []}
-            />
-            <RecordNotices
-              projectId={projectId}
-              record={record}
-              version={version}
-              readiness={ready}
-              next={next}
-              justApproved={approved === version.id}
-              warnings={shownWarnings}
-            />
-            {reviewable ? (
+            {banner}
+            {proposals}
+            {banner || (leanOverview && reviewable) ? null : (
+              <RecordNotices
+                projectId={projectId}
+                record={record}
+                version={version}
+                readiness={ready}
+                next={next}
+                justApproved={approved === version.id}
+                warnings={shownWarnings}
+                lean={lean}
+              />
+            )}
+            {reviewable && !(banner && review.step === 0) ? (
               <ReviewBand
                 projectId={projectId}
                 record={record}
@@ -295,29 +358,65 @@ function RecordPage({
             ) : version.state === 'draft' ? (
               <ChangesSince record={record} version={version} />
             ) : null}
-            {(record.type === 'fdr' || record.type === 'adr' || record.type === 'task') && version.n === record.current && ready?.ready ? (
-              <BriefCard projectId={projectId} code={record.code} />
-            ) : null}
-            {record.type === 'task' ? <TaskSizePanel projectId={projectId} record={record} /> : null}
-            {record.type === 'fdr' ? <FeatureJourney version={version} readiness={ready} /> : null}
-            {record.type === 'fdr' ? <TaskBoard projectId={projectId} record={record} state={state} /> : null}
-            {record.type === 'epic' ? <EpicBoard projectId={projectId} record={record} state={state} /> : null}
-            <article aria-label={t.asWritten(version.title)} className="flex flex-col gap-8">
-              <ReviewSections sections={version.sections} parts={review.parts}>
-                {(s) => (
-                  <section key={s.title} className="flex flex-col gap-2">
-                    <h2 className="text-lg font-semibold text-fg">{s.title}</h2>
-                    <SectionContent title={s.title} text={s.content} className="max-w-prose" criteria={version.criteria} />
-                  </section>
+            {leanOverview ? (
+              <>
+                {record.type === 'fdr' ? (
+                  <FeatureBody
+                    projectId={projectId}
+                    record={record}
+                    version={version}
+                    recording={recordingFor}
+                    draft={draftTasks}
+                    primaryIsDraft={delivery.primary?.kind === 'draft_tasks'}
+                  />
+                ) : record.type === 'epic' ? (
+                  <EpicBody projectId={projectId} record={record} version={version} state={state} recording={recordingFor} />
+                ) : (
+                  <TaskBody projectId={projectId} record={record} version={version} recording={recordingFor} />
                 )}
-              </ReviewSections>
-            </article>
-            {hasChecks(record, version) ? (
-              <ReviewArea part="checks">
-                <Checks criteria={version.criteria} readiness={ready} recording={recording} steps={stepCount(behaviorOf(version))} />
-              </ReviewArea>
-            ) : null}
-            {version.annexes.length > 0 ? <Annexes annexes={version.annexes} /> : null}
+                {version.annexes.length > 0 ? <Annexes annexes={version.annexes} /> : null}
+                {record.type === 'fdr' && version.n === record.current && ready?.ready ? (
+                  <BriefCard projectId={projectId} code={record.code} />
+                ) : null}
+                {askBox}
+                <HistoryFold>
+                  <ContextPanel
+                    projectId={projectId}
+                    code={record.code}
+                    version={version}
+                    thread={thread}
+                    targets={state ? versionIndex(state, inbox) : undefined}
+                    incoming={record.incoming}
+                  />
+                  <VersionsPanel projectId={projectId} record={record} shown={version} />
+                </HistoryFold>
+              </>
+            ) : (
+              <>
+                {(record.type === 'fdr' || record.type === 'adr' || record.type === 'task') &&
+                version.n === record.current &&
+                ready?.ready ? (
+                  <BriefCard projectId={projectId} code={record.code} />
+                ) : null}
+                {record.type === 'task' ? <TaskSizePanel projectId={projectId} record={record} /> : null}
+                <article aria-label={t.asWritten(version.title)} className="flex flex-col gap-8">
+                  <ReviewSections sections={version.sections} parts={review.parts}>
+                    {(s) => (
+                      <section key={s.title} className="flex flex-col gap-2">
+                        <h2 className="text-lg font-semibold text-fg">{s.title}</h2>
+                        <SectionContent title={s.title} text={s.content} className="max-w-prose" criteria={version.criteria} />
+                      </section>
+                    )}
+                  </ReviewSections>
+                </article>
+                {hasChecks(record, version) ? (
+                  <ReviewArea part="checks">
+                    <Checks criteria={version.criteria} readiness={ready} recording={recording} steps={stepCount(behaviorOf(version))} />
+                  </ReviewArea>
+                ) : null}
+                {version.annexes.length > 0 ? <Annexes annexes={version.annexes} /> : null}
+              </>
+            )}
           </>
         }
       />

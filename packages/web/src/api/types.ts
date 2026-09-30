@@ -888,3 +888,34 @@ export type ProjectCommits = {
     record: { code: string; version: number } | null;
   }[];
 };
+
+/** An open build request on a task (FDR-BUI-002): who asked and when; stale when its task changed. */
+export type BuildRequestView = {
+  id: string;
+  task_version: number | null;
+  requested_by: string;
+  requested_at: string;
+  stale: boolean;
+  stale_reasons: string[];
+};
+
+/** A line of the Build page, in the server's build order. */
+export type QueueTask = {
+  code: string;
+  title: string;
+  version: number | null;
+  feature: { code: string; title: string } | null;
+  epic: { code: string; title: string } | null;
+  size: TaskSize | null;
+  points: number | null;
+  checks: number;
+  request: BuildRequestView | null;
+};
+
+export type BuildQueue = {
+  ready: QueueTask[];
+  waiting: (QueueTask & { reasons: string[] })[];
+  stale: QueueTask[];
+  totals: { tasks: number; points: number; unsized: number };
+  repository: { path: string | null; branch: string };
+};

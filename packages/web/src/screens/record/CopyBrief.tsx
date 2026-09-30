@@ -1,13 +1,13 @@
 // "Copy the brief": puts the brief of a ready feature on the clipboard, to build it outside.
 
-import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { recordQuery, stateQuery } from '../../api/queries.ts';
+import { ApiError } from '../../api/client.ts';
+import { fetchBrief } from '../../api/queries.ts';
 import { announce } from '../../components/announce.tsx';
 import { Button } from '../../components/Button.tsx';
 import { CopyIcon } from '../../components/icons.tsx';
 import { messages, useMessages } from '../../i18n/define.ts';
-import { buildBrief, copyText } from './brief.ts';
+import { copyText } from './brief.ts';
 
 const WORDS = messages(
   {
@@ -26,29 +26,25 @@ const WORDS = messages(
 
 export const BRIEF_WORDS = WORDS;
 
-export function CopyBriefButton({ projectId, code, size }: { projectId: string; code: string; size?: 'sm' }) {
+export function CopyBriefButton({ projectId, code, size, label }: { projectId: string; code: string; size?: 'sm'; label?: string }) {
   const t = useMessages(WORDS);
-  const client = useQueryClient();
   const [pending, setPending] = useState(false);
   const copy = async () => {
+    if (pending) return;
     setPending(true);
     try {
-      const [record, state] = await Promise.all([
-        client.fetchQuery(recordQuery(projectId, code)),
-        client.fetchQuery(stateQuery(projectId)),
-      ]);
-      const version = record.versions.find((v) => v.n === record.current);
-      if (!version) throw new Error('No current version');
-      await copyText(buildBrief(record, version, [...state.designs, ...state.decisions]));
+      // The server composes it from the current state and refuses it, with why, if it is not ready.
+      const brief = await fetchBrief(projectId, code);
+      await copyText(brief);
       announce(t.copied(code));
-    } catch {
-      announce(t.failed);
+    } catch (e) {
+      announce(e instanceof ApiError && e.reasons.length > 0 ? `${t.failed} ${e.reasons.join(' ')}` : t.failed);
     } finally {
       setPending(false);
     }
   };
   return (
-    <Button size={size} icon={<CopyIcon size={14} />} pending={pending} onClick={() => void copy()} data-copy-brief={code}>
+    <Button size={size} icon={<CopyIcon size={14} />} pending={pending} onClick={() => void copy()} data-copy-brief={code} aria-label={label}>
       {t.copy}
     </Button>
   );

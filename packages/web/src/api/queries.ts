@@ -6,6 +6,7 @@ import { ApiError, get, setCsrf } from './client.ts';
 import type {
   AgentToken,
   BatchDetail,
+  BuildQueue,
   Changes,
   ProjectCommits,
   CommandCatalog,
@@ -132,6 +133,17 @@ export const explorationQuery = (p: string, id: string) =>
     queryKey: keys.exploration(p, id),
     queryFn: () => get<ExplorationDetail>(`${P(p)}/explorations/${id}`),
   });
+
+/** The Build page (FDR-BUI-002): the server's queue, Waiting and open requests. */
+export const buildQueueQuery = (p: string) =>
+  queryOptions({
+    queryKey: ['p', p, 'build'] as const,
+    queryFn: () => get<BuildQueue>(`${P(p)}/build`),
+  });
+
+/** The server-composed build brief of a ready record: never composed in the browser. */
+export const fetchBrief = (p: string, code: string) =>
+  get<{ brief: string }>(`${P(p)}/records/${encodeURIComponent(code)}/brief`).then((r) => r.brief);
 
 export const recordQuery = (p: string, code: string) =>
   queryOptions({

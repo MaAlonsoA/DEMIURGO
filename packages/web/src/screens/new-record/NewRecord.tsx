@@ -9,6 +9,8 @@ import { useNavigate, useSearch } from '@tanstack/react-router';
 import { useEffect, useId, useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
 import { stateQuery } from '../../api/queries.ts';
+import type { TaskSize } from '../../api/types.ts';
+import { SIZE_POINTS, TASK_SIZES } from '../../sizes.ts';
 import { announce } from '../../components/announce.tsx';
 import { Button } from '../../components/Button.tsx';
 import { ChoiceGroup, Field, TextInput } from '../../components/Field.tsx';
@@ -171,6 +173,16 @@ export function NewRecordScreen() {
                   </>
                 )}
               </Field>
+              {form.type === 'task' ? (
+                <ChoiceGroup
+                  legend={t.size}
+                  columns={3}
+                  dense
+                  value={[form.size ?? 'M']}
+                  onChange={([v]) => v && setForm((f) => ({ ...f, size: v as TaskSize }))}
+                  choices={TASK_SIZES.map((sz) => ({ value: sz, label: t.sizeOption(sz, SIZE_POINTS[sz]) }))}
+                />
+              ) : null}
               {form.sections.map((s, i) => (
                 <SectionField
                   key={`${form.type}-${s.title}`}

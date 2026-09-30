@@ -4,7 +4,7 @@
 // keeps what was written in sections the new template doesn't have (DESIGN.md §3.6).
 
 import { RECORD_TEMPLATES, type RecordType } from '../../../../domain/src/records.ts';
-import type { Section } from '../../api/types.ts';
+import type { Section, TaskSize } from '../../api/types.ts';
 import { TYPE_WORDS } from '../../words.ts';
 import type { CheckDraft, LinkInput } from '../new-version/form.ts';
 
@@ -34,6 +34,8 @@ export type RecordForm = {
   links: LinkInput[];
   /** Text of sections the current type doesn't have, kept from an earlier type (never sent). */
   kept: Section[];
+  /** A task's effort size (FDR-DEL-006): M unless the person picks another. */
+  size?: TaskSize;
 };
 
 export function blankRecord(type: RecordType): RecordForm {
@@ -46,6 +48,7 @@ export function blankRecord(type: RecordType): RecordForm {
     added: 0,
     links: [],
     kept: [],
+    size: 'M',
   };
 }
 
@@ -126,5 +129,6 @@ export function toCreateCommand(form: RecordForm) {
       check: c.check.trim(),
     })),
     links: form.links,
+    ...(form.type === 'task' ? { size: form.size ?? 'M' } : {}),
   };
 }

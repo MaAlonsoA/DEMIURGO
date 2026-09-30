@@ -411,3 +411,38 @@ export const TASK_BOARD = messages(
     checks: (n: number) => (n === 1 ? '1 comprobación' : `${n} comprobaciones`),
   },
 );
+
+export const TASK_SIZE = messages(
+  {
+    title: 'Size',
+    note: 'Relative effort, not a duration: XS 1, S 2, M 3, L 5, XL 8 points.',
+    noSize: 'No size',
+    current: (size: string, points: number) => `${size} · ${points} points`,
+    options: 'Task size',
+    option: (size: string, points: number) => `${size}, ${points} points`,
+    split: 'Consider splitting this task',
+    disputed: 'Size disputed',
+    both: (you: string, other: string) => `You: ${you} · second opinion: ${other}`,
+    keep: (size: string) => `Keep ${size}`,
+    changed: (size: string) => `Size set to ${size}.`,
+    total: (points: number) => `about ${points} points`,
+    remaining: (points: number) => `${points} remaining`,
+    unsized: (n: number) => (n === 1 ? '1 with no size' : `${n} with no size`),
+  },
+  {
+    title: 'Tamaño',
+    note: 'Esfuerzo relativo, no una duración: XS 1, S 2, M 3, L 5, XL 8 puntos.',
+    noSize: 'Sin tamaño',
+    current: (size: string, points: number) => `${size} · ${points} puntos`,
+    options: 'Tamaño de la tarea',
+    option: (size: string, points: number) => `${size}, ${points} puntos`,
+    split: 'Plantéate dividir esta tarea',
+    disputed: 'Tamaño discutido',
+    both: (you: string, other: string) => `Tú: ${you} · segunda opinión: ${other}`,
+    keep: (size: string) => `Mantener ${size}`,
+    changed: (size: string) => `Tamaño cambiado a ${size}.`,
+    total: (points: number) => `unos ${points} puntos`,
+    remaining: (points: number) => `${points} pendientes`,
+    unsized: (n: number) => (n === 1 ? '1 sin tamaño' : `${n} sin tamaño`),
+  },
+);

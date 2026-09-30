@@ -329,6 +329,24 @@ export function useMarks(): typeof MARKS {
   return marksFor(useSafeLocale());
 }
 
+/**
+ * The mark of a RECORD (what the API calls its epistemic status): a record whose current version is
+ * approved is «Approved», never «Confirmed» (that word belongs to the answer to a question).
+ */
+export function recordMarkWord(kind: MarkKind, locale: Locale): { name: string; phrase: string } {
+  if (kind === 'confirmed') {
+    return locale === 'es'
+      ? { name: 'Aprobado', phrase: 'Una persona lo aprobó.' }
+      : { name: 'Approved', phrase: 'A person approved it.' };
+  }
+  return marksFor(locale)[kind];
+}
+
+/** recordMarkWord in the language shown now. */
+export function useRecordMark(kind: MarkKind): { name: string; phrase: string } {
+  return recordMarkWord(kind, useSafeLocale());
+}
+
 const STATE_WORDS_ES: Record<string, Record<string, string>> = {
   record_version: { draft: 'Propuesta aceptada', approved: 'Registro', superseded: 'Reemplazada', discarded: 'Descartada' },
   question: { pending: 'Abierta', inferred: 'Supuesta', confirmed: 'Confirmada', postponed: 'Aparcada', discarded: 'Descartada' },

@@ -7,6 +7,7 @@ import {
   newerDraft,
   rowStage,
   selectVersion,
+  castsDoubt,
   stageOf,
   versionIndex,
   versionStage,
@@ -80,12 +81,23 @@ describe('the first bar of a record', () => {
       stageOf({ ready: false, reasons: ['It is based on DEC-EVE-001 v1, but the current one is v2.'], warnings: [] }, true),
     ).toBe('doubt');
     expect(stageOf(null, false)).toBe('not-ready');
-    expect(rowStage({ readiness: { ready: false, reasons: ['x'], warnings: [] }, current: 2 })).toBe('doubt');
-    expect(rowStage({ readiness: { ready: false, reasons: ['x'], warnings: [] }, current: null })).toBe('not-ready');
+    const open = 'A question of its thread is open: “Who signs in?”';
+    expect(rowStage({ readiness: { ready: false, reasons: [open], warnings: [] }, current: 2 })).toBe('doubt');
+    expect(rowStage({ readiness: { ready: false, reasons: [open], warnings: [] }, current: null })).toBe('not-ready');
     // A draft is never "in doubt": it was never ready.
     const r = record([version(1, 'approved'), version(2, 'draft')]);
-    expect(versionStage(at(r, 1), { ready: false, reasons: ['x'], warnings: [] })).toBe('not-ready');
-    expect(versionStage(at(r, 0), { ready: false, reasons: ['x'], warnings: [] })).toBe('doubt');
+    expect(versionStage(at(r, 1), { ready: false, reasons: [open], warnings: [] })).toBe('not-ready');
+    expect(versionStage(at(r, 0), { ready: false, reasons: [open], warnings: [] })).toBe('doubt');
+  });
+
+  it('an approved record that only misses a step (architecture, security, criteria) is Not ready, not In doubt', () => {
+    const missing = ['The Architecture stage has not passed.', 'The Security baseline stage has not passed.', 'It has no acceptance criteria.'];
+    expect(rowStage({ readiness: { ready: false, reasons: missing, warnings: [] }, current: 1 })).toBe('not-ready');
+    expect(rowStage({ readiness: { ready: false, reasons: ['x'], warnings: [] }, current: 2 })).toBe('not-ready');
+    expect(castsDoubt('The link with DEC-X-001 v1 is pending review.')).toBe(true);
+    expect(castsDoubt('DEMIURGO assumed an answer you have not confirmed: “x”')).toBe(true);
+    expect(castsDoubt('There are 2 pending proposal(s) affecting it.')).toBe(true);
+    expect(castsDoubt('It needs FDR-X-001, which is not built yet.')).toBe(false);
   });
 
   it('AC-INT-001-08 a warning of the readiness belongs to the check it cites, without its code', () => {

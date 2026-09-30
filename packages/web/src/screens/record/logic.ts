@@ -5,10 +5,34 @@ import type { Inbox, ProductRow, ProductState, Readiness, RecordDetail, RecordVe
 import type { Stage } from '../../components/Meter.tsx';
 import { pendingProposalsOf } from '../../lib/attention.ts';
 
-/** First bar: full when ready, rust when an approved current version stopped being ready, else empty. */
+/**
+ * Reasons (as the server words them, domain/records.ts readiness()) that cast doubt on an approved
+ * record: a question of its thread that is open, parked or assumed, a link pending review (a
+ * possible conflict), something it rests on that changed, and a pending proposal affecting it.
+ * Every other reason (architecture, security, criteria, needs) only says it is not ready yet.
+ */
+const DOUBT_REASONS: readonly RegExp[] = [
+  /^A question of its thread is open/,
+  /^A question of its thread was left for later/,
+  /^DEMIURGO assumed an answer you have not confirmed/,
+  /^The link with .* is pending review\./,
+  /^It is based on .* v\d+; knowledge has not yet checked it/,
+  /^It is based on .* but the current one is/,
+  /^There are \d+ pending proposal\(s\) affecting it\./,
+];
+
+/** Whether a reason of the readiness is a doubt (a conflict or an open question) and not just a missing step. */
+export function castsDoubt(reason: string): boolean {
+  return DOUBT_REASONS.some((re) => re.test(reason));
+}
+
+/**
+ * First bar: full when ready; rust («In doubt») only when an approved current version has a
+ * conflict or an open question casting doubt on it; otherwise empty («Not ready», with its reasons).
+ */
 export function stageOf(readiness: Readiness | null | undefined, approvedCurrent: boolean): Stage {
   if (readiness?.ready) return 'ready';
-  return approvedCurrent ? 'doubt' : 'not-ready';
+  return approvedCurrent && (readiness?.reasons ?? []).some(castsDoubt) ? 'doubt' : 'not-ready';
 }
 
 export function rowStage(row: Pick<ProductRow, 'readiness' | 'current'>): Stage {

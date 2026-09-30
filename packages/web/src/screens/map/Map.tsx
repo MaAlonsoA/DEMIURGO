@@ -28,7 +28,7 @@ import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { useProjectId } from '../../lib/hooks.ts';
 import { ProductTabs } from '../../shell/ProductTabs.tsx';
-import { EPISTEMIC_MARK, MARKS } from '../../words.ts';
+import { EPISTEMIC_MARK, useRecordMark } from '../../words.ts';
 import { rowStage } from '../record/logic.ts';
 import {
   LINE_STYLES,
@@ -373,7 +373,7 @@ function MapElement({
 }) {
   const t = useMessages(MAP_WORDS);
   const waiting = waitingOn(row.code, map.questions).length;
-  const certainty = MARKS[EPISTEMIC_MARK[row.epistemic_status] ?? 'unknown'].name;
+  const certainty = useRecordMark(EPISTEMIC_MARK[row.epistemic_status] ?? 'unknown').name;
   const feature = row.type === 'fdr';
   const stage = rowStage(row);
   const stageWord = stage === 'ready' ? t.readyToBuild : stage === 'doubt' ? t.inDoubt : t.notReady;
@@ -418,7 +418,7 @@ function MapElement({
         {row.summary ? <span className="line-clamp-2 text-sm text-fg-2">{row.summary}</span> : null}
         <span className="flex flex-wrap items-center gap-1.5">
           <Certainty status={row.epistemic_status} />
-          <Readiness stage={stage} track={false} />
+          <Readiness stage={stage} reasons={row.readiness?.reasons ?? []} track={false} />
         </span>
         <span className="flex items-center gap-2 text-xs text-fg-3">
           <Who actor={row.updated_by} size={16} className="min-w-0" />
@@ -687,7 +687,7 @@ function MapPanel({
           <TypeIcon type={row.type} size={15} className="text-fg-3" />
           {typeWord(row.type)}
           <Certainty status={row.epistemic_status} />
-          {feature ? <Readiness stage={rowStage(row)} /> : null}
+          {feature ? <Readiness stage={rowStage(row)} reasons={row.readiness?.reasons ?? []} /> : null}
         </div>
         <h2 className="text-lg font-semibold text-fg">{row.title}</h2>
         <Code>

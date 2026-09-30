@@ -71,11 +71,20 @@ describe('the status of a feature in the blueprint rail', () => {
     expect(featureStatus(row('FDR-CAT-001', { current: 1, readiness: blocked }), none)).toEqual({
       kind: 'doubt',
       word: 'In doubt',
+      reasons: blocked.reasons,
+    });
+    // Approved but only missing a step (no conflict, no open question): Not ready, with its reasons.
+    const step = { ready: false, reasons: ['The Architecture stage has not passed.'], warnings: [] };
+    expect(featureStatus(row('FDR-CAT-001', { current: 1, readiness: step, latest: { n: 1, state: 'approved' } }), none)).toEqual({
+      kind: 'not-ready',
+      word: 'Not ready',
+      reasons: step.reasons,
     });
     expect(featureStatus(row('FDR-CAT-001'), none)).toEqual({ kind: 'draft', word: 'Draft' });
     expect(featureStatus(row('FDR-CAT-001', { latest: { n: 1, state: 'discarded' } }), none)).toEqual({
       kind: 'not-ready',
       word: 'Not ready',
+      reasons: ['Version 1 is not approved.'],
     });
   });
 });

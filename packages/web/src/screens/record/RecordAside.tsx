@@ -89,7 +89,7 @@ export function ReadinessPanel({
       </h2>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span data-stage-track data-stage={stage} className="inline-flex">
-          <ReadinessBadge stage={stage} blocking={left} size="md" />
+          <ReadinessBadge stage={stage} blocking={left} reasons={readiness.reasons} size="md" />
         </span>
         {left > 0 ? <span className="text-sm font-medium text-fg-2 tabular-nums">{t.leftCount(left)}</span> : null}
       </div>

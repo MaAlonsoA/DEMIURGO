@@ -46,7 +46,7 @@ function ReadinessFacts({ projectId, row }: { projectId: string; row: ProductRow
   const stage = rowStage(row);
   return (
     <section aria-label={r.ready ? t.readyToBuild : t.beforeItCanBeBuilt} className="flex flex-col gap-2">
-      <Readiness stage={stage} blocking={r.reasons.length} size="md" />
+      <Readiness stage={stage} blocking={r.reasons.length} reasons={r.reasons} size="md" />
       {r.ready ? (
         <p className="text-sm text-fg-2">{t.nothingBlocks}</p>
       ) : r.reasons.length > 0 ? (

@@ -126,7 +126,7 @@ export function FeatureCard({
         ) : null}
       </div>
       <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-2">
-        <Readiness stage={rowStage(row)} blocking={row.readiness?.reasons.length ?? 0} />
+        <Readiness stage={rowStage(row)} blocking={row.readiness?.reasons.length ?? 0} reasons={row.readiness?.reasons ?? []} />
         {needs > 0 ? (
           <span className="inline-flex items-center gap-1.5 text-xs font-medium text-accent-text">
             <Count n={needs} label={needsWords(waiting, t)} />

@@ -12,9 +12,9 @@ import { RAIL, type RailWords } from './words.i18n.ts';
 export type FeatureStatus =
   | { kind: 'needs'; word: string; count: number; detail: string }
   | { kind: 'ready'; word: string }
-  | { kind: 'doubt'; word: string }
+  | { kind: 'doubt'; word: string; reasons?: string[] }
   | { kind: 'draft'; word: string }
-  | { kind: 'not-ready'; word: string }
+  | { kind: 'not-ready'; word: string; reasons?: string[] }
   /** A feature of an epic's list not designed yet. */
   | { kind: 'planned'; word: string };
 
@@ -27,9 +27,10 @@ export function featureStatus(row: ProductRow, waiting: Waiting, words: RailWord
   if (count > 0) return { kind: 'needs', word: words.needsYou, count, detail: waitingPhrase(waiting) };
   const stage = rowStage(row);
   if (stage === 'ready') return { kind: 'ready', word: words.readyToBuild };
-  if (stage === 'doubt') return { kind: 'doubt', word: words.inDoubt };
+  const reasons = row.readiness?.reasons ?? [];
+  if (stage === 'doubt') return { kind: 'doubt', word: words.inDoubt, reasons };
   if (row.latest.state === 'draft') return { kind: 'draft', word: words.draft };
-  return { kind: 'not-ready', word: words.notReady };
+  return { kind: 'not-ready', word: words.notReady, reasons };
 }
 
 export type RailFeature = { code: string; title: string; current: boolean; status: FeatureStatus };

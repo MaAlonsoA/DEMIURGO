@@ -203,7 +203,7 @@ export function RecordHeader({
               )}
             </span>
             {version.current ? <span className="text-sm text-fg-2">{t.current}</span> : null}
-            {ready ? <Readiness stage={stage} blocking={ready.reasons.length} /> : null}
+            {ready ? <Readiness stage={stage} blocking={ready.reasons.length} reasons={ready.reasons} /> : null}
           </>
           )
         }

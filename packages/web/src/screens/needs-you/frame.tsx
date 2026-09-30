@@ -18,12 +18,13 @@ import {
   TagIcon,
   ThreadsIcon,
 } from '../../components/icons.tsx';
-import { Readiness, type Stage } from '../../components/Meter.tsx';
+import { Readiness } from '../../components/Meter.tsx';
 import { Certainty } from '../../components/status.tsx';
 import { iconOf, typeWord } from '../../components/types.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { rowOf } from '../batch/model.ts';
+import { rowStage } from '../record/logic.ts';
 import { linkClass, RecordChip } from '../batch/parts.tsx';
 import { proposalIconType } from '../batch/proposal.ts';
 import type { NeedItem } from './order.ts';
@@ -58,12 +59,6 @@ export function kindIcon(item: NeedItem): ComponentType<IconProps> {
     case 'update':
       return KnowledgeIcon;
   }
-}
-
-/** A feature's readiness in three words (the track is decoration). */
-export function stageOf(row: ProductRow): Stage {
-  if (row.readiness?.ready) return 'ready';
-  return row.current !== null ? 'doubt' : 'not-ready';
 }
 
 /** A link to the thread a thing was raised in, by its purpose. */
@@ -104,7 +99,7 @@ export function Unblocks({ ctx, item }: { ctx: NeedContext; item: NeedItem }) {
               <span className="text-xs text-fg-2">{typeWord(r.type)}</span>
               <RecordChip projectId={ctx.projectId} code={r.code} rows={ctx.rows} />
               {r.readiness ? (
-                <Readiness stage={stageOf(r)} blocking={r.readiness.reasons.length} track={r.type === 'fdr'} />
+                <Readiness stage={rowStage(r)} blocking={r.readiness.reasons.length} reasons={r.readiness.reasons} track={r.type === 'fdr'} />
               ) : (
                 <Certainty status={r.epistemic_status} />
               )}

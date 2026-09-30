@@ -19,7 +19,7 @@ import { useMessages } from '../../i18n/define.ts';
 import { attentionByCode, attentionOf } from '../../lib/attention.ts';
 import { cn } from '../../lib/cn.ts';
 import { useTables } from '../../lib/hooks.ts';
-import { MARKS } from '../../words.ts';
+import { useRecordMark } from '../../words.ts';
 import { AttentionMark } from '../record/AttentionMark.tsx';
 import { type FeatureStatus, type NavRecord, navigatorOf } from './rail.ts';
 import { NAVIGATOR, RAIL } from './words.i18n.ts';
@@ -74,15 +74,18 @@ function FeatureStatusText({ status }: { status: FeatureStatus }) {
     case 'ready':
       return <StateText kind="done" word={status.word} className="text-xs" />;
     case 'doubt':
-      return <StateText kind="conflict" word={status.word} className="text-xs" />;
+      return <StateText kind="conflict" word={status.word} title={status.reasons?.join('\n')} className="text-xs" />;
     case 'draft':
       return <StateText kind="proposed" word={status.word} className="text-xs" />;
+    case 'not-ready':
+      return <StateText kind="open" word={status.word} title={status.reasons?.join('\n')} className="text-xs" />;
     default:
       return <StateText kind="open" word={status.word} className="text-xs" />;
   }
 }
 
 function RecordLink({ projectId, record, waiting }: { projectId: string; record: NavRecord; waiting: boolean }) {
+  const mark = useRecordMark(record.mark);
   return (
     <li>
       <Link
@@ -103,7 +106,7 @@ function RecordLink({ projectId, record, waiting }: { projectId: string; record:
         ) : (
           <span data-status={record.mark} className="inline-flex items-center gap-1 text-xs text-fg-2">
             <StateIcon kind={record.mark} size={12} />
-            {MARKS[record.mark].name}
+            {mark.name}
           </span>
         )}
         {waiting ? <AttentionMark code={record.code} /> : null}

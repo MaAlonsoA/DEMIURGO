@@ -109,6 +109,7 @@ const STAGE_PHRASE: Record<Stage, string> = {
 export function Readiness({
   stage,
   blocking,
+  reasons,
   size = 'sm',
   track = true,
   className,
@@ -116,13 +117,15 @@ export function Readiness({
   stage: Stage;
   /** Number of reasons that block it. */
   blocking?: number;
+  /** What blocks it, listed in the tooltip of «Not ready» and «In doubt». */
+  reasons?: readonly string[];
   size?: 'sm' | 'md';
   track?: boolean;
   className?: string;
 }) {
   const t = useMessages(METER);
   const word = t.stageWord(stage, blocking);
-  const phrase = t.stagePhrase(stage);
+  const phrase = reasons && reasons.length > 0 && stage !== 'ready' ? [t.stagePhrase(stage), ...reasons].join('\n') : t.stagePhrase(stage);
   return (
     <span data-stage={stage} className={cn('inline-flex items-center gap-2', className)} title={phrase}>
       <StatusBadge

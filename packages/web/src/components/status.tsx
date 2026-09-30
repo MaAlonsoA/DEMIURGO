@@ -4,7 +4,7 @@
 // (WCAG 1.4.1; R73, R36, R39).
 
 import type { ComponentType } from 'react';
-import { EPISTEMIC_MARK, type MarkKind, useMarks, useStateWord } from '../words.ts';
+import { EPISTEMIC_MARK, type MarkKind, useMarks, useRecordMark, useStateWord } from '../words.ts';
 import { cn } from '../lib/cn.ts';
 import {
   AlertTriangleIcon,
@@ -172,15 +172,16 @@ export function EntityState({
 /** How sure the product is of something (the API's epistemic status), as a badge. */
 export function Certainty({ status, size, className }: { status: string; size?: BadgeSize; className?: string }) {
   const kind = EPISTEMIC_MARK[status] ?? 'unknown';
-  return <StatusBadge kind={kind} {...(size ? { size } : {})} {...(className ? { className } : {})} />;
+  const mark = useRecordMark(kind);
+  return <StatusBadge kind={kind} word={mark.name} title={`${mark.name} · ${mark.phrase}`} {...(size ? { size } : {})} {...(className ? { className } : {})} />;
 }
 
 /** Icon + word inline, without the pill: for dense rows where a pill would be noise (R73: ≥3 cues). */
-export function StateText({ kind, word, className }: { kind: MarkKind; word?: string; className?: string }) {
+export function StateText({ kind, word, title, className }: { kind: MarkKind; word?: string; title?: string; className?: string }) {
   const marks = useMarks();
   const look = LOOK[kind];
   return (
-    <span data-status={kind} className={cn('inline-flex items-center gap-1.5 text-sm', TONE[look.tone].text, className)}>
+    <span data-status={kind} {...(title ? { title } : {})} className={cn('inline-flex items-center gap-1.5 text-sm', TONE[look.tone].text, className)}>
       <StateIcon kind={kind} size={14} />
       <span>{word ?? marks[kind].name}</span>
     </span>

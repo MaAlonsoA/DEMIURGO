@@ -365,7 +365,25 @@ registerBuilder('exploration_chat', async ({ trx, projectId, scope, input, graph
     .orderBy('records.code')
     .orderBy('record_versions.n', 'desc')
     .execute();
-  const latest = approved.filter((r, i) => approved.findIndex((o) => o.recordId === r.recordId) === i);
+  // With a large design the budget can't hold every record: the ones this thread is about go first
+  // (the definition and quality, then the codes named in its purpose and messages, then the epics,
+  // the other designs, and tasks last), so a thread never loses the records it depends on.
+  const cited = new Set(
+    [exploration.purpose, ...allMessages.map((m) => m.body)].flatMap((t) => t.match(/\b[A-Z]{3}-[A-Z]{3}-\d{3}\b/g) ?? []),
+  );
+  const rank = (r: { code: string; type: string }): number =>
+    r.type === 'product_definition' || r.type === 'quality_requirement'
+      ? 0
+      : cited.has(r.code)
+        ? 1
+        : r.type === 'epic'
+          ? 2
+          : r.type === 'task'
+            ? 4
+            : 3;
+  const latest = approved
+    .filter((r, i) => approved.findIndex((o) => o.recordId === r.recordId) === i)
+    .toSorted((a, b) => rank(a) - rank(b));
   const recordSplit = splitByBudget(
     latest.map((r) => {
       const full = (r.sections as { title: string; content: string }[]).map((x) => `${x.title}: ${x.content}`).join('\n');

@@ -36,6 +36,13 @@ export const INVALIDATES: Record<string, string[]> = {
   source: ['sources', 'changes'],
   agent_token: ['tokens', 'changes'],
   project: ['changes'],
+  planned_feature: ['record', 'state', 'definition', 'map', 'journeys', 'changes'],
+  task: ['record', 'state', 'changes'],
+  evidence: ['record', 'readiness', 'state', 'changes'],
+  acceptance_check: ['record', 'readiness', 'changes'],
+  glossary_term: ['glossary', 'translation', 'changes'],
+  change_set: ['commits', 'record', 'state', 'changes'],
+  work_step: ['commits', 'changes'],
 };
 
 /** Entities whose events also refresh queries outside the project (the projects list). */
@@ -136,11 +143,13 @@ export function useProjectStream(projectId: string): void {
     };
     const source = new EventSource(`/api/projects/${projectId}/events/stream?from=latest`);
     let wasDown = tries > 0;
+    let opened = false;
     source.addEventListener('open', () => {
       setConnection('open');
-      // After a cut, whatever happened meanwhile is fetched again.
-      if (wasDown) void client.invalidateQueries({ queryKey: ['p', projectId] });
+      // After a cut (any open but the first), whatever happened meanwhile is fetched again.
+      if (wasDown || opened) void client.invalidateQueries({ queryKey: ['p', projectId] });
       wasDown = false;
+      opened = true;
     });
     source.addEventListener('error', () => {
       wasDown = true;

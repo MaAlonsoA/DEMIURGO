@@ -1,6 +1,7 @@
 // Read models for Pillar 1: product state, inbox, explorations, records with
 // their readiness, and batches. These are derived functions: nothing is stored (§4 of the plan).
 
+import { taskSizeView } from './sizes.ts';
 import {
   AGENT_PROPOSAL_TYPES,
   type Dependency,
@@ -605,6 +606,8 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
     aspect: r.aspect,
     current,
     implementation: await implementationOf(db, r.id),
+    // A task's effort size, outside its versions (FDR-DEL-006).
+    effort: r.type === 'task' ? await taskSizeView(db, r.id) : null,
     versions: detail,
     incoming: await incomingLinks(db, projectId, r.id, r.type),
   };
@@ -709,6 +712,7 @@ export async function productState(db: Db, projectId: string) {
       ...(await basisOf(db, currentId ?? latest.id, r.type as RecordType)),
       summary: firstParagraph(latest.sections as { title: string; content: string }[]),
       checks: Number(checks.n),
+      effort: r.type === 'task' ? await taskSizeView(db, r.id) : null,
       latest_id: latest.id,
       current_id: currentId,
       updated_at: latest.approved_at ?? latest.created_at,

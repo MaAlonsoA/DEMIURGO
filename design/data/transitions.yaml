@@ -96,6 +96,8 @@ entities:
     authority: []
     transitions:
       - { command: record.create, from: new, to: registered, guards: [free_code, valid_template] }
+      - { command: record.set_size, from: [registered], to: registered, guards: [task_record] }
+      - { command: record.keep_size, from: [registered], to: registered, guards: [task_record] }
 
   record_version:
     label: Record version

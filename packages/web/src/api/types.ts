@@ -193,6 +193,15 @@ export type ProductDefinition = {
   changes: DefinitionChange[];
 };
 
+/** A task's effort size (FDR-DEL-006): null size is a legacy task ("No size"); the opinion is Jev's, while it is on. */
+export type TaskSize = 'XS' | 'S' | 'M' | 'L' | 'XL';
+export type TaskEffort = {
+  size: TaskSize | null;
+  points: number | null;
+  opinion: { id: string; size: TaskSize; confidence: number; classifier_id: string; created_at: string } | null;
+  dispute: 'none' | 'disputed' | 'dismissed';
+};
+
 export type ProductRow = {
   code: string;
   type: RecordType;
@@ -213,6 +222,7 @@ export type ProductRow = {
   summary: string;
   /** Criteria of the latest version. */
   checks: number;
+  effort?: TaskEffort | null;
   latest_id: string;
   current_id: string | null;
   updated_at: string;
@@ -480,6 +490,7 @@ export type RecordDetail = {
   aspect: string | null;
   current: number | null;
   implementation: string;
+  effort?: TaskEffort | null;
   versions: RecordVersion[];
   /** What connects to it: links of the other records' shown version that point to one of its versions. */
   incoming: IncomingLink[];

@@ -6,6 +6,7 @@ import './exploration.ts';
 import './stages.ts';
 import './glossary.ts';
 import './records.ts';
+import './sizes.ts';
 import './evidence.ts';
 import './planned.ts';
 import './proposals.ts';

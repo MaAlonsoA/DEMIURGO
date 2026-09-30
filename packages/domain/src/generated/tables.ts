@@ -226,6 +226,22 @@ export const CAPABILITIES = {
       "decisive": false,
       "description": "Create a record (decision, FDR, ADR or bug) with its version 1 in draft."
     },
+    "record.set_size": {
+      "entity": "record",
+      "allowed": [
+        "human"
+      ],
+      "decisive": false,
+      "description": "Set the effort size of a task without a new version."
+    },
+    "record.keep_size": {
+      "entity": "record",
+      "allowed": [
+        "human"
+      ],
+      "decisive": false,
+      "description": "Keep the size of a task against a disputing second opinion."
+    },
     "record_version.create": {
       "entity": "record_version",
       "allowed": [
@@ -1315,6 +1331,26 @@ export const TRANSITIONS = {
           "guards": [
             "free_code",
             "valid_template"
+          ]
+        },
+        {
+          "command": "record.set_size",
+          "from": [
+            "registered"
+          ],
+          "to": "registered",
+          "guards": [
+            "task_record"
+          ]
+        },
+        {
+          "command": "record.keep_size",
+          "from": [
+            "registered"
+          ],
+          "to": "registered",
+          "guards": [
+            "task_record"
           ]
         }
       ]

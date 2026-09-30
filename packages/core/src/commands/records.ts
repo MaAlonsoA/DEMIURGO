@@ -15,6 +15,7 @@ import {
   formatActor,
   fingerprint,
   system,
+  taskSizeSchema,
 } from '@demiurgo/domain';
 import { z } from 'zod';
 import { trimmed, field, registerGuards } from '../bus/guards.ts';
@@ -22,6 +23,7 @@ import { handler, registerHandlers } from '../bus/handlers.ts';
 import type { CommandContext } from '../bus/types.ts';
 import type { Tx } from '../db/connection.ts';
 import { reviewObsolescence } from './proposals.ts';
+import { appendSize } from './sizes.ts';
 import { DISCARD_TRIGGER, onAuthorityEvent } from './reactions.ts';
 
 const text = (max: number) => z.string().trim().min(1).max(max);
@@ -95,6 +97,9 @@ export const newRecordSchema = z
     domain: z.string().regex(/^[a-z][a-z_]*$/, 'The domain can only contain lowercase letters and underscores.'),
     // The aspect of the product it is about; by default, the one its type fixes (domain/aspects.ts).
     aspect: aspectSchema.optional(),
+    // A task's effort size (FDR-DEL-006): required for a new task; null only for one brought in from
+    // design/ without it (legacy, "No size"). Kept outside the versioned content.
+    size: taskSizeSchema.nullable().optional(),
     ...versionContentSchema,
   })
   .strict();
@@ -481,6 +486,9 @@ registerHandlers({
             `The project already has its product definition, ${existing.code}: change it with a new version.`,
           );
       }
+      if (data.type === 'task' && data.size === undefined)
+        throw new DomainError('validation', 'A new task needs its effort size: XS, S, M, L or XL.');
+      if (data.type !== 'task' && data.size) throw new DomainError('validation', 'Only a task has an effort size.');
       const code = data.code ?? (await nextCode(ctx.trx, ctx.projectId, data.type, data.domain));
       if (!code.startsWith(`${RECORD_PREFIX[data.type]}-`)) {
         throw new DomainError('validation', `Code ${code} does not match a record of type "${data.type}".`);
@@ -497,7 +505,8 @@ registerHandlers({
         })
         .returning('id')
         .executeTakeFirstOrThrow();
-      const { type: _t, code: _c, domain: _d, aspect: _a, ...content } = data;
+      if (data.type === 'task' && data.size) await appendSize(ctx, id, data.size, null);
+      const { type: _t, code: _c, domain: _d, aspect: _a, size: _s, ...content } = data;
       const v = await ctx.execute({
         command: 'record_version.create',
         actor: ctx.actor,
@@ -505,7 +514,7 @@ registerHandlers({
       });
       return {
         entityId: id,
-        after: { code, type: data.type, domain: data.domain },
+        after: { code, type: data.type, domain: data.domain, ...(data.type === 'task' ? { size: data.size ?? null } : {}) },
         result: {
           recordId: id,
           code,

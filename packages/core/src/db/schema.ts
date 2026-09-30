@@ -367,6 +367,40 @@ export type EvidenceTable = {
   created_at: Generated<Timestamp>;
 };
 
+/** A task's size: append-only, its latest row is the size (FDR-DEL-006). */
+export type TaskSizesTable = {
+  id: Generated<string>;
+  project_id: string;
+  record_id: string;
+  size: string;
+  previous: string | null;
+  set_by: string;
+  created_at: Generated<Timestamp>;
+};
+
+/** Jev's second opinion on a task's size: derived, the latest row is the active one. */
+export type TaskSizeOpinionsTable = {
+  id: Generated<string>;
+  project_id: string;
+  record_id: string;
+  record_version_id: string;
+  size: string;
+  confidence: number;
+  classifier_id: string;
+  created_at: Generated<Timestamp>;
+};
+
+/** "Keep <size>": a dispute dismissed against one opinion. */
+export type TaskSizeDismissalsTable = {
+  id: Generated<string>;
+  project_id: string;
+  record_id: string;
+  opinion_id: string;
+  size: string;
+  dismissed_by: string;
+  created_at: Generated<Timestamp>;
+};
+
 /** A feature of an epic's list: its reserved code, name and sentence, and the record once designed. */
 export type PlannedFeaturesTable = {
   id: Generated<string>;
@@ -640,6 +674,9 @@ export type DB = {
   glossary_terms: GlossaryTermsTable;
   evidence: EvidenceTable;
   planned_features: PlannedFeaturesTable;
+  task_sizes: TaskSizesTable;
+  task_size_opinions: TaskSizeOpinionsTable;
+  task_size_dismissals: TaskSizeDismissalsTable;
   project_repos: ProjectReposTable;
   project_commits: ProjectCommitsTable;
 };

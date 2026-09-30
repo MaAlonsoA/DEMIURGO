@@ -530,6 +530,34 @@ export const NEEDS_YOU = messages(
   },
 );
 
+export const KEEP_ALL = messages(
+  {
+    section: 'Reviews from knowledge',
+    count: (n: number) => `${n} ${n === 1 ? 'review' : 'reviews'} from knowledge`,
+    hint: 'Most are answered "Keep it as it is". Open one to see what it is about.',
+    action: 'Keep all as they are',
+    keeping: 'Keeping…',
+    progress: (at: number, total: number) => `Keeping ${at} of ${total}…`,
+    dialogTitle: (n: number) => `Keep all ${n} records as they are?`,
+    dialogBody: "Each record stays as it is; the reviews are closed with the reason 'Kept in bulk from Needs you.'.",
+    kept: (n: number) => `Kept ${n} ${n === 1 ? 'record' : 'records'} as they are.`,
+    stopped: (done: number, total: number) => `Stopped after ${done} of ${total}. The rest still wait.`,
+  },
+  {
+    section: 'Revisiones del conocimiento',
+    count: (n: number) => `${n} ${n === 1 ? 'revisión' : 'revisiones'} del conocimiento`,
+    hint: 'Casi todas se responden con «Dejarlo como está». Abre una para ver de qué trata.',
+    action: 'Dejar todas como están',
+    keeping: 'Manteniendo…',
+    progress: (at: number, total: number) => `Manteniendo ${at} de ${total}…`,
+    dialogTitle: (n: number) => `¿Dejar los ${n} registros como están?`,
+    dialogBody:
+      "Cada registro se queda como está; las revisiones se cierran con el motivo 'Kept in bulk from Needs you.' (se guarda en inglés).",
+    kept: (n: number) => `${n} ${n === 1 ? 'registro se queda' : 'registros se quedan'} como ${n === 1 ? 'está' : 'están'}.`,
+    stopped: (done: number, total: number) => `Parado tras ${done} de ${total}. El resto sigue esperando.`,
+  },
+);
+
 export const UP_TO_DATE = messages(
   {
     upToDate: "You're up to date",

@@ -22,7 +22,6 @@ import { useMessages } from '../../i18n/define.ts';
 import { useProjectId } from '../../lib/hooks.ts';
 import { EditGuard, useEditGuard } from '../batch/guard.tsx';
 import { CatchUp, DETAIL_TITLE } from './CatchUp.tsx';
-import { KeepAllReviews, reviewIdsOf } from './KeepAllReviews.tsx';
 import { NeedDetail, saidWithCount } from './Detail.tsx';
 import type { NeedContext } from './frame.tsx';
 import { groupsOf, minutesOf, type NeedItem, needsOf } from './order.ts';
@@ -271,7 +270,6 @@ function NeedsList({
       />
       <PageBody className="flex flex-col gap-4">
         {partial}
-        <KeepAllReviews projectId={ctx.projectId} ids={reviewIdsOf(items)} />
         <div className="flex flex-col gap-8 xl:flex-row xl:items-start">
           {showQueue ? (
             <Queue

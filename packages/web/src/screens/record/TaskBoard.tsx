@@ -13,7 +13,9 @@ import { useTables } from '../../lib/hooks.ts';
 import type { LineState } from '../epics/logic.ts';
 import { CopyBriefButton } from './CopyBrief.tsx';
 import { LineMark } from './EpicBoard.tsx';
-import { TASK_BOARD } from './words.i18n.ts';
+import { effortTotals } from '../../sizes.ts';
+import { SizeText } from './TaskSize.tsx';
+import { TASK_BOARD, TASK_SIZE } from './words.i18n.ts';
 
 const stateOf = (r: ProductRow): LineState =>
   r.implementation === 'implemented' ? 'built' : r.readiness?.ready ? 'ready' : r.current ? 'approved' : 'designing';
@@ -28,6 +30,7 @@ export function TaskBoard({
   state: ProductState | undefined;
 }) {
   const t = useMessages(TASK_BOARD);
+  const ts = useMessages(TASK_SIZE);
   const id = useId();
   const tables = useTables();
   if (!state) return null;
@@ -35,6 +38,8 @@ export function TaskBoard({
   const approved = record.current !== null;
   const writable = !!tables && canCreate(tables, 'record.create');
   const built = tasks.filter((r) => r.implementation === 'implemented').length;
+  // Effort (FDR-DEL-006): per size, about how many points, and how many are not built yet.
+  const effort = effortTotals(tasks.map((r) => ({ size: r.effort?.size ?? null, built: r.implementation === 'implemented' })));
 
   return (
     <section aria-labelledby={id} data-task-board className="flex flex-col gap-3 rounded-lg border border-edge bg-panel px-4 py-4">
@@ -45,6 +50,25 @@ export function TaskBoard({
         {tasks.length > 0 ? <span className="text-sm tabular-nums text-fg-2">{t.count(built, tasks.length)}</span> : null}
       </div>
       <p className="max-w-prose text-sm text-fg-2">{t.note}</p>
+      {effort.total > 0 || effort.unsized > 0 ? (
+        <p className="flex flex-wrap gap-x-2 text-sm tabular-nums text-fg-2" data-effort>
+          {effort.summary ? <span data-effort-counts>{effort.summary}</span> : null}
+          {effort.total > 0 ? (
+            <>
+              <span aria-hidden>·</span>
+              <span data-effort-total>{ts.total(effort.total)}</span>
+              <span aria-hidden>·</span>
+              <span data-effort-remaining>{ts.remaining(effort.remaining)}</span>
+            </>
+          ) : null}
+          {effort.unsized > 0 ? (
+            <>
+              {effort.summary ? <span aria-hidden>·</span> : null}
+              <span className="text-fg-3">{ts.unsized(effort.unsized)}</span>
+            </>
+          ) : null}
+        </p>
+      ) : null}
       {tasks.length === 0 ? (
         <p className="text-sm text-fg-2">{t.none}</p>
       ) : (
@@ -62,6 +86,7 @@ export function TaskBoard({
                     {r.title}
                     <span className="ml-2 font-mono text-xs text-fg-3">{r.code}</span>
                   </Link>
+                  <SizeText effort={r.effort} />
                   <span className="text-sm tabular-nums text-fg-3">{t.checks(r.checks)}</span>
                   <span className="ml-auto flex items-center gap-3">
                     {s === 'ready' ? <CopyBriefButton projectId={projectId} code={r.code} size="sm" /> : null}

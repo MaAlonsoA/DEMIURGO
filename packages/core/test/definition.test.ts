@@ -534,7 +534,7 @@ describe('an answer written in another language', () => {
     expect((await confirmEvent(purpose)).after).toEqual({ conclusion: 'Members and guests sign up for club trips.' });
   });
 
-  it('a question outside the definition keeps the words as written', async () => {
+  it('a question outside the definition is put into English too, keeping the own words', async () => {
     const elsewhere = (await cmd('exploration.open', { purpose: 'Otra cosa' })).entityId;
     const raised = await executeCommand(environment().services, {
       command: 'question.raise',
@@ -543,7 +543,9 @@ describe('an answer written in another language', () => {
       data: { exploration_id: elsewhere, question: 'Which colour?', reason: 'Branding.', impact: 'low' },
     });
     await cmd('question.confirm', { conclusion: 'El azul de siempre, como en la web del club.' }, raised.entityId);
-    expect((await confirmEvent(raised.entityId)).after).toEqual({ conclusion: 'El azul de siempre, como en la web del club.' });
+    const after = (await confirmEvent(raised.entityId)).after as { conclusion: string; own_words?: string };
+    expect(after.own_words).toBe('El azul de siempre, como en la web del club.');
+    expect(after.conclusion).not.toBe(after.own_words);
   });
 
   it('without a model to translate it, nothing is saved and the person is told why', async () => {

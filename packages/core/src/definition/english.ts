@@ -25,15 +25,19 @@ export async function answerInEnglish(services: Services, request: Request): Pro
   const value = data[field];
   const text = typeof value === 'string' ? value.trim() : '';
   if (request.actor.type !== 'human' || !request.projectId || !request.entityId || !text || looksEnglish(text)) return clean;
+  // Every answer ends up in a record (the definition, an NFR, an ADR, a feature), and records are kept
+  // in English, so every question's answer is put into English, not only the definition's.
   const question = await services.db
     .selectFrom('questions')
-    .innerJoin('stages', 'stages.id', 'questions.stage_id')
-    .select('questions.id')
+    .leftJoin('stages', 'stages.id', 'questions.stage_id')
+    .select(['questions.id', 'stages.stage'])
     .where('questions.id', '=', request.entityId)
     .where('questions.project_id', '=', request.projectId)
-    .where('stages.stage', '=', DEFINITION_STAGE)
     .executeTakeFirst();
   if (!question) return clean;
+  // The definition is composed word for word from its answers, so there a failed translation stops the
+  // command; elsewhere translating never blocks saving (VISION.md): the answer is kept as written.
+  const strict = question.stage === DEFINITION_STAGE;
   let english: string | undefined;
   try {
     const t = await translateFields(services, {
@@ -45,14 +49,17 @@ export async function answerInEnglish(services: Services, request: Request): Pro
     });
     english = t.fields[field]?.trim();
   } catch (e) {
+    if (!strict) return clean;
     const reason = e instanceof Error ? e.message : String(e);
     throw new DomainError(
       e instanceof DomainError ? e.type : 'conflict',
       `The product definition is kept in English, and DEMIURGO couldn't put your answer into English: ${reason}`,
     );
   }
-  if (!english)
+  if (!english) {
+    if (!strict) return clean;
     throw new DomainError('conflict', 'The product definition is kept in English, and the translation came back empty.');
+  }
   return { ...request, data: { ...data, [field]: english, own_words: text } };
 }
 

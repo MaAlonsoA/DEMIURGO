@@ -173,7 +173,7 @@ function Overview({ projectId }: { projectId: string }) {
         error={runsQ.error}
         onRetry={() => void runsQ.refetch()}
       />
-      <ReadyToBuild projectId={projectId} rows={(s?.designs ?? []).filter((r) => s?.ready_to_build.includes(r.code))} />
+      <ReadyToBuild projectId={projectId} rows={(s?.designs ?? []).filter((r) => (r.type === 'fdr' || r.type === 'task') && s?.ready_to_build.includes(r.code))} />
       <RecentlyDecided projectId={projectId} rows={recentlyDecided(rows)} />
       <TaxonomyHint projectId={projectId} />
       <AskBox projectId={projectId} subject={{ kind: 'product', name }} className="border-t border-edge pt-5" />
@@ -216,7 +216,7 @@ function Overview({ projectId }: { projectId: string }) {
               ) : rows.some((r) => r.type === 'fdr' || r.type === 'epic') ? (
                 <NextStepCard projectId={projectId} state={s} rows={rows} stages={stages ?? []} />
               ) : null}
-              <DesignStages projectId={projectId} />
+              <DesignStages projectId={projectId} collapsible={s.inception?.current != null} />
               {blank ? (
                 <EmptyState
                   title={t.nothingHereYet}

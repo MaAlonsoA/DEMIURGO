@@ -298,7 +298,13 @@ function Decided({
   const rows = useQuery(stateQuery(projectId)).data;
   const all = rows ? [...rows.decisions, ...rows.designs] : [];
   const w = stateWord('batch', batch.state);
-  const effects = proposals.map(acceptedRecord).filter((e) => e !== null);
+  const effects = proposals
+    .map(acceptedRecord)
+    .filter((e) => e !== null)
+    .map((e) => {
+      const row = all.find((r) => r.code === e.code);
+      return row && row.current !== null && row.current >= e.version ? { ...e, approved: true } : e;
+    });
   const reason = proposals.map((p) => p.resolution?.reason).find((r): r is string => typeof r === 'string' && r !== '');
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-2 rounded-lg border border-edge px-4 py-3" data-decided>

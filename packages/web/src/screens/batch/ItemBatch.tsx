@@ -14,7 +14,7 @@ import { Button, buttonClass } from '../../components/Button.tsx';
 import { ChevronLeftIcon, ChevronRightIcon } from '../../components/icons.tsx';
 import { Meter } from '../../components/Meter.tsx';
 import { PageBody, PageHeader } from '../../components/Page.tsx';
-import { EntityState, StatusBadge } from '../../components/status.tsx';
+import { StatusBadge } from '../../components/status.tsx';
 import { DayTime } from '../../components/Time.tsx';
 import { cn } from '../../lib/cn.ts';
 import { useLocale } from '../../i18n/locale.ts';
@@ -25,7 +25,7 @@ import { EditGuard, useEditGuard } from './guard.tsx';
 import { proposalTitle } from './model.ts';
 import { ProposalKind } from '../../components/AspectTag.tsx';
 import { batchHeading, type ProposalView as ProposalData } from './proposal.ts';
-import { ProposalView } from './ProposalView.tsx';
+import { ProposalStateBadge, ProposalView } from './ProposalView.tsx';
 import { ITEM_BATCH } from './words.i18n.ts';
 
 /** The batch's proposals with what the inbox adds to the pending ones: the idea check and the warnings. */
@@ -163,7 +163,7 @@ function ItemBatchPage({ projectId, batch }: { projectId: string; batch: BatchDe
                           {p.state === 'superseded' ? (
                             <StatusBadge kind="stale" word="Out of date" />
                           ) : (
-                            <EntityState entity="proposal" state={p.state} />
+                            <ProposalStateBadge projectId={projectId} proposal={p} />
                           )}
                         </span>
                       </span>

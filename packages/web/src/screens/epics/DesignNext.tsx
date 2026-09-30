@@ -10,7 +10,7 @@ import { keys, stateQuery } from '../../api/queries.ts';
 import { announce } from '../../components/announce.tsx';
 import { Button } from '../../components/Button.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
-import { messages, useMessages } from '../../i18n/define.ts';
+import { messages, useContentMessages, useMessages } from '../../i18n/define.ts';
 import { type EpicLine, epicThread, featurePurpose } from './logic.ts';
 
 const WORDS = messages(
@@ -18,11 +18,13 @@ const WORDS = messages(
     design: 'Design the next one',
     designNamed: (name: string) => `Design "${name}"`,
     started: (name: string) => `Designing "${name}": DEMIURGO is answering in its thread.`,
+    request: (name: string, phrase: string) => `Let's design "${name}"${phrase ? `: ${phrase}` : ''}`,
   },
   {
     design: 'Diseñar la siguiente',
     designNamed: (name: string) => `Diseñar «${name}»`,
     started: (name: string) => `Diseñando «${name}»: DEMIURGO responde en su hilo.`,
+    request: (name: string, phrase: string) => `Diseñemos «${name}»${phrase ? `: ${phrase}` : ''}`,
   },
 );
 
@@ -34,6 +36,7 @@ export function useDesignNext(projectId: string) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const t = useMessages(WORDS);
+  const reading = useContentMessages(WORDS);
   const start = async (epic: EpicRef, line: EpicLine) => {
     setPending(true);
     setError(null);
@@ -52,7 +55,7 @@ export function useDesignNext(projectId: string) {
           data: { purpose: featurePurpose(line, epic.code), parent_id: parent, origin },
         })
       ).entity_id;
-      const text = `Let's design "${line.name}"${line.phrase ? `: ${line.phrase}` : ''}`;
+      const text = reading.request(line.name, line.phrase ?? '');
       await runCommand(projectId, { command: 'message.post', data: { exploration_id: thread, text, respond: true } });
       announce(t.started(line.name));
       void client.invalidateQueries({ queryKey: keys.project(projectId) });

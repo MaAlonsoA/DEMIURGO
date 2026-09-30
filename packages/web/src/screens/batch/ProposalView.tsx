@@ -11,7 +11,7 @@ import { useLocale } from '../../i18n/locale.ts';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { type ReactNode, useState } from 'react';
-import { definitionQuery, recordQuery } from '../../api/queries.ts';
+import { definitionQuery, recordQuery, stateQuery } from '../../api/queries.ts';
 import type { ProductRow, TaskSize } from '../../api/types.ts';
 import { SIZE_POINTS } from '../../sizes.ts';
 import { ArrowRightIcon } from '../../components/icons.tsx';
@@ -471,7 +471,7 @@ export function ProposalView({
             <ProposalKind proposal={tagged} />
           </span>
           {retaggable ? <AspectPicker value={aspect} onChange={setPicked} /> : null}
-          {outOfDate ? <StatusBadge kind="stale" word="Out of date" /> : <EntityState entity="proposal" state={p.state} />}
+          {outOfDate ? <StatusBadge kind="stale" word="Out of date" /> : <ProposalStateBadge projectId={projectId} proposal={p} />}
         </div>
         {retaggable && !picked ? <AspectDoubt current={own} check={p.aspect_check} onChoose={setPicked} /> : null}
         <h2 id={titleId} tabIndex={-1} className="text-xl font-semibold text-fg outline-none">
@@ -530,11 +530,33 @@ export function ProposalView({
   );
 }
 
+/**
+ * The record an accepted proposal made, with whether its version is approved now: the resolution
+ * says what the record was when accepted, the product state says what it is (approving all approves
+ * the versions right after accepting them).
+ */
+export function useAcceptedEffect(projectId: string, p: ProposalData) {
+  const rows = useQuery(stateQuery(projectId)).data;
+  const effect = acceptedRecord(p);
+  if (!effect || (p.state !== 'accepted' && p.state !== 'accepted_edited')) return effect;
+  if (effect.approved) return effect;
+  const row = rows ? [...rows.decisions, ...rows.designs].find((r) => r.code === effect.code) : undefined;
+  return row && row.current !== null && row.current >= effect.version ? { ...effect, approved: true } : effect;
+}
+
+/** The state of a proposal as a badge: "Approved" when it was accepted and its record is approved. */
+export function ProposalStateBadge({ projectId, proposal: p }: { projectId: string; proposal: ProposalData }) {
+  const effect = useAcceptedEffect(projectId, p);
+  const t = useMessages(PROPOSAL_VIEW);
+  if (effect?.approved && p.state === 'accepted') return <StatusBadge kind="confirmed" word={t.approvedWord} />;
+  return <EntityState entity="proposal" state={p.state} />;
+}
+
 /** A decided proposal: what happened, the reason, and the record it made (INV-PROP-20). */
 function Resolved({ projectId, proposal: p, footer }: { projectId: string; proposal: ProposalData; footer?: ReactNode }) {
   const t = useMessages(PROPOSAL_VIEW);
   const locale = useLocale();
-  const effect = acceptedRecord(p);
+  const effect = useAcceptedEffect(projectId, p);
   const reason = typeof p.resolution?.reason === 'string' ? p.resolution.reason : '';
   return (
     <div data-resolved className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-edge pt-4">

@@ -200,7 +200,10 @@ export function resolvedText(state: string, effect: { code: string; approved: bo
         ? ` ${effect.code} es una propuesta aceptada: sigues trabajando en ella.`
         : ` ${effect.code} is an accepted proposal: you keep working on it.`
     : '';
-  if (state === 'accepted') return `${es ? 'La aceptaste.' : 'You accepted it.'}${made}`;
+  if (state === 'accepted') {
+    if (effect?.approved) return `${es ? 'La aprobaste.' : 'You approved it.'}${made}`;
+    return `${es ? 'La aceptaste.' : 'You accepted it.'}${made}`;
+  }
   if (state === 'accepted_edited') return `${es ? 'Aceptaste tu versión.' : 'You accepted your version.'}${made}`;
   if (state === 'rejected') return es ? 'La rechazaste.' : 'You rejected it.';
   return '';

@@ -2,12 +2,14 @@
 // covered, and passing it is the person's call. Passing is decisive, so it asks first and says what
 // comes next (INVENTORY §2 #24, R22).
 
-import { useNavigate } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
+import { stateQuery } from '../../api/queries.ts';
 import type { StageRow } from '../../api/types.ts';
 import { announce } from '../../components/announce.tsx';
-import { Button } from '../../components/Button.tsx';
+import { Button, buttonClass } from '../../components/Button.tsx';
 import { Card } from '../../components/Card.tsx';
 import { ConfirmDialog } from '../../components/Dialog.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
@@ -65,6 +67,9 @@ export function StageComplete({ projectId, stage, next }: { projectId: string; s
   );
 }
 
+/** The path steps that come before the backlog, in order (domain inception keys). */
+const BEFORE_BACKLOG: readonly string[] = ['definition', 'quality', 'principles', 'design_system'];
+
 /**
  * After the onboarding, while no feature thread hangs from the main thread: the next step is designing
  * the first feature. The button asks DEMIURGO where to start, in the main thread (resumed first if it
@@ -83,6 +88,7 @@ export function FirstFeature({
   goToThread?: boolean;
 }) {
   const t = useMessages(FIRST_FEATURE);
+  const current = useQuery(stateQuery(projectId)).data?.inception?.current ?? null;
   const request = useContentMessages(FIRST_FEATURE).request;
   const post = useCommand(projectId);
   const navigate = useNavigate();
@@ -100,6 +106,24 @@ export function FirstFeature({
       setPending(false);
     }
   };
+  // The path decides what comes next: before the backlog the next step is not the first feature.
+  if (current !== null && BEFORE_BACKLOG.includes(current)) {
+    if (current !== 'design_system') return null;
+    return (
+      <Card tone="accent" data-first-feature="design-system" className="flex flex-col gap-3">
+        <p className="flex items-start gap-2 text-base text-fg">
+          <CheckCircleIcon size={16} className="mt-0.5 shrink-0 text-accent-text" />
+          <span>
+            <span className="font-semibold">{t.done}</span>
+            {t.nextDesignSystem}
+          </span>
+        </p>
+        <Link to="/p/$projectId/design-system" params={{ projectId }} className={buttonClass({ variant: 'primary' })}>
+          {t.goToDesignSystem}
+        </Link>
+      </Card>
+    );
+  }
   return (
     <Card tone="accent" data-first-feature className="flex flex-col gap-3">
       <p className="flex items-start gap-2 text-base text-fg">

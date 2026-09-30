@@ -28,6 +28,7 @@ import { EntityState, StateIcon, StatusBadge } from '../../components/status.tsx
 import { DayTime, useNow } from '../../components/Time.tsx';
 import { WhoAvatar } from '../../components/Who.tsx';
 import { useMessages } from '../../i18n/define.ts';
+import { useReadingLocale } from '../../i18n/locale.ts';
 import { useTables } from '../../lib/hooks.ts';
 import { between } from '../../lib/time.ts';
 import { ACTION_WORDS, failureWord } from '../../words.ts';
@@ -118,11 +119,13 @@ function DirectionsCard({ projectId, run }: { projectId: string; run: RunListIte
   const directions = ((detail.data?.output as { directions?: StoredDirection[] } | null)?.directions ?? []) as StoredDirection[];
   const [viewing, setViewing] = useState<string | null>(null);
   const viewed = directions.find((d) => d.name === viewing);
-  const prefix = 'I choose direction: ';
+  // The message is the person's words: it follows the content language; either form is recognised.
+  const prefix = useReadingLocale() === 'es' ? 'Elijo la dirección: ' : 'I choose direction: ';
+  const prefixes = ['I choose direction: ', 'Elijo la dirección: '];
   const chosen = thread.data?.messages
-    .filter((m) => m.body.startsWith(prefix) && Date.parse(m.created_at) >= Date.parse(run.created_at))
+    .filter((m) => prefixes.some((x) => m.body.startsWith(x)) && Date.parse(m.created_at) >= Date.parse(run.created_at))
     .at(-1)
-    ?.body.slice(prefix.length)
+    ?.body.replace(/^[^:]*: /, '')
     .trim();
   const choose = (name: string) =>
     command.mutate(

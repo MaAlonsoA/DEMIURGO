@@ -30,7 +30,7 @@ import { useTables } from '../../lib/hooks.ts';
 import { useMessages } from '../../i18n/define.ts';
 import { whoOf } from '../../words.ts';
 import { useReturnFocus } from '../record/returnFocus.ts';
-import { draftVersion } from './definition.ts';
+import { currentVersion, draftVersion } from './definition.ts';
 import { STAGES } from './words.i18n.ts';
 
 /** The moments the stages open in, in order (domain/stages.ts). */
@@ -42,6 +42,9 @@ const DEFINITION_STAGE = 'requirements';
 /** The product definition waiting for the person's approval: a draft version, or a drafted proposal. */
 function usePendingDefinition(projectId: string) {
   const d = useQuery(definitionQuery(projectId)).data;
+  // Once the definition has an approved version this line no longer speaks for the stage: a later
+  // change waiting for approval is the Product page's business, not "the definition is drafted".
+  if (currentVersion(d)) return null;
   const draft = draftVersion(d);
   if (d?.proposal) return { kind: 'proposed' as const, id: d.proposal.id };
   if (draft) return { kind: 'draft' as const, id: draft.id };
@@ -121,24 +124,23 @@ function StageBadge({ state }: { state: StageRow['state'] }) {
   );
 }
 
-/** The number of a step in its circle; a check once passed. */
+/** A check once the stage has passed; stages go by name, not number (the path above numbers the steps). */
 function StepMark({ stage }: { stage: StageRow }) {
+  if (stage.state !== 'passed') return null;
   return (
     <span
       aria-hidden
       className={cn(
         'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold tabular-nums',
-        stage.state === 'passed' && 'border-success-edge bg-success-soft text-success-text',
-        stage.state === 'open' && 'border-2 border-info bg-panel text-info-text',
-        stage.state === 'not_started' && 'border-edge-strong bg-panel text-fg-2',
+        'border-success-edge bg-success-soft text-success-text',
       )}
     >
-      {stage.state === 'passed' ? <CheckIcon size={13} /> : stage.position + 1}
+      <CheckIcon size={13} />
     </span>
   );
 }
 
-export function DesignStages({ projectId }: { projectId: string }) {
+export function DesignStages({ projectId, collapsible = false }: { projectId: string; collapsible?: boolean }) {
   const t = useMessages(STAGES);
   const stages = useQuery(stagesQuery(projectId));
   const tables = useTables();
@@ -151,6 +153,21 @@ export function DesignStages({ projectId }: { projectId: string }) {
   const [chosen, setChosen] = useState<string | null>(null);
   const selected = list.find((s) => s.key === chosen) ?? current ?? list.find((s) => s.state === 'not_started') ?? list.at(-1);
   const pendingDefinition = usePendingDefinition(projectId);
+  const [shown, setShown] = useState(false);
+
+  // While the first-build path is in progress it is the one answer to "where am I": the stages
+  // shrink to a line, which opens on request.
+  if (collapsible && !shown && stages.data && list.length > 0) {
+    return (
+      <p data-design-stages-collapsed className="flex flex-wrap items-center gap-x-2 text-sm text-fg-2">
+        <span>{t.stagesSummary(list.filter((s) => s.state === 'passed').length, list.length)}</span>
+        <span aria-hidden>·</span>
+        <Button size="sm" variant="quiet" aria-expanded={false} aria-controls="design-stages" onClick={() => setShown(true)}>
+          {t.showStages}
+        </Button>
+      </p>
+    );
+  }
 
   return (
     <Section
@@ -287,7 +304,7 @@ function StageDetail({
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-edge bg-panel p-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h3 className="text-base font-semibold text-fg">{t.stageOf(s.position + 1, s.title)}</h3>
+        <h3 className="text-base font-semibold text-fg">{s.title}</h3>
         <StageBadge state={s.state} />
       </div>
       <p className="text-sm text-fg-2">{s.produces}</p>

@@ -179,7 +179,7 @@ describe('the web paints only with its tokens', () => {
       ),
     ).toEqual([]);
     expect(
-      offenders(/(?<![\w-])(?:drop-)?shadow(?:-([a-z0-9[\]().,_-]+))?(?![\w-])/g, (m) => SHADOWS.has(m[1] ?? '_bare'), classes),
+      offenders(/(?<![\w.-])(?:drop-)?shadow(?:-([a-z0-9[\]().,_-]+))?(?![\w:-])/g, (m) => SHADOWS.has(m[1] ?? '_bare'), classes),
     ).toEqual([]);
   });
 

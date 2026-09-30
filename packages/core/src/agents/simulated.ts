@@ -72,6 +72,73 @@ function firstSentence(text: string): string {
   );
 }
 
+
+/** A small design-system token set for the simulator: both themes, motion with its three curves and the reduced-motion rule. */
+function simulatedTokens(accent: string) {
+  const color = (light: string, dark: string) => ({ $value: { light, dark }, $type: 'color' });
+  const dim = (v: string) => ({ $value: v, $type: 'dimension' });
+  const duration = (v: string) => ({ $value: v, $type: 'duration' });
+  const curve = (v: [number, number, number, number]) => ({ $value: v, $type: 'cubicBezier' });
+  return {
+    color: {
+      'bg-page': color('#ffffff', '#121212'),
+      'surface-raised': color('#f4f4f4', '#1e1e1e'),
+      'text-primary': color('#161616', '#f4f4f4'),
+      'text-muted': color('#525252', '#c6c6c6'),
+      accent: color(accent, accent),
+    },
+    typography: {
+      family: { sans: { $value: ['system-ui', 'sans-serif'], $type: 'fontFamily' } },
+      size: { body: dim('1rem'), heading: dim('1.5rem') },
+      lineHeight: { body: { $value: 1.5, $type: 'number' } },
+    },
+    space: { sm: dim('0.5rem'), md: dim('1rem') },
+    radius: { control: dim('4px') },
+    shadow: { raised: { $value: '0 1px 2px rgba(0,0,0,0.2)', $type: 'shadow' } },
+    motion: {
+      duration: { fast: duration('110ms'), moderate: duration('240ms') },
+      easing: { standard: curve([0.2, 0, 0.38, 0.9]), entrance: curve([0, 0, 0.38, 0.9]), exit: curve([0.2, 0, 1, 0.9]) },
+      scheme: 'productive' as const,
+      reduced: 'Animations are replaced by an instant change under prefers-reduced-motion: reduce.',
+    },
+  };
+}
+
+const SIM_STATES = ['default', 'hover', 'focus', 'pressed', 'disabled'];
+
+const SIM_COMPONENTS = [
+  'Button',
+  'IconButton',
+  'TextInput',
+  'Textarea',
+  'Select',
+  'Checkbox',
+  'RadioGroup',
+  'Switch',
+  'Tabs',
+  'Dialog',
+  'Tooltip',
+  'Toast',
+];
+
+function simulatedTile(name: string, accent: string): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
+body{font-family:system-ui,sans-serif;margin:16px;background:#fff;color:#161616}
+h1{font-size:1.5rem;margin:0 0 8px}.sw{display:inline-block;width:48px;height:48px;background:${accent};border-radius:4px}
+button,input{font:inherit;padding:8px 12px;border-radius:4px;border:1px solid #525252;margin:4px}
+.primary{background:${accent};color:#fff;border-color:${accent}}.hover{filter:brightness(1.1)}.focus{outline:2px solid ${accent};outline-offset:2px}.disabled{opacity:.5}
+.dot{width:12px;height:12px;background:${accent};border-radius:50%;animation:move 1.2s cubic-bezier(0.2,0,0.38,0.9) infinite alternate}
+@keyframes move{to{transform:translateX(48px)}}@media (prefers-reduced-motion:reduce){.dot{animation:none}}
+</style></head><body><h1>${name}</h1><p>The quick brown fox jumps over the lazy dog.</p><span class="sw"></span>
+<div><button class="primary">Default</button><button class="primary hover">Hover</button><button class="primary focus">Focus</button><button class="primary disabled" disabled>Disabled</button></div>
+<div><input placeholder="Default"><input class="focus" placeholder="Focus"><input class="disabled" placeholder="Disabled" disabled></div><div class="dot"></div></body></html>`;
+}
+
+function simulatedSpecimen(name: string): string {
+  const cells = SIM_STATES.map((st) => `<span class="c ${st}">${name} ${st}</span>`).join('');
+  return `<style>.c{display:inline-block;margin:4px;padding:6px 10px;border:1px solid #525252;border-radius:4px;font-family:system-ui}.hover{background:#f4f4f4}.focus{outline:2px solid #0f62fe}.pressed{background:#e0e0e0}.disabled{opacity:.5}</style>${cells}`;
+}
+
 export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
   echo(p) {
     const text = txt(obj(obj(p.context.content).input).text);
@@ -281,6 +348,71 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
         split: null,
         walking_skeleton: i === 0 && c.first_feature === true,
       })),
+      sources: [],
+    };
+  },
+
+  design_directions(p) {
+    const c = obj(p.context.content);
+    const base = obj(obj(c.design_system).base);
+    const from = txt(base.name) ? `${txt(base.name)} with` : 'A new system with';
+    const direction = (name: string, accent: string, why: string) => ({
+      name,
+      why,
+      tokens: (({ color, typography, motion }) => ({ color, typography, motion }))(simulatedTokens(accent)),
+      tile_html: simulatedTile(name, accent),
+    });
+    return {
+      reply: 'Here are two visual directions.',
+      directions: [
+        direction('Calm', '#0f62fe', `${from} a calm, quiet personality for people who work for hours.`),
+        direction('Bold', '#a2191f', `${from} a bolder personality that makes key moments stand out.`),
+      ],
+      sources: [],
+    };
+  },
+
+  design_system_plan(p) {
+    const c = obj(p.context.content);
+    const base = obj(obj(c.design_system).base);
+    const chosen = obj(c.chosen_direction);
+    const direction = txt(chosen.name, 'Calm');
+    const accentOf = (n: string) => (n === 'Bold' ? '#a2191f' : '#0f62fe');
+    const publicBase = base.kind === 'public';
+    return {
+      reply: 'Here is the design system.',
+      result: {
+        title: `Design system: ${direction}`,
+        sections: {
+          Principles: 'Quiet by default. Clear before clever. Every state is designed.',
+          'Visual direction': `The ${direction} direction: system type, one accent, generous contrast.`,
+          Tokens: 'Color (light and dark), type, space, radius, shadow and motion, as DTCG tokens.',
+          Components: `${SIM_COMPONENTS.length} components, each with all its states.`,
+          Patterns: 'A form is a group of inputs with a primary button.',
+          Motion: 'Productive motion: short, with the standard curve; reduced motion turns it off.',
+          Accessibility: 'WCAG 2.2 AA: text contrast 4.5:1 in both themes and a visible focus ring.',
+          Governance: 'A new component or token is a new version of the system that the person approves.',
+        },
+        spec: {
+          base: publicBase
+            ? { kind: 'public', name: txt(base.name), url: txt(base.url), license: txt(base.license) }
+            : { kind: 'scratch' },
+          principles: ['Quiet by default', 'Clear before clever', 'Every state is designed'],
+          tokens: simulatedTokens(accentOf(direction)),
+          components: SIM_COMPONENTS.map((name) => ({
+            name,
+            purpose: `The ${name} of the system.`,
+            interactive: true,
+            variants: ['primary', 'secondary'],
+            states: SIM_STATES,
+            accessibility: 'Reachable and operable by keyboard, with a visible focus ring.',
+            specimen_html: simulatedSpecimen(name),
+          })),
+          patterns: [{ name: 'Form', purpose: 'Collects information and confirms it.', uses: ['TextInput', 'Button'] }],
+          paths: { system: 'src/design-system/' },
+        },
+        change_note: null,
+      },
       sources: [],
     };
   },

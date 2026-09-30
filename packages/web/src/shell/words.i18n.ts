@@ -240,8 +240,22 @@ export const PERSON_MENU = messages(
 );
 
 export const PRODUCT_TABS = messages(
-  { productViews: 'Product views', overview: 'Overview', map: 'Map', journeys: 'Journeys', origins: 'Origins' },
-  { productViews: 'Vistas del producto', overview: 'Resumen', map: 'Mapa', journeys: 'Recorridos', origins: 'Orígenes' },
+  {
+    productViews: 'Product views',
+    overview: 'Overview',
+    map: 'Map',
+    journeys: 'Journeys',
+    origins: 'Origins',
+    designSystem: 'Design system',
+  },
+  {
+    productViews: 'Vistas del producto',
+    overview: 'Resumen',
+    map: 'Mapa',
+    journeys: 'Recorridos',
+    origins: 'Orígenes',
+    designSystem: 'Sistema de diseño',
+  },
 );
 
 export const PROJECT_SHELL = messages(

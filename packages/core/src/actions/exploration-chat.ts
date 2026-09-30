@@ -22,6 +22,7 @@ import { knowledgeForContext } from '../context/knowledge.ts';
 import { type FragmentSource, ManifestBuilder, recordKnowledge } from '../context/manifest.ts';
 import type { Db, Tx } from '../db/connection.ts';
 import { registerApplier, registerChecker } from './appliers.ts';
+import { designThreadOf } from './drafting.ts';
 import { taskCoversOf } from '../queries/sizes.ts';
 import { revealQuestions } from '../commands/exploration.ts';
 import { definitionChangeProposal } from '../definition/compose.ts';
@@ -306,6 +307,15 @@ export async function explorationPack({ trx, projectId, scope, input, graphVersi
       text: JSON.stringify(featureTasks),
       reason: 'the feature of the thread',
     });
+  // A design-system thread (its purpose starts with `Design system:`): the path it takes and its base.
+  const designSystem = await designThreadOf(trx, projectId, exploration.id);
+  if (designSystem)
+    manifest.entered({
+      section: 'design_system',
+      source: source('exploration', exploration.id),
+      text: JSON.stringify(designSystem),
+      reason: 'thread purpose',
+    });
   if (about && aboutRecord)
     manifest.entered({
       section: 'about_record',
@@ -549,6 +559,7 @@ export async function explorationPack({ trx, projectId, scope, input, graphVersi
         ...(nextStep ? { next_step: nextStep } : {}),
         ...(aboutRecord ? { about_record: aboutRecord } : {}),
         ...(plannedFeature ? { planned_feature: plannedFeature } : {}),
+        ...(designSystem ? { design_system: designSystem } : {}),
         ...(featureTasks ? { feature_tasks: featureTasks } : {}),
         ...(productDefinitionDraft ? { product_definition_draft: productDefinitionDraft } : {}),
         confirmed_decisions: decisionsSummary,

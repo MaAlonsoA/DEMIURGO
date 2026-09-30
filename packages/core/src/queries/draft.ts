@@ -3,15 +3,17 @@
 // thread's agent last said about being ready (`ready_to_draft` of its latest completed answer).
 
 import { sql } from 'kysely';
+import { designSystemPathOf } from '@demiurgo/domain';
+import { chosenDirection } from '../actions/design-directions.ts';
 import { epicProblem } from '../actions/epic-plan.ts';
 import { plannedFeatureByCode } from '../actions/exploration-chat.ts';
 import type { Db } from '../db/connection.ts';
 
 export type ThreadDraft = {
-  kind: 'epic' | 'feature' | 'tasks';
+  kind: 'epic' | 'feature' | 'tasks' | 'design_directions' | 'design_system';
   why: string | null;
   suggested: boolean;
-  action: 'epic_plan' | 'feature_design' | 'task_plan';
+  action: 'epic_plan' | 'feature_design' | 'task_plan' | 'design_directions' | 'design_system_plan';
   scope: { type: string; id: string };
 };
 
@@ -46,6 +48,13 @@ export async function threadDraft(
     const said = ready?.kind === kind;
     return { kind, why: said ? (ready?.why ?? null) : null, suggested: said, action, scope };
   };
+  // A design-system thread (its purpose starts with `Design system:`): visual directions once its agent
+  // says it has the principles, and the system itself after the person chose a direction.
+  if (designSystemPathOf(thread.purpose)) {
+    const scope = { type: 'exploration', id: thread.id };
+    if (await chosenDirection(db, projectId, thread.id)) return { kind: 'design_system', why: null, suggested: true, action: 'design_system_plan', scope };
+    return ready?.kind === 'design_directions' ? offer('design_directions', 'design_directions', scope) : null;
+  }
   // A feature thread: its planned feature is still to design.
   const code = /\bFDR-[A-Z]{3}-\d{3}\b/.exec(thread.purpose)?.[0];
   const planned = code ? await plannedFeatureByCode(db, projectId, code) : undefined;

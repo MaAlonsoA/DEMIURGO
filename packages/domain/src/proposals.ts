@@ -7,6 +7,7 @@ import { composeStatement, practiceSources, proposedCriterion } from './agents.t
 import { VERSION_LIMITS } from './records.ts';
 import { aspectSchema } from './aspects.ts';
 import { DEFINITION_SECTION_TITLES, QUOTE_MAX } from './definition.ts';
+import { designSystemProblems, designSystemSpec } from './design-system.ts';
 
 const text = (max: number) => z.string().trim().min(1).max(max);
 
@@ -206,6 +207,48 @@ export const productDefinitionPayload = z
   })
   .strict();
 
+/** The sections of a design system, in order (RECORD_TEMPLATES.design_system). */
+export const DESIGN_SYSTEM_SECTION_TITLES = [
+  'Principles',
+  'Visual direction',
+  'Tokens',
+  'Components',
+  'Patterns',
+  'Motion',
+  'Accessibility',
+  'Governance',
+] as const;
+
+/**
+ * The project's design system, proposed by the design system agent. Sections are English prose (Tokens
+ * and Components are human summaries); the machine part is `spec`, which must pass the deterministic
+ * checks (`designSystemProblems`). Accepting it creates the DSY record, or its next version.
+ */
+export const designSystemPayload = z
+  .object({
+    title: text(200),
+    sections: z
+      .object({
+        Principles: text(10_000),
+        'Visual direction': text(10_000),
+        Tokens: text(10_000),
+        Components: text(10_000),
+        Patterns: text(10_000),
+        Motion: text(10_000),
+        Accessibility: text(10_000),
+        Governance: text(10_000),
+      })
+      .strict(),
+    spec: designSystemSpec,
+    change_note: z.string().trim().max(2000).optional(),
+  })
+  .strict()
+  .superRefine((c, ctx) => {
+    for (const problem of designSystemProblems(c.spec)) {
+      ctx.addIssue({ code: 'custom', path: ['spec'], message: problem });
+    }
+  });
+
 /**
  * A change to one section of the approved product definition, proposed by an agent from what the
  * person decided in a thread, on their own words there (`evidence`, checked by the server). Accepting
@@ -343,6 +386,7 @@ export const PAYLOADS = {
   review: reviewPayload,
   record_translation: recordTranslationPayload,
   product_definition: productDefinitionPayload,
+  design_system: designSystemPayload,
   definition_change: definitionChangePayload,
   record_change: recordChangePayload,
   feature_plan: featurePlanPayload,

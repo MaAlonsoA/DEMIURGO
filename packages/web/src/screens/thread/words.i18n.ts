@@ -60,8 +60,10 @@ export const COMPOSER = messages(
     askedToGoOn: 'Asked DEMIURGO to go on.',
     sentAnswersHere: 'Sent. DEMIURGO answers here.',
     drafting: (code: string) => `DEMIURGO is drafting a feature from ${code}.`,
-    draftKind: (k: string) => `Draft the ${k}`,
-    draftingKind: (k: string) => `Drafting the ${k}…`,
+    draftKind: (k: string) =>
+      k === 'design_directions' ? 'Propose visual directions' : k === 'design_system' ? 'Draft the design system' : `Draft the ${k}`,
+    draftingKind: (k: string) =>
+      k === 'design_directions' ? 'Proposing visual directions…' : k === 'design_system' ? 'Drafting the design system…' : `Drafting the ${k}…`,
     draftStarted: 'Asked DEMIURGO to draft it. You review it before anything changes.',
     thinksEnough: (why: string) => `DEMIURGO thinks there's enough: ${why}`,
   },
@@ -93,8 +95,14 @@ export const COMPOSER = messages(
     askedToGoOn: 'Se ha pedido a DEMIURGO que siga.',
     sentAnswersHere: 'Enviado. DEMIURGO responde aquí.',
     drafting: (code: string) => `DEMIURGO está redactando una funcionalidad a partir de ${code}.`,
-    draftKind: (k: string) => `Redactar ${k === 'epic' ? 'la épica' : k === 'feature' ? 'la funcionalidad' : 'las tareas'}`,
-    draftingKind: (k: string) => `Redactando ${k === 'epic' ? 'la épica' : k === 'feature' ? 'la funcionalidad' : 'las tareas'}…`,
+    draftKind: (k: string) =>
+      k === 'design_directions'
+        ? 'Proponer direcciones visuales'
+        : `Redactar ${k === 'epic' ? 'la épica' : k === 'feature' ? 'la funcionalidad' : k === 'design_system' ? 'el sistema de diseño' : 'las tareas'}`,
+    draftingKind: (k: string) =>
+      k === 'design_directions'
+        ? 'Proponiendo direcciones visuales…'
+        : `Redactando ${k === 'epic' ? 'la épica' : k === 'feature' ? 'la funcionalidad' : k === 'design_system' ? 'el sistema de diseño' : 'las tareas'}…`,
     draftStarted: 'Le has pedido a DEMIURGO que lo redacte. Lo revisas tú antes de que cambie nada.',
     thinksEnough: (why: string) => `DEMIURGO cree que ya hay bastante: ${why}`,
   },
@@ -396,6 +404,14 @@ export const RUN_CARDS = messages(
     draftingEpic: 'Drafting the epic…',
     draftingFeature: 'Drafting the feature…',
     draftingTasks: 'Drafting the tasks…',
+    draftingDirections: 'Proposing visual directions…',
+    draftingDesignSystem: 'Drafting the design system…',
+    directionsTitle: 'Visual directions',
+    directionsNote: 'Nothing is decided until you choose one and approve the system.',
+    chooseThis: 'Choose this',
+    choosing: 'Choosing…',
+    chosen: (name: string) => `Direction chosen: ${name}`,
+    tileTitle: (name: string) => `Style tile of ${name}`,
     working: 'Working…',
     details: 'Details',
     detailsAria: (action: string) => `Details of the ${action} run`,
@@ -439,6 +455,14 @@ export const RUN_CARDS = messages(
     draftingEpic: 'Redactando la épica…',
     draftingFeature: 'Redactando la funcionalidad…',
     draftingTasks: 'Redactando las tareas…',
+    draftingDirections: 'Proponiendo direcciones visuales…',
+    draftingDesignSystem: 'Redactando el sistema de diseño…',
+    directionsTitle: 'Direcciones visuales',
+    directionsNote: 'No se decide nada hasta que elijas una y apruebes el sistema.',
+    chooseThis: 'Elegir esta',
+    choosing: 'Eligiendo…',
+    chosen: (name: string) => `Dirección elegida: ${name}`,
+    tileTitle: (name: string) => `Muestra de estilo de ${name}`,
     working: 'Trabajando…',
     details: 'Detalles',
     detailsAria: (action: string) => `Detalles de la ejecución de ${action}`,

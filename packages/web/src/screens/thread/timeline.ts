@@ -7,7 +7,7 @@
 import type { Message, ProductRow, Question, RunListItem } from '../../api/types.ts';
 import { whoOf } from '../../words.ts';
 
-export type RunDisplay = 'working' | 'failed' | 'retried' | 'cancelled' | 'draft';
+export type RunDisplay = 'working' | 'failed' | 'retried' | 'cancelled' | 'draft' | 'directions';
 
 export type TimelineItem =
   | { type: 'message'; key: string; at: number; message: Message; by: 'you' | 'agent' | 'automatic' }
@@ -19,15 +19,15 @@ const time = (iso: string | null | undefined): number => (iso ? Date.parse(iso) 
 
 /** What DEMIURGO can draft from a thread, as the API says it (one dedicated agent per kind). */
 export type ThreadDraft = {
-  kind: 'epic' | 'feature' | 'tasks';
+  kind: 'epic' | 'feature' | 'tasks' | 'design_directions' | 'design_system';
   why: string | null;
   suggested: boolean;
-  action: 'epic_plan' | 'feature_design' | 'task_plan';
+  action: 'epic_plan' | 'feature_design' | 'task_plan' | 'design_directions' | 'design_system_plan';
   scope: { type: string; id: string };
 };
 
 /** The runs whose batch is a draft of a record. */
-export const DRAFT_ACTIONS: readonly string[] = ['design_proposal', 'epic_plan', 'feature_design', 'task_plan'];
+export const DRAFT_ACTIONS: readonly string[] = ['design_proposal', 'epic_plan', 'feature_design', 'task_plan', 'design_system_plan'];
 
 export const isActive = (run: Pick<RunListItem, 'state'>): boolean => run.state === 'queued' || run.state === 'running';
 
@@ -38,6 +38,8 @@ export function runDisplay(run: RunListItem, runs: readonly RunListItem[]): RunD
   if (run.state === 'failed' || run.state === 'interrupted') return retried ? 'retried' : 'failed';
   if (run.state === 'cancelled') return 'cancelled';
   if (run.state === 'completed' && run.batch_id && DRAFT_ACTIONS.includes(run.action)) return 'draft';
+  // Visual directions propose nothing to accept: the run's card shows them, to choose one.
+  if (run.state === 'completed' && run.action === 'design_directions') return 'directions';
   return null;
 }
 

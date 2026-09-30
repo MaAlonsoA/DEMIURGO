@@ -76,6 +76,8 @@ const RECORD_WRITERS: ReadonlySet<AgentAction> = new Set([
   'epic_plan',
   'feature_design',
   'task_plan',
+  'design_directions',
+  'design_system_plan',
 ]);
 
 /** A fragment added after the builder's own: next in sequence and in position. */

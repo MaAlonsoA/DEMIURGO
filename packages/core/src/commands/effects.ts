@@ -3,6 +3,7 @@
 
 import {
   DEFINITION_SECTIONS,
+  DESIGN_SYSTEM_SECTION_TITLES,
   DomainError,
   PAYLOADS,
   type ProposalType,
@@ -307,6 +308,49 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
       type: 'record',
       code: res.code,
       recordId: v.recordId,
+      versionId: res.versionId,
+      version: res.version,
+      approved: approve,
+    };
+  },
+
+  // The project's design system: the first accepted proposal creates the DSY record (one per
+  // project), a later one adds its next version. `spec` is stored with the version.
+  async design_system(ctx, { proposalId, payload, approve }) {
+    const c = PAYLOADS.design_system.parse(payload);
+    const origin = { type: 'proposal', id: proposalId };
+    const sections = DESIGN_SYSTEM_SECTION_TITLES.map((title) => ({ title, content: c.sections[title] }));
+    const existing = await ctx.trx
+      .selectFrom('records')
+      .select('id')
+      .where('project_id', '=', ctx.projectId)
+      .where('type', '=', 'design_system')
+      .executeTakeFirst();
+    if (!existing) {
+      return createRecord(
+        ctx,
+        { type: 'design_system', domain: 'design', title: c.title, sections, spec: c.spec, origin },
+        approve,
+      );
+    }
+    const r = await ctx.execute({
+      command: 'record_version.create',
+      actor: ctx.actor,
+      data: {
+        record_id: existing.id,
+        title: c.title,
+        sections,
+        spec: c.spec,
+        change_note: c.change_note ?? 'The design system changed.',
+        origin,
+      },
+    });
+    const res = r.result as { versionId: string; version: number; code: string };
+    if (approve) await ctx.execute({ command: 'record_version.approve', actor: ctx.actor, entityId: res.versionId, data: {} });
+    return {
+      type: 'record',
+      code: res.code,
+      recordId: existing.id,
       versionId: res.versionId,
       version: res.version,
       approved: approve,

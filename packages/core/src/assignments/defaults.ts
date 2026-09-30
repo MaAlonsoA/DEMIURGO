@@ -22,6 +22,8 @@ export const DEFAULT_AGENT_ENGINES: Readonly<Record<string, Engine>> = {
   epic_planner: { provider: 'claude', model: 'opus', effort: 'high' },
   feature_designer: { provider: 'claude', model: 'opus', effort: 'high' },
   task_planner: { provider: 'claude', model: 'opus', effort: 'high' },
+  design_director: { provider: 'claude', model: 'opus', effort: 'high' },
+  design_system_designer: { provider: 'claude', model: 'opus', effort: 'high' },
   // The reviewer runs on another engine than the builder, so the review is independent.
   pr_reviewer: { provider: 'codex', model: 'gpt-6.1-sol', effort: 'high' },
   // The builder writes code in an isolated container with the person's subscription.

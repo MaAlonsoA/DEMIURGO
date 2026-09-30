@@ -3,7 +3,7 @@
 // dedicated agent plus a programmatic check after the model call is the pattern of Anthropic's
 // "Building effective agents" (routing, and gates between steps).
 
-import { type ActionOutput, type Fragment, composeStatement, sha256Hex } from '@demiurgo/domain';
+import { type ActionOutput, type Fragment, PUBLIC_DESIGN_SYSTEMS, composeStatement, designSystemPathOf, sha256Hex } from '@demiurgo/domain';
 import type { Built } from '../context/build.ts';
 import type { Db, Tx } from '../db/connection.ts';
 import type { Row } from '../db/schema.ts';
@@ -93,5 +93,23 @@ export function withSection(
   return {
     pack: { ...built.pack, content: { ...(built.pack.content as Record<string, unknown>), [section]: value } },
     manifest: { ...built.manifest, fragments: [...fragments, fragment] },
+  };
+}
+
+/** What a design-system thread is about: the path it takes and its base (a public system, or none). */
+export async function designThreadOf(db: Db | Tx, projectId: string, explorationId: string) {
+  const thread = await db
+    .selectFrom('explorations')
+    .select('purpose')
+    .where('id', '=', explorationId)
+    .where('project_id', '=', projectId)
+    .executeTakeFirst();
+  const path = thread ? designSystemPathOf(thread.purpose) : null;
+  if (!path) return null;
+  if (path.kind === 'scratch') return { path: 'scratch' as const, base: { kind: 'scratch' as const } };
+  const known = PUBLIC_DESIGN_SYSTEMS.find((s) => s.name.toLowerCase() === path.name.toLowerCase());
+  return {
+    path: 'public' as const,
+    base: { kind: 'public' as const, name: known?.name ?? path.name, ...(known ? { url: known.url, license: known.license } : {}) },
   };
 }

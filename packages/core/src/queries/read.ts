@@ -5,6 +5,8 @@ import { sql } from 'kysely';
 import { taskCoversOf, taskSizeView } from './sizes.ts';
 import {
   AGENT_PROPOSAL_TYPES,
+  type DesignSystemSpec,
+  designSystemWarnings,
   type Dependency,
   type ReadinessInput,
   DomainError,
@@ -658,6 +660,9 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
       origin_exploration: origin,
       inferred_questions: inferred,
       practice_sources: (v.practice_sources ?? []) as unknown[],
+      // A design system's machine-readable part and its advisory warnings (null / empty for other records).
+      spec: v.spec ?? null,
+      warnings: v.spec ? designSystemWarnings(v.spec as DesignSystemSpec) : [],
       criteria: await Promise.all(
         criteria.map(async (c) => {
           const evidence = await evidenceOf(db, c.id);
@@ -1074,6 +1079,8 @@ export async function productState(db: Db, projectId: string) {
     project: { id: project.id, name: project.name, state: project.state },
     planned,
     decisions: rows.filter((f) => f.type === 'decision'),
+    // The project's design system (DSY), if it has one: the same row as in `designs`.
+    design_system: rows.find((f) => f.type === 'design_system') ?? null,
     // The product definition is not a design to build: it has its own place (productDefinition).
     designs: rows.filter((f) => !WITHOUT_READINESS.has(f.type)),
     ready_to_build: rows.filter((f) => f.readiness?.ready).map((f) => f.code),

@@ -11,12 +11,13 @@ import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
 import { progressText, useRunProgress } from '../../api/progress.ts';
-import { batchQuery } from '../../api/queries.ts';
+import { batchQuery, explorationQuery, runQuery } from '../../api/queries.ts';
 import { canCreate } from '../../api/tables.ts';
 import type { Run, RunListItem } from '../../api/types.ts';
 import { useAllows } from '../../components/actions.tsx';
 import { announce } from '../../components/announce.tsx';
 import { Button } from '../../components/Button.tsx';
+import { SandboxedPreview } from '../../components/SandboxedPreview.tsx';
 import { Card } from '../../components/Card.tsx';
 import { ConfirmDialog } from '../../components/Dialog.tsx';
 import { ArrowRightIcon, PackageIcon, RetryIcon, StopIcon } from '../../components/icons.tsx';
@@ -51,7 +52,11 @@ const doingWord = (action: string, t: typeof RUN_CARDS.en): string =>
           ? t.draftingFeature
           : action === 'task_plan'
             ? t.draftingTasks
-            : t.working;
+            : action === 'design_directions'
+              ? t.draftingDirections
+              : action === 'design_system_plan'
+                ? t.draftingDesignSystem
+                : t.working;
 
 /** The time a run has taken so far, never empty while it is active. */
 function elapsed(run: Pick<Run, 'state' | 'created_at' | 'started_at' | 'finished_at'>, now: number): string {
@@ -95,7 +100,71 @@ export function RunCard({ projectId, run, display }: { projectId: string; run: R
       return <QuietLine projectId={projectId} run={run} display={display} />;
     case 'draft':
       return <DraftReady projectId={projectId} run={run} />;
+    case 'directions':
+      return <DirectionsCard projectId={projectId} run={run} />;
   }
+}
+
+type StoredDirection = { name: string; why: string; tile_html: string };
+
+/** The visual directions a run proposed, each as a style tile in an isolated frame, with the button that chooses it. */
+function DirectionsCard({ projectId, run }: { projectId: string; run: RunListItem }) {
+  const t = useMessages(RUN_CARDS);
+  const command = useCommand(projectId);
+  const detail = useQuery(runQuery(projectId, run.id));
+  const thread = useQuery({ ...explorationQuery(projectId, run.exploration_id ?? ''), enabled: !!run.exploration_id });
+  const directions = ((detail.data?.output as { directions?: StoredDirection[] } | null)?.directions ?? []) as StoredDirection[];
+  const prefix = 'I choose direction: ';
+  const chosen = thread.data?.messages
+    .filter((m) => m.body.startsWith(prefix) && Date.parse(m.created_at) >= Date.parse(run.created_at))
+    .at(-1)
+    ?.body.slice(prefix.length)
+    .trim();
+  const choose = (name: string) =>
+    command.mutate(
+      { command: 'message.post', data: { exploration_id: run.exploration_id, text: `${prefix}${name}`, respond: false } },
+      { onSuccess: () => announce(t.chosen(name)) },
+    );
+  if (!detail.data) {
+    if (detail.isError) return <ErrorNotice error={detail.error} compact focus={false} onRetry={() => void detail.refetch()} />;
+    return (
+      <Card data-run-card="directions-loading" data-run={run.id} padding="sm">
+        <Bone className="h-4 w-2/3" />
+      </Card>
+    );
+  }
+  return (
+    <Card data-run-card="directions" data-run={run.id} data-trace={`run:${run.id}`} padding="sm" className="flex flex-col gap-3">
+      <div className="flex flex-col">
+        <p className="font-medium text-fg">{t.directionsTitle}</p>
+        <p className="text-sm text-fg-2">{t.directionsNote}</p>
+      </div>
+      <div className="flex flex-col gap-4">
+        {directions.map((d) => (
+          <section key={d.name} data-direction={d.name} className="flex flex-col gap-2">
+            <h4 className="font-semibold text-fg">{d.name}</h4>
+            <p className="max-w-prose text-sm text-fg-2">{d.why}</p>
+            <SandboxedPreview html={d.tile_html} title={t.tileTitle(d.name)} height={280} />
+            <div>
+              <Button
+                size="sm"
+                variant={chosen === d.name ? 'primary' : 'secondary'}
+                data-choose-direction={d.name}
+                pending={command.isPending && command.variables?.data?.text === `${prefix}${d.name}`}
+                pendingLabel={t.choosing}
+                disabled={command.isPending || chosen === d.name}
+                onClick={() => choose(d.name)}
+              >
+                {chosen === d.name ? t.chosen(d.name) : t.chooseThis}
+              </Button>
+            </div>
+          </section>
+        ))}
+      </div>
+      {command.error ? <ErrorNotice error={command.error} compact /> : null}
+      <DetailsLink projectId={projectId} run={run} />
+    </Card>
+  );
 }
 
 function DetailsLink({ projectId, run }: { projectId: string; run: RunListItem }) {
@@ -314,7 +383,8 @@ function DraftReady({ projectId, run }: { projectId: string; run: RunListItem })
       <PackageIcon size={18} className={pending ? 'text-accent-text' : 'text-fg-3'} />
       <p className="min-w-0 flex-1 text-fg">
         <span className="font-medium">{pending ? t.draftReady : t.theDraft}</span>
-        <span className="font-semibold">{title}</span> <span className="text-fg-2">{t.withChecks(checks)}</span>
+        <span className="font-semibold">{title}</span>{' '}
+        {payload?.criteria ? <span className="text-fg-2">{t.withChecks(checks)}</span> : null}
       </p>
       {!pending ? <EntityState entity="batch" state={batch.data.state} /> : null}
       {target ? (

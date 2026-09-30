@@ -4,6 +4,7 @@
 
 import {
   aspectOfType,
+  designSystemSpec,
   aspectSchema,
   DomainError,
   VERSION_LIMITS,
@@ -85,6 +86,8 @@ const versionContentSchema = {
   criteria: z.array(criterionInputSchema).max(L.criteria).default([]),
   // The practice sources (unverified) the version was based on.
   practice_sources: practiceSources.optional(),
+  // A design system's machine-readable part (tokens, components, patterns): part of the immutable content.
+  spec: designSystemSpec.optional(),
   discarded: z.array(z.string()).default([]),
   links: z.array(linkInputSchema).max(L.links).default([]),
   // Annexes in order (tables as data): stored and exported as-is.
@@ -441,6 +444,7 @@ async function createVersion(
     })),
     annexes: data.annexes,
     increment: data.increment ?? null,
+    ...(data.spec ? { spec: data.spec } : {}),
   };
   const { id } = await ctx.trx
     .insertInto('record_versions')
@@ -457,6 +461,7 @@ async function createVersion(
       author: formatActor(ctx.actor),
       content_hash: fingerprint(content),
       practice_sources: data.practice_sources?.length ? JSON.stringify(data.practice_sources) : null,
+      spec: data.spec ? JSON.stringify(data.spec) : null,
       state: to,
     })
     .returning('id')
@@ -514,6 +519,19 @@ registerHandlers({
           throw new DomainError(
             'validation',
             `The project already has its product definition, ${existing.code}: change it with a new version.`,
+          );
+      }
+      if (data.type === 'design_system') {
+        const existing = await ctx.trx
+          .selectFrom('records')
+          .select('code')
+          .where('project_id', '=', ctx.projectId)
+          .where('type', '=', 'design_system')
+          .executeTakeFirst();
+        if (existing)
+          throw new DomainError(
+            'validation',
+            `The project already has its design system, ${existing.code}: change it with a new version.`,
           );
       }
       if (data.type === 'task' && data.size === undefined)

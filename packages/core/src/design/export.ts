@@ -12,6 +12,7 @@ import {
   differences,
   renderDocument,
 } from '@demiurgo/design';
+import { canonicalJson } from '@demiurgo/domain';
 import type { Selectable } from 'kysely';
 import type { Db } from '../db/connection.ts';
 import type { DB } from '../db/schema.ts';
@@ -144,6 +145,8 @@ export async function exportDesign(db: Db, projectId: string): Promise<Map<strin
     const { doc, annexes } = await versionDocument(db, r, v);
     tree.set(`${folderOf(doc.type)}/${doc.code}.md`, renderDocument(doc));
     for (const a of annexes) tree.set(a.path, a.content);
+    // A design system's machine-readable part, next to its prose.
+    if (r.type === 'design_system' && v.spec) tree.set('design-system/spec.json', `${canonicalJson(v.spec)}\n`);
   }
   const taxonomies = await db
     .selectFrom('taxonomies')

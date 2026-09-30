@@ -18,6 +18,7 @@ import { landingOf } from './screens/onboarding/landing.ts';
 import { NewProjectScreen } from './screens/onboarding/NewProject.tsx';
 import { QuestionsScreen } from './screens/onboarding/Questions.tsx';
 import { StartScreen } from './screens/onboarding/Start.tsx';
+import { DesignSystemScreen } from './screens/design-system/DesignSystem.tsx';
 import { OriginsScreen } from './screens/origins/Origins.tsx';
 import { OverviewScreen } from './screens/overview/Overview.tsx';
 import { ProjectsScreen } from './screens/projects/Projects.tsx';
@@ -125,6 +126,11 @@ const originsRoute = createRoute({
     return record ? { record } : {};
   },
   component: OriginsScreen,
+});
+const designSystemRoute = createRoute({
+  getParentRoute: () => projectRoute,
+  path: '/design-system',
+  component: DesignSystemScreen,
 });
 const mapRoute = createRoute({
   getParentRoute: () => projectRoute,
@@ -275,6 +281,7 @@ const routeTree = rootRoute.addChildren([
     projectRoute.addChildren([
       overviewRoute,
       originsRoute,
+      designSystemRoute,
       mapRoute,
       journeysRoute,
       buildRoute,

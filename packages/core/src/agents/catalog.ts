@@ -38,6 +38,8 @@ export const DEFAULT_AGENTS: Readonly<Record<AgentAction, string>> = {
   epic_plan: 'epic_planner',
   feature_design: 'feature_designer',
   task_plan: 'task_planner',
+  design_directions: 'design_director',
+  design_system_plan: 'design_system_designer',
   pr_review: 'pr_reviewer',
 };
 

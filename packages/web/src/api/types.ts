@@ -415,7 +415,7 @@ export type Inbox = {
 export type CriterionState = 'verified' | 'failing' | 'in_pr' | 'no_evidence' | 'check_by_hand' | 'not_started';
 export type TaskBuildState = 'to_do' | 'requested' | 'in_pr' | 'merged' | 'failing';
 
-export type BuildStage = 'repo' | 'worktree' | 'builder' | 'commit' | 'push' | 'pr' | 'status' | 'ci' | 'evidence' | 'review' | 'publish' | 'merge';
+export type BuildStage = 'repo' | 'worktree' | 'builder' | 'commit' | 'design' | 'push' | 'pr' | 'status' | 'ci' | 'evidence' | 'review' | 'publish' | 'merge';
 export type BuildOutcome = 'started' | 'ok' | 'failed' | 'waiting' | 'changes_requested';
 export type BuildStep = { attempt: number; stage: BuildStage; outcome: BuildOutcome; detail: unknown; at: string };
 
@@ -479,8 +479,47 @@ export type Link = {
 
 export type Section = { title: string; content: string };
 
+/** The machine-readable part of a design system version (mirrors `designSystemSpec` in the domain). */
+export type DesignSystemSpec = {
+  base: { kind: 'public' | 'scratch'; name?: string; url?: string; license?: string };
+  principles: string[];
+  tokens: {
+    color: Record<string, { $value: { light: string; dark: string }; $type: 'color'; $description?: string }>;
+    typography: {
+      family: Record<string, { $value: string | string[]; $type: 'fontFamily'; $description?: string }>;
+      size: Record<string, { $value: string; $type: 'dimension'; $description?: string }>;
+      lineHeight: Record<string, { $value: number; $type: 'number'; $description?: string }>;
+    };
+    space: Record<string, { $value: string; $type: 'dimension'; $description?: string }>;
+    radius: Record<string, { $value: string; $type: 'dimension'; $description?: string }>;
+    shadow: Record<string, { $value: string; $description?: string }>;
+    motion: {
+      duration: Record<string, { $value: string; $type: 'duration'; $description?: string }>;
+      easing: Record<
+        'standard' | 'entrance' | 'exit',
+        { $value: [number, number, number, number]; $type: 'cubicBezier'; $description?: string }
+      >;
+      scheme: 'productive' | 'expressive';
+      reduced: string;
+    };
+  };
+  components: {
+    name: string;
+    purpose: string;
+    interactive: boolean;
+    variants: string[];
+    states: string[];
+    accessibility: string;
+    specimen_html: string;
+  }[];
+  patterns: { name: string; purpose: string; uses: string[] }[];
+  paths: { system: string };
+};
+
 export type RecordVersion = {
   id: string;
+  /** Design system only: the machine-readable spec of the version. */
+  spec?: DesignSystemSpec | null;
   n: number;
   state: string;
   epistemic_status: Epistemic;
@@ -529,6 +568,8 @@ export type FeatureTask = {
 
 export type RecordDetail = {
   id: string;
+  /** Design system only: non-blocking notes on the shown version. */
+  warnings?: string[];
   code: string;
   type: RecordType;
   domain: string;
@@ -641,10 +682,10 @@ export type ExplorationDetail = {
   children: { id: string; purpose: string; state: string }[];
   /** What its "Draft" button writes (one dedicated agent per kind), or null when nothing can be drafted here. */
   draft?: {
-    kind: 'epic' | 'feature' | 'tasks';
+    kind: 'epic' | 'feature' | 'tasks' | 'design_directions' | 'design_system';
     why: string | null;
     suggested: boolean;
-    action: 'epic_plan' | 'feature_design' | 'task_plan';
+    action: 'epic_plan' | 'feature_design' | 'task_plan' | 'design_directions' | 'design_system_plan';
     scope: { type: string; id: string };
   } | null;
 };

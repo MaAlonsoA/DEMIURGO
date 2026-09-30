@@ -240,6 +240,8 @@ export const ACTION_WORDS: Record<string, string> = {
   epic_plan: 'Draft an epic',
   feature_design: 'Draft a feature',
   task_plan: 'Plan the tasks',
+  design_directions: 'Propose visual directions',
+  design_system_plan: 'Draft the design system',
   coherence_review: 'Coherence review',
   echo: 'Echo',
 };

@@ -6,7 +6,7 @@ import { useMessages } from '../i18n/define.ts';
 import { useProjectId } from '../lib/hooks.ts';
 import { PRODUCT_TABS } from './words.i18n.ts';
 
-export type ProductView = 'overview' | 'map' | 'origins' | 'journeys';
+export type ProductView = 'overview' | 'map' | 'origins' | 'journeys' | 'design-system';
 
 export function ProductTabs({ active, className }: { active: ProductView; className?: string }) {
   const t = useMessages(PRODUCT_TABS);
@@ -34,6 +34,12 @@ export function ProductTabs({ active, className }: { active: ProductView; classN
           label: t.origins,
           current: active === 'origins',
           link: { to: '/p/$projectId/origins', params: { projectId } },
+        },
+        {
+          key: 'design-system',
+          label: t.designSystem,
+          current: active === 'design-system',
+          link: { to: '/p/$projectId/design-system', params: { projectId } },
         },
       ]}
     />

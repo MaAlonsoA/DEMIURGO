@@ -247,7 +247,7 @@ que cubren Material 3, Carbon y Atlassian:
   - estilo productivo o expresivo (Carbon, Material 3);
   - curvas de entrada, salida y estándar (Carbon);
   - duraciones por token;
-  - respetar «reducir movimiento» (WCAG 2.2, 2.3.3);
+  - respetar «reducir movimiento» (WCAG 2.2, criterio 2.3.3, que es de nivel AAA: exigirlo es convención nuestra);
 - contraste WCAG 2.2 AA;
 - gobierno.
 

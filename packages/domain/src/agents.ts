@@ -7,6 +7,7 @@ import { aspectSchema } from './aspects.ts';
 import { VERSION_LIMITS } from './records.ts';
 import { z } from 'zod';
 import { DEFINITION_SECTION_TITLES, QUOTE_MAX } from './definition.ts';
+import { designSystemSpec, designTokens } from './design-system.ts';
 
 export const AGENT_ACTIONS = [
   'echo',
@@ -16,6 +17,8 @@ export const AGENT_ACTIONS = [
   'epic_plan',
   'feature_design',
   'task_plan',
+  'design_directions',
+  'design_system_plan',
   'pr_review',
 ] as const;
 export type AgentAction = (typeof AGENT_ACTIONS)[number];
@@ -474,7 +477,7 @@ export const explorationChatOutput = z
     // and a dedicated agent writes it. Null when it is not ready.
     ready_to_draft: z
       .object({
-        kind: z.enum(['epic', 'feature', 'tasks']),
+        kind: z.enum(['epic', 'feature', 'tasks', 'design_directions']),
         why: recordText(300).describe('One sentence on why the thread has enough to draft it now.'),
       })
       .strict()
@@ -609,6 +612,61 @@ export const taskPlanOutput = z
   })
   .strict();
 
+/**
+ * design_directions: two or three visual directions for a design system, each with a style tile
+ * (Samantha Warren): a self-contained page with type, colors, a button and an input in their states and
+ * a small CSS animation. Nothing is proposed: the person picks one in the thread.
+ */
+export const DIRECTION_TILE_MAX = 30_000;
+export const designDirectionsOutput = z
+  .object({
+    reply: text(2000).describe("One to three sentences in the person's language."),
+    directions: z
+      .array(
+        z
+          .object({
+            name: recordText(60).describe('A short, distinct name.'),
+            why: recordText(600).describe("Why this direction fits what the person said: who it is for and what it should convey."),
+            tokens: designTokens.pick({ color: true, typography: true, motion: true }),
+            tile_html: text(DIRECTION_TILE_MAX).describe(
+              'A style tile: one self-contained HTML page with inline CSS, no scripts and no external URLs.',
+            ),
+          })
+          .strict(),
+      )
+      .min(2)
+      .max(3),
+    sources: practiceSources,
+  })
+  .strict();
+
+/** design_system_plan: a dedicated agent writes the whole design system record from the thread and the chosen direction. */
+export const designSystemPlanOutput = z
+  .object({
+    reply: text(2000).describe("One to three sentences in the person's language."),
+    result: z
+      .object({
+        title: recordText(200),
+        sections: z
+          .object({
+            Principles: recordText(10_000),
+            'Visual direction': recordText(10_000),
+            Tokens: recordText(10_000),
+            Components: recordText(10_000),
+            Patterns: recordText(10_000),
+            Motion: recordText(10_000),
+            Accessibility: recordText(10_000),
+            Governance: recordText(10_000),
+          })
+          .strict(),
+        spec: designSystemSpec,
+        change_note: recordText(2000).nullable().describe('When the system already has an approved version: what changes and why; null otherwise.'),
+      })
+      .strict(),
+    sources: practiceSources,
+  })
+  .strict();
+
 /** pr_review: the verdict of the reviewer agent on a build request's pull request. */
 export const PR_REVIEW_MAX_COMMENTS = 40;
 export const prReviewOutput = z
@@ -683,6 +741,8 @@ export const OUTPUT_SCHEMAS = {
   epic_plan: epicPlanOutput,
   feature_design: featureDesignOutput,
   task_plan: taskPlanOutput,
+  design_directions: designDirectionsOutput,
+  design_system_plan: designSystemPlanOutput,
   pr_review: prReviewOutput,
 } as const satisfies Record<AgentAction, z.ZodType>;
 

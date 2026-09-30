@@ -3,7 +3,8 @@
 
 import { taskSizeSchema } from './sizes.ts';
 import { z } from 'zod';
-import { proposedCriterion } from './agents.ts';
+import { composeStatement, practiceSources, proposedCriterion } from './agents.ts';
+import { VERSION_LIMITS } from './records.ts';
 import { aspectSchema } from './aspects.ts';
 import { DEFINITION_SECTION_TITLES, QUOTE_MAX } from './definition.ts';
 
@@ -43,7 +44,26 @@ export const decisionPayload = z
   .strict();
 
 /** A criterion as stored in a payload: `step` may be missing in payloads written before it existed. */
-const payloadCriterion = proposedCriterion.extend({ step: proposedCriterion.shape.step.optional() });
+// It may also carry Given/When/Then apart (all three or none); then `statement` may be missing and is composed.
+const payloadCriterion = proposedCriterion
+  .extend({
+    statement: proposedCriterion.shape.statement.optional(),
+    step: proposedCriterion.shape.step.optional(),
+    given: text(500).optional(),
+    when: text(500).optional(),
+    then: text(500).optional(),
+  })
+  .superRefine((c, ctx) => {
+    const parts = [c.given, c.when, c.then].filter((p) => p !== undefined).length;
+    if (parts !== 0 && parts !== 3) ctx.addIssue({ code: 'custom', message: 'Give all of given, when and then, or none.' });
+    if (parts === 0 && !c.statement) ctx.addIssue({ code: 'custom', path: ['statement'], message: 'A criterion needs a statement or given/when/then.' });
+  });
+
+/** The statement of a payload criterion: its own, or the one composed from Given/When/Then. */
+export function criterionStatement(c: { statement?: string | undefined; given?: string | undefined; when?: string | undefined; then?: string | undefined }): string {
+  if (c.statement) return c.statement;
+  return composeStatement({ given: c.given ?? '', when: c.when ?? '', then: c.then ?? '' });
+}
 
 export const explorationPayload = z.object({ purpose: text(1000) }).strict();
 
@@ -54,8 +74,12 @@ export const fdrPayload = z
     scope: text(5000),
     out_of_scope: text(5000),
     behavior: text(10_000),
-    criteria: z.array(payloadCriterion).min(1).max(12),
+    criteria: z.array(payloadCriterion).min(1).max(VERSION_LIMITS.criteria),
     based_on: recordReference.optional(),
+    /** The practice sources the feature is based on (unverified). */
+    sources: practiceSources.optional(),
+    /** The feature's T-shirt size. */
+    size: taskSizeSchema.optional(),
     domain: z
       .string()
       .regex(/^[a-z][a-z_]*$/)
@@ -78,13 +102,15 @@ export const designRecordPayload = z
       .min(1)
       .max(8),
     // A task has none of its own: it covers criteria of its feature (`covers`).
-    criteria: z.array(payloadCriterion).max(12),
+    criteria: z.array(payloadCriterion).max(VERSION_LIMITS.criteria),
+    /** The practice sources the record is based on (unverified). */
+    sources: practiceSources.optional(),
     domain: z
       .string()
       .regex(/^[a-z][a-z_]*$/)
       .optional(),
     /** A task's covered criteria: codes of its feature's criteria it implements. */
-    covers: z.array(z.string().regex(/^AC-[A-Z]{3}-\d{3}-\d{2}$/)).max(12).optional(),
+    covers: z.array(z.string().regex(/^AC-[A-Z]{3}-\d{3}-\d{2}$/)).max(VERSION_LIMITS.criteria).optional(),
     /** A feature's epic: the record it rests on. */
     based_on: recordReference.optional(),
     /** A feature's siblings it depends on (approved features): one `based_on` link each, and they have to be built first. */

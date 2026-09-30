@@ -331,6 +331,7 @@ export type VersionsTable = {
   origin: NullableJson;
   author: string;
   content_hash: string;
+  practice_sources: NullableJson;
   state: string;
   created_at: Generated<Timestamp>;
   approved_at: NullableTimestamp;
@@ -350,6 +351,9 @@ export type CriteriaTable = {
   carry: string;
   position: number;
   step: number | null;
+  given_text: string | null;
+  when_text: string | null;
+  then_text: string | null;
   state: string;
   created_at: Generated<Timestamp>;
 };
@@ -365,6 +369,7 @@ export type EvidenceTable = {
   reference: string | null;
   pr_url: string | null;
   test_name: string | null;
+  result: string | null;
   state: string;
   recorded_by: string;
   created_at: Generated<Timestamp>;

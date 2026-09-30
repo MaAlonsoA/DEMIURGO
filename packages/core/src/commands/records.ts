@@ -7,6 +7,7 @@ import {
   aspectSchema,
   DomainError,
   VERSION_LIMITS,
+  practiceSources,
   RECORD_PREFIX,
   RECORD_TYPES,
   type RecordType,
@@ -43,6 +44,10 @@ const criterionContent = {
   verification: z.enum(['automatic', 'manual']),
   check: text(L.check),
   step: z.number().int().min(1).nullable().optional(),
+  // Given/When/Then apart (all three or none); `statement` stays the composed sentence.
+  given: text(L.check).nullable().optional(),
+  when: text(L.check).nullable().optional(),
+  then: text(L.check).nullable().optional(),
 };
 export const criterionInputSchema = z.discriminatedUnion('carry', [
   z
@@ -78,6 +83,8 @@ const versionContentSchema = {
   title: text(L.title),
   sections: z.array(sectionSchema).min(1).max(L.sections),
   criteria: z.array(criterionInputSchema).max(L.criteria).default([]),
+  // The practice sources (unverified) the version was based on.
+  practice_sources: practiceSources.optional(),
   discarded: z.array(z.string()).default([]),
   links: z.array(linkInputSchema).max(L.links).default([]),
   // Annexes in order (tables as data): stored and exported as-is.
@@ -104,7 +111,7 @@ export const newRecordSchema = z
     // design/ without it (legacy, "No size"). Kept outside the versioned content.
     size: taskSizeSchema.nullable().optional(),
     // A task's covered feature criteria (codes), outside its versioned content.
-    covers: z.array(z.string().regex(/^AC-[A-Z]{3}-\d{3}-\d{2}$/)).max(12).optional(),
+    covers: z.array(z.string().regex(/^AC-[A-Z]{3}-\d{3}-\d{2}$/)).max(L.criteria).optional(),
     ...versionContentSchema,
   })
   .strict();
@@ -373,6 +380,9 @@ async function createVersion(
         verification: p.verification,
         check: p.check_text,
         step: p.step,
+        given: p.given_text,
+        when: p.when_text,
+        then: p.then_text,
         carry: 'kept',
         derivation: p.id,
       };
@@ -387,6 +397,9 @@ async function createVersion(
         verification: c.verification,
         check: c.check,
         step: c.step === undefined ? p.step : c.step,
+        given: c.given ?? null,
+        when: c.when ?? null,
+        then: c.then ?? null,
         carry: 'modified',
         derivation: p.id,
       };
@@ -406,6 +419,9 @@ async function createVersion(
       verification: c.verification,
       check: c.check,
       step: c.step ?? null,
+      given: c.given ?? null,
+      when: c.when ?? null,
+      then: c.then ?? null,
       carry: 'new',
       derivation: c.derived_from ? (derived.get(c.derived_from) ?? null) : null,
     };
@@ -440,6 +456,7 @@ async function createVersion(
       origin: data.origin ? JSON.stringify(data.origin) : null,
       author: formatActor(ctx.actor),
       content_hash: fingerprint(content),
+      practice_sources: data.practice_sources?.length ? JSON.stringify(data.practice_sources) : null,
       state: to,
     })
     .returning('id')
@@ -456,6 +473,9 @@ async function createVersion(
         verification: c.verification,
         check: c.check,
         step: c.step,
+        given: c.given,
+        when: c.when,
+        then: c.then,
         carry: c.carry,
         derived_from_id: c.derivation,
         position: i + 1,
@@ -498,7 +518,8 @@ registerHandlers({
       }
       if (data.type === 'task' && data.size === undefined)
         throw new DomainError('validation', 'A new task needs its effort size: XS, S, M, L or XL.');
-      if (data.type !== 'task' && data.size) throw new DomainError('validation', 'Only a task has an effort size.');
+      if (data.type !== 'task' && data.type !== 'fdr' && data.size)
+        throw new DomainError('validation', 'Only a task or a feature has an effort size.');
       const code = data.code ?? (await nextCode(ctx.trx, ctx.projectId, data.type, data.domain));
       if (!code.startsWith(`${RECORD_PREFIX[data.type]}-`)) {
         throw new DomainError('validation', `Code ${code} does not match a record of type "${data.type}".`);
@@ -515,7 +536,7 @@ registerHandlers({
         })
         .returning('id')
         .executeTakeFirstOrThrow();
-      if (data.type === 'task' && data.size) await appendSize(ctx, id, data.size, null);
+      if ((data.type === 'task' || data.type === 'fdr') && data.size) await appendSize(ctx, id, data.size, null);
       if (data.type !== 'task' && data.covers?.length) throw new DomainError('validation', 'Only a task covers criteria.');
       if (data.type === 'task' && data.covers?.length)
         await ctx.trx
@@ -677,6 +698,9 @@ registerHandlers({
           verification: d.verification,
           check_text: d.check,
           step: d.step ?? null,
+          given_text: d.given ?? null,
+          when_text: d.when ?? null,
+          then_text: d.then ?? null,
           derived_from: d.derived_from_id,
           carry: d.carry,
           position: d.position,

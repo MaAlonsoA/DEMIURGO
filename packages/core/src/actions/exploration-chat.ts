@@ -10,7 +10,6 @@ import {
   behaviorSteps,
   type CriterionChange,
   DomainError,
-  MAX_FDR_CRITERIA,
   STAGES,
   type Section,
   findQuote,
@@ -660,8 +659,6 @@ registerChecker('exploration_chat', async ({ db, run, output }) => {
         `${p.code} in \`code\` is not a planned feature of this project (it may be designed or dropped already). \`code\` is the \`planned_feature.code\` of the context: leave it null otherwise.`,
       );
     if (p.covers && p.record_type !== 'task') notes.push('`covers` is only for a task: leave it null for any other record.');
-    if (p.record_type === 'fdr' && p.criteria.length > MAX_FDR_CRITERIA)
-      notes.push(`A feature has at most ${MAX_FDR_CRITERIA} criteria, not ${p.criteria.length}: say it is too big and propose splitting it.`);
     if (p.record_type === 'fdr') {
       const n = behaviorSteps(p.sections.find((s) => s.title === 'Behavior')?.content ?? '').length;
       for (const k of p.criteria)
@@ -680,8 +677,9 @@ registerChecker('exploration_chat', async ({ db, run, output }) => {
         notes.push('A task has its `size` (XS, S, M, L or XL) and a one-line `size_reason`: fill both in every task.');
       else if (p.size === 'XL' && !p.split)
         notes.push('An XL task says in `split` how it could be split into smaller tasks.');
-    } else if (p.size || p.size_reason || p.split)
-      notes.push('`size`, `size_reason` and `split` are only for a task: leave them null for any other record.');
+    } else if (p.record_type !== 'fdr' && (p.size || p.size_reason))
+      notes.push('`size` and `size_reason` are only for a task or a feature: leave them null for any other record.');
+    else if (p.split) notes.push('`split` is only for a task: leave it null for any other record.');
     if (p.record_type === 'task') {
       const feature = p.based_on ? await featureTasksOf(db, run.project_id, p.based_on.code) : null;
       if (!feature)
@@ -1152,8 +1150,8 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
         // An epic's features only travel with an epic; a feature's planned code only with a planned feature of this project.
         if (p.record_type !== 'epic' || !p.features?.length) delete payload.features;
         // A task's size and why travel only with a task; how to split, only with an XL one.
-        if (p.record_type !== 'task') {
-          delete payload.covers;
+        if (p.record_type !== 'task') delete payload.covers;
+        if (p.record_type !== 'task' && p.record_type !== 'fdr') {
           delete payload.size;
           delete payload.size_reason;
         }

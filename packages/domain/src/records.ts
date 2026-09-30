@@ -30,8 +30,8 @@ export const RECORD_PREFIX: Record<RecordType, string> = {
   product_definition: 'DEF',
 };
 
-/** Temporary convention (not from INVEST, which sets no number): a cap on criteria per feature, to be replaced by size-based splitting (T-shirt size, SPIDR). */
-export const MAX_FDR_CRITERIA = 8;
+// Cockburn, Writing Effective Use Cases: "Use 3 to 9 steps" in the main success scenario.
+export const MAIN_FLOW_STEPS = { min: 3, max: 9 } as const;
 
 export const RECORD_TEMPLATES: Record<RecordType, { sections: readonly string[]; requiresCriteria: boolean }> = {
   decision: { sections: ['Context', 'Decision', 'Consequences'], requiresCriteria: false },
@@ -251,8 +251,6 @@ export function readiness(e: ReadinessInput): Readiness {
     }
   }
   if (e.type === 'fdr') {
-    if (e.criteria.length > MAX_FDR_CRITERIA)
-      reasons.push(`Too big: ${e.criteria.length} criteria (max ${MAX_FDR_CRITERIA}); split it into features of its epic.`);
     if (!e.architecturePassed) reasons.push('The Architecture stage has not passed.');
     for (const n of e.needs) {
       if (n.implementation !== 'implemented') reasons.push(`It needs ${n.code}, which is not built yet.`);
@@ -270,6 +268,8 @@ export function readiness(e: ReadinessInput): Readiness {
   }
   if (e.pendingProposals > 0) reasons.push(`There are ${e.pendingProposals} pending proposal(s) affecting it.`);
   const warnings = e.criteria.flatMap((c) => verifiabilityWarnings(c.code, c.statement));
+  if (e.type === 'fdr' && e.behaviorSteps !== undefined && (e.behaviorSteps < MAIN_FLOW_STEPS.min || e.behaviorSteps > MAIN_FLOW_STEPS.max))
+    warnings.push(`The main flow has ${e.behaviorSteps} steps; a use case's main success scenario has 3 to 9 (Cockburn).`);
   if (e.type === 'epic' && e.hasOutOfScope === false) warnings.push('It has no "Out of scope" section: say what this epic deliberately leaves out.');
   return { ready: reasons.length === 0, reasons, warnings };
 }

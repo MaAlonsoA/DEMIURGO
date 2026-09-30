@@ -4,6 +4,7 @@
 
 import { TASK_SIZES } from './sizes.ts';
 import { aspectSchema } from './aspects.ts';
+import { VERSION_LIMITS } from './records.ts';
 import { z } from 'zod';
 import { DEFINITION_SECTION_TITLES, QUOTE_MAX } from './definition.ts';
 
@@ -205,6 +206,35 @@ export const proposedCriterion = z
   })
   .strict();
 
+/** A criterion written as Given/When/Then: the three parts stay apart so they can be checked and shown separately. */
+export const gwtCriterion = z
+  .object({
+    title: recordText(160),
+    given: recordText(500).describe('The precondition, one plain sentence, without the word "Given".'),
+    when: recordText(500).describe('The action or event, one plain sentence, without the word "When".'),
+    then: recordText(500).describe('The observable result, one plain sentence, without the word "Then".'),
+    verification: z.enum(['automatic', 'manual']),
+    check: recordText(600),
+    step: z.number().int().min(1).describe('The 1-based number of the Behavior step this criterion checks.'),
+  })
+  .strict();
+
+/** The composed sentence of a Given/When/Then criterion (what `statement` keeps for older readers). */
+export function composeStatement(parts: { given: string; when: string; then: string }): string {
+  const clean = (t: string) => t.trim().replace(/\.+$/, '');
+  return `Given ${clean(parts.given)}, when ${clean(parts.when)}, then ${clean(parts.then)}.`;
+}
+
+/** A practice source an agent based a version on (unverified: the person checks it). */
+export const practiceSource = z
+  .object({
+    title: z.string().trim().min(1).max(200),
+    url: z.string().url().max(500),
+    used_for: z.string().trim().min(1).max(300),
+  })
+  .strict();
+export const practiceSources = z.array(practiceSource).max(12);
+
 /** A predefined answer to a question and what choosing it implies for the design. */
 // `exclusive`: in a multiple-choice question, choosing it clears the others (e.g. "None for now").
 // `recommended`: the one option the agent advises (at most one per question); `downside`: its main cost.
@@ -350,7 +380,7 @@ export const explorationChatOutput = z
                 ),
               covers: z
                 .array(z.string().regex(/^AC-[A-Z]{3}-\d{3}-\d{2}$/))
-                .max(12)
+                .max(VERSION_LIMITS.criteria)
                 .nullable()
                 .describe(
                   "For a task: the codes of its feature's acceptance criteria (`feature_tasks.criteria`) it implements; null for any other record.",
@@ -371,7 +401,7 @@ export const explorationChatOutput = z
                 .array(z.object({ title: recordText(120), content: recordText(6000) }).strict())
                 .min(1)
                 .max(8),
-              criteria: z.array(proposedCriterion).max(12),
+              criteria: z.array(proposedCriterion).max(VERSION_LIMITS.criteria),
               quotes: z
                 .array(text(QUOTE_MAX))
                 .max(3)
@@ -429,7 +459,7 @@ export const explorationChatOutput = z
                     })
                     .strict(),
                 )
-                .max(12)
+                .max(VERSION_LIMITS.criteria)
                 .describe('Only the criteria that change: added, modified (whole new content) or dropped; the rest are kept. Empty when only sections change.'),
               reason: recordText(1000),
               quotes: z
@@ -490,7 +520,7 @@ export const designProposalOutput = z
         scope: recordText(3000),
         out_of_scope: recordText(3000),
         behavior: recordText(6000),
-        criteria: z.array(proposedCriterion).min(1).max(12),
+        criteria: z.array(proposedCriterion).min(1).max(VERSION_LIMITS.criteria),
       })
       .strict(),
   })

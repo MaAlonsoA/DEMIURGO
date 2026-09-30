@@ -629,6 +629,7 @@ export type RecordDetail = {
   /** Screen design only: the approved design system it is checked against, and the components it uses that the system lacks. */
   dsy?: { code: string; version: number } | null;
   missing_components?: string[];
+  /** Feature: `dsy` is the approved design system (screens come before tasks while there is one). */
   /** Feature only: the screen design based on its current version (null when it has none). */
   screens?: { code: string; version: number; state: string; no_ui: boolean; screen_count: number; missing_components: string[] } | null;
   code: string;

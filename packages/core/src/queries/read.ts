@@ -739,6 +739,7 @@ export async function recordDetail(db: Db, projectId: string, code: string) {
     // A feature's screen design, the one based on its current version (null when it has none).
     ...(r.type === 'fdr'
       ? {
+          dsy: dsy ? { code: dsy.code, version: dsy.version } : null,
           screens: featureScreens
             ? {
                 code: featureScreens.code,

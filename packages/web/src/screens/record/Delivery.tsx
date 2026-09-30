@@ -88,6 +88,7 @@ export type Banner = { tone: 'accent' | 'danger'; text: string; action: BannerAc
 
 export type Primary =
   | { kind: 'draft_tasks' }
+  | { kind: 'design_screens'; code: string }
   | { kind: 'build_next'; code: string }
   | { kind: 'start_build'; code: string; title: string }
   | { kind: 'follow_build' }
@@ -179,7 +180,9 @@ export function deliveryOf(input: {
   if (!banner?.action && current) {
     if (record.type === 'fdr') {
       const next = tasks.find((x) => x.build === 'to_do');
-      if (tasks.length === 0 && (record.task_drafts ?? []).length === 0) primary = { kind: 'draft_tasks' };
+      // With an approved design system the screens come before the tasks (Cagan and Patton, SVPG).
+      const screensFirst = !!record.dsy && record.screens?.state !== 'approved';
+      if (tasks.length === 0 && (record.task_drafts ?? []).length === 0) primary = screensFirst ? { kind: 'design_screens', code: record.code } : { kind: 'draft_tasks' };
       else if (next) primary = { kind: 'build_next', code: next.code };
     } else if (record.type === 'task' && record.build) {
       const b = record.build;
@@ -236,6 +239,18 @@ export function PrimaryAction({
         <Button variant="primary" pending={draft.pending} pendingLabel={t.drafting} onClick={draft.run} data-primary="draft-tasks">
           {t.draftTasks}
         </Button>
+      );
+    case 'design_screens':
+      return (
+        <Link
+          to="/p/$projectId/records/$code"
+          params={{ projectId, code: primary.code }}
+          search={{ tab: 'screens' } as never}
+          className={buttonClass({ variant: 'primary' })}
+          data-primary="design-screens"
+        >
+          {t.designScreens}
+        </Link>
       );
     case 'build_next':
       return (

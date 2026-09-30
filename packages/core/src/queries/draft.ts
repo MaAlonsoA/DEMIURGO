@@ -72,7 +72,14 @@ export async function threadDraft(
           .where('records.project_id', '=', projectId)
           .executeTakeFirst()
       : undefined;
-  const featureRecord = opened?.type === 'fdr' ? opened.recordId : planned?.state === 'designed' ? await recordOfPlanned(db, planned.id) : null;
+  const featureRecord =
+    opened?.type === 'fdr'
+      ? opened.recordId
+      : planned?.state === 'designed'
+        ? await recordOfPlanned(db, planned.id)
+        : code
+          ? null
+          : await standaloneRecordOf(db, projectId, thread.id);
   const version = featureRecord ? await approvedVersionOf(db, featureRecord) : null;
   if (version) {
     // With an approved design system, the screens come first (design goes one step ahead of delivery: Cagan and
@@ -94,4 +101,20 @@ export async function threadDraft(
 async function recordOfPlanned(db: Db, plannedId: string): Promise<string | null> {
   const row = await db.selectFrom('planned_features').select('record_id').where('id', '=', plannedId).executeTakeFirst();
   return row?.record_id ?? null;
+}
+
+/** The feature record born from a standalone thread: its accepted `design_record` proposal is the origin of the record's first version. */
+async function standaloneRecordOf(db: Db, projectId: string, threadId: string): Promise<string | null> {
+  const row = await sql<{ record_id: string }>`
+    select rv.record_id
+    from proposals p
+    join proposal_batches b on b.id = p.batch_id
+    join ai_runs r on r.id = b.run_id
+    join record_versions rv on rv.origin->>'type' = 'proposal' and rv.origin->>'id' = p.id::text
+    join records rec on rec.id = rv.record_id and rec.type = 'fdr'
+    where p.project_id = ${projectId}::uuid and p.type = 'design_record' and p.payload->>'record_type' = 'fdr'
+      and p.state = 'accepted' and r.action = 'feature_design' and r.scope->>'id' = ${threadId}
+    order by p.created_at desc
+    limit 1`.execute(db);
+  return row.rows[0]?.record_id ?? null;
 }

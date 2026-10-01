@@ -36,6 +36,7 @@ import { systemInteraction } from '../engine/observe.ts';
 import { engineServices } from '../engine/registry.ts';
 import * as github from '../github/client.ts';
 import { redactConfigured } from '../github/client.ts';
+import { classifyBuilderFailure, failureExcerpt } from './failure.ts';
 import { taskCoversOf } from '../queries/sizes.ts';
 import { projectsDir } from '../repo/repo.ts';
 import { BUILDER_MAX_TIME_MS, type BuildReport, runBuilder } from '../runner/builder.ts';
@@ -117,6 +118,9 @@ export function resetBuildDeps(): void {
 const builders = new Map<string, AbortController>();
 
 export const buildWorkflowId = (buildRequestId: string, attempt: number): string => `build:${buildRequestId}:${attempt}`;
+
+/** Automatic retries after a plain builder failure (our convention: one, like a flaky CLI start). */
+const BUILDER_AUTO_RETRIES = 1;
 
 type Stage = 'repo' | 'worktree' | 'builder' | 'commit' | 'design' | 'push' | 'pr' | 'status' | 'ci' | 'evidence' | 'review' | 'publish' | 'merge';
 type Outcome = 'started' | 'ok' | 'failed' | 'waiting' | 'changes_requested';
@@ -311,6 +315,48 @@ function bodyOf(report: BuildReport | null, criteria: string[]): string {
 
 type CiResult = { conclusion: string | null };
 
+/** How many attempts in a row DEMIURGO started by itself since the person's last one. */
+async function automaticAttempts(s: Services, requestId: string): Promise<number> {
+  const started = await s.db
+    .selectFrom('build_steps')
+    .select(['attempt', 'detail'])
+    .where('build_request_id', '=', requestId)
+    .where('stage', '=', 'repo')
+    .where('outcome', '=', 'started')
+    .orderBy('attempt', 'desc')
+    .execute();
+  let automatic = 0;
+  for (const row of started) {
+    if ((row.detail as { automatic?: boolean } | null)?.automatic !== true) break;
+    automatic++;
+  }
+  return automatic;
+}
+
+/** After a failed builder: records the automatic next attempt and returns its number, or null (no retry). */
+async function retryBuilder(s: Services, r: Run): Promise<number | null> {
+  const step = (await s.db
+    .selectFrom('build_steps')
+    .select('detail')
+    .where('build_request_id', '=', r.requestId)
+    .where('attempt', '=', r.attempt)
+    .where('stage', '=', 'builder')
+    .where('outcome', '=', 'failed')
+    .orderBy('created_at', 'desc')
+    .executeTakeFirst()) as { detail: { failure_kind?: string; exit_code?: number | null } | null } | undefined;
+  if (step?.detail?.failure_kind !== 'other') return null;
+  const latest = await s.db
+    .selectFrom('build_steps')
+    .select((eb) => eb.fn.max('attempt').as('attempt'))
+    .where('build_request_id', '=', r.requestId)
+    .executeTakeFirst();
+  if (Number(latest?.attempt ?? r.attempt) !== r.attempt) return null;
+  if ((await automaticAttempts(s, r.requestId)) >= BUILDER_AUTO_RETRIES) return null;
+  const reason = `The builder ended with exit code ${step.detail.exit_code ?? 'unknown'}; trying once more.`;
+  await record({ ...r, attempt: r.attempt + 1 }, 'repo', 'started', { started_by: formatActor(BUILD), automatic: true, reason });
+  return r.attempt + 1;
+}
+
 /** The whole flow of one attempt. Returns how it ended. */
 async function buildWorkflow(projectId: string, requestId: string, attempt: number): Promise<string> {
   const r: Run = { projectId, requestId, attempt };
@@ -365,6 +411,10 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     });
     // The report is DEMIURGO's, not the project's: it never enters the commit.
     await rm(join(worktree.path, '.demiurgo'), { recursive: true, force: true });
+    const failed = result.state !== 'ok';
+    const kind = failed
+      ? classifyBuilderFailure({ runnerKind: result.failureKind, exitCode: result.exitCode, stderr: result.stderrTail, transcript: result.transcriptTail })
+      : null;
     const detail = {
       agent_version: agent.version,
       provider: resolution.provider,
@@ -373,14 +423,20 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       duration_ms: result.durationMs,
       transcript_tail_length: result.transcriptTail.length,
       report: result.report,
-      ...(result.failureKind ? { failure_kind: result.failureKind } : {}),
+      ...(kind ? { failure_kind: kind, transcript_excerpt: failureExcerpt({ stderr: result.stderrTail, transcript: result.transcriptTail }) } : {}),
     };
-    if (result.state !== 'ok') {
+    if (failed) {
       return { outcome: 'failed' as const, detail: { ...detail, error: `The builder ended with ${result.failureKind ?? `exit code ${result.exitCode}`}.` } };
     }
     return { value: { report: result.report }, detail };
   });
-  if (!built.ok) return stop('builder', built.outcome);
+  if (!built.ok) {
+    // A plain failure (the CLI exited with an error, nothing more specific) gets one automatic retry before
+    // it stops; a usage limit, a login problem or a timeout would only fail again (our convention).
+    const next = built.outcome === 'failed' ? await plain('builder-retry', () => retryBuilder(s0, r)) : null;
+    if (next !== null) await DBOS.startWorkflow(buildWorkflowRegistered, { workflowID: buildWorkflowId(requestId, next) })(projectId, requestId, next);
+    return stop('builder', built.outcome);
+  }
   const report = built.value.report;
 
   // commit
@@ -646,19 +702,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     const ciRed = conclusion !== 'success';
     const next = await plain('merge-stop', async () => {
       // The attempts started by DEMIURGO itself since the person's last one (our convention, see autoFollowUps).
-      const started = await s0.db
-        .selectFrom('build_steps')
-        .select(['attempt', 'detail'])
-        .where('build_request_id', '=', requestId)
-        .where('stage', '=', 'repo')
-        .where('outcome', '=', 'started')
-        .orderBy('attempt', 'desc')
-        .execute();
-      let automatic = 0;
-      for (const row of started) {
-        if ((row.detail as { automatic?: boolean } | null)?.automatic !== true) break;
-        automatic++;
-      }
+      const automatic = await automaticAttempts(s0, requestId);
       const latest = await s0.db
         .selectFrom('build_steps')
         .select((eb) => eb.fn.max('attempt').as('attempt'))

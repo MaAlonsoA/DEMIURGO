@@ -28,7 +28,7 @@ import { Who } from "../../components/Who.tsx";
 import { announce } from "../../components/announce.tsx";
 import { useMessages } from "../../i18n/define.ts";
 import { useProjectId } from "../../lib/hooks.ts";
-import { AgentBuildButton } from "../record/AgentBuild.tsx";
+import { AgentBuildButton, BuilderFailure } from "../record/AgentBuild.tsx";
 import { AGENT_BUILD } from "../record/agentBuild.i18n.ts";
 import { CopyBriefButton } from "../record/CopyBrief.tsx";
 import { BUILD } from "./words.i18n.ts";
@@ -103,6 +103,9 @@ function RequestState({ task, t }: { task: QueueTask; t: Words }) {
         <span className="font-medium text-fg" data-stage>
           {a[`s_${task.stage.stage}` as const]} · {a[`o_${task.stage.outcome}` as const]}
         </span>
+      ) : null}
+      {task.stage?.stage === "builder" && task.stage.outcome === "failed" ? (
+        <BuilderFailure kind={task.stage.failure?.kind} excerpt={task.stage.failure?.excerpt} />
       ) : null}
       {r.pr_url ? (
         <a
@@ -309,7 +312,9 @@ function AutoQueue({ projectId, auto, t }: { projectId: string; auto: NonNullabl
     : s
       ? s.kind === "needs_you"
         ? t.autoNeedsYou(s.code, s.tried)
-        : s.kind === "ended"
+        : s.kind === "waiting"
+          ? t.autoWaiting(s.code)
+          : s.kind === "ended"
           ? t.autoEnded(s.code)
           : s.kind === "stale"
             ? t.autoStale(s.code)

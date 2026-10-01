@@ -210,6 +210,10 @@ export function BuildStepper({ build }: { build: NonNullable<RecordDetail['build
 
 /** The reason a step failed (its recorded error), cut to one short line; the full text is in the tooltip. */
 function FailureReason({ step }: { step: BuildStep }) {
+  if (step.stage === 'builder') {
+    const b = step.detail as { failure_kind?: string; transcript_excerpt?: string } | null;
+    return <BuilderFailure kind={b?.failure_kind} excerpt={b?.transcript_excerpt} />;
+  }
   const d = step.detail as { error?: unknown; conclusion?: unknown } | null;
   // A red CI carries its conclusion instead of an error.
   const error = d?.error ?? (typeof d?.conclusion === 'string' ? `CI concluded ${d.conclusion}.` : undefined);
@@ -218,6 +222,22 @@ function FailureReason({ step }: { step: BuildStep }) {
   return (
     <span className="min-w-0 max-w-prose truncate text-fg-3" title={line} data-step-error>
       {line.length > 160 ? `${line.slice(0, 160)}…` : line}
+    </span>
+  );
+}
+
+/** Why the builder stopped, in plain words by failure kind, with what it printed last behind «Details». */
+export function BuilderFailure({ kind, excerpt }: { kind?: string | null; excerpt?: string | null }) {
+  const t = useMessages(AGENT_BUILD);
+  return (
+    <span className="flex min-w-0 flex-col gap-1 font-normal text-fg-2" data-builder-failure={kind ?? 'other'}>
+      <span>{t.failureReason(kind)}</span>
+      {excerpt ? (
+        <details>
+          <summary className="cursor-pointer">{t.failureDetails}</summary>
+          <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-xs text-fg-2">{excerpt}</pre>
+        </details>
+      ) : null}
     </span>
   );
 }

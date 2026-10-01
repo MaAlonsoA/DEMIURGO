@@ -11,6 +11,7 @@ import { executeCommand } from '../bus/bus.ts';
 import { buildRunning } from '../commands/build-steps.ts';
 import type { Db, Tx } from '../db/connection.ts';
 import type { Services } from '../services.ts';
+import { isTransientFailure } from './failure.ts';
 import { type BuildQueue, buildQueue } from './queue.ts';
 
 const BUILD = system('build', '1');
@@ -19,10 +20,13 @@ export type AutoStopped = {
   code: string;
   /**
    * needs_you: «DEMIURGO tried N times; it needs you»; ended: the last attempt failed or was cancelled;
-   * stale: the request is out of date; manual_review: a pull request pasted by hand is waiting.
+   * stale: the request is out of date; manual_review: a pull request pasted by hand is waiting;
+   * waiting: the builder hit a transient limit (the subscription's usage limit): the queue is paused, not given up.
    */
-  kind: 'needs_you' | 'ended' | 'stale' | 'manual_review';
+  kind: 'needs_you' | 'ended' | 'stale' | 'manual_review' | 'waiting';
   tried: number | null;
+  /** The builder's failure kind (usage_limit, auth, other…) when the last attempt failed in the builder. */
+  failure_kind?: string | null;
 };
 
 export type AutoStatus = {
@@ -75,6 +79,10 @@ async function decide(db: Db, projectId: string, queue: BuildQueue): Promise<Dec
       ? { kind: 'start', code: first.code, hasRequest: true }
       : { kind: 'stopped', stopped: { code: first.code, kind: 'manual_review', tried: null } };
   }
+  // The builder failed on something transient (a usage limit): the queue waits, it does not give up.
+  const d = latest.detail as { failure_kind?: string } | null;
+  const failure = latest.stage === 'builder' && latest.outcome === 'failed' ? (d?.failure_kind ?? null) : null;
+  if (isTransientFailure(failure)) return { kind: 'stopped', stopped: { code: first.code, kind: 'waiting', tried: null, failure_kind: failure } };
   // The attempt that ended needing the person says so in its last step; any other ended attempt also stops
   // the queue (it never skips ahead).
   const needs = (await db
@@ -88,7 +96,7 @@ async function decide(db: Db, projectId: string, queue: BuildQueue): Promise<Dec
     .executeTakeFirst()) as { detail: { needs_you?: boolean; tried?: number } | null } | undefined;
   return needs?.detail?.needs_you === true
     ? { kind: 'stopped', stopped: { code: first.code, kind: 'needs_you', tried: needs.detail.tried ?? null } }
-    : { kind: 'stopped', stopped: { code: first.code, kind: 'ended', tried: null } };
+    : { kind: 'stopped', stopped: { code: first.code, kind: 'ended', tried: null, ...(failure ? { failure_kind: failure } : {}) } };
 }
 
 /** The state the Build page shows. */

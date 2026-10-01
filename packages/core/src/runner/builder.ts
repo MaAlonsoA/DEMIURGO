@@ -55,6 +55,8 @@ export type BuilderResult = {
   failureKind?: Extract<FailureKind, 'timeout' | 'infra' | 'cancelled'>;
   /** Last 20k characters of stdout (the CLI's event stream). */
   transcriptTail: string;
+  /** Last 4k characters of stderr, to tell why a run failed (never stored raw: the orchestrator redacts it). */
+  stderrTail?: string;
   report: BuildReport | null;
   container: string;
 };
@@ -238,6 +240,7 @@ export async function runBuilder(spec: BuilderSpec, options: BuilderOptions = {}
     exitCode: code,
     durationMs: Math.round(performance.now() - start),
     transcriptTail: stdout.slice(-TRANSCRIPT_TAIL),
+    stderrTail: stderr.slice(-4000),
     report: await readReport(worktree),
     container: name,
   };

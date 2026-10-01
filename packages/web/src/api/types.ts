@@ -1145,7 +1145,7 @@ export type QueueTask = {
   checks: number;
   request: BuildRequestView | null;
   github?: boolean;
-  stage?: { stage: BuildStage; outcome: BuildOutcome } | null;
+  stage?: { stage: BuildStage; outcome: BuildOutcome; failure?: { kind: string; excerpt: string | null } } | null;
 };
 
 export type BuildQueue = {
@@ -1160,6 +1160,11 @@ export type BuildQueue = {
     on: boolean;
     building: string | null;
     next: string | null;
-    stopped: { code: string; kind: 'needs_you' | 'ended' | 'stale' | 'manual_review'; tried: number | null } | null;
+    stopped: {
+      code: string;
+      kind: 'needs_you' | 'ended' | 'stale' | 'manual_review' | 'waiting';
+      tried: number | null;
+      failure_kind?: string | null;
+    } | null;
   };
 };

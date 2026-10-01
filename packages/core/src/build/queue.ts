@@ -46,7 +46,7 @@ export type QueueTask = {
   /** GitHub is connected: a request can be built by an agent. */
   github: boolean;
   /** The latest stage of the open request's latest automatic build attempt, or null. */
-  stage: { stage: string; outcome: string } | null;
+  stage: { stage: string; outcome: string; failure?: { kind: string; excerpt: string | null } } | null;
 };
 
 export type WaitingTask = QueueTask & { reasons: string[] };
@@ -216,7 +216,14 @@ export async function buildQueue(
   const stepRows = open.length
     ? await db
         .selectFrom("build_steps")
-        .select(["build_request_id", "attempt", "stage", "outcome"])
+        .select([
+          "build_request_id",
+          "attempt",
+          "stage",
+          "outcome",
+          sql<string | null>`detail->>'failure_kind'`.as("failure_kind"),
+          sql<string | null>`detail->>'transcript_excerpt'`.as("excerpt"),
+        ])
         .where("build_request_id", "in", open.map((o) => o.id))
         .orderBy("attempt")
         .orderBy("created_at")
@@ -226,7 +233,12 @@ export async function buildQueue(
   const latestStage = (requestId: string) => {
     const mine = stepRows.filter((x) => x.build_request_id === requestId);
     const last = mine.at(-1);
-    return last ? { stage: last.stage, outcome: last.outcome } : null;
+    if (!last) return null;
+    return {
+      stage: last.stage,
+      outcome: last.outcome,
+      ...(last.outcome === "failed" && last.failure_kind ? { failure: { kind: last.failure_kind, excerpt: last.excerpt } } : {}),
+    };
   };
 
   const requestOf = (

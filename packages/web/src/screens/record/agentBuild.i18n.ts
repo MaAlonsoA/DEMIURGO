@@ -24,6 +24,25 @@ export const AGENT_BUILD = messages(
     verdictApprove: 'Approved',
     verdictChanges: 'Changes requested',
     comments: (n: number) => `${n} ${n === 1 ? 'comment' : 'comments'}`,
+    failureReason: (kind: string | null | undefined): string => {
+      switch (kind) {
+        case 'usage_limit':
+          return "Stopped: the subscription's usage limit was reached. Try again after it resets.";
+        case 'auth':
+          return 'Stopped: the builder could not sign in to its engine. Sign in again, then build again.';
+        case 'timeout':
+          return 'Stopped: the builder ran out of time.';
+        case 'out_of_memory':
+          return 'Stopped: the builder ran out of memory and was killed.';
+        case 'cancelled':
+          return 'Stopped: the build was cancelled.';
+        case 'infra':
+          return 'Stopped: the builder container could not run (Docker problem).';
+        default:
+          return 'Stopped: the builder exited with an error.';
+      }
+    },
+    failureDetails: 'Details',
     o_ok: 'done',
     o_started: 'running',
     o_waiting: 'waiting',
@@ -65,6 +84,25 @@ export const AGENT_BUILD = messages(
     verdictApprove: 'Aprobada',
     verdictChanges: 'Cambios pedidos',
     comments: (n: number) => `${n} ${n === 1 ? 'comentario' : 'comentarios'}`,
+    failureReason: (kind: string | null | undefined): string => {
+      switch (kind) {
+        case 'usage_limit':
+          return 'Detenida: se alcanzó el límite de uso de la suscripción. Vuelve a intentarlo cuando se reinicie.';
+        case 'auth':
+          return 'Detenida: el constructor no pudo iniciar sesión en su motor. Inicia sesión de nuevo y vuelve a construir.';
+        case 'timeout':
+          return 'Detenida: el constructor se quedó sin tiempo.';
+        case 'out_of_memory':
+          return 'Detenida: el constructor se quedó sin memoria y se cortó.';
+        case 'cancelled':
+          return 'Detenida: la construcción se canceló.';
+        case 'infra':
+          return 'Detenida: el contenedor del constructor no pudo ejecutarse (problema de Docker).';
+        default:
+          return 'Detenida: el constructor terminó con un error.';
+      }
+    },
+    failureDetails: 'Detalles',
     o_ok: 'hecho',
     o_started: 'en curso',
     o_waiting: 'esperando',

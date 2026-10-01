@@ -59,6 +59,8 @@ export const BUILD = messages(
     autoNeedsYou: (code: string, n: number | null) =>
       `Stopped: ${code} needs you.${n ? ` DEMIURGO tried ${n} ${n === 1 ? 'time' : 'times'}.` : ''} Address the review or withdraw the request; the queue does not skip ahead.`,
     autoEnded: (code: string) => `Stopped: the last build of ${code} ended without merging. Build it again or withdraw the request; the queue does not skip ahead.`,
+    autoWaiting: (code: string) =>
+      `The queue is waiting: the subscription's usage limit was reached while building ${code}. Build it again after the limit resets and the queue goes on.`,
     autoStale: (code: string) => `Stopped: the request of ${code} is stale. Withdraw it and the queue goes on.`,
     autoManual: (code: string) => `Stopped: ${code} has a pull request you sent to review by hand. Mark it done or withdraw the request.`,
   },
@@ -118,6 +120,8 @@ export const BUILD = messages(
     autoNeedsYou: (code: string, n: number | null) =>
       `Detenida: ${code} te necesita.${n ? ` DEMIURGO lo intentó ${n} ${n === 1 ? 'vez' : 'veces'}.` : ''} Atiende la revisión o retira la petición; la cola no se salta tareas.`,
     autoEnded: (code: string) => `Detenida: la última construcción de ${code} terminó sin fusionarse. Constrúyela de nuevo o retira la petición; la cola no se salta tareas.`,
+    autoWaiting: (code: string) =>
+      `La cola espera: se alcanzó el límite de uso de la suscripción al construir ${code}. Vuelve a construirla cuando se reinicie el límite y la cola sigue.`,
     autoStale: (code: string) => `Detenida: la petición de ${code} está caducada. Retírala y la cola sigue.`,
     autoManual: (code: string) => `Detenida: ${code} tiene una pull request que pasaste a revisión a mano. Márcala hecha o retira la petición.`,
   },

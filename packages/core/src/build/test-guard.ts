@@ -56,7 +56,7 @@ const same = (a: TestEntry, b: TestEntry) => a.path === b.path && a.title === b.
 /**
  * Tests added between `before` and `after` for a criterion that already had one at the same level or a lower
  * one, or a second new test for the same criterion, unless the new title carries `[example: …]`. A test that
- * disappeared (renamed or moved) does not count as existing. `criteria` restricts the check; without it every
+ * disappeared (renamed or moved) does not count as existing, and a retitled test in the same file is no new test. `criteria` restricts the check; without it every
  * criterion is checked. Pure.
  */
 export function duplicateTests(before: TestsByCriterion, after: TestsByCriterion, criteria?: Iterable<string>): TestGuardViolation[] {
@@ -66,7 +66,16 @@ export function duplicateTests(before: TestsByCriterion, after: TestsByCriterion
     if (only && !only.has(criterion)) continue;
     const old = before.get(criterion) ?? [];
     const kept = old.filter((o) => now.some((n) => same(n, o)));
-    const added = now.filter((n) => !old.some((o) => same(o, n)));
+    // A test whose title changed in the same file (a parameterized test turned into one case, a reworded title)
+    // replaces the one that disappeared there: it is a rename, not a new test.
+    const removed = old.filter((o) => !now.some((n) => same(n, o)));
+    const added = now.filter((n) => {
+      if (old.some((o) => same(o, n))) return false;
+      const i = removed.findIndex((r) => r.path === n.path && r.level === n.level);
+      if (i < 0) return true;
+      removed.splice(i, 1);
+      return false;
+    });
     const unmarked: TestEntry[] = [];
     for (const a of added) {
       if (EXAMPLE_MARKER.test(a.title)) continue;

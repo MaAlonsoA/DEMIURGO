@@ -60,6 +60,14 @@ describe('test guard', () => {
     expect(duplicateTests(before, dup, ['AC-OTHER-001-01'])).toEqual([]);
   });
 
+  it('a retitled test in the same file, next to another test of the criterion, is a rename and not a duplicate', () => {
+    const before = tests(src('e2e/save.spec.ts', 'AC-X-004-01 saved once confirmed', 'AC-X-004-01 when ${name}, an error is shown'));
+    const after = tests(src('e2e/save.spec.ts', 'AC-X-004-01 saved once confirmed', 'AC-X-004-01 when the server rejects the save, an error is shown'));
+    expect(duplicateTests(before, after)).toEqual([]);
+    const plusOne = tests(src('e2e/save.spec.ts', 'AC-X-004-01 saved once confirmed', 'AC-X-004-01 when the server rejects the save, an error is shown', 'AC-X-004-01 one more'));
+    expect(duplicateTests(before, plusOne)).toHaveLength(1);
+  });
+
   it('lists the existing tests per criterion, says when none, and caps the lines', () => {
     const t = tests(src('e2e/a.spec.ts', `${OWNER} owner-only access`));
     expect(existingTestsLines(t, [OWNER, 'AC-X-009-01'])).toEqual([

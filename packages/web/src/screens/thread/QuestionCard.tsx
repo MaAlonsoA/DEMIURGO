@@ -18,7 +18,7 @@ import { useMessages } from '../../i18n/define.ts';
 import { useReading } from '../../i18n/reading.tsx';
 import { cn } from '../../lib/cn.ts';
 import { ExplainButton } from './Explain.tsx';
-import { ASSUMED, answerChoices, draftOf, isOpenQuestion, pickedChoices, withExclusive } from './answers.ts';
+import { ASSUMED, CONVERSATION, answerChoices, draftOf, isOpenQuestion, pickedChoices, withExclusive } from './answers.ts';
 import { useDrafts } from './drafts.tsx';
 import { ANSWER_WORDS, QUESTION_CARD } from './words.i18n.ts';
 
@@ -121,6 +121,7 @@ export function QuestionCard({
             detail: (
               <>
                 {c.value === ASSUMED ? c.implies : reading.text(`options.${c.value}.implies`, c.implies)}
+                {q.multiple && c.exclusive && c.value !== ASSUMED && c.value !== CONVERSATION ? ` ${t.onlyThisOne}` : ''}
                 {c.downside ? (
                   <span className="block text-fg-3">
                     {t.downside}
@@ -138,6 +139,7 @@ export function QuestionCard({
           <p className="min-w-0 flex-1 text-base whitespace-pre-wrap text-fg">
             <span className="font-medium text-fg-2">{t.yourAnswer}</span>
             {draft}
+            <span className="mt-1 block text-sm text-fg-2">{t.ownWordsNote}</span>
           </p>
           <Button size="sm" variant="quiet" onClick={() => set(null)}>
             {t.clear}

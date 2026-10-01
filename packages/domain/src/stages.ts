@@ -90,6 +90,7 @@ export const STAGES: readonly StageDefinition[] = [
       },
       {
         key: 'problem',
+        multiple: true,
         question: 'What problem does the product solve for them, and what happens today without it?',
         reason: 'The problem defines the scope and what success looks like.',
         impact: 'high',
@@ -360,6 +361,15 @@ export function stageQuestionReference(stageKey: string, questionKey: string): R
 /** Whether a stage question is a list by nature; the system sets it, the model's guess does not decide it. */
 export function stageQuestionMultiple(stageKey: string, questionKey: string): boolean {
   return stageDefinition(stageKey)?.questions.find((q) => q.key === questionKey)?.multiple === true;
+}
+
+/**
+ * What a question stores as `multiple` once the stage's rule applies: a stage question takes several
+ * answers when its stage says so (the model's guess and rows raised before the rule do not decide it);
+ * any other question keeps its own flag.
+ */
+export function effectiveMultiple(stage: string | null | undefined, stageKey: string | null | undefined, stored: boolean): boolean {
+  return stage && stageKey ? stageQuestionMultiple(stage, stageKey) : stored;
 }
 
 type ReferenceOptionShape = { answer: string; implies: string; exclusive: boolean; recommended?: boolean; downside?: string };

@@ -8,6 +8,7 @@ import {
   formatActor,
   fingerprint,
   conversationOption,
+  effectiveMultiple,
   questionOption,
   quoteFound,
   system,
@@ -28,6 +29,13 @@ const text = (max: number) => z.string().trim().min(1).max(max);
 const uuid = z.string().uuid();
 /** The person's answer as they wrote it, when the server put it into English (definition/english.ts). */
 const ownWords = z.string().trim().max(3000).optional();
+
+/** `multiple` as the stage's rule sets it for a stage question; the given flag for any other. */
+async function stageMultiple(trx: Tx, stageId: string | null, stageKey: string | null, given: boolean): Promise<boolean> {
+  if (!stageId || !stageKey) return given;
+  const st = await trx.selectFrom('stages').select('stage').where('id', '=', stageId).executeTakeFirst();
+  return effectiveMultiple(st?.stage, stageKey, given);
+}
 
 const ORIGINS = {
   exploration: 'explorations',
@@ -413,7 +421,7 @@ registerHandlers({
           stage_id: data.stage_id ?? null,
           stage_key: data.stage_key ?? null,
           options: JSON.stringify(data.options ?? []),
-          multiple: data.multiple ?? false,
+          multiple: data.stage_id && data.stage_key ? await stageMultiple(ctx.trx, data.stage_id, data.stage_key, data.multiple ?? false) : (data.multiple ?? false),
           // A person's question shows at once; DEMIURGO's wait in the reserve for their turn.
           shown_at: ctx.actor.type === 'human' ? new Date() : null,
         })
@@ -456,7 +464,10 @@ registerHandlers({
         .updateTable('questions')
         .set({
           options: JSON.stringify(data.options),
-          ...(data.multiple === undefined ? {} : { multiple: data.multiple }),
+          // Whether a stage question takes several answers is the stage's, whoever suggests the options.
+          ...(data.multiple === undefined && !e?.row.stage_key
+            ? {}
+            : { multiple: await stageMultiple(ctx.trx, e?.row.stage_id as string | null, e?.row.stage_key as string | null, data.multiple ?? false) }),
           ...(data.question ? { question: data.question } : {}),
           ...(data.reason ? { reason: data.reason } : {}),
         })

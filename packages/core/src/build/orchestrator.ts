@@ -3,7 +3,10 @@
 // CI is green). One DBOS workflow per attempt, one step per stage; every stage leaves its build_step
 // (started, ok, failed, waiting or changes_requested) through the `build_step.record` command:
 //
-//   repo → worktree → environment → builder → commit → design → push → pr → status → ci → evidence → review → publish → merge
+//   repo → worktree → environment → builder → commit → design → push → pr → status → (ci ∥ review, evidence when CI ends) → publish → merge
+//
+// CI and the reviewer run in parallel (build/gate.ts): the first rejection ends the attempt, and a review that rejects while CI
+// still runs cancels CI.
 //
 // `environment` prepares the task's environment like the project's CI does (dependencies from the lockfile,
 // a database of the project's long-lived CI server, isolated for this build, with its migrations, browsers; see environment.ts) before the agent starts,
@@ -61,6 +64,7 @@ import { codeToExtend } from './queue.ts';
 import { checkTestGuard, existingTestsLines, readRepoTests, testGuardFeedback } from './test-guard.ts';
 import { affectedTests, affectedTestsLine, buildCodeMap } from './code-map.ts';
 import { decideRecheck } from './recheck.ts';
+import { decideGate } from './gate.ts';
 import type { Services } from '../services.ts';
 import { commitAll, unpushedHead, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, changedOnBranch, addedOnBranch, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
 import { existsSync } from 'node:fs';
@@ -87,6 +91,7 @@ export type GithubApi = Pick<
   | 'enableAutoMerge'
   | 'mergePullRequest'
   | 'checkRunsFor'
+  | 'cancelWorkflowRuns'
   | 'junitArtifactFor'
   | 'closePullRequest'
   | 'deleteBranch'
@@ -159,7 +164,7 @@ export const buildWorkflowId = (buildRequestId: string, attempt: number): string
 const BUILDER_AUTO_RETRIES = 1;
 
 type Stage = 'repo' | 'worktree' | 'environment' | 'builder' | 'commit' | 'design' | 'push' | 'pr' | 'status' | 'ci' | 'evidence' | 'review' | 'publish' | 'merge' | 'main';
-type Outcome = 'started' | 'ok' | 'failed' | 'waiting' | 'changes_requested';
+type Outcome = 'started' | 'ok' | 'failed' | 'waiting' | 'changes_requested' | 'cancelled';
 
 type Run = { projectId: string; requestId: string; attempt: number };
 type Extra = { branch?: string; pr_number?: number; head_sha?: string; published_review?: string };
@@ -912,21 +917,9 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
   });
   if (!pending.ok) return stop('status', pending.outcome);
 
-  // ci
+  // ci and review run in parallel (Software Engineering at Google, ch. 19 "Critique": presubmit results show beside the
+  // review; see build/gate.ts). CI is already running on the pushed head; the reviewer starts now, without waiting for it.
   await plain('ci-start', () => record(r, 'ci', 'started'));
-  const waitedCi = await waitForCi(d, cfg, owner, repoName, headSha, 'ci', () => plain('ci-waiting', () => record(r, 'ci', 'waiting', { head_sha: headSha })));
-  const ci = waitedCi.ci;
-  const ciFailure = waitedCi.failure;
-  if (!ci) {
-    await plain('ci-failed', () => record(r, 'ci', 'failed', { error: ciFailure ?? 'CI did not report.' }));
-    return stop('ci', 'failed');
-  }
-  const rawConclusion = ci.conclusion;
-  // The step tells the truth: a CI that did not conclude `success` is `failed`; the flow still goes on
-  // to the evidence and the review, because both are worth having when the attempt is rebuilt.
-  await plain('ci-done', () =>
-    record(r, 'ci', rawConclusion === 'success' ? 'ok' : 'failed', { conclusion: rawConclusion, head_sha: headSha }),
-  );
 
   // evidence (of a head SHA; again after the branch is updated from the base)
   const gatherEvidence = (sha: string) => stage(r, 'evidence', async () => {
@@ -958,18 +951,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       },
     };
   });
-  const evidence = await gatherEvidence(headSha);
-  if (!evidence.ok) return stop('evidence', evidence.outcome);
-  // Quarantine: a red CI explained only by flaky tests outside this task's criteria does not block this pull request.
-  const quarantined: string[] = rawConclusion !== 'success' && evidence.value.forgiven ? [...evidence.value.quarantined] : [];
-  const conclusion = quarantined.length > 0 ? 'success' : rawConclusion;
-  if (quarantined.length > 0) {
-    await plain('ci-quarantined', () =>
-      record(r, 'ci', 'ok', { conclusion: 'success', raw_conclusion: rawConclusion, head_sha: headSha, quarantined, note: quarantineNote(quarantined) }),
-    );
-  }
-
-  // review
+  // review: the pack says CI runs in parallel and is checked by DEMIURGO on its own (the reviewer never judges it)
   const requested = await stage(
     r,
     'review',
@@ -985,10 +967,10 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
             data: {
               action: 'pr_review',
               scope: { type: 'build_request', id: requestId },
-              input: { diff, pr_url: pull.url, ci: { conclusion, tests: evidence.value.tests, flaky: evidence.value.flaky } },
+              input: { diff, pr_url: pull.url, ci: { parallel: true } },
             },
           });
-          return { value: { runId: run.entityId }, detail: { run_id: run.entityId, ci_conclusion: conclusion }, outcome: 'waiting' as const };
+          return { value: { runId: run.entityId }, detail: { run_id: run.entityId, ci: 'parallel' }, outcome: 'waiting' as const };
         } catch (e) {
           // The graph is being updated: the reviewer's context waits for it.
           if (!isDomainError(e) || e.type !== 'guard' || waitedForGraph >= d.reviewTimeoutMs) throw e;
@@ -1000,41 +982,120 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     { announce: true },
   );
   if (!requested.ok) return stop('review', requested.outcome);
-  // The stage recorded `waiting` (with the run): the review is only requested until there is a verdict.
   const runId = requested.value.runId;
-  let waitedForRun = 0;
+
+  // The parallel wait. Every poll is a durable step (its result is checkpointed), and waiting is counted, not read from a
+  // clock, so after a restart the replay returns the same snapshots and decides the same way; the rows (`ci` and `review`
+  // waiting, then their results) are the recorded state. The first rejection ends the attempt.
+  type Verdict = { id: string; verdict: string; summary: string; comments: { path: string; line: number | null; severity: string; body: string }[] };
+  let waited = 0;
+  let ciAnnounced = false;
+  let rawConclusion: string | null = null;
+  let ciDone = false;
+  let ciCancelled = false;
+  let conclusion: string | null = null;
+  let quarantined: string[] = [];
+  let evidenceValue = { tests: [] as { code: string; result: 'pass' | 'fail' }[], flaky: [] as string[], quarantined: [] as string[], forgiven: false };
+  let reviewState: 'pending' | 'approved' | 'rejected' | 'failed' = 'pending';
+  let reviewVerdict: Verdict | null = null;
   let runState = 'queued';
-  for (;;) {
-    runState = await plain('review-poll', async () => {
-      const run = await s0.db.selectFrom('ai_runs').select('state').where('id', '=', runId).executeTakeFirstOrThrow();
-      return run.state;
+  let gate = decideGate({ ci: 'pending', review: 'pending' });
+  /** CI of this head is cancelled once the review rejects first: its result no longer matters to this attempt. */
+  const cancelCi = async (reason: string): Promise<void> => {
+    if (ciDone) return;
+    ciCancelled = true;
+    await plain('ci-cancel', async () => {
+      let cancelled = 0;
+      let cancelError: string | undefined;
+      try {
+        cancelled = await d.github.cancelWorkflowRuns(cfg, owner, repoName, headSha);
+      } catch (e) {
+        cancelError = messageOf(e);
+      }
+      // `failed` with the conclusion GitHub gives a cancelled run (not the `cancelled` outcome, which ends the attempt for buildRunning).
+      await record(r, 'ci', 'failed', { conclusion: 'cancelled', cancelled: true, reason, runs_cancelled: cancelled, head_sha: headSha, ...(cancelError ? { cancel_error: cancelError } : {}) });
     });
-    if (!['queued', 'running'].includes(runState)) break;
-    if (waitedForRun >= d.reviewTimeoutMs) break;
+  };
+  for (;;) {
+    const snap = await plain('gate-poll', async () => {
+      const { state, conclusion: raw } = ciDone ? { state: 'done' as const, conclusion: rawConclusion } : ciStatusOf(await d.github.checkRunsFor(cfg, owner, repoName, headSha));
+      const run = await s0.db.selectFrom('ai_runs').select('state').where('id', '=', runId).executeTakeFirstOrThrow();
+      const ended = !['queued', 'running'].includes(run.state);
+      const row = ended
+        ? await s0.db.selectFrom('pr_reviews').select(['id', 'verdict', 'summary', 'comments']).where('run_id', '=', runId).executeTakeFirst()
+        : undefined;
+      const found: Verdict | null = row ? { id: row.id, verdict: row.verdict, summary: row.summary, comments: row.comments as Verdict['comments'] } : null;
+      return { ci: { state, conclusion: raw }, run: run.state, ended, verdict: found };
+    });
+    runState = snap.run;
+
+    // CI finished: its row, then the evidence of its JUnit report and the flaky quarantine, as soon as it is known.
+    if (!ciDone && snap.ci.state === 'done') {
+      ciDone = true;
+      rawConclusion = snap.ci.conclusion;
+      await plain('ci-done', () => record(r, 'ci', rawConclusion === 'success' ? 'ok' : 'failed', { conclusion: rawConclusion, head_sha: headSha }));
+      const evidence = await gatherEvidence(headSha);
+      if (!evidence.ok) return stop('evidence', evidence.outcome);
+      evidenceValue = evidence.value;
+      // Quarantine: a red CI explained only by flaky tests outside this task's criteria does not block this pull request.
+      quarantined = rawConclusion !== 'success' && evidence.value.forgiven ? [...evidence.value.quarantined] : [];
+      conclusion = quarantined.length > 0 ? 'success' : rawConclusion;
+      if (quarantined.length > 0) {
+        await plain('ci-quarantined', () =>
+          record(r, 'ci', 'ok', { conclusion: 'success', raw_conclusion: rawConclusion, head_sha: headSha, quarantined, note: quarantineNote(quarantined) }),
+        );
+      }
+    }
+
+    // The reviewer spoke (or its run ended without a verdict, or took too long): its row, as soon as it is known.
+    if (reviewState === 'pending' && (snap.ended || waited >= d.reviewTimeoutMs)) {
+      reviewVerdict = snap.verdict;
+      if (!reviewVerdict) {
+        reviewState = 'failed';
+        await plain('review-failed', () =>
+          record(r, 'review', 'failed', { run_id: runId, error: snap.ended ? `The reviewer's run ended ${runState} without a verdict.` : `The reviewer's run did not finish after ${Math.round(d.reviewTimeoutMs / 60_000)} minutes.` }),
+        );
+      } else {
+        const v = reviewVerdict;
+        reviewState = v.verdict === 'approve' ? 'approved' : 'rejected';
+        await plain('review-ok', () =>
+          record(r, 'review', v.verdict === 'approve' ? 'ok' : 'changes_requested', { run_id: runId, verdict: v.verdict, comments_count: v.comments.length }),
+        );
+      }
+    }
+
+    gate = decideGate({ ci: !ciDone ? 'pending' : conclusion === 'success' ? 'green' : 'red', review: reviewState });
+    if (gate !== 'wait') break;
+
+    // CI that never shows up or never ends fails the attempt, as it did when CI was awaited alone.
+    if (!ciDone) {
+      const failure =
+        snap.ci.state === 'missing' && waited >= d.ciAppearMs
+          ? 'The project has no CI check named "ci": the walking skeleton task adds it.'
+          : waited >= d.ciTimeoutMs
+            ? `CI did not finish after ${Math.round(d.ciTimeoutMs / 60_000)} minutes.`
+            : null;
+      if (failure) {
+        await plain('ci-failed', () => record(r, 'ci', 'failed', { error: failure }));
+        return stop('ci', 'failed');
+      }
+      if (!ciAnnounced && snap.ci.state === 'pending') {
+        ciAnnounced = true;
+        await plain('ci-waiting', () => record(r, 'ci', 'waiting', { head_sha: headSha }));
+      }
+    }
     await d.sleep(d.pollMs);
-    waitedForRun += d.pollMs;
+    waited += d.pollMs;
   }
-  const verdict = await plain('review-read', async () => {
-    const row = await s0.db
-      .selectFrom('pr_reviews')
-      .select(['id', 'verdict', 'summary', 'comments'])
-      .where('run_id', '=', runId)
-      .executeTakeFirst();
-    return row ? { id: row.id, verdict: row.verdict, summary: row.summary, comments: row.comments as { path: string; line: number | null; severity: string; body: string }[] } : null;
-  });
-  if (!verdict) {
-    await plain('review-failed', () =>
-      record(r, 'review', 'failed', { run_id: runId, error: `The reviewer's run ended ${runState} without a verdict.` }),
-    );
+  // Review first: CI is cancelled (when still running) and the attempt goes on as a review rejection. A red CI with the
+  // review still running waited for it above (the run is already paid for, and the next attempt gets both findings).
+  if (gate === 'reject_review') await cancelCi('review_requested_changes');
+  if (gate === 'review_failed') {
+    await cancelCi('review_failed');
     return stop('review', 'failed');
   }
-  await plain('review-ok', () =>
-    record(r, 'review', verdict.verdict === 'approve' ? 'ok' : 'changes_requested', {
-      run_id: runId,
-      verdict: verdict.verdict,
-      comments_count: verdict.comments.length,
-    }),
-  );
+  if (!reviewVerdict) return stop('review', 'failed');
+  const verdict: Verdict = reviewVerdict;
 
   // publish: the review on the pull request and the required status
   const approved = verdict.verdict === 'approve' && conclusion === 'success';
@@ -1056,14 +1117,14 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       state: approved ? 'success' : 'failure',
       description: approved
         ? 'The reviewer agent approved and CI is green.'
-        : conclusion === 'success'
+        : conclusion === 'success' || ciCancelled
           ? 'The reviewer agent asked for changes.'
           : `CI concluded ${conclusion ?? 'without a result'}.`,
       target_url: pull.url,
     });
     return {
       value: true,
-      detail: { status: approved ? 'success' : 'failure', verdict: verdict.verdict, ci_conclusion: conclusion },
+      detail: { status: approved ? 'success' : 'failure', verdict: verdict.verdict, ci_conclusion: conclusion, ...(ciCancelled ? { ci_cancelled: true } : {}) },
       extra: { published_review: verdict.id },
     };
   });
@@ -1104,7 +1165,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
   };
   if (!approved) {
     const blocking = verdict.comments.filter((c) => c.severity === 'blocking').length;
-    const ciRed = conclusion !== 'success';
+    const ciRed = ciDone && conclusion !== 'success';
     const reason = verdict.verdict === 'approve' ? `CI concluded ${conclusion ?? 'without a result'}.` : 'The reviewer asked for changes.';
     await stopForChanges(reason, { blocking, fixable: ciRed || blocking > 0 });
     return stop('merge', 'changes_requested');
@@ -1261,8 +1322,16 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     return stop('merge', 'failed');
   }
   const mergedTime = mergedAt;
-  // Stop the line when main breaks (Martin Fowler, "Continuous Integration": fix broken builds immediately). The request
-  // is completed only after CI has spoken on the merge commit, so «Build the queue» never starts the next task on a red main.
+  // The task is done when it merges: its slot in «Build the queue» frees now, and CI on the merge commit is watched
+  // after it (presubmit before merging, postsubmit on main that blocks nobody: Google's TAP, Software Engineering at
+  // Google, ch. 23). A red main still stops the line (Martin Fowler, "Continuous Integration": fix broken builds
+  // immediately): the `main` row it leaves makes the queue start nothing new until main is green again.
+  await plain('complete', async () => {
+    await executeCommand(s0, { command: 'build_request.complete', actor: BUILD, projectId, entityId: requestId, data: {} });
+    // Best effort: the files this task landed (Nx "affected": files changed per git), so later briefs can point at them.
+    const footprint = await pullRequestFootprint(d.github, cfg, { owner, repo: repoName }, pull.number).catch(() => null);
+    await record(r, 'merge', 'ok', { merged_at: mergedTime, pr_url: pull.url, ...(footprint ? { footprint } : {}) });
+  });
   if (mergedCommit) {
     const onMain = mergedCommit;
     const main = await waitForCi(d, cfg, owner, repoName, onMain, 'main-ci');
@@ -1280,12 +1349,6 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       );
     }
   }
-  await plain('complete', async () => {
-    await executeCommand(s0, { command: 'build_request.complete', actor: BUILD, projectId, entityId: requestId, data: {} });
-    // Best effort: the files this task landed (Nx "affected": files changed per git), so later briefs can point at them.
-    const footprint = await pullRequestFootprint(d.github, cfg, { owner, repo: repoName }, pull.number).catch(() => null);
-    await record(r, 'merge', 'ok', { merged_at: mergedTime, pr_url: pull.url, ...(footprint ? { footprint } : {}) });
-  });
   await plain('cleanup', async () => {
     await removeWorktree(info.repoDir, worktree.path).catch(() => undefined);
     await rm(join(projectsDir() ?? '', '.sessions', requestId), { recursive: true, force: true }).catch(() => undefined);

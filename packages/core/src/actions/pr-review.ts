@@ -22,13 +22,16 @@ const BUILDER = 'pr_review@1';
 export const PR_REVIEW_DIFF_MAX = 400_000;
 const BUDGET = { brief: 20_000, task: 8_000, criteria: 12_000, diff: PR_REVIEW_DIFF_MAX };
 
-type Ci = { conclusion: string | null; tests: { code: string; result: 'pass' | 'fail' }[]; flaky?: string[]; note?: string };
+type Ci = { conclusion: string | null; tests: { code: string; result: 'pass' | 'fail' }[]; flaky?: string[]; note?: string; parallel?: true };
+
+const PARALLEL_NOTE = 'CI is running in parallel; its result is checked separately by DEMIURGO. Do not judge it.';
 
 import { flakyNote } from '../build/flaky.ts';
 
 function ciOf(value: unknown): Ci {
   const v = (typeof value === 'object' && value !== null ? value : {}) as Record<string, unknown>;
   const tests = Array.isArray(v.tests) ? v.tests : [];
+  if (v.parallel === true) return { conclusion: null, tests: [], parallel: true, note: PARALLEL_NOTE };
   const flaky = (Array.isArray(v.flaky) ? v.flaky : []).filter((c): c is string => typeof c === 'string');
   return {
     conclusion: typeof v.conclusion === 'string' ? v.conclusion : null,
@@ -217,7 +220,7 @@ type PackContent = {
   build_request_id: string;
   pr_url: string;
   criteria: { code: string; verification?: string }[];
-  ci?: { tests?: { code: string; result: string }[] };
+  ci?: { parallel?: boolean; tests?: { code: string; result: string }[] };
 };
 
 registerChecker('pr_review', async ({ db, run, output }) => {
@@ -230,10 +233,11 @@ registerChecker('pr_review', async ({ db, run, output }) => {
   if (missing.length > 0) notes.push(`\`criteria\` must list ${missing.join(', ')}: it lists exactly the criteria the task covers.`);
   if (extra.length > 0) notes.push(`\`criteria\` lists ${extra.join(', ')}, which the task does not cover or which appear twice: exactly one entry per covered criterion.`);
   // `covered: true` on an automatic criterion needs a passing case for it in CI: a claim with no `pass` is not evidence.
+  // With CI in parallel there is no result yet: the test existing is what the reviewer checks, and DEMIURGO gates on CI itself.
   const passing = new Set((pack.ci?.tests ?? []).filter((t) => t.result === 'pass').map((t) => t.code));
   const manual = new Set(pack.criteria.filter((c) => c.verification === 'manual' || c.verification === 'release').map((c) => c.code));
   for (const c of output.criteria)
-    if (c.covered && codes.includes(c.code) && !manual.has(c.code) && !passing.has(c.code))
+    if (c.covered && codes.includes(c.code) && !manual.has(c.code) && !passing.has(c.code) && pack.ci?.parallel !== true)
       notes.push(`${c.code} is marked covered but CI has no passing test for it: mark it \`covered: false\` (not run) and say why.`);
   const blocking = output.comments.filter((c) => c.severity === 'blocking');
   if (output.verdict === 'approve') {

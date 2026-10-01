@@ -455,6 +455,17 @@ export async function checkRunsFor(cfg: GithubConfig, owner: string, repo: strin
   }));
 }
 
+/**
+ * Cancels every GitHub Actions workflow run of a head SHA that has not completed (GitHub REST «List workflow runs
+ * for a repository» with `head_sha`, then «Cancel a workflow run»). Returns how many cancellations were requested.
+ */
+export async function cancelWorkflowRuns(cfg: GithubConfig, owner: string, repo: string, sha: string): Promise<number> {
+  const { data } = await call(cfg, 'GET', `/repos/${owner}/${repo}/actions/runs?head_sha=${sha}&per_page=100`);
+  const open = (data?.workflow_runs ?? []).filter((w: any) => w.status !== 'completed');
+  for (const w of open) await call(cfg, 'POST', `/repos/${owner}/${repo}/actions/runs/${w.id}/cancel`, { okStatuses: [409] });
+  return open.length;
+}
+
 const PASSING_CONCLUSIONS = new Set(['success', 'neutral', 'skipped']);
 
 export type CiStatus =

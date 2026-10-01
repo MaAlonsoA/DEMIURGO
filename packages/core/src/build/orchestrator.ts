@@ -45,7 +45,8 @@ import { loadAgentCatalog } from '../agents/catalog.ts';
 import { resolutionProblem, resolveEngine } from '../assignments/assignments.ts';
 import { executeCommand } from '../bus/bus.ts';
 import { systemInteraction } from '../engine/observe.ts';
-import { engineServices } from '../engine/registry.ts';
+import { engineServices, registerReconciler } from '../engine/registry.ts';
+import { buildRunning } from '../commands/build-steps.ts';
 import * as github from '../github/client.ts';
 import { ciStatusOf, redactConfigured } from '../github/client.ts';
 import { parseJunit } from '../commands/evidence.ts';
@@ -1402,3 +1403,41 @@ export async function closeWithdrawnPullRequest(requestId: string, reason?: stri
     engineServices().logger.error('Could not close the pull request of a withdrawn build request', { request: requestId, error: redactConfigured(String(e)) });
   }
 }
+
+/** DBOS statuses of a workflow that will not go on by itself. */
+const DEAD_WORKFLOW = new Set(['ERROR', 'CANCELLED', 'MAX_RECOVERY_ATTEMPTS_EXCEEDED', 'RETRIES_EXCEEDED']);
+
+/**
+ * Open attempts whose workflow died (a DEMIURGO update changed its steps while it ran, so the durable replay no longer
+ * matches, or it errored): the last stage gets a `failed` row, so the task shows «Build again» instead of looking busy
+ * forever. The next attempt goes on with the branch's work (see `headWithWork`).
+ */
+export async function failDeadAttempts(db: Services['db']): Promise<number> {
+  const open = await db.selectFrom('build_requests').select(['id', 'project_id']).where('state', 'in', ['requested', 'in_review']).execute();
+  let failed = 0;
+  for (const o of open) {
+    if (!(await buildRunning(db, o.id))) continue;
+    const last = await db
+      .selectFrom('build_steps')
+      .select(['attempt', 'stage'])
+      .where('build_request_id', '=', o.id)
+      .orderBy('created_at', 'desc')
+      .orderBy('id', 'desc')
+      .executeTakeFirst();
+    if (!last) continue;
+    const status = await DBOS.getWorkflowStatus(buildWorkflowId(o.id, last.attempt)).catch(() => null);
+    if (!status || !DEAD_WORKFLOW.has(status.status)) continue;
+    await record({ projectId: o.project_id, requestId: o.id, attempt: last.attempt }, last.stage as Stage, 'failed', {
+      error: 'This attempt stopped: DEMIURGO was updated while it ran. «Build again» goes on with the work already on the branch.',
+      interrupted: true,
+      workflow_status: status.status,
+    });
+    failed++;
+  }
+  return failed;
+}
+
+// On startup, once DBOS has tried to recover the workflows (a replay that no longer matches fails then).
+registerReconciler(async (s) => {
+  setTimeout(() => void failDeadAttempts(s.db).catch(() => undefined), 90_000);
+}, 'build-dead-attempts');

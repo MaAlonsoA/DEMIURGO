@@ -37,6 +37,7 @@ export * from './queries/trace.ts';
 export * from './queries/web.ts';
 export * from './queries/views.ts';
 export * from './build/queue.ts';
+export * from './build/auto.ts';
 export { coherenceStatus } from './actions/coherence-review.ts';
 export * from './context/knowledge.ts';
 export * from './knowledge/index.ts';

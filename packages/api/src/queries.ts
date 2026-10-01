@@ -40,6 +40,7 @@ import {
   projectGlossary,
   productDefinition,
   buildQueue,
+  autoStatus,
   composeBrief,
   coherenceStatus,
   githubConfig,
@@ -217,7 +218,11 @@ registerQueries([
     // The Build page (FDR-BUI-002): ready tasks in build order, Waiting with its reasons, open requests.
     path: '/api/projects/:projectId/build',
     queryName: 'query.records',
-    respond: ({ services, params }) => buildQueue(services.db, uuid(params.projectId, 'project')),
+    respond: async ({ services, params }) => {
+      const projectId = uuid(params.projectId, 'project');
+      const queue = await buildQueue(services.db, projectId);
+      return { ...queue, auto: await autoStatus(services.db, projectId, queue) };
+    },
   },
   {
     // The server-composed build brief of a ready record: what Copy brief copies and a request freezes.

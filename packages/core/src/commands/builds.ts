@@ -5,12 +5,44 @@
 
 import { DomainError, formatActor } from "@demiurgo/domain";
 import { z } from "zod";
+import { advanceBuildQueue, queueAutoOn } from "../build/auto.ts";
 import { composeBrief } from "../build/queue.ts";
+import { githubConfig } from "../github/client.ts";
 import { mergedBuildOf } from "../queries/read.ts";
 import { handler, registerHandlers } from "../bus/handlers.ts";
 import { buildRunning } from "./build-steps.ts";
 
 registerHandlers({
+  // «Build the queue» on or off for the project. Turning it on needs GitHub (agents build through it) and
+  // asks the queue to start the first ready task right after the commit. Only a person runs it.
+  "build.queue_auto": handler({
+    data: z.object({ on: z.boolean() }).strict(),
+    async apply(ctx, data, e) {
+      const before = await queueAutoOn(ctx.trx, ctx.projectId);
+      if (data.on && githubConfig() === null)
+        throw new DomainError(
+          "conflict",
+          "Connect GitHub first: set DEMIURGO_GITHUB_TOKEN and DEMIURGO_GITHUB_OWNER.",
+        );
+      const by = formatActor(ctx.actor);
+      await ctx.trx
+        .insertInto("build_queue_settings")
+        .values({ project_id: ctx.projectId, auto: data.on, set_by: by })
+        .onConflict((oc) =>
+          oc.column("project_id").doUpdateSet({ auto: data.on, set_by: by, set_at: new Date() }),
+        )
+        .execute();
+      const projectId = ctx.projectId;
+      if (data.on) ctx.afterCommit(async () => void (await advanceBuildQueue(ctx.services, projectId)));
+      return {
+        entityId: e?.id ?? projectId,
+        before: { auto: before },
+        after: { auto: data.on, set_by: by },
+        result: { on: data.on },
+      };
+    },
+  }),
+
   "build_request.request": handler({
     data: z.object({ task: z.string().trim().min(1).max(40) }).strict(),
     async apply(ctx, data, _e, to) {
@@ -157,6 +189,9 @@ registerHandlers({
         .select("code")
         .where("id", "=", String(e?.row.task_id))
         .executeTakeFirstOrThrow();
+      // «Build the queue»: a merged task makes room for the next ready one (a no-op with the flag off).
+      const projectId = ctx.projectId;
+      ctx.afterCommit(async () => void (await advanceBuildQueue(ctx.services, projectId)));
       return {
         entityId: id,
         before: { task: task.code, state: "in_review" },

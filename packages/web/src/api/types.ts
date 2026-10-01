@@ -1152,4 +1152,11 @@ export type BuildQueue = {
   built: (QueueTask & { pr_url: string | null; done_at: string | null })[];
   totals: { tasks: number; points: number; unsized: number };
   repository: { path: string | null; branch: string; merge_rule_by_demiurgo?: boolean };
+  /** «Build the queue»: the project's flag and what the queue is doing. */
+  auto?: {
+    on: boolean;
+    building: string | null;
+    next: string | null;
+    stopped: { code: string; kind: 'needs_you' | 'ended' | 'stale' | 'manual_review'; tried: number | null } | null;
+  };
 };

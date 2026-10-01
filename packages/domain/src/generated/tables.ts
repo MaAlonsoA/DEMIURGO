@@ -903,7 +903,8 @@ export const CAPABILITIES = {
     "build_request.request": {
       "entity": "build_request",
       "allowed": [
-        "human"
+        "human",
+        "system"
       ],
       "decisive": false,
       "description": "Record a request to build a ready task, with its brief frozen; nothing is launched."
@@ -937,10 +938,19 @@ export const CAPABILITIES = {
     "build.start": {
       "entity": "build_step",
       "allowed": [
-        "human"
+        "human",
+        "system"
       ],
       "decisive": false,
       "description": "Start the durable GitHub flow that builds a task with an open build request: builder agent, pull request, CI, evidence, reviewer agent and merge."
+    },
+    "build.queue_auto": {
+      "entity": "project",
+      "allowed": [
+        "human"
+      ],
+      "decisive": false,
+      "description": "Turn «Build the queue» on or off: with it on, the system starts the next ready task by itself, one build at a time, after each merge."
     },
     "build_step.record": {
       "entity": "build_step",
@@ -1131,6 +1141,13 @@ export const TRANSITIONS = {
         },
         {
           "command": "repository.connect",
+          "from": [
+            "active"
+          ],
+          "to": "active"
+        },
+        {
+          "command": "build.queue_auto",
           "from": [
             "active"
           ],

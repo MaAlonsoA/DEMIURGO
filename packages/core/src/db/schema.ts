@@ -649,6 +649,14 @@ export type ProjectReposTable = {
 };
 
 /** The project's private GitHub repository: owner and name. */
+export type BuildQueueSettingsTable = {
+  project_id: string;
+  /** «Build the queue»: DEMIURGO starts the next ready task by itself after each merge. */
+  auto: Generated<boolean>;
+  set_by: string;
+  set_at: Generated<Timestamp>;
+};
+
 export type ProjectGithubTable = {
   id: Generated<string>;
   project_id: string;
@@ -767,6 +775,7 @@ export type DB = {
   task_size_dismissals: TaskSizeDismissalsTable;
   project_repos: ProjectReposTable;
   project_github: ProjectGithubTable;
+  build_queue_settings: BuildQueueSettingsTable;
   build_requests: BuildRequestsTable;
   project_commits: ProjectCommitsTable;
   pr_reviews: PrReviewsTable;

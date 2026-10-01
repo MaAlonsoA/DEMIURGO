@@ -16,6 +16,7 @@ import { githubConfig } from "../github/client.ts";
 import { mergedBuildOf, productState } from "../queries/read.ts";
 import { taskCoversOf } from "../queries/sizes.ts";
 import { projectsDir } from "../repo/repo.ts";
+import type { AutoStatus } from "./auto.ts";
 
 type StateRow = Awaited<ReturnType<typeof productState>>["designs"][number];
 
@@ -62,6 +63,8 @@ export type BuildQueue = {
   built: BuiltTask[];
   totals: { tasks: number; points: number; unsized: number };
   repository: { path: string | null; branch: string; merge_rule_by_demiurgo: boolean };
+  /** «Build the queue»: the flag and what the queue is doing (filled by the query, not by buildQueue). */
+  auto?: AutoStatus;
 };
 
 const DEFAULT_BRANCH = "main";

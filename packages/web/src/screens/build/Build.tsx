@@ -8,14 +8,14 @@ import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useCommand } from "../../api/commands.ts";
 import { buildQueueQuery, projectsQuery } from "../../api/queries.ts";
-import type { QueueTask } from "../../api/types.ts";
+import type { BuildQueue, QueueTask } from "../../api/types.ts";
 import { Code } from "../../components/Badge.tsx";
 import { Button } from "../../components/Button.tsx";
 import { ConfirmDialog } from "../../components/Dialog.tsx";
-import { TextInput } from "../../components/Field.tsx";
+import { Checkbox, TextInput } from "../../components/Field.tsx";
 import { EmptyState } from "../../components/EmptyState.tsx";
 import { PlayIcon } from "../../components/icons.tsx";
-import { ErrorNotice } from "../../components/Notice.tsx";
+import { ErrorNotice, Notice } from "../../components/Notice.tsx";
 import {
   PageBody,
   PageHeader,
@@ -299,6 +299,59 @@ function Actions({
   );
 }
 
+/** «Build the queue»: the person's switch and what the queue is doing (the server decides; nothing is computed here). */
+function AutoQueue({ projectId, auto, t }: { projectId: string; auto: NonNullable<BuildQueue["auto"]>; t: Words }) {
+  const command = useCommand(projectId);
+  const client = useQueryClient();
+  const s = auto.stopped;
+  const status = !auto.on
+    ? null
+    : s
+      ? s.kind === "needs_you"
+        ? t.autoNeedsYou(s.code, s.tried)
+        : s.kind === "ended"
+          ? t.autoEnded(s.code)
+          : s.kind === "stale"
+            ? t.autoStale(s.code)
+            : t.autoManual(s.code)
+      : auto.building
+        ? t.autoBuilding(auto.building, auto.next)
+        : auto.next
+          ? t.autoNext(auto.next)
+          : t.autoIdle;
+  return (
+    <section className="flex flex-col gap-2" data-auto-queue data-auto-on={auto.on ? "true" : "false"}>
+      <Checkbox
+        checked={auto.on}
+        disabled={command.isPending}
+        label={<span className="font-medium">{t.auto}</span>}
+        onChange={(on) =>
+          command.mutate(
+            { command: "build.queue_auto", entityId: projectId, data: { on } },
+            {
+              onSuccess: () => {
+                void client.invalidateQueries({ queryKey: buildQueueQuery(projectId).queryKey });
+                announce(on ? t.autoOn : t.autoOff);
+              },
+            },
+          )
+        }
+      />
+      <p className="text-sm text-fg-2">{t.autoText}</p>
+      {status ? (
+        s ? (
+          <Notice tone="warning" title={status} />
+        ) : (
+          <p className="text-sm font-medium text-fg" data-auto-status>
+            {status}
+          </p>
+        )
+      ) : null}
+      {command.error ? <ErrorNotice error={command.error} compact /> : null}
+    </section>
+  );
+}
+
 export function BuildScreen() {
   const t = useMessages(BUILD);
   const projectId = useProjectId();
@@ -306,6 +359,7 @@ export function BuildScreen() {
   const queue = useQuery({
     ...buildQueueQuery(projectId),
     refetchInterval: (q) =>
+      q.state.data?.auto?.on ||
       [...(q.state.data?.ready ?? []), ...(q.state.data?.waiting ?? []), ...(q.state.data?.stale ?? [])].some(runningStage)
         ? 10_000
         : false,
@@ -330,6 +384,7 @@ export function BuildScreen() {
           ) : null
         ) : (
           <>
+            {q.auto ? <AutoQueue projectId={projectId} auto={q.auto} t={t} /> : null}
             <Section
               id="build-queue"
               title={t.queue}

@@ -9,7 +9,7 @@ import { sql } from 'kysely';
 import { z } from 'zod';
 import { field, registerGuards, trimmed } from '../bus/guards.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
-import type { Tx } from '../db/connection.ts';
+import type { Db, Tx } from '../db/connection.ts';
 import { githubConfig } from '../github/client.ts';
 import { mergedBuildOf } from '../queries/read.ts';
 
@@ -26,7 +26,7 @@ async function openRequestOf(trx: Tx, projectId: string, code: string) {
 }
 
 /** True while the latest attempt of a request has neither failed, asked for changes nor merged. */
-export async function buildRunning(trx: Tx, requestId: string): Promise<boolean> {
+export async function buildRunning(trx: Db | Tx, requestId: string): Promise<boolean> {
   const latest = await trx
     .selectFrom('build_steps')
     .select((eb) => eb.fn.max('attempt').as('attempt'))

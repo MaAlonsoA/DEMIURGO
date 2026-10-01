@@ -8,16 +8,18 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { canonicalPrettyJson, human, sha256Hex } from '@demiurgo/domain';
+import { canonicalPrettyJson, human, sha256Hex, system } from '@demiurgo/domain';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createSimulatedProvider } from '../src/agents/simulated.ts';
 import { executeCommand } from '../src/bus/bus.ts';
 import { buildQueue } from '../src/build/queue.ts';
+import { advanceBuildQueue, autoStatus } from '../src/build/auto.ts';
 import { type BuildDeps, resetBuildDeps, setBuildDeps, waitForBuild } from '../src/build/orchestrator.ts';
 import { waitForRun } from '../src/engine/engine.ts';
 import { pushBranch } from '../src/github/client.ts';
 import { waitForKnowledge } from '../src/knowledge/workflows.ts';
 import { recordDetail } from '../src/queries/read.ts';
+import { taskCoversOf } from '../src/queries/sizes.ts';
 import { taskViewOfRecord } from '../src/queries/task-view.ts';
 import { useEnvironment } from './support/env.ts';
 
@@ -527,5 +529,142 @@ describe('a merged task and a withdrawn build', () => {
       release();
       engine.cancelBuild = original;
     }
+  });
+});
+
+describe('Build the queue (opt-in per project)', () => {
+  const coversOf = new Map<string, string[]>();
+  let firstCodes: string[] = [];
+
+  /** The fakes, with the test report following the task that is being built. */
+  function queueFakes(opts: Parameters<typeof fakes>[0]): Partial<BuildDeps> {
+    const base = fakes(opts);
+    return {
+      ...base,
+      runBuilder: async (spec, options) => {
+        const code = /# Brief\nBuild (\S+)/.exec(spec.prompt)?.[1] ?? '';
+        codes = coversOf.get(code) ?? codes;
+        return (base.runBuilder as NonNullable<BuildDeps['runBuilder']>)(spec, options);
+      },
+    };
+  }
+
+  const requestsOf = (code: string) =>
+    db()
+      .selectFrom('build_requests')
+      .innerJoin('records', 'records.id', 'build_requests.task_id')
+      .select(['build_requests.id', 'build_requests.requested_by', 'build_requests.state'])
+      .where('build_requests.project_id', '=', projectId)
+      .where('records.code', '=', code)
+      .orderBy('build_requests.requested_at')
+      .execute();
+  const allRequests = () => db().selectFrom('build_requests').select('id').where('project_id', '=', projectId).where('state', 'in', ['requested', 'in_review', 'done']).execute();
+  async function until<T>(read: () => Promise<T | undefined>): Promise<T> {
+    for (let i = 0; i < 300; i++) {
+      const found = await read();
+      if (found !== undefined) return found;
+      await sleep(50);
+    }
+    throw new Error('Nothing happened.');
+  }
+  const requestFor = (code: string) => until(async () => (await requestsOf(code)).find((r) => r.state !== 'withdrawn'));
+  const readyCodes = async () => (await buildQueue(db(), projectId)).ready.map((t) => t.code);
+
+  beforeAll(async () => {
+    firstCodes = codes;
+    // The architecture and security stages passed: the tasks are ready to build (the second one after the first is built).
+    const thread = await db().selectFrom('explorations').select('id').where('project_id', '=', projectId).orderBy('created_at').executeTakeFirstOrThrow();
+    for (const [position, stage] of [[4, 'architecture'], [5, 'security']] as const) {
+      const exists = await db().selectFrom('stages').select('id').where('project_id', '=', projectId).where('stage', '=', stage).executeTakeFirst();
+      if (!exists) await db().insertInto('stages').values({ project_id: projectId, stage, position, exploration_id: thread.id, state: 'passed', opened_by: 'human:ana', passed_by: 'human:ana', passed_at: new Date() }).execute();
+    }
+    const tasks = await db().selectFrom('records').select(['id', 'code']).where('project_id', '=', projectId).where('type', '=', 'task').execute();
+    for (const t of tasks) coversOf.set(t.code, await taskCoversOf(db(), t.id));
+  });
+
+  beforeEach(async () => {
+    resetBuildDeps();
+    await cmd('build.queue_auto', { on: false }, projectId);
+    await db().updateTable('build_requests').set({ state: 'withdrawn', withdrawn_by: 'human:ana', withdrawn_at: new Date() }).where('project_id', '=', projectId).where('state', 'in', ['requested', 'in_review', 'done']).execute();
+  });
+
+  afterAll(() => {
+    codes = firstCodes;
+  });
+
+  it('flag off: nothing starts, not even after a merge', async () => {
+    setBuildDeps(queueFakes({ ciConclusion: 'success' }));
+    const [first, second] = await readyCodes();
+    expect(first).toBeDefined();
+    expect(await advanceBuildQueue(environment().services, projectId)).toBeNull();
+    expect(await allRequests()).toEqual([]);
+
+    // A build the person started merges: with the flag off the next ready task is left alone.
+    await cmd('build_request.request', { task: first });
+    await cmd('build.start', { task: first });
+    const request = (await requestsOf(first as string)).find((r) => r.state !== 'withdrawn');
+    expect(await finished(request?.id as string, 1)).toBe('done');
+    await sleep(400);
+    expect(await readyCodes()).toContain(second);
+    expect(await allRequests()).toHaveLength(1);
+    expect(await autoStatus(db(), projectId, await buildQueue(db(), projectId))).toEqual({ on: false, building: null, next: null, stopped: null });
+  });
+
+  it('flag on: the first ready task starts by itself, and when it merges the next one starts', async () => {
+    setBuildDeps(queueFakes({ ciConclusion: 'success' }));
+    const [first, second] = await readyCodes();
+    expect(second, 'two ready tasks').toBeDefined();
+    const next = second as string;
+
+    const on = await cmd('build.queue_auto', { on: true }, projectId);
+    expect(on.result).toEqual({ on: true });
+    const one = await requestFor(first as string);
+    expect(one.requested_by).toBe('system:build@1');
+    expect(await finished(one.id, 1)).toBe('done');
+    const rows = await steps(one.id);
+    expect(rows.find((x) => x.stage === 'repo' && x.outcome === 'started')?.detail).toMatchObject({ started_by: 'system:build@1' });
+
+    const two = await requestFor(next);
+    expect(two.requested_by).toBe('system:build@1');
+    expect(await finished(two.id, 1)).toBe('done');
+    // Nothing is left: the queue idles.
+    await sleep(300);
+    expect(await allRequests()).toHaveLength(2);
+    expect(await autoStatus(db(), projectId, await buildQueue(db(), projectId))).toEqual({ on: true, building: null, next: null, stopped: null });
+    // Turning it on twice never starts the same task twice.
+    expect(await advanceBuildQueue(environment().services, projectId)).toBeNull();
+
+    const events = await db().selectFrom('events').select(['actor', 'after']).where('project_id', '=', projectId).where('command', '=', 'build.queue_auto').orderBy('seq').execute();
+    expect(events.at(-1)).toMatchObject({ actor: 'human:ana', after: { auto: true } });
+  });
+
+  it('flag on: a build that needs the person stops the queue, which never skips ahead', async () => {
+    setBuildDeps(queueFakes({ ciConclusion: 'failure', auto: 0 }));
+    const [first] = await readyCodes();
+    await cmd('build.queue_auto', { on: true }, projectId);
+    const one = await requestFor(first as string);
+    expect(await finished(one.id, 1)).toBe('changes_requested:merge');
+    await sleep(500);
+    const status = await autoStatus(db(), projectId, await buildQueue(db(), projectId));
+    expect(status).toMatchObject({ on: true, building: null, next: null, stopped: { code: first, kind: 'needs_you', tried: 1 } });
+    expect(await advanceBuildQueue(environment().services, projectId)).toBeNull();
+    // Turning the flag off and on again does not skip it either.
+    await cmd('build.queue_auto', { on: true }, projectId);
+    await sleep(300);
+    expect(await allRequests()).toHaveLength(1);
+    expect(Math.max(...(await steps(one.id)).map((x) => x.attempt))).toBe(1);
+  });
+
+  it('turning it on needs GitHub, and only a person can run it', async () => {
+    const token = process.env.DEMIURGO_GITHUB_TOKEN;
+    delete process.env.DEMIURGO_GITHUB_TOKEN;
+    try {
+      await expect(cmd('build.queue_auto', { on: true }, projectId)).rejects.toThrow(/Connect GitHub first/);
+    } finally {
+      process.env.DEMIURGO_GITHUB_TOKEN = token;
+    }
+    await expect(
+      executeCommand(environment().services, { command: 'build.queue_auto', actor: system('build', '1'), projectId, entityId: projectId, data: { on: true } }),
+    ).rejects.toMatchObject({ type: 'forbidden' });
   });
 });

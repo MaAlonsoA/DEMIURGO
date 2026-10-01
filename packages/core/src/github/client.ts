@@ -43,9 +43,13 @@ async function call(
 ): Promise<Called> {
   const doFetch = cfg.fetch ?? fetch;
   const url = path.startsWith('http') ? path : `${cfg.api}${path}`;
-  let res: Response;
-  try {
-    res = await doFetch(url, {
+  // A read retries a transient failure (network error, 429 or 5xx such as the artifact store's «503 ServerBusy»)
+  // with exponential backoff and jitter, honouring Retry-After (GitHub REST docs, «Best practices for using the
+  // REST API»; AWS Architecture Blog, «Exponential Backoff And Jitter»). Writes are not retried: they may have
+  // applied. The attempt count and delays are our convention.
+  const retries = method === 'GET' || method === 'HEAD' ? GET_RETRIES : 0;
+  const send = (): Promise<Response> =>
+    doFetch(url, {
       method,
       headers: {
         Authorization: `Bearer ${cfg.token}`,
@@ -57,27 +61,51 @@ async function call(
       ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
       redirect: 'follow',
     });
-  } catch (e) {
-    throw new DomainError('validation', redactToken(`GitHub is unreachable: ${(e as Error).message}`, cfg.token));
+  let res: Response | undefined;
+  for (let attempt = 0; ; attempt++) {
+    let failure: unknown = null;
+    try {
+      res = await send();
+    } catch (e) {
+      failure = e;
+    }
+    const transient = failure !== null || (res !== undefined && (res.status === 429 || res.status >= 500));
+    if (!transient || attempt >= retries) {
+      if (failure !== null) throw new DomainError('validation', redactToken(`GitHub is unreachable: ${(failure as Error).message}`, cfg.token));
+      break;
+    }
+    const after = Number(res?.headers.get('retry-after'));
+    const wait = Number.isFinite(after) && after > 0 ? Math.min(after * 1000, RETRY_MAX_MS) : Math.min(RETRY_BASE_MS * 2 ** attempt, RETRY_MAX_MS);
+    await res?.body?.cancel().catch(() => undefined);
+    await new Promise((r) => setTimeout(r, cfg.fetch ? 0 : wait / 2 + Math.random() * (wait / 2)));
   }
-  const status = res.status;
-  if (opts.raw && status < 400) return { status, data: res, text: '' };
-  const text = await res.text();
-  let data: any = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = null;
+  return finish(res as Response);
+
+  async function finish(res: Response): Promise<Called> {
+    const status = res.status;
+    if (opts.raw && status < 400) return { status, data: res, text: '' };
+    const text = await res.text();
+    let data: any = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
+    }
+    if (status >= 400 && !opts.okStatuses?.includes(status)) {
+      const detail = data?.message ? String(data.message) : text.slice(0, 200);
+      throw new DomainError(
+        'validation',
+        redactToken(`GitHub ${method} ${path.replace(cfg.api, '')} failed (${status}): ${detail}`, cfg.token),
+      );
+    }
+    return { status, data, text };
   }
-  if (status >= 400 && !opts.okStatuses?.includes(status)) {
-    const detail = data?.message ? String(data.message) : text.slice(0, 200);
-    throw new DomainError(
-      'validation',
-      redactToken(`GitHub ${method} ${path.replace(cfg.api, '')} failed (${status}): ${detail}`, cfg.token),
-    );
-  }
-  return { status, data, text };
 }
+
+/** Retries of a transient GitHub read and its backoff (our convention). */
+const GET_RETRIES = 4;
+const RETRY_BASE_MS = 2000;
+const RETRY_MAX_MS = 30000;
 
 async function graphql(cfg: GithubConfig, query: string, variables: Record<string, unknown>): Promise<any> {
   const { data } = await call(cfg, 'POST', '/graphql', { body: { query, variables } });

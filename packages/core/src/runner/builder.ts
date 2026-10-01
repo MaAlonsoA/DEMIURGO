@@ -1,7 +1,7 @@
 // Builder container: the ONE place where an agent may edit code. Like `runJob` it goes through
 // the docker CLI with `spawn` and no shell, but with a different profile: network on the default
 // bridge (the model API and package registries), the task's git worktree mounted read-write at
-// /workspace and the CLI sign-in volume mounted READ-ONLY at /auth. No docker socket, no
+// /workspace, the main repo's .git mounted read-only (read-only git) and the CLI sign-in volume mounted READ-ONLY at /auth. No docker socket, no
 // /projects, no git credentials, no environment outside a short allow list. DEMIURGO commits and
 // pushes after the container exits. Called only when the person presses Build.
 
@@ -43,6 +43,12 @@ export type BuilderSpec = {
   provider: 'claude' | 'codex';
   model: string;
   effort: string;
+  /**
+   * The project's main repository, so read-only git works in /workspace (its `.git` file points
+   * into the main repo's `.git`): that `.git` is mounted READ-ONLY at `containerPath`, the path the
+   * worktree's `.git` file references. No push rights: no credentials, no write access.
+   */
+  gitDir?: { hostPath: string; containerPath: string };
   /** The brief, sent on stdin. */
   prompt: string;
   maxTimeMs: number;
@@ -119,6 +125,12 @@ export function builderArguments(spec: BuilderSpec, containerName: string, envir
   if (!(cpus > 0) || !Number.isInteger(memoryMb) || memoryMb <= 0 || !Number.isInteger(pids) || pids <= 0) {
     throw new Error('Invalid limits.');
   }
+  if (spec.gitDir) {
+    const { hostPath, containerPath } = spec.gitDir;
+    for (const p of [hostPath, containerPath]) {
+      if (!p.startsWith('/') || /[:,\0\n]/.test(p)) throw new Error(`Invalid git directory path: ${JSON.stringify(p)}.`);
+    }
+  }
   const uid = environment.DEMIURGO_UID?.trim() || '501';
   const gid = environment.DEMIURGO_GID?.trim() || uid;
   if (!/^\d+$/.test(uid) || !/^\d+$/.test(gid)) throw new Error('DEMIURGO_UID and DEMIURGO_GID must be numbers.');
@@ -133,6 +145,8 @@ export function builderArguments(spec: BuilderSpec, containerName: string, envir
   const script = `set -eu; mkdir -p "${config}"; cp -R /auth/${dir}/. "${config}"/; cd /workspace; exec "$@"`;
   const env: Record<string, string> = {
     CI: '1',
+    // Read-only git (status, diff, log) must not try to refresh the index in the read-only mount.
+    GIT_OPTIONAL_LOCKS: '0',
     HOME: home,
     // Playwright browsers live in a named volume, outside the worktree: they download once per version.
     PLAYWRIGHT_BROWSERS_PATH: PW_BROWSERS_DIR,
@@ -158,6 +172,7 @@ export function builderArguments(spec: BuilderSpec, containerName: string, envir
     '--memory-swap', `${memoryMb}m`,
     '--cpus', String(cpus),
     '--mount', `type=bind,source=${spec.worktreeHostPath},target=/workspace`,
+    ...(spec.gitDir ? ['--mount', `type=bind,source=${spec.gitDir.hostPath},target=${spec.gitDir.containerPath},readonly`] : []),
     '--mount', `type=volume,source=${volume},target=/auth,readonly`,
     '--mount', `type=volume,source=${browsersVolume},target=${PW_BROWSERS_DIR}`,
     '--workdir', '/workspace',

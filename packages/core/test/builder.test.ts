@@ -33,12 +33,27 @@ describe('builderArguments', () => {
     expect(args.join(' ')).not.toContain('docker.sock');
     expect(args).toContain('demiurgo/app:local');
     const envs = args.filter((_, i) => args[i - 1] === '--env');
-    expect(envs).toEqual(['CI=1', 'CLAUDE_CONFIG_DIR=/home/demiurgo/.claude-auth', 'HOME=/home/demiurgo', 'LANG=C.UTF-8', 'PLAYWRIGHT_BROWSERS_PATH=/ms-playwright', 'TZ=UTC']);
+    expect(envs).toEqual(['CI=1', 'CLAUDE_CONFIG_DIR=/home/demiurgo/.claude-auth', 'GIT_OPTIONAL_LOCKS=0', 'HOME=/home/demiurgo', 'LANG=C.UTF-8', 'PLAYWRIGHT_BROWSERS_PATH=/ms-playwright', 'TZ=UTC']);
     expect(args.slice(args.indexOf('builder') + 1)).toEqual([
       'claude', '-p', '--model', 'opus', '--output-format', 'stream-json', '--verbose', '--effort', 'high',
       '--permission-mode', 'acceptEdits', '--allowedTools', 'Read,Edit,Write,Glob,Grep,Bash,WebSearch',
       '--disallowedTools', 'WebFetch', '--setting-sources', '',
     ]);
+  });
+
+  it('mounts the main repo .git read-only for read-only git, and nothing else changes', () => {
+    const gitDir = { hostPath: '/Users/x/Development/Demiurgo-projects/proj/.git', containerPath: '/projects/proj/.git' };
+    const args = builderArguments({ ...spec, gitDir }, 'demiurgo-build-1', {});
+    const mounts = args.filter((_, i) => args[i - 1] === '--mount');
+    expect(mounts).toEqual([
+      `type=bind,source=${spec.worktreeHostPath},target=/workspace`,
+      `type=bind,source=${gitDir.hostPath},target=${gitDir.containerPath},readonly`,
+      'type=volume,source=demiurgo_cli-auth,target=/auth,readonly',
+      'type=volume,source=demiurgo_pw-browsers,target=/ms-playwright',
+    ]);
+    expect(args).toContain('--read-only');
+    expect(args).toContain('--cap-drop');
+    expect(() => builderArguments({ ...spec, gitDir: { ...gitDir, hostPath: '/a:/b' } }, 'n', {})).toThrow();
   });
 
   it('builds the codex command and honours the overrides', () => {

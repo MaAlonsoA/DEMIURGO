@@ -472,11 +472,27 @@ async function relatedWork(
   return lines;
 }
 
+/** How the work is delivered: the person opens the pull request, with the agent DEMIURGO does after it exits. */
+export function deliveryLine(forBuild: boolean, code: string, title: string, branch: string): string {
+  return forBuild
+    ? "DEMIURGO commits, pushes and opens the pull request after you exit; do not use git to commit or push."
+    : `Work on a branch named ${code.toLowerCase()}-<short-slug-of-the-title>, not on ${branch}. Open a pull request titled "${code}: ${title}" whose body lists the criteria it covers; do not merge it, I review and merge it.`;
+}
+
+/** What to report at the end: the agent has no pull request to report. */
+export function reportLine(forBuild: boolean): string {
+  return forBuild
+    ? "When done, report for each criterion the name of the test that checks it (or the steps, if it is checked by hand)."
+    : "When done, report the pull request URL and, for each criterion, the name of the test that checks it (or the steps, if it is checked by hand).";
+}
+
 /**
  * The build brief of a ready record (FDR-DEL-008, FDR-BUI-002): English plain text that starts with
  * "Build <code>", from its current approved version, with its size (a task), its criteria and checks,
  * what it depends on, its design paths and the repository with its default branch. Refused with the
- * readiness reasons when it is not ready. The Copy brief button and a build request use this text.
+ * readiness reasons when it is not ready. The Copy brief button and a build request use this text;
+ * with `forBuild` (the agent) the branch and pull request lines are replaced by one saying DEMIURGO
+ * commits, pushes and opens the pull request.
  */
 export async function composeBrief(
   db: Db,
@@ -560,7 +576,7 @@ export async function composeBrief(
   const lines = [
     `Build ${row.code} "${version.title}" (v${version.n})${of}.`,
     `Repository: ${repo.path ?? "not configured (DEMIURGO_PROJECTS_DIR)"}, default branch ${repo.branch}.`,
-    `Work on a branch named ${row.code.toLowerCase()}-<short-slug-of-the-title>, not on ${repo.branch}. Open a pull request titled "${row.code}: ${version.title}" whose body lists the criteria it covers; do not merge it, I review and merge it.`,
+    deliveryLine(options.forBuild === true, row.code, version.title, repo.branch),
     `Design in this repository: ${paths.join(" and ")}.`,
     `Goal: ${goalOf(version.sections as { title: string; content: string }[])}`,
     ...(row.type === "task" ? [sizeLine(row.effort?.size ?? null)] : []),
@@ -590,7 +606,7 @@ export async function composeBrief(
   }
   lines.push(
     'Every criterion whose check is automatic needs a test whose title starts with the criterion code (for example "AC-XXX-001-01 ..."), so it can be traced.',
-    "When done, report the pull request URL and, for each criterion, the name of the test that checks it (or the steps, if it is checked by hand).",
+    reportLine(options.forBuild === true),
     "I will record the evidence in DEMIURGO.",
   );
   return lines.join("\n");

@@ -495,6 +495,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     const result = await d.runBuilder(
       {
         worktreeHostPath: hostPathOf(worktree.path),
+        gitDir: { hostPath: hostPathOf(join(info.repoDir, '.git')), containerPath: join(info.repoDir, '.git') },
         provider: resolution.provider as 'claude' | 'codex',
         model: resolution.model,
         effort: resolution.effort ?? 'medium',

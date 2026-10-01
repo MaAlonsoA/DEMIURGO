@@ -13,7 +13,7 @@ import { sql } from 'kysely';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createSimulatedProvider } from '../src/agents/simulated.ts';
 import { executeCommand } from '../src/bus/bus.ts';
-import { buildQueue } from '../src/build/queue.ts';
+import { buildQueue, deliveryLine, reportLine } from '../src/build/queue.ts';
 import { advanceBuildQueue, autoStatus, dependsOnBusy } from '../src/build/auto.ts';
 import type { TaskDependencyIndex } from '../src/queries/task-deps.ts';
 import { type BuildDeps, resetBuildDeps, setBuildDeps, waitForBuild } from '../src/build/orchestrator.ts';
@@ -266,6 +266,20 @@ async function finished(requestId: string, attempt: number): Promise<string> {
 
 const steps = (requestId: string) =>
   db().selectFrom('build_steps').selectAll().where('build_request_id', '=', requestId).orderBy('created_at').orderBy('id').execute();
+
+describe('the build brief', () => {
+  it('for the agent, DEMIURGO commits and opens the pull request; the human brief keeps asking for one', () => {
+    const person = [deliveryLine(false, 'TSK-X-001', 'Title', 'main'), reportLine(false)].join('\n');
+    const agent = [deliveryLine(true, 'TSK-X-001', 'Title', 'main'), reportLine(true)].join('\n');
+    expect(person).toContain('Work on a branch named tsk-x-001-<short-slug-of-the-title>, not on main. Open a pull request titled "TSK-X-001: Title"');
+    expect(person).toContain('report the pull request URL');
+    expect(person).not.toContain('DEMIURGO commits');
+    expect(agent).not.toContain('Open a pull request');
+    expect(agent).not.toContain('Work on a branch named');
+    expect(agent).not.toContain('pull request URL');
+    expect(agent).toContain('DEMIURGO commits, pushes and opens the pull request after you exit; do not use git to commit or push.');
+  });
+});
 
 describe('build.start', () => {
   beforeEach(async () => {

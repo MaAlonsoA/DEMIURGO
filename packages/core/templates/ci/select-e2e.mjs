@@ -12,6 +12,14 @@
 // Prints the arguments for `playwright test` on stdout and the decision on stderr. No argument holds a
 // space, so pass the line through an environment variable and expand it unquoted:
 //   E2E_ARGS: ${{ steps.scope.outputs.args }}   ->   pnpm exec playwright test $E2E_ARGS
+//
+// Lane (cost in proportion to the change): `--lane` prints only the lane, one of `full`, `selected`, `light`.
+//   echo "lane=$(node .demiurgo/select-e2e.mjs --lane)" >> "$GITHUB_OUTPUT"
+// - light: a pull request whose every changed file is documentation (never a test): no e2e, and the job may
+//   skip build, migrate and browser. The job still runs and reports success, because a workflow skipped by
+//   path filtering leaves the required check Pending, while a skipped step does not (GitHub Docs,
+//   "Troubleshooting required status checks", "Handling skipped but required checks").
+// - selected: the trailer or the changed specs choose the tests. full: the whole suite (main always).
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
@@ -20,32 +28,41 @@ export const TRAILER = 'Affected-criteria';
 export const CRITERION = /^[A-Z]+-[A-Z]+-\d+-\d+$/;
 // Specs, unit tests and documentation: nothing here changes what the application does.
 export const TESTS_AND_DOCS = /^(.*\.(spec|test)\.[cm]?[jt]sx?|(.*\/)?(__tests__|e2e|tests?)\/.*\.[cm]?[jt]sx?|design\/.*|docs?\/.*|\.demiurgo\/.*|.*\.mdx?)$/;
+// Documentation only (a subset of the above): never a test file.
+const TEST_FILE = /^(.*\.(spec|test)\.[cm]?[jt]sx?|(.*\/)?(__tests__|e2e|tests?)\/.*)$/;
+export const DOCS_ONLY = /^(design\/.*|docs?\/.*|\.demiurgo\/.*|.*\.mdx?)$/;
+export const isDocsOnly = (file) => DOCS_ONLY.test(file) && !TEST_FILE.test(file);
 
 /** The valid criterion codes among the values of the trailers, without repeats, in order. */
 export function affectedCriteria(trailerValues) {
   return [...new Set(String(trailerValues).split(/\s+/).filter((token) => CRITERION.test(token)))];
 }
 
-/** Pure. { args: string[], reason: string } */
+/** Pure. { args: string[], reason: string, lane: 'full' | 'selected' | 'light' } */
 export function selectEndToEnd({ event, changedFiles, trailerValues }) {
-  if (event !== 'pull_request') return { args: [], reason: 'not a pull request: the whole suite' };
+  if (event !== 'pull_request') return { args: [], lane: 'full', reason: 'not a pull request: the whole suite' };
+  if (changedFiles.length > 0 && changedFiles.every(isDocsOnly)) {
+    return { args: ['--pass-with-no-tests'], lane: 'light', reason: 'only documentation changed: light lane, no build, browser or e2e' };
+  }
   const codes = affectedCriteria(trailerValues);
   if (codes.length > 0) {
     // Playwright matches --grep against the project, file and titles joined by spaces, so the code is
     // looked for as a whole word anywhere in it, not anchored to the start.
     // A criterion with no end-to-end test (checked below that level) selects nothing: the run passes.
     return {
+      lane: 'selected',
       args: [`--grep=(?<![\\w-])(?:${codes.join('|')})(?![\\w-])`, '--pass-with-no-tests'],
       reason: `${codes.length} affected criteria: ${codes.join(', ')}`,
     };
   }
   if (changedFiles.length > 0 && changedFiles.every((file) => TESTS_AND_DOCS.test(file))) {
     return {
+      lane: 'selected',
       args: ['--only-changed=origin/main', '--pass-with-no-tests'],
       reason: `no ${TRAILER} trailer on the head commit; only tests and documentation changed: the changed specs`,
     };
   }
-  return { args: [], reason: `no ${TRAILER} trailer on the head commit; application code (or unknown changes): the whole suite` };
+  return { args: [], lane: 'full', reason: `no ${TRAILER} trailer on the head commit; application code (or unknown changes): the whole suite` };
 }
 
 /** The values of the git trailers `Affected-criteria` of a commit (text in the body is not a trailer). */
@@ -62,10 +79,11 @@ function changedFilesAgainst(base) {
 }
 
 function main() {
+  const laneOnly = process.argv.includes('--lane');
   const event = process.env.GITHUB_EVENT_NAME ?? '';
   if (event !== 'pull_request') {
     console.error(`End-to-end scope: ${selectEndToEnd({ event, changedFiles: [], trailerValues: '' }).reason}`);
-    console.log('');
+    console.log(laneOnly ? 'full' : '');
     return;
   }
   // On a pull request the checkout is a merge commit: the pull request's own head is passed in.
@@ -77,9 +95,9 @@ function main() {
     console.error(`End-to-end scope: cannot read ${head} (fetch-depth too small?): ${error instanceof Error ? error.message : String(error)}`);
   }
   const changedFiles = changedFilesAgainst(process.env.E2E_BASE_REF || 'origin/main');
-  const { args, reason } = selectEndToEnd({ event, changedFiles, trailerValues });
+  const { args, lane, reason } = selectEndToEnd({ event, changedFiles, trailerValues });
   console.error(`End-to-end scope: ${reason}`);
-  console.log(args.join(' '));
+  console.log(laneOnly ? lane : args.join(' '));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

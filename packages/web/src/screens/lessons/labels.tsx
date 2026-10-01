@@ -26,6 +26,14 @@ export function PieceIdLabel({ id }: { id: string }) {
   return <Coded code={id} name={name} />;
 }
 
+export function KnownErrorLink({ projectId, code }: { projectId: string; code: string }) {
+  return (
+    <Link to="/p/$projectId/observability/known-errors/$code" params={{ projectId, code }} className="font-mono text-xs text-fg hover:underline" data-known-error={code}>
+      {code}
+    </Link>
+  );
+}
+
 export function TaskLink({ projectId, code }: { projectId: string; code: string }) {
   return (
     <Link to="/p/$projectId/records/$code" params={{ projectId, code }} className="font-mono text-xs text-fg hover:underline">

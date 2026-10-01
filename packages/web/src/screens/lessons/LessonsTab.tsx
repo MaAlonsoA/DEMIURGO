@@ -12,6 +12,7 @@ import { BarRows } from '../observability/charts.tsx';
 import { num } from '../observability/format.ts';
 import { SectionHelp } from '../observability/help.tsx';
 import type { HelpTopic } from '../observability/help.i18n.ts';
+import { KnownErrorsSection } from './KnownErrors.tsx';
 import { ClassLabel, PieceIdLabel, TaskLink } from './labels.tsx';
 import { LESSONS } from './lessons.i18n.ts';
 import { forensicsOverviewQuery } from './queries.ts';
@@ -114,12 +115,19 @@ function PlaybookDetail({ p }: { p: ForensicsOverview['playbooks'][number] }) {
 export function LessonsView({ projectId, data }: { projectId: string; data: ForensicsOverview }) {
   const t = useMessages(LESSONS);
   const locale = useSafeLocale();
-  if (data.tasks.length === 0) return <p className="text-sm text-fg-2">{t.tabEmpty}</p>;
+  if (data.tasks.length === 0)
+    return (
+      <div className="flex flex-col divide-y divide-edge">
+        <KnownErrorsSection projectId={projectId} />
+        <p className="py-6 text-sm text-fg-2">{t.tabEmpty}</p>
+      </div>
+    );
   const classes = data.by_class.filter((c) => c.occurrences > 0).toSorted((a, b) => b.occurrences - a.occurrences);
   const maxOcc = Math.max(1, ...classes.map((c) => c.occurrences));
   const pieces = data.by_piece.toSorted((a, b) => b.contributed_to_error - a.contributed_to_error || b.could_have_prevented - a.could_have_prevented || a.piece_id.localeCompare(b.piece_id));
   return (
     <div className="flex flex-col divide-y divide-edge">
+      <KnownErrorsSection projectId={projectId} />
       <Block title={t.classesTitle} topic="lessonsClasses">
         {classes.length === 0 ? (
           <p className="text-sm text-fg-2">{t.none}</p>

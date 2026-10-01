@@ -10,6 +10,7 @@ export type TaskForensicsView = {
     id: string;
     task_version_id: string;
     request_ids: string[];
+    trigger_request_id: string | null;
     ai_run_id: string;
     evidence_hash: string;
     catalog_version: string;
@@ -31,6 +32,7 @@ export async function taskForensicsOf(db: Db, projectId: string, code: string): 
       id: r.id,
       task_version_id: r.task_version_id,
       request_ids: r.request_ids,
+      trigger_request_id: r.trigger_request_id,
       ai_run_id: r.ai_run_id,
       evidence_hash: r.evidence_hash,
       catalog_version: r.catalog_version,

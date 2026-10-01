@@ -9,7 +9,7 @@ import { RowsSkeleton } from '../../components/Spinner.tsx';
 import { Select } from '../../components/Field.tsx';
 import { DayTime } from '../../components/Time.tsx';
 import { useMessages } from '../../i18n/define.ts';
-import { ClassLabel, PhaseLabel, PieceIdLabel } from './labels.tsx';
+import { ClassLabel, KnownErrorLink, PhaseLabel, PieceIdLabel } from './labels.tsx';
 import { LESSONS } from './lessons.i18n.ts';
 import { taskForensicsQuery } from './queries.ts';
 import type { ForensicAnalysis, TaskForensic, TaskForensics, Verdict } from './types.ts';
@@ -81,7 +81,7 @@ function Checklist({ analysis }: { analysis: ForensicAnalysis }) {
   );
 }
 
-export function AnalysisView({ analysis }: { analysis: ForensicAnalysis }) {
+export function AnalysisView({ analysis, projectId }: { analysis: ForensicAnalysis; projectId?: string }) {
   const t = useMessages(LESSONS);
   const dimensions = [...new Set(analysis.root_causes.map((c) => c.dimension))];
   return (
@@ -117,9 +117,23 @@ export function AnalysisView({ analysis }: { analysis: ForensicAnalysis }) {
                   <PhaseLabel code={w.phase} />
                   <ClassLabel code={w.error_class} />
                   {t.cost(w.cost) ? <span className="tabular-nums">{t.cost(w.cost)}</span> : null}
+                  {w.known_error ? (
+                    <span data-went-wrong-known={w.known_error}>
+                      {t.keKnown} {projectId ? <KnownErrorLink projectId={projectId} code={w.known_error} /> : <span className="font-mono">{w.known_error}</span>}
+                    </span>
+                  ) : w.new_error ? (
+                    <span data-went-wrong-new>
+                      {t.keNew}: <span className="text-fg">{w.new_error.title}</span>
+                    </span>
+                  ) : null}
                 </span>
                 <span>{w.what}</span>
                 <span className="text-xs text-fg-3">{w.evidence}</span>
+                {w.recurrence_why ? (
+                  <span className="text-xs text-fg-2" data-recurrence-why>
+                    {t.keRecurrence}: {w.recurrence_why}
+                  </span>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -186,7 +200,7 @@ export function AnalysisView({ analysis }: { analysis: ForensicAnalysis }) {
 }
 
 /** The view: the analyses (newest first) with a date selector when there are several. */
-export function TaskLessonsView({ data }: { data: TaskForensics }) {
+export function TaskLessonsView({ data, projectId }: { data: TaskForensics; projectId?: string }) {
   const t = useMessages(LESSONS);
   const [picked, setPicked] = useState<string | null>(null);
   const list: TaskForensic[] = data.forensics;
@@ -210,7 +224,7 @@ export function TaskLessonsView({ data }: { data: TaskForensics }) {
           {t.analyzedAt} <DayTime iso={current.created_at} />
         </p>
       )}
-      <AnalysisView analysis={current.analysis} />
+      <AnalysisView analysis={current.analysis} {...(projectId ? { projectId } : {})} />
     </div>
   );
 }
@@ -220,12 +234,12 @@ export function TaskLessons({ projectId, code }: { projectId: string; code: stri
   const t = useMessages(LESSONS);
   const q = useQuery(taskForensicsQuery(projectId, code));
   return (
-    <section className="flex flex-col gap-3 border-t border-edge pt-6" data-task-lessons>
+    <section id={t.sectionAnchor} className="flex flex-col gap-3 border-t border-edge pt-6" data-task-lessons>
       <div className="flex flex-col gap-0.5">
         <h2 className="text-lg font-semibold text-fg">{t.title}</h2>
         <p className="max-w-prose text-sm text-fg-2">{t.note}</p>
       </div>
-      {q.isPending ? <RowsSkeleton label={t.loading} rows={3} /> : q.error ? <ErrorNotice error={q.error} onRetry={() => void q.refetch()} /> : q.data ? <TaskLessonsView data={q.data} /> : null}
+      {q.isPending ? <RowsSkeleton label={t.loading} rows={3} /> : q.error ? <ErrorNotice error={q.error} onRetry={() => void q.refetch()} /> : q.data ? <TaskLessonsView data={q.data} projectId={projectId} /> : null}
     </section>
   );
 }

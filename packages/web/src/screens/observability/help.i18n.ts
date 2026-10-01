@@ -6,7 +6,7 @@
 
 import { messages } from '../../i18n/define.ts';
 
-export const HELP_TOPICS = ['containment', 'escapes', 'attempts', 'cost', 'rework', 'calibration', 'tests', 'agents', 'jev', 'health', 'checks', 'versions', 'attention', 'worth', 'lessonsClasses', 'lessonsCauses', 'lessonsImprovements', 'lessonsPieces', 'lessonsPlaybooks', 'lessonsTasks'] as const;
+export const HELP_TOPICS = ['containment', 'escapes', 'attempts', 'cost', 'rework', 'calibration', 'tests', 'agents', 'jev', 'health', 'checks', 'versions', 'attention', 'worth', 'lessonsKnown', 'lessonsClasses', 'lessonsCauses', 'lessonsImprovements', 'lessonsPieces', 'lessonsPlaybooks', 'lessonsTasks'] as const;
 export type HelpTopic = (typeof HELP_TOPICS)[number];
 
 export const OBS_HELP = messages(
@@ -141,6 +141,14 @@ export const OBS_HELP = messages(
     worthSource:
       'Unit economics, as the code puts it: «FinOps: total attributed cost over units delivered». The unit «verified criterion» and the person-minutes proxy are convención nuestra.',
 
+    lessonsKnownMeasures:
+      'The known-error vault: every defect of DEMIURGO the post-mortems have seen, with its status and how often it came back.\nAn entry is a defect described once (title, signature, class, pieces) that every later post-mortem matches instead of describing it again.',
+    lessonsKnownHow:
+      'Each «what went wrong» entry of a post-mortem is matched to an entry of the vault or opens a new one.\nA fix is claimed with the CLI («vault fix»), giving its description, commits and the piece versions. The entry becomes «fix claimed».\nIt becomes «validated» after 3 later tasks that use its pieces show no occurrence. If it appears with the fix in place, the post-mortem must say why the fix did not hold and the entry becomes «recurred».\nOccurrences count only the latest post-mortem of each task; recurrences after a fix are never forgotten.',
+    lessonsKnownRead:
+      'Open: seen, nobody has claimed a fix yet.\nFix claimed: waiting for the clean tasks.\nValidated: the fix held.\nRecurred: the fix did not work; read the reason on the entry page.\nMany occurrences with no fix are the first thing to fix; any recurrence after a fix is worth reading first.',
+    lessonsKnownSource:
+      'The vault follows the Known Error Database of ITIL Problem Management: a recorded problem with its workaround or fix, kept so the next incident is matched instead of diagnosed again.\nThe threshold of 3 clean tasks and the four statuses are convención nuestra: ITIL asks for the fix to be confirmed but gives no number.',
     lessonsClassesMeasures:
       'Which kinds of problem the post-mortems of the tasks name most often, with the attempts, minutes and dollars they cost.',
     lessonsClassesHow:
@@ -321,6 +329,14 @@ export const OBS_HELP = messages(
     worthSource:
       'Economía por unidad, como lo dice el código: «FinOps: coste total atribuido entre unidades entregadas». La unidad «criterio verificado» y el indicador de minutos de la persona son convención nuestra.',
 
+    lessonsKnownMeasures:
+      'La bóveda de errores conocidos: cada defecto de DEMIURGO que han visto los análisis, con su estado y cuántas veces ha vuelto.\nUna ficha es un defecto descrito una sola vez (título, firma, clase, piezas) con el que casan los análisis posteriores en vez de describirlo otra vez.',
+    lessonsKnownHow:
+      'Cada entrada de «qué fue mal» de un análisis se casa con una ficha de la bóveda o abre una nueva.\nUna corrección se declara con la CLI («vault fix»), con su descripción, sus commits y las versiones de las piezas. La ficha pasa a «corrección declarada».\nPasa a «validado» tras 3 tareas posteriores que usan sus piezas y no muestran el error. Si aparece con la corrección puesta, el análisis debe explicar por qué no aguantó y la ficha pasa a «reapareció».\nLas apariciones cuentan solo el último análisis de cada tarea; las reapariciones tras una corrección no se olvidan.',
+    lessonsKnownRead:
+      'Abierto: visto, nadie ha declarado corrección.\nCorrección declarada: a la espera de las tareas limpias.\nValidado: la corrección aguantó.\nReapareció: la corrección no funcionó; lee el motivo en la página de la ficha.\nMuchas apariciones sin corrección es lo primero que arreglar; cualquier reaparición tras una corrección merece leerse antes.',
+    lessonsKnownSource:
+      'La bóveda sigue la Known Error Database de ITIL Problem Management: un problema registrado con su solución o parche, guardado para casar el siguiente incidente en vez de diagnosticarlo otra vez.\nEl umbral de 3 tareas limpias y los cuatro estados son convención nuestra: ITIL pide confirmar la corrección pero no da ningún número.',
     lessonsClassesMeasures:
       'Qué tipos de problema nombran más los análisis de las tareas, con los intentos, minutos y dólares que cuestan.',
     lessonsClassesHow:

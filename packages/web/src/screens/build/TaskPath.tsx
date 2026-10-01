@@ -10,6 +10,7 @@ import { Code } from "../../components/Badge.tsx";
 import { Who } from "../../components/Who.tsx";
 import { cn } from "../../lib/cn.ts";
 import { useMessages } from "../../i18n/define.ts";
+import { ForensicStep } from "./ForensicStep.tsx";
 import { AGENT_BUILD } from "../record/agentBuild.i18n.ts";
 import { type ChainBlock, PATH_COLUMNS, STAGE_COLUMN, type Selection, type StageState, chainLayout, compact, flattenSegments, ms, reviewOverlapsCi, scrollTargetFor, stageStates } from "./timelineLogic.ts";
 import type { BUILD } from "./words.i18n.ts";
@@ -771,6 +772,7 @@ export function TaskPath({
           <Came request={request} attempt={attempt} t={t} />
         </section>
       </div>
+      <ForensicStep projectId={projectId} request={request} />
       {attempt.merged_at && request.context ? <Context context={request.context} t={t} /> : null}
       {request.attempts.length > 1 ? (
         <section className="flex flex-col gap-1" aria-label={t.tpAttempts}>

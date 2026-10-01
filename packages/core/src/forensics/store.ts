@@ -12,6 +12,7 @@ export type ForensicRow = {
   code: string;
   task_version_id: string;
   request_ids: string[];
+  trigger_request_id: string | null;
   ai_run_id: string;
   evidence_hash: string;
   catalog_version: string;

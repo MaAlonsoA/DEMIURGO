@@ -1,9 +1,11 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
+import { KnownErrorDetailView, KnownErrorsView } from '../../src/screens/lessons/KnownErrors.tsx';
 import { LESSONS } from '../../src/screens/lessons/lessons.i18n.ts';
 import { LessonsView } from '../../src/screens/lessons/LessonsTab.tsx';
 import { TaskLessonsView } from '../../src/screens/lessons/TaskLessons.tsx';
-import type { ForensicAnalysis, ForensicsOverview, TaskForensics } from '../../src/screens/lessons/types.ts';
+import type { ForensicAnalysis, ForensicsOverview, KnownErrorDetail, KnownErrorEntry, KnownErrorsOverview, TaskForensics } from '../../src/screens/lessons/types.ts';
 
 // A router link rendered as a plain anchor, so the test needs no router.
 vi.mock('@tanstack/react-router', () => ({
@@ -78,7 +80,11 @@ describe('Lessons learned views', () => {
   });
 
   it('renders the aggregate tab', () => {
-    const html = renderToStaticMarkup(<LessonsView projectId="p1" data={overview} />);
+    const html = renderToStaticMarkup(
+      <QueryClientProvider client={new QueryClient()}>
+        <LessonsView projectId="p1" data={overview} />
+      </QueryClientProvider>,
+    );
     for (const topic of ['lessonsClasses', 'lessonsCauses', 'lessonsImprovements', 'lessonsPieces', 'lessonsPlaybooks', 'lessonsTasks']) {
       expect(html).toContain(`data-help-topic="${topic}"`);
     }
@@ -87,7 +93,96 @@ describe('Lessons learned views', () => {
     expect(html).toContain('List the files in the prompt.');
   });
 
+  it('shows the known error or the new error of each went-wrong item, with the recurrence why', () => {
+    const wrong = analysis.went_wrong[0]!;
+    const data: TaskForensics = {
+      ...task,
+      forensics: [
+        {
+          ...task.forensics[0]!,
+          analysis: {
+            ...analysis,
+            went_wrong: [
+              { ...wrong, known_error: 'KE-001', recurrence_why: 'The fix only covered the stage check.' },
+              { ...wrong, what: 'Something unseen.', known_error: null, new_error: { title: 'Stale lockfile' } },
+            ],
+          },
+        },
+      ],
+    };
+    const html = renderToStaticMarkup(<TaskLessonsView data={data} projectId="p1" />);
+    expect(html).toContain('href="/p/p1/observability/known-errors/KE-001"');
+    expect(html).toContain('The fix only covered the stage check.');
+    expect(html).toContain('data-went-wrong-new');
+    expect(html).toContain('Stale lockfile');
+  });
+
   it('has the same words in both languages', () => {
     expect(Object.keys(LESSONS.es)).toEqual(Object.keys(LESSONS.en));
+  });
+
+  const entry = (over: Partial<KnownErrorEntry> = {}): KnownErrorEntry => ({
+    code: 'KE-001',
+    version: 1,
+    title: 'Builder ignores the file list',
+    description: 'The builder edits files outside its list.',
+    error_class: 'E09',
+    phase: 'P9',
+    dimension: 'prompt',
+    signature: 'files changed not in predicted list',
+    pieces: ['agent:builder', 'piece:B07'],
+    status: 'open',
+    fix: null,
+    origin_project_id: 'p1',
+    created_by: 'agent:run:1',
+    created_at: '2026-10-01T10:00:00Z',
+    ...over,
+  });
+
+  it('renders the known-error vault section: counts by status, legend, help and a row per entry', () => {
+    const data: KnownErrorsOverview = {
+      total: 2,
+      by_status: { open: 1, fix_claimed: 0, validated: 0, recurred: 1 },
+      entries: [
+        { ...entry(), occurrences: 3, last_seen: '2026-10-02T10:00:00Z', after_fix_recurrences: 0, tasks: ['TSK-AAA-001'] },
+        { ...entry({ code: 'KE-002', title: 'Stale lockfile', status: 'recurred' }), occurrences: 1, last_seen: null, after_fix_recurrences: 1, tasks: [] },
+      ],
+    };
+    const html = renderToStaticMarkup(<KnownErrorsView projectId="p1" data={data} />);
+    expect(html).toContain('data-help-topic="lessonsKnown"');
+    for (const k of ['open', 'fix_claimed', 'validated', 'recurred']) expect(html).toContain(`data-status-count="${k}"`);
+    expect(html).toContain(LESSONS.en.keLegend('fix_claimed'));
+    expect(html).toContain('data-known-error-row="KE-001"');
+    expect(html).toContain('href="/p/p1/observability/known-errors/KE-002"');
+    expect(html).toContain('Builder ignores the file list');
+    expect(html).toContain('href="/p/p1/records/TSK-AAA-001"');
+  });
+
+  it('renders the known-error page: signature, pieces, fix history and occurrences', () => {
+    const fixed = entry({
+      version: 2,
+      status: 'recurred',
+      fix: { description: 'List files in the prompt.', commits: ['abcdef1234567'], piece_versions: { 'agent:builder': 'v7' }, claimed_at: '2026-10-01T12:00:00Z' },
+    });
+    const data: KnownErrorDetail = {
+      entry: fixed,
+      versions: [entry(), fixed],
+      occurrences: [
+        { id: 'o1', project: { id: 'p1', name: 'Comidas' }, task: { id: 't1', code: 'TSK-AAA-001' }, forensic_id: 'f1', went_wrong_index: 0, occurred_at: '2026-10-01T11:00:00Z', piece_versions: {}, after_fix: false, recurrence_why: null, created_at: '2026-10-01T11:00:00Z', current: true },
+        { id: 'o2', project: { id: 'p1', name: 'Comidas' }, task: { id: 't2', code: 'TSK-AAA-002' }, forensic_id: 'f2', went_wrong_index: 1, occurred_at: '2026-10-02T11:00:00Z', piece_versions: {}, after_fix: true, recurrence_why: 'The fix missed the retry path.', created_at: '2026-10-02T11:00:00Z', current: true },
+      ],
+    };
+    const html = renderToStaticMarkup(<KnownErrorDetailView projectId="p1" data={data} />);
+    expect(html).toContain('data-known-error-page="KE-001"');
+    expect(html).toContain('files changed not in predicted list');
+    expect(html).toContain('data-piece="agent:builder"');
+    expect(html).toContain('data-version="1"');
+    expect(html).toContain('data-version="2"');
+    expect(html).toContain('List files in the prompt.');
+    expect(html).toContain('abcdef123');
+    expect(html).toContain('data-occurrence="o2"');
+    expect(html).toContain('data-after-fix="yes"');
+    expect(html).toContain('The fix missed the retry path.');
+    expect(html).toContain('href="/p/p1/records/TSK-AAA-002"');
   });
 });

@@ -5,6 +5,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { createRootRouteWithContext, createRoute, createRouter, notFound, redirect } from '@tanstack/react-router';
 import { projectsQuery, sessionQuery } from './api/queries.ts';
 import { ActivityScreen } from './screens/activity/Activity.tsx';
+import { KnownErrorScreen } from './screens/lessons/KnownErrors.tsx';
 import { ObservabilityScreen } from './screens/observability/Observability.tsx';
 import { BatchScreen } from './screens/batch/Batch.tsx';
 import { KnowledgeScreen } from './screens/knowledge/Knowledge.tsx';
@@ -262,6 +263,11 @@ const observabilityRoute = createRoute({
   },
   component: ObservabilityScreen,
 });
+const knownErrorRoute = createRoute({
+  getParentRoute: () => projectRoute,
+  path: '/observability/known-errors/$code',
+  component: KnownErrorScreen,
+});
 const runRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: '/runs/$runId',
@@ -339,6 +345,7 @@ const routeTree = rootRoute.addChildren([
       batchRoute,
       activityRoute,
       observabilityRoute,
+      knownErrorRoute,
       runRoute,
       knowledgeRoute,
       sourcesRoute,

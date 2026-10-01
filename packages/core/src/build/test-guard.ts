@@ -5,7 +5,10 @@
 // at a higher level (Ham Vocke, «The Practical Test Pyramid», martinfowler.com). A cross-cutting criterion
 // is checked by one parameterized test over everything it applies to (Gerard Meszaros, xUnit Test Patterns,
 // «Parameterized Test»). The `[example: …]` marker, the «unit is lower than e2e» order and the one-new-test
-// limit are our convention. Best effort: when it cannot compute, it passes.
+// limit are our convention. Unit tests are never a violation: the pyramid's base is many small fast tests, one per
+// behaviour, and a broad criterion (owner-only access) has many behaviours; what it warns against is re-checking at
+// a higher, slower level what a lower one already checks (Vocke, same article), which is where the measured
+// duplication was (e2e). Best effort: when it cannot compute, it passes.
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -82,7 +85,7 @@ export function duplicateTests(before: TestsByCriterion, after: TestsByCriterion
     });
     const unmarked: TestEntry[] = [];
     for (const a of added) {
-      if (EXAMPLE_MARKER.test(a.title)) continue;
+      if (EXAMPLE_MARKER.test(a.title) || a.level === 'unit') continue;
       const covering = kept.find((k) => stageOf(k.level) === stageOf(a.level) && RANK[k.level] <= RANK[a.level]);
       const sibling = unmarked.find((u) => stageOf(u.level) === stageOf(a.level));
       if (covering) out.push({ criterion, kind: 'duplicate', added: a, existing: covering });

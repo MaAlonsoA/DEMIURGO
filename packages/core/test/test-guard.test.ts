@@ -41,6 +41,15 @@ describe('test guard', () => {
     expect(duplicateTests(e2eBefore, tests(src('e2e/a.spec.ts', 'AC-X-001-01 screen'), src('src/a.test.ts', 'AC-X-001-01 rule')))).toEqual([]);
   });
 
+  it(`new unit tests of a broad criterion are never a violation (${OWNER}: session expiry next to the callback tests)`, () => {
+    const before = tests(src('src/app/auth/callback/route.test.ts', `${OWNER} another account's sign-in clears the session`));
+    const after = tests(
+      src('src/app/auth/callback/route.test.ts', `${OWNER} another account's sign-in clears the session`),
+      src('src/server/auth/owner.test.ts', `${OWNER} keeps a session used every 30 days`, `${OWNER} stores only a digest of the session id`),
+    );
+    expect(duplicateTests(before, after)).toEqual([]);
+  });
+
   it('the [example: …] marker allows a second test', () => {
     const before = tests(src('e2e/a.spec.ts', `${OWNER} owner-only access`));
     const after = tests(src('e2e/a.spec.ts', `${OWNER} owner-only access`, `${OWNER} [example: a guest gets 403] guest`));

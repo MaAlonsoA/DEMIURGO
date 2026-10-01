@@ -739,6 +739,18 @@ async function retryDesign(s: Services, r: Run, limit: number): Promise<number |
     .executeTakeFirst();
   if (Number(latest?.attempt ?? r.attempt) !== r.attempt) return null;
   if ((await automaticAttempts(s, r.requestId)) >= limit) return null;
+  // The same violations as the attempt before: the builder did not or could not fix them, and another round repeats it
+  // (MYA-018 went round 7 times on one test-guard line). It is left to the person, like «insisting» in insisted.ts.
+  const failures = await s.db
+    .selectFrom('build_steps')
+    .select(['attempt', 'detail'])
+    .where('build_request_id', '=', r.requestId)
+    .where('stage', '=', 'design')
+    .where('outcome', '=', 'failed')
+    .where('attempt', 'in', [r.attempt, r.attempt - 1])
+    .execute();
+  const errorOf = (a: number) => String((failures.find((f) => f.attempt === a)?.detail as { error?: unknown } | null)?.error ?? '');
+  if (errorOf(r.attempt) !== '' && errorOf(r.attempt) === errorOf(r.attempt - 1)) return null;
   const reason = 'The change broke the design-system or ownership guard; a new attempt fixes the violations it was told.';
   await record({ ...r, attempt: r.attempt + 1 }, 'repo', 'started', { started_by: formatActor(BUILD), automatic: true, reason });
   return r.attempt + 1;

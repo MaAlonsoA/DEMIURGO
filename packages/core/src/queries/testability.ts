@@ -5,6 +5,7 @@
 import { jevAllowed } from '../classifier/aspect.ts';
 import { type TestabilityVerdict, testabilityStrength, testabilityVerdict } from '../classifier/testability-policy.ts';
 import type { Db } from '../db/connection.ts';
+import { loadTaskDependencies } from './task-deps.ts';
 
 export type TestabilityFlag = { code: string; kind: Exclude<TestabilityVerdict, 'ok'>; probability: number };
 
@@ -19,6 +20,17 @@ export async function testabilityFlagsOf(db: Db, recordIds: readonly string[]): 
     .orderBy('created_at', 'desc')
     .orderBy('id', 'desc')
     .execute();
+  // A task whose plan already declares what it waits for is ordered by the engine (H87): Jev's "needs an
+  // unbuilt feature" adds nothing there. It is only worth a warning when no dependency is declared.
+  const owners = await db.selectFrom('records').select(['id', 'code', 'project_id']).where('id', 'in', [...recordIds]).execute();
+  const declared = new Set<string>();
+  for (const projectId of new Set(owners.map((o) => o.project_id))) {
+    const index = await loadTaskDependencies(db, projectId);
+    for (const o of owners) {
+      if (o.project_id !== projectId) continue;
+      if ((index.tasks.get(o.code) ?? []).length > 0 || (index.features.get(o.code) ?? []).length > 0) declared.add(o.id);
+    }
+  }
   const seen = new Set<string>();
   for (const r of rows) {
     const key = `${r.record_id}/${r.criterion_code}`;
@@ -26,7 +38,7 @@ export async function testabilityFlagsOf(db: Db, recordIds: readonly string[]): 
     seen.add(key);
     const p = { can_check_in_ci: r.can_check_in_ci, needs_outside_ci: r.needs_outside_ci, needs_unbuilt_feature: r.needs_unbuilt_feature };
     const kind = testabilityVerdict(p);
-    if (kind === 'ok') continue;
+    if (kind === 'ok' || (kind === 'waits_for_feature' && declared.has(r.record_id))) continue;
     const list = out.get(r.record_id) ?? [];
     list.push({ code: r.criterion_code, kind, probability: Math.round(testabilityStrength(p, kind) * 100) / 100 });
     out.set(r.record_id, list);

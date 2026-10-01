@@ -15,6 +15,7 @@
 //   node packages/api/src/cli.ts evidence-junit <projectId> <file.xml> [--pr <url>] [--ref <sha>]   (posts CI results to the running API; token in DEMIURGO_AGENT_TOKEN, URL in DEMIURGO_URL or http://127.0.0.1:8100)
 //   node packages/api/src/cli.ts import-design <projectId> [dir]                (creates the H1 pending batch)
 //   node packages/api/src/cli.ts build-footprint-backfill --project <projectId>   (records the merge commit and files of merged tasks that lack them; needs GitHub env)
+//   node packages/api/src/cli.ts testability-backfill --project <projectId>       (Jev's testability opinion for task versions that have none; needs TYPESAFE_API_KEY)
 //   node packages/api/src/cli.ts export-design <projectId> [--check dir | --out dir | dir]
 
 import { readFileSync } from 'node:fs';
@@ -54,6 +55,7 @@ import {
   pullRequestFiles,
   pullRequestFootprint,
   taskFootprints,
+  classifyTaskTestability,
 } from '@demiurgo/core';
 import { readTree, replaceTree } from '@demiurgo/design';
 import { type Actor, formatActor, human, system } from '@demiurgo/domain';
@@ -524,6 +526,49 @@ commands['build-footprint-backfill'] = async () => {
     }
     console.log(JSON.stringify({ merged: merged.length, written }));
     await services.observer.flush(5000);
+  });
+};
+
+commands['testability-backfill'] = async () => {
+  const i = args.indexOf('--project');
+  const projectId = i >= 0 ? args[i + 1] : undefined;
+  if (!projectId) throw new Error('Usage: testability-backfill --project <projectId>');
+  await withDatabase(async (c) => {
+    const services = {
+      db: c.db,
+      clock: () => new Date(),
+      providers: createProviders(config),
+      classifierFor: () => Promise.reject(new Error('Testability uses Jev directly.')),
+      agentSessionsDir: config.agentSessionsDir,
+      engine: inertEngine(),
+      logger: cliLogger,
+      observer: createObserver(config.observe, cliLogger),
+    };
+    // The latest approved version of each task that has no opinion yet (Jev judges new versions on its own).
+    const versions = await c.db
+      .selectFrom('records as r')
+      .innerJoin('record_versions as v', 'v.record_id', 'r.id')
+      .select(['r.id', 'r.code', 'v.id as version_id', 'v.n'])
+      .where('r.project_id', '=', projectId)
+      .where('r.type', '=', 'task')
+      .where('v.state', '=', 'approved')
+      .orderBy('r.code')
+      .orderBy('v.n', 'desc')
+      .execute();
+    const judged = new Set(
+      (await c.db.selectFrom('task_testability_opinions').select('record_version_id').where('project_id', '=', projectId).execute()).map((x) => x.record_version_id),
+    );
+    const seen = new Set<string>();
+    let asked = 0;
+    for (const v of versions) {
+      if (seen.has(v.id)) continue;
+      seen.add(v.id);
+      if (judged.has(v.version_id)) continue;
+      await classifyTaskTestability(services, projectId, v.id, v.version_id);
+      asked++;
+      console.log(v.code);
+    }
+    console.log(JSON.stringify({ tasks: seen.size, asked }));
   });
 };
 

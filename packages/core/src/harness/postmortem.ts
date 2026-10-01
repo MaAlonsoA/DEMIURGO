@@ -275,7 +275,7 @@ export type PostmortemResult =
 
 // One post-mortem job at a time per project: the reconciler tick and the CLI never write the same rows twice.
 const tails = new Map<string, Promise<unknown>>();
-function serialized<T>(key: string, job: () => Promise<T>): Promise<T> {
+export function serialized<T>(key: string, job: () => Promise<T>): Promise<T> {
   const next = (tails.get(key) ?? Promise.resolve()).then(job);
   const tail = next.catch(() => undefined);
   tails.set(key, tail);

@@ -1,0 +1,47 @@
+// The pieces of the harness (salud-del-harness §2): a stable code per piece (B = building, D = design) and its name.
+// The codes are what the findings and the scorecards store; the names are for people. English, like every record.
+
+export const PIECE_NAMES: Readonly<Record<string, string>> = {
+  B01: 'Queue: dependencies and same feature',
+  B02: 'Queue: schema rule',
+  B03: 'Queue: hotspots and modules',
+  B04: 'Queue: testability',
+  B05: 'Queue: stops',
+  B06: 'Person holds',
+  B07: 'Predicted files and «Code to extend»',
+  B08: 'Test reuse (Jev)',
+  B09: 'TDD gate (red and green)',
+  B10: 'Context between attempts',
+  B11: 'CI feedback',
+  B12: 'Flaky test quarantine',
+  B13: 'Design system guard',
+  B14: 'Ownership guard',
+  B15: 'Duplicate tests guard',
+  B16: 'Waiver «LGTM with comments»',
+  B17: 'Reviewer with triage, re-review, retry and escalation',
+  B18: 'CI selection',
+  B19: 'Main watch and recheck',
+  B20: 'Session resume',
+  B21: 'Timeouts and WIP commits',
+  B22: 'Builder failure classification',
+  B23: 'Automatic issues',
+  B24: 'Automatic retry',
+  B25: 'Environment from CI',
+  B26: 'Evidence from JUnit',
+  B27: 'The builder (agent, model, effort)',
+  D01: 'The start path (12 steps)',
+  D02: 'Question stages',
+  D03: 'Explorer and its threads',
+  D04: '«Explain it simply» and «Go deeper»',
+  D05: 'Draft agents',
+  D06: 'Proposals and batches',
+  D07: 'Knowledge layer',
+  D08: 'Coherence reviewer',
+  D09: 'Readiness («ready to build»)',
+  D10: 'Jev: task size',
+  D11: 'Task planner and `covers`',
+  D12: 'Translator',
+};
+
+/** «B03 · Queue: hotspots and modules»; the bare code when the piece is not in the inventory. */
+export const pieceLabel = (piece: string): string => (PIECE_NAMES[piece] ? `${piece} · ${PIECE_NAMES[piece]}` : piece);

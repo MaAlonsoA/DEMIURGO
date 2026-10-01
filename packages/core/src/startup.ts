@@ -2,6 +2,7 @@
 // knowledge classifier per project (whatever engine the person assigned), and the durable engine
 // running. The providers' catalogs are discovered again in the background, without spending quota.
 
+import { currentHarnessVersionId } from './harness/version.ts';
 import { seedDefaultEngines } from './assignments/defaults.ts';
 import { system } from '@demiurgo/domain';
 import { createSimulatedProvider } from './agents/simulated.ts';
@@ -37,6 +38,11 @@ export async function startCore(config: Config, logger: Logger = consoleLogger):
   if (applied.length) logger.info('Migrations applied', { applied });
   const seeded = await seedDefaultEngines(connection.db);
   if (seeded.length) logger.info('Default engines assigned', { agents: seeded });
+  // The harness version in force (salud-del-harness §9.3): registered once per distinct content hash.
+  await currentHarnessVersionId(connection.db).then(
+    (id) => logger.info('Harness version', { id }),
+    (e: unknown) => logger.error('The harness version could not be registered', { error: String(e) }),
+  );
   const providers = createProviders(config);
   const observer = createObserver({ ...config.observe, workflowsVersion: WORKFLOWS_VERSION }, logger);
   const engine = await startEngine(

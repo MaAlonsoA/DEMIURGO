@@ -530,3 +530,37 @@ export const HARNESS_ESCAPES = messages(
     cut: (shown: number, total: number) => `Se muestran ${shown} de ${total}.`,
   },
 );
+
+// Words of the «By harness version» section (HarnessVersions.tsx).
+export const HARNESS_VERSIONS = messages(
+  {
+    title: 'By harness version',
+    note: 'Builds grouped by the version of the harness they started under (DEMIURGO commit, agents, skills and Jev questions). Cohorts are observational: nothing assigns the version at random, so a difference may be the period rather than the change.',
+    loading: 'Loading the harness versions',
+    empty: 'No post-mortems with a harness version yet.',
+    caption: 'Cohorts of builds by harness version',
+    colVersion: 'Version',
+    colBuilds: 'Builds',
+    colPeriod: 'Period',
+    colPieces: 'Pieces helping / neutral / hurting',
+    colReading: 'Reading',
+    untagged: 'Before versions existed',
+    observational: 'observational',
+    notComparable: 'observational, not comparable',
+  },
+  {
+    title: 'Por versión del harness',
+    note: 'Construcciones agrupadas por la versión del harness con la que empezaron (commit de DEMIURGO, agentes, skills y preguntas a Jev). Las cohortes son observacionales: nada asigna la versión al azar, así que una diferencia puede ser el periodo y no el cambio.',
+    loading: 'Cargando las versiones del harness',
+    empty: 'Aún no hay post-mortems con versión del harness.',
+    caption: 'Cohortes de construcciones por versión del harness',
+    colVersion: 'Versión',
+    colBuilds: 'Construcciones',
+    colPeriod: 'Periodo',
+    colPieces: 'Piezas que ayudan / neutras / estorban',
+    colReading: 'Lectura',
+    untagged: 'Antes de que hubiera versiones',
+    observational: 'observacional',
+    notComparable: 'observacional, no comparable',
+  },
+);

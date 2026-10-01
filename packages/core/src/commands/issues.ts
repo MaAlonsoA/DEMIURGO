@@ -1,6 +1,7 @@
 // Issues: a problem that impairs or prevents the functions of the product. A person reports a `bug`;
 // DEMIURGO opens a `review_escalation` when the reviewer hands over something only a person can
-// resolve (see build_step.record). Not a versioned record: its own table, with a code ISS-NNN per
+// resolve (see build_step.record) or a `harness_regression` when a periodic check of the harness found a piece or
+// a cost getting worse (harness/check.ts). Not a versioned record: its own table, with a code ISS-NNN per
 // project. open -> resolved (with its fix: a task, or a version of a task) | closed (with a reason);
 // a person can reopen it. The bus moves the state; the handlers fill the resolution and close fields.
 
@@ -65,7 +66,7 @@ registerHandlers({
   'issue.open': handler({
     data: z
       .object({
-        kind: z.enum(['bug', 'review_escalation']),
+        kind: z.enum(['bug', 'review_escalation', 'harness_regression']),
         title: z.string().trim().min(1).max(300),
         body: z.string().max(20000).optional(),
         task: code.optional(),

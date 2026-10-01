@@ -473,16 +473,56 @@ export async function updateBranch(
   return { result: 'updated' };
 }
 
-export type CheckRun = { name: string; status: string; conclusion: string | null; detailsUrl: string | null };
+/** A check run of a commit. The timestamps are ISO strings from GitHub (absent or null when it does not give them). */
+export type CheckRun = {
+  name: string;
+  status: string;
+  conclusion: string | null;
+  detailsUrl: string | null;
+  createdAt?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+};
 
-export async function checkRunsFor(cfg: GithubConfig, owner: string, repo: string, sha: string): Promise<CheckRun[]> {
-  const { data } = await call(cfg, 'GET', `/repos/${owner}/${repo}/commits/${sha}/check-runs?per_page=100`);
-  return (data?.check_runs ?? []).map((c: any) => ({
+/** One check run of GitHub's «List check runs for a Git reference» response, as the client keeps it. */
+export function parseCheckRun(c: any): CheckRun {
+  return {
     name: c.name,
     status: c.status,
     conclusion: c.conclusion ?? null,
     detailsUrl: c.details_url ?? null,
-  }));
+    // GitHub's check run object has `started_at` and `completed_at`; `created_at` only if the response carries it.
+    createdAt: c.created_at ?? null,
+    startedAt: c.started_at ?? null,
+    completedAt: c.completed_at ?? null,
+  };
+}
+
+export async function checkRunsFor(cfg: GithubConfig, owner: string, repo: string, sha: string): Promise<CheckRun[]> {
+  const { data } = await call(cfg, 'GET', `/repos/${owner}/${repo}/commits/${sha}/check-runs?per_page=100`);
+  return (data?.check_runs ?? []).map(parseCheckRun);
+}
+
+/** When the runs of the `ci` check of a head SHA were queued, started and completed (salud-del-harness §6.6). */
+export type CiTimings = { run_id: string | null; queued_at: string | null; started_at: string | null; completed_at: string | null };
+
+/**
+ * The timings of the `ci` check runs of one SHA: the latest workflow run's id, the earliest queued and started times and
+ * the latest completion (a workflow that runs on `push` and `pull_request` yields two runs). Null values when GitHub
+ * does not say; `completed_at` stays null while any run has not completed.
+ */
+export function ciTimingsOf(checks: CheckRun[], name = 'ci'): CiTimings {
+  const runs = checks.filter((c) => c.name === name);
+  const times = (pick: (c: CheckRun) => string | null | undefined) =>
+    runs.map(pick).filter((t): t is string => typeof t === 'string' && !Number.isNaN(Date.parse(t))).toSorted((a, b) => Date.parse(a) - Date.parse(b));
+  const completedAll = runs.length > 0 && runs.every((c) => c.status === 'completed');
+  const ids = runs.map((c) => workflowRunIdOf(c.detailsUrl)).filter((id): id is string => id !== null).toSorted((a, b) => Number(a) - Number(b));
+  return {
+    run_id: ids.at(-1) ?? null,
+    queued_at: times((c) => c.createdAt)[0] ?? null,
+    started_at: times((c) => c.startedAt)[0] ?? null,
+    completed_at: completedAll ? (times((c) => c.completedAt).at(-1) ?? null) : null,
+  };
 }
 
 /**

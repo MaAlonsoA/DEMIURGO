@@ -9,7 +9,7 @@ export type IssueComment = { path: string; line: number | null; severity: string
 export type IssueView = {
   id: string;
   code: string;
-  kind: 'bug' | 'review_escalation';
+  kind: 'bug' | 'review_escalation' | 'harness_regression';
   title: string;
   body: string;
   state: 'open' | 'resolved' | 'closed';

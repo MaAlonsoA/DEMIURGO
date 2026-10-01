@@ -170,7 +170,7 @@ function describe(n: NeedItem, state: ProductState | undefined): NeedsItem {
       const i = n.issue;
       return {
         ...base,
-        label: i.kind === 'review_escalation' ? 'Review escalation' : 'Bug',
+        label: i.kind === 'review_escalation' ? 'Review escalation' : i.kind === 'harness_regression' ? 'Harness regression' : 'Bug',
         title: i.title,
         from: i.task_code ? `${i.code} · ${i.task_code}` : i.code,
         mark: 'problem',

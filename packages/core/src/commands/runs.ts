@@ -28,6 +28,7 @@ import type { CommandContext } from '../bus/types.ts';
 import { DRAFTING_ACTIONS, pendingDraft } from '../actions/pending-draft.ts';
 import { buildContext } from '../context/build.ts';
 import { graphUpToDate, graphVersion } from '../context/graph.ts';
+import { harnessVersionIdOrNull } from '../harness/version.ts';
 
 const count = z.number().nonnegative();
 
@@ -243,6 +244,7 @@ registerHandlers({
           retry_of: null,
           state: to,
           requested_by: formatActor(ctx.actor),
+          harness_version_id: await harnessVersionIdOrNull(ctx.services.db),
         })
         .returning('id')
         .executeTakeFirstOrThrow();
@@ -316,6 +318,7 @@ registerHandlers({
           retry_of: o.id,
           state: to,
           requested_by: formatActor(ctx.actor),
+          harness_version_id: await harnessVersionIdOrNull(ctx.services.db),
         })
         .returning('id')
         .executeTakeFirstOrThrow();

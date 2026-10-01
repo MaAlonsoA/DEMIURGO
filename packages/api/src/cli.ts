@@ -15,6 +15,7 @@
 //   node packages/api/src/cli.ts evidence-junit <projectId> <file.xml> [--pr <url>] [--ref <sha>]   (posts CI results to the running API; token in DEMIURGO_AGENT_TOKEN, URL in DEMIURGO_URL or http://127.0.0.1:8100)
 //   node packages/api/src/cli.ts import-design <projectId> [dir]                (creates the H1 pending batch)
 //   node packages/api/src/cli.ts harness escapes [--project <id>]                (records the escapes from design: deterministic, idempotent)
+//   node packages/api/src/cli.ts harness check [--project <id>]                  (runs the periodic check of the harness now: deterministic, idempotent)
 //   node packages/api/src/cli.ts harness recompute [--project <id>] [--request <id>]   (computes the harness post-mortems of ended builds; idempotent)
 //   node packages/api/src/cli.ts build-footprint-backfill --project <projectId>   (records the merge commit and files of merged tasks that lack them; needs GitHub env)
 //   node packages/api/src/cli.ts code-map --project <projectId> [--query "text"] [--ref main] [--budget 6000]   (prints the ranked code map of the project's repository; read-only)
@@ -66,6 +67,8 @@ import {
   ESCAPES_RULES_VERSION,
   PENDING_ESCAPE_RULES,
   pendingPostmortems,
+  runCheck,
+  describeRegression,
   taskFootprints,
   classifyTaskTestability,
   classifyReviewFindings,
@@ -595,7 +598,32 @@ commands.harness = async () => {
     });
     return;
   }
-  if (args[0] !== 'recompute') throw new Error('Usage: harness recompute [--project <id>] [--request <id>] | harness escapes [--project <id>]');
+  if (args[0] === 'check') {
+    // Runs the periodic check of one project (or all) now, whatever the cadence; the same inputs write nothing.
+    const i = args.indexOf('--project');
+    const only = i >= 0 ? args[i + 1] : undefined;
+    await withDatabase(async (c) => {
+      const services = {
+        db: c.db,
+        clock: () => new Date(),
+        providers: createProviders(config),
+        classifierFor: () => Promise.reject(new Error('A harness check classifies nothing.')),
+        agentSessionsDir: config.agentSessionsDir,
+        engine: inertEngine(),
+        logger: cliLogger,
+        observer: createObserver(config.observe, cliLogger),
+      };
+      const ids = only ? [only] : (await c.db.selectFrom('projects').select('id').orderBy('created_at').execute()).map((p) => p.id);
+      for (const id of ids) {
+        const r = await runCheck(services, id, 'manual');
+        console.log(`${id}: ${r.status} ${r.id}${r.status === 'recorded' ? ` (${r.regressions.length} regression(s)${r.issue ? `, issue ${r.issue}` : ''})` : ''}`);
+        if (r.status === 'recorded') for (const x of r.regressions) console.log(`  ${describeRegression(x)}`);
+      }
+      await services.observer.flush(5000);
+    });
+    return;
+  }
+  if (args[0] !== 'recompute') throw new Error('Usage: harness recompute [--project <id>] [--request <id>] | harness escapes [--project <id>] | harness check [--project <id>]');
   const flag = (name: string) => {
     const i = args.indexOf(name);
     return i >= 0 ? args[i + 1] : undefined;

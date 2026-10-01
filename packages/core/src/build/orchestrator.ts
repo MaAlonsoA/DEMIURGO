@@ -1265,16 +1265,19 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
   };
   for (;;) {
     const snap = await plain('gate-poll', async () => {
-      const { state, conclusion: raw } = ciDone ? { state: 'done' as const, conclusion: rawConclusion } : ciStatusOf(await d.github.checkRunsFor(cfg, owner, repoName, headSha));
+      const checks = ciDone ? null : await d.github.checkRunsFor(cfg, owner, repoName, headSha);
+      const { state, conclusion: raw } = checks === null ? { state: 'done' as const, conclusion: rawConclusion } : ciStatusOf(checks);
+      // The timings of the CI runs (salud-del-harness §6.6): new keys of this step's result; snapshots recorded before have none.
+      const timings = checks !== null && state === 'done' ? github.ciTimingsOf(checks) : undefined;
       // A waived review has no run: the approving review already stands.
-      if (waived) return { ci: { state, conclusion: raw }, run: 'ended', ended: false, verdict: null, error: null };
+      if (waived) return { ci: { state, conclusion: raw, timings }, run: 'ended', ended: false, verdict: null, error: null };
       const run = await s0.db.selectFrom('ai_runs').select(['state', 'error']).where('id', '=', runId).executeTakeFirstOrThrow();
       const ended = !['queued', 'running'].includes(run.state);
       const row = ended
         ? await s0.db.selectFrom('pr_reviews').select(['id', 'verdict', 'summary', 'comments']).where('run_id', '=', runId).executeTakeFirst()
         : undefined;
       const found: Verdict | null = row ? { id: row.id, verdict: row.verdict, summary: row.summary, comments: row.comments as Verdict['comments'] } : null;
-      return { ci: { state, conclusion: raw }, run: run.state, ended, verdict: found, error: ended && !found ? (run.error ?? null) : null };
+      return { ci: { state, conclusion: raw, timings }, run: run.state, ended, verdict: found, error: ended && !found ? (run.error ?? null) : null };
     });
     runState = snap.run;
 
@@ -1282,7 +1285,17 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     if (!ciDone && snap.ci.state === 'done') {
       ciDone = true;
       rawConclusion = snap.ci.conclusion;
-      await plain('ci-done', () => record(r, 'ci', rawConclusion === 'success' ? 'ok' : 'failed', { conclusion: rawConclusion, head_sha: headSha }));
+      const ciTimings = snap.ci.timings;
+      await plain('ci-done', () =>
+        record(r, 'ci', rawConclusion === 'success' ? 'ok' : 'failed', {
+          conclusion: rawConclusion,
+          head_sha: headSha,
+          ...(ciTimings?.run_id ? { run_id: ciTimings.run_id } : {}),
+          ...(ciTimings?.queued_at ? { queued_at: ciTimings.queued_at } : {}),
+          ...(ciTimings?.started_at ? { started_at: ciTimings.started_at } : {}),
+          ...(ciTimings?.completed_at ? { completed_at: ciTimings.completed_at } : {}),
+        }),
+      );
       const evidence = await gatherEvidence(headSha);
       if (!evidence.ok) return stop('evidence', evidence.outcome);
       evidenceValue = evidence.value;

@@ -30,6 +30,8 @@ export type HarnessCase = {
 };
 export type HarnessPiece = {
   piece: string;
+  /** English name from the inventory (core harness/pieces.ts); null when the piece has none. */
+  name?: string | null;
   verdict: 'helps' | 'neutral' | 'hurts' | 'no_data';
   n: number;
   precision: number | null;
@@ -66,6 +68,9 @@ function Table({ caption, head, children }: { caption: string; head: ReactNode; 
     </div>
   );
 }
+
+/** «B03 · Queue: hotspots and modules»; the bare code when the piece has no name. */
+export const pieceText = (p: { piece: string; name?: string | null }): string => (p.name ? `${p.piece} · ${p.name}` : p.piece);
 
 const verdictClass = (v: HarnessPiece['verdict']) => (v === 'hurts' ? 'text-danger-text' : v === 'helps' ? 'text-success-text' : 'text-fg-2');
 
@@ -164,10 +169,10 @@ export function HarnessHealthView({ projectId, data }: { projectId: string; data
                       onClick={() => setOpen(expanded ? null : p.piece)}
                       className="font-mono text-xs text-fg hover:underline"
                     >
-                      {p.piece}
+                      {pieceText(p)}
                     </button>
                   ) : (
-                    <span className="font-mono text-xs text-fg-2">{p.piece}</span>
+                    <span className="font-mono text-xs text-fg-2">{pieceText(p)}</span>
                   )}
                 </th>
                 <td className={`${td} font-medium ${verdictClass(p.verdict)}`}>{t.verdict(p.verdict)}</td>

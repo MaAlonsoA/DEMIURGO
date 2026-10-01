@@ -98,6 +98,8 @@ export type RunsTable = {
   delta_hash: string | null;
   /** The engine the backup replaced and why, when the run ran on the backup engine. */
   fallback: NullableJson;
+  /** The harness version the run started under (harness_versions); null for runs from before it existed. */
+  harness_version_id: string | null;
 };
 
 export type ProviderCatalogsTable = {
@@ -833,7 +835,7 @@ export type IssuesTable = {
   project_id: string;
   /** ISS-NNN, per project. */
   code: string;
-  kind: 'bug' | 'review_escalation';
+  kind: 'bug' | 'review_escalation' | 'harness_regression';
   title: string;
   body: Generated<string>;
   state: Generated<'open' | 'resolved' | 'closed'>;
@@ -919,6 +921,8 @@ export type DB = {
   issues: IssuesTable;
   test_runs: TestRunsTable;
   harness_postmortems: HarnessPostmortemsTable;
+  harness_checks: HarnessChecksTable;
+  harness_versions: HarnessVersionsTable;
   harness_findings: HarnessFindingsTable;
   harness_escapes: HarnessEscapesTable;
   judgment_outcomes: JudgmentOutcomesTable;
@@ -945,6 +949,18 @@ export type TestRunsTable = {
   recorded_at: Generated<Timestamp>;
 };
 
+/** The marks of the harness at one moment (append-only; unique by content hash). */
+export type HarnessVersionsTable = {
+  id: Generated<string>;
+  content_hash: string;
+  demiurgo_sha: string;
+  agents: Json;
+  skills: Json;
+  question_versions: Json;
+  rules_version: string;
+  first_seen_at: Generated<Timestamp>;
+};
+
 /** One deterministic post-mortem of an ended build request (append-only; unique per request, rules version and inputs hash). */
 export type HarnessPostmortemsTable = {
   id: Generated<string>;
@@ -956,6 +972,24 @@ export type HarnessPostmortemsTable = {
   attempts: number;
   outcome: 'merged' | 'withdrawn' | 'failed' | 'needs_you';
   findings: number;
+  computed_at: Generated<Timestamp>;
+};
+
+/** One periodic check of the harness over a window (append-only; unique per project, window end, rules version and inputs hash). */
+export type HarnessChecksTable = {
+  id: Generated<string>;
+  project_id: string;
+  window_from: Timestamp;
+  window_to: Timestamp;
+  previous_check_id: string | null;
+  rules_version: string;
+  harness_version_id: string | null;
+  trigger: 'schedule' | 'merges' | 'manual';
+  scorecards: Json;
+  escapes: Json;
+  regressions: Json;
+  worth: Json;
+  inputs_hash: string;
   computed_at: Generated<Timestamp>;
 };
 

@@ -45,10 +45,12 @@ import {
   observabilitySummary,
   judgmentCalibration,
   harnessScorecards,
+  scorecardsByVersion,
   attentionByStage,
   worthIt,
   harnessFindingRows,
   harnessEscapes,
+  harnessChecks,
   escapesToCsv,
   findingsToCsv,
   queueDecisionRows,
@@ -316,6 +318,12 @@ registerQueries([
     respond: ({ services, params, query }) => harnessScorecards(services.db, uuid(params.projectId, 'project'), harnessFilters(query)),
   },
   {
+    // Scorecards per harness version (salud-del-harness §9.3): observational cohorts, flagged when they do not overlap in time.
+    path: '/api/projects/:projectId/observability/harness/versions.json',
+    queryName: 'query.harness_health',
+    respond: ({ services, params, query }) => scorecardsByVersion(services.db, uuid(params.projectId, 'project'), harnessFilters(query)),
+  },
+  {
     path: '/api/projects/:projectId/observability/harness/findings.csv',
     queryName: 'query.harness_health',
     download: { contentType: 'text/csv; charset=utf-8', filename: 'harness-findings.csv' },
@@ -346,6 +354,12 @@ registerQueries([
     path: '/api/projects/:projectId/observability/harness/escapes.json',
     queryName: 'query.harness_health',
     respond: ({ services, params, query }) => harnessEscapes(services.db, uuid(params.projectId, 'project'), harnessFilters(query)),
+  },
+  {
+    // The periodic checks of the harness (salud-del-harness §8): the latest with its regressions and new escapes, and the series.
+    path: '/api/projects/:projectId/observability/harness/checks.json',
+    queryName: 'query.harness_health',
+    respond: ({ services, params }) => harnessChecks(services.db, uuid(params.projectId, 'project')),
   },
   {
     path: '/api/projects/:projectId/observability/harness/escapes.csv',

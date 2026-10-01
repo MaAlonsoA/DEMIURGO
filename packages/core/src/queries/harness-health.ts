@@ -8,6 +8,7 @@
 import { sql } from 'kysely';
 import { queueDecisionRows as storedQueueDecisionRows, type QueueDecisionRow } from '../build/queue-decisions.ts';
 import type { Db } from '../db/connection.ts';
+import { PIECE_NAMES } from '../harness/pieces.ts';
 import { PENDING_ESCAPE_RULES } from '../harness/rules/escapes/index.ts';
 
 export const MIN_DECISIONS = 10;
@@ -66,7 +67,8 @@ export type HarnessCase = {
   computed_at: string;
 };
 
-export type PieceHealth = Scorecard & { cases: HarnessCase[]; cases_total: number };
+/** `name` is the English name of the piece in the inventory of the design (harness/pieces.ts); null when it has none. */
+export type PieceHealth = Scorecard & { name: string | null; cases: HarnessCase[]; cases_total: number };
 
 export type HarnessHealth = {
   rules_version: string | null;
@@ -272,7 +274,7 @@ export async function harnessScorecards(db: Db, projectId: string, opts: HealthO
     thresholds: { min_decisions: MIN_DECISIONS, precision_helps: PRECISION_HELPS, precision_hurts: PRECISION_HURTS, recall_helps: RECALL_HELPS },
     pieces: scorecardsOf(rows).map((card) => {
       const all = cases.get(card.piece) ?? [];
-      return { ...card, cases: all.slice(0, CASES_PER_PIECE), cases_total: all.length };
+      return { ...card, name: PIECE_NAMES[card.piece] ?? null, cases: all.slice(0, CASES_PER_PIECE), cases_total: all.length };
     }),
   };
 }
@@ -415,4 +417,126 @@ export function escapesToCsv(rows: readonly EscapeRow[]): string {
     );
   }
   return `${lines.join('\r\n')}\r\n`;
+}
+
+// ------------------------------------------------------------------------------------ cohorts by harness version
+
+/** Label of a comparison that is not an experiment (Kohavi, Tang and Xu, «Trustworthy Online Controlled Experiments»). */
+export const NOT_COMPARABLE = 'observational, not comparable';
+
+export type VersionCohort = {
+  /** The harness version id, or null for the builds tagged with none (from before versions existed). */
+  harness_version_id: string | null;
+  demiurgo_sha: string | null;
+  first_seen_at: string | null;
+  /** Build requests of the cohort with a post-mortem, and when the first and the last of them started. */
+  requests: number;
+  from: string | null;
+  to: string | null;
+  scorecards: Scorecard[];
+  /** The other cohorts whose time span overlaps this one. */
+  overlaps: (string | null)[];
+  /** `observational` always (no random or alternating assignment); not comparable when no other cohort overlaps in time. */
+  label: 'observational' | typeof NOT_COMPARABLE;
+};
+
+export type VersionCohorts = { rules_version: string | null; cohorts: VersionCohort[] };
+
+type Span = { key: string | null; from: Date | null; to: Date | null };
+
+/** The keys of the spans that overlap each other's (closed intervals). A span without dates overlaps nothing. Pure. */
+export function overlapsOf(spans: readonly Span[]): Map<string | null, (string | null)[]> {
+  const out = new Map<string | null, (string | null)[]>();
+  for (const a of spans) {
+    out.set(
+      a.key,
+      spans
+        .filter((b) => b.key !== a.key && a.from && a.to && b.from && b.to && a.from <= b.to && b.from <= a.to)
+        .map((b) => b.key),
+    );
+  }
+  return out;
+}
+
+/** Scorecards per harness version (§9.3): the cohorts, each with its time span, and which of them can be compared. */
+export async function scorecardsByVersion(db: Db, projectId: string, opts: HealthOptions = {}): Promise<VersionCohorts> {
+  const { rules_version, rows } = await harnessFindingRows(db, projectId, opts);
+  if (rules_version === null || rows.length === 0) return { rules_version, cohorts: [] };
+  const groups = new Map<string | null, FindingRow[]>();
+  for (const r of rows) groups.set(r.harness_version, [...(groups.get(r.harness_version) ?? []), r]);
+  const requestIds = [...new Set(rows.map((r) => r.build_request_id))];
+  const starts = await db
+    .selectFrom('build_steps')
+    .select(['build_request_id', sql<Date>`min(created_at)`.as('started')])
+    .where('build_request_id', 'in', requestIds)
+    .where('stage', '=', 'repo')
+    .where('outcome', '=', 'started')
+    .groupBy('build_request_id')
+    .execute();
+  const startOf = new Map(starts.map((s) => [s.build_request_id, new Date(s.started)]));
+  const ids = [...groups.keys()].filter((k): k is string => k !== null);
+  const versions = ids.length === 0 ? [] : await db.selectFrom('harness_versions').select(['id', 'demiurgo_sha', 'first_seen_at']).where('id', 'in', ids).execute();
+  const spans: Span[] = [...groups.entries()].map(([key, list]) => {
+    const dates = [...new Set(list.map((r) => r.build_request_id))].map((id) => startOf.get(id)).filter((d): d is Date => d !== undefined).toSorted((a, b) => a.getTime() - b.getTime());
+    return { key, from: dates[0] ?? null, to: dates.at(-1) ?? null };
+  });
+  const overlaps = overlapsOf(spans);
+  const cohorts = spans.map((span): VersionCohort => {
+    const list = groups.get(span.key) ?? [];
+    const v = versions.find((x) => x.id === span.key);
+    const others = overlaps.get(span.key) ?? [];
+    return {
+      harness_version_id: span.key,
+      demiurgo_sha: v?.demiurgo_sha ?? null,
+      first_seen_at: v ? iso(v.first_seen_at) : null,
+      requests: new Set(list.map((r) => r.build_request_id)).size,
+      from: span.from ? span.from.toISOString() : null,
+      to: span.to ? span.to.toISOString() : null,
+      scorecards: scorecardsOf(list),
+      overlaps: others,
+      label: spans.length > 1 && others.length === 0 ? NOT_COMPARABLE : 'observational',
+    };
+  });
+  cohorts.sort((a, b) => (a.from ?? '').localeCompare(b.from ?? ''));
+  return { rules_version, cohorts };
+}
+
+
+// --- Checks (salud-del-harness §8): the periodic checks stored by harness/check.ts, newest first ---
+
+/** Checks returned per call (convención nuestra). */
+export const CHECK_ROWS_MAX = 30;
+
+export type CheckRow = {
+  id: string;
+  window_from: string;
+  window_to: string;
+  previous_check_id: string | null;
+  rules_version: string;
+  trigger: 'schedule' | 'merges' | 'manual';
+  scorecards: unknown;
+  escapes: unknown;
+  regressions: unknown;
+  worth: unknown;
+  inputs_hash: string;
+  computed_at: string;
+};
+
+export type HarnessChecks = { total: number; latest: CheckRow | null; checks: CheckRow[] };
+
+/** The stored checks of the project: the latest with its content, and the series (newest first, capped). */
+export async function harnessChecks(db: Db, projectId: string, opts: { limit?: number } = {}): Promise<HarnessChecks> {
+  const total = Number(
+    (await db.selectFrom('harness_checks').select(sql<string>`count(*)`.as('n')).where('project_id', '=', projectId).executeTakeFirstOrThrow()).n,
+  );
+  const rows = await db
+    .selectFrom('harness_checks')
+    .select(['id', 'window_from', 'window_to', 'previous_check_id', 'rules_version', 'trigger', 'scorecards', 'escapes', 'regressions', 'worth', 'inputs_hash', 'computed_at'])
+    .where('project_id', '=', projectId)
+    .orderBy('computed_at', 'desc')
+    .orderBy('id', 'desc')
+    .limit(Math.min(Math.max(opts.limit ?? CHECK_ROWS_MAX, 1), CHECK_ROWS_MAX))
+    .execute();
+  const checks = rows.map((r): CheckRow => ({ ...r, window_from: iso(r.window_from), window_to: iso(r.window_to), computed_at: iso(r.computed_at) }));
+  return { total, latest: checks[0] ?? null, checks };
 }

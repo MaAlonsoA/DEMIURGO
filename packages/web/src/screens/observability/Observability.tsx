@@ -16,7 +16,9 @@ import { useSafeLocale } from '../../words.ts';
 import { correlationReading, costText, minutesText, num, shareText, tokensText } from './format.ts';
 import { judgmentCalibrationQuery, observabilityCsvUrl, observabilityQuery } from './queries.ts';
 import type { AgentRow, Calibration, CostRow, ExecutionFact, FileCalibration, JudgmentCalibration, ReworkCause, SizeCalibration, SizeRow } from './types.ts';
+import { HarnessChecksSection } from './HarnessChecks.tsx';
 import { HarnessEscapesSection } from './HarnessEscapes.tsx';
+import { HarnessVersionsSection } from './HarnessVersions.tsx';
 import { AttentionSection, HarnessHealthSection, WorthItSection } from './HarnessHealth.tsx';
 import { TestHistorySection } from './TestHistory.tsx';
 import { OBSERVABILITY } from './words.i18n.ts';
@@ -81,7 +83,9 @@ export function ObservabilityScreen() {
             <AgentsSection agents={data.summary.agents} />
             <TestHistorySection projectId={projectId} />
             <HarnessHealthSection projectId={projectId} />
+            <HarnessChecksSection projectId={projectId} />
             <HarnessEscapesSection projectId={projectId} />
+            <HarnessVersionsSection projectId={projectId} />
             <AttentionSection projectId={projectId} />
             <WorthItSection projectId={projectId} />
             <AttemptsSection facts={data.facts} projectId={projectId} />

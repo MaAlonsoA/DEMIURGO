@@ -15,6 +15,7 @@ import type { CommandContext } from '../bus/types.ts';
 import type { Db, Tx } from '../db/connection.ts';
 import { githubConfig } from '../github/client.ts';
 import { advanceBuildQueue } from '../build/auto.ts';
+import { harnessVersionIdOrNull } from '../harness/version.ts';
 import { mergedBuildOf } from '../queries/read.ts';
 
 /** The open request of a task (by code), with the task's row. */
@@ -258,6 +259,8 @@ registerHandlers({
       // The ticket was updated while the request was open: adopt the current approved versions and
       // the brief they give, keeping the branch, the PR and the attempts (like a team editing the ticket).
       const adopted = await adoptCurrentVersions(ctx.trx, ctx.projectId, request, by, attempt);
+      // The harness version in force tags the attempt (salud-del-harness §9.3); not a workflow step.
+      const harnessVersionId = await harnessVersionIdOrNull(ctx.services.db);
       const { id } = await ctx.trx
         .insertInto('build_steps')
         .values({
@@ -266,7 +269,7 @@ registerHandlers({
           attempt,
           stage: 'repo',
           outcome: 'started',
-          detail: JSON.stringify({ started_by: by }),
+          detail: JSON.stringify({ started_by: by, ...(harnessVersionId ? { harness_version_id: harnessVersionId } : {}) }),
         })
         .returning('id')
         .executeTakeFirstOrThrow();
@@ -304,6 +307,12 @@ registerHandlers({
         .where('project_id', '=', ctx.projectId)
         .executeTakeFirst();
       if (!request) throw new DomainError('not_found', 'The build request does not exist.');
+      // An attempt that starts (the automatic ones too) is tagged with the harness version in force.
+      let detail = data.detail;
+      if (data.stage === 'repo' && data.outcome === 'started' && typeof detail?.harness_version_id !== 'string') {
+        const harnessVersionId = await harnessVersionIdOrNull(ctx.services.db);
+        if (harnessVersionId) detail = { ...detail, harness_version_id: harnessVersionId };
+      }
       const { id } = await ctx.trx
         .insertInto('build_steps')
         .values({
@@ -312,7 +321,7 @@ registerHandlers({
           attempt: data.attempt,
           stage: data.stage,
           outcome: data.outcome,
-          detail: data.detail === undefined ? null : JSON.stringify(data.detail),
+          detail: detail === undefined ? null : JSON.stringify(detail),
         })
         .returning('id')
         .executeTakeFirstOrThrow();

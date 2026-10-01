@@ -84,7 +84,7 @@ export const TITLES = messages(
     classificationReason: (pct: number) => `DEMIURGO is ${pct}% sure of where it goes`,
     updateReason: 'Until it is taken in, the knowledge is behind',
     issueReason: (kind: string, code: string, task: string | null) =>
-      `${kind === 'review_escalation' ? 'The reviewer escalated it' : 'A bug was reported'} · ${code}${task ? ` · ${task}` : ''}`,
+      `${kind === 'review_escalation' ? 'The reviewer escalated it' : kind === 'harness_regression' ? 'The latest harness check found a regression' : 'A bug was reported'} · ${code}${task ? ` · ${task}` : ''}`,
     thing: (n: number) => `${n} ${n === 1 ? 'thing' : 'things'}`,
     packageOne: (inside: number) => `1 package of ${inside} ${inside === 1 ? 'proposal' : 'proposals'}`,
     packageMany: (count: number, inside: number) => `${count} packages with ${inside} proposals`,
@@ -187,7 +187,7 @@ export const TITLES = messages(
     classificationReason: (pct: number) => `DEMIURGO tiene un ${pct}% de seguridad de dónde va`,
     updateReason: 'Hasta que se incorpore, el conocimiento se queda atrás',
     issueReason: (kind: string, code: string, task: string | null) =>
-      `${kind === 'review_escalation' ? 'El revisor la escaló' : 'Se reportó un bug'} · ${code}${task ? ` · ${task}` : ''}`,
+      `${kind === 'review_escalation' ? 'El revisor la escaló' : kind === 'harness_regression' ? 'El último chequeo del harness encontró una regresión' : 'Se reportó un bug'} · ${code}${task ? ` · ${task}` : ''}`,
     thing: (n: number) => `${n} ${n === 1 ? 'cosa' : 'cosas'}`,
     packageOne: (inside: number) => `1 paquete de ${inside} ${inside === 1 ? 'propuesta' : 'propuestas'}`,
     packageMany: (count: number, inside: number) => `${count} paquetes con ${inside} propuestas`,

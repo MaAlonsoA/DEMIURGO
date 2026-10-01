@@ -434,7 +434,7 @@ export type NextStepNeed = {
   code: string | null;
 };
 
-export type IssueKind = 'bug' | 'review_escalation';
+export type IssueKind = 'bug' | 'review_escalation' | 'harness_regression';
 export type IssueState = 'open' | 'resolved' | 'closed';
 export type IssueReviewComment = { path: string; line: number | null; severity: string; body: string; needs_person?: boolean };
 

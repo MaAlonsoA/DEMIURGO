@@ -2,6 +2,7 @@
 // in one transaction with its event. Append-only: the same (request, rules version, inputs hash) is never written twice.
 
 import { DomainError } from '@demiurgo/domain';
+import { sql } from 'kysely';
 import { z } from 'zod';
 import { handler, registerHandlers } from '../bus/handlers.ts';
 import { FINDING_CLASSES, FINDING_UNITS } from '../harness/rules/index.ts';
@@ -56,9 +57,21 @@ registerHandlers({
         .where('project_id', '=', ctx.projectId)
         .executeTakeFirst();
       if (!request) throw new DomainError('not_found', 'The build request does not exist.');
+      // The version the build's first attempt started under (its `repo started` step; null for builds from before it).
+      const first = await ctx.trx
+        .selectFrom('build_steps')
+        .select(sql<string | null>`detail->>'harness_version_id'`.as('harness_version_id'))
+        .where('build_request_id', '=', data.build_request_id)
+        .where('stage', '=', 'repo')
+        .where('outcome', '=', 'started')
+        .orderBy('attempt')
+        .orderBy('created_at')
+        .limit(1)
+        .executeTakeFirst();
       const row = await ctx.trx
         .insertInto('harness_postmortems')
         .values({
+          harness_version_id: first?.harness_version_id ?? null,
           project_id: ctx.projectId,
           build_request_id: data.build_request_id,
           rules_version: data.rules_version,

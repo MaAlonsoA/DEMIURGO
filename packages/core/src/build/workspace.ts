@@ -207,21 +207,20 @@ export async function commitAll(path: string, message: string, author: string = 
 }
 
 /**
- * HEAD when it holds commits the remote branch does not have yet (an earlier attempt committed and then
- * stopped before pushing, e.g. at the design guard): the next attempt can continue with them even if the
- * builder changes nothing more. Null when HEAD is already on the remote branch or there is no branch.
+ * HEAD when the branch already holds this task's work (commits ahead of main): an earlier attempt committed it,
+ * whether it got pushed or stopped before (at the design guard, or a restart that cut the attempt), so the next
+ * attempt can go on with it even if the builder changes nothing more. Null when the branch has nothing of its own.
  */
-export async function unpushedHead(path: string): Promise<string | null> {
+export async function headWithWork(path: string): Promise<string | null> {
   try {
     const head = (await git(path, ['rev-parse', 'HEAD'])).stdout.trim();
-    const branch = (await git(path, ['rev-parse', '--abbrev-ref', 'HEAD'])).stdout.trim();
-    if (!branch || branch === 'HEAD') return null;
-    const remote = await git(path, ['rev-parse', '--verify', '-q', `refs/remotes/origin/${branch}`]).then((r) => r.stdout.trim()).catch(() => '');
-    if (remote === head) return null;
-    // Without a remote branch, HEAD counts when it is ahead of main.
-    const base = remote || (await git(path, ['merge-base', 'HEAD', 'refs/remotes/origin/main']).then((r) => r.stdout.trim()).catch(() => ''));
+    let base = '';
+    for (const main of ['refs/remotes/origin/main', 'main']) {
+      base = await git(path, ['merge-base', 'HEAD', main]).then((r) => r.stdout.trim()).catch(() => '');
+      if (base) break;
+    }
     if (!base) return null;
-    const ahead = Number((await git(path, ['rev-list', '--count', `${base}..HEAD`])).stdout.trim());
+    const ahead = Number((await git(path, ['rev-list', '--count', '--no-merges', `${base}..HEAD`])).stdout.trim());
     return ahead > 0 ? head : null;
   } catch {
     return null;

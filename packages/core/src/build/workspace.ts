@@ -206,6 +206,20 @@ export async function commitAll(path: string, message: string, author: string = 
   return stdout.trim();
 }
 
+/** Files that still hold merge conflict markers or are unmerged, after staging (empty when clean). */
+export async function unresolvedConflicts(path: string): Promise<string[]> {
+  await git(path, ['add', '-A']);
+  const { stdout: unmerged } = await git(path, ['diff', '--name-only', '--diff-filter=U']);
+  const files = new Set(unmerged.split('\n').map((l) => l.trim()).filter(Boolean));
+  try {
+    const { stdout } = await git(path, ['grep', '--cached', '-l', '-E', '^(<{7}|>{7})( |$)']);
+    for (const f of stdout.split('\n').map((l) => l.trim()).filter(Boolean)) files.add(f);
+  } catch {
+    // git grep exits 1 when nothing matches
+  }
+  return [...files].sort();
+}
+
 /** The files a commit touched. */
 export async function commitFiles(path: string, sha: string): Promise<string[]> {
   const { stdout } = await git(path, ['show', '--name-only', '--pretty=format:', sha]);

@@ -201,7 +201,10 @@ function cliCommand(spec: BuilderSpec): string[] {
   return [
     'codex', 'exec', '--json',
     '-m', spec.model,
-    '-c', 'sandbox_mode="workspace-write"',
+    // The hardened container is the sandbox: Codex's own (bubblewrap) cannot create namespaces in it, so
+    // every command and file write failed and the agent gave up. Codex documents this flag for
+    // "environments that are externally sandboxed" (`codex exec --help`).
+    '--dangerously-bypass-approvals-and-sandbox',
     '-c', `model_reasoning_effort=${JSON.stringify(spec.effort)}`,
     '-c', 'web_search="live"',
     '--skip-git-repo-check',

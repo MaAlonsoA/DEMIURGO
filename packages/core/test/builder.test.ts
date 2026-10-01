@@ -114,7 +114,7 @@ describe('builderArguments', () => {
     expect(args).toContain('type=volume,source=pwvol,target=/ms-playwright');
     const cli = args.slice(args.indexOf('builder') + 1);
     expect(cli.slice(0, 4)).toEqual(['codex', 'exec', '--json', '-m']);
-    expect(cli).toContain('sandbox_mode="workspace-write"');
+    expect(cli).toContain('--dangerously-bypass-approvals-and-sandbox');
     expect(cli).toContain('web_search="live"');
     expect(cli.at(-1)).toBe('-');
     expect(args).toContain('CODEX_HOME=/home/demiurgo/.codex-auth');

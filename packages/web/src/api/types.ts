@@ -1241,6 +1241,85 @@ export type DeliveryMetrics = {
   running: { code: string; elapsed_minutes: number; stage: string; outcome: string; attempt: number }[];
 };
 
+export type TimelineSegment = { stage: string; kind: 'prep' | 'builder' | 'light' | 'review' | 'wait' | 'main'; start: string; end: string; outcome: string };
+
+export type TimelineAttempt = {
+  n: number;
+  start: string;
+  end: string;
+  result: 'merged' | 'running' | 'failed' | 'changes_requested' | 'cancelled' | 'open';
+  started_by: string | null;
+  automatic: boolean | null;
+  start_reason: string | null;
+  gap_before_ms: number | null;
+  segments: TimelineSegment[];
+  ended_by: {
+    stage: string;
+    outcome: string;
+    at: string;
+    reason: string | null;
+    failure_kind: string | null;
+    blocking: number | null;
+    comments: number | null;
+    behind_by: number | null;
+  } | null;
+  builder: {
+    model: string | null;
+    provider: string | null;
+    duration_ms: number | null;
+    exit_code: number | null;
+    failure_kind: string | null;
+    error: string | null;
+    session: { mode: string; reason: string | null } | null;
+    code_to_extend: { files: number; first_files: string[]; section_chars: number | null; ordered_by_jev: boolean; commit: string | null } | null;
+    affected_tests: { count: number; first: string[] } | null;
+    progress: string | null;
+    progress_chars: number;
+    notes: string | null;
+    tests_written: number | null;
+    wip_files: number;
+    test_reuse: { count: number; first: { criterion: string; path: string }[] } | null;
+  } | null;
+  out: {
+    pr_number: number | null;
+    head_sha: string | null;
+    ci: string | null;
+    updated_from_base: boolean;
+    review: { verdict: string | null; comments: number | null } | null;
+    behind_by: number | null;
+    merge: { behind_by: number | null; recheck: boolean | null; reason: string | null; updated_from_base: boolean } | null;
+    main: { at: string; conclusion: string | null } | null;
+  };
+  checkpoint: { reached: boolean; problems: { stage: string; outcome: string; error: string | null }[] };
+  merged_at: string | null;
+};
+
+export type TimelineRequest = {
+  id: string;
+  task_code: string;
+  task_title?: string;
+  feature?: { code: string; title: string } | null;
+  state: string;
+  requested_by: string;
+  requested_at: string;
+  pr_url: string | null;
+  pr_number: number | null;
+  start: string;
+  end: string;
+  running: boolean;
+  merged_at: string | null;
+  attempts: TimelineAttempt[];
+};
+
+/** The build timeline of the last hours (Lanes and Path); absent on a server that does not send it yet. */
+export type BuildTimeline = {
+  since: string;
+  now: string;
+  requests: TimelineRequest[];
+  merges: { task_code: string; at: string; pr_number: number | null }[];
+  truncated: boolean;
+};
+
 export type BuildQueue = {
   ready: QueueTask[];
   /** Tasks a person put on hold with a reason: the queue skips them. */
@@ -1251,6 +1330,7 @@ export type BuildQueue = {
   totals: { tasks: number; points: number; unsized: number };
   repository: { path: string | null; branch: string; merge_rule_by_demiurgo?: boolean };
   delivery?: DeliveryMetrics;
+  timeline?: BuildTimeline;
   /** Files changed by many merged tasks (top 3): where tasks built at once collide. */
   hotspots?: { path: string; tasks: number; of: number }[];
   /** Why pull requests bounce: Jev's category of each reviewer comment of the last 30 days. */

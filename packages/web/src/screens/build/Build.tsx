@@ -34,6 +34,7 @@ import { CopyBriefButton } from "../record/CopyBrief.tsx";
 import { TestabilityLines } from "../record/Testability.tsx";
 import { TouchesLine } from "../record/Touches.tsx";
 import { Bounces } from "./Bounces.tsx";
+import { BuildTimelineView } from "./Timeline.tsx";
 import { BUILD } from "./words.i18n.ts";
 
 type Words = typeof BUILD.en;
@@ -649,6 +650,7 @@ export function BuildScreen() {
           ) : null
         ) : (
           <>
+            <BuildTimelineView projectId={projectId} timeline={q.timeline} needsYou={q.auto?.stopped?.kind === 'needs_you' ? q.auto.stopped.code : null} t={t} />
             {q.auto ? <AutoQueue projectId={projectId} auto={q.auto} t={t} /> : null}
             <Section
               id="build-queue"

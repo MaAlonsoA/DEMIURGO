@@ -39,6 +39,7 @@ export * from './queries/views.ts';
 export * from './build/queue.ts';
 export * from './build/metrics.ts';
 export * from './build/hotspots.ts';
+export * from './build/timeline.ts';
 export * from './build/auto.ts';
 export * from './build/footprint.ts';
 export * from './build/code-map.ts';

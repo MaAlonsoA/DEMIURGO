@@ -40,6 +40,7 @@ import {
   projectGlossary,
   productDefinition,
   buildQueue,
+  buildTimelineOf,
   projectDeliveryMetrics,
   autoStatus,
   hotspotsOf,
@@ -235,11 +236,24 @@ registerQueries([
     // The Build page (FDR-BUI-002): ready tasks in build order, Waiting with its reasons, open requests.
     path: '/api/projects/:projectId/build',
     queryName: 'query.records',
-    respond: async ({ services, params }) => {
+    respond: async ({ services, params, query }) => {
       const projectId = uuid(params.projectId, 'project');
       const queue = await buildQueue(services.db, projectId);
+      // The lanes and the path of each task (?hours= widens the window, default 8 h): titles come from the queue.
+      const timeline = await buildTimelineOf(services.db, projectId, /^\d+$/.test(query.hours ?? '') ? Number(query.hours) : undefined).catch(() => null);
+      const known = new Map([...queue.ready, ...queue.waiting, ...queue.held, ...queue.stale, ...queue.built].map((t) => [t.code, t]));
       return {
         ...queue,
+        timeline: timeline
+          ? {
+              ...timeline,
+              requests: timeline.requests.map((r) => ({
+                ...r,
+                task_title: known.get(r.task_code)?.title,
+                feature: known.get(r.task_code)?.feature ?? null,
+              })),
+            }
+          : undefined,
         auto: await autoStatus(services.db, projectId, queue),
         delivery: await projectDeliveryMetrics(services.db, projectId),
         // The files most merged tasks changed: where parallel builds collide (top 3 that pass the threshold).

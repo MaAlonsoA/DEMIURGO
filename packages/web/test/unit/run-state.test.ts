@@ -44,9 +44,9 @@ describe('the state of a run as the person reads it', () => {
     const at = (ms: number, lastProgress: number | null) => runView(r, { now: t0 + ms, lastProgress, lastTokenMove: t0 + 5_000, since: t0 });
     const quiet = at(200_000, t0 + 5_000);
     expect(quiet).toMatchObject({ kind: 'working', writing: 'Writing the result…', usually: 'Usually takes about 8 min', detail: null });
-    // 90 s of silence before p80 x 1.5 (900 s) is not Stalled.
-    expect(at(700_000, t0 + 5_000)).toMatchObject({ kind: 'working', writing: null, detail: null });
-    // Past p80 x 1.5 but not p80 x 2 (1200 s): still Working, with the slow note.
+    // Within the typical p80 (600 s) there is no slow note, and 90 s of silence is not Stalled.
+    expect(at(550_000, t0 + 5_000)).toMatchObject({ kind: 'working', detail: null });
+    // Past p80 but not p80 x 2 (1200 s): still Working, and it says so honestly.
     expect(at(950_000, t0 + 5_000)).toMatchObject({ kind: 'working', detail: 'Taking longer than usual (usually about 8 min)' });
     const slow = at(1_250_000, t0 + 5_000);
     expect(slow).toMatchObject({ kind: 'stalled', detail: 'Taking longer than usual (usually about 8 min)' });

@@ -503,7 +503,7 @@ export function ProposalView({
         </Evidence>
       ) : null}
       <BasedOn projectId={projectId} type={p.type} payload={p.payload} refs={p.basis_refs} rows={rows} />
-      {p.type !== 'review' ? <IdeaCheck projectId={projectId} assessment={p.assessment} rows={rows} /> : null}
+      {p.type !== 'review' ? <IdeaCheck projectId={projectId} assessment={p.assessment} rows={rows} subjectType={proposalIconType(p)} /> : null}
       <HowItWasMade projectId={projectId} producer={producer} runId={runId} />
 
       {/* Direct children of the article, so the decision bar sticks along the whole proposal. */}

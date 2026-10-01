@@ -103,6 +103,17 @@ export function QueuedRequest({ action }: { action: string }) {
   );
 }
 
+/** Immediately after asking for a reply, before the server shows the run. */
+export function StartingRequest() {
+  const t = useMessages(RUN_CARDS);
+  return (
+    <p className="inline-flex items-center gap-1.5 text-sm text-info-text" role="status" data-starting-request>
+      <StateIcon kind="working" />
+      <span>{t.starting}</span>
+    </p>
+  );
+}
+
 export function RunCard({ projectId, run, display }: { projectId: string; run: RunListItem; display: RunDisplay }) {
   switch (display) {
     case 'working':

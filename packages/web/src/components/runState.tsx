@@ -20,8 +20,8 @@ export const STALLED_NO_HISTORY_MS = 300_000;
 export const STALLED_MARGIN = 2;
 /** Without history, a token counter that has not moved for this long reads as «Writing the result…» (convention nuestra). */
 export const WRITING_QUIET_MS = 20_000;
-/** Slack over the typical p80 duration before «Taking longer than usual» and Stalled (convention nuestra: 50 %). */
-export const SLOW_MARGIN = 1.5;
+/** «Taking longer than usual» as soon as the run passes its typical p80 duration (convention nuestra: no slack, so the wait is never silent). */
+export const SLOW_MARGIN = 1;
 /** The history is only used from this many completed runs (convention nuestra). */
 export const MIN_HISTORY = 3;
 
@@ -188,6 +188,8 @@ export function unresolvedFailures(runs: readonly RunListItem[], now: number): R
     runs.some(
       (x) =>
         x.state === 'completed' &&
+        // A retry resolves the run it retried, not others: only a fresh run moves the scope on.
+        !x.retry_of &&
         x.action === r.action &&
         x.scope.type === r.scope.type &&
         x.scope.id === r.scope.id &&

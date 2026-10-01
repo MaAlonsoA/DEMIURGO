@@ -129,6 +129,7 @@ export function useSendDrafts(
   thread: ExplorationDetail,
   drafts: Drafts,
   forkStates: ReadonlyMap<string, { purpose: string; state: string }>,
+  onRequested?: () => void,
 ) {
   const words = useMessages(DRAFTS);
   const client = useQueryClient();
@@ -184,6 +185,7 @@ export function useSendDrafts(
             command: 'run.request',
             data: { action: 'exploration_chat', scope: { type: 'exploration', id: thread.id } },
           });
+          onRequested?.();
           out.push({ key: 'go-on', kind: 'go-on', label: words.goOnLabel, state: 'sent' });
         } catch (error) {
           out.push({ key: 'go-on', kind: 'go-on', label: words.goOnLabel, state: 'failed', error });

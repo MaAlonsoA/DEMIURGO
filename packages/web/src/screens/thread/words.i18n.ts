@@ -412,6 +412,7 @@ export const RUN_CARDS = messages(
   {
     queued: 'Queued',
     queuedRequest: (action: string) => `Queued: ${action} · starts when knowledge is up to date`,
+    starting: 'Sent · DEMIURGO will reply as soon as knowledge is up to date',
     answering: 'Answering…',
     drafting: 'Drafting…',
     draftingEpic: 'Drafting the epic…',
@@ -467,6 +468,7 @@ export const RUN_CARDS = messages(
   {
     queued: 'En cola',
     queuedRequest: (action: string) => `En cola: ${action} · empieza cuando el conocimiento esté al día`,
+    starting: 'Enviado · DEMIURGO responderá en cuanto el conocimiento esté al día',
     answering: 'Respondiendo…',
     drafting: 'Redactando…',
     draftingEpic: 'Redactando la épica…',

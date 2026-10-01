@@ -14,7 +14,9 @@ export type TimelineItem =
   | { type: 'demiurgo'; key: string; at: number; runId: string | null; reply: Message | null; observations: Message[] }
   | { type: 'run'; key: string; at: number; run: RunListItem; display: RunDisplay }
   | { type: 'question'; key: string; at: number; question: Question }
-  | { type: 'queued'; key: string; at: number; action: string };
+  | { type: 'queued'; key: string; at: number; action: string }
+  /** Optimistic: the person just asked for a reply and the server has not shown its run yet. */
+  | { type: 'starting'; key: string; at: number };
 
 const time = (iso: string | null | undefined): number => (iso ? Date.parse(iso) : 0);
 
@@ -51,6 +53,7 @@ export function buildTimeline(
   runs: readonly RunListItem[],
   questions: readonly Question[] = [],
   queued: readonly QueuedRun[] = [],
+  startingSince: number | null = null,
 ): TimelineItem[] {
   const items: TimelineItem[] = [];
   const side = sideRuns(messages);
@@ -86,11 +89,35 @@ export function buildTimeline(
   }
   // Requests the server holds until knowledge is up to date: no run exists yet, so they show as waiting.
   for (const q of queued) items.push({ type: 'queued', key: `w:${q.key}`, at: time(q.created_at), action: q.action });
+  if (startingSince !== null) items.push({ type: 'starting', key: 'w:starting', at: startingSince });
   // Stable: what happened at the same instant keeps the order above (messages first).
   return items
     .map((item, i) => ({ item, i }))
     .sort((a, b) => a.item.at - b.item.at || a.i - b.i)
     .map(({ item }) => item);
+}
+
+/** How long the optimistic «Starting…» line may wait for the run to show up (convention nuestra). */
+export const STARTING_MAX_MS = 90_000;
+/** Client and server clocks may differ a little. */
+const CLOCK_SLACK_MS = 5_000;
+
+/**
+ * Whether to still show «Sent · DEMIURGO will reply…»: the person asked for a reply at `since` and
+ * nothing the server shows (a run, a queued request, a DEMIURGO message) has taken its place yet.
+ */
+export function stillStarting(input: {
+  since: number | null;
+  now: number;
+  runs: readonly Pick<RunListItem, 'created_at'>[];
+  queued: readonly unknown[];
+  messages: readonly Pick<Message, 'author' | 'created_at'>[];
+}): boolean {
+  const { since, now, runs, queued, messages } = input;
+  if (since === null || now - since > STARTING_MAX_MS) return false;
+  if (queued.length > 0) return false;
+  if (runs.some((r) => time(r.created_at) >= since - CLOCK_SLACK_MS)) return false;
+  return !messages.some((m) => whoOf(m.author).kind === 'demiurgo' && time(m.created_at) >= since);
 }
 
 /** The queued requests that belong to a thread: aimed at it, or at the record version it drafts. */

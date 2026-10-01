@@ -134,7 +134,7 @@ function ProposedRecord({
       {reading.mark ? <div>{reading.mark}</div> : null}
       <ProposalBody projectId={projectId} proposal={shown} rows={rows} withGoal />
       <BasedOn projectId={projectId} type={p.type} payload={p.payload} refs={p.basis_refs} rows={rows} />
-      <IdeaCheck projectId={projectId} assessment={p.assessment} rows={rows} />
+      <IdeaCheck projectId={projectId} assessment={p.assessment} rows={rows} subjectType={proposalIconType(shown)} />
     </article>
   );
 }

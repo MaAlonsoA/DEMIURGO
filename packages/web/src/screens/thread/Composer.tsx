@@ -57,6 +57,7 @@ export function Composer({
   onAnswer,
   onResume,
   onSent,
+  onRequested,
   ref,
 }: {
   projectId: string;
@@ -76,6 +77,8 @@ export function Composer({
   onResume?: (() => Promise<unknown>) | undefined;
   /** Something was posted: the conversation shows its end. */
   onSent: () => void;
+  /** A reply from DEMIURGO was asked for (its run may not exist yet). */
+  onRequested?: () => void;
   ref?: Ref<ComposerHandle>;
 }) {
   const t = useMessages(COMPOSER);
@@ -147,11 +150,15 @@ export function Composer({
       run(
         'ask',
         { command: 'run.request', data: { action: 'exploration_chat', scope: { type: 'exploration', id: explorationId } } },
-        () => announce(t.askedToGoOn),
+        () => {
+          onRequested?.();
+          announce(t.askedToGoOn);
+        },
       );
     else
       run('ask', { command: 'message.post', data: { exploration_id: explorationId, text: text.trim(), respond: true } }, () => {
         setText('');
+        onRequested?.();
         announce(t.sentAnswersHere);
       });
   };

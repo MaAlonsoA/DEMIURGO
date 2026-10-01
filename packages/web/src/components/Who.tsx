@@ -93,15 +93,15 @@ export function Who({
   const who = whoOf(actor, model);
   const name = useWhoName(who);
   const phrase = useWhoPhrase(who.kind);
-  const detail = who.kind === 'demiurgo' && who.detail ? ` · ${who.detail}` : '';
+  // The engine's model name lives in the tooltip (for developers), not inline in every header.
+  const engine = who.kind === 'demiurgo' && who.detail ? ` · ${who.detail}` : '';
   return (
-    <span className={cn('inline-flex min-w-0 items-center gap-1.5', className)} title={`${name} · ${phrase}`}>
+    <span className={cn('inline-flex min-w-0 items-center gap-1.5', className)} title={`${name} · ${phrase}${engine}`}>
       <WhoAvatar kind={who.kind} size={size} />
       {showName ? (
         <span className="truncate">
           {prefix ? `${prefix} ` : ''}
           {name}
-          {detail ? <span className="text-fg-3">{detail}</span> : null}
         </span>
       ) : (
         <span className="sr-only">{name}</span>

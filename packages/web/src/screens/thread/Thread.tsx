@@ -47,7 +47,8 @@ import { DraftsBar } from './DraftsBar.tsx';
 import { ThreadHeader, short } from './Header.tsx';
 import { Sheet, useWide } from './Sheet.tsx';
 import { FirstFeature, StageComplete } from './StageComplete.tsx';
-import { type ThreadDraft, buildTimeline, draftableDecisions, isActive, queuedOf } from './timeline.ts';
+import { useNow } from '../../components/Time.tsx';
+import { type ThreadDraft, buildTimeline, draftableDecisions, isActive, queuedOf, stillStarting } from './timeline.ts';
 import { THREAD } from './words.i18n.ts';
 
 export function ThreadScreen() {
@@ -80,8 +81,16 @@ const focusDeeperButton = (id: string) =>
 function ThreadView({ projectId, explorationId }: { projectId: string; explorationId: string }) {
   const words = useMessages(THREAD);
   const thread = useQuery(explorationQuery(projectId, explorationId));
-  const runs = useQuery(runsQuery(projectId, { exploration: explorationId }));
-  const queuedRuns = useQuery(queuedRunsQuery(projectId)).data ?? [];
+  // Set when the person asks for a reply: the thread says so at once and polls until the run shows.
+  const [startingSince, setStartingSince] = useState<number | null>(null);
+  const startingNow = useNow(startingSince !== null);
+  const poll = startingSince !== null ? 2000 : undefined;
+  const runs = useQuery({ ...runsQuery(projectId, { exploration: explorationId }), refetchInterval: poll });
+  const queuedRuns =
+    useQuery({
+      ...queuedRunsQuery(projectId),
+      refetchInterval: (q) => ((q.state.data?.length ?? 0) > 0 || poll ? 3000 : false),
+    }).data ?? [];
   const products = useQuery(stateQuery(projectId)).data;
   const stages = useQuery(stagesQuery(projectId)).data;
   const threads = useQuery(explorationsQuery(projectId)).data;
@@ -122,7 +131,7 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
   );
   const forkSignature = [...forkStates].map(([id, f]) => `${id}:${f.state}`).join(',');
   const questionSignature = (t?.questions ?? []).map((q) => `${q.id}:${q.state}`).join(',');
-  const sending = useSendDrafts(projectId, t ?? NO_THREAD, drafts, forkStates);
+  const sending = useSendDrafts(projectId, t ?? NO_THREAD, drafts, forkStates, () => setStartingSince(Date.now()));
 
   // Drafts that can no longer be sent go: the question was settled elsewhere, the suggestion resolved.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the signatures stand for the data they read
@@ -201,7 +210,15 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
 
   const active = t.state === 'active';
   const shown = visibleQuestions(t.questions, demiurgoReplied(t.messages));
-  const items = buildTimeline(t.messages, runs.data ?? [], shown, queuedOf(queuedRuns, t));
+  const mine = queuedOf(queuedRuns, t);
+  const starting = stillStarting({
+    since: startingSince,
+    now: startingNow,
+    runs: runs.data ?? [],
+    queued: mine,
+    messages: t.messages,
+  });
+  const items = buildTimeline(t.messages, runs.data ?? [], shown, mine, starting ? startingSince : null);
   const decisions = products ? draftableDecisions(products.decisions, t.id) : undefined;
   const stage = stages?.find((x) => x.exploration_id === t.id && x.state === 'open');
   // Passing only opens the next stage of the same moment; the next moment opens by its own step.
@@ -373,6 +390,7 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
                     : undefined
                 }
                 onSent={() => conversation.current?.scrollToEnd()}
+                onRequested={() => setStartingSince(Date.now())}
               />
             </div>
           </div>

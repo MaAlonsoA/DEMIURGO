@@ -162,6 +162,16 @@ export const FINDING_WORDS: Record<string, string> = {
   relates: 'Relates to',
 };
 
+/**
+ * The word of a finding. A quality requirement that «duplicates» the product definition is a
+ * refinement of its quality section, not a repeat (arc42 §10: each measurable quality goal becomes
+ * its own quality scenario while the definition keeps a summary; decision of the mission, VISION D1).
+ */
+export function findingWord(verdict: string, citation: string | undefined, subjectType: string | null | undefined): string {
+  if (verdict === 'duplicates' && subjectType === 'quality_requirement' && citation?.startsWith('DEF-')) return 'Refines';
+  return FINDING_WORDS[verdict] ?? verdict;
+}
+
 // Every record prefix the product has, not only the first four (INVENTORY Part D §3, UX problem).
 const RECORD_REF = /^((?:DEC|FDR|ADR|BUG|REQ|NFR|THR|PRR|DEF)-[A-Z]{3}-\d{3})@(\d+)$/;
 const CHECK_REF = /^AC-([A-Z]{3}-\d{3})-\d{2}@(\d+)$/;

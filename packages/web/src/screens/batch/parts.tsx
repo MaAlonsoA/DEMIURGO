@@ -22,7 +22,7 @@ import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { between } from '../../lib/time.ts';
 import { ACTION_WORDS } from '../../words.ts';
-import { citedRecord, FINDING_WORDS, rowOf } from './model.ts';
+import { citedRecord, findingWord, rowOf } from './model.ts';
 import type { PayloadCheck, PayloadSection } from './proposal.ts';
 import { PARTS } from './words.i18n.ts';
 
@@ -165,10 +165,13 @@ export function IdeaCheck({
   projectId,
   assessment,
   rows,
+  subjectType,
 }: {
   projectId: string;
   assessment: IdeaAssessmentSummary | null | undefined;
   rows: readonly ProductRow[];
+  /** The record type the proposal makes, to read a finding in context. */
+  subjectType?: string | null;
 }) {
   const t = useMessages(PARTS);
   if (!assessment) return null;
@@ -192,11 +195,11 @@ export function IdeaCheck({
             {findings.map((f) => {
               const verdict = f.finding ?? f.verdict ?? '';
               const cited = f.citation ? citedRecord(f.citation, codes) : null;
-              const word = FINDING_WORDS[verdict] ?? verdict;
+              const word = findingWord(verdict, f.citation, subjectType);
               return (
                 <li key={`${verdict}-${f.citation}`} className="flex flex-col gap-0.5">
                   <span className="flex flex-wrap items-center gap-2">
-                    {URGENT.has(verdict) ? (
+                    {URGENT.has(verdict) && word !== 'Refines' ? (
                       <StateText kind="conflict" word={word} className="font-medium" />
                     ) : (
                       <span className="font-medium text-fg">{word}</span>

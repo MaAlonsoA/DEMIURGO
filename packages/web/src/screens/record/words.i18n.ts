@@ -1182,3 +1182,29 @@ export const TESTABILITY = messages(
       `Jev: ${code} necesita una funcionalidad que aún no está construida (${p}). Construye esa primero, o comprueba este criterio cuando exista.`,
   },
 );
+
+// What a task touches (table, page, hotspot, schema change) and where that comes from.
+export const TOUCHES = messages(
+  {
+    touches: 'Touches:',
+    table: 'table',
+    route: 'route',
+    page: 'page',
+    action: 'action',
+    hotspot: 'hotspot',
+    schema: (by: 'footprint' | 'jev', p?: number) => (by === 'jev' && p !== undefined ? `schema change (Jev ${p.toFixed(2)})` : 'schema change'),
+    predicted: 'predicted',
+    footprint: 'from its pull request',
+  },
+  {
+    touches: 'Toca:',
+    table: 'tabla',
+    route: 'ruta',
+    page: 'página',
+    action: 'acción',
+    hotspot: 'punto caliente',
+    schema: (by: 'footprint' | 'jev', p?: number) => (by === 'jev' && p !== undefined ? `cambio de esquema (Jev ${p.toFixed(2)})` : 'cambio de esquema'),
+    predicted: 'previsto',
+    footprint: 'de su pull request',
+  },
+);

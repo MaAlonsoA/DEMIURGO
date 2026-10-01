@@ -57,6 +57,7 @@ import { pendingProposalBatches, proposalTargetCode } from '../../lib/attention.
 import { VersionsPanel } from './RecordAside.tsx';
 import { TaskSizePanel } from './TaskSize.tsx';
 import { TestabilityLines } from './Testability.tsx';
+import { TouchesLine } from './Touches.tsx';
 import { DELIVERY, HEADER, TASK_PAGE } from './words.i18n.ts';
 
 // ---------------------------------------------------------------- the page of a proposed task
@@ -416,6 +417,7 @@ function TaskBody({
           </ul>
         )}
         <TestabilityLines flags={task.testability} />
+        <TouchesLine touches={task.touches} />
       </Block>
       <Block title={t.dod} note={t.dodNote}>
         <ul className="flex flex-col gap-1.5" data-dod>

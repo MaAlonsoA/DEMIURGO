@@ -6,6 +6,7 @@ import { DomainError, criterionState, type CriterionState, type TaskBuildState }
 import type { Db } from '../db/connection.ts';
 import { currentOf, evidenceOf, featureDelivery, implementationOf, latestSize, originExploration, taskBuildOf } from './read.ts';
 import { taskCoversOf } from './sizes.ts';
+import { type Touches, touchesFor } from '../build/touches.ts';
 import { type TestabilityFlag, testabilityFlagsOf } from './testability.ts';
 
 type Size = 'XS' | 'S' | 'M' | 'L' | 'XL';
@@ -45,6 +46,8 @@ export type TaskView = {
   }[];
   /** Jev's warnings on covered criteria a CI test cannot check (H97); empty without Jev. */
   testability: TestabilityFlag[];
+  /** What the task touches and where that comes from; absent when unknown. */
+  touches?: Touches;
   depends_on: Ref[];
   blocks: Ref[];
   dod: { item: string; met: boolean }[];
@@ -424,6 +427,7 @@ export async function taskViewOfRecord(db: Db, projectId: string, recordId: stri
     order: orderOf(pool, rec.code),
     covers,
     testability: (await testabilityFlagsOf(db, [recordId])).get(recordId) ?? [],
+    ...(await touchesFor(db, projectId, [rec.code]).then((m) => (m.has(rec.code) ? { touches: m.get(rec.code) } : {}))),
     ...linksOf(pool, self),
     dod: dodOf(covers, merged, checks),
     development,

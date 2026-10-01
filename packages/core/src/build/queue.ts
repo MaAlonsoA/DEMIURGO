@@ -31,6 +31,7 @@ import { loadTaskObject } from "../classifier/task-input.ts";
 import { BRIEF_MAP_CHARS, buildCodeMap, rankCodeMap, renderCodeMap } from "./code-map.ts";
 import { type TaskFootprint, isReusableFile, taskFootprints } from "./footprint.ts";
 import { hotspotsOf } from "./hotspots.ts";
+import { type Touches, touchesFor } from "./touches.ts";
 import { type TaskHold, openHolds } from "./holds.ts";
 
 type StateRow = Awaited<ReturnType<typeof productState>>["designs"][number];
@@ -64,6 +65,8 @@ export type QueueTask = {
   stage: { stage: string; outcome: string; failure?: { kind: string; excerpt: string | null } } | null;
   /** Jev's warnings on criteria the builder cannot satisfy with a CI test (H97); only a warning, the queue never skips for it. */
   testability: TestabilityFlag[];
+  /** What the task touches (table, page, hotspot, schema change) and where that comes from; absent when unknown. */
+  touches?: Touches;
 };
 
 /**
@@ -388,6 +391,11 @@ export async function buildQueue(
       built.push({ ...lineOf(t), pr_url: merged.pr_url, done_at: merged.done_at });
   }
   built.sort((a, b) => (b.done_at ?? "").localeCompare(a.done_at ?? ""));
+  const touches = await touchesFor(db, projectId, [...ready, ...held, ...waiting, ...built].map((t) => t.code));
+  for (const t of [...ready, ...held, ...waiting, ...built]) {
+    const x = touches.get(t.code);
+    if (x) t.touches = x;
+  }
   return {
     ready,
     held,

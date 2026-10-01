@@ -630,6 +630,14 @@ export type TestabilityFlag = {
   needs: 'ci_automated' | 'needs_production' | 'needs_person' | 'needs_unbuilt_part' | null;
 };
 
+/** What a task touches and where that comes from: its merged pull request or a prediction (code map, Jev). */
+export type TaskTouches = {
+  source: "footprint" | "predicted";
+  modules: string[];
+  hotspots: string[];
+  schema: { by: "footprint" | "jev"; p?: number } | null;
+};
+
 export type TaskView = {
   draft: null | {
     proposal_id: string;
@@ -662,6 +670,7 @@ export type TaskView = {
   }[];
   /** Jev's warnings on covered criteria a CI test cannot check (H97). */
   testability: TestabilityFlag[];
+  touches?: TaskTouches;
   depends_on: TaskLink[];
   blocks: TaskLink[];
   dod: { item: string; met: boolean }[];
@@ -1202,6 +1211,7 @@ export type QueueTask = {
   stage?: { stage: BuildStage; outcome: BuildOutcome; failure?: { kind: string; excerpt: string | null } } | null;
   /** Jev's warnings on criteria a CI test cannot check (H97); a warning only, nothing is skipped. */
   testability?: TestabilityFlag[];
+  touches?: TaskTouches;
 };
 
 export type DeliverySummary = {

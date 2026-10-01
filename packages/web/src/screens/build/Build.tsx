@@ -32,6 +32,7 @@ import { AgentBuildButton, BuilderFailure } from "../record/AgentBuild.tsx";
 import { AGENT_BUILD } from "../record/agentBuild.i18n.ts";
 import { CopyBriefButton } from "../record/CopyBrief.tsx";
 import { TestabilityLines } from "../record/Testability.tsx";
+import { TouchesLine } from "../record/Touches.tsx";
 import { BUILD } from "./words.i18n.ts";
 
 type Words = typeof BUILD.en;
@@ -82,6 +83,7 @@ function TaskLine({
           </>
         ) : null}
       </p>
+      <TouchesLine touches={task.touches} />
       <TestabilityLines flags={task.testability} />
     </div>
   );

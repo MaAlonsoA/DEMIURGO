@@ -7,7 +7,7 @@ import { DomainError, formatActor } from "@demiurgo/domain";
 import { z } from "zod";
 import { advanceBuildQueue, queueAutoOn, queueParallelOf } from "../build/auto.ts";
 import { openHoldOf } from "../build/holds.ts";
-import { composeBrief } from "../build/queue.ts";
+import { computeRequestBasis } from "../build/basis.ts";
 import { githubConfig } from "../github/client.ts";
 import { mergedBuildOf } from "../queries/read.ts";
 import { handler, registerHandlers } from "../bus/handlers.ts";
@@ -162,30 +162,12 @@ registerHandlers({
           ],
         );
       }
-      const current = await ctx.trx
-        .selectFrom("record_versions")
-        .select(["id", "n"])
-        .where("record_id", "=", task.id)
-        .where("state", "=", "approved")
-        .orderBy("n", "desc")
-        .executeTakeFirst();
-      if (!current)
-        throw new DomainError("guard", `${task.code} is not approved.`);
       // Eligibility again, on the state this transaction sees: the brief refuses a task that is not
       // ready with its reasons, and a built task is not built twice.
-      const brief = await composeBrief(ctx.trx, ctx.projectId, task.code, {
-        forBuild: true,
-        codeMap: false,
-      });
-      const feature = await ctx.trx
-        .selectFrom("links")
-        .innerJoin("record_versions as t", "t.id", "links.to_id")
-        .innerJoin("records as rd", "rd.id", "t.record_id")
-        .select(["t.id", "t.n", "rd.code"])
-        .where("links.from_id", "=", current.id)
-        .where("links.type", "=", "based_on")
-        .where("rd.type", "=", "fdr")
-        .executeTakeFirst();
+      const basis = await computeRequestBasis(ctx.trx, ctx.projectId, task);
+      const current = { id: basis.taskVersionId, n: basis.taskVersionN };
+      const feature = basis.feature;
+      const brief = basis.brief;
       const requestedBy = formatActor(ctx.actor);
       const row = await ctx.trx
         .insertInto("build_requests")

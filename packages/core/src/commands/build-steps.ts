@@ -9,6 +9,7 @@ import { sql } from 'kysely';
 import { z } from 'zod';
 import { field, registerGuards, trimmed } from '../bus/guards.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
+import { computeRequestBasis } from '../build/basis.ts';
 import { openHoldOf } from '../build/holds.ts';
 import type { Db, Tx } from '../db/connection.ts';
 import { githubConfig } from '../github/client.ts';
@@ -19,11 +20,60 @@ async function openRequestOf(trx: Tx, projectId: string, code: string) {
   return trx
     .selectFrom('build_requests')
     .innerJoin('records', 'records.id', 'build_requests.task_id')
-    .select(['build_requests.id', 'build_requests.state', 'records.code'])
+    .select([
+      'build_requests.id',
+      'build_requests.state',
+      'build_requests.task_id',
+      'build_requests.task_version_id',
+      'build_requests.feature_version_id',
+      'records.code',
+    ])
     .where('build_requests.project_id', '=', projectId)
     .where('records.code', '=', code)
     .where('build_requests.state', 'in', ['requested', 'in_review'])
     .executeTakeFirst();
+}
+
+type OpenRequest = {
+  id: string;
+  code: string;
+  task_id: string;
+  task_version_id: string;
+  feature_version_id: string | null;
+};
+
+/**
+ * If the task (or its feature) has a newer approved version than the request is pinned to, re-pins the
+ * request and regenerates its brief exactly as «request the build» does. Returns what changed, or null
+ * (also when the task is not ready to build any more: the request then keeps its old basis).
+ */
+export async function adoptCurrentVersions(trx: Tx, projectId: string, request: OpenRequest) {
+  let basis;
+  try {
+    basis = await computeRequestBasis(trx, projectId, { id: request.task_id, code: request.code });
+  } catch (error) {
+    if (error instanceof DomainError) return null;
+    throw error;
+  }
+  const newFeature = basis.feature?.id ?? null;
+  if (basis.taskVersionId === request.task_version_id && newFeature === request.feature_version_id) return null;
+  const old = await trx
+    .selectFrom('record_versions')
+    .select('n')
+    .where('id', '=', request.task_version_id)
+    .executeTakeFirst();
+  const oldFeature = request.feature_version_id
+    ? await trx.selectFrom('record_versions').select('n').where('id', '=', request.feature_version_id).executeTakeFirst()
+    : undefined;
+  await trx
+    .updateTable('build_requests')
+    .set({ task_version_id: basis.taskVersionId, feature_version_id: newFeature, brief: basis.brief })
+    .where('id', '=', request.id)
+    .execute();
+  return {
+    task_version: { from: old?.n ?? null, to: basis.taskVersionN },
+    feature_version: { from: oldFeature?.n ?? null, to: basis.feature?.n ?? null },
+  };
 }
 
 /** True while the latest attempt of a request has neither failed, asked for changes nor merged. */
@@ -90,6 +140,9 @@ registerHandlers({
         .executeTakeFirst();
       const attempt = Number(last?.attempt ?? 0) + 1;
       const by = formatActor(ctx.actor);
+      // The ticket was updated while the request was open: adopt the current approved versions and
+      // the brief they give, keeping the branch, the PR and the attempts (like a team editing the ticket).
+      const adopted = await adoptCurrentVersions(ctx.trx, ctx.projectId, request);
       const { id } = await ctx.trx
         .insertInto('build_steps')
         .values({
@@ -107,8 +160,8 @@ registerHandlers({
       void to;
       return {
         entityId: id,
-        after: { task: request.code, build_request: request.id, attempt, started_by: by },
-        result: { id: request.id, task: request.code, attempt },
+        after: { task: request.code, build_request: request.id, attempt, started_by: by, ...(adopted ? { adopted } : {}) },
+        result: { id: request.id, task: request.code, attempt, ...(adopted ? { adopted } : {}) },
       };
     },
   }),

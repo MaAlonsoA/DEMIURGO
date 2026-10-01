@@ -135,7 +135,7 @@ function Outcome({ issue, projectId }: { issue: IssueView; projectId: string }) 
       <Section title={t.resolvedBy(r.task_code)} level={3}>
         <p className="flex flex-wrap items-baseline gap-x-3 text-base text-fg" data-issue-resolution>
           <Link to="/p/$projectId/records/$code" params={{ projectId, code: r.task_code }} className={link}>
-            <Code className="mr-1.5">{r.task_code}</Code>
+            <Code>{r.task_code}</Code>{' '}
             {r.task_title}
           </Link>
           {r.version_n !== null ? <span className="text-sm text-fg-2">{t.resolvedVersion(r.version_n)}</span> : null}
@@ -173,7 +173,7 @@ function Where({ projectId, issue }: { projectId: string; issue: IssueView }) {
       label: t.task,
       node: (
         <Link to="/p/$projectId/records/$code" params={{ projectId, code: issue.task.code }} className={link}>
-          <Code className="mr-1.5">{issue.task.code}</Code>
+          <Code>{issue.task.code}</Code>{' '}
           {issue.task.title}
         </Link>
       ),
@@ -183,7 +183,7 @@ function Where({ projectId, issue }: { projectId: string; issue: IssueView }) {
       label: t.feature,
       node: (
         <Link to="/p/$projectId/records/$code" params={{ projectId, code: issue.feature.code }} className={link}>
-          <Code className="mr-1.5">{issue.feature.code}</Code>
+          <Code>{issue.feature.code}</Code>{' '}
           {issue.feature.title}
         </Link>
       ),

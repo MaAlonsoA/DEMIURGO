@@ -203,9 +203,10 @@ export function deliveryOf(input: {
         // Running: no primary, the stages are shown. Otherwise build (or build again after a stop).
         if (!isBuildRunning(b.steps)) primary = { kind: 'agent_build', code: record.code, again: needsRebuild(b.steps) };
       } else if (b.state === 'requested') primary = { kind: 'follow_build' };
-      else if ((b.state === 'in_pr' || b.state === 'failing') && b.github && !isBuildRunning(b.steps) && lastOutcome(b.steps) === 'changes_requested')
-        // The reviewer (or red CI) asked for changes: the next attempt continues on the same branch and pull request.
-        primary = { kind: 'agent_build', code: record.code, again: true, review: true };
+      else if ((b.state === 'in_pr' || b.state === 'failing') && b.github && !isBuildRunning(b.steps) && needsRebuild(b.steps))
+        // The reviewer (or red CI) asked for changes, or the attempt failed (e.g. the builder's infrastructure): the next
+        // attempt continues on the same branch and pull request.
+        primary = { kind: 'agent_build', code: record.code, again: true, review: lastOutcome(b.steps) === 'changes_requested' };
       else if (b.state === 'in_pr' && b.request?.pr_url) primary = { kind: 'pr', url: b.request.pr_url };
     } else if (record.type === 'epic' && epic?.next && epic.ref)
       primary = { kind: 'design', epic: epic.ref, line: epic.next, label: t.designNext };

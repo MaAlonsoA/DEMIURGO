@@ -1214,6 +1214,9 @@ export type QueueTask = {
   touches?: TaskTouches;
 };
 
+/** Where the lead time went, in percent. */
+export type FlowShares = { build: number; ci: number; review: number; wait: number };
+
 export type DeliverySummary = {
   tasks: number;
   lead_median: number | null;
@@ -1222,7 +1225,7 @@ export type DeliverySummary = {
   ci_median: number | null;
   review_median: number | null;
   first_pass: { merged_first_try: number; of: number } | null;
-  flow_median: number | null;
+  flow_median: FlowShares | null;
 };
 
 /** Delivery metrics computed from the build steps (DORA lead time and change failure rate). */
@@ -1234,14 +1237,14 @@ export type DeliveryMetrics = {
     attempts: number;
     stage_minutes: { builder: number; environment: number; ci: number; review: number };
     model: string | null;
-    flow_pct: number | null;
+    flow: FlowShares | null;
   }[];
   last10: DeliverySummary;
   all: DeliverySummary;
   by_model_last10: { model: string; tasks: number; lead_median: number | null; builder_median: number | null; ci_median: number | null; review_median: number | null }[];
   by_model_all: { model: string; tasks: number; lead_median: number | null; builder_median: number | null; ci_median: number | null; review_median: number | null }[];
   running: { code: string; elapsed_minutes: number; stage: string; outcome: string; attempt: number }[];
-  flow_trend: number[];
+  lead_trend: number[];
   context: { tasks: number; recall: number | null; precision: number | null };
 };
 
@@ -1314,7 +1317,7 @@ export type TimelineRequest = {
   running: boolean;
   merged_at: string | null;
   attempts: TimelineAttempt[];
-  flow: { active_ms: number; wait_ms: number; active_pct: number } | null;
+  flow: { lead_ms: number; build_ms: number; ci_ms: number; review_ms: number; wait_ms: number; pct: FlowShares } | null;
   context: TimelineContext | null;
 };
 

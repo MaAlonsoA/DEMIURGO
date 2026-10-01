@@ -35,6 +35,7 @@ import { TestabilityLines } from "../record/Testability.tsx";
 import { TouchesLine } from "../record/Touches.tsx";
 import { Bounces } from "./Bounces.tsx";
 import { BuildTimelineView } from "./Timeline.tsx";
+import { sharesLine } from "./timelineLogic.ts";
 import { BUILD } from "./words.i18n.ts";
 
 type Words = typeof BUILD.en;
@@ -552,7 +553,7 @@ function Delivery({ d, t, hotspots, bounces }: { d: DeliveryMetrics; t: Words; h
           </p>
           {s.flow_median !== null ? (
             <p className="text-sm text-fg-2 tabular-nums" data-delivery-flow>
-              {t.flowSummary({ median: fmt(s.flow_median), trend: d.flow_trend.join(", ") })}
+              {t.flowSummary({ shares: sharesLine(s.flow_median, { build: t.flowBuild, ci: t.flowCi, review: t.flowReview, wait: t.flowWait }), trend: d.lead_trend.join(", ") })}
             </p>
           ) : null}
           {d.context.recall !== null && d.context.precision !== null ? (

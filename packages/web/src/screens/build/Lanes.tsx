@@ -7,7 +7,7 @@ import { useEffect, useRef } from "react";
 import { cn } from "../../lib/cn.ts";
 import { useLocale } from "../../i18n/locale.ts";
 import type { BuildTimeline, TimelineAttempt, TimelineRequest, TimelineSegment } from "../../api/types.ts";
-import { type Selection, compact, ms, ticksOf, windowOf } from "./timelineLogic.ts";
+import { type Selection, compact, ms, sharesLine, ticksOf, windowOf } from "./timelineLogic.ts";
 import type { BUILD } from "./words.i18n.ts";
 
 type Words = typeof BUILD.en;
@@ -18,7 +18,7 @@ const ROW_H = 48;
 const LANE_H = 40;
 const LANE_PAD = (ROW_H - LANE_H) / 2;
 const MAIN_H = 40;
-const LABEL_W = 144;
+const LABEL_W = 176;
 const MIN_PX = 1.5;
 
 /** Bar geometry per kind: [offset from the row top, height]. */
@@ -69,7 +69,7 @@ function Attempt({
   t: Words;
   onSelect: () => void;
 }) {
-  const top = HEAD_H + row * LANE_H + LANE_PAD;
+  const top = HEAD_H + row * ROW_H + LANE_PAD;
   const x0 = x(ms(attempt.start));
   const x1 = Math.max(x(ms(attempt.end)), x0 + 6);
   const result = t[`tlResult_${attempt.result}` as const];
@@ -237,17 +237,17 @@ export function Lanes({
                 aria-pressed={chosen}
                 aria-label={t.tlTaskLabel(r.task_code, r.task_title)}
                 onClick={() => last && onSelect({ request: r.id, attempt: last.n })}
-                className="flex w-full flex-col items-start justify-center pr-2 text-left outline-none focus-visible:outline-2 focus-visible:outline-focus"
+                className="box-border flex w-full flex-col items-start justify-center overflow-hidden pr-2 text-left leading-4 outline-none focus-visible:outline-2 focus-visible:outline-focus"
                 style={{ height: ROW_H }}
                 data-lane-task={r.task_code}
               >
-                <span className={cn("font-code text-xs", chosen ? "font-semibold" : "", needsYou === r.task_code ? "text-accent-text" : "text-fg")}>
-                  {r.task_code}
+                <span className="flex max-w-full items-baseline gap-2 truncate font-code text-xs">
+                  <span className={cn(chosen ? "font-semibold" : "", needsYou === r.task_code ? "text-accent-text" : "text-fg")}>{r.task_code}</span>
+                  {r.feature ? <span className="text-fg-3">{r.feature.code}</span> : null}
                 </span>
-                {r.feature ? <span className="font-code text-xs text-fg-3">{r.feature.code}</span> : null}
                 {r.flow ? (
-                  <span className="text-xs tabular-nums text-fg-3" title={t.flowTitle} data-lane-flow={r.task_code}>
-                    {t.flowLabel(r.flow.active_pct)}
+                  <span className="line-clamp-2 text-xs tabular-nums text-fg-3" title={t.flowTitle} data-lane-flow={r.task_code}>
+                    {sharesLine(r.flow.pct, { build: t.flowBuild, ci: t.flowCi, review: t.flowReview, wait: t.flowWait })}
                   </span>
                 ) : null}
               </button>

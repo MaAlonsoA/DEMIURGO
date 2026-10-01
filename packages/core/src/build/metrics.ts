@@ -6,7 +6,7 @@
 
 import { sql } from 'kysely';
 import type { Db } from '../db/connection.ts';
-import { type ContextSummary, contextHit, contextSummary } from './flow.ts';
+import { type ContextSummary, type Shares, contextHit, contextSummary, flowSplit } from './flow.ts';
 
 export type StepRow = {
   build_request_id: string;
@@ -17,6 +17,8 @@ export type StepRow = {
   model: string | null;
   duration_ms: number | null;
   at: Date | string;
+  /** The merge row says CI ran again on the updated branch (`detail.recheck`). */
+  recheck?: boolean;
 };
 
 export const TIMED_STAGES = ['builder', 'environment', 'ci', 'review'] as const;
@@ -29,8 +31,8 @@ export type MergedTaskMetrics = {
   attempts: number;
   stage_minutes: Record<TimedStage, number>;
   model: string | null;
-  /** Flow efficiency in percent: (builder + CI + review time) over lead time; see flow.ts. */
-  flow_pct: number | null;
+  /** Where the lead time went, in percent (build, CI, review, wait); see flow.ts. */
+  flow: Shares | null;
 };
 
 export type Summary = {
@@ -42,8 +44,8 @@ export type Summary = {
   review_median: number | null;
   /** Merged on attempt 1 (null without merged tasks). */
   first_pass: { merged_first_try: number; of: number } | null;
-  /** Median flow efficiency (percent) over the tasks. */
-  flow_median: number | null;
+  /** Median share (percent) of each part of the lead time over the tasks. */
+  flow_median: Shares | null;
 };
 
 export type ModelSummary = { model: string; tasks: number; lead_median: number | null; builder_median: number | null; ci_median: number | null; review_median: number | null };
@@ -58,8 +60,8 @@ export type DeliveryMetrics = {
   by_model_last10: ModelSummary[];
   by_model_all: ModelSummary[];
   running: RunningBuild[];
-  /** Flow efficiency of the last merged tasks, oldest first (the trend). */
-  flow_trend: number[];
+  /** Lead time (minutes) of the last merged tasks, oldest first. */
+  lead_trend: number[];
   /** Context hit rate over the last merged tasks (recall and precision, percent). */
   context: ContextSummary;
 };
@@ -102,6 +104,12 @@ function stageMs(rows: StepRow[], stage: string): number {
   return total;
 }
 
+const medianShares = (list: Shares[]): Shares | null => {
+  if (list.length === 0) return null;
+  const m = (pick: (s: Shares) => number) => Math.round(median(list.map(pick)) as number);
+  return { build: m((s) => s.build), ci: m((s) => s.ci), review: m((s) => s.review), wait: m((s) => s.wait) };
+};
+
 const summaryOf = (tasks: MergedTaskMetrics[]): Summary => ({
   tasks: tasks.length,
   lead_median: median(tasks.map((t) => t.lead_minutes)),
@@ -109,7 +117,7 @@ const summaryOf = (tasks: MergedTaskMetrics[]): Summary => ({
   builder_median: median(tasks.map((t) => t.stage_minutes.builder)),
   ci_median: median(tasks.map((t) => t.stage_minutes.ci)),
   review_median: median(tasks.map((t) => t.stage_minutes.review)),
-  flow_median: median(tasks.flatMap((t) => (t.flow_pct === null ? [] : [t.flow_pct]))),
+  flow_median: medianShares(tasks.flatMap((t) => (t.flow === null ? [] : [t.flow]))),
   first_pass: tasks.length ? { merged_first_try: tasks.filter((t) => t.attempts === 1).length, of: tasks.length } : null,
 });
 
@@ -142,7 +150,6 @@ export function deliveryMetrics(steps: StepRow[], now: Date = new Date(), contex
     if (done) {
       const builders = rows.filter((r) => r.stage === 'builder' && r.model);
       const stageMinutes = Object.fromEntries(TIMED_STAGES.map((st) => [st, minutes(stageMs(rows, st))])) as Record<TimedStage, number>;
-      const lead = ms(done.at) - ms(first.at);
       merged.push({
         code,
         merged_at: new Date(done.at).toISOString(),
@@ -150,7 +157,11 @@ export function deliveryMetrics(steps: StepRow[], now: Date = new Date(), contex
         attempts: Math.max(...rows.map((r) => r.attempt)),
         stage_minutes: stageMinutes,
         model: builders.at(-1)?.model ?? null,
-        flow_pct: lead > 0 ? Math.min(100, Math.round(((stageMs(rows, 'builder') + stageMs(rows, 'ci') + stageMs(rows, 'review')) / lead) * 100)) : null,
+        flow: flowSplit(
+          rows.map((r) => ({ attempt: r.attempt, stage: r.stage, outcome: r.outcome, at: ms(r.at), recheck: r.recheck === true, duration_ms: r.duration_ms })),
+          ms(first.at),
+          ms(done.at),
+        )?.pct ?? null,
       });
       continue;
     }
@@ -164,9 +175,9 @@ export function deliveryMetrics(steps: StepRow[], now: Date = new Date(), contex
   const perTask = merged.filter((m) => !seen.has(m.code) && seen.add(m.code));
   const last10 = perTask.slice(0, 10);
   running.sort((a, b) => b.elapsed_minutes - a.elapsed_minutes);
-  const flowTrend = [...last10].reverse().flatMap((m) => (m.flow_pct === null ? [] : [m.flow_pct]));
+  const leadTrend = [...last10].reverse().map((m) => m.lead_minutes);
   const context = contextSummary(last10.map((m) => contextOfFiles(contexts.get(m.code))));
-  return { merged: last10, last10: summaryOf(last10), all: summaryOf(perTask), by_model_last10: byModel(last10), by_model_all: byModel(perTask), running, flow_trend: flowTrend, context };
+  return { merged: last10, last10: summaryOf(last10), all: summaryOf(perTask), by_model_last10: byModel(last10), by_model_all: byModel(perTask), running, lead_trend: leadTrend, context };
 }
 
 /** Reads the steps of a project and computes its delivery metrics. */
@@ -183,6 +194,7 @@ export async function projectDeliveryMetrics(db: Db, projectId: string): Promise
       'build_steps.outcome',
       'build_steps.created_at as at',
       sql<string | null>`build_steps.detail->>'model'`.as('model'),
+      sql<boolean>`coalesce(build_steps.detail->>'recheck' = 'true', false)`.as('recheck'),
       sql<number | null>`(build_steps.detail->>'duration_ms')::float8`.as('duration_ms'),
     ])
     .where('build_steps.project_id', '=', projectId)

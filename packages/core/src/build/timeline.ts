@@ -2,12 +2,12 @@
 // attempt the stages as segments over time, plus the few facts the view needs about what entered the builder
 // and what came out. Derived on read from `build_steps` (nothing is stored). Practice: the run timeline of
 // Dagster and the Gantt of Airflow (one row per job, runs as bars over time) and the value-stream split of
-// process time and waiting time (Rother and Shook, «Learning to See»). Pure aggregation in `buildTimeline`;
+// process time and waiting time (Rother and Shook, «Learning to See»; the split is in flow.ts). Pure aggregation in `buildTimeline`;
 // `buildTimelineOf` only reads. Never carries secrets or whole transcripts: every text is cut (our convention).
 
 import { sql } from 'kysely';
 import type { Db } from '../db/connection.ts';
-import { ACTIVE_STAGES, type ContextHit, type Flow, contextHit, flowOf, unionMs } from './flow.ts';
+import { type ContextHit, type Flow, type FlowRow, contextHit, flowSplit } from './flow.ts';
 
 export type TimelineStepRow = {
   build_request_id: string;
@@ -118,7 +118,7 @@ export type TimelineRequest = {
   running: boolean;
   merged_at: string | null;
   attempts: TimelineAttempt[];
-  /** Active vs wait from the first start to the merge (or to now); see flow.ts. */
+  /** Build, CI, review and wait from the first start to the merge (or to now); see flow.ts. */
   flow: Flow | null;
   /** What the merged attempt's builder was given vs what the pull request touched; null unless merged and both are known. */
   context: ContextHit | null;
@@ -382,9 +382,13 @@ export function buildTimeline(
     const shown = attempts.slice(-TIMELINE_MAX_ATTEMPTS);
     const merged = [...attempts].reverse().find((a) => a.merged_at)?.merged_at ?? null;
     const mergedAttempt = [...attempts].reverse().find((a) => a.merged_at)?.n ?? null;
-    const leadStart = ms((attempts[0] as TimelineAttempt).start);
+    const leadStart = ms((rows.find((x) => x.stage === 'repo' && x.outcome === 'started') ?? (rows[0] as TimelineStepRow)).at);
     const leadEnd = merged ? ms(merged) : ms((attempts.at(-1) as TimelineAttempt).end);
-    const activeIntervals = attempts.flatMap((a) => a.segments.filter((sg) => ACTIVE_STAGES.has(sg.stage)).map((sg) => ({ start: ms(sg.start), end: ms(sg.end) })));
+    const running = attempts.at(-1)?.result === 'running';
+    const flowRows: FlowRow[] = rows.map((x) => {
+      const d = obj(x.detail);
+      return { attempt: x.attempt, stage: x.stage, outcome: x.outcome, at: ms(x.at), recheck: d.recheck === true, duration_ms: num(d.duration_ms) };
+    });
     out.push({
       id: r.id,
       task_code: r.task_code,
@@ -395,10 +399,10 @@ export function buildTimeline(
       pr_number: r.pr_number,
       start: (attempts[0] as TimelineAttempt).start,
       end: (attempts.at(-1) as TimelineAttempt).end,
-      running: attempts.at(-1)?.result === 'running',
+      running,
       merged_at: merged,
       attempts: shown,
-      flow: flowOf(unionMs(activeIntervals, leadStart, leadEnd), leadEnd - leadStart),
+      flow: flowSplit(flowRows, leadStart, leadEnd, running ? now : null),
       context: mergedAttempt === null ? null : contextOf(rows, mergedAttempt),
     });
   }

@@ -1,13 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { contextHit, contextSummary, flowOf, unionMs } from '../src/build/flow.ts';
+import { type FlowRow, contextHit, contextSummary, flowSplit, unionMs } from '../src/build/flow.ts';
 import { type StepRow, contextFilesFromRows, deliveryMetrics } from '../src/build/metrics.ts';
 import { type TimelineStepRow, buildTimeline } from '../src/build/timeline.ts';
 
-describe('flow efficiency', () => {
-  it('splits active and wait over the lead time', () => {
-    expect(flowOf(27, 100)).toEqual({ active_ms: 27, wait_ms: 73, active_pct: 27 });
-    expect(flowOf(500, 100)?.active_pct).toBe(100);
-    expect(flowOf(10, 0)).toBeNull();
+describe('flow split', () => {
+  const row = (stage: string, outcome: string, at: number, extra: Partial<FlowRow> = {}): FlowRow => ({ attempt: 1, stage, outcome, at, ...extra });
+  it('splits the lead time into build, CI, review and wait, adding up to 100', () => {
+    const f = flowSplit(
+      [row('builder', 'started', 10), row('builder', 'ok', 40), row('ci', 'started', 40), row('ci', 'ok', 70), row('review', 'started', 70), row('review', 'ok', 73)],
+      0,
+      100,
+    );
+    expect(f?.pct).toEqual({ build: 30, ci: 30, review: 3, wait: 37 });
+    expect(f).toMatchObject({ lead_ms: 100, build_ms: 30, ci_ms: 30, review_ms: 3, wait_ms: 37 });
+    expect(flowSplit([], 0, 0)).toBeNull();
+  });
+  it('counts the recheck CI inside the merge stage as CI, and a merge without recheck as wait', () => {
+    const merge = (recheck: boolean) => [row('merge', 'waiting', 50, { recheck }), row('ci', 'ok', 80, { recheck: false })];
+    expect(flowSplit(merge(true), 0, 100)?.pct).toEqual({ build: 0, ci: 30, review: 0, wait: 70 });
+    expect(flowSplit(merge(false), 0, 100)?.pct).toEqual({ build: 0, ci: 0, review: 0, wait: 100 });
+  });
+  it('lets build win over an overlapping CI, drops open intervals without openAt and closes them at it', () => {
+    expect(flowSplit([row('builder', 'started', 0), row('builder', 'ok', 50), row('ci', 'started', 40), row('ci', 'ok', 60)], 0, 100)?.pct).toEqual({ build: 50, ci: 10, review: 0, wait: 40 });
+    expect(flowSplit([row('ci', 'started', 50)], 0, 100)?.pct.ci).toBe(0);
+    expect(flowSplit([row('ci', 'started', 50)], 0, 100, 100)?.pct.ci).toBe(50);
   });
   it('takes the union of overlapping intervals, clipped', () => {
     expect(unionMs([{ start: 0, end: 10 }, { start: 5, end: 15 }, { start: 20, end: 30 }], 2, 25)).toBe(13 + 5);
@@ -49,13 +65,13 @@ describe('context hit', () => {
 
 const T0 = Date.UTC(2026, 9, 1, 10, 0, 0);
 describe('flow and context in delivery and timeline', () => {
-  it('computes flow per merged task, the median and the trend', () => {
+  it('computes the split per merged task, the median shares and the lead times', () => {
     let n = 0;
     const s = (stage: string, outcome: string, min: number): StepRow => ({ build_request_id: 'r', task_code: 'TSK-1', attempt: 1, stage, outcome, model: null, duration_ms: null, at: new Date(T0 + min * 60_000 + n++) });
     const d = deliveryMetrics([s('repo', 'started', 0), s('builder', 'started', 10), s('builder', 'ok', 20), s('ci', 'started', 20), s('ci', 'ok', 30), s('merge', 'ok', 40)]);
-    expect(d.merged[0]?.flow_pct).toBe(50);
-    expect(d.last10.flow_median).toBe(50);
-    expect(d.flow_trend).toEqual([50]);
+    expect(d.merged[0]?.flow).toEqual({ build: 25, ci: 25, review: 0, wait: 50 });
+    expect(d.last10.flow_median).toEqual({ build: 25, ci: 25, review: 0, wait: 50 });
+    expect(d.lead_trend).toEqual([40]);
   });
   it('puts flow and context on a merged request', () => {
     const st = (stage: string, outcome: string, min: number, detail: unknown = null): TimelineStepRow => ({ build_request_id: 'r', attempt: 1, stage, outcome, at: new Date(T0 + min * 60_000), detail });
@@ -71,7 +87,7 @@ describe('flow and context in delivery and timeline', () => {
       { now: new Date(T0 + 60 * 60_000), since: new Date(T0 - 1) },
     );
     const r = tl.requests[0];
-    expect(r?.flow).toEqual({ active_ms: 600_000, wait_ms: 600_000, active_pct: 50 });
+    expect(r?.flow).toMatchObject({ lead_ms: 1_200_000, build_ms: 600_000, ci_ms: 0, wait_ms: 600_000, pct: { build: 50, ci: 0, review: 0, wait: 50 } });
     expect(r?.context?.hits).toEqual(['a.ts']);
     expect(r?.context?.missed).toEqual(['c.ts']);
     expect(r?.context?.reuse).toEqual({ suggested: 1, touched: 1 });

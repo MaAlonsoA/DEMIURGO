@@ -1,7 +1,7 @@
 // Pure helpers of the build timeline view (Lanes and Path): the time scale, the ticks, which attempt is shown
 // first and the state of each stage of an attempt. No React, no clock: `now` comes from the server's answer.
 
-import type { BuildTimeline, TimelineAttempt, TimelineRequest } from '../../api/types.ts';
+import type { BuildTimeline, FlowShares, TimelineAttempt, TimelineRequest } from '../../api/types.ts';
 
 export const ms = (iso: string): number => new Date(iso).getTime();
 
@@ -89,4 +89,12 @@ export function stageStates(attempt: TimelineAttempt): Map<string, { state: Stag
     });
   }
   return out;
+}
+
+/** «build 40 % · CI 50 % · review 3 % · wait 7 %»: the shares that are not 0, in that order. */
+export function sharesLine(shares: FlowShares, names: Record<keyof FlowShares, string>): string {
+  return (['build', 'ci', 'review', 'wait'] as const)
+    .filter((k) => shares[k] > 0)
+    .map((k) => `${names[k]} ${shares[k]} %`)
+    .join(' · ');
 }

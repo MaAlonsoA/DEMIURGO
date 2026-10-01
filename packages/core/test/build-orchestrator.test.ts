@@ -171,7 +171,7 @@ function writeDesign(dir: string, violating: boolean): void {
   );
 }
 
-function fakes(opts: { environment?: 'failing'; ciConclusion: 'success' | 'failure'; design?: 'violating' | 'clean'; protection?: 'demiurgo'; ciFlipsRed?: boolean; auto?: number; greenAfterRuns?: number; behind?: boolean; updateConflict?: boolean; updatedCi?: 'failure'; mainConclusion?: 'success' | 'failure'; flaky?: 'outside'; extraCiRun?: (poll: number) => { status: string; conclusion: string | null } }): Partial<BuildDeps> {
+function fakes(opts: { environment?: 'failing'; ciConclusion: 'success' | 'failure'; design?: 'violating' | 'clean'; protection?: 'demiurgo'; ciFlipsRed?: boolean; auto?: number; greenAfterRuns?: number; behind?: boolean; updateConflict?: boolean; updatedCi?: 'failure'; mainConclusion?: 'success' | 'failure'; flaky?: 'outside'; progress?: string; extraCiRun?: (poll: number) => { status: string; conclusion: string | null } }): Partial<BuildDeps> {
   const base = builderRuns;
   // With greenAfterRuns, CI is red until the builder has run that many times, then green.
   const conclusionNow = (): 'success' | 'failure' => (opts.greenAfterRuns !== undefined && builderRuns - base >= opts.greenAfterRuns ? 'success' : opts.ciConclusion);
@@ -269,6 +269,7 @@ function fakes(opts: { environment?: 'failing'; ciConclusion: 'success' | 'failu
         notes: '',
       };
       writeFileSync(join(dir, '.demiurgo', 'build-report.json'), JSON.stringify(report));
+      if (opts.progress) writeFileSync(join(dir, '.demiurgo', 'progress.md'), opts.progress);
       return { state: 'ok', exitCode: 0, durationMs: 5, transcriptTail: 'done', report, container: 'fake' };
     },
   };
@@ -598,6 +599,55 @@ describe('build.start', () => {
     expect(calls.prompts[1]).toContain('- src/half-done.ts');
     expect(calls.prompts[1]).toContain('continue from it');
     expect(calls.opened).toBe(1);
+  });
+
+  it('the progress notes are stored in the builder step, never committed (not even as WIP), and handed to the next attempt', async () => {
+    const base = fakes({ ciConclusion: 'success', progress: '- done: the share button\n- left: the e2e test\n- failed: the migration, wrong column' });
+    let attempt = 0;
+    setBuildDeps({
+      ...base,
+      runBuilder: async (spec, options) => {
+        attempt++;
+        if (attempt > 1) return (base.runBuilder as NonNullable<BuildDeps['runBuilder']>)(spec, options);
+        calls.prompts.push(spec.prompt);
+        const dir = options?.worktreePath ?? '';
+        mkdirSync(join(dir, 'src'), { recursive: true });
+        mkdirSync(join(dir, '.demiurgo'), { recursive: true });
+        writeFileSync(join(dir, 'src', 'half-done.ts'), 'export const half = 1;\n');
+        writeFileSync(join(dir, '.demiurgo', 'progress.md'), '- done: the share button\n- left: the e2e test\n- failed: the migration, wrong column');
+        return { state: 'failure', exitCode: null, durationMs: 1, failureKind: 'timeout', transcriptTail: '', report: null, container: 'fake' };
+      },
+    });
+    const requestId = await newRequest();
+    await cmd('build.start', { task: taskCode });
+    expect(await finished(requestId, 1)).toBe('failed:builder');
+    const first = (await steps(requestId)).find((x) => x.attempt === 1 && x.stage === 'builder' && x.outcome === 'failed');
+    const detail = first?.detail as { progress: string; wip_commit: string; wip_files: string[] };
+    expect(detail.progress).toContain('left: the e2e test');
+    expect(detail.wip_files).toEqual(['src/half-done.ts']);
+    expect(await finished(requestId, 2)).toBe('done');
+    expect(calls.prompts[1]).toContain('Progress notes from the previous attempt:\n- done: the share button');
+    expect(calls.prompts[0]).not.toContain('Progress notes from the previous attempt');
+    const branch = (await db().selectFrom('build_requests').select('branch').where('id', '=', requestId).executeTakeFirstOrThrow()).branch as string;
+    expect(git(remote, 'ls-tree', '-r', '--name-only', branch)).not.toContain('progress.md');
+    const second = (await steps(requestId)).find((x) => x.attempt === 2 && x.stage === 'builder' && x.outcome === 'ok');
+    expect((second?.detail as { progress: string }).progress).toContain('failed: the migration');
+  });
+
+  it('the prompt lists the tests that depend on the code to extend', async () => {
+    mkdirSync(join(repoDir, 'src', 'lib'), { recursive: true });
+    mkdirSync(join(repoDir, 'test'), { recursive: true });
+    const word = taskTitle.split(/\s+/).find((w) => w.length > 3) ?? 'recipe';
+    writeFileSync(join(repoDir, 'src', 'lib', 'shared.ts'), `export function ${word.toLowerCase().replace(/[^a-z]/g, '')}Helper(input: string) {\n  return input;\n}\n`);
+    writeFileSync(join(repoDir, 'test', 'shared.test.ts'), "import { x } from '../src/lib/shared';\nexport const y = x;\n");
+    git(repoDir, 'add', 'src', 'test');
+    git(repoDir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'shared helper and its test');
+    git(repoDir, 'push', '-q', 'origin', 'main');
+    setBuildDeps(fakes({ ciConclusion: 'success' }));
+    const requestId = await newRequest();
+    await cmd('build.start', { task: taskCode });
+    expect(await finished(requestId, 1)).toBe('done');
+    expect(calls.prompts[0]).toContain('Before finishing, run the tests that depend on what you change: test/shared.test.ts');
   });
 
   it('a second timeout stops: no third attempt, and the step says the work is on the branch', async () => {

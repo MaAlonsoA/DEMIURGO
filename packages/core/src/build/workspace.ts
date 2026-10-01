@@ -147,7 +147,7 @@ export async function diffStat(path: string): Promise<string> {
 }
 
 /** Tool caches that never belong in a commit (DEMIURGO's own ignore list, our convention). */
-export const EXCLUDED_PATHS = ['.pw-browsers/', '.cache/', 'playwright-report/', 'test-results/', 'node_modules/', '.next/', '*.tsbuildinfo', 'core', 'core.[0-9]*', '*.core'];
+export const EXCLUDED_PATHS = ['.pw-browsers/', '.cache/', 'playwright-report/', 'test-results/', 'node_modules/', '.next/', '*.tsbuildinfo', 'core', 'core.[0-9]*', '*.core', '.demiurgo/'];
 
 /** GitHub warns above 50 MB and refuses files above 100 MB (docs.github.com, «About large files on GitHub»); a build never commits a file above the warning. */
 export const MAX_COMMITTED_FILE_BYTES = 50 * 1024 * 1024;
@@ -260,6 +260,19 @@ export async function readWorktreeFiles(path: string, keep: (file: string) => bo
     out.push({ path: file, content: await readFile(full, 'utf8') });
   }
   return out;
+}
+
+/** Files the branch changes against main (`git diff --name-only <main>...HEAD`); [] when there is no main to compare. */
+export async function changedOnBranch(path: string): Promise<string[]> {
+  for (const base of ['refs/remotes/origin/main', 'main']) {
+    try {
+      const { stdout } = await git(path, ['diff', '--name-only', `${base}...HEAD`]);
+      return stdout.split('\n').map((l) => l.trim()).filter(Boolean);
+    } catch {
+      // try the next base
+    }
+  }
+  return [];
 }
 
 /** One file of the worktree, or null if it is not there. */

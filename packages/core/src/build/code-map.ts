@@ -683,6 +683,57 @@ export function moduleOverlap(filesA: readonly string[], filesB: readonly string
   };
 }
 
+// ---------------------------------------------------------------------------------------------
+// Affected tests
+
+/** Tests listed in the builder's brief (our convention). */
+export const MAX_AFFECTED_TESTS = 15;
+
+const isE2eSpec = (path: string) => /(^|\/)(e2e|cypress|playwright)\//.test(path) || /\.spec\.[a-z]+$/.test(path);
+
+/** The static words of a URL (`/meals/[id]` gives `meals`), at least 3 letters. */
+const routeWords = (route: string): string[] => route.split('/').filter((w) => w.length >= 3 && !/[\[\]():*]/.test(w));
+
+/**
+ * The test files that depend on the changed files: those whose import closure reaches one of them (a
+ * reverse dependency walk, breadth first), and the e2e specs whose path names a changed page or route.
+ * Practice: Google's TAP builds «a reverse dependency structure that eventually outputs all test targets
+ * that directly or indirectly depend on the modified files» (Memon et al., «Taming Google-Scale Continuous
+ * Testing», ICSE-SEIP 2017); Nx «affected» does the same over its project graph. The e2e match by route
+ * word is our convention. Sorted by path; a changed test file counts as affected itself.
+ */
+export function affectedTests(map: CodeMap, changedFiles: readonly string[]): string[] {
+  const reverse = new Map<string, string[]>();
+  for (const f of map.files) for (const dep of f.imports) (reverse.get(dep) ?? reverse.set(dep, []).get(dep)!).push(f.path);
+  const seen = new Set<string>();
+  const queue: string[] = [];
+  for (const c of changedFiles) if (!seen.has(c)) (seen.add(c), queue.push(c));
+  for (let i = 0; i < queue.length; i++) {
+    for (const parent of reverse.get(queue[i] as string) ?? []) if (!seen.has(parent)) (seen.add(parent), queue.push(parent));
+  }
+  const words = new Set<string>();
+  for (const c of changedFiles) {
+    const route = map.byPath.get(c)?.route;
+    if (route) for (const w of routeWords(route)) words.add(w.toLowerCase());
+  }
+  const tests = map.files.filter((f) => {
+    if (f.kind !== 'test') return false;
+    if (seen.has(f.path)) return true;
+    if (!isE2eSpec(f.path)) return false;
+    const lower = f.path.toLowerCase();
+    return [...words].some((w) => lower.includes(w));
+  });
+  return tests.map((f) => f.path).sort();
+}
+
+/** The brief's line that tells the builder which tests to run, or null when there are none. */
+export function affectedTestsLine(tests: readonly string[]): string | null {
+  if (tests.length === 0) return null;
+  const shown = tests.slice(0, MAX_AFFECTED_TESTS);
+  const more = tests.length > shown.length ? ` and ${tests.length - shown.length} more` : '';
+  return `Before finishing, run the tests that depend on what you change: ${shown.join(', ')}${more}; the full suite runs in CI.`;
+}
+
 /** Characters of the code map in a builder brief: our convention (Aider's default map budget is 1k tokens, about 4k characters, https://aider.chat/docs/repomap.html). */
 export const BRIEF_MAP_CHARS = 6000;
 

@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { buildCodeMap, codeMapLines, extractCss, moduleOverlap, rankCodeMap, renderCodeMap, tokenize } from '../src/build/code-map.ts';
+import { affectedTests, affectedTestsLine, assemble, buildCodeMap, codeMapLines, extractCss, moduleOverlap, rankCodeMap, renderCodeMap, tokenize } from '../src/build/code-map.ts';
 import { hotspotLine } from '../src/build/queue.ts';
 
 const root = mkdtempSync(join(tmpdir(), 'dmg-codemap-'));
@@ -169,5 +169,40 @@ describe('code map', () => {
     expect(overlap.modules).toEqual(['lib:src/lib', 'table:meals']);
     expect(overlap.files).toEqual(['test/meal-plan.test.ts']);
     expect(moduleOverlap(['src/lib/format.ts'], ['src/app/api/meals/route.ts'], map)).toEqual({ files: [], modules: [] });
+  });
+});
+
+describe('affected tests', () => {
+  const file = (path: string, kind: 'lib' | 'test' | 'page' | 'component', imports: string[] = [], route?: string) => ({ path, kind, modules: [], symbols: [], imports, ...(route ? { route } : {}) });
+  const map = assemble('c', [
+    file('src/lib/meal-plan.ts', 'lib'),
+    file('src/lib/format.ts', 'lib'),
+    file('src/components/MealCard.tsx', 'component', ['src/lib/meal-plan.ts']),
+    file('src/app/meals/[id]/page.tsx', 'page', ['src/components/MealCard.tsx'], '/meals/[id]'),
+    file('src/app/settings/page.tsx', 'page', [], '/settings'),
+    file('test/meal-plan.test.ts', 'test', ['src/lib/meal-plan.ts']),
+    file('test/card.test.tsx', 'test', ['src/components/MealCard.tsx']),
+    file('test/format.test.ts', 'test', ['src/lib/format.ts']),
+    file('e2e/meals.spec.ts', 'test'),
+    file('e2e/settings.spec.ts', 'test'),
+  ]);
+
+  it('finds the tests whose import closure reaches a changed file, directly or not', () => {
+    expect(affectedTests(map, ['src/lib/meal-plan.ts'])).toEqual(['test/card.test.tsx', 'test/meal-plan.test.ts']);
+    expect(affectedTests(map, ['src/lib/format.ts'])).toEqual(['test/format.test.ts']);
+    expect(affectedTests(map, ['src/lib/unknown.ts'])).toEqual([]);
+  });
+
+  it('adds the e2e specs that name a changed page or route, and a changed test counts itself', () => {
+    expect(affectedTests(map, ['src/app/meals/[id]/page.tsx'])).toEqual(['e2e/meals.spec.ts']);
+    expect(affectedTests(map, ['test/format.test.ts'])).toEqual(['test/format.test.ts']);
+  });
+
+  it('writes the brief line with at most 15 tests, or nothing', () => {
+    expect(affectedTestsLine([])).toBeNull();
+    expect(affectedTestsLine(['a.test.ts', 'b.test.ts'])).toBe('Before finishing, run the tests that depend on what you change: a.test.ts, b.test.ts; the full suite runs in CI.');
+    const many = Array.from({ length: 17 }, (_, i) => `t${i}.test.ts`);
+    expect(affectedTestsLine(many)).toContain('t14.test.ts and 2 more;');
+    expect(affectedTestsLine(many)).not.toContain('t15.test.ts');
   });
 });

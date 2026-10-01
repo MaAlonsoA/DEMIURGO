@@ -56,8 +56,9 @@ import { environmentFromCi } from './environment.ts';
 import { pullRequestFootprint } from './footprint.ts';
 import { storeCodeOpinions } from '../classifier/code-rerank.ts';
 import { codeToExtend } from './queue.ts';
+import { affectedTests, affectedTestsLine, buildCodeMap } from './code-map.ts';
 import type { Services } from '../services.ts';
-import { commitAll, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
+import { commitAll, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, changedOnBranch, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
 import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { basename, join } from 'node:path';
@@ -247,11 +248,15 @@ async function load(s: Services, r: Run): Promise<Loaded> {
   };
 }
 
-type Feedback = { blocking: string[]; failing: string[]; design: string[]; flaky: string[]; conflicts: string[]; wip?: { sha: string; files: string[] } };
+type Feedback = { blocking: string[]; failing: string[]; design: string[]; flaky: string[]; conflicts: string[]; wip?: { sha: string; files: string[] }; progress?: string };
 
 const NO_FEEDBACK: Feedback = { blocking: [], failing: [], design: [], flaky: [], conflicts: [] };
 
-type BuilderStepDetail = { failure_kind?: string; exit_code?: number | null; wip_commit?: string; wip_files?: string[]; timed_out_twice?: boolean };
+type BuilderStepDetail = { failure_kind?: string; exit_code?: number | null; wip_commit?: string; wip_files?: string[]; timed_out_twice?: boolean; progress?: string };
+
+/** Characters of the builder's progress notes kept and handed to the next attempt (our convention). */
+const PROGRESS_MAX_CHARS = 4000;
+const PROGRESS_PATH = '.demiurgo/progress.md';
 
 /** The latest failed builder step of an attempt. */
 async function failedBuilderStep(s: Services, requestId: string, attempt: number): Promise<BuilderStepDetail | null> {
@@ -266,6 +271,38 @@ async function failedBuilderStep(s: Services, requestId: string, attempt: number
     .orderBy('id', 'desc')
     .executeTakeFirst();
   return (row?.detail as BuilderStepDetail | null | undefined) ?? null;
+}
+
+/** The progress notes the builder of an attempt left (ok or failed), or undefined. */
+async function previousProgress(s: Services, requestId: string, attempt: number): Promise<string | undefined> {
+  const row = await s.db
+    .selectFrom('build_steps')
+    .select('detail')
+    .where('build_request_id', '=', requestId)
+    .where('attempt', '=', attempt)
+    .where('stage', '=', 'builder')
+    .where('outcome', 'in', ['ok', 'failed'])
+    .orderBy('created_at', 'desc')
+    .orderBy('id', 'desc')
+    .executeTakeFirst();
+  const text = (row?.detail as BuilderStepDetail | null | undefined)?.progress;
+  return text && text.trim() ? text : undefined;
+}
+
+/**
+ * The line that lists the tests depending on what this attempt will change: from the top files of «Code to extend»
+ * (the predicted touch) and, when the previous attempt's CI had failing tests, from the files the branch changes
+ * instead. Best effort: any error gives no line.
+ */
+async function affectedLine(worktreePath: string, predicted: readonly string[], useBranch: boolean): Promise<string | null> {
+  try {
+    const branch = useBranch ? await changedOnBranch(worktreePath) : [];
+    const files = branch.length > 0 ? branch : predicted.slice(0, 5);
+    if (files.length === 0) return null;
+    return affectedTestsLine(affectedTests(await buildCodeMap(worktreePath, 'HEAD'), files));
+  } catch {
+    return null;
+  }
 }
 
 /** What the previous attempt got wrong: the reviewer's blocking comments and the tests that failed. */
@@ -304,7 +341,8 @@ async function feedbackOf(s: Services, r: Run): Promise<Feedback> {
   const violations = design?.outcome === 'failed' ? ((design.detail as { violations?: DesignViolation[] } | null)?.violations ?? []) : [];
   const previous = r.attempt > 1 ? await failedBuilderStep(s, r.requestId, r.attempt - 1) : null;
   const wip = previous?.failure_kind === 'timeout' && previous.wip_commit ? { sha: previous.wip_commit, files: previous.wip_files ?? [] } : undefined;
-  return { blocking, failing: recorded.map((t) => t.code), design: violations.map(violationLine), flaky: (evidenceDetail?.flaky ?? []).filter((c) => !(evidenceDetail?.quarantined ?? []).includes(c)), conflicts: [], ...(wip ? { wip } : {}) };
+  const progress = r.attempt > 1 ? await previousProgress(s, r.requestId, r.attempt - 1) : undefined;
+  return { blocking, failing: recorded.map((t) => t.code), design: violations.map(violationLine), flaky: (evidenceDetail?.flaky ?? []).filter((c) => !(evidenceDetail?.quarantined ?? []).includes(c)), conflicts: [], ...(wip ? { wip } : {}), ...(progress ? { progress } : {}) };
 }
 
 const violationLine = (v: DesignViolation): string => `${v.path}${v.line ? `:${v.line}` : ''} (rule ${v.rule}): ${v.message}`;
@@ -342,7 +380,7 @@ function promptOf(
   code: string[] = [],
 ): string {
   const lines = [body, '', '# Brief', brief, ...(code.length > 0 ? ['', ...code] : []), ...designSection(design)];
-  if (attempt > 1 && (f.wip || f.conflicts.length > 0 || f.blocking.length > 0 || f.failing.length > 0 || f.design.length > 0 || f.flaky.length > 0)) {
+  if (attempt > 1 && (f.wip || f.conflicts.length > 0 || f.blocking.length > 0 || f.failing.length > 0 || f.design.length > 0 || f.flaky.length > 0 || f.progress)) {
     lines.push('', `# Feedback on the previous attempt (this is attempt ${attempt} on the same branch)`);
     if (f.wip) {
       lines.push(
@@ -351,6 +389,7 @@ function promptOf(
         "Finish within the time limit by keeping to the task's scope: do only what its criteria ask.",
       );
     }
+    if (f.progress) lines.push('Progress notes from the previous attempt:', f.progress.trim());
     if (f.conflicts.length > 0) {
       lines.push(
         `The branch conflicts with main: the merge of origin/main into this branch is in progress and these files have conflict markers: ${f.conflicts.join(', ')}.`,
@@ -624,6 +663,8 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     // «Code to extend», computed on the branch this attempt works on (attempt 2 sees its own earlier work); what was shown is kept in the step and per file in task_code_opinions.
     const code = await codeToExtend(s0.db, projectId, info.taskCode, { repoPath: worktree.path, ref: 'HEAD', versionId: info.taskVersionId });
     await storeCodeOpinions(s0.db, { projectId, buildRequestId: requestId, attempt, versionId: info.taskVersionId }, code).catch(() => undefined);
+    const affected = await affectedLine(worktree.path, code.files, attempt > 1 && feedback.failing.length > 0);
+    const codeLines = [...code.lines, ...(affected ? [affected] : [])];
     const result = await d.runBuilder(
       {
         worktreeHostPath: hostPathOf(worktree.path),
@@ -631,7 +672,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
         provider: resolution.provider as 'claude' | 'codex',
         model: resolution.model,
         effort: resolution.effort ?? 'medium',
-        prompt: promptOf(agent.body, info.brief, attempt, feedback, designSystem, code.lines),
+        prompt: promptOf(agent.body, info.brief, attempt, feedback, designSystem, codeLines),
         maxTimeMs: Math.min(agent.timeLimitSeconds * 1000, BUILDER_MAX_TIME_MS),
         limits: { cpus: 2, memoryMb: 4096, pids: 512 },
         ...(prepared ? { network: prepared.network, storeVolume: prepared.storeVolume, env: prepared.env } : {}),
@@ -642,7 +683,9 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       // Success, failure, timeout or withdrawal: the build's database goes with the attempt.
       if (prepared) await d.teardownEnvironment(slug, requestId).catch(() => undefined);
     });
-    // The report is DEMIURGO's, not the project's: it never enters the commit.
+    // The progress notes (Anthropic, «Effective harnesses for long-running agents») go to the step and the next attempt's prompt.
+    const progressText = ((await readWorktreeFile(worktree.path, PROGRESS_PATH)) ?? '').trim().slice(0, PROGRESS_MAX_CHARS);
+    // The report and the notes are DEMIURGO's, not the project's: they never enter the commit (nor the WIP one).
     await rm(join(worktree.path, '.demiurgo'), { recursive: true, force: true });
     const failed = result.state !== 'ok';
     const kind = failed
@@ -660,7 +703,8 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       duration_ms: result.durationMs,
       transcript_tail_length: result.transcriptTail.length,
       report: result.report,
-      ...(code.lines.length > 0 ? { code_to_extend: { commit: code.commit, files: code.files, classifier_id: code.classifier_id, section: code.lines.join('\n') } } : {}),
+      ...(progressText ? { progress: progressText } : {}),
+      ...(code.lines.length > 0 ? { code_to_extend: { commit: code.commit, files: code.files, classifier_id: code.classifier_id, section: codeLines.join('\n') } } : {}),
       ...(wip ? { wip_commit: wip.sha, wip_files: wip.files, ...(wip.pushError ? { wip_push_error: wip.pushError } : {}) } : {}),
       ...(twice ? { timed_out_twice: true, branch: worktree.branch } : {}),
       ...(kind ? { failure_kind: kind, transcript_excerpt: failureExcerpt({ stderr: result.stderrTail, transcript: result.transcriptTail }) } : {}),

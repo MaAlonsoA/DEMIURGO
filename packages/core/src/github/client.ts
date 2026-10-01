@@ -99,10 +99,12 @@ async function graphql(cfg: GithubConfig, query: string, variables: Record<strin
 export function gitAuthEnv(cfg: GithubConfig | null = githubConfig()): Record<string, string> {
   if (!cfg) return {};
   const basic = Buffer.from(`x-access-token:${cfg.token}`).toString('base64');
+  // Append after any GIT_CONFIG_* entries already in the environment instead of replacing them.
+  const n = Number.parseInt(process.env.GIT_CONFIG_COUNT ?? '0', 10) || 0;
   return {
-    GIT_CONFIG_COUNT: '1',
-    GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
-    GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${basic}`,
+    GIT_CONFIG_COUNT: String(n + 1),
+    [`GIT_CONFIG_KEY_${n}`]: 'http.https://github.com/.extraheader',
+    [`GIT_CONFIG_VALUE_${n}`]: `AUTHORIZATION: basic ${basic}`,
   };
 }
 

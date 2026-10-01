@@ -70,6 +70,8 @@ describe('evidence.ingest_junit', () => {
       ignored: 2,
       // c3 only has a skipped case: it did not run, and no evidence is recorded for it.
       not_run: [c3],
+      // Nothing was recorded as flaky: every case ran once.
+      flaky: [],
     });
 
     const { rows } = await sql<{ code: string; kind: string; result: string; test_name: string; recorded_by: string; reference: string }>`

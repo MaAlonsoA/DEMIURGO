@@ -199,7 +199,14 @@ describe('Update knowledge', () => {
     const t = unique();
     const old = await decision(p, `Pago en efectivo ${t}`, `Las cuotas se pagan en efectivo ${t}.`);
     script.scripts.verdict = (items) =>
-      items.map((i) => response(i.id, 'invalidate', 0.95, 'El pago por transferencia sustituye al efectivo.'));
+      items.map((i) =>
+        response(
+          i.id,
+          'invalidate',
+          0.95,
+          `Change: "Las cuotas se pagan por transferencia ${t}" Candidate: "Las cuotas se pagan en efectivo ${t}"`,
+        ),
+      );
     await decision(p, `Pago por transferencia ${t}`, `Las cuotas se pagan por transferencia ${t}.`);
     // The old decision stays approved and its node stays current.
     const v = await s.db.selectFrom('record_versions').select('state').where('id', '=', old.versionId).executeTakeFirstOrThrow();
@@ -224,7 +231,16 @@ describe('Update knowledge', () => {
     await sql`insert into knowledge_nodes (project_id, ref, kind, source_type, source_id, source_version, label, body, epistemic, valid_from, state)
       values (${p}::uuid, 'DEC-ZZZ-009@1', 'decision', 'record_version', ${randomUUID()}::uuid, 1,
               ${`Pago en efectivo ${t}`}, ${`Las cuotas se pagan en efectivo ${t}.`}, 'confirmed', 1, 'current')`.execute(s.db);
-    script.scripts.verdict = (items) => items.map((i) => response(i.id, 'invalidate', 0.95, 'Superseded.'));
+    // A verdict that asks the person to review must quote both clashing statements verbatim (patch 3e68c6d).
+    script.scripts.verdict = (items) =>
+      items.map((i) =>
+        response(
+          i.id,
+          'invalidate',
+          0.95,
+          `Change: "Las cuotas se pagan por transferencia ${t}" Candidate: "Las cuotas se pagan en efectivo ${t}"`,
+        ),
+      );
     await decision(p, `Pago por transferencia ${t}`, `Las cuotas se pagan por transferencia ${t}.`);
     const u = (await updates(p)).at(-1);
     expect(u?.state).toBe('rejected');
@@ -441,7 +457,12 @@ describe('freshness', () => {
     );
     const request = () =>
       cmd(p, 'run.request', { action: 'design_proposal', scope: { type: 'record_version', id: d.versionId } });
-    await expect(request()).rejects.toMatchObject({ type: 'guard', reasons: [expect.stringContaining('not up to date')] });
+    // A person's request waits on the server (patch 4687d84): it is deferred, not refused.
+    await expect(request()).resolves.toMatchObject({ deferred: true, result: { deferred: true } });
+    // Any other actor is still refused while the graph is stale.
+    await expect(
+      cmd(p, 'run.request', { action: 'design_proposal', scope: { type: 'record_version', id: d.versionId } }, undefined, system('design')),
+    ).rejects.toMatchObject({ type: 'guard', reasons: [expect.stringContaining('not up to date')] });
     await s.engine.startUpdate('', p);
     await expect(request()).resolves.toMatchObject({ state: 'queued' });
   });
@@ -756,7 +777,10 @@ describe('the classifier does not touch authority', () => {
     };
     // A second decision on the same topic: reprojecting the first one, the second is a candidate.
     await decision(p, `Sede en verano ${t}`, `La sede abre de lunes a viernes en verano ${t}.`);
-    script.scripts.verdict = (items) => items.map((i) => response(i.id, 'invalidate', 0.99));
+    script.scripts.verdict = (items) =>
+      items.map((i) =>
+        response(i.id, 'invalidate', 0.99, 'Change: "La sede abre de lunes a viernes" Candidate: "La sede abre de lunes a viernes en verano"'),
+      );
     // An update on the first decision is enqueued by hand and processed: authority doesn't change.
     const before = await authority();
     const v = await s.db

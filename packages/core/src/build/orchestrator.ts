@@ -625,6 +625,20 @@ async function automaticAttempts(s: Services, requestId: string): Promise<number
   return automatic;
 }
 
+/** After a failed design stage (design system or ownership): records the automatic next attempt and returns its number, or null. */
+async function retryDesign(s: Services, r: Run, limit: number): Promise<number | null> {
+  const latest = await s.db
+    .selectFrom('build_steps')
+    .select((eb) => eb.fn.max('attempt').as('attempt'))
+    .where('build_request_id', '=', r.requestId)
+    .executeTakeFirst();
+  if (Number(latest?.attempt ?? r.attempt) !== r.attempt) return null;
+  if ((await automaticAttempts(s, r.requestId)) >= limit) return null;
+  const reason = 'The change broke the design-system or ownership guard; a new attempt fixes the violations it was told.';
+  await record({ ...r, attempt: r.attempt + 1 }, 'repo', 'started', { started_by: formatActor(BUILD), automatic: true, reason });
+  return r.attempt + 1;
+}
+
 /** After a failed builder: records the automatic next attempt and returns its number, or null (no retry). */
 async function retryBuilder(s: Services, r: Run): Promise<number | null> {
   const step = (await s.db
@@ -1039,7 +1053,13 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     }
     return { value: { note: `Uses the approved design system ${approved.manifest.version}.` }, detail };
   });
-  if (!designed.ok) return stop('design', designed.outcome);
+  if (!designed.ok) {
+    // A design-system or ownership violation is the builder's to fix: the next attempt gets the violations as
+    // feedback (feedbackFor) and starts on its own, up to `autoFollowUps` like any other fixable stop.
+    const next = designed.outcome === 'failed' ? await plain('design-retry', () => retryDesign(s0, r, d.autoFollowUps)) : null;
+    if (next !== null) await DBOS.startWorkflow(buildWorkflowRegistered, { workflowID: buildWorkflowId(requestId, next) })(projectId, requestId, next);
+    return stop('design', designed.outcome);
+  }
   const designNote = designed.value.note;
 
   // push

@@ -170,7 +170,13 @@ export function ownershipViolations(input: OwnershipInput): OwnershipViolation[]
   }
   for (const r of input.addedRoutes) {
     const owner = input.owners.routes.get(r);
-    if (owner && !mine.has(owner.feature)) recreated('route', r, owner);
+    if (!owner || mine.has(owner.feature)) continue;
+    // A task that names the page it changes (its last path segment, e.g. «sign-in» for /auth/sign-in) is
+    // reshaping that page, not taking another feature's (convención nuestra, like the table case above).
+    const last = words(r.split('/').filter((x) => x && !x.startsWith('[')).pop() ?? '');
+    const text = new Set(words(input.taskText ?? ''));
+    if (last.length > 0 && last.every((w) => text.has(w))) continue;
+    recreated('route', r, owner);
   }
   return out;
 }

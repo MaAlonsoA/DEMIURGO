@@ -115,7 +115,10 @@ export async function diffStat(path: string): Promise<string> {
 }
 
 /** Tool caches that never belong in a commit (DEMIURGO's own ignore list, our convention). */
-export const EXCLUDED_PATHS = ['.pw-browsers/', '.cache/', 'playwright-report/', 'test-results/', 'node_modules/', '.next/', '*.tsbuildinfo'];
+export const EXCLUDED_PATHS = ['.pw-browsers/', '.cache/', 'playwright-report/', 'test-results/', 'node_modules/', '.next/', '*.tsbuildinfo', 'core', 'core.[0-9]*', '*.core'];
+
+/** GitHub warns above 50 MB and refuses files above 100 MB (docs.github.com, «About large files on GitHub»); a build never commits a file above the warning. */
+export const MAX_COMMITTED_FILE_BYTES = 50 * 1024 * 1024;
 const EXCLUDE_MARKER = '# DEMIURGO: tool caches that are never committed';
 
 /**
@@ -128,16 +131,36 @@ export async function writeExcludes(path: string): Promise<string> {
   const raw = stdout.trim();
   const file = isAbsolute(raw) ? raw : join(path, raw);
   const current = await readFile(file, 'utf8').catch(() => '');
-  if (current.includes(EXCLUDE_MARKER)) return file;
+  const lines = new Set(current.split('\n').map((l) => l.trim()));
+  // Only what is missing: an exclude file written by an older list gets the new entries too.
+  const missing = EXCLUDED_PATHS.filter((p) => !lines.has(p));
+  if (missing.length === 0) return file;
   await mkdir(join(file, '..'), { recursive: true });
-  await appendFile(file, `${current === '' || current.endsWith('\n') ? '' : '\n'}${EXCLUDE_MARKER}\n${EXCLUDED_PATHS.join('\n')}\n`);
+  const header = lines.has(EXCLUDE_MARKER) ? '' : `${EXCLUDE_MARKER}\n`;
+  await appendFile(file, `${current === '' || current.endsWith('\n') ? '' : '\n'}${header}${missing.join('\n')}\n`);
   return file;
+}
+
+/** Takes out of the index every staged file above MAX_COMMITTED_FILE_BYTES (a crash dump, a cache): GitHub would refuse the push. */
+export async function unstageLargeFiles(path: string): Promise<string[]> {
+  const { stdout } = await git(path, ['diff', '--cached', '--name-only', '--diff-filter=AM', '-z']);
+  const large: string[] = [];
+  for (const name of stdout.split('\0').filter(Boolean)) {
+    const size = await stat(join(path, name)).then((s) => s.size).catch(() => 0);
+    if (size > MAX_COMMITTED_FILE_BYTES) large.push(name);
+  }
+  if (large.length > 0) {
+    await git(path, ['rm', '--cached', '-q', '--', ...large]);
+    console.warn(`[build] left out of the commit, above ${MAX_COMMITTED_FILE_BYTES} bytes: ${large.join(', ')}`);
+  }
+  return large;
 }
 
 /** Commits every change; returns the sha, or null when nothing changed. */
 export async function commitAll(path: string, message: string, author: string = BUILDER_AUTHOR): Promise<string | null> {
   await writeExcludes(path);
   await git(path, ['add', '-A']);
+  await unstageLargeFiles(path);
   const { stdout: status } = await git(path, ['status', '--porcelain']);
   if (!status.trim()) return null;
   const { name, email } = parseAuthor(author);

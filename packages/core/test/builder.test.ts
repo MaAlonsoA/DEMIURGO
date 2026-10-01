@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type BuilderSpec, builderArguments } from '../src/runner/builder.ts';
-import { branchName, commitAll, writeExcludes, diffStat, hostPathOf, prepareWorktree, removeWorktree } from '../src/build/workspace.ts';
+import { MAX_COMMITTED_FILE_BYTES, branchName, commitAll, writeExcludes, diffStat, hostPathOf, prepareWorktree, removeWorktree } from '../src/build/workspace.ts';
 
 const spec: BuilderSpec = {
   worktreeHostPath: '/Users/x/Development/Demiurgo-projects/.worktrees/b1',
@@ -21,7 +21,7 @@ describe('builderArguments', () => {
     const args = builderArguments(spec, 'demiurgo-build-1', {});
     expect(args.slice(0, 4)).toEqual(['run', '--rm', '-i', '--name']);
     expect(args).toContain('--read-only');
-    expect(args.join(' ')).toContain('--cap-drop ALL --security-opt no-new-privileges --user 501:501');
+    expect(args.join(' ')).toContain('--cap-drop ALL --ulimit core=0 --security-opt no-new-privileges --user 501:501');
     expect(args).not.toContain('--network');
     expect(args).not.toContain('--privileged');
     const mounts = args.filter((_, i) => args[i - 1] === '--mount');
@@ -162,6 +162,15 @@ describe('worktree helpers', () => {
     } finally {
       chmodSync(cache, 0o700);
     }
+  });
+
+  it('the commit leaves out core dumps and any file above the GitHub warning size', async () => {
+    const wt = await prepareWorktree({ repoDir: repo, taskCode: 'TSK-E-5', buildId: 'cccccccc3333' });
+    writeFileSync(join(wt.path, 'core'), 'dump\n');
+    writeFileSync(join(wt.path, 'big.bin'), Buffer.alloc(MAX_COMMITTED_FILE_BYTES + 1));
+    writeFileSync(join(wt.path, 'real2.txt'), 'x\n');
+    expect(await commitAll(wt.path, 'real2')).toMatch(/^[0-9a-f]{40}$/);
+    expect(sh(wt.path, 'show', '--name-only', '--format=', 'HEAD')).toBe('real2.txt');
   });
 
   it('maps container paths to host paths', () => {

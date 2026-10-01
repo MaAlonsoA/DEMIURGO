@@ -149,6 +149,8 @@ export function builderArguments(spec: BuilderSpec, containerName: string, envir
     '--tmpfs', '/tmp:rw,exec,nosuid,size=512m',
     '--tmpfs', `${home}:rw,exec,nosuid,size=256m,uid=${uid},gid=${gid}`,
     '--cap-drop', 'ALL',
+    // No core dumps: a crashing browser left a 301 MB `core` in the worktree that GitHub refused.
+    '--ulimit', 'core=0',
     '--security-opt', 'no-new-privileges',
     '--user', `${uid}:${gid}`,
     '--pids-limit', String(pids),

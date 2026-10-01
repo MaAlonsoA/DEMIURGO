@@ -83,7 +83,7 @@ function caughtOf(g: Gate): Caught[] {
 }
 
 /** An error of the test environment, not of the code: a missing database, a refused connection, a missing browser. */
-const ENVIRONMENT_ERROR = /database "[^"]*" does not exist|ECONNREFUSED|connection refused|browserType\.launch|Executable doesn't exist|ENOSPC|EADDRINUSE|too many clients/i;
+export const ENVIRONMENT_ERROR =/database "[^"]*" does not exist|ECONNREFUSED|connection refused|browserType\.launch|Executable doesn't exist|ENOSPC|EADDRINUSE|too many clients/i;
 
 export type LoopClass = 'own' | 'foreign' | 'environment' | 'green';
 /** What the orchestrator stores per loop (`failure_class`): null means the check came back green. */

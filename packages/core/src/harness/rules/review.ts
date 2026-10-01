@@ -18,15 +18,15 @@ import type { Finding, Rule } from './index.ts';
  */
 export const REPEAT_SIMILARITY = 0.4;
 
-type Comment = { index: number; path: string; line: number | null; severity: string; body: string; needsPerson: boolean };
+export type Comment = { index: number; path: string; line: number | null; severity: string; body: string; needsPerson: boolean };
 
-const commentsOf = (review: Row<'pr_reviews'>): Comment[] =>
+export const commentsOf =(review: Row<'pr_reviews'>): Comment[] =>
   asArray(review.comments).map((raw, index) => {
     const c = asObject(raw);
     return { index, path: typeof c.path === 'string' ? normalPath(c.path) : '', line: numberOf(c.line), severity: String(c.severity ?? ''), body: typeof c.body === 'string' ? c.body : '', needsPerson: c.needs_person === true };
   });
 
-const orderedReviews = (inputs: PostmortemInputs): Row<'pr_reviews'>[] => [...inputs.reviews].sort((a, b) => timeOf(a.created_at) - timeOf(b.created_at));
+export const orderedReviews =(inputs: PostmortemInputs): Row<'pr_reviews'>[] => [...inputs.reviews].sort((a, b) => timeOf(a.created_at) - timeOf(b.created_at));
 
 /** Trigrams as pg_trgm builds them: lowercase, words made of letters and digits, padded with two spaces before and one after. */
 export function trigrams(text: string): Set<string> {
@@ -141,7 +141,7 @@ export const reviewFindingOutcome: Rule = (inputs) => {
 };
 
 /** The repeat test of B10: same path is checked by the caller. «convención nuestra» (see REPEAT_SIMILARITY). */
-function isRepeat(earlier: Comment, current: Comment): { repeat: boolean; similarity: number } {
+export function isRepeat(earlier: Comment, current: Comment): { repeat: boolean; similarity: number } {
   const similarity = trigramSimilarity(earlier.body, current.body);
   const codes = new Set(earlier.body.match(CRITERION_CODE) ?? []);
   const sameCriterion = (current.body.match(CRITERION_CODE) ?? []).some((code) => codes.has(code));

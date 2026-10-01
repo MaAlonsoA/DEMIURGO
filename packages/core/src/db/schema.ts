@@ -418,6 +418,21 @@ export type TaskSizeOpinionsTable = {
   created_at: Generated<Timestamp>;
 };
 
+/** Jev's three probabilities on one criterion of a task (H97): derived, the latest row per criterion is the active one. */
+export type TaskTestabilityOpinionsTable = {
+  id: Generated<string>;
+  project_id: string;
+  record_id: string;
+  record_version_id: string;
+  criterion_code: string;
+  can_check_in_ci: number;
+  needs_outside_ci: number;
+  needs_unbuilt_feature: number;
+  classifier_id: string;
+  input_hash: string;
+  created_at: Generated<Timestamp>;
+};
+
 /** "Keep <size>": a dispute dismissed against one opinion. */
 export type TaskSizeDismissalsTable = {
   id: Generated<string>;
@@ -789,6 +804,7 @@ export type DB = {
   task_covers: TaskCoversTable;
   task_size_opinions: TaskSizeOpinionsTable;
   task_size_dismissals: TaskSizeDismissalsTable;
+  task_testability_opinions: TaskTestabilityOpinionsTable;
   project_repos: ProjectReposTable;
   project_github: ProjectGithubTable;
   build_queue_settings: BuildQueueSettingsTable;

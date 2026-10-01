@@ -19,10 +19,12 @@ import { githubConfig } from "../github/client.ts";
 import { suspectRecords } from "../queries/impact.ts";
 import { mergedBuildOf, productState } from "../queries/read.ts";
 import { taskCoversOf } from "../queries/sizes.ts";
+import { type TestabilityFlag, testabilityFlagsOf } from "../queries/testability.ts";
 import { loadTaskDependencies, waitedTaskCodes } from "../queries/task-deps.ts";
 import { projectsDir } from "../repo/repo.ts";
 import type { AutoStatus } from "./auto.ts";
 import { stageFailure } from "./failure.ts";
+import { isReusableFile, taskFootprints } from "./footprint.ts";
 import { type TaskHold, openHolds } from "./holds.ts";
 
 type StateRow = Awaited<ReturnType<typeof productState>>["designs"][number];
@@ -54,6 +56,8 @@ export type QueueTask = {
   github: boolean;
   /** The latest stage of the open request's latest automatic build attempt, or null. */
   stage: { stage: string; outcome: string; failure?: { kind: string; excerpt: string | null } } | null;
+  /** Jev's warnings on criteria the builder cannot satisfy with a CI test (H97); only a warning, the queue never skips for it. */
+  testability: TestabilityFlag[];
 };
 
 /**
@@ -211,6 +215,10 @@ export async function buildQueue(
     ]),
   );
   const ids = new Map(records.map((r) => [r.code, r.id]));
+  const testability = await testabilityFlagsOf(
+    db,
+    records.map((r) => r.id),
+  );
   const open = await db
     .selectFrom("build_requests")
     .selectAll()
@@ -313,6 +321,7 @@ export async function buildQueue(
         const r = requestOf(task, feature);
         return r ? latestStage(r.id) : null;
       })(),
+      testability: testability.get(ids.get(task.code) ?? "") ?? [],
     };
   };
 
@@ -428,7 +437,9 @@ async function relatedWork(
   codes: readonly string[],
   rows: Rows,
 ): Promise<string[]> {
-  const found = await sql<{ code: string }>`
+  const related = await relatedRows(db, projectId, codes, rows);
+  const lines: string[] = [];
+  for (const r of related) {
     select distinct split_part(other.ref, '@', 1) as code
     from knowledge_edges e
     join knowledge_nodes a on a.id = e.from_node and a.valid_to is null

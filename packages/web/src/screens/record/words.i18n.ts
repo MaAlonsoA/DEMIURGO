@@ -1158,3 +1158,19 @@ export const SCREENS = messages(
     unknownScreen: 'pantalla desconocida',
   },
 );
+
+// Jev's warnings on the criteria a task cannot satisfy with a CI test (H97).
+export const TESTABILITY = messages(
+  {
+    untestable: (code: string, p: string) =>
+      `Jev: ${code} looks impossible to check in CI (needs a person or production, ${p}). Mark it manual or move it to a release check before building.`,
+    waits: (code: string, p: string) =>
+      `Jev: ${code} needs a feature that is not built yet (${p}). Build that feature first, or check this criterion when it exists.`,
+  },
+  {
+    untestable: (code: string, p: string) =>
+      `Jev: ${code} parece imposible de comprobar en la CI (necesita a una persona o producción, ${p}). Márcalo como manual o pásalo a una comprobación de entrega antes de construir.`,
+    waits: (code: string, p: string) =>
+      `Jev: ${code} necesita una funcionalidad que aún no está construida (${p}). Construye esa primero, o comprueba este criterio cuando exista.`,
+  },
+);

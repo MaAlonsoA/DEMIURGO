@@ -6,6 +6,7 @@ import { DomainError, criterionState, type CriterionState, type TaskBuildState }
 import type { Db } from '../db/connection.ts';
 import { currentOf, evidenceOf, featureDelivery, implementationOf, latestSize, originExploration, taskBuildOf } from './read.ts';
 import { taskCoversOf } from './sizes.ts';
+import { type TestabilityFlag, testabilityFlagsOf } from './testability.ts';
 
 type Size = 'XS' | 'S' | 'M' | 'L' | 'XL';
 type Ref = { ref: string; title: string; code: string | null; state: string };
@@ -42,6 +43,8 @@ export type TaskView = {
     step: number | null;
     state: string;
   }[];
+  /** Jev's warnings on covered criteria a CI test cannot check (H97); empty without Jev. */
+  testability: TestabilityFlag[];
   depends_on: Ref[];
   blocks: Ref[];
   dod: { item: string; met: boolean }[];
@@ -420,6 +423,7 @@ export async function taskViewOfRecord(db: Db, projectId: string, recordId: stri
     feature: f.feature,
     order: orderOf(pool, rec.code),
     covers,
+    testability: (await testabilityFlagsOf(db, [recordId])).get(recordId) ?? [],
     ...linksOf(pool, self),
     dod: dodOf(covers, merged, checks),
     development,
@@ -509,6 +513,7 @@ export async function taskDraftView(db: Db, projectId: string, proposalId: strin
     feature: f.feature,
     order: { n: Math.max(siblings.findIndex((s) => s.id === p.id), 0) + 1, of: Math.max(siblings.length, 1) },
     covers,
+    testability: [],
     ...links,
     dod: dodOf(covers, false, []),
     development: null,

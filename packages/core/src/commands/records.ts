@@ -34,6 +34,7 @@ import { reviewObsolescence } from './proposals.ts';
 import { appendSize } from './sizes.ts';
 import { jevAllowed } from '../classifier/aspect.ts';
 import { classifyTaskSize } from '../classifier/size.ts';
+import { classifyTaskTestability } from '../classifier/testability.ts';
 import { DISCARD_TRIGGER, onAuthorityEvent } from './reactions.ts';
 
 const text = (max: number) => z.string().trim().min(1).max(max);
@@ -647,6 +648,8 @@ registerHandlers({
         const services = ctx.services;
         const projectId = ctx.projectId;
         ctx.afterCommit(() => void classifyTaskSize(services, projectId, data.record_id, v.id));
+        // And its criteria the builder cannot satisfy with a CI test (H97): a warning, never a block.
+        ctx.afterCommit(() => void classifyTaskTestability(services, projectId, data.record_id, v.id));
       }
       return {
         entityId: v.id,

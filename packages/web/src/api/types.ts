@@ -621,6 +621,9 @@ type TaskLink = { ref: string; title: string; code: string | null; state: string
 /** A comment of the reviewer agent: where (path and line) and what, with its severity. */
 export type ReviewComment = { path: string; line: number | null; severity: string; body: string };
 
+/** Jev's warning on a criterion: it looks impossible to check in CI, or it needs a feature not built yet. */
+export type TestabilityFlag = { code: string; kind: 'untestable' | 'waits_for_feature'; probability: number };
+
 export type TaskView = {
   draft: null | {
     proposal_id: string;
@@ -651,6 +654,8 @@ export type TaskView = {
     step: number | null;
     state: string;
   }[];
+  /** Jev's warnings on covered criteria a CI test cannot check (H97). */
+  testability: TestabilityFlag[];
   depends_on: TaskLink[];
   blocks: TaskLink[];
   dod: { item: string; met: boolean }[];
@@ -1189,6 +1194,8 @@ export type QueueTask = {
   request: BuildRequestView | null;
   github?: boolean;
   stage?: { stage: BuildStage; outcome: BuildOutcome; failure?: { kind: string; excerpt: string | null } } | null;
+  /** Jev's warnings on criteria a CI test cannot check (H97); a warning only, nothing is skipped. */
+  testability?: TestabilityFlag[];
 };
 
 export type DeliverySummary = {

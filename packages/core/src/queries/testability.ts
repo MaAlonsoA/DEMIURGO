@@ -1,0 +1,36 @@
+// Jev's warnings on a task's criteria as the pages read them (H97): the latest opinion of each
+// criterion the task covers, turned into a warning by the policy in code. Only while Jev is on:
+// without the key there are no warnings, even if some were stored before.
+
+import { jevAllowed } from '../classifier/aspect.ts';
+import { type TestabilityVerdict, testabilityStrength, testabilityVerdict } from '../classifier/testability-policy.ts';
+import type { Db } from '../db/connection.ts';
+
+export type TestabilityFlag = { code: string; kind: Exclude<TestabilityVerdict, 'ok'>; probability: number };
+
+/** The flagged criteria of each task (by record id); tasks with none are absent from the map. */
+export async function testabilityFlagsOf(db: Db, recordIds: readonly string[]): Promise<Map<string, TestabilityFlag[]>> {
+  const out = new Map<string, TestabilityFlag[]>();
+  if (!jevAllowed() || recordIds.length === 0) return out;
+  const rows = await db
+    .selectFrom('task_testability_opinions')
+    .select(['record_id', 'criterion_code', 'can_check_in_ci', 'needs_outside_ci', 'needs_unbuilt_feature'])
+    .where('record_id', 'in', [...recordIds])
+    .orderBy('created_at', 'desc')
+    .orderBy('id', 'desc')
+    .execute();
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const key = `${r.record_id}/${r.criterion_code}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const p = { can_check_in_ci: r.can_check_in_ci, needs_outside_ci: r.needs_outside_ci, needs_unbuilt_feature: r.needs_unbuilt_feature };
+    const kind = testabilityVerdict(p);
+    if (kind === 'ok') continue;
+    const list = out.get(r.record_id) ?? [];
+    list.push({ code: r.criterion_code, kind, probability: Math.round(testabilityStrength(p, kind) * 100) / 100 });
+    out.set(r.record_id, list);
+  }
+  for (const list of out.values()) list.sort((a, b) => a.code.localeCompare(b.code));
+  return out;
+}

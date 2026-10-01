@@ -1,0 +1,69 @@
+// files.prediction (B07): recall@k and precision for Jev's order and the deterministic order (G01).
+
+import { describe, expect, it } from 'vitest';
+import { filesPrediction, scoreOrder } from '../src/harness/rules/files.ts';
+import { inputs, mergedSteps, uid } from './support/harness-inputs.ts';
+
+const op = (path: string, deterministic_score: number, rank: number, jev_p: number | null, attempt = 1) =>
+  ({ id: uid('co'), build_request_id: 'r', attempt, path, deterministic_score, jev_p, rank }) as never;
+
+// Jev puts the touched files first; the deterministic order puts them last.
+const candidates = [
+  op('src/a.ts', 0.1, 1, 0.9),
+  op('src/b.ts', 0.2, 2, 0.8),
+  op('src/c.ts', 0.9, 3, 0.1),
+  op('src/d.ts', 0.8, 4, 0.1),
+  op('src/e.ts', 0.7, 5, 0.1),
+  op('src/f.ts', 0.6, 6, 0.1),
+  op('src/g.ts', 0.5, 7, 0.1),
+  op('src/h.ts', 0.4, 8, 0.1),
+  op('src/i.ts', 0.3, 9, 0.1),
+  op('src/j.ts', 0.25, 10, 0.1),
+  op('src/k.ts', 0.22, 11, 0.1),
+  op('src/l.ts', 0.21, 12, 0.1),
+];
+
+function run(files: string[], opts: { footprintAsString?: boolean; technical?: boolean; opinions?: never[] } = {}) {
+  const i = inputs({ id: 'r1', technical: opts.technical, steps: mergedSteps('r1', files, { footprintAsString: opts.footprintAsString }), codeOpinions: opts.opinions ?? (candidates as never[]) });
+  return filesPrediction(i);
+}
+const by = (list: ReturnType<typeof run>, subject: string) => list.find((f) => f.subject === subject)!;
+
+describe('scoreOrder', () => {
+  it('computes hits, precision and recall of the first k', () => {
+    expect(scoreOrder(['a', 'b', 'c'], new Set(['a', 'x']), 2)).toMatchObject({ hits: 1, predicted: 2, actual: 2, precision: 0.5, recall: 0.5 });
+  });
+});
+
+describe('files.prediction', () => {
+  it('reports the Jev and the deterministic order as benefit findings', () => {
+    // Real: two files in Jev's top 2, one new file (unpredictable), a test and a lockfile (both excluded).
+    const list = run(['src/a.ts', 'src/b.ts', 'src/new.ts', 'src/a.test.ts', 'pnpm-lock.yaml']);
+    expect(list).toHaveLength(2);
+    expect(list.every((f) => f.class === 'benefit' && f.unit === 'files' && f.ground_truth === 'G01')).toBe(true);
+    const jev = by(list, 'jev');
+    expect(jev.value).toBe(2);
+    expect(jev.evidence).toMatchObject({ k: 10, hits: 2, actual: 3, recall: 0.667, precision: 0.2 });
+    // Deterministic top 10 by score: c, d, e, f, g, h, i, j, k, l; a and b are not in it.
+    expect(by(list, 'deterministic').evidence).toMatchObject({ hits: 0, recall: 0, precision: 0 });
+  });
+  it('reports only the deterministic order when Jev did not take part', () => {
+    const none = candidates.map((c) => ({ ...(c as object), jev_p: null }) as never);
+    const list = run(['src/c.ts'], { opinions: none });
+    expect(list.map((f) => f.subject)).toEqual(['deterministic']);
+    expect(list[0]!.evidence).toMatchObject({ hits: 1 });
+  });
+  it('reads the footprint stored as a JSON string (old format) when there is no commit list', () => {
+    const i = inputs({ id: 'r3', steps: mergedSteps('r3', ['src/a.ts'], { footprintAsString: true }).filter((s) => s.stage !== 'commit'), codeOpinions: candidates as never[] });
+    expect(by(filesPrediction(i), 'jev').value).toBe(1);
+  });
+  it('marks a technical task as info and does not judge it', () => {
+    const list = run(['src/a.ts'], { technical: true });
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ finding: 'files.technical_task', class: 'info', unit: 'files' });
+  });
+  it('says nothing without opinions, without real source files or when not merged', () => {
+    expect(run(['src/a.ts'], { opinions: [] })).toEqual([]);
+    expect(run(['pnpm-lock.yaml', 'e2e/x.spec.ts'])).toEqual([]);
+  });
+});

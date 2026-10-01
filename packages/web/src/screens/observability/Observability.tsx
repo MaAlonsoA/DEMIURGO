@@ -16,6 +16,7 @@ import { useSafeLocale } from '../../words.ts';
 import { correlationReading, costText, minutesText, num, shareText, tokensText } from './format.ts';
 import { judgmentCalibrationQuery, observabilityCsvUrl, observabilityQuery } from './queries.ts';
 import type { AgentRow, Calibration, CostRow, ExecutionFact, FileCalibration, JudgmentCalibration, ReworkCause, SizeCalibration, SizeRow } from './types.ts';
+import { HarnessHealthSection } from './HarnessHealth.tsx';
 import { TestHistorySection } from './TestHistory.tsx';
 import { OBSERVABILITY } from './words.i18n.ts';
 
@@ -78,6 +79,7 @@ export function ObservabilityScreen() {
             />
             <AgentsSection agents={data.summary.agents} />
             <TestHistorySection projectId={projectId} />
+            <HarnessHealthSection projectId={projectId} />
             <AttemptsSection facts={data.facts} projectId={projectId} />
           </div>
         )}

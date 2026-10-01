@@ -4,7 +4,12 @@
 // can be compared over the same builds (salud-del-harness §7.3).
 
 import type { PostmortemInputs } from '../postmortem.ts';
+import { reviewCost, reviewEscape, reviewFindingOutcome, reviewRepeat, reviewWaiver } from './review.ts';
+import { filesPrediction } from './files.ts';
+import { queueParallelConflict, queueSkipVsFootprint, queueSlotIdle } from './queue.ts';
+import { schemaPrediction } from './schema.ts';
 import { requestShape } from './shape.ts';
+import { tddGate, tddLoopCost, tddSkipped } from './tdd.ts';
 
 export const FINDING_CLASSES = ['tp', 'fp', 'fn', 'tn', 'benefit', 'cost', 'info'] as const;
 export type FindingClass = (typeof FINDING_CLASSES)[number];
@@ -35,4 +40,4 @@ export type Rule = (inputs: PostmortemInputs) => Finding[];
 export const RULES_VERSION = 'pm-1';
 
 /** Rules 1.3 (queue, schema, files) and 1.4 (tdd, review) are added here, each from its own file. */
-export const RULES: readonly Rule[] = [requestShape];
+export const RULES: readonly Rule[] = [requestShape, queueSkipVsFootprint, queueParallelConflict, queueSlotIdle, schemaPrediction, filesPrediction, tddGate, tddSkipped, tddLoopCost, reviewFindingOutcome, reviewRepeat, reviewEscape, reviewWaiver, reviewCost];

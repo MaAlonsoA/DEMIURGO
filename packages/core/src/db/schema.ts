@@ -918,6 +918,8 @@ export type DB = {
   test_runs: TestRunsTable;
   harness_postmortems: HarnessPostmortemsTable;
   harness_findings: HarnessFindingsTable;
+  queue_plans: QueuePlansTable;
+  queue_decisions: QueueDecisionsTable;
 };
 
 export type TestRunsTable = {
@@ -967,6 +969,46 @@ export type HarnessFindingsTable = {
   subject: string | null;
   evidence: Json;
   created_at: Generated<Timestamp>;
+};
+
+/** One plan of «Build the queue», written only when it changes (append-only; see build/queue-decisions.ts). */
+export type QueuePlansTable = {
+  id: Generated<string>;
+  project_id: string;
+  decided_at: Generated<Timestamp>;
+  trigger: 'event' | 'tick' | 'command';
+  parallel_limit: number;
+  running: string[];
+  started: string[];
+  ready_count: number;
+  /** The kind of the stop (needs_you, ended, stale, manual_review, waiting, main_red) or `queue_off`. */
+  stopped_kind: string | null;
+  stopped_code: string | null;
+  plan_hash: string;
+  harness_version_id: string | null;
+};
+
+/** What the queue decided about one task in a plan, with the reason (append-only). */
+export type QueueDecisionsTable = {
+  id: Generated<string>;
+  project_id: string;
+  plan_id: string;
+  task_code: string;
+  decision:
+    | 'start'
+    | 'running'
+    | 'wait_dependency'
+    | 'wait_feature_busy'
+    | 'wait_schema'
+    | 'wait_module'
+    | 'wait_testability'
+    | 'wait_hold'
+    | 'stopped'
+    | 'over_limit';
+  item: string | null;
+  with_task: string | null;
+  with_source: 'actual' | 'predicted' | null;
+  evidence: NullableJson;
 };
 
 export type Row<T extends keyof DB> = Selectable<DB[T]>;

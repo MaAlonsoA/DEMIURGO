@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { DomainError, system } from '@demiurgo/domain';
 import { sql } from 'kysely';
 import { executeCommand } from '../bus/bus.ts';
+import { taskFootprints } from '../build/footprint.ts';
 import type { Db } from '../db/connection.ts';
 import type { Row } from '../db/schema.ts';
 import type { Services } from '../services.ts';
@@ -31,7 +32,49 @@ export type PostmortemInputs = {
   /** Jev's schema opinion of the task: the latest one made before the request, if any. */
   layersOpinion: Row<'task_layers_opinions'> | null;
   testRuns: Row<'test_runs'>[];
+  /** Other requests of the project whose first-to-last-step window overlaps this one's (queue rules). */
+  concurrent?: ConcurrentRequest[];
+  /** What the queue decided for this task from its request on (empty until the queue_decisions table exists). */
+  queueDecisions?: QueueDecisionRow[];
+  /** The queue plans from the request until the task started, oldest first (same table family as the decisions). */
+  queuePlans?: QueuePlanRow[];
+  /** Real files (merge footprint) of the tasks this one waited for, by task code. */
+  waitedFiles?: Record<string, string[]>;
+  /** Issues of the task opened after the request was made (review escapes, G10). */
+  issues?: Row<'issues'>[];
+  /** The `ai_runs` of the request's reviews: usage and time (review cost, waiver). */
+  reviewRuns?: Row<'ai_runs'>[];
 };
+
+/** Another build request that ran at the same time: its task and its steps. */
+export type ConcurrentRequest = { requestId: string; taskCode: string; state: string; steps: Row<'build_steps'>[] };
+
+/** One row of `queue_decisions` with the time of its plan (salud-del-harness §6.1). */
+export type QueueDecisionRow = {
+  id: string;
+  plan_id: string;
+  decided_at: Date | string;
+  decision: string;
+  item: string | null;
+  with_task: string | null;
+  with_source: string | null;
+  evidence: unknown;
+};
+
+/** One row of `queue_plans` (salud-del-harness §6.1). */
+export type QueuePlanRow = { id: string; decided_at: Date | string; parallel_limit: number; running: string[]; started: string[]; stopped_kind: string | null };
+
+const undefinedTable = (e: unknown): boolean => typeof e === 'object' && e !== null && (e as { code?: string }).code === '42P01';
+
+/** Runs a query on a table that may not exist yet (the queue tables come in their own migration): missing = no rows. */
+async function optionalRows<T>(run: () => Promise<T[]>): Promise<T[]> {
+  try {
+    return await run();
+  } catch (e) {
+    if (undefinedTable(e)) return [];
+    throw e;
+  }
+}
 
 export async function loadInputs(db: Db, requestId: string): Promise<PostmortemInputs> {
   const request = await db.selectFrom('build_requests').selectAll().where('id', '=', requestId).executeTakeFirst();
@@ -64,7 +107,72 @@ export async function loadInputs(db: Db, requestId: string): Promise<PostmortemI
       .limit(1)
       .executeTakeFirst()) ?? null;
   const testRuns = await db.selectFrom('test_runs').selectAll().where('build_request_id', '=', requestId).orderBy('recorded_at').orderBy('id').execute();
-  return { request, taskCode: task.code, steps, reviews, codeOpinions, layersOpinion, testRuns };
+  const base: PostmortemInputs = { request, taskCode: task.code, steps, reviews, codeOpinions, layersOpinion, testRuns };
+  const issues = await db
+    .selectFrom('issues')
+    .selectAll()
+    .where('project_id', '=', request.project_id)
+    .where((eb) => eb.or([eb('build_request_id', '=', requestId), eb('task_id', '=', request.task_id)]))
+    .where('opened_at', '>=', request.requested_at)
+    .orderBy('opened_at')
+    .orderBy('id')
+    .execute();
+  const runIds = reviews.map((r) => r.run_id).filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+  const reviewRuns = runIds.length > 0 ? await db.selectFrom('ai_runs').selectAll().where('id', 'in', runIds).execute() : [];
+  return { ...base, issues, reviewRuns, ...(await loadQueueInputs(db, base)) };
+}
+
+/** The window of a request in the queue rules: from its first step to its last. */
+async function loadQueueInputs(db: Db, inputs: PostmortemInputs): Promise<Pick<PostmortemInputs, 'concurrent' | 'queueDecisions' | 'queuePlans' | 'waitedFiles'>> {
+  const { request, steps } = inputs;
+  const first = steps[0];
+  const last = steps.at(-1);
+  // One query: every step of the other requests whose own window overlaps this one's.
+  const others = first && last
+    ? await sql<Row<'build_steps'> & { code: string; request_state: string }>`
+        select s.*, r.code, b.state as request_state
+        from build_steps s
+        join build_requests b on b.id = s.build_request_id
+        join records r on r.id = b.task_id
+        where s.build_request_id in (
+          select s2.build_request_id from build_steps s2
+          where s2.project_id = ${request.project_id} and s2.build_request_id <> ${request.id}
+          group by s2.build_request_id
+          having min(s2.created_at) <= ${last.created_at} and max(s2.created_at) >= ${first.created_at})
+        order by s.created_at, s.id`.execute(db)
+    : { rows: [] };
+  const byRequest = new Map<string, ConcurrentRequest>();
+  for (const { code, request_state, ...step } of others.rows) {
+    const entry = byRequest.get(step.build_request_id) ?? { requestId: step.build_request_id, taskCode: code, state: request_state, steps: [] };
+    entry.steps.push(step as Row<'build_steps'>);
+    byRequest.set(step.build_request_id, entry);
+  }
+  const queueDecisions = await optionalRows(
+    async () =>
+      (
+        await sql<QueueDecisionRow>`
+          select d.id, d.plan_id, p.decided_at, d.decision, d.item, d.with_task, d.with_source, d.evidence
+          from queue_decisions d join queue_plans p on p.id = d.plan_id
+          where d.project_id = ${request.project_id} and d.task_code = ${inputs.taskCode} and p.decided_at >= ${request.requested_at}
+          order by p.decided_at, d.id`.execute(db)
+      ).rows,
+  );
+  const queuePlans = await optionalRows(
+    async () =>
+      (
+        await sql<QueuePlanRow>`
+          select id, decided_at, parallel_limit, running, started, stopped_kind from queue_plans
+          where project_id = ${request.project_id} and decided_at >= ${request.requested_at}
+            and decided_at <= ${first?.created_at ?? request.requested_at}
+          order by decided_at, id`.execute(db)
+      ).rows,
+  );
+  const waited = [...new Set(queueDecisions.map((d) => d.with_task).filter((c): c is string => !!c))];
+  const waitedFiles: Record<string, string[]> = {};
+  if (waited.length > 0) {
+    for (const f of await taskFootprints(db, request.project_id)) if (waited.includes(f.code)) waitedFiles[f.code] = f.files.map((x) => x.path);
+  }
+  return { concurrent: [...byRequest.values()], queueDecisions, queuePlans, waitedFiles };
 }
 
 const iso = (d: unknown): string => (d === null || d === undefined ? '' : new Date(d as Date | string).toISOString());
@@ -82,6 +190,13 @@ export function inputsHashOf(inputs: PostmortemInputs): string {
     ...inputs.codeOpinions.map((x) => `code:${x.id}:${iso(x.created_at)}`),
     `layers:${inputs.layersOpinion ? `${inputs.layersOpinion.id}:${iso(inputs.layersOpinion.created_at)}` : ''}`,
     ...inputs.testRuns.map((x) => `test:${x.id}:${iso(x.recorded_at)}`),
+    ...(inputs.concurrent ?? []).map((c) => `concurrent:${c.requestId}:${c.state}:${c.steps.map((x) => `${x.id}@${iso(x.created_at)}`).join(',')}`),
+    ...(inputs.issues ?? []).map((x) => `issue:${x.id}:${iso(x.opened_at)}`),
+    ...(inputs.queueDecisions ?? []).map((x) => `decision:${x.id}:${iso(x.decided_at)}`),
+    ...(inputs.queuePlans ?? []).map((x) => `plan:${x.id}:${iso(x.decided_at)}`),
+    ...Object.entries(inputs.waitedFiles ?? {})
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .map(([code, files]) => `waited:${code}:${files.length}`),
   ];
   return createHash('sha256').update(lines.join('\n')).digest('hex');
 }

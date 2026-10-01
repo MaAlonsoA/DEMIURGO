@@ -2,12 +2,13 @@
 // «Path» of that attempt (the stages, what entered the builder, what came out). Hidden when the server sends no
 // timeline (an older server) or no build ran in the window. It refreshes with the page's own polling.
 
+import { useSearch } from "@tanstack/react-router";
 import { useState } from "react";
 import type { BuildTimeline } from "../../api/types.ts";
 import { Section } from "../../components/Page.tsx";
 import { Lanes } from "./Lanes.tsx";
 import { TaskPath } from "./TaskPath.tsx";
-import { type Selection, resolveSelection } from "./timelineLogic.ts";
+import { type Selection, resolveSelection, selectionFromSearch } from "./timelineLogic.ts";
 import type { BUILD } from "./words.i18n.ts";
 
 export function BuildTimelineView({
@@ -22,8 +23,9 @@ export function BuildTimelineView({
   t: typeof BUILD.en;
 }) {
   const [chosen, setChosen] = useState<Selection | null>(null);
+  const search = useSearch({ strict: false }) as { task?: string; request?: string; attempt?: number };
   if (!timeline || timeline.requests.length === 0) return null;
-  const shown = resolveSelection(timeline, chosen);
+  const shown = resolveSelection(timeline, chosen ?? selectionFromSearch(timeline, search));
   const hours = Math.max(1, Math.round((Date.parse(timeline.now) - Date.parse(timeline.since)) / 3_600_000));
   return (
     <>

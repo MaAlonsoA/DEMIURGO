@@ -38,6 +38,7 @@ export * from './queries/trace.ts';
 export { testHistory, aggregateTests, flakyOf, slowestOf, median, type TestHistory, type TestStat } from './queries/test-history.ts';
 export { executionFacts, observabilitySummary, factsToCsv, spearman, type ExecutionFact, type ObservabilitySummary } from './queries/execution-facts.ts';
 export { judgmentCalibration, type JudgmentCalibration } from './queries/calibration.ts';
+export { harnessScorecards, harnessFindingRows, findingsToCsv, queueDecisionRows, queueDecisionsToCsv, scorecardsOf, verdictOf, type HarnessHealth, type PieceHealth, type FindingRow } from './queries/harness-health.ts';
 export * from './queries/web.ts';
 export * from './queries/views.ts';
 export * from './build/queue.ts';

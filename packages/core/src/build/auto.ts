@@ -22,6 +22,7 @@ import { barrelsAmong, hotspotsOf, isHotspot } from './hotspots.ts';
 import { predictedFiles } from './predicted-files.ts';
 import { ensureTaskLayers } from '../classifier/layers.ts';
 import { registerReconciler } from '../engine/registry.ts';
+import { persistPlan, persistQueueOff, type PlanTrigger } from './queue-decisions.ts';
 
 const BUILD = system('build', '1');
 
@@ -186,25 +187,33 @@ export async function queueParallelOf(db: Db | Tx, projectId: string): Promise<n
   return row?.parallel ?? 1;
 }
 
-/** True when the task depends, directly or through other tasks and the tasks of features it waits for, on a busy task. */
-export function dependsOnBusy(index: TaskDependencyIndex, code: string, busy: Set<string>): boolean {
+/** The first busy task the task depends on, directly or through other tasks and the tasks of features it waits for; null when none. */
+export function busyDependency(index: TaskDependencyIndex, code: string, busy: Set<string>): string | null {
   const seen = new Set<string>([code]);
   const stack = [code];
   while (stack.length) {
     const current = stack.pop() as string;
     const direct = [...(index.tasks.get(current) ?? []), ...(index.features.get(current) ?? []).flatMap((f) => index.featureTasks.get(f) ?? [])];
     for (const d of direct) {
-      if (busy.has(d)) return true;
+      if (busy.has(d)) return d;
       if (!seen.has(d)) {
         seen.add(d);
         stack.push(d);
       }
     }
   }
-  return false;
+  return null;
 }
 
-type Plan = {
+/** True when the task depends, directly or through other tasks and the tasks of features it waits for, on a busy task. */
+export function dependsOnBusy(index: TaskDependencyIndex, code: string, busy: Set<string>): boolean {
+  return busyDependency(index, code, busy) !== null;
+}
+
+/** A ready task the queue skipped without a list of its own in the status: it depends on a busy task, or shares its feature with one. */
+export type SilentSkip = { code: string; reason: 'dependency' | 'feature_busy'; with: string | null };
+
+export type Plan = {
   /** The tasks whose agent build is running now. */
   running: string[];
   /** The tasks to start now, in queue order. */
@@ -218,6 +227,14 @@ type Plan = {
   moduleWaiting: ModuleWaiting[];
   /** Tasks skipped because Jev flagged a criterion that CI cannot check and nobody requested them. */
   testabilityWaiting: string[];
+  /** Tasks skipped for a dependency on a busy task or for sharing a busy task's feature (the page does not list them), with that task. */
+  silentSkips: SilentSkip[];
+  /** For each task in schemaWaiting, the busy task that also changes the schema. */
+  schemaWith: Record<string, string | null>;
+  /** Ready tasks never considered because the «at once» limit was reached in this round. */
+  overLimit: string[];
+  /** The schema evidence of the tasks predicted to change it (running or ready). */
+  schemaEvidence?: Map<string, SchemaEvidence>;
   /** What the page needs to explain moduleWaiting: running tasks whose set is their committed files, and the merged-task counts per file. */
   moduleContext?: { actual: Set<string>; hotspots: { path: string; tasks: number; of: number }[] };
 };
@@ -268,7 +285,18 @@ export function sharedItem(a: readonly string[], b: readonly string[], hotspots:
  */
 export async function selectStarts(input: SelectInput): Promise<Omit<Plan, 'running'>> {
   const { ready, running, limit, index, featureOf, stateOf, schema, predicted, hotspots, map } = input;
-  const result: Omit<Plan, 'running'> = { start: [], stopped: null, stoppedWaiting: [], schemaWaiting: [], moduleWaiting: [], testabilityWaiting: [] };
+  const result: Omit<Plan, 'running'> = {
+    start: [],
+    stopped: null,
+    stoppedWaiting: [],
+    schemaWaiting: [],
+    moduleWaiting: [],
+    testabilityWaiting: [],
+    silentSkips: [],
+    schemaWith: {},
+    overLimit: [],
+    schemaEvidence: schema,
+  };
   // Skipped after the schema rule: a hotspot or module shared with a busy task (Google LSC: more files in flight, more merge conflicts).
   const collision = (code: string): { item: string; with: string } | null => {
     const mine = predicted?.get(code);
@@ -284,8 +312,11 @@ export async function selectStarts(input: SelectInput): Promise<Omit<Plan, 'runn
   const busy = new Set(running);
   const busyFeatures = new Set(running.map(featureOf).filter((f): f is string => f !== null));
   let schemaBusy = running.some((c) => schema.has(c));
-  for (const t of ready) {
-    if (running.length + result.start.length >= limit) break;
+  for (const [i, t] of ready.entries()) {
+    if (running.length + result.start.length >= limit) {
+      result.overLimit = ready.slice(i).filter((x) => !busy.has(x.code)).map((x) => x.code);
+      break;
+    }
     if (busy.has(t.code)) continue;
     const state = await stateOf(t);
     if (state.kind === 'stopped') {
@@ -300,10 +331,19 @@ export async function selectStarts(input: SelectInput): Promise<Omit<Plan, 'runn
       continue;
     }
     const feature = featureOf(t.code);
-    if (dependsOnBusy(index, t.code, busy) || (feature !== null && busyFeatures.has(feature))) continue;
+    const blocker = busyDependency(index, t.code, busy);
+    if (blocker !== null) {
+      result.silentSkips.push({ code: t.code, reason: 'dependency', with: blocker });
+      continue;
+    }
+    if (feature !== null && busyFeatures.has(feature)) {
+      result.silentSkips.push({ code: t.code, reason: 'feature_busy', with: [...busy].find((b) => featureOf(b) === feature) ?? null });
+      continue;
+    }
     const changesSchema = schema.has(t.code);
     if (changesSchema && schemaBusy) {
       result.schemaWaiting.push(t.code);
+      result.schemaWith[t.code] = [...busy].find((b) => schema.has(b)) ?? null;
       continue;
     }
     const shared = collision(t.code);
@@ -341,7 +381,7 @@ export async function committedFiles(db: Db, requestId: string): Promise<string[
  * in queue order, skipping one that depends on a task being built or belongs to the same feature as one
  * (our convention: tasks of one feature touch the same files) or changes the database schema while another such task builds. A task that stopped needing the person is skipped: only a red main stops the line.
  */
-async function plan(db: Db, projectId: string, queue: BuildQueue, limit: number): Promise<Plan> {
+export async function plan(db: Db, projectId: string, queue: BuildQueue, limit: number): Promise<Plan> {
   // Any open request with a running build counts, whether it is on a ready task or not.
   const open = await db
     .selectFrom('build_requests')
@@ -352,7 +392,7 @@ async function plan(db: Db, projectId: string, queue: BuildQueue, limit: number)
     .execute();
   const running: string[] = [];
   for (const o of open) if (await buildRunning(db, o.id)) running.push(o.code);
-  const result: Plan = { running, start: [], stopped: null, stoppedWaiting: [], schemaWaiting: [], moduleWaiting: [], testabilityWaiting: [] };
+  const result: Plan = { running, start: [], stopped: null, stoppedWaiting: [], schemaWaiting: [], moduleWaiting: [], testabilityWaiting: [], silentSkips: [], schemaWith: {}, overLimit: [] };
   // A red main stops the line even while builds run: they finish, and nothing new starts.
   const red = await mainRed(db, projectId);
   if (red) return { ...result, stopped: red };
@@ -427,21 +467,30 @@ function serialized<T>(projectId: string, job: () => Promise<T>): Promise<T> {
   return next;
 }
 
+function logPersistError(services: Services, projectId: string, e: unknown): void {
+  services.logger.error('«Build the queue» could not record its decisions', { project: projectId, error: String(e) });
+}
+
 /**
  * Starts the next ready tasks when the flag is on, up to the number of builds allowed at once.
  * Returns the codes it started. Never throws: a task that cannot start (GitHub not connected,
  * for instance) leaves the queue where it is and the reason in the log.
  */
-export function advanceBuildQueue(services: Services, projectId: string): Promise<string[]> {
+export function advanceBuildQueue(services: Services, projectId: string, trigger: PlanTrigger = 'event'): Promise<string[]> {
   return serialized(projectId, async () => {
     const started: string[] = [];
     try {
-      if (!(await queueAutoOn(services.db, projectId))) return started;
+      if (!(await queueAutoOn(services.db, projectId))) {
+        await persistQueueOff(services.db, projectId, trigger, await queueParallelOf(services.db, projectId)).catch((e) => logPersistError(services, projectId, e));
+        return started;
+      }
       const queue = await buildQueue(services.db, projectId);
       const limit = await queueParallelOf(services.db, projectId);
       // The schema rule needs Jev's prediction for every candidate: tasks written before it have none (H101 gap).
       if (limit > 1) await ensureTaskLayers(services, projectId, queue.ready.map((t) => t.code));
       const p = await plan(services.db, projectId, queue, limit);
+      // Derived data, written only when the plan changed; a failure never stops the queue.
+      await persistPlan(services.db, projectId, p, { trigger, limit, ready: queue.ready, held: queue.held.map((t) => t.code) }).catch((e) => logPersistError(services, projectId, e));
       for (const s of p.start) {
         if (!s.hasRequest) await executeCommand(services, { command: 'build_request.request', actor: BUILD, projectId, data: { task: s.code } });
         await executeCommand(services, { command: 'build.start', actor: BUILD, projectId, data: { task: s.code } });
@@ -468,7 +517,7 @@ export const QUEUE_RECONCILE_MS = 60_000;
 
 export async function reconcileBuildQueues(services: Services): Promise<void> {
   const rows = await services.db.selectFrom('build_queue_settings').select('project_id').where('auto', '=', true).execute();
-  for (const r of rows) await advanceBuildQueue(services, r.project_id);
+  for (const r of rows) await advanceBuildQueue(services, r.project_id, 'tick');
 }
 
 registerReconciler(async (s) => {

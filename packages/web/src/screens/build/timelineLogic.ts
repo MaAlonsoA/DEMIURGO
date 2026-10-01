@@ -89,6 +89,19 @@ export function defaultSelection(tl: BuildTimeline): Selection | null {
   return pick && last ? { request: pick.id, attempt: last.n } : null;
 }
 
+/**
+ * The attempt a link asks for: the request by id, else the latest request of the task; the attempt asked, else its last.
+ * Null when nothing is asked or the request is not in the timeline window.
+ */
+export function selectionFromSearch(tl: BuildTimeline, search: { task?: string; request?: string; attempt?: number }): Selection | null {
+  if (!search.task && !search.request) return null;
+  const request = search.request
+    ? tl.requests.find((r) => r.id === search.request)
+    : [...tl.requests].reverse().find((r) => r.task_code === search.task);
+  const attempt = request?.attempts.find((a) => a.n === search.attempt) ?? request?.attempts[request.attempts.length - 1];
+  return request && attempt ? { request: request.id, attempt: attempt.n } : null;
+}
+
 /** The selection if it still exists in the data, else null. */
 export function resolveSelection(tl: BuildTimeline, sel: Selection | null): { request: TimelineRequest; attempt: TimelineAttempt } | null {
   const chosen = sel ?? defaultSelection(tl);

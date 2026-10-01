@@ -44,6 +44,11 @@ import {
   factsToCsv,
   observabilitySummary,
   judgmentCalibration,
+  harnessScorecards,
+  harnessFindingRows,
+  findingsToCsv,
+  queueDecisionRows,
+  queueDecisionsToCsv,
   testHistory,
   buildTimelineOf,
   projectDeliveryMetrics,
@@ -79,6 +84,12 @@ const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export function uuid(v: string | undefined, what: string): string {
   if (!v || !RE_UUID.test(v)) throw new DomainError('not_found', `The ${what} does not exist.`);
   return v;
+}
+
+/** The optional filters of the harness routes: ?rules=&piece=&from=&to= (dates as ISO text). */
+function harnessFilters(query: Record<string, string>) {
+  const date = (v: string | undefined) => (v && !Number.isNaN(Date.parse(v)) ? v : undefined);
+  return { rules: query.rules || undefined, piece: query.piece || undefined, from: date(query.from), to: date(query.to) };
 }
 
 export const QUERIES: QueryRoute[] = [
@@ -293,6 +304,31 @@ registerQueries([
     path: '/api/projects/:projectId/observability/calibration',
     queryName: 'query.records',
     respond: ({ services, params }) => judgmentCalibration(services.db, uuid(params.projectId, 'project')),
+  },
+  {
+    // Harness health: a scorecard and a verdict per piece, with the cases behind them (core queries/harness-health.ts).
+    path: '/api/projects/:projectId/observability/harness',
+    queryName: 'query.harness_health',
+    respond: ({ services, params, query }) => harnessScorecards(services.db, uuid(params.projectId, 'project'), harnessFilters(query)),
+  },
+  {
+    path: '/api/projects/:projectId/observability/harness/findings.csv',
+    queryName: 'query.harness_health',
+    download: { contentType: 'text/csv; charset=utf-8', filename: 'harness-findings.csv' },
+    respond: async ({ services, params, query }) => findingsToCsv((await harnessFindingRows(services.db, uuid(params.projectId, 'project'), harnessFilters(query))).rows),
+  },
+  {
+    path: '/api/projects/:projectId/observability/harness/findings.json',
+    queryName: 'query.harness_health',
+    respond: async ({ services, params, query }) => harnessFindingRows(services.db, uuid(params.projectId, 'project'), harnessFilters(query)),
+  },
+  {
+    // Every queue decision with its reason (?since= ISO date), for analysing the queue outside the app.
+    path: '/api/projects/:projectId/queue/decisions.csv',
+    queryName: 'query.harness_health',
+    download: { contentType: 'text/csv; charset=utf-8', filename: 'queue-decisions.csv' },
+    respond: async ({ services, params, query }) =>
+      queueDecisionsToCsv(await queueDecisionRows(services.db, uuid(params.projectId, 'project'), { since: harnessFilters(query).from })),
   },
   {
     path: '/api/projects/:projectId/observability.csv',

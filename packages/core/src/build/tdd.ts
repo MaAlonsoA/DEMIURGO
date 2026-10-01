@@ -66,6 +66,8 @@ export type Green = {
   tests: GreenTest[];
   scope?: string;
 };
+/** What one loop (the builder sent back by the gate) took: kept per loop so the harness can price the gate. */
+export type LoopRun = { loop: number; duration_ms: number; usage?: Usage };
 export type TddDetail = {
   status: 'passed' | 'red' | 'skipped';
   red: RedEntry[];
@@ -77,6 +79,8 @@ export type TddDetail = {
   /** Criteria with no test at all (neither changed nor on main). */
   uncovered?: string[];
   notes?: string[];
+  /** One entry per loop, in order (`loops` stays the count). Added by the orchestrator from `verifyTdd`'s `runs`. */
+  loop_runs?: LoopRun[];
 };
 
 export type ParsedTest = { title: string; file: string | null; status: 'passed' | 'failed' | 'skipped'; message?: string };
@@ -430,6 +434,11 @@ export function tddSummary(detail: TddDetail): string {
   const failed = detail.green?.failed ?? 0;
   const why = detail.stopped === 'cap' ? `after ${detail.loops} loops` : detail.stopped === 'no_session' ? 'and the builder session could not be resumed' : 'and the builder stopped';
   return `Test-driven check failed ${why}: ${bad} criterion test${bad === 1 ? '' : 's'} pass on main without the change; ${failed} test${failed === 1 ? '' : 's'} fail with it. Nothing was committed or pushed.`;
+}
+
+/** Duration and usage of each loop's builder run, numbered from 1. Pure. */
+export function loopRunsOf(runs: readonly BuilderResult[]): LoopRun[] {
+  return runs.map((r, i) => ({ loop: i + 1, duration_ms: r.durationMs, ...(r.usage ? { usage: r.usage } : {}) }));
 }
 
 /** The builder results of the first run and its loops as one (usage and time added, the last run's outcome and report). Pure. */

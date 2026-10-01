@@ -83,7 +83,7 @@ import { randomUUID } from 'node:crypto';
 import { type BuilderSession, builderSessionPlan, sessionFilesExist } from './session.ts';
 import { basename, join } from 'node:path';
 import type { DockerExec } from '../runner/environment.ts';
-import { type TddDetail, mergeBuilderResults, tddFeedbackLines, tddSummary, verifyTdd } from './tdd.ts';
+import { type TddDetail, loopRunsOf, mergeBuilderResults, tddFeedbackLines, tddSummary, verifyTdd } from './tdd.ts';
 
 const BUILD = system('build', '1');
 const REVIEW_STATUS = 'demiurgo/review';
@@ -481,6 +481,21 @@ function promptParts(
     lines.push('', `# Feedback on the previous attempt (this is attempt ${attempt} on the same branch)`, 'The previous attempt did not merge; check the tests and the review comments on the pull request.');
   }
   return { head, before, design: resumed ? [] : designSection(design), feedback: lines };
+}
+
+/** The section headings present in the text the builder was told (`# …` to `### …`), in order: which parts of the context were there. */
+export function toldSections(told: string): string[] {
+  const headings: string[] = [];
+  for (const line of told.split('\n')) {
+    const m = /^#{1,3}\s+(.+?)\s*$/.exec(line);
+    if (m?.[1] && !headings.includes(m[1])) headings.push(m[1]);
+  }
+  return headings;
+}
+
+/** What the LGTM waiver check decided, for the harness health post-mortem: the rules that failed and Jev's second look. */
+function waiverDetail(w: { waive: boolean; failed?: string[]; jev?: string } | null): { rules_failed: string[]; jev: string } {
+  return { rules_failed: w?.failed ?? [], jev: w?.jev ?? 'unavailable' };
 }
 
 function promptOf(...args: Parameters<typeof promptParts>): string {
@@ -913,11 +928,13 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       ...(earlierContext.sections.length > 0 ? { context: earlierContext.sections } : {}),
       ...(testReuse.length > 0 ? { test_reuse: testReuse } : {}),
       ...(code.lines.length > 0 ? { code_to_extend: { commit: code.commit, files: code.files, classifier_id: code.classifier_id, section: codeLines.join('\n') } } : {}),
+      effort: resolution.effort ?? 'medium',
       ...(wip ? { wip_commit: wip.sha, wip_files: wip.files, ...(wip.pushError ? { wip_push_error: wip.pushError } : {}) } : {}),
       ...(twice ? { timed_out_twice: true, branch: worktree.branch } : {}),
       told,
+      told_sections: toldSections(told),
       ...(tddTold.length > 0 ? { tdd_told: tddTold } : {}),
-      ...(gate ? { tdd: gate.detail } : {}),
+      ...(gate ? { tdd: gate.runs.length > 0 ? { ...gate.detail, loop_runs: loopRunsOf(gate.runs) } : gate.detail } : {}),
       ...(kind ? { failure_kind: kind, transcript_excerpt: failureExcerpt({ stderr: result.stderrTail, transcript: result.transcriptTail }) } : {}),
     };
     if (failed) {
@@ -1183,7 +1200,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
   const requested = waived
     ? await stage(r, 'review', async () => ({
         value: { runId: '' },
-        detail: { waived: 'lgtm_with_comments', approved_review_id: approving.id },
+        detail: { waived: 'lgtm_with_comments', approved_review_id: approving.id, waiver: waiverDetail(waiver) },
       }))
     : await stage(
         r,
@@ -1192,7 +1209,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
           const id = await startReview();
           return {
             value: { runId: id },
-            detail: { run_id: id, ci: 'parallel', ...(waiver && !waiver.waive ? { waiver_refused: (waiver.failed ?? ['files_outside_fixes']).join(', ') } : {}) },
+            detail: { run_id: id, ci: 'parallel', ...(waiver && !waiver.waive ? { waiver_refused: (waiver.failed ?? ['files_outside_fixes']).join(', '), waiver: waiverDetail(waiver) } : {}) },
             outcome: 'waiting' as const,
           };
         },

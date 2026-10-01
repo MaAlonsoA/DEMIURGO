@@ -153,6 +153,17 @@ const journeysRoute = createRoute({
 const buildRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: '/build',
+  // ?task=TSK-…&attempt=n (and optionally &request=id) opens that attempt's path (from Observability's harness cases).
+  validateSearch: (s: Record<string, unknown>): { task?: string; request?: string; attempt?: number } => {
+    const task = text(s.task);
+    const request = text(s.request);
+    const attempt = Number(s.attempt);
+    return {
+      ...(task ? { task } : {}),
+      ...(request ? { request } : {}),
+      ...(Number.isInteger(attempt) && attempt > 0 ? { attempt } : {}),
+    };
+  },
   component: BuildScreen,
 });
 const issuesRoute = createRoute({

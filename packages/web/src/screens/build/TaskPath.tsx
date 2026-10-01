@@ -58,8 +58,8 @@ function Glyph({ state, cx, cy }: { state: StageState; cx: number; cy: number })
     case "changes":
       return (
         <>
-          <circle cx={cx} cy={cy} r={7} className="fill-panel stroke-danger" strokeWidth={2} />
-          <circle cx={cx} cy={cy} r={2.5} className="fill-danger" />
+          <circle cx={cx} cy={cy} r={7} className="fill-panel stroke-warning" strokeWidth={2} />
+          <circle cx={cx} cy={cy} r={2.5} className="fill-warning" />
         </>
       );
     case "cancelled":
@@ -485,10 +485,10 @@ function Ladder({ request, selected, onSelect, t, stages }: { request: TimelineR
                     />
                   ))}
                 </span>
-                {a.result === "failed" || a.result === "changes_requested" ? <span className="ml-0.5 h-3.5 w-0.5 bg-danger" /> : null}
+                {a.result === "failed" || a.result === "changes_requested" ? <span className={cn("ml-0.5 h-3.5 w-0.5", a.result === "failed" ? "bg-danger" : "bg-warning")} /> : null}
               </span>
               <span className="tabular-nums text-fg-2">{compact(dur)}</span>
-              <span className={cn(a.result === "failed" || a.result === "changes_requested" ? "text-danger-text" : "text-fg-2")}>{result}</span>
+              <span className={cn(a.result === "failed" ? "text-danger-text" : a.result === "changes_requested" ? "text-warning-text" : "text-fg-2")}>{result}</span>
               {a.builder?.model ? <span className="text-fg-3">{a.builder.model}</span> : null}
               {a.ended_by?.reason ? <span className="min-w-0 basis-full break-words text-xs text-fg-3 sm:basis-auto sm:flex-1">{a.ended_by.reason}</span> : null}
             </button>

@@ -96,7 +96,7 @@ function Attempt({
   const x0 = x(ms(attempt.start));
   const x1 = Math.max(x(ms(attempt.end)), x0 + 6);
   const result = t[`tlResult_${attempt.result}` as const];
-  const bad = attempt.result === "failed" || attempt.result === "changes_requested";
+  const end = attempt.result === "failed" ? "fill-danger" : attempt.result === "changes_requested" ? "fill-warning" : null;
   const split = reviewOverlapsCi(attempt);
   return (
     <g>
@@ -169,7 +169,7 @@ function Attempt({
             </g>
           );
         })}
-        {bad ? <rect x={x1 - 3} y={top + 9} width={3} height={22} className="fill-danger" /> : null}
+        {end ? <rect x={x1 - 3} y={top + 9} width={3} height={22} className={end} /> : null}
         {attempt.merged_at ? (
           <path
             d={`M ${x(ms(attempt.merged_at)) - 4} ${top + 32} l 4 6 l 4 -6 z`}
@@ -212,6 +212,7 @@ function Legend({ t }: { t: Words }) {
       {item(<rect x="0.5" y="1.5" width="15" height="9" className="fill-none stroke-edge-control" strokeDasharray="3 2" />, t.tlLgMain)}
       {item(<rect x="0" y="0" width="16" height="12" className="fill-info" />, t.tlLgLive)}
       {item(<rect x="6" y="0" width="3" height="12" className="fill-danger" />, t.tlLgEnd)}
+      {item(<rect x="6" y="0" width="3" height="12" className="fill-warning" />, t.tlLgChanges)}
       {item(<path d="M 4 1 l 4 8 l 4 -8 z" className="fill-fg" />, t.tlLgMerge)}
     </p>
   );

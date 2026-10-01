@@ -434,7 +434,8 @@ describe('re-import and design in the v2 (H1 review)', () => {
     await expect(runImport(p, old)).rejects.toMatchObject({
       type: 'guard',
       reasons: [
-        'decisions/DEC-PLN-001.md: the v2 already has version 2 approved; 1 can only be discarded.',
+        // Approving version 2 closes the earlier draft (patch 062376c), so version 1 is already discarded in the v2.
+        'decisions/DEC-PLN-001.md: version 1 is discarded in the v2 and cannot move to "approved".',
         'taxonomy/TAX-001.md: the v2 already has version 2 approved; 1 cannot be approved.',
       ],
     });

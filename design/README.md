@@ -29,7 +29,7 @@ Cada archivo se llama `<código>.md` y contiene la versión en curso de su regis
 ```
 ### AC-DOM-NNN-NN · Título corto
 
-- Verification: automatic | manual
+- Verification: automatic | manual | release
 - Check: cómo se comprueba, en lenguaje de producto.
 - Derived from: AC-DOM-NNN-NN (opcional)
 

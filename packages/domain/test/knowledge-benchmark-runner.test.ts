@@ -234,9 +234,10 @@ describe('Isolated knowledge benchmark', () => {
   });
   it('diagnoses truncation and the 12-candidate limit without changing production retrieval', () => {
     const { scenario } = fixture(22);
-    expect(
-      selectCandidates(scenario.graph, scenario.change, { area: 'recovery' }).find((c) => c.ref.endsWith('001@1'))?.text,
-    ).toHaveLength(1500);
+    // Candidates keep up to 5000 characters, with the criteria first (patch 3e68c6d): no longer cut at 1500.
+    const text = selectCandidates(scenario.graph, scenario.change, { area: 'recovery' }).find((c) => c.ref.endsWith('001@1'))?.text;
+    expect(text?.length).toBeGreaterThan(1500);
+    expect(text?.length).toBeLessThanOrEqual(5000);
     const large = structuredClone(scenario.graph);
     const n = large.nodes[0]!;
     for (let i = 0; i < 15; i++) large.nodes.push({ ...n, ref: `EXTRA-${i}@1` });

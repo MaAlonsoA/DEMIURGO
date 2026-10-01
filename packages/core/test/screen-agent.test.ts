@@ -77,6 +77,18 @@ async function acceptAndApprove(action: string): Promise<Created> {
   return created;
 }
 
+/** A pending draft blocks a new request for the same scope (patch ac81710): the person rejects it first. */
+async function rejectPendingScreenDraft() {
+  const pending = await db()
+    .selectFrom('proposals')
+    .select('id')
+    .where('project_id', '=', projectId)
+    .where('type', '=', 'screen_design')
+    .where('state', '=', 'pending')
+    .execute();
+  for (const p of pending) await cmd('proposal.reject', { reason: 'Try again.' }, p.id);
+}
+
 describe('the screen designer', () => {
   it('a feature thread offers tasks while the project has no approved design system', async () => {
     const epicThread = (await cmd('exploration.open', { purpose: 'Share recipes with friends' })).entityId;
@@ -141,6 +153,7 @@ describe('the screen designer', () => {
 
   it('the checker rejects a component that is not in the design system, and nothing is stored', async () => {
     mode = 'unknown_component';
+    await rejectPendingScreenDraft();
     const r = await run('screen_design', { type: 'record_version', id: state.featureVersion });
     expect(r.state).not.toBe('completed');
     expect(r.output ?? null).toBeNull();
@@ -148,6 +161,7 @@ describe('the screen designer', () => {
 
   it('the checker rejects a state with a script, and nothing is stored', async () => {
     mode = 'script';
+    await rejectPendingScreenDraft();
     const r = await run('screen_design', { type: 'record_version', id: state.featureVersion });
     expect(r.state).not.toBe('completed');
     expect(r.output ?? null).toBeNull();

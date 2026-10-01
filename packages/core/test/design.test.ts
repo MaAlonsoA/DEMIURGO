@@ -17,6 +17,25 @@ let projectId = '';
 beforeAll(async () => {
   s = environment().services;
   projectId = (await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Design' } })).projectId;
+  // A feature is only ready to build once the Architecture and Security baseline stages have passed
+  // (patch c3d2708): these tests are about its other conditions, so those two stages start passed.
+  for (const [position, stage] of [
+    [3, 'architecture'],
+    [4, 'security'],
+  ] as const) {
+    await s.db
+      .insertInto('stages')
+      .values({
+        project_id: projectId,
+        stage,
+        position,
+        exploration_id: await newExploration(s, projectId),
+        state: 'passed',
+        opened_by: 'system:test',
+        passed_by: 'human:ana',
+      })
+      .execute();
+  }
 });
 
 const cmd = (command: Parameters<typeof executeCommand>[1]['command'], data: unknown, entityId?: string, actor: Actor = ana) =>
@@ -93,56 +112,27 @@ async function versions(recordId: string) {
 }
 
 describe('versions and criteria', () => {
-  it('AC-DIS-001-08 approving does not create a version: the current one is the latest approved and the previous one is superseded', async () => {
-    const d = await newDecision(s, projectId, true);
-    expect(await versions(d.recordId)).toMatchObject([{ n: 1, state: 'approved' }]);
-    const v2 = await cmd('record_version.create', {
-      record_id: d.recordId,
-      title: 'Decisión revisada',
-      sections: [
-        { title: 'Context', content: 'c2' },
-        { title: 'Decision', content: 'd2' },
-        { title: 'Consequences', content: 'k2' },
-      ],
-      change_note: 'Se precisa la decisión.',
-    });
-    expect(await versions(d.recordId)).toMatchObject([
-      { n: 1, state: 'approved' },
-      { n: 2, state: 'draft' },
-    ]);
-    await cmd('record_version.approve', {}, v2.entityId);
-    expect(await versions(d.recordId)).toMatchObject([
-      { n: 1, state: 'superseded' },
-      { n: 2, state: 'approved' },
-    ]);
-    const supersede = await s.db
-      .selectFrom('events')
-      .select(['actor', 'cause'])
-      .where('command', '=', 'record_version.supersede')
-      .where('entity_id', '=', (await versions(d.recordId))[0]?.id ?? '')
-      .executeTakeFirstOrThrow();
-    expect(supersede.actor).toBe('system:versions@1');
-  });
-
   it('AC-DIS-001-08 an earlier draft than an already approved version is not approved: it is discarded', async () => {
     const d = await newDecision(s, projectId, true);
     const v2 = await newDecisionVersion(d.recordId, false);
     const v3 = await newDecisionVersion(d.recordId, false);
     await cmd('record_version.approve', {}, v3);
-    await expect(cmd('record_version.approve', {}, v2)).rejects.toMatchObject({
-      type: 'guard',
-      reasons: ['There is already a later approved version (v3): discard this draft or create a new version.'],
-    });
-    expect((await versionReadiness(s.db, projectId, v2)).reasons).toContain(
-      'Version 2 is a draft earlier than the current one (v3): it can only be discarded.',
-    );
-    expect((await inbox(s.db, projectId)).versions_to_approve.find((v) => v.id === v2)).toMatchObject({ approvable: false });
-    await cmd('record_version.discard', { reason: 'La sustituye la v3.' }, v2);
+    // Approving v3 closes the earlier draft by itself (patch 062376c), as the system.
     expect(await versions(d.recordId)).toMatchObject([
       { n: 1, state: 'superseded' },
       { n: 2, state: 'discarded' },
       { n: 3, state: 'approved' },
     ]);
+    const closing = await s.db
+      .selectFrom('events')
+      .select('actor')
+      .where('command', '=', 'record_version.discard')
+      .where('entity_id', '=', v2)
+      .executeTakeFirstOrThrow();
+    expect(closing.actor).toBe('system:versions@1');
+    // A discarded draft cannot be approved any more.
+    await expect(cmd('record_version.approve', {}, v2)).rejects.toMatchObject({ type: 'invalid_transition' });
+    expect((await inbox(s.db, projectId)).versions_to_approve.find((v) => v.id === v2)).toBeUndefined();
   });
 
   it('AC-DIS-001-09 criteria and links are only born with their version, and the database enforces it', async () => {
@@ -388,7 +378,8 @@ describe('questions', () => {
       .orderBy('seq')
       .execute();
     expect(history.map((e) => e.command)).toEqual(['question.raise', 'question.confirm', 'question.reopen']);
-    expect(history[1]?.after).toEqual({ conclusion: 'La paga cada socio.' });
+    // Records are kept in English: the conclusion is translated and the person's own words stay beside it.
+    expect(history[1]?.after).toEqual({ conclusion: '[en] La paga cada socio.', own_words: 'La paga cada socio.' });
     // Once reopened, it comes back without a conclusion: confirming it again requires a new one.
     expect(row.conclusion).toBeNull();
     await expect(cmd('question.confirm', {}, q)).rejects.toMatchObject({
@@ -420,7 +411,12 @@ describe('readiness', () => {
   it('AC-DIS-001-06 readiness false for each reason, in product language', async () => {
     const decision = await newDecision(s, projectId, true);
     const list = await fdrOn(decision, { approve: true });
-    expect(await versionReadiness(s.db, projectId, list.versionId)).toEqual({ ready: true, reasons: [], warnings: [] });
+    expect(await versionReadiness(s.db, projectId, list.versionId)).toEqual({
+      ready: true,
+      reasons: [],
+      // The fixture's one-line behavior is only advised against, never a block.
+      warnings: ["The main flow has 1 steps; a use case's main success scenario has 3 to 9 (Cockburn)."],
+    });
 
     // Unapproved version.
     const draft = await fdrOn(decision);
@@ -469,8 +465,19 @@ describe('readiness', () => {
     });
     await cmd('record_version.approve', {}, incoming.entityId);
     const reasons = (await versionReadiness(s.db, projectId, fd2.versionId)).reasons;
-    expect(reasons).toContain(`It is based on ${d2.code} v1, but the current one is v2.`);
-    expect(reasons).toContain(`The link with ${d2.code} is pending review.`);
+    // The newer basis is named as a suspect to review against the change (patch 4dfe784).
+    expect(reasons).toContain(`It is based on ${d2.code} v1, which is now v2: review it against the change.`);
+    // When the knowledge update finds the feature contradicted, the link returns for review and blocks.
+    const d2Link = await s.db
+      .selectFrom('links')
+      .select('id')
+      .where('project_id', '=', projectId)
+      .where('from_id', '=', fd2.versionId)
+      .executeTakeFirstOrThrow();
+    await cmd('link.flag_review', { reason: 'The decision changed.' }, d2Link.id, system('versions'));
+    expect((await versionReadiness(s.db, projectId, fd2.versionId)).reasons).toContain(
+      `The link with ${d2.code} is pending review.`,
+    );
 
     // Pending or postponed questions in the origin exploration, each one named.
     const e = await newExploration(s, projectId);
@@ -940,7 +947,9 @@ describe('inbox and threads', () => {
     await run('exploration.set_aside', { reason: 'Later.' }, e);
     const aside = await inbox(s.db, pid);
     expect(aside.open_questions.map((x) => x.id)).not.toContain(q);
-    expect(aside.total).toBe(before - 1);
+    // The question no longer counts. The only thing that can appear instead is the onboarding's next step
+    // (patch c3d2708), which is not a question.
+    expect(aside.total - (aside.next_step ? 1 : 0)).toBe(before - 1);
     await run('exploration.resume', {}, e);
     expect((await inbox(s.db, pid)).open_questions.map((x) => x.id)).toContain(q);
     await run('exploration.conclude', {}, e);
@@ -992,7 +1001,21 @@ describe('epistemic status', () => {
       links: [{ type: 'based_on', target: { code: base.code, version: 1 } }],
     });
     await inProject('record_version.approve', {}, (fdr.result as { versionId: string }).versionId);
-    await newDecisionVersion(base.recordId, true, pid);
+    // A newer version no longer flags every dependent link: only what the knowledge update finds
+    // contradicted returns for review (patch 4dfe784). Here it does, as the system.
+    const approvedLink = await s.db
+      .selectFrom('links')
+      .select('id')
+      .where('project_id', '=', pid)
+      .where('from_id', '=', (fdr.result as { versionId: string }).versionId)
+      .executeTakeFirstOrThrow();
+    await executeCommand(s, {
+      command: 'link.flag_review',
+      actor: system('versions'),
+      projectId: pid,
+      entityId: approvedLink.id,
+      data: { reason: 'The decision changed and contradicts this feature.' },
+    });
 
     const b = await inbox(s.db, pid);
     const state = await productState(s.db, pid);

@@ -106,7 +106,12 @@ beforeAll(async () => {
 
 describe('the screen design of a feature', () => {
   it('without an approved design system, tasks are planned as before', async () => {
-    await expect(planTasks(feature.versionId)).resolves.toBeTruthy();
+    const requested = await planTasks(feature.versionId);
+    expect(requested).toBeTruthy();
+    // A task plan still being drafted blocks a second request for the same feature (patch ac81710):
+    // the person cancels this one so the next tests can ask again.
+    const queued = await db().selectFrom('ai_runs').select('state').where('id', '=', requested.entityId).executeTakeFirstOrThrow();
+    if (queued.state === 'queued' || queued.state === 'running') await cmd('run.cancel', {}, requested.entityId);
   });
 
   it('with an approved design system, tasks are refused until the feature has approved screens', async () => {

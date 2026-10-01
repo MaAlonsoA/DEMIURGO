@@ -24,7 +24,7 @@ describe('stage list questions take several answers', () => {
       id: q.key,
       key: q.key,
       state: 'confirmed' as const,
-      conclusion: q.key === 'outcomes' ? own : 'x',
+      conclusion: q.key === 'purpose' ? own : 'x',
       state_reason: null,
     }));
     const composed = composeDefinition(questions);

@@ -1241,6 +1241,8 @@ export type BuildQueue = {
   totals: { tasks: number; points: number; unsized: number };
   repository: { path: string | null; branch: string; merge_rule_by_demiurgo?: boolean };
   delivery?: DeliveryMetrics;
+  /** Files changed by many merged tasks (top 3): where tasks built at once collide. */
+  hotspots?: { path: string; tasks: number; of: number }[];
   /** «Build the queue»: the project's flag and what the queue is doing. */
   auto?: {
     on: boolean;
@@ -1252,6 +1254,8 @@ export type BuildQueue = {
     next: string | null;
     /** Ready tasks waiting because they change the database schema while another such task builds. */
     schema_waiting?: string[];
+    /** Ready tasks waiting because they share a hotspot file or a table, route, page or server action with a task being built. */
+    module_waiting?: { code: string; item: string; with: string }[];
     stopped: {
       code: string;
       kind: 'needs_you' | 'ended' | 'stale' | 'manual_review' | 'waiting' | 'main_red';

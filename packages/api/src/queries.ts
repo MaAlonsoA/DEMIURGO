@@ -42,6 +42,8 @@ import {
   buildQueue,
   projectDeliveryMetrics,
   autoStatus,
+  hotspotsOf,
+  isHotspot,
   composeBrief,
   coherenceStatus,
   githubConfig,
@@ -239,6 +241,8 @@ registerQueries([
         ...queue,
         auto: await autoStatus(services.db, projectId, queue),
         delivery: await projectDeliveryMetrics(services.db, projectId),
+        // The files most merged tasks changed: where parallel builds collide (top 3 that pass the threshold).
+        hotspots: (await hotspotsOf(services.db, projectId)).filter((h) => isHotspot(h)).slice(0, 3),
       };
     },
   },

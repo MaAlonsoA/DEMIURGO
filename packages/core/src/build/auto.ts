@@ -17,6 +17,9 @@ import { isTransientFailure } from './failure.ts';
 import { type BuildQueue, type QueueTask, buildQueue } from './queue.ts';
 import { loadTaskDependencies, type TaskDependencyIndex } from '../queries/task-deps.ts';
 import { type SchemaEvidence, schemaChangingTasks } from './schema-risk.ts';
+import { type CodeMap, moduleOverlap } from './code-map.ts';
+import { hotspotsOf, isHotspot } from './hotspots.ts';
+import { predictedFiles } from './predicted-files.ts';
 
 const BUILD = system('build', '1');
 
@@ -34,6 +37,9 @@ export type AutoStopped = {
   failure_kind?: string | null;
 };
 
+/** A task that waits, the shared file or module and the task being built that shares it. */
+export type ModuleWaiting = { code: string; item: string; with: string };
+
 export type AutoStatus = {
   on: boolean;
   /** How many builds run at once at most (1 to 3). */
@@ -46,6 +52,8 @@ export type AutoStatus = {
   next: string | null;
   /** Ready tasks that wait because they are predicted to change the database schema while another such task builds. Omitted when none. */
   schema_waiting?: string[];
+  /** Ready tasks that wait because they are predicted to change a hotspot file or a table, route, page or server action that a task being built changes too. Omitted when none. */
+  module_waiting?: ModuleWaiting[];
   stopped: AutoStopped | null;
   /** Flaky tests the last builds quarantined (they did not block their pull request): someone creates a fix task. Omitted when none. */
   quarantined?: string[];
@@ -168,6 +176,8 @@ type Plan = {
   stopped: AutoStopped | null;
   /** Tasks skipped this round because a running task is predicted to change the database schema too. */
   schemaWaiting: string[];
+  /** Tasks skipped this round because they share a hotspot or module with a task being built. */
+  moduleWaiting: ModuleWaiting[];
 };
 
 export type SelectInput = {
@@ -180,7 +190,31 @@ export type SelectInput = {
   stateOf: (t: QueueTask) => Promise<{ kind: 'start'; hasRequest: boolean } | { kind: 'stopped'; stopped: AutoStopped }>;
   /** Tasks predicted to change the database schema (running or ready). */
   schema: Map<string, SchemaEvidence>;
+  /** Files each task is predicted to change (running or ready); see predicted-files.ts. Without it the module rule does nothing. */
+  predicted?: Map<string, string[]>;
+  /** Paths that are hotspots of the project (see hotspots.ts). */
+  hotspots?: ReadonlySet<string>;
+  /** The code map the predictions were ranked in: names the table, route, page or server action a file belongs to. */
+  map?: CodeMap | null;
 };
+
+/** Modules whose kind makes two tasks collide even on different files (a table, a route, a page, a server action). */
+const SHARED_MODULE = /^(table|route|page|server_action):/;
+
+/**
+ * What two predicted file sets share that would make parallel builds collide: a hotspot file, or a table, route,
+ * page or server action module. Components and libs only count file by file (their module is a whole folder).
+ * Null when nothing. Pure.
+ */
+export function sharedItem(a: readonly string[], b: readonly string[], hotspots: ReadonlySet<string>, map: CodeMap | null): string | null {
+  const bs = new Set(b);
+  const both = a.filter((p) => bs.has(p));
+  const hot = both.find((p) => hotspots.has(p));
+  if (hot) return hot;
+  if (!map) return null;
+  const overlap = moduleOverlap(a, b, map);
+  return overlap.modules.find((id) => SHARED_MODULE.test(id)) ?? null;
+}
 
 /**
  * The selection loop of the plan, with its inputs given: ready tasks in queue order, skipping one that depends
@@ -189,8 +223,20 @@ export type SelectInput = {
  * skipped task waits and does not block the ones behind it; a task that stopped needing the person stops the queue.
  */
 export async function selectStarts(input: SelectInput): Promise<Omit<Plan, 'running'>> {
-  const { ready, running, limit, index, featureOf, stateOf, schema } = input;
-  const result: Omit<Plan, 'running'> = { start: [], stopped: null, schemaWaiting: [] };
+  const { ready, running, limit, index, featureOf, stateOf, schema, predicted, hotspots, map } = input;
+  const result: Omit<Plan, 'running'> = { start: [], stopped: null, schemaWaiting: [], moduleWaiting: [] };
+  // Skipped after the schema rule: a hotspot or module shared with a busy task (Google LSC: more files in flight, more merge conflicts).
+  const collision = (code: string): { item: string; with: string } | null => {
+    const mine = predicted?.get(code);
+    if (!mine || mine.length === 0) return null;
+    for (const other of busy) {
+      const theirs = predicted?.get(other);
+      if (!theirs || theirs.length === 0) continue;
+      const item = sharedItem(mine, theirs, hotspots ?? new Set(), map ?? null);
+      if (item) return { item, with: other };
+    }
+    return null;
+  };
   const busy = new Set(running);
   const busyFeatures = new Set(running.map(featureOf).filter((f): f is string => f !== null));
   let schemaBusy = running.some((c) => schema.has(c));
@@ -208,6 +254,11 @@ export async function selectStarts(input: SelectInput): Promise<Omit<Plan, 'runn
     const changesSchema = schema.has(t.code);
     if (changesSchema && schemaBusy) {
       result.schemaWaiting.push(t.code);
+      continue;
+    }
+    const shared = collision(t.code);
+    if (shared) {
+      result.moduleWaiting.push({ code: t.code, ...shared });
       continue;
     }
     result.start.push({ code: t.code, hasRequest: state.hasRequest });
@@ -235,7 +286,7 @@ async function plan(db: Db, projectId: string, queue: BuildQueue, limit: number)
     .execute();
   const running: string[] = [];
   for (const o of open) if (await buildRunning(db, o.id)) running.push(o.code);
-  const result: Plan = { running, start: [], stopped: null, schemaWaiting: [] };
+  const result: Plan = { running, start: [], stopped: null, schemaWaiting: [], moduleWaiting: [] };
   // A red main stops the line even while builds run: they finish, and nothing new starts.
   const red = await mainRed(db, projectId);
   if (red) return { ...result, stopped: red };
@@ -244,7 +295,19 @@ async function plan(db: Db, projectId: string, queue: BuildQueue, limit: number)
   const featureOf = (code: string) => index.taskFeature.get(code) ?? queue.ready.find((t) => t.code === code)?.feature?.code ?? null;
   // Schema prediction only matters when two tasks can build together.
   const schema = limit > 1 ? await schemaChangingTasks(db, projectId, [...new Set([...running, ...queue.ready.map((t) => t.code)])]) : new Map<string, SchemaEvidence>();
-  const picked = await selectStarts({ ready: queue.ready, running, limit, index, featureOf, stateOf: (t) => taskState(db, t), schema });
+  // Hotspots and predicted files matter for the same reason: only when two tasks can build together.
+  const codes = [...new Set([...running, ...queue.ready.map((t) => t.code)])];
+  let module: Pick<SelectInput, 'predicted' | 'hotspots' | 'map'> = {};
+  if (limit > 1) {
+    try {
+      const predictions = await predictedFiles(db, projectId, codes);
+      const hotspots = new Set((await hotspotsOf(db, projectId)).filter((h, _i, all) => isHotspot(h, all[0]?.of ?? 0)).map((h) => h.path));
+      module = { predicted: predictions.files, hotspots, map: predictions.map };
+    } catch {
+      // a prediction that cannot be made never stops the queue
+    }
+  }
+  const picked = await selectStarts({ ready: queue.ready, running, limit, index, featureOf, stateOf: (t) => taskState(db, t), schema, ...module });
   return { ...result, ...picked };
 }
 
@@ -258,7 +321,8 @@ export async function autoStatus(db: Db, projectId: string, queue: BuildQueue): 
   const p = await plan(db, projectId, queue, parallel);
   const next = p.start[0]?.code ?? (p.running.length ? (queue.ready.find((t) => !p.running.includes(t.code) && t.request === null)?.code ?? null) : null);
   const waiting = p.schemaWaiting.length > 0 ? { schema_waiting: p.schemaWaiting } : {};
-  return { on, parallel, building: p.running[0] ?? null, builds: p.running, next, stopped: p.stopped, ...waiting, ...flaky };
+  const moduleWait = p.moduleWaiting.length > 0 ? { module_waiting: p.moduleWaiting } : {};
+  return { on, parallel, building: p.running[0] ?? null, builds: p.running, next, stopped: p.stopped, ...waiting, ...moduleWait, ...flaky };
 }
 
 const tails = new Map<string, Promise<unknown>>();

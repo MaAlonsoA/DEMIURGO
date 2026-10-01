@@ -439,6 +439,7 @@ function AutoQueue({ projectId, auto, t }: { projectId: string; auto: NonNullabl
   const client = useQueryClient();
   const s = auto.stopped;
   const waitingSchema = auto.schema_waiting && auto.schema_waiting.length > 0 ? ` ${t.autoSchemaWaiting(auto.schema_waiting)}` : "";
+  const waitingModule = auto.module_waiting && auto.module_waiting.length > 0 ? ` ${t.autoModuleWaiting(auto.module_waiting)}` : "";
   const base = !auto.on
     ? null
     : s
@@ -458,7 +459,7 @@ function AutoQueue({ projectId, auto, t }: { projectId: string; auto: NonNullabl
         : auto.next
           ? t.autoNext(auto.next)
           : t.autoIdle;
-  const status = base !== null && !s ? `${base}${waitingSchema}` : base;
+  const status = base !== null && !s ? `${base}${waitingSchema}${waitingModule}` : base;
   return (
     <section className="flex flex-col gap-2" data-auto-queue data-auto-on={auto.on ? "true" : "false"}>
       <Checkbox
@@ -523,7 +524,7 @@ const fmt = (n: number | null) => (n === null ? "–" : String(n));
 const th = "px-3 py-2 text-xs font-medium text-fg-2 whitespace-nowrap";
 const td = "px-3 py-2 tabular-nums";
 
-function Delivery({ d, t }: { d: DeliveryMetrics; t: Words }) {
+function Delivery({ d, t, hotspots }: { d: DeliveryMetrics; t: Words; hotspots?: { path: string; tasks: number; of: number }[] }) {
   const a = useMessages(AGENT_BUILD);
   const s = d.last10;
   const models = d.by_model_last10;
@@ -544,6 +545,14 @@ function Delivery({ d, t }: { d: DeliveryMetrics; t: Words }) {
               of: s.first_pass.of,
             })}
           </p>
+          {hotspots && hotspots.length > 0 ? (
+            <div className="flex flex-col gap-0.5 text-sm text-fg-2 tabular-nums" data-delivery-hotspots>
+              <span className="text-xs font-medium text-fg-3">{t.hotspots}</span>
+              {hotspots.map((h) => (
+                <span key={h.path}>{t.hotspotLine(h)}</span>
+              ))}
+            </div>
+          ) : null}
           {models.length > 0 ? (
             <div className="flex flex-col gap-0.5 text-sm text-fg-2 tabular-nums" data-delivery-models>
               <span className="text-xs font-medium text-fg-3">{t.deliveryByModel}</span>
@@ -695,7 +704,7 @@ export function BuildScreen() {
               )}
             </Section>
 
-            {q.delivery ? <Delivery d={q.delivery} t={t} /> : null}
+            {q.delivery ? <Delivery d={q.delivery} t={t} hotspots={q.hotspots} /> : null}
 
             {(q.held ?? []).length > 0 ? (
               <Section id="build-held" title={t.held((q.held ?? []).length)} note={t.heldNote}>

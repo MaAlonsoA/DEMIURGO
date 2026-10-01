@@ -12,17 +12,52 @@ export type UsageCollector = {
   add(chunk: string): void;
   /** The usage seen so far, or undefined when the stream carried none. */
   usage(durationMs: number): Usage | undefined;
+  /**
+   * Input tokens (cached ones included) of the last turn the stream showed: the size of the conversation the model saw
+   * last, which is what fills a session's context window. Claude: the `usage` of the last `assistant` event; Codex: the
+   * last `turn.completed`. Undefined when the stream carried no per-turn usage.
+   */
+  lastTurnInputTokens(): number | undefined;
 };
+
+const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+
+/** The per-turn input size of a Claude `assistant` line (input + cache reads + cache creation), or undefined. */
+export function claudeTurnInputOf(line: string): number | undefined {
+  if (!/"type"\s*:\s*"assistant"/.test(line)) return undefined;
+  try {
+    const e = JSON.parse(line) as { type?: unknown; message?: { usage?: Record<string, unknown> } };
+    const u = e.type === 'assistant' ? e.message?.usage : undefined;
+    if (!u) return undefined;
+    return num(u.input_tokens) + num(u.cache_read_input_tokens) + num(u.cache_creation_input_tokens);
+  } catch {
+    return undefined;
+  }
+}
+
+/** The input size of a Codex `turn.completed` line (its `input_tokens` already counts the cached ones), or undefined. */
+export function codexTurnInputOf(line: string): number | undefined {
+  try {
+    const e = JSON.parse(line) as { type?: unknown; usage?: Record<string, unknown> };
+    return e.type === 'turn.completed' && typeof e.usage?.input_tokens === 'number' ? e.usage.input_tokens : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export function usageCollector(provider: 'claude' | 'codex'): UsageCollector {
   let pending = '';
   let claudeResult: string | undefined;
   const codexTurns: string[] = [];
+  let lastTurn: number | undefined;
   const take = (line: string) => {
     if (provider === 'claude') {
+      const turn = claudeTurnInputOf(line);
+      if (turn !== undefined && turn > 0) lastTurn = turn;
       if (line.includes('"type":"result"') || /"type"\s*:\s*"result"/.test(line)) claudeResult = line;
     } else if (line.includes('turn.completed')) {
       codexTurns.push(line);
+      lastTurn = codexTurnInputOf(line) ?? lastTurn;
     }
   };
   return {
@@ -31,6 +66,13 @@ export function usageCollector(provider: 'claude' | 'codex'): UsageCollector {
       const lines = pending.split('\n');
       pending = lines.pop() ?? '';
       for (const line of lines) take(line);
+    },
+    lastTurnInputTokens() {
+      if (pending) {
+        take(pending);
+        pending = '';
+      }
+      return lastTurn;
     },
     usage(durationMs) {
       if (pending) {

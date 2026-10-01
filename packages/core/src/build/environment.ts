@@ -24,7 +24,63 @@ export type CiEnvironment = {
   install?: string;
   migrate?: string;
   browsers?: string;
+  /** How the app is started (see `startCommandOf`), when the project's files say so. */
+  start?: StartCommand;
 };
+
+/** The command that starts the app and, when known, the address it answers on. */
+export type StartCommand = { command: string; url?: string };
+
+/** The files `startCommandOf` reads: the text of the Playwright config and of package.json, each null when absent. */
+export type StartFiles = { playwrightConfig?: string | null; packageJson?: string | null };
+
+/** The Playwright config names DEMIURGO looks for at the repository root, in order. */
+export const PLAYWRIGHT_CONFIGS = ['playwright.config.ts', 'playwright.config.js', 'playwright.config.mjs', 'playwright.config.cts', 'playwright.config.cjs', 'playwright.config.mts'] as const;
+
+const STRING_LITERAL = String.raw`(['"\x60])((?:(?!\1).)*)\1`;
+
+/** The value of a plain string property (`command: 'pnpm start'`) inside a source slice; templates with `${` are not plain. */
+function stringProperty(source: string, name: string): string | undefined {
+  const m = new RegExp(String.raw`\b${name}\s*:\s*` + STRING_LITERAL).exec(source);
+  const value = m?.[2];
+  return value && !value.includes('${') ? value : undefined;
+}
+
+/**
+ * How to start the app, as one line the builder can use. First the `webServer` of the Playwright config (its `command` and
+ * its `url`, or `port` as `http://localhost:<port>`), which is what CI itself starts for the e2e tests; else the
+ * `start` script of package.json, then `dev`, run with the package manager the CI installs with. Pure: it reads strings
+ * with patterns, it does not run the config. Null when nothing says.
+ */
+export function startCommandOf(files: StartFiles, packageManager: 'pnpm' | 'npm' | 'yarn' = 'npm'): StartCommand | null {
+  const config = files.playwrightConfig ?? '';
+  const at = config.search(/\bwebServer\s*:/);
+  if (at >= 0) {
+    const slice = config.slice(at, at + 1200);
+    const command = stringProperty(slice, 'command');
+    if (command) {
+      const url = stringProperty(slice, 'url');
+      const port = /\bport\s*:\s*(\d{2,5})\b/.exec(slice)?.[1];
+      const base = stringProperty(config, 'baseURL');
+      const address = url ?? (port ? `http://localhost:${port}` : base);
+      return { command, ...(address ? { url: address } : {}) };
+    }
+  }
+  try {
+    const pkg: unknown = files.packageJson ? JSON.parse(files.packageJson) : null;
+    const scripts = isRecord(pkg) && isRecord(pkg.scripts) ? pkg.scripts : {};
+    for (const name of ['start', 'dev']) {
+      if (typeof scripts[name] !== 'string') continue;
+      return { command: name === 'start' ? (packageManager === 'npm' ? 'npm start' : `${packageManager} start`) : packageManager === 'yarn' ? 'yarn dev' : `${packageManager} run dev` };
+    }
+  } catch {
+    // no package.json to read
+  }
+  return null;
+}
+
+/** The line of the builder's brief that says how to run the app (our convention in the wording). */
+export const startLine = (start: StartCommand): string => `To run the app: \`${start.command}\`${start.url ? `, at \`${start.url}\`` : ''}.`;
 
 const SERVICE_NAME = /^[a-z][a-z0-9_-]{0,30}$/;
 const IMAGE = /^[A-Za-z0-9][A-Za-z0-9._/:@-]{0,199}$/;
@@ -76,7 +132,7 @@ const browsersLine = (run: string): string | undefined =>
     .find((l) => BROWSERS.test(l));
 
 /** Reads the `ci` job of a workflow. Null when the file is not a workflow we understand or has no such job. */
-export function environmentFromCi(yamlText: string): CiEnvironment | null {
+export function environmentFromCi(yamlText: string, files: StartFiles = {}): CiEnvironment | null {
   let doc: unknown;
   try {
     doc = parse(yamlText);
@@ -116,6 +172,9 @@ export function environmentFromCi(yamlText: string): CiEnvironment | null {
       Object.assign(env, variablesOf(step.env));
     }
   }
+  const manager = /^\s*(pnpm|npm|yarn)\b/.exec(result.install ?? '')?.[1] as 'pnpm' | 'npm' | 'yarn' | undefined;
+  const start = startCommandOf(files, manager);
+  if (start) result.start = start;
   return result;
 }
 

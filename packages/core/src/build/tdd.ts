@@ -499,11 +499,14 @@ export function mergeBuilderResults(first: BuilderResult, loops: readonly Builde
           ...(sum((u) => u.reasoningTokens) !== undefined ? { reasoningTokens: sum((u) => u.reasoningTokens) as number } : {}),
           ...(sum((u) => u.turns) !== undefined ? { turns: sum((u) => u.turns) as number } : {}),
         };
+  const lastTurn = [...all].reverse().find((r) => r.lastTurnInputTokens !== undefined)?.lastTurnInputTokens;
   return {
     ...last,
     durationMs: all.reduce((a, r) => a + r.durationMs, 0),
     sessionId: last.sessionId ?? first.sessionId,
     ...(usage ? { usage } : {}),
+    // The context size at the end of the attempt is the last turn of the last run that had one.
+    ...(lastTurn !== undefined ? { lastTurnInputTokens: lastTurn } : {}),
     report: last.report ?? first.report,
   };
 }
@@ -847,4 +850,103 @@ export function tddFeedbackLines(detail: TddDetail): string[] {
     ...onMain.slice(0, FEEDBACK_FAILURES).map((r) => `- RED: ${r.criterion} «${r.test}» (${r.path}) passes on main without the change: make it check the criterion's behaviour.`),
     ...failing.slice(0, FEEDBACK_FAILURES).map((t) => `- GREEN: «${t.test}»${t.path ? ` (${t.path})` : ''} fails with the change${t.reason ? `: ${t.reason.slice(0, FEEDBACK_OUTPUT)}` : ''}.`),
   ];
+}
+
+// ── smoke before the builder ─────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * What the pre-builder smoke checks (convención nuestra in the shape; the practice is Anthropic's «Effective harnesses for
+ * long-running agents»: «run a basic test on the development server to catch any undocumented bugs» before starting new
+ * work, and its companion repository: «run the project's smoke test […] once so you know you're starting from a working
+ * tree»): the CI's own build, then the tests of the criteria of the previous merged task (the walking skeleton when it is
+ * the first), which must be green on the tree the builder starts from.
+ */
+export type SmokeCommand = { kind: 'build' | 'vitest' | 'playwright'; command: string; report?: string };
+export type SmokeDetail =
+  | { ok: boolean; commands: string[]; failed?: { command: string; reason: string }[]; duration_ms: number; infra_error?: string }
+  | { skipped: string };
+
+const SMOKE_OUT = `${OUT}/smoke`;
+
+/** The commands of the smoke, in order. `tests`: the criterion tests of the repository, by criterion; `codes`: the criteria to check. Pure. */
+export function smokeCommands(runner: TddRunner, codes: readonly string[], tests: ReadonlyMap<string, readonly TestEntry[]>): SmokeCommand[] {
+  const out: SmokeCommand[] = [];
+  const withTests = codes.filter((c) => (tests.get(c)?.length ?? 0) > 0);
+  const pathsOf = (list: readonly string[], level: 'e2e' | 'unit'): string[] => [...new Set(list.flatMap((c) => (tests.get(c) ?? []).filter((t) => t.level === level).map((t) => t.path)))];
+  const e2e = withTests.filter((c) => tests.get(c)?.some((t) => t.level === 'e2e'));
+  const unit = withTests.filter((c) => tests.get(c)?.some((t) => t.level === 'unit'));
+  if (runner.build) out.push({ kind: 'build', command: runner.build });
+  let i = 0;
+  if (unit.length > 0 && runner.vitest) {
+    const report = `${SMOKE_OUT}-vitest-${i++}.json`;
+    out.push({ kind: 'vitest', report, command: vitestCommand(runner, { output: report, files: pathsOf(unit, 'unit'), codes: unit }) });
+  }
+  if (e2e.length > 0) {
+    for (const config of runner.playwright) {
+      const report = `${SMOKE_OUT}-pw-${i++}.json`;
+      out.push({ kind: 'playwright', report, command: playwrightCommand(runner, { output: report, config, files: pathsOf(e2e, 'e2e'), codes: e2e }) });
+    }
+  }
+  return out;
+}
+
+export type SmokeInput = {
+  worktreePath: string;
+  requestId: string;
+  /** The CI workflow text: the runners are found in it. */
+  ciText: string;
+  /** The criteria of the previous merged task; those with a test are run. Empty when there is no such task. */
+  codes: readonly string[];
+  prepared: { network: string; storeVolume: string; env: Record<string, string> };
+  exec?: DockerExec;
+  signal?: AbortSignal;
+  now?: () => number;
+};
+
+/**
+ * Runs the smoke in the prepared environment. Red is only the project's own failure (a build that exits non-zero, a test
+ * that fails): a container that could not run, a runner with no report or a cancellation is infrastructure and is
+ * recorded as `infra_error` without failing. Never throws.
+ */
+export async function runSmoke(input: SmokeInput): Promise<SmokeDetail> {
+  const now = input.now ?? Date.now;
+  const started = now();
+  try {
+    const runner = testCommandsFromCi(input.ciText, await readWorktreeFile(input.worktreePath, 'package.json'));
+    if (!runner) return { skipped: 'The CI runs no test runner DEMIURGO recognizes, so there is no smoke to run.' };
+    const tests = await readRepoTests(input.worktreePath, 'HEAD').catch(() => new Map<string, TestEntry[]>());
+    const commands = smokeCommands(runner, input.codes, tests);
+    if (commands.length === 0) return { skipped: 'The CI has no build command and there are no tests of a previous merged task to run.' };
+    const ctx: Ctx = { worktreePath: input.worktreePath, requestId: input.requestId, prepared: input.prepared, exec: input.exec ?? dockerExec, ...(input.signal ? { signal: input.signal } : {}), n: 0 };
+    await outputDir(input.worktreePath);
+    const ran: string[] = [];
+    const failed: { command: string; reason: string }[] = [];
+    let infra: string | undefined;
+    try {
+      for (const c of commands) {
+        ran.push(c.kind === 'build' ? c.command : `${c.kind} (criteria of the previous task)`);
+        try {
+          const r = await inContainer(ctx, input.worktreePath, c.command, c.kind === 'build' ? TIMEOUTS.build : TIMEOUTS.tests);
+          if (c.kind === 'build') {
+            if (r.code !== 0) failed.push({ command: c.command, reason: `The build fails on the tree the builder starts from: ${tail(r)}` });
+          } else {
+            const report = await readReport(input.worktreePath, c.report as string);
+            const parsed = c.kind === 'vitest' ? parseVitest(report, `vitest produced no report: ${tail(r)}`) : parsePlaywright(report, `playwright produced no report: ${tail(r)}`);
+            if (!parsed.ran) infra = `A test runner produced no report: ${parsed.crash ?? ''}`.trim();
+            for (const t of parsed.tests) if (t.status === 'failed') failed.push({ command: c.kind, reason: `${t.title}: ${redReason(t.message ?? 'failed')}` });
+          }
+        } catch (e) {
+          if (!(e instanceof Skip)) throw e;
+          infra = e.message;
+        }
+        // A broken build leaves nothing to run the tests against: the verdict is already red.
+        if (failed.length > 0 && c.kind === 'build') break;
+      }
+    } finally {
+      await rm(join(input.worktreePath, OUT), { recursive: true, force: true }).catch(() => undefined);
+    }
+    return { ok: failed.length === 0, commands: ran, ...(failed.length > 0 ? { failed: failed.slice(0, 8) } : {}), duration_ms: now() - started, ...(infra ? { infra_error: infra } : {}) };
+  } catch (e) {
+    return { ok: true, commands: [], duration_ms: now() - started, infra_error: firstLine(e instanceof Error ? e.message : String(e)) };
+  }
 }

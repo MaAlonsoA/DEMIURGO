@@ -83,6 +83,8 @@ export type BuilderResult = {
   container: string;
   /** Tokens and cost the CLI's whole stream reported (same shape as `ai_runs.usage`); absent when it reported none. */
   usage?: Usage;
+  /** Input tokens of the last turn of the stream (the size of the session's context at the end); absent when the stream showed none. */
+  lastTurnInputTokens?: number;
   /** The agent session this run used or started, when the spec asked for one. */
   sessionId?: string;
   /** True when the container was already there (an API restart replayed the step) and this call collected it instead of starting one. */
@@ -496,6 +498,7 @@ export async function runBuilder(spec: BuilderSpec, options: BuilderOptions = {}
   const stdout = output.text();
   const sessionId = spec.session ? (spec.provider === 'codex' && spec.session.mode === 'fresh' ? threadId : spec.session.id) : undefined;
   const usage = usageSeen.usage(Math.round(performance.now() - start));
+  const lastTurnInputTokens = usageSeen.lastTurnInputTokens();
   const base = {
     exitCode: code,
     durationMs: Math.round(performance.now() - start),
@@ -504,6 +507,7 @@ export async function runBuilder(spec: BuilderSpec, options: BuilderOptions = {}
     report: await readReport(worktree),
     container: name,
     ...(usage ? { usage } : {}),
+    ...(lastTurnInputTokens !== undefined ? { lastTurnInputTokens } : {}),
     ...(sessionId ? { sessionId } : {}),
   };
   if (plan === 'collect_and_remove') await runDockerCommand(binary, ['rm', '-f', name], environment);

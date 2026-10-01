@@ -60,7 +60,7 @@ import { automaticCriteriaOf, taskCoversOf } from '../queries/sizes.ts';
 import { projectsDir } from '../repo/repo.ts';
 import { BUILDER_MAX_TIME_MS, type BuildReport, runBuilder } from '../runner/builder.ts';
 import { databaseName, prepareEnvironment, projectSlug, teardownEnvironment } from '../runner/environment.ts';
-import { environmentFromCi } from './environment.ts';
+import { PLAYWRIGHT_CONFIGS, environmentFromCi, startCommandOf, startLine } from './environment.ts';
 import { pullRequestFootprint } from './footprint.ts';
 import { type OwnershipViolation, checkOwnership, ownershipLine } from './ownership.ts';
 import { storeCodeOpinions } from '../classifier/code-rerank.ts';
@@ -79,14 +79,16 @@ import type { Services } from '../services.ts';
 import { checkFixes, diffsByFile } from '../classifier/fix-check.ts';
 import { commitAll, headWithWork, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, ensureManagedFiles, MANAGED_SELECT_E2E, changedOnBranch, changedWithPending, addedOnBranch, deletedOnBranch, numstatBetween, nameStatusBetween, unifiedZeroBetween, showAt, diffBetween, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
 import { existsSync } from 'node:fs';
-import { mkdir, readdir, rm } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { accumulateProgress, commitMessageOf, ownProgress, SCREEN_MAX_BYTES, SCREENS_DIR, sameFileList, screensOf } from './progress.ts';
+import { insistedSignalBefore, insistedTwice, reviewerRepeated } from './insisted.ts';
 import { type BuilderSession, builderSessionPlan, sessionFilesExist } from './session.ts';
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import type { DockerExec } from '../runner/environment.ts';
-import { type TddDetail, loopRunsOf, mergeBuilderResults, tddFeedbackLines, tddSummary, verifyTdd } from './tdd.ts';
+import { type SmokeDetail, type TddDetail, loopRunsOf, mergeBuilderResults, runSmoke, tddFeedbackLines, tddSummary, verifyTdd } from './tdd.ts';
 
 const BUILD = system('build', '1');
 const REVIEW_STATUS = 'demiurgo/review';
@@ -283,7 +285,7 @@ type Feedback = { tdd?: string[]; blocking: string[]; fixes: string[]; failing: 
 
 const NO_FEEDBACK: Feedback = { blocking: [], fixes: [], failing: [], failures: [], design: [], ownership: [], flaky: [], conflicts: [] };
 
-type BuilderStepDetail = { provider?: string; model?: string; session?: { mode: 'fresh' | 'resumed'; id?: string; reason?: string }; failure_kind?: string; exit_code?: number | null; wip_commit?: string; wip_files?: string[]; timed_out_twice?: boolean; progress?: string; tdd?: TddDetail };
+type BuilderStepDetail = { provider?: string; model?: string; session?: { mode: 'fresh' | 'resumed'; id?: string; reason?: string; reason_code?: string }; failure_kind?: string; exit_code?: number | null; wip_commit?: string; wip_files?: string[]; timed_out_twice?: boolean; progress?: string; tdd?: TddDetail };
 
 /** Characters of the builder's progress notes kept and handed to the next attempt (our convention). */
 const PROGRESS_MAX_CHARS = 4000;
@@ -325,10 +327,103 @@ async function previousSessionPlan(s: Services, requestId: string, attempt: numb
   // continue: the plan continues the latest earlier attempt whose session is still on disk (convención nuestra).
   let end = ran.length;
   while (end > 1 && !exists[end - 1] && exists.slice(0, end - 1).some(Boolean)) end--;
+  // An attempt that went round in circles (a commit that changed nothing, the same blocking finding twice) does not continue its session.
+  const insisted = (await insistedSignalBefore(s.db, requestId, attempt).catch(() => null)) !== null;
   return builderSessionPlan(
     ran.slice(0, end).map((x, i) => ({ provider: x.provider, model: x.model, session: x.session, filesExist: i === end - 1 && exists[i] === true })),
     engine,
+    insisted,
   );
+}
+
+/** The notes of every earlier attempt of the request (the latest builder step of each, ok or failed), restored into the worktree as `.demiurgo/progress.md`. */
+async function restoredProgress(s: Services, requestId: string, attempt: number): Promise<string> {
+  if (attempt < 2) return '';
+  const rows = await s.db
+    .selectFrom('build_steps')
+    .select(['attempt', 'detail'])
+    .where('build_request_id', '=', requestId)
+    .where('attempt', '<', attempt)
+    .where('stage', '=', 'builder')
+    .where('outcome', 'in', ['ok', 'failed'])
+    .orderBy('attempt')
+    .orderBy('created_at')
+    .orderBy('id')
+    .execute();
+  const byAttempt = new Map<number, string>();
+  for (const row of rows) {
+    const text = (row.detail as BuilderStepDetail | null)?.progress;
+    if (typeof text === 'string' && text.trim()) byAttempt.set(Number(row.attempt), text);
+  }
+  return accumulateProgress([...byAttempt].map(([n, text]) => ({ attempt: n, text })));
+}
+
+/** The files «Code to extend» showed in the latest earlier builder step that recorded it, or null. */
+async function previousCodeFiles(s: Services, requestId: string, attempt: number): Promise<string[] | null> {
+  if (attempt < 2) return null;
+  const rows = await s.db
+    .selectFrom('build_steps')
+    .select('detail')
+    .where('build_request_id', '=', requestId)
+    .where('attempt', '<', attempt)
+    .where('stage', '=', 'builder')
+    .where('outcome', 'in', ['ok', 'failed'])
+    .orderBy('attempt', 'desc')
+    .orderBy('created_at', 'desc')
+    .orderBy('id', 'desc')
+    .execute();
+  for (const row of rows) {
+    const files = (row.detail as { code_to_extend?: { files?: unknown } } | null)?.code_to_extend?.files;
+    if (Array.isArray(files)) return files.filter((f): f is string => typeof f === 'string');
+  }
+  return null;
+}
+
+/** Copies the screenshots of the screens folder out of the worktree (it is cleared before the commit) and lists them. */
+async function keepScreens(worktree: string, requestId: string, attempt: number): Promise<{ criterion: string; path: string }[]> {
+  try {
+    const found = screensOf(await readdir(join(worktree, SCREENS_DIR)));
+    const root = projectsDir();
+    const out: { criterion: string; path: string }[] = [];
+    for (const { criterion, file } of found) {
+      const from = join(worktree, SCREENS_DIR, file);
+      if ((await stat(from)).size > SCREEN_MAX_BYTES) continue;
+      const relative = join('.screens', requestId, String(attempt), file);
+      if (root) {
+        await mkdir(join(root, dirname(relative)), { recursive: true });
+        await copyFile(from, join(root, relative));
+      }
+      out.push({ criterion, path: relative });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/** The Playwright config and package.json of the worktree, for the start command (environment.ts). */
+async function startFilesOf(worktree: string): Promise<{ playwrightConfig: string | null; packageJson: string | null }> {
+  let playwrightConfig: string | null = null;
+  for (const name of PLAYWRIGHT_CONFIGS) {
+    playwrightConfig = await readWorktreeFile(worktree, name);
+    if (playwrightConfig !== null) break;
+  }
+  return { playwrightConfig, packageJson: await readWorktreeFile(worktree, 'package.json') };
+}
+
+/** The automatic criteria of the project's latest finished task other than this request's (the walking skeleton when it is the first), or []. */
+async function previousMergedCriteria(s: Services, projectId: string, requestId: string): Promise<string[]> {
+  const row = await s.db
+    .selectFrom('build_requests')
+    .select('task_id')
+    .where('project_id', '=', projectId)
+    .where('state', '=', 'done')
+    .where('id', '<>', requestId)
+    .orderBy('done_at', 'desc')
+    .orderBy('id', 'desc')
+    .executeTakeFirst();
+  if (!row) return [];
+  return (await automaticCriteriaOf(s.db, projectId, await taskCoversOf(s.db, row.task_id))).automatic;
 }
 
 /** The progress notes the builder of an attempt left (ok or failed), or undefined. */
@@ -490,7 +585,7 @@ function promptParts(
         "Finish within the time limit by keeping to the task's scope: do only what its criteria ask.",
       );
     }
-    if (progress) lines.push('Progress notes from the previous attempt:', progress.trim());
+    if (progress) lines.push('Progress notes from the previous attempt:', progress.trim(), `(${PROGRESS_PATH} holds the notes of every earlier attempt under "## Attempt N"; add yours under "## Attempt ${attempt}".)`);
     if (f.tdd && f.tdd.length > 0) lines.push(...f.tdd);
     if (history.length > 0) lines.push(...history);
     if (f.conflicts.length > 0) {
@@ -777,7 +872,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
   if (!resume) {
     const environment = await stage(r, 'environment', async () => {
       const ciText = await readWorktreeFile(worktree.path, '.github/workflows/ci.yml');
-      const ci = ciText === null ? null : environmentFromCi(ciText);
+      const ci = ciText === null ? null : environmentFromCi(ciText, await startFilesOf(worktree.path));
       if (!ci) {
         return { value: null, detail: { note: ciText === null ? 'The project has no CI workflow yet: the builder starts without a prepared environment.' : 'The CI workflow has no `ci` job DEMIURGO understands: the builder starts without a prepared environment.' } };
       }
@@ -799,10 +894,27 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
           keepDatabases: open.map((x) => databaseName(x.id)),
           signal: control.signal,
         });
-        if (!result.ok) return { outcome: 'failed' as const, detail: { error: result.reason, failed_step: result.failedStep } };
+        if (!result.ok) return { outcome: 'failed' as const, detail: { error: result.reason, failed_step: result.failedStep, ...(ci.start ? { start_command: ci.start } : {}) } };
+        // Smoke before the builder: the CI's build and the previous merged task's tests must pass on the tree it starts from.
+        // A project failure ends the attempt here; infrastructure trouble is recorded and does not (see `runSmoke`).
+        const smoke: SmokeDetail = await (async () => {
+          // A branch that already carries the builder's work may be red because of it, and that is what the builder is sent back to fix.
+          if (attempt > 1 || info.branch) return { skipped: 'The branch already carries earlier work of this task: the smoke only checks a branch that starts from main.' } as SmokeDetail;
+          try {
+            const codes = await previousMergedCriteria(s0, projectId, requestId);
+            return await runSmoke({ worktreePath: worktree.path, requestId, ciText: ciText as string, codes, prepared: { network: result.network, storeVolume: result.storeVolume, env: result.env }, ...(d.tddExec ? { exec: d.tddExec } : {}), signal: control.signal });
+          } catch (e) {
+            return { ok: true, commands: [], duration_ms: 0, infra_error: messageOf(e) } as SmokeDetail;
+          }
+        })();
+        const smokeDetail = { smoke, ...(ci.start ? { start_command: ci.start } : {}) };
+        if ('ok' in smoke && !smoke.ok) {
+          return { outcome: 'failed' as const, detail: { error: `The tree the builder would start from is already red: ${(smoke.failed ?? []).map((f) => f.reason).join(' | ').slice(0, 800)}`, ...smokeDetail } };
+        }
         return {
           value: { network: result.network, storeVolume: result.storeVolume, env: result.env },
           detail: {
+            ...smokeDetail,
             services: result.services.map((x) => ({ name: x.name, image: x.image, action: x.action })),
             databases: result.databases,
             variables: Object.keys(result.env).sort(),
@@ -871,12 +983,26 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
         return { lines: [], reuse: [] };
       }
     })();
-    const codeLines = [...code.lines, ...(affected ? [affected] : []), ...testLines];
     // The session of this attempt: continued from the previous one or fresh (see `builderSessionPlan`). Its folder is per request and goes with the worktree.
     const sessionDir = join(projectsDir() ?? '', '.sessions', requestId);
     await mkdir(sessionDir, { recursive: true });
     const provider = resolution.provider as 'claude' | 'codex';
     const plan = await previousSessionPlan(s0, requestId, attempt, sessionDir, { provider, model: resolution.model });
+    // A continued session already has «Code to extend» in its conversation: it is sent again only when the file list changed since (Anthropic: a resumed session keeps what it read).
+    const earlierFiles = plan.mode === 'resumed' ? await previousCodeFiles(s0, requestId, attempt) : null;
+    const codeSent = plan.mode !== 'resumed' || earlierFiles === null || !sameFileList(earlierFiles, code.files);
+    const codeLines = [...(codeSent ? code.lines : []), ...(affected ? [affected] : []), ...testLines];
+    // The earlier attempts' notes go back into the worktree under `## Attempt N`, accumulated and not committed; this attempt adds its own.
+    const restored = await restoredProgress(s0, requestId, attempt).catch(() => '');
+    if (restored) {
+      await mkdir(join(worktree.path, '.demiurgo'), { recursive: true });
+      await writeFile(join(worktree.path, PROGRESS_PATH), `${restored}\n`);
+    }
+    // How to run the app, in one line of the brief (environment.ts).
+    const startFiles = await startFilesOf(worktree.path);
+    const ciForStart = await readWorktreeFile(worktree.path, '.github/workflows/ci.yml');
+    const startCmd = (ciForStart === null ? null : environmentFromCi(ciForStart, startFiles)?.start) ?? startCommandOf(startFiles);
+    const briefText = startCmd ? `${info.brief}\n\n${startLine(startCmd)}` : info.brief;
     // Claude takes the id of a new session up front; Codex announces it and the runner reports it back.
     const freshId = plan.mode === 'fresh' && provider === 'claude' ? randomUUID() : undefined;
     const sessionId = plan.mode === 'resumed' ? plan.id : freshId;
@@ -890,7 +1016,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       }
     })();
     const feedback: Feedback = { ...feedbackBase, history: earlierContext.history };
-    const promptArgs = [agent.body, info.brief, attempt, feedback, designSystem, codeLines, plan.mode === 'resumed', earlierContext.fresh] as const;
+    const promptArgs = [agent.body, briefText, attempt, feedback, designSystem, codeLines, plan.mode === 'resumed', earlierContext.fresh] as const;
     const builderPrompt = promptOf(...promptArgs);
     const told = capTold(promptExtras(...promptArgs), TOLD_MAX);
     const tddTold: string[] = [];
@@ -966,7 +1092,9 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     if (prepared) await d.teardownEnvironment(slug, requestId).catch(() => undefined);
     const result = gate ? mergeBuilderResults(first, gate.runs) : first;
     // The progress notes (Anthropic, «Effective harnesses for long-running agents») go to the step and the next attempt's prompt.
-    const progressText = ((await readWorktreeFile(worktree.path, PROGRESS_PATH)) ?? '').trim().slice(0, PROGRESS_MAX_CHARS);
+    const progressText = ownProgress((await readWorktreeFile(worktree.path, PROGRESS_PATH)) ?? '', restored, PROGRESS_MAX_CHARS);
+    // The screenshots the builder left (`.demiurgo/screens/<criterion>.png`) are kept outside the worktree and the commit, listed in the step.
+    const screens = await keepScreens(worktree.path, requestId, attempt);
     // The report and the notes are DEMIURGO's, not the project's: they never enter the commit (nor the WIP one).
     // The managed files DEMIURGO ships (the CI selector) stay: they are part of the work.
     for (const entry of await readdir(join(worktree.path, '.demiurgo')).catch(() => [] as string[])) {
@@ -984,14 +1112,18 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       agent_version: agent.version,
       provider: resolution.provider,
       model: resolution.model,
-      session: { mode: plan.mode, ...(result.sessionId ?? sessionId ? { id: result.sessionId ?? sessionId } : {}), reason: plan.reason },
+      session: { mode: plan.mode, ...(result.sessionId ?? sessionId ? { id: result.sessionId ?? sessionId } : {}), reason: plan.reason, reason_code: plan.reason_code },
       exit_code: result.exitCode,
       ...(result.reattached ? { reattached: true } : {}),
       duration_ms: result.durationMs,
       transcript_tail_length: result.transcriptTail.length,
-      ...(result.usage ? { usage: result.usage } : {}),
+      ...(result.usage || result.lastTurnInputTokens !== undefined ? { usage: { ...(result.usage ?? {}), ...(result.lastTurnInputTokens !== undefined ? { last_turn_input_tokens: result.lastTurnInputTokens } : {}) } } : {}),
       report: result.report,
       ...(progressText ? { progress: progressText } : {}),
+      ...(screens.length > 0 ? { screens } : {}),
+      ...(restored ? { progress_restored_chars: restored.length } : {}),
+      ...(!codeSent ? { code_to_extend_reused: true } : {}),
+      ...(startCmd ? { start_command: startCmd } : {}),
       ...(earlierContext.sections.length > 0 ? { context: earlierContext.sections } : {}),
       ...(testReuse.length > 0 ? { test_reuse: testReuse } : {}),
       ...(code.lines.length > 0 ? { code_to_extend: { commit: code.commit, files: code.files, classifier_id: code.classifier_id, section: codeLines.join('\n') } } : {}),
@@ -1031,7 +1163,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     // The criteria this PR affects, as a trailer so CI runs only their tests on the PR (affected-criteria.ts). Fail safe: none.
     const taskRow = await s0.db.selectFrom('build_requests').select('task_id').where('id', '=', requestId).executeTakeFirst().catch(() => undefined);
     const affected = taskRow ? await loadAffectedCriteria(s0.db, projectId, { id: taskRow.task_id, versionId: info.taskVersionId }, await changedWithPending(worktree.path).catch(() => [])) : null;
-    const fresh = await commitAll(worktree.path, withAffectedTrailer(`${info.taskCode}: ${info.taskTitle}`, affected));
+    const fresh = await commitAll(worktree.path, withAffectedTrailer(commitMessageOf(`${info.taskCode}: ${info.taskTitle}`, report?.summary), affected));
     const sha = fresh ?? (await headWithWork(worktree.path));
     if (!sha) return { outcome: 'failed' as const, detail: { error: 'The builder changed nothing: there is nothing to commit.' } };
     // The files the branch really changes, for the queue planner (it collides running builds by these, not by the prediction).
@@ -1526,9 +1658,26 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       // Escalated: resolving it needs something only a person can provide, so no automatic follow-up.
       const escalated = (opts.escalate ?? 0) > 0;
       // A cheap round (approved with fixes, no new review) always follows up and does not count against the limit.
-      const follow = current && opts.fixable && !escalated && (opts.cheap === true || automatic < d.autoFollowUps);
+      // This attempt insisted again (the reviewer repeated a blocking finding) after one that already started fresh for it:
+      // another round would be the same one, so it is left to the person (convención nuestra, see insisted.ts).
+      const insisting = current && opts.blocking > 0 ? await reviewerRepeated(s0.db, requestId) : false;
+      const builderStep = insisting
+        ? await s0.db
+            .selectFrom('build_steps')
+            .select('detail')
+            .where('build_request_id', '=', requestId)
+            .where('attempt', '=', attempt)
+            .where('stage', '=', 'builder')
+            .where('outcome', '=', 'ok')
+            .orderBy('created_at', 'desc')
+            .orderBy('id', 'desc')
+            .executeTakeFirst()
+        : undefined;
+      const stopInsisted = insistedTwice((builderStep?.detail as BuilderStepDetail | null | undefined)?.session?.reason_code, insisting);
+      const follow = current && opts.fixable && !escalated && !stopInsisted && (opts.cheap === true || automatic < d.autoFollowUps);
       await record(r, 'merge', 'changes_requested', {
         reason,
+        ...(stopInsisted ? { insisted: true, insisted_reason: 'The reviewer repeated a blocking finding after a fresh session that started because of the same repetition: stopping here.' } : {}),
         blocking: opts.blocking,
         ...(opts.extra ?? {}),
         ...(current && opts.fixable && !follow ? { needs_you: true, tried: automatic + 1 } : {}),

@@ -14,7 +14,7 @@ registerHandlers({
         run_id: z.string().uuid(),
         verdict: z.enum(['approve', 'request_changes']),
         summary: z.string().min(1).max(1500),
-        comments: z.array(z.object({ path: z.string(), line: z.number().int().nullable(), severity: z.string(), body: z.string() }).strict()).max(40),
+        comments: z.array(z.object({ path: z.string(), line: z.number().int().nullable(), severity: z.string(), body: z.string(), needs_person: z.boolean().optional() }).strict()).max(40),
         criteria: z.array(z.object({ code: z.string(), test_name: z.string().nullable(), covered: z.boolean(), note: z.string() }).strict()),
       })
       .strict(),

@@ -735,6 +735,9 @@ export const prReviewOutput = z
             line: z.number().int().positive().nullable().describe('The line in the new file, or null for the whole file.'),
             severity: z.enum(['blocking', 'nit', 'question']),
             body: text(1500),
+            needs_person: z
+              .boolean()
+              .describe('True only when resolving this comment needs something only a person can provide: a deployed environment, a manual audit, credentials or access, or a decision about scope or the criterion itself. False for anything the builder can change in code or tests.'),
           })
           .strict(),
       )

@@ -13,6 +13,7 @@ import { jevAllowed } from '../classifier/aspect.ts';
 import { loadRepoContext, projectRepoDir } from '../classifier/repo-context.ts';
 import { existingSymbolsSample, readingOrder, triageReview } from '../classifier/review-triage.ts';
 import type { TriageDeps } from '../classifier/review-triage.ts';
+import { PREVIOUS_REVIEW_CHANGES_MAX, previousReviewInput, truncateChanges } from '../build/previous-review.ts';
 import { loadTaskObject } from '../classifier/task-input.ts';
 
 /** Tests replace Jev's client here; production leaves it unset. */
@@ -127,6 +128,9 @@ registerBuilder('pr_review', async ({ trx, projectId, scope, input, graphVersion
   }));
   const diff = input.diff.length > PR_REVIEW_DIFF_MAX ? `${input.diff.slice(0, PR_REVIEW_DIFF_MAX)}\n[diff truncated: ${input.diff.length - PR_REVIEW_DIFF_MAX} more characters not shown]` : input.diff;
   const ci = ciOf(input.ci);
+  // Incremental re-review: the earlier request_changes review and the changes since its head (ignored when malformed).
+  const previousReview = previousReviewInput(input.previous_review);
+  const sinceChanges = previousReview && typeof input.changes_since_previous_review === 'string' ? truncateChanges(input.changes_since_previous_review, PREVIOUS_REVIEW_CHANGES_MAX) : null;
   // What the builder was told about existing tests that already check something close (build step detail `test_reuse`).
   const reuseHints = await (async () => {
     try {
@@ -190,6 +194,10 @@ registerBuilder('pr_review', async ({ trx, projectId, scope, input, graphVersion
     manifest.entered({ section: 'test_counts', source: inputSource('diff'), text: JSON.stringify(testCounts), reason: 'derived' });
   if (reuseHints.length > 0)
     manifest.entered({ section: 'reuse_hints', source: inputSource('build_steps'), text: JSON.stringify(reuseHints), reason: 'derived' });
+  if (previousReview)
+    manifest.entered({ section: 'previous_review', source: inputSource('previous_review'), text: JSON.stringify(previousReview), reason: 'input' });
+  if (previousReview && sinceChanges !== null)
+    manifest.entered({ section: 'changes_since_previous_review', source: inputSource('changes_since_previous_review'), text: sinceChanges, reason: 'input' });
   manifest.entered({ section: 'ci', source: inputSource('ci'), text: JSON.stringify(ci), reason: 'input' });
   return {
     pack: {
@@ -207,6 +215,8 @@ registerBuilder('pr_review', async ({ trx, projectId, scope, input, graphVersion
         ci,
         ...(criteria.length > 0 ? { test_counts: testCounts } : {}),
         ...(reuseHints.length > 0 ? { reuse_hints: reuseHints } : {}),
+        ...(previousReview ? { previous_review: previousReview } : {}),
+        ...(previousReview && sinceChanges !== null ? { changes_since_previous_review: sinceChanges } : {}),
         ...(hints.length > 0 ? { hints } : {}),
         ...(files.length > 0 && hints.length > 0 ? { files } : {}),
         diff,

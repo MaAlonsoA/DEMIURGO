@@ -67,9 +67,10 @@ import { checkTestGuard, existingTestsLines, readRepoTests, testGuardFeedback } 
 import { affectedTests, affectedTestsLine, buildCodeMap } from './code-map.ts';
 import { decideRecheck } from './recheck.ts';
 import { decideGate } from './gate.ts';
+import { previousReviewOf, truncateChanges } from './previous-review.ts';
 import { isTransientRunError, REVIEW_MAX_RETRIES, REVIEW_RETRY_BACKOFF_MS } from './review-retry.ts';
 import type { Services } from '../services.ts';
-import { commitAll, headWithWork, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, changedOnBranch, changedWithPending, addedOnBranch, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
+import { commitAll, headWithWork, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, changedOnBranch, changedWithPending, addedOnBranch, diffBetween, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
 import { existsSync } from 'node:fs';
 import { mkdir, rm } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
@@ -353,10 +354,10 @@ async function feedbackOf(s: Services, r: Run): Promise<Feedback> {
     .orderBy('created_at', 'desc')
     .orderBy('id', 'desc')
     .executeTakeFirst();
-  const comments = (review?.comments ?? []) as { path: string; line: number | null; severity: string; body: string }[];
+  const comments = (review?.comments ?? []) as { path: string; line: number | null; severity: string; body: string; needs_person?: boolean }[];
   const blocking = comments
     .filter((c) => c.severity === 'blocking')
-    .map((c) => `${c.path}${c.line ? `:${c.line}` : ''}: ${c.body}`);
+    .map((c) => `${c.needs_person === true ? '[needs the person] ' : ''}${c.path}${c.line ? `:${c.line}` : ''}: ${c.body}`);
   const evidence = await s.db
     .selectFrom('build_steps')
     .select('detail')
@@ -967,6 +968,9 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
   // The start is a function so a transient provider failure can request the same review again.
   const startReview = async (): Promise<string> => {
     const diff = await d.github.pullRequestDiff(cfg, owner, repoName, pull.number);
+    // Incremental re-review: the earlier request_changes review and what changed since its head. Best effort.
+    const previous = attempt > 1 ? await previousReviewOf(s0.db, requestId, headSha).catch(() => null) : null;
+    const since = previous ? await diffBetween(worktree.path, previous.head_sha, headSha).then(truncateChanges).catch(() => null) : null;
     let waitedForGraph = 0;
     for (;;) {
       try {
@@ -977,7 +981,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
           data: {
             action: 'pr_review',
             scope: { type: 'build_request', id: requestId },
-            input: { diff, pr_url: pull.url, ci: { parallel: true } },
+            input: { diff, pr_url: pull.url, ci: { parallel: true }, ...(previous ? { previous_review: previous } : {}), ...(since !== null ? { changes_since_previous_review: since } : {}) },
           },
         });
         return run.entityId;
@@ -1005,7 +1009,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
   // The parallel wait. Every poll is a durable step (its result is checkpointed), and waiting is counted, not read from a
   // clock, so after a restart the replay returns the same snapshots and decides the same way; the rows (`ci` and `review`
   // waiting, then their results) are the recorded state. The first rejection ends the attempt.
-  type Verdict = { id: string; verdict: string; summary: string; comments: { path: string; line: number | null; severity: string; body: string }[] };
+  type Verdict = { id: string; verdict: string; summary: string; comments: { path: string; line: number | null; severity: string; body: string; needs_person?: boolean }[] };
   let waited = 0;
   let ciAnnounced = false;
   let rawConclusion: string | null = null;
@@ -1180,7 +1184,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
    * The attempt ends needing changes (the reviewer's verdict, a red CI, a conflict with main). DEMIURGO starts the next
    * attempts itself first (up to `autoFollowUps`) and only then leaves it to the person.
    */
-  const stopForChanges = async (reason: string, opts: { blocking: number; fixable: boolean; extra?: Record<string, unknown> }): Promise<void> => {
+  const stopForChanges = async (reason: string, opts: { blocking: number; fixable: boolean; extra?: Record<string, unknown>; escalate?: number }): Promise<void> => {
     const next = await plain('merge-stop', async () => {
       // The attempts started by DEMIURGO itself since the person's last one (our convention, see autoFollowUps).
       const automatic = await automaticAttempts(s0, requestId);
@@ -1191,12 +1195,15 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
         .executeTakeFirst();
       // Someone (the person) already started a newer attempt: nothing to follow up.
       const current = Number(latest?.attempt ?? attempt) === attempt;
-      const follow = current && opts.fixable && automatic < d.autoFollowUps;
+      // Escalated: resolving it needs something only a person can provide, so no automatic follow-up.
+      const escalated = (opts.escalate ?? 0) > 0;
+      const follow = current && opts.fixable && !escalated && automatic < d.autoFollowUps;
       await record(r, 'merge', 'changes_requested', {
         reason,
         blocking: opts.blocking,
         ...(opts.extra ?? {}),
         ...(current && opts.fixable && !follow ? { needs_you: true, tried: automatic + 1 } : {}),
+        ...(escalated ? { needs_you: true, escalated: 'needs_person', needs_person: opts.escalate } : {}),
         ...(follow ? { next_attempt: attempt + 1 } : {}),
       });
       if (!follow) return null;
@@ -1212,7 +1219,8 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     const blocking = verdict.comments.filter((c) => c.severity === 'blocking').length;
     const ciRed = ciDone && conclusion !== 'success';
     const reason = verdict.verdict === 'approve' ? `CI concluded ${conclusion ?? 'without a result'}.` : 'The reviewer asked for changes.';
-    await stopForChanges(reason, { blocking, fixable: ciRed || blocking > 0 });
+    const needsPerson = verdict.verdict === 'request_changes' ? verdict.comments.filter((c) => c.severity === 'blocking' && c.needs_person === true).length : 0;
+    await stopForChanges(reason, { blocking, fixable: ciRed || blocking > 0, escalate: needsPerson });
     return stop('merge', 'changes_requested');
   }
 

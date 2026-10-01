@@ -490,7 +490,7 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
     return {
       verdict: 'request_changes',
       summary: `No passing test (in the diff and in CI) for ${missing.join(', ')}.`,
-      comments: [{ path: 'tests', line: null, severity: 'blocking', body: `Add an automated test whose title starts with ${missing.join(', ')} and make it pass in CI.` }],
+      comments: [{ path: 'tests', line: null, severity: 'blocking', needs_person: false, body: `Add an automated test whose title starts with ${missing.join(', ')} and make it pass in CI.` }],
       criteria,
       sources: [],
     };

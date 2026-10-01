@@ -146,6 +146,12 @@ export async function diffStat(path: string): Promise<string> {
   return stdout.trim();
 }
 
+/** `git diff <from> <to>`: what changed between two commits; throws when either is not in the worktree. */
+export async function diffBetween(path: string, from: string, to: string): Promise<string> {
+  const { stdout } = await git(path, ['diff', from, to]);
+  return stdout;
+}
+
 /** Tool caches that never belong in a commit (DEMIURGO's own ignore list, our convention). */
 export const EXCLUDED_PATHS = ['.pw-browsers/', '.cache/', 'playwright-report/', 'test-results/', 'node_modules/', '.next/', '*.tsbuildinfo', 'core', 'core.[0-9]*', '*.core', '.demiurgo/'];
 

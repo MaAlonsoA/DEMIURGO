@@ -139,6 +139,39 @@ function simulatedSpecimen(name: string): string {
   return `<style>.c{display:inline-block;margin:4px;padding:6px 10px;border:1px solid #525252;border-radius:4px;font-family:system-ui}.hover{background:#f4f4f4}.focus{outline:2px solid #0f62fe}.pressed{background:#e0e0e0}.disabled{opacity:.5}</style>${cells}`;
 }
 
+/**
+ * The simulated went_wrong item: it matches the vault entry of its class (the simulator's reading of «the signature
+ * fits»), else it describes a new one; when the entry has a fix and the task ran after it, it says why the fix failed.
+ */
+function simulatedWentWrong(c: AnyObject) {
+  const errorClass = 'E01';
+  const vault = list(c.known_errors).map(obj);
+  const match = vault.find((k) => k.error_class === errorClass);
+  const ended = typeof c.task_ended_at === 'string' ? c.task_ended_at : null;
+  const fix = obj(match?.fix);
+  const status = txt(match?.status);
+  const recurs = (status === 'fix_claimed' || status === 'validated') && typeof fix.claimed_at === 'string' && ended !== null && Date.parse(ended) >= Date.parse(fix.claimed_at);
+  return {
+    what: 'A build step failed or the review asked for changes.',
+    evidence: 'build_steps: review changes_requested',
+    phase: 'P10',
+    error_class: errorClass,
+    cost: { attempts: 1 },
+    at: null,
+    known_error: match ? txt(match.code) : null,
+    new_error: match
+      ? null
+      : {
+          title: 'The review asks for changes the criteria could have prevented',
+          description: 'The criterion was not testable as written and nothing checked it before the build.',
+          dimension: 'rules' as const,
+          signature: 'build_steps: stage review ends changes_requested with a blocking comment about a test.',
+          pieces: list(c.catalog).map(obj).some((i) => i.id === 'stage:review') ? ['stage:review'] : [],
+        },
+    recurrence_why: recurs ? 'The simulated fix did not cover the path this task took.' : null,
+  };
+}
+
 export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
   echo(p) {
     const text = txt(obj(obj(p.context.content).input).text);
@@ -496,9 +529,7 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
       outcome: bounced ? 'rework' : 'clean',
       timeline: [{ at: new Date(0).toISOString(), stage: 'design', what: `${task} was designed and approved.` }],
       went_well: [{ what: 'The task was designed with its criteria.', evidence: 'task_versions: n=1 approved' }],
-      went_wrong: bounced
-        ? [{ what: 'A build step failed or the review asked for changes.', evidence: 'build_steps: review changes_requested', phase: 'P10', error_class: 'E01', cost: { attempts: 1 } }]
-        : [],
+      went_wrong: bounced ? [simulatedWentWrong(c)] : [],
       root_causes: bounced
         ? [{ cause: 'The criterion was not testable as written.', dimension: 'rules', where: 'readiness', why: 'Nothing checked that the test could run in CI.', evidence: 'pr_reviews: blocking comment' }]
         : [],
@@ -524,6 +555,32 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
       response: 'Fix the cause named in the forensic and rebuild.',
       examples: codes.slice(0, 20),
       sources: ['convención nuestra'],
+    };
+  },
+
+  // One entry per error class among the items; an item of a class an existing entry has goes to that entry.
+  known_error_curate(p) {
+    const c = obj(p.context.content);
+    const vault = list(c.known_errors).map(obj);
+    const inCatalog = (id: string) => list(c.catalog).map(obj).some((i) => i.id === id);
+    const byClass = new Map<string, { forensic: string; went_wrong_index: number }[]>();
+    for (const g of list(c.groups).map(obj))
+      for (const w of list(g.went_wrong).map(obj)) {
+        const key = txt(w.error_class, 'other');
+        byClass.set(key, [...(byClass.get(key) ?? []), { forensic: txt(g.forensic), went_wrong_index: typeof w.index === 'number' ? w.index : 0 }]);
+      }
+    return {
+      entries: [...byClass.entries()].map(([errorClass, covers]) => ({
+        known_error: vault.find((k) => k.error_class === errorClass)?.code ?? null,
+        title: `Simulated known error ${errorClass}`,
+        description: `The defect behind the class ${errorClass} as seen in ${covers.length} item(s).`,
+        error_class: errorClass,
+        phase: 'P10',
+        dimension: 'rules' as const,
+        signature: `A build step or a review ends with the class ${errorClass}.`,
+        pieces: inCatalog('stage:review') ? ['stage:review'] : [],
+        covers,
+      })),
     };
   },
 

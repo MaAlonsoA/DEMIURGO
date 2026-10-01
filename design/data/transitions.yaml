@@ -391,6 +391,25 @@ entities:
     transitions:
       - { command: forensic_playbook.record, from: new, to: recorded }
 
+  known_error:
+    label: Known error
+    implemented_in: S4
+    states: { open: Open, fix_claimed: Fix claimed, validated: Validated, recurred: Recurred }
+    authority: []
+    transitions:
+      - { command: known_error.open, from: new, to: open }
+      - { command: known_error.claim_fix, from: new, to: fix_claimed }
+      - { command: known_error.validate, from: new, to: validated }
+      - { command: known_error.recur, from: new, to: recurred }
+
+  known_error_occurrence:
+    label: Known error occurrence
+    implemented_in: S4
+    states: { recorded: Recorded }
+    authority: []
+    transitions:
+      - { command: known_error.occurrence, from: new, to: recorded }
+
   issue:
     label: Issue
     implemented_in: S4

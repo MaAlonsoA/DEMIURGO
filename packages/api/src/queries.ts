@@ -71,6 +71,8 @@ import {
   issueDetail,
   taskForensicsOf,
   forensicsOverview,
+  knownErrorsOverview,
+  knownErrorDetail,
 } from '@demiurgo/core';
 import type { Credential } from './credentials.ts';
 
@@ -411,6 +413,22 @@ registerQueries([
     path: '/api/projects/:projectId/observability/forensics.json',
     queryName: 'query.forensics',
     respond: ({ services, params }) => forensicsOverview(services.db, uuid(params.projectId, 'project')),
+  },
+  {
+    // The known-error vault: every defect of DEMIURGO seen in the forensics, its status and how often it came back after its fix.
+    path: '/api/observability/known-errors.json',
+    queryName: 'query.forensics',
+    respond: ({ services, query }) => knownErrorsOverview(services.db, query.status ? { status: query.status } : {}),
+  },
+  {
+    // One known error: every version of its entry and every occurrence, with task codes and projects.
+    path: '/api/observability/known-errors/:code',
+    queryName: 'query.forensics',
+    respond: ({ services, params }) => {
+      const code = params.code ?? '';
+      if (!/^KE-\d{3,}$/.test(code)) throw new DomainError('not_found', 'The known error does not exist.');
+      return knownErrorDetail(services.db, code);
+    },
   },
   {
     // The server-composed build brief of a ready record: what Copy brief copies and a request freezes.

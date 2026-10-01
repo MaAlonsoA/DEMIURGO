@@ -24,6 +24,7 @@ export const AGENT_ACTIONS = [
   'pr_review',
   'task_forensics',
   'playbook_write',
+  'known_error_curate',
 ] as const;
 export type AgentAction = (typeof AGENT_ACTIONS)[number];
 
@@ -786,6 +787,42 @@ const forensicCost = z
   .object({ attempts: z.number().int().nonnegative().optional(), minutes: z.number().nonnegative().optional(), usd: z.number().nonnegative().optional() })
   .strict();
 
+/** The statuses of an entry of the known-error vault (a Known Error Database in the sense of ITIL Problem Management). */
+export const KNOWN_ERROR_STATUSES = ['open', 'fix_claimed', 'validated', 'recurred'] as const;
+export type KnownErrorStatus = (typeof KNOWN_ERROR_STATUSES)[number];
+/** A code of the vault: `KE-001`… (three digits at least). */
+export const KNOWN_ERROR_CODE = /^KE-\d{3,}$/;
+
+/** A new entry of the vault as the agents describe it: what it is and how to recognise it in the evidence. */
+export const newKnownErrorShape = z
+  .object({
+    title: text(160).describe('A short name of the defect of DEMIURGO.'),
+    dimension: z.enum(FORENSIC_DIMENSIONS).describe('Where in the system the defect lives: rules, prompt, context, graph, jev, process, engine, environment or other.'),
+    description: text(800).describe('What the defect is and why it happens: a system cause, never a person.'),
+    signature: text(600).describe('How to recognise it in the evidence of a task: the step, message, rule or pattern that shows it.'),
+    pieces: z.array(text(80)).max(12).describe('Ids of the checklist `catalog` where the defect lives (an empty list when no piece fits).'),
+  })
+  .strict();
+
+const forensicWentWrong = z
+  .object({
+    what: text(600),
+    evidence: forensicEvidence,
+    phase: forensicPhase,
+    error_class: forensicClass,
+    cost: forensicCost,
+    at: z.string().trim().max(40).nullable().describe('ISO timestamp when it happened, as the evidence gives it, or null when it does not say.'),
+    known_error: z.string().regex(KNOWN_ERROR_CODE).nullable().describe('The code of the `known_errors` entry this is an occurrence of, or null when it matches none.'),
+    new_error: newKnownErrorShape.nullable().describe('Required when `known_error` is null: the new defect to record in the vault. Null when `known_error` is set.'),
+    recurrence_why: z
+      .string()
+      .trim()
+      .max(600)
+      .nullable()
+      .describe('Required when it matches a known error whose fix was claimed or validated and the task ran with the fix: why the fix did not prevent it. Null otherwise.'),
+  })
+  .strict();
+
 /** task_forensics: the blameless post-mortem of one task, with a checklist of every piece of DEMIURGO. */
 export const taskForensicsOutput = z
   .object({
@@ -795,9 +832,7 @@ export const taskForensicsOutput = z
       .array(z.object({ at: text(40).describe('ISO timestamp, or the nearest the evidence gives.'), stage: text(60), what: text(400) }).strict())
       .max(60),
     went_well: z.array(z.object({ what: text(600), evidence: forensicEvidence }).strict()).max(30),
-    went_wrong: z
-      .array(z.object({ what: text(600), evidence: forensicEvidence, phase: forensicPhase, error_class: forensicClass, cost: forensicCost }).strict())
-      .max(40),
+    went_wrong: z.array(forensicWentWrong).max(40),
     root_causes: z
       .array(
         z
@@ -858,6 +893,32 @@ export const playbookWriteOutput = z
   })
   .strict();
 
+/** known_error_curate: the vault built from every went_wrong item of a project's earlier forensics, deduplicated. */
+export const knownErrorCurateOutput = z
+  .object({
+    entries: z
+      .array(
+        z
+          .object({
+            known_error: z.string().regex(KNOWN_ERROR_CODE).nullable().describe('An existing code of `known_errors` when the items are more occurrences of it (then the other fields are ignored), else null.'),
+            title: text(160),
+            description: text(800),
+            error_class: forensicClass,
+            phase: forensicPhase,
+            dimension: z.enum(FORENSIC_DIMENSIONS),
+            signature: text(600),
+            pieces: z.array(text(80)).max(12),
+            covers: z
+              .array(z.object({ forensic: text(40).describe('The forensic id exactly as given in `items`.'), went_wrong_index: z.number().int().nonnegative() }).strict())
+              .min(1)
+              .max(200),
+          })
+          .strict(),
+      )
+      .max(120),
+  })
+  .strict();
+
 /** The most findings a coherence review returns, and the longest quote of each side. */
 export const COHERENCE_MAX_FINDINGS = 10;
 export const COHERENCE_QUOTE_MAX = 120;
@@ -904,6 +965,7 @@ export const OUTPUT_SCHEMAS = {
   pr_review: prReviewOutput,
   task_forensics: taskForensicsOutput,
   playbook_write: playbookWriteOutput,
+  known_error_curate: knownErrorCurateOutput,
 } as const satisfies Record<AgentAction, z.ZodType>;
 
 export type ActionOutput<A extends AgentAction> = z.infer<(typeof OUTPUT_SCHEMAS)[A]>;

@@ -38,6 +38,7 @@ describe('agent catalog', () => {
       'designer',
       'echo',
       'epic_planner',
+      'error_vault_curator',
       'explainer',
       'explorer',
       'feature_designer',
@@ -84,6 +85,7 @@ describe('agent catalog', () => {
       pr_review: 'pr_reviewer',
       task_forensics: 'task_forensics',
       playbook_write: 'playbook_writer',
+      known_error_curate: 'error_vault_curator',
     });
     expect(catalog.defaultFor('exploration_chat').id).toBe('explorer');
     for (const [action, id] of Object.entries(DEFAULT_AGENTS)) expect(catalog.get(id)?.action).toBe(action);

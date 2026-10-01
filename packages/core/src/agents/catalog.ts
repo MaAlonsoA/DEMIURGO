@@ -44,6 +44,7 @@ export const DEFAULT_AGENTS: Readonly<Record<AgentAction, string>> = {
   pr_review: 'pr_reviewer',
   task_forensics: 'task_forensics',
   playbook_write: 'playbook_writer',
+  known_error_curate: 'error_vault_curator',
 };
 
 export type LoadedAgent = AgentDefinition & {

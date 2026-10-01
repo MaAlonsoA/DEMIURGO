@@ -1040,6 +1040,46 @@ export const CAPABILITIES = {
       "decisive": false,
       "description": "Record a new version of the playbook of one error class, aggregated from the task forensics; applied by the system from the validated output of a playbook_write run."
     },
+    "known_error.open": {
+      "entity": "known_error",
+      "allowed": [
+        "system"
+      ],
+      "decisive": false,
+      "description": "Open an entry of the known-error vault (a defect of DEMIURGO itself, with how to recognise it); applied by the system from a task forensic or the vault seed."
+    },
+    "known_error.claim_fix": {
+      "entity": "known_error",
+      "allowed": [
+        "system"
+      ],
+      "decisive": false,
+      "description": "Record that a fix for a known error was made (commits, note and the versions of its pieces at that moment); run by the operator through the CLI."
+    },
+    "known_error.validate": {
+      "entity": "known_error",
+      "allowed": [
+        "system"
+      ],
+      "decisive": false,
+      "description": "Mark a known error with a claimed fix as validated after later forensics of tasks that involved its pieces show no occurrence of it."
+    },
+    "known_error.recur": {
+      "entity": "known_error",
+      "allowed": [
+        "system"
+      ],
+      "decisive": false,
+      "description": "Mark a known error as recurred: a task ran with its fix in place and the error happened again."
+    },
+    "known_error.occurrence": {
+      "entity": "known_error_occurrence",
+      "allowed": [
+        "system"
+      ],
+      "decisive": false,
+      "description": "Record one occurrence of a known error in a task forensic, with whether the task ran with the fix in place."
+    },
     "issue.open": {
       "entity": "issue",
       "allowed": [
@@ -2693,6 +2733,54 @@ export const TRANSITIONS = {
       "transitions": [
         {
           "command": "forensic_playbook.record",
+          "from": "new",
+          "to": "recorded"
+        }
+      ]
+    },
+    "known_error": {
+      "label": "Known error",
+      "implemented_in": "S4",
+      "states": {
+        "open": "Open",
+        "fix_claimed": "Fix claimed",
+        "validated": "Validated",
+        "recurred": "Recurred"
+      },
+      "authority": [],
+      "transitions": [
+        {
+          "command": "known_error.open",
+          "from": "new",
+          "to": "open"
+        },
+        {
+          "command": "known_error.claim_fix",
+          "from": "new",
+          "to": "fix_claimed"
+        },
+        {
+          "command": "known_error.validate",
+          "from": "new",
+          "to": "validated"
+        },
+        {
+          "command": "known_error.recur",
+          "from": "new",
+          "to": "recurred"
+        }
+      ]
+    },
+    "known_error_occurrence": {
+      "label": "Known error occurrence",
+      "implemented_in": "S4",
+      "states": {
+        "recorded": "Recorded"
+      },
+      "authority": [],
+      "transitions": [
+        {
+          "command": "known_error.occurrence",
           "from": "new",
           "to": "recorded"
         }

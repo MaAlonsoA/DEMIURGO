@@ -846,6 +846,10 @@ export type TaskForensicsTable = {
   catalog_version: string;
   agent_version: string;
   engine: Json;
+  /** When the task's activity ended (its last build step, else its task version): decides if it ran with a fix. */
+  task_ended_at: Timestamp | null;
+  /** The build request whose end triggered the analysis, when it was automatic. */
+  trigger_request_id: string | null;
   created_at: Generated<Timestamp>;
 };
 
@@ -858,6 +862,40 @@ export type ForensicPlaybooksTable = {
   entry: Json;
   based_on: Generated<string[]>;
   ai_run_id: string;
+  created_at: Generated<Timestamp>;
+};
+
+/** One version of an entry of the known-error vault (append-only; the latest version of a code wins; global to the instance). */
+export type KnownErrorsTable = {
+  id: Generated<string>;
+  code: string;
+  version: number;
+  title: string;
+  description: string;
+  error_class: string;
+  phase: string;
+  dimension: string;
+  signature: string;
+  pieces: Generated<string[]>;
+  status: string;
+  fix: NullableJson;
+  origin_project_id: string;
+  created_by: string;
+  created_at: Generated<Timestamp>;
+};
+
+/** One time a known error showed up in a task forensic (append-only). */
+export type KnownErrorOccurrencesTable = {
+  id: Generated<string>;
+  ke_code: string;
+  project_id: string;
+  task_id: string;
+  forensic_id: string;
+  went_wrong_index: number;
+  occurred_at: Timestamp;
+  piece_versions: ColumnType<unknown, string | undefined, string>;
+  after_fix: boolean;
+  recurrence_why: string | null;
   created_at: Generated<Timestamp>;
 };
 
@@ -964,6 +1002,8 @@ export type DB = {
   pr_reviews: PrReviewsTable;
   task_forensics: TaskForensicsTable;
   forensic_playbooks: ForensicPlaybooksTable;
+  known_errors: KnownErrorsTable;
+  known_error_occurrences: KnownErrorOccurrencesTable;
   build_steps: BuildStepsTable;
   issues: IssuesTable;
   test_runs: TestRunsTable;

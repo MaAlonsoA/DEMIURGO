@@ -13,6 +13,7 @@ import './builds.ts';
 import './build-steps.ts';
 import './pr-reviews.ts';
 import './forensics.ts';
+import './known-errors.ts';
 import './issues.ts';
 import './harness.ts';
 import './planned.ts';

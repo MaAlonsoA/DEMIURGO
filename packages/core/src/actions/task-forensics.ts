@@ -4,12 +4,15 @@
 // The forensic must answer a checklist with exactly one entry per piece of DEMIURGO (forensics/catalog.ts): a
 // missing or unknown piece makes the output invalid and the run retries through the checker.
 
-import { DomainError, system } from '@demiurgo/domain';
+import { type Actor, DomainError, system } from '@demiurgo/domain';
+import type { Request, Result } from '../bus/types.ts';
+import type { Tx } from '../db/connection.ts';
 import { registerBuilder } from '../context/build.ts';
 import { ManifestBuilder, inputSource } from '../context/manifest.ts';
 import { type CatalogItem, catalogMarks, catalogVersion, loadPieceCatalog } from '../forensics/catalog.ts';
 import { EVIDENCE_CAPS, buildTaskEvidence, type EvidenceSection } from '../forensics/evidence.ts';
 import { classesOf, latestForensics, latestPlaybooks } from '../forensics/store.ts';
+import { type CompactKnownError, compactKnownErrors, dueValidations, latestKnownError, latestKnownErrors, needsRecurrenceWhy, occurredAtOf, taskEndedAt } from '../forensics/vault.ts';
 import { registerApplier, registerChecker } from './appliers.ts';
 import { packContentOf } from './drafting.ts';
 
@@ -17,7 +20,12 @@ const FORENSICS = 'task_forensics@1';
 const PLAYBOOK = 'playbook_write@1';
 const PLAYBOOK_MAX = 80_000;
 // Each evidence section has the budget of its cap (plus the few characters of the cut note); the catalog its own.
-const BUDGET: Record<string, number> = { ...Object.fromEntries(Object.entries(EVIDENCE_CAPS).map(([name, cap]) => [`evidence.${name}`, cap + 100])), catalog: 60_000 };
+const KNOWN_ERRORS_CAP = 30_000;
+const BUDGET: Record<string, number> = {
+  ...Object.fromEntries(Object.entries(EVIDENCE_CAPS).map(([name, cap]) => [`evidence.${name}`, cap + 100])),
+  catalog: 60_000,
+  known_errors: KNOWN_ERRORS_CAP + 100,
+};
 
 type ForensicsPack = {
   task: { id: string; code: string; title: string | null };
@@ -28,9 +36,16 @@ type ForensicsPack = {
   catalog_version: string;
   catalog: Pick<CatalogItem, 'id' | 'kind' | 'name' | 'phases' | 'what_it_does'>[];
   catalog_marks: Record<string, string>;
+  /** The latest version of each entry of the known-error vault: what a went_wrong item may be matched against. */
+  known_errors: CompactKnownError[];
+  known_errors_omitted: number;
+  /** When the task's activity ended: a went_wrong item without its own time is taken to have happened then. */
+  task_ended_at: string | null;
+  /** The build request whose end triggered this analysis (the sweeper), when it did. */
+  trigger_request_id: string | null;
 };
 
-registerBuilder('task_forensics', async ({ trx, projectId, scope, graphVersion }) => {
+registerBuilder('task_forensics', async ({ trx, projectId, scope, input, graphVersion }) => {
   if (scope.type !== 'task' || !scope.id) throw new DomainError('validation', 'A forensic needs the task: scope {type: "task", id}.');
   const manifest = new ManifestBuilder(FORENSICS, graphVersion, BUDGET);
   const bundle = await buildTaskEvidence(trx, projectId, scope.id).catch((e: unknown) => {
@@ -44,6 +59,10 @@ registerBuilder('task_forensics', async ({ trx, projectId, scope, graphVersion }
   for (const s of bundle.sections)
     manifest.entered({ section: `evidence.${s.name}`, source: inputSource('evidence'), text: s.text, originalChars: s.text.length + s.omitted_chars, reason: s.omitted_chars > 0 ? 'excerpt' : 'derived' });
   manifest.entered({ section: 'catalog', source: inputSource('catalog'), text: JSON.stringify(catalog), reason: 'derived' });
+  const vault = compactKnownErrors(await latestKnownErrors(trx), KNOWN_ERRORS_CAP);
+  manifest.entered({ section: 'known_errors', source: inputSource('known_errors'), text: JSON.stringify(vault.entries), reason: vault.omitted > 0 ? 'excerpt' : 'derived' });
+  const ended = await taskEndedAt(trx, bundle.task_version_id, bundle.request_ids);
+  const trigger = typeof input.trigger_request_id === 'string' && bundle.request_ids.includes(input.trigger_request_id) ? input.trigger_request_id : null;
   const content: ForensicsPack = {
     task: bundle.task,
     task_version_id: bundle.task_version_id,
@@ -53,6 +72,10 @@ registerBuilder('task_forensics', async ({ trx, projectId, scope, graphVersion }
     catalog_version: catalogVersion(items),
     catalog,
     catalog_marks: catalogMarks(items),
+    known_errors: vault.entries,
+    known_errors_omitted: vault.omitted,
+    task_ended_at: ended ? ended.toISOString() : null,
+    trigger_request_id: trigger,
   };
   return {
     pack: {
@@ -81,15 +104,34 @@ registerChecker('task_forensics', async ({ db, run, output }) => {
   for (const c of output.checklist)
     if (known.has(c.piece_id) && c.involved === 'yes' && c.verdict !== 'worked' && c.verdict !== 'not_applicable' && c.evidence.trim() === '')
       notes.push(`${c.piece_id}: a verdict of ${c.verdict} needs the evidence you rely on (a step, a comment, a version, a finding).`);
+  // The vault: a went_wrong item is an occurrence of a known error, or a new one to record.
+  const vault = new Map((pack.known_errors ?? []).map((k) => [k.code, k]));
+  for (const [i, w] of output.went_wrong.entries()) {
+    const at = `went_wrong[${i}]`;
+    if (w.known_error) {
+      const ke = vault.get(w.known_error);
+      if (!ke) {
+        notes.push(`${at}: \`known_error\` ${w.known_error} is not in \`known_errors\`${vault.size > 0 ? ` (use one of ${[...vault.keys()].slice(0, 40).join(', ')})` : ' (the vault is empty)'}. Use null with \`new_error\` when it matches none.`);
+        continue;
+      }
+      if (w.new_error) notes.push(`${at}: it matches ${ke.code}, so \`new_error\` must be null.`);
+      if (needsRecurrenceWhy(ke, occurredAtOf(w.at, pack.task_ended_at, new Date())) && !w.recurrence_why?.trim())
+        notes.push(`${at}: ${ke.code} has a ${ke.status === 'validated' ? 'validated' : 'claimed'} fix (${ke.fix?.description ?? ''}) and this task ran with it in place: \`recurrence_why\` must explain why the fix did not prevent it.`);
+    } else {
+      if (!w.new_error) notes.push(`${at}: set \`known_error\` to the code it matches, or null with \`new_error\` (title, description, signature, pieces).`);
+      else for (const p of w.new_error.pieces) if (!known.has(p)) notes.push(`${at}: \`new_error.pieces\` has "${p}", which is not an id of \`catalog\`.`);
+    }
+  }
   return notes;
 });
 
 registerApplier('task_forensics', async ({ trx, execute, run, output }) => {
   const pack = await packContentOf<ForensicsPack>(trx, run);
-  await execute({
+  const actor = system('task-forensics', '1');
+  const recorded = await execute({
     projectId: run.project_id,
     command: 'task_forensics.record',
-    actor: system('task-forensics', '1'),
+    actor,
     data: {
       task_id: pack.task.id,
       task_version_id: pack.task_version_id,
@@ -100,9 +142,41 @@ registerApplier('task_forensics', async ({ trx, execute, run, output }) => {
       catalog_version: pack.catalog_version,
       agent_version: run.method.split('@')[1] ?? run.method,
       engine: { provider: run.provider, model: run.model ?? run.requested_model, effort: run.effort, ...(run.engine ? { mark: run.engine } : {}) },
+      task_ended_at: pack.task_ended_at ?? null,
+      trigger_request_id: pack.trigger_request_id ?? null,
     },
   });
+  // The vault: each went_wrong item becomes an occurrence of an entry (a new one when none matched); a task that ran with a
+  // claimed fix in place and hit the error again marks the entry as recurred.
+  for (const [i, w] of output.went_wrong.entries()) {
+    let code = w.known_error;
+    if (!code && w.new_error) {
+      const opened = await execute({ projectId: run.project_id, command: 'known_error.open', actor, data: { ...w.new_error, error_class: w.error_class, phase: w.phase } });
+      code = (opened.result as { code: string }).code;
+    }
+    if (code) await recordOccurrence(execute, run.project_id, actor, { code, forensicId: recorded.entityId, index: i, why: w.recurrence_why?.trim() || null });
+  }
+  await validateDueFixes(trx, execute, run.project_id, actor);
 });
+
+type Execute = (p: Request) => Promise<Result>;
+
+/** Records one occurrence of an entry; when the task ran with the entry's fix in place the entry becomes `recurred`. */
+export async function recordOccurrence(execute: Execute, projectId: string, actor: Actor, o: { code: string; forensicId: string; index: number; why: string | null }): Promise<void> {
+  const r = await execute({ projectId, command: 'known_error.occurrence', actor, data: { code: o.code, forensic_id: o.forensicId, went_wrong_index: o.index, recurrence_why: o.why } });
+  if ((r.result as { recurs: boolean }).recurs) await execute({ projectId, command: 'known_error.recur', actor, data: { code: o.code, forensic_id: o.forensicId } });
+}
+
+/** Every claimed fix with enough clean forensics becomes validated (our convention, `VALIDATION_CLEAN_FORENSICS`). */
+export async function validateDueFixes(trx: Tx, execute: Execute, projectId: string, actor: Actor): Promise<string[]> {
+  const validated: string[] = [];
+  for (const due of await dueValidations(trx)) {
+    if (!(await latestKnownError(trx, due.code))) continue;
+    await execute({ projectId, command: 'known_error.validate', actor, data: due });
+    validated.push(due.code);
+  }
+  return validated;
+}
 
 // ---------------------------------------------------------------------------------------------------- playbooks
 

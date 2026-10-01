@@ -4,7 +4,7 @@
 
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { readConfig, consoleLogger } from '@demiurgo/core';
+import { readConfig, consoleLogger, enableAutoForensics } from '@demiurgo/core';
 import { createDevTools } from './dev-tools.ts';
 import { startRuntime } from './runtime.ts';
 import { createServer } from './server.ts';
@@ -12,6 +12,8 @@ import { createServer } from './server.ts';
 const config = readConfig();
 // The web build (pnpm --filter @demiurgo/web build) is served from the same origin when it exists.
 const webRoot = fileURLToPath(new URL('../../web/dist', import.meta.url));
+// The server (not the CLI) runs the automatic task forensics when a build request ends.
+enableAutoForensics();
 const runtime = await startRuntime(config, consoleLogger);
 const app = await createServer({
   services: runtime.services,

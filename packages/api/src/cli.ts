@@ -19,6 +19,9 @@
 //   node packages/api/src/cli.ts harness recompute [--project <id>] [--request <id>]   (computes the harness post-mortems of ended builds; idempotent)
 //   node packages/api/src/cli.ts forensics run --project <id> (--task TSK-… | --all) [--force]   (blameless post-mortem of each task by the forensics agent, serially; skips a task whose latest forensic has the same evidence hash; spends quota)
 //   node packages/api/src/cli.ts forensics playbooks --project <id> [--force]   (one playbook_write per error class seen in the latest forensics; spends quota)
+//   node packages/api/src/cli.ts vault list [--status open|fix_claimed|validated|recurred]   (the known-error vault, latest version of each entry, as JSON: read-only)
+//   node packages/api/src/cli.ts vault fix KE-001 --commits sha1,sha2 --note "…"   (records the fix of a known error, with the versions its pieces have now: status fix_claimed)
+//   node packages/api/src/cli.ts vault seed --project <id>   (builds the vault from the project's existing forensics with the error_vault_curator agent; spends quota)
 //   node packages/api/src/cli.ts own-files-backfill --project <projectId>   (records, from git, the files each attempt's commit changed on its own where the commit step lacks own_files)
 //   node packages/api/src/cli.ts build-footprint-backfill --project <projectId>   (records the merge commit and files of merged tasks that lack them; needs GitHub env)
 //   node packages/api/src/cli.ts code-map --project <projectId> [--query "text"] [--ref main] [--budget 6000]   (prints the ranked code map of the project's repository; read-only)
@@ -86,6 +89,9 @@ import {
   BRIEF_MAP_CHARS,
   runForensics,
   runPlaybooks,
+  knownErrorsOverview,
+  vaultFix,
+  vaultSeed,
   readDrain,
   setDrain,
   clearDrain,
@@ -698,6 +704,60 @@ commands.forensics = async () => {
   } finally {
     await core.stop();
   }
+};
+
+commands.vault = async () => {
+  const [sub, ...rest] = args;
+  const flag = (name: string) => {
+    const i = rest.indexOf(name);
+    return i >= 0 ? rest[i + 1] : undefined;
+  };
+  const usage = 'Usage: vault list [--status <status>] | vault fix KE-xxx --commits sha1,sha2 --note "…" | vault seed --project <id>';
+  if (sub === 'list') {
+    await withDatabase(async (c) => {
+      const status = flag('--status');
+      console.log(JSON.stringify(await knownErrorsOverview(c.db, status ? { status } : {})));
+    });
+    return;
+  }
+  if (sub === 'fix') {
+    const code = rest[0];
+    const commits = (flag('--commits') ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+    const note = flag('--note');
+    if (!code || !/^KE-\d{3,}$/.test(code) || commits.length === 0 || !note?.trim()) throw new Error(usage);
+    // Recording a fix calls no model: the bus runs over the database with an inert engine.
+    await withDatabase(async (c) => {
+      const services = {
+        db: c.db,
+        clock: () => new Date(),
+        providers: createProviders(config),
+        classifierFor: () => Promise.reject(new Error('Recording a fix classifies nothing.')),
+        agentSessionsDir: config.agentSessionsDir,
+        engine: inertEngine(),
+        logger: cliLogger,
+        observer: createObserver(config.observe, cliLogger),
+      };
+      console.log(JSON.stringify(await vaultFix(services, code, { commits, note: note.trim() })));
+      await services.observer.flush(5000);
+    });
+    return;
+  }
+  if (sub === 'seed') {
+    const projectId = flag('--project');
+    if (!projectId) throw new Error(usage);
+    const core = await startCore(config, cliLogger);
+    try {
+      const actor = system('cli');
+      await interaction(core.services.observer, actor, projectId, async () => {
+        console.log(JSON.stringify(await vaultSeed(core.services, projectId)));
+      });
+      await core.services.observer.flush(5000);
+    } finally {
+      await core.stop();
+    }
+    return;
+  }
+  throw new Error(usage);
 };
 
 commands['build-footprint-backfill'] = async () => {

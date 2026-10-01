@@ -321,14 +321,16 @@ const row = (code: string, catalog_version: string, a: ForensicRow['analysis'], 
   analysis: a,
 });
 
+const noVault = { at: null, known_error: null, new_error: null, recurrence_why: null };
+
 describe('overviewOf', () => {
   const improvement = (priority: 'high' | 'medium' | 'low', target: string, cls = 'E01') => ({ change: `change ${target}`, dimension: 'rules' as const, target, expected_effect: 'x', source: 'convención nuestra', priority, playbook_class: cls });
   const check = (piece_id: string, verdict: 'worked' | 'contributed_to_error' | 'could_have_prevented' | 'missing' | 'not_applicable') => ({ piece_id, involved: 'yes' as const, verdict, note: 'n', evidence: 'e' });
 
   it('counts the checklist verdicts only across the newest catalog, ranks improvements by frequency times priority and counts by class and dimension', () => {
     const rows = [
-      row('TSK-A-001', 'new', analysis({ went_wrong: [{ what: 'w', evidence: 'e', phase: 'P10', error_class: 'E01', cost: { attempts: 2, minutes: 10 } }], root_causes: [{ cause: 'c', dimension: 'jev', where: 'jev:testability', why: 'y', evidence: 'e' }], improvements: [improvement('high', 'piece:B04'), improvement('low', 'piece:B08', 'E08')], checklist: [check('piece:B04', 'could_have_prevented'), check('piece:B08', 'worked')] }), 2000),
-      row('TSK-B-001', 'new', analysis({ went_wrong: [{ what: 'w', evidence: 'e', phase: 'P10', error_class: 'E01', cost: { attempts: 1, usd: 1.5 } }], improvements: [improvement('medium', 'Piece:B04')], checklist: [check('piece:B04', 'contributed_to_error'), check('piece:B08', 'worked')] }), 3000),
+      row('TSK-A-001', 'new', analysis({ went_wrong: [{ what: 'w', evidence: 'e', phase: 'P10', error_class: 'E01', cost: { attempts: 2, minutes: 10 }, ...noVault }], root_causes: [{ cause: 'c', dimension: 'jev', where: 'jev:testability', why: 'y', evidence: 'e' }], improvements: [improvement('high', 'piece:B04'), improvement('low', 'piece:B08', 'E08')], checklist: [check('piece:B04', 'could_have_prevented'), check('piece:B08', 'worked')] }), 2000),
+      row('TSK-B-001', 'new', analysis({ went_wrong: [{ what: 'w', evidence: 'e', phase: 'P10', error_class: 'E01', cost: { attempts: 1, usd: 1.5 }, ...noVault }], improvements: [improvement('medium', 'Piece:B04')], checklist: [check('piece:B04', 'contributed_to_error'), check('piece:B08', 'worked')] }), 3000),
       row('TSK-C-001', 'old', analysis({ checklist: [check('piece:B04', 'missing')] }), 1000),
     ];
     const o = overviewOf(rows, []);

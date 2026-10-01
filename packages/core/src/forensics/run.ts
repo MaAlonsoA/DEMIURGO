@@ -22,11 +22,11 @@ export type TaskResult = {
 const WAIT_FOR_KNOWLEDGE_MS = 10 * 60_000;
 
 /** `run.request` as the system; while the project's knowledge updates it waits (the guard is a 409 for a non-person). */
-async function requestRun(services: Services, projectId: string, data: Record<string, unknown>, waitMs = WAIT_FOR_KNOWLEDGE_MS): Promise<string> {
+export async function requestRun(services: Services, projectId: string, data: Record<string, unknown>, waitMs = WAIT_FOR_KNOWLEDGE_MS, actorName = 'cli'): Promise<string> {
   const started = Date.now();
   for (;;) {
     try {
-      const r = await executeCommand(services, { command: 'run.request', actor: system('cli'), projectId, data });
+      const r = await executeCommand(services, { command: 'run.request', actor: system(actorName), projectId, data });
       return r.entityId;
     } catch (e) {
       const waiting = isDomainError(e) && e.type === 'guard' && /knowledge is not up to date/i.test([e.message, ...e.reasons].join(' '));
@@ -36,7 +36,7 @@ async function requestRun(services: Services, projectId: string, data: Record<st
   }
 }
 
-const refusal = (e: unknown): string | null => (isDomainError(e) && e.type === 'guard' ? [e.message, ...e.reasons].join(' ') : null);
+export const refusal = (e: unknown): string | null => (isDomainError(e) && e.type === 'guard' ? [e.message, ...e.reasons].join(' ') : null);
 
 /** The tasks of the project (records of type task), by code; one when `code` is given. */
 export async function forensicTasks(services: Services, projectId: string, code?: string): Promise<{ id: string; code: string }[]> {
@@ -48,7 +48,12 @@ export async function forensicTasks(services: Services, projectId: string, code?
 }
 
 /** The forensic of one task: skipped when its latest has the same evidence and checklist (unless `force`), else a run that is waited for. */
-export async function runTaskForensic(services: Services, projectId: string, task: { id: string; code: string }, opts: { force?: boolean } = {}): Promise<TaskResult> {
+export async function runTaskForensic(
+  services: Services,
+  projectId: string,
+  task: { id: string; code: string },
+  opts: { force?: boolean; /** The build request whose end triggered it (the sweeper); stored with the forensic. */ triggerRequestId?: string; actor?: string } = {},
+): Promise<TaskResult> {
   const { db } = services;
   const bundle = await buildTaskEvidence(db, projectId, task.id);
   if (!opts.force) {
@@ -58,7 +63,13 @@ export async function runTaskForensic(services: Services, projectId: string, tas
   }
   let runId: string;
   try {
-    runId = await requestRun(services, projectId, { action: 'task_forensics', scope: { type: 'task', id: task.id }, input: {} });
+    runId = await requestRun(
+      services,
+      projectId,
+      { action: 'task_forensics', scope: { type: 'task', id: task.id }, input: opts.triggerRequestId ? { trigger_request_id: opts.triggerRequestId } : {} },
+      WAIT_FOR_KNOWLEDGE_MS,
+      opts.actor ?? 'cli',
+    );
   } catch (e) {
     const why = refusal(e);
     if (why) return { code: task.code, status: 'refused', reason: why };

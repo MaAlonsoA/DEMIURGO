@@ -10,3 +10,4 @@ import './design-system-plan.ts';
 import './screen-design.ts';
 import './pr-review.ts';
 import './task-forensics.ts';
+import './known-error-curate.ts';

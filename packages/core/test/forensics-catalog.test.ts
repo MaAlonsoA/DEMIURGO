@@ -33,6 +33,7 @@ describe('forensics piece catalog', () => {
     for (const a of catalog.agents) expect(have).toContain(`agent:${a.id}`);
     expect(have).toContain('agent:task_forensics');
     expect(have).toContain('agent:playbook_writer');
+    expect(have).toContain('agent:error_vault_curator');
   });
 
   it('has every harness piece B01–B27 and D01–D12', async () => {
@@ -80,6 +81,7 @@ describe('forensics piece catalog', () => {
     const { BUILDERS } = await import('../src/context/build.ts');
     for (const action of Object.keys(BUILDERS)) expect(have).toContain(`context:${action}`);
     expect(have).toContain('context:task_forensics');
+    expect(have).toContain('context:known_error_curate');
     expect(have).toContain('readiness:ready_to_build');
     const { ESCAPE_RULES } = await import('../src/harness/rules/escapes/index.ts');
     for (const code of Object.keys(ESCAPE_RULES)) expect(have).toContain(`escape:${code}`);

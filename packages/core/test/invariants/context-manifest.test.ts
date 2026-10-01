@@ -189,6 +189,8 @@ beforeAll(async () => {
     })
     .execute();
   cases.playbook_write = { scope: { type: 'project', id: projectId }, input: { class_key: 'E01' } };
+  // The vault seed reads the same stored forensic: its one went_wrong item has no occurrence yet.
+  cases.known_error_curate = { scope: { type: 'project', id: projectId }, input: {} };
   cases.pr_review = {
     scope: { type: 'build_request', id: buildRequest.id },
     input: {

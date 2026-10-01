@@ -20,6 +20,8 @@ registerHandlers({
         catalog_version: z.string().min(1),
         agent_version: z.string().min(1),
         engine,
+        task_ended_at: z.string().datetime().nullable().default(null),
+        trigger_request_id: z.string().uuid().nullable().default(null),
       })
       .strict(),
     async apply(ctx, data) {
@@ -38,6 +40,8 @@ registerHandlers({
           catalog_version: data.catalog_version,
           agent_version: data.agent_version,
           engine: JSON.stringify(data.engine),
+          task_ended_at: data.task_ended_at as never,
+          trigger_request_id: data.trigger_request_id,
         })
         .returning('id')
         .executeTakeFirstOrThrow();
@@ -45,6 +49,7 @@ registerHandlers({
         entityId: id,
         after: {
           task: task.code,
+          ...(data.trigger_request_id ? { trigger_request: data.trigger_request_id } : {}),
           run: data.ai_run_id,
           outcome: data.analysis.outcome,
           evidence_hash: data.evidence_hash,

@@ -464,6 +464,12 @@ function AutoQueue({ projectId, auto, t }: { projectId: string; auto: NonNullabl
   const s = auto.stopped;
   const waitingSchema = auto.schema_waiting && auto.schema_waiting.length > 0 ? ` ${t.autoSchemaWaiting(auto.schema_waiting)}` : "";
   const waitingTestability = auto.testability_waiting && auto.testability_waiting.length > 0 ? ` ${t.autoTestabilityWaiting(auto.testability_waiting)}` : "";
+  const waitingStopped =
+    auto.stopped_waiting && auto.stopped_waiting.length > 0
+      ? ` ${t.autoStoppedWaiting(auto.stopped_waiting.map((x) => ({ code: x.code, reason: t.autoStoppedReason(x.kind, x.tried) })))}`
+      : "";
+  // Nothing starts although tasks wait: say so instead of «nothing ready» (the waiting reasons follow).
+  const anyWaiting = Boolean(waitingStopped || waitingSchema || waitingTestability || (auto.module_waiting && auto.module_waiting.length > 0));
   const base = !auto.on
     ? null
     : s
@@ -479,11 +485,13 @@ function AutoQueue({ projectId, auto, t }: { projectId: string; auto: NonNullabl
             ? t.autoStale(s.code)
             : t.autoManual(s.code)
       : auto.builds.length
-        ? t.autoBuilding(auto.builds, auto.next)
+        ? `${t.autoBuilding(auto.builds, auto.next)}${!auto.next && anyWaiting ? ` ${t.autoNothingStarts}` : ""}`
         : auto.next
           ? t.autoNext(auto.next)
-          : t.autoIdle;
-  const status = base !== null && !s ? `${base}${waitingSchema}${waitingTestability}` : base;
+          : anyWaiting
+            ? t.autoNothingStarts
+            : t.autoIdle;
+  const status = base !== null && !s ? `${base}${waitingSchema}${waitingTestability}${waitingStopped}` : base;
   return (
     <section className="flex flex-col gap-2" data-auto-queue data-auto-on={auto.on ? "true" : "false"}>
       <Checkbox

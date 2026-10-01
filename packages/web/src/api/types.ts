@@ -1425,7 +1425,15 @@ export type BuildQueue = {
     building: string | null;
     /** Every task being built now. */
     builds: string[];
+    /** The first task the plan would start now; null when nothing can start. */
     next: string | null;
+    /** Ready tasks that wait for the person; the queue skips them and goes on. */
+    stopped_waiting?: {
+      code: string;
+      kind: 'needs_you' | 'ended' | 'stale' | 'manual_review' | 'waiting' | 'main_red';
+      tried: number | null;
+      failure_kind?: string | null;
+    }[];
     /** Ready tasks waiting because they change the database schema while another such task builds. */
     schema_waiting?: string[];
     /** Ready tasks waiting because they share a hotspot file or a table, route, page or server action with a task being built. */

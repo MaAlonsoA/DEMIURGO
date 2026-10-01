@@ -4,7 +4,8 @@
 import { describe, expect, it } from 'vitest';
 import { enrichModuleWaiting, moduleKindOf, selectStarts, sharedItem } from '../src/build/auto.ts';
 import { assemble, type CodeFile } from '../src/build/code-map.ts';
-import { hotspotCounts, isHotspot, isHotspotCandidate } from '../src/build/hotspots.ts';
+import { hotspotCounts, isBarrelSource, isHotspot, isHotspotCandidate, looksLikeBarrelPath } from '../src/build/hotspots.ts';
+import { strongFiles } from '../src/build/predicted-files.ts';
 import type { QueueTask } from '../src/build/queue.ts';
 import type { TaskDependencyIndex } from '../src/queries/task-deps.ts';
 
@@ -127,5 +128,87 @@ describe('enrichModuleWaiting', () => {
     expect(r[2]?.kind).toBe('server_action');
     expect(moduleKindOf('route:/api/x')).toBe('route');
     expect(moduleKindOf('page:/')).toBe('page');
+  });
+});
+
+describe('a stopped task no longer stops the line', () => {
+  it('skips it, records it and starts the next task', async () => {
+    const ready = [task('TSK-1', 'F1'), task('TSK-2', 'F2')];
+    const r = await selectStarts({
+      ready,
+      running: [],
+      limit: 3,
+      index,
+      featureOf: (c) => ready.find((t) => t.code === c)?.feature?.code ?? null,
+      stateOf: async (t) =>
+        t.code === 'TSK-1' ? { kind: 'stopped', stopped: { code: 'TSK-1', kind: 'needs_you', tried: 3 } } : { kind: 'start', hasRequest: false },
+      schema: new Map(),
+    });
+    expect(r.start.map((s) => s.code)).toEqual(['TSK-2']);
+    expect(r.stoppedWaiting).toEqual([{ code: 'TSK-1', kind: 'needs_you', tried: 3 }]);
+    expect(r.stopped).toBeNull();
+  });
+
+  it('reports it as stopped only when nothing can run', async () => {
+    const ready = [task('TSK-1', 'F1')];
+    const r = await selectStarts({
+      ready,
+      running: [],
+      limit: 3,
+      index,
+      featureOf: () => null,
+      stateOf: async () => ({ kind: 'stopped', stopped: { code: 'TSK-1', kind: 'ended', tried: null } }),
+      schema: new Map(),
+    });
+    expect(r.start).toEqual([]);
+    expect(r.stopped).toEqual({ code: 'TSK-1', kind: 'ended', tried: null });
+  });
+});
+
+describe('collisions only on strong evidence', () => {
+  it('a low-p prediction is dropped, so it cannot block; p >= 0.5 and files named by the task stay', async () => {
+    const strong = strongFiles(
+      [
+        { path: 'lib/a.ts', jev_p: 0.2 },
+        { path: 'lib/b.ts', jev_p: 0.5 },
+        { path: 'lib/c.ts', jev_p: null },
+      ],
+      'Change lib/d.ts to show the total',
+      ['lib/a.ts', 'lib/b.ts', 'lib/c.ts', 'lib/d.ts'],
+    );
+    expect(strong.sort()).toEqual(['lib/b.ts', 'lib/d.ts']);
+    // Unknown (no evidence) means no collision.
+    const r = await select([task('TSK-2', 'F2')], ['TSK-1'], { 'TSK-1': ['lib/a.ts'], 'TSK-2': strongFiles([{ path: 'lib/a.ts', jev_p: 0.2 }], '', ['lib/a.ts']) }, ['lib/a.ts']);
+    expect(r.start.map((s) => s.code)).toEqual(['TSK-2']);
+  });
+
+  it('files a running build really committed still block', async () => {
+    const r = await select([task('TSK-2', 'F2')], ['TSK-1'], { 'TSK-1': ['lib/a.ts'], 'TSK-2': ['lib/a.ts'] }, ['lib/a.ts']);
+    expect(r.moduleWaiting).toEqual([{ code: 'TSK-2', item: 'lib/a.ts', with: 'TSK-1' }]);
+  });
+});
+
+describe('barrels are not hotspots', () => {
+  it('recognises a file made only of re-exports', () => {
+    expect(isBarrelSource("// components\nexport * from './a';\nexport { B, type C } from './b.tsx';\n/* x */\nexport type * from \"./t\";\n")).toBe(true);
+    expect(isBarrelSource("export {\n  A,\n  B,\n} from './ab';\n")).toBe(true);
+    expect(isBarrelSource("export * from './a';\nexport const x = 1;\n")).toBe(false);
+    expect(isBarrelSource("import { a } from './a';\nexport { a };\n")).toBe(false);
+    expect(isBarrelSource('// only a comment\n')).toBe(false);
+  });
+
+  it('the path heuristic is a fallback for index files under src', () => {
+    expect(looksLikeBarrelPath('src/design-system/index.ts')).toBe(true);
+    expect(looksLikeBarrelPath('src/design-system/button.ts')).toBe(false);
+    expect(looksLikeBarrelPath('lib/index.ts')).toBe(false);
+  });
+
+  it('a barrel shared by two tasks does not block once excluded (the planner removes it from the predictions and hotspots)', async () => {
+    const barrel = 'src/design-system/index.ts';
+    const exclude = (files: string[]) => files.filter((f) => f !== barrel);
+    const r = await select([task('TSK-2', 'F2')], ['TSK-1'], { 'TSK-1': exclude([barrel, 'lib/a.ts']), 'TSK-2': exclude([barrel, 'lib/b.ts']) }, []);
+    expect(r.start.map((s) => s.code)).toEqual(['TSK-2']);
+    const blocked = await select([task('TSK-2', 'F2')], ['TSK-1'], { 'TSK-1': [barrel], 'TSK-2': [barrel] }, [barrel]);
+    expect(blocked.moduleWaiting).toHaveLength(1);
   });
 });

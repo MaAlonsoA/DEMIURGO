@@ -328,6 +328,9 @@ export const CONFLICT = messages(
     builtMerged: (pr: number | null) => (pr ? `merged PR #${pr}` : 'merged'),
     builtOpen: (pr: number | null) => (pr ? `PR #${pr} open` : 'PR open'),
     fullRecords: 'Full records',
+    olderWord: 'Older',
+    newerWord: 'Newer',
+    sidesLabel: 'The two records',
     updateLabel: (record: string) => `Update ${record}`,
     updateHint: (record: string, change: string) =>
       `Update ${record}: opens a thread to bring it in line with ${change}. Nothing changes until a new version is proposed and you approve it.`,
@@ -352,6 +355,9 @@ export const CONFLICT = messages(
     builtMerged: (pr: number | null) => (pr ? `PR #${pr} fusionada` : 'fusionada'),
     builtOpen: (pr: number | null) => (pr ? `PR #${pr} abierta` : 'PR abierta'),
     fullRecords: 'Registros completos',
+    olderWord: 'Más antiguo',
+    newerWord: 'Más reciente',
+    sidesLabel: 'Los dos registros',
     updateLabel: (record: string) => `Actualizar ${record}`,
     updateHint: (record: string, change: string) =>
       `Actualizar ${record}: abre un hilo para ponerlo de acuerdo con ${change}. Nada cambia hasta que se proponga una versión nueva y tú la apruebes.`,

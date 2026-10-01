@@ -135,7 +135,7 @@ export function DetailFrame({
   item: NeedItem;
   ctx: NeedContext;
   titleId: string;
-  title: string;
+  title: ReactNode;
   code?: string | undefined;
   /** The state badge. */
   state?: ReactNode;

@@ -165,6 +165,8 @@ export function ProposalDecision({
 
   if (!canAccept && !canChange && !canReject) return null;
 
+  // With hints, each button carries its consequence right under it (two columns, one per button).
+  const paired = !!hints && !canApprove && !canChange && !isBlocked && (canAccept || canReject);
   const saidOnAccept = p.type === 'review' ? t.reviewOpened : APPROVABLE_TYPES.has(p.type) ? t.acceptedAsDraft : t.accepted;
 
   return (
@@ -182,7 +184,7 @@ export function ProposalDecision({
             </div>
           ) : isBlocked && canAccept ? (
             <p>{t.blockedCaption}</p>
-          ) : hints ? (
+          ) : hints && !paired ? (
             <ul className="flex flex-col gap-0.5">
               {canAccept && hints.accept ? <li>{hints.accept}</li> : null}
               {canReject && hints.reject ? <li>{hints.reject}</li> : null}
@@ -190,12 +192,36 @@ export function ProposalDecision({
           ) : null
         }
       >
-        {canAccept && !isBlocked ? (
+        {paired ? (
+          <div className="grid w-full items-start gap-x-6 gap-y-4 sm:grid-cols-2">
+            {canAccept ? (
+              <div className="flex flex-col items-start gap-1.5">
+                <Button variant="primary" data-command="proposal.accept" onClick={() => open('accept')}>
+                  {acceptLabel}
+                </Button>
+                {hints?.accept ? <p className="max-w-prose text-sm text-fg-2">{hints.accept}</p> : null}
+              </div>
+            ) : null}
+            {canReject ? (
+              <div className="flex flex-col items-start gap-1.5">
+                <Button
+                  variant={p.type === 'review' ? 'secondary' : 'quiet-danger'}
+                  data-command="proposal.reject"
+                  onClick={() => open('reject')}
+                >
+                  {rejectLabel}
+                </Button>
+                {hints?.reject ? <p className="max-w-prose text-sm text-fg-2">{hints.reject}</p> : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        {!paired && canAccept && !isBlocked ? (
           <Button variant="primary" data-command="proposal.accept" onClick={() => open('accept')}>
             {acceptLabel}
           </Button>
         ) : null}
-        {canAccept && isBlocked ? (
+        {!paired && canAccept && isBlocked ? (
           <Button variant="primary" data-command="proposal.accept" aria-disabled="true" data-blocked onClick={() => {}}>
             {acceptLabel}
           </Button>
@@ -214,7 +240,7 @@ export function ProposalDecision({
             {t.change}
           </Button>
         ) : null}
-        {canReject ? (
+        {!paired && canReject ? (
           <Button
             variant={p.type === 'review' ? 'secondary' : 'quiet-danger'}
             data-command="proposal.reject"

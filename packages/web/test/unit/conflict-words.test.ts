@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildFact, changeCodeOf, olderFirst, prNumberOf, quotesOf, sentencesOf, surenessOf } from '../../src/screens/needs-you/conflict.ts';
+import { agesKnown, buildFact, changeCodeOf, olderFirst, prLinkOf, prNumberOf, quotesOf, sentencesOf, splitInlineCode, splitOnCodes, surenessOf } from '../../src/screens/needs-you/conflict.ts';
 import { conflictTitle } from '../../src/screens/needs-you/titles.ts';
 import type { NeedItem } from '../../src/screens/needs-you/order.ts';
 import type { ProductRow } from '../../src/api/types.ts';
@@ -40,5 +40,31 @@ describe('conflict in plain words', () => {
     expect(changeCodeOf(review, rows)).toBe('TSK-MEA-040');
     const item = { kind: 'conflict', proposal: { payload: review } } as unknown as Extract<NeedItem, { kind: 'conflict' }>;
     expect(conflictTitle(item, rows)).toBe('TSK-MEA-040 vs TSK-MEA-038: Daily plan');
+  });
+  it('shows `backticks` as code and never as raw markdown', () => {
+    expect(splitInlineCode('run `playwright test` now')).toEqual([
+      { code: false, text: 'run ' },
+      { code: true, text: 'playwright test' },
+      { code: false, text: ' now' },
+    ]);
+    expect(splitInlineCode('no code, a ` lone tick')).toEqual([{ code: false, text: 'no code, a ` lone tick' }]);
+  });
+  it('cuts the heading around record codes so each is a link', () => {
+    expect(splitOnCodes('TSK-MEA-040 says something different from TSK-MEA-038', ['TSK-MEA-040', 'TSK-MEA-038'])).toEqual([
+      { code: 'TSK-MEA-040', text: 'TSK-MEA-040' },
+      { code: null, text: ' says something different from ' },
+      { code: 'TSK-MEA-038', text: 'TSK-MEA-038' },
+    ]);
+    expect(splitOnCodes('plain', [''])).toEqual([{ code: null, text: 'plain' }]);
+  });
+  it('says older and newer only when both times are known and differ', () => {
+    expect(agesKnown({ when: '2026-10-01T10:00:00Z' }, { when: '2026-09-30T10:00:00Z' })).toBe(true);
+    expect(agesKnown({ when: '2026-10-01T10:00:00Z' }, { when: '2026-10-01T10:00:00Z' })).toBe(false);
+    expect(agesKnown({ when: null }, { when: '2026-10-01T10:00:00Z' })).toBe(false);
+  });
+  it('links a pull request only with a real http(s) URL', () => {
+    expect(prLinkOf('https://github.com/o/r/pull/30')).toBe('https://github.com/o/r/pull/30');
+    expect(prLinkOf('javascript:alert(1)')).toBeNull();
+    expect(prLinkOf(null)).toBeNull();
   });
 });

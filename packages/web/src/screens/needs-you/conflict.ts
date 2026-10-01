@@ -76,3 +76,34 @@ export function changeCodeOf(review: ConflictReview, rows: readonly ProductRow[]
   if (review.other?.code) return review.other.code;
   return (review.change?.id ? rowOfVersion(rows, review.change.id)?.code : undefined) ?? null;
 }
+
+/** A sentence cut at its `inline code` spans (backticks), so the page can show them as code and not as raw markdown. */
+export function splitInlineCode(text: string): { code: boolean; text: string }[] {
+  return text
+    .split(/(`[^`\n]+`)/)
+    .filter((x) => x !== '')
+    .map((x) => (x.length > 2 && x.startsWith('`') && x.endsWith('`') ? { code: true, text: x.slice(1, -1) } : { code: false, text: x }));
+}
+
+/** A text cut around the given record codes, so each code can be a link; the other pieces stay as text. */
+export function splitOnCodes(text: string, codes: readonly string[]): { code: string | null; text: string }[] {
+  const known = codes.filter((c) => c !== '');
+  if (known.length === 0) return [{ code: null, text }];
+  const escaped = known.map((c) => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  return text
+    .split(new RegExp(`(${escaped.join('|')})`))
+    .filter((x) => x !== '')
+    .map((x) => (known.includes(x) ? { code: x, text: x } : { code: null, text: x }));
+}
+
+/** Whether both sides have a known, different time: only then is «older» and «newer» true. */
+export function agesKnown(a: { when: string | null }, b: { when: string | null }): boolean {
+  const ta = a.when ? Date.parse(a.when) : NaN;
+  const tb = b.when ? Date.parse(b.when) : NaN;
+  return !Number.isNaN(ta) && !Number.isNaN(tb) && ta !== tb;
+}
+
+/** The pull request page of a build, only when the URL is a real http(s) one. */
+export function prLinkOf(url: string | null | undefined): string | null {
+  return url && /^https?:\/\//.test(url) ? url : null;
+}

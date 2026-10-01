@@ -5,22 +5,37 @@
 // «Keep both as they are» rejects it (INV-NEED-12, INV-CATCH-05).
 
 import { useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { recordQuery } from '../../api/queries.ts';
 import type { RecordDetail, RecordVersion } from '../../api/types.ts';
 import { Code } from '../../components/Badge.tsx';
 import { Markdown } from '../../components/Markdown.tsx';
 import { Bone } from '../../components/Spinner.tsx';
 import { DayTime } from '../../components/Time.tsx';
+import { cn } from '../../lib/cn.ts';
 import { useMessages } from '../../i18n/define.ts';
 import { rowOf } from '../batch/model.ts';
-import { BlockedNotice, Disclosure } from '../batch/parts.tsx';
+import { BlockedNotice, Disclosure, linkClass } from '../batch/parts.tsx';
 import { ProposalDecision } from '../batch/ProposalActions.tsx';
-import { buildFact, type ConflictReview, changeCodeOf, conflictNature, olderFirst, sentencesOf, surenessOf } from './conflict.ts';
+import {
+  agesKnown,
+  buildFact,
+  type ConflictReview,
+  changeCodeOf,
+  conflictNature,
+  olderFirst,
+  prLinkOf,
+  sentencesOf,
+  splitInlineCode,
+  splitOnCodes,
+  surenessOf,
+} from './conflict.ts';
 import type { DetailProps } from './Detail.tsx';
 import { DetailFrame } from './frame.tsx';
 import { CONFLICT, TITLES } from './words.i18n.ts';
 
-type Loaded = { code: string; version: number | null; quote: string | null; detail?: RecordDetail | undefined; v?: RecordVersion | undefined };
+type Loaded = {
+  projectId?: string; code: string; version: number | null; quote: string | null; detail?: RecordDetail | undefined; v?: RecordVersion | undefined };
 
 export function Conflict({ item, ctx, titleId, top }: DetailProps<'conflict'> & { title: string }) {
   const t = useMessages(CONFLICT);
@@ -56,9 +71,14 @@ export function Conflict({ item, ctx, titleId, top }: DetailProps<'conflict'> & 
   };
   for (const s of [a, b]) s.when = s.v ? (s.v.approved_at ?? s.v.created_at) : null;
   const sides = changeCode ? olderFirst(a, b) : [a];
-  const title = changeCode
-    ? t.headline(changeCode, code, same)
-    : `${record?.title ?? code} ${titleWords.verdictWord(String(review.verdict))}`;
+  const known = !!changeCode && agesKnown(a, b);
+  const title = changeCode ? (
+    splitOnCodes(t.headline(changeCode, code, same), [changeCode, code]).map((part, i) =>
+      part.code ? <RecordLink key={i} projectId={ctx.projectId} code={part.code} version={null} /> : <span key={i}>{part.text}</span>,
+    )
+  ) : (
+    `${record?.title ?? code} ${titleWords.verdictWord(String(review.verdict))}`
+  );
   return (
     <DetailFrame
       item={item}
@@ -84,11 +104,16 @@ export function Conflict({ item, ctx, titleId, top }: DetailProps<'conflict'> & 
         </>
       }
     >
-      <div className="grid items-start gap-6 lg:grid-cols-2">
-        {sides.map((s) => (
-          <Side key={s.code} side={s} />
+      <section aria-label={t.sidesLabel} className="grid items-start gap-6 lg:grid-cols-2 lg:gap-0">
+        {sides.map((s, i) => (
+          <Side
+            key={s.code}
+            side={{ ...s, projectId: ctx.projectId }}
+            age={known ? (i === 0 ? t.olderWord : t.newerWord) : null}
+            className={i === 1 ? 'lg:border-l lg:border-edge lg:pl-6' : 'lg:pr-6'}
+          />
         ))}
-      </div>
+      </section>
       {!changeCode ? <p className="text-sm text-fg-2">{t.changeGone}</p> : null}
       {coherence ? <p className="text-sm text-fg-2">{t.fromCoherence(review.epic ?? '')}</p> : null}
       {sure !== null && changeCode ? <p className="text-base text-fg">{t.sure(sure, same)}</p> : null}
@@ -98,7 +123,7 @@ export function Conflict({ item, ctx, titleId, top }: DetailProps<'conflict'> & 
       <Disclosure label={t.fullRecords}>
         <div className="grid items-start gap-6 lg:grid-cols-2">
           {sides.map((s) => (
-            <FullRecord key={s.code} side={s} />
+            <FullRecord key={s.code} side={{ ...s, projectId: ctx.projectId }} />
           ))}
         </div>
       </Disclosure>
@@ -109,31 +134,72 @@ export function Conflict({ item, ctx, titleId, top }: DetailProps<'conflict'> & 
 const textOf = (v: RecordVersion): string =>
   v.sections.find((s) => s.title === 'Decision')?.content ?? v.sections.find((s) => s.content.trim())?.content ?? '';
 
-/** One side: code + version, when it was approved (and the build state of a task), and its exact sentence. */
-function Side({ side }: { side: Loaded }) {
+/** A record as a link to its page (and version when given): its code, or its title and code. */
+function RecordLink({ projectId, code, version, title }: { projectId: string; code: string; version: number | null; title?: string }) {
+  return (
+    <Link
+      to="/p/$projectId/records/$code"
+      params={{ projectId, code }}
+      search={version ? { v: version } : {}}
+      className={cn(linkClass, 'break-words')}
+    >
+      {title ? `${title} ` : null}
+      <span className="font-code text-sm whitespace-nowrap">{code}</span>
+    </Link>
+  );
+}
+
+/** One side: its title and code as a link, when it was approved (and the build state of a task), and its exact sentence. */
+function Side({ side, age, className }: { side: Loaded; age: string | null; className?: string }) {
   const t = useMessages(CONFLICT);
-  const { detail, v } = side;
+  const { detail, v, projectId = '' } = side;
   if (!detail || !v) {
     return (
-      <div className="flex min-w-0 flex-col gap-2">
+      <div className={cn('flex min-w-0 flex-col gap-2', className)}>
         <Code>{side.code}</Code>
         <Bone className="h-12 w-full" />
       </div>
     );
   }
   const build = buildFact(detail.build?.state, detail.build?.pr_url);
+  const prUrl = prLinkOf(detail.build?.pr_url);
+  const buildText = build ? (build.kind === 'merged' ? t.builtMerged(build.pr) : t.builtOpen(build.pr)) : null;
   return (
-    <figure className="m-0 flex min-w-0 flex-col gap-2" data-side={side.code}>
+    <figure className={cn('m-0 flex min-w-0 flex-col gap-2', className)} data-side={side.code}>
+      {age ? <p className="text-xs text-fg-2">{age}</p> : null}
+      <h3 className="text-base font-semibold text-fg">
+        <RecordLink projectId={projectId} code={detail.code} version={v.n} title={v.title} />
+      </h3>
       <figcaption className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1 text-sm text-fg-2">
-        <Code className="whitespace-nowrap">{`${detail.code} v${v.n}`}</Code>
         <span>
-          · {v.approved_at ? t.approvedWord : t.draftedWord} <DayTime iso={v.approved_at ?? v.created_at} />
+          v{v.n} · {v.approved_at ? t.approvedWord : t.draftedWord} <DayTime iso={v.approved_at ?? v.created_at} />
         </span>
-        {build ? <span>· {build.kind === 'merged' ? t.builtMerged(build.pr) : t.builtOpen(build.pr)}</span> : null}
+        {buildText ? (
+          <span>
+            ·{' '}
+            {prUrl ? (
+              <a href={prUrl} target="_blank" rel="noreferrer" className={linkClass}>
+                {buildText}
+              </a>
+            ) : (
+              buildText
+            )}
+          </span>
+        ) : null}
       </figcaption>
       {side.quote ? (
         <blockquote className="m-0 max-w-prose border-l-2 border-edge-strong pl-3 text-base text-fg" data-quote>
-          “{side.quote}”
+          “
+          {splitInlineCode(side.quote).map((part, i) =>
+            part.code ? (
+              <code key={i} className="font-code text-sm">
+                {part.text}
+              </code>
+            ) : (
+              <span key={i}>{part.text}</span>
+            ),
+          )}
+          ”
         </blockquote>
       ) : (
         <Markdown size="sm" className="line-clamp-4">
@@ -146,12 +212,12 @@ function Side({ side }: { side: Loaded }) {
 
 /** The whole record, for those who want more than the sentence. */
 function FullRecord({ side }: { side: Loaded }) {
-  const { detail, v } = side;
+  const { detail, v, projectId = '' } = side;
   if (!detail || !v) return <Bone className="h-12 w-full" />;
   return (
     <div className="flex min-w-0 flex-col gap-1">
       <p className="font-medium text-fg">
-        {v.title} <Code className="whitespace-nowrap">{`${detail.code} v${v.n}`}</Code>
+        <RecordLink projectId={projectId} code={detail.code} version={v.n} title={v.title} />
       </p>
       <Markdown size="sm">{textOf(v)}</Markdown>
     </div>

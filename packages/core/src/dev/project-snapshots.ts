@@ -14,7 +14,9 @@ import { type Client, escapeIdentifier, escapeLiteral } from 'pg';
 import { z } from 'zod';
 import { connect } from '../db/connection.ts';
 import { migrate } from '../db/migrator.ts';
+import { type GithubConfig, githubConfig, runGit } from '../github/client.ts';
 import { projectsDir } from '../repo/repo.ts';
+import { rewindGithub, rewindRefusal } from './github-rewind.ts';
 import { MAX_NAME, SNAPSHOT_PREFIX, type SnapshotTarget, snapshotName, urlWith, withClient } from './snapshots.ts';
 
 export const PROJECT_SNAPSHOT_PREFIX = 'dmg_psnap_';
@@ -31,6 +33,9 @@ const OPEN_BUILD_STATES = ['requested', 'in_review'];
 const gitState = z.object({ repo_dir: z.string(), head: z.string() });
 export type ProjectGitState = z.infer<typeof gitState>;
 
+const githubState = z.object({ owner: z.string(), repo: z.string(), main: z.string() });
+export type ProjectGithubState = z.infer<typeof githubState>;
+
 const metadata = z.object({
   label: z.string(),
   created_at: z.string(),
@@ -38,6 +43,8 @@ const metadata = z.object({
   migration: z.string().nullable(),
   project: z.object({ id: z.string(), name: z.string(), events: z.number() }),
   git: gitState.nullable(),
+  /** Optional so snapshots saved before the GitHub rewind stay readable. */
+  github: githubState.nullable().optional(),
 });
 type Metadata = z.infer<typeof metadata>;
 
@@ -205,6 +212,30 @@ export async function projectGitState(repoDir: string | null): Promise<ProjectGi
   }
 }
 
+/**
+ * The project's GitHub repository and the sha of origin/main at save time. Refreshes origin/main with the
+ * authenticated git environment when it can; if the fetch fails (no network, no credentials) the local ref is used as is.
+ */
+export async function projectGithubState(t: SnapshotTarget, projectId: string, repoDir: string | null): Promise<ProjectGithubState | null> {
+  const { rows } = await withClient(t.databaseUrl, (c) =>
+    c.query<{ owner: string; repo: string }>('select owner, repo from project_github where project_id = $1', [projectId]),
+  );
+  const link = rows[0];
+  if (!link || !repoDir || !existsSync(repoDir)) return null;
+  const url = `https://github.com/${link.owner}/${link.repo}.git`;
+  try {
+    if (githubConfig()) await runGit(repoDir, ['fetch', url, '+refs/heads/main:refs/remotes/origin/main'], { network: true });
+  } catch {
+    // Keep whatever origin/main the checkout already has.
+  }
+  try {
+    const main = (await runGit(repoDir, ['rev-parse', '--verify', 'origin/main'])).trim();
+    return main ? { owner: link.owner, repo: link.repo, main } : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Saves one project. `git` undefined: computed from the project's checkout; null: the snapshot carries none. */
 export async function saveProjectSnapshot(
   t: SnapshotTarget,
@@ -212,10 +243,13 @@ export async function saveProjectSnapshot(
   label: string,
   git?: ProjectGitState | null,
   at: Date = new Date(),
+  github?: ProjectGithubState | null,
 ): Promise<ProjectSnapshot> {
   const tidy = label.trim() || 'snapshot';
   const name = snapshotName(prefixOf(t), tidy, at);
-  const gitInfo = git === undefined ? await projectGitState(await projectRepoDir(t, projectId)) : git;
+  const repoDir = git === undefined || github === undefined ? await projectRepoDir(t, projectId) : null;
+  const gitInfo = git === undefined ? await projectGitState(repoDir) : git;
+  const githubInfo = github === undefined ? await projectGithubState(t, projectId, repoDir) : github;
   const snapUrl = urlWith(t.databaseUrl, name);
   await withClient(t.adminUrl, async (admin) => {
     try {
@@ -249,6 +283,7 @@ export async function saveProjectSnapshot(
               migration: migration.rows[0]?.version ?? null,
               project: { id: projectId, name: p.name, events: Number(p.events) },
               git: gitInfo,
+              github: githubInfo,
             };
             await admin.query(`comment on database ${id(name)} is ${escapeLiteral(JSON.stringify(meta))}`);
           } catch (e) {
@@ -315,9 +350,8 @@ async function requireNoWorkInProgress(c: Client, projectId: string): Promise<vo
   }
 }
 
-async function restoreGit(snapshot: ProjectSnapshot): Promise<string> {
+async function restoreGit(snapshot: ProjectSnapshot, tail = ' GitHub itself is not rewound.'): Promise<string> {
   const g = snapshot.git;
-  const tail = ' GitHub itself is not rewound.';
   if (!g) return `The snapshot has no local repository: the folder was left alone.${tail}`;
   if (!existsSync(g.repo_dir)) return `The checkout ${g.repo_dir} no longer exists: nothing was done locally.${tail}`;
   try {
@@ -331,9 +365,27 @@ async function restoreGit(snapshot: ProjectSnapshot): Promise<string> {
 }
 
 /** Puts one project back as it was in the snapshot; the other projects are untouched. */
-export async function restoreProjectSnapshot(t: SnapshotTarget, ref: string): Promise<RestoreResult> {
+export async function restoreProjectSnapshot(
+  t: SnapshotTarget,
+  ref: string,
+  opts: { rewindGithub?: boolean; githubCfg?: GithubConfig | null } = {},
+): Promise<RestoreResult> {
   const snapshot = await findProjectSnapshot(t, ref);
   const projectId = snapshot.project.id;
+  const cfg = opts.githubCfg === undefined ? githubConfig() : opts.githubCfg;
+  if (opts.rewindGithub) {
+    // Refused before anything changes: the live link decides (the restore brings back the snapshot's own).
+    const { rows } = await withClient(t.databaseUrl, (c) =>
+      c.query<{ owner: string; repo: string; protection: string }>(
+        'select owner, repo, protection from project_github where project_id = $1',
+        [projectId],
+      ),
+    );
+    const refusal =
+      rewindRefusal(snapshot.github, rows[0] ?? null, cfg) ??
+      (snapshot.git && existsSync(snapshot.git.repo_dir) ? null : 'The snapshot has no local checkout to push GitHub main from.');
+    if (refusal) throw new DomainError('conflict', refusal);
+  }
   const tmp = `${prefixOf(t)}tmp_${randomBytes(4).toString('hex')}`;
   await withClient(t.adminUrl, async (admin) => {
     await createWithTemplate(admin, tmp, snapshot.name);
@@ -361,6 +413,17 @@ export async function restoreProjectSnapshot(t: SnapshotTarget, ref: string): Pr
       await admin.query(`drop database if exists ${id(tmp)} with (force)`);
     }
   });
+  if (opts.rewindGithub && snapshot.github && snapshot.git && cfg) {
+    const local = await restoreGit(snapshot, '');
+    const remote = await rewindGithub({
+      repoDir: snapshot.git.repo_dir,
+      snap: snapshot.github,
+      since: snapshot.created_at,
+      label: snapshot.label,
+      cfg,
+    });
+    return { restored: snapshot, git: `${local} ${remote}`.trim() };
+  }
   return { restored: snapshot, git: await restoreGit(snapshot) };
 }
 

@@ -24,7 +24,7 @@ import {
 import { keys, projectsQuery, sessionQuery } from '../api/queries.ts';
 import { Button } from '../components/Button.tsx';
 import { ConfirmDialog, Dialog } from '../components/Dialog.tsx';
-import { Field, TextInput } from '../components/Field.tsx';
+import { Checkbox, Field, TextInput } from '../components/Field.tsx';
 import { ErrorNotice, Notice } from '../components/Notice.tsx';
 import { RowsSkeleton, Spinner } from '../components/Spinner.tsx';
 import { useMessages } from '../i18n/define.ts';
@@ -209,7 +209,7 @@ function Panel() {
 
 type ProjectAction =
   | { kind: 'save'; label: string }
-  | { kind: 'restore'; snapshot: ProjectSnapshot }
+  | { kind: 'restore'; snapshot: ProjectSnapshot; rewindGithub: boolean }
   | { kind: 'drop'; snapshot: ProjectSnapshot }
   | { kind: 'delete' };
 
@@ -230,7 +230,7 @@ function ProjectSection({ projectId, disabled, onBusy }: { projectId: string; di
   const action = useMutation({
     mutationFn: (a: ProjectAction): Promise<unknown> => {
       if (a.kind === 'save') return saveProjectSnapshot(projectId, a.label);
-      if (a.kind === 'restore') return restoreProjectSnapshot(a.snapshot.name);
+      if (a.kind === 'restore') return restoreProjectSnapshot(a.snapshot.name, a.rewindGithub);
       if (a.kind === 'drop') return dropProjectSnapshot(a.snapshot.name);
       return deleteProject(projectId);
     },
@@ -323,7 +323,7 @@ function ProjectSection({ projectId, disabled, onBusy }: { projectId: string; di
                   {dayTime(s.created_at, undefined, locale)} · {t.events(s.project.events)} · {sizeOf(s.size_bytes)}
                 </span>
               </div>
-              <Button size="sm" disabled={busy || disabled} onClick={() => setConfirm({ kind: 'restore', snapshot: s })}>
+              <Button size="sm" disabled={busy || disabled} onClick={() => setConfirm({ kind: 'restore', snapshot: s, rewindGithub: false })}>
                 {t.restore}
               </Button>
               <Button
@@ -372,6 +372,17 @@ function ProjectSection({ projectId, disabled, onBusy }: { projectId: string; di
           <Field label={t.typeName}>
             {(p) => <TextInput {...p} value={typed} autoComplete="off" onChange={(e) => setTyped(e.target.value)} />}
           </Field>
+        ) : null}
+        {confirm?.kind === 'restore' ? (
+          <div className="flex flex-col gap-1">
+            <Checkbox
+              label={t.rewindGithub}
+              checked={confirm.rewindGithub}
+              disabled={busy || !confirm.snapshot.github}
+              onChange={(v) => setConfirm({ ...confirm, rewindGithub: v })}
+            />
+            {!confirm.snapshot.github ? <p className="text-sm text-fg-2">{t.rewindGithubNone}</p> : null}
+          </div>
         ) : null}
       </ConfirmDialog>
     </section>

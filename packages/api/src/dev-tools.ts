@@ -40,7 +40,7 @@ export type DevTools = {
   /** Per-project snapshots: the core keeps running, nothing restarts. */
   listProject(projectId: string): Promise<ProjectSnapshot[]>;
   saveProject(projectId: string, label: string): Promise<ProjectSnapshot>;
-  restoreProject(ref: string): Promise<RestoreResult>;
+  restoreProject(ref: string, opts?: { rewindGithub?: boolean }): Promise<RestoreResult>;
   dropProject(ref: string): Promise<ProjectSnapshot>;
   deleteProject(projectId: string): Promise<number>;
 };
@@ -61,7 +61,7 @@ export function createDevTools(runtime: Runtime, databaseUrl: string): DevTools 
     reset: () => runtime.restart(() => resetDatabase(target)),
     listProject: (projectId) => listProjectSnapshots(target, projectId),
     saveProject: (projectId, label) => saveProjectSnapshot(target, projectId, label),
-    restoreProject: (ref) => restoreProjectSnapshot(target, ref),
+    restoreProject: (ref, opts) => restoreProjectSnapshot(target, ref, opts),
     dropProject: (ref) => dropProjectSnapshot(target, ref),
     async deleteProject(projectId) {
       const rows = await deleteProjectData(target, projectId);
@@ -76,6 +76,8 @@ function requirePerson(req: FastifyRequest): void {
 }
 
 const saveBody = z.object({ label: z.string().max(60).optional() });
+
+const restoreBody = z.object({ rewindGithub: z.boolean().optional() });
 
 const projectParams = z.object({ projectId: z.string().uuid() });
 
@@ -135,7 +137,9 @@ export function registerDevRoutes(app: FastifyInstance, dev: DevTools, services:
   app.post('/api/dev/project-snapshots/:name/restore', async (req) => {
     requirePerson(req);
     const { name } = req.params as { name: string };
-    const r = await dev.restoreProject(name);
+    const body = restoreBody.safeParse(req.body ?? {});
+    if (!body.success) throw new DomainError('validation', 'rewindGithub must be true or false.');
+    const r = await dev.restoreProject(name, { rewindGithub: body.data.rewindGithub === true });
     const settled = await afterProjectRestore(services, r.restored.project.id);
     return { restored: r.restored, git: `${r.git} ${settled}`.trim() };
   });

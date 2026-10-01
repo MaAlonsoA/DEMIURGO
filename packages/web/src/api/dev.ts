@@ -39,6 +39,7 @@ export type ProjectSnapshot = {
   migration: string | null;
   project: { id: string; name: string; events: number };
   git: { repo_dir: string; head: string } | null;
+  github?: { owner: string; repo: string; main: string } | null;
   size_bytes: number;
 };
 
@@ -52,8 +53,8 @@ const projectSnapshotPath = (name: string): string => `/api/dev/project-snapshot
 
 export const saveProjectSnapshot = (projectId: string, label: string) =>
   request<{ snapshot: ProjectSnapshot }>('POST', `/api/dev/projects/${encodeURIComponent(projectId)}/snapshots`, { label });
-export const restoreProjectSnapshot = (name: string) =>
-  request<{ restored: ProjectSnapshot; git: string }>('POST', `${projectSnapshotPath(name)}/restore`);
+export const restoreProjectSnapshot = (name: string, rewindGithub = false) =>
+  request<{ restored: ProjectSnapshot; git: string }>('POST', `${projectSnapshotPath(name)}/restore`, { rewindGithub });
 export const dropProjectSnapshot = (name: string) =>
   request<{ dropped: ProjectSnapshot }>('DELETE', projectSnapshotPath(name));
 export const deleteProject = (projectId: string) =>

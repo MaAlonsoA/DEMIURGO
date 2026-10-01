@@ -2,6 +2,7 @@
 // nothing without the key, and a failure that leaves no data. No database and no real call.
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import '../src/bus/bus.ts'; // loads the core in its usual order (the modules import each other)
 import type { TypeSafeClient } from '@typesafe-ai/sdk';
 import {
   MAX_CRITERIA_PER_REQUEST,

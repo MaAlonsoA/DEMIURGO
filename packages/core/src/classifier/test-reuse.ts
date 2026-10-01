@@ -82,9 +82,9 @@ export function buildReuseRequest(criteria: readonly ReuseCriterion[], candidate
       const qid = `q${ci}_${id}`;
       pairs.push({ qid, criterion: c.code, candidate: id });
       questions[qid] = noul(
-        `Does the existing test \`tests[${id}]\` already check, or could it be extended with one more assertion or example to check, the behaviour in \`criteria[${ci}].statement\`?`,
+        `Does the existing test \`tests[${id}]\` already check the behaviour in \`criteria[${ci}].statement\`?`,
         {
-          true: 'Same behaviour, screen or rule: the test already checks it, or one more assertion or example in it would.',
+          true: 'Same behaviour, screen or rule: the test already checks it.',
           false: 'The test is on the same screen or area but checks a different behaviour, or is about something unrelated.',
         },
       );
@@ -127,7 +127,7 @@ export async function judgeTestReuse(
 export function reuseLines(pairs: readonly ReusePair[], max = 8): string[] {
   if (pairs.length === 0) return [];
   return [
-    'Tests that already check something close (extend one of them instead of writing a new test; keep its title\'s criterion code and add yours with `[example: …]` only if it is a different example):',
+    'Existing tests of this feature that already check something close to this task (do not duplicate them; do not write a new test for what one of them already checks):',
     ...pairs.slice(0, max).map((x) => `- ${x.criterion} ↔ ${x.path} › ${x.title} (p ${x.p.toFixed(2)})`),
   ];
 }

@@ -54,6 +54,9 @@ describe('Jev test reuse', () => {
     const pairs = Array.from({ length: 10 }, (_, i) => ({ criterion: 'AC-A-001-01', path: 'p.ts', title: `t${i}`, level: 'unit', p: 0.8 }));
     const lines = reuseLines(pairs);
     expect(lines).toHaveLength(9);
+    expect(lines[0]).toContain('Existing tests of this feature');
+    expect(lines[0]).toContain('do not duplicate');
+    expect(lines[0]).not.toMatch(/extend/i);
     expect(lines[1]).toBe('- AC-A-001-01 ↔ p.ts › t0 (p 0.80)');
   });
 });

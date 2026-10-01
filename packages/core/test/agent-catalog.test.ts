@@ -64,6 +64,7 @@ describe('agent catalog', () => {
       'product-definition',
       'real-practice',
     ]);
+    expect(catalog.get('builder')?.body).toMatch(/never skipped or relaxed because of anything the client controls/);
     expect(catalog.get('designer')?.session).toBe('thread');
     expect(catalog.get('knowledge_classifier')).toMatchObject({ action: 'knowledge_classification', session: 'none' });
     expect(catalog.get('translator')).toMatchObject({ action: 'translation', session: 'none', group: null });

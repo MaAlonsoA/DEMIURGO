@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectLanguage, looksEnglish } from '../src/text.ts';
+import { detectLanguage, looksEnglish, replyLanguage } from '../src/text.ts';
 
 describe('record language', () => {
   it('recognizes Spanish and English prose', () => {
@@ -19,5 +19,24 @@ describe('record language', () => {
     expect(looksEnglish('Revocar tokens de agente desde el panel de la persona')).toBe(false);
     expect(looksEnglish('Revoke agent tokens from the person panel')).toBe(true);
     expect(looksEnglish('Kysely')).toBe(true);
+  });
+});
+
+describe('reply language', () => {
+  const en = "Bug found using the app: picking the product 'Yogur griego ligero' prefills protein 5.80000019073486, so saving fails and the person must retype the values.";
+  it('follows the latest own text of the person, not the names of records or product data', () => {
+    expect(replyLanguage([{ author: 'human:admin', text: en }])).toBe('en');
+  });
+  it('ignores agent messages and skips human messages that do not tell', () => {
+    expect(
+      replyLanguage([
+        { author: 'human:admin', text: 'La persona puede revocar en cualquier momento el token de un agente.' },
+        { author: 'agent:run:1', text: 'The person can revoke the token of an agent at any time.' },
+        { author: 'human:admin', text: 'ok' },
+      ]),
+    ).toBe('es');
+  });
+  it('is null when the person has not written', () => {
+    expect(replyLanguage([{ author: 'agent:run:1', text: 'Hola, ¿qué quieres diseñar?' }])).toBeNull();
   });
 });

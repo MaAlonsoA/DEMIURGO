@@ -115,6 +115,20 @@ export function detectLanguage(text: string): TextLanguage | null {
   return null;
 }
 
+/**
+ * The language a reply should use: that of the person's latest own message that clearly leans to
+ * one language (messages in chronological order; only `human:` authors count). null when the person
+ * has not written yet or nothing is clear: the agent then keeps the language of the thread's replies.
+ */
+export function replyLanguage(messages: { author: string; text: string }[]): TextLanguage | null {
+  for (const m of messages.toReversed()) {
+    if (!m.author.startsWith('human:')) continue;
+    const lang = detectLanguage(m.text);
+    if (lang) return lang;
+  }
+  return null;
+}
+
 /** Whether a record's text may stay as it is: false only when it's clearly not in English. */
 export function looksEnglish(text: string): boolean {
   return detectLanguage(text) !== 'es';

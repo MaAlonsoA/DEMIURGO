@@ -12,6 +12,7 @@ import {
   STAGES,
   type Section,
   findQuote,
+  replyLanguage,
   stageDefinition,
   stageQuestionMultiple,
   stageQuestionReference,
@@ -567,6 +568,9 @@ export async function explorationPack({ trx, projectId, scope, input, graphVersi
       content: {
         purpose: exploration.purpose,
         question_in_progress: typeof input.question_id === 'string' ? input.question_id : null,
+        // Computed from the person's latest own written text (never from record or product names), so
+        // the reply follows it; null: keep the language of the thread's earlier replies.
+        reply_language: replyLanguage(chosen.map((m) => ({ author: m.author, text: m.body }))),
         messages: chosen.map((m) => ({ author: m.author, type: m.kind, question: m.question_id, text: m.body })),
         declined_proposals: declined,
         questions: questions.map((q) => ({

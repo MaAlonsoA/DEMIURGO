@@ -28,6 +28,8 @@ export default defineConfig({
           include: ['packages/{core,api,mcp,evidence}/test/**/*.test.ts'],
           exclude: ['**/invariants/**', '**/node_modules/**'],
           globalSetup: ['packages/core/test/support/global-setup.ts'],
+          // The instance's drain flag (.demiurgo-drain in the repo root) must not stop the queue under test.
+          env: { DEMIURGO_DRAIN_FILE: '/nonexistent/.demiurgo-drain' },
           testTimeout: 60_000,
           hookTimeout: 120_000,
           pool: 'forks',

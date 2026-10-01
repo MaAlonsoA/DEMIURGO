@@ -350,6 +350,7 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
         // Each part builds on the one before it.
         depends_on: i === 0 ? [] : [i],
       })),
+      task_changes: [],
       sources: [],
     };
   },

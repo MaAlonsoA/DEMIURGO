@@ -9,6 +9,7 @@ import { executeCommand } from '../src/bus/bus.ts';
 import { waitForRun } from '../src/engine/engine.ts';
 import { waitForKnowledge } from '../src/knowledge/workflows.ts';
 import { explorationDetail, recordDetail } from '../src/queries/read.ts';
+import { withoutDuplicateCoverage } from '../src/actions/task-plan.ts';
 import { taskDraftView } from '../src/queries/task-view.ts';
 import { useEnvironment } from './support/env.ts';
 
@@ -17,10 +18,53 @@ const environment = useEnvironment({
   providers: () => [
     createSimulatedProvider({
       scripts: {
+        // A re-plan whose request moves a criterion out of a task: the planner changes that task and adds a new one.
+        task_plan: (p) => {
+          const base = DEFAULT_SCRIPTS.task_plan(p) as Record<string, unknown>;
+          const c = p.context.content as {
+            request?: { messages: { body: string }[] } | null;
+            existing_tasks: {
+              code: string;
+              covers: string[];
+              changeable: boolean;
+            }[];
+          };
+          if (!JSON.stringify(c.request ?? null).includes('MOVE_TEST')) return base;
+          const task = c.existing_tasks.find((t) => t.changeable && t.covers.length > 1);
+          if (!task) return base;
+          const moved = task.covers[task.covers.length - 1]!;
+          return {
+            ...base,
+            tasks: [
+              {
+                title: 'Moved criterion, built later',
+                goal: 'Build what the moved criterion checks.',
+                scope: 'Blocked by another feature: build after it.',
+                covers: [moved],
+                size: 'S',
+                size_reason: 'One criterion.',
+                split: null,
+                walking_skeleton: false,
+                depends_on: [],
+              },
+            ],
+            task_changes: [
+              {
+                code: task.code,
+                covers: task.covers.slice(0, -1),
+                scope: `${moved} moved to a later task.`,
+                goal: null,
+              },
+            ],
+          };
+        },
         // A feature with only two steps, whatever the thread: the checker must stop it.
         feature_design: (p) => {
           const out = DEFAULT_SCRIPTS.feature_design(p) as {
-            result: { kind: string; feature: { steps: string[]; criteria: { step: number }[] } };
+            result: {
+              kind: string;
+              feature: { steps: string[]; criteria: { step: number }[] };
+            };
           };
           if (JSON.stringify(p.context.content).includes('Two steps only')) {
             out.result.feature.steps = out.result.feature.steps.slice(0, 2);
@@ -38,12 +82,23 @@ let projectId = '';
 
 type Cmd = Parameters<typeof executeCommand>[1]['command'];
 const cmd = (command: Cmd, data: unknown, entityId?: string) =>
-  executeCommand(environment().services, { command, actor: ana, projectId, data, ...(entityId ? { entityId } : {}) });
+  executeCommand(environment().services, {
+    command,
+    actor: ana,
+    projectId,
+    data,
+    ...(entityId ? { entityId } : {}),
+  });
 const db = () => environment().services.db;
 
 beforeAll(async () => {
-  projectId = (await executeCommand(environment().services, { command: 'project.create', actor: ana, data: { name: 'Drafting' } }))
-    .projectId;
+  projectId = (
+    await executeCommand(environment().services, {
+      command: 'project.create',
+      actor: ana,
+      data: { name: 'Drafting' },
+    })
+  ).projectId;
 });
 
 async function draftRun(action: string, scope: { type: string; id: string }) {
@@ -68,16 +123,33 @@ type Payload = {
   record_type: string;
   code?: string;
   sections: { title: string; content: string }[];
-  criteria: { given: string; when: string; then: string; step: number | null }[];
+  criteria: {
+    given: string;
+    when: string;
+    then: string;
+    step: number | null;
+  }[];
   features?: { name: string; summary: string }[];
   sources?: unknown[];
   size?: string;
   covers?: string[];
 };
 
-type Created = { recordId: string; versionId: string; code: string; version: number };
+type Created = {
+  recordId: string;
+  versionId: string;
+  code: string;
+  version: number;
+};
 
-const state: { epicThread: string; epic?: Created; featureThread: string; featureCode: string; feature?: Created; featureVersion: string } = {
+const state: {
+  epicThread: string;
+  epic?: Created;
+  featureThread: string;
+  featureCode: string;
+  feature?: Created;
+  featureVersion: string;
+} = {
   epicThread: '',
   featureThread: '',
   featureCode: '',
@@ -87,8 +159,15 @@ const state: { epicThread: string; epic?: Created; featureThread: string; featur
 describe('the drafting agents', () => {
   it('epic_plan drafts the epic of a thread as one pending proposal with its sections, criteria and features', async () => {
     state.epicThread = (await cmd('exploration.open', { purpose: 'Share recipes with friends' })).entityId;
-    await cmd('message.post', { exploration_id: state.epicThread, text: 'People should share recipes end to end.', respond: false });
-    const run = await draftRun('epic_plan', { type: 'exploration', id: state.epicThread });
+    await cmd('message.post', {
+      exploration_id: state.epicThread,
+      text: 'People should share recipes end to end.',
+      respond: false,
+    });
+    const run = await draftRun('epic_plan', {
+      type: 'exploration',
+      id: state.epicThread,
+    });
     expect(run.state).toBe('completed');
     const proposals = await proposalsOf(run.id);
     expect(proposals).toHaveLength(1);
@@ -136,15 +215,25 @@ describe('the drafting agents', () => {
       })
     ).entityId;
     const detail = await explorationDetail(db(), projectId, state.featureThread);
-    expect(detail.draft).toMatchObject({ kind: 'feature', action: 'feature_design', scope: { type: 'exploration', id: state.featureThread } });
+    expect(detail.draft).toMatchObject({
+      kind: 'feature',
+      action: 'feature_design',
+      scope: { type: 'exploration', id: state.featureThread },
+    });
   });
 
   it('feature_design proposes the feature under its reserved code, with numbered steps and criteria tied to them', async () => {
-    const run = await draftRun('feature_design', { type: 'exploration', id: state.featureThread });
+    const run = await draftRun('feature_design', {
+      type: 'exploration',
+      id: state.featureThread,
+    });
     expect(run.state).toBe('completed');
     const proposals = await proposalsOf(run.id);
     expect(proposals).toHaveLength(1);
-    expect(proposals[0]).toMatchObject({ type: 'design_record', state: 'pending' });
+    expect(proposals[0]).toMatchObject({
+      type: 'design_record',
+      state: 'pending',
+    });
     const payload = proposals[0]?.payload as Payload;
     expect(payload.record_type).toBe('fdr');
     expect(payload.code).toBe(state.featureCode);
@@ -172,12 +261,19 @@ describe('the drafting agents', () => {
     state.feature = (await cmd('proposal.accept', { approve: false }, p?.id)).result as Created;
     await cmd('record_version.approve', {}, state.feature.versionId);
     const detail = await explorationDetail(db(), projectId, state.featureThread);
-    expect(detail.draft).toMatchObject({ kind: 'tasks', action: 'task_plan', scope: { type: 'record_version', id: state.feature.versionId } });
+    expect(detail.draft).toMatchObject({
+      kind: 'tasks',
+      action: 'task_plan',
+      scope: { type: 'record_version', id: state.feature.versionId },
+    });
     state.featureVersion = state.feature.versionId;
   });
 
   it('task_plan proposes a batch of tasks, each decided on its own, that together cover every criterion, and accepting it creates them', async () => {
-    const run = await draftRun('task_plan', { type: 'record_version', id: state.featureVersion });
+    const run = await draftRun('task_plan', {
+      type: 'record_version',
+      id: state.featureVersion,
+    });
     expect(run.state).toBe('completed');
     const proposals = await proposalsOf(run.id);
     expect(proposals.length).toBeGreaterThanOrEqual(1);
@@ -202,11 +298,16 @@ describe('the drafting agents', () => {
     expect(draft.feature.epic?.code).toBe(state.epic?.code);
     expect(draft.covers.map((c) => c.code).sort()).toEqual([...(payloads[last]?.covers ?? [])].sort());
     expect(draft.covers.every((c) => c.statement.length > 0 && c.given !== null)).toBe(true);
-    expect(draft.provenance.proposed_by).toMatchObject({ agent: 'task_planner', run_id: run.id });
+    expect(draft.provenance.proposed_by).toMatchObject({
+      agent: 'task_planner',
+      run_id: run.id,
+    });
     expect(draft.provenance.thread).not.toBeNull();
     if (proposals.length > 1) {
       expect(draft.depends_on.map((d) => d.ref)).toEqual([proposals[last - 1]!.id]);
-      expect(payloads[last]).toMatchObject({ depends_on_titles: [(payloads[last - 1] as { title?: string }).title] });
+      expect(payloads[last]).toMatchObject({
+        depends_on_titles: [(payloads[last - 1] as { title?: string }).title],
+      });
       const first = await taskDraftView(db(), projectId, proposals[0]!.id);
       expect(first.blocks.map((d) => d.ref)).toEqual([proposals[1]!.id]);
     }
@@ -226,7 +327,10 @@ describe('the drafting agents', () => {
     });
     expect(lastTask.task?.covers.length).toBeGreaterThan(0);
     expect(lastTask.task?.covers.every((c) => c.statement.length > 0)).toBe(true);
-    expect(lastTask.task?.provenance).toMatchObject({ proposed_by: { agent: 'task_planner' }, accepted_by: 'human:ana' });
+    expect(lastTask.task?.provenance).toMatchObject({
+      proposed_by: { agent: 'task_planner' },
+      accepted_by: 'human:ana',
+    });
     expect(lastTask.task?.provenance.approved_at).not.toBeNull();
     expect(lastTask.task?.history).toHaveLength(1);
     expect(lastTask.task?.dod.some((d) => d.item === 'Pull request reviewed and merged' && !d.met)).toBe(true);
@@ -245,6 +349,60 @@ describe('the drafting agents', () => {
     expect(after.dod?.done).toBe(false);
   });
 
+  it('a re-plan with a request that moves a criterion changes the existing task and adds a new one; duplicate coverage is dropped', async () => {
+    const before = await recordDetail(db(), projectId, state.featureCode);
+    const source = (before.tasks ?? []).find((t) => t.covers.length > 1);
+    expect(source).toBeTruthy();
+    const moved = source!.covers[source!.covers.length - 1]!;
+    await cmd('message.post', {
+      exploration_id: state.featureThread,
+      text: `Move ${moved} out of ${source!.code} into a task built later. MOVE_TEST`,
+      respond: false,
+    });
+    const run = await draftRun('task_plan', {
+      type: 'record_version',
+      id: state.featureVersion,
+    });
+    expect(run.error).toBeNull();
+    expect(run.state).toBe('completed');
+    const pack = await db()
+      .selectFrom('context_packs')
+      .select('content')
+      .where('id', '=', run.context_pack_id ?? '')
+      .executeTakeFirstOrThrow();
+    expect(JSON.stringify((pack.content as { request: unknown }).request)).toContain('MOVE_TEST');
+    const proposals = await proposalsOf(run.id);
+    expect(proposals.map((p) => p.type)).toEqual(['design_record', 'record_change']);
+    expect((proposals[0]!.payload as Payload).covers).toEqual([moved]);
+    expect(proposals[1]!.payload).toMatchObject({
+      record: { code: source!.code },
+      covers: source!.covers.slice(0, -1),
+    });
+    for (const p of proposals) await cmd('proposal.accept', { approve: true }, p.id);
+    const after = await recordDetail(db(), projectId, state.featureCode);
+    expect(after.tasks?.find((t) => t.code === source!.code)?.covers).toEqual(source!.covers.slice(0, -1));
+    expect(after.tasks?.filter((t) => t.covers.includes(moved))).toHaveLength(1);
+    expect(after.uncovered).toEqual([]);
+  });
+
+  it('withoutDuplicateCoverage drops criteria another task covers, keeps the ones the request names and drops emptied tasks', () => {
+    const tasks = [
+      { title: 'A', covers: ['AC-X-001-01', 'AC-X-001-02'] },
+      { title: 'B', covers: ['AC-X-001-02'] },
+      { title: 'C', covers: ['AC-X-001-03', 'AC-X-001-01'] },
+    ];
+    const kept = withoutDuplicateCoverage(tasks, new Set(['AC-X-001-01']), new Set());
+    expect(kept.map((k) => [k.from, k.task.covers])).toEqual([
+      [1, ['AC-X-001-02']],
+      [3, ['AC-X-001-03']],
+    ]);
+    const asked = withoutDuplicateCoverage(tasks, new Set(['AC-X-001-01']), new Set(['AC-X-001-01']));
+    expect(asked.map((k) => k.task.covers)).toEqual([
+      ['AC-X-001-01', 'AC-X-001-02'],
+      ['AC-X-001-03', 'AC-X-001-01'],
+    ]);
+  });
+
   it('a feature with two steps fails the checker: the run fails and no proposal is created', async () => {
     const planned = await db()
       .selectFrom('planned_features')
@@ -260,7 +418,10 @@ describe('the drafting agents', () => {
         origin: { type: 'record_version', id: state.epic?.versionId },
       })
     ).entityId;
-    const run = await draftRun('feature_design', { type: 'exploration', id: thread });
+    const run = await draftRun('feature_design', {
+      type: 'exploration',
+      id: thread,
+    });
     expect(run.state).toBe('failed');
     expect(await proposalsOf(run.id)).toHaveLength(0);
     expect(run.failure_kind).toBe('invalid_output');

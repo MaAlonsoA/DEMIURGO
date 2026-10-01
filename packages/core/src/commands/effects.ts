@@ -14,6 +14,7 @@ import {
   behaviorSteps,
   criterionStatement,
   definitionChangeNote,
+  formatActor,
   recordChangeSections,
 } from '@demiurgo/domain';
 import type { CommandContext } from '../bus/types.ts';
@@ -635,6 +636,15 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
       },
     });
     const res = r.result as { versionId: string; version: number; code: string };
+    // A task's covered criteria live apart from its versions (append-only rows, the latest one counts).
+    if (c.covers) {
+      const rec = await ctx.trx.selectFrom('records').select('type').where('id', '=', v.recordId).executeTakeFirstOrThrow();
+      if (rec.type !== 'task') throw new DomainError('validation', 'Only a task covers criteria.');
+      await ctx.trx
+        .insertInto('task_covers')
+        .values({ project_id: ctx.projectId, record_id: v.recordId, codes: [...new Set(c.covers)], set_by: formatActor(ctx.actor) })
+        .execute();
+    }
     if (approve) await ctx.execute({ command: 'record_version.approve', actor: ctx.actor, entityId: res.versionId, data: {} });
     return {
       type: 'record',

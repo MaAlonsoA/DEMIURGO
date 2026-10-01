@@ -327,6 +327,8 @@ export const recordChangePayload = z
       .max(12)
       .optional(),
     criteria: z.array(criterionChange).max(24).optional(),
+    /** A task's whole new list of covered criteria (only for a task): it is stored apart from the version, as a new row. */
+    covers: z.array(acCode).min(1).max(VERSION_LIMITS.criteria).optional(),
     reason: text(1000),
     evidence: z
       .array(z.object({ message_id: z.string().uuid(), quote: text(QUOTE_MAX) }).strict())
@@ -337,7 +339,7 @@ export const recordChangePayload = z
   .superRefine((c, ctx) => {
     if ((c.section === undefined) !== (c.content === undefined))
       ctx.addIssue({ code: 'custom', message: 'A section needs its content, and content its section.' });
-    if (recordChangeSections(c).length === 0 && (c.criteria ?? []).length === 0)
+    if (recordChangeSections(c).length === 0 && (c.criteria ?? []).length === 0 && !c.covers)
       ctx.addIssue({ code: 'custom', message: 'A record change changes at least one section or criterion.' });
   });
 export type RecordChange = z.infer<typeof recordChangePayload>;

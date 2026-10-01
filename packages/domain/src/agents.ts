@@ -611,9 +611,28 @@ export const taskPlanOutput = z
           })
           .strict(),
       )
-      .min(1)
+      .min(0)
       .max(20)
-      .describe('In the order they are built.'),
+      .describe('In the order they are built. May be empty when the request only re-assigns criteria between existing tasks.'),
+    task_changes: z
+      .array(
+        z
+          .object({
+            code: z.string().regex(/^TSK-[A-Z]{3}-\d{3}$/).describe('An existing task of `existing_tasks` that is not merged (`changeable`).'),
+            covers: z
+              .array(z.string().regex(/^AC-[A-Z]{3}-\d{3}-\d{2}$/))
+              .min(1)
+              .max(VERSION_LIMITS.criteria)
+              .describe("The task's WHOLE new list of covered criteria."),
+            scope: recordText(1500).describe("The task's new Scope text, saying what changed (e.g. which criterion moved out and where)."),
+            goal: recordText(1500).nullable().describe("The task's new Goal text; null to keep it."),
+          })
+          .strict(),
+      )
+      .max(10)
+      .describe(
+        "Changes to existing tasks that are not merged, only when the person's `request` asks to re-assign criteria; empty otherwise.",
+      ),
     sources: practiceSources,
   })
   .strict();

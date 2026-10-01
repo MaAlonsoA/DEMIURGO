@@ -805,7 +805,7 @@ export async function featureTasksOf(db: Db, projectId: string, code: string) {
   const tasks = await Promise.all(
     rows
       .filter((r, i) => rows.findIndex((o) => o.code === r.code) === i)
-      .map(async (r) => ({ code: r.code, title: r.title, state: r.state, covers: await taskCoversOf(db, r.id) })),
+      .map(async (r) => ({ code: r.code, title: r.title, state: r.state, version: r.n, covers: await taskCoversOf(db, r.id) })),
   );
   // The feature's current criteria, and which of them no task covers yet.
   const criteria = current

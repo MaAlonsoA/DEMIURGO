@@ -158,6 +158,30 @@ export async function changedBetween(path: string, from: string, to: string): Pr
   return stdout.split('\n').map((l) => l.trim()).filter(Boolean);
 }
 
+/** `git diff --numstat` between two commits (renames off, so every row is one path). */
+export async function numstatBetween(path: string, from: string, to: string): Promise<string> {
+  return (await git(path, ['diff', '--numstat', '--no-renames', from, to])).stdout;
+}
+
+/** `git diff --name-status` between two commits (renames off: a move shows as a delete plus an add). */
+export async function nameStatusBetween(path: string, from: string, to: string): Promise<string> {
+  return (await git(path, ['diff', '--name-status', '--no-renames', from, to])).stdout;
+}
+
+/** `git diff -U0` between two commits: the hunk headers say where each change sits. */
+export async function unifiedZeroBetween(path: string, from: string, to: string): Promise<string> {
+  return (await git(path, ['diff', '-U0', '--no-renames', '--no-color', from, to])).stdout;
+}
+
+/** A file's content at a revision (`git show <rev>:<file>`), or null when it does not exist there. */
+export async function showAt(path: string, rev: string, file: string): Promise<string | null> {
+  try {
+    return (await git(path, ['show', `${rev}:${file}`])).stdout;
+  } catch {
+    return null;
+  }
+}
+
 /** Tool caches that never belong in a commit (DEMIURGO's own ignore list, our convention). */
 export const EXCLUDED_PATHS = ['.pw-browsers/', '.cache/', 'playwright-report/', 'test-results/', 'node_modules/', '.next/', '*.tsbuildinfo', 'core', 'core.[0-9]*', '*.core', '.demiurgo/'];
 

@@ -69,10 +69,10 @@ import { affectedTests, affectedTestsLine, buildCodeMap } from './code-map.ts';
 import { decideRecheck } from './recheck.ts';
 import { decideGate } from './gate.ts';
 import { approvingReviewOf, previousReviewOf, truncateChanges } from './previous-review.ts';
-import { approvedWithFixes, countFixes, fixCommentsOf, waiveReview } from './lgtm.ts';
+import { approvedWithFixes, countFixes, countTestMarkers, fixCommentsOf, isTestFile, minorChange, parseHunks, parseNameStatus, parseNumstat } from './lgtm.ts';
 import { isTransientRunError, REVIEW_MAX_RETRIES, REVIEW_RETRY_BACKOFF_MS } from './review-retry.ts';
 import type { Services } from '../services.ts';
-import { commitAll, headWithWork, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, changedOnBranch, changedWithPending, addedOnBranch, changedBetween, diffBetween, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
+import { commitAll, headWithWork, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, changedOnBranch, changedWithPending, addedOnBranch, numstatBetween, nameStatusBetween, unifiedZeroBetween, showAt, diffBetween, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
 import { existsSync } from 'node:fs';
 import { mkdir, rm } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
@@ -1011,10 +1011,19 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
   const waiver = approving
     ? await plain('lgtm-waiver', async () => {
         try {
-          const changed = await changedBetween(worktree.path, approving.head_sha, headSha);
-          return waiveReview({ fixPaths: fixCommentsOf(approving.comments).map((c) => c.path), changedFiles: changed });
+          const from = approving.head_sha;
+          const fixes = fixCommentsOf(approving.comments).map((c) => ({ path: c.path, line: c.line }));
+          const numstat = parseNumstat(await numstatBetween(worktree.path, from, headSha));
+          const nameStatus = parseNameStatus(await nameStatusBetween(worktree.path, from, headSha));
+          const hunks = parseHunks(await unifiedZeroBetween(worktree.path, from, headSha));
+          const testCounts: Record<string, { before: ReturnType<typeof countTestMarkers>; after: ReturnType<typeof countTestMarkers> }> = {};
+          for (const row of nameStatus.filter((n) => isTestFile(n.path))) {
+            testCounts[row.path] = { before: countTestMarkers(await showAt(worktree.path, from, row.path)), after: countTestMarkers(await showAt(worktree.path, headSha, row.path)) };
+          }
+          const { minor, failed } = minorChange({ fixes, numstat, nameStatus, hunks, testCounts });
+          return { waive: minor, failed };
         } catch {
-          return { waive: false, outside: [] as string[] };
+          return { waive: false, failed: ['git_comparison_failed'] };
         }
       })
     : null;
@@ -1031,7 +1040,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
           const id = await startReview();
           return {
             value: { runId: id },
-            detail: { run_id: id, ci: 'parallel', ...(waiver && !waiver.waive && waiver.outside.length > 0 ? { waiver_refused: 'files_outside_fixes', files_outside_fixes: waiver.outside.slice(0, 50) } : {}) },
+            detail: { run_id: id, ci: 'parallel', ...(waiver && !waiver.waive ? { waiver_refused: (waiver.failed ?? ['files_outside_fixes']).join(', ') } : {}) },
             outcome: 'waiting' as const,
           };
         },

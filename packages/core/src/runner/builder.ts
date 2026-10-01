@@ -173,7 +173,8 @@ export function setupArguments(spec: SetupSpec, containerName: string, environme
     ...networkArguments(spec.network),
   ];
   for (const [key, value] of Object.entries(env).sort(([a], [b]) => a.localeCompare(b))) args.push('--env', `${key}=${value}`);
-  args.push(image, 'sh', '-c', `set -eu; ${spec.command}`);
+  // The image's entrypoint changes to /app (DEMIURGO itself): the command runs in the worktree.
+  args.push(image, 'sh', '-c', `set -eu; cd /workspace; ${spec.command}`);
   return args;
 }
 

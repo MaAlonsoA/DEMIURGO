@@ -72,7 +72,7 @@ describe('builderArguments', () => {
     expect(args.join(' ')).toContain('--network demiurgo-env-p');
     expect(args.filter((_, i) => args[i - 1] === '--mount')).toEqual([`type=bind,source=${spec.worktreeHostPath},target=/workspace`, 'type=volume,source=demiurgo_pw-browsers,target=/ms-playwright', 'type=volume,source=demiurgo-env-p-pnpm-store,target=/pnpm-store']);
     expect(args).toContain('npm_config_store_dir=/pnpm-store');
-    expect(args.slice(-3)).toEqual(['sh', '-c', 'set -eu; pnpm install']);
+    expect(args.slice(-3)).toEqual(['sh', '-c', 'set -eu; cd /workspace; pnpm install']);
   });
 
   it('builds the codex command and honours the overrides', () => {

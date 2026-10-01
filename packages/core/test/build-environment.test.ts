@@ -121,7 +121,7 @@ describe('prepareEnvironment', () => {
     expect(docker.has('exec', 'demiurgo-env-comidas-ea877aa1-postgres', 'pg_isready')).toBe(true);
     expect(docker.calls.some((c) => c.args.at(-1) === `CREATE DATABASE ${DB}`)).toBe(true);
     const setups = docker.calls.map((c) => c.args).filter((a) => a[0] === 'run');
-    expect(setups.map((a) => a.at(-1))).toEqual(['set -eu; pnpm install --frozen-lockfile --prefer-offline', 'set -eu; pnpm exec playwright install --only-shell chromium', 'set -eu; pnpm db:migrate']);
+    expect(setups.map((a) => a.at(-1))).toEqual(['set -eu; cd /workspace; pnpm install --frozen-lockfile --prefer-offline', 'set -eu; cd /workspace; pnpm exec playwright install --only-shell chromium', 'set -eu; cd /workspace; pnpm db:migrate']);
     for (const a of setups) {
       expect(a.join(' ')).toContain('--network demiurgo-env-comidas-ea877aa1');
       expect(a).toContain('type=volume,source=demiurgo-env-comidas-ea877aa1-pnpm-store,target=/pnpm-store');

@@ -70,7 +70,9 @@ export const BUILD = messages(
     autoText: 'When a task merges, DEMIURGO starts the next ready one, in backlog order. It uses your subscription quota.',
     autoOn: 'Build the queue is on.',
     autoOff: 'Build the queue is off.',
-    autoBuilding: (code: string, next: string | null) => `Building ${code}${next ? `, next: ${next}` : ''}.`,
+    autoBuilding: (codes: string[], next: string | null) => `Building ${codes.join(', ')}${next ? `, next: ${next}` : ''}.`,
+    autoParallel: 'At once',
+    autoParallelText: 'Independent tasks of different features build together. Fewer branches at once means fewer merge conflicts.',
     autoNext: (code: string) => `Starting ${code}.`,
     autoIdle: 'Nothing ready to build. The next task that becomes ready starts when you turn this on again or when a build merges.',
     autoNeedsYou: (code: string, n: number | null) =>
@@ -148,7 +150,9 @@ export const BUILD = messages(
     autoText: 'Cuando una tarea se fusiona, DEMIURGO empieza la siguiente lista, en el orden del backlog. Gasta la cuota de tu suscripción.',
     autoOn: 'Construir la cola está activado.',
     autoOff: 'Construir la cola está desactivado.',
-    autoBuilding: (code: string, next: string | null) => `Construyendo ${code}${next ? `, siguiente: ${next}` : ''}.`,
+    autoBuilding: (codes: string[], next: string | null) => `Construyendo ${codes.join(', ')}${next ? `, siguiente: ${next}` : ''}.`,
+    autoParallel: 'A la vez',
+    autoParallelText: 'Las tareas independientes de funcionalidades distintas se construyen juntas. Menos ramas a la vez, menos conflictos al fusionar.',
     autoNext: (code: string) => `Empezando ${code}.`,
     autoIdle: 'No hay nada listo para construir. La próxima tarea que quede lista empieza cuando vuelvas a activarlo o cuando se fusione una construcción.',
     autoNeedsYou: (code: string, n: number | null) =>

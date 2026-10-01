@@ -1203,7 +1203,11 @@ export type BuildQueue = {
   /** «Build the queue»: the project's flag and what the queue is doing. */
   auto?: {
     on: boolean;
+    /** How many builds run at once at most (1 to 3). */
+    parallel: number;
     building: string | null;
+    /** Every task being built now. */
+    builds: string[];
     next: string | null;
     stopped: {
       code: string;

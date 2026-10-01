@@ -958,7 +958,7 @@ export const CAPABILITIES = {
         "human"
       ],
       "decisive": false,
-      "description": "Turn «Build the queue» on or off: with it on, the system starts the next ready task by itself, one build at a time, after each merge."
+      "description": "Turn «Build the queue» on or off: with it on, the system starts the next ready tasks by itself, up to the number of builds the person allows at once (1 by default), after each merge."
     },
     "task.hold": {
       "entity": "project",

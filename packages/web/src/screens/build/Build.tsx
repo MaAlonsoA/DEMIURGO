@@ -12,7 +12,7 @@ import type { BuildQueue, QueueTask } from "../../api/types.ts";
 import { Code } from "../../components/Badge.tsx";
 import { Button } from "../../components/Button.tsx";
 import { ConfirmDialog } from "../../components/Dialog.tsx";
-import { Checkbox, Field, TextArea, TextInput } from "../../components/Field.tsx";
+import { Checkbox, Field, Select, TextArea, TextInput } from "../../components/Field.tsx";
 import { EmptyState } from "../../components/EmptyState.tsx";
 import { PlayIcon } from "../../components/icons.tsx";
 import { ErrorNotice, Notice } from "../../components/Notice.tsx";
@@ -448,8 +448,8 @@ function AutoQueue({ projectId, auto, t }: { projectId: string; auto: NonNullabl
           : s.kind === "stale"
             ? t.autoStale(s.code)
             : t.autoManual(s.code)
-      : auto.building
-        ? t.autoBuilding(auto.building, auto.next)
+      : auto.builds.length
+        ? t.autoBuilding(auto.builds, auto.next)
         : auto.next
           ? t.autoNext(auto.next)
           : t.autoIdle;
@@ -472,6 +472,28 @@ function AutoQueue({ projectId, auto, t }: { projectId: string; auto: NonNullabl
         }
       />
       <p className="text-sm text-fg-2">{t.autoText}</p>
+      <label className="flex items-center gap-2 text-sm text-fg-2" title={t.autoParallelText}>
+        <span>{t.autoParallel}</span>
+        <span className="w-20">
+          <Select
+            aria-label={t.autoParallel}
+            value={auto.parallel}
+            disabled={command.isPending}
+            onChange={(e) =>
+              command.mutate(
+                { command: "build.queue_auto", entityId: projectId, data: { parallel: Number(e.target.value) } },
+                { onSuccess: () => void client.invalidateQueries({ queryKey: buildQueueQuery(projectId).queryKey }) },
+              )
+            }
+          >
+            {[1, 2, 3].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </Select>
+        </span>
+      </label>
       {status ? (
         s ? (
           <Notice tone="warning" title={status} />

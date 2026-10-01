@@ -5,7 +5,7 @@
 
 import { DomainError, formatActor } from "@demiurgo/domain";
 import { z } from "zod";
-import { advanceBuildQueue, queueAutoOn } from "../build/auto.ts";
+import { advanceBuildQueue, queueAutoOn, queueParallelOf } from "../build/auto.ts";
 import { openHoldOf } from "../build/holds.ts";
 import { composeBrief } from "../build/queue.ts";
 import { githubConfig } from "../github/client.ts";
@@ -17,29 +17,36 @@ registerHandlers({
   // «Build the queue» on or off for the project. Turning it on needs GitHub (agents build through it) and
   // asks the queue to start the first ready task right after the commit. Only a person runs it.
   "build.queue_auto": handler({
-    data: z.object({ on: z.boolean() }).strict(),
+    data: z
+      .object({ on: z.boolean().optional(), parallel: z.number().int().min(1).max(3).optional() })
+      .strict()
+      .refine((d) => d.on !== undefined || d.parallel !== undefined, "Say «on» or «parallel»."),
     async apply(ctx, data, e) {
       const before = await queueAutoOn(ctx.trx, ctx.projectId);
+      const beforeParallel = await queueParallelOf(ctx.trx, ctx.projectId);
       if (data.on && githubConfig() === null)
         throw new DomainError(
           "conflict",
           "Connect GitHub first: set DEMIURGO_GITHUB_TOKEN and DEMIURGO_GITHUB_OWNER.",
         );
       const by = formatActor(ctx.actor);
+      const auto = data.on ?? before;
+      const parallel = data.parallel ?? beforeParallel;
       await ctx.trx
         .insertInto("build_queue_settings")
-        .values({ project_id: ctx.projectId, auto: data.on, set_by: by })
+        .values({ project_id: ctx.projectId, auto, parallel, set_by: by })
         .onConflict((oc) =>
-          oc.column("project_id").doUpdateSet({ auto: data.on, set_by: by, set_at: new Date() }),
+          oc.column("project_id").doUpdateSet({ auto, parallel, set_by: by, set_at: new Date() }),
         )
         .execute();
       const projectId = ctx.projectId;
-      if (data.on) ctx.afterCommit(async () => void (await advanceBuildQueue(ctx.services, projectId)));
+      // Turning it on, or allowing more builds at once, asks the queue to start what fits (a no-op when it is off).
+      if (auto) ctx.afterCommit(async () => void (await advanceBuildQueue(ctx.services, projectId)));
       return {
         entityId: e?.id ?? projectId,
-        before: { auto: before },
-        after: { auto: data.on, set_by: by },
-        result: { on: data.on },
+        before: { auto: before, parallel: beforeParallel },
+        after: { auto, parallel, set_by: by },
+        result: { on: auto, parallel },
       };
     },
   }),

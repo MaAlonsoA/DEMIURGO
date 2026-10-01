@@ -14,7 +14,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createSimulatedProvider } from '../src/agents/simulated.ts';
 import { executeCommand } from '../src/bus/bus.ts';
 import { buildQueue } from '../src/build/queue.ts';
-import { advanceBuildQueue, autoStatus } from '../src/build/auto.ts';
+import { advanceBuildQueue, autoStatus, dependsOnBusy } from '../src/build/auto.ts';
+import type { TaskDependencyIndex } from '../src/queries/task-deps.ts';
 import { type BuildDeps, resetBuildDeps, setBuildDeps, waitForBuild } from '../src/build/orchestrator.ts';
 import { waitForRun } from '../src/engine/engine.ts';
 import { pushBranch } from '../src/github/client.ts';
@@ -797,7 +798,7 @@ describe('Build the queue (opt-in per project)', () => {
     const [first] = await readyCodes();
     expect(first).toBeDefined();
     const second = await waitingFor(first as string);
-    expect(await advanceBuildQueue(environment().services, projectId)).toBeNull();
+    expect(await advanceBuildQueue(environment().services, projectId)).toEqual([]);
     expect(await allRequests()).toEqual([]);
 
     // A build the person started merges: with the flag off the next ready task is left alone.
@@ -808,7 +809,7 @@ describe('Build the queue (opt-in per project)', () => {
     await sleep(400);
     expect(await readyCodes()).toContain(second);
     expect(await allRequests()).toHaveLength(1);
-    expect(await autoStatus(db(), projectId, await buildQueue(db(), projectId))).toEqual({ on: false, building: null, next: null, stopped: null });
+    expect(await autoStatus(db(), projectId, await buildQueue(db(), projectId))).toEqual({ on: false, parallel: 1, building: null, builds: [], next: null, stopped: null });
   });
 
   it('flag on: the first ready task starts by itself, and when it merges the next one starts', async () => {
@@ -819,7 +820,7 @@ describe('Build the queue (opt-in per project)', () => {
     const next = second as string;
 
     const on = await cmd('build.queue_auto', { on: true }, projectId);
-    expect(on.result).toEqual({ on: true });
+    expect(on.result).toEqual({ on: true, parallel: 1 });
     const one = await requestFor(first as string);
     expect(one.requested_by).toBe('system:build@1');
     expect(await finished(one.id, 1)).toBe('done');
@@ -832,9 +833,9 @@ describe('Build the queue (opt-in per project)', () => {
     // Nothing is left: the queue idles.
     await sleep(300);
     expect(await allRequests()).toHaveLength(2);
-    expect(await autoStatus(db(), projectId, await buildQueue(db(), projectId))).toEqual({ on: true, building: null, next: null, stopped: null });
+    expect(await autoStatus(db(), projectId, await buildQueue(db(), projectId))).toEqual({ on: true, parallel: 1, building: null, builds: [], next: null, stopped: null });
     // Turning it on twice never starts the same task twice.
-    expect(await advanceBuildQueue(environment().services, projectId)).toBeNull();
+    expect(await advanceBuildQueue(environment().services, projectId)).toEqual([]);
 
     const events = await db().selectFrom('events').select(['actor', 'after']).where('project_id', '=', projectId).where('command', '=', 'build.queue_auto').orderBy('seq').execute();
     expect(events.at(-1)).toMatchObject({ actor: 'human:ana', after: { auto: true } });
@@ -849,7 +850,7 @@ describe('Build the queue (opt-in per project)', () => {
     await sleep(500);
     const status = await autoStatus(db(), projectId, await buildQueue(db(), projectId));
     expect(status).toMatchObject({ on: true, building: null, next: null, stopped: { code: first, kind: 'needs_you', tried: 1 } });
-    expect(await advanceBuildQueue(environment().services, projectId)).toBeNull();
+    expect(await advanceBuildQueue(environment().services, projectId)).toEqual([]);
     // Turning the flag off and on again does not skip it either.
     await cmd('build.queue_auto', { on: true }, projectId);
     await sleep(300);
@@ -883,7 +884,7 @@ describe('Build the queue (opt-in per project)', () => {
     expect(await finished(one.id, 1)).toBe('done');
     await sleep(300);
     expect((await requestsOf(first as string)).filter((r) => r.state !== 'withdrawn')).toEqual([]);
-    expect(await autoStatus(db(), projectId, await buildQueue(db(), projectId))).toEqual({ on: true, building: null, next: null, stopped: null });
+    expect(await autoStatus(db(), projectId, await buildQueue(db(), projectId))).toEqual({ on: true, parallel: 1, building: null, builds: [], next: null, stopped: null });
     await cmd('build.queue_auto', { on: false }, projectId);
 
     const events = await db().selectFrom('events').select(['actor', 'command', 'after']).where('project_id', '=', projectId).where('command', 'in', ['task.hold']).execute();
@@ -909,6 +910,165 @@ describe('Build the queue (opt-in per project)', () => {
     await expect(
       executeCommand(environment().services, { command: 'build.queue_auto', actor: system('build', '1'), projectId, entityId: projectId, data: { on: true } }),
     ).rejects.toMatchObject({ type: 'forbidden' });
+  });
+
+  describe('several builds at once', () => {
+    /** A builder that waits for `open()`: builds started now stay running until then. */
+    function gated(): () => void {
+      let open: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => {
+        open = resolve;
+      });
+      const base = queueFakes({ ciConclusion: 'success' });
+      setBuildDeps({
+        ...base,
+        runBuilder: async (spec, options) => {
+          await gate;
+          return (base.runBuilder as NonNullable<BuildDeps['runBuilder']>)(spec, options);
+        },
+      });
+      return open;
+    }
+    const requested = async () => (await db().selectFrom('build_requests').innerJoin('records', 'records.id', 'build_requests.task_id').select('records.code').where('build_requests.project_id', '=', projectId).where('build_requests.state', 'in', ['requested', 'in_review', 'done']).execute()).map((r) => r.code).sort();
+    const advance = () => advanceBuildQueue(environment().services, projectId);
+
+    /** A ready task of another feature (a new approved feature of the same epic), independent of everything. */
+    async function otherFeatureTask(like: string, link?: { type: 'depends_on'; target: { code: string; version: number } }): Promise<{ task: string; feature: string }> {
+      const queue = await buildQueue(db(), projectId);
+      const featureCode = [...queue.ready, ...queue.waiting].find((t) => t.code === like)?.feature?.code ?? '';
+      const own = await db().selectFrom('record_versions').innerJoin('records', 'records.id', 'record_versions.record_id').select(['record_versions.sections']).where('records.project_id', '=', projectId).where('records.code', '=', featureCode).where('record_versions.state', '=', 'approved').executeTakeFirstOrThrow();
+      const epic = await db().selectFrom('records').select('code').where('project_id', '=', projectId).where('type', '=', 'epic').executeTakeFirstOrThrow();
+      const fdr = (
+        await cmd('record.create', {
+          type: 'fdr',
+          domain: 'other',
+          title: 'Another feature',
+          sections: own.sections,
+          criteria: [{ carry: 'new', title: 'other', statement: 'Given a member, when it submits the form, then it sees the confirmation.', verification: 'automatic', check: 'End to end.' }],
+          links: [{ type: 'based_on', target: { code: epic.code, version: 1 } }],
+        })
+      ).result as { versionId: string; code: string };
+      await cmd('record_version.approve', {}, fdr.versionId);
+      const ac = await db().selectFrom('criteria').select('code').where('record_version_id', '=', fdr.versionId).execute();
+      const created = await cmd('record.create', {
+        type: 'task',
+        domain: 'other',
+        title: 'A task of another feature',
+        sections: [
+          { title: 'Goal', content: 'Build the other feature.' },
+          { title: 'Scope', content: 'Nothing else depends on it.' },
+        ],
+        size: 'S',
+        covers: ac.map((c) => c.code),
+        criteria: [],
+        links: [{ type: 'based_on', target: { code: fdr.code, version: 1 } }, ...(link ? [link] : [])],
+      });
+      const made = created.result as { versionId: string; code: string };
+      await cmd('record_version.approve', {}, made.versionId);
+      coversOf.set(made.code, ac.map((c) => c.code));
+      return { task: made.code, feature: fdr.code };
+    }
+
+    it('limit 1 (the default) builds one task at a time, as before', async () => {
+      const release = gated();
+      const [first] = await readyCodes();
+      const other = await otherFeatureTask(first as string);
+      expect(await readyCodes()).toContain(other.task);
+      expect((await cmd('build.queue_auto', { on: true }, projectId)).result).toEqual({ on: true, parallel: 1 });
+      await requestFor(first as string);
+      await sleep(400);
+      expect(await requested()).toEqual([first]);
+      expect(await advance()).toEqual([]);
+      const status = await autoStatus(db(), projectId, await buildQueue(db(), projectId));
+      expect(status).toMatchObject({ parallel: 1, building: first, builds: [first] });
+      await cmd('build.queue_auto', { on: false }, projectId);
+      release();
+      expect(await finished((await requestFor(first as string)).id, 1)).not.toBe('cancelled');
+    });
+
+    it('limit 2 starts two independent ready tasks of different features, never two of one feature', async () => {
+      const release = gated();
+      const [first] = await readyCodes();
+      const sibling = await independentTask(first as string);
+      const other = await otherFeatureTask(first as string);
+      const ready = await readyCodes();
+      expect(ready).toEqual(expect.arrayContaining([first, sibling, other.task]));
+      expect(ready.indexOf(sibling), 'the sibling comes before the other feature in queue order').toBeLessThan(ready.indexOf(other.task));
+
+      await cmd('build.queue_auto', { parallel: 2 }, projectId);
+      await cmd('build.queue_auto', { on: true }, projectId);
+      // Earlier tests leave other ready tasks of other features: which of them takes the second place is queue order.
+      await until(async () => ((await requested()).length >= 2 ? true : undefined));
+      await sleep(400);
+      // The sibling is skipped (same feature as the one building); a task of another feature takes the second place.
+      const running = await requested();
+      expect(running).toHaveLength(2);
+      expect(running).toContain(first);
+      expect(running).not.toContain(sibling);
+      const queue = await buildQueue(db(), projectId);
+      const featureOf = (code: string) => queue.ready.find((t) => t.code === code)?.feature?.code;
+      expect(new Set(running.map(featureOf)).size).toBe(2);
+      expect(await advance()).toEqual([]);
+      const status = await autoStatus(db(), projectId, queue);
+      expect(status).toMatchObject({ on: true, parallel: 2, stopped: null });
+      expect([...status.builds].sort()).toEqual(running);
+
+      // Turning the limit down does not stop what runs.
+      const down = await cmd('build.queue_auto', { parallel: 1 }, projectId);
+      expect(down.result).toEqual({ on: true, parallel: 1 });
+      await sleep(300);
+      expect(await requested()).toEqual(running);
+      expect((await autoStatus(db(), projectId, await buildQueue(db(), projectId))).builds).toHaveLength(2);
+      await cmd('build.queue_auto', { on: false }, projectId);
+      release();
+      for (const code of running) expect(await finished((await requestFor(code)).id, 1)).not.toBe('cancelled');
+    });
+
+    it('a task that depends, directly or through others, on a task being built is never taken', () => {
+      const index = {
+        tasks: new Map([['C', ['B']], ['B', ['A']], ['F', []]]),
+        features: new Map([['D', ['FX']]]),
+        featureTasks: new Map([['FX', ['A']]]),
+        taskFeature: new Map(),
+        titles: new Map(),
+        merged: new Map(),
+      } as TaskDependencyIndex;
+      expect(dependsOnBusy(index, 'C', new Set(['A']))).toBe(true);
+      expect(dependsOnBusy(index, 'B', new Set(['A']))).toBe(true);
+      expect(dependsOnBusy(index, 'D', new Set(['A']))).toBe(true);
+      expect(dependsOnBusy(index, 'C', new Set(['F']))).toBe(false);
+      expect(dependsOnBusy(index, 'A', new Set(['A']))).toBe(false);
+    });
+
+    it('limit 3 does not start a task that waits for a task of the queue', async () => {
+      const release = gated();
+      const [first] = await readyCodes();
+      const other = await otherFeatureTask(first as string);
+      const dependent = await otherFeatureTask(first as string, { type: 'depends_on', target: { code: other.task, version: 1 } });
+      expect(await readyCodes()).not.toContain(dependent.task);
+      await cmd('build.queue_auto', { parallel: 3 }, projectId);
+      await cmd('build.queue_auto', { on: true }, projectId);
+      await until(async () => ((await requested()).length >= 3 ? true : undefined));
+      await sleep(400);
+      expect(await requested()).not.toContain(dependent.task);
+      await cmd('build.queue_auto', { on: false }, projectId);
+      release();
+      for (const code of await requested()) await finished((await requestFor(code)).id, 1);
+      await cmd('build.queue_auto', { parallel: 1 }, projectId);
+    });
+
+    it('the limit is 1 to 3, only a person sets it, and the journal keeps it', async () => {
+      await expect(cmd('build.queue_auto', { parallel: 4 }, projectId)).rejects.toMatchObject({ type: 'validation' });
+      await expect(cmd('build.queue_auto', { parallel: 0 }, projectId)).rejects.toMatchObject({ type: 'validation' });
+      await expect(cmd('build.queue_auto', {}, projectId)).rejects.toMatchObject({ type: 'validation' });
+      await expect(
+        executeCommand(environment().services, { command: 'build.queue_auto', actor: system('build', '1'), projectId, entityId: projectId, data: { parallel: 2 } }),
+      ).rejects.toMatchObject({ type: 'forbidden' });
+      await cmd('build.queue_auto', { parallel: 3 }, projectId);
+      const events = await db().selectFrom('events').select(['actor', 'before', 'after']).where('project_id', '=', projectId).where('command', '=', 'build.queue_auto').orderBy('seq').execute();
+      expect(events.at(-1)).toMatchObject({ actor: 'human:ana', after: { parallel: 3 } });
+      await cmd('build.queue_auto', { parallel: 1 }, projectId);
+    });
   });
 });
 

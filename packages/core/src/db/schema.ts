@@ -655,6 +655,8 @@ export type BuildQueueSettingsTable = {
   project_id: string;
   /** «Build the queue»: DEMIURGO starts the next ready task by itself after each merge. */
   auto: Generated<boolean>;
+  /** How many builds «Build the queue» runs at once (1 to 3). */
+  parallel: Generated<number>;
   set_by: string;
   set_at: Generated<Timestamp>;
 };

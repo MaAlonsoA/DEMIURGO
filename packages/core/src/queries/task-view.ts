@@ -10,6 +10,7 @@ import { type Touches, touchesFor } from '../build/touches.ts';
 import { type TestabilityFlag, testabilityFlagsOf } from './testability.ts';
 
 type Size = 'XS' | 'S' | 'M' | 'L' | 'XL';
+export type TaskSupersession = { code: string; title: string; version: number; point: string | null };
 type Ref = { ref: string; title: string; code: string | null; state: string };
 
 export type ReviewComment = { path: string; line: number | null; severity: string; body: string };
@@ -50,6 +51,9 @@ export type TaskView = {
   touches?: Touches;
   depends_on: Ref[];
   blocks: Ref[];
+  /** The tasks this one supersedes («Supersedes TSK-…») and the later tasks that supersede it («Superseded by TSK-… on: point»). */
+  supersedes: TaskSupersession[];
+  superseded_by: TaskSupersession[];
   dod: { item: string; met: boolean }[];
   development: {
     branch: string | null;
@@ -216,6 +220,27 @@ async function poolOf(db: Db, projectId: string, f: Feature) {
     pool.push({ ref: d.id, code: null, title: p.title ?? '', state: 'proposed', waits: new Set((p.depends_on_titles ?? []).map(key)) });
   }
   return pool;
+}
+
+/** The `supersedes` links of a task, both ways: the tasks it supersedes and the later tasks that supersede it. */
+export async function supersessionsOf(db: Db, projectId: string, recordId: string) {
+  const mine = (await db.selectFrom('record_versions').select('id').where('record_id', '=', recordId).execute()).map((v) => v.id);
+  if (mine.length === 0) return { supersedes: [], superseded_by: [] };
+  const read = (own: 'from_id' | 'to_id') => {
+    const other = own === 'from_id' ? 'to_id' : 'from_id';
+    return db
+      .selectFrom('links')
+      .innerJoin('record_versions as ov', 'ov.id', `links.${other}`)
+      .innerJoin('records as orr', 'orr.id', 'ov.record_id')
+      .select(['orr.code', 'ov.title', 'ov.n', 'links.note'])
+      .where('links.project_id', '=', projectId)
+      .where('links.type', '=', 'supersedes')
+      .where(`links.${own}`, 'in', mine)
+      .orderBy('links.created_at')
+      .execute()
+      .then((rows) => rows.map((r): TaskSupersession => ({ code: r.code, title: r.title, version: r.n, point: r.note })));
+  };
+  return { supersedes: await read('from_id'), superseded_by: await read('to_id') };
 }
 
 async function shownVersion(db: Db, recordId: string) {
@@ -429,6 +454,7 @@ export async function taskViewOfRecord(db: Db, projectId: string, recordId: stri
     testability: (await testabilityFlagsOf(db, [recordId])).get(recordId) ?? [],
     ...(await touchesFor(db, projectId, [rec.code]).then((m) => (m.has(rec.code) ? { touches: m.get(rec.code) } : {}))),
     ...linksOf(pool, self),
+    ...(await supersessionsOf(db, projectId, recordId)),
     dod: dodOf(covers, merged, checks),
     development,
     sources: sourcesOf(shown.practice_sources),
@@ -519,6 +545,8 @@ export async function taskDraftView(db: Db, projectId: string, proposalId: strin
     covers,
     testability: [],
     ...links,
+    supersedes: [],
+    superseded_by: [],
     dod: dodOf(covers, false, []),
     development: null,
     sources: sourcesOf(payload.sources),

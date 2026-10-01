@@ -110,6 +110,34 @@ describe('A later task supersedes a built task', () => {
     expect(us.at(-1)?.operations).toMatchObject({ superseded: [{ record: old.code, version: 1 }] });
   });
 
+  it('records a real supersedes link, once, with its event and the point', async () => {
+    const { p, old } = await setup(true, 'task');
+    const rows = async () =>
+      s.db
+        .selectFrom('links')
+        .innerJoin('record_versions as f', 'f.id', 'links.from_id')
+        .innerJoin('records as fr', 'fr.id', 'f.record_id')
+        .select(['links.id', 'links.to_id', 'links.note', 'links.created_by', 'links.state', 'fr.code as from_code'])
+        .where('links.project_id', '=', p)
+        .where('links.type', '=', 'supersedes')
+        .execute();
+    const links = await rows();
+    expect(links).toHaveLength(1);
+    expect(links[0]).toMatchObject({ state: 'current', created_by: 'system:supersession@1', note: expect.stringContaining('CI') });
+    expect(links[0]?.from_code).not.toBe(old.code);
+    expect(links[0]?.to_id).toBe(old.versionId);
+    const events = await s.db.selectFrom('events').select(['command', 'actor']).where('project_id', '=', p).where('entity_id', '=', links[0]?.id ?? '').execute();
+    expect(events).toMatchObject([{ command: 'link.supersede', actor: 'system:supersession@1' }]);
+    // The task page of both sides shows it.
+    const newer = await s.db.selectFrom('records').select('id').where('project_id', '=', p).where('code', '=', links[0]?.from_code ?? '').executeTakeFirstOrThrow();
+    const { supersessionsOf } = await import('../src/queries/task-view.ts');
+    expect((await supersessionsOf(s.db, p, old.recordId)).superseded_by).toMatchObject([{ code: links[0]?.from_code, version: 1 }]);
+    expect((await supersessionsOf(s.db, p, newer.id)).supersedes).toMatchObject([{ code: old.code, version: 1 }]);
+    // The point travels with the link, and the same pair is never linked twice.
+    expect((await supersessionsOf(s.db, p, old.recordId)).superseded_by[0]?.point).toContain('CI');
+    expect(await rows()).toHaveLength(1);
+  });
+
   it('a task change still raises the review on a task that is not built', async () => {
     const { p, old } = await setup(false, 'task');
     expect(await reviewsOf(p)).toMatchObject([{ type: 'review', payload: { record: { code: old.code, version: 1 }, verdict: 'update' } }]);

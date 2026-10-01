@@ -340,6 +340,14 @@ export const CAPABILITIES = {
       "decisive": false,
       "description": "Create a typed link between versions."
     },
+    "link.supersede": {
+      "entity": "link",
+      "allowed": [
+        "system"
+      ],
+      "decisive": false,
+      "description": "Record that a later task supersedes a built task."
+    },
     "link.flag_review": {
       "entity": "link",
       "allowed": [
@@ -1636,6 +1644,14 @@ export const TRANSITIONS = {
           "to": "current",
           "guards": [
             "within_its_version",
+            "endpoints_exist"
+          ]
+        },
+        {
+          "command": "link.supersede",
+          "from": "new",
+          "to": "current",
+          "guards": [
             "endpoints_exist"
           ]
         },

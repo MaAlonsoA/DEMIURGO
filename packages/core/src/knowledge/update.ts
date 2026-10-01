@@ -34,7 +34,7 @@ import { SIMULATED_CLASSIFIER_ID } from '../classifier/simulated.ts';
 import type { Db, Tx } from '../db/connection.ts';
 import { stepSpan } from '../engine/observe.ts';
 import type { Services } from '../services.ts';
-import { UPDATER } from './commands.ts';
+import { SUPERSEDER, UPDATER } from './commands.ts';
 import { DISCARD_TRIGGER, type AuthorityObject, deriveChange, deriveRemoval } from './derive.ts';
 import { loadGraph } from './graph-pg.ts';
 
@@ -291,7 +291,17 @@ async function applyOperations(
 }
 
 /** A done (built and merged) task that a later task supersedes on a point: recorded, never raised as a review. */
-export type Supersession = { record: string; version: number; by: string; by_version?: number };
+export type Supersession = {
+  record: string;
+  version: number;
+  by: string;
+  by_version?: number;
+  /** What it supersedes on: the knowledge reason. */
+  point?: string;
+  /** The record versions behind the codes: the `supersedes` link goes from `by_version_id` to `version_id`. */
+  version_id?: string;
+  by_version_id?: string;
+};
 
 const operationsOf = (plan: Plan, superseded: Supersession[] = []) => ({
   projected: plan.project.map((n) => n.ref),
@@ -300,7 +310,9 @@ const operationsOf = (plan: Plan, superseded: Supersession[] = []) => ({
   invalidated_edges: plan.invalidatedEdges.length,
   reviews: plan.reviews,
   not_applied: plan.notApplied,
-  ...(superseded.length > 0 ? { superseded } : {}),
+  ...(superseded.length > 0
+    ? { superseded: superseded.map(({ version_id: _a, by_version_id: _b, ...rest }) => rest) }
+    : {}),
 });
 
 /** Verifies and applies (or rejects) in a single transaction; idempotent if interrupted. */
@@ -338,6 +350,29 @@ async function applyInSpan(s: Services, updateId: string, projectId: string, r: 
       const version = isEmptyPlan(plan) ? graph.version : graph.version + 1;
       await applyOperations(execute, trx, projectId, plan, version, updateId);
       await after?.();
+      // Each supersession is a real link, once per pair: the later task `supersedes` the built one.
+      for (const x of superseded) {
+        if (!x.version_id || !x.by_version_id) continue;
+        const exists = await trx
+          .selectFrom('links')
+          .select('id')
+          .where('project_id', '=', projectId)
+          .where('type', '=', 'supersedes')
+          .where('from_id', '=', x.by_version_id)
+          .where('to_id', '=', x.version_id)
+          .executeTakeFirst();
+        if (exists) continue;
+        // Not as the knowledge component: its closed command list (I10) only writes derived knowledge.
+        await execute({
+          command: 'link.supersede',
+          actor: SUPERSEDER,
+          data: {
+            from: { type: 'record_version', id: x.by_version_id },
+            to: { type: 'record_version', id: x.version_id },
+            ...(x.point ? { point: x.point } : {}),
+          },
+        });
+      }
       await execute({
         entityId: updateId,
         command: 'knowledge_update.apply',
@@ -557,7 +592,16 @@ async function prepareReviews(
     // (ADR «Superseded by», Nygard 2011, applied to work items: convención nuestra). It is recorded in
     // the update's operations, never raised as a review that would rebuild merged work.
     if (changeRow?.type === 'task' && v.type === 'task' && (await isBuilt(trx, projectId, v.recordId))) {
-      superseded.push({ record: v.code, version: v.n, by: changeRow.code, by_version: changeRow.n });
+      const point = (review.reason || '').trim().slice(0, 500);
+      superseded.push({
+        record: v.code,
+        version: v.n,
+        by: changeRow.code,
+        by_version: changeRow.n,
+        ...(point ? { point } : {}),
+        ...(origin?.id ? { version_id: origin.id } : {}),
+        ...(d.change.main.origin.id ? { by_version_id: d.change.main.origin.id } : {}),
+      });
       continue;
     }
     proposals.push({

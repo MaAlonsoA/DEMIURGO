@@ -60,6 +60,7 @@ commands:
   criterion.record: { entity: criterion, allowed: [human], decisive: false, description: "Record an acceptance criterion within a version." }
 
   link.create: { entity: link, allowed: [human], decisive: false, description: "Create a typed link between versions." }
+  link.supersede: { entity: link, allowed: [system], decisive: false, description: "Record that a later task supersedes a built task." }
   link.flag_review: { entity: link, allowed: [system], decisive: false, description: "Flag a link as pending review." }
   link.keep: { entity: link, allowed: [human], decisive: false, description: "Keep a reviewed link." }
   link.change: { entity: link, allowed: [human], decisive: false, description: "Mark a reviewed link as changed." }

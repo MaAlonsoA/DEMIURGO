@@ -11,6 +11,8 @@ import type { CommandContext } from '../bus/types.ts';
 import { DISCARD_TRIGGER, registerAuthorityReaction } from '../commands/reactions.ts';
 
 export const UPDATER = system('knowledge');
+/** Writes the `supersedes` link when a knowledge update finds a later task superseding a built one. */
+export const SUPERSEDER = system('supersession');
 
 const axesSchema = z
   .array(

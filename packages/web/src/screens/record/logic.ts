@@ -133,4 +133,5 @@ export const LINK_WORDS: Record<string, string> = {
   origin: 'Comes from',
   conflicts_with: 'Conflicts with',
   derived_from: 'Derived from',
+  supersedes: 'Supersedes',
 };

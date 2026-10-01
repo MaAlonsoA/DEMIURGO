@@ -19,6 +19,7 @@
 //   node packages/api/src/cli.ts layers-backfill --project <projectId>           (Jev's schema opinion for tasks that have none; needs TYPESAFE_API_KEY)
 //   node packages/api/src/cli.ts testability-backfill --project <projectId>       (Jev's testability opinion for task versions that have none; needs TYPESAFE_API_KEY)
 //   node packages/api/src/cli.ts review-findings-backfill --project <projectId>  (Jev's category for the comments of reviews that have none; needs TYPESAFE_API_KEY)
+//   node packages/api/src/cli.ts link-supersedes --project <projectId> --from TSK-… --to TSK-… [--from-version N] [--to-version N] [--note "point"]   (records that the later task supersedes the built one; idempotent)
 //   node packages/api/src/cli.ts export-design <projectId> [--check dir | --out dir | dir]
 
 import { readFileSync } from 'node:fs';
@@ -498,6 +499,77 @@ commands['code-map'] = async () => {
   } finally {
     await c.close();
   }
+};
+
+commands['link-supersedes'] = async () => {
+  const flag = (name: string) => {
+    const i = args.indexOf(name);
+    return i >= 0 ? args[i + 1] : undefined;
+  };
+  const projectId = flag('--project');
+  const fromCode = flag('--from');
+  const toCode = flag('--to');
+  if (!projectId || !fromCode || !toCode) {
+    throw new Error('Usage: link-supersedes --project <projectId> --from <TSK-later> --to <TSK-built> [--from-version N] [--to-version N] [--note "point"]');
+  }
+  await withDatabase(async (c) => {
+    const services = {
+      db: c.db,
+      clock: () => new Date(),
+      providers: createProviders(config),
+      classifierFor: () => Promise.reject(new Error('A supersession classifies nothing.')),
+      agentSessionsDir: config.agentSessionsDir,
+      engine: inertEngine(),
+      logger: cliLogger,
+      observer: createObserver(config.observe, cliLogger),
+    };
+    // The version asked for, else the latest approved one, else the latest.
+    const versionOf = async (code: string, n: string | undefined) => {
+      const rows = await c.db
+        .selectFrom('record_versions as v')
+        .innerJoin('records as r', 'r.id', 'v.record_id')
+        .select(['v.id', 'v.n', 'v.state', 'r.type'])
+        .where('r.project_id', '=', projectId)
+        .where('r.code', '=', code)
+        .where('v.state', '<>', 'discarded')
+        .orderBy('v.n', 'desc')
+        .execute();
+      const hit = n ? rows.find((v) => v.n === Number(n)) : (rows.find((v) => v.state === 'approved') ?? rows[0]);
+      if (!hit) throw new Error(`${code}${n ? ` v${n}` : ''} not found in the project.`);
+      if (hit.type !== 'task') throw new Error(`${code} is not a task.`);
+      return hit;
+    };
+    const from = await versionOf(fromCode, flag('--from-version'));
+    const to = await versionOf(toCode, flag('--to-version'));
+    const exists = await c.db
+      .selectFrom('links')
+      .select('id')
+      .where('project_id', '=', projectId)
+      .where('type', '=', 'supersedes')
+      .where('from_id', '=', from.id)
+      .where('to_id', '=', to.id)
+      .executeTakeFirst();
+    if (exists) {
+      console.log(JSON.stringify({ created: false, reason: 'already linked' }));
+      return;
+    }
+    const actor = system('supersession');
+    const note = flag('--note');
+    const r = await interaction(services.observer, actor, projectId, () =>
+      executeCommand(services, {
+        command: 'link.supersede',
+        actor,
+        projectId,
+        data: {
+          from: { type: 'record_version', id: from.id },
+          to: { type: 'record_version', id: to.id },
+          ...(note ? { point: note } : {}),
+        },
+      }),
+    );
+    console.log(JSON.stringify({ created: true, link: r.entityId, from: `${fromCode} v${from.n}`, to: `${toCode} v${to.n}` }));
+    await services.observer.flush(5000);
+  });
 };
 
 commands['build-footprint-backfill'] = async () => {

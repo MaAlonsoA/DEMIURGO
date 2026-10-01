@@ -43,7 +43,7 @@ const uuid = z.string().uuid();
 const RE_CODE = /^(DEC|FDR|ADR|BUG)-[A-Z]{3}-\d{3}$/;
 // What a link points to: any record, an epic (EPC) or the definition (DEF) too.
 const RE_TARGET = /^[A-Z]{3}-[A-Z]{3}-\d{3}$/;
-const LINK_TYPES = ['based_on', 'design_of', 'covers', 'origin', 'conflicts_with', 'derived_from', 'depends_on'] as const;
+const LINK_TYPES = ['based_on', 'design_of', 'covers', 'origin', 'conflicts_with', 'derived_from', 'depends_on', 'supersedes'] as const;
 
 const L = VERSION_LIMITS;
 const sectionSchema = z.object({ title: text(L.sectionTitle), content: z.string().max(L.section) }).strict();
@@ -826,6 +826,40 @@ registerHandlers({
         .returning('id')
         .executeTakeFirstOrThrow();
       return { entityId: id, after: { type: d.type, from: d.from.id, to: d.to.id } };
+    },
+  }),
+
+  // A later task supersedes a built and merged one (ADR «Superseded by», Nygard 2011; convención nuestra):
+  // written by the knowledge update, once per pair, with the point it supersedes.
+  'link.supersede': handler({
+    data: z
+      .object({
+        from: z.object({ type: z.literal('record_version'), id: uuid }).strict(),
+        to: z.object({ type: z.literal('record_version'), id: uuid }).strict(),
+        point: z.string().trim().max(500).optional(),
+      })
+      .strict(),
+    async apply(ctx, d, _e, to) {
+      const n = async (id: string) =>
+        (await ctx.trx.selectFrom('record_versions').select('n').where('id', '=', id).executeTakeFirstOrThrow()).n;
+      const { id } = await ctx.trx
+        .insertInto('links')
+        .values({
+          project_id: ctx.projectId,
+          type: 'supersedes',
+          from_type: d.from.type,
+          from_id: d.from.id,
+          from_version: await n(d.from.id),
+          to_type: d.to.type,
+          to_id: d.to.id,
+          to_version: await n(d.to.id),
+          note: d.point ?? null,
+          state: to,
+          created_by: formatActor(ctx.actor),
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      return { entityId: id, after: { type: 'supersedes', from: d.from.id, to: d.to.id, point: d.point ?? null } };
     },
   }),
 

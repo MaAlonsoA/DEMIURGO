@@ -525,6 +525,8 @@ export type LinksTable = {
   to_version: number | null;
   /** The upstream version the person last confirmed the link against («Still valid»). */
   checked_against: number | null;
+  /** The point a `supersedes` link supersedes. */
+  note: string | null;
   state: string;
   created_by: string;
   created_at: Generated<Timestamp>;

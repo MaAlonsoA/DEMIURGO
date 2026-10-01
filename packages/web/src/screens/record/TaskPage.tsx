@@ -662,6 +662,16 @@ function TaskAside({ projectId, task, status, children }: { projectId: string; t
         <Prop label={t.blocks} wide>
           <Refs projectId={projectId} items={task.blocks} />
         </Prop>
+        {task.superseded_by.length > 0 ? (
+          <Prop label={t.supersededBy} wide>
+            <Supersessions projectId={projectId} items={task.superseded_by} showPoint />
+          </Prop>
+        ) : null}
+        {task.supersedes.length > 0 ? (
+          <Prop label={t.supersedes} wide>
+            <Supersessions projectId={projectId} items={task.supersedes} />
+          </Prop>
+        ) : null}
         <Prop label={t.provenance} wide>
           <ul className="flex flex-col gap-1">
             {by ? (
@@ -721,6 +731,35 @@ function TaskAside({ projectId, task, status, children }: { projectId: string; t
       </dl>
       {children}
     </div>
+  );
+}
+
+/** The tasks a task supersedes, or the later tasks that supersede it with the point (ADR «Superseded by»: convención nuestra). */
+function Supersessions({ projectId, items, showPoint }: { projectId: string; items: TaskView['supersedes']; showPoint?: boolean }) {
+  const t = useMessages(TASK_PAGE);
+  return (
+    <ul className="flex flex-col gap-1">
+      {items.map((i) => (
+        <li key={`${i.code}@${i.version}`}>
+          <Link
+            to="/p/$projectId/records/$code"
+            params={{ projectId, code: i.code }}
+            search={{ v: i.version } as never}
+            className="text-accent-text hover:underline"
+          >
+            <Code className="mr-1.5">
+              {i.code} v{i.version}
+            </Code>
+            {i.title}
+          </Link>
+          {showPoint && i.point ? (
+            <span className="block text-fg-2">
+              {t.supersededOn} {i.point}
+            </span>
+          ) : null}
+        </li>
+      ))}
+    </ul>
   );
 }
 

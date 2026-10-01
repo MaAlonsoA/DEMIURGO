@@ -130,6 +130,7 @@ entities:
     authority: []
     transitions:
       - { command: link.create, from: new, to: current, guards: [within_its_version, endpoints_exist] }
+      - { command: link.supersede, from: new, to: current, guards: [endpoints_exist] }
       - { command: link.flag_review, from: [current, kept, changed], to: needs_review }
       - { command: link.keep, from: [needs_review], to: kept }
       - { command: link.change, from: [needs_review], to: changed }

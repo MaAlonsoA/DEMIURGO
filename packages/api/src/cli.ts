@@ -804,10 +804,16 @@ commands['review-findings-backfill'] = async () => {
 
 /** Active AI runs plus the builder containers (null when docker is not reachable from here, as inside the api container). */
 async function drainActivity(): Promise<{ runs: number; builders: number | null }> {
-  const runs = await withDatabase(async (c) => {
-    const row = await c.db.selectFrom('ai_runs').select((eb) => eb.fn.countAll<string>().as('n')).where('state', 'in', ['running', 'requested', 'queued']).executeTakeFirstOrThrow();
-    return Number(row.n);
-  });
+  // No migrate here: the restart script reads this before its snapshot, and the snapshot must be taken before pending migrations apply.
+  const c = connect(config.databaseUrl);
+  const runs = await (async () => {
+    try {
+      const row = await c.db.selectFrom('ai_runs').select((eb) => eb.fn.countAll<string>().as('n')).where('state', 'in', ['running', 'requested', 'queued']).executeTakeFirstOrThrow();
+      return Number(row.n);
+    } finally {
+      await c.close();
+    }
+  })();
   let builders: number | null = null;
   try {
     const out = execFileSync('docker', ['ps', '-q', '--filter', 'label=demiurgo.builder=1'], { encoding: 'utf8', timeout: 10_000, stdio: ['ignore', 'pipe', 'ignore'] });

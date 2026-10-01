@@ -142,6 +142,38 @@ export async function classifyTaskLayers(
   }
 }
 
+/**
+ * Jev's layers opinion for the latest approved version of each task among `codes` that has none yet (tasks written
+ * before H101, or whose classification failed). «Build the queue» calls it before choosing, so the schema rule never
+ * runs blind on a task without a prediction. Never throws; without TYPESAFE_API_KEY it does nothing.
+ */
+export async function ensureTaskLayers(services: Services, projectId: string, codes: string[]): Promise<number> {
+  if (!jevAllowed() || codes.length === 0) return 0;
+  try {
+    const versions = await services.db
+      .selectFrom('records as r')
+      .innerJoin('record_versions as v', 'v.record_id', 'r.id')
+      .select(['r.id', 'v.id as version_id', 'v.n'])
+      .where('r.project_id', '=', projectId)
+      .where('r.code', 'in', codes)
+      .where('v.state', '=', 'approved')
+      .orderBy('v.n', 'desc')
+      .execute();
+    const latest = new Map<string, string>();
+    for (const v of versions) if (!latest.has(v.id)) latest.set(v.id, v.version_id);
+    if (latest.size === 0) return 0;
+    const judged = new Set(
+      (await services.db.selectFrom('task_layers_opinions').select('record_version_id').where('record_version_id', 'in', [...latest.values()]).execute()).map((x) => x.record_version_id),
+    );
+    const missing = [...latest].filter(([, versionId]) => !judged.has(versionId));
+    await Promise.all(missing.map(([recordId, versionId]) => classifyTaskLayers(services, projectId, recordId, versionId)));
+    return missing.length;
+  } catch (err) {
+    services.logger.error('Jev could not fill in the missing layers opinions', { projectId, error: String(err) });
+    return 0;
+  }
+}
+
 /** The latest stored schema value of each task (by record id); tasks without an opinion are absent. */
 export async function taskLayersOf(db: Db, recordIds: string[]): Promise<Map<string, TaskLayers>> {
   const out = new Map<string, TaskLayers>();

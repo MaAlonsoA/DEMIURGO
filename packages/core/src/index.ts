@@ -43,6 +43,7 @@ export * from './build/auto.ts';
 export * from './build/footprint.ts';
 export * from './build/code-map.ts';
 export { classifyTaskTestability } from './classifier/testability.ts';
+export { ensureTaskLayers } from './classifier/layers.ts';
 export { coherenceStatus } from './actions/coherence-review.ts';
 export * from './context/knowledge.ts';
 export * from './knowledge/index.ts';

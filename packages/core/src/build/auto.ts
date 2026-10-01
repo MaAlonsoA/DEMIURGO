@@ -20,6 +20,7 @@ import { type SchemaEvidence, schemaChangingTasks } from './schema-risk.ts';
 import { type CodeMap, moduleOverlap } from './code-map.ts';
 import { hotspotsOf, isHotspot } from './hotspots.ts';
 import { predictedFiles } from './predicted-files.ts';
+import { ensureTaskLayers } from '../classifier/layers.ts';
 
 const BUILD = system('build', '1');
 
@@ -360,7 +361,10 @@ export function advanceBuildQueue(services: Services, projectId: string): Promis
     try {
       if (!(await queueAutoOn(services.db, projectId))) return started;
       const queue = await buildQueue(services.db, projectId);
-      const p = await plan(services.db, projectId, queue, await queueParallelOf(services.db, projectId));
+      const limit = await queueParallelOf(services.db, projectId);
+      // The schema rule needs Jev's prediction for every candidate: tasks written before it have none (H101 gap).
+      if (limit > 1) await ensureTaskLayers(services, projectId, queue.ready.map((t) => t.code));
+      const p = await plan(services.db, projectId, queue, limit);
       for (const s of p.start) {
         if (!s.hasRequest) await executeCommand(services, { command: 'build_request.request', actor: BUILD, projectId, data: { task: s.code } });
         await executeCommand(services, { command: 'build.start', actor: BUILD, projectId, data: { task: s.code } });

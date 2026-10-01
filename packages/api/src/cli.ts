@@ -16,6 +16,7 @@
 //   node packages/api/src/cli.ts import-design <projectId> [dir]                (creates the H1 pending batch)
 //   node packages/api/src/cli.ts build-footprint-backfill --project <projectId>   (records the merge commit and files of merged tasks that lack them; needs GitHub env)
 //   node packages/api/src/cli.ts code-map --project <projectId> [--query "text"] [--ref main] [--budget 6000]   (prints the ranked code map of the project's repository; read-only)
+//   node packages/api/src/cli.ts layers-backfill --project <projectId>           (Jev's schema opinion for tasks that have none; needs TYPESAFE_API_KEY)
 //   node packages/api/src/cli.ts testability-backfill --project <projectId>       (Jev's testability opinion for task versions that have none; needs TYPESAFE_API_KEY)
 //   node packages/api/src/cli.ts export-design <projectId> [--check dir | --out dir | dir]
 
@@ -57,6 +58,7 @@ import {
   pullRequestFootprint,
   taskFootprints,
   classifyTaskTestability,
+  ensureTaskLayers,
   repositoryOf,
   buildCodeMap,
   rankCodeMap,
@@ -552,6 +554,27 @@ commands['build-footprint-backfill'] = async () => {
     }
     console.log(JSON.stringify({ merged: merged.length, written }));
     await services.observer.flush(5000);
+  });
+};
+
+commands['layers-backfill'] = async () => {
+  const i = args.indexOf('--project');
+  const projectId = i >= 0 ? args[i + 1] : undefined;
+  if (!projectId) throw new Error('Usage: layers-backfill --project <projectId>');
+  await withDatabase(async (c) => {
+    const services = {
+      db: c.db,
+      clock: () => new Date(),
+      providers: createProviders(config),
+      classifierFor: () => Promise.reject(new Error('Layers use Jev directly.')),
+      agentSessionsDir: config.agentSessionsDir,
+      engine: inertEngine(),
+      logger: cliLogger,
+      observer: createObserver(config.observe, cliLogger),
+    };
+    const codes = (await c.db.selectFrom('records').select('code').where('project_id', '=', projectId).where('type', '=', 'task').execute()).map((r) => r.code);
+    const asked = await ensureTaskLayers(services as never, projectId, codes);
+    console.log(JSON.stringify({ tasks: codes.length, asked }));
   });
 };
 

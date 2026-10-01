@@ -53,6 +53,7 @@ import { projectsDir } from '../repo/repo.ts';
 import { BUILDER_MAX_TIME_MS, type BuildReport, runBuilder } from '../runner/builder.ts';
 import { databaseName, prepareEnvironment, projectSlug, teardownEnvironment } from '../runner/environment.ts';
 import { environmentFromCi } from './environment.ts';
+import { pullRequestFootprint } from './footprint.ts';
 import type { Services } from '../services.ts';
 import { commitAll, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
 import { existsSync } from 'node:fs';
@@ -70,6 +71,7 @@ export type GithubApi = Pick<
   | 'pushBranch'
   | 'openPullRequest'
   | 'pullRequest'
+  | 'pullRequestFiles'
   | 'pullRequestDiff'
   | 'setCommitStatus'
   | 'postReview'
@@ -1122,7 +1124,9 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
   }
   await plain('complete', async () => {
     await executeCommand(s0, { command: 'build_request.complete', actor: BUILD, projectId, entityId: requestId, data: {} });
-    await record(r, 'merge', 'ok', { merged_at: mergedTime, pr_url: pull.url });
+    // Best effort: the files this task landed (Nx "affected": files changed per git), so later briefs can point at them.
+    const footprint = await pullRequestFootprint(d.github, cfg, { owner, repo: repoName }, pull.number).catch(() => null);
+    await record(r, 'merge', 'ok', { merged_at: mergedTime, pr_url: pull.url, ...(footprint ? { footprint } : {}) });
   });
   await plain('cleanup', async () => {
     await removeWorktree(info.repoDir, worktree.path).catch(() => undefined);

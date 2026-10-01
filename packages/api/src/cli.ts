@@ -14,6 +14,7 @@
 //   node packages/api/src/cli.ts translate-records <projectId> [limit]         (proposes English versions; calls the translator)
 //   node packages/api/src/cli.ts evidence-junit <projectId> <file.xml> [--pr <url>] [--ref <sha>]   (posts CI results to the running API; token in DEMIURGO_AGENT_TOKEN, URL in DEMIURGO_URL or http://127.0.0.1:8100)
 //   node packages/api/src/cli.ts import-design <projectId> [dir]                (creates the H1 pending batch)
+//   node packages/api/src/cli.ts build-footprint-backfill --project <projectId>   (records the merge commit and files of merged tasks that lack them; needs GitHub env)
 //   node packages/api/src/cli.ts export-design <projectId> [--check dir | --out dir | dir]
 
 import { readFileSync } from 'node:fs';
@@ -49,6 +50,10 @@ import {
   classifyAspects,
   githubConfig,
   ensureProjectRepo,
+  pullRequest,
+  pullRequestFiles,
+  pullRequestFootprint,
+  taskFootprints,
 } from '@demiurgo/core';
 import { readTree, replaceTree } from '@demiurgo/design';
 import { type Actor, formatActor, human, system } from '@demiurgo/domain';
@@ -460,6 +465,65 @@ commands['export-design'] = async () => {
     const removed = await replaceTree(target, tree);
     console.log(`Exported ${tree.size} file(s) to ${target}/.`);
     for (const r of removed) console.log(`  removed ${r}: no longer in v2.`);
+  });
+};
+
+commands['build-footprint-backfill'] = async () => {
+  const i = args.indexOf('--project');
+  const projectId = i >= 0 ? args[i + 1] : undefined;
+  if (!projectId) throw new Error('Usage: build-footprint-backfill --project <projectId>');
+  const cfg = githubConfig();
+  if (!cfg) throw new Error('Set DEMIURGO_GITHUB_TOKEN and DEMIURGO_GITHUB_OWNER.');
+  await withDatabase(async (c) => {
+    const services = {
+      db: c.db,
+      clock: () => new Date(),
+      providers: createProviders(config),
+      classifierFor: () => Promise.reject(new Error('A footprint classifies nothing.')),
+      agentSessionsDir: config.agentSessionsDir,
+      engine: inertEngine(),
+      logger: cliLogger,
+      observer: createObserver(config.observe, cliLogger),
+    };
+    const repo = await c.db.selectFrom('project_github').select(['owner', 'repo']).where('project_id', '=', projectId).executeTakeFirst();
+    if (!repo) throw new Error('The project has no GitHub repository.');
+    const have = new Set((await taskFootprints(c.db, projectId)).map((t) => t.code));
+    const merged = await c.db
+      .selectFrom('build_requests as b')
+      .innerJoin('records as r', 'r.id', 'b.task_id')
+      .select(['b.id', 'b.pr_number', 'r.code'])
+      .where('b.project_id', '=', projectId)
+      .where('b.state', '=', 'done')
+      .where('b.pr_number', 'is not', null)
+      .orderBy('b.done_at')
+      .execute();
+    const actor = system('cli');
+    let written = 0;
+    for (const m of merged) {
+      if (have.has(m.code) || m.pr_number === null) continue;
+      const attempt = await c.db
+        .selectFrom('build_steps')
+        .select((eb) => eb.fn.max('attempt').as('attempt'))
+        .where('build_request_id', '=', m.id)
+        .executeTakeFirst();
+      try {
+        const footprint = await pullRequestFootprint({ pullRequest, pullRequestFiles }, cfg, repo, m.pr_number);
+        await interaction(services.observer, actor, projectId, () =>
+          executeCommand(services, {
+            command: 'build_step.record',
+            actor,
+            projectId,
+            data: { build_request_id: m.id, attempt: Number(attempt?.attempt ?? 1), stage: 'footprint', outcome: 'ok', detail: { footprint, backfilled: true } },
+          }),
+        );
+        written++;
+        console.log(`${m.code}: ${footprint.files.length} file(s)`);
+      } catch (e) {
+        console.error(`${m.code}: skipped (${(e as Error).message})`);
+      }
+    }
+    console.log(JSON.stringify({ merged: merged.length, written }));
+    await services.observer.flush(5000);
   });
 };
 

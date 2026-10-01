@@ -294,6 +294,25 @@ export async function pullRequest(
   };
 }
 
+export type PullRequestFile = { path: string; additions: number; deletions: number; status: string };
+
+/** Cap on the files listed for one pull request (our convention: a task's footprint, not a full diff). */
+export const PR_FILES_CAP = 300;
+
+/** The files a pull request changes (REST GET /pulls/{n}/files, 100 per page), up to PR_FILES_CAP. */
+export async function pullRequestFiles(cfg: GithubConfig, owner: string, repo: string, number: number): Promise<PullRequestFile[]> {
+  const out: PullRequestFile[] = [];
+  for (let page = 1; out.length < PR_FILES_CAP; page++) {
+    const { data } = await call(cfg, 'GET', `/repos/${owner}/${repo}/pulls/${number}/files?per_page=100&page=${page}`);
+    const rows: any[] = Array.isArray(data) ? data : [];
+    for (const f of rows) {
+      out.push({ path: String(f.filename), additions: Number(f.additions ?? 0), deletions: Number(f.deletions ?? 0), status: String(f.status ?? 'modified') });
+    }
+    if (rows.length < 100) break;
+  }
+  return out.slice(0, PR_FILES_CAP);
+}
+
 export type OpenPullRequest = { number: number; createdAt: string; headRef: string; headRepo: string | null };
 
 /** Every open pull request of the repository (paged, newest first). */

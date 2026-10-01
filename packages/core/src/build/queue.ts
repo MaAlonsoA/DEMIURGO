@@ -24,7 +24,7 @@ import { loadTaskDependencies, waitedTaskCodes } from "../queries/task-deps.ts";
 import { projectsDir } from "../repo/repo.ts";
 import type { AutoStatus } from "./auto.ts";
 import { stageFailure } from "./failure.ts";
-import { isReusableFile, taskFootprints } from "./footprint.ts";
+import { type TaskFootprint, isReusableFile, taskFootprints } from "./footprint.ts";
 import { type TaskHold, openHolds } from "./holds.ts";
 
 type StateRow = Awaited<ReturnType<typeof productState>>["designs"][number];
@@ -437,9 +437,7 @@ async function relatedWork(
   codes: readonly string[],
   rows: Rows,
 ): Promise<string[]> {
-  const related = await relatedRows(db, projectId, codes, rows);
-  const lines: string[] = [];
-  for (const r of related) {
+  const found = await sql<{ code: string }>`
     select distinct split_part(other.ref, '@', 1) as code
     from knowledge_edges e
     join knowledge_nodes a on a.id = e.from_node and a.valid_to is null
@@ -495,6 +493,57 @@ export function reportLine(forBuild: boolean): string {
   return forBuild
     ? "When done, report for each criterion the name of the test that checks it (or the steps, if it is checked by hand)."
     : "When done, report the pull request URL and, for each criterion, the name of the test that checks it (or the steps, if it is checked by hand).";
+}
+
+/** Most files listed under «Existing code to reuse» (our convention: enough to point at the code, short enough to read). */
+export const MAX_REUSE_FILES = 15;
+
+async function relatedCodes(db: Db, projectId: string, code: string): Promise<string[]> {
+  const found = await sql<{ code: string }>`
+    select distinct split_part(other.ref, '@', 1) as code
+    from knowledge_edges e
+    join knowledge_nodes a on a.id = e.from_node and a.valid_to is null
+    join knowledge_nodes b on b.id = e.to_node and b.valid_to is null
+    join knowledge_nodes other on other.id = case when split_part(a.ref, '@', 1) = ${code} then b.id else a.id end
+    where e.project_id = ${projectId}::uuid and e.kind = 'related' and e.valid_to is null
+      and (split_part(a.ref, '@', 1) = ${code} or split_part(b.ref, '@', 1) = ${code})`.execute(db);
+  return found.rows.map((r) => r.code);
+}
+
+/**
+ * Files the merged tasks around this one left in the repository (their footprints), so its builder
+ * extends them instead of creating a parallel version (Aider's repo map, aider.chat/docs/repomap.html;
+ * Nx "affected"). Order: files of the tasks it depends on (or whose feature it waits for), then of the
+ * tasks of its own feature, then of tasks linked by `related`; inside each, the most touched first.
+ */
+export async function existingCodeLines(db: Db, projectId: string, code: string, rows: Rows): Promise<string[]> {
+  const footprints = await taskFootprints(db, projectId);
+  if (footprints.length === 0) return [];
+  const row = rows.byCode.get(code);
+  if (!row) return [];
+  const deps = await loadTaskDependencies(db, projectId);
+  const feature = row.based_on;
+  const group = new Map<string, number>();
+  const put = (c: string, g: number) => {
+    if (c !== code && !group.has(c)) group.set(c, g);
+  };
+  for (const c of deps.tasks.get(code) ?? []) put(c, 0);
+  for (const f of deps.features.get(code) ?? []) for (const c of deps.featureTasks.get(f) ?? []) put(c, 0);
+  if (feature) for (const r of rows.all) if (r.type === "task" && r.based_on === feature) put(r.code, 1);
+  for (const c of await relatedCodes(db, projectId, code)) put(c, 2);
+  return reuseLines(footprints, group);
+}
+
+/** The lines of «Existing code to reuse»: pure, so it is tested without a project. `group` maps a task code to its priority (0 first). */
+export function reuseLines(footprints: readonly TaskFootprint[], group: ReadonlyMap<string, number>, max = MAX_REUSE_FILES): string[] {
+  const seen = new Set<string>();
+  return footprints
+    .filter((t) => group.has(t.code))
+    .flatMap((t) => t.files.filter((f) => isReusableFile(f.path) && f.status !== "removed").map((f) => ({ f, t, g: group.get(t.code) ?? 3 })))
+    .sort((a, b) => a.g - b.g || b.f.additions + b.f.deletions - (a.f.additions + a.f.deletions) || (a.f.path < b.f.path ? -1 : 1))
+    .filter(({ f }) => !seen.has(f.path) && (seen.add(f.path), true))
+    .slice(0, max)
+    .map(({ f, t }) => `- ${f.path} (${t.code}: ${t.title})`);
 }
 
 /**
@@ -614,6 +663,15 @@ export async function composeBrief(
       "Related work: it covers the same behavior; reuse or extend its code, do not write a second version:",
       ...related,
     );
+  }
+  if (row.type === "task") {
+    const reuse = await existingCodeLines(db, projectId, row.code, rows);
+    if (reuse.length > 0) {
+      lines.push(
+        "Existing code to reuse (built by earlier tasks; extend it, do not create a parallel version):",
+        ...reuse,
+      );
+    }
   }
   lines.push(
     'Every criterion whose check is automatic needs a test whose title starts with the criterion code (for example "AC-XXX-001-01 ..."), so it can be traced.',

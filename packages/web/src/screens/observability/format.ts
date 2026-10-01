@@ -1,7 +1,37 @@
 // Pure formatting and reading helpers of the Observability screen (unit-tested). Strings that a person
 // reads live in words.i18n.ts; these only produce numbers and kinds.
 
-import type { Correlation } from './types.ts';
+import type { Correlation, ExecutionFact, FactOutcome } from './types.ts';
+
+/** Declared cost of every task (builder and reviewer, all its attempts), in the order the tasks last ended. Tasks with no declared cost are left out. */
+export function costSeries(facts: ExecutionFact[]): { task: string; cost: number; at: string }[] {
+  const by = new Map<string, { cost: number | null; at: string }>();
+  for (const f of facts) {
+    const parts = [f.builder_usage?.cost_usd, f.reviewer_usage?.cost_usd].filter((v): v is number => typeof v === 'number');
+    const row = by.get(f.task_code) ?? { cost: null, at: f.ended_at };
+    if (parts.length > 0) row.cost = (row.cost ?? 0) + parts.reduce((n, v) => n + v, 0);
+    if (f.ended_at > row.at) row.at = f.ended_at;
+    by.set(f.task_code, row);
+  }
+  return [...by.entries()]
+    .flatMap(([task, r]) => (r.cost === null ? [] : [{ task, cost: r.cost, at: r.at }]))
+    .sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+}
+
+/** How much the latest tasks cost against the ones before (a ratio minus one), `window` tasks each; null when there are too few. */
+export function costTrend(costs: number[], window = 5): number | null {
+  if (costs.length < window * 2) return null;
+  const mean = (xs: number[]) => xs.reduce((n, v) => n + v, 0) / xs.length;
+  const before = mean(costs.slice(-window * 2, -window));
+  return before === 0 ? null : mean(costs.slice(-window)) / before - 1;
+}
+
+/** Attempts per outcome. */
+export function outcomeCounts(facts: ExecutionFact[]): Record<FactOutcome, number> {
+  const out: Record<FactOutcome, number> = { merged: 0, changes_requested: 0, failed: 0, running: 0, cancelled: 0, open: 0 };
+  for (const f of facts) out[f.outcome] += 1;
+  return out;
+}
 
 const nf = (locale: string, max: number) => new Intl.NumberFormat(locale, { maximumFractionDigits: max });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { correlationReading, costText, minutesText, num, shareText, tokensText } from '../../src/screens/observability/format.ts';
+import { correlationReading, costSeries, costText, costTrend, minutesText, num, outcomeCounts, shareText, tokensText } from '../../src/screens/observability/format.ts';
 import { OBSERVABILITY } from '../../src/screens/observability/words.i18n.ts';
 
 describe('observability formatting', () => {
@@ -30,5 +30,21 @@ describe('observability formatting', () => {
       expect(t.reading({ kind: 'strong', direction: 'up', rho: 0.8, n: 20 }, 'X')).toContain('0.80');
       expect(t.outcome('merged')).not.toBe('merged');
     }
+  });
+});
+
+describe('observability chart data', () => {
+  const fact = (task: string, ended: string, cost: number | null, outcome = 'merged') =>
+    ({ task_code: task, ended_at: ended, outcome, builder_usage: cost === null ? null : { cost_usd: cost }, reviewer_usage: null }) as never;
+  it('sums the cost per task and orders tasks by when they ended', () => {
+    const s = costSeries([fact('B', '2026-01-02', 1), fact('A', '2026-01-01', 0.5), fact('A', '2026-01-03', 0.25), fact('C', '2026-01-04', null)]);
+    expect(s.map((x) => [x.task, x.cost])).toEqual([['B', 1], ['A', 0.75]]);
+  });
+  it('compares the latest tasks with the ones before, and needs enough of them', () => {
+    expect(costTrend([1, 1, 1])).toBeNull();
+    expect(costTrend([1, 1, 1, 1, 1, 2, 2, 2, 2, 2])).toBe(1);
+  });
+  it('counts attempts per outcome', () => {
+    expect(outcomeCounts([fact('A', 'x', 1), fact('B', 'x', 1, 'failed')]).failed).toBe(1);
   });
 });

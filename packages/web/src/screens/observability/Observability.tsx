@@ -1,7 +1,8 @@
 // Observability: one fact per build attempt, and what they say about the estimate, the cost and the rework
-// (core queries/execution-facts.ts). Sober tables with units in the headers; numbers tabular. No charts yet.
+// (core queries/execution-facts.ts). Sober tables with units in the headers; numbers tabular.
 
 import { useQuery } from '@tanstack/react-query';
+import { useSearch } from '@tanstack/react-router';
 import { type ReactNode, useState } from 'react';
 import { projectsQuery } from '../../api/queries.ts';
 import { buttonClass } from '../../components/Button.tsx';
@@ -22,7 +23,10 @@ import { HarnessEscapesSection } from './HarnessEscapes.tsx';
 import { HarnessVersionsSection } from './HarnessVersions.tsx';
 import { AttentionSection, HarnessHealthSection, WorthItSection } from './HarnessHealth.tsx';
 import { TestHistorySection } from './TestHistory.tsx';
-import { OBSERVABILITY } from './words.i18n.ts';
+import { TEST_HISTORY } from './TestHistory.i18n.ts';
+import { LinkTabs } from '../../components/Tabs.tsx';
+import { AgentsBlocks, BuildBlocks, DesignBlocks, HarnessBlocks, OverviewTab, ShowData, TABS, type ObsTab } from './views.tsx';
+import { OBSERVABILITY, OBS_VIEW } from './words.i18n.ts';
 
 const th = 'px-3 py-2 text-xs font-medium text-fg-2 whitespace-nowrap';
 const td = 'px-3 py-2 align-top';
@@ -51,51 +55,99 @@ export function ObservabilityScreen() {
   const project = (useQuery(projectsQuery).data ?? []).find((p) => p.id === projectId);
   usePageTitle([t.title, project?.name]);
   const data = q.data;
+  const v = useMessages(OBS_VIEW);
+  const testsTitle = useMessages(TEST_HISTORY).title;
+  const search = useSearch({ strict: false }) as { tab?: string };
+  const tab: ObsTab = TABS.find((k) => k === search.tab) ?? 'overview';
   return (
     <>
       <PageHeader
         eyebrow={t.eyebrow}
         title={t.title}
         meta={data ? <span>{t.summaryLine(data.summary.tasks_merged, data.summary.attempts)}</span> : null}
+        tabs={<LinkTabs label={v.tabsLabel} tabs={TABS.map((k) => tabLink(projectId, k, tab, v.tab(k)))} />}
       />
       <PageBody>
         {q.isPending ? (
           <RowsSkeleton label={t.loading} rows={5} />
         ) : q.error && !data ? (
           <ErrorNotice error={q.error} onRetry={() => void q.refetch()} />
-        ) : !data || data.facts.length === 0 ? (
-          <EmptyState title={t.emptyTitle}>{t.emptyBody}</EmptyState>
+        ) : !data ? null : tab === 'overview' ? (
+          <OverviewTab projectId={projectId} data={data} />
+        ) : tab === 'build' ? (
+          data.facts.length === 0 ? (
+            <EmptyState title={t.emptyTitle}>{t.emptyBody}</EmptyState>
+          ) : (
+            <div className="flex flex-col divide-y divide-edge">
+              <BuildBlocks projectId={projectId} data={data} />
+              <div className="flex flex-col gap-3 pt-6">
+                <ShowData title={t.calibrationTitle}><CalibrationSection jev={data.summary.calibration.by_jev} /></ShowData>
+                <ShowData title={t.costTitle}>
+                  <CostSection
+                    perTask={data.summary.cost.per_task}
+                    perFeature={data.summary.cost.per_feature}
+                    without={data.summary.cost.attempts_without_usage}
+                    total={data.summary.cost.attempts_with_builder}
+                  />
+                </ShowData>
+                <ShowData title={t.reworkTitle}>
+                  <ReworkSection
+                    changes={data.summary.rework.changes_requested_by_kind}
+                    changesAttempts={data.summary.rework.changes_requested_attempts}
+                    failed={data.summary.rework.failed_by_kind}
+                    failedAttempts={data.summary.rework.failed_attempts}
+                  />
+                </ShowData>
+                <ShowData title={t.attemptsTitle}><AttemptsSection facts={data.facts} projectId={projectId} /></ShowData>
+                <ShowData title={testsTitle}><TestHistorySection projectId={projectId} /></ShowData>
+              </div>
+            </div>
+          )
+        ) : tab === 'agents' ? (
+          <div className="flex flex-col divide-y divide-edge">
+            <AgentsBlocks projectId={projectId} data={data} />
+            <div className="flex flex-col gap-3 pt-6">
+              <ShowData title={t.agentsTitle}><AgentsSection agents={data.summary.agents} /></ShowData>
+              <ShowData title={t.judgTitle}><JudgmentsSection projectId={projectId} /></ShowData>
+            </div>
+          </div>
+        ) : tab === 'harness' ? (
+          <div className="flex flex-col divide-y divide-edge">
+            <HarnessBlocks projectId={projectId} />
+            <div className="flex flex-col gap-3 pt-6">
+              <ShowData title={v.hHealthTitle}><HarnessHealthSection projectId={projectId} /></ShowData>
+              <ShowData title={v.hChecksTitle}><HarnessChecksSection projectId={projectId} /></ShowData>
+              <ShowData title={v.hVersionsTitle}><HarnessVersionsSection projectId={projectId} /></ShowData>
+              <ShowData title={v.hAttentionTitle}><AttentionSection projectId={projectId} /></ShowData>
+              <ShowData title={v.hWorthTitle}><WorthItSection projectId={projectId} /></ShowData>
+            </div>
+          </div>
         ) : (
-          <div className="flex flex-col gap-10">
-            <CalibrationSection jev={data.summary.calibration.by_jev} />
-            <JudgmentsSection projectId={projectId} />
-            <CostSection
-              perTask={data.summary.cost.per_task}
-              perFeature={data.summary.cost.per_feature}
-              without={data.summary.cost.attempts_without_usage}
-              total={data.summary.cost.attempts_with_builder}
-            />
-            <ReworkSection
-              changes={data.summary.rework.changes_requested_by_kind}
-              changesAttempts={data.summary.rework.changes_requested_attempts}
-              failed={data.summary.rework.failed_by_kind}
-              failedAttempts={data.summary.rework.failed_attempts}
-            />
-            <AgentsSection agents={data.summary.agents} />
-            <TestHistorySection projectId={projectId} />
-            <HarnessHealthSection projectId={projectId} />
-            <HarnessChecksSection projectId={projectId} />
-            <HarnessEscapesSection projectId={projectId} />
-            <HarnessContainmentSection projectId={projectId} />
-            <HarnessVersionsSection projectId={projectId} />
-            <AttentionSection projectId={projectId} />
-            <WorthItSection projectId={projectId} />
-            <AttemptsSection facts={data.facts} projectId={projectId} />
+          <div className="flex flex-col divide-y divide-edge">
+            <DesignBlocks projectId={projectId} />
+            <div className="flex flex-col gap-3 pt-6">
+              <ShowData title={v.dEscapesTitle}><HarnessEscapesSection projectId={projectId} /></ShowData>
+              <ShowData title={v.dContainTitle}><HarnessContainmentSection projectId={projectId} /></ShowData>
+            </div>
           </div>
         )}
       </PageBody>
     </>
   );
+}
+
+function tabLink(projectId: string, key: ObsTab, current: ObsTab, label: string) {
+  return {
+    key,
+    label,
+    current: key === current,
+    link: {
+      to: '/p/$projectId/observability',
+      params: { projectId },
+      ...(key === 'overview' ? {} : { search: { tab: key } as never }),
+      resetScroll: false,
+    },
+  } as const;
 }
 
 function CalibrationTable({ title, calibration }: { title: string; calibration: Calibration }) {

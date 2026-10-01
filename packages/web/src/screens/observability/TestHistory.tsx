@@ -21,7 +21,7 @@ type TestStat = {
 };
 type TestHistoryData = { flaky: TestStat[]; slowest: TestStat[]; total_tests: number; total_runs: number };
 
-const testHistoryQuery = (projectId: string) =>
+export const testHistoryQuery = (projectId: string) =>
   queryOptions({
     queryKey: ['p', projectId, 'observability', 'tests'] as const,
     queryFn: () => get<TestHistoryData>(`/api/projects/${projectId}/observability/tests`),

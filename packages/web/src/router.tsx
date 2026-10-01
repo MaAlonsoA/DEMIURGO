@@ -256,6 +256,10 @@ const activityRoute = createRoute({
 const observabilityRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: '/observability',
+  validateSearch: (s: Record<string, unknown>): { tab?: string } => {
+    const tab = text(s.tab);
+    return tab && ['build', 'agents', 'harness', 'design'].includes(tab) ? { tab } : {};
+  },
   component: ObservabilityScreen,
 });
 const runRoute = createRoute({

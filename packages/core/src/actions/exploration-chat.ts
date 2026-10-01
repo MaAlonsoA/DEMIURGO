@@ -30,6 +30,7 @@ import { designThreadOf } from './drafting.ts';
 import { taskCoversOf } from '../queries/sizes.ts';
 import { screensOfFeatureVersion } from '../design/screens.ts';
 import { revealQuestions } from '../commands/exploration.ts';
+import { knownQualityRequirements, qualityAttributeOf, sameQualityAttribute } from './nfr-dedupe.ts';
 import { definitionChangeProposal, dedupeDefinitionChanges } from '../definition/compose.ts';
 
 const BUILDER = 'exploration_chat@2';
@@ -486,6 +487,7 @@ export async function explorationPack({ trx, projectId, scope, input, graphVersi
       originalChars: r.fullChars,
       reason: 'budget:records',
     });
+  const knownNfrs = await knownQualityRequirements(trx, projectId);
   const allSources = await trx
     .selectFrom('sources')
     .select(['id', 'name', 'content', 'registered_by'])
@@ -607,6 +609,8 @@ export async function explorationPack({ trx, projectId, scope, input, graphVersi
         ...(productDefinitionDraft ? { product_definition_draft: productDefinitionDraft } : {}),
         confirmed_decisions: decisionsSummary,
         design_records: designRecords,
+        // Proposed and not resolved yet: they are not in `design_records`, and must not be proposed again.
+        pending_quality_requirements: knownNfrs.filter((k) => k.where === 'pending').map(({ title, attribute }) => ({ title, quality_attribute: attribute })),
         untrusted_sources: chosenSources,
         knowledge: knowledge.nodes,
       },
@@ -1192,6 +1196,16 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
     if (p.type !== 'definition_change') {
       // "Based on": the person's words it rests on and the question being talked about.
       const { type, quotes, ...fields } = p;
+      // One set of NFRs: a quality requirement for an attribute that already has one (pending as a
+      // proposal or as a record) is a repeat from another run of the same stage, and is dropped.
+      if (p.type === 'design_record' && p.record_type === 'quality_requirement') {
+        const attribute = qualityAttributeOf(p.sections, p.title);
+        const known = (await knownQualityRequirements(trx, run.project_id)).find((k) => sameQualityAttribute(k.attribute, attribute));
+        if (known) {
+          console.info(`[exploration-chat] quality requirement «${p.title}» dropped: «${known.title}» already covers ${known.attribute} (${known.where})`);
+          continue;
+        }
+      }
       const payload = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== null));
       const basis = [
         ...quotes.flatMap((quote) => {

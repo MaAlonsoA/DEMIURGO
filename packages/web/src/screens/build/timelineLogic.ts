@@ -21,7 +21,7 @@ export function windowOf(tl: BuildTimeline): { from: number; to: number } {
   return { from, to };
 }
 
-const STEPS_MIN = [5, 10, 15, 30, 60, 120, 180, 360];
+const STEPS_MIN = [1, 2, 5, 10, 15, 30, 60, 120, 180, 360];
 
 /** Tick times (ms) at round clock minutes, spaced at least `minPx` apart at `pxPerMin`. */
 export function ticksOf(from: number, to: number, pxPerMin: number, minPx = 72): number[] {
@@ -97,4 +97,29 @@ export function sharesLine(shares: FlowShares, names: Record<keyof FlowShares, s
     .filter((k) => shares[k] > 0)
     .map((k) => `${names[k]} ${shares[k]} %`)
     .join(' · ');
+}
+
+/** The tightest zoom: pixels per minute. */
+export const MAX_PX_PER_MIN = 300;
+/** Space after «now» at the right end of the chart, in px. */
+export const CHART_TAIL = 90;
+
+export const clampPx = (px: number, minPx: number, maxPx = MAX_PX_PER_MIN): number => Math.min(maxPx, Math.max(Math.min(minPx, maxPx), px));
+
+/** Pixels per minute that fit `spanMin` minutes in `availablePx`. */
+export function fitPx(spanMin: number, availablePx: number): number {
+  return availablePx > 0 && spanMin > 0 ? availablePx / spanMin : 0.05;
+}
+
+/** New scrollLeft after zooming from `oldPx` to `newPx` keeping the time under `anchorX` (px from the chart's visible left edge) still. */
+export function zoomScroll(scrollLeft: number, anchorX: number, oldPx: number, newPx: number): number {
+  return Math.max(0, ((scrollLeft + anchorX) * newPx) / oldPx - anchorX);
+}
+
+/** Zoom and scroll that show [start, end] (ms) with a 10 % margin each side in `availablePx`, in a chart that starts at `from`. */
+export function fitRange(from: number, start: number, end: number, availablePx: number, minPx: number): { px: number; scrollLeft: number } {
+  const spanMin = Math.max(1, (end - start) / 60_000);
+  const margin = spanMin * 0.1;
+  const px = clampPx(fitPx(spanMin + 2 * margin, availablePx), minPx);
+  return { px, scrollLeft: Math.max(0, ((start - from) / 60_000 - margin) * px) };
 }

@@ -146,6 +146,7 @@ function Actions({
   canStart: boolean;
 }) {
   const [confirming, setConfirming] = useState(false);
+  const [confirmingWithdraw, setConfirmingWithdraw] = useState(false);
   const request = useCommand(projectId);
   const agent = useCommand(projectId);
   const withdraw = useCommand(projectId);
@@ -276,20 +277,7 @@ function Actions({
             disabled={withdraw.isPending}
             aria-label={t.withdrawLabel(task.code)}
             data-withdraw={task.code}
-            onClick={() =>
-              withdraw.mutate(
-                {
-                  command: "build_request.withdraw",
-                  entityId: task.request?.id,
-                },
-                {
-                  onSuccess: () => {
-                    refresh();
-                    announce(t.withdrawn(task.code));
-                  },
-                },
-              )
-            }
+            onClick={() => setConfirmingWithdraw(true)}
           >
             {t.withdraw}
           </Button>
@@ -327,6 +315,30 @@ function Actions({
         onConfirm={start}
         pending={request.isPending || agent.isPending}
         error={request.error}
+      />
+      {/* Withdrawing closes the pull request and drops the attempts in flight: it asks first. */}
+      <ConfirmDialog
+        open={confirmingWithdraw}
+        onOpenChange={(open) => {
+          if (!withdraw.isPending) setConfirmingWithdraw(open);
+        }}
+        title={t.withdrawConfirmTitle(task.code)}
+        description={<p>{task.request?.pr_url ? t.withdrawConfirmBodyPr : t.withdrawConfirmBody}</p>}
+        confirm={t.withdraw}
+        onConfirm={() =>
+          withdraw.mutate(
+            { command: "build_request.withdraw", entityId: task.request?.id },
+            {
+              onSuccess: () => {
+                setConfirmingWithdraw(false);
+                refresh();
+                announce(t.withdrawn(task.code));
+              },
+            },
+          )
+        }
+        pending={withdraw.isPending}
+        error={withdraw.error}
       />
     </div>
   );

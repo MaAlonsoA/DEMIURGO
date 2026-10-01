@@ -3,11 +3,25 @@
 // badly, a triangle where it merged, a line for «main» and one for «now». A bar is a button: choosing it shows
 // that attempt's path below. Inline SVG with the semantic tokens only; it scrolls sideways inside its own box.
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Button } from "../../components/Button.tsx";
 import { cn } from "../../lib/cn.ts";
 import { useLocale } from "../../i18n/locale.ts";
 import type { BuildTimeline, TimelineAttempt, TimelineRequest, TimelineSegment } from "../../api/types.ts";
-import { type Selection, compact, ms, sharesLine, ticksOf, windowOf } from "./timelineLogic.ts";
+import {
+  CHART_TAIL,
+  MAX_PX_PER_MIN,
+  type Selection,
+  clampPx,
+  compact,
+  fitPx,
+  fitRange,
+  ms,
+  sharesLine,
+  ticksOf,
+  windowOf,
+  zoomScroll,
+} from "./timelineLogic.ts";
 import type { BUILD } from "./words.i18n.ts";
 
 type Words = typeof BUILD.en;
@@ -195,8 +209,22 @@ export function Lanes({
   const scroller = useRef<HTMLDivElement>(null);
   const { from, to } = windowOf(timeline);
   const span = (to - from) / 60_000;
-  const pxPerMin = Math.max(4, 720 / span);
-  const width = Math.round(span * pxPerMin) + 90;
+  const [viewW, setViewW] = useState(0);
+  const [zoom, setZoom] = useState<number | null>(null);
+  const zoomRef = useRef<number | null>(null);
+  const pendingScroll = useRef<number | null>(null);
+  const pointers = useRef(new Map<number, number>());
+  const pinch = useRef<{ dist: number } | null>(null);
+  const drag = useRef<{ x: number; left: number; moved: boolean } | null>(null);
+  // The chart area is what is left of the box after the fixed label column.
+  const availablePx = Math.max(0, viewW - LABEL_W - CHART_TAIL);
+  const minPx = fitPx(span, availablePx);
+  const pxPerMin = clampPx(zoom ?? Math.max(4, 720 / span), minPx);
+  const width = Math.round(span * pxPerMin) + CHART_TAIL;
+  const pxNow = useRef(pxPerMin);
+  pxNow.current = pxPerMin;
+  const minNow = useRef(minPx);
+  minNow.current = minPx;
   // What happened before the window starts is cut at its left edge.
   const x = (time: number) => Math.max(0, ((time - from) / 60_000) * pxPerMin);
   const rows = timeline.requests;
@@ -215,15 +243,151 @@ export function Lanes({
     }
   }, [requestKey]);
 
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    setViewW(el.clientWidth);
+    const ro = new ResizeObserver(() => setViewW(el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // After a zoom, put the scroll where the anchored time stays under the pointer.
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (el && pendingScroll.current !== null) {
+      el.scrollLeft = pendingScroll.current;
+      pendingScroll.current = null;
+    }
+  }, [pxPerMin]);
+
+  /** Zoom to `next` px per minute keeping the time at `anchorX` (px from the chart's left edge) still. */
+  const zoomTo = useCallback((next: number, anchorX: number) => {
+    const el = scroller.current;
+    if (!el) return;
+    const old = pxNow.current;
+    const target = clampPx(next, minNow.current);
+    if (target === old && zoomRef.current !== null) return;
+    pendingScroll.current = zoomScroll(pendingScroll.current ?? el.scrollLeft, anchorX, old, target);
+    pxNow.current = target;
+    zoomRef.current = target;
+    setZoom(target);
+  }, []);
+
+  const centre = () => Math.max(0, (scroller.current?.clientWidth ?? 0) - LABEL_W) / 2;
+  const setRange = (range: { px: number; scrollLeft: number }) => {
+    pendingScroll.current = range.scrollLeft;
+    pxNow.current = range.px;
+    zoomRef.current = range.px;
+    setZoom(range.px);
+  };
+  const fitAll = () => {
+    pendingScroll.current = 0;
+    pxNow.current = minNow.current;
+    zoomRef.current = minNow.current;
+    setZoom(minNow.current);
+  };
+  const lastHours = (h: number) => setRange(fitRange(from, to - h * 3_600_000, to, availablePx, minPx));
+  const chosen = selection ? rows.find((r) => r.id === selection.request)?.attempts.find((a) => a.n === selection.attempt) : undefined;
+  const chosenRequest = selection ? rows.find((r) => r.id === selection.request) : undefined;
+  const zoomAttempt = () => {
+    if (chosen) setRange(fitRange(from, Math.max(from, ms(chosen.start)), ms(chosen.end), availablePx, minPx));
+  };
+
+  // Ctrl/⌘ + wheel (and a trackpad pinch, which arrives the same way) zooms around the pointer.
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      const anchorX = e.clientX - el.getBoundingClientRect().left - LABEL_W;
+      zoomTo(pxNow.current * Math.exp(-e.deltaY * 0.01), Math.max(0, anchorX));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [zoomTo]);
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    pointers.current.set(e.pointerId, e.clientX);
+    if (pointers.current.size === 2) {
+      const [a = 0, b = 0] = [...pointers.current.values()];
+      pinch.current = { dist: Math.abs(a - b) };
+      drag.current = null;
+    } else if (e.pointerType === "mouse" && e.button === 0 && !(e.target as Element).closest("[role=button],button")) {
+      drag.current = { x: e.clientX, left: e.currentTarget.scrollLeft, moved: false };
+    }
+  };
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!pointers.current.has(e.pointerId)) return;
+    pointers.current.set(e.pointerId, e.clientX);
+    const el = e.currentTarget;
+    if (pinch.current && pointers.current.size === 2) {
+      const [a = 0, b = 0] = [...pointers.current.values()];
+      const dist = Math.abs(a - b);
+      if (pinch.current.dist > 8 && dist > 8) {
+        const anchorX = (a + b) / 2 - el.getBoundingClientRect().left - LABEL_W;
+        zoomTo((pxNow.current * dist) / pinch.current.dist, Math.max(0, anchorX));
+        pinch.current = { dist };
+      }
+    } else if (drag.current) {
+      const dx = e.clientX - drag.current.x;
+      if (!drag.current.moved && Math.abs(dx) > 4) {
+        drag.current.moved = true;
+        el.setPointerCapture(e.pointerId);
+      }
+      if (drag.current.moved) el.scrollLeft = drag.current.left - dx;
+    }
+  };
+  const onPointerEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    pointers.current.delete(e.pointerId);
+    if (pointers.current.size < 2) pinch.current = null;
+    drag.current = null;
+  };
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === "+" || e.key === "=") zoomTo(pxNow.current * 1.5, centre());
+    else if (e.key === "-" || e.key === "_") zoomTo(pxNow.current / 1.5, centre());
+    else if (e.key === "0") fitAll();
+    else return;
+    e.preventDefault();
+  };
+
   if (rows.length === 0) return <p className="text-sm text-fg-2">{t.tlEmpty}</p>;
   return (
     <div className="flex flex-col gap-2" data-build-lanes>
+      <div role="toolbar" aria-label={t.tlZoomTools} className="flex flex-wrap items-center gap-2" data-lanes-zoom>
+        <Button size="sm" variant="secondary" aria-label={t.tlZoomOut} title={t.tlZoomOut} disabled={pxPerMin <= minPx} onClick={() => zoomTo(pxPerMin / 1.5, centre())}>
+          −
+        </Button>
+        <Button size="sm" variant="secondary" aria-label={t.tlZoomIn} title={t.tlZoomIn} disabled={pxPerMin >= MAX_PX_PER_MIN} onClick={() => zoomTo(pxPerMin * 1.5, centre())}>
+          +
+        </Button>
+        <Button size="sm" variant="secondary" onClick={fitAll}>
+          {t.tlFit}
+        </Button>
+        {[1, 3].filter((h) => h * 60 < span).map((h) => (
+          <Button key={h} size="sm" variant="secondary" onClick={() => lastHours(h)}>
+            {t.tlLastHours(h)}
+          </Button>
+        ))}
+        {chosen && chosenRequest ? (
+          <Button size="sm" variant="secondary" onClick={zoomAttempt}>
+            {t.tlZoomAttempt(chosenRequest.task_code, chosen.n)}
+          </Button>
+        ) : null}
+      </div>
       <div
         ref={scroller}
+        onKeyDown={onKeyDown}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerEnd}
+        onPointerCancel={onPointerEnd}
         tabIndex={0}
         role="group"
         aria-label={t.tlScroll}
-        className="flex max-h-96 overflow-auto rounded-xs focus-visible:outline-2 focus-visible:outline-focus"
+        className="flex max-h-96 touch-pan-x touch-pan-y overflow-auto overscroll-x-contain rounded-xs focus-visible:outline-2 focus-visible:outline-focus"
       >
         <div className="sticky left-0 z-10 shrink-0 self-start bg-panel" style={{ width: LABEL_W }}>
           <div style={{ height: HEAD_H }} />
@@ -315,6 +479,7 @@ export function Lanes({
       </div>
       <Legend t={t} />
       <p className="text-xs text-fg-3">{t.tlNote(hours)}</p>
+      <p className="text-xs text-fg-3">{t.tlZoomHint}</p>
       {timeline.truncated ? <p className="text-xs text-fg-3">{t.tlTruncated(rows.length)}</p> : null}
     </div>
   );

@@ -72,6 +72,7 @@ import { approvingReviewOf, previousReviewOf, truncateChanges } from './previous
 import { approvedWithFixes, countFixes, countTestMarkers, fixCommentsOf, isTestFile, minorChange, parseHunks, parseNameStatus, parseNumstat } from './lgtm.ts';
 import { isTransientRunError, REVIEW_MAX_RETRIES, REVIEW_RETRY_BACKOFF_MS } from './review-retry.ts';
 import type { Services } from '../services.ts';
+import { checkFixes, diffsByFile } from '../classifier/fix-check.ts';
 import { commitAll, headWithWork, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, changedOnBranch, changedWithPending, addedOnBranch, numstatBetween, nameStatusBetween, unifiedZeroBetween, showAt, diffBetween, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
 import { existsSync } from 'node:fs';
 import { mkdir, rm } from 'node:fs/promises';
@@ -1021,7 +1022,23 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
             testCounts[row.path] = { before: countTestMarkers(await showAt(worktree.path, from, row.path)), after: countTestMarkers(await showAt(worktree.path, headSha, row.path)) };
           }
           const { minor, failed } = minorChange({ fixes, numstat, nameStatus, hunks, testCounts });
-          return { waive: minor, failed };
+          let jev: 'ok' | 'refused' | 'unavailable' = 'unavailable';
+          let waive = minor;
+          if (minor) {
+            // Jev's second look (classifier/fix-check.ts): per fix, is it mechanical and does the diff do exactly what it asks.
+            const diffs = diffsByFile(await diffBetween(worktree.path, from, headSha));
+            const verdict = await checkFixes({
+              fixes: fixCommentsOf(approving.comments).map((c) => ({ path: c.path, line: c.line, comment: c.body, diff: diffs[c.path.replace(/^\.\//, '')] ?? '' })),
+            });
+            if (verdict) {
+              jev = verdict.ok ? 'ok' : 'refused';
+              if (!verdict.ok) {
+                waive = false;
+                failed.push(...verdict.failed);
+              }
+            }
+          }
+          return { waive, failed, jev };
         } catch {
           return { waive: false, failed: ['git_comparison_failed'] };
         }

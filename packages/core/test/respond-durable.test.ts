@@ -2,7 +2,7 @@
 // knowledge is up to date, and knowledge that goes stale again right before the request makes it
 // wait again instead of dropping the answer.
 
-import { STAGES, human } from '@demiurgo/domain';
+import { STAGES, human, system } from '@demiurgo/domain';
 import { sql } from 'kysely';
 import { describe, expect, it } from 'vitest';
 import { executeCommand } from '../src/bus/bus.ts';
@@ -137,5 +137,48 @@ describe('durable answer to a message', () => {
       select count(*)::int as n from ai_runs r join context_packs c on c.id = r.context_pack_id
       where r.scope->>'id' = ${thread} and c.content::text ~ '"just_opened": ?true'`.execute(s.db);
     expect(packs[0]?.n).toBe(1);
+  });
+
+  it('a person\'s run request made while knowledge is pending is queued on the server and starts once, as them', async () => {
+    const s = environment().services;
+    const projectId = (await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Queued' } })).projectId;
+    const thread = (await executeCommand(s, { command: 'exploration.open', actor: ana, projectId, data: { purpose: 'Menus' } }))
+      .entityId;
+    const { rows } = await sql<{ id: string }>`
+      insert into knowledge_updates (project_id, trigger, trigger_seq, state)
+      values (${projectId}::uuid, '{"type":"test"}'::jsonb, 0, 'classifying') returning id`.execute(s.db);
+    const busy = rows[0]?.id ?? '';
+    const ask = () =>
+      executeCommand(s, {
+        command: 'run.request',
+        actor: ana,
+        projectId,
+        data: { action: 'exploration_chat', scope: { type: 'exploration', id: thread }, input: {} },
+      });
+
+    const first = await ask();
+    expect(first.deferred).toBe(true);
+    expect(first.result).toMatchObject({ deferred: true });
+    // The same request cannot be queued twice while it waits.
+    await expect(ask()).rejects.toMatchObject({ type: 'guard' });
+    // A system actor still gets the plain 409.
+    await expect(
+      executeCommand(s, {
+        command: 'run.request',
+        actor: system('design'),
+        projectId,
+        data: { action: 'exploration_chat', scope: { type: 'exploration', id: thread }, input: {} },
+      }),
+    ).rejects.toMatchObject({ type: 'guard' });
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(await runsOf(thread)).toBe(0);
+
+    await sql`update knowledge_updates set state = 'applied', finished_at = now() where id = ${busy}::uuid`.execute(s.db);
+    expect(await eventually(async () => (await runsOf(thread)) === 1, 10_000)).toBe(true);
+    await new Promise((r) => setTimeout(r, 1000));
+    expect(await runsOf(thread)).toBe(1);
+    const { rows: runs } = await sql<{ requested_by: string }>`
+      select requested_by from ai_runs where scope->>'id' = ${thread}`.execute(s.db);
+    expect(runs[0]?.requested_by).toBe('human:ana');
   });
 });

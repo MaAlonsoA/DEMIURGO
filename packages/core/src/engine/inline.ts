@@ -16,6 +16,7 @@ export function createInlineEngine(services: () => Services): InlineEngine {
     runs,
     responses,
     deferred,
+    deferredRunPending: async (prefix) => deferred.some((k) => k.startsWith(prefix)),
     startDeferredRun: async (key) => {
       deferred.push(key);
     },
@@ -24,6 +25,7 @@ export function createInlineEngine(services: () => Services): InlineEngine {
     },
     cancelRun: async () => undefined,
     startBuild: async () => undefined,
+    cancelBuild: async () => undefined,
     startResponse: async (id) => {
       responses.push(id);
     },

@@ -12,6 +12,7 @@ import {
   formatActor,
   system,
 } from '@demiurgo/domain';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { DEFAULT_AGENTS, type LoadedAgent, loadAgentCatalog, schemaVersion } from '../agents/catalog.ts';
 import {
@@ -189,6 +190,30 @@ registerHandlers({
         answers_message: z.string().uuid().optional(),
       })
       .strict(),
+    // While knowledge updates are pending, a person's request is queued in a durable workflow that
+    // requests the run (with the same actor) as soon as knowledge is up to date.
+    async defer(ctx, data) {
+      const scopeId = data.scope.id ?? data.scope.type;
+      const prefix = `run:${data.action}:${scopeId}:`;
+      // One queued request per action and scope: the person cannot queue the same draft twice.
+      if (await ctx.services.engine.deferredRunPending(`${prefix}`)) {
+        throw new DomainError('guard', 'The conditions for "run.request" are not met.', [
+          'DEMIURGO already has this request queued. It starts as soon as knowledge is up to date.',
+        ]);
+      }
+      const key = `${prefix}${randomUUID()}`;
+      const { projectId, actor } = ctx;
+      const request = {
+        action: data.action,
+        scope: data.scope,
+        input: data.input,
+        ...(data.agent ? { agent: data.agent } : {}),
+        actor: formatActor(actor),
+      };
+      const explorationId = data.scope.type === 'exploration' && data.scope.id ? data.scope.id : '';
+      ctx.afterCommit(() => ctx.services.engine.startDeferredRun(key, projectId, explorationId, data.input, request));
+      return { key };
+    },
     async apply(ctx, data, _e, to) {
       const action: AgentAction = data.action;
       if (data.answers_message) await checkAnswered(ctx, data.answers_message, data.scope);
@@ -425,8 +450,9 @@ registerGuards({
   },
   async graph_up_to_date({ ctx }) {
     const f = await graphUpToDate(ctx.trx, ctx.projectId);
-    return f.upToDate
-      ? null
-      : `The project's knowledge is not up to date: ${f.pending} update(s) are still pending. Try again once it finishes.`;
+    if (f.upToDate) return null;
+    const reason = `The project's knowledge is not up to date: ${f.pending} update(s) are still pending. Try again once it finishes.`;
+    // A person's run request waits on the server and starts by itself (see `defer` of run.request).
+    return ctx.command === 'run.request' && ctx.actor.type === 'human' ? { defer: reason } : reason;
   },
 });

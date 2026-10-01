@@ -447,7 +447,7 @@ export type CriterionState = 'verified' | 'failing' | 'in_pr' | 'no_evidence' | 
 export type TaskBuildState = 'to_do' | 'requested' | 'in_pr' | 'merged' | 'failing';
 
 export type BuildStage = 'repo' | 'worktree' | 'builder' | 'commit' | 'design' | 'push' | 'pr' | 'status' | 'ci' | 'evidence' | 'review' | 'publish' | 'merge';
-export type BuildOutcome = 'started' | 'ok' | 'failed' | 'waiting' | 'changes_requested';
+export type BuildOutcome = 'started' | 'ok' | 'failed' | 'waiting' | 'changes_requested' | 'cancelled';
 export type BuildStep = { attempt: number; stage: BuildStage; outcome: BuildOutcome; detail: unknown; at: string };
 
 export type Criterion = {
@@ -1149,6 +1149,7 @@ export type BuildQueue = {
   ready: QueueTask[];
   waiting: (QueueTask & { reasons: string[] })[];
   stale: QueueTask[];
+  built: (QueueTask & { pr_url: string | null; done_at: string | null })[];
   totals: { tasks: number; points: number; unsized: number };
   repository: { path: string | null; branch: string; merge_rule_by_demiurgo?: boolean };
 };

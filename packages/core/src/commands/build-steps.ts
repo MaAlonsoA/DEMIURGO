@@ -11,6 +11,7 @@ import { field, registerGuards, trimmed } from '../bus/guards.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
 import type { Tx } from '../db/connection.ts';
 import { githubConfig } from '../github/client.ts';
+import { mergedBuildOf } from '../queries/read.ts';
 
 /** The open request of a task (by code), with the task's row. */
 async function openRequestOf(trx: Tx, projectId: string, code: string) {
@@ -48,6 +49,7 @@ export async function buildRunning(trx: Tx, requestId: string): Promise<boolean>
           eb.not(eb.and([eb('stage', '=', 'review'), sql<boolean>`detail->>'verdict' is not null`])),
         ]),
         eb.and([eb('stage', '=', 'merge'), eb('outcome', '=', 'ok')]),
+        eb('outcome', '=', 'cancelled'),
       ]),
     )
     .executeTakeFirst();
@@ -57,6 +59,13 @@ export async function buildRunning(trx: Tx, requestId: string): Promise<boolean>
 registerGuards({
   async build_can_start({ ctx, data }) {
     const code = trimmed(field(data, 'task'));
+    const record = await ctx.trx
+      .selectFrom('records')
+      .select('id')
+      .where('project_id', '=', ctx.projectId)
+      .where('code', '=', code)
+      .executeTakeFirst();
+    if (record && (await mergedBuildOf(ctx.trx, record.id))) return `${code} is already built: its pull request was merged.`;
     const request = await openRequestOf(ctx.trx, ctx.projectId, code);
     if (!request) return `${code} has no open build request: request the build first.`;
     if (githubConfig() === null) return 'Connect GitHub first: set DEMIURGO_GITHUB_TOKEN and DEMIURGO_GITHUB_OWNER.';
@@ -107,7 +116,7 @@ registerHandlers({
         build_request_id: z.string().uuid(),
         attempt: z.number().int().positive(),
         stage: z.string().min(1).max(40),
-        outcome: z.enum(['started', 'ok', 'failed', 'waiting', 'changes_requested']),
+        outcome: z.enum(['started', 'ok', 'failed', 'waiting', 'changes_requested', 'cancelled']),
         detail: z.record(z.string(), z.unknown()).optional(),
         branch: z.string().min(1).max(200).optional(),
         pr_number: z.number().int().positive().optional(),

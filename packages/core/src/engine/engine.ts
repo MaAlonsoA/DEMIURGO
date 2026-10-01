@@ -22,6 +22,7 @@ import {
   composeInput,
   composeSystem,
   isDomainError,
+  parseActor,
   normalizeOutput,
   packDelta,
   runSchemaOf,
@@ -39,8 +40,8 @@ import { graphUpToDate } from '../context/graph.ts';
 import type { Db, Tx } from '../db/connection.ts';
 import type { Row } from '../db/schema.ts';
 import { traceParentOf } from '../observe/trace-contexts.ts';
-import type { WorkflowEngine, Services } from '../services.ts';
-import { startBuildWorkflow } from '../build/orchestrator.ts';
+import type { DeferredRunRequest, WorkflowEngine, Services } from '../services.ts';
+import { cancelBuildWorkflow, startBuildWorkflow } from '../build/orchestrator.ts';
 import { stepSpan, systemInteraction } from './observe.ts';
 import { starters, reconcilers, setEngineServices, engineServices } from './registry.ts';
 
@@ -666,6 +667,7 @@ async function requestResponse(
   questionId: string | null,
   agent: string | null,
   input: Record<string, unknown> | null = null,
+  request: DeferredRunRequest | null = null,
 ): Promise<'requested' | 'stale'> {
   const s = requireServices();
   return stepSpan(
@@ -673,7 +675,7 @@ async function requestResponse(
     SPAN.responseRequest,
     messageEntity(workflow),
     { [ATTR.projectId]: projectId, [ATTR.entityId]: messageOf(workflow) },
-    () => requestResponseInSpan(s, workflow, projectId, explorationId, questionId, agent, input),
+    () => requestResponseInSpan(s, workflow, projectId, explorationId, questionId, agent, input, request),
     (r) => r,
   );
 }
@@ -686,6 +688,7 @@ async function requestResponseInSpan(
   questionId: string | null,
   agent: string | null,
   input: Record<string, unknown> | null = null,
+  request: DeferredRunRequest | null = null,
 ): Promise<'requested' | 'stale'> {
   return inTransaction(s, async (execute, trx) => {
     await sql`select 1 from projects where id = ${projectId}::uuid for update`.execute(trx);
@@ -697,6 +700,32 @@ async function requestResponseInSpan(
       .executeTakeFirst();
     if (done) return 'requested';
     if (!(await graphUpToDate(trx, projectId)).upToDate) return 'stale';
+    if (request) {
+      // A person's queued request: the same run.request, with the person as actor.
+      try {
+        await execute({
+          command: 'run.request',
+          actor: parseActor(request.actor),
+          projectId,
+          data: {
+            action: request.action,
+            ...(request.agent ? { agent: request.agent } : {}),
+            scope: request.scope,
+            input: request.input,
+          },
+        });
+      } catch (e) {
+        // What is left is a refusal (the draft was made meanwhile, the engine went away): it is
+        // logged and not retried; the person sees the thread's state and asks again if they need to.
+        if (!isDomainError(e) || !['guard', 'validation'].includes(e.type)) throw e;
+        s.logger.error('A queued request was not made', { action: request.action, reason: e.reasons.join(' ') });
+      }
+      await trx
+        .insertInto('step_completions')
+        .values({ workflow_id: workflow, step: 'request', result: JSON.stringify('ok') })
+        .execute();
+      return 'requested';
+    }
     const exploration = await trx.selectFrom('explorations').select('state').where('id', '=', explorationId).executeTakeFirst();
     if (exploration?.state === 'active') {
       try {
@@ -817,6 +846,8 @@ async function respondWorkflow(
   agent: string | null = null,
   // Appended last so workflows recorded with four arguments still recover.
   input: Record<string, unknown> | null = null,
+  // Appended last, after `input`: workflows recorded without it recover with no request.
+  request: DeferredRunRequest | null = null,
 ): Promise<void> {
   const workflow = DBOS.workflowID ?? `response:${explorationId}`;
   let waited = 0;
@@ -829,7 +860,7 @@ async function respondWorkflow(
       waited += pause;
     }
     await onStepComplete?.('freshness', workflow);
-    const requested = await DBOS.runStep(() => requestResponse(workflow, projectId, explorationId, questionId, agent ?? null, input), {
+    const requested = await DBOS.runStep(() => requestResponse(workflow, projectId, explorationId, questionId, agent ?? null, input, request), {
       name: 'request',
       ...RETRIES,
     });
@@ -869,6 +900,9 @@ export const dbosEngine: WorkflowEngine = {
   async startBuild(buildRequestId, projectId, attempt) {
     await startOutsideWorkflow(() => startBuildWorkflow(buildRequestId, projectId, attempt));
   },
+  async cancelBuild(buildRequestId, attempt) {
+    await cancelBuildWorkflow(buildRequestId, attempt);
+  },
   async startResponse(messageId, projectId, explorationId, questionId, agent) {
     await startOutsideWorkflow(async () => {
       await DBOS.startWorkflow(respondWorkflowRegistered, { workflowID: `response:${messageId}` })(
@@ -879,7 +913,7 @@ export const dbosEngine: WorkflowEngine = {
       );
     });
   },
-  async startDeferredRun(key, projectId, explorationId, input) {
+  async startDeferredRun(key, projectId, explorationId, input, request) {
     // Same key, same workflow: a run is never requested twice for it.
     await startOutsideWorkflow(async () => {
       await DBOS.startWorkflow(respondWorkflowRegistered, { workflowID: `deferred:${key}` })(
@@ -888,8 +922,17 @@ export const dbosEngine: WorkflowEngine = {
         null,
         null,
         input,
+        request ?? null,
       );
     });
+  },
+  async deferredRunPending(keyPrefix) {
+    const rows = await DBOS.listWorkflows({
+      workflow_id_prefix: `deferred:${keyPrefix}`,
+      status: ['PENDING', 'ENQUEUED'],
+      limit: 1,
+    });
+    return rows.length > 0;
   },
 };
 

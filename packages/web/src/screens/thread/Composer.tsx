@@ -26,6 +26,7 @@ import { ChevronDownIcon, CloseIcon, DecisionIcon, SendIcon, WandIcon } from '..
 import { Menu, MenuItem, MenuLabel } from '../../components/Menu.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
 import { KNOWLEDGE_WAIT } from '../../components/words.i18n.ts';
+import { QueuedNotice } from '../../components/QueuedNotice.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { useTables } from '../../lib/hooks.ts';
@@ -310,6 +311,7 @@ export function Composer({
               ) : null}
             </div>
           ) : null}
+          <QueuedNotice queued={command.queued} />
           <div className="ml-auto flex items-center gap-2">
             {canRequest && !answering ? (
               <Button

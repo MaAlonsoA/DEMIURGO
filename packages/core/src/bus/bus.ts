@@ -288,11 +288,30 @@ async function runCommand(services: Services, trx: Tx, request: Request, scope: 
   };
 
   const reasons: string[] = [];
+  const deferrals: string[] = [];
   for (const name of transition.guards) {
     const guard = GUARDS[name];
     if (!guard) throw new Error(`The "${name}" guard has no implementation.`);
     const reason = await guard({ ctx, data: validation.data, entity: loaded });
-    if (reason) reasons.push(reason);
+    if (typeof reason === 'string') reasons.push(reason);
+    else if (reason) deferrals.push(reason.defer);
+  }
+  // A deferral is only honoured when it is the sole failure and the command knows how to wait.
+  if (reasons.length === 0 && deferrals.length > 0) {
+    if (!handler.defer) reasons.push(...deferrals);
+    else {
+      const { key } = await handler.defer(ctx, validation.data);
+      span.setAttributes({ [ATTR.projectId]: projectId, [ATTR.outcome]: 'ok', [ATTR.eventNone]: true });
+      return {
+        projectId,
+        entity,
+        entityId: '',
+        state: loaded?.state ?? 'new',
+        seq: null,
+        deferred: true,
+        result: { deferred: true, key, reason: deferrals.join(' ') },
+      };
+    }
   }
   if (reasons.length > 0) {
     throw new DomainError('guard', `The conditions for "${command}" are not met.`, reasons);

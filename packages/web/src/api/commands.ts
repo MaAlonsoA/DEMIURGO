@@ -60,6 +60,12 @@ export async function retryWhileKnowledgeBusy<T>(
   }
 }
 
+/** The server queued the request (HTTP 202, `result.deferred`): it starts by itself once knowledge is up to date. */
+export function isDeferred(response: CommandResponse<unknown>): boolean {
+  const r = response.result;
+  return typeof r === 'object' && r !== null && (r as { deferred?: unknown }).deferred === true;
+}
+
 export function runCommand<R = unknown>(
   projectId: string,
   call: CommandCall,
@@ -80,10 +86,18 @@ function post1<R>(projectId: string, call: CommandCall): Promise<CommandResponse
 export function useCommand<R = unknown>(projectId: string) {
   const client = useQueryClient();
   const [waiting, setWaiting] = useState(false);
+  const [queued, setQueued] = useState(false);
   const mutation = useMutation({
-    mutationFn: (call: CommandCall) => runCommand<R>(projectId, call, setWaiting),
+    mutationFn: async (call: CommandCall) => {
+      setQueued(false);
+      const response = await runCommand<R>(projectId, call, setWaiting);
+      // Queued on the server: no retrying here, the person can leave the page.
+      if (isDeferred(response)) setQueued(true);
+      return response;
+    },
     onSuccess: () => client.invalidateQueries({ queryKey: keys.project(projectId) }),
   });
-  // `waiting`: a run request is retrying until the project's knowledge is up to date.
-  return Object.assign(mutation, { waiting });
+  // `waiting`: a run request is retrying until the project's knowledge is up to date (fallback).
+  // `queued`: the server queued it and starts it by itself.
+  return Object.assign(mutation, { waiting, queued });
 }

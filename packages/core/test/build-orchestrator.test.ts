@@ -252,8 +252,10 @@ const steps = (requestId: string) =>
   db().selectFrom('build_steps').selectAll().where('build_request_id', '=', requestId).orderBy('created_at').orderBy('id').execute();
 
 describe('build.start', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetBuildDeps();
+    // The tests share one task: a merged build (done) would refuse the next one, as it should.
+    await db().updateTable('build_requests').set({ state: 'withdrawn', withdrawn_by: 'human:ana', withdrawn_at: new Date() }).where('task_id', '=', taskId).where('state', '=', 'done').execute();
   });
 
   it('refuses without an open request or without GitHub', async () => {
@@ -461,5 +463,69 @@ describe('build.start', () => {
     rows = await steps(requestId);
     expect(Math.max(...rows.map((x) => x.attempt))).toBe(6);
     expect(rows.find((x) => x.attempt === 4 && x.stage === 'repo')?.detail).toMatchObject({ started_by: 'human:ana' });
+  });
+});
+
+describe('a merged task and a withdrawn build', () => {
+  beforeEach(async () => {
+    resetBuildDeps();
+    await db().updateTable('build_requests').set({ state: 'withdrawn', withdrawn_by: 'human:ana', withdrawn_at: new Date() }).where('task_id', '=', taskId).where('state', 'in', ['done', 'requested', 'in_review']).execute();
+  });
+
+  it('a task with a merged pull request is built: out of the queue, listed as built, and no new build is accepted', async () => {
+    const requestId = await newRequest();
+    await db().updateTable('build_requests').set({ state: 'in_review', in_review_by: 'human:ana', in_review_at: new Date(), pr_url: 'https://github.com/acme/recipes/pull/9' }).where('id', '=', requestId).execute();
+    await db().updateTable('build_requests').set({ state: 'done', done_by: 'system:build@1', done_at: new Date() }).where('id', '=', requestId).execute();
+
+    const queue = await buildQueue(db(), projectId);
+    expect(queue.ready.map((t) => t.code)).not.toContain(taskCode);
+    expect(queue.waiting.map((t) => t.code)).not.toContain(taskCode);
+    expect(queue.built.find((t) => t.code === taskCode)).toMatchObject({ pr_url: 'https://github.com/acme/recipes/pull/9' });
+    expect((await recordDetail(db(), projectId, taskCode)).implementation).toBe('implemented');
+
+    await expect(cmd('build_request.request', { task: taskCode })).rejects.toThrow(/already built/);
+    await expect(cmd('build.start', { task: taskCode })).rejects.toMatchObject({ reasons: [expect.stringContaining('already built')] });
+    expect(await db().selectFrom('build_requests').select('id').where('task_id', '=', taskId).where('state', 'in', ['requested', 'in_review']).execute()).toEqual([]);
+  });
+
+  it('withdrawing a running build cancels it: the builder is aborted, the workflow cancelled and the journal says why', async () => {
+    const cancelled: string[] = [];
+    const engine = environment().services.engine;
+    const original = engine.cancelBuild;
+    engine.cancelBuild = async (id, attempt) => {
+      cancelled.push(`${id}:${attempt}`);
+      return original.call(engine, id, attempt);
+    };
+    let aborted = false;
+    let release: () => void = () => undefined;
+    const running = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    try {
+      setBuildDeps({
+        ...fakes({ ciConclusion: 'success' }),
+        runBuilder: async (_spec, options) => {
+          options?.signal?.addEventListener('abort', () => {
+            aborted = true;
+            release();
+          });
+          await running;
+          return { state: 'failure', exitCode: null, durationMs: 1, failureKind: 'cancelled', transcriptTail: '', report: null, container: 'fake' };
+        },
+      });
+      const requestId = await newRequest();
+      await cmd('build.start', { task: taskCode });
+      for (let i = 0; i < 100 && !(await steps(requestId)).some((s) => s.stage === 'builder'); i++) await sleep(50);
+      await cmd('build_request.withdraw', {}, requestId);
+      for (let i = 0; i < 100 && !aborted; i++) await sleep(50);
+      expect(aborted).toBe(true);
+      expect(cancelled).toEqual([`${requestId}:1`]);
+      const rows = await steps(requestId);
+      expect(rows.find((s) => s.outcome === 'cancelled')).toMatchObject({ stage: 'withdraw', attempt: 1, detail: expect.objectContaining({ reason: expect.stringContaining('withdrawn') }) });
+      expect((await db().selectFrom('build_requests').select('state').where('id', '=', requestId).executeTakeFirstOrThrow()).state).toBe('withdrawn');
+    } finally {
+      release();
+      engine.cancelBuild = original;
+    }
   });
 });

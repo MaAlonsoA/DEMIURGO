@@ -39,6 +39,7 @@ import {
 import { Markdown } from '../../components/Markdown.tsx';
 import { ErrorNotice, Notice } from '../../components/Notice.tsx';
 import { KNOWLEDGE_WAIT } from '../../components/words.i18n.ts';
+import { QueuedNotice } from '../../components/QueuedNotice.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
 import { useTables } from '../../lib/hooks.ts';
@@ -225,7 +226,7 @@ export function useDraftTasks(projectId: string, versionId: string) {
       },
     );
   };
-  return { run, pending: command.isPending, waiting: command.waiting, error: command.error, asked };
+  return { run, pending: command.isPending, waiting: command.waiting, queued: command.queued, error: command.error, asked };
 }
 export type DraftTasks = ReturnType<typeof useDraftTasks>;
 
@@ -249,6 +250,7 @@ export function PrimaryAction({
           <Button variant="primary" pending={draft.pending} pendingLabel={draft.waiting ? w.waiting : t.drafting} onClick={draft.run} data-primary="draft-tasks">
             {t.draftTasks}
           </Button>
+          <QueuedNotice queued={draft.queued} />
           {draft.error ? <ErrorNotice error={draft.error} compact /> : null}
         </div>
       );

@@ -9,6 +9,7 @@ import { useCommand } from '../../api/commands.ts';
 import { coherenceQuery } from '../../api/queries.ts';
 import { Button } from '../../components/Button.tsx';
 import { KNOWLEDGE_WAIT } from '../../components/words.i18n.ts';
+import { QueuedNotice } from '../../components/QueuedNotice.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
 import { RelativeTime } from '../../components/Time.tsx';
 import { useMessages } from '../../i18n/define.ts';
@@ -59,6 +60,7 @@ export function CoherenceCheck({
           {t.check}
         </Button>
       </div>
+      <QueuedNotice queued={command.queued} />
       <p className="max-w-prose text-sm text-fg-2">{t.note}</p>
       {allDesigned && !run ? <p className="text-sm font-medium text-fg">{t.suggest}</p> : null}
       {run ? (

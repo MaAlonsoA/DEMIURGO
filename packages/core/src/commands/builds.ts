@@ -6,7 +6,9 @@
 import { DomainError, formatActor } from "@demiurgo/domain";
 import { z } from "zod";
 import { composeBrief } from "../build/queue.ts";
+import { mergedBuildOf } from "../queries/read.ts";
 import { handler, registerHandlers } from "../bus/handlers.ts";
+import { buildRunning } from "./build-steps.ts";
 
 registerHandlers({
   "build_request.request": handler({
@@ -24,6 +26,14 @@ registerHandlers({
         throw new DomainError("not_found", `Task ${data.task} does not exist.`);
       if (task.type !== "task")
         throw new DomainError("validation", `${data.task} is not a task.`);
+      const merged = await mergedBuildOf(ctx.trx, task.id);
+      if (merged) {
+        throw new DomainError(
+          "guard",
+          `${task.code} is already built: its pull request was merged.`,
+          merged.pr_url ? [`Merged pull request: ${merged.pr_url}.`] : [],
+        );
+      }
       const open = await ctx.trx
         .selectFrom("build_requests")
         .select(["requested_by", "requested_at"])
@@ -161,6 +171,29 @@ registerHandlers({
     async apply(ctx, _data, e, to) {
       const id = e?.id as string;
       const by = formatActor(ctx.actor);
+      // A build still running is stopped: its builder and workflow are cancelled after the commit, and the
+      // journal says why. (The check comes first: the cancelled step ends the attempt.)
+      const running = await buildRunning(ctx.trx, id);
+      const latest = await ctx.trx
+        .selectFrom("build_steps")
+        .select((eb) => eb.fn.max("attempt").as("attempt"))
+        .where("build_request_id", "=", id)
+        .executeTakeFirst();
+      if (running && latest?.attempt != null) {
+        const attempt = Number(latest.attempt);
+        await ctx.trx
+          .insertInto("build_steps")
+          .values({
+            project_id: ctx.projectId,
+            build_request_id: id,
+            attempt,
+            stage: "withdraw",
+            outcome: "cancelled",
+            detail: JSON.stringify({ reason: "The build request was withdrawn.", withdrawn_by: by }),
+          })
+          .execute();
+        ctx.afterCommit(() => ctx.services.engine.cancelBuild(id, attempt));
+      }
       await ctx.trx
         .updateTable("build_requests")
         .set({ state: to, withdrawn_by: by, withdrawn_at: new Date() })

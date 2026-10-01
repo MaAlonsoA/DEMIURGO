@@ -266,6 +266,12 @@ export const PREVIEW_VIEWER = messages(
 
 /** A button that asks DEMIURGO for a run while the project's knowledge is still updating. */
 export const KNOWLEDGE_WAIT = messages(
-  { waiting: 'Waiting for knowledge to update…' },
-  { waiting: 'Esperando a que el conocimiento se actualice…' },
+  {
+    waiting: 'Waiting for knowledge to update…',
+    queued: 'Queued: DEMIURGO starts as soon as knowledge is up to date',
+  },
+  {
+    waiting: 'Esperando a que el conocimiento se actualice…',
+    queued: 'En cola: DEMIURGO empieza en cuanto el conocimiento esté al día',
+  },
 );

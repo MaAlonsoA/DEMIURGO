@@ -113,6 +113,9 @@ export function resetBuildDeps(): void {
   deps = defaults();
 }
 
+/** The abort controller of each running builder, by build request (a request has one build at a time). */
+const builders = new Map<string, AbortController>();
+
 export const buildWorkflowId = (buildRequestId: string, attempt: number): string => `build:${buildRequestId}:${attempt}`;
 
 type Stage = 'repo' | 'worktree' | 'builder' | 'commit' | 'design' | 'push' | 'pr' | 'status' | 'ci' | 'evidence' | 'review' | 'publish' | 'merge';
@@ -344,6 +347,8 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     if (problem || resolution.status !== 'ok') throw new DomainError('guard', problem ?? 'The builder has no engine.');
     const feedback = attempt > 1 ? await feedbackOf(s0, r) : { blocking: [], failing: [], design: [] };
     const designSystem = await designSystemOf(worktree.path).catch(() => null);
+    const control = new AbortController();
+    builders.set(requestId, control);
     const result = await d.runBuilder(
       {
         worktreeHostPath: hostPathOf(worktree.path),
@@ -354,8 +359,10 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
         maxTimeMs: Math.min(agent.timeLimitSeconds * 1000, BUILDER_MAX_TIME_MS),
         limits: { cpus: 2, memoryMb: 4096, pids: 512 },
       },
-      { worktreePath: worktree.path },
-    );
+      { worktreePath: worktree.path, signal: control.signal, containerName: `demiurgo-build-${requestId}` },
+    ).finally(() => {
+      if (builders.get(requestId) === control) builders.delete(requestId);
+    });
     // The report is DEMIURGO's, not the project's: it never enters the commit.
     await rm(join(worktree.path, '.demiurgo'), { recursive: true, force: true });
     const detail = {
@@ -748,6 +755,12 @@ const buildWorkflowRegistered = DBOS.registerWorkflow(buildWorkflow, { name: 'de
 /** Starts the workflow of an attempt (with the same id DBOS does not repeat it). */
 export async function startBuildWorkflow(requestId: string, projectId: string, attempt: number): Promise<void> {
   await DBOS.startWorkflow(buildWorkflowRegistered, { workflowID: buildWorkflowId(requestId, attempt) })(projectId, requestId, attempt);
+}
+
+/** Withdrawn request: kills the builder container and cancels the attempt's workflow (no more steps run). */
+export async function cancelBuildWorkflow(requestId: string, attempt: number): Promise<void> {
+  builders.get(requestId)?.abort();
+  await DBOS.cancelWorkflow(buildWorkflowId(requestId, attempt)).catch(() => undefined);
 }
 
 /** Waits for the result of an attempt (tests). */

@@ -318,6 +318,42 @@ export async function evidenceOf(db: Db, criterionId: string, opts: { reference?
 }
 
 /**
+ * The done build request (merged pull request) of a task on its current approved version, or null.
+ * Only tasks have build requests, so for any other record it is null.
+ */
+export async function mergedBuildOf(
+  db: Db,
+  recordId: string,
+): Promise<{ id: string; pr_url: string | null; done_at: string | null } | null> {
+  const row = await db
+    .selectFrom('build_requests')
+    .innerJoin('record_versions', 'record_versions.id', 'build_requests.task_version_id')
+    .select(['build_requests.id', 'build_requests.pr_url', 'build_requests.done_at'])
+    .where('build_requests.task_id', '=', recordId)
+    .where('build_requests.state', '=', 'done')
+    .where('record_versions.state', '=', 'approved')
+    .where((eb) =>
+      eb(
+        'record_versions.n',
+        '=',
+        eb
+          .selectFrom('record_versions as v')
+          .select((e) => e.fn.max('v.n').as('n'))
+          .where('v.record_id', '=', recordId)
+          .where('v.state', '=', 'approved'),
+      ),
+    )
+    .orderBy('build_requests.done_at', 'desc')
+    .executeTakeFirst();
+  if (!row) return null;
+  return {
+    id: row.id,
+    pr_url: row.pr_url,
+    done_at: row.done_at ? new Date(row.done_at as unknown as Date).toISOString() : null,
+  };
+}
+
+/**
  * How built a record is, over the criteria of its current version: not implemented (none has
  * evidence), in progress (some) or implemented (all). Without a current version, not implemented.
  */
@@ -330,6 +366,9 @@ export async function implementationOf(db: Db, recordId: string): Promise<string
     .orderBy('n', 'desc')
     .executeTakeFirst();
   if (!current) return 'not implemented';
+  // A task has no criteria of its own (it covers its feature's): it is built when the pull request of
+  // a build request on its current version was merged (the request is done).
+  if (await mergedBuildOf(db, recordId)) return 'implemented';
   const criteria = await db.selectFrom('criteria').select('id').where('record_version_id', '=', current.id).execute();
   let checked = 0;
   for (const c of criteria) if (await evidenceOf(db, c.id)) checked++;

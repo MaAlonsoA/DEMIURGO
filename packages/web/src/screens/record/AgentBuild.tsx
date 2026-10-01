@@ -121,6 +121,8 @@ function Glyph({ outcome }: { outcome: BuildOutcome }) {
       return <XCircleIcon size={14} />;
     case 'changes_requested':
       return <AlertTriangleIcon size={14} />;
+    case 'cancelled':
+      return <XCircleIcon size={14} />;
   }
 }
 
@@ -130,6 +132,7 @@ const OUTCOME_TEXT: Record<BuildOutcome, string> = {
   waiting: 'text-fg-2',
   failed: 'text-danger-text',
   changes_requested: 'text-danger-text',
+  cancelled: 'text-fg-2',
 };
 
 type DesignViolationView = { rule: number; path: string; line: number; message: string };

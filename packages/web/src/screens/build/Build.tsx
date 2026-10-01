@@ -428,6 +428,37 @@ export function BuildScreen() {
               )}
             </Section>
 
+            {q.built.length > 0 ? (
+              <Section id="build-built" title={t.built}>
+                <details data-build-built>
+                  <summary className="cursor-pointer text-sm text-fg-2">
+                    {t.builtNote(q.built.length)}
+                  </summary>
+                  <ul className="flex flex-col divide-y divide-edge-subtle">
+                    {q.built.map((task) => (
+                      <li
+                        key={task.code}
+                        data-built-task={task.code}
+                        className="flex flex-wrap items-start justify-between gap-3 py-3"
+                      >
+                        <TaskLine projectId={projectId} task={task} t={t} />
+                        {task.pr_url ? (
+                          <a
+                            className="ml-auto text-sm text-accent-text underline"
+                            href={task.pr_url}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {t.pullRequest}
+                          </a>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              </Section>
+            ) : null}
+
             {q.stale.length > 0 ? (
               <Section id="build-stale" title={t.stale} note={t.staleSection}>
                 <ul

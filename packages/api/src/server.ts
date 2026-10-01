@@ -216,7 +216,7 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
     return { project_id: r.projectId, state: r.state, seq: r.seq, interaction_id: interactionId };
   });
 
-  app.post('/api/projects/:projectId/commands/:command', async (req) => {
+  app.post('/api/projects/:projectId/commands/:command', async (req, reply) => {
     const actor = actorOf(req);
     const { projectId, command } = req.params as { projectId: string; command: string };
     if (!isCommand(command)) throw new DomainError('not_found', `The command "${command}" does not exist.`);
@@ -234,6 +234,8 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
       }),
       interactionId: ctx.id,
     }));
+    // 202: accepted, not applied yet (a guard deferred it: it starts by itself once it can).
+    if (r.deferred) reply.code(202);
     return {
       entity: r.entity,
       entity_id: r.entityId,

@@ -35,6 +35,8 @@ export type Result = {
   state: string;
   seq: number | null;
   result?: unknown;
+  /** The command was not applied: it waits (a guard deferred it) and starts by itself later. */
+  deferred?: true;
 };
 
 export type LoadedEntity = {
@@ -72,6 +74,11 @@ export type Applied = {
 export type Handler<D = unknown> = {
   data: z.ZodType<D>;
   apply(ctx: CommandContext, data: D, entity: LoadedEntity | null, to: string): Promise<Applied>;
+  /**
+   * Only for commands whose guards may defer: records the request to run later (no state change, no
+   * event) and returns the key it waits under. The bus answers `deferred: true`.
+   */
+  defer?(ctx: CommandContext, data: D): Promise<{ key: string }>;
 };
 
 export type GuardContext = {
@@ -81,6 +88,14 @@ export type GuardContext = {
 };
 
 /** Returns null when the guard holds, or the reason in product language otherwise. */
-export type Guard = (g: GuardContext) => Promise<string | null> | string | null;
+export type Guard = (g: GuardContext) => Promise<GuardOutcome> | GuardOutcome;
+
+/**
+ * A guard that does not hold but whose command may wait: `{ defer }` says why. The bus only defers
+ * when every failing guard defers and the command's handler declares a `defer` (otherwise the
+ * reason is an ordinary 409).
+ */
+export type GuardDefer = { defer: string };
+export type GuardOutcome = string | null | GuardDefer;
 
 export type { Db, Tx };

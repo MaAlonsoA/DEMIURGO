@@ -13,7 +13,7 @@ import {
 import { sql } from "kysely";
 import type { Db } from "../db/connection.ts";
 import { githubConfig } from "../github/client.ts";
-import { productState } from "../queries/read.ts";
+import { mergedBuildOf, productState } from "../queries/read.ts";
 import { taskCoversOf } from "../queries/sizes.ts";
 import { projectsDir } from "../repo/repo.ts";
 
@@ -50,11 +50,16 @@ export type QueueTask = {
 
 export type WaitingTask = QueueTask & { reasons: string[] };
 
+/** A task whose pull request was merged (its build request is done). */
+export type BuiltTask = QueueTask & { pr_url: string | null; done_at: string | null };
+
 export type BuildQueue = {
   ready: QueueTask[];
   waiting: WaitingTask[];
   /** Open requests on tasks no longer in the queue or Waiting (built, for instance): stale. */
   stale: QueueTask[];
+  /** Tasks built by a merged pull request, newest first. */
+  built: BuiltTask[];
   totals: { tasks: number; points: number; unsized: number };
   repository: { path: string | null; branch: string; merge_rule_by_demiurgo: boolean };
 };
@@ -295,10 +300,19 @@ export async function buildQueue(
     )
     .sort(order)
     .map(lineOf);
+  const built: BuiltTask[] = [];
+  for (const t of tasks) {
+    const id = ids.get(t.code);
+    const merged = id && t.implementation === "implemented" ? await mergedBuildOf(db, id) : null;
+    if (merged)
+      built.push({ ...lineOf(t), pr_url: merged.pr_url, done_at: merged.done_at });
+  }
+  built.sort((a, b) => (b.done_at ?? "").localeCompare(a.done_at ?? ""));
   return {
     ready,
     waiting,
     stale,
+    built,
     totals: {
       tasks: ready.length,
       points: ready.reduce((n, t) => n + (t.points ?? 0), 0),

@@ -12,12 +12,33 @@ export type WorkflowEngine = {
   startAssessment(batchId: string, projectId: string): Promise<void>;
   /** The durable GitHub build of a build request (one workflow per attempt). */
   startBuild(buildRequestId: string, projectId: string, attempt: number): Promise<void>;
+  /** Stops the build workflow of an attempt and its builder container (the request was withdrawn). */
+  cancelBuild(buildRequestId: string, attempt: number): Promise<void>;
   startResponse(messageId: string, projectId: string, explorationId: string, questionId?: string, agent?: string): Promise<void>;
   /**
    * Requests an exploration_chat run in that thread with that input as soon as knowledge is up to
    * date (a job queue instead of "try again"). Idempotent per key: the same key never requests twice.
    */
-  startDeferredRun(key: string, projectId: string, explorationId: string, input: Record<string, unknown>): Promise<void>;
+  startDeferredRun(
+    key: string,
+    projectId: string,
+    explorationId: string,
+    input: Record<string, unknown>,
+    // Appended last: any run request, made with the original actor ("human:ana"), instead of an exploration_chat.
+    request?: DeferredRunRequest,
+  ): Promise<void>;
+  /** Whether a deferred run whose key starts with `keyPrefix` is still waiting to be requested. */
+  deferredRunPending(keyPrefix: string): Promise<boolean>;
+};
+
+/** A run request that waits for knowledge: the same payload as `run.request`, plus who asked. */
+export type DeferredRunRequest = {
+  action: string;
+  scope: { type: string; id?: string; version?: number };
+  input: Record<string, unknown>;
+  agent?: string;
+  /** The formatted actor of the person ("human:ana"): the run stays attributed to them. */
+  actor: string;
 };
 
 export type Logger = {
@@ -68,6 +89,7 @@ export function inertEngine(): WorkflowEngine & {
   const builds: string[] = [];
   return {
     builds,
+    cancelBuild: async () => undefined,
     startBuild: async (id, _p, attempt) => {
       builds.push(`${id}:${attempt}`);
     },
@@ -79,6 +101,7 @@ export function inertEngine(): WorkflowEngine & {
     startDeferredRun: async (key) => {
       deferred.push(key);
     },
+    deferredRunPending: async (prefix) => deferred.some((k) => k.startsWith(prefix)),
     startResponse: async (id) => {
       responses.push(id);
     },

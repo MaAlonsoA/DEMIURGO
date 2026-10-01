@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { TypeSafeClient } from '@typesafe-ai/sdk';
 import { selectStarts } from '../src/build/auto.ts';
 import { isSchemaFile, schemaEvidence } from '../src/build/schema-risk.ts';
-import { SCHEMA_THRESHOLD, classifyTaskLayers, judgeLayers, LAYERS } from '../src/classifier/layers.ts';
+import { SCHEMA_THRESHOLD, buildLayersRequest, classifyTaskLayers, judgeLayers } from '../src/classifier/layers.ts';
 import type { QueueTask } from '../src/build/queue.ts';
 import type { TaskDependencyIndex } from '../src/queries/task-deps.ts';
 import type { SchemaEvidence } from '../src/build/schema-risk.ts';
@@ -68,41 +68,59 @@ describe('judgeLayers and classifyTaskLayers', () => {
     if (saved === undefined) delete process.env.TYPESAFE_API_KEY;
     else process.env.TYPESAFE_API_KEY = saved;
   });
-  const fake = () => {
-    const requests: { questions: Record<string, unknown> }[] = [];
+  const TASK = { title: 'Add goals', goal: 'Save daily goals.', scope: 'A form.', acceptance_criteria: ['Goals are saved.'] };
+  const REPO = {
+    project_stack: { ci: 'GitHub Actions: ephemeral Postgres 17, Vitest; no deployed environment, no person.' },
+    repository: { migrations: ['0001_init.sql'], database_tables: [{ table: 'food_entries', columns: ['id', 'name'] }], server_modules: [], server_actions: [], route_handlers: [], pages: [], ui_components: [] },
+  };
+  // A Score over three levels: the expected score is what Jev returns.
+  const fake = (value = 1.6) => {
+    const requests: { state: unknown; questions: Record<string, unknown> }[] = [];
     const client = {
-      systemOne: async (r: { questions: Record<string, unknown> }) => {
+      systemOne: async (r: { state: unknown; questions: Record<string, unknown> }) => {
         requests.push(r);
-        return { model: 'jev-test', answers: Object.fromEntries(Object.keys(r.questions).map((k) => [k, { type: 'noul', noul: k === 'schema' ? 0.8 : 0.1 }])), usage: { input_tokens: 5, output_tokens: 0 } };
+        return { model: 'jev-test', answers: Object.fromEntries(Object.keys(r.questions).map((k) => [k, { type: 'score', score: value }])), usage: { input_tokens: 5, output_tokens: 0 } };
       },
     } as unknown as Pick<TypeSafeClient, 'systemOne'>;
     return { client, requests };
   };
   const services = () => ({ db: {}, logger: { info: () => {}, error: () => {} } }) as unknown as Services;
 
-  it('asks one request with the five Nouls', async () => {
-    const { client, requests } = fake();
-    const j = await judgeLayers(client, 'Task: add a table');
+  it('asks one request with only the schema Score, over the task and the repository', async () => {
+    const { client, requests } = fake(1.6);
+    const j = await judgeLayers(client, { task: TASK, repo: REPO });
     expect(requests).toHaveLength(1);
-    expect(Object.keys(requests[0]?.questions ?? {})).toEqual(LAYERS);
-    expect(j.schema).toBe(0.8);
+    expect(Object.keys(requests[0]?.questions ?? {})).toEqual(['schema_score']);
+    expect(requests[0]?.state).toMatchObject({ task: TASK, project_stack: REPO.project_stack, repository: { database_tables: [{ table: 'food_entries' }] } });
+    expect(j.schema).toBeCloseTo(0.8); // 1.6 of a top level of 2
+  });
+
+  it('degrades without the repository: no repository or project_stack in the state', () => {
+    const { state, questions } = buildLayersRequest({ task: TASK, repo: null });
+    expect(Object.keys(state)).toEqual(['task']);
+    expect(JSON.stringify(questions)).not.toContain('database_tables');
+  });
+
+  it('the threshold is the midpoint of the scale: one new column or more', async () => {
+    expect((await judgeLayers(fake(1).client, { task: TASK })).schema).toBeGreaterThanOrEqual(SCHEMA_THRESHOLD);
+    expect((await judgeLayers(fake(0.9).client, { task: TASK })).schema).toBeLessThan(SCHEMA_THRESHOLD);
   });
 
   it('does nothing without the key and stores with it', async () => {
-    const { client, requests } = fake();
+    const { client, requests } = fake(1.6);
     const stored: number[] = [];
-    const deps = { client, text: async () => 'Task', store: async (_s: Services, _i: unknown, _c: string, j: { schema: number }) => void stored.push(j.schema) };
+    const deps = { client, input: async () => ({ task: TASK }), store: async (_s: Services, _i: unknown, _c: string, j: { schema: number }) => void stored.push(j.schema) };
     delete process.env.TYPESAFE_API_KEY;
     await classifyTaskLayers(services(), 'p', 'r', 'v', deps);
     expect(requests).toHaveLength(0);
     process.env.TYPESAFE_API_KEY = 'test';
     await classifyTaskLayers(services(), 'p', 'r', 'v', deps);
-    expect(stored).toEqual([0.8]);
+    expect(stored[0]).toBeCloseTo(0.8);
   });
 
   it('never throws when Jev fails', async () => {
     process.env.TYPESAFE_API_KEY = 'test';
     const client = { systemOne: async () => { throw new Error('down'); } } as unknown as Pick<TypeSafeClient, 'systemOne'>;
-    await expect(classifyTaskLayers(services(), 'p', 'r', 'v', { client, text: async () => 'Task' })).resolves.toBeUndefined();
+    await expect(classifyTaskLayers(services(), 'p', 'r', 'v', { client, input: async () => ({ task: TASK }) })).resolves.toBeUndefined();
   });
 });

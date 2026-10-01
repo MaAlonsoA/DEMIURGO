@@ -5,7 +5,8 @@
 // boundaries identify what a change touches).
 //
 // Layered prediction: deterministic evidence first (the footprint of an earlier merged version of the
-// task, i.e. a rebuild), then Jev's `schema` probability for tasks that were never built.
+// task, i.e. a rebuild), then Jev's `schema` value (the expected score of «None / one new column / a new table», over the top
+// level; threshold 0.5) for tasks that were never built.
 
 import type { Db } from '../db/connection.ts';
 import { SCHEMA_THRESHOLD, type TaskLayers, taskLayersOf } from '../classifier/layers.ts';
@@ -16,7 +17,7 @@ export const isSchemaFile = (path: string): boolean => /(^|\/)migrations\//.test
 
 export type SchemaEvidence = 'footprint' | 'jev';
 
-/** Pure policy: the footprint of the task's earlier merge wins; otherwise Jev's probability at the threshold. */
+/** Pure policy: the footprint of the task's earlier merge wins; otherwise Jev's schema value at the threshold. */
 export function schemaEvidence(footprint: Pick<TaskFootprint, 'files'> | undefined, layers: Pick<TaskLayers, 'schema'> | undefined): SchemaEvidence | null {
   if (footprint?.files.some((f) => isSchemaFile(f.path))) return 'footprint';
   if (layers && layers.schema >= SCHEMA_THRESHOLD) return 'jev';

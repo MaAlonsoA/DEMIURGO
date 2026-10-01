@@ -418,32 +418,36 @@ export type TaskSizeOpinionsTable = {
   created_at: Generated<Timestamp>;
 };
 
-/** Jev's three probabilities on one criterion of a task (H97): derived, the latest row per criterion is the active one. */
+/**
+ * Jev's answers on one criterion of a task (H97): derived, the latest row per criterion is the active one.
+ * `can_check_in_ci` is only in old rows; `needs_kind` only in new ones.
+ */
 export type TaskTestabilityOpinionsTable = {
   id: Generated<string>;
   project_id: string;
   record_id: string;
   record_version_id: string;
   criterion_code: string;
-  can_check_in_ci: number;
+  can_check_in_ci: number | null;
   needs_outside_ci: number;
   needs_unbuilt_feature: number;
+  needs_kind: string | null;
   classifier_id: string;
   input_hash: string;
   created_at: Generated<Timestamp>;
 };
 
-/** Jev's probabilities of the layers a task version changes (H101); append-only. */
+/** Jev's guess at the layers a task version changes (H101); append-only. Only `schema_p` (the schema Score / 2) is asked now: the others are null in new rows. */
 export type TaskLayersOpinionsTable = {
   id: Generated<string>;
   project_id: string;
   record_id: string;
   record_version_id: string;
   schema_p: number;
-  server_p: number;
-  ui_p: number;
-  tests_only_p: number;
-  deploy_p: number;
+  server_p: number | null;
+  ui_p: number | null;
+  tests_only_p: number | null;
+  deploy_p: number | null;
   classifier_id: string;
   input_hash: string;
   created_at: Generated<Timestamp>;

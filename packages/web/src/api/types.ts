@@ -622,7 +622,13 @@ type TaskLink = { ref: string; title: string; code: string | null; state: string
 export type ReviewComment = { path: string; line: number | null; severity: string; body: string };
 
 /** Jev's warning on a criterion: it looks impossible to check in CI, or it needs a feature not built yet. */
-export type TestabilityFlag = { code: string; kind: 'untestable' | 'waits_for_feature'; probability: number };
+export type TestabilityFlag = {
+  code: string;
+  kind: 'untestable' | 'waits_for_feature';
+  probability: number;
+  /** What Jev says checking it needs; null for opinions stored before the Choice existed. */
+  needs: 'ci_automated' | 'needs_production' | 'needs_person' | 'needs_unbuilt_part' | null;
+};
 
 export type TaskView = {
   draft: null | {

@@ -1,5 +1,5 @@
 // Offline evaluation of Jev's testability check (H97). It reads the tasks of one project from the
-// database and prints, per automatic criterion, the three probabilities and the policy result. It
+// database and prints, per automatic criterion, the two probabilities, what Jev says checking it needs and the policy result. It
 // stores nothing. It calls the real TypeSafe API, so it needs TYPESAFE_API_KEY, and it sends the
 // project's task text to TypeSafe: run it only when that is accepted.
 //
@@ -56,7 +56,7 @@ try {
       const verdict = testabilityVerdict(j);
       const strength = testabilityStrength(j, verdict).toFixed(2);
       console.log(
-        `  ${j.code.padEnd(14)} ci ${j.can_check_in_ci.toFixed(2)}  outside ${j.needs_outside_ci.toFixed(2)}  unbuilt ${j.needs_unbuilt_feature.toFixed(2)}  -> ${verdict}${verdict === 'ok' ? '' : ` (${strength})`}`,
+        `  ${j.code.padEnd(14)} outside ${j.needs_outside_ci.toFixed(2)}  unbuilt ${j.needs_unbuilt_feature.toFixed(2)}  needs ${j.needs}  -> ${verdict}${verdict === 'ok' ? '' : ` (${strength})`}`,
       );
     }
   }

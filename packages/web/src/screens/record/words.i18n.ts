@@ -1164,12 +1164,20 @@ export const TESTABILITY = messages(
   {
     untestable: (code: string, p: string) =>
       `Jev: ${code} looks impossible to check in CI (needs a person or production, ${p}). Mark it manual or move it to a release check before building.`,
+    untestableProduction: (code: string, p: string) =>
+      `Jev: ${code} can only be checked in a deployed environment (real hosting, network or provider behaviour, ${p}). CI cannot decide it: move it to a release check before building.`,
+    untestablePerson: (code: string, p: string) =>
+      `Jev: ${code} needs a person to use or judge it (${p}). CI cannot decide it: mark it manual before building.`,
     waits: (code: string, p: string) =>
       `Jev: ${code} needs a feature that is not built yet (${p}). Build that feature first, or check this criterion when it exists.`,
   },
   {
     untestable: (code: string, p: string) =>
       `Jev: ${code} parece imposible de comprobar en la CI (necesita a una persona o producción, ${p}). Márcalo como manual o pásalo a una comprobación de entrega antes de construir.`,
+    untestableProduction: (code: string, p: string) =>
+      `Jev: ${code} solo se puede comprobar en un entorno desplegado (alojamiento, red o proveedor reales, ${p}). La CI no puede decidirlo: pásalo a una comprobación de entrega antes de construir.`,
+    untestablePerson: (code: string, p: string) =>
+      `Jev: ${code} necesita que una persona lo use o lo juzgue (${p}). La CI no puede decidirlo: márcalo como manual antes de construir.`,
     waits: (code: string, p: string) =>
       `Jev: ${code} necesita una funcionalidad que aún no está construida (${p}). Construye esa primero, o comprueba este criterio cuando exista.`,
   },

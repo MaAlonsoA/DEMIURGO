@@ -82,6 +82,8 @@ export type BuilderResult = {
   container: string;
   /** The agent session this run used or started, when the spec asked for one. */
   sessionId?: string;
+  /** True when the container was already there (an API restart replayed the step) and this call collected it instead of starting one. */
+  reattached?: boolean;
 };
 
 export type BuilderOptions = {
@@ -340,6 +342,44 @@ export function builderArguments(spec: BuilderSpec, containerName: string, envir
   return args;
 }
 
+/** What `docker inspect` said about the container of the name: absent, or its state. */
+export type InspectResult = { found: false } | { found: true; status: string };
+
+export type ReattachPlan = 'run' | 'reattach' | 'collect_and_remove';
+
+/**
+ * What to do before `docker run` when a replayed step finds (or not) a container with its name (pure function).
+ * Running (or restarting): the first run is still working, wait for it. Stopped in any way: its logs and exit code
+ * can still be read, then it is removed. Absent: start it.
+ */
+export function reattachPlan(inspect: InspectResult): ReattachPlan {
+  if (!inspect.found) return 'run';
+  return inspect.status === 'running' || inspect.status === 'restarting' ? 'reattach' : 'collect_and_remove';
+}
+
+/** Runs an auxiliary docker command and returns its exit code and stdout (no shell, bounded time). */
+function dockerCapture(binary: string, args: string[], environment: Record<string, string>, timeoutMs?: number): Promise<{ code: number | null; stdout: string }> {
+  return new Promise((resolve) => {
+    let child: ReturnType<typeof spawn>;
+    try {
+      child = spawn(binary, args, { shell: false, env: environment, stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true, ...(timeoutMs ? { timeout: timeoutMs } : {}) });
+    } catch {
+      resolve({ code: null, stdout: '' });
+      return;
+    }
+    const out = collector(4096);
+    child.stdout?.on('data', (t: Buffer) => out.add(t));
+    child.once('error', () => resolve({ code: null, stdout: '' }));
+    child.once('close', (code) => resolve({ code, stdout: out.text() }));
+  });
+}
+
+async function inspectContainer(binary: string, name: string, environment: Record<string, string>): Promise<InspectResult> {
+  const { code, stdout } = await dockerCapture(binary, ['inspect', '--format', '{{.State.Status}}', name], environment, 15_000);
+  const status = stdout.trim();
+  return code === 0 && status ? { found: true, status } : { found: false };
+}
+
 async function readReport(worktree: string): Promise<BuildReport | null> {
   try {
     const parsed = buildReportSchema.safeParse(JSON.parse(await readFile(join(worktree, REPORT_PATH), 'utf8')));
@@ -367,6 +407,18 @@ export async function runBuilder(spec: BuilderSpec, options: BuilderOptions = {}
     const login = await (options.loginCheck ?? ((sp) => checkClaudeLogin({ env: options.environment ?? process.env, maxTimeMs: sp.maxTimeMs })))(spec);
     if (!login.ok) return { state: 'failure', exitCode: null, durationMs: 0, failureKind: 'login', stderrTail: login.message, ...empty };
   }
+
+  // A replayed step (the API restarted while the container worked) finds the first run's container by its name:
+  // wait for it and collect it instead of colliding on `docker run --name` (exit 125).
+  let plan = reattachPlan(await inspectContainer(binary, name, environment));
+  if (plan === 'collect_and_remove' && (await readReport(worktree)) === null) {
+    // Stopped and without a report: nothing to collect, clear the name and run again.
+    await runDockerCommand(binary, ['rm', '-f', name], environment);
+    plan = 'run';
+  }
+  const attach = plan !== 'run';
+  // `docker wait` must be asked before the logs end: with `--rm` the container disappears right after it exits.
+  const waited = attach ? dockerCapture(binary, ['wait', name], environment) : undefined;
 
   const output = collector(OUTPUT_LIMIT);
   const errors = collector(64 * 1024);
@@ -403,7 +455,7 @@ export async function runBuilder(spec: BuilderSpec, options: BuilderOptions = {}
     const onAbort = () => void stop('cancelled');
     const timer = setTimeout(() => void stop('timeout'), spec.maxTimeMs);
     try {
-      child = spawn(binary, args, { shell: false, env: environment, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+      child = spawn(binary, attach ? ['logs', '--follow', name] : args, { shell: false, env: environment, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
     } catch (e) {
       startupError = e instanceof Error ? e : new Error(String(e));
       terminate(null);
@@ -423,9 +475,14 @@ export async function runBuilder(spec: BuilderSpec, options: BuilderOptions = {}
       startupError = e;
       terminate(null);
     });
-    child.once('close', (c) => terminate(c));
-    child.stdin?.on('error', () => {});
-    child.stdin?.end(spec.prompt);
+    if (waited) {
+      // The logs end when the container does; its exit code comes from `docker wait` (null when unknown).
+      child.once('close', () => void waited.then((w) => terminate(w.code === 0 && /^\d+$/.test(w.stdout.trim()) ? Number(w.stdout.trim()) : null)));
+    } else {
+      child.once('close', (c) => terminate(c));
+      child.stdin?.on('error', () => {});
+      child.stdin?.end(spec.prompt);
+    }
   });
 
   if (stopReason !== undefined || startupError !== undefined) await runDockerCommand(binary, ['rm', '-f', name], environment);
@@ -442,7 +499,17 @@ export async function runBuilder(spec: BuilderSpec, options: BuilderOptions = {}
     container: name,
     ...(sessionId ? { sessionId } : {}),
   };
+  if (plan === 'collect_and_remove') await runDockerCommand(binary, ['rm', '-f', name], environment);
   if (stopReason !== undefined) return { state: 'failure', ...base, failureKind: stopReason };
+  if (attach) {
+    const result = { ...base, reattached: true };
+    if (code === null) {
+      // `--rm` removed the container before `docker wait` could answer: the exit code is lost. A valid report (the
+      // builder writes it last, and the orchestrator clears it after every attempt) means it finished its job.
+      return base.report ? { state: 'ok', ...result, exitCode: 0 } : { state: 'failure', ...result, failureKind: 'infra' };
+    }
+    return { state: code === 0 ? 'ok' : 'failure', ...result };
+  }
   if (startupError !== undefined || code === null || code === 125 || (code !== 0 && DEAD_DAEMON_PATTERN.test(stderr))) {
     return { state: 'failure', ...base, failureKind: 'infra' };
   }

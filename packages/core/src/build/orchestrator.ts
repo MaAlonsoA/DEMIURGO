@@ -794,6 +794,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       model: resolution.model,
       session: { mode: plan.mode, ...(result.sessionId ?? sessionId ? { id: result.sessionId ?? sessionId } : {}), reason: plan.reason },
       exit_code: result.exitCode,
+      ...(result.reattached ? { reattached: true } : {}),
       duration_ms: result.durationMs,
       transcript_tail_length: result.transcriptTail.length,
       report: result.report,

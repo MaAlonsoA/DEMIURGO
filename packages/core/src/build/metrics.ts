@@ -93,7 +93,8 @@ function stageMs(rows: StepRow[], stage: string): number {
     const mine = rows.filter((r) => r.stage === stage && r.attempt === attempt);
     let startedAt: number | null = null;
     for (const r of mine) {
-      if (r.outcome === 'started') startedAt ??= ms(r.at);
+      // The review of a parallel attempt starts with a `waiting` row (no `started`): it counts from there.
+      if (r.outcome === 'started' || r.outcome === 'waiting') startedAt ??= ms(r.at);
       else if (ENDS.has(r.outcome)) {
         if (startedAt !== null) total += Math.max(0, ms(r.at) - startedAt);
         else if (stage === 'builder' && r.duration_ms) total += r.duration_ms;

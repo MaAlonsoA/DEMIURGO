@@ -31,7 +31,12 @@ export type TimelineRequestRow = {
 /** prep: «Prepare» (repo, workspace, environment as one); builder: the agent; light: the merge before it waits; review: the reviewer; wait: CI; main: CI on main. */
 export type SegmentKind = 'prep' | 'builder' | 'light' | 'review' | 'wait' | 'main';
 
-export type TimelineSegment = { stage: string; kind: SegmentKind; start: string; end: string; outcome: string };
+/**
+ * `outcome` is the row that ended the segment (`running` while open). A CI that was cancelled because the review
+ * asked for changes first ends as `cancelled` with its `reason`. Segments of different stages may overlap in time:
+ * CI and review run in parallel (trace waterfall of Jaeger: overlapping spans, each from its own start and end).
+ */
+export type TimelineSegment = { stage: string; kind: SegmentKind; start: string; end: string; outcome: string; reason?: string };
 
 export type AttemptResult = 'merged' | 'running' | 'failed' | 'changes_requested' | 'cancelled' | 'open';
 
@@ -229,14 +234,16 @@ function attemptOf(n: number, rows: TimelineStepRow[], previousEnd: number | nul
   let prevAt = ms(rows[0]?.at ?? now);
   let mergedAt: string | null = null;
   let mainRow: { at: string; conclusion: string | null } | null = null;
-  const push = (stage: string, kind: SegmentKind, start: number, end: number, outcome: string) => {
-    const prev = segments.at(-1);
-    if (prev && prev.stage === stage && prev.kind === kind && ms(prev.end) >= start - 1) {
+  // Each stage builds its interval from its own rows: a row of another stage never closes it, so CI and review can overlap.
+  const push = (stage: string, kind: SegmentKind, start: number, end: number, outcome: string, reason?: string | null) => {
+    const prev = [...segments].reverse().find((x) => x.stage === stage);
+    if (prev && prev.kind === kind && ms(prev.end) >= start - 1) {
       prev.end = iso(new Date(Math.max(end, ms(prev.end))));
       prev.outcome = outcome;
+      if (reason) prev.reason = reason;
       return;
     }
-    segments.push({ stage, kind, start: iso(new Date(start)), end: iso(new Date(end)), outcome });
+    segments.push({ stage, kind, start: iso(new Date(start)), end: iso(new Date(end)), outcome, ...(reason ? { reason } : {}) });
   };
   for (const r of rows) {
     if (SKIP.has(r.stage)) continue;
@@ -252,9 +259,12 @@ function attemptOf(n: number, rows: TimelineStepRow[], previousEnd: number | nul
     }
     const prior = last.get(r.stage);
     const start = prior ? prior.at : prevAt;
-    if (!MECHANICAL.has(r.stage)) {
+    const cancelledCi = r.stage === 'ci' && r.outcome === 'failed' && obj(r.detail).cancelled === true;
+    // The first row of a parallel stage is a `waiting` row (the review run starts right away, without `started`): it only opens the interval.
+    const opens = r.outcome === 'waiting' && !prior && (r.stage === 'ci' || r.stage === 'review');
+    if (!MECHANICAL.has(r.stage) && !opens && !(r.outcome === 'waiting' && at <= start)) {
       const stage = PREPARE.has(r.stage) ? 'prepare' : r.stage;
-      push(stage, kindOf(r.stage, prior?.outcome === 'waiting'), start, at, r.outcome);
+      push(stage, kindOf(r.stage, prior?.outcome === 'waiting'), start, at, cancelledCi ? 'cancelled' : r.outcome, cancelledCi ? (cut(obj(r.detail).reason, 60) ?? 'cancelled') : null);
     }
     if (r.outcome === 'waiting') last.set(r.stage, { at, outcome: 'waiting' });
     else last.delete(r.stage);
@@ -263,7 +273,8 @@ function attemptOf(n: number, rows: TimelineStepRow[], previousEnd: number | nul
     prevAt = at;
   }
   const lastRow = rows.at(-1);
-  const ending = [...rows].reverse().find((r) => ENDING.has(r.outcome));
+  // A CI cancelled because the review asked for changes is a consequence, not what ended the attempt.
+  const ending = [...rows].reverse().find((r) => ENDING.has(r.outcome) && !(r.stage === 'ci' && obj(r.detail).cancelled === true));
   const result: AttemptResult = mergedAt
     ? 'merged'
     : ending
@@ -273,9 +284,12 @@ function attemptOf(n: number, rows: TimelineStepRow[], previousEnd: number | nul
         : 'open';
   if (result === 'running') {
     // The stage that has started (or waits) and has not ended: it runs up to now.
-    const [stage, since] = [...last.entries()].sort((a, b) => b[1].at - a[1].at)[0] ?? [null, null];
-    if (stage && since && !MECHANICAL.has(stage)) push(PREPARE.has(stage) ? 'prepare' : stage, kindOf(stage, since.outcome === 'waiting'), since.at, now, 'running');
+    // With CI and review in parallel there can be several: each one runs up to now.
+    for (const [stage, since] of [...last.entries()].sort((a, b) => a[1].at - b[1].at)) {
+      if (!MECHANICAL.has(stage)) push(PREPARE.has(stage) ? 'prepare' : stage, kindOf(stage, since.outcome === 'waiting'), since.at, now, 'running');
+    }
   }
+  segments.sort((a, b) => ms(a.start) - ms(b.start) || ms(a.end) - ms(b.end));
   const startRow = rows.find((r) => r.stage === 'repo' && r.outcome === 'started') ?? rows[0];
   const sd = obj(startRow?.detail);
   const start = ms(rows[0]?.at ?? now);
@@ -326,7 +340,7 @@ function attemptOf(n: number, rows: TimelineStepRow[], previousEnd: number | nul
     out: {
       pr_number: num(obj(pr?.detail).number),
       head_sha: typeof obj(withSha?.detail).head_sha === 'string' ? (obj(withSha?.detail).head_sha as string).slice(0, 8) : null,
-      ci: ci ? (cut(obj(ci.detail).conclusion, 40) ?? ci.outcome) : null,
+      ci: ci ? (obj(ci.detail).cancelled === true ? 'cancelled' : (cut(obj(ci.detail).conclusion, 40) ?? ci.outcome)) : null,
       updated_from_base: rows.some((r) => obj(r.detail).updated_from_base === true),
       review: review ? { verdict: cut(rd.verdict, 40), comments: num(rd.comments_count) } : null,
       behind_by: num(obj(merge?.detail).behind_by),

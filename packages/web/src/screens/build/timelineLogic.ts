@@ -1,12 +1,46 @@
 // Pure helpers of the build timeline view (Lanes and Path): the time scale, the ticks, which attempt is shown
 // first and the state of each stage of an attempt. No React, no clock: `now` comes from the server's answer.
 
-import type { BuildTimeline, FlowShares, TimelineAttempt, TimelineRequest } from '../../api/types.ts';
+import type { BuildTimeline, FlowShares, TimelineAttempt, TimelineRequest, TimelineSegment } from '../../api/types.ts';
 
 export const ms = (iso: string): number => new Date(iso).getTime();
 
 /** The stages the Path draws, in order: the ones where time is real work or waiting. The mechanical ones (branch, commit, checks, pull request) are one quiet line. */
 export const PATH_STAGES = ['prepare', 'builder', 'ci', 'review', 'merge', 'main'] as const;
+
+/**
+ * The columns of the Path stepper: CI and review share one column as two parallel branches (fork after Build, join
+ * before Merge). Practice: fork/join notation of UML activity diagrams and the parallel gateway of BPMN. An attempt
+ * from before the parallel run (ci, then review) has the same layout; its branches just do not overlap in time.
+ */
+export const PATH_COLUMNS = [['prepare'], ['builder'], ['ci', 'review'], ['merge'], ['main']] as const;
+
+/** True when a review segment overlaps a CI segment in time: the two ran at the same time in this attempt. */
+export function reviewOverlapsCi(attempt: TimelineAttempt): boolean {
+  const ci = attempt.segments.filter((s) => s.stage === 'ci');
+  return attempt.segments.some((r) => r.stage === 'review' && ci.some((c) => ms(r.start) < ms(c.end) && ms(c.start) < ms(r.end)));
+}
+
+const FLAT_RANK: Record<TimelineSegment['kind'], number> = { builder: 0, review: 1, prep: 2, light: 3, wait: 4, main: 5 };
+
+/**
+ * The segments as consecutive, non-overlapping pieces, for a single bar (the attempt ladder): where two overlap
+ * the piece takes the one that ranks first (builder, review, then the rest). Uncovered time is left out.
+ */
+export function flattenSegments(segments: readonly TimelineSegment[]): TimelineSegment[] {
+  const cuts = [...new Set(segments.flatMap((s) => [ms(s.start), ms(s.end)]))].sort((a, b) => a - b);
+  const out: TimelineSegment[] = [];
+  for (let k = 0; k + 1 < cuts.length; k++) {
+    const a = cuts[k] as number;
+    const b = cuts[k + 1] as number;
+    const top = segments.filter((s) => ms(s.start) <= a && ms(s.end) >= b).sort((x, y) => FLAT_RANK[x.kind] - FLAT_RANK[y.kind])[0];
+    if (!top) continue;
+    const prev = out.at(-1);
+    if (prev && prev.stage === top.stage && prev.kind === top.kind && ms(prev.end) === a) prev.end = new Date(b).toISOString();
+    else out.push({ ...top, start: new Date(a).toISOString(), end: new Date(b).toISOString() });
+  }
+  return out;
+}
 
 const MIN_SPAN_MIN = 30;
 const PAD_MIN = 1;

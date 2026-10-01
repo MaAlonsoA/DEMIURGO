@@ -11,14 +11,18 @@ import { Who } from "../../components/Who.tsx";
 import { cn } from "../../lib/cn.ts";
 import { useMessages } from "../../i18n/define.ts";
 import { AGENT_BUILD } from "../record/agentBuild.i18n.ts";
-import { PATH_STAGES, type Selection, type StageState, compact, ms, stageStates } from "./timelineLogic.ts";
+import { PATH_COLUMNS, type Selection, type StageState, compact, flattenSegments, ms, reviewOverlapsCi, stageStates } from "./timelineLogic.ts";
 import type { BUILD } from "./words.i18n.ts";
 
 type Words = typeof BUILD.en;
 type Stages = typeof AGENT_BUILD.en;
 
-const NODE_W = 120;
+const NODE_W = 132;
+/** Dot rows: the upper branch (CI), the lower branch (review); the single nodes sit between them. */
 const DOT_Y = 18;
+const BRANCH_GAP = 96;
+const MID_Y = DOT_Y + BRANCH_GAP / 2;
+const FLOW_H = 166;
 
 /** A two-line label: the words split in the middle. */
 function twoLines(label: string): [string, string] {
@@ -33,102 +37,140 @@ const word = (stages: Stages, prefix: "s_" | "o_", key: string): string => {
   return typeof v === "string" ? v : key;
 };
 
-function Glyph({ state, cx }: { state: StageState; cx: number }) {
+function Glyph({ state, cx, cy }: { state: StageState; cx: number; cy: number }) {
   switch (state) {
     case "done":
-      return <circle cx={cx} cy={DOT_Y} r={6} className="fill-fg" />;
+      return <circle cx={cx} cy={cy} r={6} className="fill-fg" />;
     case "running":
       return (
         <>
-          <circle cx={cx} cy={DOT_Y} r={10} className="fill-none stroke-info opacity-40" strokeWidth={2} />
-          <circle cx={cx} cy={DOT_Y} r={6} className="fill-info" />
+          <circle cx={cx} cy={cy} r={10} className="fill-none stroke-info opacity-40" strokeWidth={2} />
+          <circle cx={cx} cy={cy} r={6} className="fill-info" />
         </>
       );
     case "failed":
       return (
         <>
-          <circle cx={cx} cy={DOT_Y} r={7} className="fill-panel stroke-danger" strokeWidth={2} />
-          <path d={`M ${cx - 3} ${DOT_Y - 3} l 6 6 M ${cx + 3} ${DOT_Y - 3} l -6 6`} className="stroke-danger" strokeWidth={1.5} />
+          <circle cx={cx} cy={cy} r={7} className="fill-panel stroke-danger" strokeWidth={2} />
+          <path d={`M ${cx - 3} ${cy - 3} l 6 6 M ${cx + 3} ${cy - 3} l -6 6`} className="stroke-danger" strokeWidth={1.5} />
         </>
       );
     case "changes":
       return (
         <>
-          <circle cx={cx} cy={DOT_Y} r={7} className="fill-panel stroke-danger" strokeWidth={2} />
-          <circle cx={cx} cy={DOT_Y} r={2.5} className="fill-danger" />
+          <circle cx={cx} cy={cy} r={7} className="fill-panel stroke-danger" strokeWidth={2} />
+          <circle cx={cx} cy={cy} r={2.5} className="fill-danger" />
         </>
       );
     case "cancelled":
       return (
         <>
-          <circle cx={cx} cy={DOT_Y} r={7} className="fill-panel stroke-edge-control" strokeWidth={1.5} />
-          <path d={`M ${cx - 3} ${DOT_Y} h 6`} className="stroke-edge-control" strokeWidth={1.5} />
+          <circle cx={cx} cy={cy} r={7} className="fill-panel stroke-edge-control" strokeWidth={1.5} />
+          <path d={`M ${cx - 3} ${cy} h 6`} className="stroke-edge-control" strokeWidth={1.5} />
         </>
       );
     case "pending":
-      return <circle cx={cx} cy={DOT_Y} r={6} className="fill-none stroke-edge-control" strokeWidth={1.5} strokeDasharray="3 2" />;
+      return <circle cx={cx} cy={cy} r={6} className="fill-none stroke-edge-control" strokeWidth={1.5} strokeDasharray="3 3" />;
   }
 }
 
+type PathStage = (typeof PATH_COLUMNS)[number][number];
+type PathNode = { stage: PathStage; cx: number; cy: number; state: StageState; ms: number; wait: boolean; cancelled: boolean };
+
+/** A link from x1 to x2 at height y: filled = work, hollow = waiting, dashed = not reached. */
+function Bar({ x1, x2, y, node }: { x1: number; x2: number; y: number; node: Pick<PathNode, "state" | "wait"> }) {
+  const w = Math.max(0, x2 - x1);
+  if (node.state === "pending") return <line x1={x1} x2={x2} y1={y} y2={y} className="stroke-edge-control" strokeWidth={1.5} strokeDasharray="3 3" />;
+  if (node.wait) return <rect x={x1} y={y - 3} width={w} height={6} rx={1} className={cn("fill-none", node.state === "running" ? "stroke-info" : "stroke-edge-control")} strokeWidth={1} />;
+  return <rect x={x1} y={y - 2.5} width={w} height={5} rx={1} className={node.state === "running" ? "fill-info" : "fill-fg"} />;
+}
+
+/** The gateway where the path forks or joins: a diamond with a plus (BPMN parallel gateway). */
+function Gateway({ cx }: { cx: number }) {
+  return (
+    <g className="stroke-edge-strong" fill="none" strokeWidth={1.5}>
+      <path d={`M ${cx - 7} ${MID_Y} l 7 -7 l 7 7 l -7 7 z`} className="fill-panel" />
+      <path d={`M ${cx - 3} ${MID_Y} h 6 M ${cx} ${MID_Y - 3} v 6`} />
+    </g>
+  );
+}
+
+/**
+ * The stepper: Prepare, Build, [CI and Review in parallel], Merge, CI on main. Practice: fork/join of UML activity
+ * diagrams and the parallel gateway of BPMN. Attempts from before the parallel run have the same layout: their
+ * two branches just do not overlap in time. CI on main comes after the merge and does not hold the queue.
+ */
 function Flow({ attempt, code, t }: { attempt: TimelineAttempt; code: string; t: Words }) {
   const states = stageStates(attempt);
-  const nodes = PATH_STAGES.map((stage, i) => {
+  const node = (stage: PathStage, col: number, cy: number): PathNode => {
     const st = states.get(stage);
-    return { stage, cx: i * NODE_W + NODE_W / 2, state: (st?.state ?? "pending") as StageState, ms: st?.ms ?? 0, wait: st?.wait ?? false };
-  });
-  const width = PATH_STAGES.length * NODE_W;
-  const height = DOT_Y + 52;
+    const cancelled = stage === "ci" && attempt.segments.some((x) => x.stage === "ci" && x.outcome === "cancelled");
+    return { stage, cx: col * NODE_W + NODE_W / 2, cy, state: (st?.state ?? "pending") as StageState, ms: st?.ms ?? 0, wait: st?.wait ?? false, cancelled };
+  };
+  const [prepare, builder, ci, review, merge, main] = [node("prepare", 0, MID_Y), node("builder", 1, MID_Y), node("ci", 2, DOT_Y), node("review", 2, DOT_Y + BRANCH_GAP), node("merge", 3, MID_Y), node("main", 4, MID_Y)] as [PathNode, PathNode, PathNode, PathNode, PathNode, PathNode];
+  const nodes = [prepare, builder, ci, review, merge, main];
+  const width = PATH_COLUMNS.length * NODE_W;
+  const forkX = builder.cx + NODE_W / 2;
+  const joinX = merge.cx - NODE_W / 2;
+  const parallel = reviewOverlapsCi(attempt);
+  const mergeStarted = merge.state !== "pending";
+  const label = (n: PathNode) => (
+    <>
+      <text x={n.cx} y={n.cy + 28} textAnchor="middle" className={cn("text-xs", n.state === "pending" ? "fill-fg-3" : "fill-fg")}>
+        {t[`tpStage_${n.stage}` as const]}
+      </text>
+      {n.ms >= 1000 ? (
+        <text x={n.cx} y={n.cy + 42} textAnchor="middle" className="fill-fg-3 text-xs tabular-nums">
+          {compact(n.ms)}
+        </text>
+      ) : null}
+    </>
+  );
+  const note = (n: PathNode, text: string) =>
+    twoLines(text).map((line, i) =>
+      line ? (
+        <text key={`${n.stage}-${i}`} x={n.cx} y={n.cy + (n.ms >= 1000 ? 56 : 42) + i * 13} textAnchor="middle" className="fill-fg-3 text-xs">
+          {line}
+        </text>
+      ) : null,
+    );
   return (
     <div className="flex flex-col gap-2">
-      <div tabIndex={0} role="group" aria-label={t.tpPathLabel(code, attempt.n)} className="overflow-x-auto rounded-xs focus-visible:outline-2 focus-visible:outline-focus" data-task-path>
-        <svg width={width} height={height} aria-hidden="true" className="block shrink-0">
-          {nodes.map((n, i) => {
-            const prev = nodes[i - 1];
-            const link = prev ? (
-              n.state === "pending" ? (
-                <line x1={prev.cx + 12} x2={n.cx - 12} y1={DOT_Y} y2={DOT_Y} className="stroke-edge-control" strokeWidth={1.5} strokeDasharray="3 3" />
-              ) : n.wait ? (
-                <rect
-                  x={prev.cx + 12}
-                  y={DOT_Y - 3}
-                  width={Math.max(0, n.cx - prev.cx - 24)}
-                  height={6}
-                  rx={1}
-                  className={cn("fill-none", n.state === "running" ? "stroke-info" : "stroke-edge-control")}
-                  strokeWidth={1}
-                />
-              ) : (
-                <rect
-                  x={prev.cx + 12}
-                  y={DOT_Y - 2.5}
-                  width={Math.max(0, n.cx - prev.cx - 24)}
-                  height={5}
-                  rx={1}
-                  className={n.state === "running" ? "fill-info" : "fill-fg"}
-                />
-              )
-            ) : null;
-            const muted = n.state === "pending";
-            return (
-              <g key={n.stage} data-stage={n.stage} data-state={n.state}>
-                {link}
-                <Glyph state={n.state} cx={n.cx} />
-                <text x={n.cx} y={DOT_Y + 28} textAnchor="middle" className={cn("text-xs", muted ? "fill-fg-3" : "fill-fg")}>
-                  {t[`tpStage_${n.stage}` as const]}
-                </text>
-                {n.ms >= 1000 ? (
-                  <text x={n.cx} y={DOT_Y + 44} textAnchor="middle" className="fill-fg-3 text-xs tabular-nums">
-                    {compact(n.ms)}
-                  </text>
-                ) : null}
-              </g>
-            );
-          })}
+      <div tabIndex={0} role="group" aria-label={t.tpPathLabel(code, attempt.n)} className="max-w-full overflow-x-auto rounded-xs focus-visible:outline-2 focus-visible:outline-focus" data-task-path data-parallel={parallel ? "true" : "false"}>
+        <svg width={width} height={FLOW_H} aria-hidden="true" className="block shrink-0">
+          <Bar x1={prepare.cx + 12} x2={builder.cx - 12} y={MID_Y} node={builder} />
+          <Bar x1={builder.cx + 12} x2={forkX - 8} y={MID_Y} node={ci.state === "pending" && review.state === "pending" ? ci : { state: "done", wait: false }} />
+          {/* fork: the two branches leave the gateway together */}
+          <line x1={forkX} x2={forkX} y1={ci.cy} y2={review.cy} className="stroke-edge-strong" strokeWidth={1.5} />
+          <Bar x1={forkX} x2={ci.cx - 12} y={ci.cy} node={ci} />
+          <Bar x1={forkX} x2={review.cx - 12} y={review.cy} node={review} />
+          {/* join: Merge starts when both are done */}
+          <Bar x1={ci.cx + 12} x2={joinX} y={ci.cy} node={ci} />
+          <Bar x1={review.cx + 12} x2={joinX} y={review.cy} node={review} />
+          <line x1={joinX} x2={joinX} y1={ci.cy} y2={review.cy} className="stroke-edge-strong" strokeWidth={1.5} />
+          <Bar x1={joinX + 8} x2={merge.cx - 12} y={MID_Y} node={mergeStarted ? { state: merge.state, wait: false } : { state: "pending", wait: false }} />
+          <Gateway cx={forkX} />
+          <Gateway cx={joinX} />
+          {/* CI on main: after the merge, a dashed link whatever its state */}
+          <line x1={merge.cx + 12} x2={main.cx - 12} y1={MID_Y} y2={MID_Y} className="stroke-edge-control" strokeWidth={1.5} strokeDasharray="3 3" />
+          {nodes.map((n) => (
+            <g key={n.stage} data-stage={n.stage} data-state={n.state}>
+              <Glyph state={n.state} cx={n.cx} cy={n.cy} />
+              {label(n)}
+              {n.stage === "main" ? note(n, t.tpAfterMerge) : null}
+              {n.cancelled && n.state === "cancelled" ? note(n, t.tpCancelledReason) : null}
+            </g>
+          ))}
         </svg>
       </div>
       <ol className="sr-only">
         {nodes.map((n) => (
-          <li key={n.stage}>{t.tpStageLabel(t[`tpStage_${n.stage}` as const], t[`tpState_${n.state}` as const], n.ms >= 1000 ? compact(n.ms) : "")}</li>
+          <li key={n.stage}>
+            {n.stage === "ci" && parallel ? `${t.tpParallel}. ` : ""}
+            {t.tpStageLabel(t[`tpStage_${n.stage}` as const], t[`tpState_${n.state}` as const], n.ms >= 1000 ? compact(n.ms) : "")}
+            {n.stage === "ci" && n.cancelled && n.state === "cancelled" ? `, ${t.tpCancelledReason}` : ""}
+            {n.stage === "main" ? `, ${t.tpAfterMerge}` : ""}
+          </li>
         ))}
       </ol>
     </div>
@@ -427,7 +469,7 @@ function Ladder({ request, selected, onSelect, t, stages }: { request: TimelineR
               <span className="w-6 tabular-nums text-fg-3">{a.n}</span>
               <span className="flex h-2 min-w-24 flex-1 basis-40 items-center" aria-hidden="true">
                 <span className="flex h-2 gap-px" style={{ width: `${Math.max(4, (dur / longest) * 100)}%` }}>
-                  {a.segments.map((s, i) => (
+                  {flattenSegments(a.segments).map((s, i) => (
                     <span
                       key={`${s.stage}-${i}`}
                       className={cn(

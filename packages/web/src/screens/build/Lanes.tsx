@@ -19,6 +19,7 @@ import {
   fitPx,
   fitRange,
   ms,
+  reviewOverlapsCi,
   rowWindow,
   sharesLine,
   ticksOf,
@@ -48,6 +49,10 @@ const GEOMETRY: Record<TimelineSegment["kind"], [number, number]> = {
   wait: [12, 16],
   main: [15, 10],
 };
+
+/** While CI and review overlap they share the lane: CI in the upper half, review in the lower (trace waterfall of Jaeger: overlapping spans stacked, not painted over each other). */
+const SPLIT_CI: [number, number] = [11, 8];
+const SPLIT_REVIEW: [number, number] = [21, 8];
 
 function segmentClass(seg: TimelineSegment): string {
   const live = seg.outcome === "running";
@@ -92,6 +97,7 @@ function Attempt({
   const x1 = Math.max(x(ms(attempt.end)), x0 + 6);
   const result = t[`tlResult_${attempt.result}` as const];
   const bad = attempt.result === "failed" || attempt.result === "changes_requested";
+  const split = reviewOverlapsCi(attempt);
   return (
     <g>
       {previous ? (
@@ -136,22 +142,31 @@ function Attempt({
           strokeWidth={selected ? 1.5 : 2}
         />
         {attempt.segments.map((seg, i) => {
-          const [dy, h] = GEOMETRY[seg.kind];
+          const [dy, h] = split && seg.stage === "ci" ? SPLIT_CI : split && seg.stage === "review" ? SPLIT_REVIEW : GEOMETRY[seg.kind];
           const sx = x(ms(seg.start));
           const w = Math.max(MIN_PX, x(ms(seg.end)) - sx);
           const hollow = seg.kind === "wait" || seg.kind === "main";
+          const cancelled = seg.stage === "ci" && seg.outcome === "cancelled";
+          const cx = sx + w;
+          const cy = top + dy + h / 2;
           return (
-            <rect
-              key={`${seg.stage}-${i}`}
-              x={sx}
-              y={top + dy}
-              width={w}
-              height={h}
-              rx={1}
-              className={segmentClass(seg)}
-              strokeWidth={hollow ? 1 : 0}
-              strokeDasharray={seg.kind === "main" ? "3 2" : undefined}
-            />
+            <g key={`${seg.stage}-${i}`}>
+              <rect
+                x={sx}
+                y={top + dy}
+                width={w}
+                height={h}
+                rx={1}
+                className={segmentClass(seg)}
+                strokeWidth={hollow ? 1 : 0}
+                strokeDasharray={seg.kind === "main" ? "3 2" : undefined}
+              />
+              {cancelled ? (
+                <path d={`M ${cx - 3} ${cy - 3} l 6 6 M ${cx + 3} ${cy - 3} l -6 6`} className="stroke-fg-2" strokeWidth={1.5} fill="none">
+                  <title>{t.tlLgCancelledCi}</title>
+                </path>
+              ) : null}
+            </g>
           );
         })}
         {bad ? <rect x={x1 - 3} y={top + 9} width={3} height={22} className="fill-danger" /> : null}
@@ -186,6 +201,14 @@ function Legend({ t }: { t: Words }) {
       {item(<rect x="0" y="0" width="16" height="12" className="fill-fg" />, t.tlLgBuilder)}
       {item(<rect x="0" y="2" width="16" height="8" className="fill-fg-3" />, t.tlLgLight)}
       {item(<rect x="0.5" y="0.5" width="15" height="11" className="fill-none stroke-edge-control" />, t.tlLgWait)}
+      {item(
+        <>
+          <rect x="0.5" y="0.5" width="15" height="4" className="fill-none stroke-edge-control" />
+          <rect x="0" y="7" width="16" height="4" className="fill-fg-3" />
+        </>,
+        t.tlLgReview,
+      )}
+      {item(<path d="M 5 3 l 6 6 M 11 3 l -6 6" className="stroke-fg-2" strokeWidth={1.5} fill="none" />, t.tlLgCancelledCi)}
       {item(<rect x="0.5" y="1.5" width="15" height="9" className="fill-none stroke-edge-control" strokeDasharray="3 2" />, t.tlLgMain)}
       {item(<rect x="0" y="0" width="16" height="12" className="fill-info" />, t.tlLgLive)}
       {item(<rect x="6" y="0" width="3" height="12" className="fill-danger" />, t.tlLgEnd)}

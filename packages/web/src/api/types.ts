@@ -1248,7 +1248,7 @@ export type DeliveryMetrics = {
   context: { tasks: number; recall: number | null; precision: number | null };
 };
 
-export type TimelineSegment = { stage: string; kind: 'prep' | 'builder' | 'light' | 'review' | 'wait' | 'main'; start: string; end: string; outcome: string };
+export type TimelineSegment = { stage: string; kind: 'prep' | 'builder' | 'light' | 'review' | 'wait' | 'main'; start: string; end: string; outcome: string; reason?: string };
 
 export type TimelineAttempt = {
   n: number;

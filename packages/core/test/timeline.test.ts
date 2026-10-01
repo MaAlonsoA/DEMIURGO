@@ -150,6 +150,79 @@ describe('build timeline', () => {
     expect(b.out.merge).toEqual({ behind_by: 2, recheck: false, reason: 'disjoint', updated_from_base: false });
   });
 
+  it('draws CI and review as overlapping segments when they run in parallel, and CI on main after the merge outside the lead', () => {
+    const id = 'p';
+    const rows = [
+      step(id, 1, 'repo', 'started', 0),
+      step(id, 1, 'builder', 'started', 1),
+      step(id, 1, 'builder', 'ok', 5),
+      step(id, 1, 'pr', 'ok', 6, { number: 9 }),
+      step(id, 1, 'status', 'ok', 6.1),
+      step(id, 1, 'ci', 'started', 6.2),
+      step(id, 1, 'review', 'waiting', 6.3, { run_id: 'r1' }),
+      step(id, 1, 'ci', 'waiting', 6.4, { head_sha: 'abc12345' }),
+      step(id, 1, 'review', 'ok', 9, { verdict: 'approve', comments_count: 0 }),
+      step(id, 1, 'ci', 'ok', 12, { conclusion: 'success' }),
+      step(id, 1, 'evidence', 'ok', 12.1),
+      step(id, 1, 'merge', 'started', 12.2),
+      step(id, 1, 'merge', 'ok', 13),
+      step(id, 1, 'main', 'ok', 20, { conclusion: 'success' }),
+    ];
+    const r = buildTimeline([req(id, 'TSK-P-001', 'done')], rows, { now, since }).requests[0]!;
+    const a = r.attempts[0]!;
+    const at = (m: number) => new Date(T0 + m * 60_000).toISOString();
+    const ci = a.segments.find((s) => s.stage === 'ci')!;
+    const review = a.segments.find((s) => s.stage === 'review')!;
+    expect(ci).toMatchObject({ kind: 'wait', start: at(6.2), end: at(12), outcome: 'ok' });
+    expect(review).toMatchObject({ kind: 'review', start: at(6.3), end: at(9), outcome: 'ok' });
+    // They overlap: the review does not close the CI segment.
+    expect(Date.parse(review.start)).toBeLessThan(Date.parse(ci.end));
+    expect(Date.parse(ci.start)).toBeLessThan(Date.parse(review.end));
+    expect(a.result).toBe('merged');
+    expect(a.out).toMatchObject({ ci: 'success', review: { verdict: 'approve' } });
+    expect(r.merged_at).toBe(at(13));
+    expect(a.segments.find((s) => s.stage === 'main')).toMatchObject({ kind: 'main', start: at(13), end: at(20) });
+    // The lead time ends at the merge, not at CI on main.
+    expect(r.flow?.lead_ms).toBe(13 * 60_000);
+    expect(r.flow?.review_ms).toBeGreaterThan(0);
+  });
+
+  it('shows a CI cancelled because the review asked for changes first as cancelled, and the attempt as changes requested', () => {
+    const id = 'q';
+    const rows = [
+      step(id, 1, 'repo', 'started', 0),
+      step(id, 1, 'builder', 'ok', 5, { duration_ms: 240_000 }),
+      step(id, 1, 'ci', 'started', 6),
+      step(id, 1, 'review', 'waiting', 6.1),
+      step(id, 1, 'ci', 'waiting', 6.2),
+      step(id, 1, 'review', 'changes_requested', 8, { comments_count: 2 }),
+      step(id, 1, 'ci', 'failed', 8.1, { cancelled: true, reason: 'review_requested_changes' }),
+      step(id, 1, 'merge', 'changes_requested', 8.2, { reason: 'The reviewer asked for changes.', blocking: 1 }),
+    ];
+    const a = buildTimeline([req(id, 'TSK-Q-001', 'in_review')], rows, { now, since }).requests[0]!.attempts[0]!;
+    expect(a.result).toBe('changes_requested');
+    expect(a.ended_by).toMatchObject({ stage: 'merge', outcome: 'changes_requested' });
+    expect(a.segments.find((s) => s.stage === 'ci')).toMatchObject({ outcome: 'cancelled', reason: 'review_requested_changes' });
+    expect(a.segments.find((s) => s.stage === 'review')).toMatchObject({ outcome: 'changes_requested' });
+    expect(a.out.ci).toBe('cancelled');
+  });
+
+  it('runs every open parallel stage up to now', () => {
+    const id = 'r';
+    const rows = [step(id, 1, 'repo', 'started', 100), step(id, 1, 'repo', 'ok', 101), step(id, 1, 'ci', 'started', 105), step(id, 1, 'review', 'waiting', 105.1), step(id, 1, 'ci', 'waiting', 105.2)];
+    const l = buildTimeline([req(id, 'TSK-R-001', 'in_review')], rows, { now, since }).requests[0]!.attempts[0]!;
+    const open = l.segments.filter((s) => s.outcome === 'running');
+    expect(open.map((s) => s.stage).sort()).toEqual(['ci', 'review']);
+    for (const s of open) expect(s.end).toBe(now.toISOString());
+  });
+
+  it('keeps the old sequential shape (ci, evidence, review) as non-overlapping segments', () => {
+    const a = buildTimeline([req('a', 'TSK-A-001', 'done')], clean('a'), { now, since }).requests[0]!.attempts[0]!;
+    const ci = a.segments.find((s) => s.stage === 'ci')!;
+    const review = a.segments.find((s) => s.stage === 'review')!;
+    expect(Date.parse(ci.end)).toBeLessThanOrEqual(Date.parse(review.start));
+  });
+
   it('parses the affected tests line and ignores text without it', () => {
     expect(affectedTestsOf('Before finishing, run the tests that depend on what you change: x.spec.ts; the full suite runs in CI.')).toEqual({ count: 1, first: ['x.spec.ts'] });
     expect(affectedTestsOf('nothing')).toBeNull();

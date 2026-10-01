@@ -45,7 +45,8 @@ function intervalsOf(rows: readonly FlowRow[], openAt: number | null): { kind: K
       const kind: Kind = stage === 'builder' ? 'build' : stage === 'review' ? 'review' : 'ci';
       let open: number | null = null;
       for (const r of mine.filter((x) => x.stage === stage)) {
-        if (r.outcome === 'started') open ??= r.at;
+        // A parallel attempt's review has no `started` row: its first `waiting` row opens it.
+        if (r.outcome === 'started' || (r.outcome === 'waiting' && stage !== 'builder')) open ??= r.at;
         else if (ENDS.has(r.outcome)) {
           if (open !== null) out.push({ kind, start: open, end: r.at });
           else if (stage === 'builder' && r.duration_ms) out.push({ kind, start: r.at - r.duration_ms, end: r.at });

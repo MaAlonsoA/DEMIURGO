@@ -431,6 +431,77 @@ describe('build.start', () => {
     expect(second[0]?.detail).toMatchObject({ resumed: true, resumed_from_attempt: 1 });
   });
 
+  /** The builder runs out of time on the given attempts; it leaves its files unless `leaves` is false. */
+  function timingOut(timeouts: number[], leaves = true): Partial<BuildDeps> {
+    const base = fakes({ ciConclusion: 'success' });
+    let attempt = 0;
+    return {
+      ...base,
+      runBuilder: async (spec, options) => {
+        attempt++;
+        if (!timeouts.includes(attempt)) return (base.runBuilder as NonNullable<BuildDeps['runBuilder']>)(spec, options);
+        calls.prompts.push(spec.prompt);
+        if (leaves) {
+          mkdirSync(join(options?.worktreePath ?? '', 'src'), { recursive: true });
+          writeFileSync(join(options?.worktreePath ?? '', 'src', 'half-done.ts'), `export const half = ${attempt};\n`);
+        }
+        return { state: 'failure', exitCode: null, durationMs: 1, failureKind: 'timeout', transcriptTail: '', report: null, container: 'fake' };
+      },
+    };
+  }
+
+  it('a builder that runs out of time with changes: they are committed as WIP and pushed, no pull request, and attempt 2 starts by itself and continues from them', async () => {
+    setBuildDeps(timingOut([1]));
+    const requestId = await newRequest();
+    await cmd('build.start', { task: taskCode });
+    expect(await finished(requestId, 1)).toBe('failed:builder');
+    const first = await steps(requestId);
+    const failed = first.find((x) => x.attempt === 1 && x.stage === 'builder' && x.outcome === 'failed');
+    const detail = failed?.detail as { failure_kind: string; wip_commit: string; wip_files: string[] };
+    expect(detail).toMatchObject({ failure_kind: 'timeout', wip_files: ['src/half-done.ts'] });
+    expect(first.some((x) => x.attempt === 1 && ['commit', 'push', 'pr'].includes(x.stage))).toBe(false);
+    const branch = (first.find((x) => x.stage === 'worktree' && x.outcome === 'ok')?.detail as { branch: string }).branch;
+    // The WIP commit is on the pushed branch (attempt 2 may already have added to it).
+    expect(execFileSync('git', ['--git-dir', remote, 'log', '--format=%s', `${detail.wip_commit}^!`], { encoding: 'utf8' }).trim()).toBe(`WIP: ${taskCode} (builder ran out of time)`);
+    execFileSync('git', ['--git-dir', remote, 'merge-base', '--is-ancestor', detail.wip_commit, branch]);
+    expect(first.find((x) => x.attempt === 2 && x.stage === 'repo' && x.outcome === 'started')?.detail).toMatchObject({ automatic: true });
+
+    expect(await finished(requestId, 2)).toBe('done');
+    expect(calls.prompts).toHaveLength(2);
+    expect(calls.prompts[1]).toContain('The previous attempt ran out of time');
+    expect(calls.prompts[1]).toContain('- src/half-done.ts');
+    expect(calls.prompts[1]).toContain('continue from it');
+    expect(calls.opened).toBe(1);
+  });
+
+  it('a second timeout stops: no third attempt, and the step says the work is on the branch', async () => {
+    setBuildDeps(timingOut([1, 2]));
+    const requestId = await newRequest();
+    await cmd('build.start', { task: taskCode });
+    expect(await finished(requestId, 1)).toBe('failed:builder');
+    expect(await finished(requestId, 2)).toBe('failed:builder');
+    await sleep(300);
+    const rows = await steps(requestId);
+    const branch = (rows.find((x) => x.stage === 'worktree' && x.outcome === 'ok')?.detail as { branch: string }).branch;
+    expect(rows.find((x) => x.attempt === 2 && x.stage === 'builder' && x.outcome === 'failed')?.detail).toMatchObject({ failure_kind: 'timeout', timed_out_twice: true, branch });
+    expect(rows.some((x) => x.attempt === 3)).toBe(false);
+    await db().updateTable('build_requests').set({ state: 'withdrawn', withdrawn_by: 'human:ana', withdrawn_at: new Date() }).where('id', '=', requestId).execute();
+  });
+
+  it('a timeout without changes: nothing to keep and no automatic retry', async () => {
+    setBuildDeps(timingOut([1], false));
+    const requestId = await newRequest();
+    await cmd('build.start', { task: taskCode });
+    expect(await finished(requestId, 1)).toBe('failed:builder');
+    await sleep(300);
+    const rows = await steps(requestId);
+    const failed = rows.find((x) => x.stage === 'builder' && x.outcome === 'failed')?.detail as Record<string, unknown>;
+    expect(failed).toMatchObject({ failure_kind: 'timeout' });
+    expect(failed.wip_commit).toBeUndefined();
+    expect(rows.some((x) => x.attempt === 2)).toBe(false);
+    await db().updateTable('build_requests').set({ state: 'withdrawn', withdrawn_by: 'human:ana', withdrawn_at: new Date() }).where('id', '=', requestId).execute();
+  });
+
   it('GitHub plan without protection: DEMIURGO merges itself (squash) when ci, review and design are green, without auto-merge', async () => {
     setBuildDeps(fakes({ ciConclusion: 'success', protection: 'demiurgo' }));
     const requestId = await newRequest();

@@ -24,14 +24,16 @@ export const AGENT_BUILD = messages(
     verdictApprove: 'Approved',
     verdictChanges: 'Changes requested',
     comments: (n: number) => `${n} ${n === 1 ? 'comment' : 'comments'}`,
-    failureReason: (kind: string | null | undefined): string => {
+    failureReason: (kind: string | null | undefined, timedOutTwiceOn?: string | null): string => {
       switch (kind) {
         case 'usage_limit':
           return "Stopped: the subscription's usage limit was reached. Try again after it resets.";
         case 'auth':
           return 'Stopped: the builder could not sign in to its engine. Sign in again, then build again.';
         case 'timeout':
-          return 'Stopped: the builder ran out of time.';
+          return timedOutTwiceOn
+            ? `The builder ran out of time twice; its work is on branch ${timedOutTwiceOn}. The task may be too big: consider splitting it.`
+            : 'Stopped: the builder ran out of time and left nothing to continue from. The task may be too big: consider splitting it.';
         case 'out_of_memory':
           return 'Stopped: the builder ran out of memory and was killed.';
         case 'cancelled':
@@ -88,14 +90,16 @@ export const AGENT_BUILD = messages(
     verdictApprove: 'Aprobada',
     verdictChanges: 'Cambios pedidos',
     comments: (n: number) => `${n} ${n === 1 ? 'comentario' : 'comentarios'}`,
-    failureReason: (kind: string | null | undefined): string => {
+    failureReason: (kind: string | null | undefined, timedOutTwiceOn?: string | null): string => {
       switch (kind) {
         case 'usage_limit':
           return 'Detenida: se alcanzó el límite de uso de la suscripción. Vuelve a intentarlo cuando se reinicie.';
         case 'auth':
           return 'Detenida: el constructor no pudo iniciar sesión en su motor. Inicia sesión de nuevo y vuelve a construir.';
         case 'timeout':
-          return 'Detenida: el constructor se quedó sin tiempo.';
+          return timedOutTwiceOn
+            ? `El constructor se quedó sin tiempo dos veces; su trabajo está en la rama ${timedOutTwiceOn}. Puede que la tarea sea demasiado grande: plantéate dividirla.`
+            : 'Detenida: el constructor se quedó sin tiempo y no dejó nada desde lo que continuar. Puede que la tarea sea demasiado grande: plantéate dividirla.';
         case 'out_of_memory':
           return 'Detenida: el constructor se quedó sin memoria y se cortó.';
         case 'cancelled':

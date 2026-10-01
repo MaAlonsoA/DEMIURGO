@@ -42,7 +42,7 @@ import { taskCoversOf } from '../queries/sizes.ts';
 import { projectsDir } from '../repo/repo.ts';
 import { BUILDER_MAX_TIME_MS, type BuildReport, runBuilder } from '../runner/builder.ts';
 import type { Services } from '../services.ts';
-import { commitAll, hostPathOf, prepareWorktree, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
+import { commitAll, commitFiles, hostPathOf, prepareWorktree, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
 import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -219,7 +219,26 @@ async function load(s: Services, r: Run): Promise<Loaded> {
   };
 }
 
-type Feedback = { blocking: string[]; failing: string[]; design: string[]; flaky: string[] };
+type Feedback = { blocking: string[]; failing: string[]; design: string[]; flaky: string[]; wip?: { sha: string; files: string[] } };
+
+const NO_FEEDBACK: Feedback = { blocking: [], failing: [], design: [], flaky: [] };
+
+type BuilderStepDetail = { failure_kind?: string; exit_code?: number | null; wip_commit?: string; wip_files?: string[]; timed_out_twice?: boolean };
+
+/** The latest failed builder step of an attempt. */
+async function failedBuilderStep(s: Services, requestId: string, attempt: number): Promise<BuilderStepDetail | null> {
+  const row = await s.db
+    .selectFrom('build_steps')
+    .select('detail')
+    .where('build_request_id', '=', requestId)
+    .where('attempt', '=', attempt)
+    .where('stage', '=', 'builder')
+    .where('outcome', '=', 'failed')
+    .orderBy('created_at', 'desc')
+    .orderBy('id', 'desc')
+    .executeTakeFirst();
+  return (row?.detail as BuilderStepDetail | null | undefined) ?? null;
+}
 
 /** What the previous attempt got wrong: the reviewer's blocking comments and the tests that failed. */
 async function feedbackOf(s: Services, r: Run): Promise<Feedback> {
@@ -255,7 +274,9 @@ async function feedbackOf(s: Services, r: Run): Promise<Feedback> {
     .orderBy('id', 'desc')
     .executeTakeFirst();
   const violations = design?.outcome === 'failed' ? ((design.detail as { violations?: DesignViolation[] } | null)?.violations ?? []) : [];
-  return { blocking, failing: recorded.map((t) => t.code), design: violations.map(violationLine), flaky: evidenceDetail?.flaky ?? [] };
+  const previous = r.attempt > 1 ? await failedBuilderStep(s, r.requestId, r.attempt - 1) : null;
+  const wip = previous?.failure_kind === 'timeout' && previous.wip_commit ? { sha: previous.wip_commit, files: previous.wip_files ?? [] } : undefined;
+  return { blocking, failing: recorded.map((t) => t.code), design: violations.map(violationLine), flaky: evidenceDetail?.flaky ?? [], ...(wip ? { wip } : {}) };
 }
 
 const violationLine = (v: DesignViolation): string => `${v.path}${v.line ? `:${v.line}` : ''} (rule ${v.rule}): ${v.message}`;
@@ -292,8 +313,15 @@ function promptOf(
   design: { manifest: DesignManifest; manifestText: string; tokensText: string } | null = null,
 ): string {
   const lines = [body, '', '# Brief', brief, ...designSection(design)];
-  if (attempt > 1 && (f.blocking.length > 0 || f.failing.length > 0 || f.design.length > 0 || f.flaky.length > 0)) {
+  if (attempt > 1 && (f.wip || f.blocking.length > 0 || f.failing.length > 0 || f.design.length > 0 || f.flaky.length > 0)) {
     lines.push('', `# Feedback on the previous attempt (this is attempt ${attempt} on the same branch)`);
+    if (f.wip) {
+      lines.push(
+        `The previous attempt ran out of time. Its work is committed on this branch (commit ${f.wip.sha.slice(0, 8)}, "WIP"): continue from it instead of starting over.`,
+        ...(f.wip.files.length > 0 ? ['Files in that commit:', ...f.wip.files.map((p) => `- ${p}`)] : []),
+        "Finish within the time limit by keeping to the task's scope: do only what its criteria ask.",
+      );
+    }
     if (f.blocking.length > 0) lines.push('The reviewer asked for these changes:', ...f.blocking.map((b) => `- ${b}`));
     if (f.failing.length > 0) lines.push(`The tests of these criteria failed in CI: ${f.failing.join(', ')}.`);
     if (f.flaky.length > 0) lines.push(flakyNote(f.flaky));
@@ -349,8 +377,10 @@ async function retryBuilder(s: Services, r: Run): Promise<number | null> {
     .where('stage', '=', 'builder')
     .where('outcome', '=', 'failed')
     .orderBy('created_at', 'desc')
-    .executeTakeFirst()) as { detail: { failure_kind?: string; exit_code?: number | null } | null } | undefined;
-  if (step?.detail?.failure_kind !== 'other') return null;
+    .executeTakeFirst()) as { detail: BuilderStepDetail | null } | undefined;
+  // A timeout is retried once, and only when its work was kept on the branch (our convention).
+  const retryable = step?.detail?.failure_kind === 'other' || (step?.detail?.failure_kind === 'timeout' && Boolean(step.detail.wip_commit) && !step.detail.timed_out_twice);
+  if (!step || !retryable) return null;
   const latest = await s.db
     .selectFrom('build_steps')
     .select((eb) => eb.fn.max('attempt').as('attempt'))
@@ -358,7 +388,10 @@ async function retryBuilder(s: Services, r: Run): Promise<number | null> {
     .executeTakeFirst();
   if (Number(latest?.attempt ?? r.attempt) !== r.attempt) return null;
   if ((await automaticAttempts(s, r.requestId)) >= BUILDER_AUTO_RETRIES) return null;
-  const reason = `The builder ended with exit code ${step.detail.exit_code ?? 'unknown'}; trying once more.`;
+  const reason =
+    step.detail?.failure_kind === 'timeout'
+      ? 'The builder ran out of time; its work is committed on the branch and a new attempt continues from it.'
+      : `The builder ended with exit code ${step.detail?.exit_code ?? 'unknown'}; trying once more.`;
   await record({ ...r, attempt: r.attempt + 1 }, 'repo', 'started', { started_by: formatActor(BUILD), automatic: true, reason });
   return r.attempt + 1;
 }
@@ -393,6 +426,24 @@ async function resumableBuilder(s: Services, r: Run, hasBranch: boolean): Promis
   const last = rows.filter((x) => x.outcome !== 'started').at(-1);
   if (!builder || commits.length === 0 || commits.some((x) => x.outcome === 'ok') || last?.stage !== 'commit' || last.outcome !== 'failed') return null;
   return { report: (builder.detail as { report?: BuildReport | null } | null)?.report ?? null, from };
+}
+
+/** After a timeout: commits what the builder left as work in progress and pushes the branch; null when there is nothing. */
+async function keepWork(
+  worktree: { path: string; branch: string },
+  info: Loaded,
+  github: BuildDeps['github'],
+  cfg: github.GithubConfig,
+): Promise<{ sha: string; files: string[]; pushError?: string } | null> {
+  const sha = await commitAll(worktree.path, `WIP: ${info.taskCode} (builder ran out of time)`).catch(() => null);
+  if (!sha) return null;
+  const files = await commitFiles(worktree.path, sha).catch(() => []);
+  try {
+    await github.pushBranch(info.repoDir, worktree.branch, cfg);
+    return { sha, files };
+  } catch (e) {
+    return { sha, files, pushError: messageOf(e) };
+  }
 }
 
 /** The whole flow of one attempt. Returns how it ended. */
@@ -437,7 +488,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     const resolution = await resolveEngine(s0.db, s0.providers, { agent: agent.id });
     const problem = resolutionProblem(agent.id, resolution);
     if (problem || resolution.status !== 'ok') throw new DomainError('guard', problem ?? 'The builder has no engine.');
-    const feedback = attempt > 1 ? await feedbackOf(s0, r) : { blocking: [], failing: [], design: [], flaky: [] };
+    const feedback = attempt > 1 ? await feedbackOf(s0, r) : NO_FEEDBACK;
     const designSystem = await designSystemOf(worktree.path).catch(() => null);
     const control = new AbortController();
     builders.set(requestId, control);
@@ -461,6 +512,10 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     const kind = failed
       ? classifyBuilderFailure({ runnerKind: result.failureKind, exitCode: result.exitCode, stderr: result.stderrTail, transcript: result.transcriptTail })
       : null;
+    // Out of time: the work in progress is kept on the branch (committed and pushed, no pull request) and
+    // the next attempt continues from it.
+    const wip = kind === 'timeout' ? await keepWork(worktree, info, d.github, cfg) : null;
+    const twice = kind === 'timeout' && attempt > 1 && (await failedBuilderStep(s0, requestId, attempt - 1))?.failure_kind === 'timeout';
     const detail = {
       agent_version: agent.version,
       provider: resolution.provider,
@@ -469,6 +524,8 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       duration_ms: result.durationMs,
       transcript_tail_length: result.transcriptTail.length,
       report: result.report,
+      ...(wip ? { wip_commit: wip.sha, wip_files: wip.files, ...(wip.pushError ? { wip_push_error: wip.pushError } : {}) } : {}),
+      ...(twice ? { timed_out_twice: true, branch: worktree.branch } : {}),
       ...(kind ? { failure_kind: kind, transcript_excerpt: failureExcerpt({ stderr: result.stderrTail, transcript: result.transcriptTail }) } : {}),
     };
     if (failed) {

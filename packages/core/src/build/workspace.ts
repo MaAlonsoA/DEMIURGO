@@ -174,6 +174,12 @@ export async function commitAll(path: string, message: string, author: string = 
   return stdout.trim();
 }
 
+/** The files a commit touched. */
+export async function commitFiles(path: string, sha: string): Promise<string[]> {
+  const { stdout } = await git(path, ['show', '--name-only', '--pretty=format:', sha]);
+  return stdout.split('\n').map((l) => l.trim()).filter((l) => l !== '');
+}
+
 /** Removes the worktree (the branch stays, it holds the work). */
 export async function removeWorktree(repoDir: string, path: string): Promise<void> {
   await git(repoDir, ['worktree', 'remove', '--force', path]);

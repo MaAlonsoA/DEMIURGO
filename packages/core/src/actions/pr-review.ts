@@ -40,6 +40,49 @@ function ciOf(value: unknown): Ci {
   };
 }
 
+export type TestCase = { name: string; file: string };
+export type TestCounts = Record<string, { e2e: number; unit: number }>;
+
+/** Playwright e2e by path: an `e2e/` folder (any depth). Everything else counts as unit/integration. */
+export function isE2eFile(file: string): boolean {
+  return /(^|\/)e2e\//i.test(file.replaceAll('\\', '/'));
+}
+
+/**
+ * Per criterion code, how many tests start with that code, split by level. `ci.tests` only carries one
+ * result per criterion (no names or files), so the orchestrator-built pack gets its tests from the diff
+ * (see `testsInDiff`). Deterministic: a pointer for the reviewer, not a verdict.
+ */
+export function testCountsOf(criteria: { code: string }[], tests: TestCase[]): TestCounts {
+  const out: TestCounts = {};
+  for (const c of criteria) {
+    const n = { e2e: 0, unit: 0 };
+    out[c.code] = n;
+    for (const t of tests) {
+      if (!t.name.trimStart().startsWith(c.code)) continue;
+      n[isE2eFile(t.file) ? 'e2e' : 'unit']++;
+    }
+  }
+  return out;
+}
+
+/** The tests a unified diff adds: `test(`/`it(` titles on added lines, with the file they are in. */
+export function testsInDiff(diff: string): TestCase[] {
+  const out: TestCase[] = [];
+  let file = '';
+  for (const line of diff.split('\n')) {
+    const f = /^\+\+\+ b\/(.+)$/.exec(line);
+    if (f) {
+      file = f[1] ?? '';
+      continue;
+    }
+    if (!line.startsWith('+')) continue;
+    const m = /\b(?:test|it)(?:\.\w+)*\(\s*(["'`])((?:\\.|(?!\1).)*)\1/.exec(line);
+    if (m && file) out.push({ name: m[2] ?? '', file });
+  }
+  return out;
+}
+
 registerBuilder('pr_review', async ({ trx, projectId, scope, input, graphVersion }) => {
   const manifest = new ManifestBuilder(BUILDER, graphVersion, BUDGET);
   const request = await trx
@@ -81,6 +124,7 @@ registerBuilder('pr_review', async ({ trx, projectId, scope, input, graphVersion
   }));
   const diff = input.diff.length > PR_REVIEW_DIFF_MAX ? `${input.diff.slice(0, PR_REVIEW_DIFF_MAX)}\n[diff truncated: ${input.diff.length - PR_REVIEW_DIFF_MAX} more characters not shown]` : input.diff;
   const ci = ciOf(input.ci);
+  const testCounts = testCountsOf(criteria, testsInDiff(input.diff));
   // Jev's triage: hints and a reading order, pointers only. Best effort: no key or any failure means none.
   let hints: string[] = [];
   let files: string[] = [];
@@ -122,6 +166,8 @@ registerBuilder('pr_review', async ({ trx, projectId, scope, input, graphVersion
   });
   if (hints.length > 0)
     manifest.entered({ section: 'hints', source: inputSource('hints'), text: JSON.stringify({ hints, files }), reason: 'triage' });
+  if (criteria.length > 0)
+    manifest.entered({ section: 'test_counts', source: inputSource('diff'), text: JSON.stringify(testCounts), reason: 'derived' });
   manifest.entered({ section: 'ci', source: inputSource('ci'), text: JSON.stringify(ci), reason: 'input' });
   return {
     pack: {
@@ -137,6 +183,7 @@ registerBuilder('pr_review', async ({ trx, projectId, scope, input, graphVersion
         task: taskContent,
         criteria: criteriaContent,
         ci,
+        ...(criteria.length > 0 ? { test_counts: testCounts } : {}),
         ...(hints.length > 0 ? { hints } : {}),
         ...(files.length > 0 && hints.length > 0 ? { files } : {}),
         diff,

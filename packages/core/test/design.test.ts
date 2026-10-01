@@ -928,6 +928,26 @@ describe('batches and proposals', () => {
   });
 });
 
+describe('inbox and threads', () => {
+  it('questions of a set-aside or concluded thread are not in the inbox nor its total', async () => {
+    const pid = (await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Aside' } })).projectId;
+    const run = (command: Parameters<typeof executeCommand>[1]['command'], data: unknown, entityId?: string) =>
+      executeCommand(s, { command, actor: ana, projectId: pid, data, ...(entityId ? { entityId } : {}) });
+    const e = await newExploration(s, pid);
+    const q = (await run('question.raise', { exploration_id: e, question: 'Open one?' })).entityId;
+    expect((await inbox(s.db, pid)).open_questions.map((x) => x.id)).toContain(q);
+    const before = (await inbox(s.db, pid)).total;
+    await run('exploration.set_aside', { reason: 'Later.' }, e);
+    const aside = await inbox(s.db, pid);
+    expect(aside.open_questions.map((x) => x.id)).not.toContain(q);
+    expect(aside.total).toBe(before - 1);
+    await run('exploration.resume', {}, e);
+    expect((await inbox(s.db, pid)).open_questions.map((x) => x.id)).toContain(q);
+    await run('exploration.conclude', {}, e);
+    expect((await inbox(s.db, pid)).open_questions.map((x) => x.id)).not.toContain(q);
+  });
+});
+
 describe('epistemic status', () => {
   it('AC-DIS-001-12 every row of the correspondence table carries its epistemic status in the inbox, the product state or its detail', async () => {
     const pid = (await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Epistemic' } })).projectId;

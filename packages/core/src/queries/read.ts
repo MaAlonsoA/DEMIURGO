@@ -525,34 +525,49 @@ export async function inbox(db: Db, projectId: string) {
       proposals: withWarning,
     });
   }
+  // Questions of a thread the person set aside or concluded no longer ask for attention.
   const questions = await db
     .selectFrom('questions')
+    .innerJoin('explorations', 'explorations.id', 'questions.exploration_id')
     .select([
-      'id',
-      'exploration_id',
-      'question',
-      'reason',
-      'options',
-      'multiple',
-      'state',
-      'conclusion',
-      'reasoning',
-      'raised_by',
+      'questions.id',
+      'questions.exploration_id',
+      'questions.question',
+      'questions.reason',
+      'questions.options',
+      'questions.multiple',
+      'questions.state',
+      'questions.conclusion',
+      'questions.reasoning',
+      'questions.raised_by',
     ])
-    .where('project_id', '=', projectId)
-    .where('state', '=', 'inferred')
+    .where('questions.project_id', '=', projectId)
+    .where('questions.state', '=', 'inferred')
+    .where('explorations.state', '=', 'active')
     // Questions still in the reserve don't need the person yet.
-    .where('shown_at', 'is not', null)
-    .orderBy('created_at')
+    .where('questions.shown_at', 'is not', null)
+    .orderBy('questions.created_at')
     .execute();
   // What is waiting for the person even when it doesn't come from an agent: open questions and unapproved drafts.
   const open = await db
     .selectFrom('questions')
-    .select(['id', 'exploration_id', 'question', 'reason', 'options', 'multiple', 'state', 'state_reason', 'raised_by'])
-    .where('project_id', '=', projectId)
-    .where('state', 'in', ['pending', 'postponed'])
-    .where('shown_at', 'is not', null)
-    .orderBy('created_at')
+    .innerJoin('explorations', 'explorations.id', 'questions.exploration_id')
+    .select([
+      'questions.id',
+      'questions.exploration_id',
+      'questions.question',
+      'questions.reason',
+      'questions.options',
+      'questions.multiple',
+      'questions.state',
+      'questions.state_reason',
+      'questions.raised_by',
+    ])
+    .where('questions.project_id', '=', projectId)
+    .where('questions.state', 'in', ['pending', 'postponed'])
+    .where('explorations.state', '=', 'active')
+    .where('questions.shown_at', 'is not', null)
+    .orderBy('questions.created_at')
     .execute();
   const drafts = await db
     .selectFrom('record_versions')

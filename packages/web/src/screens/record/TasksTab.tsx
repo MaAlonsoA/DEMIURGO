@@ -116,6 +116,7 @@ function DraftsDecision({ projectId, drafts }: { projectId: string; drafts: NonN
   return (
     <div className="flex flex-col gap-2 border-t border-edge-subtle pt-3">
       <p className="text-sm text-fg-2">{byItem ? t.draftsHintItem : t.draftsHint}</p>
+      {byItem ? <ApproveAllTasks projectId={projectId} drafts={drafts} /> : null}
       {!byItem ? (
         <>
           {command.error && !dialog ? <ErrorNotice error={command.error} /> : null}
@@ -156,6 +157,89 @@ function DraftsDecision({ projectId, drafts }: { projectId: string; drafts: NonN
           />
         </>
       ) : null}
+    </div>
+  );
+}
+
+/** "Approve all N" for drafts decided one by one: one confirmation listing the titles, then the same
+ *  proposal.accept the task page runs, one draft at a time, stopping at the first error. */
+function ApproveAllTasks({ projectId, drafts }: { projectId: string; drafts: NonNullable<RecordDetail['task_drafts']> }) {
+  const t = useMessages(DELIVERY);
+  const command = useCommand(projectId);
+  const canAccept = useAllows('proposal', 'pending')('proposal.accept');
+  const [open, setOpen] = useState(false);
+  // Fixed when the confirmation opens, so the count does not move while they are approved.
+  const [queue, setQueue] = useState<typeof drafts>([]);
+  const [done, setDone] = useState(0);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const pending = canAccept ? drafts.filter((d) => d.resolution === 'item') : [];
+  if (pending.length < 2 && !running && !error) return null;
+  const n = running || error ? queue.length : pending.length;
+
+  const start = async () => {
+    const list = queue;
+    setRunning(true);
+    setError(null);
+    setDone(0);
+    for (let i = 0; i < list.length; i++) {
+      try {
+        await command.mutateAsync({ command: 'proposal.accept', entityId: list[i]!.proposal_id, data: {} });
+      } catch (e) {
+        setError(e);
+        setRunning(false);
+        setOpen(false);
+        return;
+      }
+      setDone(i + 1);
+    }
+    setRunning(false);
+    setOpen(false);
+    announce(t.allTasksApproved(list.length));
+  };
+
+  return (
+    <div className="flex flex-col gap-2" data-approve-all-tasks>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={running}
+          onClick={() => {
+            setQueue(pending);
+            setError(null);
+            setOpen(true);
+          }}
+        >
+          {t.approveAllN(n)}
+        </Button>
+        {running ? <span className="text-sm text-fg-2">{t.approvingK(Math.min(done + 1, n), n)}</span> : null}
+      </div>
+      {error ? (
+        <div className="flex flex-col gap-1">
+          <p className="text-sm text-fg-2">{t.approveStopped(done, n)}</p>
+          <ErrorNotice error={error} compact />
+        </div>
+      ) : null}
+      <ConfirmDialog
+        open={open}
+        onOpenChange={(o) => !running && setOpen(o)}
+        title={t.approveAllTitle(queue.length)}
+        description={
+          <>
+            <p>{t.approveAllBody}</p>
+            <ul className="list-disc space-y-0.5 pl-5">
+              {queue.map((d) => (
+                <li key={d.proposal_id}>{d.title}</li>
+              ))}
+            </ul>
+          </>
+        }
+        confirm={t.approveAllN(queue.length)}
+        pendingLabel={t.approvingK(Math.min(done + 1, queue.length), queue.length)}
+        pending={running}
+        onConfirm={() => void start()}
+      />
     </div>
   );
 }

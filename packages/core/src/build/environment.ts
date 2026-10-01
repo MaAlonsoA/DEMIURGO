@@ -58,11 +58,22 @@ function portsOf(raw: unknown): { port: number | null; hostPort: number | null }
 }
 
 const INSTALL = /^\s*(pnpm|npm|yarn)\s+(install|i|ci)\b/m;
-const BROWSERS = /\bplaywright\s+install\b/;
+const BROWSERS = /\bplaywright\s+install(?![-\w])/;
 const MIGRATE = /\b(?:pnpm|npm|yarn)(?:\s+run)?\s+[\w:-]*migrate[\w:-]*\b/;
 
 /** `playwright install --with-deps` needs root for system packages: the image already has them. */
 const withoutDeps = (command: string): string => command.replace(/\s+--with-deps\b/g, '');
+
+/**
+ * The one line that installs the browsers. A CI step may wrap it in shell that depends on GitHub (a cache hit
+ * from `\${{ steps.….outputs.cache-hit }}` that skips the download): outside GitHub that variable is unset, so
+ * DEMIURGO keeps only the install line, and `install-deps` (system packages) is never it.
+ */
+const browsersLine = (run: string): string | undefined =>
+  run
+    .split('\n')
+    .map((l) => l.trim())
+    .find((l) => BROWSERS.test(l));
 
 /** Reads the `ci` job of a workflow. Null when the file is not a workflow we understand or has no such job. */
 export function environmentFromCi(yamlText: string): CiEnvironment | null {
@@ -99,7 +110,7 @@ export function environmentFromCi(yamlText: string): CiEnvironment | null {
       result.install = run;
       Object.assign(env, variablesOf(step.env));
     } else if (result.browsers === undefined && BROWSERS.test(run)) {
-      result.browsers = withoutDeps(run);
+      result.browsers = withoutDeps(browsersLine(run) ?? run);
     } else if (result.migrate === undefined && (/migrat/i.test(label) || MIGRATE.test(run))) {
       result.migrate = run;
       Object.assign(env, variablesOf(step.env));

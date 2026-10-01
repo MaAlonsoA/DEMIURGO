@@ -49,6 +49,11 @@ describe('environmentFromCi', () => {
     });
   });
 
+  it('keeps only the browser install line of a step that branches on a GitHub cache hit', () => {
+    const yaml = "jobs:\n  ci:\n    steps:\n      - name: Browser\n        env:\n          BROWSER_CACHED: x\n        run: |\n          if [ \"$BROWSER_CACHED\" = \"true\" ]; then\n            pnpm exec playwright install-deps chromium\n          else\n            pnpm exec playwright install --with-deps --only-shell chromium\n          fi\n";
+    expect(environmentFromCi(yaml)?.browsers).toBe('pnpm exec playwright install --only-shell chromium');
+  });
+
   it('finds the job by its name and accepts a workflow with no services', () => {
     const env = environmentFromCi('jobs:\n  build:\n    name: ci\n    steps:\n      - run: npm ci\n');
     expect(env).toEqual({ services: [], env: {}, install: 'npm ci' });

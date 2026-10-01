@@ -37,6 +37,7 @@ import { VersionPicker } from './VersionPicker.tsx';
 import { StatusWord, type Status } from './Delivery.tsx';
 import { CriterionLintNotice, useCriterionLint } from './CriterionLint.tsx';
 import { DELIVERY, HEADER } from './words.i18n.ts';
+import { rememberWaitingNotice, WaitingNotice } from './WaitingNotice.tsx';
 
 type Dialog = null | 'approve' | 'discard';
 
@@ -164,7 +165,8 @@ export function RecordHeader({
     command.mutate(
       { command: name, entityId: version.id, data },
       {
-        onSuccess: () => {
+        onSuccess: (response) => {
+          if (name === 'record_version.approve') rememberWaitingNotice(version.id, response);
           setDialog(null);
           // The button that opened it is going away: the title, which now says the new state, takes the focus.
           setTimeout(() => document.getElementById('page-title')?.focus({ preventScroll: true }), 50);
@@ -176,6 +178,7 @@ export function RecordHeader({
 
   return (
     <div data-record-header>
+      <WaitingNotice versionId={version.id} />
       <PageHeader
         crumbs={recordCrumbs(projectId, record, version.title, [], t, ancestors)}
         eyebrow={

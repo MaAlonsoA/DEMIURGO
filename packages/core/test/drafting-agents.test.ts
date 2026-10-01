@@ -486,7 +486,7 @@ describe('the drafting agents', () => {
           check: 'E2E.',
         },
       ],
-      links: [],
+      links: [{ type: 'based_on', target: { code: state.epic?.code ?? '', version: 1 } }],
     });
     const o = other.result as { versionId: string; code: string };
     await cmd('record_version.approve', {}, o.versionId);
@@ -531,7 +531,7 @@ describe('the drafting agents', () => {
           check: 'E2E.',
         },
       ],
-      links: [],
+      links: [{ type: 'based_on', target: { code: state.epic?.code ?? '', version: 1 } }],
     });
     const w = made.result as { versionId: string; code: string };
     await cmd('record_version.approve', {}, w.versionId);
@@ -641,7 +641,7 @@ describe('the drafting agents', () => {
         { title: 'Behavior', content: 'The person does it.' },
       ],
       criteria: [{ carry: 'new', title: 'a', statement: 'Given a person, when she acts, then she sees it.', verification: 'manual', check: 'A person looks.' }],
-      links: [],
+      links: [{ type: 'based_on', target: { code: state.epic?.code ?? '', version: 1 } }],
     });
     const m = made.result as { versionId: string };
     await cmd('record_version.approve', {}, m.versionId);

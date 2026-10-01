@@ -10,6 +10,7 @@ import { inbox } from '../src/queries/read.ts';
 import type { Services } from '../src/services.ts';
 import { createScriptedClassifier, response } from './support/scripted-classifier.ts';
 import { useEnvironment } from './support/env.ts';
+import { newDecision } from './support/recipes.ts';
 
 const script = createScriptedClassifier();
 const environment = useEnvironment({ classifier: () => script });
@@ -77,6 +78,7 @@ async function setup(oldBuilt: boolean, changeType: 'task' | 'decision') {
   const p = (await executeCommand(s, { command: 'project.create', actor: ana, data: { name: `Superseded ${unique()}` } })).projectId;
   const t = unique();
   // Sibling tasks rest on the same decision: that is how knowledge compares a task with another task.
+  const basis = await newDecision(s, p, true);
   const adr = (
     await cmd(p, 'record.create', {
       type: 'adr',
@@ -89,7 +91,7 @@ async function setup(oldBuilt: boolean, changeType: 'task' | 'decision') {
         { title: 'Consequences', content: 'Feedback.' },
       ],
       criteria: [],
-      links: [],
+      links: [{ type: 'based_on', target: { code: basis.code, version: 1 } }],
     })
   ).result as Made;
   await cmd(p, 'record_version.approve', {}, adr.versionId);

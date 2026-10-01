@@ -8,6 +8,7 @@ import { executeCommand } from '../src/bus/bus.ts';
 import { exportDesign } from '../src/design/export.ts';
 import { recordDetail } from '../src/queries/read.ts';
 import { useEnvironment } from './support/env.ts';
+import { newDecision } from './support/recipes.ts';
 
 const environment = useEnvironment();
 const ana = human('ana');
@@ -76,6 +77,7 @@ const scrPayload = (feature: { code: string; version: number }, spec: Record<str
 });
 
 async function newFeature(title: string): Promise<{ code: string; versionId: string; recordId: string }> {
+  const basis = await newDecision(environment().services, projectId, true);
   const r = await cmd('record.create', {
     type: 'fdr',
     domain: 'recetas',
@@ -89,6 +91,7 @@ async function newFeature(title: string): Promise<{ code: string; versionId: str
     criteria: [
       { carry: 'new', title: 'List', statement: 'Given recipes, when the person opens the list, then it shows them.', verification: 'automatic', check: 'E2E.', step: 1 },
     ],
+    links: [{ type: 'based_on', target: { code: basis.code, version: 1 } }],
   });
   const res = r.result as { recordId: string; versionId: string; code: string };
   await cmd('record_version.approve', {}, res.versionId);

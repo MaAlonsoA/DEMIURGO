@@ -8,6 +8,7 @@ import { computeRequestBasis } from '../src/build/basis.ts';
 import { buildQueue } from '../src/build/queue.ts';
 import { productState, versionReadiness } from '../src/queries/read.ts';
 import { useEnvironment } from './support/env.ts';
+import { newDecision } from './support/recipes.ts';
 
 const environment = useEnvironment();
 const ana = human('ana');
@@ -24,6 +25,7 @@ beforeAll(async () => {
 });
 
 async function decision(): Promise<Made> {
+  const basis = await newDecision(s(), projectId, true);
   const r = await cmd('record.create', {
     type: 'adr',
     domain: 'ci',
@@ -35,7 +37,7 @@ async function decision(): Promise<Made> {
       { title: 'Consequences', content: 'Faster feedback.' },
     ],
     criteria: [{ carry: 'new', title: 'Fast', statement: 'Given a pull request, when CI runs, then it finishes quickly.', verification: 'manual', check: 'Watch a run.' }],
-    links: [],
+    links: [{ type: 'based_on', target: { code: basis.code, version: 1 } }],
   });
   const made = r.result as Made;
   await cmd('record_version.approve', {}, made.versionId);
@@ -119,7 +121,8 @@ describe('technical task', () => {
       links: [],
     });
     const made = r.result as Made;
-    await cmd('record_version.approve', {}, made.versionId);
+    // Nothing is approved that rests on nothing: the guard refuses, the draft's readiness says the same.
+    await expect(cmd('record_version.approve', {}, made.versionId)).rejects.toMatchObject({ type: 'conflict' });
     const readiness = await versionReadiness(s().db, projectId, made.versionId);
     expect(readiness.reasons).toContain('It is not based on any feature, decision, quality requirement or the product definition.');
   });
@@ -137,7 +140,7 @@ describe('technical task', () => {
       title: 'Record a meal',
       sections: SECTIONS,
       criteria: [{ carry: 'new', title: 'a', statement: 'Given a person, when she does it, then she sees the result.', verification: 'automatic', check: 'E2E.' }],
-      links: [],
+      links: [{ type: 'based_on', target: { code: (await decision()).code, version: 1 } }],
     });
     const feature = f.result as Made;
     await cmd('record_version.approve', {}, feature.versionId);

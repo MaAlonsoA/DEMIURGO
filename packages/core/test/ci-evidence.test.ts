@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { executeCommand } from '../src/bus/bus.ts';
 import { evidenceOf, recordDetail } from '../src/queries/read.ts';
 import { useEnvironment } from './support/env.ts';
+import { newDecision } from './support/recipes.ts';
 
 const environment = useEnvironment();
 const ana = human('ana');
@@ -17,6 +18,7 @@ describe('evidence.ingest_junit', () => {
     const { projectId } = await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'CI' } });
     const cmd = (command: Parameters<typeof executeCommand>[1]['command'], data: unknown, entityId?: string) =>
       executeCommand(s, { command, actor: ana, projectId, data, ...(entityId ? { entityId } : {}) });
+    const basis = await newDecision(s, projectId, true);
     const thread = (await cmd('exploration.open', { purpose: 'Sign-ups' })).entityId;
     const created = await cmd('record.create', {
       type: 'fdr',
@@ -36,6 +38,7 @@ describe('evidence.ingest_junit', () => {
         check: 'A test signs up.',
       })),
       origin: { type: 'exploration', id: thread },
+      links: [{ type: 'based_on', target: { code: basis.code, version: 1 } }],
     });
     await cmd('record_version.approve', {}, (created.result as { versionId: string }).versionId);
     const codes = (

@@ -25,6 +25,7 @@ import {
   taskSizeSchema,
   blockingCriterionFindings,
   lintCriteria,
+  missingBasisReason,
 } from '@demiurgo/domain';
 import { z } from 'zod';
 import { advanceBuildQueue } from '../build/auto.ts';
@@ -33,6 +34,7 @@ import { handler, registerHandlers } from '../bus/handlers.ts';
 import type { CommandContext } from '../bus/types.ts';
 import type { Tx } from '../db/connection.ts';
 import { approvedDesignSystem, screenDesignChecks } from '../design/screens.ts';
+import { assertCoversInFeature, assertNoLinkCycle, waitingNotice, waitingWithoutPlan } from './graph-guards.ts';
 import { reviewObsolescence } from './proposals.ts';
 import { appendSize } from './sizes.ts';
 import { jevAllowed } from '../classifier/aspect.ts';
@@ -502,6 +504,18 @@ async function createVersion(
       cause: { versionBeingCreated: id },
     });
   }
+  // Links that would close a dependency cycle (a task's depends_on, a feature's needs) are refused (409).
+  const resolved: { type: string; targetCode: string; targetType: string }[] = [];
+  for (const e of data.links) {
+    const t = await ctx.trx
+      .selectFrom('records')
+      .select('type')
+      .where('project_id', '=', ctx.projectId)
+      .where('code', '=', e.target.code)
+      .executeTakeFirst();
+    if (t) resolved.push({ type: e.type, targetCode: e.target.code, targetType: t.type });
+  }
+  await assertNoLinkCycle(ctx, record, resolved);
   for (const e of data.links) {
     const target = await resolveReference(ctx.trx, ctx.projectId, e.target.code, e.target.version);
     if (!target)
@@ -626,6 +640,7 @@ registerHandlers({
         actor: ctx.actor,
         data: { record_id: id, ...content },
       });
+      if (data.type === 'task' && data.covers?.length) await assertCoversInFeature(ctx, v.entityId, data.covers);
       return {
         entityId: id,
         after: { code, type: data.type, domain: data.domain, ...(data.type === 'task' ? { size: data.size ?? null } : {}) },
@@ -711,6 +726,18 @@ registerHandlers({
           overridden = [...new Set(blocking.map((f) => f.criterion_code))];
         }
       }
+      if (kind?.type === 'fdr' || kind?.type === 'adr' || kind?.type === 'task') {
+        // Nothing is approved that rests on nothing (the same reason readiness gives).
+        const basis = await ctx.trx
+          .selectFrom('links')
+          .select('id')
+          .where('from_id', '=', v.id)
+          .where('type', '=', 'based_on')
+          .where('state', '<>', 'obsolete')
+          .execute();
+        const missing = missingBasisReason(kind.type, basis.length);
+        if (missing) throw new DomainError('conflict', `Version ${v.n} cannot be approved: ${missing}`);
+      }
       if (kind?.type === 'screen_design') await assertScreenDesign(ctx.trx, ctx.projectId, v.spec, true);
       const previous = await ctx.trx
         .selectFrom('record_versions')
@@ -763,7 +790,9 @@ registerHandlers({
       // its questions are all covered: the person's approval is the decision, so they need not hunt
       // for «Pass stage». Stage 2 opens as it does whenever a stage passes.
       if (kind?.type === 'product_definition' && ctx.actor.type === 'human') await passDefinitionStage(ctx);
-      return { entityId: v.id, version: v.n, after: {
+      // Others wait for this feature and it has no task plan yet: the approval says so (information, not a block).
+      const waiting = kind?.type === 'fdr' ? await waitingWithoutPlan(ctx, v.record_id) : 0;
+      return { entityId: v.id, version: v.n, ...(waiting > 0 ? { result: { notice: waitingNotice(waiting), waiting_without_plan: waiting } } : {}), after: {
           note: data.note ?? null,
           supersedes: previous?.n ?? null,
           ...(overridden.length > 0 ? { override_reason: data.override_reason, overridden_criteria: overridden } : {}),

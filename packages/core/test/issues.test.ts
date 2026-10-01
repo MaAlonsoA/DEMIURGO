@@ -7,6 +7,7 @@ import { executeCommand } from '../src/bus/bus.ts';
 import { openIssuesOf, issueDetail, issuesList } from '../src/queries/issues.ts';
 import { inbox } from '../src/queries/read.ts';
 import { useEnvironment } from './support/env.ts';
+import { newDecision } from './support/recipes.ts';
 
 const environment = useEnvironment();
 const ana = human('ana');
@@ -26,6 +27,7 @@ const SECTIONS = [
 ];
 
 async function task(title: string): Promise<Made> {
+  const basis = await newDecision(s(), projectId, true);
   const feature = (
     await cmd('record.create', {
       type: 'fdr',
@@ -35,7 +37,7 @@ async function task(title: string): Promise<Made> {
       criteria: [
         { carry: 'new', title: 'a', statement: 'Given a person, when she does it, then she sees it.', verification: 'automatic', check: 'E2E.' },
       ],
-      links: [],
+      links: [{ type: 'based_on', target: { code: basis.code, version: 1 } }],
     })
   ).result as Made;
   await cmd('record_version.approve', {}, feature.versionId);

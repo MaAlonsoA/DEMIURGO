@@ -306,6 +306,29 @@ export function needNotBuiltReason(code: string): string {
   return `It needs ${code}, which is not built yet.`;
 }
 
+/**
+ * Why a feature, decision or task with `count` `based_on` links is not grounded on anything (null when it is).
+ * Shared by readiness and by the approval guard, so both say the same.
+ */
+export function missingBasisReason(type: string, count: number): string | null {
+  if (count > 0) return null;
+  if (type === 'fdr') return 'It is not based on any epic or on the product definition.';
+  if (type === 'task') return 'It is not based on any feature, decision, quality requirement or the product definition.';
+  if (type === 'adr') return 'It is not based on any feature, on the product definition or on a decision.';
+  return null;
+}
+
+/**
+ * The cycle that adding the edge `from -> to` would close in `graph` (`from` first, then the codes along it),
+ * or null. A self-edge is a cycle of one.
+ */
+export function cycleClosedBy(graph: ReadonlyMap<string, readonly string[]>, from: string, to: string): string[] | null {
+  if (from === to) return [from];
+  const next = new Map(graph);
+  next.set(from, [...new Set([...(graph.get(from) ?? []), to])]);
+  return findDependencyCycle(next, from);
+}
+
 export function readiness(e: ReadinessInput): Readiness {
   const reasons: string[] = [];
   if (e.version.state === 'superseded') {
@@ -335,15 +358,8 @@ export function readiness(e: ReadinessInput): Readiness {
       );
   }
   if (e.type === 'fdr' || e.type === 'adr' || e.type === 'task') {
-    if (e.basedOn.length === 0) {
-      reasons.push(
-        e.type === 'fdr'
-          ? 'It is not based on any epic or on the product definition.'
-          : e.type === 'task'
-            ? 'It is not based on any feature, decision, quality requirement or the product definition.'
-            : 'It is not based on any feature, on the product definition or on a decision.',
-      );
-    }
+    const missing = missingBasisReason(e.type, e.basedOn.length);
+    if (missing) reasons.push(missing);
     for (const d of e.basedOn) {
       if (d.current === null) {
         reasons.push(`The ${BASIS_NOUN[d.type] ?? 'record'} it is based on, ${d.code}, is not approved.`);

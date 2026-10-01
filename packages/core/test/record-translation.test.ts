@@ -8,6 +8,7 @@ import { createSimulatedProvider } from '../src/agents/simulated.ts';
 import { executeCommand } from '../src/bus/bus.ts';
 import { TRANSLATION_ACTOR, proposeEnglishVersions } from '../src/translation/records.ts';
 import { useEnvironment } from './support/env.ts';
+import { newDecision } from './support/recipes.ts';
 
 // The simulated translator marks each text with the target language ("[en] …").
 const environment = useEnvironment({ providers: () => [createSimulatedProvider()] });
@@ -20,6 +21,7 @@ const cmd = (command: Parameters<typeof executeCommand>[1]['command'], data: unk
   executeCommand(environment().services, { command, actor: ana, projectId, data, ...(entityId ? { entityId } : {}) });
 
 async function fdr(title: string, text: string, criterion: string) {
+  const basis = await newDecision(environment().services, projectId, true);
   const r = await cmd('record.create', {
     type: 'fdr',
     domain: 'test',
@@ -31,6 +33,7 @@ async function fdr(title: string, text: string, criterion: string) {
       { title: 'Behavior', content: text },
     ],
     criteria: [{ carry: 'new', title: criterion, statement: criterion, verification: 'automatic', check: criterion }],
+    links: [{ type: 'based_on', target: { code: basis.code, version: 1 } }],
   });
   const res = r.result as { recordId: string; versionId: string; code: string };
   await cmd('record_version.approve', {}, res.versionId);

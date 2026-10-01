@@ -20,6 +20,7 @@ import { cn } from '../../lib/cn.ts';
 import { type ReviewPart, type ReviewPartKey, reviewBanner, reviewParts, reviewStep } from './review.ts';
 import { ChangesSince, baseVersion } from './Changes.tsx';
 import { CriterionLintNotice, useCriterionLint } from './CriterionLint.tsx';
+import { rememberWaitingNotice } from './WaitingNotice.tsx';
 import { REVIEW } from './words.i18n.ts';
 
 const reducedMotion = (): ScrollBehavior =>
@@ -365,7 +366,8 @@ function ReviewBar({
               entityId: version.id,
               data: lint.data,
             })
-            .then(() => {
+            .then((response) => {
+              rememberWaitingNotice(version.id, response);
               setConfirming(false);
               setStep(0);
               announce(t.confirmedAnnounce(version.n));

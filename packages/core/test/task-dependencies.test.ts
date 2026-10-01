@@ -7,6 +7,7 @@ import { executeCommand } from '../src/bus/bus.ts';
 import { buildQueue } from '../src/build/queue.ts';
 import { versionReadiness } from '../src/queries/read.ts';
 import { useEnvironment } from './support/env.ts';
+import { newDecision } from './support/recipes.ts';
 
 const environment = useEnvironment();
 const ana = human('ana');
@@ -35,13 +36,14 @@ const CRITERION = {
 };
 
 async function feature(domain: string): Promise<Made> {
+  const basis = await newDecision(s(), projectId, true);
   const r = await cmd('record.create', {
     type: 'fdr',
     domain,
     title: `Feature ${domain}`,
     sections: SECTIONS,
     criteria: [CRITERION],
-    links: [],
+    links: [{ type: 'based_on', target: { code: basis.code, version: 1 } }],
   });
   const made = r.result as Made;
   await cmd('record_version.approve', {}, made.versionId);
@@ -172,26 +174,46 @@ describe('task dependencies', () => {
     const f = await feature('delta');
     const a = await task(f, 'Cycle A');
     const b = await task(f, 'Cycle B', [{ type: 'depends_on', target: { code: a.code, version: 1 } }]);
+    // The guard refuses to close a cycle through the bus; a cycle that already exists (older data) is still handled.
+    await expect(
+      cmd('record_version.create', {
+        record_id: a.recordId,
+        title: 'Cycle A',
+        sections: SECTIONS.slice(0, 2),
+        criteria: [],
+        links: [
+          { type: 'based_on', target: { code: f.code, version: 1 } },
+          { type: 'depends_on', target: { code: b.code, version: 1 } },
+        ],
+        change_note: 'Closes the cycle.',
+      }),
+    ).rejects.toMatchObject({ type: 'conflict', message: expect.stringContaining('cycle') });
+    const bVersion = (await db().selectFrom('record_versions').select('id').where('record_id', '=', b.recordId).executeTakeFirstOrThrow()).id;
     const v = await cmd('record_version.create', {
       record_id: a.recordId,
       title: 'Cycle A',
       sections: SECTIONS.slice(0, 2),
       criteria: [],
-      links: [
-        { type: 'based_on', target: { code: f.code, version: 1 } },
-        { type: 'depends_on', target: { code: b.code, version: 1 } },
-      ],
-      change_note: 'Closes the cycle.',
+      links: [{ type: 'based_on', target: { code: f.code, version: 1 } }],
+      change_note: 'Second version.',
     });
+    await db()
+      .insertInto('links')
+      .values({
+        project_id: projectId,
+        type: 'depends_on',
+        from_type: 'record_version',
+        from_id: v.entityId,
+        from_version: 2,
+        to_type: 'record_version',
+        to_id: bVersion,
+        to_version: 1,
+        state: 'current',
+        created_by: 'system:test',
+      })
+      .execute();
     await cmd('record_version.approve', {}, v.entityId);
-    const currentA = (
-      await db()
-        .selectFrom('record_versions')
-        .select('id')
-        .where('record_id', '=', a.recordId)
-        .where('n', '=', 2)
-        .executeTakeFirstOrThrow()
-    ).id;
+    const currentA = v.entityId;
     const reasons = (await versionReadiness(db(), projectId, currentA)).reasons;
     expect(reasons).toContain(`Dependency cycle with ${b.code}.`);
     const queue = await buildQueue(db(), projectId);

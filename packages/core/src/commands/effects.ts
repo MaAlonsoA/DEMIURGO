@@ -21,6 +21,7 @@ import type { CommandContext } from '../bus/types.ts';
 import { approvedDesignSystem, screenDesignChecks } from '../design/screens.ts';
 import { definitionStageId, proposeDefinitionIfCovered } from '../definition/compose.ts';
 import { proposeCoveredPrinciples } from '../definition/principles.ts';
+import { assertCoversInFeature } from './graph-guards.ts';
 import { type CriterionInput, resolveReference } from './records.ts';
 
 /** A feature criterion that names a Behavior step that doesn't exist is invalid output: nothing is applied. */
@@ -41,7 +42,7 @@ export type Application = (ctx: CommandContext, e: EffectInput) => Promise<Effec
  * pages read the title from the proposal until it is there).
  */
 async function dependencyLinks(ctx: CommandContext, feature: { code: string }, titles: readonly string[]) {
-  if (titles.length === 0) return [];
+  if (titles.length === 0) return { links: [], warnings: [] as string[] };
   const rows = await ctx.trx
     .selectFrom('links')
     .innerJoin('record_versions as tv', 'tv.id', 'links.from_id')
@@ -60,11 +61,35 @@ async function dependencyLinks(ctx: CommandContext, feature: { code: string }, t
   const byTitle = new Map<string, { code: string; n: number }>();
   for (const r of rows) if (latest.get(r.code)?.n === r.n) byTitle.set(r.title.trim().toLowerCase(), { code: r.code, n: r.n });
   const out: { type: string; target: { code: string; version: number } }[] = [];
+  const unmatched: string[] = [];
   for (const t of titles) {
     const hit = byTitle.get(t.trim().toLowerCase());
     if (hit) out.push({ type: 'depends_on', target: { code: hit.code, version: hit.n } });
+    else unmatched.push(t);
   }
-  return out;
+  // A title that is another pending task proposal is expected (its task does not exist until it is accepted):
+  // a visible warning. One that is nothing at all would be silently dropped: refused (422).
+  const pending = unmatched.length
+    ? (
+        await ctx.trx
+          .selectFrom('proposals')
+          .select('payload')
+          .where('project_id', '=', ctx.projectId)
+          .where('state', '=', 'pending')
+          .where('type', '=', 'design_record')
+          .execute()
+      ).map((p) => String((p.payload as { title?: unknown }).title ?? '').trim().toLowerCase())
+    : [];
+  const nothing = unmatched.filter((t) => !pending.includes(t.trim().toLowerCase()));
+  if (nothing.length > 0)
+    throw new DomainError(
+      'validation',
+      `The task depends on ${nothing.map((t) => `«${t}»`).join(', ')}, which ${nothing.length > 1 ? 'match' : 'matches'} no task of ${feature.code} and no pending task proposal: no dependency would be recorded.`,
+    );
+  const warnings = unmatched.map(
+    (t) => `The dependency «${t}» is a task proposal that is not accepted yet: no link was made. Link it once that task exists.`,
+  );
+  return { links: out, warnings };
 }
 
 /**
@@ -259,6 +284,10 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
             .where('code', '=', c.based_on.code)
             .executeTakeFirst()
         : undefined;
+    const titled =
+      c.record_type === 'task' && c.based_on
+        ? await dependencyLinks(ctx, c.based_on, c.depends_on_titles ?? [])
+        : { links: [], warnings: [] as string[] };
     const created = await createRecord(
       ctx,
       {
@@ -275,7 +304,7 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
         // What it rests on, then the features it needs (a `based_on` link each: the map reads them as "needs").
         links: [
           ...[...(c.based_on ? [c.based_on] : []), ...(c.needs ?? [])].map((target) => ({ type: 'based_on', target })),
-          ...(c.record_type === 'task' && c.based_on ? await dependencyLinks(ctx, c.based_on, c.depends_on_titles ?? []) : []),
+          ...titled.links,
           ...(c.record_type === 'task' ? await taskCodeLinks(ctx, c.depends_on_tasks ?? []) : []),
           ...(c.record_type === 'task' ? await featureWaitLinks(ctx, (c.waits_for_features ?? []).filter((f) => f !== c.based_on?.code)) : []),
         ],
@@ -283,6 +312,7 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
       },
       approve,
     );
+    if (titled.warnings.length > 0) created.warnings = titled.warnings;
     if (planned)
       await ctx.execute({
         command: 'planned_feature.design',
@@ -686,6 +716,7 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
     if (c.covers) {
       const rec = await ctx.trx.selectFrom('records').select('type').where('id', '=', v.recordId).executeTakeFirstOrThrow();
       if (rec.type !== 'task') throw new DomainError('validation', 'Only a task covers criteria.');
+      await assertCoversInFeature(ctx, res.versionId, c.covers);
       await ctx.trx
         .insertInto('task_covers')
         .values({ project_id: ctx.projectId, record_id: v.recordId, codes: [...new Set(c.covers)], set_by: formatActor(ctx.actor) })

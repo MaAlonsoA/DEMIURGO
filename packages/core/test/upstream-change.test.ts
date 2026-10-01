@@ -6,6 +6,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { executeCommand } from '../src/bus/bus.ts';
 import { buildContext } from '../src/context/build.ts';
 import { useEnvironment } from './support/env.ts';
+import { newDecision } from './support/recipes.ts';
 
 const environment = useEnvironment();
 const ana = human('ana');
@@ -33,6 +34,7 @@ beforeAll(async () => {
 
 describe('upstream_change in a suspect review thread', () => {
   it('lists the modified criterion with its statement, the changed section and what the record covers', async () => {
+    const basis = await newDecision(s(), projectId, true);
     const f = (
       await cmd('record.create', {
         type: 'fdr',
@@ -43,6 +45,7 @@ describe('upstream_change in a suspect review thread', () => {
           { carry: 'new', title: 'Flaky', statement: 'Given a form, when it is sent, then it works.', verification: 'automatic', check: 'E2E.' },
           { carry: 'new', title: 'Stable', statement: 'Given a member, when she signs up, then she is listed.', verification: 'automatic', check: 'E2E.' },
         ],
+        links: [{ type: 'based_on', target: { code: basis.code, version: 1 } }],
       })
     ).result as { recordId: string; versionId: string; code: string };
     await cmd('record_version.approve', {}, f.versionId);
@@ -73,6 +76,7 @@ describe('upstream_change in a suspect review thread', () => {
         { carry: 'kept', code: `${f.code.replace('FDR', 'AC')}-02` },
       ],
       change_note: 'Deterministic test.',
+      links: [{ type: 'based_on', target: { code: basis.code, version: 1 } }],
     });
     await cmd('record_version.approve', {}, v2.entityId);
 

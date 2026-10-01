@@ -171,6 +171,22 @@ function writeDesign(dir: string, violating: boolean): void {
   );
 }
 
+/**
+ * Something enters main while the attempt runs. DEMIURGO only repeats CI when it can affect the task (build/recheck.ts):
+ * a new CI workflow does. A different file each time, so it never conflicts with the task.
+ */
+function mainMoves(): void {
+  const other = mkdtempSync(join(tmpdir(), 'dmg-main-'));
+  try {
+    execFileSync('git', ['clone', '-q', remote, other]);
+    writeFileSync(join(other, '.github', 'workflows', `other-${randomUUID().slice(0, 8)}.yml`), 'jobs:\n  other:\n    steps:\n      - run: true\n');
+    git(other, 'add', '.github');
+    git(other, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'main moves');
+    git(other, 'push', '-q', 'origin', 'main');
+  } finally {
+    rmSync(other, { recursive: true, force: true });
+  }
+}
 function fakes(opts: { environment?: 'failing'; ciConclusion: 'success' | 'failure'; design?: 'violating' | 'clean'; protection?: 'demiurgo'; ciFlipsRed?: boolean; auto?: number; greenAfterRuns?: number; behind?: boolean; updateConflict?: boolean; updatedCi?: 'failure'; mainConclusion?: 'success' | 'failure'; flaky?: 'outside'; progress?: string; extraCiRun?: (poll: number) => { status: string; conclusion: string | null } }): Partial<BuildDeps> {
   const base = builderRuns;
   // With greenAfterRuns, CI is red until the builder has run that many times, then green.
@@ -202,7 +218,10 @@ function fakes(opts: { environment?: 'failing'; ciConclusion: 'success' | 'failu
     mergePullRequest: async () => {
       calls.merges++;
     },
-    behindBy: async () => (opts.behind && !calls.updated ? 2 : 0),
+    behindBy: async () => {
+      if (opts.behind && !calls.updated) mainMoves();
+      return opts.behind && !calls.updated ? 2 : 0;
+    },
     updateBranch: async () => {
       calls.updateCalls++;
       if (opts.updateConflict) return { result: 'conflict', message: 'merge conflict between base and head' };
@@ -388,7 +407,7 @@ describe('build.start', () => {
     expect(request.head_sha).toMatch(/^[0-9a-f]{40}$/);
     expect(git(remote, 'branch', '--list', 'task/*')).toContain(request.branch as string);
     // The builder's report never enters the commit.
-    expect(git(remote, 'ls-tree', '-r', '--name-only', request.branch as string)).not.toContain('.demiurgo');
+    expect(git(remote, 'ls-tree', '-r', '--name-only', request.branch as string)).not.toContain('.demiurgo/build-report.json');
     expect(git(remote, 'log', '-1', '--format=%s', request.branch as string).trim()).toBe(`${taskCode}: ${taskTitle}`);
 
     const rows = await steps(requestId);
@@ -476,20 +495,19 @@ describe('build.start', () => {
     // The steps tell the truth: a red CI is `failed` (with its conclusion), and the flow goes on to the review.
     expect(rows.find((s) => s.stage === 'ci' && s.outcome === 'ok')).toBeUndefined();
     expect(rows.find((s) => s.stage === 'ci' && s.outcome === 'failed')?.detail).toMatchObject({ conclusion: 'failure' });
-    expect(rows.filter((s) => s.stage === 'review').map((s) => s.outcome)).toEqual(['started', 'waiting', 'changes_requested']);
-    // The reviewer's comments reach the task page (path, line, text), with the real verdict.
+    expect(rows.filter((s) => s.stage === 'review').map((s) => s.outcome)).toEqual(['started', 'waiting', 'ok']);
+    // The review runs in parallel and never judges CI: the reviewer approves, and the red CI alone stops the attempt.
     const failedDetail = await recordDetail(db(), projectId, taskCode);
-    expect(failedDetail.build?.review).toMatchObject({ verdict: 'request_changes' });
-    expect(failedDetail.build?.review?.comments?.some((c) => c.severity === 'blocking' && c.body.length > 0)).toBe(true);
+    expect(failedDetail.build?.review).toMatchObject({ verdict: 'approve' });
 
-    // The task page tells the truth too: red CI and a review that asks for changes are failures, never «Passed».
+    // The task page tells the truth too: a red CI is a failure, never «Passed».
     const taskRecord = await db().selectFrom('records').select('id').where('project_id', '=', projectId).where('code', '=', taskCode).executeTakeFirstOrThrow();
     const view = await taskViewOfRecord(db(), projectId, taskRecord.id);
     const checkOf = (name: string) => view?.development?.checks.find((c) => c.name === name)?.state;
     expect(checkOf('ci')).toBe('failure');
-    expect(checkOf('demiurgo/review')).toBe('failure');
-    expect(view?.dod.filter((x) => /^(ci|demiurgo\/review) check green/.test(x.item)).every((x) => !x.met)).toBe(true);
-    expect(view?.development?.review?.comments.length).toBeGreaterThan(0);
+    // The reviewer approved (it runs in parallel and never judges CI): the review check is green, the red one is ci.
+    expect(checkOf('demiurgo/review')).toBe('success');
+    expect(view?.dod.filter((x) => /^ci check green/.test(x.item)).every((x) => !x.met)).toBe(true);
     // Build counts the criteria the task covers.
     const queued = [...(await buildQueue(db(), projectId)).ready, ...(await buildQueue(db(), projectId)).waiting].find((t) => t.code === taskCode);
     expect(queued?.checks).toBe(codes.length);
@@ -744,7 +762,7 @@ describe('build.start', () => {
     expect(calls.statuses.filter((s) => s.context === 'demiurgo/review').map((s) => s.state)).toEqual(['pending', 'failure']);
   });
 
-  it('red CI: DEMIURGO starts attempt 2 by itself with the reviewer comments, and it merges when the fix works', async () => {
+  it('red CI: DEMIURGO starts attempt 2 by itself with the failing tests, and it merges when the fix works', async () => {
     await db().updateTable('build_requests').set({ state: 'withdrawn', withdrawn_by: 'human:ana', withdrawn_at: new Date() }).where('project_id', '=', projectId).where('state', '=', 'in_review').execute();
     setBuildDeps(fakes({ ciConclusion: 'failure', auto: 2, greenAfterRuns: 2 }));
     const requestId = await newRequest();
@@ -754,7 +772,7 @@ describe('build.start', () => {
     expect(await finished(requestId, 2)).toBe('done');
     expect(calls.opened).toBe(1);
     expect(calls.prompts[1]).toContain('attempt 2');
-    expect(calls.prompts[1]).toContain('The reviewer asked for these changes');
+    expect(calls.prompts[1]).toContain('The tests of these criteria failed in CI');
     const rows = await steps(requestId);
     const second = rows.find((x) => x.attempt === 2 && x.stage === 'repo' && x.outcome === 'started');
     expect(second?.detail).toMatchObject({ started_by: 'system:build@1', automatic: true });
@@ -1315,6 +1333,8 @@ describe('integrate with main before merging, stop the line when main breaks, qu
   });
 
   it('main red after the merge: the request is done, the main step records the failure and «Build the queue» stops until the person touches it', async () => {
+    // A task of an earlier test left in review would stop the line by itself: this test is about main.
+    await db().updateTable('build_requests').set({ state: 'withdrawn', withdrawn_by: 'human:ana', withdrawn_at: new Date() }).where('project_id', '=', projectId).where('state', '=', 'in_review').execute();
     setBuildDeps(fakes({ ciConclusion: 'success', protection: 'demiurgo', mainConclusion: 'failure' }));
     const set = (at: Date) =>
       sql`insert into build_queue_settings (project_id, auto, parallel, set_by, set_at) values (${projectId}::uuid, true, 1, 'human:ana', ${at.toISOString()}::timestamptz) on conflict (project_id) do update set auto = true, set_at = excluded.set_at`.execute(db());
@@ -1329,7 +1349,8 @@ describe('integrate with main before merging, stop the line when main breaks, qu
     expect(await status()).toMatchObject({ on: true, stopped: { code: taskCode, kind: 'main_red' } });
     // The person fixed main and touched the switch afterwards: the line moves again.
     await set(new Date(Date.now() + 1_000));
-    expect((await status()).stopped).toBeNull();
+    // (The auto queue may meanwhile start another ready task, which can stop the line for its own reason: not main.)
+    expect((await status()).stopped?.kind).not.toBe('main_red');
     await db().deleteFrom('build_queue_settings').where('project_id', '=', projectId).execute();
   });
 

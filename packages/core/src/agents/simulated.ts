@@ -478,10 +478,12 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
     // A criterion is covered when the diff has a test title that starts with its code.
     const titleOf = (code: string) => new RegExp(`['"\`](${code}[^'"\`]*)['"\`]`).exec(diff)?.[1] ?? null;
     // ... and CI has a passing case for it (the checker rejects `covered` without one).
+    // With CI in parallel there is no result yet: the test in the diff is what the reviewer checks.
+    const parallel = obj(c.ci).parallel === true;
     const passing = new Set(list(obj(c.ci).tests).filter((t) => obj(t).result === 'pass').map((t) => txt(obj(t).code)));
     const criteria = codes.map((code) => {
       const found = titleOf(code);
-      const test = found !== null && passing.has(code) ? found : null;
+      const test = found !== null && (parallel || passing.has(code)) ? found : null;
       return { code, test_name: test, covered: test !== null, note: test ? 'A test with this code is in the diff.' : 'No passing test with this code is in the diff and in CI.' };
     });
     const missing = criteria.filter((k) => !k.covered).map((k) => k.code);

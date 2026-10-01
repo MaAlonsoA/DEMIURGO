@@ -177,7 +177,17 @@ registerHandlers({
   }),
 
   'exploration.open': handler({
-    data: z.object({ purpose: text(1000), parent_id: uuid.optional(), origin: originSchema.optional() }).strict(),
+    data: z
+      .object({
+        purpose: text(1000),
+        parent_id: uuid.optional(),
+        origin: originSchema.optional(),
+        // The person's first message, posted in the same transaction as the thread. With it, the
+        // thread has exactly one first turn (the answer to that message): there is no automatic
+        // first turn to race with a message posted right after opening.
+        first_message: text(20_000).optional(),
+      })
+      .strict(),
     async apply(ctx, data, _e, to) {
       const { id } = await ctx.trx
         .insertInto('explorations')
@@ -211,7 +221,15 @@ registerHandlers({
       // A thread a person opens from a proposal or a record version (a review, "Review in a thread")
       // starts with DEMIURGO's first turn, requested once knowledge is up to date (deduplicated by
       // key): it never opens empty. Threads with another origin get the person's own first message.
-      if (ctx.actor.type === 'human' && (data.origin?.type === 'proposal' || data.origin?.type === 'record_version'))
+      const firstMessage = ctx.actor.type === 'human' ? data.first_message : undefined;
+      if (firstMessage !== undefined)
+        await ctx.execute({
+          command: 'message.post',
+          actor: ctx.actor,
+          projectId: ctx.projectId,
+          data: { exploration_id: id, text: firstMessage, respond: true },
+        });
+      else if (ctx.actor.type === 'human' && (data.origin?.type === 'proposal' || data.origin?.type === 'record_version'))
         ctx.afterCommit(() =>
           ctx.services.engine.startDeferredRun(`thread_opened:${id}`, ctx.projectId, id, { thread_opened: true }),
         );

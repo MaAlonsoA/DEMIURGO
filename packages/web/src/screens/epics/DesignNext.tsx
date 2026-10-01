@@ -49,14 +49,14 @@ export function useDesignNext(projectId: string) {
         parent = (await runCommand(projectId, { command: 'exploration.open', data: { purpose: `About ${epic.title}`, origin } }))
           .entity_id;
       }
+      // One command: the thread and the person's first message, so DEMIURGO takes a single first turn.
+      const text = reading.request(line.name, line.phrase ?? '');
       const thread = (
         await runCommand(projectId, {
           command: 'exploration.open',
-          data: { purpose: featurePurpose(line, epic.code), parent_id: parent, origin },
+          data: { purpose: featurePurpose(line, epic.code), parent_id: parent, origin, first_message: text },
         })
       ).entity_id;
-      const text = reading.request(line.name, line.phrase ?? '');
-      await runCommand(projectId, { command: 'message.post', data: { exploration_id: thread, text, respond: true } });
       announce(t.started(line.name));
       void client.invalidateQueries({ queryKey: keys.project(projectId) });
       void navigate({ to: '/p/$projectId/threads/$explorationId', params: { projectId, explorationId: thread } });

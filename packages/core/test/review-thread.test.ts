@@ -82,4 +82,25 @@ describe("a review thread", () => {
     expect(deferred()).not.toContain(`thread_opened:${parent.entityId}`);
     expect(deferred()).not.toContain(`thread_opened:${child.entityId}`);
   });
+  it("opened with the person's first message, the only first turn is the answer to that message", async () => {
+    const s = environment().services;
+    const record = await newDecision(s, projectId, true);
+    const responses = (environment().engine as unknown as { responses: string[] }).responses;
+    const before = responses.length;
+    const r = await open({
+      purpose: `Design ${record.code}`,
+      origin: { type: "record_version", id: record.versionId, version: 1 },
+      first_message: "Let's design this feature.",
+    });
+    // No automatic first turn, and exactly one response: the one to the person's message.
+    expect(deferred()).not.toContain(`thread_opened:${r.entityId}`);
+    const messages = await s.db
+      .selectFrom("messages")
+      .select(["id", "author", "body", "response"])
+      .where("exploration_id", "=", r.entityId)
+      .execute();
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatchObject({ author: "human:ana", body: "Let's design this feature.", response: "waiting" });
+    expect(responses.slice(before)).toEqual([messages[0]?.id]);
+  });
 });

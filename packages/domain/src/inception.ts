@@ -46,7 +46,9 @@ export type InceptionAction =
   /** A proposal DEMIURGO made for this step waits in its batch. */
   | { kind: "review_batch"; batch: string; count?: number }
   /** The step is being worked on in a thread: continue there. */
-  | { kind: "thread"; thread: string };
+  | { kind: "thread"; thread: string }
+  /** DEMIURGO is producing what the step needs (nothing for the person to do yet). */
+  | { kind: "waiting"; what: "quality_requirements" };
 
 export type InceptionStep = {
   key: InceptionStepKey;
@@ -88,6 +90,12 @@ export type InceptionInput = {
   definition: InceptionRecord | null;
   /** A product definition proposal (the first draft or a change to a section) is pending. */
   definitionProposal: boolean;
+  /**
+   * The quality stage passed and its quality requirements (NFR) have not arrived: none exists
+   * (record or proposal, in any state) and the run that proposes them (queued, running or not yet
+   * finished) is still in flight. The step stays «Now» meanwhile instead of flipping Done → Now.
+   */
+  qualityProposing?: boolean;
   /** Pending proposals of new records, by record type (epic, fdr, design_system, screen_design, task…). */
   pending: { type: string; batch: string }[];
   /** The active thread where the design system is being designed, if any. */
@@ -168,6 +176,7 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
     openQuestions(key) > 0 ? { kind: "answer_stage", stage: key, thread: stage(key)?.thread ?? null } : null;
   // A step with proposals of its own kind waiting is not done: the person still has to decide them.
   const hasPending = (...types: string[]) => input.pending.some((x) => types.includes(x.type));
+  const qualityProposing = input.qualityProposing === true && passed("quality") && !hasPending("quality_requirement");
   const draftEpic = input.epics.find((e) => !e.approved);
   const draftFeature = input.features.find((f) => !f.approved);
 
@@ -198,12 +207,15 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
         passed("quality") &&
         !(input.definitionProposal && !stage("principles")) &&
         !hasPending("quality_requirement") &&
+        !qualityProposing &&
         openQuestions("quality") === 0,
       action: () =>
         passed("quality")
           ? input.definitionProposal && !stage("principles")
             ? { kind: "review_definition" }
-            : (pendingOf("quality_requirement") ?? answerOpen("quality") ?? { kind: "review_definition" })
+            : (pendingOf("quality_requirement") ??
+              answerOpen("quality") ??
+              (qualityProposing ? { kind: "waiting", what: "quality_requirements" } : { kind: "review_definition" }))
           : stageAction("quality"),
     },
     {

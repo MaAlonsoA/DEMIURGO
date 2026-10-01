@@ -5,6 +5,7 @@
 // safely here (see the report).
 
 import { messages } from '../../i18n/define.ts';
+import { questionCountText, questionCountTextEs } from '../../lib/question-count.ts';
 
 export const OVERVIEW = messages(
   {
@@ -109,6 +110,7 @@ export const CARDS = messages(
     preview: (title: string) => `Preview ${title}`,
     previewNewFeature: 'Preview the new feature',
     openQuestion: (open: number) => `${open} open ${open === 1 ? 'question' : 'questions'}`,
+    questionCounts: (now: number, later: number) => questionCountText({ now, later }),
     questionWaits: (waiting: number) => `${waiting} ${waiting === 1 ? 'question waits' : 'questions wait'} for you`,
     setAside: 'Set aside',
     parkedIdeas: 'Parked ideas',
@@ -142,6 +144,7 @@ export const CARDS = messages(
     preview: (title: string) => `Vista previa de ${title}`,
     previewNewFeature: 'Vista previa de la nueva funcionalidad',
     openQuestion: (open: number) => `${open} ${open === 1 ? 'pregunta abierta' : 'preguntas abiertas'}`,
+    questionCounts: (now: number, later: number) => questionCountTextEs({ now, later }),
     questionWaits: (waiting: number) => `${waiting} ${waiting === 1 ? 'pregunta te espera' : 'preguntas te esperan'}`,
     setAside: 'Aparcado',
     parkedIdeas: 'Ideas aparcadas',
@@ -281,6 +284,7 @@ export const STAGES = messages(
     answeredOf: (covered: number, total: number) => `${covered} of ${total} answered`,
     stagesSummary: (passed: number, total: number) => `Stages: ${passed} of ${total} passed`,
     showStages: 'Show them',
+    showStagesAlone: 'Show the design stages',
     passedBy: (who: string) => `Passed by ${who}`,
     opensWhenStart: 'It opens when you start the design stages.',
     opensWhenPasses: 'It opens when the stage before it passes.',
@@ -327,6 +331,7 @@ export const STAGES = messages(
     answeredOf: (covered: number, total: number) => `${covered} de ${total} respondidas`,
     stagesSummary: (passed: number, total: number) => `Etapas: ${passed} de ${total} superadas`,
     showStages: 'Ver las etapas',
+    showStagesAlone: 'Ver las etapas de diseño',
     passedBy: (who: string) => `Superada por ${who}`,
     opensWhenStart: 'Se abre cuando empieces las etapas de diseño.',
     opensWhenPasses: 'Se abre cuando la etapa anterior se supera.',

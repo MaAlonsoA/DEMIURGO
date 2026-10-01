@@ -243,7 +243,7 @@ export function ThreadRow({
           {thread.purpose}
         </Link>
         <span className="block text-xs text-fg-2 tabular-nums">
-          {t.openQuestion(open)}
+          {t.questionCounts(open, thread.reserve_questions ?? 0)}
           {change.changed && change.note ? <span className="text-accent-text"> · {change.note}</span> : null}
         </span>
       </span>

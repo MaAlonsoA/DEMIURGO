@@ -55,6 +55,14 @@ export async function explorationsList(db: Db, projectId: string) {
     .where('shown_at', 'is not', null)
     .groupBy('exploration_id')
     .execute();
+  const inReserve = await db
+    .selectFrom('questions')
+    .select(['exploration_id', (eb) => eb.fn.countAll<string>().as('n')])
+    .where('project_id', '=', projectId)
+    .where('state', 'in', ['pending', 'postponed', 'inferred'])
+    .where('shown_at', 'is', null)
+    .groupBy('exploration_id')
+    .execute();
   const last = await db
     .selectFrom('messages')
     .select(['exploration_id', (eb) => eb.fn.max('created_at').as('at')])
@@ -87,6 +95,7 @@ export async function explorationsList(db: Db, projectId: string) {
     return {
       ...e,
       open_questions: Number(open.find((q) => q.exploration_id === e.id)?.n ?? 0),
+      reserve_questions: Number(inReserve.find((q) => q.exploration_id === e.id)?.n ?? 0),
       affects: [...(affects.get(e.id) ?? [])],
       last_activity: message ?? e.created_at,
     };

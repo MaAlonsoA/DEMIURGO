@@ -245,7 +245,10 @@ export type ExplorationSummary = {
   parent_id: string | null;
   origin_type: string | null;
   origin_id: string | null;
+  /** Questions shown to the person now (the same count as Needs you). */
   open_questions: number;
+  /** Questions DEMIURGO keeps in reserve for later. */
+  reserve_questions?: number;
 };
 
 /** A feature an epic lists: its reserved code, name and sentence; `designed` once its record exists. */
@@ -272,7 +275,8 @@ export type InceptionAction =
   | { kind: 'review_definition' }
   | { kind: 'plan_backlog'; thread: string | null }
   | { kind: 'review_batch'; batch: string; count?: number }
-  | { kind: 'thread'; thread: string };
+  | { kind: 'thread'; thread: string }
+  | { kind: 'waiting'; what: 'quality_requirements' };
 
 export type InceptionStep = {
   key: string;
@@ -830,6 +834,7 @@ export type ExplorationDetail = {
 
 export type Exploration = Omit<ExplorationDetail, 'messages' | 'questions' | 'children' | 'draft'> & {
   open_questions: number;
+  reserve_questions?: number;
   /** Codes of the records its proposals target (pending or accepted). */
   affects?: string[];
   last_activity: string;

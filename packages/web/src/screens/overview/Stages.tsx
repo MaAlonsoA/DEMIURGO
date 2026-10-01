@@ -155,15 +155,13 @@ export function DesignStages({ projectId, collapsible = false }: { projectId: st
   const pendingDefinition = usePendingDefinition(projectId);
   const [shown, setShown] = useState(false);
 
-  // While the first-build path is in progress it is the one answer to "where am I": the stages
-  // shrink to a line, which opens on request.
+  // While the first-build path is in progress it is the one answer to "where am I" (decisión de la
+  // misión: «recorrido único»): the stages show no counter of their own, only a link that opens them.
   if (collapsible && !shown && stages.data && list.length > 0) {
     return (
       <p data-design-stages-collapsed className="flex flex-wrap items-center gap-x-2 text-sm text-fg-2">
-        <span>{t.stagesSummary(list.filter((s) => s.state === 'passed').length, list.length)}</span>
-        <span aria-hidden>·</span>
         <Button size="sm" variant="quiet" aria-expanded={false} aria-controls="design-stages" onClick={() => setShown(true)}>
-          {t.showStages}
+          {t.showStagesAlone}
         </Button>
       </p>
     );

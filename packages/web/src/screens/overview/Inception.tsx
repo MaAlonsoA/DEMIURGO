@@ -43,6 +43,7 @@ export const INCEPTION = messages(
     reviewProposal: 'Review the proposal',
     decideProposals: (n: number) => `Decide ${n} proposals`,
     continueThread: 'Continue in its thread',
+    proposingQuality: 'DEMIURGO is proposing the quality requirements…',
     planBacklogRequest:
       'Map the first version of the product definition as a story map (Jeff Patton, User Story Mapping): its capabilities in the order a person uses them, the thinnest end-to-end slice first (the walking skeleton), and for each capability whether it is one feature or an epic of several. Propose one thread per capability so I can design them one by one, and say where you would start.',
     nextUp: (title: string) => `Next: ${title}`,
@@ -71,6 +72,7 @@ export const INCEPTION = messages(
     reviewProposal: 'Revisar la propuesta',
     decideProposals: (n: number) => `Decidir ${n} propuestas`,
     continueThread: 'Seguir en su hilo',
+    proposingQuality: 'DEMIURGO está proponiendo los requisitos de calidad…',
     planBacklogRequest:
       'Mapea la primera versión de la definición del producto como un mapa de historias (Jeff Patton, User Story Mapping): sus capacidades en el orden en que las usa una persona, primero la porción más fina de punta a punta (el walking skeleton), y para cada capacidad si es una funcionalidad o una épica de varias. Propón un hilo por capacidad para diseñarlas una a una, y dime por cuál empezarías.',
     nextUp: (title: string) => `Siguiente: ${title}`,
@@ -212,6 +214,12 @@ export function InceptionActionButton({ projectId, step }: { projectId: string; 
       return link('/p/$projectId/batches/$batchId', { projectId, batchId: action.batch }, action.count && action.count > 1 ? t.decideProposals(action.count) : t.reviewProposal);
     case 'thread':
       return link('/p/$projectId/threads/$explorationId', { projectId, explorationId: action.thread }, t.continueThread);
+    case 'waiting':
+      return (
+        <p className="text-sm text-fg-2" role="status" data-inception-waiting={action.what}>
+          {t.proposingQuality}
+        </p>
+      );
     case 'review_definition':
       return (
         <a href="#definition" className={primary}>

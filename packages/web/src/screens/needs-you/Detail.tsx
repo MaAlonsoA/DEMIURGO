@@ -18,7 +18,8 @@ import { DayTime } from '../../components/Time.tsx';
 import { Who } from '../../components/Who.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { rowOf, rowOfVersion } from '../batch/model.ts';
-import { DecisionBar, RecordChip } from '../batch/parts.tsx';
+import { ProposalDecision } from '../batch/ProposalActions.tsx';
+import { BlockedNotice, DecisionBar, RecordChip } from '../batch/parts.tsx';
 import { Conflict } from './Conflict.tsx';
 import { DetailFrame, type NeedContext } from './frame.tsx';
 import type { NeedItem } from './order.ts';
@@ -64,6 +65,33 @@ function GoDetail({ item, ctx, titleId, top }: DetailProps) {
   const t = useMessages(DETAIL);
   const kindWords = useMessages(TITLES);
   const home = homeOf(item);
+  // One proposal decided item by item is decided right here (accept, approve, reject), with the
+  // same bar as its batch page; «Open it» keeps the detail one click away.
+  const inPlace = item.kind === 'proposal' && item.proposal.state === 'pending' ? item.proposal : null;
+  if (inPlace && item.kind === 'proposal') {
+    const warnings = inPlace.obsolescence ?? [];
+    return (
+      <DetailFrame
+        item={item}
+        ctx={ctx}
+        titleId={titleId}
+        top={top}
+        title={needTitle(item, ctx.rows, kindWords)}
+        line={needReason(item, ctx, kindWords)}
+        decision={
+          <>
+            <BlockedNotice reasons={warnings} />
+            <ProposalDecision projectId={ctx.projectId} proposal={inPlace} blocked={warnings} sticky={false} onDone={() => {}} />
+            {home ? (
+              <HomeLink projectId={ctx.projectId} home={home} className={buttonClass({ variant: 'quiet' })}>
+                {t.openIt} <ArrowRightIcon size={14} />
+              </HomeLink>
+            ) : null}
+          </>
+        }
+      />
+    );
+  }
   return (
     <DetailFrame
       item={item}

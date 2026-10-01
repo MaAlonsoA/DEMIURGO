@@ -1260,6 +1260,16 @@ export async function productState(db: Db, projectId: string) {
     .select(['exploration_id', (eb) => eb.fn.countAll<string>().as('n')])
     .where('project_id', '=', projectId)
     .where('state', 'in', ['pending', 'postponed', 'inferred'])
+    // The same count as Needs you and the thread: only the questions shown; the rest wait in reserve.
+    .where('shown_at', 'is not', null)
+    .groupBy('exploration_id')
+    .execute();
+  const inReserve = await db
+    .selectFrom('questions')
+    .select(['exploration_id', (eb) => eb.fn.countAll<string>().as('n')])
+    .where('project_id', '=', projectId)
+    .where('state', 'in', ['pending', 'postponed', 'inferred'])
+    .where('shown_at', 'is', null)
     .groupBy('exploration_id')
     .execute();
   const b = await inbox(db, projectId);
@@ -1293,6 +1303,7 @@ export async function productState(db: Db, projectId: string) {
     explorations: explorations.map((e) => ({
       ...e,
       open_questions: Number(open.find((a) => a.exploration_id === e.id)?.n ?? 0),
+      reserve_questions: Number(inReserve.find((a) => a.exploration_id === e.id)?.n ?? 0),
     })),
     inbox: { total: b.total },
     // Where the project is on its way to the walking skeleton, and what comes next (domain/inception.ts).

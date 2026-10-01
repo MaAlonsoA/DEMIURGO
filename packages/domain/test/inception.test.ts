@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type InceptionInput, inceptionPath } from "../src/inception.ts";
+import { type InceptionInput, inceptionPath, nextStepNeed } from "../src/inception.ts";
 
 const empty: InceptionInput = {
   hasInterface: true,
@@ -255,5 +255,20 @@ describe("the inception path", () => {
       pending: [{ type: "threat_model", batch: "b3" }],
     });
     expect(sec.steps.find((s) => s.key === "security")?.state).not.toBe("done");
+  });
+  it("the quality step stays Now, with a waiting state, while its quality requirements are being proposed", () => {
+    const base = {
+      ...empty,
+      definition: ok("DEF-PRO-001"),
+      stages: [passed("requirements"), passed("quality"), { ...passed("principles"), state: "open" }],
+    };
+    const proposing = inceptionPath({ ...base, qualityProposing: true });
+    expect(proposing.steps[1]).toMatchObject({ key: "quality", state: "current", action: { kind: "waiting", what: "quality_requirements" } });
+    expect(inceptionPath({ ...base, qualityProposing: false }).steps[1]?.state).toBe("done");
+    // Once the proposals arrive, the person decides them.
+    const arrived = inceptionPath({ ...base, qualityProposing: true, pending: [{ type: "quality_requirement", batch: "b1" }] });
+    expect(arrived.steps[1]?.action).toMatchObject({ kind: "review_batch", batch: "b1" });
+    // The waiting state is not a thing for the person.
+    expect(nextStepNeed(proposing, 0)).toBeNull();
   });
 });

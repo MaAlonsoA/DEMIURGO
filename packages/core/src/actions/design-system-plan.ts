@@ -66,7 +66,7 @@ registerApplier('design_system_plan', async ({ trx, execute, run, output }) => {
     command: 'batch.submit',
     actor: { type: 'agent_run', run: run.id },
     data: {
-      summary: `Design system drafted from the thread: ${x.title} (${x.spec.components.length} components).`,
+      summary: `Design system direction: ${x.title} (${x.spec.components.length} components).`,
       batch_type: 'agent',
       resolution: 'item',
       run_id: run.id,

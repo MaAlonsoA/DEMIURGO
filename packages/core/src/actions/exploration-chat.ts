@@ -7,6 +7,7 @@
 
 import {
   COVERED_QUESTION_STATES,
+  batchTitle,
   type CriterionChange,
   DomainError,
   STAGES,
@@ -1261,7 +1262,7 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
       command: 'batch.submit',
       actor,
       data: {
-        summary: `Proposals from the exploration conversation (${proposals.length}).`,
+        summary: batchTitle(proposals),
         batch_type: 'agent',
         resolution: 'item',
         run_id: run.id,

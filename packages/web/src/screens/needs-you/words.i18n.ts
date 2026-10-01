@@ -360,6 +360,7 @@ export const CONFLICT = messages(
 export const DETAIL = messages(
   {
     goDecide: 'Go and decide it',
+    openIt: 'Open it',
     decidedOnItsPage: 'It is decided where it lives. Catch up keeps your place while you are there.',
     approve: 'Approve',
     discard: 'Discard',
@@ -402,6 +403,7 @@ export const DETAIL = messages(
   },
   {
     goDecide: 'Ir a decidirlo',
+    openIt: 'Abrirla',
     decidedOnItsPage: 'Se decide donde vive. Ponte al día guarda tu sitio mientras estás allí.',
     approve: 'Aprobar',
     discard: 'Descartar',

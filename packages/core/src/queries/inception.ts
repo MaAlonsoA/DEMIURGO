@@ -4,6 +4,7 @@ import {
   COVERED_QUESTION_STATES,
   type InceptionPath,
   type InceptionRecord,
+  STAGES,
   inceptionPath,
 } from "@demiurgo/domain";
 import { epicOrderList } from "../commands/epic-order.ts";
@@ -105,7 +106,7 @@ export async function inceptionOf(
 
   const stageRows = await db
     .selectFrom("stages")
-    .select(["id", "stage", "state", "exploration_id"])
+    .select(["id", "stage", "state", "exploration_id", "created_at"])
     .where("project_id", "=", projectId)
     .execute();
   const stages = [];
@@ -131,6 +132,44 @@ export async function inceptionOf(
           !(COVERED_QUESTION_STATES as readonly string[]).includes(q.state),
       ).length,
     });
+  }
+
+  // The quality requirements (NFR) come from the run that opens the stage after «quality» (deferred,
+  // after the stage passed): until one exists, and while that run is queued, running or not yet
+  // requested, the quality step is still being worked on. Convention nuestra: a run that never
+  // appears within 10 minutes (no engine assigned, say) stops being waited for.
+  let qualityProposing = false;
+  const qualityStage = stageRows.find((r) => r.stage === "quality");
+  const afterQuality = STAGES[STAGES.findIndex((d) => d.key === "quality") + 1]?.key;
+  const nextStage = stageRows.find((r) => r.stage === afterQuality);
+  if (qualityStage?.state === "passed" && nextStage) {
+    const nfrRecords = await db
+      .selectFrom("records")
+      .select("id")
+      .where("project_id", "=", projectId)
+      .where("type", "=", "quality_requirement")
+      .executeTakeFirst();
+    const nfrProposals = await db
+      .selectFrom("proposals")
+      .select("id")
+      .where("project_id", "=", projectId)
+      .where("type", "=", "design_record")
+      .where(sql<string | null>`payload->>'record_type'`, "=", "quality_requirement")
+      .executeTakeFirst();
+    if (!nfrRecords && !nfrProposals) {
+      const runs = await db
+        .selectFrom("ai_runs")
+        .select("state")
+        .where("project_id", "=", projectId)
+        .where(sql<string>`scope->>'type'`, "=", "exploration")
+        .where(sql<string>`scope->>'id'`, "=", nextStage.exploration_id)
+        .where("created_at", ">=", nextStage.created_at)
+        .execute();
+      const young = Date.now() - new Date(nextStage.created_at as unknown as Date).getTime() < 10 * 60_000;
+      qualityProposing =
+        runs.some((r) => r.state === "queued" || r.state === "running") ||
+        (runs.length === 0 && young);
+    }
   }
 
   const repository =
@@ -177,6 +216,7 @@ export async function inceptionOf(
     // To be inferred later from the definition (constraints, first version); for now every product has an interface.
     hasInterface: true,
     stages,
+    qualityProposing,
     definition: rec(ofType("product_definition")[0]),
     pending: (
       await db

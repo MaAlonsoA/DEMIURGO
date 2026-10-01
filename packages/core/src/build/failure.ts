@@ -4,7 +4,7 @@
 
 import { isQuotaError } from '@demiurgo/domain';
 
-export const BUILD_FAILURE_KINDS = ['usage_limit', 'login', 'timeout', 'out_of_memory', 'cancelled', 'infra', 'tdd_red', 'other'] as const;
+export const BUILD_FAILURE_KINDS = ['usage_limit', 'login', 'timeout', 'out_of_memory', 'cancelled', 'infra', 'tdd_red', 'provider_error', 'harness', 'other'] as const;
 export type BuildFailureKind = (typeof BUILD_FAILURE_KINDS)[number];
 
 /** The excerpt kept in the step: the last characters of what the builder printed (our convention). */
@@ -16,8 +16,18 @@ const LOGIN_WORDS =
 const OOM_WORDS = /out of memory|\bOOM\b|cannot allocate memory|heap out of memory|JavaScript heap|\bkilled\b/i;
 const TIMEOUT_WORDS = /timed out|timeout|ETIMEDOUT/i;
 
+// The provider answered with its own server error (salud-del-harness §6.6): the CLI prints an `is_api_error_message`
+// result or a `server_error`/`overloaded_error`, or an `API Error: 5xx`. Waiting fixes it.
+const PROVIDER_ERROR_WORDS =
+  /"error"\s*:\s*"server_error"|"is_api_error_message"\s*:\s*true|\boverloaded_error\b|\bAPI Error:?\s*5\d\d\b|\binternal server error\b/i;
+// Our own plumbing failed before the CLI started: copying the credentials or mounting a directory (`cp: cannot create
+// regular file '/home/demiurgo/.claude-auth/…': Permission denied`). Anchored on the tool and its refusal so a
+// «permission denied» the builder printed while working is not taken for it.
+const HARNESS_WORDS =
+  /\b(?:cp|mkdir|mv|ln|chmod|chown|touch|install): cannot [^\n]*(?:permission denied|read-only file system|no such file or directory)|\.claude-auth[^\n]*(?:permission denied|read-only file system)/i;
+
 /** Transient: waiting makes it work again without anybody changing anything. */
-export const isTransientFailure = (kind: string | null | undefined): boolean => kind === 'usage_limit';
+export const isTransientFailure = (kind: string | null | undefined): boolean => kind === 'usage_limit' || kind === 'provider_error';
 
 /**
  * The Claude CLI's stream-json prints a `rate_limit_event` line even in a healthy run; only a rejected
@@ -49,6 +59,8 @@ export function classifyBuilderFailure(input: {
   if (LOGIN_WORDS.test(text)) return 'login';
   if (input.exitCode === 137 || OOM_WORDS.test(input.stderr ?? '')) return 'out_of_memory';
   if (input.runnerKind === 'infra') return 'infra';
+  if (HARNESS_WORDS.test(text)) return 'harness';
+  if (PROVIDER_ERROR_WORDS.test(text)) return 'provider_error';
   if (TIMEOUT_WORDS.test(input.stderr ?? '')) return 'timeout';
   return 'other';
 }

@@ -20,6 +20,20 @@ const finding = z
   })
   .strict();
 
+const outcome = z
+  .object({
+    judgment_table: z.string().min(1).max(60),
+    judgment_id: z.string().uuid().nullish(),
+    judgment_key: z.string().min(1).max(600),
+    outcome_name: z.string().min(1).max(60),
+    outcome_value: z.number().finite().nullish(),
+    outcome_label: z.string().max(500).nullish(),
+    observed_at: z.string().datetime(),
+    source_type: z.string().min(1).max(40),
+    source_id: z.string().uuid(),
+  })
+  .strict();
+
 registerHandlers({
   'harness.postmortem': handler({
     data: z
@@ -30,6 +44,8 @@ registerHandlers({
         attempts: z.number().int().nonnegative(),
         outcome: z.enum(['merged', 'withdrawn', 'failed', 'needs_you']),
         findings: z.array(finding),
+        /** What really happened after each judgment (salud-del-harness §6.3); written in the same transaction, idempotent. */
+        outcomes: z.array(outcome).default([]),
       })
       .strict(),
     async apply(ctx, data) {
@@ -54,7 +70,44 @@ registerHandlers({
         .onConflict((oc) => oc.columns(['build_request_id', 'rules_version', 'inputs_hash']).doNothing())
         .returning('id')
         .executeTakeFirst();
-      if (!row) throw new DomainError('conflict', 'This post-mortem is already recorded for these inputs.');
+      const written = (id: string) =>
+        data.outcomes.length === 0
+          ? 0
+          : ctx.trx
+              .insertInto('judgment_outcomes')
+              .values(
+                data.outcomes.map((o) => ({
+                  project_id: ctx.projectId,
+                  judgment_table: o.judgment_table,
+                  judgment_id: o.judgment_id ?? null,
+                  judgment_key: o.judgment_key,
+                  outcome_name: o.outcome_name,
+                  outcome_value: o.outcome_value ?? null,
+                  outcome_label: o.outcome_label ?? null,
+                  observed_at: o.observed_at,
+                  source_type: o.source_type,
+                  source_id: o.source_id,
+                  rules_version: data.rules_version,
+                })),
+              )
+              .onConflict((oc) => oc.columns(['judgment_table', 'judgment_key', 'outcome_name', 'rules_version']).doNothing())
+              .returning('id')
+              .execute()
+              .then((rows) => rows.length);
+      if (!row) {
+        // The post-mortem exists: only outcomes it lacked may still be written; otherwise it is a conflict as before.
+        const existing = await ctx.trx
+          .selectFrom('harness_postmortems')
+          .select('id')
+          .where('build_request_id', '=', data.build_request_id)
+          .where('rules_version', '=', data.rules_version)
+          .where('inputs_hash', '=', data.inputs_hash)
+          .executeTakeFirstOrThrow();
+        const added = await written(existing.id);
+        if (added === 0) throw new DomainError('conflict', 'This post-mortem is already recorded for these inputs.');
+        return { entityId: existing.id, after: { build_request: data.build_request_id, rules_version: data.rules_version, outcomes: added }, result: { id: existing.id, outcomes: added } };
+      }
+      const outcomes = await written(row.id);
       if (data.findings.length > 0) {
         await ctx.trx
           .insertInto('harness_findings')
@@ -84,6 +137,7 @@ registerHandlers({
           outcome: data.outcome,
           attempts: data.attempts,
           findings: data.findings.length,
+          outcomes,
         },
         result: { id: row.id },
       };

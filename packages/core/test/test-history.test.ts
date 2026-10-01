@@ -1,7 +1,7 @@
 import { human } from '@demiurgo/domain';
 import { describe, expect, it } from 'vitest';
 import { executeCommand } from '../src/bus/bus.ts';
-import { aggregateTests, flakyOf, median, slowestOf, testHistory, type TestRunRow } from '../src/queries/test-history.ts';
+import { aggregateTests, flakyOf, median, prFlakyOf, slowestOf, testHistory, type TestRunRow } from '../src/queries/test-history.ts';
 import { useEnvironment } from './support/env.ts';
 
 const row = (test_name: string, outcome: TestRunRow['outcome'], head_sha: string | null, duration_ms: number | null, at = '2026-10-01T10:00:00Z'): TestRunRow => ({
@@ -41,6 +41,30 @@ describe('test history aggregation', () => {
   it('lists the slowest tests by median duration', () => {
     const stats = aggregateTests([row('a', 'pass', 's', 10), row('b', 'pass', 's', 900), row('c', 'pass', 's', 50), row('d', 'skip', 's', null)]);
     expect(slowestOf(stats, 2).map((s) => s.test_name)).toEqual(['b', 'c']);
+  });
+});
+
+describe('G06 on pull requests', () => {
+  const pr = (name: string, outcome: TestRunRow['outcome'], sha: string, at: string): TestRunRow => ({ ...row(name, outcome, sha, 10, at), build_request_id: 'req-1' });
+  it('flags a test that failed on a pull request and passed afterwards on the same commit; a fix on a new commit is not it', () => {
+    const stats = aggregateTests([
+      pr('rerun', 'fail', 'aaa', '2026-10-01T10:00:00Z'),
+      pr('rerun', 'pass', 'aaa', '2026-10-01T10:05:00Z'),
+      pr('fixed', 'fail', 'aaa', '2026-10-01T10:00:00Z'),
+      pr('fixed', 'pass', 'bbb', '2026-10-01T10:30:00Z'),
+      // A pass before the PR failure on the same commit (main ran first) is not «failed and then passed».
+      pr('earlier pass', 'pass', 'ccc', '2026-10-01T09:00:00Z'),
+      pr('earlier pass', 'fail', 'ccc', '2026-10-01T10:00:00Z'),
+      row('main only', 'fail', 'ddd', 10, '2026-10-01T10:00:00Z'),
+      row('main only', 'pass', 'ddd', 10, '2026-10-01T10:05:00Z'),
+    ]);
+    const by = (n: string) => stats.find((s) => s.test_name === n)!;
+    expect(by('rerun')).toMatchObject({ pr_flaky_shas: ['aaa'], pr_runs: 2 });
+    expect(by('fixed').pr_flaky_shas).toEqual([]);
+    expect(by('earlier pass').pr_flaky_shas).toEqual([]);
+    // Without a build request the rows are main's: flaky in the old sense, not a pull request one.
+    expect(by('main only')).toMatchObject({ flaky_shas: ['ddd'], pr_flaky_shas: [], pr_runs: 0 });
+    expect(prFlakyOf(stats).map((x) => x.test_name)).toEqual(['rerun']);
   });
 });
 

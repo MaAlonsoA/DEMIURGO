@@ -11,6 +11,8 @@ export type TestRunRow = {
   outcome: 'pass' | 'fail' | 'skip';
   duration_ms: number | null;
   recorded_at: Date | string;
+  /** Set on the rows of a pull request's CI (the build's `evidence` stage); null on main and manual ingests. */
+  build_request_id?: string | null;
 };
 
 export type TestStat = {
@@ -20,6 +22,10 @@ export type TestStat = {
   fails: number;
   /** Commits on which the test both passed and failed. */
   flaky_shas: string[];
+  /** G06 on a pull request: commits where a PR run failed and a later run of the same commit passed (no code change in between). */
+  pr_flaky_shas: string[];
+  /** Runs that came from a pull request (rows with a `build_request_id`). */
+  pr_runs: number;
   last_seen: string;
   median_duration_ms: number | null;
 };
@@ -27,10 +33,14 @@ export type TestStat = {
 export type TestHistory = {
   /** Tests with at least one flaky commit, most flaky commits first. */
   flaky: TestStat[];
+  /** Tests that failed on a pull request and passed afterwards on the same commit (G06 with PR rows), most first. */
+  pr_flaky: TestStat[];
   /** Slowest tests by median duration. */
   slowest: TestStat[];
   total_tests: number;
   total_runs: number;
+  /** Rows that came from pull requests. */
+  pr_runs: number;
 };
 
 const MAX_ROWS = 300_000;
@@ -47,15 +57,18 @@ const iso = (d: Date | string): string => (d instanceof Date ? d : new Date(d)).
 
 /** Pure: one stat per test. Skipped results count as neither a run nor a failure. */
 export function aggregateTests(rows: TestRunRow[]): TestStat[] {
-  type Acc = { runs: number; fails: number; bySha: Map<string, Set<string>>; last: string; durations: number[] };
+  type Acc = { runs: number; fails: number; prRuns: number; bySha: Map<string, Set<string>>; prFailAt: Map<string, string>; passAt: Map<string, string>; last: string; durations: number[] };
   const byTest = new Map<string, Acc>();
   for (const r of rows) {
-    const a: Acc = byTest.get(r.test_name) ?? { runs: 0, fails: 0, bySha: new Map(), last: '', durations: [] };
+    const a: Acc = byTest.get(r.test_name) ?? { runs: 0, fails: 0, prRuns: 0, bySha: new Map(), prFailAt: new Map(), passAt: new Map(), last: '', durations: [] };
     const at = iso(r.recorded_at);
     if (at > a.last) a.last = at;
     if (r.outcome !== 'skip') {
       a.runs++;
       if (r.outcome === 'fail') a.fails++;
+      if (r.build_request_id) a.prRuns++;
+      if (r.head_sha && r.outcome === 'fail' && r.build_request_id && (!a.prFailAt.has(r.head_sha) || at < a.prFailAt.get(r.head_sha)!)) a.prFailAt.set(r.head_sha, at);
+      if (r.head_sha && r.outcome === 'pass' && at > (a.passAt.get(r.head_sha) ?? '')) a.passAt.set(r.head_sha, at);
       if (r.head_sha) a.bySha.set(r.head_sha, (a.bySha.get(r.head_sha) ?? new Set()).add(r.outcome));
       if (r.duration_ms !== null) a.durations.push(r.duration_ms);
     }
@@ -66,6 +79,8 @@ export function aggregateTests(rows: TestRunRow[]): TestStat[] {
     runs: a.runs,
     fails: a.fails,
     flaky_shas: [...a.bySha].filter(([, o]) => o.has('pass') && o.has('fail')).map(([sha]) => sha).sort(),
+    pr_flaky_shas: [...a.prFailAt].filter(([sha, failedAt]) => (a.passAt.get(sha) ?? '') > failedAt).map(([sha]) => sha).sort(),
+    pr_runs: a.prRuns,
     last_seen: a.last,
     median_duration_ms: median(a.durations),
   }));
@@ -75,6 +90,13 @@ export function flakyOf(stats: TestStat[], limit = LIST): TestStat[] {
   return stats
     .filter((s) => s.flaky_shas.length > 0)
     .sort((a, b) => b.flaky_shas.length - a.flaky_shas.length || b.fails - a.fails || a.test_name.localeCompare(b.test_name))
+    .slice(0, limit);
+}
+
+export function prFlakyOf(stats: TestStat[], limit = LIST): TestStat[] {
+  return stats
+    .filter((s) => s.pr_flaky_shas.length > 0)
+    .sort((a, b) => b.pr_flaky_shas.length - a.pr_flaky_shas.length || a.test_name.localeCompare(b.test_name))
     .slice(0, limit);
 }
 
@@ -88,11 +110,11 @@ export function slowestOf(stats: TestStat[], limit = LIST): TestStat[] {
 export async function testHistory(db: Db, projectId: string): Promise<TestHistory> {
   const rows = await db
     .selectFrom('test_runs')
-    .select(['test_name', 'head_sha', 'outcome', 'duration_ms', 'recorded_at'])
+    .select(['test_name', 'head_sha', 'outcome', 'duration_ms', 'recorded_at', 'build_request_id'])
     .where('project_id', '=', projectId)
     .orderBy('recorded_at', 'desc')
     .limit(MAX_ROWS)
     .execute();
   const stats = aggregateTests(rows.map((r) => ({ ...r, recorded_at: r.recorded_at as unknown as Date })));
-  return { flaky: flakyOf(stats), slowest: slowestOf(stats), total_tests: stats.length, total_runs: rows.length };
+  return { flaky: flakyOf(stats), pr_flaky: prFlakyOf(stats), slowest: slowestOf(stats), total_tests: stats.length, total_runs: rows.length, pr_runs: rows.filter((r) => r.build_request_id).length };
 }

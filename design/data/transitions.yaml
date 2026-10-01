@@ -145,6 +145,7 @@ entities:
     transitions:
       - { command: batch.submit, from: new, to: pending, guards: [external_agent_batch_max_10, project_dependencies] }
       - { command: design.import, from: new, to: pending, guards: [valid_design] }
+      - { command: batch.show, from: [pending], to: pending }
       - { command: batch.accept_package, from: [pending], to: accepted, guards: [package_resolution, current_dependencies] }
       - { command: batch.reject_package, from: [pending], to: rejected, guards: [package_resolution] }
       - { command: batch.close, from: [pending], to: resolved, guards: [all_proposals_resolved] }

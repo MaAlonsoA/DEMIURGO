@@ -11,6 +11,7 @@ import { taskFootprints } from '../build/footprint.ts';
 import type { Db } from '../db/connection.ts';
 import type { Row } from '../db/schema.ts';
 import type { Services } from '../services.ts';
+import { type JudgmentOutcome, deriveOutcomes } from './outcomes.ts';
 import { RULES, RULES_VERSION, type Finding, type Rule } from './rules/index.ts';
 
 export type { Finding, Rule } from './rules/index.ts';
@@ -44,6 +45,12 @@ export type PostmortemInputs = {
   issues?: Row<'issues'>[];
   /** The `ai_runs` of the request's reviews: usage and time (review cost, waiver). */
   reviewRuns?: Row<'ai_runs'>[];
+  /** Jev's size opinion of the task: the latest one made before the request (judgment outcomes). */
+  sizeOpinion?: Row<'task_size_opinions'> | null;
+  /** Jev's testability opinions of the task made before the request (judgment outcomes). */
+  testabilityOpinions?: Row<'task_testability_opinions'>[];
+  /** Jev's category of each comment of the request's reviews (judgment outcomes). */
+  reviewKinds?: Row<'review_finding_kinds'>[];
 };
 
 /** Another build request that ran at the same time: its task and its steps. */
@@ -119,7 +126,27 @@ export async function loadInputs(db: Db, requestId: string): Promise<PostmortemI
     .execute();
   const runIds = reviews.map((r) => r.run_id).filter((id) => /^[0-9a-f-]{36}$/i.test(id));
   const reviewRuns = runIds.length > 0 ? await db.selectFrom('ai_runs').selectAll().where('id', 'in', runIds).execute() : [];
-  return { ...base, issues, reviewRuns, ...(await loadQueueInputs(db, base)) };
+  const sizeOpinion =
+    (await db
+      .selectFrom('task_size_opinions')
+      .selectAll()
+      .where('record_id', '=', request.task_id)
+      .where('created_at', '<=', request.requested_at)
+      .orderBy('created_at', 'desc')
+      .orderBy('id', 'desc')
+      .limit(1)
+      .executeTakeFirst()) ?? null;
+  const testabilityOpinions = await db
+    .selectFrom('task_testability_opinions')
+    .selectAll()
+    .where('record_id', '=', request.task_id)
+    .where('created_at', '<=', request.requested_at)
+    .orderBy('created_at')
+    .orderBy('id')
+    .execute();
+  const reviewIds = reviews.map((r) => r.id);
+  const reviewKinds = reviewIds.length > 0 ? await db.selectFrom('review_finding_kinds').selectAll().where('pr_review_id', 'in', reviewIds).orderBy('created_at').orderBy('id').execute() : [];
+  return { ...base, issues, reviewRuns, sizeOpinion, testabilityOpinions, reviewKinds, ...(await loadQueueInputs(db, base)) };
 }
 
 /** The window of a request in the queue rules: from its first step to its last. */
@@ -258,6 +285,20 @@ function serialized<T>(key: string, job: () => Promise<T>): Promise<T> {
   return next;
 }
 
+/** The outcomes whose (table, key, outcome) is not stored yet for this rules version. */
+async function missingOutcomes(db: Db, projectId: string, rulesVersion: string, outcomes: readonly JudgmentOutcome[]): Promise<JudgmentOutcome[]> {
+  if (outcomes.length === 0) return [];
+  const stored = await db
+    .selectFrom('judgment_outcomes')
+    .select(['judgment_table', 'judgment_key', 'outcome_name'])
+    .where('project_id', '=', projectId)
+    .where('rules_version', '=', rulesVersion)
+    .where('judgment_key', 'in', outcomes.map((o) => o.judgment_key))
+    .execute();
+  const have = new Set(stored.map((s) => `${s.judgment_table}|${s.judgment_key}|${s.outcome_name}`));
+  return outcomes.filter((o) => !have.has(`${o.judgment_table}|${o.judgment_key}|${o.outcome_name}`));
+}
+
 /**
  * Computes and stores the post-mortem of one request for a rules version. Idempotent: the same inputs and version
  * write nothing. `rules` is only for tests (a different rule set under another version label).
@@ -275,6 +316,8 @@ export async function runPostmortem(
     const outcome = endedOutcome(inputs);
     if (!outcome) return { status: 'not_ended' };
     const inputsHash = inputsHashOf(inputs);
+    const findings: Finding[] = rules.flatMap((rule) => rule(inputs));
+    const outcomes = deriveOutcomes(inputs, findings);
     const exists = await services.db
       .selectFrom('harness_postmortems')
       .select('id')
@@ -282,14 +325,15 @@ export async function runPostmortem(
       .where('rules_version', '=', rulesVersion)
       .where('inputs_hash', '=', inputsHash)
       .executeTakeFirst();
-    if (exists) return { status: 'unchanged' };
-    const findings: Finding[] = rules.flatMap((rule) => rule(inputs));
-    const done = await executeCommand(services, {
-      command: 'harness.postmortem',
-      actor: HARNESS,
-      projectId: request.project_id,
-      data: { build_request_id: requestId, rules_version: rulesVersion, inputs_hash: inputsHash, attempts: attemptsOf(inputs), outcome, findings },
-    });
+    const data = { build_request_id: requestId, rules_version: rulesVersion, inputs_hash: inputsHash, attempts: attemptsOf(inputs), outcome, findings };
+    if (exists) {
+      // The post-mortem is there; outcomes it did not have yet (written before judgment outcomes existed) go in alone.
+      const missing = await missingOutcomes(services.db, request.project_id, rulesVersion, outcomes);
+      if (missing.length === 0) return { status: 'unchanged' };
+      await executeCommand(services, { command: 'harness.postmortem', actor: HARNESS, projectId: request.project_id, data: { ...data, outcomes: missing } });
+      return { status: 'unchanged' };
+    }
+    const done = await executeCommand(services, { command: 'harness.postmortem', actor: HARNESS, projectId: request.project_id, data: { ...data, outcomes } });
     return { status: 'recorded', postmortemId: done.entityId, findings: findings.length };
   });
 }

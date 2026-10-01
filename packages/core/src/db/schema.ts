@@ -547,6 +547,8 @@ export type BatchesTable = {
   created_at: Generated<Timestamp>;
   resolved_at: NullableTimestamp;
   resolved_by: string | null;
+  /** When a person first saw the batch (`batch.show`); null until then. */
+  shown_at: NullableTimestamp;
 };
 
 export type ProposalsTable = {
@@ -918,8 +920,12 @@ export type DB = {
   test_runs: TestRunsTable;
   harness_postmortems: HarnessPostmortemsTable;
   harness_findings: HarnessFindingsTable;
+  harness_escapes: HarnessEscapesTable;
+  judgment_outcomes: JudgmentOutcomesTable;
+  classifier_calls: ClassifierCallsTable;
   queue_plans: QueuePlansTable;
   queue_decisions: QueueDecisionsTable;
+  version_answers: VersionAnswersTable;
 };
 
 export type TestRunsTable = {
@@ -953,6 +959,41 @@ export type HarnessPostmortemsTable = {
   computed_at: Generated<Timestamp>;
 };
 
+/** What really happened after a judgment, written by the post-mortem (append-only; unique per judgment, outcome and rules version). */
+export type JudgmentOutcomesTable = {
+  id: Generated<string>;
+  project_id: string;
+  judgment_table: string;
+  judgment_id: string | null;
+  judgment_key: string;
+  outcome_name: string;
+  outcome_value: ColumnType<string | null, number | string | null | undefined, number | string | null>;
+  outcome_label: string | null;
+  observed_at: Timestamp;
+  source_type: string;
+  source_id: string;
+  rules_version: string;
+  recorded_at: Generated<Timestamp>;
+};
+
+/** One Jev (TypeSafe) request: tokens, latency and outcome (append-only; `call_key` makes repeatable calls idempotent). */
+export type ClassifierCallsTable = {
+  id: Generated<string>;
+  project_id: string;
+  question: string;
+  question_version: string | null;
+  judgment_table: string | null;
+  judgment_ids: Generated<string[]>;
+  call_key: string | null;
+  model: string;
+  input_tokens: Generated<number>;
+  output_tokens: Generated<number>;
+  duration_ms: number | null;
+  cost_usd: ColumnType<string, number | string | undefined, number | string>;
+  outcome: 'ok' | 'error';
+  created_at: Generated<Timestamp>;
+};
+
 /** One classified fact of a post-mortem: what a piece of the harness decided or cost (append-only). */
 export type HarnessFindingsTable = {
   id: Generated<string>;
@@ -969,6 +1010,29 @@ export type HarnessFindingsTable = {
   subject: string | null;
   evidence: Json;
   created_at: Generated<Timestamp>;
+};
+
+/** A problem design did not see and building (or the person) found later (append-only; unique per rules version and dedupe key). */
+export type HarnessEscapesTable = {
+  id: Generated<string>;
+  project_id: string;
+  /** E01…E15 (salud-del-harness §4.2). */
+  rule: string;
+  /** P1…P13: the phase that should have seen it, and the one that did (our convention, in code). */
+  introduced_phase: string;
+  found_phase: string;
+  record_code: string | null;
+  record_version_id: string | null;
+  criterion_code: string | null;
+  build_request_id: string | null;
+  pr_review_id: string | null;
+  comment_index: number | null;
+  subject: string | null;
+  evidence: Json;
+  occurred_at: Timestamp | null;
+  detected_at: Generated<Timestamp>;
+  rules_version: string;
+  dedupe_key: string;
 };
 
 /** One plan of «Build the queue», written only when it changes (append-only; see build/queue-decisions.ts). */
@@ -1009,6 +1073,14 @@ export type QueueDecisionsTable = {
   with_task: string | null;
   with_source: 'actual' | 'predicted' | null;
   evidence: NullableJson;
+};
+
+/** Which confirmed answers a drafted version used (append-only). */
+export type VersionAnswersTable = {
+  record_version_id: string;
+  question_id: string;
+  project_id: string;
+  created_at: Generated<Timestamp>;
 };
 
 export type Row<T extends keyof DB> = Selectable<DB[T]>;

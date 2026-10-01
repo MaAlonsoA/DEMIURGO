@@ -98,4 +98,45 @@ describe('evidence.ingest_junit', () => {
     expect(await evidenceOf(s.db, criterionId, { reference: 'def456' })).toBeNull();
     expect((await evidenceOf(s.db, criterionId))?.result).toBe('pass');
   });
+
+  it('stores the build request, the attempt and the CI run on every test run of a pull request', async () => {
+    const s = environment().services;
+    const { projectId } = await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'PR rows' } });
+    const made = await executeCommand(s, {
+      command: 'record.create',
+      actor: ana,
+      projectId,
+      data: {
+        type: 'fdr',
+        domain: 'prr',
+        title: 'Feature',
+        sections: [
+          { title: 'Goal', content: 'g' },
+          { title: 'Scope', content: 's' },
+          { title: 'Out of scope', content: 'o' },
+          { title: 'Behavior', content: '1. b' },
+        ],
+        criteria: [{ carry: 'new', title: 'One', statement: 'Given a, when b, then c.', verification: 'automatic', check: 'A test.' }],
+      },
+    });
+    const request = await s.db
+      .insertInto('build_requests')
+      .values({ project_id: projectId, task_id: made.entityId, task_version_id: (made.result as { versionId: string }).versionId, feature_version_id: null, brief: 'b', requested_by: 'human:ana' })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    const junit = (outcome: 'pass' | 'fail') => `<testsuites><testsuite name="x"><testcase classname="a" name="logs in">${outcome === 'fail' ? '<failure message="x"/>' : ''}</testcase><testcase classname="a" name="other"/></testsuite></testsuites>`;
+    const build = { build_request_id: request.id, attempt: 2, ci_run_id: '777' };
+    await executeCommand(s, { command: 'evidence.ingest_junit', actor: externalAgent('ci', 'run-pr'), projectId, data: { junit: junit('fail'), reference: 'shaPR', ...build } });
+    // Main: no request, only its CI run.
+    await executeCommand(s, { command: 'evidence.ingest_junit', actor: externalAgent('ci', 'run-main'), projectId, data: { junit: junit('pass'), reference: 'shaMain', ci_run_id: '888' } });
+    const rows = await s.db.selectFrom('test_runs').select(['head_sha', 'build_request_id', 'attempt', 'ci_run_id']).where('project_id', '=', projectId).orderBy('head_sha').execute();
+    expect(rows.filter((r) => r.head_sha === 'shaPR')).toEqual([
+      { head_sha: 'shaPR', build_request_id: request.id, attempt: 2, ci_run_id: '777' },
+      { head_sha: 'shaPR', build_request_id: request.id, attempt: 2, ci_run_id: '777' },
+    ]);
+    expect(rows.filter((r) => r.head_sha === 'shaMain')).toEqual([
+      { head_sha: 'shaMain', build_request_id: null, attempt: null, ci_run_id: '888' },
+      { head_sha: 'shaMain', build_request_id: null, attempt: null, ci_run_id: '888' },
+    ]);
+  });
 });

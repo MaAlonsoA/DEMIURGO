@@ -64,6 +64,7 @@ import { environmentFromCi } from './environment.ts';
 import { pullRequestFootprint } from './footprint.ts';
 import { type OwnershipViolation, checkOwnership, ownershipLine } from './ownership.ts';
 import { storeCodeOpinions } from '../classifier/code-rerank.ts';
+import { recordClassifierCall, recordedCall } from '../classifier/calls.ts';
 import { type ReusePair, judgeTestReuse, reuseLines } from '../classifier/test-reuse.ts';
 import { codeToExtend } from './queue.ts';
 import { loadAffectedCriteria, withAffectedTrailer } from './affected-criteria.ts';
@@ -797,7 +798,10 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
             const rows = await s0.db.selectFrom('criteria').select(['code', 'statement']).where('record_version_id', '=', task.feature_version_id).where('code', 'in', codes).execute();
             const own = new Set(codes);
             const candidates = [...tests.values()].flat().filter((t) => !own.has(t.criterion)).map((t) => ({ path: t.path, title: t.title, level: t.level }));
-            reuse = await judgeTestReuse(null, { criteria: rows.map((c) => ({ code: c.code, statement: c.statement })), candidates });
+            // One row per call, keyed so a replayed attempt does not count it twice (salud-del-harness §6.4).
+            reuse = await recordedCall(s0.db, { projectId, question: 'test_reuse', callKey: `test_reuse:${requestId}:${attempt}` }, (note) =>
+              judgeTestReuse(null, { criteria: rows.map((c) => ({ code: c.code, statement: c.statement })), candidates }, { onUsage: (n) => note(n) }),
+            );
           }
         } catch {
           reuse = [];
@@ -1089,11 +1093,17 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     if (!junit) return { value: { tests: [] as { code: string; result: 'pass' | 'fail' }[], flaky: [] as string[], quarantined: [] as string[], forgiven: false }, detail: { note: 'The CI run has no artifact named "junit": no evidence recorded.', recorded: [] } };
     const taskRow = await s0.db.selectFrom('build_requests').select('task_id').where('id', '=', requestId).executeTakeFirstOrThrow();
     const covers = await taskCoversOf(s0.db, taskRow.task_id);
+    // The ids the test history needs (salud-del-harness §6.5): inputs of this stage, not steps. The workflow run is the
+    // latest one that produced a `ci` check of the SHA (the artifact concatenates every run); none when GitHub does not say.
+    const ciRunId = await d.github
+      .checkRunsFor(cfg, owner, repoName, sha)
+      .then((checks) => checks.filter((c) => c.name === 'ci').map((c) => github.workflowRunIdOf(c.detailsUrl)).filter((id): id is string => id !== null).sort((a, b) => Number(a) - Number(b)).at(-1))
+      .catch(() => undefined);
     const done = await executeCommand(s0, {
       command: 'evidence.ingest_junit',
       actor: BUILD,
       projectId,
-      data: { junit, pr_url: pull.url, reference: sha, expected: covers },
+      data: { junit, pr_url: pull.url, reference: sha, expected: covers, build_request_id: requestId, attempt, ...(ciRunId ? { ci_run_id: ciRunId } : {}) },
     });
     const result = done.result as { recorded: { code: string; result: 'pass' | 'fail'; tests: number }[]; unknown: string[]; ignored: number; not_run: string[]; flaky: string[]; failures: { code: string | null; test: string; file: string | null; message: string }[] };
     // A test that failed in every run it ran in is a real failure; only the ones that passed somewhere are flaky.
@@ -1179,9 +1189,11 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
           if (minor) {
             // Jev's second look (classifier/fix-check.ts): per fix, is it mechanical and does the diff do exactly what it asks.
             const diffs = diffsByFile(await diffBetween(worktree.path, from, headSha));
+            const fixCheckStarted = Date.now();
             const verdict = await checkFixes({
               fixes: fixCommentsOf(approving.comments).map((c) => ({ path: c.path, line: c.line, comment: c.body, diff: diffs[c.path.replace(/^\.\//, '')] ?? '' })),
             });
+            if (verdict) await recordClassifierCall(s0.db, { projectId, question: 'fix_check', callKey: `fix_check:${requestId}:${attempt}`, inputTokens: verdict.usage.input_tokens, durationMs: Date.now() - fixCheckStarted, outcome: 'ok' });
             if (verdict) {
               jev = verdict.ok ? 'ok' : 'refused';
               if (!verdict.ok) {

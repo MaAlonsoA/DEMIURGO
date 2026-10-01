@@ -423,6 +423,14 @@ export const CAPABILITIES = {
       "decisive": false,
       "description": "Reject a whole package."
     },
+    "batch.show": {
+      "entity": "batch",
+      "allowed": [
+        "human"
+      ],
+      "decisive": false,
+      "description": "Record that a person first displayed a batch (fixes shown_at once; measures attention, changes no authority)."
+    },
     "batch.close": {
       "entity": "batch",
       "allowed": [
@@ -1741,6 +1749,13 @@ export const TRANSITIONS = {
           "guards": [
             "valid_design"
           ]
+        },
+        {
+          "command": "batch.show",
+          "from": [
+            "pending"
+          ],
+          "to": "pending"
         },
         {
           "command": "batch.accept_package",

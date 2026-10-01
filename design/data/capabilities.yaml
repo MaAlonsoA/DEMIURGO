@@ -71,6 +71,7 @@ commands:
   design.import: { entity: batch, allowed: [human, system], decisive: false, description: "Import design/ as a pending batch." }
   batch.accept_package: { entity: batch, allowed: [human], decisive: true, description: "Accept a coherent system package in one step." }
   batch.reject_package: { entity: batch, allowed: [human], decisive: false, description: "Reject a whole package." }
+  batch.show: { entity: batch, allowed: [human], decisive: false, description: "Record that a person first displayed a batch (fixes shown_at once; measures attention, changes no authority)." }
   batch.close: { entity: batch, allowed: [system], decisive: false, description: "Close a batch when all its elements are resolved." }
   batch.supersede: { entity: batch, allowed: [system], decisive: false, description: "Make a pending batch obsolete." }
 

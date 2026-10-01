@@ -11,8 +11,8 @@ import { Section } from '../../components/Page.tsx';
 import { RowsSkeleton } from '../../components/Spinner.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { useSafeLocale } from '../../words.ts';
-import { num, shareText } from './format.ts';
-import { HARNESS_HEALTH } from './words.i18n.ts';
+import { costText, num, shareText, tokensText } from './format.ts';
+import { ATTENTION, HARNESS_HEALTH } from './words.i18n.ts';
 
 export type HarnessCase = {
   finding_id: string;
@@ -188,10 +188,6 @@ export function HarnessHealthView({ projectId, data }: { projectId: string; data
           );
         })}
       </Table>
-      <div className="flex flex-col gap-1">
-        <h3 className="text-sm font-medium text-fg">{t.worthTitle}</h3>
-        <p className="text-sm text-fg-2">{t.overviewNote}</p>
-      </div>
     </div>
   );
 }
@@ -226,3 +222,185 @@ export function HarnessHealthSection({ projectId }: { projectId: string }) {
     </Section>
   );
 }
+
+// ---- Attention and cost per stage, and «Is it worth it?» (core queries/attention.ts) ----
+
+type Stat = { n: number; median: number | null; p90: number | null; max: number | null };
+export type StageAttention = {
+  stage: string;
+  questions: { raised: number; answered: number; discarded: number; pending: number; led_to_version: number; led_to_version_proxy: number; seconds_to_answer: Stat };
+  proposals: { accepted: number; rejected: number; edited: number; pending: number; superseded: number; seconds_to_decide: Stat };
+  batches: { resolved: number; whole_accepted: number; timed: number; timed_from_shown: number; seconds_per_item: Stat };
+  cost: { runs: number; input_tokens: number; output_tokens: number; usd: number; artefacts: number; tokens_per_artefact: number | null; usd_per_artefact: number | null };
+  person_minutes_proxy: number;
+};
+export type AttentionData = { stages: StageAttention[]; person: { buckets_minutes: number; session_minutes: number; sessions: number } };
+export type WorthItData = {
+  value: { merged_tasks: number; criteria_verified: number; records_approved: Record<string, number>; records_approved_total: number };
+  cost: {
+    design: { runs_without_usage: number };
+    reviewer: { runs_without_usage: number };
+    builder: { steps_without_usage: number };
+    tokens: number;
+    usd: number;
+    ci: { runs: number; minutes: number };
+    person_minutes: { buckets_minutes: number };
+    patches: { count: number | null; source: 'parameter' | 'not_derivable' };
+  };
+  units: {
+    tokens_per_merged_task: number | null;
+    usd_per_merged_task: number | null;
+    usd_per_verified_criterion: number | null;
+    person_minutes_per_merged_task: number | null;
+    patches_per_merged_task: number | null;
+  };
+};
+
+const attentionUrl = (projectId: string) => `/api/projects/${projectId}/observability/harness/attention.json`;
+const worthUrl = (projectId: string) => `/api/projects/${projectId}/observability/harness/worth.json`;
+export const attentionQuery = (projectId: string) =>
+  queryOptions({ queryKey: ['p', projectId, 'observability', 'harness', 'attention'] as const, queryFn: () => get<AttentionData>(attentionUrl(projectId)) });
+export const worthQuery = (projectId: string) =>
+  queryOptions({ queryKey: ['p', projectId, 'observability', 'harness', 'worth'] as const, queryFn: () => get<WorthItData>(worthUrl(projectId)) });
+
+export function AttentionView({ data }: { data: AttentionData }) {
+  const t = useMessages(ATTENTION);
+  const locale = useSafeLocale();
+  const seconds = (v: number | null) => (v === null ? '—' : t.seconds(num(locale, v, 0)));
+  const proxy = data.stages.reduce((n, s) => n + s.questions.led_to_version_proxy, 0);
+  const rows = data.stages.filter((s) => s.questions.raised > 0 || s.proposals.accepted + s.proposals.rejected + s.proposals.pending > 0 || s.cost.runs > 0);
+  return (
+    <div className="flex flex-col gap-3">
+      <Table
+        caption={t.caption}
+        head={
+          <>
+            <th scope="col" className={th}>{t.colStage}</th>
+            <th scope="col" className={numTh}>{t.colAsked}</th>
+            <th scope="col" className={numTh}>{t.colAnswered}</th>
+            <th scope="col" className={numTh}>{t.colLed}</th>
+            <th scope="col" className={numTh}>{t.colAnswerTime}</th>
+            <th scope="col" className={numTh}>{t.colAccepted}</th>
+            <th scope="col" className={numTh}>{t.colRejected}</th>
+            <th scope="col" className={numTh}>{t.colEdited}</th>
+            <th scope="col" className={numTh}>{t.colItemTime}</th>
+            <th scope="col" className={numTh}>{t.colWhole}</th>
+            <th scope="col" className={numTh}>{t.colTokens}</th>
+            <th scope="col" className={numTh}>{t.colUsd}</th>
+            <th scope="col" className={numTh}>{t.colPerArtefact}</th>
+            <th scope="col" className={numTh}>{t.colMinutes}</th>
+          </>
+        }
+      >
+        {rows.map((s) => (
+          <tr key={s.stage} data-stage={s.stage}>
+            <th scope="row" className={`${td} font-normal text-fg`}>{t.stage(s.stage)}</th>
+            <td className={numTd}>{num(locale, s.questions.raised, 0)}</td>
+            <td className={numTd}>{num(locale, s.questions.answered, 0)}</td>
+            <td className={numTd}>{num(locale, s.questions.led_to_version, 0)}</td>
+            <td className={numTd}>{seconds(s.questions.seconds_to_answer.median)}</td>
+            <td className={numTd}>{num(locale, s.proposals.accepted, 0)}</td>
+            <td className={numTd}>{num(locale, s.proposals.rejected, 0)}</td>
+            <td className={numTd}>{num(locale, s.proposals.edited, 0)}</td>
+            <td className={numTd}>{seconds(s.batches.seconds_per_item.median)}</td>
+            <td className={numTd}>{num(locale, s.batches.whole_accepted, 0)}</td>
+            <td className={numTd}>{tokensText(locale, s.cost.input_tokens + s.cost.output_tokens)}</td>
+            <td className={numTd}>{s.cost.usd > 0 ? costText(locale, s.cost.usd) : '—'}</td>
+            <td className={numTd}>{tokensText(locale, s.cost.tokens_per_artefact)}</td>
+            <td className={numTd}>{num(locale, s.person_minutes_proxy, 0)}</td>
+          </tr>
+        ))}
+      </Table>
+      <p className="text-xs text-fg-3">{t.proxyNote(proxy)}</p>
+      <p className="text-xs text-fg-3">{t.personTotal(num(locale, data.person.buckets_minutes, 0), num(locale, data.person.session_minutes, 0), data.person.sessions)}</p>
+    </div>
+  );
+}
+
+export function WorthItView({ data }: { data: WorthItData }) {
+  const t = useMessages(ATTENTION);
+  const locale = useSafeLocale();
+  const n0 = (v: number) => num(locale, v, 0);
+  const unit = (v: number | null) => (v === null ? '—' : num(locale, v, 2));
+  const without = data.cost.design.runs_without_usage + data.cost.reviewer.runs_without_usage + data.cost.builder.steps_without_usage;
+  const groups: { title: string; rows: [string, string][] }[] = [
+    {
+      title: t.valueGroup,
+      rows: [
+        [t.mergedTasks, n0(data.value.merged_tasks)],
+        [t.criteriaVerified, n0(data.value.criteria_verified)],
+        [t.recordsApproved, n0(data.value.records_approved_total)],
+      ],
+    },
+    {
+      title: t.costGroup,
+      rows: [
+        [t.tokensTotal, tokensText(locale, data.cost.tokens)],
+        [t.usdTotal, costText(locale, data.cost.usd)],
+        [t.ciRuns, n0(data.cost.ci.runs)],
+        [t.ciMinutes, n0(data.cost.ci.minutes)],
+        [t.personMinutes, n0(data.cost.person_minutes.buckets_minutes)],
+        [t.patches, data.cost.patches.count === null ? t.patchesNone : n0(data.cost.patches.count)],
+      ],
+    },
+    {
+      title: t.unitsGroup,
+      rows: [
+        [t.tokensPerTask, data.units.tokens_per_merged_task === null ? '—' : tokensText(locale, data.units.tokens_per_merged_task)],
+        [t.usdPerTask, data.units.usd_per_merged_task === null ? '—' : costText(locale, data.units.usd_per_merged_task)],
+        [t.usdPerCriterion, data.units.usd_per_verified_criterion === null ? '—' : costText(locale, data.units.usd_per_verified_criterion)],
+        [t.minutesPerTask, unit(data.units.person_minutes_per_merged_task)],
+        [t.patchesPerTask, unit(data.units.patches_per_merged_task)],
+      ],
+    },
+  ];
+  return (
+    <div className="flex flex-col gap-3">
+      <Table
+        caption={t.worthCaption}
+        head={
+          <>
+            <th scope="col" className={th}>{t.colMeasure}</th>
+            <th scope="col" className={numTh}>{t.colAmount}</th>
+          </>
+        }
+      >
+        {groups.flatMap((g) => [
+          <tr key={g.title} className="bg-sunken">
+            <th scope="rowgroup" colSpan={2} className={`${th} text-left`}>{g.title}</th>
+          </tr>,
+          ...g.rows.map(([label, value]) => (
+            <tr key={`${g.title}:${label}`}>
+              <th scope="row" className={`${td} font-normal text-fg`}>{label}</th>
+              <td className={numTd}>{value}</td>
+            </tr>
+          )),
+        ])}
+      </Table>
+      {without > 0 ? <p className="text-xs text-fg-3">{t.withoutUsage(without)}</p> : null}
+    </div>
+  );
+}
+
+export function AttentionSection({ projectId }: { projectId: string }) {
+  const t = useMessages(ATTENTION);
+  const q = useQuery(attentionQuery(projectId));
+  return (
+    <Section title={t.attentionTitle} id="harness-attention" note={t.attentionNote}>
+      {q.isPending ? <RowsSkeleton label={t.loading} rows={3} /> : q.error || !q.data ? <ErrorNotice error={q.error} onRetry={() => void q.refetch()} /> : <AttentionView data={q.data} />}
+    </Section>
+  );
+}
+
+export function WorthItSection({ projectId }: { projectId: string }) {
+  const t = useMessages(ATTENTION);
+  const q = useQuery(worthQuery(projectId));
+  return (
+    <Section title={t.worthTitle} id="harness-worth" note={t.worthNote}>
+      {q.isPending ? <RowsSkeleton label={t.worthLoading} rows={3} /> : q.error || !q.data ? <ErrorNotice error={q.error} onRetry={() => void q.refetch()} /> : <WorthItView data={q.data} />}
+    </Section>
+  );
+}
+
+// The «Escapes from design» section lives in HarnessEscapes.tsx and is shown next to this one.
+export { HarnessEscapesSection } from './HarnessEscapes.tsx';

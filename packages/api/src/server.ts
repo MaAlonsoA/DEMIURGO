@@ -255,10 +255,10 @@ export async function createServer(op: ServerOptions): Promise<FastifyInstance> 
     const actor = actorOf(req);
     const { projectId } = req.params as { projectId: string };
     checkAgentScope(req, projectId);
-    const query = z.object({ pr_url: z.string().optional(), reference: z.string().optional() }).parse(req.query ?? {});
+    const query = z.object({ pr_url: z.string().optional(), reference: z.string().optional(), ci_run_id: z.string().max(80).optional() }).parse(req.query ?? {});
     const data =
       typeof req.body === 'string'
-        ? { junit: req.body, ...(query.pr_url ? { pr_url: query.pr_url } : {}), ...(query.reference ? { reference: query.reference } : {}) }
+        ? { junit: req.body, ...(query.pr_url ? { pr_url: query.pr_url } : {}), ...(query.reference ? { reference: query.reference } : {}), ...(query.ci_run_id ? { ci_run_id: query.ci_run_id } : {}) }
         : (req.body ?? {});
     const root = interactionRoot(req, actor, 'evidence.ingest_junit', '/api/projects/:projectId/evidence/junit', projectId);
     const { r, interactionId } = await services.observer.interaction(root, async (ctx) => ({

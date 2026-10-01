@@ -23,6 +23,7 @@ import { taskCoversOf } from '../queries/sizes.ts';
 import { loadTaskDependencies } from '../queries/task-deps.ts';
 import type { Services } from '../services.ts';
 import { jevAllowed } from './aspect.ts';
+import { recordedCall } from './calls.ts';
 import { JEV_DEFAULT_MODEL, jevCostUsd } from './jev.ts';
 import { type ProjectStack, loadRepoContext } from './repo-context.ts';
 import { type NeedsKind, type TestabilityProbabilities, isNeedsKind } from './testability-policy.ts';
@@ -363,7 +364,12 @@ export async function classifyTaskTestability(
     let tokens = 0;
     const model = JEV_DEFAULT_MODEL;
     const client = deps.client ?? new TypeSafeClient({ apiKey: process.env.TYPESAFE_API_KEY, defaultModel: model, timeout: 30_000 });
-    const judgments = await judgeTestability(client, input, model, (n) => (tokens += n));
+    const judgments = await recordedCall(services.db, { projectId, question: 'testability', judgmentTable: 'task_testability_opinions', model }, (note) =>
+      judgeTestability(client, input, model, (n) => {
+        tokens += n;
+        note(n);
+      }),
+    );
     await (deps.store ?? storeJudgments)(services, { projectId, recordId, versionId }, `jev@${model}`, judgments);
     services.logger.info('Jev checked the testability of a task', {
       projectId,

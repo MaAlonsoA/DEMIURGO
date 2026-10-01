@@ -4,8 +4,9 @@
 import { human } from '@demiurgo/domain';
 import { describe, expect, it } from 'vitest';
 import { executeCommand } from '../src/bus/bus.ts';
-import { computePendingPostmortems, endedOutcome, inputsHashOf, loadInputs, pendingPostmortems, runPostmortem } from '../src/harness/postmortem.ts';
+import { HARNESS, computePendingPostmortems, endedOutcome, inputsHashOf, loadInputs, pendingPostmortems, runPostmortem } from '../src/harness/postmortem.ts';
 import { RULES_VERSION, type Rule } from '../src/harness/rules/index.ts';
+import { deriveOutcomes } from '../src/harness/outcomes.ts';
 import { useEnvironment } from './support/env.ts';
 
 const environment = useEnvironment();
@@ -145,5 +146,78 @@ describe('harness post-mortems', () => {
     expect(await ids()).toEqual([]);
     const a = await loadInputs(s.db, failed);
     expect(inputsHashOf(a)).toBe(inputsHashOf(await loadInputs(s.db, failed)));
+  });
+
+  describe('judgment outcomes', () => {
+    const outcomesOf = (projectId: string) =>
+      environment().services.db.selectFrom('judgment_outcomes').select(['judgment_table', 'outcome_name', 'outcome_value', 'outcome_label', 'rules_version']).where('project_id', '=', projectId).orderBy('judgment_table').orderBy('outcome_name').orderBy('outcome_label').execute();
+
+    async function mergedRequest(name: string) {
+      const s = environment().services;
+      const p = await projectWithTask(name);
+      // The judgments come before the request.
+      await s.db.insertInto('task_size_opinions').values({ project_id: p.projectId, record_id: p.recordId, record_version_id: p.versionId, size: 'S', confidence: 0.7, classifier_id: 'jev@x' }).execute();
+      const layers = await s.db
+        .insertInto('task_layers_opinions')
+        .values({ project_id: p.projectId, record_id: p.recordId, record_version_id: p.versionId, schema_p: 0.9, classifier_id: 'jev@x', input_hash: 'h' })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      // Timestamps are read back in milliseconds: the request must come clearly after its judgments.
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      const id = await request(p, 'done');
+      for (const [path, rank] of [['src/a.ts', 1], ['src/b.ts', 2]] as const) {
+        await s.db.insertInto('task_code_opinions').values({ project_id: p.projectId, build_request_id: id, attempt: 1, record_version_id: p.versionId, path, deterministic_score: 1, jev_p: 0.5, rank, classifier_id: 'jev@x' }).execute();
+      }
+      await step(p, id, 1, 'builder', 'ok', { duration_ms: 90_000, test_reuse: [{ criterion: 'AC-X-001-01', path: 'test/old.test.ts', title: 't', p: 0.8 }] });
+      await step(p, id, 1, 'commit', 'ok', { files: ['src/a.ts', 'test/old.test.ts'] });
+      await step(p, id, 1, 'merge', 'ok', { footprint: { files: [{ path: 'src/a.ts' }, { path: 'src/migrations/0001.sql' }] } });
+      return { p, id, layersId: layers.id };
+    }
+
+    it('writes size, layers, files and test reuse outcomes with the post-mortem, once', async () => {
+      const s = environment().services;
+      const { p, id, layersId } = await mergedRequest('Outcomes');
+      expect(await runPostmortem(s, id)).toMatchObject({ status: 'recorded' });
+      const rows = await outcomesOf(p.projectId);
+      expect(rows.map((r) => [r.judgment_table, r.outcome_name, r.outcome_label, r.outcome_value === null ? null : Number(r.outcome_value)])).toEqual([
+        ['task_code_opinions', 'touched', 'src/a.ts', 1],
+        ['task_code_opinions', 'touched', 'src/b.ts', 0],
+        ['task_layers_opinions', 'migration_added', 'tp', 1],
+        ['task_size_opinions', 'attempts', 'S', 1],
+        ['task_size_opinions', 'builder_minutes', 'S', 1.5],
+        ['test_reuse', 'test_extended', 'AC-X-001-01', 1],
+      ]);
+      const layers = await s.db.selectFrom('judgment_outcomes').select('judgment_id').where('judgment_table', '=', 'task_layers_opinions').executeTakeFirstOrThrow();
+      expect(layers.judgment_id).toBe(layersId);
+      // Idempotent: the same inputs write nothing; the table is append-only.
+      expect(await runPostmortem(s, id)).toEqual({ status: 'unchanged' });
+      expect(await outcomesOf(p.projectId)).toHaveLength(6);
+      await expect(s.db.updateTable('judgment_outcomes').set({ outcome_label: 'x' }).where('project_id', '=', p.projectId).execute()).rejects.toThrow(/only admits INSERT/);
+    });
+
+    it('adds outcomes a post-mortem recorded before they existed, without a second post-mortem', async () => {
+      const s = environment().services;
+      const { p, id } = await mergedRequest('Late outcomes');
+      const inputs = await loadInputs(s.db, id);
+      await executeCommand(s, {
+        command: 'harness.postmortem',
+        actor: HARNESS,
+        projectId: p.projectId,
+        data: { build_request_id: id, rules_version: RULES_VERSION, inputs_hash: inputsHashOf(inputs), attempts: 1, outcome: 'merged', findings: [] },
+      });
+      expect(await outcomesOf(p.projectId)).toHaveLength(0);
+      expect(await runPostmortem(s, id)).toEqual({ status: 'unchanged' });
+      expect(await outcomesOf(p.projectId)).toHaveLength(6);
+      expect(await count('harness_postmortems', id)).toBe(1);
+      expect(await runPostmortem(s, id)).toEqual({ status: 'unchanged' });
+      expect(await outcomesOf(p.projectId)).toHaveLength(6);
+    });
+
+    it('is pure: no merge, no files outcomes', async () => {
+      const p = await projectWithTask('Withdrawn');
+      const id = await request(p, 'withdrawn');
+      await step(p, id, 1, 'builder', 'ok');
+      expect(deriveOutcomes(await loadInputs(environment().services.db, id), [])).toEqual([]);
+    });
   });
 });

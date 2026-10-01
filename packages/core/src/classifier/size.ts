@@ -12,6 +12,7 @@ import { TASK_SIZES, type TaskSize } from '@demiurgo/domain';
 import { TypeSafeClient, score } from '@typesafe-ai/sdk';
 import type { Services } from '../services.ts';
 import { jevAllowed } from './aspect.ts';
+import { recordedCall } from './calls.ts';
 import { JEV_DEFAULT_MODEL, jevCostUsd } from './jev.ts';
 import { questionVersion } from './question-version.ts';
 import { loadRepoContext, type RepoContext } from './repo-context.ts';
@@ -103,7 +104,11 @@ export async function classifyTaskSize(services: Services, projectId: string, re
     if (!input) return;
     const model = JEV_DEFAULT_MODEL;
     const client = deps.client ?? new TypeSafeClient({ apiKey: process.env.TYPESAFE_API_KEY, defaultModel: model, timeout: 30_000 });
-    const j = await judgeSize(client, input, model);
+    const j = await recordedCall(services.db, { projectId, question: 'size', questionVersion: SIZE_QUESTION_VERSION, judgmentTable: 'task_size_opinions', model }, async (note) => {
+      const judged = await judgeSize(client, input, model);
+      note(judged.input_tokens);
+      return judged;
+    });
     await services.db
       .insertInto('task_size_opinions')
       .values({

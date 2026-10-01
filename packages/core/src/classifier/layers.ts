@@ -19,6 +19,7 @@ import { TypeSafeClient, score } from '@typesafe-ai/sdk';
 import type { Db } from '../db/connection.ts';
 import type { Services } from '../services.ts';
 import { jevAllowed } from './aspect.ts';
+import { recordedCall } from './calls.ts';
 import { JEV_DEFAULT_MODEL, jevCostUsd } from './jev.ts';
 import { questionVersion } from './question-version.ts';
 import { type RepoContext, loadRepoContext } from './repo-context.ts';
@@ -141,7 +142,12 @@ export async function classifyTaskLayers(
     let tokens = 0;
     const model = JEV_DEFAULT_MODEL;
     const client = deps.client ?? new TypeSafeClient({ apiKey: process.env.TYPESAFE_API_KEY, defaultModel: model, timeout: 30_000 });
-    const judgment = await judgeLayers(client, input, model, (n) => (tokens += n));
+    const judgment = await recordedCall(services.db, { projectId, question: 'layers', questionVersion: LAYERS_QUESTION_VERSION, judgmentTable: 'task_layers_opinions', model }, (note) =>
+      judgeLayers(client, input, model, (n) => {
+        tokens += n;
+        note(n);
+      }),
+    );
     await (deps.store ?? storeLayers)(services, { projectId, recordId, versionId }, `jev@${model}`, judgment);
     services.logger.info('Jev guessed the layers of a task', {
       projectId,

@@ -6,8 +6,10 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { Link, useRouterState } from '@tanstack/react-router';
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { useCommand } from '../../api/commands.ts';
 import { batchQuery, explorationsQuery, projectsQuery } from '../../api/queries.ts';
+import { useAllows } from '../../components/actions.tsx';
 import { buttonClass } from '../../components/Button.tsx';
 import { EmptyState } from '../../components/EmptyState.tsx';
 import { PackageIcon } from '../../components/icons.tsx';
@@ -81,6 +83,17 @@ export function BatchScreen() {
   const project = (useQuery(projectsQuery).data ?? []).find((p) => p.id === projectId);
   // One title for the tab, set here only (a child's would be overwritten by this one).
   usePageTitle([batch.data ? batchTitle(batch.data) : isNotFound(batch.error) ? t.notFound : t.proposals, project?.name]);
+  // Attention measurement: the first time a person displays a pending batch, the server records it (`batch.show`).
+  const command = useCommand(projectId);
+  const allowsShow = useAllows('batch', batch.data?.state)('batch.show');
+  const shownSent = useRef<string | null>(null);
+  const { mutate } = command;
+  const pendingShow = batch.data && batch.data.state === 'pending' && !batch.data.shown_at ? batch.data.id : null;
+  useEffect(() => {
+    if (!pendingShow || !allowsShow || shownSent.current === pendingShow) return;
+    shownSent.current = pendingShow;
+    mutate({ command: 'batch.show', entityId: pendingShow, data: {} });
+  }, [pendingShow, allowsShow, mutate]);
   if (isNotFound(batch.error)) return <Missing projectId={projectId} />;
   if (batch.error) {
     return (

@@ -15,6 +15,7 @@ import { TypeSafeClient, choice, noul } from '@typesafe-ai/sdk';
 import type { Db } from '../db/connection.ts';
 import type { Services } from '../services.ts';
 import { jevAllowed } from './aspect.ts';
+import { recordedCall } from './calls.ts';
 import { JEV_DEFAULT_MODEL, jevCostUsd } from './jev.ts';
 
 type Client = Pick<TypeSafeClient, 'systemOne'>;
@@ -128,7 +129,12 @@ export async function classifyReviewFindings(services: Pick<Services, 'db' | 'lo
     let tokens = 0;
     const model = JEV_DEFAULT_MODEL;
     const client = deps.client ?? new TypeSafeClient({ apiKey: process.env.TYPESAFE_API_KEY, defaultModel: model, timeout: 30_000 });
-    const findings = await judgeReviewFindings(client, comments, asCriteria(review.criteria), model, (n) => (tokens += n));
+    const findings = await recordedCall(services.db, { projectId, question: 'review_findings', judgmentTable: 'review_finding_kinds', model }, (note) =>
+      judgeReviewFindings(client, comments, asCriteria(review.criteria), model, (n) => {
+        tokens += n;
+        note(n);
+      }),
+    );
     if (findings.length > 0) {
       await services.db
         .insertInto('review_finding_kinds')

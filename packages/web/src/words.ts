@@ -156,6 +156,7 @@ export function stateWord(entity: string, state: string, fallbackLabel?: string)
 export const COMMAND_WORDS: Record<string, string> = {
   'batch.accept_package': 'Accept package',
   'batch.reject_package': 'Reject package',
+  'batch.show': 'Show batch',
   'proposal.accept': 'Accept',
   'proposal.accept_edited': 'Change',
   'proposal.reject': 'Reject',
@@ -426,6 +427,7 @@ export function useStateWord(entity: string, state: string, fallbackLabel?: stri
 const COMMAND_WORDS_ES: Record<string, string> = {
   'batch.accept_package': 'Aceptar paquete',
   'batch.reject_package': 'Rechazar paquete',
+  'batch.show': 'Mostrar lote',
   'proposal.accept': 'Aceptar',
   'proposal.accept_edited': 'Cambiar',
   'proposal.reject': 'Rechazar',

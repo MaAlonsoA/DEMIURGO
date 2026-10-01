@@ -45,7 +45,11 @@ import {
   observabilitySummary,
   judgmentCalibration,
   harnessScorecards,
+  attentionByStage,
+  worthIt,
   harnessFindingRows,
+  harnessEscapes,
+  escapesToCsv,
   findingsToCsv,
   queueDecisionRows,
   queueDecisionsToCsv,
@@ -321,6 +325,33 @@ registerQueries([
     path: '/api/projects/:projectId/observability/harness/findings.json',
     queryName: 'query.harness_health',
     respond: async ({ services, params, query }) => harnessFindingRows(services.db, uuid(params.projectId, 'project'), harnessFilters(query)),
+  },
+  {
+    // Attention of the person and cost per stage (core queries/attention.ts).
+    path: '/api/projects/:projectId/observability/harness/attention.json',
+    queryName: 'query.harness_health',
+    respond: ({ services, params }) => attentionByStage(services.db, uuid(params.projectId, 'project')),
+  },
+  {
+    // «Is it worth it?»: value delivered against total cost. ?patches= is the DEMIURGO patch count (it has no project id).
+    path: '/api/projects/:projectId/observability/harness/worth.json',
+    queryName: 'query.harness_health',
+    respond: ({ services, params, query }) => {
+      const patches = query.patches !== undefined && /^\d+$/.test(query.patches) ? Number(query.patches) : null;
+      return worthIt(services.db, uuid(params.projectId, 'project'), { patches });
+    },
+  },
+  {
+    // Escapes from design (salud-del-harness §4): what design did not see and building found later.
+    path: '/api/projects/:projectId/observability/harness/escapes.json',
+    queryName: 'query.harness_health',
+    respond: ({ services, params, query }) => harnessEscapes(services.db, uuid(params.projectId, 'project'), harnessFilters(query)),
+  },
+  {
+    path: '/api/projects/:projectId/observability/harness/escapes.csv',
+    queryName: 'query.harness_health',
+    download: { contentType: 'text/csv; charset=utf-8', filename: 'harness-escapes.csv' },
+    respond: async ({ services, params, query }) => escapesToCsv((await harnessEscapes(services.db, uuid(params.projectId, 'project'), harnessFilters(query))).rows),
   },
   {
     // Every queue decision with its reason (?since= ISO date), for analysing the queue outside the app.

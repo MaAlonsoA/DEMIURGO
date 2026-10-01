@@ -932,6 +932,8 @@ export type BatchDetail = {
   created_at: string;
   resolved_at: string | null;
   resolved_by: string | null;
+  /** When a person first displayed the batch (`batch.show`). */
+  shown_at?: string | null;
   proposals: Proposal[];
   /** Only for an import: the counts of design/ when imported and those of this package. */
   import_counts?: { origin: ImportCounts | null; package: ImportCounts };

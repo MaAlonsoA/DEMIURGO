@@ -574,6 +574,20 @@ registerHandlers({
     },
   }),
 
+  // Attention measurement (salud-del-harness §6.7): fixes `shown_at` the first time a person displays the batch.
+  'batch.show': handler({
+    data: z.object({}).strict(),
+    async apply(ctx, _d, e) {
+      await ctx.trx
+        .updateTable('proposal_batches')
+        .set({ shown_at: new Date() })
+        .where('id', '=', e?.id ?? '')
+        .where('shown_at', 'is', null)
+        .execute();
+      return { entityId: e?.id ?? '' };
+    },
+  }),
+
   'batch.close': handler({
     data: z.object({}).strict(),
     async apply(ctx, _d, e) {

@@ -8,6 +8,7 @@
 import { sql } from 'kysely';
 import { queueDecisionRows as storedQueueDecisionRows, type QueueDecisionRow } from '../build/queue-decisions.ts';
 import type { Db } from '../db/connection.ts';
+import { PENDING_ESCAPE_RULES } from '../harness/rules/escapes/index.ts';
 
 export const MIN_DECISIONS = 10;
 export const PRECISION_HELPS = 0.7;
@@ -324,6 +325,90 @@ export function queueDecisionsToCsv(rows: readonly QueueDecisionRow[]): string {
   for (const r of rows) {
     lines.push(
       DECISION_KEYS.map((k) => {
+        const v = r[k];
+        return cell(v === null || v === undefined ? null : typeof v === 'object' ? JSON.stringify(v) : (v as string | number));
+      }).join(','),
+    );
+  }
+  return `${lines.join('\r\n')}\r\n`;
+}
+
+
+// --- Escapes (salud-del-harness §4): what design did not see and building found later, stored by harness/escapes.ts ---
+
+/** Escapes returned per call (convención nuestra); the counts by rule always cover all of them. */
+export const ESCAPE_ROWS_MAX = 2000;
+
+export type EscapeRow = {
+  id: string;
+  rule: string;
+  introduced_phase: string;
+  found_phase: string;
+  record_code: string | null;
+  criterion_code: string | null;
+  build_request_id: string | null;
+  pr_review_id: string | null;
+  comment_index: number | null;
+  subject: string | null;
+  evidence: unknown;
+  occurred_at: string | null;
+  detected_at: string;
+  rules_version: string;
+};
+
+export type HarnessEscapes = {
+  rules_version: string | null;
+  /** Rules whose data is not stored yet (listed, not faked). */
+  pending_rules: readonly string[];
+  total: number;
+  by_rule: { rule: string; n: number }[];
+  rows: EscapeRow[];
+};
+
+/** The stored escapes of the project for one rules version (the newest one unless asked), newest fact first. */
+export async function harnessEscapes(db: Db, projectId: string, opts: { rules?: string; from?: Date | string; to?: Date | string } = {}): Promise<HarnessEscapes> {
+  const rules =
+    opts.rules ??
+    (
+      await db
+        .selectFrom('harness_escapes')
+        .select('rules_version')
+        .where('project_id', '=', projectId)
+        .orderBy('detected_at', 'desc')
+        .orderBy('id', 'desc')
+        .limit(1)
+        .executeTakeFirst()
+    )?.rules_version ??
+    null;
+  if (rules === null) return { rules_version: null, pending_rules: PENDING_ESCAPE_RULES, total: 0, by_rule: [], rows: [] };
+  let q = db.selectFrom('harness_escapes').where('project_id', '=', projectId).where('rules_version', '=', rules);
+  if (opts.from) q = q.where((eb) => eb.or([eb('occurred_at', 'is', null), eb('occurred_at', '>=', new Date(opts.from as Date | string))]));
+  if (opts.to) q = q.where((eb) => eb.or([eb('occurred_at', 'is', null), eb('occurred_at', '<=', new Date(opts.to as Date | string))]));
+  const counts = await q.select(['rule', (eb) => eb.fn.countAll<string>().as('n')]).groupBy('rule').orderBy('rule').execute();
+  const rows = await q
+    .select(['id', 'rule', 'introduced_phase', 'found_phase', 'record_code', 'criterion_code', 'build_request_id', 'pr_review_id', 'comment_index', 'subject', 'evidence', 'occurred_at', 'detected_at', 'rules_version'])
+    .orderBy('rule')
+    .orderBy(sql`occurred_at desc nulls last`)
+    .orderBy('id', 'desc')
+    .limit(ESCAPE_ROWS_MAX)
+    .execute();
+  return {
+    rules_version: rules,
+    pending_rules: PENDING_ESCAPE_RULES,
+    total: counts.reduce((a, c) => a + Number(c.n), 0),
+    by_rule: counts.map((c) => ({ rule: c.rule, n: Number(c.n) })),
+    rows: rows.map((r) => ({ ...r, occurred_at: r.occurred_at === null ? null : iso(r.occurred_at), detected_at: iso(r.detected_at) })),
+  };
+}
+
+const ESCAPE_COLUMNS = ['rule', 'introduced_phase', 'found_phase', 'record_code', 'criterion_code', 'build_request_id', 'pr_review_id', 'comment_index', 'subject', 'evidence', 'occurred_at', 'detected_at', 'rules_version'] as const;
+
+/** The escapes as CSV (header, then one line per escape), CRLF line ends; evidence as JSON text. */
+export function escapesToCsv(rows: readonly EscapeRow[]): string {
+  const lines: string[] = [ESCAPE_COLUMNS.join(',')];
+  for (const r of rows) {
+    lines.push(
+      ESCAPE_COLUMNS.map((k) => {
         const v = r[k];
         return cell(v === null || v === undefined ? null : typeof v === 'object' ? JSON.stringify(v) : (v as string | number));
       }).join(','),

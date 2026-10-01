@@ -27,7 +27,8 @@ import { loadTaskDependencies, waitedTaskCodes } from "../queries/task-deps.ts";
 import { projectsDir } from "../repo/repo.ts";
 import type { AutoStatus } from "./auto.ts";
 import { stageFailure } from "./failure.ts";
-import { type CodeOpinion, RERANK_CANDIDATES, type RerankDeps, rerankCodeMap } from "../classifier/code-rerank.ts";
+import { recordedCall } from "../classifier/calls.ts";
+import { type CodeOpinion, RERANK_CANDIDATES, RERANK_QUESTION_VERSION, type RerankDeps, rerankCodeMap } from "../classifier/code-rerank.ts";
 import { loadTaskObject } from "../classifier/task-input.ts";
 import { BRIEF_MAP_CHARS, buildCodeMap, rankCodeMap, renderCodeMap } from "./code-map.ts";
 import { type TaskFootprint, isReusableFile, taskFootprints } from "./footprint.ts";
@@ -662,7 +663,15 @@ export async function codeToExtend(db: Db, projectId: string, code: string, opti
       : [];
     const map = await buildCodeMap(options.repoPath, options.ref ?? (await defaultRef(options.repoPath)));
     const candidates = rankCodeMap(map, taskQuery(task), { footprintFiles, limit: RERANK_CANDIDATES });
-    const reranked = await rerankCodeMap(candidates, options.rerank === false ? null : task, options.deps?.rerank);
+    const reranked = await recordedCall(db, { projectId, question: "code_rerank", questionVersion: RERANK_QUESTION_VERSION, judgmentTable: "task_code_opinions" }, (note) =>
+      rerankCodeMap(candidates, options.rerank === false ? null : task, {
+        ...options.deps?.rerank,
+        onUsage: (inputTokens, usd) => {
+          options.deps?.rerank?.onUsage?.(inputTokens, usd);
+          note(inputTokens);
+        },
+      }),
+    );
     const footprints = ctx?.footprints ?? (await taskFootprints(db, projectId));
     const notes = new Map<string, string>();
     for (const t of footprints) for (const f of t.files) if (f.status === "added" && !notes.has(f.path)) notes.set(f.path, `built by ${t.code}: ${t.title.slice(0, 60)}`);

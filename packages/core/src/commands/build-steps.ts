@@ -76,6 +76,7 @@ export async function adoptCurrentVersions(
   await trx
     .insertInto('build_request_bases')
     .values({
+      project_id: projectId,
       build_request_id: request.id,
       task_version_id: basis.taskVersionId,
       feature_version_id: newFeature,

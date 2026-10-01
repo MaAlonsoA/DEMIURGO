@@ -56,7 +56,7 @@ describe('build_request_bases', () => {
 
     await s.db
       .insertInto('build_request_bases')
-      .values({ build_request_id: request.id, task_version_id: second.versionId, feature_version_id: first.versionId, brief: 'new brief', adopted_by: 'human:ana', attempt: 2 })
+      .values({ project_id: projectId, build_request_id: request.id, task_version_id: second.versionId, feature_version_id: first.versionId, brief: 'new brief', adopted_by: 'human:ana', attempt: 2 })
       .execute();
     expect(await effectiveBasis(s.db, request.id)).toEqual({ task_version_id: second.versionId, feature_version_id: first.versionId, brief: 'new brief' });
     const [row] = await withEffectiveBasis(s.db, [{ id: request.id, task_version_id: first.versionId, feature_version_id: null, brief: 'old brief' }]);

@@ -790,6 +790,7 @@ export type BuildRequestsTable = {
 
 export type BuildRequestBasesTable = {
   id: Generated<string>;
+  project_id: string;
   build_request_id: string;
   task_version_id: string;
   feature_version_id: string | null;

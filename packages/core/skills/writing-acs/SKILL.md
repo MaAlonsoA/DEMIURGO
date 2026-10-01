@@ -6,6 +6,7 @@ Each acceptance criterion is an observable statement: Given…, when…, then…
 
 - It describes behavior the person can see, not implementation.
 - `verification` is `automatic` when a test in CI can check it, `manual` when a person has to judge it, and `release` when it can only be decided against the deployed release candidate (real hosting, network, provider behaviour, cold starts, capacity): an automated check runs there, not in CI (Jez Humble and David Farley, "Continuous Delivery", deployment pipeline: later stages such as capacity and acceptance testing run against a deployed environment).
+- A performance criterion that needs production-sized data or a real network profile (a p95 latency over years of records, a large dataset, a mobile connection) is born `release`, not `automatic`: a CI runner has neither the data nor the network, so a test there checks something else and gets argued over (Jez Humble and David Farley, "Continuous Delivery": capacity testing runs in a later stage of the deployment pipeline, against a production-like environment; chapter not re-checked: sin comprobar). A budget that a small, fast check can really verify in CI (for example, no more than N queries per request) can stay `automatic`.
 - `check` says how it is checked, in product terms, concretely enough that two people would check the same thing.
 - Avoid vague words (fast, easy, friendly, robust) unless the criterion says how they are measured.
 - Criteria don't overlap: each one covers a distinct behavior.

@@ -386,6 +386,19 @@ export async function addedOnBranch(path: string): Promise<string[]> {
   return [];
 }
 
+/** The files the branch deletes against main (the same bases as `addedOnBranch`). */
+export async function deletedOnBranch(path: string): Promise<string[]> {
+  for (const base of ['refs/remotes/origin/main', 'main']) {
+    try {
+      const { stdout } = await git(path, ['diff', '--name-only', '--diff-filter=D', `${base}...HEAD`]);
+      return stdout.split('\n').map((l) => l.trim()).filter(Boolean).filter(notManaged);
+    } catch {
+      // try the next base
+    }
+  }
+  return [];
+}
+
 /** One file of the worktree, or null if it is not there. */
 export async function readWorktreeFile(path: string, file: string): Promise<string | null> {
   return readFile(join(path, file), 'utf8').catch(() => null);

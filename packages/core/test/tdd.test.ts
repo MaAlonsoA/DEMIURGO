@@ -250,7 +250,8 @@ describe('loopRunsOf', () => {
   const run = (over: Partial<BuilderResult>): BuilderResult => ({ state: 'ok', exitCode: 0, durationMs: 10, transcriptTail: '', report: null, container: 'c', ...over });
   it('keeps the duration and usage of each loop, numbered from 1', () => {
     const usage = { inputTokens: 1, outputTokens: 2, durationMs: 3 };
-    expect(loopRunsOf([run({ durationMs: 5, usage }), run({ durationMs: 7 })])).toEqual([{ loop: 1, duration_ms: 5, usage }, { loop: 2, duration_ms: 7 }]);
+    expect(loopRunsOf([run({ durationMs: 5, usage }), run({ durationMs: 7 })])).toEqual([{ loop: 1, duration_ms: 5, usage, failure_class: null }, { loop: 2, duration_ms: 7, failure_class: null }]);
+    expect(loopRunsOf([run({ durationMs: 5 })], ['environment'])[0]?.failure_class).toBe('environment');
     expect(loopRunsOf([])).toEqual([]);
   });
 });

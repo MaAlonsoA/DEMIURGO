@@ -65,7 +65,7 @@ import { pullRequestFootprint } from './footprint.ts';
 import { type OwnershipViolation, checkOwnership, ownershipLine } from './ownership.ts';
 import { storeCodeOpinions } from '../classifier/code-rerank.ts';
 import { recordClassifierCall, recordedCall } from '../classifier/calls.ts';
-import { type ReusePair, judgeTestReuse, reuseLines } from '../classifier/test-reuse.ts';
+import { type ReusePair, judgeTestReuse, reuseLines, sameFeatureTests } from '../classifier/test-reuse.ts';
 import { codeToExtend } from './queue.ts';
 import { loadAffectedCriteria, withAffectedTrailer } from './affected-criteria.ts';
 import { checkTestGuard, existingTestsLines, readRepoTests, testGuardFeedback } from './test-guard.ts';
@@ -77,7 +77,7 @@ import { approvedWithFixes, countFixes, countTestMarkers, fixCommentsOf, isTestF
 import { isTransientRunError, REVIEW_MAX_RETRIES, REVIEW_RETRY_BACKOFF_MS } from './review-retry.ts';
 import type { Services } from '../services.ts';
 import { checkFixes, diffsByFile } from '../classifier/fix-check.ts';
-import { commitAll, headWithWork, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, ensureManagedFiles, MANAGED_SELECT_E2E, changedOnBranch, changedWithPending, addedOnBranch, numstatBetween, nameStatusBetween, unifiedZeroBetween, showAt, diffBetween, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
+import { commitAll, headWithWork, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, ensureManagedFiles, MANAGED_SELECT_E2E, changedOnBranch, changedWithPending, addedOnBranch, deletedOnBranch, numstatBetween, nameStatusBetween, unifiedZeroBetween, showAt, diffBetween, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, rm } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
@@ -144,6 +144,8 @@ export type BuildDeps = {
    * stop earlier.
    */
   autoFollowUps: number;
+  /** Pause before an automatic retry of a transient builder failure, times the automatic attempts so far (30 s: our convention). */
+  transientBackoffMs: number;
 };
 
 const defaults = (): BuildDeps => ({
@@ -159,6 +161,7 @@ const defaults = (): BuildDeps => ({
   mergeTimeoutMs: 24 * 3_600_000,
   reviewTimeoutMs: 3_600_000,
   autoFollowUps: 15,
+  transientBackoffMs: 30_000,
 });
 
 let deps: BuildDeps = defaults();
@@ -642,8 +645,12 @@ async function retryDesign(s: Services, r: Run, limit: number): Promise<number |
   return r.attempt + 1;
 }
 
+/** Transient builder failures (the provider's server error, our own container plumbing) are retried more than a plain failure and after a pause (convención nuestra: a start-up flake needs one retry, an outage a few spaced ones). */
+const TRANSIENT_BUILDER_RETRIES = 3;
+const TRANSIENT_BUILDER_KINDS: readonly string[] = ['provider_error', 'infra'];
+
 /** After a failed builder: records the automatic next attempt and returns its number, or null (no retry). */
-async function retryBuilder(s: Services, r: Run): Promise<number | null> {
+async function retryBuilder(s: Services, r: Run, backoffMs = 0): Promise<number | null> {
   const step = (await s.db
     .selectFrom('build_steps')
     .select('detail')
@@ -654,7 +661,8 @@ async function retryBuilder(s: Services, r: Run): Promise<number | null> {
     .orderBy('created_at', 'desc')
     .executeTakeFirst()) as { detail: BuilderStepDetail | null } | undefined;
   // A timeout is retried once, and only when its work was kept on the branch (our convention).
-  const retryable = step?.detail?.failure_kind === 'other' || step?.detail?.failure_kind === 'tdd_red' || (step?.detail?.failure_kind === 'timeout' && Boolean(step.detail.wip_commit) && !step.detail.timed_out_twice);
+  const transient = TRANSIENT_BUILDER_KINDS.includes(step?.detail?.failure_kind ?? '');
+  const retryable = transient || step?.detail?.failure_kind === 'other' || step?.detail?.failure_kind === 'tdd_red' || (step?.detail?.failure_kind === 'timeout' && Boolean(step.detail.wip_commit) && !step.detail.timed_out_twice);
   if (!step || !retryable) return null;
   const latest = await s.db
     .selectFrom('build_steps')
@@ -662,9 +670,14 @@ async function retryBuilder(s: Services, r: Run): Promise<number | null> {
     .where('build_request_id', '=', r.requestId)
     .executeTakeFirst();
   if (Number(latest?.attempt ?? r.attempt) !== r.attempt) return null;
-  if ((await automaticAttempts(s, r.requestId)) >= BUILDER_AUTO_RETRIES) return null;
+  const automatic = await automaticAttempts(s, r.requestId);
+  if (automatic >= (transient ? TRANSIENT_BUILDER_RETRIES : BUILDER_AUTO_RETRIES)) return null;
+  // A pause inside the step (not a workflow sleep: that would add an operation to the durable flow), longer with each automatic attempt in a row.
+  if (transient && backoffMs > 0) await new Promise((resolve) => setTimeout(resolve, backoffMs * (1 + automatic)));
   const reason =
-    step.detail?.failure_kind === 'timeout'
+    transient
+      ? `The builder failed for a transient reason (${step.detail?.failure_kind}); trying again after a pause.`
+      : step.detail?.failure_kind === 'timeout'
       ? 'The builder ran out of time; its work is committed on the branch and a new attempt continues from it.'
       : step.detail?.failure_kind === 'tdd_red'
         ? 'The tests were still red after the builder was sent back (RED or GREEN); nothing was pushed. A new attempt continues from the work on the branch.'
@@ -844,7 +857,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
           if (task.feature_version_id && codes.length > 0) {
             const rows = await s0.db.selectFrom('criteria').select(['code', 'statement']).where('record_version_id', '=', task.feature_version_id).where('code', 'in', codes).execute();
             const own = new Set(codes);
-            const candidates = [...tests.values()].flat().filter((t) => !own.has(t.criterion)).map((t) => ({ path: t.path, title: t.title, level: t.level }));
+            const candidates = sameFeatureTests(codes, [...tests.values()].flat().filter((t) => !own.has(t.criterion))).map((t) => ({ path: t.path, title: t.title, level: t.level }));
             // One row per call, keyed so a replayed attempt does not count it twice (salud-del-harness §6.4).
             reuse = await recordedCall(s0.db, { projectId, question: 'test_reuse', callKey: `test_reuse:${requestId}:${attempt}` }, (note) =>
               judgeTestReuse(null, { criteria: rows.map((c) => ({ code: c.code, statement: c.statement })), candidates }, { onUsage: (n) => note(n) }),
@@ -988,7 +1001,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       told,
       told_sections: toldSections(told),
       ...(tddTold.length > 0 ? { tdd_told: tddTold } : {}),
-      ...(gate ? { tdd: gate.runs.length > 0 ? { ...gate.detail, loop_runs: loopRunsOf(gate.runs) } : gate.detail } : {}),
+      ...(gate ? { tdd: gate.runs.length > 0 ? { ...gate.detail, loop_runs: loopRunsOf(gate.runs, gate.failureClasses) } : gate.detail } : {}),
       ...(kind ? { failure_kind: kind, transcript_excerpt: failureExcerpt({ stderr: result.stderrTail, transcript: result.transcriptTail }) } : {}),
     };
     if (failed) {
@@ -1003,7 +1016,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
   if (!built.ok) {
     // A plain failure (the CLI exited with an error, nothing more specific) gets one automatic retry before
     // it stops; a usage limit, a login problem or a timeout would only fail again (our convention).
-    const next = built.outcome === 'failed' ? await plain('builder-retry', () => retryBuilder(s0, r)) : null;
+    const next = built.outcome === 'failed' ? await plain('builder-retry', () => retryBuilder(s0, r, d.transientBackoffMs)) : null;
     if (next !== null) await DBOS.startWorkflow(buildWorkflowRegistered, { workflowID: buildWorkflowId(requestId, next) })(projectId, requestId, next);
     return stop('builder', built.outcome);
   }
@@ -1037,6 +1050,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     // Ownership: what the branch adds must not belong to another feature (ownership.ts). Best effort: an error checks nothing.
     const ownership = await checkOwnership(s0.db, projectId, info.taskCode, {
       paths: await addedOnBranch(worktree.path),
+      deleted: await deletedOnBranch(worktree.path),
       read: (file) => readWorktreeFile(worktree.path, file),
       repoDir: info.repoDir,
     }).catch(() => [] as OwnershipViolation[]);

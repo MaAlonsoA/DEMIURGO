@@ -20,6 +20,21 @@ export const REUSE_MIN_P = 0.6;
 
 type Client = Pick<TypeSafeClient, 'systemOne'>;
 
+/** `MEA-005` of `AC-MEA-005-10`: the feature part of a criterion code (the code's prefix is how criteria are grouped by feature). */
+export const featureOfCriterion = (code: string): string | null => /^AC-([A-Z]+-\d+)-\d+/.exec(code)?.[1] ?? null;
+
+/**
+ * Only the tests of the task's own feature(s) are offered for reuse: in the 01-10-2026 audit 0 of 32 suggestions were
+ * followed, all of them meal specs offered to workout tasks (they matched a pattern, not a feature). Convención nuestra. Pure.
+ */
+export function sameFeatureTests<T extends { criterion: string }>(ownCriteria: readonly string[], tests: readonly T[]): T[] {
+  const features = new Set(ownCriteria.map(featureOfCriterion).filter((f): f is string => f !== null));
+  return tests.filter((t) => {
+    const f = featureOfCriterion(t.criterion);
+    return f !== null && features.has(f);
+  });
+}
+
 export type ReuseCriterion = { code: string; statement: string };
 export type ReuseCandidate = { path: string; title: string; level: string };
 export type ReusePair = { criterion: string; path: string; title: string; level: string; p: number };

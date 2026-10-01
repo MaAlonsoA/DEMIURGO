@@ -67,7 +67,14 @@ export type Green = {
   scope?: string;
 };
 /** What one loop (the builder sent back by the gate) took: kept per loop so the harness can price the gate. */
-export type LoopRun = { loop: number; duration_ms: number; usage?: Usage };
+export type LoopRun = { loop: number; duration_ms: number; usage?: Usage; failure_class: FailureClass | null };
+/**
+ * Whose failure sent the builder back in a loop: `own` (a criterion test of the task is red on main or fails with the
+ * change, or a failure with no criterion), `foreign` (every failing test belongs to a criterion the task does not
+ * cover, e.g. a flaky performance test of another feature) or `environment` (the failure is the environment: a
+ * missing database, a refused connection, a missing browser). Null when nothing failed. Convención nuestra.
+ */
+export type FailureClass = 'own' | 'foreign' | 'environment';
 export type TddDetail = {
   status: 'passed' | 'red' | 'skipped';
   red: RedEntry[];
@@ -438,9 +445,36 @@ export function tddSummary(detail: TddDetail): string {
   return `Test-driven check failed ${why}: ${bad} criterion test${bad === 1 ? '' : 's'} pass on main without the change; ${failed} test${failed === 1 ? '' : 's'} fail with it. Nothing was committed or pushed.`;
 }
 
-/** Duration and usage of each loop's builder run, numbered from 1. Pure. */
-export function loopRunsOf(runs: readonly BuilderResult[]): LoopRun[] {
-  return runs.map((r, i) => ({ loop: i + 1, duration_ms: r.durationMs, ...(r.usage ? { usage: r.usage } : {}) }));
+/** The failure is the environment's, not the code's (a missing database, a refused connection, a missing browser or tool). */
+const ENVIRONMENT_FAILURE = /database "[^"]*" does not exist|ECONNREFUSED|connection refused|ENOTFOUND|Executable doesn't exist|npx playwright install|browserType\.launch|command not found|ENOSPC/i;
+const criterionOf = (test: string): string | null => /^(AC-[A-Z]+-\d+-\d+)\b/.exec(test)?.[1] ?? null;
+
+/**
+ * Why the verdict is red, for the harness (a loop caused by the environment or by another feature's test is not the
+ * gate catching the task's own mistake). `own` when a criterion test passes on main (RED) or any failure with the
+ * change is the task's (its criterion test, or no criterion at all); `environment` when every failure is an
+ * environment error; `foreign` when the rest belong to criteria the task does not cover. Null when green. Pure.
+ */
+export function classifyLoopFailure(v: Verdict, ownCriteria: readonly string[]): FailureClass | null {
+  if (v.red.length > 0) return 'own';
+  if (v.green.length === 0) return null;
+  const own = new Set(ownCriteria);
+  let foreign = 0;
+  for (const t of v.green) {
+    if (ENVIRONMENT_FAILURE.test(`${t.reason ?? ''}`)) {
+      continue;
+    }
+    const code = t.criterion ?? criterionOf(t.test);
+    if (code !== null && !own.has(code)) foreign++;
+    else return 'own';
+  }
+  // Every failure is the environment's or another feature's: any foreign test makes it foreign, otherwise it is the environment.
+  return foreign > 0 ? 'foreign' : 'environment';
+}
+
+/** Duration, usage and failure class of each loop's builder run, numbered from 1. Pure. */
+export function loopRunsOf(runs: readonly BuilderResult[], failureClasses: readonly (FailureClass | null)[] = []): LoopRun[] {
+  return runs.map((r, i) => ({ loop: i + 1, duration_ms: r.durationMs, ...(r.usage ? { usage: r.usage } : {}), failure_class: failureClasses[i] ?? null }));
 }
 
 /** The builder results of the first run and its loops as one (usage and time added, the last run's outcome and report). Pure. */
@@ -520,6 +554,8 @@ export type TddOutcome = {
   stopped: 'red' | 'builder_failed' | null;
   /** The builder runs of the loops, in order. */
   runs: BuilderResult[];
+  /** What sent the builder back in each loop (same order as `runs`). */
+  failureClasses?: (FailureClass | null)[];
 };
 
 class Skip extends Error {}
@@ -766,6 +802,7 @@ export async function verifyTdd(input: TddInput): Promise<TddOutcome> {
     const ctx: Ctx = { worktreePath: input.worktreePath, requestId: input.requestId, prepared: input.prepared, exec: input.exec ?? dockerExec, ...(input.signal ? { signal: input.signal } : {}), n: 0 };
     const max = input.maxLoops ?? TDD_MAX_LOOPS;
     const runs: BuilderResult[] = [];
+    const failureClasses: (FailureClass | null)[] = [];
     let session = input.session;
     let loops = 0;
     let previous: { key: string; red: RedEntry[] } | null = null;
@@ -784,14 +821,15 @@ export async function verifyTdd(input: TddInput): Promise<TddOutcome> {
           ...(notAutomated ? { not_automated: notAutomated } : {}),
           ...(phase.notes.length > 0 ? { notes: phase.notes } : {}),
         };
-        if (verdict.ok) return { detail, stopped: null, runs };
-        if (loops >= max) return { detail: { ...detail, stopped: 'cap' as const }, stopped: 'red' as const, runs };
-        if (!session) return { detail: { ...detail, stopped: 'no_session' as const }, stopped: 'red' as const, runs };
+        if (verdict.ok) return { detail, stopped: null, runs, failureClasses };
+        if (loops >= max) return { detail: { ...detail, stopped: 'cap' as const }, stopped: 'red' as const, runs, failureClasses };
+        if (!session) return { detail: { ...detail, stopped: 'no_session' as const }, stopped: 'red' as const, runs, failureClasses };
         loops++;
+        failureClasses.push(classifyLoopFailure(verdict, input.criteria));
         const result = await input.rerun(tddFeedback(verdict, loops, max), loops, session);
         runs.push(result);
         session = result.sessionId ?? session;
-        if (result.state !== 'ok') return { detail: { ...detail, loops, stopped: 'builder_failed' as const }, stopped: 'builder_failed' as const, runs };
+        if (result.state !== 'ok') return { detail: { ...detail, loops, stopped: 'builder_failed' as const }, stopped: 'builder_failed' as const, runs, failureClasses };
       }
     });
   } catch (e) {

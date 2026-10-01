@@ -69,6 +69,17 @@ export function buildLayersRequest(input: LayersInput) {
   return { state, questions: { schema_score: score(question, [...SCHEMA_LEVELS]) } };
 }
 
+/**
+ * What an opinion was given from: the state (task and repository as they were) and the question version, without the
+ * model (the model Jev answers with may differ from the one asked, which would make every opinion look stale).
+ * Stored as `input_hash`; `ensureTaskLayers` compares it with the current one to refresh opinions given before the
+ * repository changed (a backfill before the tables merged). Pure.
+ */
+export function layersInputHash(input: LayersInput): string {
+  const { state } = buildLayersRequest(input);
+  return createHash('sha256').update(JSON.stringify({ state, question_version: LAYERS_QUESTION_VERSION })).digest('hex');
+}
+
 /** Asks Jev how much schema work a task needs. */
 export async function judgeLayers(
   client: Client,
@@ -84,9 +95,7 @@ export async function judgeLayers(
   if (typeof v !== 'number' || Number.isNaN(v)) throw new Error('Jev: the task came back without an answer to the schema score.');
   return {
     schema: Math.min(1, Math.max(0, v / (SCHEMA_LEVELS.length - 1))),
-    input_hash: createHash('sha256')
-      .update(JSON.stringify({ state, model: r.model || model, question_version: LAYERS_QUESTION_VERSION }))
-      .digest('hex'),
+    input_hash: layersInputHash(input),
   };
 }
 
@@ -163,10 +172,10 @@ export async function classifyTaskLayers(
 
 /**
  * Jev's layers opinion for the latest approved version of each task among `codes` that has none yet (tasks written
- * before H101, or whose classification failed). «Build the queue» calls it before choosing, so the schema rule never
+ * before H101, or whose classification failed) or whose opinion is stale (the task or the repository changed since). «Build the queue» calls it before choosing, so the schema rule never
  * runs blind on a task without a prediction. Never throws; without TYPESAFE_API_KEY it does nothing.
  */
-export async function ensureTaskLayers(services: Services, projectId: string, codes: string[]): Promise<number> {
+export async function ensureTaskLayers(services: Services, projectId: string, codes: string[], deps: LayersDeps = {}): Promise<number> {
   if (!jevAllowed() || codes.length === 0) return 0;
   try {
     const versions = await services.db
@@ -181,11 +190,40 @@ export async function ensureTaskLayers(services: Services, projectId: string, co
     const latest = new Map<string, string>();
     for (const v of versions) if (!latest.has(v.id)) latest.set(v.id, v.version_id);
     if (latest.size === 0) return 0;
-    const judged = new Set(
-      (await services.db.selectFrom('task_layers_opinions').select('record_version_id').where('record_version_id', 'in', [...latest.values()]).execute()).map((x) => x.record_version_id),
+    // The latest opinion of each version, with what it was given from.
+    const opinions = await services.db
+      .selectFrom('task_layers_opinions')
+      .select(['record_version_id', 'input_hash'])
+      .where('record_version_id', 'in', [...latest.values()])
+      .orderBy('created_at', 'desc')
+      .orderBy('id', 'desc')
+      .execute();
+    const stored = new Map<string, string>();
+    for (const o of opinions) if (!stored.has(o.record_version_id)) stored.set(o.record_version_id, o.input_hash);
+    // The repository is read once for all the tasks. An opinion is stale when its task text or the repository (the
+    // tables and migrations it was judged against) or the question version changed since: ask again.
+    const repo = deps.input ? null : await loadRepoContext(services.db, projectId).catch(() => null);
+    const inputs = new Map<string, LayersInput | null>();
+    const stale: [string, string][] = [];
+    for (const [recordId, versionId] of latest) {
+      const before = stored.get(versionId);
+      if (before === undefined) {
+        stale.push([recordId, versionId]);
+        continue;
+      }
+      // The repository could not be read now: nothing to compare with, so keep the opinions (never re-ask on a read failure).
+      if (!deps.input && !repo) continue;
+      const input = deps.input ? await deps.input(services, projectId, recordId, versionId) : await loadTaskObject(services.db, recordId, versionId).then((task) => (task ? { task, repo } : null));
+      inputs.set(versionId, input);
+      if (input && layersInputHash(input) !== before) stale.push([recordId, versionId]);
+    }
+    const missing = stale;
+    await Promise.all(
+      missing.map(([recordId, versionId]) => {
+        const input = inputs.get(versionId);
+        return classifyTaskLayers(services, projectId, recordId, versionId, { ...deps, ...(input ? { input: async () => input } : {}) });
+      }),
     );
-    const missing = [...latest].filter(([, versionId]) => !judged.has(versionId));
-    await Promise.all(missing.map(([recordId, versionId]) => classifyTaskLayers(services, projectId, recordId, versionId)));
     return missing.length;
   } catch (err) {
     services.logger.error('Jev could not fill in the missing layers opinions', { projectId, error: String(err) });

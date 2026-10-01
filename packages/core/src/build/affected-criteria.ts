@@ -1,15 +1,16 @@
 // The acceptance criteria a pull request affects, written as a git trailer on the task's commit so the
 // project's CI can run only their tests on pull requests (`playwright test --grep`) and the full suite on main.
 // Practice: presubmit runs the tests affected by the change, postsubmit runs everything (Google TAP, Software
-// Engineering at Google, ch. 23). Selecting by criterion code is our convention, and so are the 60 % cap and
-// ignoring non-source files. The trailer format is git's (git-scm.com/docs/git-interpret-trailers): a blank
+// Engineering at Google, ch. 23). Selecting by criterion code is our convention, and so are the 60 % cap,
+// ignoring non-source files and ignoring barrels (re-export-only index files: touching one says nothing about the
+// behaviour of the features that import it; PRO-016 selected 136 criteria for touching src/design-system/index.ts). The trailer format is git's (git-scm.com/docs/git-interpret-trailers): a blank
 // line, then `Key: value` at the end of the message.
 
 import type { Db } from '../db/connection.ts';
 import { taskCoversOf } from '../queries/sizes.ts';
 import { loadTaskDependencies } from '../queries/task-deps.ts';
 import { taskFootprints } from './footprint.ts';
-import { isHotspotCandidate } from './hotspots.ts';
+import { barrelsAmong, isHotspotCandidate, looksLikeBarrelPath } from './hotspots.ts';
 
 export const AFFECTED_TRAILER = 'Affected-criteria';
 /** Above this share of the project's criteria the trailer says `all` (our convention). */
@@ -28,6 +29,8 @@ export type AffectedInput = {
   featureCriteria: ReadonlyMap<string, readonly string[]>;
   /** Every criterion code of the project. */
   all: readonly string[];
+  /** The branch files that are barrels (re-export only); without it the path heuristic decides (`looksLikeBarrelPath`). */
+  barrels?: ReadonlySet<string>;
 };
 
 export type Affected = string[] | 'all' | null;
@@ -36,7 +39,8 @@ export type Affected = string[] | 'all' | null;
 export function affectedCriteria(input: AffectedInput): Affected {
   const total = new Set(input.all).size;
   if (total === 0 && input.own.length === 0) return null;
-  const files = new Set(input.branchFiles.filter(isHotspotCandidate));
+  const isBarrel = (p: string) => (input.barrels ? input.barrels.has(p) : looksLikeBarrelPath(p));
+  const files = new Set(input.branchFiles.filter((p) => isHotspotCandidate(p) && !isBarrel(p)));
   const out = new Set(input.own);
   if (files.size > 0) {
     for (const fp of input.footprints) {
@@ -84,7 +88,7 @@ export async function loadAffectedCriteria(db: Db, projectId: string, task: { id
     for (const r of rows) if (r.n === latest.get(r.feature)) featureCriteria.set(r.feature, [...(featureCriteria.get(r.feature) ?? []), r.code]);
     const deps = await loadTaskDependencies(db, projectId);
     const footprints = await taskFootprints(db, projectId);
-    return affectedCriteria({ own, branchFiles, footprints, taskFeature: deps.taskFeature, featureCriteria, all: [...featureCriteria.values()].flat() });
+    return affectedCriteria({ own, branchFiles, footprints, taskFeature: deps.taskFeature, featureCriteria, all: [...featureCriteria.values()].flat(), barrels: await barrelsAmong(db, projectId, branchFiles) });
   } catch {
     return null;
   }

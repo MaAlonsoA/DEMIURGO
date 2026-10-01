@@ -128,6 +128,8 @@ export type OwnershipInput = {
   taskText?: string;
   addedTables: readonly string[];
   addedRoutes: readonly string[];
+  /** URLs of the pages and routes whose files the branch deletes: replacing a route file by a page (Next.js allows only one per segment) is not re-creating it. */
+  deletedRoutes?: readonly string[];
   owners: Owners;
   featureOfName: (name: string) => NameMatch | null;
   /** Titles of the features, to name an owner. */
@@ -171,6 +173,8 @@ export function ownershipViolations(input: OwnershipInput): OwnershipViolation[]
   for (const r of input.addedRoutes) {
     const owner = input.owners.routes.get(r);
     if (!owner || mine.has(owner.feature)) continue;
+    // The branch deletes the file that created the route (e.g. route.ts replaced by page.tsx): a replacement, not a duplicate (convención nuestra).
+    if (input.deletedRoutes?.includes(r)) continue;
     // A task that names the page it changes (its last path segment, e.g. «sign-in» for /auth/sign-in) is
     // reshaping that page, not taking another feature's (convención nuestra, like the table case above).
     const last = words(r.split('/').filter((x) => x && !x.startsWith('[')).pop() ?? '');
@@ -238,7 +242,7 @@ export async function checkOwnership(
   db: Db,
   projectId: string,
   taskCode: string,
-  added: { paths: readonly string[]; read: (path: string) => Promise<string | null>; repoDir?: string },
+  added: { paths: readonly string[]; deleted?: readonly string[]; read: (path: string) => Promise<string | null>; repoDir?: string },
 ): Promise<OwnershipViolation[]> {
   const addedTables: string[] = [];
   for (const p of added.paths.filter(isSql)) addedTables.push(...createdTables((await added.read(p)) ?? ''));
@@ -252,6 +256,7 @@ export async function checkOwnership(
     taskText: ctx.taskText,
     addedTables,
     addedRoutes,
+    deletedRoutes: routesOfFiles(added.deleted ?? []),
     owners,
     featureOfName: (n) => featureOfName(n, ctx.features),
     featureTitles: new Map(ctx.features.map((f) => [f.code, f.title])),

@@ -317,10 +317,13 @@ async function previousSessionPlan(s: Services, requestId: string, attempt: numb
     .execute();
   // Steps that reused an earlier builder (only the commit had failed) ran no agent: they carry no provider.
   const ran = rows.map((x) => x.detail as BuilderStepDetail | null).filter((x): x is BuilderStepDetail & { provider: string; model: string } => Boolean(x?.provider && x.model));
-  const lastId = ran.at(-1)?.session?.id;
-  const filesExist = lastId ? await sessionFilesExist(sessionDir, lastId) : false;
+  const exists = await Promise.all(ran.map((x) => (x.session?.id ? sessionFilesExist(sessionDir, x.session.id) : Promise.resolve(false))));
+  // A builder that crashed before writing its session (failure_kind other, seconds after starting) left nothing to
+  // continue: the plan continues the latest earlier attempt whose session is still on disk (convención nuestra).
+  let end = ran.length;
+  while (end > 1 && !exists[end - 1] && exists.slice(0, end - 1).some(Boolean)) end--;
   return builderSessionPlan(
-    ran.map((x, i) => ({ provider: x.provider, model: x.model, session: x.session, filesExist: i === ran.length - 1 && filesExist })),
+    ran.slice(0, end).map((x, i) => ({ provider: x.provider, model: x.model, session: x.session, filesExist: i === end - 1 && exists[i] === true })),
     engine,
   );
 }

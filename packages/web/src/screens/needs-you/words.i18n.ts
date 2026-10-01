@@ -37,6 +37,7 @@ export const TITLES = messages(
         contradiction: 'contradicts another record',
         duplicate: 'may duplicate another record',
       })[verdict] ?? 'may be affected',
+    conflictRow: (change: string, record: string, topic: string) => `${change} vs ${record}: ${topic}`,
     packageImported: 'Imported from design/',
     packageFallback: 'A package',
     taskDraftsTitle: (n: number, code: string, title: string) =>
@@ -139,6 +140,7 @@ export const TITLES = messages(
           duplicate: 'puede duplicar otro registro',
         }) as Record<string, string>
       )[verdict] ?? 'puede verse afectado',
+    conflictRow: (change: string, record: string, topic: string) => `${change} vs ${record}: ${topic}`,
     packageImported: 'Importado desde design/',
     packageFallback: 'Un paquete',
     taskDraftsTitle: (n: number, code: string, title: string) =>
@@ -312,56 +314,52 @@ export const CATCH_UP = messages(
 
 export const CONFLICT = messages(
   {
-    newerChange: 'a newer change',
-    recommends: (subject: string, changeName: string, verdict: string) =>
-      `DEMIURGO recommends reviewing ${subject}: with ${changeName} approved, it ${verdict}. It won't choose for you: nothing changes until you do.`,
-    withApproved: 'With something you approved',
-    withEarlier: 'With an earlier version',
-    becauseOf: (changeName: string) => `Because of ${changeName}`,
-    mayContradict: 'may contradict',
-    toReview: 'To review',
-    theChange: 'The change',
-    changeGone: "The change that triggered it is no longer in the product's current view.",
-    whatDemiurgoRecommends: 'What DEMIURGO recommends',
-    why: (reason: string, sure: number) => `Why: ${reason} (${sure}% sure)`,
-    openReview: 'Open a review',
-    keepAsIs: 'Keep it as it is',
-    approvedWord: 'Approved',
-    draftedWord: 'Drafted',
-    otherRecord: 'The other record',
-    coherenceSays: (kind: string, subject: string, other: string) =>
-      kind === 'duplicate'
-        ? `${subject} and ${other} specify the same thing: building both would make two versions of it. DEMIURGO recommends reviewing ${subject}; nothing changes until you do.`
-        : `${subject} and ${other} say things that cannot both be true. DEMIURGO recommends reviewing ${subject}; nothing changes until you do.`,
-    coherenceWhy: (reason: string) => `Why: ${reason}`,
-    fromCoherence: (epic: string) => `Found by the coherence review of ${epic}`,
-    foundReadingEpic: 'Found reading the whole epic',
+    headline: (change: string, record: string, same: boolean) =>
+      same ? `${change} and ${record} say the same thing` : `${change} says something different from ${record}`,
+    sure: (pct: number, same: boolean) =>
+      same
+        ? `Knowledge is ${pct}% sure they say the same thing about the same point.`
+        : `Knowledge is ${pct}% sure they say different things about the same point.`,
+    fromCoherence: (epic: string) => `Found by the coherence review of ${epic}.`,
+    why: (reason: string) => `Why: ${reason}`,
+    changeGone: "The record that triggered it is no longer in the product's current view.",
+    approvedWord: 'approved',
+    draftedWord: 'drafted',
+    builtMerged: (pr: number | null) => (pr ? `merged PR #${pr}` : 'merged'),
+    builtOpen: (pr: number | null) => (pr ? `PR #${pr} open` : 'PR open'),
+    fullRecords: 'Full records',
+    updateLabel: (record: string) => `Update ${record}`,
+    updateHint: (record: string, change: string) =>
+      `Update ${record}: opens a thread to bring it in line with ${change}. Nothing changes until a new version is proposed and you approve it.`,
+    keepLabel: 'Keep both as they are',
+    keepHintChange: (record: string, change: string) =>
+      `Keep both as they are: dismisses this finding, for example because ${change} replaces that part of ${record}. Neither record changes, and knowledge will not raise these two versions again unless one of them gets a new version.`,
+    keepHintCoherence:
+      'Keep both as they are: dismisses this finding. Neither record changes. A later coherence review may raise it again.',
   },
   {
-    newerChange: 'un cambio más nuevo',
-    recommends: (subject: string, changeName: string, verdict: string) =>
-      `DEMIURGO recomienda revisar ${subject}: con ${changeName} aprobado, ${verdict}. No va a elegir por ti: nada cambia hasta que tú lo hagas.`,
-    withApproved: 'Con algo que aprobaste',
-    withEarlier: 'Con una versión anterior',
-    becauseOf: (changeName: string) => `Por ${changeName}`,
-    mayContradict: 'puede contradecir',
-    toReview: 'A revisar',
-    theChange: 'El cambio',
-    changeGone: 'El cambio que lo provocó ya no está en la vista actual del producto.',
-    whatDemiurgoRecommends: 'Lo que recomienda DEMIURGO',
-    why: (reason: string, sure: number) => `Por qué: ${reason} (${sure}% seguro)`,
-    openReview: 'Abrir una revisión',
-    keepAsIs: 'Dejarlo como está',
-    approvedWord: 'Aprobada',
-    draftedWord: 'Redactada',
-    otherRecord: 'El otro registro',
-    coherenceSays: (kind: string, subject: string, other: string) =>
-      kind === 'duplicate'
-        ? `${subject} y ${other} especifican lo mismo: construir los dos daría dos versiones de lo mismo. DEMIURGO recomienda revisar ${subject}; nada cambia hasta que tú lo hagas.`
-        : `${subject} y ${other} dicen cosas que no pueden ser ciertas a la vez. DEMIURGO recomienda revisar ${subject}; nada cambia hasta que tú lo hagas.`,
-    coherenceWhy: (reason: string) => `Por qué: ${reason}`,
-    fromCoherence: (epic: string) => `Lo encontró la revisión de coherencia de ${epic}`,
-    foundReadingEpic: 'Encontrado leyendo la épica entera',
+    headline: (change: string, record: string, same: boolean) =>
+      same ? `${change} y ${record} dicen lo mismo` : `${change} dice algo distinto de ${record}`,
+    sure: (pct: number, same: boolean) =>
+      same
+        ? `El conocimiento está ${pct}% seguro de que dicen lo mismo sobre el mismo punto.`
+        : `El conocimiento está ${pct}% seguro de que dicen cosas distintas sobre el mismo punto.`,
+    fromCoherence: (epic: string) => `Lo encontró la revisión de coherencia de ${epic}.`,
+    why: (reason: string) => `Por qué: ${reason}`,
+    changeGone: 'El registro que lo provocó ya no está en la vista actual del producto.',
+    approvedWord: 'aprobada',
+    draftedWord: 'redactada',
+    builtMerged: (pr: number | null) => (pr ? `PR #${pr} fusionada` : 'fusionada'),
+    builtOpen: (pr: number | null) => (pr ? `PR #${pr} abierta` : 'PR abierta'),
+    fullRecords: 'Registros completos',
+    updateLabel: (record: string) => `Actualizar ${record}`,
+    updateHint: (record: string, change: string) =>
+      `Actualizar ${record}: abre un hilo para ponerlo de acuerdo con ${change}. Nada cambia hasta que se proponga una versión nueva y tú la apruebes.`,
+    keepLabel: 'Dejar los dos como están',
+    keepHintChange: (record: string, change: string) =>
+      `Dejar los dos como están: descarta este hallazgo, por ejemplo porque ${change} sustituye esa parte de ${record}. Ningún registro cambia, y el conocimiento no volverá a plantear estas dos versiones salvo que una tenga una versión nueva.`,
+    keepHintCoherence:
+      'Dejar los dos como están: descarta este hallazgo. Ningún registro cambia. Una revisión de coherencia posterior puede volver a plantearlo.',
   },
 );
 

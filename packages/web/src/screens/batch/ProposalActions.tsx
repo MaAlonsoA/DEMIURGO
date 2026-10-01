@@ -54,6 +54,7 @@ export function ProposalDecision({
   proposal: p,
   blocked = [],
   labels = {},
+  hints,
   onDone,
   sticky = true,
   aspect = null,
@@ -66,6 +67,8 @@ export function ProposalDecision({
   blocked?: string[];
   /** Other words for a review: "Open a review", "Keep it as it is". */
   labels?: { accept?: string; reject?: string };
+  /** What each button does, one quiet line each (the conflict page). */
+  hints?: { accept?: string; reject?: string };
   /** After the server confirmed: what to say ("Accepted."). The caller announces it. */
   onDone?: (said: string) => void;
   sticky?: boolean;
@@ -179,6 +182,11 @@ export function ProposalDecision({
             </div>
           ) : isBlocked && canAccept ? (
             <p>{t.blockedCaption}</p>
+          ) : hints ? (
+            <ul className="flex flex-col gap-0.5">
+              {canAccept && hints.accept ? <li>{hints.accept}</li> : null}
+              {canReject && hints.reject ? <li>{hints.reject}</li> : null}
+            </ul>
           ) : null
         }
       >

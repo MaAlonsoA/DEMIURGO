@@ -1,56 +1,64 @@
-// A conflict (DESIGN.md §3.1): knowledge found that an approved change may contradict a record. The
-// two sides next to each other, and DEMIURGO's recommendation in words; it never chooses. "Open a
-// review" accepts the review (a thread to review the record); "Keep it as it is" rejects it
-// (INV-NEED-12, INV-CATCH-05).
+// A conflict (DESIGN.md §3.1): knowledge found two records that say different things. The page says,
+// in plain words, what conflicts with what (the record to review and the approved change that
+// triggered it), the two exact sentences side by side (older first), and what each button does.
+// DEMIURGO never chooses: «Update» accepts the review (opens a thread to review the record) and
+// «Keep both as they are» rejects it (INV-NEED-12, INV-CATCH-05).
 
 import { useQuery } from '@tanstack/react-query';
 import { recordQuery } from '../../api/queries.ts';
-import type { RecordVersion } from '../../api/types.ts';
+import type { RecordDetail, RecordVersion } from '../../api/types.ts';
 import { Code } from '../../components/Badge.tsx';
-import { Card } from '../../components/Card.tsx';
-import { AlertTriangleIcon } from '../../components/icons.tsx';
 import { Markdown } from '../../components/Markdown.tsx';
 import { Bone } from '../../components/Spinner.tsx';
-import { Certainty, StatusBadge } from '../../components/status.tsx';
 import { DayTime } from '../../components/Time.tsx';
-import { TypeIcon, typeWord } from '../../components/types.tsx';
-import { WhoAvatar } from '../../components/Who.tsx';
 import { useMessages } from '../../i18n/define.ts';
-import { whoOf } from '../../words.ts';
-import { rowOf, rowOfVersion } from '../batch/model.ts';
-import { BlockedNotice } from '../batch/parts.tsx';
+import { rowOf } from '../batch/model.ts';
+import { BlockedNotice, Disclosure } from '../batch/parts.tsx';
 import { ProposalDecision } from '../batch/ProposalActions.tsx';
+import { buildFact, type ConflictReview, changeCodeOf, conflictNature, olderFirst, sentencesOf, surenessOf } from './conflict.ts';
 import type { DetailProps } from './Detail.tsx';
 import { DetailFrame } from './frame.tsx';
 import { CONFLICT, TITLES } from './words.i18n.ts';
 
-type Review = {
-  record?: { code?: string; version?: number };
-  change?: { id?: string; version?: number | null };
-  verdict?: string;
-  reason?: string;
-  confidence?: number;
-  // A coherence finding (FDR-KNO-056): the other record and a verbatim passage of each.
-  other?: { code?: string; version?: number };
-  quotes?: { record?: string; other?: string };
-  epic?: string;
-};
+type Loaded = { code: string; version: number | null; quote: string | null; detail?: RecordDetail | undefined; v?: RecordVersion | undefined };
 
-export function Conflict({ item, ctx, titleId, top, title }: DetailProps<'conflict'> & { title: string }) {
+export function Conflict({ item, ctx, titleId, top }: DetailProps<'conflict'> & { title: string }) {
   const t = useMessages(CONFLICT);
   const titleWords = useMessages(TITLES);
-  const review = item.proposal.payload as Review;
+  const review = item.proposal.payload as ConflictReview;
   const code = review.record?.code ?? '';
+  const changeCode = changeCodeOf(review, ctx.rows) ?? '';
   const record = rowOf(ctx.rows, code);
-  const change = review.change?.id ? rowOfVersion(ctx.rows, review.change.id) : undefined;
-  const changeName = change ? `“${change.title}”` : t.newerChange;
-  const verdict = titleWords.verdictWord(review.verdict ?? '');
   const coherence = !!review.quotes;
-  const recommendation = coherence
-    ? t.coherenceSays(review.verdict ?? '', record ? `“${record.title}”` : code, changeName)
-    : t.recommends(record ? `“${record.title}”` : code, changeName, verdict);
-  const sure = Math.round((review.confidence ?? 0) * 100);
+  const same = conflictNature(review) === 'same';
+  const sentences = sentencesOf(review);
+  const sure = surenessOf(review);
   const warnings = item.proposal.obsolescence;
+  const recordDetail = useQuery({ ...recordQuery(ctx.projectId, code), enabled: code !== '' }).data;
+  const changeDetail = useQuery({ ...recordQuery(ctx.projectId, changeCode), enabled: changeCode !== '' }).data;
+  const pick = (detail: RecordDetail | undefined, version: number | null | undefined) =>
+    detail?.versions.find((x) => x.n === version) ?? detail?.versions.at(-1);
+  const a: Loaded & { when: string | null } = {
+    code,
+    version: review.record?.version ?? null,
+    quote: sentences.a,
+    detail: recordDetail,
+    v: pick(recordDetail, review.record?.version),
+    when: null,
+  };
+  const b: Loaded & { when: string | null } = {
+    code: changeCode,
+    version: review.change?.version ?? review.other?.version ?? null,
+    quote: sentences.b,
+    detail: changeDetail,
+    v: pick(changeDetail, review.change?.version ?? review.other?.version),
+    when: null,
+  };
+  for (const s of [a, b]) s.when = s.v ? (s.v.approved_at ?? s.v.created_at) : null;
+  const sides = changeCode ? olderFirst(a, b) : [a];
+  const title = changeCode
+    ? t.headline(changeCode, code, same)
+    : `${record?.title ?? code} ${titleWords.verdictWord(String(review.verdict))}`;
   return (
     <DetailFrame
       item={item}
@@ -58,15 +66,6 @@ export function Conflict({ item, ctx, titleId, top, title }: DetailProps<'confli
       titleId={titleId}
       top={top}
       title={title}
-      code={code ? `${code} v${review.record?.version ?? ''}` : undefined}
-      state={<StatusBadge kind="conflict" word={coherence ? t.foundReadingEpic : item.approved ? t.withApproved : t.withEarlier} />}
-      why={
-        <>
-          <span>{coherence ? t.fromCoherence(review.epic ?? '') : t.becauseOf(changeName)}</span>
-          {change ? <Code>{`${change.code}${review.change?.version ? ` v${review.change.version}` : ''}`}</Code> : null}
-          {review.reason && !coherence ? <span>· {review.reason}</span> : null}
-        </>
-      }
       decision={
         <>
           <BlockedNotice reasons={warnings} />
@@ -74,108 +73,87 @@ export function Conflict({ item, ctx, titleId, top, title }: DetailProps<'confli
             projectId={ctx.projectId}
             proposal={item.proposal}
             blocked={warnings}
-            labels={{ accept: t.openReview, reject: t.keepAsIs }}
+            labels={{ accept: t.updateLabel(code), reject: t.keepLabel }}
+            hints={{
+              accept: changeCode ? t.updateHint(code, changeCode) : undefined,
+              reject: coherence || !changeCode ? t.keepHintCoherence : t.keepHintChange(code, changeCode),
+            }}
             // The page says the result, with what is left in Needs you.
             onDone={() => {}}
           />
         </>
       }
     >
-      <div className="grid items-stretch gap-3 lg:grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)]">
-        <Side projectId={ctx.projectId} label={t.toReview} code={code} version={review.record?.version ?? null} quote={review.quotes?.record} />
-        <span className="flex items-center justify-center" role="img" aria-label={t.mayContradict}>
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-danger-edge bg-danger-soft text-danger-text">
-            <AlertTriangleIcon size={15} />
-          </span>
-        </span>
-        {change ? (
-          <Side
-            projectId={ctx.projectId}
-            label={coherence ? t.otherRecord : t.theChange}
-            code={change.code}
-            version={review.change?.version ?? null}
-            quote={review.quotes?.other}
-          />
-        ) : (
-          <div className="rounded-lg border border-dashed border-edge-strong px-3.5 py-3 text-sm text-fg-2">
-            <p className="font-medium text-fg">{t.theChange}</p>
-            {t.changeGone}
-          </div>
-        )}
+      <div className="grid items-start gap-6 lg:grid-cols-2">
+        {sides.map((s) => (
+          <Side key={s.code} side={s} />
+        ))}
       </div>
-      <Card padding="md" className="flex flex-col gap-1.5 bg-sunken" data-recommendation>
-        <p className="text-sm font-medium text-fg">{t.whatDemiurgoRecommends}</p>
-        <p className="text-base text-fg">{recommendation}</p>
-        {review.reason ? (
-          <p className="text-sm text-fg-2">{coherence ? t.coherenceWhy(review.reason) : t.why(review.reason, sure)}</p>
-        ) : null}
-      </Card>
+      {!changeCode ? <p className="text-sm text-fg-2">{t.changeGone}</p> : null}
+      {coherence ? <p className="text-sm text-fg-2">{t.fromCoherence(review.epic ?? '')}</p> : null}
+      {sure !== null && changeCode ? <p className="text-base text-fg">{t.sure(sure, same)}</p> : null}
+      {review.reason && (coherence || (!sentences.a && !sentences.b)) ? (
+        <p className="max-w-prose text-sm text-fg-2">{t.why(review.reason)}</p>
+      ) : null}
+      <Disclosure label={t.fullRecords}>
+        <div className="grid items-start gap-6 lg:grid-cols-2">
+          {sides.map((s) => (
+            <FullRecord key={s.code} side={s} />
+          ))}
+        </div>
+      </Disclosure>
     </DetailFrame>
   );
 }
 
-/** One side of the conflict: the record, the version in question, its text (or the passage in question) and who approved it. */
-function Side({
-  projectId,
-  label,
-  code,
-  version,
-  quote,
-}: {
-  projectId: string;
-  label: string;
-  code: string;
-  version: number | null;
-  quote?: string | undefined;
-}) {
+const textOf = (v: RecordVersion): string =>
+  v.sections.find((s) => s.title === 'Decision')?.content ?? v.sections.find((s) => s.content.trim())?.content ?? '';
+
+/** One side: code + version, when it was approved (and the build state of a task), and its exact sentence. */
+function Side({ side }: { side: Loaded }) {
   const t = useMessages(CONFLICT);
-  const detail = useQuery({ ...recordQuery(projectId, code), enabled: code !== '' }).data;
-  const v: RecordVersion | undefined = detail?.versions.find((x) => x.n === version) ?? detail?.versions.at(-1);
+  const { detail, v } = side;
   if (!detail || !v) {
     return (
-      <Card padding="md" className="flex min-h-36 flex-col gap-2">
-        <p className="text-sm font-medium text-fg-2">{label}</p>
-        <Bone className="h-4 w-2/3" />
+      <div className="flex min-w-0 flex-col gap-2">
+        <Code>{side.code}</Code>
         <Bone className="h-12 w-full" />
-      </Card>
+      </div>
     );
   }
-  const text = v.sections.find((s) => s.title === 'Decision')?.content ?? v.sections.find((s) => s.content.trim())?.content ?? '';
-  const by = v.approved_by ?? v.author;
+  const build = buildFact(detail.build?.state, detail.build?.pr_url);
   return (
-    <Card padding="md" className="flex min-w-0 flex-col gap-2" data-side={label}>
-      <p className="flex flex-wrap items-center gap-2 text-sm text-fg-2">
-        <span className="font-medium text-fg">{label}</span>
-        <span className="inline-flex items-center gap-1">
-          <TypeIcon type={detail.type} size={13} className="text-fg-3" />
-          {typeWord(detail.type)}
+    <figure className="m-0 flex min-w-0 flex-col gap-2" data-side={side.code}>
+      <figcaption className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1 text-sm text-fg-2">
+        <Code className="whitespace-nowrap">{`${detail.code} v${v.n}`}</Code>
+        <span>
+          · {v.approved_at ? t.approvedWord : t.draftedWord} <DayTime iso={v.approved_at ?? v.created_at} />
         </span>
-        <Certainty status={v.epistemic_status} />
-      </p>
-      <p className="font-medium text-fg">
-        {v.title} <Code className="whitespace-nowrap">{`${detail.code} v${v.n}`}</Code>
-      </p>
-      {quote ? (
-        <blockquote className="border-l-2 border-danger-edge pl-3 text-sm text-fg" data-quote>
-          “{quote}”
+        {build ? <span>· {build.kind === 'merged' ? t.builtMerged(build.pr) : t.builtOpen(build.pr)}</span> : null}
+      </figcaption>
+      {side.quote ? (
+        <blockquote className="m-0 max-w-prose border-l-2 border-edge-strong pl-3 text-base text-fg" data-quote>
+          “{side.quote}”
         </blockquote>
       ) : (
         <Markdown size="sm" className="line-clamp-4">
-          {text}
+          {textOf(v)}
         </Markdown>
       )}
-      <p className="mt-auto flex items-center gap-1.5 text-xs text-fg-2">
-        <WhoAvatar kind={whoOf(by).kind} size={16} />
-        {v.approved_by ? (
-          <>
-            {t.approvedWord} <DayTime iso={v.approved_at} />
-          </>
-        ) : (
-          <>
-            {t.draftedWord} <DayTime iso={v.created_at} />
-          </>
-        )}
+    </figure>
+  );
+}
+
+/** The whole record, for those who want more than the sentence. */
+function FullRecord({ side }: { side: Loaded }) {
+  const { detail, v } = side;
+  if (!detail || !v) return <Bone className="h-12 w-full" />;
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <p className="font-medium text-fg">
+        {v.title} <Code className="whitespace-nowrap">{`${detail.code} v${v.n}`}</Code>
       </p>
-    </Card>
+      <Markdown size="sm">{textOf(v)}</Markdown>
+    </div>
   );
 }

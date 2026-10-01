@@ -6,6 +6,7 @@ import type { Exploration, ProductRow, Taxonomy } from '../../api/types.ts';
 import { type Aspect, aspectOfProposal, aspectOfType } from '../../aspects.ts';
 import { taskDraftsFeature } from '../../lib/attention.ts';
 import { proposalTitle, rowOf, rowOfVersion } from '../batch/model.ts';
+import { type ConflictReview, changeCodeOf } from './conflict.ts';
 import type { NeedItem } from './order.ts';
 import { TITLES } from './words.i18n.ts';
 
@@ -29,9 +30,13 @@ export function conflictTitle(
   rows: readonly ProductRow[],
   words: Words = TITLES.en,
 ): string {
-  const r = item.proposal.payload.record as { code?: string } | undefined;
-  const name = rowOf(rows, r?.code ?? '')?.title ?? r?.code ?? words.recordFallback;
-  return `${name} ${words.verdictWord(String(item.proposal.payload.verdict))}`;
+  const review = item.proposal.payload as ConflictReview;
+  const code = review.record?.code ?? '';
+  const name = rowOf(rows, code)?.title ?? code ?? words.recordFallback;
+  const changeCode = changeCodeOf(review, rows);
+  // «TSK-MEA-040 vs TSK-MEA-038: <topic>»: the two records and what the one to review is about.
+  if (changeCode && code) return words.conflictRow(changeCode, code, name);
+  return `${name || words.recordFallback} ${words.verdictWord(String(review.verdict))}`;
 }
 
 /** The record a knowledge node ref (CODE@n) names, by its title when the product has it. */

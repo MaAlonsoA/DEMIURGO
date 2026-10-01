@@ -6,7 +6,7 @@
 // of a record the reviewed one is based on is propagation, not contradiction; the cited code must be another record of
 // the project and never a criterion (`AC-…`); a version with new or modified criteria after an approved one is E05's.
 
-import { type Escape, type EscapeRule, ms, recordById } from "./types.ts";
+import { type Escape, type EscapeRule, introducedAt, ms, recordById } from "./types.ts";
 
 const CODE = /\b(?!AC-)[A-Z]{2,4}-[A-Z]{3}-\d+\b/g;
 const WORDS = /contradict|conflict/i;
@@ -38,7 +38,17 @@ export const e06: EscapeRule = (i) => {
       record_code: byId.get(v.record_id)?.code ?? null,
       record_version_id: v.id,
       subject,
-      evidence: { ...evidence, record_version_id: v.id, contained: true },
+      evidence: {
+        ...evidence,
+        record_version_id: v.id,
+        contained: true,
+        // The older version the new one contradicted or corrected: the latest approved before it.
+        ...introducedAt(
+          i.versions
+            .filter((p) => p.record_id === v.record_id && p.n < v.n && p.approved_at !== null)
+            .sort((a, b) => b.n - a.n)[0]?.approved_at,
+        ),
+      },
       occurred_at: v.created_at,
       key: `version:${v.id}`,
     });

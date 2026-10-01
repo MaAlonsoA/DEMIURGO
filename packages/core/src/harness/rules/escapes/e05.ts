@@ -7,7 +7,7 @@
 // code, a different signal) and `defect` otherwise (our convention; a scope change by the owner cannot be told apart
 // without the thread, which the inputs do not carry).
 
-import { type EscapeRule, ms } from "./types.ts";
+import { type EscapeRule, introducedAt, ms } from "./types.ts";
 
 const PATCH = /\bpatch(es)?\b|\b(?=[0-9a-f]*\d)[0-9a-f]{7,40}\b/i;
 
@@ -85,6 +85,7 @@ export const e05: EscapeRule = (i) => {
           class: cls,
           criteria: changed.map((c) => ({ code: c.code, carry: c.carry })),
           tasks_requested: mine.length,
+          ...introducedAt(approvedBefore.approved_at),
         },
         occurred_at: v.created_at,
         key: v.id,

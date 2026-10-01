@@ -9,7 +9,7 @@
 // Root configuration, lockfiles, barrels and generated files are not evidence of ownership (`isOwnedPath`).
 
 import { taskDepends, reaches, taskFootprintsOf } from "./footprints.ts";
-import { type Escape, type EscapeRule, isCodePath, recordById } from "./types.ts";
+import { type Escape, type EscapeRule, approvalOf, introducedAt, isCodePath, recordById } from "./types.ts";
 
 export const e15: EscapeRule = (i) => {
   const byId = recordById(i);
@@ -36,7 +36,7 @@ export const e15: EscapeRule = (i) => {
         found_phase: "P9",
         record_code: byId.get(a.task_id)?.code ?? null,
         subject: `declared_without_shared_files ${byId.get(bId)?.code ?? bId}`,
-        evidence: { class: "declared_without_shared_files", task_id: a.task_id, depends_on: bId },
+        evidence: { class: "declared_without_shared_files", task_id: a.task_id, depends_on: bId, ...introducedAt(approvalOf(i, a.task_id, a.at)) },
         occurred_at: a.at,
         key: `${a.task_id}:${bId}:declared`,
       });
@@ -64,6 +64,7 @@ export const e15: EscapeRule = (i) => {
         class: "shared_without_dependency",
         task_id: a.task_id,
         other_tasks: Object.fromEntries([...missing].map(([id, files]) => [byId.get(id)?.code ?? id, files.slice(0, 10)])),
+        ...introducedAt(approvalOf(i, a.task_id, a.at)),
       },
       occurred_at: a.at,
       key: `${a.task_id}:shared`,

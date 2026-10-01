@@ -39,7 +39,7 @@ describe('containment series (pure)', () => {
     const s = containmentSeries([contained('P5', '2026-09-10T00:00:00Z'), escaped('P5', '2026-09-15T00:00:00Z')], checks);
     expect(s.map((p) => p.id)).toEqual(['a', 'b']);
     expect(s[0]!.phases).toEqual([{ phase: 'P5', contained: 1, escaped: 0, pce: 1, n: 1, target_met: null }]);
-    expect(s[1]!.phases).toEqual([{ phase: 'P5', contained: 0, escaped: 1, pce: 0, n: 1, target_met: null }]);
+    expect(s[1]!.phases).toEqual([{ phase: 'P5', contained: 1, escaped: 1, pce: 0.5, n: 2, target_met: null }]);
   });
 
   it('recomputes history: an escape found later lowers the past window', () => {

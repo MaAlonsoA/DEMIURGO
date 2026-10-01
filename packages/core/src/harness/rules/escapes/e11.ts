@@ -11,6 +11,7 @@ import {
   type Escape,
   type EscapeEvent,
   type EscapeRule,
+  introducedAt,
   recordById,
 } from "./types.ts";
 
@@ -56,6 +57,7 @@ export const e11: EscapeRule = (i) => {
         event_id: e.id,
         command: e.command,
         entity_id: e.entity_id,
+        ...introducedAt(e.entity_id ? byId.get(e.entity_id)?.created_at : null),
         ...(contained ? { contained: true } : {}),
       },
       occurred_at: e.at,

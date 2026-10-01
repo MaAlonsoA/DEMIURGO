@@ -5,7 +5,7 @@
 // esc-2: a task without `covers` is process work (E10), and a task whose criteria all first appeared in a feature
 // version created after the plan is the cascade of that later version (E05), not an omission of the plan.
 
-import { type EscapeRule, coversOf, ms, recordById } from "./types.ts";
+import { type EscapeRule, approvalOf, coversOf, introducedAt, ms, recordById } from "./types.ts";
 
 export const e04: EscapeRule = (i) => {
   const byId = recordById(i);
@@ -45,6 +45,13 @@ export const e04: EscapeRule = (i) => {
         .filter((t) => t.batch === first.batch)
         .map((t) => ms(t.created_at)),
     );
+    // The plan was approved when its last task was (its earliest approval each).
+    const planApprovals = tasks
+      .filter((t) => t.batch === first.batch)
+      .map((t) => approvalOf(i, t.task_id, null));
+    const planApproved = planApprovals.every((a) => a !== null)
+      ? planApprovals.reduce<string | null>((m, a) => (m === null || ms(a) > ms(m) ? a : m), null)
+      : null;
     for (const t of tasks) {
       if (t.batch === first.batch || ms(t.created_at) <= planEnd) continue;
       const codes = covers.get(t.task_id) ?? [];
@@ -61,6 +68,7 @@ export const e04: EscapeRule = (i) => {
           feature_id: fdrId,
           plan_batch: first.batch,
           task_batch: t.batch,
+          ...introducedAt(planApproved),
         },
         occurred_at: t.created_at,
         key: `${fdrId}:${t.task_id}`,

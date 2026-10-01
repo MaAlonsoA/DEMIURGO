@@ -4,6 +4,9 @@
 
 import {
   type EscapeRule,
+  approvalOf,
+  criterionApprovalAt,
+  introducedAt,
   recordById,
   requestTaskCode,
   verificationAt,
@@ -40,7 +43,12 @@ export const e08: EscapeRule = (i) => {
         criterion_code: code,
         build_request_id: s.build_request_id,
         subject: source,
-        evidence: { build_step_id: s.id, attempt: s.attempt, source },
+        evidence: {
+          build_step_id: s.id,
+          attempt: s.attempt,
+          source,
+          ...introducedAt(criterionApprovalAt(i, code, s.created_at)),
+        },
         occurred_at: s.created_at,
         key,
       });
@@ -76,6 +84,7 @@ export const e08: EscapeRule = (i) => {
       evidence: {
         record_version_id: version.id,
         previous_version_id: previous.id,
+        ...introducedAt(version.approved_at),
       },
       occurred_at: version.created_at,
       key: `verification:${version.id}:${c.code}`,

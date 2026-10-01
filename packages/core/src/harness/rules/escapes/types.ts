@@ -2,9 +2,9 @@
 // stored rows read once per project by `loadEscapeInputs`: no database, no clock and no model inside a rule.
 // Phases follow the path of design doc §2.2 (P1 definition … P13 use). `P0` means «outside the path»: a process
 // failure with no design phase to blame (E10). Every attribution below is our convention, written in code under
-// `ESCAPES_RULES_VERSION`; the containment measure itself comes from Motorola (Daskalantonakis 1992; Kan, ch. 4).
+// `ESCAPES_RULES_VERSION`; the containment measure itself comes from Motorola (Daskalantonakis 1992; Kan, «Metrics and Models in Software Quality Engineering», chapter «Defect Removal Effectiveness»; sin comprobar el número de capítulo).
 
-export const ESCAPES_RULES_VERSION = "esc-2";
+export const ESCAPES_RULES_VERSION = "esc-3";
 
 export type Phase = `P${number}`;
 
@@ -214,3 +214,36 @@ export const isOwnedPath = (path: string): boolean =>
 /** Source code paths only: styles, tests and documents are shared by design and say nothing about a missing dependency. */
 export const isCodePath = (path: string): boolean =>
   isOwnedPath(path) && !/\.(css|scss|md|snap)$|\.(spec|test)\.[a-z]+$|(^|\/)e2e\//.test(path);
+
+// esc-3: `evidence.introduced_at` is the moment the defective design artefact was approved (or created, for E11/E12), so
+// the containment series attributes the escape to when the defect was introduced, not to when it was found (the
+// anti-cheating rule decided with the person: a late discovery lowers the past). Omitted when not derivable.
+const iso = (d: string | null | undefined): string | null => {
+  const t = ms(d);
+  return Number.isFinite(t) ? new Date(t).toISOString() : null;
+};
+/** `{ introduced_at }` to spread into `evidence`, or nothing when the date is unknown. */
+export const introducedAt = (d: string | null | undefined): { introduced_at?: string } => {
+  const v = iso(d);
+  return v ? { introduced_at: v } : {};
+};
+/** Approval of the version of `recordId` that stood approved at `at` (the latest approved by then; else the first). */
+export const approvalOf = (i: EscapeInputs, recordId: string, at?: string | null): string | null => {
+  const approved = i.versions
+    .filter((v) => v.record_id === recordId && v.approved_at !== null)
+    .sort((a, b) => ms(a.approved_at) - ms(b.approved_at));
+  if (approved.length === 0) return null;
+  const cut = at ? ms(at) : Number.POSITIVE_INFINITY;
+  const upTo = approved.filter((v) => ms(v.approved_at) <= cut);
+  return (upTo.length > 0 ? upTo[upTo.length - 1] : approved[0])?.approved_at ?? null;
+};
+/** Approval of the version that carried criterion `code` as it stood at `at`. */
+export const criterionApprovalAt = (i: EscapeInputs, code: string | null | undefined, at?: string | null): string | null => {
+  if (!code) return null;
+  const ids = new Set(i.criteria.filter((c) => c.code === code).map((c) => c.record_version_id));
+  const cut = at ? ms(at) : Number.POSITIVE_INFINITY;
+  const vs = i.versions
+    .filter((v) => ids.has(v.id) && v.approved_at !== null && ms(v.approved_at) <= cut)
+    .sort((a, b) => ms(a.approved_at) - ms(b.approved_at));
+  return vs[vs.length - 1]?.approved_at ?? null;
+};

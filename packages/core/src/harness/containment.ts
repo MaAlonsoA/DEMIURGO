@@ -1,6 +1,7 @@
 // Phase containment effectiveness (PCE) of the design phases, pure. PCE of a phase = errors caught in the phase that
 // introduced them / (those + errors that escaped it): Daskalantonakis 1992 (Motorola) and Kan, «Metrics and Models in
-// Software Quality Engineering», ch. 6 (phase containment effectiveness; sin releer: the formula is quoted from memory).
+// Software Quality Engineering», chapter «Defect Removal Effectiveness» (sin comprobar el número de capítulo; sin releer: the
+// formula is quoted from memory).
 //
 // Decisions and conventions, all kept here in code so changing one is visible:
 // - PCE_TARGET 0.9 per design phase: decisión de la persona (01-10). No standard fixes it.
@@ -8,9 +9,11 @@
 //   (convención nuestra: the same n >= 10 rule as the harness-health verdicts, MIN_DECISIONS).
 // - Only rows the rule marked `evidence.contained` count as contained (esc-2), so the measure cannot be padded with
 //   unmarked confirmations; every contained row is listed beside the escaped ones to be audited (convención nuestra).
-// - A late discovery lowers past PCE: the series is recomputed from the stored escapes on read; the stored check rows
-//   stay as they were, append-only (convención nuestra).
-// - Only escapes of one rules version are ever compared (convención nuestra): never esc-1 with esc-2.
+// - An escape belongs to the moment its defect was INTRODUCED (`evidence.introduced_at`, esc-3; `occurred_at` when the
+//   rule could not derive it). A late discovery therefore lowers the past: a window counts every escape introduced up
+//   to its end and discovered at any time up to now, recomputed from the stored escapes on read; the stored check rows
+//   stay as they were, append-only. Anti-cheating rule: decisión de la persona (01-10).
+// - Only escapes of one rules version are ever compared (convención nuestra): never esc-2 with esc-3.
 
 export const PCE_TARGET = 0.9;
 export const PCE_MIN_N = 10;
@@ -61,15 +64,27 @@ export function containmentOf(rows: readonly ContainmentRow[]): PhaseContainment
 export type CheckWindow = { id: string; computed_at: string; window_from: string; window_to: string };
 export type ContainmentPoint = CheckWindow & { phases: PhaseContainment[] };
 
+/** When the defect was introduced (`evidence.introduced_at`), else when the fact happened; null when neither is known. */
+export const introducedOf = (r: ContainmentRow): Date | string | null => {
+  const at = (r.evidence as { introduced_at?: unknown } | null | undefined)?.introduced_at;
+  return typeof at === 'string' && Number.isFinite(ms(at)) ? at : (r.occurred_at ?? null);
+};
+
 /**
- * The series recomputed from the stored escapes, one point per check window, oldest first. An escape found after the
- * check still counts in the window of the fact (`occurred_at`; none = every window), so history is recomputed, not frozen.
+ * The series recomputed from the stored escapes, one point per check window, oldest first. A window counts every escape
+ * introduced up to its end (`introduced_at ?? occurred_at`; none known = every window) however late it was discovered,
+ * and the lower bound is not applied: a window is the state of the design up to its end, so history is recomputed.
  */
 export function containmentSeries(rows: readonly ContainmentRow[], checks: readonly CheckWindow[]): ContainmentPoint[] {
   return [...checks]
     .sort((a, b) => ms(a.computed_at) - ms(b.computed_at) || a.id.localeCompare(b.id))
     .map((c) => ({
       ...c,
-      phases: containmentOf(rows.filter((r) => r.occurred_at == null || (ms(r.occurred_at) >= ms(c.window_from) && ms(r.occurred_at) <= ms(c.window_to)))),
+      phases: containmentOf(
+        rows.filter((r) => {
+          const at = introducedOf(r);
+          return at == null || ms(at) <= ms(c.window_to);
+        }),
+      ),
     }));
 }

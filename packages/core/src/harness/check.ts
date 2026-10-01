@@ -6,7 +6,7 @@
 // Thresholds are «convención nuestra» (no standard fixes them; the Scrum Guide 2020 only says the retrospective closes
 // each sprint, at most one month): a window of 7 days, a check every 24 hours or every 5 merged tasks, a cost per merged
 // task up by more than 25 %, a containment drop of more than 0.2. They live here, in code, so changing one is visible.
-// Containment (Daskalantonakis 1992, Motorola; Kan, ch. 4) counts here only the errors the escapes table stores as found
+// Containment (Daskalantonakis 1992, Motorola; Kan, «Metrics and Models in Software Quality Engineering», chapter «Defect Removal Effectiveness», sin comprobar el número de capítulo) counts here only the errors the escapes table stores as found
 // in the phase that introduced them (introduced = found, e.g. E06); a phase without such rows reads as 0.
 
 import { createHash } from 'node:crypto';

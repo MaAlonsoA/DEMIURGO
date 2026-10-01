@@ -13,6 +13,9 @@ import {
   coversOf,
   ms,
   requestTaskCode,
+  approvalOf,
+  criterionApprovalAt,
+  introducedAt,
   verificationAt,
 } from "./types.ts";
 
@@ -74,6 +77,10 @@ export const e01: EscapeRule = (i) => {
         verification: how,
         needs_person: needsPerson,
         rounds: 1,
+        ...introducedAt(
+          criterionApprovalAt(i, criterion, review.created_at) ??
+            approvalOf(i, taskId, review.created_at),
+        ),
       },
       rounds: 1,
       occurred_at: review.created_at,

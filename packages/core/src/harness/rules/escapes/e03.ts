@@ -4,7 +4,7 @@
 // cascade of that change, not a planning failure of its own; it is left to E06/E05. `by_hand` tells a version written
 // by a person from one that came as a proposal.
 
-import { type EscapeRule, ms } from "./types.ts";
+import { type EscapeRule, approvalOf, introducedAt, ms } from "./types.ts";
 
 export const e03: EscapeRule = (i) => {
   const firstRequest = new Map<string, string>();
@@ -38,6 +38,7 @@ export const e03: EscapeRule = (i) => {
         n: v.n,
         first_request_at: first,
         by_hand: v.origin_type !== "proposal",
+        ...introducedAt(approvalOf(i, v.record_id, v.created_at)),
       },
       occurred_at: v.created_at,
       key: v.id,

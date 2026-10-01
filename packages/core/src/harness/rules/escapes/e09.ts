@@ -7,10 +7,11 @@
 // per request (listing the owner tasks); `evidence.source` is `footprint`. A heuristic by path, never by table.
 
 import { taskDepends, reaches, taskFootprintsOf } from "./footprints.ts";
-import { type EscapeRule, isCodePath, ms, recordById, requestTaskCode } from "./types.ts";
+import { type EscapeRule, approvalOf, introducedAt, isCodePath, ms, recordById, requestTaskCode } from "./types.ts";
 
 export const e09: EscapeRule = (i) => {
   const taskCode = requestTaskCode(i);
+  const taskOfRequest = new Map(i.requests.map((r) => [r.id, r.task_id]));
   const out = [];
   const seen = new Set<string>();
   const withOwnership = new Set<string>();
@@ -53,6 +54,7 @@ export const e09: EscapeRule = (i) => {
           attempt: s.attempt,
           owner: o.owner?.code ?? null,
           reason: o.reason ?? null,
+          ...introducedAt(approvalOf(i, taskOfRequest.get(s.build_request_id) ?? "", s.created_at)),
         },
         occurred_at: s.created_at,
         key,
@@ -107,6 +109,7 @@ export const e09: EscapeRule = (i) => {
           [...byOwner].map(([id, files]) => [byId.get(id)?.code ?? id, files.slice(0, 10)]),
         ),
         merged: mine.merged,
+        ...introducedAt(approvalOf(i, taskId, mine.at)),
       },
       occurred_at: mine.at,
       key,

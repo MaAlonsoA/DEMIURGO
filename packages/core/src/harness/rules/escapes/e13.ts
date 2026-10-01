@@ -1,10 +1,11 @@
 // E13 — a stale build request: a new base (task and feature versions) was adopted after the first attempt, so the task
 // or its feature changed while it was being built (P7 → P9). Source: build_request_bases with attempt > 1.
 
-import { type EscapeRule, requestTaskCode } from "./types.ts";
+import { type EscapeRule, approvalOf, introducedAt, requestTaskCode } from "./types.ts";
 
 export const e13: EscapeRule = (i) => {
   const taskCode = requestTaskCode(i);
+  const taskOf = new Map(i.requests.map((r) => [r.id, r.task_id]));
   return i.bases
     .filter((b) => b.attempt > 1)
     .map((b) => ({
@@ -14,7 +15,7 @@ export const e13: EscapeRule = (i) => {
       record_code: taskCode.get(b.build_request_id) || null,
       build_request_id: b.build_request_id,
       subject: `attempt ${b.attempt}`,
-      evidence: { build_request_base_id: b.id, attempt: b.attempt },
+      evidence: { build_request_base_id: b.id, attempt: b.attempt, ...introducedAt(approvalOf(i, taskOf.get(b.build_request_id) ?? "", b.adopted_at)) },
       occurred_at: b.adopted_at,
       key: b.id,
     }));

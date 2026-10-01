@@ -3,7 +3,7 @@
 // task based on a definition, a requirement or a decision (DEF/NFR/ADR) with no `covers` is a legitimate enabler (SAFe
 // «enabler» work; our convention) and is not an escape. Source: task records, task_covers and `based_on` links.
 
-import { type EscapeRule, coversOf, recordById } from "./types.ts";
+import { type EscapeRule, approvalOf, coversOf, introducedAt, recordById } from "./types.ts";
 
 export const e10: EscapeRule = (i) => {
   const covers = coversOf(i);
@@ -34,7 +34,7 @@ export const e10: EscapeRule = (i) => {
       found_phase: "P7" as const,
       record_code: r.code,
       subject: r.code,
-      evidence: { task_id: r.id },
+      evidence: { task_id: r.id, ...introducedAt(approvalOf(i, r.id, null)) },
       occurred_at: r.created_at,
       key: r.id,
     }));

@@ -3,7 +3,7 @@
 // esc-2: the class of the reason is recorded (`reason_class`: duplicate, deployment, new_version, other) and a missing
 // or generic reason is flagged (`reason_missing`: the journal could not classify it). Attributed to the build phase (P9 → P9). Source: build_requests state withdrawn and the `withdraw` step's reason.
 
-import { type EscapeRule, requestTaskCode } from "./types.ts";
+import { type EscapeRule, introducedAt, requestTaskCode } from "./types.ts";
 
 const GENERIC = /^the build request was withdrawn\.?$/i;
 const classOf = (reason: string | null): string | null =>
@@ -40,6 +40,7 @@ export const e12: EscapeRule = (i) => {
         reason_missing: classOf(reason.get(r.id)?.reason ?? null) === null,
         build_request_id: r.id,
         build_step_id: reason.get(r.id)?.step ?? null,
+        ...introducedAt(r.requested_at),
       },
       occurred_at: r.withdrawn_at,
       key: r.id,

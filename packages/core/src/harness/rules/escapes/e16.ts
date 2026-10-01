@@ -6,7 +6,7 @@
 // least that counts (our convention). Sources: approved feature versions, task records based on features, and
 // `depends_on` (a task waiting for the feature) or feature-to-feature `based_on` (its tasks wait) links.
 
-import { type EscapeRule, ms, recordById } from "./types.ts";
+import { type EscapeRule, introducedAt, ms, recordById } from "./types.ts";
 
 const MIN_WAIT_MS = 60 * 60 * 1000;
 
@@ -62,6 +62,7 @@ export const e16: EscapeRule = (i) => {
         waiting: dependents.size,
         hours_waited: Math.round((waited / 3_600_000) * 10) / 10,
         planned: planAt !== undefined,
+        ...introducedAt(approved.approved_at),
       },
       occurred_at: approved.approved_at,
       key: f.id,

@@ -73,9 +73,9 @@ import { approvedWithFixes, countFixes, countTestMarkers, fixCommentsOf, isTestF
 import { isTransientRunError, REVIEW_MAX_RETRIES, REVIEW_RETRY_BACKOFF_MS } from './review-retry.ts';
 import type { Services } from '../services.ts';
 import { checkFixes, diffsByFile } from '../classifier/fix-check.ts';
-import { commitAll, headWithWork, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, changedOnBranch, changedWithPending, addedOnBranch, numstatBetween, nameStatusBetween, unifiedZeroBetween, showAt, diffBetween, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
+import { commitAll, headWithWork, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, ensureManagedFiles, MANAGED_SELECT_E2E, changedOnBranch, changedWithPending, addedOnBranch, numstatBetween, nameStatusBetween, unifiedZeroBetween, showAt, diffBetween, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
 import { existsSync } from 'node:fs';
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdir, readdir, rm } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { type BuilderSession, builderSessionPlan, sessionFilesExist } from './session.ts';
 import { basename, join } from 'node:path';
@@ -648,6 +648,8 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
   // worktree
   const tree = await stage(r, 'worktree', async () => {
     const w = await prepareWorktree({ repoDir: info.repoDir, taskCode: info.taskCode, buildId: requestId, existingBranch: info.branch, skipIntegrate: resume !== null });
+    // The CI paved road: DEMIURGO's own files, rewritten on every build (committed with the task's work).
+    await ensureManagedFiles(w.path);
     return { value: w, detail: { branch: w.branch, reused: Boolean(info.branch), ...(w.conflicts ? { conflicts: w.conflicts } : {}) }, extra: { branch: w.branch } };
   });
   if (!tree.ok) return stop('worktree', tree.outcome);
@@ -779,7 +781,10 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     // The progress notes (Anthropic, «Effective harnesses for long-running agents») go to the step and the next attempt's prompt.
     const progressText = ((await readWorktreeFile(worktree.path, PROGRESS_PATH)) ?? '').trim().slice(0, PROGRESS_MAX_CHARS);
     // The report and the notes are DEMIURGO's, not the project's: they never enter the commit (nor the WIP one).
-    await rm(join(worktree.path, '.demiurgo'), { recursive: true, force: true });
+    // The managed files DEMIURGO ships (the CI selector) stay: they are part of the work.
+    for (const entry of await readdir(join(worktree.path, '.demiurgo')).catch(() => [] as string[])) {
+      if (join('.demiurgo', entry) !== MANAGED_SELECT_E2E) await rm(join(worktree.path, '.demiurgo', entry), { recursive: true, force: true });
+    }
     const failed = result.state !== 'ok';
     const kind = failed
       ? classifyBuilderFailure({ runnerKind: result.failureKind, exitCode: result.exitCode, stderr: result.stderrTail, transcript: result.transcriptTail })

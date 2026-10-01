@@ -4,8 +4,9 @@
 
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { appendFile, mkdir, readFile, stat } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { projectsDir } from '../repo/repo.ts';
 import { runGit } from '../github/client.ts';
@@ -138,6 +139,30 @@ export async function prepareWorktree(input: { repoDir: string; taskCode: string
   return { path, branch };
 }
 
+// The CI «paved road»: files DEMIURGO ships into every project (convención nuestra; platform teams provide the
+// golden path, Skelton and Pais, «Team Topologies»). They are managed: rewritten on every build, never reviewed
+// as the task's own change.
+export const MANAGED_SELECT_E2E = '.demiurgo/select-e2e.mjs';
+const MANAGED_HEADER = '// Managed by DEMIURGO: do not edit; it is replaced on every build.\n';
+const SELECT_E2E_TEMPLATE = fileURLToPath(new URL('../../templates/ci/select-e2e.mjs', import.meta.url));
+
+/** The content of the managed selector: the header and the template. */
+export async function managedSelectE2eContent(): Promise<string> {
+  return MANAGED_HEADER + (await readFile(SELECT_E2E_TEMPLATE, 'utf8'));
+}
+
+/** Writes `.demiurgo/select-e2e.mjs` into the worktree when it is missing or differs. True when it wrote. */
+export async function ensureManagedFiles(path: string): Promise<boolean> {
+  const content = await managedSelectE2eContent();
+  const file = join(path, MANAGED_SELECT_E2E);
+  if ((await readFile(file, 'utf8').catch(() => null)) === content) return false;
+  await mkdir(join(file, '..'), { recursive: true });
+  await writeFile(file, content);
+  return true;
+}
+
+const notManaged = (p: string): boolean => p !== MANAGED_SELECT_E2E;
+
 /** `git diff --stat` of everything the builder changed, new files included. */
 export async function diffStat(path: string): Promise<string> {
   await writeExcludes(path);
@@ -160,12 +185,12 @@ export async function changedBetween(path: string, from: string, to: string): Pr
 
 /** `git diff --numstat` between two commits (renames off, so every row is one path). */
 export async function numstatBetween(path: string, from: string, to: string): Promise<string> {
-  return (await git(path, ['diff', '--numstat', '--no-renames', from, to])).stdout;
+  return (await git(path, ['diff', '--numstat', '--no-renames', from, to, '--', '.', `:(exclude)${MANAGED_SELECT_E2E}`])).stdout;
 }
 
 /** `git diff --name-status` between two commits (renames off: a move shows as a delete plus an add). */
 export async function nameStatusBetween(path: string, from: string, to: string): Promise<string> {
-  return (await git(path, ['diff', '--name-status', '--no-renames', from, to])).stdout;
+  return (await git(path, ['diff', '--name-status', '--no-renames', from, to, '--', '.', `:(exclude)${MANAGED_SELECT_E2E}`])).stdout;
 }
 
 /** `git diff -U0` between two commits: the hunk headers say where each change sits. */
@@ -229,8 +254,9 @@ export async function commitAll(path: string, message: string, author: string = 
   await writeExcludes(path);
   await git(path, ['add', '-A']);
   await unstageLargeFiles(path);
-  const { stdout: status } = await git(path, ['status', '--porcelain']);
-  if (!status.trim()) return null;
+  if (!(await git(path, ['status', '--porcelain'])).stdout.trim()) return null;
+  // `.demiurgo/` is excluded, but the managed selector travels with the task's work so the project's CI can run it.
+  if (existsSync(join(path, MANAGED_SELECT_E2E))) await git(path, ['add', '-f', '--', MANAGED_SELECT_E2E]);
   const { name, email } = parseAuthor(author);
   await git(path, [
     '-c', `user.name=${name}`,
@@ -280,7 +306,7 @@ export async function unresolvedConflicts(path: string): Promise<string[]> {
 /** The files a commit touched. */
 export async function commitFiles(path: string, sha: string): Promise<string[]> {
   const { stdout } = await git(path, ['show', '--name-only', '--pretty=format:', sha]);
-  return stdout.split('\n').map((l) => l.trim()).filter((l) => l !== '');
+  return stdout.split('\n').map((l) => l.trim()).filter((l) => l !== '').filter(notManaged);
 }
 
 /** Removes the worktree (the branch stays, it holds the work). */
@@ -324,7 +350,7 @@ export async function changedOnBranch(path: string): Promise<string[]> {
   for (const base of ['refs/remotes/origin/main', 'main']) {
     try {
       const { stdout } = await git(path, ['diff', '--name-only', `${base}...HEAD`]);
-      return stdout.split('\n').map((l) => l.trim()).filter(Boolean);
+      return stdout.split('\n').map((l) => l.trim()).filter(Boolean).filter(notManaged);
     } catch {
       // try the next base
     }
@@ -344,7 +370,7 @@ export async function changedWithPending(path: string): Promise<string[]> {
   } catch {
     // the committed files are what we have
   }
-  return [...files];
+  return [...files].filter(notManaged);
 }
 
 /** Files the branch ADDS against main (`git diff --diff-filter=A`); [] when there is no main to compare. */
@@ -352,7 +378,7 @@ export async function addedOnBranch(path: string): Promise<string[]> {
   for (const base of ['refs/remotes/origin/main', 'main']) {
     try {
       const { stdout } = await git(path, ['diff', '--name-only', '--diff-filter=A', `${base}...HEAD`]);
-      return stdout.split('\n').map((l) => l.trim()).filter(Boolean);
+      return stdout.split('\n').map((l) => l.trim()).filter(Boolean).filter(notManaged);
     } catch {
       // try the next base
     }

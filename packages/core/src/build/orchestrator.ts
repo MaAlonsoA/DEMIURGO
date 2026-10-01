@@ -58,6 +58,7 @@ import { type OwnershipViolation, checkOwnership, ownershipLine } from './owners
 import { storeCodeOpinions } from '../classifier/code-rerank.ts';
 import { codeToExtend } from './queue.ts';
 import { affectedTests, affectedTestsLine, buildCodeMap } from './code-map.ts';
+import { decideRecheck } from './recheck.ts';
 import type { Services } from '../services.ts';
 import { commitAll, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, changedOnBranch, addedOnBranch, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
 import { existsSync } from 'node:fs';
@@ -1088,7 +1089,17 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       return 0; // cannot tell: GitHub's own merge rule still applies
     }
   });
-  if (behind > 0) {
+  // Only what can affect this task is worth a second CI run (Google TAP: affected tests presubmit, everything
+  // postsubmit; the `main` stage is the postsubmit). Disjoint changes that merge cleanly skip it (see build/recheck.ts).
+  const recheck =
+    behind > 0
+      ? await plain('merge-recheck', async () => {
+          const decision = await decideRecheck(info.repoDir, headSha);
+          if (!decision.recheck) await record(r, 'merge', 'waiting', { recheck: false, reason: decision.reason, main_files: decision.mainFiles, behind_by: behind });
+          return decision;
+        })
+      : null;
+  if (behind > 0 && recheck?.recheck !== false) {
     const update = await plain('merge-update', async () => {
       try {
         return await d.github.updateBranch(cfg, owner, repoName, pull.number, headSha);
@@ -1122,7 +1133,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       return stop('merge', 'failed');
     }
     const updatedSha = newSha;
-    await plain('merge-updated', () => record(r, 'merge', 'waiting', { updated_from_base: true, head_sha: updatedSha, behind_by: behind }, { head_sha: updatedSha }));
+    await plain('merge-updated', () => record(r, 'merge', 'waiting', { updated_from_base: true, recheck: true, reason: recheck?.reason ?? 'no_code_map', head_sha: updatedSha, behind_by: behind }, { head_sha: updatedSha }));
     // The same CI wait as the `ci` stage, on the new head.
     const again = await waitForCi(d, cfg, owner, repoName, updatedSha, 'merge-ci');
     if (!again.ci) {

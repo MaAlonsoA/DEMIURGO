@@ -399,6 +399,38 @@ export async function deletedOnBranch(path: string): Promise<string[]> {
   return [];
 }
 
+/**
+ * The files an attempt itself changed: those that differ between the previous attempt's commit and `sha` AND that the
+ * branch changes against its merge-base with main. Files that arrived from main (a merge of origin/main into the
+ * branch) differ from the previous commit but are not in the merge-base diff, so they are never counted as the task's
+ * own (TSK-MYA-018 was credited 52 files of other tasks after a rework). With no previous commit it is the whole
+ * branch diff. Null when the diff cannot be computed (a rewritten branch). Without a main to compare, the plain diff stands.
+ */
+export async function ownFilesSince(path: string, previousSha: string | null, sha: string): Promise<string[] | null> {
+  const names = async (args: string[]): Promise<string[]> =>
+    (await git(path, ['diff', '--name-only', ...args])).stdout.split('\n').map((l) => l.trim()).filter(Boolean).filter(notManaged);
+  try {
+    let branchFiles: string[] | null = null;
+    for (const base of ['refs/remotes/origin/main', 'main']) {
+      try {
+        const mergeBase = (await git(path, ['merge-base', base, sha])).stdout.trim();
+        if (!mergeBase) continue;
+        branchFiles = await names([mergeBase, sha]);
+        break;
+      } catch {
+        // try the next base
+      }
+    }
+    if (!previousSha) return branchFiles ?? [];
+    const since = await names([previousSha, sha]);
+    if (!branchFiles) return since;
+    const own = new Set(branchFiles);
+    return since.filter((f) => own.has(f));
+  } catch {
+    return null;
+  }
+}
+
 /** One file of the worktree, or null if it is not there. */
 export async function readWorktreeFile(path: string, file: string): Promise<string | null> {
   return readFile(join(path, file), 'utf8').catch(() => null);

@@ -169,6 +169,9 @@ async function taskState(db: Db, t: QueueTask): Promise<{ kind: 'start'; hasRequ
   const d = latest.detail as { failure_kind?: string } | null;
   const failure = latest.stage === 'builder' && latest.outcome === 'failed' ? (d?.failure_kind ?? null) : null;
   if (isTransientFailure(failure)) return { kind: 'stopped', stopped: { code: t.code, kind: 'waiting', tried: null, failure_kind: failure } };
+  // The retry breaker (breaker.ts) stopped the attempt at its design stage: the last step says it needs the person.
+  const breaker = latest.stage === 'design' ? (latest.detail as { needs_you?: boolean; tried?: number } | null) : null;
+  if (breaker?.needs_you === true) return { kind: 'stopped', stopped: { code: t.code, kind: 'needs_you', tried: breaker.tried ?? null } };
   // The attempt that ended needing the person says so in its last step; any other ended attempt also stops
   // the queue (it never skips ahead).
   const needs = (await db

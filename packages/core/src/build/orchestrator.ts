@@ -62,6 +62,7 @@ import { BUILDER_MAX_TIME_MS, type BuildReport, runBuilder } from '../runner/bui
 import { databaseName, prepareEnvironment, projectSlug, teardownEnvironment } from '../runner/environment.ts';
 import { PLAYWRIGHT_CONFIGS, environmentFromCi, startCommandOf, startLine } from './environment.ts';
 import { pullRequestFootprint } from './footprint.ts';
+import { BREAKER_ATTEMPTS, tripped } from './breaker.ts';
 import { type OwnershipViolation, checkOwnership, ownershipLine } from './ownership.ts';
 import { storeCodeOpinions } from '../classifier/code-rerank.ts';
 import { buildEngineMark, cliVersionOf } from '../harness/engine.ts';
@@ -78,12 +79,10 @@ import { approvedWithFixes, countFixes, countTestMarkers, fixCommentsOf, isTestF
 import { isTransientRunError, REVIEW_MAX_RETRIES, REVIEW_RETRY_BACKOFF_MS } from './review-retry.ts';
 import type { Services } from '../services.ts';
 import { checkFixes, diffsByFile } from '../classifier/fix-check.ts';
-import { commitAll, headWithWork, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, ensureManagedFiles, MANAGED_SELECT_E2E, changedOnBranch, changedWithPending, addedOnBranch, deletedOnBranch, numstatBetween, nameStatusBetween, unifiedZeroBetween, showAt, diffBetween, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
+import { commitAll, headWithWork, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, ensureManagedFiles, MANAGED_SELECT_E2E, changedOnBranch, ownFilesSince, changedWithPending, addedOnBranch, deletedOnBranch, numstatBetween, nameStatusBetween, unifiedZeroBetween, showAt, diffBetween, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { accumulateProgress, commitMessageOf, ownProgress, SCREEN_MAX_BYTES, SCREENS_DIR, sameFileList, screensOf } from './progress.ts';
 import { type InsistedJev, insistedSignalBefore, insistedTwice, reviewerRepeatedAny } from './insisted.ts';
 import { type BuilderSession, builderSessionPlan, sessionFilesExist } from './session.ts';
@@ -446,16 +445,6 @@ async function previousCommitSha(s: Services, requestId: string, attempt: number
   return typeof sha === 'string' && sha ? sha : null;
 }
 
-/** The files changed between two commits of the worktree, or null when git cannot tell (a rewritten branch). */
-async function filesBetween(path: string, from: string, to: string): Promise<string[] | null> {
-  try {
-    const { stdout } = await promisify(execFile)('git', ['-c', 'safe.directory=*', '-C', path, 'diff', '--name-only', from, to], { maxBuffer: 16 * 1024 * 1024 });
-    return stdout.split('\n').filter(Boolean);
-  } catch {
-    return null;
-  }
-}
-
 async function previousProgress(s: Services, requestId: string, attempt: number): Promise<string | undefined> {
   const row = await s.db
     .selectFrom('build_steps')
@@ -731,7 +720,7 @@ async function automaticAttempts(s: Services, requestId: string): Promise<number
 }
 
 /** After a failed design stage (design system or ownership): records the automatic next attempt and returns its number, or null. */
-async function retryDesign(s: Services, r: Run, limit: number): Promise<number | null> {
+export async function retryDesign(s: Services, r: Run, limit: number): Promise<number | null> {
   const latest = await s.db
     .selectFrom('build_steps')
     .select((eb) => eb.fn.max('attempt').as('attempt'))
@@ -739,18 +728,27 @@ async function retryDesign(s: Services, r: Run, limit: number): Promise<number |
     .executeTakeFirst();
   if (Number(latest?.attempt ?? r.attempt) !== r.attempt) return null;
   if ((await automaticAttempts(s, r.requestId)) >= limit) return null;
-  // The same violations as the attempt before: the builder did not or could not fix them, and another round repeats it
-  // (MYA-018 went round 7 times on one test-guard line). It is left to the person, like «insisting» in insisted.ts.
+  // Circuit breaker (breaker.ts): the same guard failing with the same finding on the last BREAKER_ATTEMPTS attempts
+  // (MYA-018 went round 15 times on one test-guard line). Another round repeats it, so it is left to the person.
   const failures = await s.db
     .selectFrom('build_steps')
     .select(['attempt', 'detail'])
     .where('build_request_id', '=', r.requestId)
     .where('stage', '=', 'design')
     .where('outcome', '=', 'failed')
-    .where('attempt', 'in', [r.attempt, r.attempt - 1])
+    .where('attempt', '>', r.attempt - BREAKER_ATTEMPTS)
+    .where('attempt', '<=', r.attempt)
+    .orderBy('created_at', 'desc')
     .execute();
-  const errorOf = (a: number) => String((failures.find((f) => f.attempt === a)?.detail as { error?: unknown } | null)?.error ?? '');
-  if (errorOf(r.attempt) !== '' && errorOf(r.attempt) === errorOf(r.attempt - 1)) return null;
+  const breaker = tripped(
+    failures.map((f) => ({ attempt: f.attempt, error: String((f.detail as { error?: unknown } | null)?.error ?? '') })),
+    r.attempt,
+  );
+  if (breaker) {
+    const reason = `The ${breaker.guard} guard failed with the same finding on ${breaker.attempts} attempts in a row (${breaker.finding.slice(0, 300)}); retrying again would repeat it, so it needs you.`;
+    await record(r, 'design', 'failed', { needs_you: true, tried: breaker.attempts, reason, breaker });
+    return null;
+  }
   const reason = 'The change broke the design-system or ownership guard; a new attempt fixes the violations it was told.';
   await record({ ...r, attempt: r.attempt + 1 }, 'repo', 'started', { started_by: formatActor(BUILD), automatic: true, reason });
   return r.attempt + 1;
@@ -1192,7 +1190,8 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     // What this attempt itself changed since the previous attempt's commit (the harness post-mortem judges review
     // comments against it; `files` is the whole branch against main). The first attempt changed the whole branch.
     const previousSha = r.attempt > 1 ? await previousCommitSha(s0, requestId, r.attempt) : null;
-    const ownFiles = previousSha ? await filesBetween(worktree.path, previousSha, sha) : files;
+    // Against the merge-base with main: files that came from main with a rework are never the task's own.
+    const ownFiles = previousSha ? await ownFilesSince(worktree.path, previousSha, sha) : files;
     return { value: sha, detail: { sha, ...(files.length > 0 ? { files } : {}), ...(ownFiles ? { own_files: ownFiles.slice(0, 300) } : {}), ...(fresh && affected ? { affected_criteria: affected } : {}) }, extra: { head_sha: sha } };
   });
   if (!committed.ok) return stop('commit', committed.outcome);

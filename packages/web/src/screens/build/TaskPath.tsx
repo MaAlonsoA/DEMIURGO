@@ -4,14 +4,14 @@
 // All of it comes from the build steps the server already keeps; where a fact was not kept the view says so.
 
 import { Link } from "@tanstack/react-router";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import type { TimelineAttempt, TimelineContext, TimelineRequest } from "../../api/types.ts";
 import { Code } from "../../components/Badge.tsx";
 import { Who } from "../../components/Who.tsx";
 import { cn } from "../../lib/cn.ts";
 import { useMessages } from "../../i18n/define.ts";
 import { AGENT_BUILD } from "../record/agentBuild.i18n.ts";
-import { PATH_COLUMNS, type Selection, type StageState, compact, flattenSegments, ms, reviewOverlapsCi, stageStates } from "./timelineLogic.ts";
+import { type ChainBlock, PATH_COLUMNS, STAGE_COLUMN, type Selection, type StageState, chainLayout, compact, flattenSegments, ms, reviewOverlapsCi, scrollTargetFor, stageStates } from "./timelineLogic.ts";
 import type { BUILD } from "./words.i18n.ts";
 
 type Words = typeof BUILD.en;
@@ -22,7 +22,6 @@ const NODE_W = 132;
 const DOT_Y = 18;
 const BRANCH_GAP = 96;
 const MID_Y = DOT_Y + BRANCH_GAP / 2;
-const FLOW_H = 166;
 
 /** A two-line label: the words split in the middle. */
 function twoLines(label: string): [string, string] {
@@ -95,12 +94,25 @@ function Gateway({ cx }: { cx: number }) {
   );
 }
 
+const GAP = 48;
+const HEAD_H = 22;
+const BODY_H = 192;
+const clip = (s: string, max = 22): string => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
+
+/** The colour of the rework loop leaving an attempt: the colour of how it ended. */
+const LOOP: Record<string, { stroke: string; fill: string }> = {
+  failed: { stroke: "stroke-danger", fill: "fill-danger" },
+  changes_requested: { stroke: "stroke-warning", fill: "fill-warning" },
+};
+const LOOP_DEFAULT = { stroke: "stroke-edge-control", fill: "fill-edge-control" };
+
 /**
- * The stepper: Prepare, Build, [CI and Review in parallel], Merge, CI on main. Practice: fork/join of UML activity
- * diagrams and the parallel gateway of BPMN. Attempts from before the parallel run have the same layout: their
- * two branches just do not overlap in time. CI on main comes after the merge and does not hold the queue.
+ * One attempt as a block: Prepare, Build, [CI and Review in parallel], Merge, CI on main. Practice: fork/join of UML
+ * activity diagrams and the parallel gateway of BPMN. Attempts from before the parallel run have the same layout:
+ * their two branches just do not overlap in time. CI on main comes after the merge and does not hold the queue.
+ * An attempt that ended early is cut after its last reached stage (`cols` columns).
  */
-function Flow({ attempt, code, t }: { attempt: TimelineAttempt; code: string; t: Words }) {
+function AttemptBlock({ attempt, cols, t }: { attempt: TimelineAttempt; cols: number; t: Words }) {
   const states = stageStates(attempt);
   const node = (stage: PathStage, col: number, cy: number): PathNode => {
     const st = states.get(stage);
@@ -108,12 +120,17 @@ function Flow({ attempt, code, t }: { attempt: TimelineAttempt; code: string; t:
     return { stage, cx: col * NODE_W + NODE_W / 2, cy, state: (st?.state ?? "pending") as StageState, ms: st?.ms ?? 0, wait: st?.wait ?? false, cancelled };
   };
   const [prepare, builder, ci, review, merge, main] = [node("prepare", 0, MID_Y), node("builder", 1, MID_Y), node("ci", 2, DOT_Y), node("review", 2, DOT_Y + BRANCH_GAP), node("merge", 3, MID_Y), node("main", 4, MID_Y)] as [PathNode, PathNode, PathNode, PathNode, PathNode, PathNode];
-  const nodes = [prepare, builder, ci, review, merge, main];
-  const width = PATH_COLUMNS.length * NODE_W;
+  const all = [prepare, builder, ci, review, merge, main];
+  const nodes = all.filter((n) => (STAGE_COLUMN[n.stage] ?? 0) < cols);
+  // The end node of an attempt that did not get through: the stage where it stopped shows how it ended.
+  const endResult = attempt.result === "failed" ? "failed" : attempt.result === "changes_requested" ? "changes" : attempt.result === "cancelled" ? "cancelled" : null;
+  const endStage = attempt.ended_by?.stage;
+  const endNode = endResult ? (cols === 3 ? (endStage === "review" ? review : ci) : nodes.find((n) => STAGE_COLUMN[n.stage] === cols - 1)) : undefined;
+  if (endNode && endResult && (endNode.state === "done" || endNode.state === "pending")) endNode.state = endResult;
   const forkX = builder.cx + NODE_W / 2;
   const joinX = merge.cx - NODE_W / 2;
-  const parallel = reviewOverlapsCi(attempt);
   const mergeStarted = merge.state !== "pending";
+  const reason = endNode ? attempt.ended_by?.reason ?? null : null;
   const label = (n: PathNode) => (
     <>
       <text x={n.cx} y={n.cy + 28} textAnchor="middle" className={cn("text-xs", n.state === "pending" ? "fill-fg-3" : "fill-fg")}>
@@ -126,52 +143,145 @@ function Flow({ attempt, code, t }: { attempt: TimelineAttempt; code: string; t:
       ) : null}
     </>
   );
-  const note = (n: PathNode, text: string) =>
+  const note = (n: PathNode, text: string, extra = 0) =>
     twoLines(text).map((line, i) =>
       line ? (
-        <text key={`${n.stage}-${i}`} x={n.cx} y={n.cy + (n.ms >= 1000 ? 56 : 42) + i * 13} textAnchor="middle" className="fill-fg-3 text-xs">
-          {line}
+        <text key={`${n.stage}-${i}-${extra}`} x={n.cx} y={n.cy + (n.ms >= 1000 ? 56 : 42) + extra + i * 13} textAnchor="middle" className="fill-fg-3 text-xs">
+          {clip(line)}
         </text>
       ) : null,
     );
+  const showCancelled = (n: PathNode) => n.cancelled && n.state === "cancelled";
   return (
-    <div className="flex flex-col gap-2">
-      <div tabIndex={0} role="group" aria-label={t.tpPathLabel(code, attempt.n)} className="max-w-full overflow-x-auto rounded-xs focus-visible:outline-2 focus-visible:outline-focus" data-task-path data-parallel={parallel ? "true" : "false"}>
-        <svg width={width} height={FLOW_H} aria-hidden="true" className="block shrink-0">
-          <Bar x1={prepare.cx + 12} x2={builder.cx - 12} y={MID_Y} node={builder} />
+    <>
+      <Bar x1={prepare.cx + 12} x2={builder.cx - 12} y={MID_Y} node={builder} />
+      {cols >= 3 ? (
+        <>
           <Bar x1={builder.cx + 12} x2={forkX - 8} y={MID_Y} node={ci.state === "pending" && review.state === "pending" ? ci : { state: "done", wait: false }} />
           {/* fork: the two branches leave the gateway together */}
           <line x1={forkX} x2={forkX} y1={ci.cy} y2={review.cy} className="stroke-edge-strong" strokeWidth={1.5} />
           <Bar x1={forkX} x2={ci.cx - 12} y={ci.cy} node={ci} />
           <Bar x1={forkX} x2={review.cx - 12} y={review.cy} node={review} />
+          <Gateway cx={forkX} />
+        </>
+      ) : null}
+      {cols >= 4 ? (
+        <>
           {/* join: Merge starts when both are done */}
           <Bar x1={ci.cx + 12} x2={joinX} y={ci.cy} node={ci} />
           <Bar x1={review.cx + 12} x2={joinX} y={review.cy} node={review} />
           <line x1={joinX} x2={joinX} y1={ci.cy} y2={review.cy} className="stroke-edge-strong" strokeWidth={1.5} />
           <Bar x1={joinX + 8} x2={merge.cx - 12} y={MID_Y} node={mergeStarted ? { state: merge.state, wait: false } : { state: "pending", wait: false }} />
-          <Gateway cx={forkX} />
           <Gateway cx={joinX} />
-          {/* CI on main: after the merge, a dashed link whatever its state */}
-          <line x1={merge.cx + 12} x2={main.cx - 12} y1={MID_Y} y2={MID_Y} className="stroke-edge-control" strokeWidth={1.5} strokeDasharray="3 3" />
-          {nodes.map((n) => (
-            <g key={n.stage} data-stage={n.stage} data-state={n.state}>
-              <Glyph state={n.state} cx={n.cx} cy={n.cy} />
-              {label(n)}
-              {n.stage === "main" ? note(n, t.tpAfterMerge) : null}
-              {n.cancelled && n.state === "cancelled" ? note(n, t.tpCancelledReason) : null}
-            </g>
-          ))}
+        </>
+      ) : null}
+      {/* CI on main: after the merge, a dashed link whatever its state */}
+      {cols >= 5 ? <line x1={merge.cx + 12} x2={main.cx - 12} y1={MID_Y} y2={MID_Y} className="stroke-edge-control" strokeWidth={1.5} strokeDasharray="3 3" /> : null}
+      {nodes.map((n) => (
+        <g key={n.stage} data-stage={n.stage} data-state={n.state}>
+          <Glyph state={n.state} cx={n.cx} cy={n.cy} />
+          {label(n)}
+          {n.stage === "main" ? note(n, t.tpAfterMerge) : null}
+          {showCancelled(n) ? note(n, t.tpCancelledReason) : null}
+          {n === endNode && reason && !showCancelled(n) ? note(n, reason) : null}
+        </g>
+      ))}
+    </>
+  );
+}
+
+/**
+ * Every attempt of the task as one chain: attempt 1, then 2, … up to the merge, with the rework loop between them.
+ * Practice: a value-stream map shows each loop back of rework (Rother & Shook, «Learning to See»).
+ */
+function Chain({ request, selected, onSelect, t }: { request: TimelineRequest; selected: number; onSelect: (n: number) => void; t: Words }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const { blocks, width } = chainLayout(request.attempts, NODE_W, GAP);
+  const sel = blocks.find((b) => b.n === selected);
+  const selX = sel?.x;
+  const selW = sel?.width;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || selX === undefined || selW === undefined) return;
+    el.scrollLeft = scrollTargetFor(selX, selW, el.scrollLeft, el.clientWidth);
+  }, [selected, selX, selW]);
+  const height = HEAD_H + BODY_H;
+  return (
+    <div className="flex flex-col gap-2">
+      <div ref={ref} tabIndex={0} role="group" aria-label={t.tpChainLabel(request.task_code, request.attempts.length)} className="max-w-full overflow-x-auto rounded-xs focus-visible:outline-2 focus-visible:outline-focus" data-task-path>
+        <svg width={width} height={height} aria-hidden="true" className="block shrink-0">
+          {request.attempts.map((a, i) => {
+            const b = blocks[i] as ChainBlock;
+            const next = blocks[i + 1];
+            const endStage = a.ended_by?.stage;
+            const endY = b.cols === 3 && endStage === "review" ? DOT_Y + BRANCH_GAP : b.cols === 3 ? DOT_Y : MID_Y;
+            const loop = LOOP[a.result] ?? LOOP_DEFAULT;
+            const x1 = b.x + b.width - NODE_W / 2 + 12;
+            const x2 = next ? next.x + NODE_W / 2 - 12 : 0;
+            const xm = next ? b.x + b.width + GAP / 2 : 0;
+            const dur = ms(a.end) - ms(a.start);
+            return (
+              <g key={a.n}>
+                <g
+                  role="button"
+                  tabIndex={0}
+                  aria-label={t.tpAttemptButton(a.n, t[`tlResult_${a.result}` as const])}
+                  aria-pressed={a.n === selected}
+                  data-attempt={a.n}
+                  data-result={a.result}
+                  className="cursor-pointer outline-none focus-visible:outline-2 focus-visible:outline-focus"
+                  onClick={() => onSelect(a.n)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onSelect(a.n);
+                    }
+                  }}
+                >
+                  <rect x={b.x} y={0} width={b.width} height={height} rx={6} className={a.n === selected ? "fill-sunken stroke-edge" : "fill-transparent stroke-transparent"} />
+                  <text x={b.x + 8} y={14} className={cn("text-xs tabular-nums", a.n === selected ? "fill-fg font-medium" : "fill-fg-2")}>
+                    {t.tpAttemptHeader(a.n, compact(dur))}
+                  </text>
+                  <g transform={`translate(${b.x}, ${HEAD_H})`}>
+                    <AttemptBlock attempt={a} cols={b.cols} t={t} />
+                  </g>
+                </g>
+                {next ? (
+                  <g data-rework={a.n} aria-hidden="true">
+                    <path d={`M ${x1} ${HEAD_H + endY} H ${xm} V ${HEAD_H + MID_Y} H ${x2 - 5}`} fill="none" className={loop.stroke} strokeWidth={1.25} />
+                    <path d={`M ${x2} ${HEAD_H + MID_Y} l -6 -3.5 v 7 z`} className={loop.fill} />
+                  </g>
+                ) : null}
+              </g>
+            );
+          })}
         </svg>
       </div>
       <ol className="sr-only">
-        {nodes.map((n) => (
-          <li key={n.stage}>
-            {n.stage === "ci" && parallel ? `${t.tpParallel}. ` : ""}
-            {t.tpStageLabel(t[`tpStage_${n.stage}` as const], t[`tpState_${n.state}` as const], n.ms >= 1000 ? compact(n.ms) : "")}
-            {n.stage === "ci" && n.cancelled && n.state === "cancelled" ? `, ${t.tpCancelledReason}` : ""}
-            {n.stage === "main" ? `, ${t.tpAfterMerge}` : ""}
-          </li>
-        ))}
+        {request.attempts.map((a, i) => {
+          const b = blocks[i] as ChainBlock;
+          const states = stageStates(a);
+          return (
+            <li key={a.n}>
+              {t.tpAttemptButton(a.n, t[`tlResult_${a.result}` as const])}
+              {a.ended_by?.reason ? `, ${a.ended_by.reason}` : ""}
+              {reviewOverlapsCi(a) ? `. ${t.tpParallel}` : ""}
+              <ol>
+                {PATH_COLUMNS.slice(0, b.cols)
+                  .flat()
+                  .map((stage) => {
+                    const st = states.get(stage);
+                    return (
+                      <li key={stage}>
+                        {t.tpStageLabel(t[`tpStage_${stage}` as const], t[`tpState_${(st?.state ?? "pending") as StageState}` as const], st && st.ms >= 1000 ? compact(st.ms) : "")}
+                        {stage === "main" ? `, ${t.tpAfterMerge}` : ""}
+                      </li>
+                    );
+                  })}
+              </ol>
+            </li>
+          );
+        })}
       </ol>
     </div>
   );
@@ -533,7 +643,7 @@ export function TaskPath({
           </p>
         ) : null}
       </div>
-      <Flow attempt={attempt} code={request.task_code} t={t} />
+      <Chain request={request} selected={attempt.n} onSelect={(n) => onSelect({ request: request.id, attempt: n })} t={t} />
       <Checkpoint attempt={attempt} t={t} stages={stages} />
       <p className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-fg-2">
         <span className="inline-flex items-center gap-1.5">

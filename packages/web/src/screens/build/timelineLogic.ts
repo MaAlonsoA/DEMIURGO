@@ -125,6 +125,45 @@ export function stageStates(attempt: TimelineAttempt): Map<string, { state: Stag
   return out;
 }
 
+/** The Path column each stage sits in (index into PATH_COLUMNS). */
+export const STAGE_COLUMN: Record<string, number> = { prepare: 0, builder: 1, ci: 2, review: 2, merge: 3, main: 4 };
+
+/**
+ * How many Path columns an attempt draws in the chain. An attempt that ended before the later stages stops after its
+ * last reached stage (its pending tail is not drawn). A merged attempt, and the last one while it is still going,
+ * draw everything (the last also shows CI on main, pending); an earlier unfinished one stops at Merge.
+ */
+export function attemptColumns(attempt: TimelineAttempt, isLast: boolean): number {
+  const terminal = attempt.result === 'failed' || attempt.result === 'changes_requested' || attempt.result === 'cancelled';
+  if (attempt.merged_at) return PATH_COLUMNS.length;
+  if (!terminal) return isLast ? PATH_COLUMNS.length : PATH_COLUMNS.length - 1;
+  let last = 0;
+  for (const [stage, st] of stageStates(attempt)) if (st.state !== 'pending') last = Math.max(last, STAGE_COLUMN[stage] ?? 0);
+  const endCol = attempt.ended_by ? STAGE_COLUMN[attempt.ended_by.stage] : undefined;
+  if (endCol !== undefined) last = Math.max(last, endCol);
+  return last + 1;
+}
+
+export type ChainBlock = { n: number; x: number; cols: number; width: number };
+
+/** Where each attempt block of the chain starts (x) and how wide it is; `gap` is the space the rework connector crosses. */
+export function chainLayout(attempts: readonly TimelineAttempt[], nodeW: number, gap: number): { blocks: ChainBlock[]; width: number } {
+  const blocks: ChainBlock[] = [];
+  let x = 0;
+  attempts.forEach((a, i) => {
+    const cols = attemptColumns(a, i === attempts.length - 1);
+    blocks.push({ n: a.n, x, cols, width: cols * nodeW });
+    x += cols * nodeW + gap;
+  });
+  return { blocks, width: Math.max(0, x - gap) };
+}
+
+/** The scrollLeft that makes a block visible (centred when it was out of view); unchanged when it already is. */
+export function scrollTargetFor(blockX: number, blockW: number, scrollLeft: number, viewW: number): number {
+  if (viewW <= 0 || (blockX >= scrollLeft && blockX + blockW <= scrollLeft + viewW)) return scrollLeft;
+  return Math.max(0, blockX + blockW / 2 - viewW / 2);
+}
+
 /** «build 40 % · CI 50 % · review 3 % · wait 7 %»: the shares that are not 0, in that order. */
 export function sharesLine(shares: FlowShares, names: Record<keyof FlowShares, string>): string {
   return (['build', 'ci', 'review', 'wait'] as const)

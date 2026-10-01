@@ -14,6 +14,7 @@ import { useMessages } from '../../i18n/define.ts';
 import { useSafeLocale } from '../../words.ts';
 import { costText, num, shareText, tokensText } from './format.ts';
 import { ATTENTION, HARNESS_HEALTH } from './words.i18n.ts';
+import { SectionHelp } from './help.tsx';
 
 export type HarnessCase = {
   finding_id: string;
@@ -277,6 +278,7 @@ export function HarnessHealthSection({ projectId }: { projectId: string }) {
     <Section
       title={t.title}
       id="harness"
+      help={<SectionHelp topic="health" title={t.title} />}
       note={q.data ? t.note(q.data.requests, q.data.rules_version) : undefined}
       actions={
         <div className="flex gap-2">
@@ -463,7 +465,7 @@ export function AttentionSection({ projectId }: { projectId: string }) {
   const t = useMessages(ATTENTION);
   const q = useQuery(attentionQuery(projectId));
   return (
-    <Section title={t.attentionTitle} id="harness-attention" note={t.attentionNote}>
+    <Section title={t.attentionTitle} id="harness-attention" help={<SectionHelp topic="attention" title={t.attentionTitle} />} note={t.attentionNote}>
       {q.isPending ? <RowsSkeleton label={t.loading} rows={3} /> : q.error || !q.data ? <ErrorNotice error={q.error} onRetry={() => void q.refetch()} /> : <AttentionView data={q.data} />}
     </Section>
   );
@@ -473,7 +475,7 @@ export function WorthItSection({ projectId }: { projectId: string }) {
   const t = useMessages(ATTENTION);
   const q = useQuery(worthQuery(projectId));
   return (
-    <Section title={t.worthTitle} id="harness-worth" note={t.worthNote}>
+    <Section title={t.worthTitle} id="harness-worth" help={<SectionHelp topic="worth" title={t.worthTitle} />} note={t.worthNote}>
       {q.isPending ? <RowsSkeleton label={t.worthLoading} rows={3} /> : q.error || !q.data ? <ErrorNotice error={q.error} onRetry={() => void q.refetch()} /> : <WorthItView data={q.data} />}
     </Section>
   );

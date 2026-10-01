@@ -12,6 +12,8 @@ import { useSafeLocale } from '../../words.ts';
 import { BarRows, Sparkline, Stat, StackedBar, type BarRow, type Part } from './charts.tsx';
 import { costSeries, costText, costTrend, correlationReading, minutesText, num, outcomeCounts, shareText, tokensText } from './format.ts';
 import { AgentLabel, CauseLabel, PhaseLabel, RuleLabel } from './codes.tsx';
+import { SectionHelp } from './help.tsx';
+import type { HelpTopic } from './help.i18n.ts';
 import { checksQuery } from './HarnessChecks.tsx';
 import { containmentQuery, type HarnessContainmentData } from './HarnessContainment.tsx';
 import { HARNESS_CONTAINMENT } from './HarnessContainment.i18n.ts';
@@ -31,11 +33,14 @@ export type ObsTab = (typeof TABS)[number];
 const summarize = (title: string, rows: { name: string; display: string }[]) => `${title}: ${rows.map((r) => `${r.name} ${r.display}`).join('; ')}`;
 
 /** A chart block: its title, the one-line reading and the chart. */
-function Block({ title, reading, children, link }: { title: string; reading?: ReactNode; children?: ReactNode; link?: ReactNode }) {
+function Block({ title, topic, reading, children, link }: { title: string; topic: HelpTopic; reading?: ReactNode; children?: ReactNode; link?: ReactNode }) {
   return (
     <section className="flex flex-col gap-3 py-6 first:pt-0">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 className="text-lg font-semibold text-fg">{title}</h2>
+        <div className="flex items-center gap-1">
+          <h2 className="text-lg font-semibold text-fg">{title}</h2>
+          <SectionHelp topic={topic} title={title} />
+        </div>
         {link}
       </div>
       {reading ? <p className="text-sm text-fg-2">{reading}</p> : null}
@@ -126,11 +131,14 @@ function containmentReading(d: HarnessContainmentData, v: Msgs<typeof OBS_VIEW>)
 
 // ---- Overview ----
 
-function Headline({ title, reading, tab, projectId, stat, children }: { title: string; reading: ReactNode; tab: ObsTab; projectId: string; stat: ReactNode; children: ReactNode }) {
+function Headline({ title, topic, reading, tab, projectId, stat, children }: { title: string; topic: HelpTopic; reading: ReactNode; tab: ObsTab; projectId: string; stat: ReactNode; children: ReactNode }) {
   return (
     <section className="grid gap-x-8 gap-y-3 py-6 first:pt-0 md:grid-cols-[minmax(12rem,20rem)_1fr]">
       <div className="flex flex-col gap-2">
-        <h2 className="text-sm font-medium text-fg-2">{title}</h2>
+        <div className="flex items-center gap-1">
+          <h2 className="text-sm font-medium text-fg-2">{title}</h2>
+          <SectionHelp topic={topic} title={title} />
+        </div>
         {stat}
         <TabLink projectId={projectId} tab={tab} />
       </div>
@@ -170,6 +178,7 @@ export function OverviewTab({ projectId, data }: { projectId: string; data: Obse
         projectId={projectId}
         tab="design"
         title={v.ovDesignTitle}
+        topic="containment"
         stat={null}
         reading={containment.data && containment.data.rules_version !== null ? containmentReading(containment.data, v) : containment.isPending ? '' : v.ovDesignEmpty}
       >
@@ -179,6 +188,7 @@ export function OverviewTab({ projectId, data }: { projectId: string; data: Obse
         projectId={projectId}
         tab="build"
         title={v.ovBuildTitle}
+        topic="attempts"
         stat={<Stat value={num(locale, s.tasks_merged, 0)} label={v.statTasks(s.attempts)} />}
         reading={v.ovBuildReading(s.attempts === 0 ? null : s.attempts / Math.max(1, s.tasks_merged))}
       >
@@ -188,6 +198,7 @@ export function OverviewTab({ projectId, data }: { projectId: string; data: Obse
         projectId={projectId}
         tab="build"
         title={v.ovCostTitle}
+        topic="cost"
         stat={<Stat value={costs.length === 0 ? '—' : costText(locale, totalCost)} label={v.statCost} delta={trend === null ? undefined : v.costDelta(Math.round(trend * 100))} deltaTone={trend === null ? 'muted' : trend > 0.1 ? 'danger' : trend < -0.1 ? 'success' : 'muted'} />}
         reading={costs.length === 0 ? v.ovCostNone : v.ovCostReading(costText(locale, totalCost / costs.length), costs.length)}
       >
@@ -197,6 +208,7 @@ export function OverviewTab({ projectId, data }: { projectId: string; data: Obse
         projectId={projectId}
         tab="harness"
         title={v.ovChecksTitle}
+        topic="checks"
         stat={<Stat value={latest ? num(locale, latest.regressions.length, 0) : '—'} label={v.statRegressions} deltaTone={latest && latest.regressions.length > 0 ? 'danger' : 'success'} delta={latest ? (latest.regressions.length > 0 ? v.attention : v.allClear) : undefined} />}
         reading={checks.isPending ? '' : latest ? v.ovChecksReading(latest.regressions.length, latest.escapes.new_total, checks.data?.total ?? 0) : v.ovChecksNone}
       >
@@ -206,6 +218,7 @@ export function OverviewTab({ projectId, data }: { projectId: string; data: Obse
         projectId={projectId}
         tab="build"
         title={v.ovReworkTitle}
+        topic="rework"
         stat={<Stat value={shareText(locale, reworkRate)} label={v.statRework} />}
         reading={v.ovReworkReading(s.rework.changes_requested_attempts, s.rework.failed_attempts, s.attempts)}
       >
@@ -258,11 +271,11 @@ export function BuildBlocks({ projectId, data }: { projectId: string; data: Obse
   const attRows: BarRow[] = cal.rows.map((r) => ({ key: r.size, label: r.size === 'none' ? o.none : r.size, name: r.size, value: r.median_attempts, display: num(locale, r.median_attempts) }));
   return (
     <>
-      <Block title={v.bCalibTitle} reading={o.reading(correlationReading(cal.correlation), o.byJev)}>
+      <Block title={v.bCalibTitle} topic="calibration" reading={o.reading(correlationReading(cal.correlation), o.byJev)}>
         <BarRows rows={leadRows} max={maxLead || 1} summary={summarize(v.bCalibTitle, leadRows)} />
         <p className="text-xs text-fg-3">{v.leadUnit}</p>
       </Block>
-      <Block title={v.bCostTitle} reading={costs.length === 0 ? v.ovCostNone : v.ovCostReading(costText(locale, costs.reduce((n, c) => n + c, 0) / costs.length), costs.length)}>
+      <Block title={v.bCostTitle} topic="cost" reading={costs.length === 0 ? v.ovCostNone : v.ovCostReading(costText(locale, costs.reduce((n, c) => n + c, 0) / costs.length), costs.length)}>
         {featRows.length > 0 ? (
           <div className="flex flex-col gap-2">
             <SubHeading>{o.perFeature}</SubHeading>
@@ -276,19 +289,19 @@ export function BuildBlocks({ projectId, data }: { projectId: string; data: Obse
           </div>
         ) : null}
       </Block>
-      <Block title={v.bReworkTitle} reading={v.ovReworkReading(s.rework.changes_requested_attempts, s.rework.failed_attempts, s.attempts)}>
+      <Block title={v.bReworkTitle} topic="rework" reading={v.ovReworkReading(s.rework.changes_requested_attempts, s.rework.failed_attempts, s.attempts)}>
         {causes.length === 0 ? (
           <p className="text-sm text-fg-2">{o.noRework}</p>
         ) : (
           <BarRows rows={causeRows(causes)} max={maxCause} summary={summarize(v.bReworkTitle, causeRows(causes))} />
         )}
       </Block>
-      <Block title={v.bAttemptsTitle} reading={v.ovBuildReading(s.attempts === 0 ? null : s.attempts / Math.max(1, s.tasks_merged))}>
+      <Block title={v.bAttemptsTitle} topic="attempts" reading={v.ovBuildReading(s.attempts === 0 ? null : s.attempts / Math.max(1, s.tasks_merged))}>
         <StackedBar parts={attemptParts} summary={summarize(v.bAttemptsTitle, attemptParts.map((p) => ({ name: p.label, display: String(p.value) })))} />
         <SubHeading>{v.attemptsPerSize}</SubHeading>
         <BarRows rows={attRows} max={maxAtt} summary={summarize(v.attemptsPerSize, attRows)} />
       </Block>
-      <Block title={v.bTestsTitle} reading={tests.data && tests.data.total_runs > 0 ? v.testsReading(tests.data.flaky.length, tests.data.total_tests) : undefined}>
+      <Block title={v.bTestsTitle} topic="tests" reading={tests.data && tests.data.total_runs > 0 ? v.testsReading(tests.data.flaky.length, tests.data.total_tests) : undefined}>
         <Load q={tests}>
           {(d) => {
             if (d.total_runs === 0) return <p className="text-sm text-fg-2">{v.testsNone}</p>;
@@ -330,7 +343,7 @@ export function AgentsBlocks({ projectId, data }: { projectId: string; data: Obs
   ];
   return (
     <>
-      <Block title={v.aAgentsTitle} reading={runs === 0 ? v.noRuns : v.agentRunsReading(runs, failures)}>
+      <Block title={v.aAgentsTitle} topic="agents" reading={runs === 0 ? v.noRuns : v.agentRunsReading(runs, failures)}>
         {runs === 0 ? null : (
           <>
             <StackedBar parts={parts} summary={summarize(v.aAgentsTitle, parts.map((p) => ({ name: p.label, display: String(p.value) })))} />
@@ -343,7 +356,7 @@ export function AgentsBlocks({ projectId, data }: { projectId: string; data: Obs
           </>
         )}
       </Block>
-      <Block title={v.aJevTitle} reading={o.spearmanLine(judg.data?.sizes.overall.spearman ?? null)}>
+      <Block title={v.aJevTitle} topic="jev" reading={o.spearmanLine(judg.data?.sizes.overall.spearman ?? null)}>
         <Load q={judg}>
           {(d) => {
             const sz = d.sizes.overall;
@@ -405,7 +418,7 @@ export function HarnessBlocks({ projectId }: { projectId: string }) {
   const hh = useMessages(HARNESS_HEALTH_WORDS);
   return (
     <>
-      <Block title={v.hHealthTitle} reading={health.data && health.data.pieces.length > 0 ? healthReading(health.data.pieces, v) : undefined}>
+      <Block title={v.hHealthTitle} topic="health" reading={health.data && health.data.pieces.length > 0 ? healthReading(health.data.pieces, v) : undefined}>
         <Load q={health}>
           {(d) => {
             if (d.pieces.length === 0) return <p className="text-sm text-fg-2">{v.healthNone}</p>;
@@ -420,7 +433,7 @@ export function HarnessBlocks({ projectId }: { projectId: string }) {
           }}
         </Load>
       </Block>
-      <Block title={v.hChecksTitle} reading={checks.data?.latest ? v.ovChecksReading(checks.data.latest.regressions.length, checks.data.latest.escapes.new_total, checks.data.total) : checks.isPending ? undefined : v.ovChecksNone}>
+      <Block title={v.hChecksTitle} topic="checks" reading={checks.data?.latest ? v.ovChecksReading(checks.data.latest.regressions.length, checks.data.latest.escapes.new_total, checks.data.total) : checks.isPending ? undefined : v.ovChecksNone}>
         <Load q={checks}>
           {(d) => {
             const regs = [...d.checks].sort((x, y) => (x.computed_at < y.computed_at ? -1 : 1)).map((c) => c.regressions.length);
@@ -433,7 +446,7 @@ export function HarnessBlocks({ projectId }: { projectId: string }) {
           }}
         </Load>
       </Block>
-      <Block title={v.hVersionsTitle} reading={versions.data && versions.data.cohorts.length > 0 ? v.versionsReading(versions.data.cohorts.length) : undefined}>
+      <Block title={v.hVersionsTitle} topic="versions" reading={versions.data && versions.data.cohorts.length > 0 ? v.versionsReading(versions.data.cohorts.length) : undefined}>
         <Load q={versions}>
           {(d) => {
             if (d.cohorts.length === 0) return <p className="text-sm text-fg-2">{v.versionsNone}</p>;
@@ -446,7 +459,7 @@ export function HarnessBlocks({ projectId }: { projectId: string }) {
           }}
         </Load>
       </Block>
-      <Block title={v.hAttentionTitle} reading={v.hAttentionReading}>
+      <Block title={v.hAttentionTitle} topic="attention" reading={v.hAttentionReading}>
         <Load q={attention}>
           {(d) => {
             const stages = d.stages.filter((s) => s.person_minutes_proxy > 0);
@@ -457,7 +470,7 @@ export function HarnessBlocks({ projectId }: { projectId: string }) {
           }}
         </Load>
       </Block>
-      <Block title={v.hWorthTitle} reading={v.hWorthReading}>
+      <Block title={v.hWorthTitle} topic="worth" reading={v.hWorthReading}>
         <Load q={worth}>
           {(d) => (
             <div className="flex flex-wrap gap-x-10 gap-y-4">
@@ -488,7 +501,7 @@ export function DesignBlocks({ projectId }: { projectId: string }) {
   const escapes = useQuery(escapesQuery(projectId));
   return (
     <>
-      <Block title={v.dContainTitle} reading={containment.data && containment.data.rules_version !== null ? containmentReading(containment.data, v) : containment.isPending ? undefined : v.ovDesignEmpty}>
+      <Block title={v.dContainTitle} topic="containment" reading={containment.data && containment.data.rules_version !== null ? containmentReading(containment.data, v) : containment.isPending ? undefined : v.ovDesignEmpty}>
         <Load q={containment}>
           {(d) => {
             if (d.rules_version === null) return null;
@@ -522,7 +535,7 @@ export function DesignBlocks({ projectId }: { projectId: string }) {
           }}
         </Load>
       </Block>
-      <Block title={v.dEscapesTitle}>
+      <Block title={v.dEscapesTitle} topic="escapes">
         <Load q={escapes}>
           {(d) => {
             const contained = containment.data?.current.reduce((n, p) => n + p.contained, 0) ?? 0;

@@ -169,6 +169,7 @@ export function Section({
   title,
   note,
   actions,
+  help,
   children,
   className,
   id,
@@ -177,6 +178,8 @@ export function Section({
   title: ReactNode;
   note?: ReactNode;
   actions?: ReactNode;
+  /** A help button shown right after the title (outside the heading, so the heading keeps its name). */
+  help?: ReactNode;
   children: ReactNode;
   className?: string;
   id?: string;
@@ -187,9 +190,12 @@ export function Section({
     <section aria-labelledby={id ? `${id}-title` : undefined} className={cn('flex flex-col gap-3', className)}>
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
         <div className="flex min-w-0 flex-col gap-0.5">
-          <H id={id ? `${id}-title` : undefined} className={cn('font-semibold text-fg', level === 2 ? 'text-lg' : 'text-base')}>
-            {title}
-          </H>
+          <div className="flex items-center gap-1">
+            <H id={id ? `${id}-title` : undefined} className={cn('font-semibold text-fg', level === 2 ? 'text-lg' : 'text-base')}>
+              {title}
+            </H>
+            {help}
+          </div>
           {note ? <p className="text-sm text-fg-2">{note}</p> : null}
         </div>
         {actions ? <div className="flex items-center gap-2">{actions}</div> : null}

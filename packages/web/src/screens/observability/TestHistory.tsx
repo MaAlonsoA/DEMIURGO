@@ -10,6 +10,7 @@ import { useMessages } from '../../i18n/define.ts';
 import { useSafeLocale } from '../../words.ts';
 import { num } from './format.ts';
 import { TEST_HISTORY } from './TestHistory.i18n.ts';
+import { SectionHelp } from './help.tsx';
 
 type TestStat = {
   test_name: string;
@@ -52,7 +53,7 @@ export function TestHistorySection({ projectId }: { projectId: string }) {
   const q = useQuery(testHistoryQuery(projectId));
   const d = q.data;
   return (
-    <Section title={t.title} id="tests" note={d ? t.note(d.total_tests, d.total_runs) : undefined}>
+    <Section title={t.title} id="tests" help={<SectionHelp topic="tests" title={t.title} />} note={d ? t.note(d.total_tests, d.total_runs) : undefined}>
       {q.isPending ? (
         <RowsSkeleton label={t.loading} rows={3} />
       ) : !d || d.total_runs === 0 ? (

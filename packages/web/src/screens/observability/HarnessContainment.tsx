@@ -15,6 +15,7 @@ import { useMessages } from '../../i18n/define.ts';
 import { useSafeLocale } from '../../words.ts';
 import { HARNESS_CONTAINMENT } from './HarnessContainment.i18n.ts';
 import { num } from './format.ts';
+import { SectionHelp } from './help.tsx';
 
 export type PhaseContainment = { phase: string; contained: number; escaped: number; pce: number | null; n: number; target_met: boolean | null };
 export type ContainmentPoint = { id: string; computed_at: string; window_from: string; window_to: string; phases: PhaseContainment[] };
@@ -243,7 +244,7 @@ export function HarnessContainmentSection({ projectId }: { projectId: string }) 
   const q = useQuery(containmentQuery(projectId, rules));
   const d = q.data;
   return (
-    <Section title={t.title} id="harness-containment" note={d ? t.note(Math.round(d.target * 100), d.min_n) : undefined}>
+    <Section title={t.title} id="harness-containment" help={<SectionHelp topic="containment" title={t.title} />} note={d ? t.note(Math.round(d.target * 100), d.min_n) : undefined}>
       {q.isPending ? (
         <RowsSkeleton label={t.loading} rows={3} />
       ) : q.error || !d ? (

@@ -14,6 +14,7 @@ import { useMessages } from '../../i18n/define.ts';
 import { useSafeLocale } from '../../words.ts';
 import { HARNESS_CHECKS } from './HarnessChecks.i18n.ts';
 import { num } from './format.ts';
+import { SectionHelp } from './help.tsx';
 
 export type CheckRegression = {
   kind: 'verdict_worse' | 'containment_drop' | 'cost_per_task_up';
@@ -162,6 +163,7 @@ export function HarnessChecksSection({ projectId }: { projectId: string }) {
     <Section
       title={t.title}
       id="harness-checks"
+      help={<SectionHelp topic="checks" title={t.title} />}
       note={t.note(q.data?.total ?? 0)}
       actions={
         <a href={checksUrl(projectId)} download="harness-checks.json" className={buttonClass()}>

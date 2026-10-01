@@ -29,6 +29,7 @@ import { TEST_HISTORY } from './TestHistory.i18n.ts';
 import { LinkTabs } from '../../components/Tabs.tsx';
 import { AgentsBlocks, BuildBlocks, DesignBlocks, HarnessBlocks, OverviewTab, ShowData, TABS, type ObsTab } from './views.tsx';
 import { OBSERVABILITY, OBS_VIEW } from './words.i18n.ts';
+import { SectionHelp } from './help.tsx';
 
 const th = 'px-3 py-2 text-xs font-medium text-fg-2 whitespace-nowrap';
 const td = 'px-3 py-2 align-top';
@@ -192,7 +193,7 @@ function CalibrationTable({ title, calibration }: { title: string; calibration: 
 function CalibrationSection({ jev }: { jev: Calibration }) {
   const t = useMessages(OBSERVABILITY);
   return (
-    <Section title={t.calibrationTitle} id="calibration" note={t.calibrationNote}>
+    <Section title={t.calibrationTitle} id="calibration" help={<SectionHelp topic="calibration" title={t.calibrationTitle} />} note={t.calibrationNote}>
       <CalibrationTable title={t.byJev} calibration={jev} />
       <p className="text-xs text-fg-3">
         {t.correlationNote} {t.sizesNote}
@@ -388,7 +389,7 @@ function JudgmentsSection({ projectId }: { projectId: string }) {
   const t = useMessages(OBSERVABILITY);
   const q = useQuery(judgmentCalibrationQuery(projectId));
   return (
-    <Section title={t.judgTitle} id="judgments" note={t.judgNote}>
+    <Section title={t.judgTitle} id="judgments" help={<SectionHelp topic="jev" title={t.judgTitle} />} note={t.judgNote}>
       {q.isPending ? (
         <RowsSkeleton label={t.loading} rows={3} />
       ) : q.error || !q.data ? (
@@ -451,7 +452,7 @@ function CostTable({ rows, label, keyHeader, withTitle }: { rows: CostRow[]; lab
 function CostSection({ perTask, perFeature, without, total }: { perTask: CostRow[]; perFeature: CostRow[]; without: number; total: number }) {
   const t = useMessages(OBSERVABILITY);
   return (
-    <Section title={t.costTitle} id="cost" note={t.costNote}>
+    <Section title={t.costTitle} id="cost" help={<SectionHelp topic="cost" title={t.costTitle} />} note={t.costNote}>
       {without > 0 ? <Notice tone="info">{t.missingUsage(without, total)}</Notice> : null}
       <CostTable rows={perFeature} label={t.perFeature} keyHeader={t.colFeature} withTitle={false} />
       <CostTable rows={perTask} label={t.perTask} keyHeader={t.colTask} withTitle />
@@ -492,7 +493,7 @@ function CauseTable({ title, rows }: { title: string; rows: ReworkCause[] }) {
 function ReworkSection(p: { changes: ReworkCause[]; changesAttempts: number; failed: ReworkCause[]; failedAttempts: number }) {
   const t = useMessages(OBSERVABILITY);
   return (
-    <Section title={t.reworkTitle} id="rework" note={t.reworkNote}>
+    <Section title={t.reworkTitle} id="rework" help={<SectionHelp topic="rework" title={t.reworkTitle} />} note={t.reworkNote}>
       <CauseTable title={t.changesTitle(p.changesAttempts)} rows={p.changes} />
       <CauseTable title={t.failedTitle(p.failedAttempts)} rows={p.failed} />
     </Section>
@@ -503,7 +504,7 @@ function AgentsSection({ agents }: { agents: AgentRow[] }) {
   const t = useMessages(OBSERVABILITY);
   const locale = useSafeLocale();
   return (
-    <Section title={t.agentsTitle} id="agents" note={t.agentsNote}>
+    <Section title={t.agentsTitle} id="agents" help={<SectionHelp topic="agents" title={t.agentsTitle} />} note={t.agentsNote}>
       <Table
         caption={t.agentsTitle}
         head={
@@ -544,6 +545,7 @@ function AttemptsSection({ facts, projectId }: { facts: ExecutionFact[]; project
     <Section
       title={t.attemptsTitle}
       id="attempts"
+      help={<SectionHelp topic="attempts" title={t.attemptsTitle} />}
       note={t.attemptsNote}
       actions={
         <a href={observabilityCsvUrl(projectId)} download className={buttonClass()}>

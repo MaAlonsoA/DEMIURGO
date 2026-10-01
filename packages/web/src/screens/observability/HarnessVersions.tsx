@@ -10,6 +10,7 @@ import { useMessages } from "../../i18n/define.ts";
 import { useSafeLocale } from "../../words.ts";
 import { num } from "./format.ts";
 import { HARNESS_VERSIONS } from "./words.i18n.ts";
+import { SectionHelp } from './help.tsx';
 
 export type VersionCohort = {
   harness_version_id: string | null;
@@ -90,7 +91,7 @@ export function HarnessVersionsSection({ projectId }: { projectId: string }) {
   const t = useMessages(HARNESS_VERSIONS);
   const q = useQuery(versionsQuery(projectId));
   return (
-    <Section title={t.title} id="harness-versions" note={t.note}>
+    <Section title={t.title} id="harness-versions" help={<SectionHelp topic="versions" title={t.title} />} note={t.note}>
       {q.isPending ? (
         <RowsSkeleton label={t.loading} rows={2} />
       ) : q.error || !q.data ? (

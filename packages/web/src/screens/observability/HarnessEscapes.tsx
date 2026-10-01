@@ -14,6 +14,7 @@ import { useMessages } from "../../i18n/define.ts";
 import { useSafeLocale } from "../../words.ts";
 import { num } from "./format.ts";
 import { HARNESS_ESCAPES } from "./words.i18n.ts";
+import { SectionHelp } from './help.tsx';
 
 export type EscapeCase = {
   id: string;
@@ -228,6 +229,7 @@ export function HarnessEscapesSection({ projectId }: { projectId: string }) {
     <Section
       title={t.title}
       id="harness-escapes"
+      help={<SectionHelp topic="escapes" title={t.title} />}
       note={q.data ? t.note(q.data.total, q.data.rules_version) : undefined}
       actions={
         <div className="flex gap-2">

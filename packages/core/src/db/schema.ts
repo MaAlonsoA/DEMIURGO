@@ -833,6 +833,34 @@ export type BuildStepsTable = {
   created_at: Generated<Timestamp>;
 };
 
+/** The blameless post-mortem of one task, written by the forensics agent from all its evidence (append-only; the latest row of a task wins). */
+export type TaskForensicsTable = {
+  id: Generated<string>;
+  project_id: string;
+  task_id: string;
+  task_version_id: string;
+  request_ids: Generated<string[]>;
+  ai_run_id: string;
+  analysis: Json;
+  evidence_hash: string;
+  catalog_version: string;
+  agent_version: string;
+  engine: Json;
+  created_at: Generated<Timestamp>;
+};
+
+/** A playbook of one error class, aggregated from the forensics (append-only; the latest version per class wins; no project: global). */
+export type ForensicPlaybooksTable = {
+  id: Generated<string>;
+  project_id: string | null;
+  class_key: string;
+  version: number;
+  entry: Json;
+  based_on: Generated<string[]>;
+  ai_run_id: string;
+  created_at: Generated<Timestamp>;
+};
+
 export type PrReviewsTable = {
   id: Generated<string>;
   project_id: string;
@@ -934,6 +962,8 @@ export type DB = {
   build_request_bases: BuildRequestBasesTable;
   project_commits: ProjectCommitsTable;
   pr_reviews: PrReviewsTable;
+  task_forensics: TaskForensicsTable;
+  forensic_playbooks: ForensicPlaybooksTable;
   build_steps: BuildStepsTable;
   issues: IssuesTable;
   test_runs: TestRunsTable;

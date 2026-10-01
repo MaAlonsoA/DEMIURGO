@@ -471,6 +471,62 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
     };
   },
 
+  // The simulated forensic reads the evidence the pack holds: a failed or changes-requested step makes it a rework with
+  // one finding; the checklist has one entry per piece of the catalog, as the checker demands.
+  task_forensics(p) {
+    const c = obj(p.context.content);
+    const task = txt(obj(c.task).code, 'TSK-SIM-001');
+    const steps = txt(list(c.evidence).map(obj).find((s) => s.name === 'build_steps')?.text);
+    const bounced = /"outcome":"(?:failed|changes_requested)"/.test(steps);
+    const checklist = list(c.catalog)
+      .map(obj)
+      .map((item) => {
+        const id = txt(item.id);
+        const involved = bounced && id === 'stage:review';
+        return {
+          piece_id: id,
+          involved: involved ? 'yes' : 'unknown',
+          verdict: involved ? 'contributed_to_error' : 'not_applicable',
+          note: involved ? 'The review asked for changes.' : 'Nothing in the evidence involves it.',
+          evidence: involved ? 'build_steps: review changes_requested' : '',
+        };
+      });
+    return {
+      summary: `Simulated post-mortem of ${task}: ${bounced ? 'it needed rework' : 'it went through cleanly'}.`,
+      outcome: bounced ? 'rework' : 'clean',
+      timeline: [{ at: new Date(0).toISOString(), stage: 'design', what: `${task} was designed and approved.` }],
+      went_well: [{ what: 'The task was designed with its criteria.', evidence: 'task_versions: n=1 approved' }],
+      went_wrong: bounced
+        ? [{ what: 'A build step failed or the review asked for changes.', evidence: 'build_steps: review changes_requested', phase: 'P10', error_class: 'E01', cost: { attempts: 1 } }]
+        : [],
+      root_causes: bounced
+        ? [{ cause: 'The criterion was not testable as written.', dimension: 'rules', where: 'readiness', why: 'Nothing checked that the test could run in CI.', evidence: 'pr_reviews: blocking comment' }]
+        : [],
+      improvements: bounced
+        ? [{ change: 'Check testability of each criterion before the task is approved.', dimension: 'rules', target: 'piece:B04', expected_effect: 'Fewer review rounds.', source: 'convención nuestra', priority: 'high', playbook_class: 'E01' }]
+        : [],
+      lessons: ['Write criteria that a test can check.'],
+      checklist,
+    };
+  },
+
+  playbook_write(p) {
+    const c = obj(p.context.content);
+    const key = txt(c.class_key, 'other:simulated');
+    const codes = list(c.task_codes).map((x) => txt(x)).filter(Boolean);
+    return {
+      class_key: key,
+      title: `Playbook ${key}`,
+      what_it_is: `The class ${key} as seen in ${codes.length} task(s).`,
+      symptoms: ['A build step or a review bounced for this class.'],
+      detection: 'The harness escape rules and the post-mortem findings.',
+      prevention: [{ dimension: 'rules', change: 'Check it at design time.' }],
+      response: 'Fix the cause named in the forensic and rebuild.',
+      examples: codes.slice(0, 20),
+      sources: ['convención nuestra'],
+    };
+  },
+
   pr_review(p) {
     const c = obj(p.context.content);
     const diff = txt(c.diff);

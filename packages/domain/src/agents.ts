@@ -22,6 +22,8 @@ export const AGENT_ACTIONS = [
   'design_system_plan',
   'screen_design',
   'pr_review',
+  'task_forensics',
+  'playbook_write',
 ] as const;
 export type AgentAction = (typeof AGENT_ACTIONS)[number];
 
@@ -767,6 +769,95 @@ export const prReviewOutput = z
   })
   .strict();
 
+/** Dimensions of a root cause or an improvement of a task forensic: where in DEMIURGO's system the cause lives (never a person, never «the model»). */
+export const FORENSIC_DIMENSIONS = ['rules', 'prompt', 'context', 'graph', 'jev', 'process', 'engine', 'environment', 'other'] as const;
+export const FORENSIC_OUTCOMES = ['clean', 'rework', 'failed', 'abandoned', 'in_progress'] as const;
+export const FORENSIC_VERDICTS = ['worked', 'contributed_to_error', 'could_have_prevented', 'missing', 'not_applicable'] as const;
+const forensicEvidence = text(500).describe('The evidence cited: step ids, review comment, task version n, escape or test names. Never a claim without one.');
+const forensicPhase = z
+  .string()
+  .regex(/^P(0|1[0-3]|[1-9])$/)
+  .describe('The design phase: P1 definition, P2 quality, P3 principles and decisions, P4 design system, P5 epics, features and criteria, P6 screens, P7 tasks, P9 building, P10 review, P13 use.');
+const forensicClass = z
+  .string()
+  .regex(/^(E\d{2}|[a-z][a-z0-9_]*|other:[a-z0-9_-]+)$/)
+  .describe('An escape rule code (E01…E17) when the problem matches one; else a build failure class (usage_limit, login, timeout, out_of_memory, cancelled, infra, tdd_red, provider_error, harness, other); else `other:<slug>`.');
+const forensicCost = z
+  .object({ attempts: z.number().int().nonnegative().optional(), minutes: z.number().nonnegative().optional(), usd: z.number().nonnegative().optional() })
+  .strict();
+
+/** task_forensics: the blameless post-mortem of one task, with a checklist of every piece of DEMIURGO. */
+export const taskForensicsOutput = z
+  .object({
+    summary: text(2000).describe('What the task was and what happened to it, in a few sentences.'),
+    outcome: z.enum(FORENSIC_OUTCOMES),
+    timeline: z
+      .array(z.object({ at: text(40).describe('ISO timestamp, or the nearest the evidence gives.'), stage: text(60), what: text(400) }).strict())
+      .max(60),
+    went_well: z.array(z.object({ what: text(600), evidence: forensicEvidence }).strict()).max(30),
+    went_wrong: z
+      .array(z.object({ what: text(600), evidence: forensicEvidence, phase: forensicPhase, error_class: forensicClass, cost: forensicCost }).strict())
+      .max(40),
+    root_causes: z
+      .array(
+        z
+          .object({
+            cause: text(600),
+            dimension: z.enum(FORENSIC_DIMENSIONS),
+            where: text(300).describe('The piece, rule, prompt, graph link or judgment where the cause lives.'),
+            why: text(600),
+            evidence: forensicEvidence,
+          })
+          .strict(),
+      )
+      .max(30),
+    improvements: z
+      .array(
+        z
+          .object({
+            change: text(600),
+            dimension: z.enum(FORENSIC_DIMENSIONS),
+            target: text(300).describe('What to change: a piece id of the checklist, a file, a prompt, a rule.'),
+            expected_effect: text(400),
+            source: text(300).describe('The real practice it follows (book with author, official guide) or «convención nuestra».'),
+            priority: z.enum(['high', 'medium', 'low']),
+            playbook_class: forensicClass,
+          })
+          .strict(),
+      )
+      .max(30),
+    lessons: z.array(text(400)).max(15),
+    checklist: z
+      .array(
+        z
+          .object({
+            piece_id: text(80).describe('An id of the checklist, exactly as listed in `catalog`.'),
+            involved: z.enum(['yes', 'no', 'unknown']),
+            verdict: z.enum(FORENSIC_VERDICTS),
+            note: text(400),
+            evidence: z.string().trim().max(500).describe('The evidence cited, or an empty string when the piece was not involved.'),
+          })
+          .strict(),
+      )
+      .describe('EXACTLY one entry for every piece of `catalog`: no piece left out, no id outside it.'),
+  })
+  .strict();
+
+/** playbook_write: the playbook of one error class, aggregated from the forensics tagged with it. */
+export const playbookWriteOutput = z
+  .object({
+    class_key: text(80).describe('Exactly the class_key of the input.'),
+    title: text(200),
+    what_it_is: text(1200),
+    symptoms: z.array(text(300)).min(1).max(12),
+    detection: text(1200).describe('How DEMIURGO spots it: which rule, check or finding.'),
+    prevention: z.array(z.object({ dimension: z.enum(FORENSIC_DIMENSIONS), change: text(500) }).strict()).max(15),
+    response: text(1200).describe('What to do when it happens.'),
+    examples: z.array(text(40)).max(20).describe('Task codes.'),
+    sources: z.array(text(300)).max(12).describe('Real practice sources, or «convención nuestra».'),
+  })
+  .strict();
+
 /** The most findings a coherence review returns, and the longest quote of each side. */
 export const COHERENCE_MAX_FINDINGS = 10;
 export const COHERENCE_QUOTE_MAX = 120;
@@ -811,6 +902,8 @@ export const OUTPUT_SCHEMAS = {
   design_system_plan: designSystemPlanOutput,
   screen_design: screenDesignOutput,
   pr_review: prReviewOutput,
+  task_forensics: taskForensicsOutput,
+  playbook_write: playbookWriteOutput,
 } as const satisfies Record<AgentAction, z.ZodType>;
 
 export type ActionOutput<A extends AgentAction> = z.infer<(typeof OUTPUT_SCHEMAS)[A]>;

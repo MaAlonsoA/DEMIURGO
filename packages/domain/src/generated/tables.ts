@@ -1024,6 +1024,22 @@ export const CAPABILITIES = {
       "decisive": false,
       "description": "Record the verdict of the reviewer agent on the pull request of a build request (the required status demiurgo/review); applied by the system from its validated output."
     },
+    "task_forensics.record": {
+      "entity": "task_forensics",
+      "allowed": [
+        "system"
+      ],
+      "decisive": false,
+      "description": "Record the blameless post-mortem of one task (what went well, what went wrong, root causes by dimension, improvements and a checklist of every piece of DEMIURGO), applied by the system from the validated output of a task_forensics run."
+    },
+    "forensic_playbook.record": {
+      "entity": "forensic_playbook",
+      "allowed": [
+        "system"
+      ],
+      "decisive": false,
+      "description": "Record a new version of the playbook of one error class, aggregated from the task forensics; applied by the system from the validated output of a playbook_write run."
+    },
     "issue.open": {
       "entity": "issue",
       "allowed": [
@@ -1099,6 +1115,13 @@ export const CAPABILITIES = {
         "agent_external"
       ],
       "description": "Harness health: post-mortems and findings of the builds, per piece of the harness."
+    },
+    "query.forensics": {
+      "allowed": [
+        "human",
+        "agent_external"
+      ],
+      "description": "Task forensics (blameless post-mortems per task) and the playbooks aggregated from them."
     },
     "query.batches": {
       "allowed": [
@@ -2640,6 +2663,36 @@ export const TRANSITIONS = {
       "transitions": [
         {
           "command": "pr_review.record",
+          "from": "new",
+          "to": "recorded"
+        }
+      ]
+    },
+    "task_forensics": {
+      "label": "Task forensics",
+      "implemented_in": "S4",
+      "states": {
+        "recorded": "Recorded"
+      },
+      "authority": [],
+      "transitions": [
+        {
+          "command": "task_forensics.record",
+          "from": "new",
+          "to": "recorded"
+        }
+      ]
+    },
+    "forensic_playbook": {
+      "label": "Forensic playbook",
+      "implemented_in": "S4",
+      "states": {
+        "recorded": "Recorded"
+      },
+      "authority": [],
+      "transitions": [
+        {
+          "command": "forensic_playbook.record",
           "from": "new",
           "to": "recorded"
         }

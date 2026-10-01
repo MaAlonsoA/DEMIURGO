@@ -9,3 +9,4 @@ import './design-directions.ts';
 import './design-system-plan.ts';
 import './screen-design.ts';
 import './pr-review.ts';
+import './task-forensics.ts';

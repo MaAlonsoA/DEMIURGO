@@ -161,6 +161,34 @@ beforeAll(async () => {
   cases.screen_design = { scope: { type: 'record_version', id: featureVersion }, input: {} };
   cases.design_directions = { scope: { type: 'exploration', id: designThread }, input: {} };
   cases.design_system_plan = { scope: { type: 'exploration', id: designThread }, input: {} };
+  // The forensic of the task, and a playbook over a class a stored forensic names (a fixture row with the columns the command fills in).
+  cases.task_forensics = { scope: { type: 'task', id: taskRow.id }, input: {} };
+  const someRun = await db.selectFrom('ai_runs').select('id').where('project_id', '=', projectId).orderBy('created_at').executeTakeFirstOrThrow();
+  await db
+    .insertInto('task_forensics')
+    .values({
+      project_id: projectId,
+      task_id: taskRow.id,
+      task_version_id: taskVersion.id,
+      ai_run_id: someRun.id,
+      analysis: JSON.stringify({
+        summary: 's',
+        outcome: 'rework',
+        timeline: [],
+        went_well: [],
+        went_wrong: [{ what: 'w', evidence: 'e', phase: 'P10', error_class: 'E01', cost: {} }],
+        root_causes: [],
+        improvements: [],
+        lessons: [],
+        checklist: [],
+      }),
+      evidence_hash: '0'.repeat(64),
+      catalog_version: 'fixture',
+      agent_version: 'fixture',
+      engine: JSON.stringify({ provider: 'simulated' }),
+    })
+    .execute();
+  cases.playbook_write = { scope: { type: 'project', id: projectId }, input: { class_key: 'E01' } };
   cases.pr_review = {
     scope: { type: 'build_request', id: buildRequest.id },
     input: {

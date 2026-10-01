@@ -17,6 +17,8 @@
 //   node packages/api/src/cli.ts harness escapes [--project <id>]                (records the escapes from design: deterministic, idempotent)
 //   node packages/api/src/cli.ts harness check [--project <id>]                  (runs the periodic check of the harness now: deterministic, idempotent)
 //   node packages/api/src/cli.ts harness recompute [--project <id>] [--request <id>]   (computes the harness post-mortems of ended builds; idempotent)
+//   node packages/api/src/cli.ts forensics run --project <id> (--task TSK-… | --all) [--force]   (blameless post-mortem of each task by the forensics agent, serially; skips a task whose latest forensic has the same evidence hash; spends quota)
+//   node packages/api/src/cli.ts forensics playbooks --project <id> [--force]   (one playbook_write per error class seen in the latest forensics; spends quota)
 //   node packages/api/src/cli.ts own-files-backfill --project <projectId>   (records, from git, the files each attempt's commit changed on its own where the commit step lacks own_files)
 //   node packages/api/src/cli.ts build-footprint-backfill --project <projectId>   (records the merge commit and files of merged tasks that lack them; needs GitHub env)
 //   node packages/api/src/cli.ts code-map --project <projectId> [--query "text"] [--ref main] [--budget 6000]   (prints the ranked code map of the project's repository; read-only)
@@ -82,6 +84,8 @@ import {
   rankCodeMap,
   renderCodeMap,
   BRIEF_MAP_CHARS,
+  runForensics,
+  runPlaybooks,
   readDrain,
   setDrain,
   clearDrain,
@@ -660,6 +664,40 @@ commands.harness = async () => {
     console.log(JSON.stringify({ rules_version: RULES_VERSION, requests: ids.length, ...counts }));
     await services.observer.flush(5000);
   });
+};
+
+commands.forensics = async () => {
+  const [sub] = args;
+  const flag = (name: string) => {
+    const i = args.indexOf(name);
+    return i >= 0 ? args[i + 1] : undefined;
+  };
+  const projectId = flag('--project');
+  const usage = 'Usage: forensics run --project <id> (--task <TSK-code> | --all) [--force] | forensics playbooks --project <id> [--force]';
+  if (!projectId || (sub !== 'run' && sub !== 'playbooks')) throw new Error(usage);
+  const force = args.includes('--force');
+  const task = flag('--task');
+  if (sub === 'run' && !task && !args.includes('--all')) throw new Error(usage);
+  // The real engine: each run waits for its provider, one at a time. Progress goes to stderr; the summary is JSON on stdout.
+  const core = await startCore(config, cliLogger);
+  const progress = (line: string) => console.error(line);
+  try {
+    const actor = system('cli');
+    await interaction(core.services.observer, actor, projectId, async () => {
+      if (sub === 'run') {
+        const results = await runForensics(core.services, projectId, { ...(task ? { code: task } : {}), force, progress });
+        const count = (s: string) => results.filter((r) => r.status === s).length;
+        console.log(JSON.stringify({ tasks: results.length, analyzed: count('analyzed'), skipped: count('skipped'), failed: count('failed'), refused: count('refused'), results }));
+      } else {
+        const results = await runPlaybooks(core.services, projectId, { force, progress });
+        const count = (s: string) => results.filter((r) => r.status === s).length;
+        console.log(JSON.stringify({ classes: results.length, written: count('written'), skipped: count('skipped'), failed: count('failed'), refused: count('refused'), results }));
+      }
+    });
+    await core.services.observer.flush(5000);
+  } finally {
+    await core.stop();
+  }
 };
 
 commands['build-footprint-backfill'] = async () => {

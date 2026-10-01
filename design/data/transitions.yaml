@@ -375,6 +375,22 @@ entities:
     transitions:
       - { command: pr_review.record, from: new, to: recorded }
 
+  task_forensics:
+    label: Task forensics
+    implemented_in: S4
+    states: { recorded: Recorded }
+    authority: []
+    transitions:
+      - { command: task_forensics.record, from: new, to: recorded }
+
+  forensic_playbook:
+    label: Forensic playbook
+    implemented_in: S4
+    states: { recorded: Recorded }
+    authority: []
+    transitions:
+      - { command: forensic_playbook.record, from: new, to: recorded }
+
   issue:
     label: Issue
     implemented_in: S4

@@ -42,6 +42,8 @@ export const DEFAULT_AGENTS: Readonly<Record<AgentAction, string>> = {
   design_system_plan: 'design_system_designer',
   screen_design: 'screen_designer',
   pr_review: 'pr_reviewer',
+  task_forensics: 'task_forensics',
+  playbook_write: 'playbook_writer',
 };
 
 export type LoadedAgent = AgentDefinition & {

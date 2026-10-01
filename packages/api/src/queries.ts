@@ -69,6 +69,8 @@ import {
   loadProjectMap,
   issuesList,
   issueDetail,
+  taskForensicsOf,
+  forensicsOverview,
 } from '@demiurgo/core';
 import type { Credential } from './credentials.ts';
 
@@ -397,6 +399,18 @@ registerQueries([
     path: '/api/projects/:projectId/issues/:code',
     queryName: 'query.records',
     respond: ({ services, params }) => issueDetail(services.db, uuid(params.projectId, 'project'), params.code ?? ''),
+  },
+  {
+    // Task forensics (lessons learned): every blameless post-mortem of one task, newest first.
+    path: '/api/projects/:projectId/tasks/:code/forensics',
+    queryName: 'query.forensics',
+    respond: ({ services, params }) => taskForensicsOf(services.db, uuid(params.projectId, 'project'), params.code ?? ''),
+  },
+  {
+    // The latest forensics all together: per task, by class, dimension and piece, ranked improvements and the playbooks.
+    path: '/api/projects/:projectId/observability/forensics.json',
+    queryName: 'query.forensics',
+    respond: ({ services, params }) => forensicsOverview(services.db, uuid(params.projectId, 'project')),
   },
   {
     // The server-composed build brief of a ready record: what Copy brief copies and a request freezes.

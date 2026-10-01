@@ -35,6 +35,8 @@ import { ModelsScreen, WorkspaceModelsScreen } from './screens/models/ModelsAndP
 import { SourcesScreen } from './screens/sources/Sources.tsx';
 import { ThreadScreen } from './screens/thread/Thread.tsx';
 import { ThreadsScreen } from './screens/threads/Threads.tsx';
+import { IssuesScreen } from './screens/issues/Issues.tsx';
+import { IssueScreen } from './screens/issues/Issue.tsx';
 import { EpicsScreen } from './screens/epics/Epics.tsx';
 
 export type RouterContext = { queryClient: QueryClient };
@@ -151,6 +153,16 @@ const buildRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: '/build',
   component: BuildScreen,
+});
+const issuesRoute = createRoute({
+  getParentRoute: () => projectRoute,
+  path: '/issues',
+  component: IssuesScreen,
+});
+const issueRoute = createRoute({
+  getParentRoute: () => projectRoute,
+  path: '/issues/$code',
+  component: IssueScreen,
 });
 const recordRoute = createRoute({
   getParentRoute: () => projectRoute,
@@ -293,6 +305,8 @@ const routeTree = rootRoute.addChildren([
       mapRoute,
       journeysRoute,
       buildRoute,
+      issuesRoute,
+      issueRoute,
       recordRoute,
       taskDraftRoute,
       newRecordRoute,

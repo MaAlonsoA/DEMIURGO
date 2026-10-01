@@ -18,6 +18,7 @@ import type {
   ExplorationDetail,
   IdeaAssessment,
   Inbox,
+  IssueView,
   Knowledge,
   KnowledgeGraph,
   ProductState,
@@ -61,6 +62,8 @@ export const keys = {
   knowledge: (p: string) => ['p', p, 'knowledge'] as const,
   sources: (p: string) => ['p', p, 'sources'] as const,
   tokens: (p: string) => ['p', p, 'tokens'] as const,
+  issues: (p: string) => ['p', p, 'issues'] as const,
+  issue: (p: string, code: string) => ['p', p, 'issue', code] as const,
 };
 
 /** The session, or null without one. Keeps the CSRF token in memory for the mutations. */
@@ -337,4 +340,16 @@ export const usageQuery = (p: string) =>
   queryOptions({
     queryKey: ['p', p, 'runs', 'usage'] as const,
     queryFn: () => get<ProjectUsageRow[]>(`${P(p)}/usage`),
+  });
+
+export const issuesQuery = (p: string) =>
+  queryOptions({
+    queryKey: keys.issues(p),
+    queryFn: () => get<{ issues: IssueView[] }>(`${P(p)}/issues`).then((r) => r.issues),
+  });
+
+export const issueQuery = (p: string, code: string) =>
+  queryOptions({
+    queryKey: keys.issue(p, code),
+    queryFn: () => get<IssueView>(`${P(p)}/issues/${encodeURIComponent(code)}`),
   });

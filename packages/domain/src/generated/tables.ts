@@ -991,6 +991,39 @@ export const CAPABILITIES = {
       ],
       "decisive": false,
       "description": "Record the verdict of the reviewer agent on the pull request of a build request (the required status demiurgo/review); applied by the system from its validated output."
+    },
+    "issue.open": {
+      "entity": "issue",
+      "allowed": [
+        "human",
+        "system"
+      ],
+      "decisive": false,
+      "description": "Open an issue: a bug a person reports, or a review escalation DEMIURGO opens when the reviewer hands over something only a person can resolve."
+    },
+    "issue.resolve": {
+      "entity": "issue",
+      "allowed": [
+        "human"
+      ],
+      "decisive": true,
+      "description": "Resolve an open issue with its fix: a task, or a version of a task."
+    },
+    "issue.close": {
+      "entity": "issue",
+      "allowed": [
+        "human"
+      ],
+      "decisive": true,
+      "description": "Close an open issue without a fix, with the reason."
+    },
+    "issue.reopen": {
+      "entity": "issue",
+      "allowed": [
+        "human"
+      ],
+      "decisive": false,
+      "description": "Reopen a resolved or closed issue."
     }
   },
   "queries": {
@@ -2533,6 +2566,54 @@ export const TRANSITIONS = {
           "command": "pr_review.record",
           "from": "new",
           "to": "recorded"
+        }
+      ]
+    },
+    "issue": {
+      "label": "Issue",
+      "implemented_in": "S4",
+      "states": {
+        "open": "Open",
+        "resolved": "Resolved",
+        "closed": "Closed"
+      },
+      "authority": [
+        "resolved",
+        "closed"
+      ],
+      "transitions": [
+        {
+          "command": "issue.open",
+          "from": "new",
+          "to": "open"
+        },
+        {
+          "command": "issue.resolve",
+          "from": [
+            "open"
+          ],
+          "to": "resolved",
+          "guards": [
+            "issue_fix_exists"
+          ]
+        },
+        {
+          "command": "issue.close",
+          "from": [
+            "open"
+          ],
+          "to": "closed",
+          "guards": [
+            "reason_present"
+          ]
+        },
+        {
+          "command": "issue.reopen",
+          "from": [
+            "resolved",
+            "closed"
+          ],
+          "to": "open"
         }
       ]
     }

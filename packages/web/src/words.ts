@@ -64,6 +64,11 @@ export const STATE_WORDS: Record<string, Record<string, Word>> = {
     postponed: { word: 'Parked', mark: 'parked' },
     discarded: { word: 'Dropped', mark: 'dropped' },
   },
+  issue: {
+    open: { word: 'Open', mark: 'problem' },
+    resolved: { word: 'Resolved', mark: 'done' },
+    closed: { word: 'Closed', mark: 'dropped' },
+  },
   proposal: {
     pending: { word: 'Proposed', mark: 'proposed' },
     accepted: { word: 'Accepted', mark: 'confirmed' },
@@ -162,6 +167,10 @@ export const COMMAND_WORDS: Record<string, string> = {
   'question.discard': 'Drop',
   'question.reopen': 'Reopen',
   'question.raise': 'Ask a question',
+  'issue.open': 'Report an issue',
+  'issue.resolve': 'Resolve issue',
+  'issue.close': 'Close issue',
+  'issue.reopen': 'Reopen issue',
   'link.create': 'Add a link',
   'exploration.open': 'New thread',
   'exploration.conclude': 'Conclude',
@@ -351,6 +360,7 @@ export function useRecordMark(kind: MarkKind): { name: string; phrase: string } 
 const STATE_WORDS_ES: Record<string, Record<string, string>> = {
   record_version: { draft: 'Propuesta aceptada', approved: 'Registro', superseded: 'Reemplazada', discarded: 'Descartada' },
   question: { pending: 'Abierta', inferred: 'Supuesta', confirmed: 'Confirmada', postponed: 'Aparcada', discarded: 'Descartada' },
+  issue: { open: 'Abierta', resolved: 'Resuelta', closed: 'Cerrada' },
   proposal: {
     pending: 'Propuesta',
     accepted: 'Aceptada',
@@ -427,6 +437,10 @@ const COMMAND_WORDS_ES: Record<string, string> = {
   'question.discard': 'Descartar',
   'question.reopen': 'Reabrir',
   'question.raise': 'Hacer una pregunta',
+  'issue.open': 'Abrir incidencia',
+  'issue.resolve': 'Resolver incidencia',
+  'issue.close': 'Cerrar incidencia',
+  'issue.reopen': 'Reabrir incidencia',
   'link.create': 'Añadir un enlace',
   'exploration.open': 'Nuevo hilo',
   'exploration.conclude': 'Concluir',

@@ -62,6 +62,8 @@ export function kindIcon(item: NeedItem): ComponentType<IconProps> {
       return TagIcon;
     case 'update':
       return KnowledgeIcon;
+    case 'issue':
+      return AlertTriangleIcon;
   }
 }
 

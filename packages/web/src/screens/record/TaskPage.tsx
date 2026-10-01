@@ -49,6 +49,7 @@ import {
   deliveryOf,
   useDraftTasks,
 } from './Delivery.tsx';
+import { ReportBugButton } from '../issues/ReportBug.tsx';
 import { RecordHeader, recordCrumbs } from './Header.tsx';
 import { ancestorsOf } from './hierarchy.ts';
 import { Columns, Frame } from './Layout.tsx';
@@ -204,6 +205,11 @@ export function TaskPage({
                 <PendingProposals projectId={projectId} code={record.code} inbox={inbox} rows={state ? [...state.designs, ...state.decisions] : []} />
               ) : null}
               {task.draft ? <DraftNote task={task} /> : null}
+              {record && version ? (
+                <div>
+                  <ReportBugButton projectId={projectId} task={record.code} size="sm" variant="quiet" />
+                </div>
+              ) : null}
               <TaskBody projectId={projectId} task={task} record={record} version={version} />
               {record && version ? (
                 <AskBox

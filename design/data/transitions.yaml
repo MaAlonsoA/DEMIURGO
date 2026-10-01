@@ -363,3 +363,14 @@ entities:
     authority: []
     transitions:
       - { command: pr_review.record, from: new, to: recorded }
+
+  issue:
+    label: Issue
+    implemented_in: S4
+    states: { open: Open, resolved: Resolved, closed: Closed }
+    authority: [resolved, closed]
+    transitions:
+      - { command: issue.open, from: new, to: open }
+      - { command: issue.resolve, from: [open], to: resolved, guards: [issue_fix_exists] }
+      - { command: issue.close, from: [open], to: closed, guards: [reason_present] }
+      - { command: issue.reopen, from: [resolved, closed], to: open }

@@ -17,6 +17,7 @@ export type NeedsTarget =
   | { to: '/p/$projectId/batches/$batchId'; params: { batchId: string } }
   | { to: '/p/$projectId/threads/$explorationId'; params: { explorationId: string } }
   | { to: '/p/$projectId/records/$code'; params: { code: string }; search?: { v: number } }
+  | { to: '/p/$projectId/issues/$code'; params: { code: string } }
   | { to: '/p/$projectId/needs-you'; params: Record<string, never> }
   | { to: '/p/$projectId/knowledge'; params: Record<string, never> };
 
@@ -163,6 +164,18 @@ function describe(n: NeedItem, state: ProductState | undefined): NeedsItem {
         mark: 'proposed',
         target: { to: '/p/$projectId/needs-you', params: {} },
         code: null,
+      };
+    }
+    case 'issue': {
+      const i = n.issue;
+      return {
+        ...base,
+        label: i.kind === 'review_escalation' ? 'Review escalation' : 'Bug',
+        title: i.title,
+        from: i.task_code ? `${i.code} · ${i.task_code}` : i.code,
+        mark: 'problem',
+        target: { to: '/p/$projectId/issues/$code', params: { code: i.code } },
+        code: i.task_code,
       };
     }
     default: {

@@ -48,6 +48,7 @@ export function NeedDetail(props: DetailProps) {
     case 'package':
     case 'proposal':
     case 'version':
+    case 'issue':
       return <GoDetail {...props} />;
     case 'link':
       return <LinkDetail {...(props as DetailProps<'link'>)} />;

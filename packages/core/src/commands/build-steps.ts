@@ -11,6 +11,7 @@ import { field, registerGuards, trimmed } from '../bus/guards.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
 import { computeRequestBasis, effectiveBasis } from '../build/basis.ts';
 import { openHoldOf } from '../build/holds.ts';
+import type { CommandContext } from '../bus/types.ts';
 import type { Db, Tx } from '../db/connection.ts';
 import { githubConfig } from '../github/client.ts';
 import { mergedBuildOf } from '../queries/read.ts';
@@ -118,6 +119,105 @@ export async function buildRunning(trx: Db | Tx, requestId: string): Promise<boo
     )
     .executeTakeFirst();
   return !ended;
+}
+
+/** Whether an automatic source already has an issue: in any state when `anyState`, else an open one. */
+async function issueFromSource(ctx: CommandContext, key: string, anyState: boolean): Promise<boolean> {
+  let q = ctx.trx.selectFrom('issues').select('id').where('project_id', '=', ctx.projectId).where('source_key', '=', key);
+  if (!anyState) q = q.where('state', '=', 'open');
+  return (await q.executeTakeFirst()) !== undefined;
+}
+
+async function taskCodeOf(ctx: CommandContext, requestId: string): Promise<string> {
+  const row = await ctx.trx
+    .selectFrom('build_requests')
+    .innerJoin('records', 'records.id', 'build_requests.task_id')
+    .select('records.code')
+    .where('build_requests.id', '=', requestId)
+    .executeTakeFirstOrThrow();
+  return row.code;
+}
+
+const oneLine = (text: string, max = 120): string => {
+  const flat = text.replace(/\s+/g, ' ').trim();
+  return flat.length > max ? `${flat.slice(0, max - 1).trimEnd()}…` : flat;
+};
+
+/** Opens the `review_escalation` issue of an attempt (once per request and attempt, in any state). */
+async function openEscalationIssue(ctx: CommandContext, requestId: string, attempt: number): Promise<void> {
+  const key = `escalation:${requestId}:${attempt}`;
+  if (await issueFromSource(ctx, key, true)) return;
+  const taskCode = await taskCodeOf(ctx, requestId);
+  const review = await ctx.trx
+    .selectFrom('pr_reviews')
+    .select(['id', 'summary', 'comments'])
+    .where('build_request_id', '=', requestId)
+    .orderBy('created_at', 'desc')
+    .orderBy('id', 'desc')
+    .executeTakeFirst();
+  const comments = ((review?.comments ?? []) as { path: string; line: number | null; severity: string; body: string; needs_person?: boolean }[]).filter(
+    (c) => c.severity === 'blocking' && c.needs_person === true,
+  );
+  const lines = comments.map((c) => `${c.path}${c.line ? `:${c.line}` : ''} — ${c.body}`);
+  const body = [...lines, ...(review ? ['', review.summary] : [])].join('\n').trim();
+  await ctx.execute({
+    command: 'issue.open',
+    actor: ctx.actor,
+    data: {
+      kind: 'review_escalation',
+      title: `Review escalation on ${taskCode}: ${oneLine(comments[0]?.body ?? review?.summary ?? 'the reviewer needs a person')}`,
+      ...(body ? { body } : {}),
+      task: taskCode,
+      build_request_id: requestId,
+      attempt,
+      ...(review ? { pr_review_id: review.id } : {}),
+      source_key: key,
+    },
+  });
+}
+
+/**
+ * A quarantined flaky test becomes a `bug` issue so someone fixes it (Martin Fowler, "Eradicating Non-Determinism in
+ * Tests": quarantine, and track the fix). One open issue per test.
+ */
+async function openFlakyIssues(ctx: CommandContext, requestId: string, attempt: number, tests: readonly string[]): Promise<void> {
+  const taskCode = await taskCodeOf(ctx, requestId);
+  for (const test of tests) {
+    const key = `flaky:${test}`;
+    if (await issueFromSource(ctx, key, false)) continue;
+    await ctx.execute({
+      command: 'issue.open',
+      actor: ctx.actor,
+      data: {
+        kind: 'bug',
+        title: oneLine(`Flaky test quarantined: ${test}`, 300),
+        body: `${test} failed in one CI run and passed in another on the same commit while building ${taskCode} (attempt ${attempt}). It is outside that task's criteria, so DEMIURGO quarantined it instead of blocking; a flaky test must be fixed, not ignored.`,
+        build_request_id: requestId,
+        attempt,
+        source_key: key,
+      },
+    });
+  }
+}
+
+/** CI red on main after a merge becomes a `bug` issue linked to the task that merged (one per commit). */
+async function openMainRedIssue(ctx: CommandContext, requestId: string, attempt: number, sha: string, conclusion: string | null): Promise<void> {
+  const key = `main_red:${sha}`;
+  if (await issueFromSource(ctx, key, true)) return;
+  const taskCode = await taskCodeOf(ctx, requestId);
+  await ctx.execute({
+    command: 'issue.open',
+    actor: ctx.actor,
+    data: {
+      kind: 'bug',
+      title: `CI on main is red after merging ${taskCode}`,
+      body: `CI on main (${sha.slice(0, 12)}) ended ${conclusion ?? 'without a conclusion'} after merging ${taskCode}. DEMIURGO stops building until main is green again.`,
+      task: taskCode,
+      build_request_id: requestId,
+      attempt,
+      source_key: key,
+    },
+  });
 }
 
 registerGuards({
@@ -230,6 +330,16 @@ registerHandlers({
           .where('build_request_id', '=', data.build_request_id)
           .where('published_at', 'is', null)
           .execute();
+      }
+      // What a person must look at becomes an issue: a review escalation (once per attempt), a quarantined flaky test
+      // (once while open) and CI red on main after a merge (once per commit).
+      if (data.stage === 'merge' && data.outcome === 'changes_requested' && data.detail?.escalated === 'needs_person') {
+        await openEscalationIssue(ctx, data.build_request_id, data.attempt);
+      }
+      const quarantined = Array.isArray(data.detail?.quarantined) ? data.detail.quarantined.filter((t): t is string => typeof t === 'string') : [];
+      if (data.stage === 'evidence' && quarantined.length > 0) await openFlakyIssues(ctx, data.build_request_id, data.attempt, quarantined);
+      if (data.stage === 'main' && data.outcome === 'failed' && typeof data.detail?.sha === 'string') {
+        await openMainRedIssue(ctx, data.build_request_id, data.attempt, data.detail.sha, typeof data.detail.conclusion === 'string' ? data.detail.conclusion : null);
       }
       return {
         entityId: id,

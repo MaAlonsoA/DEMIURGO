@@ -443,3 +443,32 @@ registerRecipe('idea_assessment', {
     return r.entityId;
   },
 });
+
+registerRecipe('issue', {
+  async create(s, projectId) {
+    const r = await executeCommand(s, {
+      command: 'issue.open',
+      actor: ana,
+      projectId,
+      data: { kind: 'bug', title: unique('Issue') },
+    });
+    return r.entityId;
+  },
+  data: {
+    'issue.close': () => ({ reason: 'Closed in the test.' }),
+  },
+  states: {
+    // Resolving needs a fix task: the recipe uses a bare task record, as the guard only checks it exists.
+    async resolved(s, projectId) {
+      const r = await executeCommand(s, { command: 'issue.open', actor: ana, projectId, data: { kind: 'bug', title: unique('Issue') } });
+      const record = await s.db
+        .insertInto('records')
+        .values({ project_id: projectId, code: unique('TSK').slice(0, 30), type: 'task', domain: 'test', state: 'active' })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      const code = (await s.db.selectFrom('records').select('code').where('id', '=', record.id).executeTakeFirstOrThrow()).code;
+      await executeCommand(s, { command: 'issue.resolve', actor: ana, projectId, entityId: r.entityId, data: { fix_task: code } });
+      return r.entityId;
+    },
+  },
+});

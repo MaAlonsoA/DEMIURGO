@@ -5,6 +5,7 @@
 import type { ComponentType } from 'react';
 import {
   ActivityIcon,
+  AlertTriangleIcon,
   CpuIcon,
   FolderIcon,
   InboxIcon,
@@ -21,7 +22,7 @@ import type { Locale } from '../i18n/locale.ts';
 import { useSafeLocale } from '../words.ts';
 import { NAV_LABELS } from './words.i18n.ts';
 
-export type NavKey = 'needs' | 'threads' | 'epics' | 'product' | 'build' | 'activity' | 'knowledge' | 'sources' | 'models' | 'keys' | 'repository';
+export type NavKey = 'needs' | 'threads' | 'epics' | 'product' | 'build' | 'issues' | 'activity' | 'knowledge' | 'sources' | 'models' | 'keys' | 'repository';
 
 export type NavItem = {
   key: NavKey;
@@ -73,6 +74,14 @@ export const NAV: NavItem[] = [
     icon: PlayIcon,
     group: 'work',
     match: /^\/build(\/|$)/,
+  },
+  {
+    key: 'issues',
+    label: 'Issues',
+    to: '/p/$projectId/issues',
+    icon: AlertTriangleIcon,
+    group: 'work',
+    match: /^\/issues(\/|$)/,
   },
   {
     key: 'activity',

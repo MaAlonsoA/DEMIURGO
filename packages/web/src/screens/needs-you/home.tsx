@@ -12,7 +12,8 @@ export type Home =
   | { to: 'thread'; id: string }
   | { to: 'batch'; id: string }
   | { to: 'product' }
-  | { to: 'path' };
+  | { to: 'path' }
+  | { to: 'issue'; code: string };
 
 export type Homed = Exclude<NeedItem['kind'], 'conflict' | 'link' | 'suspect' | 'classification' | 'update'>;
 
@@ -21,6 +22,8 @@ export function homeOf(item: NeedItem): Home | null {
   switch (item.kind) {
     case 'next_step':
       return { to: 'path' };
+    case 'issue':
+      return { to: 'issue', code: item.issue.code };
     case 'question':
       return { to: 'thread', id: item.question.exploration_id };
     case 'version':
@@ -83,6 +86,12 @@ export function HomeLink({
     case 'path':
       return (
         <Link to="/p/$projectId" params={{ projectId }} hash="inception" className={className} {...rest}>
+          {children}
+        </Link>
+      );
+    case 'issue':
+      return (
+        <Link to="/p/$projectId/issues/$code" params={{ projectId, code: home.code }} className={className} {...rest}>
           {children}
         </Link>
       );

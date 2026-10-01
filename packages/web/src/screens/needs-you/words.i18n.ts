@@ -25,6 +25,7 @@ export const TITLES = messages(
           suspect: 'To review after a change',
           classification: 'Classification',
           update: 'Knowledge update',
+          issue: 'Issue',
         }) satisfies Record<Kind, string>
       )[kind],
     verdictWord: (verdict: string): string =>
@@ -81,6 +82,8 @@ export const TITLES = messages(
     linkChanged: 'The version it points to changed',
     classificationReason: (pct: number) => `DEMIURGO is ${pct}% sure of where it goes`,
     updateReason: 'Until it is taken in, the knowledge is behind',
+    issueReason: (kind: string, code: string, task: string | null) =>
+      `${kind === 'review_escalation' ? 'The reviewer escalated it' : 'A bug was reported'} · ${code}${task ? ` · ${task}` : ''}`,
     thing: (n: number) => `${n} ${n === 1 ? 'thing' : 'things'}`,
     packageOne: (inside: number) => `1 package of ${inside} ${inside === 1 ? 'proposal' : 'proposals'}`,
     packageMany: (count: number, inside: number) => `${count} packages with ${inside} proposals`,
@@ -122,6 +125,7 @@ export const TITLES = messages(
           suspect: 'Por revisar tras un cambio',
           classification: 'Clasificación',
           update: 'Actualización de conocimiento',
+          issue: 'Incidencia',
         }) satisfies Record<Kind, string>
       )[kind],
     verdictWord: (verdict: string): string =>
@@ -180,6 +184,8 @@ export const TITLES = messages(
     linkChanged: 'La versión a la que apunta cambió',
     classificationReason: (pct: number) => `DEMIURGO tiene un ${pct}% de seguridad de dónde va`,
     updateReason: 'Hasta que se incorpore, el conocimiento se queda atrás',
+    issueReason: (kind: string, code: string, task: string | null) =>
+      `${kind === 'review_escalation' ? 'El revisor la escaló' : 'Se reportó un bug'} · ${code}${task ? ` · ${task}` : ''}`,
     thing: (n: number) => `${n} ${n === 1 ? 'cosa' : 'cosas'}`,
     packageOne: (inside: number) => `1 paquete de ${inside} ${inside === 1 ? 'propuesta' : 'propuestas'}`,
     packageMany: (count: number, inside: number) => `${count} paquetes con ${inside} propuestas`,
@@ -224,6 +230,7 @@ export const ORDER = messages(
           suspects: 'To review after a change',
           classifications: 'Classifications to review',
           updates: 'Knowledge updates that failed',
+          issues: 'Issues',
         }) satisfies Record<GroupKey, string>
       )[key],
   },
@@ -240,6 +247,7 @@ export const ORDER = messages(
           suspects: 'Por revisar tras un cambio',
           classifications: 'Clasificaciones por revisar',
           updates: 'Actualizaciones de conocimiento fallidas',
+          issues: 'Incidencias',
         }) satisfies Record<GroupKey, string>
       )[key],
   },
@@ -473,12 +481,13 @@ export const QUEUE = messages(
           suspects: 'What they rest on changed. Review each against the change, or say it still holds.',
           classifications: "DEMIURGO wasn't sure where they go.",
           updates: 'Until they are taken in, the knowledge is behind.',
+          issues: 'Each opens on its page, to resolve with a task or close with a reason.',
         }) satisfies Record<GroupKey, string>
       )[key],
     waitingSince: 'waiting since',
     listboxLabel: 'What needs you',
-    homeWord: (to: 'record' | 'thread' | 'batch' | 'product' | 'path'): string =>
-      ({ record: 'On its page', thread: 'In its thread', batch: 'In its batch', product: 'On the Product page', path: 'On the Product page' })[to],
+    homeWord: (to: 'record' | 'thread' | 'batch' | 'product' | 'path' | 'issue'): string =>
+      ({ record: 'On its page', thread: 'In its thread', batch: 'In its batch', product: 'On the Product page', path: 'On the Product page', issue: 'On its page' })[to],
     decideHere: 'Decided here',
   },
   {
@@ -494,12 +503,13 @@ export const QUEUE = messages(
           suspects: 'Lo que las sostiene cambió. Revisa cada una contra el cambio, o di que sigue vigente.',
           classifications: 'DEMIURGO no tenía claro dónde van.',
           updates: 'Hasta que se incorporan, el conocimiento se queda atrás.',
+          issues: 'Cada una se abre en su página, para resolverla con una tarea o cerrarla con un motivo.',
         }) satisfies Record<GroupKey, string>
       )[key],
     waitingSince: 'esperando desde',
     listboxLabel: 'Lo que te necesita',
-    homeWord: (to: 'record' | 'thread' | 'batch' | 'product' | 'path'): string =>
-      ({ record: 'En su página', thread: 'En su hilo', batch: 'En su lote', product: 'En la página de Producto', path: 'En la página de Producto' })[to],
+    homeWord: (to: 'record' | 'thread' | 'batch' | 'product' | 'path' | 'issue'): string =>
+      ({ record: 'En su página', thread: 'En su hilo', batch: 'En su lote', product: 'En la página de Producto', path: 'En la página de Producto', issue: 'En su página' })[to],
     decideHere: 'Se decide aquí',
   },
 );

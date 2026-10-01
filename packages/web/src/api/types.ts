@@ -432,8 +432,41 @@ export type NextStepNeed = {
   code: string | null;
 };
 
+export type IssueKind = 'bug' | 'review_escalation';
+export type IssueState = 'open' | 'resolved' | 'closed';
+export type IssueReviewComment = { path: string; line: number | null; severity: string; body: string; needs_person?: boolean };
+
+/** An issue (ISS): a bug a person reported, or an escalation of the PR reviewer only a person can resolve. */
+export type IssueView = {
+  id: string;
+  code: string;
+  kind: IssueKind;
+  title: string;
+  body: string;
+  state: IssueState;
+  task: { code: string; title: string } | null;
+  feature: { code: string; title: string } | null;
+  criterion_code: string | null;
+  build_request_id: string | null;
+  attempt: number | null;
+  pr_number: number | null;
+  pr_url: string | null;
+  review: { summary: string; comments: IssueReviewComment[] } | null;
+  resolution: { task_code: string; task_title: string; version_n: number | null } | null;
+  close_reason: string | null;
+  opened_by: string;
+  opened_at: string;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  closed_by: string | null;
+  closed_at: string | null;
+};
+
+export type InboxIssue = { code: string; kind: IssueKind; title: string; task_code: string | null; opened_at: string };
+
 export type Inbox = {
   total: number;
+  open_issues?: InboxIssue[];
   batches: InboxBatch[];
   questions_to_confirm: InboxQuestion[];
   open_questions: InboxQuestion[];

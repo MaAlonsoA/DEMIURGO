@@ -3,7 +3,7 @@
 // reasons the server gives (packages/domain/src/records.ts, readiness()): nothing is invented.
 
 import { questionReason } from '../../../../domain/src/records.ts';
-import type { Inbox, InboxBatch, NextStepNeed, InboxLink, InboxProposal, InboxQuestion, InboxVersion, ProductRow, SuspectRecord } from '../../api/types.ts';
+import type { Inbox, InboxBatch, InboxIssue, NextStepNeed, InboxLink, InboxProposal, InboxQuestion, InboxVersion, ProductRow, SuspectRecord } from '../../api/types.ts';
 import { taskDraftsFeature } from '../../lib/attention.ts';
 import { ORDER } from './words.i18n.ts';
 
@@ -25,11 +25,13 @@ export type Need =
   /** A record whose basis got a newer approved version since it was written (suspect link). */
   | { kind: 'suspect'; key: string; suspect: SuspectRecord }
   | { kind: 'classification'; key: string; classification: Classification }
-  | { kind: 'update'; key: string; update: FailedUpdate };
+  | { kind: 'update'; key: string; update: FailedUpdate }
+  /** An open issue: a bug reported or an escalation of the PR reviewer. Decided on its own page. */
+  | { kind: 'issue'; key: string; issue: InboxIssue };
 
 export type NeedItem = Need & { unblocks: string[]; minutes: number };
 
-export type GroupKey = 'next' | 'conflicts' | 'questions' | 'proposals' | 'versions' | 'links' | 'suspects' | 'classifications' | 'updates';
+export type GroupKey = 'next' | 'conflicts' | 'questions' | 'proposals' | 'versions' | 'links' | 'suspects' | 'classifications' | 'updates' | 'issues';
 
 export const GROUPS: { key: GroupKey; kinds: Need['kind'][] }[] = [
   { key: 'next', kinds: ['next_step'] },
@@ -41,6 +43,7 @@ export const GROUPS: { key: GroupKey; kinds: Need['kind'][] }[] = [
   { key: 'suspects', kinds: ['suspect'] },
   { key: 'classifications', kinds: ['classification'] },
   { key: 'updates', kinds: ['update'] },
+  { key: 'issues', kinds: ['issue'] },
 ];
 
 /** About how long each thing takes, as the canvas estimates it (a question, a minute). */
@@ -55,6 +58,7 @@ const MINUTES: Record<Need['kind'], number> = {
   suspect: 2,
   classification: 1,
   update: 1,
+  issue: 2,
 };
 
 const reasonsOf = (r: ProductRow): string[] => r.readiness?.reasons ?? [];
@@ -155,6 +159,7 @@ export function needsOf(inbox: Inbox, rows: readonly ProductRow[]): NeedItem[] {
     ),
   );
   needs.push(...inbox.rejected_updates.map((update): Need => ({ kind: 'update', key: `update:${update.id}`, update })));
+  needs.push(...(inbox.open_issues ?? []).map((issue): Need => ({ kind: 'issue', key: `issue:${issue.code}`, issue })));
   return needs.map((n) => ({ ...n, unblocks: unblocksOf(n, rows), minutes: MINUTES[n.kind] }));
 }
 
@@ -179,6 +184,8 @@ export function catchUpRank(n: NeedItem): number {
     case 'suspect':
     case 'classification':
       return 5;
+    case 'issue':
+      return 3;
     default:
       return 6;
   }

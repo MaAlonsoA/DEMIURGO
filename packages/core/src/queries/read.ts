@@ -1,6 +1,7 @@
 // Read models for Pillar 1: product state, inbox, explorations, records with
 // their readiness, and batches. These are derived functions: nothing is stored (§4 of the plan).
 
+import { openIssuesOf } from './issues.ts';
 import { sql } from 'kysely';
 import { effectiveTaskVersionSql } from '../build/basis.ts';
 import { taskCoversOf, taskSizeView } from './sizes.ts';
@@ -653,6 +654,7 @@ export async function inbox(db: Db, projectId: string) {
     .execute();
   const extra = await pendingKnowledge(db, projectId);
   const suspects = await suspectRecords(db, projectId);
+  const openIssues = await openIssuesOf(db, projectId);
   // The onboarding step that waits on the person, as one more thing of Needs you (when it is theirs to take).
   const busy = await db
     .selectFrom('ai_runs')
@@ -673,6 +675,7 @@ export async function inbox(db: Db, projectId: string) {
     drafts.length +
     links.length +
     suspects.length +
+    openIssues.length +
     (nextStep ? 1 : 0) +
     extra.total;
   return {
@@ -698,6 +701,8 @@ export async function inbox(db: Db, projectId: string) {
     links_under_review: links.map((e) => ({ ...e, epistemic_status: 'pending' as const })),
     // Records whose basis has a newer approved version since they were written (suspect links).
     suspect_records: suspects,
+    // Open issues (bugs and review escalations) wait for the person.
+    open_issues: openIssues,
     next_step: nextStep,
     ...extra.sections,
   };

@@ -75,6 +75,8 @@ export function needTitle(item: NeedItem, rows: readonly ProductRow[], words: Wo
       return nodeName(item.classification.node_ref, rows);
     case 'update':
       return updateTitle(item, rows, words);
+    case 'issue':
+      return item.issue.title;
   }
 }
 
@@ -121,6 +123,8 @@ export function needReason(item: NeedItem, ctx: ReasonContext, words: Words = TI
     }
     case 'update':
       return words.updateReason;
+    case 'issue':
+      return words.issueReason(item.issue.kind, item.issue.code, item.issue.task_code);
   }
 }
 
@@ -128,6 +132,7 @@ export function needReason(item: NeedItem, ctx: ReasonContext, words: Words = TI
 export function needSince(item: NeedItem): string | null {
   if (item.kind === 'conflict' || item.kind === 'proposal' || item.kind === 'package') return item.batch.created;
   if (item.kind === 'update') return item.update.created_at;
+  if (item.kind === 'issue') return item.issue.opened_at;
   return null;
 }
 
@@ -220,6 +225,8 @@ export function entityOf(item: NeedItem): string {
       return item.classification.id;
     case 'update':
       return item.update.id;
+    case 'issue':
+      return item.issue.code;
   }
 }
 

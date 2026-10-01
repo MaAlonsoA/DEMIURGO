@@ -818,6 +818,34 @@ export type PrReviewsTable = {
   created_at: Generated<Timestamp>;
 };
 
+export type IssuesTable = {
+  id: Generated<string>;
+  project_id: string;
+  /** ISS-NNN, per project. */
+  code: string;
+  kind: 'bug' | 'review_escalation';
+  title: string;
+  body: Generated<string>;
+  state: Generated<'open' | 'resolved' | 'closed'>;
+  task_id: string | null;
+  feature_id: string | null;
+  criterion_code: string | null;
+  build_request_id: string | null;
+  attempt: number | null;
+  pr_review_id: string | null;
+  /** What opened it automatically (escalation:…, flaky:…, main_red:…); null when a person reported it. */
+  source_key: string | null;
+  resolution_task_id: string | null;
+  resolution_version_id: string | null;
+  close_reason: string | null;
+  opened_by: string;
+  opened_at: Generated<Timestamp>;
+  resolved_by: string | null;
+  resolved_at: NullableTimestamp;
+  closed_by: string | null;
+  closed_at: NullableTimestamp;
+};
+
 export type DB = {
   projects: ProjectsTable;
   events: EventsTable;
@@ -878,6 +906,7 @@ export type DB = {
   project_commits: ProjectCommitsTable;
   pr_reviews: PrReviewsTable;
   build_steps: BuildStepsTable;
+  issues: IssuesTable;
 };
 
 export type Row<T extends keyof DB> = Selectable<DB[T]>;

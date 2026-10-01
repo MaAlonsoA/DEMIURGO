@@ -50,6 +50,8 @@ import {
   coherenceStatus,
   githubConfig,
   loadProjectMap,
+  issuesList,
+  issueDetail,
 } from '@demiurgo/core';
 import type { Credential } from './credentials.ts';
 
@@ -263,6 +265,16 @@ registerQueries([
         bounces: await bounceReasonsOf(services.db, projectId).catch(() => []),
       };
     },
+  },
+  {
+    path: '/api/projects/:projectId/issues',
+    queryName: 'query.records',
+    respond: ({ services, params }) => issuesList(services.db, uuid(params.projectId, 'project')),
+  },
+  {
+    path: '/api/projects/:projectId/issues/:code',
+    queryName: 'query.records',
+    respond: ({ services, params }) => issueDetail(services.db, uuid(params.projectId, 'project'), params.code ?? ''),
   },
   {
     // The server-composed build brief of a ready record: what Copy brief copies and a request freezes.

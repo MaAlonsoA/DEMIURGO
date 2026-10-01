@@ -299,6 +299,8 @@ export type ProductState = {
   planned?: PlannedFeatureRow[];
   decisions: ProductRow[];
   designs: ProductRow[];
+  /** The product definition's row (null when the project has none yet); only to link to it. */
+  product_definition?: ProductRow | null;
   ready_to_build: string[];
   explorations: ExplorationSummary[];
   inbox: { total: number };

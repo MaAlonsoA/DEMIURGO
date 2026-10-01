@@ -1318,6 +1318,8 @@ export async function productState(db: Db, projectId: string) {
     // The project's design system (DSY), if it has one: the same row as in `designs`.
     design_system: rows.find((f) => f.type === 'design_system') ?? null,
     // The product definition is not a design to build: it has its own place (productDefinition).
+    // Its row is offered here only so a record can link to it (a basis, e.g. of a technical task).
+    product_definition: rows.find((f) => f.type === 'product_definition') ?? null,
     designs: rows.filter((f) => !WITHOUT_READINESS.has(f.type)),
     ready_to_build: rows.filter((f) => f.readiness?.ready).map((f) => f.code),
     explorations: explorations.map((e) => ({

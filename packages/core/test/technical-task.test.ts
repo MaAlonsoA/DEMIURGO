@@ -1,12 +1,12 @@
 // A technical task (an enabler: CI, tests, infrastructure) is based on a decision, a quality requirement or
 // the product definition instead of a feature: it can be readied, queued and requested to build without one.
 
-import { human } from '@demiurgo/domain';
+import { DEFINITION_SECTIONS, human } from '@demiurgo/domain';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { executeCommand } from '../src/bus/bus.ts';
 import { computeRequestBasis } from '../src/build/basis.ts';
 import { buildQueue } from '../src/build/queue.ts';
-import { versionReadiness } from '../src/queries/read.ts';
+import { productState, versionReadiness } from '../src/queries/read.ts';
 import { useEnvironment } from './support/env.ts';
 
 const environment = useEnvironment();
@@ -83,6 +83,26 @@ describe('technical task', () => {
     await cmd('build_request.request', { task: task.code });
     const request = await s().db.selectFrom('build_requests').select(['feature_version_id']).where('task_id', '=', task.recordId).executeTakeFirstOrThrow();
     expect(request.feature_version_id).toBeNull();
+  });
+
+  it('a task based on the product definition is ready, and the state offers the definition to link to', async () => {
+    const def = await cmd('record.create', {
+      type: 'product_definition',
+      domain: 'product',
+      title: 'Product definition',
+      sections: DEFINITION_SECTIONS.map((d) => ({ title: d.title, content: 'As the person put it.' })),
+      criteria: [],
+      links: [],
+    });
+    const definition = def.result as Made;
+    await cmd('record_version.approve', {}, definition.versionId);
+    const state = await productState(s().db, projectId);
+    expect(state.product_definition?.code).toBe(definition.code);
+    expect(state.designs.map((d) => d.code)).not.toContain(definition.code);
+
+    const task = await technicalTask(definition, 'Set up the repository');
+    const readiness = await versionReadiness(s().db, projectId, task.versionId);
+    expect(readiness.reasons.filter((r) => /feature|based on/i.test(r))).toEqual([]);
   });
 
   it('a task based on nothing is not ready and says what it can rest on', async () => {

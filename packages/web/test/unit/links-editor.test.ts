@@ -27,6 +27,13 @@ describe('links written by hand', () => {
     ]);
   });
 
+  it('offers the product definition as a link target', () => {
+    const state = { designs: [], decisions: [], product_definition: row('DEF-001', 'product_definition', 2, 2) };
+    expect(linkTargets(state)).toEqual([
+      { code: 'DEF-001', version: 2, title: 'Title of DEF-001', type: 'product_definition' },
+    ]);
+  });
+
   it('adds a link once per type and target, and removes it', () => {
     const one = addLink([], { type: 'based_on', target: { code: 'DEC-CLU-001', version: 1 } });
     expect(addLink(one, { type: 'based_on', target: { code: 'DEC-CLU-001', version: 1 } })).toEqual(one);

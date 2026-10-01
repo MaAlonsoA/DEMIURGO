@@ -12,10 +12,16 @@ export type LinkTarget = { code: string; version: number; title: string; type: P
 
 /** The records a link can point to, by code, except the record being written. */
 export function linkTargets(
-  state: { designs: readonly ProductRow[]; decisions: readonly ProductRow[] } | undefined,
+  state:
+    | {
+        designs: readonly ProductRow[];
+        decisions: readonly ProductRow[];
+        product_definition?: ProductRow | null;
+      }
+    | undefined,
   except?: string,
 ): LinkTarget[] {
-  return [...(state?.designs ?? []), ...(state?.decisions ?? [])]
+  return [...(state?.designs ?? []), ...(state?.decisions ?? []), ...(state?.product_definition ? [state.product_definition] : [])]
     .filter((r) => r.code !== except)
     .map((r) => ({ code: r.code, version: r.current ?? r.latest.n, title: r.title, type: r.type }))
     .sort((a, b) => a.code.localeCompare(b.code));

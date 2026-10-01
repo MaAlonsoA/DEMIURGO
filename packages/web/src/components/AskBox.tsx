@@ -73,11 +73,15 @@ export function AskBox({
       const threads = await client.fetchQuery({ ...explorationsQuery(projectId), staleTime: 0 });
       const thread = threadFor(threads, subject);
       let explorationId = thread?.id;
-      let purpose = thread?.purpose ?? '';
+      const purpose = thread?.purpose ?? '';
       if (!explorationId) {
-        const data = openThreadData(subject);
-        explorationId = (await runCommand(projectId, { command: 'exploration.open', data })).entity_id;
-        purpose = data.purpose;
+        // The question goes with the opening, in one command: the thread then has exactly one first
+        // turn, the answer to it (no automatic first turn racing with a message posted right after).
+        const data = { ...openThreadData(subject), first_message: message };
+        const opened = (await runCommand(projectId, { command: 'exploration.open', data })).entity_id;
+        const detail = await client.fetchQuery({ ...explorationQuery(projectId, opened), staleTime: 0 });
+        const mine = detail.messages.find((m) => m.author.startsWith('human:'));
+        return { explorationId: opened, messageId: mine?.id ?? '', purpose: data.purpose };
       }
       const posted = await runCommand(projectId, {
         command: 'message.post',

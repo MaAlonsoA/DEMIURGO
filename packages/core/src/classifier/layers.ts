@@ -1,11 +1,12 @@
-// Jev's guess at how much database schema work a task needs (H101). «Build the queue» uses it to never
-// run two schema-changing tasks at once: the app numbers migrations in sequence, so two parallel tasks
-// that both add a migration would both create the same number and collide.
+// Jev's guess at whether a task adds a migration file (H101). «Build the queue» uses it to never run two
+// schema-changing tasks at once (any schema change: table, column, index, constraint, data migration; the audit of
+// 01-10-2026 found an index that the old «none / a column / a table» question missed). New projects name migrations
+// with a timestamp (builder rules), but older ones number them, and two parallel tasks would pick the same number.
 //
 // One Score (https://docs.typesafe.ai/primitives/score) over the task as JSON and the repository as it
 // is before the task (`repository`: the migrations, the tables and columns they create, the server
 // modules, routes and pages, read from the project's git at its base commit) and what its CI runs
-// (`project_stack`). Levels: None / one new column or index / a new table. The A/B audit of 01-10-2026
+// (`project_stack`). Levels: no migration / one migration for a small change / a larger migration. The A/B audit of 01-10-2026
 // on 30 merged tasks of «Comidas y entrenos» replaced five Nouls on one text with this: the Nouls for
 // server, UI, tests-only and deploy were never read by anything and are no longer asked. The stored
 // `schema_p` is the expected score divided by the top level (0..1), so the threshold below is the
@@ -19,6 +20,7 @@ import type { Db } from '../db/connection.ts';
 import type { Services } from '../services.ts';
 import { jevAllowed } from './aspect.ts';
 import { JEV_DEFAULT_MODEL, jevCostUsd } from './jev.ts';
+import { questionVersion } from './question-version.ts';
 import { type RepoContext, loadRepoContext } from './repo-context.ts';
 import { type TaskObject, loadTaskObject } from './task-input.ts';
 
@@ -36,10 +38,23 @@ export type LayersInput = { task: TaskObject; repo?: RepoContext | null };
 type Client = Pick<TypeSafeClient, 'systemOne'>;
 
 const SCHEMA_LEVELS = [
-  'None: the task saves and reads only data the existing tables already hold, or stores nothing.',
-  'A small change: one new column or index on an existing table, in one new migration.',
-  'A new table: the task stores a new kind of record that no existing table holds, in a new migration.',
+  'None: the task adds no file under the migrations directory. It saves and reads only data the existing tables already hold, or stores nothing.',
+  'One migration for a small change: the task adds one file under the migrations directory for a new column, an index, a constraint or a data migration on existing tables.',
+  'A larger migration: the task adds a new table, or several schema changes, in new files under the migrations directory.',
 ] as const;
+
+/** Question text for a project with its repository read (the tables and the migrations directory are known). */
+const QUESTION_WITH_REPO =
+  'Will building `task` add a file under the migrations directory of `repository.migrations`, for ANY schema change (table, column, index, constraint or data migration), given the tables in `repository.database_tables`?';
+const QUESTION_WITHOUT_REPO =
+  'Will building `task` add a file under the project migrations directory, for ANY schema change (table, column, index, constraint or data migration)?';
+
+/**
+ * The version of the schema question (see question-version.ts): a hash of its two texts and its levels. `task_layers_opinions`
+ * has no column for it, so it goes into `input_hash` (every judgment hashes it with the state), which makes opinions given by
+ * the old question («none / a column / a table») distinguishable from the new one (any migration file) without a migration.
+ */
+export const LAYERS_QUESTION_VERSION = questionVersion('layers.schema_score', QUESTION_WITH_REPO, QUESTION_WITHOUT_REPO, SCHEMA_LEVELS);
 
 /** The one request of a task: the task and the repository as the state, and the schema Score. */
 export function buildLayersRequest(input: LayersInput) {
@@ -49,9 +64,7 @@ export function buildLayersRequest(input: LayersInput) {
     ...(repo?.project_stack ? { project_stack: repo.project_stack } : {}),
     ...(repo ? { repository: repo.repository } : {}),
   };
-  const question = repo
-    ? 'How much database schema work does building `task` require, given the tables in `repository.database_tables`?'
-    : 'How much database schema work does building `task` require?';
+  const question = repo ? QUESTION_WITH_REPO : QUESTION_WITHOUT_REPO;
   return { state, questions: { schema_score: score(question, [...SCHEMA_LEVELS]) } };
 }
 
@@ -71,7 +84,7 @@ export async function judgeLayers(
   return {
     schema: Math.min(1, Math.max(0, v / (SCHEMA_LEVELS.length - 1))),
     input_hash: createHash('sha256')
-      .update(JSON.stringify({ state, model: r.model || model }))
+      .update(JSON.stringify({ state, model: r.model || model, question_version: LAYERS_QUESTION_VERSION }))
       .digest('hex'),
   };
 }

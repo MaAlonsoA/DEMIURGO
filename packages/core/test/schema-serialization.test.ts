@@ -2,10 +2,11 @@
 // Fake Jev client, fake footprints and a fake selection state: no database and no real call.
 
 import { afterEach, describe, expect, it } from 'vitest';
+import { questionVersion } from '../src/classifier/question-version.ts';
 import type { TypeSafeClient } from '@typesafe-ai/sdk';
 import { selectStarts } from '../src/build/auto.ts';
 import { isSchemaFile, schemaEvidence } from '../src/build/schema-risk.ts';
-import { SCHEMA_THRESHOLD, buildLayersRequest, classifyTaskLayers, judgeLayers } from '../src/classifier/layers.ts';
+import { LAYERS_QUESTION_VERSION, SCHEMA_THRESHOLD, buildLayersRequest, classifyTaskLayers, judgeLayers } from '../src/classifier/layers.ts';
 import type { QueueTask } from '../src/build/queue.ts';
 import type { TaskDependencyIndex } from '../src/queries/task-deps.ts';
 import type { SchemaEvidence } from '../src/build/schema-risk.ts';
@@ -122,6 +123,18 @@ describe('judgeLayers and classifyTaskLayers', () => {
     const { state, questions } = buildLayersRequest({ task: TASK, repo: null });
     expect(Object.keys(state)).toEqual(['task']);
     expect(JSON.stringify(questions)).not.toContain('database_tables');
+  });
+
+  it('asks whether the task adds ANY migration file, and the question version tells it apart from the old one', async () => {
+    const { questions } = buildLayersRequest({ task: TASK, repo: REPO });
+    const text = JSON.stringify(questions);
+    expect(text).toContain('file under the migrations directory');
+    for (const kind of ['table', 'column', 'index', 'constraint', 'data migration']) expect(text).toContain(kind);
+    expect(LAYERS_QUESTION_VERSION).toMatch(/^[0-9a-f]{12}$/);
+    // The old wording («none / a column / a table») hashed to a different version.
+    expect(LAYERS_QUESTION_VERSION).not.toBe(questionVersion('How much database schema work does building `task` require?'));
+    const a = await judgeLayers(fake(1).client, { task: TASK });
+    expect(a.input_hash).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it('the threshold is the midpoint of the scale: one new column or more', async () => {

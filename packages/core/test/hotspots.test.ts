@@ -93,6 +93,16 @@ describe('selectStarts and the module rule', () => {
     expect(r.moduleWaiting).toEqual([{ code: 'TSK-2', item: 'lib/a.ts', with: 'TSK-1' }]);
   });
 
+  it('a running task collides by its real files: tests only do not block a ready task that shared a hotspot with its prediction', async () => {
+    // The planner swaps the running task's prediction for the files its commit really changed.
+    const real = { 'TSK-1': ['test/a.test.ts'], 'TSK-2': ['lib/a.ts'] };
+    const r = await select([task('TSK-2', 'F2')], ['TSK-1'], real, ['lib/a.ts']);
+    expect(r.start.map((s) => s.code)).toEqual(['TSK-2']);
+    expect(r.moduleWaiting).toEqual([]);
+    const wrong = await select([task('TSK-2', 'F2')], ['TSK-1'], { ...real, 'TSK-1': ['lib/a.ts'] }, ['lib/a.ts']);
+    expect(wrong.moduleWaiting).toEqual([{ code: 'TSK-2', item: 'lib/a.ts', with: 'TSK-1' }]);
+  });
+
   it('does nothing without predictions', async () => {
     const r = await select([task('TSK-2', 'F2')], ['TSK-1'], {});
     expect(r.start.map((s) => s.code)).toEqual(['TSK-2']);

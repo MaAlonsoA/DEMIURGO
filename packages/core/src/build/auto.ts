@@ -280,6 +280,21 @@ export async function selectStarts(input: SelectInput): Promise<Omit<Plan, 'runn
   return result;
 }
 
+/** The files the latest successful commit step of a request recorded (what the branch really changes); null when none. */
+export async function committedFiles(db: Db, requestId: string): Promise<string[] | null> {
+  const row = await db
+    .selectFrom('build_steps')
+    .select('detail')
+    .where('build_request_id', '=', requestId)
+    .where('stage', '=', 'commit')
+    .where('outcome', '=', 'ok')
+    .orderBy('attempt', 'desc')
+    .orderBy('created_at', 'desc')
+    .executeTakeFirst();
+  const files = (row?.detail as { files?: unknown } | null | undefined)?.files;
+  return Array.isArray(files) && files.length > 0 ? files.filter((f): f is string => typeof f === 'string') : null;
+}
+
 /**
  * What the queue does now, from the stored state only. Up to `limit` builds run at once: ready tasks are taken
  * in queue order, skipping one that depends on a task being built or belongs to the same feature as one
@@ -313,7 +328,14 @@ async function plan(db: Db, projectId: string, queue: BuildQueue, limit: number)
     try {
       const predictions = await predictedFiles(db, projectId, codes);
       const hotspots = new Set((await hotspotsOf(db, projectId)).filter((h, _i, all) => isHotspot(h, all[0]?.of ?? 0)).map((h) => h.path));
-      module = { predicted: predictions.files, hotspots, map: predictions.map };
+      // A build that already committed collides by the files it really changes, not by the prediction.
+      const predicted = new Map(predictions.files);
+      for (const o of open) {
+        if (!running.includes(o.code)) continue;
+        const real = await committedFiles(db, o.id);
+        if (real) predicted.set(o.code, real);
+      }
+      module = { predicted, hotspots, map: predictions.map };
     } catch {
       // a prediction that cannot be made never stops the queue
     }

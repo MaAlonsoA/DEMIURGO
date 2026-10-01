@@ -832,7 +832,9 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     const fresh = await commitAll(worktree.path, withAffectedTrailer(`${info.taskCode}: ${info.taskTitle}`, affected));
     const sha = fresh ?? (await headWithWork(worktree.path));
     if (!sha) return { outcome: 'failed' as const, detail: { error: 'The builder changed nothing: there is nothing to commit.' } };
-    return { value: sha, detail: { sha, ...(fresh && affected ? { affected_criteria: affected } : {}) }, extra: { head_sha: sha } };
+    // The files the branch really changes, for the queue planner (it collides running builds by these, not by the prediction).
+    const files = (await changedOnBranch(worktree.path).catch(() => [] as string[])).slice(0, 300);
+    return { value: sha, detail: { sha, ...(files.length > 0 ? { files } : {}), ...(fresh && affected ? { affected_criteria: affected } : {}) }, extra: { head_sha: sha } };
   });
   if (!committed.ok) return stop('commit', committed.outcome);
   const headSha = committed.value;

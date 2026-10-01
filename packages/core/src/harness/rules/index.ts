@@ -5,7 +5,7 @@
 
 import type { PostmortemInputs } from '../postmortem.ts';
 import { reviewCost, reviewEscape, reviewFindingOutcome, reviewRepeat, reviewWaiver } from './review.ts';
-import { filesPrediction } from './files.ts';
+import { filesPrediction, filesSymbols } from './files.ts';
 import { builderFailureClass, designGuard, testReuseFollow } from './guards.ts';
 import { queueParallelConflict, queueSkipVsFootprint, queueSlotIdle, queueTestabilityWait } from './queue.ts';
 import { environmentSmoke, environmentStartCommand } from './environment.ts';
@@ -41,7 +41,7 @@ export type Finding = {
 
 export type Rule = (inputs: PostmortemInputs) => Finding[];
 
-export const RULES_VERSION = 'pm-6';
+export const RULES_VERSION = 'pm-7';
 
 /** Rules 1.3 (queue, schema, files) and 1.4 (tdd, review) are added here, each from its own file. */
-export const RULES: readonly Rule[] = [requestShape, queueSkipVsFootprint, queueParallelConflict, queueSlotIdle, queueTestabilityWait, designGuard, builderFailureClass, testReuseFollow, schemaPrediction, filesPrediction, tddGate, tddSkipped, tddLoopCost, reviewFindingOutcome, reviewRepeat, reviewEscape, reviewWaiver, reviewCost, sessionMode, sessionOutcome, sessionTddLoops, sessionInsisted, sessionLastTurnTokens, environmentSmoke, environmentStartCommand, builderScreenCheck];
+export const RULES: readonly Rule[] = [requestShape, queueSkipVsFootprint, queueParallelConflict, queueSlotIdle, queueTestabilityWait, designGuard, builderFailureClass, testReuseFollow, schemaPrediction, filesPrediction, filesSymbols, tddGate, tddSkipped, tddLoopCost, reviewFindingOutcome, reviewRepeat, reviewEscape, reviewWaiver, reviewCost, sessionMode, sessionOutcome, sessionTddLoops, sessionInsisted, sessionLastTurnTokens, environmentSmoke, environmentStartCommand, builderScreenCheck];

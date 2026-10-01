@@ -324,7 +324,8 @@ export async function pullRequest(
   };
 }
 
-export type PullRequestFile = { path: string; additions: number; deletions: number; status: string };
+/** `patch`: the unified diff hunks of the file (GitHub omits it for binary or very large files). */
+export type PullRequestFile = { path: string; additions: number; deletions: number; status: string; patch?: string };
 
 /** Cap on the files listed for one pull request (our convention: a task's footprint, not a full diff). */
 export const PR_FILES_CAP = 300;
@@ -336,7 +337,7 @@ export async function pullRequestFiles(cfg: GithubConfig, owner: string, repo: s
     const { data } = await call(cfg, 'GET', `/repos/${owner}/${repo}/pulls/${number}/files?per_page=100&page=${page}`);
     const rows: any[] = Array.isArray(data) ? data : [];
     for (const f of rows) {
-      out.push({ path: String(f.filename), additions: Number(f.additions ?? 0), deletions: Number(f.deletions ?? 0), status: String(f.status ?? 'modified') });
+      out.push({ path: String(f.filename), additions: Number(f.additions ?? 0), deletions: Number(f.deletions ?? 0), status: String(f.status ?? 'modified'), ...(typeof f.patch === 'string' ? { patch: f.patch } : {}) });
     }
     if (rows.length < 100) break;
   }

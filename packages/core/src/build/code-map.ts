@@ -50,7 +50,21 @@ export type CodeFile = {
   imports: string[];
   /** URL of a page or route (`/meals/[id]`, `/api/meals`). */
   route?: string;
+  /** A barrel (only `export … from`): its exports are not listed in «Code to extend» (convención nuestra). */
+  barrel?: true;
 };
+
+/**
+ * A barrel: a file whose only statements are `export … from '…'` or `export * from '…'` (comments aside). Two tasks
+ * that each add an export line to it merge mechanically, so it is no hotspot, and its exports are the other files'
+ * (convención nuestra; audit mision-comidas/auditoria-cola.md). Pure.
+ */
+export function isBarrelSource(content: string): boolean {
+  const code = content.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/[^\n]*/g, '$1').trim();
+  if (code === '') return false;
+  const statement = String.raw`export\s+(?:type\s+)?(?:\*(?:\s+as\s+[\w$]+)?|\{[^}]*\})\s+from\s+(?:'[^']*'|"[^"]*")\s*;?`;
+  return new RegExp(String.raw`^(?:\s*${statement})+\s*$`).test(code);
+}
 
 export type CodeMap = {
   commit: string;
@@ -583,7 +597,7 @@ export async function buildCodeMap(repoPath: string, commitish: string): Promise
       links.set(path, { uses, reexports });
     }
     const route = kind === 'page' || kind === 'route' ? (routeOfPath(path) ?? undefined) : undefined;
-    const file: CodeFile = { path, kind, modules: [], symbols, imports, ...(route ? { route } : {}) };
+    const file: CodeFile = { path, kind, modules: [], symbols, imports, ...(route ? { route } : {}), ...(isCode(path) && isBarrelSource(source) ? { barrel: true as const } : {}) };
     // Drizzle-style `pgTable(...)` in a TypeScript file is a table too.
     if (kind !== 'table' && symbols.some((s) => s.kind === 'table')) file.kind = 'table';
     file.modules = moduleIdsOf(file);
@@ -655,6 +669,9 @@ const W_GRAPH = 0.5;
 const W_FOOTPRINT = 0.5;
 /** Most private symbols shown per file (our convention). */
 const MAX_PRIVATE_SYMBOLS = 3;
+/** The best files whose import neighbours are kept among the candidates, and how many places those neighbours may take (convención nuestra). */
+const TOP_SEEDS = 5;
+const NEIGHBOUR_SLOTS = 6;
 
 function pageRank(paths: string[], edges: Array<[string, string]>, personalization: Map<string, number>): Map<string, number> {
   const n = paths.length;
@@ -755,9 +772,30 @@ export function rankCodeMap(map: CodeMap, query: string, options: RankOptions = 
       .slice(0, maxSymbols)
       .sort((a, b) => a.i - b.i)
       .map(({ s }) => s);
-    ranked.push({ file: d, score, symbols });
+    ranked.push({ file: d, score, symbols: d.barrel ? [] : symbols });
   }
-  const top = ranked.sort((a, b) => b.score - a.score || (a.file.path < b.file.path ? -1 : 1)).slice(0, limit);
+  const byScore = (a: RankedFile, b: RankedFile) => b.score - a.score || (a.file.path < b.file.path ? -1 : 1);
+  ranked.sort(byScore);
+  let top = ranked.slice(0, limit);
+  // Candidate recall (revision-salud-build §2.3: 18 of 28 missed files were outside the 30 candidates): the files that
+  // import or are imported by the best ones (1-hop neighbours) take up to NEIGHBOUR_SLOTS places of the cap instead of
+  // the tail of the score order. The cap does not grow (convención nuestra).
+  if (ranked.length > limit && limit > TOP_SEEDS) {
+    const seedsTop = new Set(top.slice(0, TOP_SEEDS).map((r) => r.file.path));
+    const adjacent = new Set<string>();
+    for (const [a, b] of map.edges) {
+      if (seedsTop.has(a)) adjacent.add(b);
+      if (seedsTop.has(b)) adjacent.add(a);
+    }
+    const already = top.filter((r) => adjacent.has(r.file.path) && !seedsTop.has(r.file.path)).length;
+    const extra = ranked.slice(limit).filter((r) => adjacent.has(r.file.path)).slice(0, Math.max(0, NEIGHBOUR_SLOTS - already));
+    // Make room with the lowest-scored places that are neither a seed nor a neighbour of one.
+    const droppable = top.slice(TOP_SEEDS).filter((r) => !adjacent.has(r.file.path)).slice(-extra.length);
+    if (extra.length > 0 && droppable.length > 0) {
+      const drop = new Set(droppable.map((r) => r.file.path));
+      top = [...top.filter((r) => !drop.has(r.file.path)), ...extra.slice(0, droppable.length)].sort(byScore);
+    }
+  }
   // A table is shown whole (every column the migrations gave it) the first time; later files that touch it list only their own columns, marked `+`.
   const shown = new Set<string>();
   return top.map((r) => ({

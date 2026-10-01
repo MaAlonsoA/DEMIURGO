@@ -139,3 +139,78 @@ export const filesPrediction: Rule = (inputs) => {
     ];
   });
 };
+
+// `files.symbols` (B07, pm-7): the same question one level down. For each file «Code to extend» listed with its symbols and
+// that the merged pull request really changed, which of the listed symbols did the diff touch? Ground truth: the
+// top-level definitions the merge footprint recorded per changed existing file (`footprint.symbols`, build/footprint.ts;
+// footprints made before pm-7 have none, and then no row is emitted). The listed symbols come from the first
+// attempt's builder step (`code_to_extend.section`). Precision = touched among listed, recall = listed among touched.
+
+const SYMBOL_LINE = /^(?:(?:function|component|class|const|type|interface|enum|default|table|model|export)\s+)?\.?([A-Za-z_$][\w$-]*)/;
+
+/** The symbols «Code to extend» listed per file, from its rendered section (file lines are unindented, symbol lines start with two spaces). Pure. */
+export function listedSymbolsOf(section: string): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  let current: string[] | null = null;
+  for (const line of section.split('\n')) {
+    if (line.startsWith('  ')) {
+      const name = SYMBOL_LINE.exec(line.trim())?.[1];
+      if (name && current && !current.includes(name)) current.push(name);
+    } else if (/^[\w@./[\]()-]+\.[A-Za-z0-9]+(?:\s|$)/.test(line)) {
+      current = [];
+      out.set(line.split(' ')[0] as string, current);
+    } else current = null;
+  }
+  return out;
+}
+
+/** The definitions the merge footprint says each changed existing file touched, or null when it recorded none. */
+function touchedSymbolsOf(steps: readonly { stage: string; outcome: string; detail: unknown }[]): Map<string, string[]> | null {
+  for (const s of [...steps].reverse()) {
+    if (s.outcome !== 'ok' || (s.stage !== 'merge' && s.stage !== 'footprint')) continue;
+    const symbols = objectOf(objectOf(s.detail).footprint).symbols;
+    if (symbols && typeof symbols === 'object' && !Array.isArray(symbols)) {
+      const map = new Map<string, string[]>();
+      for (const [path, names] of Object.entries(symbols as Record<string, unknown>)) if (Array.isArray(names)) map.set(path, names.filter((n): n is string => typeof n === 'string'));
+      return map;
+    }
+  }
+  return null;
+}
+
+export const filesSymbols: Rule = (inputs) => {
+  if (inputs.request.state !== 'done' || inputs.request.feature_version_id === null) return [];
+  const touched = touchedSymbolsOf(inputs.steps);
+  if (!touched || touched.size === 0) return [];
+  const attempt = inputs.codeOpinions.length === 0 ? 0 : Math.min(...inputs.codeOpinions.map((o) => o.attempt));
+  const builder = inputs.steps.filter((s) => s.stage === 'builder' && s.attempt === attempt && typeof objectOf(objectOf(s.detail).code_to_extend).section === 'string').at(-1);
+  const listed = builder ? listedSymbolsOf(objectOf(objectOf(builder.detail).code_to_extend).section as string) : null;
+  if (!listed) {
+    // The listed symbols were not stored: the ground truth alone, per file.
+    return [...touched.entries()].sort(([a], [b]) => (a < b ? -1 : 1)).map(([path, names]): Finding => ({ piece: 'B07', finding: 'files.symbols_touched', class: 'info', ground_truth: 'G01', value: names.length, unit: null, subject: path, attempt, evidence: { symbols: names } }));
+  }
+  const perFile: { path: string; listed: string[]; touched: string[]; hits: string[] }[] = [];
+  for (const [path, names] of [...touched.entries()].sort(([a], [b]) => (a < b ? -1 : 1))) {
+    const l = listed.get(path);
+    if (!l || l.length === 0) continue;
+    perFile.push({ path, listed: l, touched: names, hits: names.filter((n) => l.includes(n)) });
+  }
+  if (perFile.length === 0) return [];
+  const sum = (f: (p: (typeof perFile)[number]) => number) => perFile.reduce((a, p) => a + f(p), 0);
+  const hits = sum((p) => p.hits.length);
+  const nListed = sum((p) => p.listed.length);
+  const nTouched = sum((p) => p.touched.length);
+  return [
+    {
+      piece: 'B07',
+      finding: 'files.symbols',
+      class: 'info',
+      ground_truth: 'G01',
+      value: nTouched === 0 ? 0 : round(hits / nTouched),
+      unit: null,
+      subject: inputs.taskCode,
+      attempt,
+      evidence: { files: perFile.length, listed: nListed, touched: nTouched, hits, precision: nListed === 0 ? 0 : round(hits / nListed), recall: nTouched === 0 ? 0 : round(hits / nTouched), per_file: perFile, ...(builder ? { build_step: builder.id } : {}) },
+    },
+  ];
+};

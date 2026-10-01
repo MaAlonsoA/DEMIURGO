@@ -5,14 +5,80 @@
 
 import type { Db } from '../db/connection.ts';
 import type { GithubConfig, PullRequestFile } from '../github/client.ts';
+import { extractSymbols } from './code-map.ts';
 
-export type FootprintFile = PullRequestFile;
-export type Footprint = { merge_commit: string | null; files: FootprintFile[] };
+export type FootprintFile = Omit<PullRequestFile, 'patch'>;
+/** `symbols`: per changed existing file, the top-level definitions its diff touched (absent on older footprints and when GitHub gave no patch). */
+export type Footprint = { merge_commit: string | null; files: FootprintFile[]; symbols?: Record<string, string[]> };
+
+/** A top-level definition and the (1-based, inclusive) lines of the new file it spans. */
+export type DefinitionRange = { name: string; start: number; end: number };
+
+const MAX_SYMBOLS_PER_FILE = 30;
+const CODE_PATH = /\.(?:[cm]?[jt]sx?)$/;
+const nameOfLine = (line: string): string | null => (/^[A-Za-z_$]/.test(line) ? (extractSymbols('x.ts', line)[0]?.name ?? null) : null);
+
+/**
+ * The top-level definitions a unified diff touches, in order of appearance (the `@@ … @@ <function header>` convention
+ * of a diff with function context). With `defs` (ranges at the new file), each added line, and each deletion point,
+ * maps to the definition that spans it. Without them, the definition is tracked from the hunk header and from column-0
+ * declarations seen in the hunk (context lines too); a column-0 closing bracket ends it. A heuristic by design
+ * (convención nuestra): a change far below a header that the context lines do not show still belongs to the header's
+ * definition. Pure.
+ */
+export function definitionsTouched(diffText: string, defs?: readonly DefinitionRange[]): string[] {
+  const out: string[] = [];
+  const add = (name: string | null | undefined) => {
+    if (name && !out.includes(name)) out.push(name);
+  };
+  let cur: string | null = null;
+  let newLine = 0;
+  for (const line of diffText.split('\n')) {
+    const h = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@ ?(.*)$/.exec(line);
+    if (h) {
+      newLine = Number(h[1]);
+      cur = nameOfLine(h[2] ?? '');
+      continue;
+    }
+    const tag = line[0];
+    if (tag !== '+' && tag !== '-' && tag !== ' ') continue;
+    const body = line.slice(1);
+    const changed = tag !== ' ';
+    if (defs) {
+      if (tag === '+') add(defs.find((d) => newLine >= d.start && newLine <= d.end)?.name);
+      else if (tag === '-') add(defs.find((d) => newLine - 1 >= d.start && newLine - 1 <= d.end)?.name);
+      if (tag !== '-') newLine++;
+      continue;
+    }
+    const declared = nameOfLine(body);
+    if (declared) {
+      cur = declared;
+      if (changed) add(declared);
+    } else if (/^(?:import\s|export\s[^=]*\sfrom\s)/.test(body)) {
+      cur = null;
+    } else if (changed && body.trim() !== '') {
+      add(cur);
+    }
+    if (/^[}\])]/.test(body)) cur = null;
+  }
+  return out;
+}
+
+/** The symbols of every modified (not added or removed) code file with a patch; only files with at least one. */
+export function symbolsOfFiles(files: readonly PullRequestFile[]): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const f of files) {
+    if (!f.patch || f.status === 'added' || f.status === 'removed' || !CODE_PATH.test(f.path)) continue;
+    const names = definitionsTouched(f.patch).slice(0, MAX_SYMBOLS_PER_FILE);
+    if (names.length > 0) out[f.path] = names;
+  }
+  return out;
+}
 
 /** The GitHub calls the footprint needs (a subset of the build's GithubApi). */
 export type FootprintApi = {
   pullRequest: (cfg: GithubConfig, owner: string, repo: string, number: number) => Promise<{ mergeCommitSha: string | null }>;
-  pullRequestFiles: (cfg: GithubConfig, owner: string, repo: string, number: number) => Promise<FootprintFile[]>;
+  pullRequestFiles: (cfg: GithubConfig, owner: string, repo: string, number: number) => Promise<PullRequestFile[]>;
 };
 
 export async function pullRequestFootprint(
@@ -25,9 +91,11 @@ export async function pullRequestFootprint(
     github.pullRequest(cfg, repo.owner, repo.repo, prNumber),
     github.pullRequestFiles(cfg, repo.owner, repo.repo, prNumber),
   ]);
+  const symbols = symbolsOfFiles(files);
   return {
     merge_commit: pull.mergeCommitSha ?? null,
     files: files.map((f) => ({ path: f.path, additions: f.additions, deletions: f.deletions, status: f.status })),
+    ...(Object.keys(symbols).length > 0 ? { symbols } : {}),
   };
 }
 

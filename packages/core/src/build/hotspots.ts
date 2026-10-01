@@ -8,6 +8,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { Db } from '../db/connection.ts';
+import { isBarrelSource } from './code-map.ts';
 import { isReusableFile, taskFootprints, type TaskFootprint } from './footprint.ts';
 import { repositoryOf } from './queue.ts';
 
@@ -42,17 +43,10 @@ export async function hotspotsOf(db: Db, projectId: string): Promise<{ path: str
 
 const run = promisify(execFile);
 
-/**
- * A barrel: a file whose only statements are `export … from '…'` or `export * from '…'` (comments aside). Two tasks
- * that each add an export line to it merge mechanically, so it is no hotspot (convención nuestra; audit
- * mision-comidas/auditoria-cola.md: `src/design-system/index.ts` caused 55 wasted build-minutes). Pure.
- */
-export function isBarrelSource(content: string): boolean {
-  const code = content.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/[^\n]*/g, '$1').trim();
-  if (code === '') return false;
-  const statement = String.raw`export\s+(?:type\s+)?(?:\*(?:\s+as\s+[\w$]+)?|\{[^}]*\})\s+from\s+(?:'[^']*'|"[^"]*")\s*;?`;
-  return new RegExp(String.raw`^(?:\s*${statement})+\s*$`).test(code);
-}
+// A barrel (a file of only `export … from '…'`) is no hotspot: two tasks that each add an export line merge mechanically
+// (convención nuestra; audit mision-comidas/auditoria-cola.md: `src/design-system/index.ts` caused 55 wasted
+// build-minutes). `isBarrelSource` lives in code-map.ts, which also keeps its exports out of «Code to extend».
+export { isBarrelSource };
 
 /** Fallback when the content cannot be read (convención nuestra): an `index.ts(x)` under `src/` is assumed to be a barrel. */
 export const looksLikeBarrelPath = (path: string): boolean => /(^|\/)src\/(.*\/)?index\.tsx?$/.test(path);

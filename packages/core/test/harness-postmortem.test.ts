@@ -129,7 +129,7 @@ describe('harness post-mortems', () => {
     }
     const loaded = await loadInputs(s.db, id);
     expect(loaded.queueDecisions).toHaveLength(1);
-    expect(RULES_VERSION).toBe('pm-6');
+    expect(RULES_VERSION).toBe('pm-7');
   });
   it('pendingPostmortems finds ended requests without a post-mortem, and not the running ones', async () => {
     const s = environment().services;

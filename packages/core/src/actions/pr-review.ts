@@ -138,7 +138,10 @@ registerChecker('pr_review', async ({ db, run, output }) => {
   if (output.verdict === 'approve') {
     if (blocking.length > 0) notes.push('An approval has no `blocking` comment: change the verdict to request_changes or downgrade the comment to a nit.');
     for (const c of output.criteria) {
-      if (!c.covered) notes.push(`${c.code} is not covered: an approval needs every criterion covered.`);
+      // A manual criterion is checked by a person after the merge (its evidence is recorded on the
+      // feature): it never blocks an agent's pull request, covered or not.
+      if (manual.has(c.code) && !c.covered) continue;
+      if (!c.covered) notes.push(`${c.code} is not covered: an approval needs every automatic criterion covered.`);
       else if (!c.test_name || !c.test_name.startsWith(c.code))
         notes.push(`${c.code} is marked covered but its test title does not start with the code (our convention): \`test_name\` must start with ${c.code}.`);
     }

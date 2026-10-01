@@ -20,7 +20,7 @@ const WORDS = messages(
     approveEpicBody: (title: string) =>
       `Read "${title}": its goal, its features in order and when it is done. Approving it starts the design of its features, one at a time.`,
     build: (title: string) => `Build "${title}"`,
-    buildBody: 'It is ready to build: build it outside with its brief, then record the evidence of each criterion.',
+    buildBody: 'It is ready to build: on Build, an agent builds each task in its own pull request; CI records the evidence of each criterion and the reviewer checks it before merging.',
     passArchitecture: 'Pass the Architecture stage',
     passArchitectureBody: 'A feature is approved: before building it, settle the architecture in its stage.',
     closeGaps: (title: string) => `Close what "${title}" is missing`,
@@ -44,7 +44,7 @@ const WORDS = messages(
     approveEpicBody: (title: string) =>
       `Lee «${title}»: su objetivo, sus funcionalidades en orden y cuándo está terminada. Al aprobarla empieza el diseño de sus funcionalidades, de una en una.`,
     build: (title: string) => `Construir «${title}»`,
-    buildBody: 'Está lista para construir: constrúyela fuera con su encargo y apunta después la evidencia de cada criterio.',
+    buildBody: 'Está lista para construir: en Construir, un agente construye cada tarea en su propia pull request; la CI registra la evidencia de cada criterio y el revisor la comprueba antes de fusionar.',
     passArchitecture: 'Pasar la etapa Arquitectura',
     passArchitectureBody: 'Hay una funcionalidad aprobada: antes de construirla, cierra la arquitectura en su etapa.',
     closeGaps: (title: string) => `Cerrar lo que le falta a «${title}»`,

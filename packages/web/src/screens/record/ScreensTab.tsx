@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { recordQuery, stateQuery } from '../../api/queries.ts';
-import type { DesignSystemSpec, ProductState, RecordDetail, RecordVersion } from '../../api/types.ts';
+import type { DesignSystemSpec, Inbox, ProductState, RecordDetail, RecordVersion } from '../../api/types.ts';
 import { announce } from '../../components/announce.tsx';
 import { Code } from '../../components/Badge.tsx';
 import { Button, buttonClass } from '../../components/Button.tsx';
@@ -18,6 +18,8 @@ import { copyText } from './brief.ts';
 import { Block } from './Delivery.tsx';
 import { buildScreenBrief } from './screenBrief.ts';
 import { PasteScreens } from './PasteScreens.tsx';
+import { PendingProposals, isScreensOf } from './PendingProposals.tsx';
+import { pendingProposalBatches } from '../../lib/attention.ts';
 import { PASTE } from './paste.i18n.ts';
 import { SCREENS } from './words.i18n.ts';
 
@@ -37,18 +39,26 @@ export function ScreensTab({
   record,
   version,
   state,
+  inbox,
 }: {
   projectId: string;
   record: RecordDetail;
   version: RecordVersion;
   state: ProductState | undefined;
+  inbox?: Inbox | undefined;
 }) {
   const t = useMessages(SCREENS);
+  const matches = isScreensOf(record.code);
+  // A pending screens proposal for this feature is decided here, and replaces "Design the screens".
+  const proposed = pendingProposalBatches(inbox).some((b) => b.proposals.some((p) => p.state === 'pending' && matches(p)));
   const { loading, system } = useApprovedSystem(projectId, state);
   const screens = record.screens ?? null;
   const outdated = record.screens_outdated ?? null;
   return (
     <Block id="screens" title={t.screensTitle} note={screens ? t.summaryNote : undefined}>
+      {proposed ? (
+        <PendingProposals projectId={projectId} code={record.code} inbox={inbox} rows={state ? [...state.designs, ...state.decisions] : []} matches={matches} />
+      ) : null}
       {screens ? (
         <div data-screens-summary className="flex flex-col gap-2 text-sm">
           <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-fg">
@@ -72,7 +82,7 @@ export function ScreensTab({
             </Link>
           </div>
         </div>
-      ) : loading ? (
+      ) : proposed ? null : loading ? (
         <p role="status" className="text-sm text-fg-2">
           {t.loadingSystem}
         </p>

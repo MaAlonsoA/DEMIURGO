@@ -313,7 +313,7 @@ function RecordPage({
             tab === 'questions' ? (
               <QuestionsList projectId={projectId} questions={questions} />
             ) : tab === 'screens' ? (
-              <ScreensTab projectId={projectId} record={record} version={version} state={state} />
+              <ScreensTab projectId={projectId} record={record} version={version} state={state} inbox={inbox} />
             ) : tab === 'tasks' ? (
               <TasksTab projectId={projectId} record={record} draft={draftTasks} />
             ) : tab === 'history' ? (

@@ -20,16 +20,25 @@ export function singleTargetCode(proposals: readonly Pick<Proposal, 'type' | 'pa
   return codes.size === 1 && only ? only : null;
 }
 
+/** A screens proposal (`screen_design`) is about the feature its spec names. */
+export function isScreensOf(featureCode: string) {
+  return (p: Pick<InboxProposal, 'type' | 'payload'>) =>
+    p.type === 'screen_design' && (p.payload.spec as { feature?: { code?: unknown } } | undefined)?.feature?.code === featureCode;
+}
+
 export function PendingProposals({
   projectId,
   code,
   inbox,
   rows,
+  matches,
 }: {
   projectId: string;
   code: string;
   inbox: Inbox | undefined;
   rows: readonly ProductRow[];
+  /** Another way to match the proposals of this page than by their target code (a screens proposal has no record yet). */
+  matches?: (p: Pick<InboxProposal, 'type' | 'payload'>) => boolean;
 }) {
   const t = useMessages(PENDING_PROPOSALS);
   const id = useId();
@@ -37,11 +46,11 @@ export function PendingProposals({
     .flatMap((b) =>
       b.proposals
         .map((proposal, i) => ({ batch: b, proposal, position: i + 1 }))
-        .filter((x) => x.proposal.state === 'pending' && proposalTargetCode(x.proposal) === code),
+        .filter((x) => x.proposal.state === 'pending' && (matches ? matches(x.proposal) : proposalTargetCode(x.proposal) === code)),
     );
   if (found.length === 0) return null;
   return (
-    <section id="proposal" aria-label={t.title} data-pending-proposals className="flex scroll-mt-16 flex-col gap-4">
+    <section id={matches ? undefined : 'proposal'} aria-label={t.title} data-pending-proposals className="flex scroll-mt-16 flex-col gap-4">
       <h2 className="text-lg font-semibold text-fg">{t.title}</h2>
       {found.map(({ batch: b, proposal, position }) => (
         <ProposalView

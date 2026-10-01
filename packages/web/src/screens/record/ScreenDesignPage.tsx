@@ -19,6 +19,7 @@ import { SECTIONS } from '../blueprint/words.i18n.ts';
 import { Block, Prop } from './Delivery.tsx';
 import { RecordHeader } from './Header.tsx';
 import { ancestorsOf } from './hierarchy.ts';
+import { PendingProposals, isScreensOf } from './PendingProposals.tsx';
 import { Columns } from './Layout.tsx';
 import { ContextPanel, VersionsPanel } from './RecordAside.tsx';
 import { versionIndex } from './logic.ts';
@@ -69,6 +70,7 @@ export function ScreenDesignPage({
   const search = useSearch({ strict: false }) as { tab?: string; v?: number };
   const tab = search.tab === 'history' ? 'history' : 'overview';
   const spec = (version.spec ?? null) as ScreenSpec | null;
+  const rows = state ? [...state.designs, ...state.decisions] : [];
   const missing = record.missing_components ?? [];
   const thread = version.origin_exploration
     ? (state?.explorations.find((e) => e.id === version.origin_exploration)?.purpose ?? null)
@@ -152,6 +154,8 @@ export function ScreenDesignPage({
             <p className="text-sm text-fg-2">{t.noSpec}</p>
           ) : (
             <>
+              <PendingProposals projectId={projectId} code={record.code} inbox={inbox} rows={rows} />
+              <PendingProposals projectId={projectId} code={record.code} inbox={inbox} rows={rows} matches={isScreensOf(spec.feature.code)} />
               {/* The design handoff: a new version from the screens designed in Claude Design. */}
               {pasting && feature && featureVersion && system ? (
                 <Block title={p.newVersion}>

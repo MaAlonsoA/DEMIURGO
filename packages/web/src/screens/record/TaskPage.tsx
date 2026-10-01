@@ -52,6 +52,8 @@ import {
 import { RecordHeader, recordCrumbs } from './Header.tsx';
 import { ancestorsOf } from './hierarchy.ts';
 import { Columns, Frame } from './Layout.tsx';
+import { PendingProposals } from './PendingProposals.tsx';
+import { pendingProposalBatches, proposalTargetCode } from '../../lib/attention.ts';
 import { VersionsPanel } from './RecordAside.tsx';
 import { TaskSizePanel } from './TaskSize.tsx';
 import { DELIVERY, HEADER, TASK_PAGE } from './words.i18n.ts';
@@ -93,7 +95,7 @@ export function TaskPage({
   record,
   version,
   state,
-  inbox: _inbox,
+  inbox,
 }: {
   projectId: string;
   task: TaskView;
@@ -110,6 +112,9 @@ export function TaskPage({
   const tab = record && search.tab === 'history' ? 'history' : 'overview';
   const readiness = useQuery({ ...readinessQuery(projectId, version?.id ?? ''), enabled: !!version });
   const draftTasks = useDraftTasks(projectId, version?.id ?? '');
+  const pendingCodes = pendingProposalBatches(inbox)
+    .flatMap((b) => b.proposals.filter((p) => p.state === 'pending').map((p) => proposalTargetCode(p)))
+    .filter((c): c is string => !!c && c === record?.code);
   const delivery =
     record && version
       ? deliveryOf({
@@ -117,7 +122,7 @@ export function TaskPage({
           record,
           version,
           ready: readiness.data ?? version.readiness,
-          pending: [],
+          pending: pendingCodes,
           epic: null,
           canRequestBuild: !!tables && canCreate(tables, 'build_request.request'),
           stateWord: stateWord('record_version', version.state).word,
@@ -193,6 +198,9 @@ export function TaskPage({
           ) : (
             <>
               {delivery?.banner ? <DeliveryBanner projectId={projectId} banner={delivery.banner} /> : null}
+              {record ? (
+                <PendingProposals projectId={projectId} code={record.code} inbox={inbox} rows={state ? [...state.designs, ...state.decisions] : []} />
+              ) : null}
               {task.draft ? <DraftNote task={task} /> : null}
               <TaskBody projectId={projectId} task={task} record={record} version={version} />
               {record && version ? (

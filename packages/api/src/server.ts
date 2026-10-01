@@ -384,9 +384,12 @@ async function serveWeb(app: FastifyInstance, root: string): Promise<void> {
 }
 
 function registerQuery(app: FastifyInstance, services: Services, c: QueryRoute): void {
-  app.get(c.path, async (req) => {
+  app.get(c.path, async (req, reply) => {
     const params = req.params as Record<string, string>;
     requireQuery(req, c.queryName, params.projectId);
-    return c.respond({ services, params, query: req.query as Record<string, string>, credential: req.credential });
+    const answer = await c.respond({ services, params, query: req.query as Record<string, string>, credential: req.credential });
+    if (c.download && typeof answer === 'string')
+      return reply.header('content-type', c.download.contentType).header('content-disposition', `attachment; filename="${c.download.filename}"`).send(answer);
+    return answer;
   });
 }

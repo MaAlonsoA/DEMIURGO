@@ -5,6 +5,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { createRootRouteWithContext, createRoute, createRouter, notFound, redirect } from '@tanstack/react-router';
 import { projectsQuery, sessionQuery } from './api/queries.ts';
 import { ActivityScreen } from './screens/activity/Activity.tsx';
+import { ObservabilityScreen } from './screens/observability/Observability.tsx';
 import { BatchScreen } from './screens/batch/Batch.tsx';
 import { KnowledgeScreen } from './screens/knowledge/Knowledge.tsx';
 import { NeedsYouScreen } from './screens/needs-you/NeedsYou.tsx';
@@ -241,6 +242,11 @@ const activityRoute = createRoute({
   },
   component: ActivityScreen,
 });
+const observabilityRoute = createRoute({
+  getParentRoute: () => projectRoute,
+  path: '/observability',
+  component: ObservabilityScreen,
+});
 const runRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: '/runs/$runId',
@@ -317,6 +323,7 @@ const routeTree = rootRoute.addChildren([
       needsYouRoute,
       batchRoute,
       activityRoute,
+      observabilityRoute,
       runRoute,
       knowledgeRoute,
       sourcesRoute,

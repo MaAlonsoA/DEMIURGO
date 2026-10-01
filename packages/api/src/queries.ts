@@ -40,6 +40,9 @@ import {
   projectGlossary,
   productDefinition,
   buildQueue,
+  executionFacts,
+  factsToCsv,
+  observabilitySummary,
   buildTimelineOf,
   projectDeliveryMetrics,
   autoStatus,
@@ -66,6 +69,8 @@ export type QueryRoute = {
   path: string;
   queryName: QueryName;
   respond(e: QueryInput): Promise<unknown>;
+  /** The answer is a string sent as a file download instead of JSON. */
+  download?: { contentType: string; filename: string };
 };
 
 const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -265,6 +270,21 @@ registerQueries([
         bounces: await bounceReasonsOf(services.db, projectId).catch(() => []),
       };
     },
+  },
+  {
+    // Integrated observability: one fact per build attempt joined with what DEMIURGO knows, and the summary over them.
+    path: '/api/projects/:projectId/observability',
+    queryName: 'query.records',
+    respond: async ({ services, params }) => {
+      const { facts, agent_runs } = await executionFacts(services.db, uuid(params.projectId, 'project'));
+      return { facts, summary: observabilitySummary(facts, agent_runs) };
+    },
+  },
+  {
+    path: '/api/projects/:projectId/observability.csv',
+    queryName: 'query.records',
+    download: { contentType: 'text/csv; charset=utf-8', filename: 'execution-facts.csv' },
+    respond: async ({ services, params }) => factsToCsv((await executionFacts(services.db, uuid(params.projectId, 'project'))).facts),
   },
   {
     path: '/api/projects/:projectId/issues',

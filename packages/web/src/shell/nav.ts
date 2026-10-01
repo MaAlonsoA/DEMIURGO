@@ -6,6 +6,7 @@ import type { ComponentType } from 'react';
 import {
   ActivityIcon,
   AlertTriangleIcon,
+  ChartIcon,
   CpuIcon,
   FolderIcon,
   InboxIcon,
@@ -22,7 +23,7 @@ import type { Locale } from '../i18n/locale.ts';
 import { useSafeLocale } from '../words.ts';
 import { NAV_LABELS } from './words.i18n.ts';
 
-export type NavKey = 'needs' | 'threads' | 'epics' | 'product' | 'build' | 'issues' | 'activity' | 'knowledge' | 'sources' | 'models' | 'keys' | 'repository';
+export type NavKey = 'needs' | 'threads' | 'epics' | 'product' | 'build' | 'issues' | 'activity' | 'observability' | 'knowledge' | 'sources' | 'models' | 'keys' | 'repository';
 
 export type NavItem = {
   key: NavKey;
@@ -90,6 +91,14 @@ export const NAV: NavItem[] = [
     icon: ActivityIcon,
     group: 'work',
     match: /^\/(activity|runs)(\/|$)/,
+  },
+  {
+    key: 'observability',
+    label: 'Observability',
+    to: '/p/$projectId/observability',
+    icon: ChartIcon,
+    group: 'work',
+    match: /^\/observability(\/|$)/,
   },
   {
     key: 'knowledge',

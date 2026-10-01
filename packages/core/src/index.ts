@@ -35,6 +35,7 @@ export { principlesBatch } from './definition/principles.ts';
 export { projectsDir, syncRepo } from './repo/repo.ts';
 export { classifyAspects } from './classifier/aspect.ts';
 export * from './queries/trace.ts';
+export { executionFacts, observabilitySummary, factsToCsv, spearman, type ExecutionFact, type ObservabilitySummary } from './queries/execution-facts.ts';
 export * from './queries/web.ts';
 export * from './queries/views.ts';
 export * from './build/queue.ts';

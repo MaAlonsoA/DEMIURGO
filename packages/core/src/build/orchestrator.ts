@@ -494,6 +494,10 @@ async function resumableBuilder(s: Services, r: Run, hasBranch: boolean): Promis
   const commits = rows.filter((x) => x.stage === 'commit' && x.outcome !== 'started');
   const last = rows.filter((x) => x.outcome !== 'started').at(-1);
   if (!builder || commits.length === 0 || commits.some((x) => x.outcome === 'ok') || last?.stage !== 'commit' || last.outcome !== 'failed') return null;
+  // Resuming only makes sense when the commit itself broke (git, a hook); when the builder left nothing to
+  // commit or unresolved conflicts, it is the builder's work that is missing: run it again.
+  const failure = last.detail as { error?: string; conflicts?: string[] } | null;
+  if (failure?.conflicts || /changed nothing|conflicts unresolved/.test(failure?.error ?? '')) return null;
   return { report: (builder.detail as { report?: BuildReport | null } | null)?.report ?? null, from };
 }
 

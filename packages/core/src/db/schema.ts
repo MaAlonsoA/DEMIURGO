@@ -469,6 +469,20 @@ export type TaskCodeOpinionsTable = {
   created_at: Generated<Timestamp>;
 };
 
+/** Jev's opinion on one comment of a pull request review (derived, append-only). */
+export type ReviewFindingKindsTable = {
+  id: Generated<string>;
+  project_id: string;
+  pr_review_id: string;
+  comment_index: number;
+  category: string;
+  p: number;
+  avoidable_p: number;
+  classifier_id: string;
+  input_hash: string;
+  created_at: Generated<Timestamp>;
+};
+
 /** "Keep <size>": a dispute dismissed against one opinion. */
 export type TaskSizeDismissalsTable = {
   id: Generated<string>;
@@ -843,6 +857,7 @@ export type DB = {
   task_testability_opinions: TaskTestabilityOpinionsTable;
   task_layers_opinions: TaskLayersOpinionsTable;
   task_code_opinions: TaskCodeOpinionsTable;
+  review_finding_kinds: ReviewFindingKindsTable;
   project_repos: ProjectReposTable;
   project_github: ProjectGithubTable;
   build_queue_settings: BuildQueueSettingsTable;

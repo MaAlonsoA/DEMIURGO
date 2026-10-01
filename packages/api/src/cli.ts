@@ -18,6 +18,7 @@
 //   node packages/api/src/cli.ts code-map --project <projectId> [--query "text"] [--ref main] [--budget 6000]   (prints the ranked code map of the project's repository; read-only)
 //   node packages/api/src/cli.ts layers-backfill --project <projectId>           (Jev's schema opinion for tasks that have none; needs TYPESAFE_API_KEY)
 //   node packages/api/src/cli.ts testability-backfill --project <projectId>       (Jev's testability opinion for task versions that have none; needs TYPESAFE_API_KEY)
+//   node packages/api/src/cli.ts review-findings-backfill --project <projectId>  (Jev's category for the comments of reviews that have none; needs TYPESAFE_API_KEY)
 //   node packages/api/src/cli.ts export-design <projectId> [--check dir | --out dir | dir]
 
 import { readFileSync } from 'node:fs';
@@ -58,6 +59,7 @@ import {
   pullRequestFootprint,
   taskFootprints,
   classifyTaskTestability,
+  classifyReviewFindings,
   ensureTaskLayers,
   repositoryOf,
   buildCodeMap,
@@ -618,6 +620,25 @@ commands['testability-backfill'] = async () => {
       console.log(v.code);
     }
     console.log(JSON.stringify({ tasks: seen.size, asked }));
+  });
+};
+
+commands['review-findings-backfill'] = async () => {
+  const i = args.indexOf('--project');
+  const projectId = i >= 0 ? args[i + 1] : undefined;
+  if (!projectId) throw new Error('Usage: review-findings-backfill --project <projectId>');
+  await withDatabase(async (c) => {
+    const reviews = await c.db.selectFrom('pr_reviews').select(['id', 'comments']).where('project_id', '=', projectId).orderBy('created_at').execute();
+    const judged = new Set((await c.db.selectFrom('review_finding_kinds').select('pr_review_id').where('project_id', '=', projectId).execute()).map((x) => x.pr_review_id));
+    let asked = 0;
+    let comments = 0;
+    for (const r of reviews) {
+      if (judged.has(r.id) || !Array.isArray(r.comments) || r.comments.length === 0) continue;
+      comments += await classifyReviewFindings({ db: c.db, logger: cliLogger }, projectId, r.id);
+      asked++;
+      console.log(r.id);
+    }
+    console.log(JSON.stringify({ reviews: reviews.length, asked, comments }));
   });
 };
 

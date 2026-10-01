@@ -461,7 +461,7 @@ export type Inbox = {
   }[];
 };
 
-export type CriterionState = 'verified' | 'failing' | 'in_pr' | 'no_evidence' | 'check_by_hand' | 'not_started';
+export type CriterionState = 'verified' | 'failing' | 'in_pr' | 'no_evidence' | 'check_by_hand' | 'check_at_release' | 'not_started';
 export type TaskBuildState = 'to_do' | 'requested' | 'in_pr' | 'merged' | 'failing';
 
 export type BuildStage = 'repo' | 'worktree' | 'environment' | 'builder' | 'commit' | 'design' | 'push' | 'pr' | 'status' | 'ci' | 'evidence' | 'review' | 'publish' | 'merge' | 'main';
@@ -1253,6 +1253,8 @@ export type BuildQueue = {
   delivery?: DeliveryMetrics;
   /** Files changed by many merged tasks (top 3): where tasks built at once collide. */
   hotspots?: { path: string; tasks: number; of: number }[];
+  /** Why pull requests bounce: Jev's category of each reviewer comment of the last 30 days. */
+  bounces?: { category: string; count: number; avoidable: number; example: { body: string; path: string } }[];
   /** «Build the queue»: the project's flag and what the queue is doing. */
   auto?: {
     on: boolean;

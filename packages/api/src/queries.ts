@@ -43,6 +43,7 @@ import {
   projectDeliveryMetrics,
   autoStatus,
   hotspotsOf,
+  bounceReasonsOf,
   isHotspot,
   composeBrief,
   coherenceStatus,
@@ -243,6 +244,8 @@ registerQueries([
         delivery: await projectDeliveryMetrics(services.db, projectId),
         // The files most merged tasks changed: where parallel builds collide (top 3 that pass the threshold).
         hotspots: (await hotspotsOf(services.db, projectId)).filter((h) => isHotspot(h)).slice(0, 3),
+        // Why pull requests bounce: Jev's category of each reviewer comment of the last 30 days.
+        bounces: await bounceReasonsOf(services.db, projectId).catch(() => []),
       };
     },
   },

@@ -33,6 +33,7 @@ import { AGENT_BUILD } from "../record/agentBuild.i18n.ts";
 import { CopyBriefButton } from "../record/CopyBrief.tsx";
 import { TestabilityLines } from "../record/Testability.tsx";
 import { TouchesLine } from "../record/Touches.tsx";
+import { Bounces } from "./Bounces.tsx";
 import { BUILD } from "./words.i18n.ts";
 
 type Words = typeof BUILD.en;
@@ -527,7 +528,7 @@ const fmt = (n: number | null) => (n === null ? "–" : String(n));
 const th = "px-3 py-2 text-xs font-medium text-fg-2 whitespace-nowrap";
 const td = "px-3 py-2 tabular-nums";
 
-function Delivery({ d, t, hotspots }: { d: DeliveryMetrics; t: Words; hotspots?: { path: string; tasks: number; of: number }[] }) {
+function Delivery({ d, t, hotspots, bounces }: { d: DeliveryMetrics; t: Words; hotspots?: { path: string; tasks: number; of: number }[]; bounces?: BuildQueue["bounces"] }) {
   const a = useMessages(AGENT_BUILD);
   const s = d.last10;
   const models = d.by_model_last10;
@@ -556,6 +557,7 @@ function Delivery({ d, t, hotspots }: { d: DeliveryMetrics; t: Words; hotspots?:
               ))}
             </div>
           ) : null}
+          <Bounces bounces={bounces} t={t} />
           {models.length > 0 ? (
             <div className="flex flex-col gap-0.5 text-sm text-fg-2 tabular-nums" data-delivery-models>
               <span className="text-xs font-medium text-fg-3">{t.deliveryByModel}</span>
@@ -707,7 +709,7 @@ export function BuildScreen() {
               )}
             </Section>
 
-            {q.delivery ? <Delivery d={q.delivery} t={t} hotspots={q.hotspots} /> : null}
+            {q.delivery ? <Delivery d={q.delivery} t={t} hotspots={q.hotspots} bounces={q.bounces} /> : null}
 
             {(q.held ?? []).length > 0 ? (
               <Section id="build-held" title={t.held((q.held ?? []).length)} note={t.heldNote}>

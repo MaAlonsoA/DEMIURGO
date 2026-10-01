@@ -4,6 +4,7 @@
 import { DomainError, formatActor } from '@demiurgo/domain';
 import { z } from 'zod';
 import { handler, registerHandlers } from '../bus/handlers.ts';
+import { classifyReviewFindings } from '../classifier/review-findings.ts';
 
 registerHandlers({
   'pr_review.record': handler({
@@ -38,6 +39,8 @@ registerHandlers({
         })
         .returning('id')
         .executeTakeFirstOrThrow();
+      // Jev learns why it bounced: after the commit, best effort, only with a key.
+      if (data.comments.length > 0) ctx.afterCommit(() => void classifyReviewFindings(ctx.services, ctx.projectId, id));
       return {
         entityId: id,
         after: {

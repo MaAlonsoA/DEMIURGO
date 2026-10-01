@@ -22,6 +22,7 @@ import type { CommandContext } from '../bus/types.ts';
 import { DISCARD_TRIGGER, registerAuthorityReaction } from '../commands/reactions.ts';
 import type { Db } from '../db/connection.ts';
 import { exportDesign } from '../design/export.ts';
+import { designSystemSpecOf } from '../design/screens.ts';
 import type { Services } from '../services.ts';
 
 const run = promisify(execFile);
@@ -109,15 +110,18 @@ async function designSystemFiles(db: Db, projectId: string): Promise<Map<string,
   const row = await db
     .selectFrom('record_versions')
     .innerJoin('records', 'records.id', 'record_versions.record_id')
-    .select(['records.code', 'record_versions.n', 'record_versions.spec'])
+    .select(['records.id', 'records.code', 'record_versions.n', 'record_versions.spec'])
     .where('records.project_id', '=', projectId)
     .where('records.type', '=', 'design_system')
     .where('record_versions.state', '=', 'approved')
     .orderBy('record_versions.n', 'desc')
     .executeTakeFirst();
   const files = new Map<string, string>();
-  if (!row?.spec) return files;
-  const parsed = designSystemSpec.safeParse(row.spec);
+  if (!row) return files;
+  // A version made from text alone inherits the spec of the latest earlier version that has one.
+  const spec = await designSystemSpecOf(db, row.id, row.n, row.spec);
+  if (!spec) return files;
+  const parsed = designSystemSpec.safeParse(spec);
   if (!parsed.success) return files;
   const { manifest, manifestJson, tokensJson } = designSystemArtifacts(row.code, row.n, parsed.data);
   files.set('tokens.json', tokensJson);

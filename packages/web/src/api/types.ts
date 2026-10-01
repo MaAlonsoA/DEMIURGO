@@ -600,6 +600,9 @@ export type FeatureTask = {
 type TaskLink = { ref: string; title: string; code: string | null; state: string };
 
 /** A task's whole page: the same shape for an approved task and for a draft the task planner proposed. */
+/** A comment of the reviewer agent: where (path and line) and what, with its severity. */
+export type ReviewComment = { path: string; line: number | null; severity: string; body: string };
+
 export type TaskView = {
   draft: null | {
     proposal_id: string;
@@ -638,7 +641,7 @@ export type TaskView = {
     pr_url: string | null;
     pr_number: number | null;
     checks: { name: string; state: string }[];
-    review: { verdict: string; summary: string } | null;
+    review: { verdict: string; summary: string; comments: ReviewComment[] } | null;
     evidence: { criterion: string; result: string; test_name: string | null }[];
   } | null;
   sources: { title: string; url: string | null; note: string | null }[];
@@ -683,7 +686,7 @@ export type RecordDetail = {
     steps?: BuildStep[];
     pr_url?: string | null;
     branch?: string | null;
-    review?: { verdict: 'approve' | 'request_changes'; summary: string; comments_count: number } | null;
+    review?: { verdict: 'approve' | 'request_changes'; summary: string; comments_count: number; comments?: ReviewComment[] } | null;
     /** Whether GitHub is configured for an automatic build. */
     github?: boolean;
   };

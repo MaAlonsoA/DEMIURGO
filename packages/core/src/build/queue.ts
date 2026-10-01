@@ -262,7 +262,8 @@ export async function buildQueue(
       epic: epic ? { code: epic.code, title: epic.title } : null,
       size,
       points: size ? SIZE_POINTS[size] : null,
-      checks: task.checks,
+      // The criteria a task covers (task_covers) are what it checks; without any, its own.
+      checks: task.covers && task.covers.length > 0 ? task.covers.length : task.checks,
       request: requestOf(task, feature),
       github,
       stage: (() => {

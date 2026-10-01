@@ -273,7 +273,10 @@ export type CriterionEvidence = {
  * Evidence of a criterion: its latest, or, for a criterion carried over unchanged (`kept`), the one
  * of the criterion it carries, following the chain. A modified or new criterion starts without.
  */
-export async function evidenceOf(db: Db, criterionId: string): Promise<CriterionEvidence | null> {
+export async function evidenceOf(db: Db, criterionId: string, opts: { reference?: string | null } = {}): Promise<CriterionEvidence | null> {
+  // With a `reference` (the pull request's current head commit) only evidence recorded against it
+  // counts: another attempt's result says nothing about this commit.
+  const reference = opts.reference || null;
   let id: string | null = criterionId;
   for (let hops = 0; id && hops < 50; hops++) {
     const e = await db
@@ -291,6 +294,7 @@ export async function evidenceOf(db: Db, criterionId: string): Promise<Criterion
         'v.n',
       ])
       .where('evidence.criterion_id', '=', id)
+      .$if(reference !== null, (q) => q.where('evidence.reference', '=', reference as string))
       .orderBy('evidence.created_at', 'desc')
       .orderBy('evidence.id', 'desc')
       .executeTakeFirst();
@@ -922,7 +926,18 @@ export async function taskBuildOf(db: Db, projectId: string, taskId: string, imp
     pr_url: latest?.pr_url ?? null,
     branch: latest?.branch ?? null,
     review: review
-      ? { verdict: review.verdict, summary: review.summary, comments_count: (review.comments as unknown[]).length }
+      ? {
+          verdict: review.verdict,
+          summary: review.summary,
+          comments_count: (review.comments as unknown[]).length,
+          // What the reviewer found, so the person sees where and why without opening GitHub.
+          comments: (review.comments as { path: string; line: number | null; severity: string; body: string }[]).map((c) => ({
+            path: c.path,
+            line: c.line ?? null,
+            severity: c.severity,
+            body: c.body,
+          })),
+        }
       : null,
     github: githubConfig() !== null,
   };

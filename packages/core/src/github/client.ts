@@ -291,6 +291,43 @@ export async function pullRequest(
   };
 }
 
+export type OpenPullRequest = { number: number; createdAt: string; headRef: string; headRepo: string | null };
+
+/** Every open pull request of the repository (paged, newest first). */
+export async function listOpenPullRequests(cfg: GithubConfig, owner: string, repo: string): Promise<OpenPullRequest[]> {
+  const out: OpenPullRequest[] = [];
+  for (let page = 1; page <= 20; page++) {
+    const { data } = await call(
+      cfg,
+      'GET',
+      `/repos/${owner}/${repo}/pulls?state=open&sort=created&direction=desc&per_page=100&page=${page}`,
+    );
+    const rows: any[] = Array.isArray(data) ? data : [];
+    for (const p of rows) {
+      out.push({
+        number: p.number,
+        createdAt: String(p.created_at),
+        headRef: String(p.head?.ref ?? ''),
+        headRepo: p.head?.repo?.full_name ?? null,
+      });
+    }
+    if (rows.length < 100) break;
+  }
+  return out;
+}
+
+/** Comments on a pull request and closes it without merging. */
+export async function closePullRequest(cfg: GithubConfig, owner: string, repo: string, number: number, comment: string): Promise<void> {
+  await call(cfg, 'POST', `/repos/${owner}/${repo}/issues/${number}/comments`, { body: { body: comment } });
+  await call(cfg, 'PATCH', `/repos/${owner}/${repo}/pulls/${number}`, { body: { state: 'closed' } });
+}
+
+/** Deletes a branch; already gone (404/422) is fine. */
+export async function deleteBranch(cfg: GithubConfig, owner: string, repo: string, branch: string): Promise<void> {
+  const ref = branch.split('/').map(encodeURIComponent).join('/');
+  await call(cfg, 'DELETE', `/repos/${owner}/${repo}/git/refs/heads/${ref}`, { okStatuses: [404, 422] });
+}
+
 export const DIFF_CAP = 400_000;
 
 export async function pullRequestDiff(cfg: GithubConfig, owner: string, repo: string, number: number): Promise<string> {
@@ -400,12 +437,24 @@ export function unzipXml(zip: Buffer): string {
   return parts.join('\n');
 }
 
-/** The JUnit XML from the artifact named `junit` of the latest workflow run of a head SHA, or null. */
+/** The id of the workflow run a check run belongs to, from its details URL (`…/actions/runs/<id>/job/<id>`). */
+export const workflowRunIdOf = (detailsUrl: string | null): string | null => /\/actions\/runs\/(\d+)/.exec(detailsUrl ?? '')?.[1] ?? null;
+
+/**
+ * The JUnit XML from the artifact named `junit` of the workflow run that produced the `ci` check of a
+ * head SHA (another workflow on the same commit may have run later and has no JUnit), or, when the
+ * check does not say which run, of the latest run. Null without it.
+ */
 export async function junitArtifactFor(cfg: GithubConfig, owner: string, repo: string, headSha: string): Promise<string | null> {
-  const runs = await call(cfg, 'GET', `/repos/${owner}/${repo}/actions/runs?head_sha=${encodeURIComponent(headSha)}&per_page=1`);
-  const latest = runs.data?.workflow_runs?.[0];
-  if (!latest) return null;
-  const list = await call(cfg, 'GET', `/repos/${owner}/${repo}/actions/runs/${latest.id}/artifacts`);
+  const ci = (await checkRunsFor(cfg, owner, repo, headSha)).find((c) => c.name === 'ci');
+  let runId = workflowRunIdOf(ci?.detailsUrl ?? null);
+  if (!runId) {
+    const runs = await call(cfg, 'GET', `/repos/${owner}/${repo}/actions/runs?head_sha=${encodeURIComponent(headSha)}&per_page=1`);
+    const latest = runs.data?.workflow_runs?.[0];
+    if (!latest) return null;
+    runId = String(latest.id);
+  }
+  const list = await call(cfg, 'GET', `/repos/${owner}/${repo}/actions/runs/${runId}/artifacts`);
   const artifact = (list.data?.artifacts ?? []).find((a: any) => a.name === 'junit' && !a.expired);
   if (!artifact) return null;
   const res = await call(cfg, 'GET', `/repos/${owner}/${repo}/actions/artifacts/${artifact.id}/zip`, { raw: true });

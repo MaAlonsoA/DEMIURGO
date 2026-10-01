@@ -201,7 +201,9 @@ export function BuildStepper({ build }: { build: NonNullable<RecordDetail['build
 
 /** The reason a step failed (its recorded error), cut to one short line; the full text is in the tooltip. */
 function FailureReason({ step }: { step: BuildStep }) {
-  const error = (step.detail as { error?: unknown } | null)?.error;
+  const d = step.detail as { error?: unknown; conclusion?: unknown } | null;
+  // A red CI carries its conclusion instead of an error.
+  const error = d?.error ?? (typeof d?.conclusion === 'string' ? `CI concluded ${d.conclusion}.` : undefined);
   if (typeof error !== 'string' || error.trim() === '') return null;
   const line = error.replace(/\s+/g, ' ').trim();
   return (

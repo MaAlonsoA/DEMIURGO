@@ -514,7 +514,7 @@ function Development({
               <ul className="flex flex-col gap-1">
                 {dev.checks.map((c) => {
                   // The review check reflects the verdict: a finished review step is not a passed review.
-                  const changes = c.name === 'demiurgo/review' && c.state === 'success' && dev.review?.verdict === 'request_changes';
+                  const changes = c.name === 'demiurgo/review' && c.state !== 'pending' && dev.review?.verdict === 'request_changes';
                   return (
                     <li key={c.name} className="flex items-baseline gap-2" data-check-run={c.name}>
                       <code className="font-code text-sm">{c.name}</code>
@@ -531,6 +531,26 @@ function Development({
             <Prop label={t.review} wide>
               <span className="font-medium">{dev.review.verdict === 'approve' ? t.verdictApprove : t.verdictChanges}</span>
               {dev.review.summary ? <span className="text-fg-2"> — {dev.review.summary}</span> : null}
+            </Prop>
+          ) : null}
+          {dev.review && dev.review.comments.length > 0 ? (
+            <Prop label={t.reviewComments} wide>
+              <ul className="flex flex-col gap-1" data-review-comments>
+                {[...dev.review.comments]
+                  .sort((a, b) => Number(b.severity === 'blocking') - Number(a.severity === 'blocking'))
+                  .map((c, i) => (
+                    <li key={`${c.path}:${c.line ?? 0}:${i}`} className="flex flex-col" data-review-comment={c.severity}>
+                      <span>
+                        <code className="font-code text-xs">
+                          {c.path}
+                          {c.line ? `:${c.line}` : ''}
+                        </code>{' '}
+                        <span className={cn('text-xs font-medium', c.severity === 'blocking' ? 'text-danger-text' : 'text-fg-3')}>{c.severity}</span>
+                      </span>
+                      <span className="max-w-prose text-fg-2">{c.body}</span>
+                    </li>
+                  ))}
+              </ul>
             </Prop>
           ) : null}
           {dev.evidence.length > 0 ? (

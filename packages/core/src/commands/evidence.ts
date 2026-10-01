@@ -142,6 +142,8 @@ registerHandlers({
         junit: z.string().min(1).max(5_000_000),
         pr_url: z.string().trim().url().max(500).optional(),
         reference: text(500).optional(),
+        /** The criteria the task covers: any of them with no passing or failing case in the JUnit is reported `not_run`. */
+        expected: z.array(text(40)).max(200).optional(),
       })
       .strict(),
     async apply(ctx, data) {
@@ -179,7 +181,12 @@ registerHandlers({
         lastId = r.entityId;
         recorded.push({ code, result, tests });
       }
-      const result = { recorded, unknown, ignored };
+      // A covered criterion with no JUnit case, or only skipped ones, did not run: no evidence is recorded for it.
+      const notRun = (data.expected ?? []).filter((code) => {
+        const g = groups.byCode.get(code);
+        return !g || g.passed + g.failed === 0;
+      });
+      const result = { recorded, unknown, ignored, not_run: notRun };
       return { entityId: lastId ?? ctx.projectId, after: result, result };
     },
   }),

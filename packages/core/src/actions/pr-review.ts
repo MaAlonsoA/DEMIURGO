@@ -112,7 +112,12 @@ registerBuilder('pr_review', async ({ trx, projectId, scope, input, graphVersion
   };
 });
 
-type PackContent = { build_request_id: string; pr_url: string; criteria: { code: string }[] };
+type PackContent = {
+  build_request_id: string;
+  pr_url: string;
+  criteria: { code: string; verification?: string }[];
+  ci?: { tests?: { code: string; result: string }[] };
+};
 
 registerChecker('pr_review', async ({ db, run, output }) => {
   const pack = await packContentOf<PackContent>(db, run);
@@ -123,6 +128,12 @@ registerChecker('pr_review', async ({ db, run, output }) => {
   const extra = listed.filter((c, i) => !codes.includes(c) || listed.indexOf(c) !== i);
   if (missing.length > 0) notes.push(`\`criteria\` must list ${missing.join(', ')}: it lists exactly the criteria the task covers.`);
   if (extra.length > 0) notes.push(`\`criteria\` lists ${extra.join(', ')}, which the task does not cover or which appear twice: exactly one entry per covered criterion.`);
+  // `covered: true` on an automatic criterion needs a passing case for it in CI: a claim with no `pass` is not evidence.
+  const passing = new Set((pack.ci?.tests ?? []).filter((t) => t.result === 'pass').map((t) => t.code));
+  const manual = new Set(pack.criteria.filter((c) => c.verification === 'manual').map((c) => c.code));
+  for (const c of output.criteria)
+    if (c.covered && codes.includes(c.code) && !manual.has(c.code) && !passing.has(c.code))
+      notes.push(`${c.code} is marked covered but CI has no passing test for it: mark it \`covered: false\` (not run) and say why.`);
   const blocking = output.comments.filter((c) => c.severity === 'blocking');
   if (output.verdict === 'approve') {
     if (blocking.length > 0) notes.push('An approval has no `blocking` comment: change the verdict to request_changes or downgrade the comment to a nit.');

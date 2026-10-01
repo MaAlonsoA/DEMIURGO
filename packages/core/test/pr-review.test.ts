@@ -5,6 +5,7 @@
 import { human } from '@demiurgo/domain';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createSimulatedProvider } from '../src/agents/simulated.ts';
+import { CHECKERS } from '../src/actions/appliers.ts';
 import { executeCommand } from '../src/bus/bus.ts';
 import { waitForRun } from '../src/engine/engine.ts';
 import { waitForKnowledge } from '../src/knowledge/workflows.ts';
@@ -121,6 +122,19 @@ describe('the pr_reviewer agent', () => {
     const comments = rows[0]?.comments as { severity: string }[];
     expect(comments.some((c) => c.severity === 'blocking')).toBe(true);
     expect((rows[0]?.criteria as { code: string; covered: boolean }[]).find((c) => c.code === codes[0])?.covered).toBe(false);
+  });
+
+  it('the checker rejects covered: true for a criterion with no passing test in CI', async () => {
+    const { run } = await review(diffWith(codes), []);
+    const output = {
+      verdict: 'approve' as const,
+      summary: 'ok',
+      comments: [],
+      criteria: codes.map((code) => ({ code, covered: true, test_name: `${code} does what the criterion says`, note: 'n' })),
+      sources: [],
+    };
+    const notes = await CHECKERS.pr_review?.({ db: db(), run, output: output as never });
+    expect(notes?.some((n) => n.includes('CI has no passing test'))).toBe(true);
   });
 
   it('a stored review is append-only: only published_at can be set, once', async () => {

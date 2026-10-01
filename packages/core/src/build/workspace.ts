@@ -42,6 +42,29 @@ async function branchExists(repoDir: string, ref: string): Promise<boolean> {
 }
 
 /**
+ * Merges origin's main into the worktree's branch (a merge commit, like the one the project's main
+ * gets before it is pushed), so «Address the review» builds on the code merged meanwhile. A conflict
+ * aborts the merge, leaving the branch as it was, and fails the step.
+ */
+async function integrateOriginMain(repoDir: string, worktree: string): Promise<void> {
+  try {
+    await runGit(repoDir, ['fetch', 'origin', 'main'], { network: true });
+  } catch (e) {
+    // A remote with no main yet: nothing to integrate.
+    if (/couldn't find remote ref/i.test(e instanceof Error ? e.message : String(e))) return;
+    throw e;
+  }
+  const behind = Number((await git(worktree, ['rev-list', '--count', 'HEAD..origin/main'])).stdout.trim());
+  if (!behind) return;
+  try {
+    await git(worktree, ['-c', 'user.name=DEMIURGO', '-c', 'user.email=demiurgo@demiurgo.local', '-c', 'commit.gpgsign=false', 'merge', '--no-edit', 'origin/main']);
+  } catch (e) {
+    await git(worktree, ['merge', '--abort']).catch(() => undefined);
+    throw new Error(`Could not merge origin/main into the task branch (the merge was aborted, the branch is unchanged): ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+/**
  * Creates the branch from `main` (or `origin/main` after fetching it) in a new worktree. With an
  * `existingBranch` (a second attempt on the same pull request) it reuses the worktree if it is still
  * there, else checks the branch out (from the local branch, or from origin's).
@@ -54,7 +77,10 @@ export async function prepareWorktree(input: { repoDir: string; taskCode: string
   const origin = await hasOrigin(input.repoDir);
   if (input.existingBranch) {
     const branch = input.existingBranch;
-    if (existsSync(path)) return { path, branch };
+    if (existsSync(path)) {
+      if (origin) await integrateOriginMain(input.repoDir, path);
+      return { path, branch };
+    }
     await git(input.repoDir, ['worktree', 'prune']);
     if (origin) await runGit(input.repoDir, ['fetch', 'origin', branch], { network: true }).catch(() => undefined);
     if (await branchExists(input.repoDir, `refs/heads/${branch}`)) {
@@ -62,6 +88,8 @@ export async function prepareWorktree(input: { repoDir: string; taskCode: string
     } else {
       await git(input.repoDir, ['worktree', 'add', '-b', branch, path, `origin/${branch}`]);
     }
+    // A second attempt on the same pull request starts from what main has now (other tasks merged since).
+    if (origin) await integrateOriginMain(input.repoDir, path);
     return { path, branch };
   }
   const branch = branchName(input.taskCode, input.buildId);

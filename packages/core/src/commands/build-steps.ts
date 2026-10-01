@@ -5,6 +5,7 @@
 // commit of the request, and mark a reviewer verdict as published.
 
 import { DomainError, formatActor } from '@demiurgo/domain';
+import { sql } from 'kysely';
 import { z } from 'zod';
 import { field, registerGuards, trimmed } from '../bus/guards.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
@@ -39,7 +40,13 @@ export async function buildRunning(trx: Tx, requestId: string): Promise<boolean>
     .where('attempt', '=', Number(attempt))
     .where((eb) =>
       eb.or([
-        eb('outcome', 'in', ['failed', 'changes_requested']),
+        // A red CI (with its conclusion) and a review that asks for changes (with its verdict) are the
+        // truth about those stages, not the end of the attempt: it goes on to publish and stop at merge.
+        eb.and([
+          eb('outcome', 'in', ['failed', 'changes_requested']),
+          eb.not(eb.and([eb('stage', '=', 'ci'), sql<boolean>`detail->>'conclusion' is not null`])),
+          eb.not(eb.and([eb('stage', '=', 'review'), sql<boolean>`detail->>'verdict' is not null`])),
+        ]),
         eb.and([eb('stage', '=', 'merge'), eb('outcome', '=', 'ok')]),
       ]),
     )

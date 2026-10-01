@@ -69,7 +69,7 @@ export type BuildDeps = {
   runBuilder: typeof runBuilder;
   /** Durable sleep between polls. */
   sleep: (ms: number) => Promise<void>;
-  /** Pause between polls of CI, the reviewer and the merge (60 s). */
+  /** Pause between polls of CI, the reviewer and the merge (5 s: our convention, so a result shows within seconds). */
   pollMs: number;
   /** CI that never completes fails the attempt after this long (2 h). */
   ciTimeoutMs: number;
@@ -86,7 +86,7 @@ const defaults = (): BuildDeps => ({
   config: () => github.githubConfig(),
   runBuilder,
   sleep: (ms) => DBOS.sleepms(ms),
-  pollMs: 60_000,
+  pollMs: 5_000,
   ciTimeoutMs: 2 * 3_600_000,
   ciAppearMs: 15 * 60_000,
   mergeTimeoutMs: 24 * 3_600_000,
@@ -499,22 +499,27 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     return stop('ci', 'failed');
   }
   const conclusion = ci.conclusion;
-  await plain('ci-ok', () => record(r, 'ci', 'ok', { conclusion, head_sha: headSha }));
+  // The step tells the truth: a CI that did not conclude `success` is `failed`; the flow still goes on
+  // to the evidence and the review, because both are worth having when the attempt is rebuilt.
+  await plain('ci-done', () =>
+    record(r, 'ci', conclusion === 'success' ? 'ok' : 'failed', { conclusion, head_sha: headSha }),
+  );
 
   // evidence
   const evidence = await stage(r, 'evidence', async () => {
     const junit = await d.github.junitArtifactFor(cfg, owner, repoName, headSha);
     if (!junit) return { value: { tests: [] as { code: string; result: 'pass' | 'fail' }[] }, detail: { note: 'The CI run has no artifact named "junit": no evidence recorded.', recorded: [] } };
+    const taskRow = await s0.db.selectFrom('build_requests').select('task_id').where('id', '=', requestId).executeTakeFirstOrThrow();
     const done = await executeCommand(s0, {
       command: 'evidence.ingest_junit',
       actor: BUILD,
       projectId,
-      data: { junit, pr_url: pull.url, reference: headSha },
+      data: { junit, pr_url: pull.url, reference: headSha, expected: await taskCoversOf(s0.db, taskRow.task_id) },
     });
-    const result = done.result as { recorded: { code: string; result: 'pass' | 'fail'; tests: number }[]; unknown: string[]; ignored: number };
+    const result = done.result as { recorded: { code: string; result: 'pass' | 'fail'; tests: number }[]; unknown: string[]; ignored: number; not_run: string[] };
     return {
       value: { tests: result.recorded.map((t) => ({ code: t.code, result: t.result })) },
-      detail: { recorded: result.recorded, unknown: result.unknown, ignored: result.ignored },
+      detail: { recorded: result.recorded, unknown: result.unknown, ignored: result.ignored, not_run: result.not_run },
     };
   });
   if (!evidence.ok) return stop('evidence', evidence.outcome);
@@ -538,7 +543,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
               input: { diff, pr_url: pull.url, ci: { conclusion, tests: evidence.value.tests } },
             },
           });
-          return { value: { runId: run.entityId }, detail: { run_id: run.entityId, ci_conclusion: conclusion } };
+          return { value: { runId: run.entityId }, detail: { run_id: run.entityId, ci_conclusion: conclusion }, outcome: 'waiting' as const };
         } catch (e) {
           // The graph is being updated: the reviewer's context waits for it.
           if (!isDomainError(e) || e.type !== 'guard' || waitedForGraph >= d.reviewTimeoutMs) throw e;
@@ -550,6 +555,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     { announce: true },
   );
   if (!requested.ok) return stop('review', requested.outcome);
+  // The stage recorded `waiting` (with the run): the review is only requested until there is a verdict.
   const runId = requested.value.runId;
   let waitedForRun = 0;
   let runState = 'queued';
@@ -577,7 +583,13 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     );
     return stop('review', 'failed');
   }
-  await plain('review-ok', () => record(r, 'review', 'ok', { run_id: runId, verdict: verdict.verdict, comments_count: verdict.comments.length }));
+  await plain('review-ok', () =>
+    record(r, 'review', verdict.verdict === 'approve' ? 'ok' : 'changes_requested', {
+      run_id: runId,
+      verdict: verdict.verdict,
+      comments_count: verdict.comments.length,
+    }),
+  );
 
   // publish: the review on the pull request and the required status
   const approved = verdict.verdict === 'approve' && conclusion === 'success';

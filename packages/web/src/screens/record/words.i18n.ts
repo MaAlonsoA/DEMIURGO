@@ -874,6 +874,7 @@ export const TASK_PAGE = messages(
     noBranch: 'No branch yet',
     verdictApprove: 'Approved',
     verdictChanges: 'Changes requested',
+    reviewComments: 'What the reviewer found',
     // Side panel.
     state: 'State',
     size: 'Size',
@@ -969,6 +970,7 @@ export const TASK_PAGE = messages(
     noBranch: 'Aún sin rama',
     verdictApprove: 'Aprobada',
     verdictChanges: 'Pide cambios',
+    reviewComments: 'Lo que ha encontrado el revisor',
     state: 'Estado',
     size: 'Tamaño',
     noSize: 'Sin tamaño',

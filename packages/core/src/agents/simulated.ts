@@ -475,17 +475,20 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
       .filter(Boolean);
     // A criterion is covered when the diff has a test title that starts with its code.
     const titleOf = (code: string) => new RegExp(`['"\`](${code}[^'"\`]*)['"\`]`).exec(diff)?.[1] ?? null;
+    // ... and CI has a passing case for it (the checker rejects `covered` without one).
+    const passing = new Set(list(obj(c.ci).tests).filter((t) => obj(t).result === 'pass').map((t) => txt(obj(t).code)));
     const criteria = codes.map((code) => {
-      const test = titleOf(code);
-      return { code, test_name: test, covered: test !== null, note: test ? 'A test with this code is in the diff.' : 'No test title starting with this code is in the diff.' };
+      const found = titleOf(code);
+      const test = found !== null && passing.has(code) ? found : null;
+      return { code, test_name: test, covered: test !== null, note: test ? 'A test with this code is in the diff.' : 'No passing test with this code is in the diff and in CI.' };
     });
     const missing = criteria.filter((k) => !k.covered).map((k) => k.code);
     if (missing.length === 0)
       return { verdict: 'approve', summary: 'Every criterion of the task has a test in the diff.', comments: [], criteria, sources: [] };
     return {
       verdict: 'request_changes',
-      summary: `No test is in the diff for ${missing.join(', ')}.`,
-      comments: [{ path: 'tests', line: null, severity: 'blocking', body: `Add an automated test whose title starts with ${missing.join(', ')}.` }],
+      summary: `No passing test (in the diff and in CI) for ${missing.join(', ')}.`,
+      comments: [{ path: 'tests', line: null, severity: 'blocking', body: `Add an automated test whose title starts with ${missing.join(', ')} and make it pass in CI.` }],
       criteria,
       sources: [],
     };

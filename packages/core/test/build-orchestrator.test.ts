@@ -12,11 +12,13 @@ import { canonicalPrettyJson, human, sha256Hex } from '@demiurgo/domain';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createSimulatedProvider } from '../src/agents/simulated.ts';
 import { executeCommand } from '../src/bus/bus.ts';
+import { buildQueue } from '../src/build/queue.ts';
 import { type BuildDeps, resetBuildDeps, setBuildDeps, waitForBuild } from '../src/build/orchestrator.ts';
 import { waitForRun } from '../src/engine/engine.ts';
 import { pushBranch } from '../src/github/client.ts';
 import { waitForKnowledge } from '../src/knowledge/workflows.ts';
 import { recordDetail } from '../src/queries/read.ts';
+import { taskViewOfRecord } from '../src/queries/task-view.ts';
 import { useEnvironment } from './support/env.ts';
 
 const projects = mkdtempSync(join(tmpdir(), 'dmg-build-'));
@@ -320,7 +322,26 @@ describe('build.start', () => {
     expect(calls.autoMerge).toEqual([]);
     const rows = await steps(requestId);
     expect(rows.at(-1)).toMatchObject({ stage: 'merge', outcome: 'changes_requested' });
-    expect(rows.find((s) => s.stage === 'ci' && s.outcome === 'ok')?.detail).toMatchObject({ conclusion: 'failure' });
+    // The steps tell the truth: a red CI is `failed` (with its conclusion), and the flow goes on to the review.
+    expect(rows.find((s) => s.stage === 'ci' && s.outcome === 'ok')).toBeUndefined();
+    expect(rows.find((s) => s.stage === 'ci' && s.outcome === 'failed')?.detail).toMatchObject({ conclusion: 'failure' });
+    expect(rows.filter((s) => s.stage === 'review').map((s) => s.outcome)).toEqual(['started', 'waiting', 'changes_requested']);
+    // The reviewer's comments reach the task page (path, line, text), with the real verdict.
+    const failedDetail = await recordDetail(db(), projectId, taskCode);
+    expect(failedDetail.build?.review).toMatchObject({ verdict: 'request_changes' });
+    expect(failedDetail.build?.review?.comments?.some((c) => c.severity === 'blocking' && c.body.length > 0)).toBe(true);
+
+    // The task page tells the truth too: red CI and a review that asks for changes are failures, never «Passed».
+    const taskRecord = await db().selectFrom('records').select('id').where('project_id', '=', projectId).where('code', '=', taskCode).executeTakeFirstOrThrow();
+    const view = await taskViewOfRecord(db(), projectId, taskRecord.id);
+    const checkOf = (name: string) => view?.development?.checks.find((c) => c.name === name)?.state;
+    expect(checkOf('ci')).toBe('failure');
+    expect(checkOf('demiurgo/review')).toBe('failure');
+    expect(view?.dod.filter((x) => /^(ci|demiurgo\/review) check green/.test(x.item)).every((x) => !x.met)).toBe(true);
+    expect(view?.development?.review?.comments.length).toBeGreaterThan(0);
+    // Build counts the criteria the task covers.
+    const queued = [...(await buildQueue(db(), projectId)).ready, ...(await buildQueue(db(), projectId)).waiting].find((t) => t.code === taskCode);
+    expect(queued?.checks).toBe(codes.length);
 
     // Not running any more: the person can build again (attempt 2, same branch and pull request).
     setBuildDeps(fakes({ ciConclusion: 'success' }));

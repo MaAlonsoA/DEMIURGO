@@ -214,6 +214,14 @@ describe('github', () => {
       return { status: 200, body: new Uint8Array(zip) };
     });
     expect(await junitArtifactFor(cfg, 'ana', 'app', 'sha')).toContain('name="two"');
+    // With several workflows on the commit, the artifact is the one of the run that produced the `ci` check.
+    const ci = mock((c) => {
+      if (c.url.includes('/check-runs')) return { status: 200, json: { check_runs: [{ name: 'ci', status: 'completed', conclusion: 'success', details_url: 'https://github.com/ana/app/actions/runs/12/job/34' }] } };
+      if (c.url.endsWith('/runs/12/artifacts')) return { status: 200, json: { artifacts: [{ id: 9, name: 'junit', expired: false }] } };
+      return { status: 200, body: new Uint8Array(zip) };
+    });
+    expect(await junitArtifactFor(ci.cfg, 'ana', 'app', 'sha')).toContain('name="two"');
+    expect(ci.calls.some((c) => c.url.includes('/actions/runs?'))).toBe(false);
     const none = mock(() => ({ status: 200, json: { workflow_runs: [] } }));
     expect(await junitArtifactFor(none.cfg, 'ana', 'app', 'sha')).toBeNull();
   });

@@ -10,6 +10,8 @@ import { taskCoversOf } from './sizes.ts';
 type Size = 'XS' | 'S' | 'M' | 'L' | 'XL';
 type Ref = { ref: string; title: string; code: string | null; state: string };
 
+export type ReviewComment = { path: string; line: number | null; severity: string; body: string };
+
 export type TaskView = {
   draft: null | {
     proposal_id: string;
@@ -48,7 +50,7 @@ export type TaskView = {
     pr_url: string | null;
     pr_number: number | null;
     checks: { name: string; state: string }[];
-    review: { verdict: string; summary: string } | null;
+    review: { verdict: string; summary: string; comments: ReviewComment[] } | null;
     evidence: { criterion: string; result: string; test_name: string | null }[];
   } | null;
   sources: { title: string; url: string | null; note: string | null }[];
@@ -136,7 +138,7 @@ async function featureOf(db: Db, projectId: string, code: string, version: numbe
 type Feature = Awaited<ReturnType<typeof featureOf>>;
 
 /** What each covered criterion looks like now: its Given/When/Then and how far it is. */
-async function coversOf(db: Db, f: Feature, codes: readonly string[]) {
+async function coversOf(db: Db, f: Feature, codes: readonly string[], reference: string | null = null) {
   const out: TaskView['covers'] = [];
   const evidence: NonNullable<TaskView['development']>['evidence'] = [];
   for (const code of codes) {
@@ -145,7 +147,7 @@ async function coversOf(db: Db, f: Feature, codes: readonly string[]) {
       out.push({ code, title: code, given: null, when: null, then: null, statement: '', step: null, state: 'not_started' });
       continue;
     }
-    const e = await evidenceOf(db, c.id);
+    const e = await evidenceOf(db, c.id, { reference });
     const covering = f.delivery.tasks.filter((t) => t.covers.includes(code));
     const state: CriterionState = criterionState({ verification: c.verification, evidence: e, tasks: covering.map((t) => t.build) });
     out.push({
@@ -285,6 +287,20 @@ const CHECK_STAGES: [string, string][] = [
   ['demiurgo/design', 'design'],
 ];
 
+/**
+ * The state of a check from its last step. `ok` is only green when the real result was: the CI
+ * conclusion is `success` and the reviewer's verdict is `approve` (steps recorded before the
+ * orchestrator told the truth could be `ok` with a red conclusion or a request for changes).
+ */
+function checkStateOf(stage: string, outcome: string, detail: unknown): string {
+  if (outcome === 'started' || outcome === 'waiting') return 'pending';
+  if (outcome !== 'ok') return 'failure';
+  const d = (detail ?? {}) as { conclusion?: string | null; verdict?: string };
+  if (stage === 'ci' && d.conclusion !== undefined && d.conclusion !== 'success') return 'failure';
+  if (stage === 'review' && d.verdict !== undefined && d.verdict !== 'approve') return 'failure';
+  return 'success';
+}
+
 /** The task's development panel (Jira's Development, Linear's linked PR): branch, PR, checks, review, evidence. */
 async function developmentOf(
   db: Db,
@@ -305,7 +321,7 @@ async function developmentOf(
   if (request) {
     const steps = await db
       .selectFrom('build_steps')
-      .select(['attempt', 'stage', 'outcome', 'created_at'])
+      .select(['attempt', 'stage', 'outcome', 'detail', 'created_at'])
       .where('build_request_id', '=', request.id)
       .orderBy('attempt')
       .orderBy('created_at')
@@ -314,7 +330,7 @@ async function developmentOf(
     for (const [name, stage] of CHECK_STAGES) {
       const last = steps.filter((s) => s.stage === stage).at(-1);
       if (!last) continue;
-      checks.push({ name, state: last.outcome === 'ok' ? 'success' : last.outcome === 'started' || last.outcome === 'waiting' ? 'pending' : 'failure' });
+      checks.push({ name, state: checkStateOf(stage, last.outcome, last.detail) });
     }
   }
   if (!request && evidence.length === 0) return { development: null, checks };
@@ -325,7 +341,7 @@ async function developmentOf(
       pr_url: build.pr_url,
       pr_number: request?.pr_number ?? null,
       checks,
-      review: build.review ? { verdict: build.review.verdict, summary: build.review.summary } : null,
+      review: build.review ? { verdict: build.review.verdict, summary: build.review.summary, comments: build.review.comments } : null,
       evidence,
     },
   };
@@ -366,7 +382,17 @@ export async function taskViewOfRecord(db: Db, projectId: string, recordId: stri
   if (!basis) return null;
   const f = await featureOf(db, projectId, basis.code, basis.n);
   const codes = await taskCoversOf(db, recordId);
-  const { covers, evidence } = await coversOf(db, f, codes);
+  // With a pull request, a criterion's state is the evidence of its current head commit.
+  const pr = await db
+    .selectFrom('build_requests')
+    .select('head_sha')
+    .where('project_id', '=', projectId)
+    .where('task_id', '=', recordId)
+    .where('pr_number', 'is not', null)
+    .orderBy('requested_at', 'desc')
+    .orderBy('id', 'desc')
+    .executeTakeFirst();
+  const { covers, evidence } = await coversOf(db, f, codes, pr?.head_sha ?? null);
   const build = await taskBuildOf(db, projectId, recordId, (await implementationOf(db, recordId)) === 'implemented');
   const { development, checks } = await developmentOf(db, projectId, recordId, build, evidence);
   const pool = await poolOf(db, projectId, f);

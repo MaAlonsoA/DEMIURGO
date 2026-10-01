@@ -5,7 +5,7 @@ import { externalAgent, human } from '@demiurgo/domain';
 import { sql } from 'kysely';
 import { describe, expect, it } from 'vitest';
 import { executeCommand } from '../src/bus/bus.ts';
-import { recordDetail } from '../src/queries/read.ts';
+import { evidenceOf, recordDetail } from '../src/queries/read.ts';
 import { useEnvironment } from './support/env.ts';
 
 const environment = useEnvironment();
@@ -59,7 +59,7 @@ describe('evidence.ingest_junit', () => {
       command: 'evidence.ingest_junit',
       actor: agent,
       projectId,
-      data: { junit, reference: 'abc123' },
+      data: { junit, reference: 'abc123', expected: [c1, c2, c3] },
     });
     expect(r.result).toEqual({
       recorded: [
@@ -68,6 +68,8 @@ describe('evidence.ingest_junit', () => {
       ],
       unknown: ['AC-ZZZ-999-01'],
       ignored: 2,
+      // c3 only has a skipped case: it did not run, and no evidence is recorded for it.
+      not_run: [c3],
     });
 
     const { rows } = await sql<{ code: string; kind: string; result: string; test_name: string; recorded_by: string; reference: string }>`
@@ -83,5 +85,11 @@ describe('evidence.ingest_junit', () => {
     expect(state(c1)).toBe('verified');
     expect(state(c2)).toBe('failing');
     expect(state(c3)).not.toMatch(/verified|failing/);
+
+    // Evidence of the current commit only: another commit's result is «no evidence».
+    const criterionId = (await sql<{ id: string }>`select id from criteria where project_id = ${projectId}::uuid and code = ${c1}`.execute(s.db)).rows[0]!.id;
+    expect((await evidenceOf(s.db, criterionId, { reference: 'abc123' }))?.result).toBe('pass');
+    expect(await evidenceOf(s.db, criterionId, { reference: 'def456' })).toBeNull();
+    expect((await evidenceOf(s.db, criterionId))?.result).toBe('pass');
   });
 });

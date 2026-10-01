@@ -119,6 +119,28 @@ describe('worktree helpers', () => {
     expect(sh(wt.path, 'rev-parse', 'HEAD')).toBe(sh(repo, 'rev-parse', 'origin/main'));
   });
 
+  it('a second attempt on the same branch integrates origin/main first (code merged meanwhile)', async () => {
+    const origin = join(root, 'origin.git');
+    execFileSync('git', ['clone', '-q', '--bare', repo, origin]);
+    sh(repo, 'remote', 'add', 'origin', origin);
+    const first = await prepareWorktree({ repoDir: repo, taskCode: 'TSK-C-3', buildId: 'aaaaaaaa1111' });
+    writeFileSync(join(first.path, 'mine.txt'), 'x\n');
+    await commitAll(first.path, 'mine');
+    sh(first.path, 'push', '-q', 'origin', first.branch);
+    await removeWorktree(repo, first.path);
+    // Another task merges into main meanwhile.
+    const other = join(root, 'other');
+    execFileSync('git', ['clone', '-q', origin, other]);
+    writeFileSync(join(other, 'theirs.txt'), 'y\n');
+    sh(other, 'add', '-A');
+    sh(other, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'theirs');
+    sh(other, 'push', '-q', 'origin', 'main');
+
+    const again = await prepareWorktree({ repoDir: repo, taskCode: 'TSK-C-3', buildId: 'aaaaaaaa1111', existingBranch: first.branch });
+    expect(existsSync(join(again.path, 'theirs.txt'))).toBe(true);
+    expect(existsSync(join(again.path, 'mine.txt'))).toBe(true);
+  });
+
   it('maps container paths to host paths', () => {
     expect(hostPathOf(join(root, '.worktrees', 'b1'))).toBe('/host/projects/.worktrees/b1');
     expect(() => hostPathOf('/elsewhere')).toThrow();

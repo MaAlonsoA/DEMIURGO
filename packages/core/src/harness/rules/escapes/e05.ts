@@ -4,10 +4,15 @@
 // was found is the state of the feature's tasks when the version was created (none requested: P7; requested: P9; in
 // review: P10; merged: P13); a version that came out of an accepted knowledge review is the cascade of that review
 // (E06) and is left out. `class` is `catch_up` when the note cites a patch or a commit (the design catching up with
-// code, a different signal) and `defect` otherwise (our convention; a scope change by the owner cannot be told apart
-// without the thread, which the inputs do not carry).
+// code, a different signal) and `defect` otherwise.
+// esc-4: the cascade exclusion now works (esc4.ts review link); a feature with no task at all was caught before any
+// plan existed: `P5 -> P5`, contained; found phase P10 when a review comment on one of its tasks came up to 30 min
+// before the version (the review exposed it: convención nuestra); an owner scope change (the note says the user or
+// owner requests it: convención nuestra) is class `scope_change`, not a defect: `P5 -> P5`, not contained, so the
+// measure ignores it. `evidence.defect_key` = the criterion when one changed, else the version.
 
-import { type EscapeRule, introducedAt, ms } from "./types.ts";
+import { OWNER_SCOPE_CHANGE, REVIEW_EXPOSURE_WINDOW_MIN, reviewCausedVersionIds } from "./esc4.ts";
+import { type Escape, type EscapeRule, introducedAt, ms } from "./types.ts";
 
 const PATCH = /\bpatch(es)?\b|\b(?=[0-9a-f]*\d)[0-9a-f]{7,40}\b/i;
 
@@ -26,13 +31,12 @@ export const e05: EscapeRule = (i) => {
       ...(criteriaOf.get(c.record_version_id) ?? []),
       c,
     ]);
-  const reviewed = new Set(
-    i.reviewProposals.filter((p) => p.state === "accepted").map((p) => p.id),
-  );
+  const caused = reviewCausedVersionIds(i);
+  const taskOfRequest = new Map(i.requests.map((r) => [r.id, r.task_id]));
   const tasksOf = new Map<string, Set<string>>();
   for (const b of i.taskBases)
     tasksOf.set(b.fdr_id, (tasksOf.get(b.fdr_id) ?? new Set()).add(b.task_id));
-  const out = [];
+  const out: Escape[] = [];
   for (const [recordId, versions] of byRecord) {
     for (const v of versions) {
       if (v.n <= 1) continue;
@@ -45,12 +49,7 @@ export const e05: EscapeRule = (i) => {
         )
         .sort((a, b) => b.n - a.n)[0];
       if (!approvedBefore) continue;
-      if (
-        v.origin_type === "proposal" &&
-        v.origin_id &&
-        reviewed.has(v.origin_id)
-      )
-        continue;
+      if (caused.has(v.id)) continue;
       const changed = (criteriaOf.get(v.id) ?? []).filter(
         (c) => c.carry === "new" || c.carry === "modified",
       );
@@ -64,14 +63,36 @@ export const e05: EscapeRule = (i) => {
       const reviewing = mine.some(
         (r) => r.in_review_at && ms(r.in_review_at) <= at,
       );
-      const found = merged
-        ? ("P13" as const)
-        : reviewing
-          ? ("P10" as const)
-          : mine.length > 0
-            ? ("P9" as const)
-            : ("P7" as const);
-      const cls = v.change_note && PATCH.test(v.change_note) ? "catch_up" : "defect";
+      const exposed = i.reviews.some((r) => {
+        const taskId = taskOfRequest.get(r.build_request_id);
+        const t = ms(r.created_at);
+        return (
+          taskId !== undefined &&
+          tasks.has(taskId) &&
+          t <= at &&
+          at - t <= REVIEW_EXPOSURE_WINDOW_MIN * 60_000
+        );
+      });
+      const cls =
+        v.change_note && PATCH.test(v.change_note)
+          ? "catch_up"
+          : v.change_note && OWNER_SCOPE_CHANGE.test(v.change_note)
+            ? "scope_change"
+            : "defect";
+      const noTasks = tasks.size === 0;
+      const found =
+        cls === "scope_change" || noTasks
+          ? ("P5" as const)
+          : exposed
+            ? ("P10" as const)
+            : merged
+              ? ("P13" as const)
+              : reviewing
+                ? ("P10" as const)
+                : mine.length > 0
+                  ? ("P9" as const)
+                  : ("P7" as const);
+      const contained = noTasks && cls === "defect";
       out.push({
         rule: "E05",
         introduced_phase: "P5" as const,
@@ -85,6 +106,8 @@ export const e05: EscapeRule = (i) => {
           class: cls,
           criteria: changed.map((c) => ({ code: c.code, carry: c.carry })),
           tasks_requested: mine.length,
+          defect_key: changed.length === 1 ? `ac:${changed[0]!.code}` : `ver:${v.id}`,
+          ...(contained ? { contained: true } : {}),
           ...introducedAt(approvedBefore.approved_at),
         },
         occurred_at: v.created_at,

@@ -12,6 +12,7 @@ import {
   PENDING_ESCAPE_RULES,
   type Escape,
   type EscapeInputs,
+  type Esc4Inputs,
 } from "./rules/escapes/index.ts";
 
 export {
@@ -37,7 +38,7 @@ const obj = (v: unknown): Record<string, unknown> =>
 export async function loadEscapeInputs(
   db: Db,
   projectId: string,
-): Promise<EscapeInputs> {
+): Promise<Esc4Inputs> {
   const q = <T>(query: RawBuilder<T>) => query.execute(db).then((r) => r.rows);
   const records = await q(
     sql<{
@@ -218,8 +219,34 @@ export async function loadEscapeInputs(
       join records tr on tr.id = tv.record_id
       where l.project_id = ${projectId} and l.type in ('based_on', 'depends_on') and l.from_type = 'record_version' and l.to_type = 'record_version'`,
   );
+  // esc-4: the queue's testability holds (E17) and the record type of each rejected proposal (E11 phase).
+  const queueDecisions = await q(
+    sql<{ task_code: string; decided_at: Date; item: string | null; criteria: unknown }>`
+      select d.task_code, p.decided_at, d.item, d.evidence->'criteria' as criteria
+      from queue_decisions d join queue_plans p on p.id = d.plan_id
+      where d.project_id = ${projectId} and d.decision = 'wait_testability'
+      order by p.decided_at, d.id`,
+  );
+  const rejectedProposals = await q(
+    sql<{ id: string; record_type: string | null }>`
+      select p.id, coalesce(p.payload->>'record_type',
+        (select r.type from records r where r.project_id = p.project_id and r.code = p.payload->'record'->>'code'),
+        case when p.type in ('fdr', 'decision', 'screen_design', 'design_system') then p.type
+             when p.type in ('product_definition', 'definition_change') then 'product_definition' end) as record_type
+      from proposals p
+      where p.project_id = ${projectId} and p.id in (select e.entity_id from events e where e.project_id = ${projectId} and e.command = 'proposal.reject')`,
+  );
   return {
     projectId,
+    queueDecisions: queueDecisions.map((d) => ({
+      task_code: d.task_code,
+      decided_at: iso(d.decided_at),
+      item: d.item,
+      criteria: Array.isArray(d.criteria)
+        ? d.criteria.map((c) => (c as { code?: unknown } | null)?.code).filter((c): c is string => typeof c === "string")
+        : [],
+    })),
+    rejectedProposals,
     links,
     records: records.map((r) => ({ ...r, created_at: iso(r.created_at) })),
     versions: versions.map((v) => ({

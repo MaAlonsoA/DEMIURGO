@@ -18,10 +18,12 @@ import { e12 } from "./e12.ts";
 import { e13 } from "./e13.ts";
 import { e15 } from "./e15.ts";
 import { e16 } from "./e16.ts";
+import { e17 } from "./e17.ts";
 import type { EscapeRule } from "./types.ts";
 
 export { E11_COMMANDS } from "./e11.ts";
 export * from "./types.ts";
+export type { Esc4Inputs, EscapeQueueDecision, EscapeRejectedProposal } from "./esc4.ts";
 
 export const ESCAPE_RULES: Record<string, EscapeRule> = {
   E01: e01,
@@ -39,5 +41,6 @@ export const ESCAPE_RULES: Record<string, EscapeRule> = {
   E13: e13,
   E15: e15,
   E16: e16,
+  E17: e17,
 };
 export const PENDING_ESCAPE_RULES = ["E14"] as const;

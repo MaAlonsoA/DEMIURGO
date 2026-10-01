@@ -6,7 +6,11 @@
 // are no longer corrections, and neither is a command run nested inside another one (`cause.sourceCommand`, e.g. the
 // reopening inside `proposal.accept`). A rejected design proposal is work inside the phase: it is marked
 // `contained`, unless its reason says it was not what was asked (the agent failed, not the design).
+// esc-4: a `proposal.reject` is always contained (the person caught it before it became authority; Motorola: an error
+// found in its own phase is contained); «not what was asked» stays as `class`, no longer an exclusion. The phase is the
+// record type's of the rejected proposal (task P7, feature P5…: `phaseOfRecordType`; P5 when it cannot be told).
 
+import { type Esc4Inputs, phaseOfRecordType } from "./esc4.ts";
 import {
   type Escape,
   type EscapeEvent,
@@ -32,8 +36,10 @@ const corrects = (e: EscapeEvent): boolean =>
   e.command !== "record.set_size" ||
   (e.after.previous != null && e.after.previous !== e.after.size);
 
-export const e11: EscapeRule = (i) => {
+export const e11: EscapeRule = (inputs) => {
+  const i = inputs as Esc4Inputs;
   const byId = recordById(i);
+  const rejected = new Map((i.rejectedProposals ?? []).map((p) => [p.id, p.record_type]));
   const out = [];
   for (const e of i.events) {
     const phases = PHASES[e.command];
@@ -43,12 +49,13 @@ export const e11: EscapeRule = (i) => {
     if (e.command === "proposal.reject" && e.proposal_type === "review")
       continue;
     const reason = typeof e.after.reason === "string" ? e.after.reason : "";
-    const contained =
-      e.command === "proposal.reject" && !/not what was asked/i.test(reason);
+    const isReject = e.command === "proposal.reject";
+    const contained = isReject;
+    const phase = isReject ? phaseOfRecordType(e.entity_id ? rejected.get(e.entity_id) : null) : null;
     out.push({
       rule: "E11",
-      introduced_phase: phases.introduced,
-      found_phase: phases.found,
+      introduced_phase: phase ?? phases.introduced,
+      found_phase: phase ?? phases.found,
       record_code:
         (typeof e.after.code === "string" ? e.after.code : null) ??
         (e.entity_id ? (byId.get(e.entity_id)?.code ?? null) : null),
@@ -59,6 +66,7 @@ export const e11: EscapeRule = (i) => {
         entity_id: e.entity_id,
         ...introducedAt(e.entity_id ? byId.get(e.entity_id)?.created_at : null),
         ...(contained ? { contained: true } : {}),
+        ...(isReject && /not what was asked/i.test(reason) ? { class: "not_asked" } : {}),
       },
       occurred_at: e.at,
       key: e.id,

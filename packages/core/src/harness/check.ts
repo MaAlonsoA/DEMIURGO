@@ -17,7 +17,7 @@ import type { Db } from '../db/connection.ts';
 import { worthIt, type WorthIt } from '../queries/attention.ts';
 import { harnessScorecards, type PieceHealth, type Verdict } from '../queries/harness-health.ts';
 import type { Services } from '../services.ts';
-import { containmentOf, PCE_TARGET, type PhaseContainment } from './containment.ts';
+import { containmentOf, containmentSeries, PCE_TARGET, type PhaseContainment } from './containment.ts';
 import { detectEscapes, ESCAPES_RULES_VERSION } from './escapes.ts';
 import { PIECE_NAMES } from './pieces.ts';
 import { harnessVersionIdOrNull } from './version.ts';
@@ -248,7 +248,9 @@ export async function runCheck(services: Services, projectId: string, trigger: C
       .orderBy('id')
       .execute();
     const harnessVersionId = await harnessVersionIdOrNull(db);
-    const inWindow = rows.filter((r) => r.occurred_at === null || ms(r.occurred_at) >= windowFrom.getTime());
+    // esc-4: cut by the real time of the defect (`evidence.introduced_at`, else `occurred_at`), the same rule as the
+    // containment series: everything introduced up to now, however late it was found; no lower bound.
+    const pce = containmentSeries(rows, [{ id: 'now', computed_at: now.toISOString(), window_from: windowFrom.toISOString(), window_to: now.toISOString() }])[0]!.phases;
     const fresh = previous ? rows.filter((r) => ms(r.detected_at) > ms(previous.computed_at)) : rows;
     const byRule: Record<string, number> = {};
     for (const r of fresh) byRule[r.rule] = (byRule[r.rule] ?? 0) + 1;
@@ -257,7 +259,7 @@ export async function runCheck(services: Services, projectId: string, trigger: C
       new_total: fresh.length,
       new_ids: fresh.slice(0, NEW_ESCAPE_IDS_MAX).map((r) => r.id),
       by_rule: byRule,
-      pce: containmentOf(inWindow),
+      pce,
       pce_meta: { rules_version: ESCAPES_RULES_VERSION, harness_version_id: harnessVersionId, target: PCE_TARGET },
     };
 

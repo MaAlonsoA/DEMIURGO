@@ -5,7 +5,11 @@
 // rule: our convention). esc-2: one row per version however many signals reach it; a review triggered by the change
 // of a record the reviewed one is based on is propagation, not contradiction; the cited code must be another record of
 // the project and never a criterion (`AC-…`); a version with new or modified criteria after an approved one is E05's.
+// esc-4: the review -> version link is found by time (esc4.ts `reviewVersions`: the version is born from an exploration
+// `record_change` proposal, not from the review), so `review_accepted` stops being blind; the phase is the record's
+// (task P7, feature P5…: `phaseOfRecordType`), both introduced and found, and the row is always contained.
 
+import { phaseOfRecordType, reviewVersions } from "./esc4.ts";
 import { type Escape, type EscapeRule, introducedAt, ms, recordById } from "./types.ts";
 
 const CODE = /\b(?!AC-)[A-Z]{2,4}-[A-Z]{3}-\d+\b/g;
@@ -19,6 +23,7 @@ export const e06: EscapeRule = (i) => {
   for (const v of i.versions)
     if (v.origin_type === "proposal" && v.origin_id && v.n > 1)
       byOrigin.set(v.origin_id, v);
+  const linked = reviewVersions(i);
   const basedOn = new Set(
     i.links
       .filter((l) => l.type === "based_on")
@@ -31,10 +36,11 @@ export const e06: EscapeRule = (i) => {
     evidence: Record<string, unknown>,
   ) => {
     if (rows.has(v.id)) return;
+    const phase = phaseOfRecordType(byId.get(v.record_id)?.type);
     rows.set(v.id, {
       rule: "E06",
-      introduced_phase: "P5",
-      found_phase: "P5",
+      introduced_phase: phase,
+      found_phase: phase,
       record_code: byId.get(v.record_id)?.code ?? null,
       record_version_id: v.id,
       subject,
@@ -42,6 +48,7 @@ export const e06: EscapeRule = (i) => {
         ...evidence,
         record_version_id: v.id,
         contained: true,
+        defect_key: `ver:${v.id}`,
         // The older version the new one contradicted or corrected: the latest approved before it.
         ...introducedAt(
           i.versions
@@ -55,7 +62,7 @@ export const e06: EscapeRule = (i) => {
   };
   for (const p of i.reviewProposals) {
     if (p.state !== "accepted" || p.verdict !== "update") continue;
-    const v = byOrigin.get(p.id);
+    const v = byOrigin.get(p.id) ?? linked.get(p.id);
     if (!v) continue;
     const changed = p.change_version_id
       ? versionById.get(p.change_version_id)?.record_id

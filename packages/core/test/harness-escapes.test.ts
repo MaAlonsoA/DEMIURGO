@@ -439,7 +439,7 @@ describe("escape rules", () => {
     ];
     const e = run("E11", i);
     expect(e.map((x) => x.key)).toEqual(["e1", "e3", "e6", "e6b"]);
-    expect(e.map((x) => x.evidence.contained === true)).toEqual([false, false, true, false]);
+    expect(e.map((x) => x.evidence.contained === true)).toEqual([false, false, true, true]);
   });
 
   it("E12 a withdrawn request is an escape with the reason the journal kept", () => {

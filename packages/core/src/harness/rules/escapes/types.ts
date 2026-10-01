@@ -4,7 +4,7 @@
 // failure with no design phase to blame (E10). Every attribution below is our convention, written in code under
 // `ESCAPES_RULES_VERSION`; the containment measure itself comes from Motorola (Daskalantonakis 1992; Kan, «Metrics and Models in Software Quality Engineering», chapter «Defect Removal Effectiveness»; sin comprobar el número de capítulo).
 
-export const ESCAPES_RULES_VERSION = "esc-3";
+export const ESCAPES_RULES_VERSION = "esc-4";
 
 export type Phase = `P${number}`;
 

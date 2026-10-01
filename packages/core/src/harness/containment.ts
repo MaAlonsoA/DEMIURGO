@@ -13,6 +13,10 @@
 //   rule could not derive it). A late discovery therefore lowers the past: a window counts every escape introduced up
 //   to its end and discovered at any time up to now, recomputed from the stored escapes on read; the stored check rows
 //   stay as they were, append-only. Anti-cheating rule: decisión de la persona (01-10).
+// - esc-4: contained and escaped are counted per distinct DEFECT, not per row: rows carry `evidence.defect_key` (the record
+//   plus the criterion or finding) and rows of the same phase and key are one defect; when any of them escaped, the
+//   defect escaped. A row without a key is its own defect. Convención nuestra (the defect, not the row, is what Kan's
+//   defect removal effectiveness counts).
 // - Only escapes of one rules version are ever compared (convención nuestra): never esc-2 with esc-3.
 
 export const PCE_TARGET = 0.9;
@@ -35,6 +39,11 @@ export type ContainmentRow = { introduced_phase: string; found_phase: string; ev
 
 const round = (n: number, digits = 3): number => Math.round(n * 10 ** digits) / 10 ** digits;
 const ms = (d: Date | string): number => new Date(d).getTime();
+/** The defect the row belongs to (`evidence.defect_key`), or null when the rule gave none (the row is its own defect). */
+export const defectKeyOf = (r: ContainmentRow): string | null => {
+  const k = (r.evidence as { defect_key?: unknown } | null | undefined)?.defect_key;
+  return typeof k === 'string' && k !== '' ? k : null;
+};
 export const isContained = (r: ContainmentRow): boolean => (r.evidence as { contained?: unknown } | null | undefined)?.contained === true;
 
 /**
@@ -43,14 +52,32 @@ export const isContained = (r: ContainmentRow): boolean => (r.evidence as { cont
  */
 export function containmentOf(rows: readonly ContainmentRow[]): PhaseContainment[] {
   const by = new Map<string, { contained: number; escaped: number }>();
+  // Rows sharing a defect key in the same phase are one defect; an escaped row wins over a contained one.
+  const keyed = new Map<string, { phase: string; contained: boolean }>();
+  const cellOf = (phase: string) => {
+    const cell = by.get(phase) ?? { contained: 0, escaped: 0 };
+    by.set(phase, cell);
+    return cell;
+  };
   for (const r of rows) {
     if (!(DESIGN_PHASES as readonly string[]).includes(r.introduced_phase)) continue;
     const marked = isContained(r);
     if (!marked && r.introduced_phase === r.found_phase) continue;
-    const cell = by.get(r.introduced_phase) ?? { contained: 0, escaped: 0 };
-    if (marked) cell.contained += 1;
+    const key = defectKeyOf(r);
+    if (key === null) {
+      const cell = cellOf(r.introduced_phase);
+      if (marked) cell.contained += 1;
+      else cell.escaped += 1;
+      continue;
+    }
+    const id = `${r.introduced_phase}|${key}`;
+    const prior = keyed.get(id);
+    keyed.set(id, { phase: r.introduced_phase, contained: (prior ? prior.contained : true) && marked });
+  }
+  for (const d of keyed.values()) {
+    const cell = cellOf(d.phase);
+    if (d.contained) cell.contained += 1;
     else cell.escaped += 1;
-    by.set(r.introduced_phase, cell);
   }
   return [...by.entries()]
     .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))

@@ -123,3 +123,77 @@ export function fitRange(from: number, start: number, end: number, availablePx: 
   const px = clampPx(fitPx(spanMin + 2 * margin, availablePx), minPx);
   return { px, scrollLeft: Math.max(0, ((start - from) / 60_000 - margin) * px) };
 }
+
+/** The time range (ms) the chart shows: `viewPx` of chart area starting `scrollLeft` px from the chart's left edge. */
+export function visibleRange(from: number, scrollLeft: number, viewPx: number, pxPerMin: number): { start: number; end: number } {
+  const start = from + (scrollLeft / pxPerMin) * 60_000;
+  return { start, end: start + (Math.max(0, viewPx) / pxPerMin) * 60_000 };
+}
+
+/** The latest moment anything happened in the row (end of its last attempt or segment). */
+export function lastActivity(r: TimelineRequest): number {
+  let last = ms(r.end);
+  for (const a of r.attempts) {
+    last = Math.max(last, ms(a.end));
+    for (const s of a.segments) last = Math.max(last, ms(s.end));
+  }
+  return last;
+}
+
+/** True when any segment (attempt bar, wait, CI on main) of the row intersects the range; an attempt without segments counts by its own span. */
+export function intersectsRange(r: TimelineRequest, range: { start: number; end: number }): boolean {
+  const hit = (a: string, b: string) => ms(a) <= range.end && ms(b) >= range.start;
+  return r.attempts.some((a) => (a.segments.length > 0 ? a.segments.some((s) => hit(s.start, s.end)) : hit(a.start, a.end)));
+}
+
+/** «Failed or needs you»: its latest attempt failed or got changes requested, or the queue stopped waiting for this task. */
+export function needsAttention(r: TimelineRequest, needsYou: string | null): boolean {
+  const last = r.attempts[r.attempts.length - 1];
+  return r.task_code === needsYou || last?.result === 'failed' || last?.result === 'changes_requested';
+}
+
+/** Every word typed must appear in the task code, task title, feature code or feature title. */
+export function matchesText(r: TimelineRequest, text: string): boolean {
+  const words = text.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const hay = [r.task_code, r.task_title, r.feature?.code, r.feature?.title].join(' ').toLowerCase();
+  return words.every((w) => hay.includes(w));
+}
+
+export type RowFilter = {
+  /** The visible time range; null until the box is measured (no range filtering). */
+  range: { start: number; end: number } | null;
+  text: string;
+  running: boolean;
+  attention: boolean;
+  needsYou: string | null;
+  /** The row chosen in the Path stays even when it is outside the range (text and status filters still apply). */
+  pinned: string | null;
+  /** «Zoom to attempt»: only this row. */
+  focus: string | null;
+};
+
+/**
+ * The rows to draw, most recent activity first. Filters combine: visible range, text, «Running», «Failed or needs you».
+ * Practice: the filter bar of trace and timeline tools (Jaeger search by service and tags, Grafana and Honeycomb
+ * filters, GitHub Actions run filters by status).
+ */
+export function filterRows(rows: TimelineRequest[], f: RowFilter): TimelineRequest[] {
+  return rows
+    .filter((r) => {
+      if (f.focus) return r.id === f.focus;
+      if (!matchesText(r, f.text)) return false;
+      if (f.running && !r.running) return false;
+      if (f.attention && !needsAttention(r, f.needsYou)) return false;
+      return !f.range || r.id === f.pinned || intersectsRange(r, f.range);
+    })
+    .sort((a, b) => lastActivity(b) - lastActivity(a));
+}
+
+/** Window of row indexes [start, end) to draw for a box scrolled `scrollTop` px with `viewH` px visible; rows sit under a `headH` header. */
+export function rowWindow(count: number, scrollTop: number, viewH: number, rowH: number, headH: number, overscan = 4): { start: number; end: number } {
+  const first = Math.floor((scrollTop - headH) / rowH) - overscan;
+  const last = Math.ceil((scrollTop + viewH - headH) / rowH) + overscan;
+  const start = Math.min(count, Math.max(0, first));
+  return { start, end: Math.min(count, Math.max(start, last)) };
+}

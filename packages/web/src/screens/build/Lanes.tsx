@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "../../components/Button.tsx";
+import { TextInput } from "../../components/Field.tsx";
 import { cn } from "../../lib/cn.ts";
 import { useLocale } from "../../i18n/locale.ts";
 import type { BuildTimeline, TimelineAttempt, TimelineRequest, TimelineSegment } from "../../api/types.ts";
@@ -14,11 +15,14 @@ import {
   type Selection,
   clampPx,
   compact,
+  filterRows,
   fitPx,
   fitRange,
   ms,
+  rowWindow,
   sharesLine,
   ticksOf,
+  visibleRange,
   windowOf,
   zoomScroll,
 } from "./timelineLogic.ts";
@@ -210,7 +214,14 @@ export function Lanes({
   const { from, to } = windowOf(timeline);
   const span = (to - from) / 60_000;
   const [viewW, setViewW] = useState(0);
+  const [viewH, setViewH] = useState(0);
+  const [scroll, setScroll] = useState({ left: 0, top: 0 });
   const [zoom, setZoom] = useState<number | null>(null);
+  // Filter bar (Jaeger, Grafana, Honeycomb, GitHub Actions style): text, status toggles and the zoomed-to task.
+  const [text, setText] = useState("");
+  const [onlyRunning, setOnlyRunning] = useState(false);
+  const [onlyAttention, setOnlyAttention] = useState(false);
+  const [focusId, setFocusId] = useState<string | null>(null);
   const zoomRef = useRef<number | null>(null);
   const pendingScroll = useRef<number | null>(null);
   const pointers = useRef(new Map<number, number>());
@@ -227,30 +238,57 @@ export function Lanes({
   minNow.current = minPx;
   // What happened before the window starts is cut at its left edge.
   const x = (time: number) => Math.max(0, ((time - from) / 60_000) * pxPerMin);
-  const rows = timeline.requests;
+  const allRows = timeline.requests;
+  // Rows follow the visible range (and the filters); the row chosen in the Path stays so its path keeps a lane.
+  const focus = focusId && selection?.request === focusId ? focusId : null;
+  const chartPx = Math.max(0, viewW - LABEL_W);
+  const rows = filterRows(allRows, {
+    range: viewW > 0 ? visibleRange(from, scroll.left, chartPx, pxPerMin) : null,
+    text,
+    running: onlyRunning,
+    attention: onlyAttention,
+    needsYou,
+    pinned: selection?.request ?? null,
+    focus,
+  });
+  const hidden = allRows.length - rows.length;
+  // Only the rows in the vertical viewport are drawn: the lane stays cheap with thousands of tasks.
+  const win = rowWindow(rows.length, scroll.top, viewH || 384, ROW_H, HEAD_H);
+  const drawn = rows.slice(win.start, win.end);
   const height = HEAD_H + rows.length * ROW_H + MAIN_H;
   const clock = timeFormat(locale);
   const nowX = x(ms(timeline.now));
-  const requestKey = rows.map((r) => r.id).join();
+  const requestKey = allRows.map((r) => r.id).join();
 
-  // Start looking at the present: the right edge, where «now» is.
+  const syncScroll = useCallback(() => {
+    const el = scroller.current;
+    if (el) setScroll((s) => (s.left === el.scrollLeft && s.top === el.scrollTop ? s : { left: el.scrollLeft, top: el.scrollTop }));
+  }, []);
+
+  // Start looking at the present: the right edge, where «now» is, and the most recent rows at the top.
   // biome-ignore lint/correctness/useExhaustiveDependencies: only when the set of rows changes
   useEffect(() => {
     const el = scroller.current;
     if (el) {
       el.scrollLeft = el.scrollWidth;
-      el.scrollTop = el.scrollHeight;
+      el.scrollTop = 0;
+      syncScroll();
     }
   }, [requestKey]);
 
   useEffect(() => {
     const el = scroller.current;
     if (!el) return;
-    setViewW(el.clientWidth);
-    const ro = new ResizeObserver(() => setViewW(el.clientWidth));
+    const measure = () => {
+      setViewW(el.clientWidth);
+      setViewH(el.clientHeight);
+      syncScroll();
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [syncScroll]);
 
   // After a zoom, put the scroll where the anchored time stays under the pointer.
   useLayoutEffect(() => {
@@ -258,13 +296,15 @@ export function Lanes({
     if (el && pendingScroll.current !== null) {
       el.scrollLeft = pendingScroll.current;
       pendingScroll.current = null;
+      syncScroll();
     }
-  }, [pxPerMin]);
+  }, [pxPerMin, syncScroll]);
 
   /** Zoom to `next` px per minute keeping the time at `anchorX` (px from the chart's left edge) still. */
   const zoomTo = useCallback((next: number, anchorX: number) => {
     const el = scroller.current;
     if (!el) return;
+    setFocusId(null);
     const old = pxNow.current;
     const target = clampPx(next, minNow.current);
     if (target === old && zoomRef.current !== null) return;
@@ -275,23 +315,32 @@ export function Lanes({
   }, []);
 
   const centre = () => Math.max(0, (scroller.current?.clientWidth ?? 0) - LABEL_W) / 2;
-  const setRange = (range: { px: number; scrollLeft: number }) => {
+  const setRange = (range: { px: number; scrollLeft: number }, focusRow: string | null = null) => {
+    setFocusId(focusRow);
     pendingScroll.current = range.scrollLeft;
     pxNow.current = range.px;
     zoomRef.current = range.px;
     setZoom(range.px);
   };
   const fitAll = () => {
+    setFocusId(null);
     pendingScroll.current = 0;
     pxNow.current = minNow.current;
     zoomRef.current = minNow.current;
     setZoom(minNow.current);
   };
   const lastHours = (h: number) => setRange(fitRange(from, to - h * 3_600_000, to, availablePx, minPx));
-  const chosen = selection ? rows.find((r) => r.id === selection.request)?.attempts.find((a) => a.n === selection.attempt) : undefined;
-  const chosenRequest = selection ? rows.find((r) => r.id === selection.request) : undefined;
+  const chosenRequest = selection ? allRows.find((r) => r.id === selection.request) : undefined;
+  const chosen = chosenRequest?.attempts.find((a) => a.n === selection?.attempt);
+  // «Zoom to attempt» shows only that task (and the main line).
   const zoomAttempt = () => {
-    if (chosen) setRange(fitRange(from, Math.max(from, ms(chosen.start)), ms(chosen.end), availablePx, minPx));
+    if (chosen && chosenRequest) setRange(fitRange(from, Math.max(from, ms(chosen.start)), ms(chosen.end), availablePx, minPx), chosenRequest.id);
+  };
+  const showAll = () => {
+    setText("");
+    setOnlyRunning(false);
+    setOnlyAttention(false);
+    fitAll();
   };
 
   // Ctrl/⌘ + wheel (and a trackpad pinch, which arrives the same way) zooms around the pointer.
@@ -353,7 +402,7 @@ export function Lanes({
     e.preventDefault();
   };
 
-  if (rows.length === 0) return <p className="text-sm text-fg-2">{t.tlEmpty}</p>;
+  if (allRows.length === 0) return <p className="text-sm text-fg-2">{t.tlEmpty}</p>;
   return (
     <div className="flex flex-col gap-2" data-build-lanes>
       <div role="toolbar" aria-label={t.tlZoomTools} className="flex flex-wrap items-center gap-2" data-lanes-zoom>
@@ -377,8 +426,33 @@ export function Lanes({
           </Button>
         ) : null}
       </div>
+      <div role="toolbar" aria-label={t.tlFilterTools} className="flex flex-wrap items-center gap-2" data-lanes-filter>
+        <TextInput
+          type="search"
+          aria-label={t.tlFilterLabel}
+          placeholder={t.tlFilterPlaceholder}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          className="h-8 min-w-0 flex-1 basis-48 text-sm"
+        />
+        <Button size="sm" variant={onlyRunning ? "primary" : "secondary"} aria-pressed={onlyRunning} onClick={() => setOnlyRunning((v) => !v)}>
+          {t.tlFilterRunning}
+        </Button>
+        <Button size="sm" variant={onlyAttention ? "primary" : "secondary"} aria-pressed={onlyAttention} onClick={() => setOnlyAttention((v) => !v)}>
+          {t.tlFilterAttention}
+        </Button>
+      </div>
+      {hidden > 0 ? (
+        <p className="flex flex-wrap items-center gap-x-2 text-xs text-fg-3" role="status" data-lanes-count>
+          {t.tlShowing(rows.length, allRows.length)}
+          <Button size="sm" variant="quiet" onClick={showAll}>
+            {t.tlShowAll}
+          </Button>
+        </p>
+      ) : null}
       <div
         ref={scroller}
+        onScroll={syncScroll}
         onKeyDown={onKeyDown}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -390,8 +464,8 @@ export function Lanes({
         className="flex max-h-96 touch-pan-x touch-pan-y overflow-auto overscroll-x-contain rounded-xs focus-visible:outline-2 focus-visible:outline-focus"
       >
         <div className="sticky left-0 z-10 shrink-0 self-start bg-panel" style={{ width: LABEL_W }}>
-          <div style={{ height: HEAD_H }} />
-          {rows.map((r) => {
+          <div style={{ height: HEAD_H + win.start * ROW_H }} />
+          {drawn.map((r) => {
             const last = r.attempts[r.attempts.length - 1];
             const chosen = selection?.request === r.id;
             return (
@@ -417,6 +491,7 @@ export function Lanes({
               </button>
             );
           })}
+          <div style={{ height: (rows.length - win.end) * ROW_H }} />
           <div className="flex items-center font-code text-xs text-fg-3" style={{ height: MAIN_H }}>
             {t.tlMain}
           </div>
@@ -430,7 +505,9 @@ export function Lanes({
               </text>
             </g>
           ))}
-          {rows.map((r, row) => (
+          {drawn.map((r, i) => {
+            const row = win.start + i;
+            return (
             <g key={r.id}>
               <line
                 x1={0}
@@ -454,7 +531,8 @@ export function Lanes({
                 />
               ))}
             </g>
-          ))}
+            );
+          })}
           <line x1={0} x2={width} y1={HEAD_H + rows.length * ROW_H + MAIN_H / 2} y2={HEAD_H + rows.length * ROW_H + MAIN_H / 2} className="stroke-edge-strong" strokeWidth={1} />
           {timeline.merges.map((m) => {
             const mx = x(ms(m.at));
@@ -477,6 +555,7 @@ export function Lanes({
           </text>
         </svg>
       </div>
+      {rows.length === 0 ? <p className="text-sm text-fg-2">{t.tlNoRows}</p> : null}
       <Legend t={t} />
       <p className="text-xs text-fg-3">{t.tlNote(hours)}</p>
       <p className="text-xs text-fg-3">{t.tlZoomHint}</p>

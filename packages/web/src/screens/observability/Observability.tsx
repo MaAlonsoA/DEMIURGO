@@ -62,7 +62,7 @@ export function ObservabilityScreen() {
           <EmptyState title={t.emptyTitle}>{t.emptyBody}</EmptyState>
         ) : (
           <div className="flex flex-col gap-10">
-            <CalibrationSection jev={data.summary.calibration.by_jev} person={data.summary.calibration.by_person} />
+            <CalibrationSection jev={data.summary.calibration.by_jev} />
             <JudgmentsSection projectId={projectId} />
             <CostSection
               perTask={data.summary.cost.per_task}
@@ -123,12 +123,11 @@ function CalibrationTable({ title, calibration }: { title: string; calibration: 
   );
 }
 
-function CalibrationSection({ jev, person }: { jev: Calibration; person: Calibration }) {
+function CalibrationSection({ jev }: { jev: Calibration }) {
   const t = useMessages(OBSERVABILITY);
   return (
     <Section title={t.calibrationTitle} id="calibration" note={t.calibrationNote}>
       <CalibrationTable title={t.byJev} calibration={jev} />
-      <CalibrationTable title={t.byPerson} calibration={person} />
       <p className="text-xs text-fg-3">
         {t.correlationNote} {t.sizesNote}
       </p>
@@ -527,7 +526,7 @@ function AttemptsSection({ facts, projectId }: { facts: ExecutionFact[]; project
                 {t.outcome(f.outcome)}
                 {why ? <span className="ml-2 font-mono text-xs text-fg-3">{why}</span> : null}
               </td>
-              <td className={`${td} whitespace-nowrap`}>{t.sizePair(f.size_person ?? '—', f.size_jev ?? '—')}</td>
+              <td className={`${td} whitespace-nowrap`}>{f.size_jev ?? '—'}</td>
               <td className={numTd}>{num(locale, f.builder_minutes)}</td>
               <td className={numTd}>{num(locale, f.ci_minutes)}</td>
               <td className={numTd}>{num(locale, f.review_minutes)}</td>

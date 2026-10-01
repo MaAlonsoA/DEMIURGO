@@ -16,7 +16,6 @@ export const OBSERVABILITY = messages(
     calibrationTitle: 'Does the estimate predict the time?',
     calibrationNote: 'Merged tasks grouped by size. Lead time runs from the first start to the merge. Medians, because times are skewed.',
     byJev: "By Jev's size",
-    byPerson: "By the person's size",
     colSize: 'Size',
     colTasks: 'Tasks',
     colLead: 'Median lead time',
@@ -128,7 +127,6 @@ export const OBSERVABILITY = messages(
         cancelled: 'Cancelled',
         open: 'Open',
     } as Record<string, string>)[k] ?? k,
-    sizePair: (person: string, jev: string) => `${person} / ${jev}`,
     units: 'Times in minutes (min); tokens as k thousands; costs in US dollars.',
   },
   {
@@ -142,7 +140,6 @@ export const OBSERVABILITY = messages(
     calibrationTitle: '¿La estimación predice el tiempo?',
     calibrationNote: 'Tareas integradas agrupadas por tamaño. El plazo va del primer arranque a la integración. Medianas, porque los tiempos son asimétricos.',
     byJev: 'Por tamaño de Jev',
-    byPerson: 'Por tamaño de la persona',
     colSize: 'Tamaño',
     colTasks: 'Tareas',
     colLead: 'Plazo mediano',
@@ -249,7 +246,6 @@ export const OBSERVABILITY = messages(
         cancelled: 'Cancelado',
         open: 'Abierto',
     } as Record<string, string>)[k] ?? k,
-    sizePair: (person: string, jev: string) => `${person} / ${jev}`,
     units: 'Tiempos en minutos (min); tokens en miles (k); costes en dólares.',
   },
 );

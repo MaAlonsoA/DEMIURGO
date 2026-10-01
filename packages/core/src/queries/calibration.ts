@@ -153,7 +153,11 @@ export function calibrateSizes(rows: readonly SizeJudgmentRow[], bands: SizeBand
     });
   }
 
-  const scored = built.filter((r): r is typeof r & { score: number } => r.score !== null);
+  // Older opinions kept only the size: its level (XS 0 … XL 4) stands in for the expected score, which ranks the same way.
+  const scored = built.flatMap((r) => {
+    const score = r.score ?? (r.jev_size ? TASK_SIZES.indexOf(r.jev_size) : -1);
+    return score >= 0 ? [{ ...r, score }] : [];
+  });
   const withConfidence = judged.filter((j): j is typeof j & { actual: TaskSize; r: { confidence: number } } => j.actual !== null && j.r.confidence !== null);
   const buckets: ConfidenceBucket[] = BUCKETS.map((bucket) => {
     const g = withConfidence.filter((j) => bucketOf(j.r.confidence) === bucket);

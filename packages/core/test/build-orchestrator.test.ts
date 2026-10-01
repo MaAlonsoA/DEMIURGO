@@ -13,7 +13,7 @@ import { sql } from 'kysely';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createSimulatedProvider } from '../src/agents/simulated.ts';
 import { executeCommand } from '../src/bus/bus.ts';
-import { buildQueue, composeBrief, deliveryLine, reportLine } from '../src/build/queue.ts';
+import { CODE_SECTION_TITLE, buildQueue, composeBrief, deliveryLine, reportLine } from '../src/build/queue.ts';
 import { advanceBuildQueue, autoStatus, dependsOnBusy } from '../src/build/auto.ts';
 import type { TaskDependencyIndex } from '../src/queries/task-deps.ts';
 import { type BuildDeps, resetBuildDeps, setBuildDeps, waitForBuild } from '../src/build/orchestrator.ts';
@@ -32,6 +32,8 @@ process.env.DEMIURGO_PROJECTS_DIR = projects;
 process.env.DEMIURGO_PROJECTS_HOST_DIR = projects;
 process.env.DEMIURGO_GITHUB_TOKEN = 'test-token';
 process.env.DEMIURGO_GITHUB_OWNER = 'acme';
+// No real Jev call from the tests: the code ranking stays deterministic.
+delete process.env.TYPESAFE_API_KEY;
 
 const environment = useEnvironment({ durable: true, providers: () => [createSimulatedProvider()] });
 
@@ -334,13 +336,15 @@ describe('the build brief code map', () => {
       if (!exists) await db().insertInto('stages').values({ project_id: projectId, stage, position, exploration_id: thread.id, state: 'passed', opened_by: 'human:ana', passed_by: 'human:ana', passed_at: new Date() }).execute();
     }
     const brief = await composeBrief(db(), projectId, taskCode);
-    expect(brief).toContain('Code map (most relevant existing symbols at main; extend these instead of re-creating them):');
+    expect(brief).toContain(CODE_SECTION_TITLE);
+    expect(brief).not.toContain('Code map (');
+    expect(brief).not.toContain('Existing code to reuse');
     expect(brief).toContain('src/lib/shared.ts');
     expect(brief).toContain('Helper(input: string)');
     const saved = process.env.DEMIURGO_PROJECTS_DIR;
     delete process.env.DEMIURGO_PROJECTS_DIR;
     try {
-      expect(await composeBrief(db(), projectId, taskCode)).not.toContain('Code map (');
+      expect(await composeBrief(db(), projectId, taskCode)).not.toContain(CODE_SECTION_TITLE);
     } finally {
       process.env.DEMIURGO_PROJECTS_DIR = saved;
     }
@@ -392,6 +396,17 @@ describe('build.start', () => {
     expect(rows.some((s) => s.outcome === 'failed')).toBe(false);
     expect(rows.filter((s) => s.stage === 'ci' && s.outcome === 'waiting')).toHaveLength(1);
     expect(calls.prompts[0]).toContain(`# Brief\nBuild ${taskCode}`);
+    // «Code to extend» is computed by the builder stage on the branch it works on, kept in the step and per file.
+    expect(calls.prompts[0]).toContain(CODE_SECTION_TITLE);
+    const builderStep = rows.find((x) => x.stage === 'builder' && x.outcome === 'ok');
+    expect(builderStep?.detail).toMatchObject({ code_to_extend: { classifier_id: 'deterministic@code-map', files: expect.arrayContaining(['src/lib/shared.ts']) } });
+    const opinions = await db().selectFrom('task_code_opinions').selectAll().where('build_request_id', '=', requestId).orderBy('rank').execute();
+    expect(opinions.length).toBeGreaterThan(0);
+    expect(opinions[0]).toMatchObject({ attempt: 1, rank: 1, jev_p: null, classifier_id: 'deterministic@code-map' });
+    expect(opinions.map((o) => o.path)).toContain('src/lib/shared.ts');
+    expect(opinions.every((o, i) => o.rank === i + 1)).toBe(true);
+    // The queue's stored brief leaves the section out: it is computed again at each attempt.
+    expect(request.brief).not.toContain(CODE_SECTION_TITLE);
 
     const evidence = await db().selectFrom('evidence').selectAll().where('project_id', '=', projectId).where('pr_url', '=', 'https://github.com/acme/recipes/pull/7').execute();
     expect(evidence.length).toBeGreaterThanOrEqual(codes.length);
@@ -792,10 +807,13 @@ describe('a merged task and a withdrawn build', () => {
       setBuildDeps({
         ...fakes({ ciConclusion: 'success' }),
         runBuilder: async (_spec, options) => {
-          options?.signal?.addEventListener('abort', () => {
+          // Like the real runner: a withdrawal during the code map (before the builder starts) is seen too.
+          const onAbort = () => {
             aborted = true;
             release();
-          });
+          };
+          if (options?.signal?.aborted) onAbort();
+          else options?.signal?.addEventListener('abort', onAbort);
           await running;
           return { state: 'failure', exitCode: null, durationMs: 1, failureKind: 'cancelled', transcriptTail: '', report: null, container: 'fake' };
         },

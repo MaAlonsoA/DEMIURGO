@@ -54,6 +54,8 @@ import { BUILDER_MAX_TIME_MS, type BuildReport, runBuilder } from '../runner/bui
 import { databaseName, prepareEnvironment, projectSlug, teardownEnvironment } from '../runner/environment.ts';
 import { environmentFromCi } from './environment.ts';
 import { pullRequestFootprint } from './footprint.ts';
+import { storeCodeOpinions } from '../classifier/code-rerank.ts';
+import { codeToExtend } from './queue.ts';
 import type { Services } from '../services.ts';
 import { commitAll, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
 import { existsSync } from 'node:fs';
@@ -203,6 +205,7 @@ type Loaded = {
   taskCode: string;
   taskTitle: string;
   brief: string;
+  taskVersionId: string;
   branch: string | null;
   prNumber: number | null;
   prUrl: string | null;
@@ -217,6 +220,7 @@ async function load(s: Services, r: Run): Promise<Loaded> {
     .innerJoin('record_versions', 'record_versions.id', 'build_requests.task_version_id')
     .select([
       'build_requests.brief',
+      'build_requests.task_version_id',
       'build_requests.branch',
       'build_requests.pr_number',
       'build_requests.pr_url',
@@ -234,6 +238,7 @@ async function load(s: Services, r: Run): Promise<Loaded> {
     taskCode: q.code,
     taskTitle: q.title,
     brief: q.brief,
+    taskVersionId: q.task_version_id,
     branch: q.branch,
     prNumber: q.pr_number,
     prUrl: q.pr_url,
@@ -334,8 +339,9 @@ function promptOf(
   attempt: number,
   f: Feedback,
   design: { manifest: DesignManifest; manifestText: string; tokensText: string } | null = null,
+  code: string[] = [],
 ): string {
-  const lines = [body, '', '# Brief', brief, ...designSection(design)];
+  const lines = [body, '', '# Brief', brief, ...(code.length > 0 ? ['', ...code] : []), ...designSection(design)];
   if (attempt > 1 && (f.wip || f.conflicts.length > 0 || f.blocking.length > 0 || f.failing.length > 0 || f.design.length > 0 || f.flaky.length > 0)) {
     lines.push('', `# Feedback on the previous attempt (this is attempt ${attempt} on the same branch)`);
     if (f.wip) {
@@ -612,8 +618,12 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     if (problem || resolution.status !== 'ok') throw new DomainError('guard', problem ?? 'The builder has no engine.');
     const feedback = attempt > 1 ? { ...(await feedbackOf(s0, r)), conflicts: worktree.conflicts ?? [] } : NO_FEEDBACK;
     const designSystem = await designSystemOf(worktree.path).catch(() => null);
+    // Registered before anything slow, so a withdrawal can already abort this attempt.
     const control = new AbortController();
     builders.set(requestId, control);
+    // «Code to extend», computed on the branch this attempt works on (attempt 2 sees its own earlier work); what was shown is kept in the step and per file in task_code_opinions.
+    const code = await codeToExtend(s0.db, projectId, info.taskCode, { repoPath: worktree.path, ref: 'HEAD', versionId: info.taskVersionId });
+    await storeCodeOpinions(s0.db, { projectId, buildRequestId: requestId, attempt, versionId: info.taskVersionId }, code).catch(() => undefined);
     const result = await d.runBuilder(
       {
         worktreeHostPath: hostPathOf(worktree.path),
@@ -621,7 +631,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
         provider: resolution.provider as 'claude' | 'codex',
         model: resolution.model,
         effort: resolution.effort ?? 'medium',
-        prompt: promptOf(agent.body, info.brief, attempt, feedback, designSystem),
+        prompt: promptOf(agent.body, info.brief, attempt, feedback, designSystem, code.lines),
         maxTimeMs: Math.min(agent.timeLimitSeconds * 1000, BUILDER_MAX_TIME_MS),
         limits: { cpus: 2, memoryMb: 4096, pids: 512 },
         ...(prepared ? { network: prepared.network, storeVolume: prepared.storeVolume, env: prepared.env } : {}),
@@ -650,6 +660,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       duration_ms: result.durationMs,
       transcript_tail_length: result.transcriptTail.length,
       report: result.report,
+      ...(code.lines.length > 0 ? { code_to_extend: { commit: code.commit, files: code.files, classifier_id: code.classifier_id, section: code.lines.join('\n') } } : {}),
       ...(wip ? { wip_commit: wip.sha, wip_files: wip.files, ...(wip.pushError ? { wip_push_error: wip.pushError } : {}) } : {}),
       ...(twice ? { timed_out_twice: true, branch: worktree.branch } : {}),
       ...(kind ? { failure_kind: kind, transcript_excerpt: failureExcerpt({ stderr: result.stderrTail, transcript: result.transcriptTail }) } : {}),

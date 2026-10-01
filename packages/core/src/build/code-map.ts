@@ -27,8 +27,8 @@ const MAX_MAP_FILES = 4000;
 /** Maps kept in memory by commit (our convention). */
 const CACHE_SIZE = 8;
 
-export type ModuleKind = 'table' | 'route' | 'page' | 'component' | 'server_action' | 'server_module' | 'lib' | 'test' | 'config';
-export type SymbolKind = 'function' | 'component' | 'class' | 'const' | 'type' | 'interface' | 'enum' | 'default' | 'table' | 'model' | 'export';
+export type ModuleKind = 'style' | 'table' | 'route' | 'page' | 'component' | 'server_action' | 'server_module' | 'lib' | 'test' | 'config';
+export type SymbolKind = 'function' | 'component' | 'class' | 'const' | 'type' | 'interface' | 'enum' | 'default' | 'table' | 'model' | 'selector' | 'export';
 
 export type CodeSymbol = {
   name: string;
@@ -76,12 +76,16 @@ const SKIP_PATH = [
 
 const isCode = (p: string) => CODE_EXT.test(p);
 const isSql = (p: string) => p.endsWith('.sql');
+const isCss = (p: string) => p.endsWith('.css');
+/** Extensions dropped from a path before it is tokenized. */
+const PATH_EXT = /\.(ts|tsx|js|jsx|mjs|cjs|mts|cts|css)$/;
 const isPrisma = (p: string) => p.endsWith('.prisma');
 
 export function kindOfPath(path: string, source = ''): ModuleKind {
   const file = posix.basename(path);
   if (/(^|\/)(tests?|__tests__|e2e|cypress|playwright)\//.test(path) || /\.(test|spec)\.[a-z]+$/.test(file)) return 'test';
   if (isSql(path) || isPrisma(path)) return 'table';
+  if (isCss(path)) return 'style';
   if (/^(\.?[\w-]+\.)?config\.[a-z]+$/.test(file) || /^\.[\w-]*rc(\.[a-z]+)?$/.test(file) || /^(tsconfig|vite\.config|next\.config|tailwind\.config|postcss\.config|drizzle\.config|vitest\.config|playwright\.config|eslint\.config)/.test(file)) return 'config';
   if (/^route\.(ts|js|mjs)$/.test(file) || /(^|\/)pages\/api\//.test(path)) return 'route';
   if (/^(page|layout)\.(tsx|jsx|ts|js)$/.test(file) || (/(^|\/)pages\//.test(path) && /\.(tsx|jsx)$/.test(file))) return 'page';
@@ -265,6 +269,32 @@ export function extractPrisma(source: string): CodeSymbol[] {
   }));
 }
 
+/** Class selectors of a stylesheet (CSS modules export them as `styles.name`), in order, without duplicates. */
+export function extractCss(source: string): CodeSymbol[] {
+  const text = source.replace(/\/\*[\s\S]*?\*\//g, ' ');
+  const out: CodeSymbol[] = [];
+  const seen = new Set<string>();
+  let buf = '';
+  for (const c of text) {
+    if (c === '{') {
+      // What precedes a `{` is a selector (or an at-rule): attribute values and strings are not class names.
+      for (const m of buf.replace(/\[[^\]]*\]|"[^"]*"|'[^']*'/g, ' ').matchAll(/\.(-?[A-Za-z_][\w-]*)/g)) {
+        const name = m[1] as string;
+        if (!seen.has(name) && out.length < MAX_CSS_SYMBOLS) {
+          seen.add(name);
+          out.push({ name, kind: 'selector', exported: true, signature: `.${name}` });
+        }
+      }
+      buf = '';
+    } else if (c === '}' || c === ';') buf = '';
+    else buf += c;
+  }
+  return out;
+}
+
+/** Most class selectors kept per stylesheet (our convention). */
+const MAX_CSS_SYMBOLS = 40;
+
 /** Module specifiers a source file imports or requires. */
 export function importSpecifiers(source: string): string[] {
   const text = stripComments(source);
@@ -329,6 +359,7 @@ function moduleIdsOf(file: { path: string; kind: ModuleKind; symbols: CodeSymbol
     case 'server_action':
       return [`server_action:${file.path}`];
     case 'config':
+    case 'style':
     case 'test':
       return [`${file.kind}:${file.path}`];
     default:
@@ -388,18 +419,19 @@ export async function buildCodeMap(repoPath: string, commitish: string): Promise
     if (SKIP_PATH.some((re) => re.test(path))) continue;
     allPaths.add(path);
     if (path === 'tsconfig.json') tsconfigBlob = m[1] as string;
-    if (!isCode(path) && !isSql(path) && !isPrisma(path)) continue;
+    if (!isCode(path) && !isSql(path) && !isPrisma(path) && !isCss(path)) continue;
     if (Number(m[2]) > MAX_MAP_FILE_BYTES) continue;
     if (entries.length < MAX_MAP_FILES) entries.push({ path, blob: m[1] as string });
   }
   const blobs = await readBlobs(repoPath, [...new Set([...entries.map((e) => e.blob), ...(tsconfigBlob ? [tsconfigBlob] : [])])]);
   const aliases = aliasesOf(tsconfigBlob ? blobs.get(tsconfigBlob) : undefined);
-  const codePaths = new Set(entries.filter((e) => isCode(e.path)).map((e) => e.path));
+  // Stylesheets are import targets too (`import styles from './x.module.css'`).
+  const codePaths = new Set(entries.filter((e) => isCode(e.path) || isCss(e.path)).map((e) => e.path));
   const files: CodeFile[] = [];
   for (const { path, blob } of entries.sort((a, b) => (a.path < b.path ? -1 : 1))) {
     const source = blobs.get(blob) ?? '';
     const kind = kindOfPath(path, source);
-    const symbols = isSql(path) ? extractSql(source) : isPrisma(path) ? extractPrisma(source) : extractSymbols(path, source);
+    const symbols = isSql(path) ? extractSql(source) : isPrisma(path) ? extractPrisma(source) : isCss(path) ? extractCss(source) : extractSymbols(path, source);
     const imports = isCode(path)
       ? [...new Set(importSpecifiers(source).map((s) => resolveImport(path, s, codePaths, aliases)).filter((p): p is string => p !== null && p !== path))]
       : [];
@@ -473,6 +505,8 @@ const DAMPING = 0.85;
 const W_RELEVANCE = 1;
 const W_GRAPH = 0.5;
 const W_FOOTPRINT = 0.5;
+/** Most private symbols shown per file (our convention). */
+const MAX_PRIVATE_SYMBOLS = 3;
 
 function pageRank(paths: string[], edges: Array<[string, string]>, personalization: Map<string, number>): Map<string, number> {
   const n = paths.length;
@@ -509,7 +543,7 @@ export function rankCodeMap(map: CodeMap, query: string, options: RankOptions = 
     const bump = (text: string, w: number) => {
       for (const t of tokenize(text)) tf.set(t, (tf.get(t) ?? 0) + w);
     };
-    bump(f.path.replace(CODE_EXT, ''), 1);
+    bump(f.path.replace(PATH_EXT, ''), 1);
     if (f.route) bump(f.route, 1.5);
     for (const s of f.symbols) {
       bump(s.name, 2);
@@ -563,9 +597,13 @@ export function rankCodeMap(map: CodeMap, query: string, options: RankOptions = 
     const score = W_RELEVANCE * r + W_FOOTPRINT * f + W_GRAPH * g;
     if (score <= 0) continue;
     const matches = (s: CodeSymbol) => tokenize(s.name).some((t) => qTokens.includes(t));
+    // Exported symbols that match the task first, then the other exported ones, then a few private ones: private helpers must not crowd out the API (our convention).
+    const tier = (s: CodeSymbol) => (s.exported ? (matches(s) ? 0 : 1) : matches(s) ? 2 : 3);
+    let priv = 0;
     const symbols = [...d.symbols]
       .map((s, i) => ({ s, i }))
-      .sort((a, b) => Number(matches(b.s)) - Number(matches(a.s)) || Number(b.s.exported) - Number(a.s.exported) || a.i - b.i)
+      .sort((a, b) => tier(a.s) - tier(b.s) || a.i - b.i)
+      .filter(({ s }) => s.exported || priv++ < MAX_PRIVATE_SYMBOLS)
       .slice(0, maxSymbols)
       .sort((a, b) => a.i - b.i)
       .map(({ s }) => s);
@@ -589,6 +627,7 @@ export function rankCodeMap(map: CodeMap, query: string, options: RankOptions = 
 // Rendering
 
 const symbolLine = (s: CodeSymbol): string => {
+  if (s.kind === 'selector') return s.signature ?? `.${s.name}`;
   if (s.kind === 'table' || s.kind === 'model') {
     const cols = (s.columns ?? []).slice(0, 14).join(', ');
     return `${s.kind} ${s.name}(${cols}${(s.columns?.length ?? 0) > 14 ? ', …' : ''})`;
@@ -598,12 +637,13 @@ const symbolLine = (s: CodeSymbol): string => {
 };
 
 /** Aider-style compact text: a path, then its symbols indented, within a character budget. */
-export function renderCodeMap(ranked: readonly RankedFile[], budgetChars: number): string {
+export function renderCodeMap(ranked: readonly RankedFile[], budgetChars: number, notes?: ReadonlyMap<string, string>): string {
   const lines: string[] = [];
   let used = 0;
   for (const { file, symbols } of ranked) {
     const tag = file.route ? ` [${file.kind} ${file.route}]` : file.kind === 'lib' ? '' : ` [${file.kind}]`;
-    const head = `${file.path}${tag}`;
+    const note = notes?.get(file.path);
+    const head = `${file.path}${tag}${note ? ` (${note})` : ''}`;
     if (used + head.length + 1 > budgetChars) break;
     const block = [head];
     let size = head.length + 1;

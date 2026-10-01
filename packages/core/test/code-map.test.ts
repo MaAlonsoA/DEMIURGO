@@ -6,7 +6,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { buildCodeMap, codeMapLines, moduleOverlap, rankCodeMap, renderCodeMap, tokenize } from '../src/build/code-map.ts';
+import { buildCodeMap, codeMapLines, extractCss, moduleOverlap, rankCodeMap, renderCodeMap, tokenize } from '../src/build/code-map.ts';
+import { hotspotLine } from '../src/build/queue.ts';
 
 const root = mkdtempSync(join(tmpdir(), 'dmg-codemap-'));
 const sh = (...a: string[]) => execFileSync('git', ['-C', root, '-c', 'user.name=t', '-c', 'user.email=t@t', ...a], { encoding: 'utf8' }).trim();
@@ -26,6 +27,9 @@ beforeAll(() => {
   put('src/app/(app)/meals/[id]/page.tsx', "import { MealCard } from '@/components/MealCard';\nexport default function MealPage() {\n  return null;\n}\n");
   put('src/app/api/meals/route.ts', "import { planMeals } from '../../../lib/meal-plan';\nexport async function GET(req: Request) {}\nexport async function POST(req: Request) {}\n");
   put('src/app/actions.ts', "'use server';\nexport async function saveMeal(form: FormData) {}\n");
+  put('src/components/Tag.tsx', "import styles from './tag.module.css';\nexport function Tag() {\n  return styles.chip;\n}\n");
+  put('src/components/tag.module.css', '/* .ignored { } */\n.chip { color: red; }\n.chip:hover, .chip-active { color: blue; }\n@media (min-width: 1.5em) { .wide > a[href$=".pdf"] { margin: 0.5rem; } }\n');
+  put('src/lib/zebra-helpers.ts', 'export function zebraStripe() {}\nexport const ZEBRA = 1;\nfunction zebraA() {}\nfunction zebraB() {}\nfunction zebraC() {}\nfunction zebraD() {}\nfunction zebraE() {}\nconst zebraF = () => 1;\n');
   put('src/lib/unrelated-billing.ts', 'export function chargeCard(amount: number) {}\n');
   put('test/meal-plan.test.ts', "import { planMeals } from '../src/lib/meal-plan';\nexport const x = 1;\n");
   put('node_modules/dep/index.js', 'export function nope() {}\n');
@@ -76,6 +80,45 @@ describe('code map', () => {
     expect(map.byPath.get('src/app/(app)/meals/[id]/page.tsx')!.imports).toEqual(['src/components/MealCard.tsx']);
     expect(map.byPath.get('src/app/api/meals/route.ts')!.imports).toEqual(['src/lib/meal-plan.ts']);
     expect(map.edges).toContainEqual(['src/components/MealCard.tsx', 'src/lib/meal-plan.ts']);
+  });
+
+  it('indexes stylesheets as style files with their class selectors, and resolves the imports of them', async () => {
+    expect(extractCss('/* .no */\n.a, .b:hover { x: 0.5rem }\n@media (min-width: 1.5em) { .c > a[href$=".pdf"] { y: 1 } }\n.a { z: 1 }').map((s) => s.name)).toEqual(['a', 'b', 'c']);
+    const map = await buildCodeMap(root, 'main');
+    const css = map.byPath.get('src/components/tag.module.css')!;
+    expect(css.kind).toBe('style');
+    expect(css.symbols.map((s) => `${s.kind}:${s.name}`)).toEqual(['selector:chip', 'selector:chip-active', 'selector:wide']);
+    expect(map.byPath.get('src/components/Tag.tsx')!.imports).toEqual(['src/components/tag.module.css']);
+    expect(map.edges).toContainEqual(['src/components/Tag.tsx', 'src/components/tag.module.css']);
+    const ranked = rankCodeMap(map, 'chip tag');
+    expect(ranked.map((r) => r.file.path)).toContain('src/components/tag.module.css');
+    expect(renderCodeMap(ranked, 4000)).toContain('src/components/tag.module.css [style]\n  .chip');
+  });
+
+  it('shows exported and matching symbols first and at most three private ones', async () => {
+    const map = await buildCodeMap(root, 'main');
+    const file = rankCodeMap(map, 'zebra stripe').find((r) => r.file.path === 'src/lib/zebra-helpers.ts')!;
+    const names = file.symbols.map((s) => `${s.exported ? '' : '-'}${s.name}`);
+    expect(names.slice(0, 2)).toEqual(['zebraStripe', 'ZEBRA']);
+    expect(names.filter((n) => n.startsWith('-'))).toHaveLength(3);
+    expect(names).toHaveLength(5);
+  });
+
+  it('notes the task that built a file next to its path', async () => {
+    const map = await buildCodeMap(root, 'main');
+    const text = renderCodeMap(rankCodeMap(map, 'meals'), 4000, new Map([['src/lib/meal-plan.ts', 'built by TSK-A-001: Plan meals']]));
+    expect(text).toContain('src/lib/meal-plan.ts (built by TSK-A-001: Plan meals)\n');
+  });
+
+  it('names at most three hotspots, only the ones that many merged tasks changed', () => {
+    expect(hotspotLine([])).toBeNull();
+    expect(hotspotLine([{ path: 'a.ts', tasks: 2, of: 19 }])).toBeNull();
+    expect(hotspotLine([{ path: 'src/a.css', tasks: 9, of: 19 }, { path: 'src/b.tsx', tasks: 9, of: 19 }, { path: 'src/c.ts', tasks: 9, of: 19 }, { path: 'src/d.ts', tasks: 9, of: 19 }])).toBe(
+      'Hotspots: src/a.css, src/b.tsx and src/c.ts were changed by 9 of 19 merged tasks; keep your change there minimal and extract what you add.',
+    );
+    expect(hotspotLine([{ path: 'src/a.css', tasks: 9, of: 19 }, { path: 'src/b.tsx', tasks: 7, of: 19 }, { path: 'src/c.ts', tasks: 6, of: 19 }])).toBe(
+      'Hotspots: src/a.css (9 of 19 merged tasks), src/b.tsx (7 of 19 merged tasks) and src/c.ts (6 of 19 merged tasks) are changed by many tasks; keep your change there minimal and extract what you add.',
+    );
   });
 
   it('caches by commit sha', async () => {

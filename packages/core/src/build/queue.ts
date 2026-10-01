@@ -3,7 +3,9 @@
 // the open requests that went stale. Derived on read from the same readiness as the task board
 // (queries/read.ts): nothing is stored here.
 
+import { execFile } from "node:child_process";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import {
   DomainError,
   SIZE_POINTS,
@@ -24,8 +26,11 @@ import { loadTaskDependencies, waitedTaskCodes } from "../queries/task-deps.ts";
 import { projectsDir } from "../repo/repo.ts";
 import type { AutoStatus } from "./auto.ts";
 import { stageFailure } from "./failure.ts";
-import { codeMapLines } from "./code-map.ts";
+import { type CodeOpinion, RERANK_CANDIDATES, type RerankDeps, rerankCodeMap } from "../classifier/code-rerank.ts";
+import { loadTaskObject } from "../classifier/task-input.ts";
+import { BRIEF_MAP_CHARS, buildCodeMap, rankCodeMap, renderCodeMap } from "./code-map.ts";
 import { type TaskFootprint, isReusableFile, taskFootprints } from "./footprint.ts";
+import { hotspotsOf } from "./hotspots.ts";
 import { type TaskHold, openHolds } from "./holds.ts";
 
 type StateRow = Awaited<ReturnType<typeof productState>>["designs"][number];
@@ -88,6 +93,7 @@ export type BuildQueue = {
   auto?: AutoStatus;
 };
 
+const run = promisify(execFile);
 const DEFAULT_BRANCH = "main";
 
 /** Where the project's code and design live, as the brief names it. */
@@ -553,6 +559,115 @@ export function reuseLines(footprints: readonly TaskFootprint[], group: Readonly
     .map(({ f, t }) => `- ${f.path} (${t.code}: ${t.title})`);
 }
 
+export const CODE_SECTION_TITLE = "Code to extend (existing code most related to this task; extend it, do not create a parallel version):";
+
+/** A file is a hotspot worth a line in the brief from this share of the merged tasks (our convention). */
+export const BRIEF_HOTSPOT_SHARE = 0.3;
+/** Hotspots named in the brief (our convention). */
+const BRIEF_HOTSPOTS = 3;
+
+export type CodeToExtend = {
+  /** The brief's lines (the section title first); [] when there is no repository, no commit or nothing relevant. */
+  lines: string[];
+  /** Commit the map was read at. */
+  commit: string | null;
+  /** The files shown, in order. */
+  files: string[];
+  /** What was predicted for each candidate file (see `task_code_opinions`). */
+  opinions: CodeOpinion[];
+  classifier_id: string;
+  input_hash: string | null;
+};
+
+export type CodeToExtendOptions = {
+  /** Repository (or worktree) to read; null gives an empty section. */
+  repoPath: string | null;
+  /** Commit, branch or `HEAD` to read; by default origin/main, else main. */
+  ref?: string;
+  /** Jev reorders the candidates (default); false keeps the deterministic order. */
+  rerank?: boolean;
+  /** Product state already read by the caller. */
+  rows?: Rows;
+  /** The task version to read; default the current approved one. */
+  versionId?: string;
+  deps?: { rerank?: RerankDeps; hotspots?: (db: Db, projectId: string) => Promise<{ path: string; tasks: number; of: number }[]> };
+};
+
+const EMPTY_SECTION: CodeToExtend = { lines: [], commit: null, files: [], opinions: [], classifier_id: "deterministic@code-map", input_hash: null };
+
+async function defaultRef(repoPath: string): Promise<string> {
+  try {
+    await run("git", ["-c", "safe.directory=*", "-C", repoPath, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/main"]);
+    return "refs/remotes/origin/main";
+  } catch {
+    return "main";
+  }
+}
+
+/** The hotspot line of the brief: the files most merged tasks changed, when they are many (3 at most). */
+export function hotspotLine(hotspots: readonly { path: string; tasks: number; of: number }[]): string | null {
+  const top = hotspots.filter((h) => h.of > 0 && h.tasks / h.of >= BRIEF_HOTSPOT_SHARE).slice(0, BRIEF_HOTSPOTS);
+  if (top.length === 0) return null;
+  const join = (items: string[]) => (items.length === 1 ? items[0] : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`);
+  const tail = "keep your change there minimal and extract what you add.";
+  if (top.every((h) => h.tasks === top[0]!.tasks)) {
+    return `Hotspots: ${join(top.map((h) => h.path))} ${top.length === 1 ? "was" : "were"} changed by ${top[0]!.tasks} of ${top[0]!.of} merged tasks; ${tail}`;
+  }
+  return `Hotspots: ${join(top.map((h) => `${h.path} (${h.tasks} of ${h.of} merged tasks)`))} are changed by many tasks; ${tail}`;
+}
+
+/**
+ * The «Code to extend» section for a task: the files of the repository most related to it (code-map.ts,
+ * boosted by the files of the tasks around it), reordered by Jev when it is on (classifier/code-rerank.ts),
+ * each with the task that built it when its footprint says so, and the project's hotspots. Practice: Aider's
+ * repo map (aider.chat/docs/repomap.html) and hotspot analysis by change frequency (Tornhill, «Your Code as a
+ * Crime Scene»). Never throws: it is help, not a gate.
+ */
+export async function codeToExtend(db: Db, projectId: string, code: string, options: CodeToExtendOptions): Promise<CodeToExtend> {
+  if (!options.repoPath) return EMPTY_SECTION;
+  try {
+    let rows = options.rows;
+    if (!rows) {
+      const state = await productState(db, projectId);
+      const all = [...state.designs, ...state.decisions];
+      rows = { all, byCode: new Map(all.map((r) => [r.code, r])) };
+    }
+    const row = rows.byCode.get(code);
+    const versionId = options.versionId ?? row?.current_id;
+    const rec = await db.selectFrom("records").select("id").where("project_id", "=", projectId).where("code", "=", code).executeTakeFirst();
+    if (!row || !rec || !versionId) return EMPTY_SECTION;
+    const task = await loadTaskObject(db, rec.id, versionId);
+    if (!task) return EMPTY_SECTION;
+    const ctx = await reuseContext(db, projectId, code, rows);
+    const footprintFiles = ctx
+      ? ctx.footprints.filter((t) => ctx.group.has(t.code)).flatMap((t) => t.files.filter((f) => isReusableFile(f.path) && f.status !== "removed").map((f) => f.path))
+      : [];
+    const map = await buildCodeMap(options.repoPath, options.ref ?? (await defaultRef(options.repoPath)));
+    const candidates = rankCodeMap(map, taskQuery(task), { footprintFiles, limit: RERANK_CANDIDATES });
+    const reranked = await rerankCodeMap(candidates, options.rerank === false ? null : task, options.deps?.rerank);
+    const footprints = ctx?.footprints ?? (await taskFootprints(db, projectId));
+    const notes = new Map<string, string>();
+    for (const t of footprints) for (const f of t.files) if (f.status === "added" && !notes.has(f.path)) notes.set(f.path, `built by ${t.code}: ${t.title.slice(0, 60)}`);
+    const text = renderCodeMap(reranked.ranked, BRIEF_MAP_CHARS, notes);
+    if (text === "") return { ...EMPTY_SECTION, commit: map.commit };
+    const body = text.split("\n");
+    const hot = hotspotLine(await (options.deps?.hotspots ?? hotspotsOf)(db, projectId).catch(() => []));
+    return {
+      lines: [CODE_SECTION_TITLE, ...body, ...(hot ? [hot] : [])],
+      commit: map.commit,
+      files: body.filter((l) => !l.startsWith("  ")).map((l) => l.split(" ")[0] as string),
+      opinions: reranked.opinions,
+      classifier_id: reranked.classifier_id,
+      input_hash: reranked.input_hash,
+    };
+  } catch {
+    return EMPTY_SECTION;
+  }
+}
+
+/** The text the code map is ranked against: the task's title, Goal and the criteria it covers. */
+export const taskQuery = (task: { title: string; goal: string; acceptance_criteria: string[] }): string => [task.title, task.goal, ...task.acceptance_criteria].join("\n");
+
 /**
  * The build brief of a ready record (FDR-DEL-008, FDR-BUI-002): English plain text that starts with
  * "Build <code>", from its current approved version, with its size (a task), its criteria and checks,
@@ -565,7 +680,7 @@ export async function composeBrief(
   db: Db,
   projectId: string,
   code: string,
-  options: { forBuild?: boolean } = {},
+  options: { forBuild?: boolean; codeMap?: boolean } = {},
 ): Promise<string> {
   const state = await productState(db, projectId);
   const all = [...state.designs, ...state.decisions];
@@ -671,28 +786,10 @@ export async function composeBrief(
       ...related,
     );
   }
-  if (row.type === "task") {
-    const ctx = await reuseContext(db, projectId, row.code, rows);
-    const reuse = ctx ? reuseLines(ctx.footprints, ctx.group) : [];
-    if (reuse.length > 0) {
-      lines.push(
-        "Existing code to reuse (built by earlier tasks; extend it, do not create a parallel version):",
-        ...reuse,
-      );
-    }
-    // The symbols of the repository most related to this task (code-map.ts), ranked from its text and
-    // boosted by the files of the tasks around it. No repository, no commit or nothing relevant: no section.
-    const footprintFiles = ctx
-      ? ctx.footprints.filter((t) => ctx.group.has(t.code)).flatMap((t) => t.files.filter((f) => isReusableFile(f.path) && f.status !== "removed").map((f) => f.path))
-      : [];
-    const query = [version.title, goalOf(version.sections as { title: string; content: string }[]), ...shown.flatMap((c) => [c.title, c.statement, c.check_text])].join("\n");
-    const map = await codeMapLines(repo.path, query, footprintFiles);
-    if (map.length > 0) {
-      lines.push(
-        "Code map (most relevant existing symbols at main; extend these instead of re-creating them):",
-        ...map,
-      );
-    }
+  // «Code to extend»: the repository's code most related to the task, with who built it. The queue's
+  // brief leaves it out: the builder stage computes it again at each attempt, on the branch it works on.
+  if (row.type === "task" && options.codeMap !== false) {
+    lines.push(...(await codeToExtend(db, projectId, row.code, { repoPath: repo.path, rows, rerank: false })).lines);
   }
   lines.push(
     'Every criterion whose check is automatic needs a test whose title starts with the criterion code (for example "AC-XXX-001-01 ..."), so it can be traced.',

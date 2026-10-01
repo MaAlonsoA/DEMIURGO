@@ -453,6 +453,22 @@ export type TaskLayersOpinionsTable = {
   created_at: Generated<Timestamp>;
 };
 
+/** What «Code to extend» showed the builder: one row per candidate file of each attempt (derived, append-only). */
+export type TaskCodeOpinionsTable = {
+  id: Generated<string>;
+  project_id: string;
+  build_request_id: string;
+  attempt: number;
+  record_version_id: string;
+  path: string;
+  deterministic_score: number;
+  jev_p: number | null;
+  rank: number;
+  classifier_id: string;
+  input_hash: string | null;
+  created_at: Generated<Timestamp>;
+};
+
 /** "Keep <size>": a dispute dismissed against one opinion. */
 export type TaskSizeDismissalsTable = {
   id: Generated<string>;
@@ -826,6 +842,7 @@ export type DB = {
   task_size_dismissals: TaskSizeDismissalsTable;
   task_testability_opinions: TaskTestabilityOpinionsTable;
   task_layers_opinions: TaskLayersOpinionsTable;
+  task_code_opinions: TaskCodeOpinionsTable;
   project_repos: ProjectReposTable;
   project_github: ProjectGithubTable;
   build_queue_settings: BuildQueueSettingsTable;

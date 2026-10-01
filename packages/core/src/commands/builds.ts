@@ -175,6 +175,7 @@ registerHandlers({
       // ready with its reasons, and a built task is not built twice.
       const brief = await composeBrief(ctx.trx, ctx.projectId, task.code, {
         forBuild: true,
+        codeMap: false,
       });
       const feature = await ctx.trx
         .selectFrom("links")

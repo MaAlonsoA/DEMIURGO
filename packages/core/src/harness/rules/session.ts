@@ -26,7 +26,7 @@ import { commentsOf, isRepeat, orderedReviews, ownFilesOf } from './review.ts';
 const PIECE = 'B20';
 
 type Mode = 'resumed' | 'fresh';
-type AttemptSession = { attempt: number; mode: Mode; reason: string | null; reasonCode: string | null; steps: Row<'build_steps'>[] };
+type AttemptSession = { attempt: number; mode: Mode; reason: string | null; reasonCode: string | null; signal: string | null; jev: Json | null; steps: Row<'build_steps'>[] };
 
 /** The session of each attempt >= 2 that recorded one (the last builder step of the attempt that has it). */
 function sessionsOf(inputs: PostmortemInputs): AttemptSession[] {
@@ -40,7 +40,7 @@ function sessionsOf(inputs: PostmortemInputs): AttemptSession[] {
       if (session.mode === 'resumed' || session.mode === 'fresh') found = session;
     }
     if (!found) continue;
-    out.push({ attempt, mode: found.mode as Mode, reason: typeof found.reason === 'string' ? found.reason : null, reasonCode: typeof found.reason_code === 'string' ? found.reason_code : null, steps });
+    out.push({ attempt, mode: found.mode as Mode, reason: typeof found.reason === 'string' ? found.reason : null, reasonCode: typeof found.reason_code === 'string' ? found.reason_code : null, signal: typeof found.insisted_signal === 'string' ? found.insisted_signal : null, jev: Object.keys(asObject(found.jev)).length > 0 ? asObject(found.jev) : null, steps });
   }
   return out;
 }
@@ -157,6 +157,10 @@ const committedNothing = (inputs: PostmortemInputs, attempt: number): Row<'build
  * (`reason_code` = `insisted`): `tp` when that attempt changed the path of the comment (with no comment: merged) —
  * leaving the session was worth it; `fp` when it changed nothing either (the request was the problem, not the session);
  * `info` when no forced fresh session followed. `cost` rows hold the minutes and tokens of the empty attempt.
+ * Jev signals (`jev_repeated_finding`, `jev_stuck`, stored by the orchestrator as `session.insisted_signal` with the
+ * probabilities in `session.jev`) also make a resumed attempt positive when the next attempt was forced fresh by one;
+ * the evidence carries `signal` and `jev`, and `subject` is the signal when no repeated path names it, so the two
+ * Jev signals can be judged apart from the deterministic ones.
  */
 export const sessionInsisted: Rule = (inputs) => {
   const out: Finding[] = [];
@@ -166,10 +170,12 @@ export const sessionInsisted: Rule = (inputs) => {
     if (a.mode !== 'resumed') continue;
     const empty = committedNothing(inputs, a.attempt);
     const repeated = repeatedComments(inputs, a.attempt);
-    if (!empty && repeated.length === 0) continue;
     const next = sessions.find((s) => s.attempt === a.attempt + 1);
-    const base = { piece: PIECE, finding: 'session.insisted', attempt: a.attempt, subject: repeated[0]?.path || null } as const;
-    const ref = { build_step: a.steps.at(-1)?.id ?? null, empty_commit_step: empty?.id ?? null, repeated };
+    const jevSignal = next?.mode === 'fresh' && next.reasonCode === 'insisted' && next.signal !== null && next.signal.startsWith('jev_') ? next.signal : null;
+    if (!empty && repeated.length === 0 && !jevSignal) continue;
+    const signal = empty ? 'changed_nothing' : repeated.length > 0 ? 'repeated_finding' : jevSignal;
+    const base = { piece: PIECE, finding: 'session.insisted', attempt: a.attempt, subject: repeated[0]?.path || jevSignal || null } as const;
+    const ref = { build_step: a.steps.at(-1)?.id ?? null, empty_commit_step: empty?.id ?? null, repeated, signal, ...(next?.jev ? { jev: next.jev } : {}) };
     if (!next || next.mode !== 'fresh' || next.reasonCode !== 'insisted') {
       out.push({ ...base, class: 'info', value: null, unit: null, evidence: { ...ref, forced_fresh: false, next_attempt: next ? { attempt: next.attempt, mode: next.mode, reason_code: next.reasonCode } : null } });
     } else {

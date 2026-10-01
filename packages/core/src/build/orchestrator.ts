@@ -85,7 +85,7 @@ import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { accumulateProgress, commitMessageOf, ownProgress, SCREEN_MAX_BYTES, SCREENS_DIR, sameFileList, screensOf } from './progress.ts';
-import { insistedSignalBefore, insistedTwice, reviewerRepeated } from './insisted.ts';
+import { type InsistedJev, insistedSignalBefore, insistedTwice, reviewerRepeatedAny } from './insisted.ts';
 import { type BuilderSession, builderSessionPlan, sessionFilesExist } from './session.ts';
 import { basename, dirname, join } from 'node:path';
 import type { DockerExec } from '../runner/environment.ts';
@@ -286,7 +286,7 @@ type Feedback = { tdd?: string[]; blocking: string[]; fixes: string[]; failing: 
 
 const NO_FEEDBACK: Feedback = { blocking: [], fixes: [], failing: [], failures: [], design: [], ownership: [], flaky: [], conflicts: [] };
 
-type BuilderStepDetail = { provider?: string; model?: string; session?: { mode: 'fresh' | 'resumed'; id?: string; reason?: string; reason_code?: string }; failure_kind?: string; exit_code?: number | null; wip_commit?: string; wip_files?: string[]; timed_out_twice?: boolean; progress?: string; tdd?: TddDetail };
+type BuilderStepDetail = { provider?: string; model?: string; session?: { mode: 'fresh' | 'resumed'; id?: string; reason?: string; reason_code?: string; insisted_signal?: string; jev?: InsistedJev }; failure_kind?: string; exit_code?: number | null; wip_commit?: string; wip_files?: string[]; timed_out_twice?: boolean; progress?: string; tdd?: TddDetail };
 
 /** Characters of the builder's progress notes kept and handed to the next attempt (our convention). */
 const PROGRESS_MAX_CHARS = 4000;
@@ -308,7 +308,7 @@ async function failedBuilderStep(s: Services, requestId: string, attempt: number
 }
 
 /** The session plan of an attempt from the builder steps (ok or failed) of the earlier attempts of the request. */
-async function previousSessionPlan(s: Services, requestId: string, attempt: number, sessionDir: string, engine: { provider: string; model: string }): Promise<BuilderSession> {
+async function previousSessionPlan(s: Services, requestId: string, attempt: number, sessionDir: string, engine: { provider: string; model: string }): Promise<BuilderSession & { insisted_signal?: string; jev?: InsistedJev }> {
   if (attempt < 2) return builderSessionPlan([], engine);
   const rows = await s.db
     .selectFrom('build_steps')
@@ -329,12 +329,14 @@ async function previousSessionPlan(s: Services, requestId: string, attempt: numb
   let end = ran.length;
   while (end > 1 && !exists[end - 1] && exists.slice(0, end - 1).some(Boolean)) end--;
   // An attempt that went round in circles (a commit that changed nothing, the same blocking finding twice) does not continue its session.
-  const insisted = (await insistedSignalBefore(s.db, requestId, attempt).catch(() => null)) !== null;
-  return builderSessionPlan(
+  const decision = await insistedSignalBefore(s, requestId, attempt).catch(() => ({ signal: null }) as { signal: null; jev?: InsistedJev });
+  const plan = builderSessionPlan(
     ran.slice(0, end).map((x, i) => ({ provider: x.provider, model: x.model, session: x.session, filesExist: i === end - 1 && exists[i] === true })),
     engine,
-    insisted,
+    decision.signal !== null,
   );
+  // What decided it goes to the step detail (the B20 rule splits the forced fresh sessions by signal).
+  return { ...plan, ...(plan.reason_code === 'insisted' && decision.signal ? { insisted_signal: decision.signal } : {}), ...(decision.jev ? { jev: decision.jev } : {}) };
 }
 
 /** The notes of every earlier attempt of the request (the latest builder step of each, ok or failed), restored into the worktree as `.demiurgo/progress.md`. */
@@ -1114,7 +1116,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       provider: resolution.provider,
       model: resolution.model,
       engine: buildEngineMark({ provider: resolution.provider, model: resolution.model, modelReported: result.modelReported ?? null, cliVersion: result.cliVersion ?? (await cliVersionOf(resolution.provider)) }),
-      session: { mode: plan.mode, ...(result.sessionId ?? sessionId ? { id: result.sessionId ?? sessionId } : {}), reason: plan.reason, reason_code: plan.reason_code },
+      session: { mode: plan.mode, ...(result.sessionId ?? sessionId ? { id: result.sessionId ?? sessionId } : {}), reason: plan.reason, reason_code: plan.reason_code, ...(plan.insisted_signal ? { insisted_signal: plan.insisted_signal } : {}), ...(plan.jev ? { jev: plan.jev } : {}) },
       exit_code: result.exitCode,
       ...(result.reattached ? { reattached: true } : {}),
       duration_ms: result.durationMs,
@@ -1662,7 +1664,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       // A cheap round (approved with fixes, no new review) always follows up and does not count against the limit.
       // This attempt insisted again (the reviewer repeated a blocking finding) after one that already started fresh for it:
       // another round would be the same one, so it is left to the person (convención nuestra, see insisted.ts).
-      const insisting = current && opts.blocking > 0 ? await reviewerRepeated(s0.db, requestId) : false;
+      const insisting = current && opts.blocking > 0 ? await reviewerRepeatedAny(s0, requestId) : false;
       const builderStep = insisting
         ? await s0.db
             .selectFrom('build_steps')

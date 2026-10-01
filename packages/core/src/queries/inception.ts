@@ -135,11 +135,23 @@ export async function inceptionOf(
       .where("project_id", "=", projectId)
       .executeTakeFirst()) !== undefined;
 
-  // A task is built when every criterion of its current version has evidence.
+  // A task is built when its pull request was merged (its build request is done: VISION.md, «si lo
+  // aprueba y todas las comprobaciones pasan, el pull request se fusiona y la tarea queda hecha»), or
+  // when every criterion of its current version has evidence (a task built outside).
+  const merged = new Set(
+    (
+      await db
+        .selectFrom("build_requests")
+        .select("task_id")
+        .where("project_id", "=", projectId)
+        .where("state", "=", "done")
+        .execute()
+    ).map((b) => b.task_id),
+  );
   let builtTasks = 0;
   let nextTask: string | null = null;
   for (const t of ofType("task").filter((r) => r.approved)) {
-    if ((await implementationOf(db, t.id)) === "implemented") {
+    if (merged.has(t.id) || (await implementationOf(db, t.id)) === "implemented") {
       builtTasks++;
       continue;
     }

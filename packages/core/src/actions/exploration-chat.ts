@@ -30,6 +30,7 @@ import type { Db, Tx } from '../db/connection.ts';
 import { registerApplier, registerChecker } from './appliers.ts';
 import { designThreadOf } from './drafting.ts';
 import { taskCoversOf } from '../queries/sizes.ts';
+import { upstreamChangeOf } from './upstream-change.ts';
 import { screensOfFeatureVersion } from '../design/screens.ts';
 import { revealQuestions } from '../commands/exploration.ts';
 import { knownQualityRequirements, qualityAttributeOf, sameQualityAttribute } from './nfr-dedupe.ts';
@@ -316,6 +317,9 @@ export async function explorationPack({ trx, projectId, scope, input, graphVersi
           : {}),
       }
     : null;
+  // A review of a suspect record: what its upstream record changed between the version it rests on and the
+  // current one, so the thread compares the record against that change.
+  const upstreamChange = about ? await upstreamChangeOf(trx, projectId, { recordId: about.recordId, code: about.code }, exploration.purpose) : null;
   // A feature thread (`Design "<name>" (FDR-…, EPC-…): …`): the planned feature it designs, while it is planned.
   const plannedCode = /\bFDR-[A-Z]{3}-\d{3}\b/.exec(exploration.purpose)?.[0];
   const planned = plannedCode ? await plannedFeatureByCode(trx, projectId, plannedCode) : undefined;
@@ -357,6 +361,13 @@ export async function explorationPack({ trx, projectId, scope, input, graphVersi
       source: source('exploration', exploration.id),
       text: JSON.stringify(settledAnswers),
       reason: 'confirmed in other threads',
+    });
+  if (upstreamChange)
+    manifest.entered({
+      section: 'upstream_change',
+      source: source('record_version', about?.id ?? '', about?.n),
+      text: JSON.stringify(upstreamChange),
+      reason: 'suspect review',
     });
   if (about && aboutRecord)
     manifest.entered({
@@ -618,6 +629,7 @@ export async function explorationPack({ trx, projectId, scope, input, graphVersi
         // Opened just now from a proposal: nobody has written yet, DEMIURGO takes the first turn.
         ...(input.thread_opened === true ? { thread_just_opened: true } : {}),
         ...(aboutRecord ? { about_record: aboutRecord } : {}),
+        ...(upstreamChange ? { upstream_change: upstreamChange } : {}),
         ...(plannedFeature ? { planned_feature: plannedFeature } : {}),
         ...(designSystem ? { design_system: designSystem } : {}),
         ...(settledAnswers.length > 0 ? { settled_answers: settledAnswers } : {}),

@@ -33,7 +33,9 @@ export function projectsDir(): string | null {
   return process.env.DEMIURGO_PROJECTS_DIR?.trim() || null;
 }
 
-const git = (dir: string, args: string[]) => run('git', ['-C', dir, ...args], { maxBuffer: 16 * 1024 * 1024 });
+// The repositories under /projects are DEMIURGO's own: git must not refuse them for ownership
+// ("dubious ownership" after an image or volume change stopped a build).
+const git = (dir: string, args: string[]) => run('git', ['-c', 'safe.directory=*', '-C', dir, ...args], { maxBuffer: 16 * 1024 * 1024 });
 
 const slug = (name: string) =>
   name

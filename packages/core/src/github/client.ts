@@ -115,7 +115,8 @@ export function redactConfigured(text: string): string {
 /** Runs git in `dir`; `network` calls carry the GitHub credential and their errors are scrubbed of it. */
 export async function runGit(dir: string, args: string[], opts: { network?: boolean } = {}): Promise<string> {
   try {
-    const { stdout } = await run('git', ['-C', dir, ...args], {
+    // DEMIURGO's own repositories: never refused for ownership (see build/workspace.ts).
+    const { stdout } = await run('git', ['-c', 'safe.directory=*', '-C', dir, ...args], {
       maxBuffer: 16 * 1024 * 1024,
       env: { ...process.env, GIT_TERMINAL_PROMPT: '0', ...(opts.network ? gitAuthEnv() : {}) },
     });

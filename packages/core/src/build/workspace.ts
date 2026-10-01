@@ -11,7 +11,9 @@ import { projectsDir } from '../repo/repo.ts';
 import { runGit } from '../github/client.ts';
 
 const run = promisify(execFile);
-const git = (dir: string, args: string[]) => run('git', ['-C', dir, ...args], { maxBuffer: 16 * 1024 * 1024 });
+// The repositories under /projects are DEMIURGO's own: git must not refuse them for ownership
+// ("dubious ownership" after an image or volume change stopped a build).
+const git = (dir: string, args: string[]) => run('git', ['-c', 'safe.directory=*', '-C', dir, ...args], { maxBuffer: 16 * 1024 * 1024 });
 
 export const BUILDER_AUTHOR = 'DEMIURGO builder <builder@demiurgo.local>';
 

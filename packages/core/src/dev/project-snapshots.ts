@@ -24,7 +24,9 @@ export const PROJECT_SNAPSHOT_PREFIX = 'dmg_psnap_';
 const CHUNK = 2000;
 const id = escapeIdentifier;
 const run = promisify(execFile);
-const git = (dir: string, args: string[]) => run('git', ['-C', dir, ...args], { maxBuffer: 16 * 1024 * 1024 });
+// The repositories under /projects are DEMIURGO's own: git must not refuse them for ownership
+// ("dubious ownership" after an image or volume change stopped a build).
+const git = (dir: string, args: string[]) => run('git', ['-c', 'safe.directory=*', '-C', dir, ...args], { maxBuffer: 16 * 1024 * 1024 });
 
 /** Work in progress that blocks a restore or a delete: runs not finished, build requests still open. */
 const OPEN_RUN_STATES = ['queued', 'running'];

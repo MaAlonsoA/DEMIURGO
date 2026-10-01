@@ -6,6 +6,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
+import { DESIGN_SYSTEM_PURPOSE } from '../../../../domain/src/public-design-systems.ts';
 import { type ReactNode, useLayoutEffect, useRef, useState } from 'react';
 import { useCommand } from '../../api/commands.ts';
 import { entityEventsQuery, explorationQuery } from '../../api/queries.ts';
@@ -33,7 +34,9 @@ import { demiurgoReplied, isOpenQuestion, visibleQuestions } from './answers.ts'
 import { HEADER } from './words.i18n.ts';
 
 /** The aspects the person's messages are about, most talked about first (Jev, when it is fairly sure). */
-export function talkedAspects(messages: ExplorationDetail['messages']): Aspect[] {
+export function talkedAspects(messages: ExplorationDetail['messages'], purpose?: string): Aspect[] {
+  // A design-system thread is about the design system, whatever the classifier makes of each message.
+  if (purpose?.startsWith(`${DESIGN_SYSTEM_PURPOSE}:`)) return ['design_system'];
   const counts = new Map<Aspect, number>();
   for (const m of messages) {
     if (!m.author.startsWith('human:') || !isAspect(m.aspect) || (m.aspect_confidence ?? 0) < 0.55) continue;
@@ -42,9 +45,9 @@ export function talkedAspects(messages: ExplorationDetail['messages']): Aspect[]
   return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([a]) => a);
 }
 
-function TalkedAbout({ messages }: { messages: ExplorationDetail['messages'] }) {
+function TalkedAbout({ messages, purpose }: { messages: ExplorationDetail['messages']; purpose: string }) {
   const words = useMessages(HEADER);
-  const aspects = talkedAspects(messages);
+  const aspects = talkedAspects(messages, purpose);
   if (aspects.length === 0) return null;
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5" data-talked-about>
@@ -143,7 +146,7 @@ export function ThreadHeader({
             ) : null}
             {reading.mark ? <span className="basis-full">{reading.mark}</span> : null}
             <Provenance projectId={projectId} thread={t} parent={parent} threads={threads} products={products} />
-            <TalkedAbout messages={t.messages} />
+            <TalkedAbout messages={t.messages} purpose={t.purpose} />
           </>
         }
         actions={

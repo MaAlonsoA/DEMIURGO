@@ -346,6 +346,16 @@ export async function explorationPack({ trx, projectId, scope, input, graphVersi
       text: JSON.stringify(designSystem),
       reason: 'thread purpose',
     });
+  // What the person already settled in other threads (e.g. «Help me choose» compared the systems and
+  // asked about personality and motion): the design-system thread confirms it in one line, never asks it again.
+  const settledAnswers = designSystem ? await settledAnswersOf(trx, projectId, exploration.id) : [];
+  if (settledAnswers.length > 0)
+    manifest.entered({
+      section: 'settled_answers',
+      source: source('exploration', exploration.id),
+      text: JSON.stringify(settledAnswers),
+      reason: 'confirmed in other threads',
+    });
   if (about && aboutRecord)
     manifest.entered({
       section: 'about_record',
@@ -605,6 +615,7 @@ export async function explorationPack({ trx, projectId, scope, input, graphVersi
         ...(aboutRecord ? { about_record: aboutRecord } : {}),
         ...(plannedFeature ? { planned_feature: plannedFeature } : {}),
         ...(designSystem ? { design_system: designSystem } : {}),
+        ...(settledAnswers.length > 0 ? { settled_answers: settledAnswers } : {}),
         ...(featureTasks ? { feature_tasks: featureTasks } : {}),
         ...(productDefinitionDraft ? { product_definition_draft: productDefinitionDraft } : {}),
         confirmed_decisions: decisionsSummary,
@@ -1265,3 +1276,23 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
     }
   }
 });
+
+/**
+ * The questions the person confirmed in the project's other threads outside the onboarding stages
+ * (those are already in the product definition), newest first, with their answer. A design-system
+ * thread receives them as `settled_answers`.
+ */
+export async function settledAnswersOf(db: Db | Tx, projectId: string, explorationId: string) {
+  const rows = await db
+    .selectFrom('questions')
+    .select(['question', 'conclusion'])
+    .where('project_id', '=', projectId)
+    .where('state', '=', 'confirmed')
+    .where('stage_key', 'is', null)
+    .where('exploration_id', '<>', explorationId)
+    .where('conclusion', 'is not', null)
+    .orderBy('created_at', 'desc')
+    .limit(20)
+    .execute();
+  return rows.map((r) => ({ question: r.question, answer: r.conclusion ?? '' }));
+}

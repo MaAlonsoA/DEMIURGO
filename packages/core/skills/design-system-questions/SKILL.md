@@ -4,6 +4,8 @@ description: The principle questions of a design-system thread, and when it has 
 ---
 A design-system thread is one whose `purpose` starts with `Design system:` (`Design system: start from <name>` or `Design system: from scratch`); the context has `design_system` with the same path. Keep that start if you rewrite `purpose`: the system finds the thread by it. In this thread you do not propose decisions, records or threads.
 
+`settled_answers` (when present) are questions the person already confirmed in other threads, for example «Help me choose», which compares the public systems and asks about personality or motion. Never ask again what they settle: confirm it in one line in `reply` («You said X, I take it as the answer to Y») and move to what is still open. Only reopen one if the person contradicts it.
+
 Start from the principles, before any visual choice (Alla Kholmatova, *Design Systems*: principles come first and the visual language follows from them). Ask one or two questions per reply, with `options`, never as a form, and never one the conversation or the product definition already answers (infer it instead):
 
 1. Who is it for: who uses the product and in what situation (drawn from `product_definition` when it says).

@@ -15,10 +15,10 @@ import type { EventRow } from './types.ts';
  * lens' `changes` follow what they are built from (they were never live before the rebuild).
  */
 export const INVALIDATES: Record<string, string[]> = {
-  proposal: ['inbox', 'batch', 'state', 'record', 'readiness', 'changes'],
-  batch: ['inbox', 'batch', 'state', 'runs', 'changes'],
+  proposal: ['inbox', 'batch', 'state', 'stages', 'record', 'readiness', 'changes'],
+  batch: ['inbox', 'batch', 'state', 'stages', 'runs', 'changes'],
   record: ['record', 'state', 'map', 'journeys', 'changes'],
-  record_version: ['record', 'readiness', 'state', 'inbox', 'map', 'journeys', 'changes', 'build'],
+  record_version: ['record', 'readiness', 'state', 'stages', 'inbox', 'map', 'journeys', 'changes', 'build'],
   criterion: ['record', 'journeys', 'changes'],
   link: ['record', 'readiness', 'inbox', 'state', 'map', 'changes'],
   question: ['exploration', 'inbox', 'state', 'readiness', 'explorations', 'stages', 'map', 'journeys', 'changes'],
@@ -39,12 +39,21 @@ export const INVALIDATES: Record<string, string[]> = {
   planned_feature: ['record', 'state', 'definition', 'map', 'journeys', 'changes'],
   task: ['record', 'state', 'changes'],
   evidence: ['record', 'readiness', 'state', 'changes', 'build'],
-  build_request: ['build', 'changes'],
+  build_request: ['build', 'state', 'changes'],
   acceptance_check: ['record', 'readiness', 'changes'],
   glossary_term: ['glossary', 'translation', 'changes'],
   change_set: ['commits', 'record', 'state', 'changes'],
   work_step: ['commits', 'changes'],
 };
+
+/**
+ * The queries an event of this entity refreshes. The inception path («Getting to the first build») is
+ * part of the `state` query, so every entity it is read from must list `state`; an entity this table
+ * does not know refreshes `state` too, rather than leaving the path stale until a reload.
+ */
+export function invalidatedBy(entityType: string): string[] {
+  return INVALIDATES[entityType] ?? ['state'];
+}
 
 /** Entities whose events also refresh queries outside the project (the projects list). */
 const GLOBAL_INVALIDATES: Record<string, string[][]> = {
@@ -164,7 +173,7 @@ export function useProjectStream(projectId: string): void {
     const onEvent = (e: Event) => {
       const row = JSON.parse((e as MessageEvent<string>).data) as EventRow;
       setLatest(projectId, row.id);
-      for (const name of INVALIDATES[row.entity_type] ?? []) pending.add(name);
+      for (const name of invalidatedBy(row.entity_type)) pending.add(name);
       for (const key of GLOBAL_INVALIDATES[row.entity_type] ?? []) globals.add(JSON.stringify(key));
       if (!timer) timer = setTimeout(flush, 60);
       for (const l of listeners) l(row);

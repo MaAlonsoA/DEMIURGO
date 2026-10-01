@@ -15,6 +15,7 @@
 //   node packages/api/src/cli.ts evidence-junit <projectId> <file.xml> [--pr <url>] [--ref <sha>]   (posts CI results to the running API; token in DEMIURGO_AGENT_TOKEN, URL in DEMIURGO_URL or http://127.0.0.1:8100)
 //   node packages/api/src/cli.ts import-design <projectId> [dir]                (creates the H1 pending batch)
 //   node packages/api/src/cli.ts build-footprint-backfill --project <projectId>   (records the merge commit and files of merged tasks that lack them; needs GitHub env)
+//   node packages/api/src/cli.ts code-map --project <projectId> [--query "text"] [--ref main] [--budget 6000]   (prints the ranked code map of the project's repository; read-only)
 //   node packages/api/src/cli.ts testability-backfill --project <projectId>       (Jev's testability opinion for task versions that have none; needs TYPESAFE_API_KEY)
 //   node packages/api/src/cli.ts export-design <projectId> [--check dir | --out dir | dir]
 
@@ -56,6 +57,11 @@ import {
   pullRequestFootprint,
   taskFootprints,
   classifyTaskTestability,
+  repositoryOf,
+  buildCodeMap,
+  rankCodeMap,
+  renderCodeMap,
+  BRIEF_MAP_CHARS,
 } from '@demiurgo/core';
 import { readTree, replaceTree } from '@demiurgo/design';
 import { type Actor, formatActor, human, system } from '@demiurgo/domain';
@@ -468,6 +474,26 @@ commands['export-design'] = async () => {
     console.log(`Exported ${tree.size} file(s) to ${target}/.`);
     for (const r of removed) console.log(`  removed ${r}: no longer in v2.`);
   });
+};
+
+commands['code-map'] = async () => {
+  const flag = (name: string) => {
+    const i = args.indexOf(name);
+    return i >= 0 ? args[i + 1] : undefined;
+  };
+  const projectId = flag('--project');
+  if (!projectId) throw new Error('Usage: code-map --project <projectId> [--query "text"] [--ref main] [--budget 6000]');
+  // Read-only: no migration is run here.
+  const c = connect(config.databaseUrl);
+  try {
+    const repo = await repositoryOf(c.db, projectId);
+    if (!repo.path) throw new Error('The project has no repository (DEMIURGO_PROJECTS_DIR).');
+    const map = await buildCodeMap(repo.path, flag('--ref') ?? repo.branch);
+    console.log(`# ${map.files.length} files, ${map.modules.size} modules, ${map.tables.size} tables, ${map.edges.length} imports at ${map.commit.slice(0, 8)}`);
+    console.log(renderCodeMap(rankCodeMap(map, flag('--query') ?? ''), Number(flag('--budget') ?? BRIEF_MAP_CHARS)));
+  } finally {
+    await c.close();
+  }
 };
 
 commands['build-footprint-backfill'] = async () => {

@@ -24,6 +24,7 @@ import { loadTaskDependencies, waitedTaskCodes } from "../queries/task-deps.ts";
 import { projectsDir } from "../repo/repo.ts";
 import type { AutoStatus } from "./auto.ts";
 import { stageFailure } from "./failure.ts";
+import { codeMapLines } from "./code-map.ts";
 import { type TaskFootprint, isReusableFile, taskFootprints } from "./footprint.ts";
 import { type TaskHold, openHolds } from "./holds.ts";
 
@@ -517,10 +518,16 @@ async function relatedCodes(db: Db, projectId: string, code: string): Promise<st
  * tasks of its own feature, then of tasks linked by `related`; inside each, the most touched first.
  */
 export async function existingCodeLines(db: Db, projectId: string, code: string, rows: Rows): Promise<string[]> {
+  const ctx = await reuseContext(db, projectId, code, rows);
+  return ctx ? reuseLines(ctx.footprints, ctx.group) : [];
+}
+
+/** The footprints and the priority group of each task around `code` (see existingCodeLines); null without footprints. */
+async function reuseContext(db: Db, projectId: string, code: string, rows: Rows): Promise<{ footprints: TaskFootprint[]; group: Map<string, number> } | null> {
   const footprints = await taskFootprints(db, projectId);
-  if (footprints.length === 0) return [];
+  if (footprints.length === 0) return null;
   const row = rows.byCode.get(code);
-  if (!row) return [];
+  if (!row) return null;
   const deps = await loadTaskDependencies(db, projectId);
   const feature = row.based_on;
   const group = new Map<string, number>();
@@ -531,7 +538,7 @@ export async function existingCodeLines(db: Db, projectId: string, code: string,
   for (const f of deps.features.get(code) ?? []) for (const c of deps.featureTasks.get(f) ?? []) put(c, 0);
   if (feature) for (const r of rows.all) if (r.type === "task" && r.based_on === feature) put(r.code, 1);
   for (const c of await relatedCodes(db, projectId, code)) put(c, 2);
-  return reuseLines(footprints, group);
+  return { footprints, group };
 }
 
 /** The lines of «Existing code to reuse»: pure, so it is tested without a project. `group` maps a task code to its priority (0 first). */
@@ -665,11 +672,25 @@ export async function composeBrief(
     );
   }
   if (row.type === "task") {
-    const reuse = await existingCodeLines(db, projectId, row.code, rows);
+    const ctx = await reuseContext(db, projectId, row.code, rows);
+    const reuse = ctx ? reuseLines(ctx.footprints, ctx.group) : [];
     if (reuse.length > 0) {
       lines.push(
         "Existing code to reuse (built by earlier tasks; extend it, do not create a parallel version):",
         ...reuse,
+      );
+    }
+    // The symbols of the repository most related to this task (code-map.ts), ranked from its text and
+    // boosted by the files of the tasks around it. No repository, no commit or nothing relevant: no section.
+    const footprintFiles = ctx
+      ? ctx.footprints.filter((t) => ctx.group.has(t.code)).flatMap((t) => t.files.filter((f) => isReusableFile(f.path) && f.status !== "removed").map((f) => f.path))
+      : [];
+    const query = [version.title, goalOf(version.sections as { title: string; content: string }[]), ...shown.flatMap((c) => [c.title, c.statement, c.check_text])].join("\n");
+    const map = await codeMapLines(repo.path, query, footprintFiles);
+    if (map.length > 0) {
+      lines.push(
+        "Code map (most relevant existing symbols at main; extend these instead of re-creating them):",
+        ...map,
       );
     }
   }

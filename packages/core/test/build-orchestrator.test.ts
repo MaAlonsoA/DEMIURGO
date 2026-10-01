@@ -13,7 +13,7 @@ import { sql } from 'kysely';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createSimulatedProvider } from '../src/agents/simulated.ts';
 import { executeCommand } from '../src/bus/bus.ts';
-import { buildQueue, deliveryLine, reportLine } from '../src/build/queue.ts';
+import { buildQueue, composeBrief, deliveryLine, reportLine } from '../src/build/queue.ts';
 import { advanceBuildQueue, autoStatus, dependsOnBusy } from '../src/build/auto.ts';
 import type { TaskDependencyIndex } from '../src/queries/task-deps.ts';
 import { type BuildDeps, resetBuildDeps, setBuildDeps, waitForBuild } from '../src/build/orchestrator.ts';
@@ -316,6 +316,34 @@ describe('the build brief', () => {
     expect(agent).not.toContain('Work on a branch named');
     expect(agent).not.toContain('pull request URL');
     expect(agent).toContain('DEMIURGO commits, pushes and opens the pull request after you exit; do not use git to commit or push.');
+  });
+});
+
+describe('the build brief code map', () => {
+  it('lists the most relevant existing symbols of the repository at main, and nothing without a repository', async () => {
+    mkdirSync(join(repoDir, 'src', 'lib'), { recursive: true });
+    const word = taskTitle.split(/\s+/).find((w) => w.length > 3) ?? 'recipe';
+    writeFileSync(join(repoDir, 'src', 'lib', 'shared.ts'), `export function ${word.toLowerCase().replace(/[^a-z]/g, '')}Helper(input: string) {\n  return input;\n}\n`);
+    git(repoDir, 'add', 'src');
+    git(repoDir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'shared helper');
+    git(repoDir, 'push', '-q', 'origin', 'main');
+    // The architecture and security stages passed: the task is ready, so it has a brief.
+    const thread = await db().selectFrom('explorations').select('id').where('project_id', '=', projectId).orderBy('created_at').executeTakeFirstOrThrow();
+    for (const [position, stage] of [[4, 'architecture'], [5, 'security']] as const) {
+      const exists = await db().selectFrom('stages').select('id').where('project_id', '=', projectId).where('stage', '=', stage).executeTakeFirst();
+      if (!exists) await db().insertInto('stages').values({ project_id: projectId, stage, position, exploration_id: thread.id, state: 'passed', opened_by: 'human:ana', passed_by: 'human:ana', passed_at: new Date() }).execute();
+    }
+    const brief = await composeBrief(db(), projectId, taskCode);
+    expect(brief).toContain('Code map (most relevant existing symbols at main; extend these instead of re-creating them):');
+    expect(brief).toContain('src/lib/shared.ts');
+    expect(brief).toContain('Helper(input: string)');
+    const saved = process.env.DEMIURGO_PROJECTS_DIR;
+    delete process.env.DEMIURGO_PROJECTS_DIR;
+    try {
+      expect(await composeBrief(db(), projectId, taskCode)).not.toContain('Code map (');
+    } finally {
+      process.env.DEMIURGO_PROJECTS_DIR = saved;
+    }
   });
 });
 

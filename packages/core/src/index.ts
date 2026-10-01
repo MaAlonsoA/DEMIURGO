@@ -40,6 +40,7 @@ export * from './build/queue.ts';
 export * from './build/metrics.ts';
 export * from './build/auto.ts';
 export * from './build/footprint.ts';
+export * from './build/code-map.ts';
 export { classifyTaskTestability } from './classifier/testability.ts';
 export { coherenceStatus } from './actions/coherence-review.ts';
 export * from './context/knowledge.ts';

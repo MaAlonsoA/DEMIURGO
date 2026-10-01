@@ -28,16 +28,25 @@ const agentText = (id: string, action: string, skills: string[]) =>
 const skillText = (id: string) => `---\nname: ${id}\ndescription: A skill.\n---\nDo it well.\n`;
 
 describe('agent catalog', () => {
-  it('AC-AGE-002-04 the repository catalog loads the eight agents with their skills in order and a version', async () => {
+  it('AC-AGE-002-04 the repository catalog loads the agents with their skills in order and a version', async () => {
     const catalog = await loadAgentCatalog();
     expect(catalog.agents.map((a) => a.id).toSorted()).toEqual([
+      'builder',
+      'coherence_reviewer',
+      'design_director',
+      'design_system_designer',
       'designer',
       'echo',
+      'epic_planner',
       'explainer',
       'explorer',
+      'feature_designer',
       'knowledge_classifier',
       'knowledge_reviewer',
       'onboarding',
+      'pr_reviewer',
+      'screen_designer',
+      'task_planner',
       'translator',
     ]);
     for (const a of catalog.agents) {
@@ -50,6 +59,7 @@ describe('agent catalog', () => {
       'demiurgo-glossary',
       'structured-output',
       'product-definition',
+      'real-practice',
     ]);
     expect(catalog.get('designer')?.session).toBe('thread');
     expect(catalog.get('knowledge_classifier')).toMatchObject({ action: 'knowledge_classification', session: 'none' });
@@ -58,7 +68,19 @@ describe('agent catalog', () => {
 
   it('AC-AGE-002-04 each action has a default agent that serves it', async () => {
     const catalog = await loadAgentCatalog();
-    expect(DEFAULT_AGENTS).toEqual({ echo: 'echo', exploration_chat: 'explorer', design_proposal: 'designer' });
+    expect(DEFAULT_AGENTS).toEqual({
+      echo: 'echo',
+      exploration_chat: 'explorer',
+      design_proposal: 'designer',
+      coherence_review: 'coherence_reviewer',
+      epic_plan: 'epic_planner',
+      feature_design: 'feature_designer',
+      task_plan: 'task_planner',
+      design_directions: 'design_director',
+      design_system_plan: 'design_system_designer',
+      screen_design: 'screen_designer',
+      pr_review: 'pr_reviewer',
+    });
     expect(catalog.defaultFor('exploration_chat').id).toBe('explorer');
     for (const [action, id] of Object.entries(DEFAULT_AGENTS)) expect(catalog.get(id)?.action).toBe(action);
   });

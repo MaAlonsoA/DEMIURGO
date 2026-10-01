@@ -205,6 +205,8 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
         context: truncate(`Exploration: ${txt(c.purpose)}`, 2900),
         decision: truncate(text, 2900),
         consequences: 'The feature needs to be designed with verifiable acceptance criteria.',
+        aspect: 'product',
+        quotes: [text.slice(0, 200)],
       });
       const first = pending[0];
       if (first && typeof first.id === 'string') {

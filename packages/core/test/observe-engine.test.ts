@@ -128,12 +128,11 @@ beforeAll(async () => {
   const s = environment().services;
   projectId = (await executeCommand(s, { command: 'project.create', actor: ana, data: { name: 'Observed' } })).projectId;
   await seedCatalog(s.db, 'codex', [GPT]);
-  await assignAgent({ db: s.db, providers: s.providers }, ana, {
-    agent: 'knowledge_classifier',
-    provider: 'codex',
-    model: 'gpt-test',
-    effort: 'low',
-  });
+  // A record's change is checked for contradictions by the stronger engine, the reviewer (3e68c6d): it goes on the
+  // fake provider too, and the classifier agent keeps it for the tasks.
+  for (const agent of ['knowledge_classifier', 'knowledge_reviewer']) {
+    await assignAgent({ db: s.db, providers: s.providers }, ana, { agent, provider: 'codex', model: 'gpt-test', effort: 'low' });
+  }
 });
 
 const spans = (): ReadableSpan[] => environment().observer.spans();
@@ -469,7 +468,7 @@ describe('the engine under observation', () => {
     // Hanging from the command that created the update, through trace_contexts.
     expect(classify?.parentSpanContext?.isRemote).toBe(true);
 
-    const call = spanNamed(`${SPAN.invokeAgent} knowledge_classifier`, (x) => x.attributes[ATTR.updateId] === update.id);
+    const call = spanNamed(`${SPAN.invokeAgent} knowledge_reviewer`, (x) => x.attributes[ATTR.updateId] === update.id);
     expect(call?.parentSpanContext?.spanId).toBe(classify?.spanContext().spanId);
     expect(call?.attributes).toMatchObject({
       [ATTR.genAiProviderName]: 'openai',
@@ -486,15 +485,15 @@ describe('the engine under observation', () => {
     });
     expect(call?.attributes[ATTR.runId]).toBeUndefined();
 
-    const agent = (await loadAgentCatalog()).get('knowledge_classifier');
-    if (!agent) throw new Error('No knowledge_classifier agent.');
+    const agent = (await loadAgentCatalog()).get('knowledge_reviewer');
+    if (!agent) throw new Error('No knowledge_reviewer agent.');
     const sent = classifierCalls.at(-1);
     const composed = composeSystem(agent, agent.skillDefinitions, PRIMITIVE_RULES.choice);
     expect(sent?.system).toBe(composed.system);
     const row = await s.db
       .selectFrom('agent_calls')
       .selectAll()
-      .where('agent', '=', 'knowledge_classifier')
+      .where('agent', '=', 'knowledge_reviewer')
       .orderBy('started_at', 'desc')
       .executeTakeFirstOrThrow();
     expect(row.prompt_hash).toBe(composed.promptHash);

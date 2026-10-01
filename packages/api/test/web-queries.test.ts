@@ -1,6 +1,8 @@
 // Read-only queries the web UI uses (brief of the H1 frontend, §4): they reuse the query names of
 // the matrix (query.knowledge, query.runs, query.batches, query.records, query.explorations).
 
+import { executeCommand } from '@demiurgo/core';
+import { system } from '@demiurgo/domain';
 import { readTree } from '@demiurgo/design';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { useApi } from './support/api.ts';
@@ -207,6 +209,28 @@ describe('API: queries of the web UI', () => {
       change_note: 'Revisión.',
     });
     await command('record_version.approve', {}, v2.entity_id);
+    // Approving a new version no longer flags what rests on the old one blindly (patch 4dfe784: knowledge compares
+    // the dependents and only a contradiction comes back as a review), so the link is flagged explicitly.
+    const db = api().environment.services.db;
+    const flagged = await db
+      .selectFrom('links')
+      .innerJoin('record_versions as f', 'f.id', 'links.from_id')
+      .innerJoin('records as fr', 'fr.id', 'f.record_id')
+      .innerJoin('record_versions as t', 't.id', 'links.to_id')
+      .innerJoin('records as tr', 'tr.id', 't.record_id')
+      .select('links.id')
+      .where('links.project_id', '=', projectId)
+      .where('fr.code', '=', 'FDR-DIS-001')
+      .where('tr.code', '=', 'DEC-PLN-001')
+      .where('links.type', '=', 'based_on')
+      .executeTakeFirstOrThrow();
+    await executeCommand(api().environment.services, {
+      command: 'link.flag_review',
+      actor: system('versions'),
+      projectId,
+      entityId: flagged.id,
+      data: { reason: 'The decision changed.' },
+    });
     const inbox = await get<{
       links_under_review: {
         type: string;

@@ -94,7 +94,10 @@ describe('S1 walkthrough', () => {
 
     // 2. The inbox has a batch from the agent with a decision proposal, visible as a proposal.
     let inbox = await read<Inbox>(`/api/projects/${projectId}/inbox`);
-    expect(inbox.total).toBe(1);
+    // Besides the batch, the quality stage that opened once the definition was approved waits on the person:
+    // its question the run inferred (to confirm) and the one still open.
+    expect(inbox.total).toBe(3);
+    expect(inbox.batches).toHaveLength(1);
     const batch = inbox.batches[0];
     expect(batch).toMatchObject({ type: 'agent', resolution: 'item', producer: `agent:run:${runChat}` });
     expect(batch?.proposals[0]).toMatchObject({ type: 'decision', epistemic_status: 'proposed' });
@@ -145,7 +148,38 @@ describe('S1 walkthrough', () => {
     expect(fdr.versions[0]?.readiness.reasons).toContain('Version 1 is not approved.');
     await command(projectId, 'record_version.approve', {}, effect?.versionId);
 
-    // 6. "Ready to build" and an empty inbox.
+    // 6. "Ready to build" and an empty inbox. A feature is only ready once its thread has no open question and the
+    // Architecture and Security baseline stages have passed (patch c3d2708): the person settles the quality
+    // questions and those two stages start passed, as in core/test/design.test.ts.
+    // Settling each group of questions proposes a new version of the definition: the person approves it too.
+    const approveDefinition = async () => {
+      const proposed = await read<{ proposal: { id: string } | null }>(`/api/projects/${projectId}/definition`);
+      if (!proposed.proposal) return;
+      await command(projectId, 'proposal.accept', { approve: true }, proposed.proposal.id);
+      await waitForKnowledge(environment.services, projectId);
+    };
+    await confirmStageQuestions(projectId);
+    await approveDefinition();
+    for (const [position, stage] of [
+      [3, 'architecture'],
+      [4, 'security'],
+    ] as const) {
+      await environment.services.db
+        .insertInto('stages')
+        .values({
+          project_id: projectId,
+          stage,
+          position,
+          exploration_id: exploration.entity_id,
+          state: 'passed',
+          opened_by: 'system:test',
+          passed_by: 'human:ana',
+        })
+        .onConflict((oc) => oc.columns(['project_id', 'stage']).doUpdateSet({ state: 'passed', passed_by: 'human:ana' }))
+        .execute();
+    }
+    await confirmStageQuestions(projectId);
+    await approveDefinition();
     const readiness = await read<{ ready: boolean; reasons: string[] }>(
       `/api/projects/${projectId}/versions/${effect?.versionId}/readiness`,
     );
@@ -183,8 +217,9 @@ describe('S1 walkthrough', () => {
       decisions: { code: string; current: number | null; latest: { state: string }; epistemic_status: string }[];
       inbox: { total: number };
     }>(`/api/projects/${projectId}/state`);
-    // The draft waits for the person: it counts in the inbox until it is approved.
-    expect(state.inbox.total).toBe(1);
+    // The draft waits for the person, and so does the next onboarding step (the product definition): both count
+    // in the inbox until done.
+    expect(state.inbox.total).toBe(2);
     expect(state.decisions).toEqual([
       expect.objectContaining({
         code: (d.result as { code: string }).code,
@@ -199,7 +234,8 @@ describe('S1 walkthrough', () => {
       inbox: { total: number };
     }>(`/api/projects/${projectId}/state`);
     expect(after.decisions[0]).toMatchObject({ current: 1, epistemic_status: 'confirmed' });
-    expect(after.inbox.total).toBe(0);
+    // Only the onboarding step is left.
+    expect(after.inbox.total).toBe(1);
   });
 
   it("AC-DIS-001-19 the system infers a pending question from a run's validated output", async () => {

@@ -17,7 +17,8 @@ import { useEnvironment } from './support/env.ts';
 
 const environment = useEnvironment();
 const ana = human('ana');
-const BUDGET = { messages: 12_000, decisions: 4_000, sources: 6_000, knowledge: 4_000 };
+// `records` is the budget of the records the thread is about (371719e); this thread cites none, so it stays empty.
+const BUDGET = { messages: 12_000, decisions: 4_000, records: 16_000, sources: 6_000, knowledge: 4_000 };
 const MESSAGE_CHARS = 300;
 const DECISION_TITLE = 'Membership fee of the partners';
 const DECISION_TEXT = 'The partners pay a yearly membership fee to the association. '.repeat(12);
@@ -199,9 +200,9 @@ describe('what the explorer builder records', () => {
       chars: entered(bySection(manifest, section)).reduce((acc, f) => acc + f.chars, 0),
       budget: manifest.budget[section] ?? 0,
     }));
-    expect(filled.map((s) => s.section).sort()).toEqual(['decisions', 'knowledge', 'messages', 'sources']);
+    expect(filled.map((s) => s.section).sort()).toEqual(['decisions', 'knowledge', 'messages', 'records', 'sources']);
     expect(filled.filter((s) => s.chars > s.budget)).toEqual([]);
-    expect(filled.filter((s) => s.chars === 0)).toEqual([]);
+    expect(filled.filter((s) => s.chars === 0 && s.section !== 'records')).toEqual([]);
     const positions = entered(manifest.fragments).map((f) => f.position);
     expect(positions).toEqual(positions.map((_, i) => i));
     for (const f of manifest.fragments) {

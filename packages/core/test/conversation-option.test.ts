@@ -1,7 +1,7 @@
 // The answer a side conversation leads to (Go deeper): each run that answers the person there also
 // words the idea they arrived at as one more option of the question, kept apart from its predefined
 // options and replaced by the next one. It is kept for open questions only (pending or inferred), and
-// neither a run of the main thread nor the explainer sets it.
+// a run of the main thread does not set it; the explainer, inside a side conversation, does (906fb5b).
 
 import { human } from '@demiurgo/domain';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -94,10 +94,11 @@ describe('the answer a side conversation leads to', () => {
     });
   });
 
-  it('is not set by a run of the main thread, nor by the explainer', async () => {
+  it('is not set by a run of the main thread, but the explainer leaves its idea as one (patch 906fb5b)', async () => {
     const purpose = await question('purpose');
     await talk(null, 'Organizers also want a reminder the day before.');
-    await talk(purpose.id, '', 'explainer');
     expect((await question('purpose')).conversation_option).toBeNull();
+    await talk(purpose.id, '', 'explainer');
+    expect((await question('purpose')).conversation_option).not.toBeNull();
   });
 });

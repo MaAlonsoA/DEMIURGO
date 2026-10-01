@@ -57,6 +57,7 @@ import { pullRequestFootprint } from './footprint.ts';
 import { type OwnershipViolation, checkOwnership, ownershipLine } from './ownership.ts';
 import { storeCodeOpinions } from '../classifier/code-rerank.ts';
 import { codeToExtend } from './queue.ts';
+import { checkTestGuard, existingTestsLines, readRepoTests, testGuardFeedback } from './test-guard.ts';
 import { affectedTests, affectedTestsLine, buildCodeMap } from './code-map.ts';
 import { decideRecheck } from './recheck.ts';
 import type { Services } from '../services.ts';
@@ -700,7 +701,16 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     const code = await codeToExtend(s0.db, projectId, info.taskCode, { repoPath: worktree.path, ref: 'HEAD', versionId: info.taskVersionId });
     await storeCodeOpinions(s0.db, { projectId, buildRequestId: requestId, attempt, versionId: info.taskVersionId }, code).catch(() => undefined);
     const affected = await affectedLine(worktree.path, code.files, attempt > 1 && feedback.failing.length > 0);
-    const codeLines = [...code.lines, ...(affected ? [affected] : [])];
+    // The existing tests of the task's criteria, so the builder extends them (test-guard.ts); help, never a gate.
+    const testLines = await (async () => {
+      try {
+        const task = await s0.db.selectFrom('build_requests').select('task_id').where('id', '=', requestId).executeTakeFirstOrThrow();
+        return existingTestsLines(await readRepoTests(worktree.path, 'HEAD'), await taskCoversOf(s0.db, task.task_id));
+      } catch {
+        return [];
+      }
+    })();
+    const codeLines = [...code.lines, ...(affected ? [affected] : []), ...testLines];
     // The session of this attempt: continued from the previous one or fresh (see `builderSessionPlan`). Its folder is per request and goes with the worktree.
     const sessionDir = join(projectsDir() ?? '', '.sessions', requestId);
     await mkdir(sessionDir, { recursive: true });
@@ -792,16 +802,21 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       read: (file) => readWorktreeFile(worktree.path, file),
       repoDir: info.repoDir,
     }).catch(() => [] as OwnershipViolation[]);
-    const ownershipError = ownership.length > 0 ? `${ownership.length} ownership ${ownership.length === 1 ? 'violation' : 'violations'}: ${ownership.slice(0, 5).map(ownershipLine).join(' | ')}` : null;
+    const ownershipText = ownership.length > 0 ? `${ownership.length} ownership ${ownership.length === 1 ? 'violation' : 'violations'}: ${ownership.slice(0, 5).map(ownershipLine).join(' | ')}` : null;
+    // Test guard: no second test for a criterion that already has one (test-guard.ts). Fail safe: it passes when it cannot compute.
+    const testGuard = await checkTestGuard(worktree.path);
+    const testGuardRecord = testGuard.skipped ? { skipped: testGuard.skipped } : { violations: testGuard.violations.length };
+    const testGuardText = testGuard.violations.length > 0 ? `${testGuard.violations.length} duplicate ${testGuard.violations.length === 1 ? 'test' : 'tests'}: ${testGuardFeedback(testGuard.violations.slice(0, 5)).join(' | ')}` : null;
+    const ownershipError = [ownershipText, testGuardText].filter(Boolean).join(' | ') || null;
     const approved = await designSystemOf(worktree.path);
     if (!approved) {
-      if (ownershipError) return { outcome: 'failed' as const, detail: { violations: [], ownership, error: ownershipError } };
-      return { value: { note: 'no design system yet' }, detail: { note: 'no design system yet', violations: [], ownership } };
+      if (ownershipError) return { outcome: 'failed' as const, detail: { violations: [], ownership, test_guard: testGuardRecord, error: ownershipError } };
+      return { value: { note: 'no design system yet' }, detail: { note: 'no design system yet', violations: [], ownership, test_guard: testGuardRecord } };
     }
     const keep = (file: string) => /\.(css|scss|html|jsx|tsx|vue|svelte)$/.test(file) || file.endsWith('/tokens.json') || file === 'tokens.json';
     const files = await readWorktreeFiles(worktree.path, keep);
     const result = designGuard(files, approved.manifest, approved.tokens);
-    const detail = { version: approved.manifest.version, checked: files.length, violations: result.violations, ownership };
+    const detail = { version: approved.manifest.version, checked: files.length, violations: result.violations, ownership, test_guard: testGuardRecord };
     if (!result.ok || ownershipError) {
       const designError = result.ok ? null : `${result.violations.length} design-system ${result.violations.length === 1 ? 'violation' : 'violations'}: ${result.violations.slice(0, 5).map(violationLine).join(' | ')}`;
       return { outcome: 'failed' as const, detail: { ...detail, error: [designError, ownershipError].filter(Boolean).join(' | ') } };

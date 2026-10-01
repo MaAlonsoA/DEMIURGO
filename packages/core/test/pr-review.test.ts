@@ -1,3 +1,5 @@
+import '../src/bus/bus.ts';
+
 // pr_review end to end with the simulated provider: the reviewer's verdict on the pull request of a
 // build request is stored in pr_reviews. It approves when the diff has a test for every criterion the
 // task covers, and asks for changes otherwise; a request with no test for a criterion cannot be approved.

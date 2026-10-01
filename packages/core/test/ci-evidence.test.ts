@@ -72,7 +72,11 @@ describe('evidence.ingest_junit', () => {
       not_run: [c3],
       // Nothing was recorded as flaky: every case ran once.
       flaky: [],
+      // The failing case with its criterion code, title, file (the classname) and message.
+      failures: [{ code: c2, test: `${c2} refuses when full`, file: 'a', message: 'boom\nstack' }],
     });
+    const stored = await sql<{ failure: string | null }>`select failure from test_runs where test_name = ${`${c2} refuses when full`}`.execute(s.db);
+    expect(stored.rows).toEqual([{ failure: 'boom\nstack' }]);
 
     const { rows } = await sql<{ code: string; kind: string; result: string; test_name: string; recorded_by: string; reference: string }>`
       select c.code, e.kind, e.result, e.test_name, e.recorded_by, e.reference

@@ -927,6 +927,8 @@ export type TestRunsTable = {
   criterion_code: string | null;
   outcome: 'pass' | 'fail' | 'skip';
   duration_ms: number | null;
+  /** The failure message and text of a failing case, capped. */
+  failure: string | null;
   recorded_at: Generated<Timestamp>;
 };
 

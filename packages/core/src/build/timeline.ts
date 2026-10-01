@@ -62,6 +62,8 @@ export type TimelineAttempt = {
     comments: number | null;
     behind_by: number | null;
   } | null;
+  /** The failing CI tests of this attempt (from the evidence step), as the next attempt receives them. */
+  ci_failures: { code: string | null; test: string; file: string | null; message: string; passed_elsewhere: number | null }[];
   /** What entered the builder and what it said; null when the attempt never reached the builder's end. */
   builder: {
     model: string | null;
@@ -336,6 +338,7 @@ function attemptOf(n: number, rows: TimelineStepRow[], previousEnd: number | nul
           behind_by: num(ed.behind_by),
         }
       : null,
+    ci_failures: ciFailuresOf(rows),
     builder: builderOf(rows),
     out: {
       pr_number: num(obj(pr?.detail).number),
@@ -474,4 +477,15 @@ export async function buildTimelineOf(db: Db, projectId: string, hours = TIMELIN
     steps.map((s) => ({ ...s, at: s.at as unknown as Date })),
     { now, since, truncated },
   );
+}
+
+/** The failing tests the last evidence step of the attempt kept (capped per test when recorded). */
+function ciFailuresOf(rows: { stage: string; outcome: string; detail: unknown }[]): TimelineAttempt['ci_failures'] {
+  const row = [...rows].reverse().find((r) => r.stage === 'evidence' && r.outcome === 'ok');
+  const list = obj(row?.detail).failures;
+  if (!Array.isArray(list)) return [];
+  return list.slice(0, 20).map((f) => {
+    const x = obj(f);
+    return { code: cut(x.code, 40), test: cut(x.test, 500) ?? '', file: cut(x.file, 300), message: typeof x.message === 'string' ? x.message.trim().slice(0, 1500) : '', passed_elsewhere: num(x.passed_elsewhere) };
+  });
 }

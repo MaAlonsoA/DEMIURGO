@@ -1305,6 +1305,7 @@ export type TimelineAttempt = {
     comments: number | null;
     behind_by: number | null;
   } | null;
+  ci_failures: { code: string | null; test: string; file: string | null; message: string; passed_elsewhere: number | null }[];
   builder: {
     model: string | null;
     provider: string | null;

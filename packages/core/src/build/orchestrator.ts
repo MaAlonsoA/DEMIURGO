@@ -29,6 +29,7 @@
 // not read from a clock, so a replay decides the same way. The workflow never accepts or ratifies
 // anything: it only builds, records evidence and lets GitHub merge once its required checks pass.
 
+import { sql } from 'kysely';
 import { DBOS } from '@dbos-inc/dbos-sdk';
 import {
   DESIGN_MANIFEST_PATH,
@@ -51,6 +52,7 @@ import { effectiveBasis } from './basis.ts';
 import * as github from '../github/client.ts';
 import { ciStatusOf, redactConfigured } from '../github/client.ts';
 import { parseJunit } from '../commands/evidence.ts';
+import { PASSED_ELSEWHERE_DAYS, ciFeedbackText, type CiFailureDetail } from './ci-feedback.ts';
 import { flakyNote, quarantineNote, quarantineOf } from './flaky.ts';
 import { classifyBuilderFailure, failureExcerpt } from './failure.ts';
 import { taskCoversOf } from '../queries/sizes.ts';
@@ -265,9 +267,9 @@ async function load(s: Services, r: Run): Promise<Loaded> {
   };
 }
 
-type Feedback = { blocking: string[]; fixes: string[]; failing: string[]; design: string[]; ownership: string[]; flaky: string[]; conflicts: string[]; wip?: { sha: string; files: string[] }; progress?: string };
+type Feedback = { blocking: string[]; fixes: string[]; failing: string[]; failures: CiFailureDetail[]; design: string[]; ownership: string[]; flaky: string[]; conflicts: string[]; wip?: { sha: string; files: string[] }; progress?: string };
 
-const NO_FEEDBACK: Feedback = { blocking: [], fixes: [], failing: [], design: [], ownership: [], flaky: [], conflicts: [] };
+const NO_FEEDBACK: Feedback = { blocking: [], fixes: [], failing: [], failures: [], design: [], ownership: [], flaky: [], conflicts: [] };
 
 type BuilderStepDetail = { provider?: string; model?: string; session?: { mode: 'fresh' | 'resumed'; id?: string; reason?: string }; failure_kind?: string; exit_code?: number | null; wip_commit?: string; wip_files?: string[]; timed_out_twice?: boolean; progress?: string };
 
@@ -369,7 +371,7 @@ async function feedbackOf(s: Services, r: Run): Promise<Feedback> {
     .orderBy('created_at', 'desc')
     .orderBy('id', 'desc')
     .executeTakeFirst();
-  const evidenceDetail = evidence?.detail as { recorded?: { code: string; result: string }[]; flaky?: string[]; quarantined?: string[] } | null;
+  const evidenceDetail = evidence?.detail as { recorded?: { code: string; result: string }[]; failures?: CiFailureDetail[]; flaky?: string[]; quarantined?: string[] } | null;
   const recorded = (evidenceDetail?.recorded ?? []).filter((t) => t.result === 'fail');
   const design = await s.db
     .selectFrom('build_steps')
@@ -386,7 +388,7 @@ async function feedbackOf(s: Services, r: Run): Promise<Feedback> {
   const previous = r.attempt > 1 ? await failedBuilderStep(s, r.requestId, r.attempt - 1) : null;
   const wip = previous?.failure_kind === 'timeout' && previous.wip_commit ? { sha: previous.wip_commit, files: previous.wip_files ?? [] } : undefined;
   const progress = r.attempt > 1 ? await previousProgress(s, r.requestId, r.attempt - 1) : undefined;
-  return { blocking, fixes, failing: recorded.map((t) => t.code), design: violations.map(violationLine), ownership, flaky: (evidenceDetail?.flaky ?? []).filter((c) => !(evidenceDetail?.quarantined ?? []).includes(c)), conflicts: [], ...(wip ? { wip } : {}), ...(progress ? { progress } : {}) };
+  return { blocking, fixes, failing: recorded.map((t) => t.code), failures: evidenceDetail?.failures ?? [], design: violations.map(violationLine), ownership, flaky: (evidenceDetail?.flaky ?? []).filter((c) => !(evidenceDetail?.quarantined ?? []).includes(c)), conflicts: [], ...(wip ? { wip } : {}), ...(progress ? { progress } : {}) };
 }
 
 const violationLine = (v: DesignViolation): string => `${v.path}${v.line ? `:${v.line}` : ''} (rule ${v.rule}): ${v.message}`;
@@ -429,7 +431,7 @@ function promptOf(
     ? [`# Continue (attempt ${attempt} on the same branch)`, 'You are continuing your previous session on this task: the brief and your earlier work are in this conversation. Read the new feedback below, fix what it names and keep to the same rules and report format.', ...(code.length > 0 ? ['', ...code] : [])]
     : [body, '', '# Brief', brief, ...(code.length > 0 ? ['', ...code] : []), ...designSection(design)];
   const progress = resumed ? undefined : f.progress;
-  if (attempt > 1 && (f.wip || f.conflicts.length > 0 || f.blocking.length > 0 || f.fixes.length > 0 || f.failing.length > 0 || f.design.length > 0 || f.ownership.length > 0 || f.flaky.length > 0 || progress)) {
+  if (attempt > 1 && (f.wip || f.conflicts.length > 0 || f.blocking.length > 0 || f.fixes.length > 0 || f.failing.length > 0 || f.failures.length > 0 || f.design.length > 0 || f.ownership.length > 0 || f.flaky.length > 0 || progress)) {
     lines.push('', `# Feedback on the previous attempt (this is attempt ${attempt} on the same branch)`);
     if (f.wip) {
       lines.push(
@@ -453,7 +455,8 @@ function promptOf(
           : 'The reviewer approved with these fixes to make before merging (apply exactly these, nothing else):',
         ...f.fixes.map((b) => `- ${b}`),
       );
-    if (f.failing.length > 0) lines.push(`The tests of these criteria failed in CI: ${f.failing.join(', ')}.`);
+    if (f.failures.length > 0) lines.push(...ciFeedbackText(f.failures));
+    else if (f.failing.length > 0) lines.push(`The tests of these criteria failed in CI: ${f.failing.join(', ')}.`);
     if (f.flaky.length > 0) lines.push(flakyNote(f.flaky));
     if (f.ownership.length > 0) lines.push('The ownership check failed, fix these:', ...f.ownership.map((v) => `- ${v}`));
     if (f.design.length > 0) lines.push('The design-system check (demiurgo/design) failed, fix these:', ...f.design.map((v) => `- ${v}`));
@@ -967,16 +970,31 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       projectId,
       data: { junit, pr_url: pull.url, reference: sha, expected: covers },
     });
-    const result = done.result as { recorded: { code: string; result: 'pass' | 'fail'; tests: number }[]; unknown: string[]; ignored: number; not_run: string[]; flaky: string[] };
+    const result = done.result as { recorded: { code: string; result: 'pass' | 'fail'; tests: number }[]; unknown: string[]; ignored: number; not_run: string[]; flaky: string[]; failures: { code: string | null; test: string; file: string | null; message: string }[] };
     // A test that failed in every run it ran in is a real failure; only the ones that passed somewhere are flaky.
     const outcomes = new Map<string, Set<string>>();
     for (const t of parseJunit(junit)) outcomes.set(t.name, (outcomes.get(t.name) ?? new Set()).add(t.outcome));
     const stableFailures = [...outcomes.values()].filter((o) => o.has('fail') && !o.has('pass')).length;
     const quarantine = quarantineOf({ flaky: result.flaky, covers, stableFailures });
+    // Did each failing test pass on other commits lately? (the ingest above already stored this commit's rows)
+    const failures: CiFailureDetail[] = [];
+    for (const f of result.failures ?? []) {
+      const row = await s0.db
+        .selectFrom('test_runs')
+        .select((eb) => eb.fn.countAll<string>().as('n'))
+        .where('project_id', '=', projectId)
+        .where('test_name', '=', f.test.slice(0, 1000))
+        .where('outcome', '=', 'pass')
+        .where('head_sha', 'is distinct from', sha)
+        .where(sql<boolean>`recorded_at > now() - make_interval(days => ${PASSED_ELSEWHERE_DAYS})`)
+        .executeTakeFirst();
+      failures.push({ ...f, passed_elsewhere: Number(row?.n ?? 0) });
+    }
     return {
       value: { tests: result.recorded.map((t) => ({ code: t.code, result: t.result })), flaky: result.flaky, quarantined: quarantine.quarantined, forgiven: quarantine.forgiven },
       detail: {
         recorded: result.recorded,
+        ...(failures.length > 0 ? { failures } : {}),
         unknown: result.unknown,
         ignored: result.ignored,
         not_run: result.not_run,

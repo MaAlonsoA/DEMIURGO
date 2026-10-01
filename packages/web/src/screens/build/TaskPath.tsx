@@ -399,8 +399,36 @@ function Entered({ attempt, previous, t, stages }: { attempt: TimelineAttempt; p
         ) : (
           <span className="text-fg-2">{t.tpFeedbackNone}</span>
         )}
+        {previous && previous.ci_failures.length > 0 ? <CiFailures failures={previous.ci_failures} t={t} /> : null}
       </Row>
     </Dl>
+  );
+}
+
+/** The failing CI tests of an attempt, each with its message (collapsed when long) and whether it passed elsewhere. */
+function CiFailures({ failures, t }: { failures: TimelineAttempt["ci_failures"]; t: Words }) {
+  return (
+    <ul className="mt-1 flex flex-col gap-2" data-ci-failures>
+      {failures.map((f) => (
+        <li key={f.test} className="flex flex-col gap-0.5 text-sm">
+          <span>
+            {f.code ? <Code>{f.code}</Code> : null} {f.test}
+          </span>
+          {f.file ? <span className="break-all font-code text-xs text-fg-3">{f.file}</span> : null}
+          {f.message.length > 240 || f.message.includes("\n") ? (
+            <details>
+              <summary className="cursor-pointer text-xs text-fg-2">{t.tpCiShowMessage}</summary>
+              <pre className="whitespace-pre-wrap break-words font-code text-xs text-fg-2">{f.message}</pre>
+            </details>
+          ) : (
+            <span className="break-words font-code text-xs text-fg-2">{f.message}</span>
+          )}
+          {f.passed_elsewhere !== null ? (
+            <span className="text-xs text-fg-3">{f.passed_elsewhere > 0 ? t.tpCiPassedElsewhere(f.passed_elsewhere) : t.tpCiNoPassElsewhere}</span>
+          ) : null}
+        </li>
+      ))}
+    </ul>
   );
 }
 

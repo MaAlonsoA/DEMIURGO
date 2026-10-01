@@ -209,13 +209,13 @@ registerHandlers({
         const g = groups.byCode.get(code);
         return !g || g.passed + g.failed === 0;
       });
-      const result = { recorded, unknown, ignored, not_run: notRun, flaky };
+      const result = { recorded, unknown, ignored, not_run: notRun, flaky, failures: failuresOf(cases) };
       return { entityId: lastId ?? ctx.projectId, after: result, result };
     },
   }),
 });
 
-type TestCase = { name: string; outcome: "pass" | "fail" | "skipped"; file?: string | null; durationMs?: number | null };
+type TestCase = { name: string; outcome: "pass" | "fail" | "skipped"; file?: string | null; durationMs?: number | null; failure?: string | null };
 type Group = { passed: number; failed: number; skipped: number; names: string[]; failedNames: string[] };
 
 const decodeEntities = (t: string): string =>
@@ -228,6 +228,40 @@ const decodeEntities = (t: string): string =>
     const n = e[1] === "x" ? Number.parseInt(e.slice(2), 16) : Number.parseInt(e.slice(1), 10);
     return Number.isFinite(n) && n <= 0x10ffff ? String.fromCodePoint(n) : "";
   });
+
+/** Per failing test and in total, how much failure text is kept (convención nuestra: enough for the cause, not whole logs). */
+export const FAILURE_TEXT_MAX = 1500;
+export const FAILURES_TOTAL_MAX = 6000;
+
+/** One failing test as the command returns it and the next build attempt reads it. */
+export type CiFailure = { code: string | null; test: string; file: string | null; message: string };
+
+/** The message and text of the first <failure> or <error> child, trimmed and capped; null when there is none. */
+function failureTextOf(body: string): string | null {
+  const m = /<(?:failure|error)\b((?:"[^"]*"|'[^']*'|[^>"'])*?)(?:\/>|>([\s\S]*?)<\/(?:failure|error)\s*>)/.exec(body);
+  if (!m) return null;
+  const msg = /\bmessage\s*=\s*(?:"([^"]*)"|'([^']*)')/.exec(m[1] ?? "");
+  const message = decodeEntities(msg?.[1] ?? msg?.[2] ?? "").trim();
+  const inner = (m[2] ?? "").replace(/^\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*$/, "$1");
+  const text = decodeEntities(inner.replace(/<[^>]+>/g, "")).trim();
+  const joined = message && text && !text.startsWith(message) ? `${message}\n${text}` : text || message;
+  return joined ? joined.slice(0, FAILURE_TEXT_MAX) : null;
+}
+
+/** The failing cases of a report as a capped list (tests with and without a criterion code), first occurrence per test. */
+export function failuresOf(cases: TestCase[]): CiFailure[] {
+  const out: CiFailure[] = [];
+  const seen = new Set<string>();
+  let total = 0;
+  for (const t of cases) {
+    if (t.outcome !== "fail" || seen.has(t.name)) continue;
+    seen.add(t.name);
+    const message = (t.failure ?? "(no failure message in the report)").slice(0, Math.max(0, FAILURES_TOTAL_MAX - total));
+    total += message.length;
+    out.push({ code: /^AC-[A-Z]{3}-\d{3}-\d{2}/.exec(t.name)?.[0] ?? null, test: t.name, file: t.file ?? null, message });
+  }
+  return out;
+}
 
 /** A tolerant reader of JUnit XML: every <testcase name=…> with a failure, error or skipped child. */
 export function parseJunit(xml: string): TestCase[] {
@@ -250,6 +284,7 @@ export function parseJunit(xml: string): TestCase[] {
       outcome,
       file: (attr("file") ?? attr("classname"))?.slice(0, 500) ?? null,
       durationMs: Number.isFinite(seconds) && seconds >= 0 ? Math.min(Math.round(seconds * 1000), 2_000_000_000) : null,
+      failure: outcome === "fail" ? failureTextOf(body) : null,
     });
   }
   return out;
@@ -272,6 +307,7 @@ async function storeTestRuns(
     criterion_code: /^AC-[A-Z]{3}-\d{3}-\d{2}/.exec(t.name)?.[0] ?? null,
     outcome: (t.outcome === "skipped" ? "skip" : t.outcome) as "pass" | "fail" | "skip",
     duration_ms: t.durationMs ?? null,
+    failure: t.failure ?? null,
   }));
   for (let i = 0; i < rows.length; i += 500) {
     await ctx.trx.insertInto("test_runs").values(rows.slice(i, i + 500)).execute();

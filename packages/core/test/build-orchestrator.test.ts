@@ -772,7 +772,8 @@ describe('build.start', () => {
     expect(await finished(requestId, 2)).toBe('done');
     expect(calls.opened).toBe(1);
     expect(calls.prompts[1]).toContain('attempt 2');
-    expect(calls.prompts[1]).toContain('The tests of these criteria failed in CI');
+    expect(calls.prompts[1]).toContain('These tests failed in CI:')
+    expect(calls.prompts[1]).toContain('> boom');
     const rows = await steps(requestId);
     const second = rows.find((x) => x.attempt === 2 && x.stage === 'repo' && x.outcome === 'started');
     expect(second?.detail).toMatchObject({ started_by: 'system:build@1', automatic: true });

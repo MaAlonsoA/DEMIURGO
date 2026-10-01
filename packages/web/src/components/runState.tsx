@@ -182,10 +182,22 @@ export function RunStateBadge({
 /** Failed or interrupted in the last 24 h and never retried: what the sidebar counts (D-011). */
 export function unresolvedFailures(runs: readonly RunListItem[], now: number): RunListItem[] {
   const retried = new Set(runs.map((r) => r.retry_of).filter((id): id is string => Boolean(id)));
+  // A later run of the same action on the same scope that completed resolves it too (e.g. a turn
+  // interrupted by a restart, answered by the thread's next turns).
+  const superseded = (r: RunListItem) =>
+    runs.some(
+      (x) =>
+        x.state === 'completed' &&
+        x.action === r.action &&
+        x.scope.type === r.scope.type &&
+        x.scope.id === r.scope.id &&
+        new Date(x.created_at).getTime() > new Date(r.created_at).getTime(),
+    );
   return runs.filter(
     (r) =>
       (r.state === 'failed' || r.state === 'interrupted') &&
       !retried.has(r.id) &&
+      !superseded(r) &&
       now - new Date(r.finished_at ?? r.created_at).getTime() < 24 * 3_600_000,
   );
 }

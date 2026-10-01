@@ -1,6 +1,7 @@
 // What a task really changed, read from its build steps (no repository access): the merge footprint (every file the
 // merged pull request changed, with its status) and, for a task not merged yet, the files of its latest commit.
-// Shared by E09 (fallback ownership) and E15 (declared dependencies against the real footprint).
+// Used by E15 (shared files against declared dependencies). A merged task's footprint is the union of all its merged
+// requests, and its `at` is the merge time (`build_requests.done_at`), not the time a backfill wrote the step.
 
 import { type EscapeInputs, isOwnedPath, ms } from "./types.ts";
 
@@ -33,7 +34,7 @@ const filesOf = (v: unknown): FootprintFile[] =>
       )
     : [];
 
-/** One footprint per task: the latest merged request's merge footprint, else the latest commit's files. */
+/** One footprint per task: the union of its merged requests' merge footprints, else the latest commit's files. */
 export const taskFootprintsOf = (i: EscapeInputs): Map<string, TaskFootprint> => {
   const task = new Map(i.requests.map((r) => [r.id, r]));
   const out = new Map<string, TaskFootprint>();
@@ -44,7 +45,25 @@ export const taskFootprintsOf = (i: EscapeInputs): Map<string, TaskFootprint> =>
     if (s.stage === "merge" || s.stage === "footprint") {
       const files = filesOf(s.detail.footprint_files).filter((f) => isOwnedPath(f.path));
       if (files.length === 0 || s.outcome !== "ok") continue;
-      out.set(r.task_id, { task_id: r.task_id, request_id: r.id, at: s.created_at, merged: true, files });
+      const at = r.done_at ?? s.created_at;
+      const prev = out.get(r.task_id);
+      if (!prev?.merged) {
+        out.set(r.task_id, { task_id: r.task_id, request_id: r.id, at, merged: true, files });
+        continue;
+      }
+      // Union of every merged request of the task; `added` wins over other statuses of the same path.
+      const byPath = new Map(prev.files.map((f) => [f.path, f]));
+      for (const f of files) {
+        const old = byPath.get(f.path);
+        if (!old || (f.status === "added" && old.status !== "added")) byPath.set(f.path, f);
+      }
+      const later = ms(at) >= ms(prev.at);
+      out.set(r.task_id, {
+        ...prev,
+        request_id: later ? r.id : prev.request_id,
+        at: later ? at : prev.at,
+        files: [...byPath.values()],
+      });
     } else if (s.stage === "commit" && !out.get(r.task_id)?.merged) {
       const files = filesOf(s.detail.files ?? s.detail.own_files).filter((f) => isOwnedPath(f.path));
       if (files.length === 0) continue;

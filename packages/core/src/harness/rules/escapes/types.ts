@@ -215,6 +215,48 @@ export const isOwnedPath = (path: string): boolean =>
 export const isCodePath = (path: string): boolean =>
   isOwnedPath(path) && !/\.(css|scss|md|snap)$|\.(spec|test)\.[a-z]+$|(^|\/)e2e\//.test(path);
 
+/**
+ * Shared infrastructure that belongs to nobody: touching a file somebody else added there is not evidence of a missing
+ * dependency (convención nuestra, from the case-by-case validation of 01-10-2026, validacion-fugas-esc3 §2.2 FP-B).
+ * Examples seen: `.github/workflows/ci.yml`, `scripts/migrate.ts`, `src/server/db.ts`, `src/design-system/TextField.tsx`,
+ * `src/server/instance-state.ts`. GitHub CODEOWNERS assigns owners by path pattern and leaves shared paths without one;
+ * which paths are shared is our convention.
+ */
+const INFRA_PATH =
+  /(^|\/)\.github\/|(^|\/)scripts\/(migrate|db)[^/]*$|(^|\/)db\.[a-z]+$|(^|\/)(db|database)\/(client|index)[^/]*$|(^|\/)components\/ui\/|(^|\/)design-system\/|(^|\/)(TextField|Button|Input)\.[a-z]+$|(^|\/)instance-state\.[a-z]+$/;
+export const isInfraPath = (path: string): boolean => INFRA_PATH.test(path);
+
+/**
+ * Feature needs: the features each feature is based on (`based_on` fdr -> fdr, current links), closed transitively.
+ * The engine already makes a task wait for the tasks of the features its feature needs (queries/task-deps.ts
+ * `featureNeeds`), so this is a declared dependency, not a missing one.
+ */
+export const featureNeedsOf = (i: EscapeInputs): Map<string, Set<string>> => {
+  const currentN = new Map<string, number>();
+  for (const v of i.versions)
+    if (v.approved_at !== null) currentN.set(v.record_id, Math.max(currentN.get(v.record_id) ?? 0, v.n));
+  const direct = new Map<string, Set<string>>();
+  for (const l of i.links) {
+    if (l.type !== "based_on" || l.from_type !== "fdr" || l.to_type !== "fdr" || l.state === "obsolete") continue;
+    const n = currentN.get(l.from_record_id);
+    if (n !== undefined && l.from_n !== n) continue;
+    direct.set(l.from_record_id, (direct.get(l.from_record_id) ?? new Set()).add(l.to_record_id));
+  }
+  const out = new Map<string, Set<string>>();
+  for (const f of direct.keys()) {
+    const seen = new Set<string>();
+    const stack = [...(direct.get(f) ?? [])];
+    while (stack.length > 0) {
+      const x = stack.pop() as string;
+      if (seen.has(x)) continue;
+      seen.add(x);
+      for (const n of direct.get(x) ?? []) stack.push(n);
+    }
+    out.set(f, seen);
+  }
+  return out;
+};
+
 // esc-3: `evidence.introduced_at` is the moment the defective design artefact was approved (or created, for E11/E12), so
 // the containment series attributes the escape to when the defect was introduced, not to when it was found (the
 // anti-cheating rule decided with the person: a late discovery lowers the past). Omitted when not derivable.

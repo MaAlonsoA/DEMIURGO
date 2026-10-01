@@ -463,34 +463,7 @@ describe("escape rules", () => {
     expect(run("E12", i)[0]?.evidence).toMatchObject({ reason_class: null, reason_missing: true });
   });
 
-  it("E09 falls back to the footprint: a file another feature's task added, changed without a dependency", () => {
-    const i = {
-      ...empty(),
-      records: [rec("a", "TSK-X-001", "task"), rec("b", "TSK-X-002", "task"), rec("c", "TSK-X-003", "task")],
-      requests: [req("ra", "a"), req("rb", "b"), req("rc", "c")],
-      taskBases: [
-        { task_id: "a", fdr_id: "f1", batch_id: null },
-        { task_id: "b", fdr_id: "f2", batch_id: null },
-        { task_id: "c", fdr_id: "f2", batch_id: null },
-      ],
-    };
-    const fp = (id: string, request: string, at: string, files: { path: string; status: string }[]) => ({
-      ...step(id, request, "merge", "ok", { footprint_files: files }),
-      created_at: at,
-    });
-    i.steps = [
-      fp("s1", "ra", T0, [{ path: "src/db/cardio.sql", status: "added" }]),
-      fp("s2", "rb", T2, [{ path: "src/db/cardio.sql", status: "modified" }, { path: "package.json", status: "modified" }]),
-      fp("s3", "rc", T2, [{ path: "src/other.ts", status: "added" }]),
-    ];
-    const e = run("E09", i);
-    expect(e).toHaveLength(1);
-    expect(e[0]).toMatchObject({ record_code: "TSK-X-002", evidence: { source: "footprint", owners: { "TSK-X-001": ["src/db/cardio.sql"] } } });
-    i.links = [link("depends_on", "b", "a", "task")];
-    expect(run("E09", i)).toHaveLength(0);
-  });
-
-  it("E15 a dependency with no shared files, and shared files with no dependency, are escapes", () => {
+  it("E15 shared files with no dependency are an escape (declared_without_shared_files no longer exists)", () => {
     const i = {
       ...empty(),
       records: [rec("a", "TSK-X-001", "task"), rec("b", "TSK-X-002", "task"), rec("c", "TSK-X-003", "task")],
@@ -507,10 +480,10 @@ describe("escape rules", () => {
     ];
     i.links = [link("depends_on", "b", "a", "task")];
     const e = run("E15", i);
-    expect(e.map((x) => x.evidence.class).sort()).toEqual(["declared_without_shared_files", "shared_without_dependency"]);
-    expect(e.find((x) => x.evidence.class === "shared_without_dependency")).toMatchObject({ record_code: "TSK-X-003" });
+    expect(e.map((x) => x.evidence.class)).toEqual(["shared_without_dependency"]);
+    expect(e[0]).toMatchObject({ record_code: "TSK-X-003", introduced_phase: "P7" });
     i.links.push(link("depends_on", "c", "a", "task"));
-    expect(run("E15", i).map((x) => x.evidence.class)).toEqual(["declared_without_shared_files"]);
+    expect(run("E15", i)).toHaveLength(0);
   });
 
   it("E16 a feature approved without tasks while dependents wait for hours is an escape", () => {

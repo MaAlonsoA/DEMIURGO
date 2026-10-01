@@ -35,7 +35,7 @@ import { ResizablePanel } from '../../components/SidePanel.tsx';
 import { Bone, Skeleton } from '../../components/Spinner.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { useRouteParams, useTables } from '../../lib/hooks.ts';
-import { isOpenQuestion, isShown, pickedChoices } from './answers.ts';
+import { demiurgoReplied, isOpenQuestion, pickedChoices, visibleQuestions } from './answers.ts';
 import { ThreadAside } from './Aside.tsx';
 import { Composer, type ComposerHandle } from './Composer.tsx';
 import { Conversation, type ConversationHandle } from './Conversation.tsx';
@@ -163,7 +163,8 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
   // Opened on a question (?question=ID, from Needs you): once it is on screen, it takes the focus.
   const { question: focusId } = useSearch({ strict: false }) as { question?: string };
   const focused = useRef<string | null>(null);
-  const focusShown = !!focusId && !!t?.questions.some((q) => q.id === focusId && isShown(q));
+  const focusShown =
+    !!focusId && !!t && visibleQuestions(t.questions, demiurgoReplied(t.messages)).some((q) => q.id === focusId);
   useEffect(() => {
     if (!focusId || !focusShown || focused.current === focusId) return;
     focused.current = focusId;
@@ -197,7 +198,7 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
   }
 
   const active = t.state === 'active';
-  const shown = t.questions.filter(isShown);
+  const shown = visibleQuestions(t.questions, demiurgoReplied(t.messages));
   const items = buildTimeline(t.messages, runs.data ?? [], shown);
   const decisions = products ? draftableDecisions(products.decisions, t.id) : undefined;
   const stage = stages?.find((x) => x.exploration_id === t.id && x.state === 'open');
@@ -210,7 +211,7 @@ function ThreadView({ projectId, explorationId }: { projectId: string; explorati
   const onboarding = stages?.filter((x) => x.moment === 'onboarding') ?? [];
   const onboardingDone =
     onboarding.length > 0 && onboarding.every((x) => x.state === 'passed' && x.exploration_id === t.id) && t.children.length === 0;
-  const reserve = t.questions.filter((q) => !isShown(q) && isOpenQuestion(q)).length;
+  const reserve = t.questions.filter((q) => isOpenQuestion(q) && !shown.includes(q)).length;
   const parent = t.parent_id ? threads?.find((x) => x.id === t.parent_id) : undefined;
   const canFork = !!tables && canCreate(tables, 'exploration.open');
   const openCount = shown.filter(isOpenQuestion).length;

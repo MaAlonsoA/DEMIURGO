@@ -17,7 +17,7 @@ import { EntityState } from '../../components/status.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { useTables } from '../../lib/hooks.ts';
 import { OpenThreadDialog } from '../threads/OpenThreadDialog.tsx';
-import { isOpenQuestion, isShown } from './answers.ts';
+import { demiurgoReplied, isOpenQuestion, visibleQuestions } from './answers.ts';
 import { useDrafts } from './drafts.tsx';
 import { ASIDE } from './words.i18n.ts';
 
@@ -52,15 +52,15 @@ function QuestionsHere({
 }) {
   const words = useMessages(ASIDE);
   const drafts = useDrafts();
-  const shown = t.questions.filter(isShown);
+  const shown = visibleQuestions(t.questions, demiurgoReplied(t.messages));
   // Open ones first (they wait for the person), each group in the order they were shown.
   const ordered = [...shown].sort(
     (a, b) =>
       Number(isOpenQuestion(b)) - Number(isOpenQuestion(a)) ||
-      Date.parse(a.shown_at ?? a.created_at) - Date.parse(b.shown_at ?? b.created_at),
+      Date.parse(a.shown_at ?? '9999-01-01') - Date.parse(b.shown_at ?? '9999-01-01'),
   );
   const open = shown.filter(isOpenQuestion).length;
-  const reserve = t.questions.filter((q) => !isShown(q) && isOpenQuestion(q)).length;
+  const reserve = t.questions.filter((q) => isOpenQuestion(q) && !shown.includes(q)).length;
   return (
     <section aria-labelledby="aside-questions" className="flex flex-col gap-3">
       <div className="flex flex-col gap-0.5">

@@ -71,10 +71,10 @@ export function buildTimeline(
     group = null;
     items.push({ type: 'message', key: `m:${m.id}`, at: time(m.created_at), message: m, by: kind });
   }
-  // DEMIURGO's questions are its messages too, from when each was shown (the reserve stays hidden).
+  // DEMIURGO's questions are its messages too, from when each was shown (the caller passes the visible ones; the reserve stays hidden).
   for (const q of questions) {
-    if (!q.shown_at) continue;
-    items.push({ type: 'question', key: `q:${q.id}`, at: time(q.shown_at), question: q });
+    // A question the thread reveals before the server marked it shown goes at the end.
+    items.push({ type: 'question', key: `q:${q.id}`, at: q.shown_at ? time(q.shown_at) : Number.MAX_SAFE_INTEGER, question: q });
   }
   for (const run of runs) {
     const display = runDisplay(run, runs);

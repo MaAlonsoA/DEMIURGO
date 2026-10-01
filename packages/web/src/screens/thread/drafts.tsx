@@ -12,7 +12,7 @@ import { keys } from '../../api/queries.ts';
 import type { ExplorationDetail } from '../../api/types.ts';
 import { announce } from '../../components/announce.tsx';
 import { useMessages } from '../../i18n/define.ts';
-import { MAX_ANSWER, isOpenQuestion, isShown } from './answers.ts';
+import { MAX_ANSWER, demiurgoReplied, isOpenQuestion, visibleQuestions } from './answers.ts';
 import { DRAFTS } from './words.i18n.ts';
 
 export type ForkChoice = 'explore' | 'keep';
@@ -134,7 +134,7 @@ export function useSendDrafts(
   const client = useQueryClient();
   const [sending, setSending] = useState(false);
   const [results, setResults] = useState<SendItem[] | null>(null);
-  const openShown = thread.questions.filter((q) => isOpenQuestion(q) && isShown(q));
+  const openShown = visibleQuestions(thread.questions, demiurgoReplied(thread.messages)).filter(isOpenQuestion);
   const answers = openShown.filter((q) => drafts.answers[q.id]);
   const forks = Object.entries(drafts.forks).filter(([id]) => (forkStates.get(id)?.state ?? 'pending') === 'pending');
 

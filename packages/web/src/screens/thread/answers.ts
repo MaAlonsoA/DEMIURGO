@@ -15,6 +15,39 @@ export const isOpenQuestion = (q: Pick<Question, 'state'>): boolean => OPEN.has(
 /** Shown in its thread; the ones not shown yet wait in DEMIURGO's reserve. */
 export const isShown = (q: Pick<Question, 'shown_at'>): boolean => !!q.shown_at;
 
+/** At most this many open questions are visible at once (the server's MAX_OPEN_QUESTIONS). */
+export const MAX_VISIBLE_OPEN = 2;
+
+type Revealable = Pick<Question, 'id' | 'state' | 'created_at' | 'shown_at' | 'stage_key'>;
+
+/**
+ * The questions the thread shows: the ones the server already showed, plus the next held ones
+ * while fewer than MAX_VISIBLE_OPEN open questions are visible. The server reveals them on its own
+ * events; this keeps a thread from getting stuck when it did not (nothing visible, nothing to answer).
+ * Held ones come in the server's order: the stage's by creation, then DEMIURGO's. `answered` is
+ * whether DEMIURGO has replied in the thread: before that, its questions wait for its first reply.
+ */
+export function visibleQuestions<Q extends Revealable>(questions: readonly Q[], answered = true, max = MAX_VISIBLE_OPEN): Q[] {
+  const shown = questions.filter(isShown);
+  if (!answered) return shown;
+  const room = max - shown.filter(isOpenQuestion).length;
+  if (room <= 0) return shown;
+  const held = questions
+    .filter((q) => !isShown(q) && isOpenQuestion(q))
+    .toSorted(
+      (a, b) =>
+        Number(a.stage_key == null) - Number(b.stage_key == null) ||
+        Date.parse(a.created_at) - Date.parse(b.created_at) ||
+        a.id.localeCompare(b.id),
+    )
+    .slice(0, room);
+  return [...shown, ...held];
+}
+
+/** Whether DEMIURGO has written in the thread (the server holds its questions until it has). */
+export const demiurgoReplied = (messages: readonly { author: string }[]): boolean =>
+  messages.some((m) => m.author.startsWith('agent:run'));
+
 /** The value of DEMIURGO's assumed answer among the choices. */
 export const ASSUMED = 'assumed';
 /** The value of the answer the question's side conversation led to. */

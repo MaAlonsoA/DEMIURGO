@@ -10,6 +10,7 @@ import {
   pickedChoices,
   plainText,
   withExclusive,
+  visibleQuestions,
 } from '../../src/screens/thread/answers.ts';
 import { buildTimeline, draftableDecisions, progressWords, runDisplay, sideMessages } from '../../src/screens/thread/timeline.ts';
 
@@ -236,6 +237,19 @@ describe('answering a question in its thread', () => {
     expect(isOpenQuestion(q({ state: 'inferred' }))).toBe(true);
     expect(isOpenQuestion(q({ state: 'postponed' }))).toBe(false);
     expect(isShown(q({ shown_at: null }))).toBe(false);
+  });
+
+  it('two held questions and none visible are both shown, in the timeline too', () => {
+    const held = [q({ id: 'a', shown_at: null }), q({ id: 'b', shown_at: null }), q({ id: 'c', shown_at: null, created_at: at(9) })];
+    expect(visibleQuestions(held).map((x) => x.id)).toEqual(['a', 'b']);
+    expect(buildTimeline([], [], visibleQuestions(held)).map((i) => i.key)).toEqual(['q:a', 'q:b']);
+  });
+
+  it('held questions fill only the room left and wait for DEMIURGO to reply first', () => {
+    const list = [q({ id: 'a' }), q({ id: 'b', shown_at: null }), q({ id: 'c', shown_at: null }), q({ id: 'd', state: 'confirmed' })];
+    expect(visibleQuestions(list).map((x) => x.id)).toEqual(['a', 'd', 'b']);
+    expect(visibleQuestions([q({ id: 'a' }), q({ id: 'e' }), q({ id: 'b', shown_at: null })]).map((x) => x.id)).toEqual(['a', 'e']);
+    expect(visibleQuestions([q({ id: 'b', shown_at: null })], false)).toEqual([]);
   });
 
   it('AC-INT-001-09 a reply of DEMIURGO becomes plain words for the answer', () => {

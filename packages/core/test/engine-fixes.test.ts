@@ -3,6 +3,7 @@
 // candidates of the task's own feature.
 
 import { describe, expect, it } from 'vitest';
+import '../src/bus/bus.ts'; // loads the core in its usual order (the modules import each other)
 import { affectedCriteria } from '../src/build/affected-criteria.ts';
 import { type Owners, featureOfName, ownershipViolations } from '../src/build/ownership.ts';
 import { type GreenTest, type RedEntry, classifyLoopFailure } from '../src/build/tdd.ts';

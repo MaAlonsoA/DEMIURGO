@@ -349,6 +349,7 @@ export const DEFAULT_SCRIPTS: Record<AgentAction, Script> = {
         walking_skeleton: i === 0 && c.first_feature === true,
         // Each part builds on the one before it.
         depends_on: i === 0 ? [] : [i],
+        waits_for_features: [],
       })),
       task_changes: [],
       sources: [],

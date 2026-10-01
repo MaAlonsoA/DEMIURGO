@@ -177,6 +177,8 @@ export type ReadinessInput = {
     /** Knowledge has compared it with the current version, when it rests on an older one. */
     checked?: boolean;
   }[];
+  /** A task's dependencies (`depends_on` links), already resolved against the build state; only for a task. */
+  taskWaits?: TaskWaits;
   /** Features this feature needs (based_on links to other features), with how built each one is. */
   needs: { code: string; implementation: string }[];
   /** Whether the Architecture stage (before_build) has passed: a feature is not built before it. */
@@ -194,6 +196,63 @@ export type ReadinessInput = {
   /** Pending proposals that depend on this record. */
   pendingProposals: number;
 };
+
+/**
+ * What a task waits for (our convention, not a published rule: a dependency-blocked task is not
+ * startable, as in Jira's «is blocked by» and Linear's «blocked by»): the tasks it depends on and the
+ * features it waits for, each with whether it is done, and the dependency cycle it is part of, if any.
+ */
+export type TaskWaits = {
+  tasks: { code: string; title: string; merged: boolean }[];
+  features: { code: string; title: string; built: boolean }[];
+  /** Codes of the other tasks of a dependency cycle this task is in (itself when it waits for itself); null when none. */
+  cycle: string[] | null;
+};
+
+/** The readiness reasons of a task's dependencies, in the words of the Build page. */
+export function dependencyReasons(w: TaskWaits): string[] {
+  const reasons: string[] = [];
+  if (w.cycle) reasons.push(`Dependency cycle with ${w.cycle.join(', ')}.`);
+  for (const t of w.tasks) if (!t.merged) reasons.push(`Waits for ${t.code} ${t.title} (not merged yet).`);
+  for (const f of w.features) if (!f.built) reasons.push(`Waits for ${f.code} ${f.title} (not built yet).`);
+  return reasons;
+}
+
+/** The dependency cycle `start` is in (as `start` first, then the codes along it), or null. Missing nodes have no edges. */
+export function findDependencyCycle(graph: ReadonlyMap<string, readonly string[]>, start: string): string[] | null {
+  const seen = new Set<string>();
+  const walk = (node: string, path: string[]): string[] | null => {
+    for (const next of graph.get(node) ?? []) {
+      if (next === start) return path;
+      if (seen.has(next)) continue;
+      seen.add(next);
+      const found = walk(next, [...path, next]);
+      if (found) return found;
+    }
+    return null;
+  };
+  return walk(start, [start]);
+}
+
+/**
+ * Stable topological order: always the first remaining item whose dependencies (`depsOf`, codes; the
+ * ones not in `items` are ignored) are already out, so ties keep their order. If none is free (a
+ * cycle), the first remaining goes: it never hangs.
+ */
+export function orderByDependencies<T>(items: readonly T[], codeOf: (t: T) => string, depsOf: (t: T) => readonly string[]): T[] {
+  const present = new Set(items.map(codeOf));
+  const rest = [...items];
+  const out: T[] = [];
+  const done = new Set<string>();
+  while (rest.length > 0) {
+    let i = rest.findIndex((t) => depsOf(t).every((d) => d === codeOf(t) || !present.has(d) || done.has(d)));
+    if (i < 0) i = 0; // a cycle: the first one goes
+    const [t] = rest.splice(i, 1);
+    out.push(t as T);
+    done.add(codeOf(t as T));
+  }
+  return out;
+}
 
 export type Readiness = { ready: boolean; reasons: string[]; warnings: string[] };
 
@@ -247,7 +306,10 @@ export function readiness(e: ReadinessInput): Readiness {
       }
     }
     const missing = Array.from({ length: n }, (_, i) => i + 1).filter((s) => !e.criteria.some((c) => c.step === s));
-    if (missing.length > 0) reasons.push(`Behavior ${missing.length === 1 ? 'step' : 'steps'} ${missing.join(', ')} ha${missing.length === 1 ? 's' : 've'} no criterion.`);
+    if (missing.length > 0)
+      reasons.push(
+        `Behavior ${missing.length === 1 ? 'step' : 'steps'} ${missing.join(', ')} ha${missing.length === 1 ? 's' : 've'} no criterion.`,
+      );
   }
   if (e.type === 'fdr' || e.type === 'adr' || e.type === 'task') {
     if (e.basedOn.length === 0) {
@@ -279,6 +341,7 @@ export function readiness(e: ReadinessInput): Readiness {
       if (n.implementation !== 'implemented') reasons.push(`It needs ${n.code}, which is not built yet.`);
     }
   }
+  if (e.type === 'task' && e.taskWaits) reasons.push(...dependencyReasons(e.taskWaits));
   if (e.type === 'epic') {
     if (e.features && e.features.length === 0) reasons.push('It has no features yet.');
     // Approving an epic does not wait for its features to be designed: they are designed one by one.
@@ -291,9 +354,14 @@ export function readiness(e: ReadinessInput): Readiness {
   }
   if (e.pendingProposals > 0) reasons.push(`There are ${e.pendingProposals} pending proposal(s) affecting it.`);
   const warnings = e.criteria.flatMap((c) => verifiabilityWarnings(c.code, c.statement));
-  if (e.type === 'fdr' && e.behaviorSteps !== undefined && (e.behaviorSteps < MAIN_FLOW_STEPS.min || e.behaviorSteps > MAIN_FLOW_STEPS.max))
+  if (
+    e.type === 'fdr' &&
+    e.behaviorSteps !== undefined &&
+    (e.behaviorSteps < MAIN_FLOW_STEPS.min || e.behaviorSteps > MAIN_FLOW_STEPS.max)
+  )
     warnings.push(`The main flow has ${e.behaviorSteps} steps; a use case's main success scenario has 3 to 9 (Cockburn).`);
-  if (e.type === 'epic' && e.hasOutOfScope === false) warnings.push('It has no "Out of scope" section: say what this epic deliberately leaves out.');
+  if (e.type === 'epic' && e.hasOutOfScope === false)
+    warnings.push('It has no "Out of scope" section: say what this epic deliberately leaves out.');
   return { ready: reasons.length === 0, reasons, warnings };
 }
 

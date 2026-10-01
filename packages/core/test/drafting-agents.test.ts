@@ -8,7 +8,7 @@ import { DEFAULT_SCRIPTS, createSimulatedProvider } from '../src/agents/simulate
 import { executeCommand } from '../src/bus/bus.ts';
 import { waitForRun } from '../src/engine/engine.ts';
 import { waitForKnowledge } from '../src/knowledge/workflows.ts';
-import { explorationDetail, recordDetail } from '../src/queries/read.ts';
+import { explorationDetail, recordDetail, versionReadiness } from '../src/queries/read.ts';
 import { withoutDuplicateCoverage } from '../src/actions/task-plan.ts';
 import { taskDraftView } from '../src/queries/task-view.ts';
 import { useEnvironment } from './support/env.ts';
@@ -29,6 +29,13 @@ const environment = useEnvironment({
               changeable: boolean;
             }[];
           };
+          // A plan whose tasks wait for the feature the request names (WAITS_TEST:<code>, the last one).
+          const waits = [...JSON.stringify(c.request ?? null).matchAll(/WAITS_TEST:(FDR-[A-Z]{3}-\d{3})/g)].at(-1)?.[1];
+          if (waits)
+            return {
+              ...base,
+              tasks: (base.tasks as object[]).map((t) => ({ ...t, waits_for_features: [waits] })),
+            };
           if (!JSON.stringify(c.request ?? null).includes('MOVE_TEST')) return base;
           const task = c.existing_tasks.find((t) => t.changeable && t.covers.length > 1);
           if (!task) return base;
@@ -39,13 +46,14 @@ const environment = useEnvironment({
               {
                 title: 'Moved criterion, built later',
                 goal: 'Build what the moved criterion checks.',
-                scope: 'Blocked by another feature: build after it.',
+                scope: 'Checked only once another feature exists: build after it.',
                 covers: [moved],
                 size: 'S',
                 size_reason: 'One criterion.',
                 split: null,
                 walking_skeleton: false,
                 depends_on: [],
+                waits_for_features: [],
               },
             ],
             task_changes: [
@@ -426,5 +434,115 @@ describe('the drafting agents', () => {
     expect(await proposalsOf(run.id)).toHaveLength(0);
     expect(run.failure_kind).toBe('invalid_output');
     expect(run.error).toMatch(/2 steps/);
+  });
+
+  it('the task_plan checker refuses a waited feature that is unknown, is its own feature or already waits for this one', async () => {
+    const plan = async (waits: string) => {
+      await cmd('message.post', {
+        exploration_id: state.featureThread,
+        text: `Plan it again. WAITS_TEST:${waits}`,
+        respond: false,
+      });
+      return draftRun('task_plan', { type: 'record_version', id: state.featureVersion });
+    };
+    const unknown = await plan('FDR-ZZZ-999');
+    expect(unknown.state).toBe('failed');
+    expect(unknown.error).toMatch(/FDR-ZZZ-999, which is not a feature of the project/);
+    const own = await plan(state.featureCode);
+    expect(own.state).toBe('failed');
+    expect(own.error).toMatch(/its own feature/);
+
+    // Another feature whose task already waits for this one: waiting for it back is a cycle.
+    const other = await cmd('record.create', {
+      type: 'fdr',
+      domain: 'cycle',
+      title: 'Other feature',
+      sections: [
+        { title: 'Goal', content: 'Do it.' },
+        { title: 'Scope', content: 'Just that.' },
+        { title: 'Out of scope', content: 'Nothing else.' },
+        { title: 'Behavior', content: 'The person does it.' },
+      ],
+      criteria: [
+        {
+          carry: 'new',
+          title: 'a',
+          statement: 'Given a person, when she acts, then she sees it.',
+          verification: 'automatic',
+          check: 'E2E.',
+        },
+      ],
+      links: [],
+    });
+    const o = other.result as { versionId: string; code: string };
+    await cmd('record_version.approve', {}, o.versionId);
+    const waiting = await cmd('record.create', {
+      type: 'task',
+      domain: 'cycle',
+      title: 'Waits for the feature under test',
+      sections: [
+        { title: 'Goal', content: 'Do it.' },
+        { title: 'Scope', content: 'Just that.' },
+      ],
+      size: 'S',
+      criteria: [],
+      links: [
+        { type: 'based_on', target: { code: o.code, version: 1 } },
+        { type: 'depends_on', target: { code: state.featureCode, version: 1 } },
+      ],
+    });
+    await cmd('record_version.approve', {}, (waiting.result as { versionId: string }).versionId);
+    const cycle = await plan(o.code);
+    expect(cycle.state).toBe('failed');
+    expect(cycle.error).toMatch(/dependency cycle/);
+  });
+
+  it('accepting a plan whose task waits for a feature links it to that feature, and the task is not ready until it is built', async () => {
+    const made = await cmd('record.create', {
+      type: 'fdr',
+      domain: 'wait',
+      title: 'Feature to wait for',
+      sections: [
+        { title: 'Goal', content: 'Do it.' },
+        { title: 'Scope', content: 'Just that.' },
+        { title: 'Out of scope', content: 'Nothing else.' },
+        { title: 'Behavior', content: 'The person does it.' },
+      ],
+      criteria: [
+        {
+          carry: 'new',
+          title: 'a',
+          statement: 'Given a person, when she acts, then she sees it.',
+          verification: 'automatic',
+          check: 'E2E.',
+        },
+      ],
+      links: [],
+    });
+    const w = made.result as { versionId: string; code: string };
+    await cmd('record_version.approve', {}, w.versionId);
+    const feature = await recordDetail(db(), projectId, state.featureCode);
+    const criterion = feature.versions.find((v) => v.current)?.criteria[0]?.code ?? '';
+    await cmd('message.post', {
+      exploration_id: state.featureThread,
+      text: `Cover ${criterion} once more, in a task that waits. WAITS_TEST:${w.code}`,
+      respond: false,
+    });
+    const run = await draftRun('task_plan', { type: 'record_version', id: state.featureVersion });
+    expect(run.error).toBeNull();
+    const proposals = await proposalsOf(run.id);
+    expect(proposals[0]!.payload).toMatchObject({ waits_for_features: [w.code] });
+    const accepted = (await cmd('proposal.accept', { approve: true }, proposals[0]!.id)).result as Created;
+    const link = await db()
+      .selectFrom('links')
+      .innerJoin('record_versions', 'record_versions.id', 'links.to_id')
+      .innerJoin('records', 'records.id', 'record_versions.record_id')
+      .select(['records.code', 'record_versions.n'])
+      .where('links.from_id', '=', accepted.versionId)
+      .where('links.type', '=', 'depends_on')
+      .execute();
+    expect(link).toEqual([{ code: w.code, n: 1 }]);
+    const reasons = (await versionReadiness(db(), projectId, accepted.versionId)).reasons;
+    expect(reasons).toContain(`Waits for ${w.code} Feature to wait for (not built yet).`);
   });
 });

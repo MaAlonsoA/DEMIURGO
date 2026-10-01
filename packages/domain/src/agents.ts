@@ -608,6 +608,12 @@ export const taskPlanOutput = z
               .array(z.number().int().min(1).max(19))
               .max(19)
               .describe('The 1-based positions of EARLIER tasks in this list that must be done before this one starts; empty when none.'),
+            waits_for_features: z
+              .array(z.string().regex(/^FDR-[A-Z]{3}-\d{3}$/))
+              .max(6)
+              .describe(
+                'Codes of OTHER features (`other_features`) that must be fully built before this task can start, because a criterion it covers can only be checked once they exist; empty when none.',
+              ),
           })
           .strict(),
       )

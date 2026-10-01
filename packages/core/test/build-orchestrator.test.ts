@@ -672,6 +672,32 @@ describe('Build the queue (opt-in per project)', () => {
   }
   const requestFor = (code: string) => until(async () => (await requestsOf(code)).find((r) => r.state !== 'withdrawn'));
   const readyCodes = async () => (await buildQueue(db(), projectId)).ready.map((t) => t.code);
+  /** The task that waits for `code` to be merged (the planner makes a feature's second task depend on its first). */
+  const waitingFor = async (code: string) =>
+    (await buildQueue(db(), projectId)).waiting.find((t) => t.reasons.some((r) => r.startsWith(`Waits for ${code} `)))?.code;
+  /** A task of the same feature that depends on nothing: ready as soon as the first one is. */
+  async function independentTask(sibling: string): Promise<string> {
+    const queue = await buildQueue(db(), projectId);
+    const like = [...queue.ready, ...queue.waiting].find((t) => t.code === sibling);
+    const feature = like?.feature?.code ?? '';
+    const created = await cmd('record.create', {
+      type: 'task',
+      domain: feature.slice(4, 7).toLowerCase(),
+      title: 'An independent task',
+      sections: [
+        { title: 'Goal', content: 'Build another slice.' },
+        { title: 'Scope', content: 'Nothing else depends on it.' },
+      ],
+      size: 'S',
+      covers: coversOf.get(sibling) ?? [],
+      criteria: [],
+      links: [{ type: 'based_on', target: { code: feature, version: 1 } }],
+    });
+    const made = created.result as { versionId: string; code: string };
+    await cmd('record_version.approve', {}, made.versionId);
+    coversOf.set(made.code, coversOf.get(sibling) ?? []);
+    return made.code;
+  }
 
   beforeAll(async () => {
     firstCodes = codes;
@@ -697,8 +723,9 @@ describe('Build the queue (opt-in per project)', () => {
 
   it('flag off: nothing starts, not even after a merge', async () => {
     setBuildDeps(queueFakes({ ciConclusion: 'success' }));
-    const [first, second] = await readyCodes();
+    const [first] = await readyCodes();
     expect(first).toBeDefined();
+    const second = await waitingFor(first as string);
     expect(await advanceBuildQueue(environment().services, projectId)).toBeNull();
     expect(await allRequests()).toEqual([]);
 
@@ -715,8 +742,9 @@ describe('Build the queue (opt-in per project)', () => {
 
   it('flag on: the first ready task starts by itself, and when it merges the next one starts', async () => {
     setBuildDeps(queueFakes({ ciConclusion: 'success' }));
-    const [first, second] = await readyCodes();
-    expect(second, 'two ready tasks').toBeDefined();
+    const [first] = await readyCodes();
+    const second = await waitingFor(first as string);
+    expect(second, 'a task waits for the first').toBeDefined();
     const next = second as string;
 
     const on = await cmd('build.queue_auto', { on: true }, projectId);
@@ -760,8 +788,9 @@ describe('Build the queue (opt-in per project)', () => {
 
   it('on hold: a held task is not ready and the queue skips it and builds the next one; releasing it brings it back', async () => {
     setBuildDeps(queueFakes({ ciConclusion: 'success' }));
-    const [first, second] = await readyCodes();
-    expect(second, 'two ready tasks').toBeDefined();
+    const [first] = await readyCodes();
+    const second = await independentTask(first as string);
+    expect(await readyCodes()).toContain(second);
     await expect(cmd('task.hold', { task: first, reason: '   ' }, projectId)).rejects.toMatchObject({ type: 'validation' });
     await expect(
       executeCommand(environment().services, { command: 'task.hold', actor: system('build', '1'), projectId, entityId: projectId, data: { task: first, reason: 'x' } }),

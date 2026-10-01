@@ -36,6 +36,7 @@ import { approvedDesignSystem, designSystemSpecOf, latestScreensOfFeature, missi
 import { threadDraft } from './draft.ts';
 import { githubConfig } from '../github/client.ts';
 import { taskViewOfRecord } from './task-view.ts';
+import { loadTaskDependencies, taskWaitsFrom } from './task-deps.ts';
 import { currentVersions, suspectRecords } from './impact.ts';
 import { inceptionOf } from './inception.ts';
 
@@ -216,6 +217,15 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
           })),
         )
       : undefined;
+  // A task also waits for the tasks and features it depends on (queries/task-deps.ts).
+  const taskWaits =
+    v.type === 'task'
+      ? taskWaitsFrom(
+          await loadTaskDependencies(db, projectId, { code: v.code, versionId }),
+          v.code,
+          basedOn.find((b) => b.type === 'fdr')?.code,
+        )
+      : undefined;
   const own = readiness({
     code: v.code,
     type: v.type as RecordType,
@@ -234,6 +244,7 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
       : {}),
     basedOn,
     needs,
+    ...(taskWaits ? { taskWaits } : {}),
     architecturePassed: await stagePassed(db, projectId, 'architecture'),
     securityPassed: await stagePassed(db, projectId, 'security'),
     linksUnderReview,

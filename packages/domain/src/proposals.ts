@@ -130,6 +130,8 @@ export const designRecordPayload = z
     split: text(600).optional(),
     /** A task's dependencies: the titles of the tasks of the same feature that must be done first (it is blocked by them). */
     depends_on_titles: z.array(text(200)).max(19).optional(),
+    /** A task's feature dependencies: codes of other features that must be built first (a `depends_on` link each). */
+    waits_for_features: z.array(z.string().regex(/^FDR-[A-Z]{3}-\d{3}$/)).max(6).optional(),
     aspect: aspectSchema.optional(),
     basis,
   })

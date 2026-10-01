@@ -2,7 +2,7 @@
 // output (every criterion covered, XL split, one walking skeleton at most) before the applier turns
 // it into one package the person accepts in a step, depending on the feature's version.
 
-import { DomainError, behaviorSteps, type Section } from '@demiurgo/domain';
+import { DomainError, behaviorSteps, findDependencyCycle, type Section } from '@demiurgo/domain';
 import { approvedBasis } from '../context/approved-basis.ts';
 import { registerBuilder } from '../context/build.ts';
 import { knowledgeForContext } from '../context/knowledge.ts';
@@ -14,6 +14,7 @@ import { registerApplier, registerChecker } from './appliers.ts';
 import { packContentOf, sourcesPayload } from './drafting.ts';
 import { featureTasksOf } from './exploration-chat.ts';
 import { mergedBuildOf, originExploration } from '../queries/read.ts';
+import { featureWaitGraph, loadTaskDependencies } from '../queries/task-deps.ts';
 
 const BUILDER = 'task_plan@1';
 const BUDGET = {
@@ -74,6 +75,52 @@ async function existingTasksOf(
       merged: !!(await mergedBuildOf(db, rec.id)),
       goal: of('Goal'),
       scope: of('Scope'),
+    });
+  }
+  return out;
+}
+
+type OtherFeature = { code: string; title: string; designed: boolean; tasks: number; built: boolean };
+
+/** The project's features other than this one, with whether each has an approved version, tasks and all of them merged. */
+async function otherFeaturesOf(db: Db, projectId: string, except: string): Promise<OtherFeature[]> {
+  const rows = await db
+    .selectFrom('records')
+    .select(['id', 'code'])
+    .where('project_id', '=', projectId)
+    .where('type', '=', 'fdr')
+    .where('code', '<>', except)
+    .orderBy('code')
+    .limit(60)
+    .execute();
+  const index = await loadTaskDependencies(db, projectId);
+  const out: OtherFeature[] = [];
+  for (const r of rows) {
+    const versions = await db
+      .selectFrom('record_versions')
+      .select(['title', 'n', 'state'])
+      .where('record_id', '=', r.id)
+      .where('state', '<>', 'discarded')
+      .orderBy('n')
+      .execute();
+    const title = versions.filter((x) => x.state === 'approved').at(-1)?.title ?? versions.at(-1)?.title ?? r.code;
+    const tasks = index.featureTasks.get(r.code) ?? [];
+    let merged = 0;
+    for (const code of tasks) {
+      const rec = await db
+        .selectFrom('records')
+        .select('id')
+        .where('project_id', '=', projectId)
+        .where('code', '=', code)
+        .executeTakeFirst();
+      if (rec && (await mergedBuildOf(db, rec.id))) merged++;
+    }
+    out.push({
+      code: r.code,
+      title,
+      designed: versions.some((x) => x.state === 'approved'),
+      tasks: tasks.length,
+      built: tasks.length > 0 && merged === tasks.length,
     });
   }
   return out;
@@ -227,6 +274,7 @@ registerBuilder('task_plan', async ({ trx, projectId, scope, graphVersion }) => 
     reason: 'scope',
   });
   const firstFeature = !(await projectHasTasks(trx, projectId));
+  const otherFeatures = await otherFeaturesOf(trx, projectId, v.code);
   const existing = await existingTasksOf(trx, projectId, feature);
   const request = await requestOf(trx, projectId, { recordId: v.recordId, code: v.code }, v.id);
   if (request)
@@ -311,6 +359,8 @@ registerBuilder('task_plan', async ({ trx, projectId, scope, graphVersion }) => 
         request,
         uncovered: feature.uncovered,
         first_feature: firstFeature,
+        // The project's other features, for `waits_for_features`: built is every task of it merged.
+        other_features: otherFeatures,
         ...(screens?.spec
           ? {
               screens: {
@@ -393,6 +443,11 @@ registerChecker('task_plan', async ({ db, run, output }) => {
   const notes: string[] = [];
   if (!feature || feature.version !== pack.feature.version)
     return [`${pack.feature.code} is no longer at v${pack.feature.version}: its tasks can't be planned from this version.`];
+  const featureCodes = new Set(
+    (
+      await db.selectFrom('records').select('code').where('project_id', '=', run.project_id).where('type', '=', 'fdr').execute()
+    ).map((r) => r.code),
+  );
   for (const [i, t] of output.tasks.entries()) {
     const unknown = t.covers.filter((c) => !feature.criteria.includes(c));
     if (unknown.length > 0)
@@ -404,11 +459,32 @@ registerChecker('task_plan', async ({ db, run, output }) => {
       notes.push(
         `Task ${i + 1} ("${t.title}") depends on ${bad.join(', ')}: \`depends_on\` only lists positions of EARLIER tasks (1 to ${i}), never itself or a later one.`,
       );
+    for (const f of t.waits_for_features) {
+      if (f === pack.feature.code)
+        notes.push(
+          `Task ${i + 1} ("${t.title}") waits for ${f}, its own feature: \`waits_for_features\` only lists OTHER features.`,
+        );
+      else if (!featureCodes.has(f))
+        notes.push(
+          `Task ${i + 1} ("${t.title}") waits for ${f}, which is not a feature of the project: \`waits_for_features\` only lists codes of \`other_features\`.`,
+        );
+    }
     if (t.size === 'XL' && !t.split)
       notes.push(`Task ${i + 1} ("${t.title}") is XL: say in \`split\` how it could be split into smaller tasks.`);
     if (t.walking_skeleton && (i !== 0 || !pack.first_feature))
       notes.push(
         `Task ${i + 1} ("${t.title}") is marked as the walking skeleton: only the first task of the project's first feature can be (\`first_feature\` is ${pack.first_feature}); mark it false.`,
+      );
+  }
+  // A feature that (through its tasks) already waits for this one cannot be waited for: neither could be built.
+  const waited = [...new Set(output.tasks.flatMap((t) => t.waits_for_features))].filter((f) => f !== pack.feature.code);
+  if (waited.length > 0) {
+    const graph = featureWaitGraph(await loadTaskDependencies(db, run.project_id));
+    graph.set(pack.feature.code, [...new Set([...(graph.get(pack.feature.code) ?? []), ...waited])]);
+    const cycle = findDependencyCycle(graph, pack.feature.code);
+    if (cycle)
+      notes.push(
+        `\`waits_for_features\` makes a dependency cycle (${[...cycle, pack.feature.code].join(' waits for ')}): neither feature could be built first. Drop the dependency that closes it.`,
       );
   }
   const existing = await existingTasksOf(db, run.project_id, feature);
@@ -574,6 +650,7 @@ registerApplier('task_plan', async ({ trx, execute, run, output }) => {
               ];
               return titles.length > 0 ? { depends_on_titles: titles } : {};
             })(),
+            ...(t.waits_for_features.length > 0 ? { waits_for_features: [...new Set(t.waits_for_features)] } : {}),
             ...sourcesPayload(output.sources),
           },
         })),

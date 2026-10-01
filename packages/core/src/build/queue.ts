@@ -9,6 +9,7 @@ import {
   SIZE_POINTS,
   type Suspect,
   type TaskSize,
+  orderByDependencies,
   sizeLine,
   suspectReason,
 } from "@demiurgo/domain";
@@ -18,6 +19,7 @@ import { githubConfig } from "../github/client.ts";
 import { suspectRecords } from "../queries/impact.ts";
 import { mergedBuildOf, productState } from "../queries/read.ts";
 import { taskCoversOf } from "../queries/sizes.ts";
+import { loadTaskDependencies, waitedTaskCodes } from "../queries/task-deps.ts";
 import { projectsDir } from "../repo/repo.ts";
 import type { AutoStatus } from "./auto.ts";
 import { stageFailure } from "./failure.ts";
@@ -322,9 +324,16 @@ export async function buildQueue(
   };
 
   const holds = await openHolds(db, projectId);
-  const approved = tasks
-    .filter((t) => t.current !== null && t.implementation !== "implemented")
-    .sort(order);
+  // Within the feature order, a task comes after the tasks it depends on and after every task of the
+  // features it waits for (stable: ties keep the order above).
+  const dependencies = await loadTaskDependencies(db, projectId);
+  const approved = orderByDependencies(
+    tasks
+      .filter((t) => t.current !== null && t.implementation !== "implemented")
+      .sort(order),
+    (t) => t.code,
+    (t) => waitedTaskCodes(dependencies, t.code, t.based_on),
+  );
   const held: HeldTask[] = approved
     .filter((t) => holds.has(t.code))
     .map((t) => ({ ...lineOf(t), hold: holds.get(t.code) as TaskHold }));

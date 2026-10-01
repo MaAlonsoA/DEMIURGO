@@ -5,10 +5,11 @@
 // words, or it does not happen. A change decided in another thread becomes the next version in one
 // step, and an answer written in another language is kept in English, with the person's own words.
 
-import { DEFINITION_SECTIONS, type Section, human, system } from '@demiurgo/domain';
+import { DEFINITION_SECTIONS, type Section, findQuote, human, system } from '@demiurgo/domain';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { executeCommand } from '../src/bus/bus.ts';
 import { buildContext } from '../src/context/build.ts';
+import { saidInThread } from '../src/actions/exploration-chat.ts';
 import { definitionChangeProposal } from '../src/definition/compose.ts';
 import { inceptionOf } from '../src/queries/inception.ts';
 import { productDefinition } from '../src/queries/definition.ts';
@@ -593,5 +594,31 @@ describe('an answer written in another language', () => {
     }
     const q = await db.selectFrom('questions').select('state').where('id', '=', outcomes).executeTakeFirstOrThrow();
     expect(q.state).toBe('pending');
+  });
+});
+
+describe('the answers the person confirmed are their words too', () => {
+  it('are quotable like their messages, and an answer nobody human confirmed is not', async () => {
+    const review = (await cmd('exploration.open', { purpose: 'Review FDR-X-001: partial coverage' })).entityId;
+    const db = environment().services.db;
+    const raise = async (question: string) => (await cmd('question.raise', { exploration_id: review, question })).entityId;
+    const human1 = await raise('Apply the fix or keep the record?');
+    const inferred = await raise('Who pays?');
+    await cmd('question.confirm', { conclusion: 'Apply the fix, aligned with the partial coverage rule.' }, human1);
+    await executeCommand(environment().services, {
+      command: 'question.infer',
+      actor: system('exploration'),
+      projectId,
+      entityId: inferred,
+      data: { conclusion: 'The organizer pays the fee.' },
+    });
+    const said = await saidInThread(db, review);
+    expect(findQuote('Apply the fix, aligned with the partial coverage rule.', said)).toEqual({
+      message_id: human1,
+      quote: 'Apply the fix, aligned with the partial coverage rule.',
+    });
+    expect(said.find((m) => m.id === human1)?.kind).toBe('question');
+    expect(findQuote('The organizer pays the fee.', said)).toBeNull();
+    expect(findQuote('Apply the fix and also invent more.', said)).toBeNull();
   });
 });

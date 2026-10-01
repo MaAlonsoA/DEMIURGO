@@ -115,6 +115,7 @@ export async function explorationPack({ trx, projectId, scope, input, graphVersi
     .orderBy('id')
     .execute();
   const questions = allQuestions.filter((q) => q.state !== 'discarded');
+  const personAnswered = new Set((await confirmedAnswers(trx, exploration.id)).map((a) => a.id));
   // Proposals of this thread the person declined with a reason (the latest five): not to be repeated as they were.
   const declinedRows = await sql<{ type: string; payload: Record<string, unknown>; resolution: { reason?: string | null } | null }>`
     select p.type, p.payload, p.resolution
@@ -561,6 +562,8 @@ export async function explorationPack({ trx, projectId, scope, input, graphVersi
           reason: q.reason,
           state: q.state,
           conclusion: q.conclusion,
+          // A confirmed answer the person chose or wrote is quotable as their words, like a message.
+          answered_by_person: personAnswered.has(q.id),
           impact: q.impact,
           has_options: q.options.length > 0,
           // The one being talked about carries its options, so Go deeper and the explainer weigh them,
@@ -659,9 +662,27 @@ async function firstFeatureStep(trx: Tx, projectId: string, explorationId: strin
   };
 }
 
-/** What the person wrote in the thread, most recent first: where an agent's quotes have to be. */
-export function saidInThread(db: Db, explorationId: string) {
-  return db
+/**
+ * The answers the person confirmed in the thread (a picked option or their own words): the question
+ * is `confirmed` and its latest `question.confirm` was done by a human actor. They are their words too.
+ */
+export async function confirmedAnswers(db: Db, explorationId: string) {
+  const rows = await sql<{ id: string; conclusion: string }>`
+    select q.id, q.conclusion
+    from questions q
+    where q.exploration_id = ${explorationId}::uuid and q.state = 'confirmed' and coalesce(q.conclusion, '') <> ''
+      and (select e.actor from events e
+           where e.entity_type = 'question' and e.entity_id = q.id and e.command = 'question.confirm'
+           order by e.seq desc limit 1) like 'human:%'`.execute(db);
+  return rows.rows;
+}
+
+/**
+ * What the person said in the thread, most recent first: where an agent's quotes have to be. Their
+ * messages, then the answers they confirmed (`kind: 'question'`, `id` the question's).
+ */
+export async function saidInThread(db: Db, explorationId: string) {
+  const messages = await db
     .selectFrom('messages')
     .select(['id', 'body'])
     .where('exploration_id', '=', explorationId)
@@ -669,6 +690,11 @@ export function saidInThread(db: Db, explorationId: string) {
     .orderBy('created_at', 'desc')
     .orderBy('id', 'desc')
     .execute();
+  const answers = await confirmedAnswers(db, explorationId);
+  return [
+    ...messages.map((m) => ({ id: m.id, body: m.body, kind: 'message' as const })),
+    ...answers.map((a) => ({ id: a.id, body: a.conclusion, kind: 'question' as const })),
+  ];
 }
 
 // A quote that isn't in what the person wrote goes back to the agent once: dropped, it would take
@@ -1121,9 +1147,11 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
   // with no quote found is dropped, so the question stays open and gets asked.
   const pending = new Set(content.questions.filter((q) => q.state === 'pending').map((q) => q.id));
   const said = await saidInThread(trx, scope.id);
+  const saidMessages = said.filter((m) => m.kind === 'message');
   for (const inference of output.inferences) {
     if (!pending.has(inference.question_id)) continue;
-    const evidence = inference.quotes.flatMap((quote) => findQuote(quote, said) ?? []);
+    // Evidence of an inference is in messages; confirmed answers are not (they settle their own question).
+    const evidence = inference.quotes.flatMap((quote) => findQuote(quote, saidMessages) ?? []);
     if (evidence.length === 0) continue;
     const q = await trx.selectFrom('questions').select('state').where('id', '=', inference.question_id).executeTakeFirst();
     if (q?.state !== 'pending') continue;
@@ -1163,7 +1191,9 @@ registerApplier('exploration_chat', async ({ trx, execute, run, output }) => {
       const basis = [
         ...quotes.flatMap((quote) => {
           const found = findQuote(quote, said);
-          return found ? [{ type: 'message' as const, id: found.message_id, quote: found.quote }] : [];
+          if (!found) return [];
+          const type = said.find((m) => m.id === found.message_id)?.kind ?? 'message';
+          return [{ type, id: found.message_id, quote: found.quote }];
         }),
         ...(questionId ? [{ type: 'question' as const, id: questionId }] : []),
       ];

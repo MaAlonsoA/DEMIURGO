@@ -274,3 +274,10 @@ export async function queueDecisionRows(db: Db, projectId: string, opts: { since
   const rows = await q.orderBy('p.decided_at', 'asc').orderBy('p.id', 'asc').orderBy('d.task_code', 'asc').execute();
   return rows.map((r) => ({ ...r, decided_at: new Date(r.decided_at as unknown as Date).toISOString() }));
 }
+
+/** The API is draining for a restart: one plan marked `draining` (no decisions), written only when the latest plan is not already that. */
+export async function persistDraining(db: Db, projectId: string, trigger: PlanTrigger, limit: number): Promise<string | null> {
+  const hash = createHash('sha256').update(JSON.stringify(['draining', limit])).digest('hex');
+  if ((await lastHash(db, projectId)) === hash) return null;
+  return write(db, projectId, { trigger, limit, running: [], started: [], readyCount: 0, stoppedKind: 'draining', stoppedCode: null, hash }, []);
+}

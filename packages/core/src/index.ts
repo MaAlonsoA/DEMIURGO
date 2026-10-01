@@ -51,6 +51,7 @@ export * from './build/flow.ts';
 export * from './build/hotspots.ts';
 export * from './build/timeline.ts';
 export * from './build/auto.ts';
+export * from './drain.ts';
 export * from './harness/postmortem.ts';
 export { RULES_VERSION } from './harness/rules/index.ts';
 export { currentHarnessVersionId, registerHarnessVersion, currentHarnessMarks, harnessContentHash, demiurgoSha, type HarnessMarks } from './harness/version.ts';

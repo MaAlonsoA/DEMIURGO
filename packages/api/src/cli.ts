@@ -23,8 +23,10 @@
 //   node packages/api/src/cli.ts testability-backfill --project <projectId>       (Jev's testability opinion for task versions that have none; needs TYPESAFE_API_KEY)
 //   node packages/api/src/cli.ts review-findings-backfill --project <projectId>  (Jev's category for the comments of reviews that have none; needs TYPESAFE_API_KEY)
 //   node packages/api/src/cli.ts link-supersedes --project <projectId> --from TSK-… --to TSK-… [--from-version N] [--to-version N] [--note "point"]   (records that the later task supersedes the built one; idempotent)
+//   node packages/api/src/cli.ts drain on [--reason "text"] | off | status | wait [--timeout-min N]   (drain mode: the queue starts nothing so the API can be restarted; flag file .demiurgo-drain)
 //   node packages/api/src/cli.ts export-design <projectId> [--check dir | --out dir | dir]
 
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import {
   typeSafeEvaluationKey,
@@ -78,6 +80,9 @@ import {
   rankCodeMap,
   renderCodeMap,
   BRIEF_MAP_CHARS,
+  readDrain,
+  setDrain,
+  clearDrain,
 } from '@demiurgo/core';
 import { readTree, replaceTree } from '@demiurgo/design';
 import { type Actor, formatActor, human, system } from '@demiurgo/domain';
@@ -795,6 +800,60 @@ commands['review-findings-backfill'] = async () => {
     }
     console.log(JSON.stringify({ reviews: reviews.length, asked, comments }));
   });
+};
+
+/** Active AI runs plus the builder containers (null when docker is not reachable from here, as inside the api container). */
+async function drainActivity(): Promise<{ runs: number; builders: number | null }> {
+  const runs = await withDatabase(async (c) => {
+    const row = await c.db.selectFrom('ai_runs').select((eb) => eb.fn.countAll<string>().as('n')).where('state', 'in', ['running', 'requested', 'queued']).executeTakeFirstOrThrow();
+    return Number(row.n);
+  });
+  let builders: number | null = null;
+  try {
+    const out = execFileSync('docker', ['ps', '-q', '--filter', 'label=demiurgo.builder=1'], { encoding: 'utf8', timeout: 10_000, stdio: ['ignore', 'pipe', 'ignore'] });
+    builders = out.split('\n').filter((l) => l.trim()).length;
+  } catch {
+    // no docker binary or socket in this process: report the runs only
+  }
+  return { runs, builders };
+}
+
+commands.drain = async () => {
+  const [sub] = args;
+  const flag = (name: string) => {
+    const i = args.indexOf(name);
+    return i >= 0 ? args[i + 1] : undefined;
+  };
+  if (sub === 'on') {
+    console.log(JSON.stringify(setDrain(flag('--reason') ?? 'DEMIURGO restart')));
+  } else if (sub === 'off') {
+    clearDrain();
+    console.log(JSON.stringify(readDrain()));
+  } else if (sub === 'status') {
+    const a = await drainActivity();
+    console.log(JSON.stringify({ ...readDrain(), active_runs: a.runs, builder_containers: a.builders }));
+    if (a.builders === null) console.error('docker is not reachable from here: builder containers not counted (the host script counts them)');
+  } else if (sub === 'wait') {
+    const minutes = Number(flag('--timeout-min') ?? 60);
+    if (!Number.isFinite(minutes) || minutes <= 0) throw new Error('--timeout-min must be a positive number');
+    const deadline = Date.now() + minutes * 60_000;
+    for (;;) {
+      const a = await drainActivity();
+      if (a.runs === 0 && (a.builders ?? 0) === 0) {
+        console.log(JSON.stringify({ idle: true, builder_containers_counted: a.builders !== null }));
+        return;
+      }
+      if (Date.now() >= deadline) {
+        console.error(`Timeout: ${a.runs} active runs, ${a.builders ?? 'unknown'} builder containers`);
+        process.exitCode = 1;
+        return;
+      }
+      console.error(`waiting: ${a.runs} active runs, ${a.builders ?? 'unknown'} builder containers`);
+      await new Promise((r) => setTimeout(r, 15_000));
+    }
+  } else {
+    throw new Error('Usage: drain on [--reason "text"] | off | status | wait [--timeout-min N]');
+  }
 };
 
 const action = command ? commands[command] : undefined;

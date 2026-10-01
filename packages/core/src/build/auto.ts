@@ -22,7 +22,8 @@ import { barrelsAmong, hotspotsOf, isHotspot } from './hotspots.ts';
 import { predictedFiles } from './predicted-files.ts';
 import { ensureTaskLayers } from '../classifier/layers.ts';
 import { registerReconciler } from '../engine/registry.ts';
-import { persistPlan, persistQueueOff, type PlanTrigger } from './queue-decisions.ts';
+import { isDraining } from '../drain.ts';
+import { persistDraining, persistPlan, persistQueueOff, type PlanTrigger } from './queue-decisions.ts';
 
 const BUILD = system('build', '1');
 
@@ -75,6 +76,8 @@ export function enrichModuleWaiting(
 
 export type AutoStatus = {
   on: boolean;
+  /** The API is draining for a restart (file `.demiurgo-drain`): running builds finish, nothing new starts. Omitted when not. */
+  draining?: boolean;
   /** How many builds run at once at most (1 to 3). */
   parallel: number;
   /** The first task whose agent build is running now. */
@@ -440,8 +443,9 @@ export async function plan(db: Db, projectId: string, queue: BuildQueue, limit: 
 export async function autoStatus(db: Db, projectId: string, queue: BuildQueue): Promise<AutoStatus> {
   const on = await queueAutoOn(db, projectId);
   const parallel = await queueParallelOf(db, projectId);
+  const drain = isDraining() ? { draining: true } : {};
   const quarantined = await quarantinedTests(db, projectId);
-  const flaky = quarantined.length > 0 ? { quarantined } : {};
+  const flaky = { ...drain, ...(quarantined.length > 0 ? { quarantined } : {}) };
   if (!on) return { on, parallel, building: null, builds: [], next: null, stopped: null, ...flaky };
   const p = await plan(db, projectId, queue, parallel);
   // The first task the plan would start; null when nothing can (the waiting lists below say why).
@@ -482,6 +486,11 @@ export function advanceBuildQueue(services: Services, projectId: string, trigger
     try {
       if (!(await queueAutoOn(services.db, projectId))) {
         await persistQueueOff(services.db, projectId, trigger, await queueParallelOf(services.db, projectId)).catch((e) => logPersistError(services, projectId, e));
+        return started;
+      }
+      // Draining for a restart: running builds finish, nothing new starts. The project's settings stay as they are.
+      if (isDraining()) {
+        await persistDraining(services.db, projectId, trigger, await queueParallelOf(services.db, projectId)).catch((e) => logPersistError(services, projectId, e));
         return started;
       }
       const queue = await buildQueue(services.db, projectId);

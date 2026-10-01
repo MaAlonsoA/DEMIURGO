@@ -510,6 +510,11 @@ function AutoQueue({ projectId, auto, t }: { projectId: string; auto: NonNullabl
           )
         }
       />
+      {auto.draining ? (
+        <div data-auto-draining>
+          <Notice tone="warning" title={t.autoDraining} />
+        </div>
+      ) : null}
       <p className="text-sm text-fg-2">{t.autoText}</p>
       <label className="flex items-center gap-2 text-sm text-fg-2" title={t.autoParallelText}>
         <span>{t.autoParallel}</span>

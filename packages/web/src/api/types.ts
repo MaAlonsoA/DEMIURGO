@@ -1429,6 +1429,8 @@ export type BuildQueue = {
     builds: string[];
     /** The first task the plan would start now; null when nothing can start. */
     next: string | null;
+    /** The API is draining for a restart: running builds finish, nothing new starts. Omitted when not. */
+    draining?: boolean;
     /** Ready tasks that wait for the person; the queue skips them and goes on. */
     stopped_waiting?: {
       code: string;

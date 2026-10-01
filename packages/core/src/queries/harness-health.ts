@@ -90,7 +90,21 @@ export type HarnessCase = {
 };
 
 /** `name` is the English name of the piece in the inventory of the design (harness/pieces.ts); null when it has none. */
-export type PieceHealth = Scorecard & { name: string | null; cases: HarnessCase[]; cases_total: number };
+export type PieceHealth = Scorecard & { name: string | null; cases: HarnessCase[]; cases_total: number; session_compare?: SessionCompare };
+
+/** B20: how the attempts that continued the builder's session fared against the ones that started fresh. */
+export type SessionModeStats = {
+  /** Attempts judged (reached merge or needed another attempt). */
+  n: number;
+  merged: number;
+  /** merged / n; null without attempts. */
+  success_rate: number | null;
+  mean_minutes: number | null;
+  mean_tokens: number | null;
+};
+export type SessionCompare = { resumed: SessionModeStats; fresh: SessionModeStats };
+
+export const SESSION_PIECE = 'B20';
 
 export type HarnessHealth = {
   rules_version: string | null;
@@ -99,6 +113,40 @@ export type HarnessHealth = {
   thresholds: { min_decisions: number; precision_helps: number; precision_hurts: number; recall_helps: number };
   pieces: PieceHealth[];
 };
+
+const mean = (xs: number[]): number | null => (xs.length === 0 ? null : Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 100) / 100);
+
+/**
+ * B20 comparison (resumed against fresh) from the `session.outcome*` findings. One `session.outcome` row per judged
+ * attempt (benefit = reached merge, cost = needed another attempt), so n and the success rate come from them; minutes
+ * come from their value and tokens from `session.outcome_tokens`. Observational: the modes are not assigned at random. Pure.
+ */
+export function sessionCompareOf(facts: readonly (FindingFact & { subject?: string | null })[]): SessionCompare {
+  const stats = (mode: string): SessionModeStats => {
+    const rows = facts.filter((f) => f.piece === SESSION_PIECE && f.finding === 'session.outcome' && f.subject === mode);
+    const merged = rows.filter((f) => f.class === 'benefit').length;
+    const tokens = facts.filter((f) => f.piece === SESSION_PIECE && f.finding === 'session.outcome_tokens' && f.subject === mode && f.value !== null).map((f) => f.value as number);
+    return {
+      n: rows.length,
+      merged,
+      success_rate: rows.length === 0 ? null : merged / rows.length,
+      mean_minutes: mean(rows.filter((f) => f.value !== null).map((f) => f.value as number)),
+      mean_tokens: mean(tokens),
+    };
+  };
+  return { resumed: stats('resumed'), fresh: stats('fresh') };
+}
+
+/**
+ * Verdict of B20 (convención nuestra): «sin datos» unless both modes have at least MIN_DECISIONS judged attempts; then
+ * «ayuda» when resuming succeeds more often than starting fresh, «estorba» when less, «neutra» when equal.
+ */
+export function sessionVerdictOf(c: SessionCompare): Verdict {
+  if (c.resumed.n < MIN_DECISIONS || c.fresh.n < MIN_DECISIONS) return 'no_data';
+  const r = c.resumed.success_rate as number;
+  const f = c.fresh.success_rate as number;
+  return r > f ? 'helps' : r < f ? 'hurts' : 'neutral';
+}
 
 const emptyCounts = (): Record<FindingClass, number> => ({ tp: 0, fp: 0, fn: 0, tn: 0, benefit: 0, cost: 0, info: 0 });
 
@@ -330,7 +378,10 @@ export async function harnessScorecards(db: Db, projectId: string, opts: HealthO
     thresholds: { min_decisions: MIN_DECISIONS, precision_helps: PRECISION_HELPS, precision_hurts: PRECISION_HURTS, recall_helps: RECALL_HELPS },
     pieces: scorecardsOf(rows).map((card) => {
       const all = cases.get(card.piece) ?? [];
-      return { ...card, name: PIECE_NAMES[card.piece] ?? null, cases: all.slice(0, CASES_PER_PIECE), cases_total: all.length };
+      const base = { ...card, name: PIECE_NAMES[card.piece] ?? null, cases: all.slice(0, CASES_PER_PIECE), cases_total: all.length };
+      if (card.piece !== SESSION_PIECE) return base;
+      const session_compare = sessionCompareOf(rows);
+      return { ...base, verdict: sessionVerdictOf(session_compare), session_compare };
     }),
   };
 }

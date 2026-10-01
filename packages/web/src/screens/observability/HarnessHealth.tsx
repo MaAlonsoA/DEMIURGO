@@ -37,6 +37,9 @@ export type HarnessRule = {
   recall: number | null;
   escape_rate: number | null;
 };
+/** B20: resumed against fresh builder sessions (core queries/harness-health.ts `sessionCompareOf`). */
+export type SessionModeStats = { n: number; merged: number; success_rate: number | null; mean_minutes: number | null; mean_tokens: number | null };
+export type SessionCompare = { resumed: SessionModeStats; fresh: SessionModeStats };
 export type HarnessPiece = {
   piece: string;
   /** English name from the inventory (core harness/pieces.ts); null when the piece has none. */
@@ -52,6 +55,7 @@ export type HarnessPiece = {
   cost: Record<string, number>;
   cases: HarnessCase[];
   cases_total: number;
+  session_compare?: SessionCompare;
 };
 export type HarnessHealthData = { rules_version: string | null; requests: number; pieces: HarnessPiece[] };
 
@@ -90,8 +94,35 @@ function CasesTable({ projectId, piece }: { projectId: string; piece: HarnessPie
   const t = useMessages(HARNESS_HEALTH);
   const locale = useSafeLocale();
   const rules = piece.rules ?? [];
+  const compare = piece.session_compare;
   return (
     <div className="flex flex-col gap-2 py-2">
+      {compare ? (
+        <Table
+          caption={t.sessionCaption}
+          head={
+            <>
+              <th scope="col" className={th}>{t.colMode}</th>
+              <th scope="col" className={numTh}>{t.colJudged}</th>
+              <th scope="col" className={numTh}>{t.colMerged}</th>
+              <th scope="col" className={numTh}>{t.colSuccess}</th>
+              <th scope="col" className={numTh}>{t.colMeanMinutes}</th>
+              <th scope="col" className={numTh}>{t.colMeanTokens}</th>
+            </>
+          }
+        >
+          {(['resumed', 'fresh'] as const).map((mode) => (
+            <tr key={mode} data-session-mode={mode}>
+              <td className={td}>{t.mode(mode)}</td>
+              <td className={numTd}>{num(locale, compare[mode].n, 0)}</td>
+              <td className={numTd}>{num(locale, compare[mode].merged, 0)}</td>
+              <td className={numTd}>{shareText(locale, compare[mode].success_rate)}</td>
+              <td className={numTd}>{compare[mode].mean_minutes === null ? '—' : num(locale, compare[mode].mean_minutes, 1)}</td>
+              <td className={numTd}>{tokensText(locale, compare[mode].mean_tokens)}</td>
+            </tr>
+          ))}
+        </Table>
+      ) : null}
       {rules.length > 1 ? (
         <Table
           caption={t.rulesCaption(piece.piece)}

@@ -21,7 +21,7 @@ export const PIECE_NAMES: Readonly<Record<string, string>> = {
   B17: 'Reviewer with triage, re-review, retry and escalation',
   B18: 'CI selection',
   B19: 'Main watch and recheck',
-  B20: 'Session resume',
+  B20: 'Builder session resume',
   B21: 'Timeouts and WIP commits',
   B22: 'Builder failure classification',
   B23: 'Automatic issues',

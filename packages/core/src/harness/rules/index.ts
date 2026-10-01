@@ -7,6 +7,7 @@ import type { PostmortemInputs } from '../postmortem.ts';
 import { reviewCost, reviewEscape, reviewFindingOutcome, reviewRepeat, reviewWaiver } from './review.ts';
 import { filesPrediction } from './files.ts';
 import { queueParallelConflict, queueSkipVsFootprint, queueSlotIdle } from './queue.ts';
+import { sessionMode, sessionOutcome, sessionTddLoops } from './session.ts';
 import { schemaPrediction } from './schema.ts';
 import { requestShape } from './shape.ts';
 import { tddGate, tddLoopCost, tddSkipped } from './tdd.ts';
@@ -37,7 +38,7 @@ export type Finding = {
 
 export type Rule = (inputs: PostmortemInputs) => Finding[];
 
-export const RULES_VERSION = 'pm-3';
+export const RULES_VERSION = 'pm-4';
 
 /** Rules 1.3 (queue, schema, files) and 1.4 (tdd, review) are added here, each from its own file. */
-export const RULES: readonly Rule[] = [requestShape, queueSkipVsFootprint, queueParallelConflict, queueSlotIdle, schemaPrediction, filesPrediction, tddGate, tddSkipped, tddLoopCost, reviewFindingOutcome, reviewRepeat, reviewEscape, reviewWaiver, reviewCost];
+export const RULES: readonly Rule[] = [requestShape, queueSkipVsFootprint, queueParallelConflict, queueSlotIdle, schemaPrediction, filesPrediction, tddGate, tddSkipped, tddLoopCost, reviewFindingOutcome, reviewRepeat, reviewEscape, reviewWaiver, reviewCost, sessionMode, sessionOutcome, sessionTddLoops];

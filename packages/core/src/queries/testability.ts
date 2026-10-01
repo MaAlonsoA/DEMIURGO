@@ -57,6 +57,10 @@ export async function testabilityFlagsOf(db: Db, recordIds: readonly string[]): 
     const p = { needs_outside_ci: r.needs_outside_ci, needs_unbuilt_feature: r.needs_unbuilt_feature };
     const kind = testabilityVerdict(p);
     if (kind === 'ok' || (kind === 'waits_for_feature' && declared.has(r.record_id))) continue;
+    // «Needs an unbuilt feature» holds the task only when Jev's Choice agrees on what it needs (an unbuilt part):
+    // the Noul alone, or an opinion stored before the Choice existed, gave false holds (TSK-PRO-013: the goal
+    // history, the workouts and the fixed clock all existed). Our convention: two independent judgments must agree.
+    if (kind === 'waits_for_feature' && r.needs_kind !== 'needs_unbuilt_part') continue;
     const list = out.get(r.record_id) ?? [];
     list.push({ code: r.criterion_code, kind, probability: Math.round(testabilityStrength(p, kind) * 100) / 100, needs: isNeedsKind(r.needs_kind) ? r.needs_kind : null });
     out.set(r.record_id, list);

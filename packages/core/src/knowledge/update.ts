@@ -290,13 +290,17 @@ async function applyOperations(
   }
 }
 
-const operationsOf = (plan: Plan) => ({
+/** A done (built and merged) task that a later task supersedes on a point: recorded, never raised as a review. */
+export type Supersession = { record: string; version: number; by: string; by_version?: number };
+
+const operationsOf = (plan: Plan, superseded: Supersession[] = []) => ({
   projected: plan.project.map((n) => n.ref),
   invalidated: plan.invalidate,
   new_edges: plan.newEdges.length,
   invalidated_edges: plan.invalidatedEdges.length,
   reviews: plan.reviews,
   not_applied: plan.notApplied,
+  ...(superseded.length > 0 ? { superseded } : {}),
 });
 
 /** Verifies and applies (or rejects) in a single transaction; idempotent if interrupted. */
@@ -330,14 +334,14 @@ async function applyInSpan(s: Services, updateId: string, projectId: string, r: 
     if (r.type === 'error') return reject([r.reason]);
     const graph = await loadGraph(trx, projectId);
     // Applies the plan; `after` adds classifications and proposals before the final event.
-    const apply = async (plan: Plan, after?: () => Promise<void>) => {
+    const apply = async (plan: Plan, after?: () => Promise<void>, superseded: Supersession[] = []) => {
       const version = isEmptyPlan(plan) ? graph.version : graph.version + 1;
       await applyOperations(execute, trx, projectId, plan, version, updateId);
       await after?.();
       await execute({
         entityId: updateId,
         command: 'knowledge_update.apply',
-        data: { operations: operationsOf(plan), version_before: graph.version, version_after: version },
+        data: { operations: operationsOf(plan, superseded), version_before: graph.version, version_after: version },
       });
       return 'applied';
     };
@@ -410,7 +414,7 @@ async function applyInSpan(s: Services, updateId: string, projectId: string, r: 
           },
         });
       }
-    });
+    }, reviews.superseded);
   });
 }
 
@@ -492,6 +496,19 @@ async function dismissedPair(
   return false;
 }
 
+/** Whether the task has a merged build: a build request in state `done`. */
+async function isBuilt(trx: Tx, projectId: string, taskId: string): Promise<boolean> {
+  const row = await trx
+    .selectFrom('build_requests')
+    .select('id')
+    .where('project_id', '=', projectId)
+    .where('task_id', '=', taskId)
+    .where('state', '=', 'done')
+    .limit(1)
+    .executeTakeFirst();
+  return row !== undefined;
+}
+
 /**
  * Review proposals for the person. The record is located via the node's origin (the
  * version that projected it), never by parsing its ref.
@@ -502,16 +519,22 @@ async function prepareReviews(
   graph: Graph,
   d: Classified,
   reviews: Plan['reviews'],
-): Promise<{ proposals: ReviewProposal[]; reasons: string[] }> {
+): Promise<{ proposals: ReviewProposal[]; reasons: string[]; superseded: Supersession[] }> {
   const current = new Map(currentNodes(graph).map((n) => [n.ref, n]));
   const proposals: ReviewProposal[] = [];
   const reasons: string[] = [];
+  const superseded: Supersession[] = [];
   // A new version of a record never asks to review that same record: its older node is replaced.
-  const changed =
+  const changeRow =
     d.change.main.origin.type === 'record_version' && d.change.main.origin.id
-      ? (await trx.selectFrom('record_versions').select('record_id').where('id', '=', d.change.main.origin.id).executeTakeFirst())
-          ?.record_id
+      ? await trx
+          .selectFrom('record_versions')
+          .innerJoin('records', 'records.id', 'record_versions.record_id')
+          .select(['records.id as recordId', 'records.type', 'records.code', 'record_versions.n'])
+          .where('record_versions.id', '=', d.change.main.origin.id)
+          .executeTakeFirst()
       : undefined;
+  const changed = changeRow?.recordId;
   for (const review of reviews) {
     const origin = current.get(review.ref)?.origin;
     const v =
@@ -519,7 +542,7 @@ async function prepareReviews(
         ? await trx
             .selectFrom('record_versions')
             .innerJoin('records', 'records.id', 'record_versions.record_id')
-            .select(['records.id as recordId', 'records.code', 'record_versions.n'])
+            .select(['records.id as recordId', 'records.type', 'records.code', 'record_versions.n'])
             .where('record_versions.id', '=', origin.id)
             .where('records.project_id', '=', projectId)
             .executeTakeFirst()
@@ -530,6 +553,13 @@ async function prepareReviews(
     }
     if (v.recordId === changed) continue;
     if (await dismissedPair(trx, projectId, d.change.main.origin.id, v.code, v.n)) continue;
+    // A done task is a historical record: a later task that changes the same thing supersedes it
+    // (ADR «Superseded by», Nygard 2011, applied to work items: convención nuestra). It is recorded in
+    // the update's operations, never raised as a review that would rebuild merged work.
+    if (changeRow?.type === 'task' && v.type === 'task' && (await isBuilt(trx, projectId, v.recordId))) {
+      superseded.push({ record: v.code, version: v.n, by: changeRow.code, by_version: changeRow.n });
+      continue;
+    }
     proposals.push({
       type: 'review',
       payload: {
@@ -546,5 +576,5 @@ async function prepareReviews(
       dependencies: [{ type: 'record', id: v.recordId, code: v.code, version: v.n }],
     });
   }
-  return { proposals, reasons };
+  return { proposals, reasons, superseded };
 }

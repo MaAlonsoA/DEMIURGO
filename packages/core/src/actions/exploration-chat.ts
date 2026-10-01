@@ -272,10 +272,22 @@ export async function explorationPack({ trx, projectId, scope, input, graphVersi
         .orderBy('n', 'desc')
         .executeTakeFirst()
     : undefined;
+  // A task with a merged build (a build request in state `done`) is a historical record.
+  const aboutBuilt =
+    about?.type === 'task'
+      ? (await trx
+          .selectFrom('build_requests')
+          .select('id')
+          .where('task_id', '=', about.recordId)
+          .where('state', '=', 'done')
+          .limit(1)
+          .executeTakeFirst()) !== undefined
+      : false;
   const aboutRecord = about
     ? {
         code: about.code,
         type: about.type,
+        ...(aboutBuilt ? { built_and_merged: true } : {}),
         change_with: about.type === 'product_definition' ? 'definition_change' : 'record_change',
         approved_version: aboutApproved?.n ?? null,
         // The name an epic's features share: the `domain` their proposals carry.

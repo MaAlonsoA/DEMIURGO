@@ -22,7 +22,7 @@ describe('conflict in plain words', () => {
     expect(surenessOf({ confidence: 1, quotes: { record: 'a', other: 'b' } })).toBeNull();
   });
   it('puts the older side first, and keeps the record to review first when unknown', () => {
-    const a = { code: 'A', when: '2026-10-01T10:00:00Z' };
+    const a: { code: string; when: string | null } = { code: 'A', when: '2026-10-01T10:00:00Z' };
     const b = { code: 'B', when: '2026-09-30T10:00:00Z' };
     expect(olderFirst(a, b).map((s) => s.code)).toEqual(['B', 'A']);
     expect(olderFirst(b, a).map((s) => s.code)).toEqual(['B', 'A']);

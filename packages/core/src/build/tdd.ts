@@ -78,6 +78,8 @@ export type TddDetail = {
   stopped?: 'cap' | 'builder_failed' | 'no_session';
   /** Criteria with no test at all (neither changed nor on main). */
   uncovered?: string[];
+  /** Criteria the task covers that are `manual` or `release`: no test is expected (information only). */
+  not_automated?: string[];
   notes?: string[];
   /** One entry per loop, in order (`loops` stays the count). Added by the orchestrator from `verifyTdd`'s `runs`. */
   loop_runs?: LoopRun[];
@@ -497,6 +499,8 @@ export type TddInput = {
   requestId: string;
   /** The task's criteria (what it covers). */
   criteria: readonly string[];
+  /** Covered criteria that are not `automatic` (manual or release): never expected to have a test, shown as information. */
+  notAutomated?: readonly string[];
   /** The criteria the pull request affects (the trailer), as the commit stage computes them. */
   affected: readonly string[] | 'all' | null;
   /** The prepared environment of the builder: same network, store and variables. */
@@ -751,7 +755,11 @@ export async function verifyTdd(input: TddInput): Promise<TddOutcome> {
     if (ciText === null) return skipped('The project has no CI workflow to take the test commands from.');
     const runner = testCommandsFromCi(ciText, await readWorktreeFile(input.worktreePath, 'package.json'));
     if (!runner) return skipped('The CI workflow has no Vitest or Playwright command DEMIURGO understands.');
-    if (input.criteria.length === 0) return skipped('The task covers no criterion.');
+    const notAutomated = input.notAutomated && input.notAutomated.length > 0 ? [...input.notAutomated] : undefined;
+    if (input.criteria.length === 0) {
+      const none = skipped(notAutomated ? 'The task covers no automatic criterion: its criteria are checked by a person or at release.' : 'The task covers no criterion.');
+      return notAutomated ? { ...none, detail: { ...none.detail, not_automated: notAutomated } } : none;
+    }
     const baseRef = await mergeBaseWithMain(input.worktreePath);
     if (!baseRef) return skipped('There is no main to compare with.');
     const ci = environmentFromCi(ciText) ?? {};
@@ -773,6 +781,7 @@ export async function verifyTdd(input: TddInput): Promise<TddOutcome> {
           green: phase.green,
           loops,
           ...(uncovered ? { uncovered } : {}),
+          ...(notAutomated ? { not_automated: notAutomated } : {}),
           ...(phase.notes.length > 0 ? { notes: phase.notes } : {}),
         };
         if (verdict.ok) return { detail, stopped: null, runs };

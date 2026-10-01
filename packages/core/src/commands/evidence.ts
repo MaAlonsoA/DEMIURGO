@@ -7,6 +7,7 @@ import { formatActor, system } from "@demiurgo/domain";
 import { z } from "zod";
 import { field, registerGuards } from "../bus/guards.ts";
 import { handler, registerHandlers } from "../bus/handlers.ts";
+import { automaticCriteriaOf } from "../queries/sizes.ts";
 
 const text = (max: number) => z.string().trim().min(1).max(max);
 
@@ -205,11 +206,14 @@ registerHandlers({
         recorded.push({ code, result, tests });
       }
       // A covered criterion with no JUnit case, or only skipped ones, did not run: no evidence is recorded for it.
-      const notRun = (data.expected ?? []).filter((code) => {
+      // Only automatic criteria expect a case (the orchestrator already passes just those); a manual or release one
+      // is never `not_run`: it is listed in `not_automated` for information.
+      const { automatic, notAutomated } = await automaticCriteriaOf(ctx.trx, ctx.projectId, data.expected ?? []);
+      const notRun = automatic.filter((code) => {
         const g = groups.byCode.get(code);
         return !g || g.passed + g.failed === 0;
       });
-      const result = { recorded, unknown, ignored, not_run: notRun, flaky, failures: failuresOf(cases) };
+      const result = { recorded, unknown, ignored, not_run: notRun, not_automated: notAutomated, flaky, failures: failuresOf(cases) };
       return { entityId: lastId ?? ctx.projectId, after: result, result };
     },
   }),

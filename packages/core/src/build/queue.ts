@@ -813,7 +813,13 @@ export async function composeBrief(
       : "Acceptance criteria:",
     ...shown.map(
       (c) =>
-        `- ${c.code} · ${c.title}: ${sentence(c.statement)}. Check (${c.verification}): ${sentence(c.check_text)}.`,
+        `- ${c.code} · ${c.title}: ${sentence(c.statement)}. Check (${c.verification}): ${sentence(c.check_text)}.${
+          c.verification === "manual"
+            ? " Not tested by you: checked by a person."
+            : c.verification === "release"
+              ? " Not tested by you: checked at release."
+              : ""
+        }`,
     ),
   ];
   const needs = (feature ?? row).needs;

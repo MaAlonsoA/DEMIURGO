@@ -70,6 +70,8 @@ describe('evidence.ingest_junit', () => {
       ignored: 2,
       // c3 only has a skipped case: it did not run, and no evidence is recorded for it.
       not_run: [c3],
+      // Every criterion here is automatic: none is listed as not automated.
+      not_automated: [],
       // Nothing was recorded as flaky: every case ran once.
       flaky: [],
       // The failing case with its criterion code, title, file (the classname) and message.

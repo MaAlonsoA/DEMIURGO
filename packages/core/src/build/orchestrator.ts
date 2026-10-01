@@ -56,7 +56,7 @@ import { PASSED_ELSEWHERE_DAYS, ciFeedbackText, type CiFailureDetail } from './c
 import { builderContextOf, type BuilderContext } from './context-data.ts';
 import { flakyNote, quarantineNote, quarantineOf } from './flaky.ts';
 import { classifyBuilderFailure, failureExcerpt } from './failure.ts';
-import { taskCoversOf } from '../queries/sizes.ts';
+import { automaticCriteriaOf, taskCoversOf } from '../queries/sizes.ts';
 import { projectsDir } from '../repo/repo.ts';
 import { BUILDER_MAX_TIME_MS, type BuildReport, runBuilder } from '../runner/builder.ts';
 import { databaseName, prepareEnvironment, projectSlug, teardownEnvironment } from '../runner/environment.ts';
@@ -833,9 +833,11 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     const { lines: testLines, reuse: testReuse } = await (async (): Promise<{ lines: string[]; reuse: { criterion: string; path: string; title: string; p: number }[] }> => {
       try {
         const task = { ...(await s0.db.selectFrom('build_requests').select('task_id').where('id', '=', requestId).executeTakeFirstOrThrow()), ...(await effectiveBasis(s0.db, requestId)) };
-        const codes = await taskCoversOf(s0.db, task.task_id);
+        const split = await automaticCriteriaOf(s0.db, projectId, await taskCoversOf(s0.db, task.task_id));
+        const codes = split.automatic;
         const tests = await readRepoTests(worktree.path, 'HEAD');
         const lines = existingTestsLines(tests, codes);
+        if (split.notAutomated.length > 0) lines.push(`Not tested by you: ${split.notAutomated.join(', ')} (checked by a person or at release, not in CI; write no test for them).`);
         // Tests of other criteria that already check something close (Jev, classifier/test-reuse.ts); no section on any failure.
         let reuse: ReusePair[] = [];
         try {
@@ -905,12 +907,15 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
             builders.set(requestId, control);
             try {
               const row = await s0.db.selectFrom('build_requests').select('task_id').where('id', '=', requestId).executeTakeFirstOrThrow();
-              const criteria = await taskCoversOf(s0.db, row.task_id);
+              const covered = await taskCoversOf(s0.db, row.task_id);
+              // Only automatic criteria expect a test; manual and release ones are checked by a person or at release.
+              const { automatic: criteria, notAutomated } = await automaticCriteriaOf(s0.db, projectId, covered);
               const affectedBy = await loadAffectedCriteria(s0.db, projectId, { id: row.task_id, versionId: info.taskVersionId }, await changedWithPending(worktree.path).catch(() => [])).catch(() => null);
               return await verifyTdd({
                 worktreePath: worktree.path,
                 requestId,
                 criteria,
+                notAutomated,
                 affected: affectedBy,
                 prepared,
                 ...(d.tddExec ? { exec: d.tddExec } : {}),
@@ -1147,7 +1152,8 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     const junit = await d.github.junitArtifactFor(cfg, owner, repoName, sha);
     if (!junit) return { value: { tests: [] as { code: string; result: 'pass' | 'fail' }[], flaky: [] as string[], quarantined: [] as string[], forgiven: false }, detail: { note: 'The CI run has no artifact named "junit": no evidence recorded.', recorded: [] } };
     const taskRow = await s0.db.selectFrom('build_requests').select('task_id').where('id', '=', requestId).executeTakeFirstOrThrow();
-    const covers = await taskCoversOf(s0.db, taskRow.task_id);
+    // Only automatic criteria expect a test in CI (manual and release ones are checked by a person or at release).
+    const covers = (await automaticCriteriaOf(s0.db, projectId, await taskCoversOf(s0.db, taskRow.task_id))).automatic;
     // The ids the test history needs (salud-del-harness §6.5): inputs of this stage, not steps. The workflow run is the
     // latest one that produced a `ci` check of the SHA (the artifact concatenates every run); none when GitHub does not say.
     const ciRunId = await d.github
@@ -1160,7 +1166,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       projectId,
       data: { junit, pr_url: pull.url, reference: sha, expected: covers, build_request_id: requestId, attempt, ...(ciRunId ? { ci_run_id: ciRunId } : {}) },
     });
-    const result = done.result as { recorded: { code: string; result: 'pass' | 'fail'; tests: number }[]; unknown: string[]; ignored: number; not_run: string[]; flaky: string[]; failures: { code: string | null; test: string; file: string | null; message: string }[] };
+    const result = done.result as { recorded: { code: string; result: 'pass' | 'fail'; tests: number }[]; unknown: string[]; ignored: number; not_run: string[]; not_automated?: string[]; flaky: string[]; failures: { code: string | null; test: string; file: string | null; message: string }[] };
     // A test that failed in every run it ran in is a real failure; only the ones that passed somewhere are flaky.
     const outcomes = new Map<string, Set<string>>();
     for (const t of parseJunit(junit)) outcomes.set(t.name, (outcomes.get(t.name) ?? new Set()).add(t.outcome));
@@ -1188,6 +1194,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
         unknown: result.unknown,
         ignored: result.ignored,
         not_run: result.not_run,
+        ...((result.not_automated ?? []).length > 0 ? { not_automated: result.not_automated } : {}),
         flaky: result.flaky,
         ...(quarantine.quarantined.length > 0 ? { quarantined: quarantine.quarantined } : {}),
       },

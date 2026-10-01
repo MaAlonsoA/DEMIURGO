@@ -55,3 +55,41 @@ export async function taskCoversOf(db: Db, recordId: string): Promise<string[]> 
     .executeTakeFirst();
   return row?.codes ?? [];
 }
+
+/**
+ * Splits criterion codes by how they are verified. Only `automatic` criteria expect a CI test; `manual` (a person
+ * judges) and `release` (checked against the deployed candidate; Humble & Farley, Continuous Delivery) never do.
+ * The verification is read from the current approved version of the criterion's record; a code with no approved
+ * version stays `automatic` (the previous behaviour).
+ */
+export function splitByVerification(
+  rows: readonly { code: string; verification: string }[],
+  codes: readonly string[],
+): { automatic: string[]; notAutomated: string[] } {
+  const kind = new Map(rows.map((r) => [r.code, r.verification]));
+  const automatic: string[] = [];
+  const notAutomated: string[] = [];
+  for (const c of codes) {
+    const v = kind.get(c);
+    (v === 'manual' || v === 'release' ? notAutomated : automatic).push(c);
+  }
+  return { automatic, notAutomated };
+}
+
+export async function automaticCriteriaOf(
+  db: Db,
+  projectId: string,
+  codes: readonly string[],
+): Promise<{ automatic: string[]; notAutomated: string[] }> {
+  if (codes.length === 0) return { automatic: [], notAutomated: [] };
+  const rows = await db
+    .selectFrom('criteria')
+    .innerJoin('record_versions as v', 'v.id', 'criteria.record_version_id')
+    .select(['criteria.code', 'criteria.verification', 'v.n'])
+    .where('criteria.project_id', '=', projectId)
+    .where('criteria.code', 'in', [...codes])
+    .where('v.state', '=', 'approved')
+    .orderBy('v.n', 'asc')
+    .execute();
+  return splitByVerification(rows, codes);
+}

@@ -920,7 +920,7 @@ export async function latestSize(db: Db, recordId: string): Promise<string | nul
   return row?.size ?? null;
 }
 
-type BuildRequestRow = { task_id: string; state: string; pr_url: string | null };
+type BuildRequestRow = { task_id: string; state: string; pr_url: string | null; version_n: number | null };
 
 /** The request that says where a task is: the open one, else the latest done, else none. */
 function requestOf(rows: readonly BuildRequestRow[]): BuildRequestRow | null {
@@ -929,17 +929,44 @@ function requestOf(rows: readonly BuildRequestRow[]): BuildRequestRow | null {
   );
 }
 
-/** Build requests of the given tasks, newest first, grouped by task. */
-async function requestsByTask(db: Db, taskIds: string[]): Promise<Map<string, BuildRequestRow[]>> {
+/**
+ * Build requests of the given tasks, newest first, grouped by task. A done request on a version
+ * older than the task's current approved one no longer says where the task is (the new version
+ * has to be built again): it is dropped here and reported in `rebuildFrom`.
+ */
+async function requestsByTask(
+  db: Db,
+  taskIds: string[],
+  rebuildFrom?: Map<string, number>,
+): Promise<Map<string, BuildRequestRow[]>> {
   const out = new Map<string, BuildRequestRow[]>();
   if (taskIds.length === 0) return out;
   const rows = await db
     .selectFrom('build_requests')
-    .select(['task_id', 'state', 'pr_url'])
-    .where('task_id', 'in', taskIds)
-    .orderBy('requested_at', 'desc')
+    .leftJoin('record_versions', 'record_versions.id', 'build_requests.task_version_id')
+    .select(['build_requests.task_id', 'build_requests.state', 'build_requests.pr_url', 'record_versions.n as version_n'])
+    .where('build_requests.task_id', 'in', taskIds)
+    .orderBy('build_requests.requested_at', 'desc')
     .execute();
-  for (const r of rows) out.set(r.task_id, [...(out.get(r.task_id) ?? []), r]);
+  const current = new Map<string, number>(
+    (
+      await db
+        .selectFrom('record_versions')
+        .select(['record_id', (e) => e.fn.max('n').as('n')])
+        .where('record_id', 'in', taskIds)
+        .where('state', '=', 'approved')
+        .groupBy('record_id')
+        .execute()
+    ).map((r) => [r.record_id, Number(r.n)]),
+  );
+  for (const r of rows) {
+    const now = current.get(r.task_id);
+    if (r.state === 'done' && r.version_n !== null && now !== undefined && r.version_n < now) {
+      if (rebuildFrom && !rebuildFrom.has(r.task_id)) rebuildFrom.set(r.task_id, r.version_n);
+      continue;
+    }
+    out.set(r.task_id, [...(out.get(r.task_id) ?? []), r]);
+  }
   return out;
 }
 
@@ -983,7 +1010,8 @@ async function featureRecordOfTask(db: Db, taskId: string): Promise<string | nul
 
 /** A task's computed build state and the request behind it. */
 export async function taskBuildOf(db: Db, projectId: string, taskId: string, implemented: boolean) {
-  const request = requestOf((await requestsByTask(db, [taskId])).get(taskId) ?? []);
+  const rebuilds = new Map<string, number>();
+  const request = requestOf((await requestsByTask(db, [taskId], rebuilds)).get(taskId) ?? []);
   const feature = await featureRecordOfTask(db, taskId);
   const covers = await taskCoversOf(db, taskId);
   const failing = feature ? await failingCodesOf(db, feature) : new Set<string>();
@@ -1024,6 +1052,8 @@ export async function taskBuildOf(db: Db, projectId: string, taskId: string, imp
     : undefined;
   return {
     state,
+    // Set while the task waits to be built again: the version that was merged before the current one.
+    rebuild_from: state === 'to_do' ? (rebuilds.get(taskId) ?? null) : null,
     request: request ? { state: request.state, pr_url: request.pr_url } : null,
     steps: steps.map((x) => ({
       attempt: x.attempt,

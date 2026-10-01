@@ -102,6 +102,11 @@ export type Primary =
 
 export type Delivery = { status: Status; banner: Banner | null; primary: Primary | null };
 
+/** The word of a task's build state; a task changed after its merge says it is to build again. */
+export function buildWord(t: Words, build: { state: TaskBuildState; rebuild_from?: number | null }): string {
+  return build.state === 'to_do' && build.rebuild_from ? t.st_to_rebuild(build.rebuild_from) : t[`st_${build.state}` as const];
+}
+
 export const BUILD_TONE: Record<TaskBuildState, StatusTone> = {
   to_do: 'neutral',
   requested: 'accent',
@@ -146,7 +151,7 @@ export function deliveryOf(input: {
     };
   } else if (record.type === 'task' && record.build) {
     const b = record.build.state;
-    status = { word: t[`st_${b}` as const], tone: BUILD_TONE[b] };
+    status = { word: buildWord(t, record.build), tone: BUILD_TONE[b] };
   } else if (record.type === 'fdr') {
     const anyBuilt = tasks.some((x) => x.build !== 'to_do');
     const failing = tasks.some((x) => x.build === 'failing') || failingCriteria.length > 0;
@@ -723,7 +728,7 @@ export function TaskBody({
       {build && version.n === record.current && version.state === 'approved' ? (
         <Block title={t.build}>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-            <span className={cn('font-semibold', TONE_TEXT[BUILD_TONE[build.state]])}>{t[`st_${build.state}` as const]}</span>
+            <span className={cn('font-semibold', TONE_TEXT[BUILD_TONE[build.state]])}>{buildWord(t, build)}</span>
             {build.request?.pr_url ? (
               <a href={build.request.pr_url} target="_blank" rel="noreferrer" className="text-accent-text hover:underline">
                 {build.request.pr_url}

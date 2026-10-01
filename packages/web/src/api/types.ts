@@ -695,6 +695,8 @@ export type RecordDetail = {
   /** Task only: computed build state and its build request. */
   build?: {
     state: TaskBuildState;
+    /** While 'to_do': the version merged before the current one (it has to be built again), else null. */
+    rebuild_from?: number | null;
     request: { state: string; pr_url: string | null } | null;
     /** Automatic build (builder agent, pull request, CI, reviewer agent, merge). */
     steps?: BuildStep[];

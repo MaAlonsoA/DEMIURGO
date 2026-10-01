@@ -9,6 +9,7 @@ import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { canonicalPrettyJson, human, sha256Hex, system } from '@demiurgo/domain';
+import { sql } from 'kysely';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createSimulatedProvider } from '../src/agents/simulated.ts';
 import { executeCommand } from '../src/bus/bus.ts';
@@ -765,5 +766,25 @@ describe('Build the queue (opt-in per project)', () => {
     await expect(
       executeCommand(environment().services, { command: 'build.queue_auto', actor: system('build', '1'), projectId, entityId: projectId, data: { on: true } }),
     ).rejects.toMatchObject({ type: 'forbidden' });
+  });
+});
+
+// Kept last: it adds a new approved version to the shared task.
+describe('a task changed after its merge', () => {
+  it('is to build again, not merged: the done request belongs to an older version', async () => {
+    await db().updateTable('build_requests').set({ state: 'withdrawn', withdrawn_by: 'human:ana', withdrawn_at: new Date() }).where('task_id', '=', taskId).where('state', 'in', ['done', 'requested', 'in_review']).execute();
+    const requestId = await newRequest();
+    await db().updateTable('build_requests').set({ state: 'in_review', in_review_by: 'human:ana', in_review_at: new Date(), pr_url: 'https://github.com/acme/recipes/pull/11' }).where('id', '=', requestId).execute();
+    await db().updateTable('build_requests').set({ state: 'done', done_by: 'system:build@1', done_at: new Date() }).where('id', '=', requestId).execute();
+    expect((await recordDetail(db(), projectId, taskCode)).build).toMatchObject({ rebuild_from: null });
+
+    const v1 = { n: (await db().selectFrom('record_versions').select('n').where('id', '=', versionId).executeTakeFirstOrThrow()).n };
+    await sql`insert into record_versions (project_id, record_id, n, title, sections, author, content_hash, state, change_note)
+      select project_id, record_id, n + 1, title, sections, author, ${randomUUID()}, 'approved', 'After a review'
+      from record_versions where id = ${versionId}::uuid`.execute(db());
+
+    const detail = await recordDetail(db(), projectId, taskCode);
+    expect(detail.build).toMatchObject({ state: 'to_do', rebuild_from: v1.n });
+    expect(detail.implementation).not.toBe('implemented');
   });
 });

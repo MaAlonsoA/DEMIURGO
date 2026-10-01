@@ -212,8 +212,11 @@ export function RecordHeader({
           <>
             <span className="inline-flex items-center gap-1.5">
               <Who actor={version.author} size={16} showName={false} />
-              {t.writtenBy}
-              {whoWord(version.author, t)} · <DayTime iso={version.created_at} />
+              {/* A proposal is only ever written by an agent: a version born from one was drafted by DEMIURGO and accepted by its author. */}
+              {version.origin?.type === 'proposal' && whoOf(version.author).kind === 'you'
+                ? t.draftedAccepted(whoWord(version.author, t))
+                : `${t.writtenBy}${whoWord(version.author, t)}`}{' '}
+              · <DayTime iso={version.created_at} />
             </span>
             {version.approved_by ? (
               <span className="inline-flex items-center gap-1.5">

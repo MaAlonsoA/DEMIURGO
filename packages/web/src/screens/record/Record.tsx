@@ -292,7 +292,12 @@ function RecordPage({
               lean: {
                 status: delivery.status,
                 primary: delivery.primary ? (
-                  <PrimaryAction projectId={projectId} primary={delivery.primary} draft={draftTasks} />
+                  <PrimaryAction
+                    projectId={projectId}
+                    primary={delivery.primary}
+                    draft={draftTasks}
+                    screens={{ record, version, state, inbox }}
+                  />
                 ) : null,
                 reviewable,
               },

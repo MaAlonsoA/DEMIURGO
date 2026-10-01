@@ -39,6 +39,7 @@ import {
 import { Markdown } from '../../components/Markdown.tsx';
 import { ErrorNotice, Notice } from '../../components/Notice.tsx';
 import { KNOWLEDGE_WAIT } from '../../components/words.i18n.ts';
+import { DesignScreensButton, type DesignScreensContext } from './DesignScreens.tsx';
 import { QueuedNotice } from '../../components/QueuedNotice.tsx';
 import { useMessages } from '../../i18n/define.ts';
 import { cn } from '../../lib/cn.ts';
@@ -234,10 +235,13 @@ export function PrimaryAction({
   projectId,
   primary,
   draft,
+  screens,
 }: {
   projectId: string;
   primary: Primary;
   draft: DraftTasks;
+  /** What starting the screen design needs; without it the button only opens the Screens tab. */
+  screens?: DesignScreensContext;
 }) {
   const t = useMessages(DELIVERY);
   const w = useMessages(KNOWLEDGE_WAIT);
@@ -255,7 +259,17 @@ export function PrimaryAction({
         </div>
       );
     case 'design_screens':
-      return (
+      // A draft to review is already there: just open it. Otherwise one click starts the design.
+      return screens && !primary.review ? (
+        <DesignScreensButton
+          projectId={projectId}
+          context={screens}
+          label={t.designScreens}
+          variant="primary"
+          fallback={{ search: 'screens' }}
+          dataAttr="data-primary-design-screens"
+        />
+      ) : (
         <Link
           to="/p/$projectId/records/$code"
           params={{ projectId, code: primary.code }}

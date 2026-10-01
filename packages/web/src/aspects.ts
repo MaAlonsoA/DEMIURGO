@@ -3,8 +3,11 @@
 // this aspect as a tag, never by the internal record type (FDR, ADR, NFR, "Design record"). An epic
 // is its own tag: it groups features, it is not one. Pure.
 
-export const ASPECTS = ['product', 'epic', 'feature', 'quality', 'architecture', 'security', 'operations', 'other'] as const;
+export const ASPECTS = ['product', 'design_system', 'screens', 'epic', 'feature', 'task', 'quality', 'architecture', 'security', 'operations', 'other'] as const;
 export type Aspect = (typeof ASPECTS)[number];
+
+/** The aspects a person can pick for a proposal: the others come from the type of record it makes. */
+export const PICKABLE_ASPECTS: readonly Aspect[] = ASPECTS.filter((a) => !['epic', 'design_system', 'screens', 'task'].includes(a));
 
 export function isAspect(v: unknown): v is Aspect {
   return typeof v === 'string' && (ASPECTS as readonly string[]).includes(v);
@@ -12,11 +15,11 @@ export function isAspect(v: unknown): v is Aspect {
 
 const TYPE_ASPECT: Record<string, Aspect> = {
   product_definition: 'product',
-  design_system: 'product',
-  screen_design: 'product',
+  design_system: 'design_system',
+  screen_design: 'screens',
   epic: 'epic',
   fdr: 'feature',
-  task: 'feature',
+  task: 'task',
   requirement: 'feature',
   quality_requirement: 'quality',
   adr: 'architecture',

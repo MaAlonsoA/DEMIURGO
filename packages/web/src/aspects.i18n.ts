@@ -6,6 +6,9 @@ import { messages } from './i18n/define.ts';
 export const ASPECT_WORDS = messages(
   {
     product: 'Product',
+    design_system: 'Design system',
+    screens: 'Screens',
+    task: 'Task',
     epic: 'Epic',
     feature: 'Feature',
     quality: 'Quality',
@@ -16,6 +19,9 @@ export const ASPECT_WORDS = messages(
   } satisfies Record<Aspect, string>,
   {
     product: 'Producto',
+    design_system: 'Sistema de diseño',
+    screens: 'Pantallas',
+    task: 'Tarea',
     epic: 'Épica',
     feature: 'Funcionalidad',
     quality: 'Calidad',

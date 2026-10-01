@@ -16,6 +16,7 @@ import { stateWord } from '../../words.ts';
 import { featureEpicThread } from '../epics/logic.ts';
 import { copyText } from './brief.ts';
 import { Block } from './Delivery.tsx';
+import { DesignScreensButton } from './DesignScreens.tsx';
 import { buildScreenBrief } from './screenBrief.ts';
 import { PasteScreens } from './PasteScreens.tsx';
 import { PendingProposals, isScreensOf } from './PendingProposals.tsx';
@@ -112,7 +113,7 @@ export function ScreensTab({
               </div>
             </div>
           ) : null}
-          <Start projectId={projectId} record={record} version={version} state={state} system={system} />
+          <Start projectId={projectId} record={record} version={version} state={state} inbox={inbox} system={system} />
         </>
       )}
     </Block>
@@ -124,12 +125,14 @@ function Start({
   record,
   version,
   state,
+  inbox,
   system,
 }: {
   projectId: string;
   record: RecordDetail;
   version: RecordVersion;
   state: ProductState | undefined;
+  inbox: Inbox | undefined;
   system: { code: string; version: number; spec: DesignSystemSpec };
 }) {
   const t = useMessages(SCREENS);
@@ -162,14 +165,13 @@ function Start({
       <section className="flex flex-col gap-2">
         {thread ? (
           <div>
-            <Link
-              to="/p/$projectId/threads/$explorationId"
-              params={{ projectId, explorationId: thread }}
-              className={buttonClass({ variant: 'secondary', size: 'sm' })}
-              data-design-with-demiurgo
-            >
-              {t.withDemiurgo}
-            </Link>
+            <DesignScreensButton
+              projectId={projectId}
+              context={{ record, version, state, inbox }}
+              label={t.withDemiurgo}
+              size="sm"
+              dataAttr="data-design-with-demiurgo"
+            />
           </div>
         ) : null}
         <p className="max-w-prose text-sm text-fg-2">{t.withDemiurgoHint}</p>

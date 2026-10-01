@@ -6,7 +6,7 @@
 import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import type { AspectCheck, BasisRefs, ProductRow } from '../../api/types.ts';
-import { type Aspect, ASPECTS, isAspect } from '../../aspects.ts';
+import { type Aspect, PICKABLE_ASPECTS, isAspect } from '../../aspects.ts';
 import { ASPECT_WORDS } from '../../aspects.i18n.ts';
 import { AspectTag } from '../../components/AspectTag.tsx';
 import { Button } from '../../components/Button.tsx';
@@ -232,7 +232,7 @@ export function AspectPicker({ value, onChange }: { value: Aspect | null; onChan
       <MenuRadioItems
         value={value ?? ''}
         onChange={(v) => isAspect(v) && onChange(v)}
-        options={ASPECTS.filter((a) => a !== 'epic').map((a) => ({ value: a, label: words[a] }))}
+        options={PICKABLE_ASPECTS.map((a) => ({ value: a, label: words[a] }))}
       />
     </Menu>
   );

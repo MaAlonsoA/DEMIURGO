@@ -190,6 +190,7 @@ export function setupArguments(spec: SetupSpec, containerName: string, environme
 }
 
 const CLAUDE_TOOLS = 'Read,Edit,Write,Glob,Grep,Bash,WebSearch';
+const SESSIONS_MOUNT = '/agent-sessions';
 const SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{7,99}$/;
 /** The thread id Codex announces in its first event. */
 const THREAD_STARTED = /"type"\s*:\s*"thread\.started"[^\n]*?"thread_id"\s*:\s*"([A-Za-z0-9_-]{8,100})"/;
@@ -288,7 +289,10 @@ export function builderArguments(spec: BuilderSpec, containerName: string, envir
     if (spec.session.id !== undefined && !SESSION_ID.test(spec.session.id)) throw new Error('Invalid session id.');
     if (spec.session.mode === 'resumed' && !spec.session.id) throw new Error('A resumed session needs its id.');
   }
-  const script = `set -eu; mkdir -p "${config}"; ${copy}; cd /workspace; exec "$@"`;
+  // The session folder is mounted outside the config dir and linked into it: a bind mount inside the config dir
+  // would make Docker create that dir as root, and the CLI could not write its config there.
+  const sessionLink = spec.session ? `; rm -rf "${config}/${spec.provider === 'claude' ? 'projects' : 'sessions'}"; ln -s ${SESSIONS_MOUNT} "${config}/${spec.provider === 'claude' ? 'projects' : 'sessions'}"` : '';
+  const script = `set -eu; mkdir -p "${config}"; ${copy}${sessionLink}; cd /workspace; exec "$@"`;
   const extra = environmentVariables(spec.env);
   const env: Record<string, string> = {
     ...extra,
@@ -323,7 +327,7 @@ export function builderArguments(spec: BuilderSpec, containerName: string, envir
     '--mount', `type=bind,source=${spec.worktreeHostPath},target=/workspace`,
     ...(spec.gitDir ? ['--mount', `type=bind,source=${spec.gitDir.hostPath},target=${spec.gitDir.containerPath},readonly`] : []),
     '--mount', `type=volume,source=${volume},target=/auth,readonly`,
-    ...(spec.session ? ['--mount', `type=bind,source=${spec.session.hostDir},target=${config}/${spec.provider === 'claude' ? 'projects' : 'sessions'}`] : []),
+    ...(spec.session ? ['--mount', `type=bind,source=${spec.session.hostDir},target=${SESSIONS_MOUNT}`] : []),
     '--mount', `type=volume,source=${browsersVolume},target=${PW_BROWSERS_DIR}`,
     ...storeArguments(spec.storeVolume),
     '--workdir', '/workspace',

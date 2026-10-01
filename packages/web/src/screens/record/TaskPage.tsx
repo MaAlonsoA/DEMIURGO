@@ -205,7 +205,7 @@ export function TaskPage({
                 <PendingProposals projectId={projectId} code={record.code} inbox={inbox} rows={state ? [...state.designs, ...state.decisions] : []} />
               ) : null}
               {task.draft ? <DraftNote task={task} /> : null}
-              {record && version ? (
+              {record && version && record.versions.some((v) => v.state === 'approved') ? (
                 <div>
                   <ReportBugButton projectId={projectId} task={record.code} size="sm" variant="quiet" />
                 </div>

@@ -196,7 +196,7 @@ export const BUILD = messages(
     tpMergeRerun: (behind: number | null, reason: string) => `Branch ${behind ? `${behind} ${behind === 1 ? 'commit' : 'commits'} behind main, ` : ''}updated with main; CI ran again (${reason})`,
     tpMergeSkipped: (behind: number | null, reason: string) => `Branch ${behind ? `${behind} ${behind === 1 ? 'commit' : 'commits'} behind main, ` : ''}updated with main; CI not repeated (${reason})`,
     tpReason: (r: string) =>
-      ({ disjoint: 'the changes are disjoint', same_file: 'both changed the same file', no_code_map: 'no code map to tell', conflict: 'it conflicted', task_imports_main_change: 'the task imports what main changed', main_change_imports_task: 'what main changed imports the task' })[r] ?? r,
+      ({ disjoint: 'the changes are disjoint', docs_only: 'only design records or docs entered main', same_file: 'both changed the same file', no_code_map: 'no code map to tell', conflict: 'it conflicted', task_imports_main_change: 'the task imports what main changed', main_change_imports_task: 'what main changed imports the task' })[r] ?? r,
     tpState_done: 'done',
     tpState_running: 'running',
     tpState_failed: 'failed',
@@ -457,7 +457,7 @@ export const BUILD = messages(
     tpMergeRerun: (behind: number | null, reason: string) => `Rama ${behind ? `${behind} ${behind === 1 ? 'commit' : 'commits'} por detrás de main, ` : ''}actualizada con main; el CI corrió otra vez (${reason})`,
     tpMergeSkipped: (behind: number | null, reason: string) => `Rama ${behind ? `${behind} ${behind === 1 ? 'commit' : 'commits'} por detrás de main, ` : ''}actualizada con main; el CI no se repitió (${reason})`,
     tpReason: (r: string) =>
-      ({ disjoint: 'los cambios no se solapan', same_file: 'los dos cambiaron el mismo fichero', no_code_map: 'sin mapa de código para saberlo', conflict: 'había conflicto', task_imports_main_change: 'la tarea importa lo que cambió main', main_change_imports_task: 'lo que cambió main importa la tarea' })[r] ?? r,
+      ({ disjoint: 'los cambios no se solapan', docs_only: 'en main solo entraron registros de diseño o documentación', same_file: 'los dos cambiaron el mismo fichero', no_code_map: 'sin mapa de código para saberlo', conflict: 'había conflicto', task_imports_main_change: 'la tarea importa lo que cambió main', main_change_imports_task: 'lo que cambió main importa la tarea' })[r] ?? r,
     tpState_done: 'hecha',
     tpState_running: 'en curso',
     tpState_failed: 'falló',

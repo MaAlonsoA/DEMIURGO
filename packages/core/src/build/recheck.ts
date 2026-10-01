@@ -13,6 +13,8 @@ export type RecheckDecision = { recheck: boolean; reason: string };
 
 const MIGRATION = /(^|\/)(migrations?|drizzle|prisma)\//i;
 const SCHEMA = /(^|\/)(schema\.prisma|schema\.ts|schema\.sql|drizzle\.config\.[cm]?[jt]s)$|\.sql$/i;
+/** Files that are documentation only: design records and Markdown. */
+const DOCS = /^design\/|\.mdx?$/i;
 const MANIFEST = /(^|\/)(package\.json|pnpm-lock\.yaml|package-lock\.json|yarn\.lock|bun\.lockb?|pnpm-workspace\.yaml)$/;
 const CI_WORKFLOW = /^\.github\/(workflows|actions)\//;
 const CONFIG = /(^|\/)(next\.config\.[cm]?[jt]s|playwright\.config\.[cm]?[jt]s|vitest(\.[\w-]+)?\.config\.[cm]?[jt]s|vite\.config\.[cm]?[jt]s|tsconfig(\.[\w-]+)?\.json|\.env(\.[\w.-]+)?)$/;
@@ -47,7 +49,11 @@ function importClosure(map: CodeMap, from: readonly string[]): Set<string> {
  * touches the schema, the dependencies, the CI workflow or a config file; or there is no map (fail safe).
  */
 export function needsRecheck(input: { taskFiles: readonly string[]; mainFiles: readonly string[]; map: CodeMap | null }): RecheckDecision {
-  const { taskFiles, mainFiles, map } = input;
+  const { taskFiles, map } = input;
+  // Design records and docs that entered main (DEMIURGO writes design/ on every approval) change no code: there
+  // is nothing to test again against them.
+  const mainFiles = input.mainFiles.filter((f) => !DOCS.test(f));
+  if (mainFiles.length === 0) return { recheck: false, reason: 'docs_only' };
   const main = new Set(mainFiles);
   if (taskFiles.some((f) => main.has(f))) return { recheck: true, reason: 'same_file' };
   for (const f of [...taskFiles, ...mainFiles]) {

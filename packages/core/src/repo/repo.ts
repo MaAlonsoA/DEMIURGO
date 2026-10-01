@@ -72,6 +72,15 @@ async function ensureRepo(db: Db, root: string, projectId: string): Promise<stri
 type Change = { actor: string; versionId: string | null; discarded: boolean };
 
 /** The commit message of a change: the record, its version and what happened to it. */
+/**
+ * A commit that only writes design records (design/, Markdown) changes no code: CI has nothing to test, and a
+ * run on main would also make every open pull request look behind. `[skip ci]` in the message skips the
+ * push and pull_request workflows of that commit (GitHub Docs, «Skipping workflow runs»).
+ */
+export const designOnly = (files: readonly string[]): boolean =>
+  files.length > 0 && files.every((f) => f.replace(/^"|"$/g, '').startsWith('design/') || /\.md"?$/i.test(f));
+const withSkipCi = (title: string, files: readonly string[]): string => (designOnly(files) ? `${title} [skip ci]` : title);
+
 async function messageOf(db: Db, projectId: string, change: Change): Promise<{ title: string; body: string }> {
   const v = change.versionId
     ? await db
@@ -150,7 +159,9 @@ async function sync(services: Pick<Services, 'db' | 'logger'>, projectId: string
   const status = (await git(dir, ['status', '--porcelain'])).stdout.trim();
   if (!status) return null;
   const files = status.split('\n').map((l) => l.slice(3).trim());
-  const { title, body } = await messageOf(db, projectId, change);
+  const message = await messageOf(db, projectId, change);
+  const title = withSkipCi(message.title, files);
+  const body = message.body;
   const who = parseActor(change.actor);
   const author = who.type === 'human' ? `${who.person} <${who.person}@demiurgo.local>` : 'DEMIURGO <demiurgo@demiurgo.local>';
   await git(dir, [
@@ -171,7 +182,7 @@ async function sync(services: Pick<Services, 'db' | 'logger'>, projectId: string
     .values({
       project_id: projectId,
       sha,
-      message: title,
+      message: message.title,
       actor: change.actor,
       record_version_id: change.versionId,
       files: JSON.stringify(files),

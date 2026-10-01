@@ -28,6 +28,7 @@ import {
   versionReadiness,
   explorationsList,
   runsList,
+  typicalByAction,
   knowledgeGraph,
   ideaAssessments,
   taxonomiesList,
@@ -116,6 +117,7 @@ export const QUERIES: QueryRoute[] = [
       return {
         ...run,
         context_pack: pack ?? null,
+        typical: (await typicalByAction(services.db, [run.action])).get(run.action) ?? null,
         trace_id: trace ? (parseTraceParent(trace.trace_parent)?.traceId ?? null) : null,
       };
     },

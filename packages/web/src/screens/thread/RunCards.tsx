@@ -256,12 +256,13 @@ function WorkingCard({ projectId, run }: { projectId: string; run: RunListItem }
       </div>
       {run.state === 'running' ? (
         <p data-run-progress aria-live="off" className="pl-9 text-sm text-fg-2 tabular-nums">
-          {progress ? progressWords(progressText(progress, now)) : doingWord(run.action, t)}
+          {progress ? (view.writing ?? progressWords(progressText(progress, now))) : doingWord(run.action, t)}
+          {view.usually ? ` · ${view.usually}` : ''}
         </p>
       ) : null}
       {view.detail ? (
         <p className="pl-9 text-sm text-warning-text">
-          {view.detail}. {view.kind === 'stalled' ? t.mayStillAnswer : t.startsWhenFree}
+          {view.detail}. {view.kind === 'stalled' || view.kind === 'working' ? t.mayStillAnswer : t.startsWhenFree}
         </p>
       ) : null}
       {!confirming && command.error ? <ErrorNotice error={command.error} compact /> : null}

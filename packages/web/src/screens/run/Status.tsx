@@ -92,14 +92,16 @@ export const StatusCard = forwardRef<
             {t.working}
           </p>
           <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-base text-fg-2">
-            {progress ? <LiveProgress progress={progress} now={now} /> : <span>{t.noHeardYet}</span>}
+            {progress ? <LiveProgress progress={progress} now={now} writing={view.writing} /> : <span>{t.noHeardYet}</span>}
             <span>
               {t.runningForPrefix}{' '}
               <span data-run-timer className="tabular-nums">
                 {runDuration(r, now)}
               </span>
             </span>
+            {view.usually ? <span>{view.usually}</span> : null}
           </p>
+          {view.kind === 'working' && view.detail ? <p className="text-base text-warning-text">{view.detail}</p> : null}
           {view.kind === 'stalled' ? <p className="text-base text-warning-text">{t.stalledReason(view.detail)}</p> : null}
         </div>
       ) : null}

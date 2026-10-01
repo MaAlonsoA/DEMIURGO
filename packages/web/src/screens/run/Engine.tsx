@@ -27,15 +27,18 @@ export function LiveProgress({
   progress,
   now,
   className,
+  writing,
 }: {
   progress: RunProgress | undefined;
   now: number;
   className?: string;
+  /** «Writing the result…» instead of a counter that stopped moving (run view, when the action has history). */
+  writing?: string | null;
 }) {
   if (!progress) return null;
   return (
     <span data-run-progress className={cn('text-sm font-medium text-info-text tabular-nums', className)}>
-      {progressText(progress, now)}
+      {writing ?? progressText(progress, now)}
     </span>
   );
 }

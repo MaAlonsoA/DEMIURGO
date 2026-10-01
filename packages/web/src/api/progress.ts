@@ -20,6 +20,8 @@ const byRun = new Map<string, RunProgress>();
 const seenAt = new Map<string, number>();
 /** When this tab started listening: a run with no message yet counts its silence from here. */
 export const listeningSince = Date.now();
+/** When the token counter of each run last moved (or its call started): «Writing the result…» reads from it. */
+const tokensMovedAt = new Map<string, number>();
 const listeners = new Set<() => void>();
 
 /**
@@ -32,9 +34,11 @@ export function recordProgress(p: RunProgress, at = Date.now()): void {
   if (shown && shown.call_id === p.call_id) {
     if (p.events < shown.events) return;
     const tokens = Math.max(shown.tokens ?? 0, p.tokens ?? 0);
+    if (tokens > (shown.tokens ?? 0)) tokensMovedAt.set(p.run_id, at);
     byRun.set(p.run_id, { ...p, tokens: tokens > 0 ? tokens : null });
   } else {
     byRun.set(p.run_id, p);
+    tokensMovedAt.set(p.run_id, at);
   }
   for (const l of listeners) l();
 }
@@ -46,6 +50,11 @@ export function progressOf(runId: string): RunProgress | undefined {
 /** When this tab last received progress of a run, or null if it never did. */
 export function lastProgressAt(runId: string): number | null {
   return seenAt.get(runId) ?? null;
+}
+
+/** When the token counter of a run last moved in this tab, or null if it never did. */
+export function lastTokenMoveAt(runId: string): number | null {
+  return tokensMovedAt.get(runId) ?? null;
 }
 
 export function useRunProgress(runId: string | undefined): RunProgress | undefined {

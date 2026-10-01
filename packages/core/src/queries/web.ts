@@ -2,9 +2,42 @@
 // the UI shows it (graph by taxonomy area, idea assessments with their citation, taxonomies).
 // Derived functions: nothing is stored.
 
-import { DomainError } from '@demiurgo/domain';
+import { DomainError, TYPICAL_WINDOW, type TypicalDuration, typicalDuration } from '@demiurgo/domain';
+import { sql } from 'kysely';
 import type { Db } from '../db/connection.ts';
 import { originExploration } from './read.ts';
+
+/**
+ * Typical duration per action: the median and p80 of `finished_at - started_at` over the last
+ * TYPICAL_WINDOW completed runs of that action across the whole instance.
+ */
+export async function typicalByAction(db: Db, actions: readonly string[]): Promise<Map<string, TypicalDuration | null>> {
+  const out = new Map<string, TypicalDuration | null>();
+  const wanted = [...new Set(actions)];
+  if (wanted.length === 0) return out;
+  const rows = await db
+    .selectFrom(
+      db
+        .selectFrom('ai_runs')
+        .select([
+          'action',
+          sql<number>`extract(epoch from (finished_at - started_at))`.as('seconds'),
+          sql<number>`row_number() over (partition by action order by finished_at desc)`.as('rank'),
+        ])
+        .where('state', '=', 'completed')
+        .where('started_at', 'is not', null)
+        .where('finished_at', 'is not', null)
+        .where('action', 'in', wanted)
+        .as('recent'),
+    )
+    .select(['action', 'seconds'])
+    .where('rank', '<=', TYPICAL_WINDOW)
+    .execute();
+  const by = new Map<string, number[]>();
+  for (const r of rows) by.set(r.action, [...(by.get(r.action) ?? []), Number(r.seconds)]);
+  for (const a of wanted) out.set(a, typicalDuration(by.get(a) ?? []));
+  return out;
+}
 
 /** Threads with their open questions and their last activity. */
 export async function explorationsList(db: Db, projectId: string) {
@@ -93,6 +126,10 @@ export async function runsList(db: Db, projectId: string, filter: { exploration?
     .limit(500);
   if (filter.state) query = query.where('ai_runs.state', '=', filter.state);
   const runs = await query.execute();
+  const typical = await typicalByAction(
+    db,
+    runs.filter((r) => r.state === 'queued' || r.state === 'running').map((r) => r.action),
+  );
   const batches = await db
     .selectFrom('proposal_batches')
     .select(['id', 'run_id'])
@@ -112,6 +149,7 @@ export async function runsList(db: Db, projectId: string, filter: { exploration?
     if (filter.exploration && exploration !== filter.exploration) continue;
     rows.push({
       ...r,
+      typical: typical.get(r.action) ?? null,
       exploration_id: exploration,
       batch_id: batches.find((b) => b.run_id === r.id)?.id ?? null,
     });

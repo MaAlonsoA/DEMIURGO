@@ -22,7 +22,7 @@ import { ConfirmDialog } from '../../components/Dialog.tsx';
 import { ArrowRightIcon, ChevronRightIcon, RetryIcon } from '../../components/icons.tsx';
 import { ErrorNotice } from '../../components/Notice.tsx';
 import { KNOWLEDGE_WAIT } from '../../components/words.i18n.ts';
-import { RunStateBadge } from '../../components/runState.tsx';
+import { RunStateBadge, useRunView } from '../../components/runState.tsx';
 import { EntityState, StateIcon, StatusBadge } from '../../components/status.tsx';
 import { Elapsed, RelativeTime, useNow } from '../../components/Time.tsx';
 import { WhoAvatar } from '../../components/Who.tsx';
@@ -173,14 +173,16 @@ function Step({ state, title, children }: { state: StepState; title: string; chi
 function RunLive({ run }: { run: RunListItem }) {
   const progress = useRunProgress(run.id);
   const now = useNow(true);
+  const view = useRunView(run);
   return (
     <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
       <RunStateBadge run={run} withDetail />
       {progress ? (
         <span data-run-progress className="text-sm text-info-text tabular-nums">
-          {progressText(progress, now)}
+          {view.writing ?? progressText(progress, now)}
         </span>
       ) : null}
+      {view.usually ? <span className="text-sm text-fg-2">{view.usually}</span> : null}
       <span data-run-timer className="text-sm text-fg-2 tabular-nums">
         <Elapsed start={run.started_at ?? run.created_at} />
       </span>

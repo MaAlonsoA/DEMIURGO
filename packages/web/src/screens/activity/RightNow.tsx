@@ -61,11 +61,12 @@ function WorkingRun({ projectId, run: r, purpose }: { projectId: string; run: Ru
         </p>
         <p className="flex flex-wrap items-baseline gap-x-3 text-sm text-fg-2">
           {view.detail ? <span className="font-medium text-warning-text">{view.detail}</span> : null}
-          {progress && view.kind !== 'queued' && view.kind !== 'late' ? <LiveProgress progress={progress} now={now} /> : null}
+          {progress && view.kind !== 'queued' && view.kind !== 'late' ? <LiveProgress progress={progress} now={now} writing={view.writing} /> : null}
           <span>
             {view.kind === 'queued' || view.kind === 'late' ? t.waiting : t.running}
             <span className="tabular-nums">{runDuration(r, now)}</span>
           </span>
+          {view.usually && view.kind !== 'queued' && view.kind !== 'late' ? <span>{view.usually}</span> : null}
         </p>
       </div>
       <Link

@@ -39,6 +39,25 @@ describe('the state of a run as the person reads it', () => {
     expect(late.detail).toBe('Queued for 2:05');
   });
 
+  it('with history, a quiet counter reads «Writing the result…» within p80, and Stalled waits for p80 x 1.5', () => {
+    const r = run({ typical: { median_s: 480, p80_s: 600, n: 5 } });
+    const at = (ms: number, lastProgress: number | null) => runView(r, { now: t0 + ms, lastProgress, lastTokenMove: t0 + 5_000, since: t0 });
+    const quiet = at(200_000, t0 + 5_000);
+    expect(quiet).toMatchObject({ kind: 'working', writing: 'Writing the result…', usually: 'Usually takes about 8 min', detail: null });
+    // 90 s of silence before p80 x 1.5 (900 s) is not Stalled.
+    expect(at(700_000, t0 + 5_000)).toMatchObject({ kind: 'working', writing: null, detail: null });
+    const slow = at(950_000, t0 + 5_000);
+    expect(slow).toMatchObject({ kind: 'stalled', detail: 'Taking longer than usual (usually about 8 min)' });
+    // Counter still talking after p80 x 1.5: Working, with the slow note.
+    expect(at(950_000, t0 + 940_000)).toMatchObject({ kind: 'working', detail: 'Taking longer than usual (usually about 8 min)' });
+  });
+
+  it('with fewer than 3 completed runs the history is ignored', () => {
+    const r = run({ typical: { median_s: 480, p80_s: 600, n: 2 } });
+    const v = runView(r, { now: t0 + 200_000, lastProgress: t0 + 60_000, since: t0 });
+    expect(v).toMatchObject({ kind: 'stalled', usually: null, writing: null });
+  });
+
   it('a running run is Working while its engine speaks, and Stalled after 90 s of silence', () => {
     const r = run({});
     expect(runView(r, { now: t0 + 80_000, lastProgress: null, since: t0 }).kind).toBe('working');

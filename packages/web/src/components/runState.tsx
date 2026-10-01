@@ -4,7 +4,7 @@
 // its engine for 90 s). Failed and Interrupted keep apart: one is the content, the other DEMIURGO
 // restarting (R09, R29, D-011).
 
-import { listeningSince, lastProgressAt, useRunProgress } from '../api/progress.ts';
+import { lastProgressAt, lastTokenMoveAt, listeningSince, useRunProgress } from '../api/progress.ts';
 import type { RunListItem } from '../api/types.ts';
 import type { Locale } from '../i18n/locale.ts';
 import { duration } from '../lib/time.ts';
@@ -14,6 +14,12 @@ import { useNow } from './Time.tsx';
 
 export const LATE_AFTER_MS = 60_000;
 export const STALLED_AFTER_MS = 90_000;
+/** Without history, a token counter that has not moved for this long reads as «Writing the result…» (convention nuestra). */
+export const WRITING_QUIET_MS = 20_000;
+/** Slack over the typical p80 duration before «Taking longer than usual» and Stalled (convention nuestra: 50 %). */
+export const SLOW_MARGIN = 1.5;
+/** The history is only used from this many completed runs (convention nuestra). */
+export const MIN_HISTORY = 3;
 
 export type RunKind = 'queued' | 'late' | 'working' | 'stalled' | 'completed' | 'failed' | 'interrupted' | 'cancelled';
 
@@ -24,9 +30,23 @@ export type RunView = {
   /** The UI's reading, in words ("No sign of activity for 2:10"), for late and stalled. */
   detail: string | null;
   active: boolean;
+  /** «Usually takes about 8 min», when the action has enough history; else null. */
+  usually: string | null;
+  /** «Writing the result…»: the counter is quiet but the run is within its usual time; else null. */
+  writing: string | null;
 };
 
-type RunLike = Pick<RunListItem, 'state' | 'created_at' | 'started_at' | 'finished_at'>;
+type RunLike = Pick<RunListItem, 'state' | 'created_at' | 'started_at' | 'finished_at'> & {
+  typical?: RunListItem['typical'];
+};
+
+/** The typical duration, only when there are enough completed runs behind it. */
+function history(run: RunLike) {
+  const t = run.typical;
+  return t && t.n >= MIN_HISTORY && t.median_s > 0 ? t : null;
+}
+
+const minutesOf = (s: number) => Math.max(1, Math.round(s / 60));
 
 export function isActive(state: string): boolean {
   return state === 'queued' || state === 'running';
@@ -45,9 +65,10 @@ export function runView(
   {
     now,
     lastProgress,
+    lastTokenMove = null,
     since = listeningSince,
     locale = 'en',
-  }: { now: number; lastProgress: number | null; since?: number; locale?: Locale },
+  }: { now: number; lastProgress: number | null; lastTokenMove?: number | null; since?: number; locale?: Locale },
 ): RunView {
   const w = locale === 'es' ? RUN_WORDS_ES : { late: 'Late', queued: 'Queued', stalled: 'Stalled', working: 'Working' };
   if (run.state === 'queued') {
@@ -59,32 +80,62 @@ export function runView(
         mark: 'stale',
         detail: locale === 'es' ? `En cola desde hace ${duration(waited)}` : `Queued for ${duration(waited)}`,
         active: true,
+        usually: null,
+        writing: null,
       };
-    return { kind: 'queued', word: w.queued, mark: 'working', detail: null, active: true };
+    return { kind: 'queued', word: w.queued, mark: 'working', detail: null, active: true, usually: null, writing: null };
   }
   if (run.state === 'running') {
     const started = run.started_at ? new Date(run.started_at).getTime() : since;
     const heard = lastProgress ?? Math.max(since, started);
     const silent = now - heard;
-    if (silent > STALLED_AFTER_MS)
+    const elapsed = now - started;
+    const typical = history(run);
+    const min = typical ? minutesOf(typical.median_s) : null;
+    const usually = min === null ? null : locale === 'es' ? `Suele tardar unos ${min} min` : `Usually takes about ${min} min`;
+    // With history, Stalled waits for the typical p80 plus the margin: a long single output is not a fault.
+    const slow = typical !== null && elapsed > typical.p80_s * 1000 * SLOW_MARGIN;
+    const slowWords =
+      locale === 'es'
+        ? `Tarda más de lo habitual (suele tardar unos ${min} min)`
+        : `Taking longer than usual (usually about ${min} min)`;
+    if (silent > STALLED_AFTER_MS && (typical === null || slow))
       return {
         kind: 'stalled',
         word: w.stalled,
         mark: 'stale',
-        detail:
-          locale === 'es'
+        detail: slow
+          ? slowWords
+          : locale === 'es'
             ? `Sin señales de actividad desde hace ${duration(silent)}`
             : `No sign of activity for ${duration(silent)}`,
         active: true,
+        usually,
+        writing: null,
       };
-    return { kind: 'working', word: w.working, mark: 'working', detail: null, active: true };
+    const quietSince = lastTokenMove ?? Math.max(since, started);
+    const writing =
+      typical && elapsed < typical.p80_s * 1000 && now - quietSince > WRITING_QUIET_MS
+        ? locale === 'es'
+          ? 'Escribiendo el resultado…'
+          : 'Writing the result…'
+        : null;
+    return {
+      kind: 'working',
+      word: w.working,
+      mark: 'working',
+      detail: slow ? slowWords : null,
+      active: true,
+      usually,
+      writing,
+    };
   }
   const state = stateWordFor(locale, 'ai_run', run.state);
   const kind: RunKind =
     run.state === 'completed' || run.state === 'failed' || run.state === 'cancelled' || run.state === 'interrupted'
       ? run.state
       : 'failed';
-  return { kind, word: state.word, mark: state.mark, detail: null, active: false };
+  return { kind, word: state.word, mark: state.mark, detail: null, active: false, usually: null, writing: null };
 }
 
 /** The live state of one run: re-evaluated every second while active and on each progress message. */
@@ -93,7 +144,7 @@ export function useRunView(run: RunLike & { id: string }): RunView {
   const now = useNow(active);
   const locale = useSafeLocale();
   useRunProgress(active ? run.id : undefined);
-  return runView(run, { now, lastProgress: lastProgressAt(run.id), locale });
+  return runView(run, { now, lastProgress: lastProgressAt(run.id), lastTokenMove: lastTokenMoveAt(run.id), locale });
 }
 
 /** The badge of a run's state, Late and Stalled included. */

@@ -851,6 +851,9 @@ export type ContextPack = {
   hash: string;
 };
 
+/** Median and 80th percentile, in seconds, of the last completed runs of an action. */
+export type TypicalDuration = { median_s: number; p80_s: number; n: number };
+
 export type Run = {
   id: string;
   project_id: string;
@@ -889,6 +892,7 @@ export type Run = {
 export type RunDetail = Run & {
   context_pack: ContextPack | null;
   trace_id: string | null;
+  typical?: TypicalDuration | null;
 };
 
 export type EventRow = {
@@ -969,6 +973,8 @@ export type RunListItem = {
   exploration_id: string | null;
   /** Batch the run produced, if any. */
   batch_id: string | null;
+  /** How long this action usually takes (last 20 completed runs); only for runs in progress. */
+  typical?: TypicalDuration | null;
 };
 
 export type GraphNode = {

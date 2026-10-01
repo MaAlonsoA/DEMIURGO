@@ -9,6 +9,14 @@ import { ManifestBuilder, inputSource } from '../context/manifest.ts';
 import { registerApplier, registerChecker } from './appliers.ts';
 import { packContentOf } from './drafting.ts';
 import { taskCoversOf } from '../queries/sizes.ts';
+import { jevAllowed } from '../classifier/aspect.ts';
+import { loadRepoContext, projectRepoDir } from '../classifier/repo-context.ts';
+import { existingSymbolsSample, readingOrder, triageReview } from '../classifier/review-triage.ts';
+import type { TriageDeps } from '../classifier/review-triage.ts';
+import { loadTaskObject } from '../classifier/task-input.ts';
+
+/** Tests replace Jev's client here; production leaves it unset. */
+export const triageDeps: { current: TriageDeps } = { current: {} };
 
 const BUILDER = 'pr_review@1';
 export const PR_REVIEW_DIFF_MAX = 400_000;
@@ -46,7 +54,7 @@ registerBuilder('pr_review', async ({ trx, projectId, scope, input, graphVersion
   const task = await trx
     .selectFrom('record_versions')
     .innerJoin('records', 'records.id', 'record_versions.record_id')
-    .select(['records.code', 'record_versions.id', 'record_versions.n', 'record_versions.title', 'record_versions.sections'])
+    .select(['records.id as record_id', 'records.code', 'record_versions.id', 'record_versions.n', 'record_versions.title', 'record_versions.sections'])
     .where('record_versions.id', '=', request.task_version_id)
     .executeTakeFirstOrThrow();
   const sections = task.sections as { title: string; content: string }[];
@@ -73,6 +81,24 @@ registerBuilder('pr_review', async ({ trx, projectId, scope, input, graphVersion
   }));
   const diff = input.diff.length > PR_REVIEW_DIFF_MAX ? `${input.diff.slice(0, PR_REVIEW_DIFF_MAX)}\n[diff truncated: ${input.diff.length - PR_REVIEW_DIFF_MAX} more characters not shown]` : input.diff;
   const ci = ciOf(input.ci);
+  // Jev's triage: hints and a reading order, pointers only. Best effort: no key or any failure means none.
+  let hints: string[] = [];
+  let files: string[] = [];
+  try {
+    if (triageDeps.current.client || jevAllowed()) {
+      const taskObject = await loadTaskObject(trx, task.record_id, task.id);
+      if (taskObject) {
+        const [dir, repo] = [await projectRepoDir(trx, projectId), await loadRepoContext(trx, projectId)];
+        const sample = await existingSymbolsSample(dir, taskObject);
+        const triaged = await triageReview({ task: taskObject, diff: input.diff, sample, projectStack: repo?.project_stack ?? null }, triageDeps.current);
+        hints = triaged.hints.map((h) => h.text);
+        files = readingOrder(triaged.files.map((f) => f.path), triaged.hints);
+      }
+    }
+  } catch {
+    hints = [];
+    files = [];
+  }
   manifest.entered({ section: 'brief', source: { type: 'build_request', id: request.id, version: null, eventSeq: null }, text: request.brief, reason: 'scope' });
   manifest.entered({
     section: 'task',
@@ -94,6 +120,8 @@ registerBuilder('pr_review', async ({ trx, projectId, scope, input, graphVersion
     originalChars: input.diff.length,
     reason: input.diff.length > PR_REVIEW_DIFF_MAX ? `excerpt:${PR_REVIEW_DIFF_MAX}` : 'input',
   });
+  if (hints.length > 0)
+    manifest.entered({ section: 'hints', source: inputSource('hints'), text: JSON.stringify({ hints, files }), reason: 'triage' });
   manifest.entered({ section: 'ci', source: inputSource('ci'), text: JSON.stringify(ci), reason: 'input' });
   return {
     pack: {
@@ -109,6 +137,8 @@ registerBuilder('pr_review', async ({ trx, projectId, scope, input, graphVersion
         task: taskContent,
         criteria: criteriaContent,
         ci,
+        ...(hints.length > 0 ? { hints } : {}),
+        ...(files.length > 0 && hints.length > 0 ? { files } : {}),
         diff,
       },
     },

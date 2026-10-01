@@ -6,6 +6,8 @@ import { human } from '@demiurgo/domain';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { createSimulatedProvider } from '../src/agents/simulated.ts';
 import { CHECKERS } from '../src/actions/appliers.ts';
+import { packContentOf } from '../src/actions/drafting.ts';
+import { triageDeps } from '../src/actions/pr-review.ts';
 import { executeCommand } from '../src/bus/bus.ts';
 import { waitForRun } from '../src/engine/engine.ts';
 import { waitForKnowledge } from '../src/knowledge/workflows.ts';
@@ -42,6 +44,7 @@ async function accepted(runId: string) {
 }
 
 beforeAll(async () => {
+  delete process.env.TYPESAFE_API_KEY; // the triage must never make a real Jev call here
   projectId = (await executeCommand(environment().services, { command: 'project.create', actor: ana, data: { name: 'Review' } })).projectId;
   // Epic -> feature -> tasks, each accepted and approved by the person.
   const thread = (await cmd('exploration.open', { purpose: 'Share recipes with friends' })).entityId;
@@ -122,6 +125,24 @@ describe('the pr_reviewer agent', () => {
     const comments = rows[0]?.comments as { severity: string }[];
     expect(comments.some((c) => c.severity === 'blocking')).toBe(true);
     expect((rows[0]?.criteria as { code: string; covered: boolean }[]).find((c) => c.code === codes[0])?.covered).toBe(false);
+  });
+
+  it('adds Jev hints and a reading order to the pack when the triage finds some, and none without them', async () => {
+    const diff = `${diffWith(codes)}diff --git a/src/auth.ts b/src/auth.ts\n+++ b/src/auth.ts\n+export function login() {}\n`;
+    const none = await review(diff, codes);
+    expect(Object.keys(await packContentOf<Record<string, unknown>>(db(), none.run))).not.toContain('hints');
+    triageDeps.current = {
+      client: { systemOne: async () => ({ answers: { f1_auth: { noul: 0.9 }, t0: { noul: 0.1 } }, model: 'jev-test', usage: { input_tokens: 10, output_tokens: 0 } }) } as never,
+    };
+    try {
+      const { run } = await review(diff, codes);
+      const pack = await packContentOf<{ hints?: string[]; files?: string[] }>(db(), run);
+      expect(pack.hints?.[0]).toBe('Check: src/auth.ts may touch authentication, sessions, secrets or access control (Jev 0.90)');
+      expect(pack.hints?.some((h) => h.includes('criterion 1'))).toBe(true);
+      expect(pack.files).toEqual(['src/auth.ts', 'tests/x.test.ts']);
+    } finally {
+      triageDeps.current = {};
+    }
   });
 
   it('the checker rejects covered: true for a criterion with no passing test in CI', async () => {

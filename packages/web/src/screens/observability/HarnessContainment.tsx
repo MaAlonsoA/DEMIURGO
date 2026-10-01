@@ -133,7 +133,9 @@ export function HarnessContainmentView({
             const seen = p !== undefined && p.n >= data.min_n;
             return (
               <tr key={phase} data-phase={phase}>
-                <th scope="row" className={`${td} font-mono text-xs font-normal text-fg`}>{phase}</th>
+                <th scope="row" className={`${td} font-normal text-fg`}>
+                  <span className="font-mono text-xs text-fg-3">{phase}</span> {t.phaseName(phase)}
+                </th>
                 <td className={numTd}>{seen ? percent(locale, p.pce) : '—'}</td>
                 <td className={numTd}>{targetText}</td>
                 <td className={numTd}>{num(locale, p?.n ?? 0, 0)}</td>

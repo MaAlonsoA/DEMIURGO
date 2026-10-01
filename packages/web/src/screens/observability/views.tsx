@@ -92,7 +92,11 @@ function phaseRows(d: HarnessContainmentData, locale: string, t: Msgs<typeof HAR
     const display = !p || p.n === 0 ? t.noRows : seen ? `${num(locale, (p.pce ?? 0) * 100, 1)} % (n ${p.n})` : `${t.notEnough} (n ${p.n})`;
     return {
       key: phase,
-      label: <span className="font-mono text-xs">{phase}</span>,
+      label: (
+        <span>
+          <span className="font-mono text-xs text-fg-3">{phase}</span> {t.phaseName(phase)}
+        </span>
+      ),
       name: phase,
       value: seen ? p.pce : null,
       display,

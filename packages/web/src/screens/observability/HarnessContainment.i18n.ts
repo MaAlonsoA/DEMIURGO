@@ -24,6 +24,8 @@ export const HARNESS_CONTAINMENT = messages(
     colEscaped: 'Escaped',
     colStatus: 'Status',
     notEnough: 'not enough data',
+    phaseName: (code: string): string =>
+      ({ P1: 'Definition', P2: 'Quality', P3: 'Principles and decisions', P4: 'Design system', P5: 'Epics, features and criteria', P6: 'Screens', P7: 'Tasks' })[code] ?? code,
     met: 'meets the target',
     unmet: 'below the target',
     noRows: 'no errors',
@@ -65,6 +67,8 @@ export const HARNESS_CONTAINMENT = messages(
     colEscaped: 'Escapados',
     colStatus: 'Estado',
     notEnough: 'sin datos suficientes',
+    phaseName: (code: string): string =>
+      ({ P1: 'Definición', P2: 'Calidad', P3: 'Principios y decisiones', P4: 'Sistema de diseño', P5: 'Épicas, funcionalidades y criterios', P6: 'Pantallas', P7: 'Tareas' })[code] ?? code,
     met: 'cumple el objetivo',
     unmet: 'por debajo del objetivo',
     noRows: 'sin errores',

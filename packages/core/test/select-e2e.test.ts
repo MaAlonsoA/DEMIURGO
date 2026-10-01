@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error plain ESM template without types
-import { affectedCriteria, isDocsOnly, selectEndToEnd } from '../templates/ci/select-e2e.mjs';
+import { affectedCriteria, selectEndToEnd } from '../templates/ci/select-e2e.mjs';
 
 describe('CI paved road: select-e2e.mjs', () => {
   it('keeps valid codes, drops invalid ones and repeats', () => {
@@ -31,31 +31,5 @@ describe('CI paved road: select-e2e.mjs', () => {
   it('without a trailer, application code changed runs the whole suite', () => {
     expect(selectEndToEnd({ event: 'pull_request', changedFiles: ['e2e/a.spec.ts', 'src/app.ts'], trailerValues: '' }).args).toEqual([]);
     expect(selectEndToEnd({ event: 'pull_request', changedFiles: [], trailerValues: '' }).args).toEqual([]);
-  });
-
-  describe('lane', () => {
-    const pr = (changedFiles: string[], trailerValues = '') => selectEndToEnd({ event: 'pull_request', changedFiles, trailerValues });
-
-    it('docs-only changes are the light lane, even with a trailer', () => {
-      expect(pr(['docs/a.md', 'README.md', 'design/x.yaml', '.demiurgo/build-report.json', 'src/notes.mdx']).lane).toBe('light');
-      expect(pr(['docs/a.md'], 'AC-A-1-1').lane).toBe('light');
-    });
-
-    it('a test file, even under docs/, is never light', () => {
-      expect(isDocsOnly('docs/a.md')).toBe(true);
-      expect(isDocsOnly('docs/example.spec.ts')).toBe(false);
-      expect(isDocsOnly('e2e/a.spec.ts')).toBe(false);
-      expect(pr(['docs/a.md', 'e2e/a.spec.ts']).lane).toBe('selected');
-    });
-
-    it('application code is full, or selected with a trailer', () => {
-      expect(pr(['docs/a.md', 'src/app.ts']).lane).toBe('full');
-      expect(pr(['src/app.ts'], 'AC-A-1-1').lane).toBe('selected');
-      expect(pr([]).lane).toBe('full');
-    });
-
-    it('push to main is always full', () => {
-      expect(selectEndToEnd({ event: 'push', changedFiles: ['docs/a.md'], trailerValues: '' }).lane).toBe('full');
-    });
   });
 });

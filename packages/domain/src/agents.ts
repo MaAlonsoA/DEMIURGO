@@ -566,7 +566,7 @@ export const featureDesignOutput = z
               needs: z
                 .array(recordRef)
                 .max(6)
-                .describe('The approved sibling features of the same epic that must be built first, each with its current version; empty when none.'),
+                .describe('The approved features of the project (of any epic, or none) that must be built first, each with its current version; empty when none.'),
             })
             .strict(),
         })
@@ -608,6 +608,13 @@ export const taskPlanOutput = z
               .array(z.number().int().min(1).max(19))
               .max(19)
               .describe('The 1-based positions of EARLIER tasks in this list that must be done before this one starts; empty when none.'),
+            depends_on_existing: z
+              .array(z.string().regex(/^TSK-[A-Z]{3}-\d{3}$/))
+              .max(6)
+              .default([])
+              .describe(
+                'Codes of tasks that ALREADY exist (of this feature or another; see `existing_tasks` and `built_state`) that must be done before this one starts, because it extends what they built; empty when none.',
+              ),
             waits_for_features: z
               .array(z.string().regex(/^FDR-[A-Z]{3}-\d{3}$/))
               .max(6)

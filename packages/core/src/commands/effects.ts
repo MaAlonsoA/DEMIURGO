@@ -68,6 +68,28 @@ async function dependencyLinks(ctx: CommandContext, feature: { code: string }, t
 }
 
 /**
+ * The existing tasks (of any feature) a task depends on, by code: one `depends_on` link each, to the task's latest
+ * version that is not discarded. A code that is not a task of the project links nothing (the checker refused it).
+ */
+async function taskCodeLinks(ctx: CommandContext, codes: readonly string[]) {
+  const out: { type: string; target: { code: string; version: number } }[] = [];
+  for (const code of new Set(codes)) {
+    const versions = await ctx.trx
+      .selectFrom('record_versions')
+      .innerJoin('records', 'records.id', 'record_versions.record_id')
+      .select('record_versions.n')
+      .where('records.project_id', '=', ctx.projectId)
+      .where('records.code', '=', code)
+      .where('records.type', '=', 'task')
+      .where('record_versions.state', '<>', 'discarded')
+      .execute();
+    const n = Math.max(0, ...versions.map((v) => v.n));
+    if (n > 0) out.push({ type: 'depends_on', target: { code, version: n } });
+  }
+  return out;
+}
+
+/**
  * The features a task waits for: one `depends_on` link each, to the feature's current approved version
  * (or its latest one when none is approved yet). The build engine holds the task until they are built.
  */
@@ -254,6 +276,7 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
         links: [
           ...[...(c.based_on ? [c.based_on] : []), ...(c.needs ?? [])].map((target) => ({ type: 'based_on', target })),
           ...(c.record_type === 'task' && c.based_on ? await dependencyLinks(ctx, c.based_on, c.depends_on_titles ?? []) : []),
+          ...(c.record_type === 'task' ? await taskCodeLinks(ctx, c.depends_on_tasks ?? []) : []),
           ...(c.record_type === 'task' ? await featureWaitLinks(ctx, (c.waits_for_features ?? []).filter((f) => f !== c.based_on?.code)) : []),
         ],
         origin: { type: 'proposal', id: proposalId },

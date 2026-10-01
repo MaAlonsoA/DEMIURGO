@@ -9,7 +9,9 @@ import { executeCommand } from '../src/bus/bus.ts';
 import { waitForRun } from '../src/engine/engine.ts';
 import { waitForKnowledge } from '../src/knowledge/workflows.ts';
 import { explorationDetail, recordDetail, versionReadiness } from '../src/queries/read.ts';
-import { withoutDuplicateCoverage } from '../src/actions/task-plan.ts';
+import { builtStateOf } from '../src/actions/built-state.ts';
+import { duplicateCoverage, withoutDuplicateCoverage } from '../src/actions/task-plan.ts';
+import { planWarnings } from '../src/actions/task-plan-check.ts';
 import { taskDraftView } from '../src/queries/task-view.ts';
 import { useEnvironment } from './support/env.ts';
 
@@ -29,6 +31,15 @@ const environment = useEnvironment({
               changeable: boolean;
             }[];
           };
+          // A new task that depends on an existing task (DEPENDS_EXISTING_TEST:<code>), covering the first criterion.
+          const dep = [...JSON.stringify(c.request ?? null).matchAll(/DEPENDS_EXISTING_TEST:(TSK-[A-Z]{3}-\d{3})/g)].at(-1)?.[1];
+          if (dep) {
+            const first = (c as unknown as { feature: { criteria: { code: string }[] } }).feature.criteria[0]!.code;
+            return {
+              ...base,
+              tasks: [{ ...(base.tasks as object[])[0], covers: [first], depends_on: [], depends_on_existing: [dep] }],
+            };
+          }
           // A plan whose tasks wait for the feature the request names (WAITS_TEST:<code>, the last one).
           const waits = [...JSON.stringify(c.request ?? null).matchAll(/WAITS_TEST:(FDR-[A-Z]{3}-\d{3})/g)].at(-1)?.[1];
           if (waits)
@@ -74,6 +85,9 @@ const environment = useEnvironment({
               feature: { steps: string[]; criteria: { step: number }[] };
             };
           };
+          // A feature that needs the feature the thread names (NEEDS_TEST:<code>), of another epic or of none.
+          const needs = /NEEDS_TEST:(FDR-[A-Z]{3}-\d{3})/.exec(JSON.stringify(p.context.content))?.[1];
+          if (needs) (out.result.feature as unknown as { needs: unknown[] }).needs = [{ code: needs, version: 1 }];
           if (JSON.stringify(p.context.content).includes('Two steps only')) {
             out.result.feature.steps = out.result.feature.steps.slice(0, 2);
             out.result.feature.criteria = out.result.feature.criteria.map((c) => ({ ...c, step: Math.min(c.step, 2) }));
@@ -544,5 +558,174 @@ describe('the drafting agents', () => {
     expect(link).toEqual([{ code: w.code, n: 1 }]);
     const reasons = (await versionReadiness(db(), projectId, accepted.versionId)).reasons;
     expect(reasons).toContain(`Waits for ${w.code} Feature to wait for (not built yet).`);
+  });
+
+  it('feature_design may need a feature of another epic or of none, and its pack carries built_state and deployment', async () => {
+    const other = await db()
+      .selectFrom('record_versions')
+      .innerJoin('records', 'records.id', 'record_versions.record_id')
+      .select('records.code')
+      .where('records.project_id', '=', projectId)
+      .where('record_versions.title', '=', 'Other feature')
+      .executeTakeFirstOrThrow();
+    const planned = await db()
+      .selectFrom('planned_features')
+      .select(['code', 'name'])
+      .where('project_id', '=', projectId)
+      .where('state', '=', 'planned')
+      .orderBy('position')
+      .executeTakeFirstOrThrow();
+    const thread = (
+      await cmd('exploration.open', {
+        purpose: `Design "${planned.name}" (${planned.code}, ${state.epic?.code}): NEEDS_TEST:${other.code}`,
+        parent_id: state.epicThread,
+        origin: { type: 'record_version', id: state.epic?.versionId },
+      })
+    ).entityId;
+    const run = await draftRun('feature_design', { type: 'exploration', id: thread });
+    expect(run.error).toBeNull();
+    expect(run.state).toBe('completed');
+    const proposals = await proposalsOf(run.id);
+    expect((proposals[0]!.payload as { needs?: { code: string }[] }).needs?.map((n) => n.code)).toEqual([other.code]);
+    const pack = await db().selectFrom('context_packs').select('content').where('id', '=', run.context_pack_id ?? '').executeTakeFirstOrThrow();
+    const section = (pack.content as { feature_design: { built_state: { features: { code: string; criteria: { verification: string }[] }[] }; deployment: { recorded: boolean } } }).feature_design;
+    expect(section.deployment.recorded).toBe(false);
+    expect(section.built_state.features.map((x) => x.code)).toContain(other.code);
+    expect(section.built_state.features.find((x) => x.code === other.code)?.criteria[0]?.verification).toBe('automatic');
+  });
+
+  it('a new task of a re-plan may depend on an existing task: accepting it links them, and an unknown task is refused', async () => {
+    const feature = await recordDetail(db(), projectId, state.featureCode);
+    const existing = feature.tasks![0]!.code;
+    const criterion = feature.versions.find((v) => v.current)?.criteria[0]?.code ?? '';
+    const plan = async (dep: string) => {
+      await cmd('message.post', {
+        exploration_id: state.featureThread,
+        text: `Build ${criterion} after the first task. DEPENDS_EXISTING_TEST:${dep}`,
+        respond: false,
+      });
+      return draftRun('task_plan', { type: 'record_version', id: state.featureVersion });
+    };
+    const unknown = await plan('TSK-ZZZ-999');
+    expect(unknown.state).toBe('failed');
+    expect(unknown.error).toMatch(/TSK-ZZZ-999, which is not a task of the project/);
+    const run = await plan(existing);
+    expect(run.error).toBeNull();
+    const proposals = await proposalsOf(run.id);
+    expect(proposals[0]!.payload).toMatchObject({ depends_on_tasks: [existing] });
+    const pack = await db().selectFrom('context_packs').select('content').where('id', '=', run.context_pack_id ?? '').executeTakeFirstOrThrow();
+    const content = pack.content as { built_state: { features: unknown[] }; deployment: { recorded: boolean } };
+    expect(Array.isArray(content.built_state.features)).toBe(true);
+    expect(content.deployment.recorded).toBe(false);
+    const accepted = (await cmd('proposal.accept', { approve: true }, proposals[0]!.id)).result as Created;
+    const links = await db()
+      .selectFrom('links')
+      .innerJoin('record_versions', 'record_versions.id', 'links.to_id')
+      .innerJoin('records', 'records.id', 'record_versions.record_id')
+      .select('records.code')
+      .where('links.from_id', '=', accepted.versionId)
+      .where('links.type', '=', 'depends_on')
+      .execute();
+    expect(links.map((l) => l.code)).toEqual([existing]);
+  });
+
+  it('a plan that only covers manual criteria carries warnings in the batch summary and on the task proposal', async () => {
+    const made = await cmd('record.create', {
+      type: 'fdr',
+      domain: 'manual',
+      title: 'Manual only feature',
+      sections: [
+        { title: 'Goal', content: 'Do it.' },
+        { title: 'Scope', content: 'Just that.' },
+        { title: 'Out of scope', content: 'Nothing else.' },
+        { title: 'Behavior', content: 'The person does it.' },
+      ],
+      criteria: [{ carry: 'new', title: 'a', statement: 'Given a person, when she acts, then she sees it.', verification: 'manual', check: 'A person looks.' }],
+      links: [],
+    });
+    const m = made.result as { versionId: string };
+    await cmd('record_version.approve', {}, m.versionId);
+    const run = await draftRun('task_plan', { type: 'record_version', id: m.versionId });
+    expect(run.error).toBeNull();
+    const proposals = await proposalsOf(run.id);
+    const warnings = (proposals[0]!.payload as { warnings?: string[] }).warnings ?? [];
+    expect(warnings.join('\n')).toMatch(/checked by a person or at release/);
+    const batch = await db().selectFrom('proposal_batches').select('summary').where('id', '=', proposals[0]!.batchId).executeTakeFirstOrThrow();
+    expect(batch.summary).toMatch(/Plan warnings \(\d+\)/);
+  });
+
+  it('planWarnings flags release tasks without a deployment, manual-only features, dropped coverage and an undeclared dependency on built files', () => {
+    const task = { title: 'T', goal: 'g', scope: 's', covers: ['AC-A-001-01'], depends_on: [] as number[], waits_for_features: [] as string[] };
+    const base = {
+      feature: 'FDR-AAA-001',
+      tasks: [task],
+      verification: new Map([['AC-A-001-01', 'automatic']]),
+      existingCovers: [] as string[],
+      deploymentRecorded: true,
+      dropped: [] as { title: string; criteria: string[]; whole: boolean }[],
+      owners: new Map<string, { task: string; feature: string }>(),
+    };
+    expect(planWarnings(base)).toEqual([]);
+    const release = planWarnings({ ...base, verification: new Map([['AC-A-001-01', 'release']]), deploymentRecorded: false }).map((w) => w.text);
+    expect(release.some((t) => /no deployment is recorded/.test(t))).toBe(true);
+    expect(release.some((t) => /Every criterion/.test(t))).toBe(true);
+    expect(planWarnings({ ...base, verification: new Map([['AC-A-001-01', 'release']]) }).some((w) => /no deployment/.test(w.text))).toBe(false);
+    // Another task covers an automatic criterion: the feature is not manual-only, but the new task still is.
+    const mixed = planWarnings({
+      ...base,
+      verification: new Map([
+        ['AC-A-001-01', 'manual'],
+        ['AC-A-001-02', 'automatic'],
+      ]),
+      existingCovers: ['AC-A-001-02'],
+    });
+    expect(mixed.map((w) => w.task)).toEqual([1]);
+    const dup = duplicateCoverage(
+      [
+        { title: 'A', covers: ['X'] },
+        { title: 'B', covers: ['X', 'Y'] },
+      ],
+      new Set(),
+      new Set(),
+    );
+    expect(dup.dropped).toEqual([{ title: 'B', criteria: ['X'], whole: false }]);
+    expect(planWarnings({ ...base, dropped: dup.dropped }).map((w) => w.text)[0]).toMatch(/X was taken out of «B»/);
+    const owners = new Map([['src/app/day/page.tsx', { task: 'TSK-MEA-005', feature: 'FDR-MEA-002' }]]);
+    const undeclared = planWarnings({ ...base, tasks: [{ ...task, scope: 'Extend src/app/day/page.tsx with the week link.' }], owners });
+    expect(undeclared[0]?.text).toMatch(/consider `depends_on` TSK-MEA-005/);
+    expect(planWarnings({ ...base, tasks: [{ ...task, scope: 'Extend page.tsx.', depends_on_existing: ['TSK-MEA-005'] }], owners })).toEqual([]);
+  });
+
+  it('builtStateOf lists the merged tasks, pieces and criteria of each feature', () => {
+    const built = builtStateOf({
+      features: [
+        { code: 'FDR-MEA-002', title: 'Day view', criteria: [{ code: 'AC-MEA-002-01', verification: 'automatic' }] },
+        { code: 'FDR-WOR-001', title: 'Workouts', criteria: [] },
+      ],
+      featureTasks: new Map([['FDR-MEA-002', ['TSK-MEA-005', 'TSK-MEA-006']]]),
+      footprints: [
+        {
+          code: 'TSK-MEA-005',
+          title: 'Day page',
+          merge_commit: null,
+          files: [
+            { path: 'src/app/day/page.tsx', status: 'added', additions: 1, deletions: 0 },
+            { path: 'migrations/001.sql', status: 'added', additions: 1, deletions: 0 },
+            { path: 'src/lib/db.ts', status: 'modified', additions: 1, deletions: 0 },
+            { path: 'src/app/day/page.test.tsx', status: 'added', additions: 1, deletions: 0 },
+          ],
+        },
+      ],
+      tables: new Map([['meals', { feature: 'FDR-MEA-002' }]]),
+    });
+    expect(built.features.map((f) => f.code)).toEqual(['FDR-MEA-002', 'FDR-WOR-001']);
+    const day = built.features[0]!;
+    expect(day.tasks).toEqual([
+      { code: 'TSK-MEA-005', title: 'Day page', files_owned: ['src/app/day/page.tsx', 'migrations/001.sql'], files_touched: ['src/lib/db.ts'], omitted_files: 0 },
+    ]);
+    expect(day.screens).toEqual(['/day']);
+    expect(day.tables).toEqual(['meals']);
+    expect(day.migrations).toEqual(['migrations/001.sql']);
+    expect(day.criteria).toEqual([{ code: 'AC-MEA-002-01', verification: 'automatic' }]);
   });
 });

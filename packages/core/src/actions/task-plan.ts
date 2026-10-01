@@ -13,6 +13,8 @@ import type { Db } from '../db/connection.ts';
 import { registerApplier, registerChecker } from './appliers.ts';
 import { packContentOf, sourcesPayload } from './drafting.ts';
 import { featureTasksOf } from './exploration-chat.ts';
+import { loadBuiltState, loadDeployment, loadFileOwners } from './built-state.ts';
+import { planWarnings, warningsSummary, type PlanWarning } from './task-plan-check.ts';
 import { mergedBuildOf, originExploration } from '../queries/read.ts';
 import { featureWaitGraph, loadTaskDependencies } from '../queries/task-deps.ts';
 
@@ -275,6 +277,10 @@ registerBuilder('task_plan', async ({ trx, projectId, scope, graphVersion }) => 
   });
   const firstFeature = !(await projectHasTasks(trx, projectId));
   const otherFeatures = await otherFeaturesOf(trx, projectId, v.code);
+  // What the other features already built (merged tasks, files, screens, criteria) and whether a deployment is recorded:
+  // the planner must not guess whether a screen or a read it extends exists, nor plan a `release` task without a deployment.
+  const builtState = await loadBuiltState(trx, projectId, v.code);
+  const deployment = await loadDeployment(trx, projectId);
   const existing = await existingTasksOf(trx, projectId, feature);
   const request = await requestOf(trx, projectId, { recordId: v.recordId, code: v.code }, v.id);
   if (request)
@@ -361,6 +367,8 @@ registerBuilder('task_plan', async ({ trx, projectId, scope, graphVersion }) => 
         first_feature: firstFeature,
         // The project's other features, for `waits_for_features`: built is every task of it merged.
         other_features: otherFeatures,
+        built_state: builtState,
+        deployment,
         ...(screens?.spec
           ? {
               screens: {
@@ -417,7 +425,8 @@ registerBuilder('task_plan', async ({ trx, projectId, scope, graphVersion }) => 
 });
 
 type PackContent = {
-  feature: { code: string; version: number; domain: string | null };
+  feature: { code: string; version: number; domain: string | null; criteria?: { code: string; verification: string }[] };
+  deployment?: { recorded: boolean };
   uncovered: string[];
   existing_tasks?: ExistingTask[];
   request?: { thread: string; messages: RequestMessage[] } | null;
@@ -448,6 +457,11 @@ registerChecker('task_plan', async ({ db, run, output }) => {
       await db.selectFrom('records').select('code').where('project_id', '=', run.project_id).where('type', '=', 'fdr').execute()
     ).map((r) => r.code),
   );
+  const taskCodes = new Set(
+    (
+      await db.selectFrom('records').select('code').where('project_id', '=', run.project_id).where('type', '=', 'task').execute()
+    ).map((r) => r.code),
+  );
   for (const [i, t] of output.tasks.entries()) {
     const unknown = t.covers.filter((c) => !feature.criteria.includes(c));
     if (unknown.length > 0)
@@ -459,6 +473,10 @@ registerChecker('task_plan', async ({ db, run, output }) => {
       notes.push(
         `Task ${i + 1} ("${t.title}") depends on ${bad.join(', ')}: \`depends_on\` only lists positions of EARLIER tasks (1 to ${i}), never itself or a later one.`,
       );
+    // A new task may depend on a task that already exists (of this feature or another): it has to be a task of the project.
+    for (const d of t.depends_on_existing)
+      if (!taskCodes.has(d))
+        notes.push(`Task ${i + 1} ("${t.title}") depends on ${d}, which is not a task of the project: \`depends_on_existing\` only lists codes of existing tasks (\`existing_tasks\`, \`built_state\`).`);
     for (const f of t.waits_for_features) {
       if (f === pack.feature.code)
         notes.push(
@@ -477,14 +495,21 @@ registerChecker('task_plan', async ({ db, run, output }) => {
       );
   }
   // A feature that (through its tasks) already waits for this one cannot be waited for: neither could be built.
-  const waited = [...new Set(output.tasks.flatMap((t) => t.waits_for_features))].filter((f) => f !== pack.feature.code);
+  // The same goes for the feature of an existing task a new task depends on: its feature must not wait for this one.
+  const index = await loadTaskDependencies(db, run.project_id);
+  const waited = [
+    ...new Set([
+      ...output.tasks.flatMap((t) => t.waits_for_features),
+      ...output.tasks.flatMap((t) => t.depends_on_existing.map((d) => index.taskFeature.get(d) ?? '')),
+    ]),
+  ].filter((f) => f !== '' && f !== pack.feature.code);
   if (waited.length > 0) {
-    const graph = featureWaitGraph(await loadTaskDependencies(db, run.project_id));
+    const graph = featureWaitGraph(index);
     graph.set(pack.feature.code, [...new Set([...(graph.get(pack.feature.code) ?? []), ...waited])]);
     const cycle = findDependencyCycle(graph, pack.feature.code);
     if (cycle)
       notes.push(
-        `\`waits_for_features\` makes a dependency cycle (${[...cycle, pack.feature.code].join(' waits for ')}): neither feature could be built first. Drop the dependency that closes it.`,
+        `\`waits_for_features\` or \`depends_on_existing\` makes a dependency cycle (${[...cycle, pack.feature.code].join(' waits for ')}): neither feature could be built first. Drop the dependency that closes it.`,
       );
   }
   const existing = await existingTasksOf(db, run.project_id, feature);
@@ -524,20 +549,34 @@ export function withoutDuplicateCoverage<T extends { title: string; covers: stri
   taken: ReadonlySet<string>,
   asked: ReadonlySet<string>,
 ): { task: T; from: number }[] {
+  return duplicateCoverage(tasks, taken, asked).kept;
+}
+
+/** What `withoutDuplicateCoverage` drops, listed so the person sees it: the criteria taken out of a task and whether the task went whole. */
+export type DroppedCoverage = { title: string; criteria: string[]; whole: boolean };
+
+export function duplicateCoverage<T extends { title: string; covers: string[] }>(
+  tasks: T[],
+  taken: ReadonlySet<string>,
+  asked: ReadonlySet<string>,
+): { kept: { task: T; from: number }[]; dropped: DroppedCoverage[] } {
   const seen = new Set(taken);
   const kept: { task: T; from: number }[] = [];
+  const dropped: DroppedCoverage[] = [];
   for (const [i, t] of tasks.entries()) {
     const covers = t.covers.filter((c) => asked.has(c) || !seen.has(c));
-    for (const c of t.covers)
-      if (!covers.includes(c)) console.info(`[task_plan] «${t.title}»: ${c} dropped, another task already covers it`);
+    const removed = t.covers.filter((c) => !covers.includes(c));
+    for (const c of removed) console.info(`[task_plan] «${t.title}»: ${c} dropped, another task already covers it`);
     if (covers.length === 0) {
       console.info(`[task_plan] «${t.title}» dropped: every criterion it covers is already covered by another task`);
+      dropped.push({ title: t.title, criteria: removed, whole: true });
       continue;
     }
+    if (removed.length > 0) dropped.push({ title: t.title, criteria: removed, whole: false });
     for (const c of covers) seen.add(c);
     kept.push({ task: { ...t, covers }, from: i + 1 });
   }
-  return kept;
+  return { kept, dropped };
 }
 
 registerApplier('task_plan', async ({ trx, execute, run, output }) => {
@@ -555,9 +594,20 @@ registerApplier('task_plan', async ({ trx, execute, run, output }) => {
   const after = coverageAfterChanges(existing, changes);
   const taken = new Set([...after.values()].flat());
   const asked = new Set((pack.request?.messages ?? []).flatMap((m) => m.body.match(/AC-[A-Z]{3}-\d{3}-\d{2}/g) ?? []));
-  const kept = withoutDuplicateCoverage(output.tasks, taken, asked);
+  const { kept, dropped } = duplicateCoverage(output.tasks, taken, asked);
   const fresh = kept.map((k) => k.task);
   const newPosition = new Map(kept.map((k, i) => [k.from, i + 1] as const));
+  // Deterministic plan checks: warnings the person sees with the proposals (nothing is dropped or let through in silence).
+  const warnings = planWarnings({
+    feature: f.code,
+    tasks: fresh,
+    verification: new Map((f.criteria ?? []).map((c) => [c.code, c.verification] as const)),
+    existingCovers: [...taken],
+    deploymentRecorded: pack.deployment?.recorded ?? (await loadDeployment(trx, run.project_id)).recorded,
+    dropped,
+    owners: await loadFileOwners(trx, run.project_id),
+  });
+  const warningsOf = (position: number): PlanWarning[] => warnings.filter((w) => w.task === position);
   const evidenceMessage = [...(pack.request?.messages ?? [])].reverse().find((m) => m.author.startsWith('human:'));
   const existingId = new Map(
     (
@@ -611,7 +661,7 @@ registerApplier('task_plan', async ({ trx, execute, run, output }) => {
     command: 'batch.submit',
     actor: { type: 'agent_run', run: run.id },
     data: {
-      summary: `Tasks planned for ${f.code} v${f.version}: ${fresh.length} new${taskChanges.length > 0 ? `, ${taskChanges.length} changed` : ''}.`,
+      summary: `Tasks planned for ${f.code} v${f.version}: ${fresh.length} new${taskChanges.length > 0 ? `, ${taskChanges.length} changed` : ''}.${warnings.length > 0 ? `\n\n${warningsSummary(warnings)}` : ''}`,
       batch_type: 'agent',
       resolution: 'item',
       run_id: run.id,
@@ -650,7 +700,9 @@ registerApplier('task_plan', async ({ trx, execute, run, output }) => {
               ];
               return titles.length > 0 ? { depends_on_titles: titles } : {};
             })(),
+            ...(t.depends_on_existing.length > 0 ? { depends_on_tasks: [...new Set(t.depends_on_existing)] } : {}),
             ...(t.waits_for_features.length > 0 ? { waits_for_features: [...new Set(t.waits_for_features)] } : {}),
+            ...(warningsOf(i + 1).length > 0 ? { warnings: warningsOf(i + 1).map((w) => w.text) } : {}),
             ...sourcesPayload(output.sources),
           },
         })),

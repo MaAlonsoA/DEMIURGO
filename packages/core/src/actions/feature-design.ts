@@ -3,12 +3,14 @@
 // "Building effective agents"): what it finds goes back to the agent once (engine.ts `corrected`).
 
 import { sql } from 'kysely';
-import { DomainError, MAIN_FLOW_STEPS } from '@demiurgo/domain';
+import { DomainError, MAIN_FLOW_STEPS, findDependencyCycle } from '@demiurgo/domain';
 import { registerBuilder } from '../context/build.ts';
 import type { Db } from '../db/connection.ts';
 import { registerApplier, registerChecker } from './appliers.ts';
 import { criterionPayload, relabelPack, sourcesPayload, threadBasis, withSection } from './drafting.ts';
+import { loadBuiltState, loadDeployment } from './built-state.ts';
 import { explorationPack, neededFeatures, plannedFeatureByCode } from './exploration-chat.ts';
+import { loadTaskDependencies } from '../queries/task-deps.ts';
 
 const BUILDER = 'feature_design@1';
 
@@ -82,9 +84,14 @@ registerBuilder('feature_design', async (a) => {
   const f = await featureOfThread(a.trx, a.projectId, a.scope.id);
   if (f.problem !== undefined) throw new DomainError('validation', f.problem);
   const built = relabelPack(await explorationPack(a), BUILDER);
+  // What the project's other features already built (merged tasks, files, screens, routes, criteria with their verification)
+  // and whether a deployment is recorded: the designer names what it extends in `needs` and does not write a `release`-only
+  // criterion as `automatic` when there is nowhere to measure it.
+  const built_state = await loadBuiltState(a.trx, a.projectId, f.planned?.code ?? null);
+  const deployment = await loadDeployment(a.trx, a.projectId);
   if (f.standalone) {
     const d = f.standalone;
-    const feature_design = { standalone: true, definition: { code: d.code, version: d.version, title: d.title }, siblings: [] };
+    const feature_design = { standalone: true, definition: { code: d.code, version: d.version, title: d.title }, siblings: [], built_state, deployment };
     return withSection(built, 'feature_design', feature_design, { type: 'exploration', id: a.scope.id, version: null, eventSeq: null }, 'standalone feature');
   }
   // The epic's list with what each sibling has: its approved version is what `needs` refers to.
@@ -112,6 +119,8 @@ registerBuilder('feature_design', async (a) => {
       ...s,
       approved_version: versions.find((v) => v.code === s.code)?.n ?? null,
     })),
+    built_state,
+    deployment,
   };
   return withSection(built, 'feature_design', feature_design, { type: 'exploration', id: a.scope.id, version: null, eventSeq: null }, 'planned feature and its siblings');
 });
@@ -138,16 +147,23 @@ registerChecker('feature_design', async ({ db, run, output }) => {
   for (const [i] of steps.entries())
     if (!criteria.some((c) => c.step === i + 1)) notes.push(`Step ${i + 1} has no criterion: every step needs at least one.`);
   const found = await neededFeatures(db, run.project_id, needs);
+  const own = f.planned?.code;
   for (const n of needs) {
     const same = found.some((x) => x.code === n.code && x.version === n.version);
     if (!same) {
-      notes.push(`${n.code} v${n.version} in \`needs\` is not an approved feature at that version: \`needs\` only names approved siblings, with their current version.`);
+      notes.push(`${n.code} v${n.version} in \`needs\` is not an approved feature at that version: \`needs\` only names approved features, with their current version.`);
       continue;
     }
-    if (f.standalone) continue;
-    const sibling = await plannedFeatureByCode(db, run.project_id, n.code);
-    if (sibling?.epic_id !== f.planned.epicId || n.code === f.planned.code)
-      notes.push(`${n.code} in \`needs\` is not another feature of ${f.epic.code}: \`needs\` only names siblings of the same epic.`);
+    // Any approved feature of the project may be needed (of another epic, or of none): what a feature extends is often
+    // elsewhere (Evans, DDD ch. 14, context map). Only itself is refused.
+    if (n.code === own) notes.push(`${n.code} in \`needs\` is the feature itself: \`needs\` only names OTHER features.`);
+  }
+  // A feature that (through its needs) already needs this one cannot be needed back: neither could be built first.
+  if (own && needs.length > 0) {
+    const graph = new Map((await loadTaskDependencies(db, run.project_id)).featureNeeds);
+    graph.set(own, [...new Set(needs.map((n) => n.code))]);
+    const cycle = findDependencyCycle(graph, own);
+    if (cycle) notes.push(`\`needs\` makes a dependency cycle (${[...cycle, own].join(' needs ')}): neither feature could be built first. Drop the need that closes it.`);
   }
   return notes;
 });

@@ -132,6 +132,10 @@ export const designRecordPayload = z
     depends_on_titles: z.array(text(200)).max(19).optional(),
     /** A task's feature dependencies: codes of other features that must be built first (a `depends_on` link each). */
     waits_for_features: z.array(z.string().regex(/^FDR-[A-Z]{3}-\d{3}$/)).max(6).optional(),
+    /** A task's dependencies on tasks that already exist (any feature): codes, a `depends_on` link each to the task's latest version. */
+    depends_on_tasks: z.array(z.string().regex(/^TSK-[A-Z]{3}-\d{3}$/)).max(6).optional(),
+    /** What the deterministic plan checks found about this proposal, for the person to read before accepting (not authority). */
+    warnings: z.array(text(400)).max(10).optional(),
     aspect: aspectSchema.optional(),
     basis,
   })

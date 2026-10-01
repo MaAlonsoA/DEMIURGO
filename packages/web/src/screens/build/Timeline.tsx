@@ -31,6 +31,7 @@ export function BuildTimelineView({
     <>
       <Section id="build-lanes" title={t.tlTitle}>
         <Lanes
+          projectId={projectId}
           timeline={timeline}
           selection={shown ? { request: shown.request.id, attempt: shown.attempt.n } : null}
           needsYou={needsYou}

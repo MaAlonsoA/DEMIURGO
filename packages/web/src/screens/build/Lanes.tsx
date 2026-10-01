@@ -27,6 +27,7 @@ import {
   windowOf,
   zoomScroll,
 } from "./timelineLogic.ts";
+import { ForensicDot, LaneForensicMark } from "./ForensicStep.tsx";
 import type { BUILD } from "./words.i18n.ts";
 
 type Words = typeof BUILD.en;
@@ -214,11 +215,20 @@ function Legend({ t }: { t: Words }) {
       {item(<rect x="6" y="0" width="3" height="12" className="fill-danger" />, t.tlLgEnd)}
       {item(<rect x="6" y="0" width="3" height="12" className="fill-warning" />, t.tlLgChanges)}
       {item(<path d="M 4 1 l 4 8 l 4 -8 z" className="fill-fg" />, t.tlLgMerge)}
+      <span className="inline-flex items-center gap-1.5">
+        <ForensicDot kind="done" />
+        {t.tlLgForensicDone}
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <ForensicDot kind="pending" />
+        {t.tlLgForensicPending}
+      </span>
     </p>
   );
 }
 
 export function Lanes({
+  projectId,
   timeline,
   selection,
   needsYou,
@@ -226,6 +236,7 @@ export function Lanes({
   hours,
   t,
 }: {
+  projectId: string;
   timeline: BuildTimeline;
   selection: Selection | null;
   needsYou: string | null;
@@ -493,8 +504,8 @@ export function Lanes({
             const last = r.attempts[r.attempts.length - 1];
             const chosen = selection?.request === r.id;
             return (
+              <div key={r.id} className="relative" style={{ height: ROW_H }}>
               <button
-                key={r.id}
                 type="button"
                 aria-pressed={chosen}
                 aria-label={t.tlTaskLabel(r.task_code, r.task_title)}
@@ -513,6 +524,10 @@ export function Lanes({
                   </span>
                 ) : null}
               </button>
+              <span className="absolute right-2 top-2 flex">
+                <LaneForensicMark projectId={projectId} request={r} doneLabel={t.tlLgForensicDone} pendingLabel={t.tlLgForensicPending} />
+              </span>
+              </div>
             );
           })}
           <div style={{ height: (rows.length - win.end) * ROW_H }} />

@@ -6,6 +6,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
+import { cn } from '../../lib/cn.ts';
 import type { TimelineRequest } from '../../api/types.ts';
 import { DayTime } from '../../components/Time.tsx';
 import { useMessages } from '../../i18n/define.ts';
@@ -54,4 +55,44 @@ export function ForensicStep({ projectId, request }: { projectId: string; reques
   const q = useQuery({ ...taskForensicsQuery(projectId, request.task_code), enabled: !request.running });
   if (!q.data) return null;
   return <ForensicStepView projectId={projectId} taskCode={request.task_code} state={forensicStepOf(request, q.data.forensics)} />;
+}
+
+const DOT = 'inline-block size-2 shrink-0 rounded-full';
+
+/** Dot of the forensic state for the legend and the lane rows: filled = done, hollow = pending. */
+export function ForensicDot({ kind }: { kind: 'done' | 'pending' }) {
+  return <span aria-hidden="true" className={cn(DOT, kind === 'done' ? 'bg-fg-2' : 'border border-edge-control')} />;
+}
+
+/** Marker of a Lanes row: a link to the task's lessons when done, a hollow dot when pending, nothing while running. */
+export function LaneForensicMarkView({ projectId, taskCode, state, doneLabel, pendingLabel }: { projectId: string; taskCode: string; state: ForensicStepState; doneLabel: string; pendingLabel: string }) {
+  const t = useMessages(LESSONS);
+  if (!state) return null;
+  if (state.kind === 'pending') {
+    return (
+      <span title={pendingLabel} role="img" aria-label={pendingLabel} data-lane-forensic="pending" className="inline-flex items-center">
+        <ForensicDot kind="pending" />
+      </span>
+    );
+  }
+  return (
+    <Link
+      to="/p/$projectId/records/$code"
+      params={{ projectId, code: taskCode }}
+      hash={t.sectionAnchor}
+      title={`${doneLabel} · ${t.fnRead}`}
+      aria-label={`${doneLabel} · ${t.fnRead}`}
+      data-lane-forensic="done"
+      className="inline-flex items-center"
+    >
+      <ForensicDot kind="done" />
+    </Link>
+  );
+}
+
+/** Loads the task's forensics only for a request that ended (the rows drawn are few: the lane is windowed). */
+export function LaneForensicMark({ projectId, request, doneLabel, pendingLabel }: { projectId: string; request: TimelineRequest; doneLabel: string; pendingLabel: string }) {
+  const q = useQuery({ ...taskForensicsQuery(projectId, request.task_code), enabled: !request.running });
+  if (!q.data) return null;
+  return <LaneForensicMarkView projectId={projectId} taskCode={request.task_code} state={forensicStepOf(request, q.data.forensics)} doneLabel={doneLabel} pendingLabel={pendingLabel} />;
 }

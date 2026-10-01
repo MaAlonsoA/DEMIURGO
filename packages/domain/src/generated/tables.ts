@@ -992,6 +992,14 @@ export const CAPABILITIES = {
       "decisive": false,
       "description": "Take a task off hold: it is ready to build again."
     },
+    "task.mark_satisfied": {
+      "entity": "project",
+      "allowed": [
+        "human"
+      ],
+      "decisive": false,
+      "description": "Record that the merged build of a task already covers its newer approved version: the version is adopted into the done build request and the task leaves the queue without a rebuild."
+    },
     "build_step.record": {
       "entity": "build_step",
       "allowed": [
@@ -1250,6 +1258,13 @@ export const TRANSITIONS = {
         },
         {
           "command": "task.release",
+          "from": [
+            "active"
+          ],
+          "to": "active"
+        },
+        {
+          "command": "task.mark_satisfied",
           "from": [
             "active"
           ],

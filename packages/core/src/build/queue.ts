@@ -35,6 +35,7 @@ import { type TaskFootprint, isReusableFile, taskFootprints } from "./footprint.
 import { hotspotsOf } from "./hotspots.ts";
 import { type Touches, touchesFor } from "./touches.ts";
 import { type TaskHold, openHolds } from "./holds.ts";
+import { type RebuildDecision, rebuildDecisions } from "./rebuild.ts";
 
 type StateRow = Awaited<ReturnType<typeof productState>>["designs"][number];
 
@@ -77,7 +78,12 @@ export type QueueTask = {
  * `suspect`: its feature (what it is based on) has a newer approved version since the task was written;
  * it waits for the person to review it («Still valid» or a new version) and the queue does not take it.
  */
-export type WaitingTask = QueueTask & { reasons: string[]; suspect: Suspect | null };
+export type WaitingTask = QueueTask & {
+  reasons: string[];
+  suspect: Suspect | null;
+  /** Built and merged on an earlier version: a person decides «Rebuild» or «Satisfied by main»; the queue never starts it. */
+  rebuild?: RebuildDecision;
+};
 
 /** A task a person put on hold with the reason it cannot be built yet: the queue skips it. */
 export type HeldTask = QueueTask & { hold: TaskHold };
@@ -366,15 +372,20 @@ export async function buildQueue(
   const held: HeldTask[] = approved
     .filter((t) => holds.has(t.code))
     .map((t) => ({ ...lineOf(t), hold: holds.get(t.code) as TaskHold }));
-  const ready = approved.filter((t) => t.readiness?.ready && !holds.has(t.code)).map(lineOf);
+  // A merged task with a newer approved version waits for a person's decision (convención nuestra, see rebuild.ts).
+  const rebuilds = await rebuildDecisions(db, projectId);
+  const rebuildOf = (code: string) => rebuilds.get(ids.get(code) ?? "");
+  const ready = approved.filter((t) => t.readiness?.ready && !holds.has(t.code) && !rebuildOf(t.code)).map(lineOf);
   const suspects = new Map((await suspectRecords(db, projectId)).map((x) => [x.from_code, x.suspect]));
   const waiting: WaitingTask[] = approved
-    .filter((t) => !t.readiness?.ready && !holds.has(t.code))
+    .filter((t) => (!t.readiness?.ready || rebuildOf(t.code)) && !holds.has(t.code))
     .map((t) => {
       const suspect = suspects.get(t.code) ?? null;
       const reasons = t.readiness?.reasons ?? [];
+      const rebuild = rebuildOf(t.code);
       return {
         ...lineOf(t),
+        ...(rebuild ? { rebuild } : {}),
         suspect,
         // The one reason a changed feature gives, in the words of the Build page.
         reasons: suspect

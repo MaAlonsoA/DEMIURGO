@@ -7,7 +7,7 @@ import { DomainError, formatActor } from "@demiurgo/domain";
 import { z } from "zod";
 import { advanceBuildQueue, queueAutoOn, queueParallelOf } from "../build/auto.ts";
 import { openHoldOf } from "../build/holds.ts";
-import { computeRequestBasis } from "../build/basis.ts";
+import { computeRequestBasis, currentTaskVersion, effectiveBasis, effectiveTaskVersionSql, featureOfTaskVersion } from "../build/basis.ts";
 import { githubConfig } from "../github/client.ts";
 import { mergedBuildOf } from "../queries/read.ts";
 import { handler, registerHandlers } from "../bus/handlers.ts";
@@ -120,6 +120,81 @@ registerHandlers({
         before: { task: task.code, reason: hold.reason, held_by: hold.held_by },
         after: { task: task.code, released_by: by },
         result: { task: task.code },
+      };
+    },
+  }),
+
+  // «Satisfied by main»: the merged build already covers the task's newer approved version. The new version is
+  // adopted into the done request's bases (append-only, actor human), so the task counts as built again and
+  // leaves the queue without work. Triage, not a rebuild (convención nuestra, see build/rebuild.ts).
+  "task.mark_satisfied": handler({
+    data: z.object({ task: z.string().trim().min(1).max(40), note: z.string().trim().min(1).max(1000).optional() }).strict(),
+    async apply(ctx, data, e) {
+      const task = await ctx.trx
+        .selectFrom("records")
+        .select(["id", "code", "type"])
+        .where("project_id", "=", ctx.projectId)
+        .where("code", "=", data.task)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!task) throw new DomainError("not_found", `Task ${data.task} does not exist.`);
+      if (task.type !== "task") throw new DomainError("validation", `${data.task} is not a task.`);
+      if (await mergedBuildOf(ctx.trx, task.id))
+        throw new DomainError("conflict", `${task.code} is already built on its current version.`);
+      const open = await ctx.trx
+        .selectFrom("build_requests")
+        .select("id")
+        .where("task_id", "=", task.id)
+        .where("state", "in", ["requested", "in_review"])
+        .executeTakeFirst();
+      if (open) throw new DomainError("conflict", `${task.code} has an open build request: withdraw it first.`);
+      const current = await currentTaskVersion(ctx.trx, task.id);
+      if (!current) throw new DomainError("guard", `${task.code} is not approved.`);
+      const done = await ctx.trx
+        .selectFrom("build_requests")
+        .innerJoin("record_versions", (join) => join.on("record_versions.id", "=", effectiveTaskVersionSql()))
+        .select(["build_requests.id", "record_versions.n"])
+        .where("build_requests.task_id", "=", task.id)
+        .where("build_requests.state", "=", "done")
+        .orderBy("record_versions.n", "desc")
+        .orderBy("build_requests.done_at", "desc")
+        .executeTakeFirst();
+      if (!done) throw new DomainError("conflict", `${task.code} has no merged build: it is not waiting for a rebuild decision.`);
+      const before = await effectiveBasis(ctx.trx, done.id);
+      const feature = await featureOfTaskVersion(ctx.trx, current.id);
+      const last = await ctx.trx
+        .selectFrom("build_steps")
+        .select((eb) => eb.fn.max("attempt").as("attempt"))
+        .where("build_request_id", "=", done.id)
+        .executeTakeFirst();
+      const by = formatActor(ctx.actor);
+      await ctx.trx
+        .insertInto("build_request_bases")
+        .values({
+          project_id: ctx.projectId,
+          build_request_id: done.id,
+          task_version_id: current.id,
+          feature_version_id: feature?.id ?? null,
+          // The brief of the merged build stays: nothing was built from the new version.
+          brief: before.brief,
+          adopted_by: by,
+          attempt: Number(last?.attempt ?? 1),
+        })
+        .execute();
+      const projectId = ctx.projectId;
+      ctx.afterCommit(async () => void (await advanceBuildQueue(ctx.services, projectId)));
+      return {
+        entityId: e?.id ?? projectId,
+        after: {
+          task: task.code,
+          satisfied_by: "main",
+          built_on: Number(done.n),
+          task_version: current.n,
+          build_request: done.id,
+          marked_by: by,
+          ...(data.note ? { note: data.note } : {}),
+        },
+        result: { task: task.code, task_version: current.n },
       };
     },
   }),

@@ -20,6 +20,7 @@ entities:
       - { command: build.queue_auto, from: [active], to: active }
       - { command: task.hold, from: [active], to: active }
       - { command: task.release, from: [active], to: active }
+      - { command: task.mark_satisfied, from: [active], to: active }
 
   agent_token:
     label: Agent token

@@ -1408,7 +1408,7 @@ export type BuildQueue = {
   ready: QueueTask[];
   /** Tasks a person put on hold with a reason: the queue skips them. */
   held: (QueueTask & { hold: { reason: string; held_by: string; held_at: string } })[];
-  waiting: (QueueTask & { reasons: string[] })[];
+  waiting: (QueueTask & { reasons: string[]; rebuild?: { built_on: number; now: number } })[];
   stale: QueueTask[];
   built: (QueueTask & { pr_url: string | null; done_at: string | null })[];
   totals: { tasks: number; points: number; unsized: number };

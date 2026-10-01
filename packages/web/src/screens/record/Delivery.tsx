@@ -46,6 +46,7 @@ import { cn } from '../../lib/cn.ts';
 import { useTables } from '../../lib/hooks.ts';
 import { effortTotals } from '../../sizes.ts';
 import { AgentBuildButton, BuildStepper, ConnectGithubLine, isBuildRunning, lastOutcome, needsRebuild } from './AgentBuild.tsx';
+import { RebuildDecisionButtons } from '../build/RebuildDecision.tsx';
 import { DesignNextButton } from '../epics/DesignNext.tsx';
 import type { EpicLine } from '../epics/logic.ts';
 import type { EpicRef } from '../epics/DesignNext.tsx';
@@ -94,6 +95,7 @@ export type Primary =
   | { kind: 'design_screens'; code: string; review?: boolean }
   | { kind: 'build_next'; code: string }
   | { kind: 'start_build'; code: string; title: string; github?: boolean }
+  | { kind: 'rebuild_decision'; code: string; from: number; to: number; github?: boolean }
   | { kind: 'follow_build' }
   | { kind: 'agent_build'; code: string; again: boolean; review?: boolean }
   | { kind: 'pr'; url: string }
@@ -198,7 +200,9 @@ export function deliveryOf(input: {
       else if (next) primary = { kind: 'build_next', code: next.code };
     } else if (record.type === 'task' && record.build) {
       const b = record.build;
-      if (b.state === 'to_do' && ready?.ready && input.canRequestBuild) primary = { kind: 'start_build', code: record.code, title: version.title, github: !!b.github };
+      // Built and merged on an earlier version: a person decides (rebuild, or satisfied by main); a version bump alone starts no work.
+      if (b.state === 'to_do' && b.rebuild_from && input.canRequestBuild) primary = { kind: 'rebuild_decision', code: record.code, from: b.rebuild_from, to: version.n, github: !!b.github };
+      else if (b.state === 'to_do' && ready?.ready && input.canRequestBuild) primary = { kind: 'start_build', code: record.code, title: version.title, github: !!b.github };
       else if (b.state === 'requested' && b.github) {
         // Running: no primary, the stages are shown. Otherwise build (or build again after a stop).
         if (!isBuildRunning(b.steps)) primary = { kind: 'agent_build', code: record.code, again: needsRebuild(b.steps) };
@@ -301,6 +305,8 @@ export function PrimaryAction({
       );
     case 'agent_build':
       return <AgentBuildButton projectId={projectId} code={primary.code} again={primary.again} review={primary.review} />;
+    case 'rebuild_decision':
+      return <RebuildDecisionButtons projectId={projectId} code={primary.code} builtOn={primary.from} now={primary.to} github={!!primary.github} />;
     case 'follow_build':
       return (
         <Link to="/p/$projectId/build" params={{ projectId }} className={buttonClass({ variant: 'primary' })}>

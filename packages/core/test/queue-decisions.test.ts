@@ -106,6 +106,11 @@ describe('decisionsOf: one decision per branch of selectStarts', () => {
     expect(by(decisionsOf(plan, { ready, limit: 2 }), 'TSK-4')).toMatchObject({ decision: 'stopped', item: 'main_red' });
   });
 
+  it('a merged task with a newer version waits for a decision: wait_hold with the rebuild_decision reason', async () => {
+    const ds = decisionsOf(await select([], []), { ready: [], limit: 3, rebuild: [{ code: 'TSK-8', built_on: 2, now: 3 }] });
+    expect(by(ds, 'TSK-8')).toMatchObject({ decision: 'wait_hold', evidence: { reason: 'rebuild_decision', built_on: 2, now: 3 } });
+  });
+
   it('a held task is wait_hold', async () => {
     const ds = decisionsOf(await select([], []), { ready: [], limit: 3, held: ['TSK-7'] });
     expect(by(ds, 'TSK-7')?.decision).toBe('wait_hold');

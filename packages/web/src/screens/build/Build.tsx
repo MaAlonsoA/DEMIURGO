@@ -34,6 +34,7 @@ import { CopyBriefButton } from "../record/CopyBrief.tsx";
 import { TestabilityLines } from "../record/Testability.tsx";
 import { TouchesLine } from "../record/Touches.tsx";
 import { Bounces } from "./Bounces.tsx";
+import { RebuildDecisionButtons } from "./RebuildDecision.tsx";
 import { BuildTimelineView } from "./Timeline.tsx";
 import { groupModuleWaiting, itemLabel, kindsOf } from "./moduleWaitingLogic.ts";
 import { sharesLine } from "./timelineLogic.ts";
@@ -823,12 +824,21 @@ export function BuildScreen() {
                       <div className="flex min-w-0 flex-col gap-1">
                         <TaskLine projectId={projectId} task={task} t={t} />
                         <ul className="flex list-disc flex-col gap-0.5 pl-5 text-sm text-fg-2">
+                          {task.rebuild ? <li data-rebuild-reason>{t.rebuildDecision(task.rebuild.built_on, task.rebuild.now)}</li> : null}
                           {task.reasons.map((r) => (
                             <li key={r}>{r}</li>
                           ))}
                         </ul>
                       </div>
-                      {task.request ? (
+                      {task.rebuild && !task.request ? (
+                        <RebuildDecisionButtons
+                          projectId={projectId}
+                          code={task.code}
+                          builtOn={task.rebuild.built_on}
+                          now={task.rebuild.now}
+                          github={!!task.github}
+                        />
+                      ) : task.request ? (
                         <div className="ml-auto flex flex-col items-end gap-2">
                           <RequestState task={task} t={t} />
                           <Actions

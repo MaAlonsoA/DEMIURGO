@@ -29,6 +29,12 @@ export type DecisionsInput = {
   limit: number;
   /** Codes of the tasks a person put on hold: the queue skips them. */
   held?: readonly string[];
+  /**
+   * Tasks built and merged on an earlier version that wait for a person's «Rebuild» or «Satisfied by main».
+   * Stored as `wait_hold` with evidence `{reason: 'rebuild_decision'}`: the check constraint of 0060 lists the
+   * kinds and a new one would need a migration.
+   */
+  rebuild?: readonly { code: string; built_on: number; now: number }[];
 };
 
 const dec = (task_code: string, decision: DecisionKind, extra: Partial<Omit<Decision, 'task_code' | 'decision'>> = {}): Decision => ({
@@ -68,6 +74,7 @@ export function decisionsOf(plan: Plan, input: DecisionsInput): Decision[] {
   for (const s of plan.stoppedWaiting) add(dec(s.code, 'stopped', { item: s.kind, evidence: { kind: s.kind, tried: s.tried, ...(s.failure_kind ? { failure_kind: s.failure_kind } : {}) } }));
   for (const code of plan.overLimit) add(dec(code, 'over_limit'));
   for (const code of input.held ?? []) add(dec(code, 'wait_hold'));
+  for (const r of input.rebuild ?? []) add(dec(r.code, 'wait_hold', { evidence: { reason: 'rebuild_decision', built_on: r.built_on, now: r.now } }));
   // A ready task the plan did not look at: main red stops the line, or the limit was already reached before choosing.
   const busy = plan.running.length + plan.start.length >= input.limit;
   for (const t of input.ready) {

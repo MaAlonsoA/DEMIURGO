@@ -1437,4 +1437,85 @@ describe('a task changed after its merge', () => {
     expect(detail.build).toMatchObject({ state: 'to_do', rebuild_from: v1.n });
     expect(detail.implementation).not.toBe('implemented');
   });
+
+  // A version bump alone never triggers work: a person triages it (convención nuestra, see build/rebuild.ts).
+  describe('a merged task with a newer approved version waits for a decision', () => {
+    /** Approves a copy of the task's latest version (with its links) as the next one. */
+    async function approveNextVersion(note: string): Promise<number> {
+      const latest = await db().selectFrom('record_versions').select(['id', 'n']).where('record_id', '=', taskId).where('state', '=', 'approved').orderBy('n', 'desc').executeTakeFirstOrThrow();
+      const next = randomUUID();
+      await sql`insert into record_versions (id, project_id, record_id, n, title, sections, author, content_hash, state, change_note)
+        select ${next}::uuid, project_id, record_id, n + 1, title, sections, author, ${randomUUID()}, 'draft', ${note}
+        from record_versions where id = ${latest.id}::uuid`.execute(db());
+      await sql`insert into links (project_id, type, from_type, from_id, from_version, to_type, to_id, to_version, state, created_by)
+        select project_id, type, from_type, ${next}::uuid, ${latest.n + 1}, to_type, to_id, to_version, state, created_by
+        from links where from_id = (select id from record_versions where record_id = ${taskId}::uuid and n = 1)`.execute(db());
+      await db().updateTable('record_versions').set({ state: 'approved' }).where('id', '=', next).execute();
+      return latest.n + 1;
+    }
+    const waitingTask = async () => (await buildQueue(db(), projectId)).waiting.find((t) => t.code === taskCode);
+    const taskRequests = () => db().selectFrom('build_requests').select(['id', 'state']).where('task_id', '=', taskId).execute();
+    const decisionsOf = () =>
+      db()
+        .selectFrom('queue_decisions')
+        .innerJoin('queue_plans', 'queue_plans.id', 'queue_decisions.plan_id')
+        .select(['queue_decisions.decision', 'queue_decisions.evidence'])
+        .where('queue_decisions.project_id', '=', projectId)
+        .where('queue_decisions.task_code', '=', taskCode)
+        .orderBy('queue_plans.decided_at', 'desc')
+        .orderBy('queue_plans.id', 'desc')
+        .execute();
+
+    beforeAll(async () => {
+      // Only this task may start: every other one waits on hold.
+      for (const t of (await buildQueue(db(), projectId)).ready) if (t.code !== taskCode) await cmd('task.hold', { task: t.code, reason: 'Not part of this test' }, projectId);
+      // The previous test left a done request on v1 and an approved v2.
+    });
+
+    it('is not started by the queue: it waits as wait_hold with the rebuild_decision reason', async () => {
+      const before = (await taskRequests()).length;
+      const queue = await buildQueue(db(), projectId);
+      expect(queue.ready.map((t) => t.code)).not.toContain(taskCode);
+      const row = await waitingTask();
+      expect(row?.rebuild).toEqual({ built_on: 1, now: 2 });
+      await cmd('build.queue_auto', { on: true }, projectId);
+      expect(await advanceBuildQueue(environment().services, projectId)).toEqual([]);
+      expect((await taskRequests()).length).toBe(before);
+      const decision = (await decisionsOf())[0];
+      expect(decision?.decision).toBe('wait_hold');
+      expect(decision?.evidence).toMatchObject({ reason: 'rebuild_decision', built_on: 1, now: 2 });
+      await cmd('build.queue_auto', { on: false }, projectId);
+    });
+
+    it('«Satisfied by main» adopts the version, leaves the queue and records the event', async () => {
+      await expect(executeCommand(environment().services, { command: 'task.mark_satisfied', actor: system('build', '1'), projectId, entityId: projectId, data: { task: taskCode } })).rejects.toMatchObject({ type: 'forbidden' });
+      const result = await cmd('task.mark_satisfied', { task: taskCode, note: 'Only the wording changed.' }, projectId);
+      expect(result.result).toMatchObject({ task: taskCode, task_version: 2 });
+      expect(await waitingTask()).toBeUndefined();
+      expect((await buildQueue(db(), projectId)).ready.map((t) => t.code)).not.toContain(taskCode);
+      expect((await buildQueue(db(), projectId)).built.map((t) => t.code)).toContain(taskCode);
+      expect((await recordDetail(db(), projectId, taskCode)).implementation).toBe('implemented');
+      const event = await db().selectFrom('events').select(['actor', 'after']).where('project_id', '=', projectId).where('command', '=', 'task.mark_satisfied').executeTakeFirstOrThrow();
+      expect(event.actor).toBe('human:ana');
+      expect(event.after).toMatchObject({ task: taskCode, satisfied_by: 'main', built_on: 1, task_version: 2, note: 'Only the wording changed.' });
+      await expect(cmd('task.mark_satisfied', { task: taskCode }, projectId)).rejects.toMatchObject({ type: 'conflict' });
+      await cmd('build.queue_auto', { on: true }, projectId);
+      expect(await advanceBuildQueue(environment().services, projectId)).toEqual([]);
+      await cmd('build.queue_auto', { on: false }, projectId);
+    });
+
+    it('«Rebuild» starts the build as build.start does', async () => {
+      resetBuildDeps();
+      setBuildDeps(fakes({ ciConclusion: 'success' }));
+      expect(await approveNextVersion('A real change')).toBe(3);
+      expect((await waitingTask())?.rebuild).toEqual({ built_on: 2, now: 3 });
+      await cmd('build_request.request', { task: taskCode });
+      expect(await waitingTask()).toBeUndefined();
+      const open = (await taskRequests()).find((r) => r.state === 'requested');
+      expect(open).toBeDefined();
+      const started = await cmd('build.start', { task: taskCode });
+      expect(started.result).toMatchObject({ task: taskCode, attempt: 1 });
+      expect(await finished((open as { id: string }).id, 1)).toBe('done');
+    });
+  });
 });

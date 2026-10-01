@@ -499,7 +499,7 @@ export function advanceBuildQueue(services: Services, projectId: string, trigger
       if (limit > 1) await ensureTaskLayers(services, projectId, queue.ready.map((t) => t.code));
       const p = await plan(services.db, projectId, queue, limit);
       // Derived data, written only when the plan changed; a failure never stops the queue.
-      await persistPlan(services.db, projectId, p, { trigger, limit, ready: queue.ready, held: queue.held.map((t) => t.code) }).catch((e) => logPersistError(services, projectId, e));
+      await persistPlan(services.db, projectId, p, { trigger, limit, ready: queue.ready, held: queue.held.map((t) => t.code), rebuild: queue.waiting.flatMap((t) => (t.rebuild ? [{ code: t.code, ...t.rebuild }] : [])) }).catch((e) => logPersistError(services, projectId, e));
       for (const s of p.start) {
         if (!s.hasRequest) await executeCommand(services, { command: 'build_request.request', actor: BUILD, projectId, data: { task: s.code } });
         await executeCommand(services, { command: 'build.start', actor: BUILD, projectId, data: { task: s.code } });

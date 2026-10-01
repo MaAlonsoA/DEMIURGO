@@ -1,6 +1,7 @@
 // «Harness health»: one row per piece of the harness with its verdict (core queries/harness-health.ts), the cases
 // behind each row, and the findings as CSV or JSON. Sober tables, units in the cells, numbers tabular.
 
+import { FindingLabel, PieceLabel } from './codes.tsx';
 import { queryOptions, useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { Fragment, type ReactNode, useState } from 'react';
@@ -139,7 +140,7 @@ function CasesTable({ projectId, piece }: { projectId: string; piece: HarnessPie
         >
           {rules.map((r) => (
             <tr key={r.finding} data-rule={r.finding} data-verdict={r.verdict}>
-              <td className={`${td} break-words font-mono text-xs text-fg`}>{r.finding}{r.finding === piece.main_rule ? ' *' : ''}</td>
+              <td className={`${td} break-words text-fg`}><FindingLabel code={r.finding} />{r.finding === piece.main_rule ? ' *' : ''}</td>
               <td className={`${td} ${verdictClass(r.verdict)}`}>{t.verdict(r.verdict)}</td>
               <td className={numTd}>{num(locale, r.n, 0)}</td>
               <td className={numTd}>{shareText(locale, r.precision)}</td>
@@ -166,7 +167,7 @@ function CasesTable({ projectId, piece }: { projectId: string; piece: HarnessPie
         {piece.cases.map((c) => (
           <tr key={c.finding_id} data-case={c.finding_id}>
             <td className={`${td} font-mono text-xs uppercase text-fg-2`}>{c.class}</td>
-            <td className={`${td} break-words font-mono text-xs text-fg`}>{c.finding}</td>
+            <td className={`${td} break-words text-fg`}><FindingLabel code={c.finding} /></td>
             <td className={td}>
               <Link
                 to="/p/$projectId/build"
@@ -237,12 +238,12 @@ export function HarnessHealthView({ projectId, data }: { projectId: string; data
                       aria-expanded={expanded}
                       aria-label={expanded ? t.hideCases(p.piece) : t.showCases(p.piece, p.cases_total)}
                       onClick={() => setOpen(expanded ? null : p.piece)}
-                      className="font-mono text-xs text-fg hover:underline"
+                      className="text-left text-fg hover:underline"
                     >
-                      {pieceText(p)}
+                      <PieceLabel code={p.piece} />
                     </button>
                   ) : (
-                    <span className="font-mono text-xs text-fg-2">{pieceText(p)}</span>
+                    <span className="text-fg-2"><PieceLabel code={p.piece} /></span>
                   )}
                 </th>
                 <td className={`${td} font-medium ${verdictClass(p.verdict)}`}>{t.verdict(p.verdict)}</td>
@@ -263,6 +264,7 @@ export function HarnessHealthView({ projectId, data }: { projectId: string; data
           );
         })}
       </Table>
+      <p className="text-xs text-fg-3">{t.legend}</p>
     </div>
   );
 }

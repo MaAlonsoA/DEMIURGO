@@ -1,6 +1,7 @@
 // «Checks» (core harness/check.ts, queries/harness-health.ts `harnessChecks`): the latest periodic check of the harness
 // with its regressions and new escapes, the series of earlier ones, and a link to the check as JSON. Sober tables.
 
+import { PhaseLabel, PieceLabel } from './codes.tsx';
 import { queryOptions, useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { get } from '../../api/client.ts';
@@ -97,7 +98,7 @@ export function HarnessChecksView({ data }: { data: HarnessChecksData }) {
             {latest.regressions.map((r, i) => (
               <tr key={`${r.kind}:${subjectOf(r)}:${i}`} data-regression={r.kind}>
                 <td className={td}>{t.kind(r.kind)}</td>
-                <td className={`${td} font-mono text-xs text-fg`}>{subjectOf(r)}</td>
+                <td className={`${td} text-fg`}>{r.piece ? <PieceLabel code={r.piece} /> : r.phase ? <PhaseLabel code={r.phase} /> : subjectOf(r)}</td>
                 <td className={numTd}>{valueText(locale, r.before)}</td>
                 <td className={numTd}>{valueText(locale, r.after)}</td>
               </tr>

@@ -1,6 +1,7 @@
 // «Escapes from design» (core queries/harness-health.ts, harness/escapes.ts): what design did not see and building or
 // the person found later, by rule, each with a link to the record or the build path. Sober tables.
 
+import { PhasePath, RuleLabel } from './codes.tsx';
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Fragment, useState } from "react";
@@ -96,9 +97,9 @@ function RuleCases({
               <td className={`${td} font-mono text-xs text-fg-2`}>
                 {r.criterion_code ?? "—"}
               </td>
-              <td
-                className={`${td} font-mono text-xs text-fg-2`}
-              >{`${r.introduced_phase} → ${r.found_phase}`}</td>
+              <td className={`${td} text-fg-2`}>
+                <PhasePath from={r.introduced_phase} to={r.found_phase} />
+              </td>
               <td className={`${td} break-words text-fg-2`}>
                 {r.subject ?? "—"}
               </td>
@@ -175,9 +176,13 @@ export function HarnessEscapesView({
                           onClick={() => setOpen(expanded ? null : r.rule)}
                           className="text-left text-fg hover:underline"
                         >
-                          <span className="font-mono text-xs">{r.rule}</span>{" "}
-                          <span>{t.rule(r.rule)}</span>
+                          <RuleLabel code={r.rule} />
                         </button>
+                        {t.ruleMeaning(r.rule) ? (
+                          <p className="text-xs font-normal text-fg-3">
+                            {t.ruleMeaning(r.rule)}
+                          </p>
+                        ) : null}
                       </th>
                       <td className={`${td} text-right tabular-nums`}>
                         {num(locale, r.n, 0)}

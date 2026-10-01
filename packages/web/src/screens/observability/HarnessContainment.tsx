@@ -1,6 +1,7 @@
 // «Containment» (core queries/harness-containment.ts): phase containment effectiveness of the design phases against its
 // target, now and over time (recomputed on read), with the contained and escaped errors listed to audit. Sober tables.
 
+import { PhasePath, RuleLabel } from './codes.tsx';
 import { queryOptions, useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useState, type ReactNode } from 'react';
@@ -157,7 +158,7 @@ export function HarnessContainmentView({
               <>
                 <th scope="col" className={th}>{t.colCheck}</th>
                 {data.phases.map((phase) => (
-                  <th key={phase} scope="col" className={`${numTh} font-mono`}>{phase}</th>
+                  <th key={phase} scope="col" className={`${numTh} font-mono`} title={t.phaseName(phase) === phase ? undefined : t.phaseName(phase)}>{phase}</th>
                 ))}
               </>
             }
@@ -198,8 +199,8 @@ export function HarnessContainmentView({
             {data.rows.map((r) => (
               <tr key={r.id} data-audit={r.kind} data-escape={r.id}>
                 <td className={td}>{t.kind(r.kind)}</td>
-                <td className={`${td} font-mono text-xs text-fg-2`}>{r.rule}</td>
-                <td className={`${td} font-mono text-xs text-fg-2`}>{`${r.introduced_phase} → ${r.found_phase}`}</td>
+                <td className={`${td} text-fg-2`}><RuleLabel code={r.rule} /></td>
+                <td className={`${td} text-fg-2`}><PhasePath from={r.introduced_phase} to={r.found_phase} /></td>
                 <td className={td}>
                   {r.record_code ? (
                     <Link to="/p/$projectId/records/$code" params={{ projectId, code: r.record_code }} className="font-mono text-xs text-fg hover:underline">

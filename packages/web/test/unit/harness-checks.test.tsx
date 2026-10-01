@@ -68,7 +68,8 @@ describe('piece names in the scorecard rows', () => {
     expect(pieceText({ piece: 'B03', name: 'Queue: hotspots and modules' })).toBe('B03 · Queue: hotspots and modules');
     expect(pieceText({ piece: 'B99', name: null })).toBe('B99');
     const html = renderToStaticMarkup(<HarnessHealthView projectId="p1" data={data} />);
-    expect(html).toContain('B03 · Queue: hotspots and modules');
+    expect(html).toContain('>B03<');
+    expect(html).toContain('Queue: hotspots and modules');
     expect(html).toContain('>B99<');
   });
 });

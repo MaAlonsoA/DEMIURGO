@@ -11,6 +11,7 @@ import { type Catalog, type Translation, useMessages } from '../../i18n/define.t
 import { useSafeLocale } from '../../words.ts';
 import { BarRows, Sparkline, Stat, StackedBar, type BarRow, type Part } from './charts.tsx';
 import { costSeries, costText, costTrend, correlationReading, minutesText, num, outcomeCounts, shareText, tokensText } from './format.ts';
+import { AgentLabel, CauseLabel, PhaseLabel, RuleLabel } from './codes.tsx';
 import { checksQuery } from './HarnessChecks.tsx';
 import { containmentQuery, type HarnessContainmentData } from './HarnessContainment.tsx';
 import { HARNESS_CONTAINMENT } from './HarnessContainment.i18n.ts';
@@ -89,7 +90,7 @@ function phaseRows(d: HarnessContainmentData, locale: string, t: Msgs<typeof HAR
   return d.phases.map((phase) => {
     const p = byPhase.get(phase);
     const seen = p !== undefined && p.n >= d.min_n;
-    const display = !p || p.n === 0 ? t.noRows : seen ? `${num(locale, (p.pce ?? 0) * 100, 1)} % (n ${p.n})` : `${t.notEnough} (n ${p.n})`;
+    const display = !p || p.n === 0 ? t.noRows : seen ? `${num(locale, (p.pce ?? 0) * 100, 1)} % (${t.errorsCount(p.n)})` : `${t.notEnough} (${t.errorsCount(p.n)})`;
     return {
       key: phase,
       label: (
@@ -245,7 +246,7 @@ export function BuildBlocks({ projectId, data }: { projectId: string; data: Obse
   const causes = [...s.rework.changes_requested_by_kind.map((c) => ({ ...c, group: 'changes' })), ...s.rework.failed_by_kind.map((c) => ({ ...c, group: 'failed' }))];
   const maxCause = Math.max(1, ...causes.map((c) => c.count));
   const causeRows = (list: typeof causes): BarRow[] =>
-    list.map((c) => ({ key: `${c.group}:${c.cause}`, label: <span className="font-mono text-xs">{c.cause}</span>, name: c.cause, value: c.count, display: String(c.count), tone: c.group === 'failed' ? 'danger' : 'warning' }));
+    list.map((c) => ({ key: `${c.group}:${c.cause}`, label: <CauseLabel code={c.cause} />, name: c.cause, value: c.count, display: String(c.count), tone: c.group === 'failed' ? 'danger' : 'warning' }));
   const out = outcomeCounts(data.facts);
   const attemptParts: Part[] = [
     { key: 'merged', label: o.outcome('merged'), value: out.merged, tone: 'success' },
@@ -322,7 +323,7 @@ export function AgentsBlocks({ projectId, data }: { projectId: string; data: Obs
   }
   const costly = [...byAgent.entries()].filter(([, r]) => r.cost !== null).sort((a, b) => (b[1].cost ?? 0) - (a[1].cost ?? 0)).slice(0, 10);
   const maxCost = Math.max(0, ...costly.map(([, r]) => r.cost ?? 0));
-  const costRows: BarRow[] = costly.map(([name, r]) => ({ key: name, label: <span className="font-mono text-xs">{name}</span>, name, value: r.cost, display: `${costText(locale, r.cost)} · ${r.runs}` }));
+  const costRows: BarRow[] = costly.map(([name, r]) => ({ key: name, label: <AgentLabel code={name} />, name, value: r.cost, display: `${costText(locale, r.cost)} · ${v.runsCount(r.runs)}` }));
   const parts: Part[] = [
     { key: 'ok', label: v.runsOk, value: runs - failures, tone: 'success' },
     { key: 'failed', label: o.colFailures, value: failures, tone: 'danger' },
@@ -351,7 +352,7 @@ export function AgentsBlocks({ projectId, data }: { projectId: string; data: Obs
             const band: BarRow[] = sz.by_size.map((r) => ({ key: r.size, label: r.size, name: r.size, value: r.n === 0 ? null : r.in_band / r.n, display: `${r.in_band} / ${r.n}`, tone: 'accent' }));
             const buckets: BarRow[] = sz.buckets
               .filter((b) => b.n > 0)
-              .map((b) => ({ key: b.bucket, label: o.bucket(b.bucket), name: o.bucket(b.bucket), value: b.accuracy, display: `${shareText(locale, b.accuracy)} (n ${b.n})`, tone: 'info' }));
+              .map((b) => ({ key: b.bucket, label: o.bucket(b.bucket), name: o.bucket(b.bucket), value: b.accuracy, display: `${shareText(locale, b.accuracy)} (${o.tasksCount(b.n)})`, tone: 'info' }));
             const files: BarRow[] =
               f.builds === 0
                 ? []
@@ -378,6 +379,7 @@ export function AgentsBlocks({ projectId, data }: { projectId: string; data: Obs
                   <div className="flex flex-col gap-2">
                     <SubHeading>{o.judgFilesTitle}</SubHeading>
                     <BarRows rows={files} max={1} summary={summarize(o.judgFilesTitle, files)} />
+                    <p className="text-xs text-fg-3">{o.filesLegend}</p>
                   </div>
                 ) : null}
               </div>
@@ -506,7 +508,7 @@ export function DesignBlocks({ projectId }: { projectId: string }) {
                         const last = [...values].reverse().find((x) => x !== null) ?? null;
                         return (
                           <li key={phase} className="grid grid-cols-[minmax(6rem,12rem)_1fr_minmax(5rem,auto)] items-center gap-3 text-sm">
-                            <span className="font-mono text-xs text-fg">{phase}</span>
+                            <span className="text-fg"><PhaseLabel code={phase} /></span>
                             {values.every((x) => x === null) ? <span className="text-fg-3">{ct.notEnough}</span> : <Sparkline values={values} min={0} max={1} target={d.target} summary={`${phase}: ${values.map((x) => (x === null ? ct.notEnough : shareText(locale, x))).join(', ')}`} />}
                             <span className="text-right tabular-nums text-fg-2">{shareText(locale, last)}</span>
                           </li>
@@ -525,7 +527,7 @@ export function DesignBlocks({ projectId }: { projectId: string }) {
           {(d) => {
             const contained = containment.data?.current.reduce((n, p) => n + p.contained, 0) ?? 0;
             const escaped = containment.data?.current.reduce((n, p) => n + p.escaped, 0) ?? d.total;
-            const rows: BarRow[] = d.by_rule.map((r) => ({ key: r.rule, label: <span title={e.rule(r.rule)}>{r.rule}</span>, name: e.rule(r.rule), value: r.n, display: String(r.n), tone: 'danger' }));
+            const rows: BarRow[] = d.by_rule.map((r) => ({ key: r.rule, label: <RuleLabel code={r.rule} />, name: `${r.rule} ${e.ruleName(r.rule)}`, value: r.n, display: String(r.n), tone: 'danger' }));
             const max = Math.max(1, ...d.by_rule.map((r) => r.n));
             const parts: Part[] = [
               { key: 'contained', label: ct.kind('contained'), value: contained, tone: 'success' },

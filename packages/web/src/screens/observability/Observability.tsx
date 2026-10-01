@@ -1,6 +1,8 @@
 // Observability: one fact per build attempt, and what they say about the estimate, the cost and the rework
 // (core queries/execution-facts.ts). Sober tables with units in the headers; numbers tabular.
 
+import { AgentLabel, CauseLabel } from './codes.tsx';
+import { OBS_CODES } from './codes.i18n.ts';
 import { useQuery } from '@tanstack/react-query';
 import { useSearch } from '@tanstack/react-router';
 import { type ReactNode, useState } from 'react';
@@ -477,7 +479,7 @@ function CauseTable({ title, rows }: { title: string; rows: ReworkCause[] }) {
         >
           {rows.map((r) => (
             <tr key={r.cause}>
-              <th scope="row" className={`${td} font-mono text-xs font-normal text-fg`}>{r.cause}</th>
+              <th scope="row" className={`${td} font-normal text-fg`}><CauseLabel code={r.cause} /></th>
               <td className={numTd}>{num(locale, r.count, 0)}</td>
             </tr>
           ))}
@@ -518,7 +520,7 @@ function AgentsSection({ agents }: { agents: AgentRow[] }) {
       >
         {agents.map((a) => (
           <tr key={`${a.agent}|${a.provider}|${a.model}`}>
-            <th scope="row" className={`${td} font-mono text-xs font-normal text-fg`}>{a.agent}</th>
+            <th scope="row" className={`${td} font-normal text-fg`}><AgentLabel code={a.agent} /></th>
             <td className={`${td} text-fg-2`}>{[a.provider, a.model].filter(Boolean).join(' · ') || '—'}</td>
             <td className={numTd}>{num(locale, a.runs, 0)}</td>
             <td className={numTd}>{num(locale, a.failures, 0)}</td>
@@ -534,6 +536,7 @@ function AgentsSection({ agents }: { agents: AgentRow[] }) {
 
 function AttemptsSection({ facts, projectId }: { facts: ExecutionFact[]; projectId: string }) {
   const t = useMessages(OBSERVABILITY);
+  const { causeName } = useMessages(OBS_CODES);
   const locale = useSafeLocale();
   const [all, setAll] = useState(false);
   const shown = all ? facts : facts.slice(0, 50);
@@ -588,7 +591,7 @@ function AttemptsSection({ facts, projectId }: { facts: ExecutionFact[]; project
               </td>
               <td className={td}>
                 {t.outcome(f.outcome)}
-                {why ? <span className="ml-2 font-mono text-xs text-fg-3">{why}</span> : null}
+                {why ? <span className="ml-2 text-xs text-fg-3">{why.split(', ').map((w) => causeName(w) || w).join(', ')}</span> : null}
               </td>
               <td className={`${td} whitespace-nowrap`}>{f.size_jev ?? '—'}</td>
               <td className={numTd}>{num(locale, f.builder_minutes)}</td>

@@ -157,6 +157,7 @@ export function BuildStepper({ build }: { build: NonNullable<RecordDetail['build
   const byStage = new Map<string, BuildStep>();
   for (const s of attempt) byStage.set(s.stage, s);
   const url = build.pr_url ?? build.request?.pr_url ?? null;
+  const needsYou = (byStage.get('merge')?.detail as { needs_you?: boolean; tried?: number } | null) ?? null;
   return (
     <div className="flex flex-col gap-2 text-sm" data-build-stepper>
       <ol className="flex flex-col gap-1" aria-label={t.stages}>
@@ -183,6 +184,11 @@ export function BuildStepper({ build }: { build: NonNullable<RecordDetail['build
             </Link>
           ))
         : null}
+      {needsYou?.needs_you && byStage.get('merge')?.outcome === 'changes_requested' ? (
+        <p className="text-danger-text" data-needs-you>
+          {t.needsYou(needsYou.tried ?? 1)}
+        </p>
+      ) : null}
       {url ? (
         <a href={url} target="_blank" rel="noreferrer" className="text-accent-text hover:underline">
           {t.pullRequest}: {url}

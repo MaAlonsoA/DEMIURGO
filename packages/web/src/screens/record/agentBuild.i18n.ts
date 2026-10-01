@@ -11,6 +11,7 @@ export const AGENT_BUILD = messages(
     reviewConfirmText:
       "DEMIURGO's builder agent continues on the same branch and pull request, with the reviewer's comments as feedback. CI and the review run again and it merges only if CI is green and the review approves. It uses your subscription quota.",
     building: 'Starting…',
+    needsYou: (n: number) => `DEMIURGO tried ${n} ${n === 1 ? 'time' : 'times'}; it needs you.`,
     confirmTitle: (code: string) => `Build ${code} with an agent?`,
     confirmText:
       "DEMIURGO's builder agent writes the code in an isolated container, opens a pull request on GitHub, CI runs, DEMIURGO's reviewer agent reviews it and it merges automatically only if CI is green and the review approves. It uses your subscription quota.",
@@ -50,6 +51,7 @@ export const AGENT_BUILD = messages(
     reviewConfirmText:
       'El agente constructor de DEMIURGO continúa en la misma rama y pull request, con los comentarios del revisor como indicaciones. Vuelven a pasar la CI y la revisión, y se fusiona solo si la CI está en verde y la revisión aprueba. Usa la cuota de tu suscripción.',
     building: 'Empezando…',
+    needsYou: (n: number) => `DEMIURGO lo intentó ${n} ${n === 1 ? 'vez' : 'veces'}; te necesita.`,
     confirmTitle: (code: string) => `¿Construir ${code} con un agente?`,
     confirmText:
       'El agente constructor de DEMIURGO escribe el código en un contenedor aislado, abre una pull request en GitHub, pasa la CI, el agente revisor de DEMIURGO la revisa y se fusiona sola solo si la CI está en verde y la revisión aprueba. Usa la cuota de tu suscripción.',

@@ -12,7 +12,8 @@
 //
 // A stage that fails stops the attempt. Changes requested (the reviewer's verdict or a red CI) ends it
 // too, and the person can press Build again: the next attempt continues on the same branch and pull
-// request. Waiting (CI, the reviewer, the merge) polls with durable sleeps; the time spent is counted,
+// request. When CI is red or the reviewer left a blocking comment, DEMIURGO itself starts the next
+// attempts first (up to `autoFollowUps`), and only then leaves it to the person. Waiting (CI, the reviewer, the merge) polls with durable sleeps; the time spent is counted,
 // not read from a clock, so a replay decides the same way. The workflow never accepts or ratifies
 // anything: it only builds, records evidence and lets GitHub merge once its required checks pass.
 
@@ -24,6 +25,7 @@ import {
   type DesignViolation,
   DomainError,
   designGuard,
+  formatActor,
   isDomainError,
   system,
 } from '@demiurgo/domain';
@@ -79,6 +81,12 @@ export type BuildDeps = {
   mergeTimeoutMs: number;
   /** A reviewer run that does not finish after this long fails the attempt (1 h). */
   reviewTimeoutMs: number;
+  /**
+   * How many attempts DEMIURGO starts by itself after the person's one, when CI is red or the reviewer
+   * asks for changes with a blocking comment. 2 is our convention (not a published standard): enough to
+   * fix what the first review found, little enough not to burn the subscription quota on a loop.
+   */
+  autoFollowUps: number;
 };
 
 const defaults = (): BuildDeps => ({
@@ -91,6 +99,7 @@ const defaults = (): BuildDeps => ({
   ciAppearMs: 15 * 60_000,
   mergeTimeoutMs: 24 * 3_600_000,
   reviewTimeoutMs: 3_600_000,
+  autoFollowUps: 2,
 });
 
 let deps: BuildDeps = defaults();
@@ -626,12 +635,47 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
 
   // merge
   if (!approved) {
-    await plain('merge-stop', () =>
-      record(r, 'merge', 'changes_requested', {
-        reason: verdict.verdict === 'approve' ? `CI concluded ${conclusion ?? 'without a result'}.` : 'The reviewer asked for changes.',
-        blocking: verdict.comments.filter((c) => c.severity === 'blocking').length,
-      }),
-    );
+    const blocking = verdict.comments.filter((c) => c.severity === 'blocking').length;
+    const ciRed = conclusion !== 'success';
+    const next = await plain('merge-stop', async () => {
+      // The attempts started by DEMIURGO itself since the person's last one (our convention, see autoFollowUps).
+      const started = await s0.db
+        .selectFrom('build_steps')
+        .select(['attempt', 'detail'])
+        .where('build_request_id', '=', requestId)
+        .where('stage', '=', 'repo')
+        .where('outcome', '=', 'started')
+        .orderBy('attempt', 'desc')
+        .execute();
+      let automatic = 0;
+      for (const row of started) {
+        if ((row.detail as { automatic?: boolean } | null)?.automatic !== true) break;
+        automatic++;
+      }
+      const latest = await s0.db
+        .selectFrom('build_steps')
+        .select((eb) => eb.fn.max('attempt').as('attempt'))
+        .where('build_request_id', '=', requestId)
+        .executeTakeFirst();
+      // Someone (the person) already started a newer attempt: nothing to follow up.
+      const current = Number(latest?.attempt ?? attempt) === attempt;
+      const fixable = ciRed || blocking > 0;
+      const follow = current && fixable && automatic < d.autoFollowUps;
+      const reason = verdict.verdict === 'approve' ? `CI concluded ${conclusion ?? 'without a result'}.` : 'The reviewer asked for changes.';
+      await record(r, 'merge', 'changes_requested', {
+        reason,
+        blocking,
+        ...(current && fixable && !follow ? { needs_you: true, tried: automatic + 1 } : {}),
+        ...(follow ? { next_attempt: attempt + 1 } : {}),
+      });
+      if (!follow) return null;
+      // The same first step the person's «Address the review» leaves (build.start), by the system actor.
+      await record({ ...r, attempt: attempt + 1 }, 'repo', 'started', { started_by: formatActor(BUILD), automatic: true, reason });
+      return attempt + 1;
+    });
+    // Durable and idempotent: the workflow id is the attempt's, so a replay (or a person who pressed the
+    // button first and got there before) never starts it twice.
+    if (next !== null) await DBOS.startWorkflow(buildWorkflowRegistered, { workflowID: buildWorkflowId(requestId, next) })(projectId, requestId, next);
     return stop('merge', 'changes_requested');
   }
   const armed = await stage(r, 'merge', async () => {

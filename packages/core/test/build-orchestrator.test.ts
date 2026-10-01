@@ -149,7 +149,10 @@ function writeDesign(dir: string, violating: boolean): void {
   );
 }
 
-function fakes(opts: { ciConclusion: 'success' | 'failure'; design?: 'violating' | 'clean'; protection?: 'demiurgo'; ciFlipsRed?: boolean }): Partial<BuildDeps> {
+function fakes(opts: { ciConclusion: 'success' | 'failure'; design?: 'violating' | 'clean'; protection?: 'demiurgo'; ciFlipsRed?: boolean; auto?: number; greenAfterRuns?: number }): Partial<BuildDeps> {
+  const base = builderRuns;
+  // With greenAfterRuns, CI is red until the builder has run that many times, then green.
+  const conclusionNow = (): 'success' | 'failure' => (opts.greenAfterRuns !== undefined && builderRuns - base >= opts.greenAfterRuns ? 'success' : opts.ciConclusion);
   calls = { statuses: [], autoMerge: [], merges: 0, reviews: 0, opened: 0, polls: { ci: 0, merge: 0 }, prompts: [] };
   const github = {
     ensureProjectRepo: async () => ({ owner: 'acme', repo: 'recipes', url: 'https://github.com/acme/recipes', protection: opts.protection ?? 'github' }),
@@ -183,14 +186,16 @@ function fakes(opts: { ciConclusion: 'success' | 'failure'; design?: 'violating'
       if (opts.ciFlipsRed && calls.polls.ci >= 3) return [{ name: 'ci', status: 'completed', conclusion: 'failure', detailsUrl: null }];
       return calls.polls.ci < 2
         ? [{ name: 'ci', status: 'in_progress', conclusion: null, detailsUrl: null }]
-        : [{ name: 'ci', status: 'completed', conclusion: opts.ciConclusion, detailsUrl: null }];
+        : [{ name: 'ci', status: 'completed', conclusion: conclusionNow(), detailsUrl: null }];
     },
-    junitArtifactFor: async () => junit(opts.ciConclusion === 'failure'),
+    junitArtifactFor: async () => junit(conclusionNow() === 'failure'),
   } as unknown as BuildDeps['github'];
   return {
     github,
     config: () => ({ token: 'test-token', owner: 'acme', api: 'https://api.github.test' }),
     pollMs: 30,
+    // The tests of manual attempts turn the automatic follow-ups off; the ones below turn them on.
+    autoFollowUps: opts.auto ?? 0,
     ciAppearMs: 10_000,
     ciTimeoutMs: 10_000,
     mergeTimeoutMs: 10_000,
@@ -411,5 +416,50 @@ describe('build.start', () => {
     expect(await finished(requestId, 1)).toBe('changes_requested:merge');
     expect(calls.merges).toBe(0);
     expect(calls.statuses.filter((s) => s.context === 'demiurgo/review').map((s) => s.state)).toEqual(['pending', 'failure']);
+  });
+
+  it('red CI: DEMIURGO starts attempt 2 by itself with the reviewer comments, and it merges when the fix works', async () => {
+    await db().updateTable('build_requests').set({ state: 'withdrawn', withdrawn_by: 'human:ana', withdrawn_at: new Date() }).where('project_id', '=', projectId).where('state', '=', 'in_review').execute();
+    setBuildDeps(fakes({ ciConclusion: 'failure', auto: 2, greenAfterRuns: 2 }));
+    const requestId = await newRequest();
+    await cmd('build.start', { task: taskCode });
+    expect(await finished(requestId, 1)).toBe('changes_requested:merge');
+    // Nobody pressed anything: attempt 2 exists, started by the system, on the same branch and pull request.
+    expect(await finished(requestId, 2)).toBe('done');
+    expect(calls.opened).toBe(1);
+    expect(calls.prompts[1]).toContain('attempt 2');
+    expect(calls.prompts[1]).toContain('The reviewer asked for these changes');
+    const rows = await steps(requestId);
+    const second = rows.find((x) => x.attempt === 2 && x.stage === 'repo' && x.outcome === 'started');
+    expect(second?.detail).toMatchObject({ started_by: 'system:build@1', automatic: true });
+    expect(rows.find((x) => x.attempt === 1 && x.stage === 'merge')?.detail).toMatchObject({ next_attempt: 2 });
+    expect(rows.some((x) => x.attempt === 3)).toBe(false);
+    expect((await db().selectFrom('build_requests').select('state').where('id', '=', requestId).executeTakeFirstOrThrow()).state).toBe('done');
+  });
+
+  it('after 2 automatic follow-ups it stops: «DEMIURGO tried 3 times; it needs you» and the person can still address the review', async () => {
+    setBuildDeps(fakes({ ciConclusion: 'failure', auto: 2 }));
+    const requestId = await newRequest();
+    await cmd('build.start', { task: taskCode });
+    expect(await finished(requestId, 1)).toBe('changes_requested:merge');
+    expect(await finished(requestId, 2)).toBe('changes_requested:merge');
+    expect(await finished(requestId, 3)).toBe('changes_requested:merge');
+    await sleep(300);
+    let rows = await steps(requestId);
+    expect(Math.max(...rows.map((x) => x.attempt))).toBe(3);
+    expect(rows.find((x) => x.attempt === 3 && x.stage === 'merge')?.detail).toMatchObject({ needs_you: true, tried: 3 });
+    expect(rows.find((x) => x.attempt === 2 && x.stage === 'merge')?.detail).not.toHaveProperty('needs_you');
+
+    // The person's button still works (attempt 4, started by them) and does not count as automatic.
+    const again = await cmd('build.start', { task: taskCode });
+    expect(again.result).toMatchObject({ attempt: 4 });
+    expect(await finished(requestId, 4)).toBe('changes_requested:merge');
+    // With the limit already used by the earlier chain, the person's attempt gets its own 2 follow-ups.
+    expect(await finished(requestId, 5)).toBe('changes_requested:merge');
+    expect(await finished(requestId, 6)).toBe('changes_requested:merge');
+    await sleep(300);
+    rows = await steps(requestId);
+    expect(Math.max(...rows.map((x) => x.attempt))).toBe(6);
+    expect(rows.find((x) => x.attempt === 4 && x.stage === 'repo')?.detail).toMatchObject({ started_by: 'human:ana' });
   });
 });

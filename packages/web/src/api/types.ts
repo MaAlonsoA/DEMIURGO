@@ -1398,7 +1398,14 @@ export type BuildQueue = {
     /** Ready tasks waiting because they change the database schema while another such task builds. */
     schema_waiting?: string[];
     /** Ready tasks waiting because they share a hotspot file or a table, route, page or server action with a task being built. */
-    module_waiting?: { code: string; item: string; with: string }[];
+    module_waiting?: {
+      code: string;
+      item: string;
+      with: string;
+      kind: 'hotspot' | 'table' | 'route' | 'page' | 'server_action';
+      with_source: 'actual' | 'predicted';
+      hotspot?: { tasks: number; of: number };
+    }[];
     testability_waiting?: string[];
     stopped: {
       code: string;

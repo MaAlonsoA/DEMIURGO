@@ -41,6 +41,36 @@ export type AutoStopped = {
 /** A task that waits, the shared file or module and the task being built that shares it. */
 export type ModuleWaiting = { code: string; item: string; with: string };
 
+export type ModuleItemKind = 'hotspot' | 'table' | 'route' | 'page' | 'server_action';
+
+/** A waiting task with what the page needs to explain it: the kind of item, where the blocker's set came from and the hotspot counts. */
+export type ModuleWaitingInfo = ModuleWaiting & {
+  kind: ModuleItemKind;
+  /** «actual»: the blocking task's files are the ones it committed; «predicted»: the prediction. */
+  with_source: 'actual' | 'predicted';
+  /** For a hotspot file: how many of the merged tasks changed it. */
+  hotspot?: { tasks: number; of: number };
+};
+
+/** The kind of a shared item: a module id has its kind as prefix, a plain path is a hotspot file. Pure. */
+export function moduleKindOf(item: string): ModuleItemKind {
+  const m = /^(table|route|page|server_action):/.exec(item);
+  return m ? (m[1] as ModuleItemKind) : 'hotspot';
+}
+
+/** Adds kind, source of the blocker's file set and hotspot counts to each waiting entry. Pure. */
+export function enrichModuleWaiting(
+  waiting: readonly ModuleWaiting[],
+  actual: ReadonlySet<string>,
+  hotspots: readonly { path: string; tasks: number; of: number }[],
+): ModuleWaitingInfo[] {
+  return waiting.map((w) => {
+    const kind = moduleKindOf(w.item);
+    const h = kind === 'hotspot' ? hotspots.find((x) => x.path === w.item) : undefined;
+    return { ...w, kind, with_source: actual.has(w.with) ? 'actual' : 'predicted', ...(h ? { hotspot: { tasks: h.tasks, of: h.of } } : {}) };
+  });
+}
+
 export type AutoStatus = {
   on: boolean;
   /** How many builds run at once at most (1 to 3). */
@@ -54,7 +84,7 @@ export type AutoStatus = {
   /** Ready tasks that wait because they are predicted to change the database schema while another such task builds. Omitted when none. */
   schema_waiting?: string[];
   /** Ready tasks that wait because they are predicted to change a hotspot file or a table, route, page or server action that a task being built changes too. Omitted when none. */
-  module_waiting?: ModuleWaiting[];
+  module_waiting?: ModuleWaitingInfo[];
   /** Ready tasks the queue does not start by itself because Jev flagged a criterion that CI cannot check: the person decides (mark it manual, move it or start it). Omitted when none. */
   testability_waiting?: string[];
   stopped: AutoStopped | null;
@@ -183,6 +213,8 @@ type Plan = {
   moduleWaiting: ModuleWaiting[];
   /** Tasks skipped because Jev flagged a criterion that CI cannot check and nobody requested them. */
   testabilityWaiting: string[];
+  /** What the page needs to explain moduleWaiting: running tasks whose set is their committed files, and the merged-task counts per file. */
+  moduleContext?: { actual: Set<string>; hotspots: { path: string; tasks: number; of: number }[] };
 };
 
 export type SelectInput = {
@@ -324,24 +356,31 @@ async function plan(db: Db, projectId: string, queue: BuildQueue, limit: number)
   // Hotspots and predicted files matter for the same reason: only when two tasks can build together.
   const codes = [...new Set([...running, ...queue.ready.map((t) => t.code)])];
   let module: Pick<SelectInput, 'predicted' | 'hotspots' | 'map'> = {};
+  let moduleContext: Plan['moduleContext'];
   if (limit > 1) {
     try {
       const predictions = await predictedFiles(db, projectId, codes);
-      const hotspots = new Set((await hotspotsOf(db, projectId)).filter((h, _i, all) => isHotspot(h, all[0]?.of ?? 0)).map((h) => h.path));
+      const counts = await hotspotsOf(db, projectId);
+      const hotspots = new Set(counts.filter((h, _i, all) => isHotspot(h, all[0]?.of ?? 0)).map((h) => h.path));
+      const actual = new Set<string>();
       // A build that already committed collides by the files it really changes, not by the prediction.
       const predicted = new Map(predictions.files);
       for (const o of open) {
         if (!running.includes(o.code)) continue;
         const real = await committedFiles(db, o.id);
-        if (real) predicted.set(o.code, real);
+        if (real) {
+          predicted.set(o.code, real);
+          actual.add(o.code);
+        }
       }
       module = { predicted, hotspots, map: predictions.map };
+      moduleContext = { actual, hotspots: counts };
     } catch {
       // a prediction that cannot be made never stops the queue
     }
   }
   const picked = await selectStarts({ ready: queue.ready, running, limit, index, featureOf, stateOf: (t) => taskState(db, t), schema, ...module });
-  return { ...result, ...picked };
+  return { ...result, ...picked, ...(moduleContext ? { moduleContext } : {}) };
 }
 
 /** The state the Build page shows. */
@@ -354,7 +393,7 @@ export async function autoStatus(db: Db, projectId: string, queue: BuildQueue): 
   const p = await plan(db, projectId, queue, parallel);
   const next = p.start[0]?.code ?? (p.running.length ? (queue.ready.find((t) => !p.running.includes(t.code) && t.request === null)?.code ?? null) : null);
   const waiting = p.schemaWaiting.length > 0 ? { schema_waiting: p.schemaWaiting } : {};
-  const moduleWait = p.moduleWaiting.length > 0 ? { module_waiting: p.moduleWaiting } : {};
+  const moduleWait = p.moduleWaiting.length > 0 ? { module_waiting: enrichModuleWaiting(p.moduleWaiting, p.moduleContext?.actual ?? new Set(), p.moduleContext?.hotspots ?? []) } : {};
   const testWait = p.testabilityWaiting.length > 0 ? { testability_waiting: p.testabilityWaiting } : {};
   return { on, parallel, building: p.running[0] ?? null, builds: p.running, next, stopped: p.stopped, ...waiting, ...moduleWait, ...testWait, ...flaky };
 }

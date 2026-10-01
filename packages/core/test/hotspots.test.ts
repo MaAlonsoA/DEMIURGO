@@ -2,7 +2,7 @@
 // Pure: fake footprints, predictions and code map; no database.
 
 import { describe, expect, it } from 'vitest';
-import { selectStarts, sharedItem } from '../src/build/auto.ts';
+import { enrichModuleWaiting, moduleKindOf, selectStarts, sharedItem } from '../src/build/auto.ts';
 import { assemble, type CodeFile } from '../src/build/code-map.ts';
 import { hotspotCounts, isHotspot, isHotspotCandidate } from '../src/build/hotspots.ts';
 import type { QueueTask } from '../src/build/queue.ts';
@@ -107,5 +107,25 @@ describe('selectStarts and the module rule', () => {
     const r = await select([task('TSK-2', 'F2')], ['TSK-1'], {});
     expect(r.start.map((s) => s.code)).toEqual(['TSK-2']);
     expect(r.moduleWaiting).toEqual([]);
+  });
+});
+
+describe('enrichModuleWaiting', () => {
+  it('derives the kind, the source of the blocker set and the hotspot counts', () => {
+    const r = enrichModuleWaiting(
+      [
+        { code: 'TSK-2', item: 'src/app/layout.tsx', with: 'TSK-1' },
+        { code: 'TSK-3', item: 'table:strength_sets', with: 'TSK-4' },
+        { code: 'TSK-5', item: 'server_action:src/app/x.ts', with: 'TSK-4' },
+      ],
+      new Set(['TSK-1']),
+      [{ path: 'src/app/layout.tsx', tasks: 12, of: 27 }],
+    );
+    expect(r[0]).toMatchObject({ kind: 'hotspot', with_source: 'actual', hotspot: { tasks: 12, of: 27 } });
+    expect(r[1]).toMatchObject({ kind: 'table', with_source: 'predicted' });
+    expect(r[1]?.hotspot).toBeUndefined();
+    expect(r[2]?.kind).toBe('server_action');
+    expect(moduleKindOf('route:/api/x')).toBe('route');
+    expect(moduleKindOf('page:/')).toBe('page');
   });
 });

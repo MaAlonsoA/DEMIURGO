@@ -35,6 +35,7 @@ import { TestabilityLines } from "../record/Testability.tsx";
 import { TouchesLine } from "../record/Touches.tsx";
 import { Bounces } from "./Bounces.tsx";
 import { BuildTimelineView } from "./Timeline.tsx";
+import { groupModuleWaiting, itemLabel, kindsOf } from "./moduleWaitingLogic.ts";
 import { sharesLine } from "./timelineLogic.ts";
 import { BUILD } from "./words.i18n.ts";
 
@@ -456,7 +457,6 @@ function AutoQueue({ projectId, auto, t }: { projectId: string; auto: NonNullabl
   const client = useQueryClient();
   const s = auto.stopped;
   const waitingSchema = auto.schema_waiting && auto.schema_waiting.length > 0 ? ` ${t.autoSchemaWaiting(auto.schema_waiting)}` : "";
-  const waitingModule = auto.module_waiting && auto.module_waiting.length > 0 ? ` ${t.autoModuleWaiting(auto.module_waiting)}` : "";
   const waitingTestability = auto.testability_waiting && auto.testability_waiting.length > 0 ? ` ${t.autoTestabilityWaiting(auto.testability_waiting)}` : "";
   const base = !auto.on
     ? null
@@ -477,7 +477,7 @@ function AutoQueue({ projectId, auto, t }: { projectId: string; auto: NonNullabl
         : auto.next
           ? t.autoNext(auto.next)
           : t.autoIdle;
-  const status = base !== null && !s ? `${base}${waitingSchema}${waitingModule}${waitingTestability}` : base;
+  const status = base !== null && !s ? `${base}${waitingSchema}${waitingTestability}` : base;
   return (
     <section className="flex flex-col gap-2" data-auto-queue data-auto-on={auto.on ? "true" : "false"}>
       <Checkbox
@@ -528,6 +528,7 @@ function AutoQueue({ projectId, auto, t }: { projectId: string; auto: NonNullabl
           </p>
         )
       ) : null}
+      {auto.on && !s && auto.module_waiting && auto.module_waiting.length > 0 ? <ModuleWaiting projectId={projectId} entries={auto.module_waiting} t={t} /> : null}
       {auto.quarantined && auto.quarantined.length > 0 ? (
         <p className="text-sm text-fg-2" data-quarantined>
           {t.quarantined(auto.quarantined.join(", "))}
@@ -535,6 +536,46 @@ function AutoQueue({ projectId, auto, t }: { projectId: string; auto: NonNullabl
       ) : null}
       {command.error ? <ErrorNotice error={command.error} compact /> : null}
     </section>
+  );
+}
+
+function TaskLink({ projectId, code }: { projectId: string; code: string }) {
+  return (
+    <Link to="/p/$projectId/records/$code" params={{ projectId, code }} className="hover:underline">
+      <Code>{code}</Code>
+    </Link>
+  );
+}
+
+/** What the queue holds back because two builds would change the same thing, grouped by what blocks (the server decides). */
+function ModuleWaiting({ projectId, entries, t }: { projectId: string; entries: NonNullable<NonNullable<BuildQueue["auto"]>["module_waiting"]>; t: Words }) {
+  const groups = groupModuleWaiting(entries);
+  return (
+    <div className="flex flex-col gap-2 text-sm text-fg-2" data-module-waiting>
+      <p className="font-medium text-fg">{t.moduleWaitingTitle(kindsOf(groups).map((k) => t.moduleKind(k)))}</p>
+      {groups.map((g) => (
+        <div key={`${g.item}|${g.with}`} className="flex flex-col gap-0.5" data-module-group={g.item}>
+          <span>
+            <Code>{itemLabel(g.item)}</Code> {t.moduleKind(g.kind)}
+            {g.hotspot ? ` · ${t.moduleHotspot(g.hotspot)}` : ""}
+          </span>
+          <span>
+            {t.moduleHeldBy} <TaskLink projectId={projectId} code={g.with} /> ({g.source === "actual" ? t.moduleHeldActual : t.moduleHeldPredicted})
+          </span>
+          <span>
+            {t.moduleWaitingTasks}{" "}
+            {g.waiting.map((c, i) => (
+              <span key={c}>
+                {i > 0 ? ", " : ""}
+                <TaskLink projectId={projectId} code={c} />
+              </span>
+            ))}
+          </span>
+          <span>{t.moduleStartsWhen(g.waiting.length, g.with)}</span>
+        </div>
+      ))}
+      <p className="text-fg-3">{t.moduleWhy}</p>
+    </div>
   );
 }
 

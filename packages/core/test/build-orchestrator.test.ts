@@ -14,7 +14,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createSimulatedProvider } from '../src/agents/simulated.ts';
 import { executeCommand } from '../src/bus/bus.ts';
 import { CODE_SECTION_TITLE, buildQueue, composeBrief, deliveryLine, reportLine } from '../src/build/queue.ts';
-import { advanceBuildQueue, autoStatus, dependsOnBusy } from '../src/build/auto.ts';
+import { advanceBuildQueue, autoStatus, dependsOnBusy, reconcileBuildQueues } from '../src/build/auto.ts';
 import type { TaskDependencyIndex } from '../src/queries/task-deps.ts';
 import { type BuildDeps, resetBuildDeps, setBuildDeps, waitForBuild } from '../src/build/orchestrator.ts';
 import { waitForRun } from '../src/engine/engine.ts';
@@ -1221,6 +1221,38 @@ describe('Build the queue (opt-in per project)', () => {
       await cmd('build.queue_auto', { on: false }, projectId);
       release();
       for (const code of running) expect(await finished((await requestFor(code)).id, 1)).not.toBe('cancelled');
+    });
+
+    it('re-plans by itself when a build records its real files, and on the periodic tick', async () => {
+      const release = gated();
+      const [first] = await readyCodes();
+      const other = await otherFeatureTask(first as string);
+      expect((await cmd('build.queue_auto', { on: true }, projectId)).result).toEqual({ on: true, parallel: 1 });
+      const running = await until(async () => ((await requested()).length >= 1 ? await requested() : undefined));
+      await sleep(300);
+      expect(await requested()).toEqual(running);
+      // The room appears without any command that re-plans (the plan changed under the queue): the limit goes up in the table.
+      await db().updateTable('build_queue_settings').set({ parallel: 2 }).where('project_id', '=', projectId).execute();
+      await sleep(300);
+      expect(await requested()).toEqual(running);
+      // The running build records its real files: that edge alone makes the queue start the next task.
+      const code = running[0] as string;
+      const request = await requestFor(code);
+      await executeCommand(environment().services, {
+        command: 'build_step.record',
+        actor: system('build', '1'),
+        projectId,
+        data: { build_request_id: request.id, attempt: 1, stage: 'commit', outcome: 'ok', detail: { files: ['src/real.ts'] } },
+      });
+      await until(async () => ((await requested()).length >= 2 ? true : undefined));
+      expect((await requested()).length).toBe(2);
+      // The periodic tick is the same re-plan without an event: it runs for the projects with the queue on and never throws.
+      await reconcileBuildQueues(environment().services);
+      void other;
+      await cmd('build.queue_auto', { on: false }, projectId);
+      release();
+      for (const c of await requested()) await finished((await requestFor(c)).id, 1);
+      await cmd('build.queue_auto', { parallel: 1 }, projectId);
     });
 
     it('a task that depends, directly or through others, on a task being built is never taken', () => {

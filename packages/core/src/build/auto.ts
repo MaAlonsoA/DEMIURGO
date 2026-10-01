@@ -21,6 +21,7 @@ import { type CodeMap, moduleOverlap } from './code-map.ts';
 import { hotspotsOf, isHotspot } from './hotspots.ts';
 import { predictedFiles } from './predicted-files.ts';
 import { ensureTaskLayers } from '../classifier/layers.ts';
+import { registerReconciler } from '../engine/registry.ts';
 
 const BUILD = system('build', '1');
 
@@ -441,3 +442,30 @@ export function advanceBuildQueue(services: Services, projectId: string): Promis
     return started;
   });
 }
+
+/**
+ * Level-triggered safety net (Kubernetes documentation, «Controllers»: a control loop keeps re-reading the desired
+ * and the actual state instead of relying only on edge events). The events call `advanceBuildQueue` too, but a
+ * change nobody hooked (a build's real files removing a collision, say) would leave the queue idle; this tick
+ * re-plans every project with the queue on. The 60 s period is our convention.
+ */
+export const QUEUE_RECONCILE_MS = 60_000;
+
+export async function reconcileBuildQueues(services: Services): Promise<void> {
+  const rows = await services.db.selectFrom('build_queue_settings').select('project_id').where('auto', '=', true).execute();
+  for (const r of rows) await advanceBuildQueue(services, r.project_id);
+}
+
+registerReconciler(async (s) => {
+  let ticking = false;
+  // unref: a short-lived process (the CLI) must not wait for the interval to exit. No overlap: a slow tick skips the next.
+  setInterval(() => {
+    if (ticking) return;
+    ticking = true;
+    void reconcileBuildQueues(s)
+      .catch(() => undefined)
+      .finally(() => {
+        ticking = false;
+      });
+  }, QUEUE_RECONCILE_MS).unref();
+}, 'build-queue-reconcile');

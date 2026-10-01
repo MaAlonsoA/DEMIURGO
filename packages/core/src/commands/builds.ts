@@ -80,6 +80,9 @@ registerHandlers({
         .insertInto("task_holds")
         .values({ project_id: ctx.projectId, task_id: task.id, reason: data.reason, held_by: by })
         .execute();
+      // A task on hold may free its place or its files for another one (a no-op with the flag off).
+      const projectId = ctx.projectId;
+      ctx.afterCommit(async () => void (await advanceBuildQueue(ctx.services, projectId)));
       return {
         entityId: e?.id ?? ctx.projectId,
         after: { task: task.code, reason: data.reason, held_by: by },

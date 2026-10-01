@@ -14,6 +14,7 @@ import { openHoldOf } from '../build/holds.ts';
 import type { CommandContext } from '../bus/types.ts';
 import type { Db, Tx } from '../db/connection.ts';
 import { githubConfig } from '../github/client.ts';
+import { advanceBuildQueue } from '../build/auto.ts';
 import { mergedBuildOf } from '../queries/read.ts';
 
 /** The open request of a task (by code), with the task's row. */
@@ -341,6 +342,19 @@ registerHandlers({
       if (data.stage === 'evidence' && quarantined.length > 0) await openFlakyIssues(ctx, data.build_request_id, data.attempt, quarantined);
       if (data.stage === 'main' && data.outcome === 'failed' && typeof data.detail?.sha === 'string') {
         await openMainRedIssue(ctx, data.build_request_id, data.attempt, data.detail.sha, typeof data.detail.conclusion === 'string' ? data.detail.conclusion : null);
+      }
+      // Level-triggered re-plan (a no-op with the queue off): the real files of a build (commit ok) change which
+      // tasks collide, and a failed, cancelled, merged or escalated attempt frees a slot.
+      const escalated = data.stage === 'merge' && data.outcome === 'changes_requested' && data.detail?.escalated === 'needs_person';
+      if (
+        (data.stage === 'commit' && data.outcome === 'ok') ||
+        data.outcome === 'failed' ||
+        data.outcome === 'cancelled' ||
+        (data.stage === 'merge' && data.outcome === 'ok') ||
+        escalated
+      ) {
+        const projectId = ctx.projectId;
+        ctx.afterCommit(async () => void (await advanceBuildQueue(ctx.services, projectId)));
       }
       return {
         entityId: id,

@@ -25,6 +25,7 @@ import {
   taskSizeSchema,
 } from '@demiurgo/domain';
 import { z } from 'zod';
+import { advanceBuildQueue } from '../build/auto.ts';
 import { trimmed, field, registerGuards } from '../bus/guards.ts';
 import { handler, registerHandlers } from '../bus/handlers.ts';
 import type { CommandContext } from '../bus/types.ts';
@@ -711,6 +712,11 @@ registerHandlers({
       }
       await reviewObsolescence(ctx, { record: v.record_id });
       await onAuthorityEvent(ctx, { type: 'record_version', id: v.id, version: v.n });
+      // An approved task, feature or decision may make a task ready (a no-op with the queue off).
+      if (kind?.type === 'task' || kind?.type === 'fdr' || kind?.type === 'adr') {
+        const projectId = ctx.projectId;
+        ctx.afterCommit(async () => void (await advanceBuildQueue(ctx.services, projectId)));
+      }
       // Approving the product definition for the first time passes stage 1 (Product definition) when
       // its questions are all covered: the person's approval is the decision, so they need not hunt
       // for «Pass stage». Stage 2 opens as it does whenever a stage passes.

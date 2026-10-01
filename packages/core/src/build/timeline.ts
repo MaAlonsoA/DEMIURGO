@@ -93,6 +93,8 @@ export type TimelineAttempt = {
     wip_file_names: string[];
     /** Existing tests of other criteria that already check something close (the builder was told to extend them). */
     test_reuse: { count: number; first: { criterion: string; path: string }[] } | null;
+    /** The test-driven check DEMIURGO ran before the push (tdd.ts): RED on main, GREEN with the change, the loops; null on attempts before it existed. */
+    tdd: TimelineTdd | null;
   } | null;
   /** What came out: the pull request, CI, review and merge of this attempt. */
   out: {
@@ -109,6 +111,24 @@ export type TimelineAttempt = {
   /** The mechanical steps (branch, commit, design and ownership checks, push, pull request, status, evidence, publish): only whether they were reached and what went wrong. */
   checkpoint: { reached: boolean; problems: { stage: string; outcome: string; error: string | null }[] };
   merged_at: string | null;
+};
+
+export type TimelineTdd = {
+  status: 'passed' | 'red' | 'skipped';
+  loops: number;
+  skipped: string | null;
+  stopped: string | null;
+  notes: string[];
+  red: { criterion: string; test: string; path: string; outcome: string; reason: string | null }[];
+  green: {
+    passed: number;
+    failed: number;
+    failing_on_main: number;
+    criterion: { passed: number; failed: number };
+    selected: { passed: number; failed: number };
+    scope: string | null;
+    tests: { test: string; path: string | null; outcome: string; reason: string | null }[];
+  } | null;
 };
 
 export type TimelineRequest = {
@@ -189,6 +209,46 @@ export function affectedTestsOf(section: string | null): { count: number; first:
   return { count: names.length + Number(m[2] ?? 0), first: names.slice(0, 4) };
 }
 
+const TDD_LIST = 40;
+const pair = (v: unknown): { passed: number; failed: number } => ({ passed: num(obj(v).passed) ?? 0, failed: num(obj(v).failed) ?? 0 });
+
+/** The `tdd` object of a builder step, trimmed for the view; null when the step has none (older attempts). */
+export function tddOf(raw: unknown): TimelineTdd | null {
+  const t = obj(raw);
+  if (t.status !== 'passed' && t.status !== 'red' && t.status !== 'skipped') return null;
+  const g = obj(t.green);
+  return {
+    status: t.status,
+    loops: num(t.loops) ?? 0,
+    skipped: cut(t.skipped, 300),
+    stopped: cut(t.stopped, 40),
+    notes: Array.isArray(t.notes) ? t.notes.filter((x): x is string => typeof x === 'string').slice(0, 5).map((x) => cut(x, 300) ?? '') : [],
+    red: (Array.isArray(t.red) ? t.red : []).slice(0, TDD_LIST).map((x) => ({
+      criterion: cut(obj(x).criterion, 40) ?? '',
+      test: cut(obj(x).test, 160) ?? '',
+      path: cut(obj(x).path, 160) ?? '',
+      outcome: cut(obj(x).outcome, 40) ?? '',
+      reason: cut(obj(x).reason, 240),
+    })),
+    green: Object.keys(g).length > 0
+      ? {
+          passed: num(g.passed) ?? 0,
+          failed: num(g.failed) ?? 0,
+          failing_on_main: num(g.failing_on_main) ?? 0,
+          criterion: pair(g.criterion),
+          selected: pair(g.selected),
+          scope: cut(g.scope, 300),
+          tests: (Array.isArray(g.tests) ? g.tests : []).slice(0, TDD_LIST).map((x) => ({
+            test: cut(obj(x).test, 160) ?? '',
+            path: cut(obj(x).path, 160),
+            outcome: cut(obj(x).outcome, 40) ?? '',
+            reason: cut(obj(x).reason, 240),
+          })),
+        }
+      : null,
+  };
+}
+
 function builderOf(rows: TimelineStepRow[]): TimelineAttempt['builder'] {
   const row = [...rows].reverse().find((r) => r.stage === 'builder' && (r.outcome === 'ok' || r.outcome === 'failed'));
   if (!row) return null;
@@ -230,6 +290,7 @@ function builderOf(rows: TimelineStepRow[]): TimelineAttempt['builder'] {
           first: d.test_reuse.slice(0, 3).map((x) => ({ criterion: cut(obj(x).criterion, 40) ?? '', path: cut(obj(x).path, 120) ?? '' })),
         }
       : null,
+    tdd: tddOf(d.tdd),
   };
 }
 

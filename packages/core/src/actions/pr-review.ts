@@ -150,6 +150,29 @@ registerBuilder('pr_review', async ({ trx, projectId, scope, input, graphVersion
       return [];
     }
   })();
+  // The test-driven check DEMIURGO ran before the push (build step detail `tdd`, tdd.ts): which criterion tests passed on main without the change.
+  const tdd = await (async () => {
+    try {
+      const step = await trx
+        .selectFrom('build_steps')
+        .select('detail')
+        .where('build_request_id', '=', request.id)
+        .where('stage', '=', 'builder')
+        .orderBy('created_at', 'desc')
+        .orderBy('id', 'desc')
+        .executeTakeFirst();
+      const t = (step?.detail as { tdd?: { status?: string; loops?: number; red?: { criterion: string; test: string; path: string; outcome: string }[]; green?: { passed?: number; failed?: number; failing_on_main?: number } | null } } | null | undefined)?.tdd;
+      if (!t || t.status === 'skipped' || !Array.isArray(t.red)) return null;
+      return {
+        status: t.status,
+        loops: t.loops ?? 0,
+        red: t.red.slice(0, 20).map((r) => ({ criterion: r.criterion, test: r.test, path: r.path, outcome: r.outcome })),
+        ...(t.green ? { green: { passed: t.green.passed ?? 0, failed: t.green.failed ?? 0, failing_on_main: t.green.failing_on_main ?? 0 } } : {}),
+      };
+    } catch {
+      return null;
+    }
+  })();
   const testCounts = testCountsOf(criteria, testsInDiff(input.diff));
   // Jev's triage: hints and a reading order, pointers only. Best effort: no key or any failure means none.
   let hints: string[] = [];
@@ -196,6 +219,8 @@ registerBuilder('pr_review', async ({ trx, projectId, scope, input, graphVersion
     manifest.entered({ section: 'test_counts', source: inputSource('diff'), text: JSON.stringify(testCounts), reason: 'derived' });
   if (reuseHints.length > 0)
     manifest.entered({ section: 'reuse_hints', source: inputSource('build_steps'), text: JSON.stringify(reuseHints), reason: 'derived' });
+  if (tdd)
+    manifest.entered({ section: 'tdd', source: inputSource('build_steps'), text: JSON.stringify(tdd), reason: 'derived' });
   if (previousReview)
     manifest.entered({ section: 'previous_review', source: inputSource('previous_review'), text: JSON.stringify(previousReview), reason: 'input' });
   if (previousReview && sinceChanges !== null)
@@ -217,6 +242,7 @@ registerBuilder('pr_review', async ({ trx, projectId, scope, input, graphVersion
         ci,
         ...(criteria.length > 0 ? { test_counts: testCounts } : {}),
         ...(reuseHints.length > 0 ? { reuse_hints: reuseHints } : {}),
+        ...(tdd ? { tdd } : {}),
         ...(previousReview ? { previous_review: previousReview } : {}),
         ...(previousReview && sinceChanges !== null ? { changes_since_previous_review: sinceChanges } : {}),
         ...(hints.length > 0 ? { hints } : {}),

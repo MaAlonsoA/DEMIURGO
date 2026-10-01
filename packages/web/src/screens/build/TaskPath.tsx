@@ -5,7 +5,7 @@
 
 import { Link } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import type { TimelineAttempt, TimelineContext, TimelineRequest } from "../../api/types.ts";
+import type { TimelineAttempt, TimelineContext, TimelineRequest, TimelineTdd } from "../../api/types.ts";
 import { Code } from "../../components/Badge.tsx";
 import { Who } from "../../components/Who.tsx";
 import { cn } from "../../lib/cn.ts";
@@ -441,6 +441,48 @@ function CiFailures({ failures, t }: { failures: TimelineAttempt["ci_failures"];
   );
 }
 
+/** The test-driven check of an attempt: RED on main, GREEN with the change, the loops, and each test (collapsed). */
+function Tdd({ tdd, t }: { tdd: TimelineTdd | null; t: Words }) {
+  if (!tdd) return <span className="text-fg-2">{t.tpNotKept}</span>;
+  if (tdd.status === "skipped") return <span className="text-fg-2">{t.tpTddSkipped(tdd.skipped ?? "")}</span>;
+  const redFailed = tdd.red.filter((r) => r.outcome === "failed").length;
+  const redBad = tdd.red.filter((r) => r.outcome === "passed").length;
+  const redAlready = tdd.red.filter((r) => r.outcome === "already_green_on_main").length;
+  const g = tdd.green;
+  const total = g ? g.criterion.passed + g.criterion.failed : 0;
+  const greenOk = g !== null && g.failed === 0;
+  const listed = [...tdd.red.map((r) => ({ key: `r-${r.criterion}-${r.test}`, phase: t.tpTddRedLabel, code: r.criterion, name: r.test, path: r.path, outcome: r.outcome, reason: r.reason, bad: r.outcome === "passed" })), ...(g?.tests ?? []).map((x, i) => ({ key: `g-${i}-${x.test}`, phase: t.tpTddGreenLabel, code: null as string | null, name: x.test, path: x.path, outcome: x.outcome, reason: x.reason, bad: x.outcome === "failed" }))];
+  return (
+    <div className="flex flex-col gap-0.5" data-tdd={tdd.status}>
+      <span className={redBad > 0 ? "text-danger-text" : undefined}>{redBad > 0 ? t.tpTddRedBad(redBad) : t.tpTddRedOk(redFailed, redAlready)}</span>
+      {g ? <span className={greenOk ? undefined : "text-danger-text"}>{t.tpTddGreen(g.criterion.passed, total, g.selected.passed, greenOk)}</span> : null}
+      {g && g.failing_on_main > 0 ? <span className="text-xs text-fg-2">{t.tpTddMain(g.failing_on_main)}</span> : null}
+      {tdd.loops > 0 ? <span className="text-xs text-fg-2">{t.tpTddLoops(tdd.loops)}</span> : null}
+      {tdd.stopped ? <span className="text-xs text-danger-text">{t.tpTddStopped(tdd.stopped)}</span> : null}
+      {g?.scope ? <span className="break-words text-xs text-fg-3">{g.scope}</span> : null}
+      {tdd.notes.map((n) => (
+        <span key={n} className="break-words text-xs text-fg-3">
+          {n}
+        </span>
+      ))}
+      {listed.length > 0 ? (
+        <details>
+          <summary className="cursor-pointer text-xs text-fg-2">{t.tpTddShow}</summary>
+          <ul className="mt-1 flex flex-col gap-1">
+            {listed.map((x) => (
+              <li key={x.key} className="min-w-0 break-words text-xs">
+                <span className="text-fg-3">{x.phase}</span> {x.code ? <Code>{x.code}</Code> : null} <span className={x.bad ? "text-danger-text" : undefined}>{x.name}</span> · {t.tpTddOutcome(x.outcome)}
+                {x.path ? <span className="block break-all font-code text-fg-3">{x.path}</span> : null}
+                {x.reason ? <span className="block break-words font-code text-fg-2">{x.reason}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
 function Came({ request, attempt, t }: { request: TimelineRequest; attempt: TimelineAttempt; t: Words }) {
   const b = attempt.builder;
   const o = attempt.out;
@@ -461,6 +503,11 @@ function Came({ request, attempt, t }: { request: TimelineRequest; attempt: Time
       </Row>
       {b?.notes ? <Row label={t.tpSaid}>{b.notes}</Row> : null}
       {b?.tests_written ? <Row label={t.tpTests}>{b.tests_written}</Row> : null}
+      {b ? (
+        <Row label={t.tpTdd}>
+          <Tdd tdd={b.tdd} t={t} />
+        </Row>
+      ) : null}
       <Row label={t.tpPr}>
         {o.pr_number ? (
           request.pr_url ? (

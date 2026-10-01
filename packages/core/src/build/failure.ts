@@ -4,7 +4,7 @@
 
 import { isQuotaError } from '@demiurgo/domain';
 
-export const BUILD_FAILURE_KINDS = ['usage_limit', 'login', 'timeout', 'out_of_memory', 'cancelled', 'infra', 'other'] as const;
+export const BUILD_FAILURE_KINDS = ['usage_limit', 'login', 'timeout', 'out_of_memory', 'cancelled', 'infra', 'tdd_red', 'other'] as const;
 export type BuildFailureKind = (typeof BUILD_FAILURE_KINDS)[number];
 
 /** The excerpt kept in the step: the last characters of what the builder printed (our convention). */

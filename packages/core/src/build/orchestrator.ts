@@ -82,6 +82,8 @@ import { mkdir, readdir, rm } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { type BuilderSession, builderSessionPlan, sessionFilesExist } from './session.ts';
 import { basename, join } from 'node:path';
+import type { DockerExec } from '../runner/environment.ts';
+import { type TddDetail, mergeBuilderResults, tddFeedbackLines, tddSummary, verifyTdd } from './tdd.ts';
 
 const BUILD = system('build', '1');
 const REVIEW_STATUS = 'demiurgo/review';
@@ -118,6 +120,8 @@ export type BuildDeps = {
   /** Prepares the CI-like environment before the builder and removes it afterwards (the tests replace both). */
   prepareEnvironment: typeof prepareEnvironment;
   teardownEnvironment: typeof teardownEnvironment;
+  /** Runs the containers of the test-driven gate (tdd.ts); the tests replace it. */
+  tddExec?: DockerExec;
   /** Durable sleep between polls. */
   sleep: (ms: number) => Promise<void>;
   /** Pause between polls of CI, the reviewer and the merge (5 s: our convention, so a result shows within seconds). */
@@ -132,8 +136,9 @@ export type BuildDeps = {
   reviewTimeoutMs: number;
   /**
    * How many attempts DEMIURGO starts by itself after the person's one, when CI is red or the reviewer
-   * asks for changes with a blocking comment. 2 is our convention (not a published standard): enough to
-   * fix what the first review found, little enough not to burn the subscription quota on a loop.
+   * asks for changes with a blocking comment. 15 is the person's decision (01-10): no practical limit on
+   * DEMIURGO's own attempts, only a safety cap; the reviewer's needs_person and the escalation rules still
+   * stop earlier.
    */
   autoFollowUps: number;
 };
@@ -150,7 +155,7 @@ const defaults = (): BuildDeps => ({
   ciAppearMs: 15 * 60_000,
   mergeTimeoutMs: 24 * 3_600_000,
   reviewTimeoutMs: 3_600_000,
-  autoFollowUps: 2,
+  autoFollowUps: 15,
 });
 
 let deps: BuildDeps = defaults();
@@ -268,11 +273,11 @@ async function load(s: Services, r: Run): Promise<Loaded> {
   };
 }
 
-type Feedback = { blocking: string[]; fixes: string[]; failing: string[]; failures: CiFailureDetail[]; design: string[]; ownership: string[]; flaky: string[]; conflicts: string[]; wip?: { sha: string; files: string[] }; progress?: string; history?: string[] };
+type Feedback = { tdd?: string[]; blocking: string[]; fixes: string[]; failing: string[]; failures: CiFailureDetail[]; design: string[]; ownership: string[]; flaky: string[]; conflicts: string[]; wip?: { sha: string; files: string[] }; progress?: string; history?: string[] };
 
 const NO_FEEDBACK: Feedback = { blocking: [], fixes: [], failing: [], failures: [], design: [], ownership: [], flaky: [], conflicts: [] };
 
-type BuilderStepDetail = { provider?: string; model?: string; session?: { mode: 'fresh' | 'resumed'; id?: string; reason?: string }; failure_kind?: string; exit_code?: number | null; wip_commit?: string; wip_files?: string[]; timed_out_twice?: boolean; progress?: string };
+type BuilderStepDetail = { provider?: string; model?: string; session?: { mode: 'fresh' | 'resumed'; id?: string; reason?: string }; failure_kind?: string; exit_code?: number | null; wip_commit?: string; wip_files?: string[]; timed_out_twice?: boolean; progress?: string; tdd?: TddDetail };
 
 /** Characters of the builder's progress notes kept and handed to the next attempt (our convention). */
 const PROGRESS_MAX_CHARS = 4000;
@@ -388,8 +393,10 @@ async function feedbackOf(s: Services, r: Run): Promise<Feedback> {
   const ownership = (designDetail?.ownership ?? []).map(ownershipLine);
   const previous = r.attempt > 1 ? await failedBuilderStep(s, r.requestId, r.attempt - 1) : null;
   const wip = previous?.failure_kind === 'timeout' && previous.wip_commit ? { sha: previous.wip_commit, files: previous.wip_files ?? [] } : undefined;
+  // A test-driven check still red when the previous builder stopped (tdd.ts): the failing tests, as the builder was told in its loops.
+  const tdd = previous?.failure_kind === 'tdd_red' && previous.tdd ? tddFeedbackLines(previous.tdd) : [];
   const progress = r.attempt > 1 ? await previousProgress(s, r.requestId, r.attempt - 1) : undefined;
-  return { blocking, fixes, failing: recorded.map((t) => t.code), failures: evidenceDetail?.failures ?? [], design: violations.map(violationLine), ownership, flaky: (evidenceDetail?.flaky ?? []).filter((c) => !(evidenceDetail?.quarantined ?? []).includes(c)), conflicts: [], ...(wip ? { wip } : {}), ...(progress ? { progress } : {}) };
+  return { blocking, fixes, failing: recorded.map((t) => t.code), failures: evidenceDetail?.failures ?? [], design: violations.map(violationLine), ownership, flaky: (evidenceDetail?.flaky ?? []).filter((c) => !(evidenceDetail?.quarantined ?? []).includes(c)), conflicts: [], ...(wip ? { wip } : {}), ...(progress ? { progress } : {}), ...(tdd.length > 0 ? { tdd } : {}) };
 }
 
 const violationLine = (v: DesignViolation): string => `${v.path}${v.line ? `:${v.line}` : ''} (rule ${v.rule}): ${v.message}`;
@@ -434,7 +441,7 @@ function promptOf(
     : [body, '', '# Brief', brief, ...(code.length > 0 ? ['', ...code] : []), ...(earlier.length > 0 ? ['', ...earlier] : []), ...designSection(design)];
   const progress = resumed ? undefined : f.progress;
   const history = resumed ? [] : (f.history ?? []);
-  if (attempt > 1 && (f.wip || f.conflicts.length > 0 || f.blocking.length > 0 || f.fixes.length > 0 || f.failing.length > 0 || f.failures.length > 0 || f.design.length > 0 || f.ownership.length > 0 || f.flaky.length > 0 || progress || history.length > 0)) {
+  if (attempt > 1 && (f.wip || f.conflicts.length > 0 || f.blocking.length > 0 || f.fixes.length > 0 || f.failing.length > 0 || f.failures.length > 0 || f.design.length > 0 || f.ownership.length > 0 || f.flaky.length > 0 || progress || history.length > 0 || (f.tdd?.length ?? 0) > 0)) {
     lines.push('', `# Feedback on the previous attempt (this is attempt ${attempt} on the same branch)`);
     if (f.wip) {
       lines.push(
@@ -444,6 +451,7 @@ function promptOf(
       );
     }
     if (progress) lines.push('Progress notes from the previous attempt:', progress.trim());
+    if (f.tdd && f.tdd.length > 0) lines.push(...f.tdd);
     if (history.length > 0) lines.push(...history);
     if (f.conflicts.length > 0) {
       lines.push(
@@ -560,7 +568,7 @@ async function retryBuilder(s: Services, r: Run): Promise<number | null> {
     .orderBy('created_at', 'desc')
     .executeTakeFirst()) as { detail: BuilderStepDetail | null } | undefined;
   // A timeout is retried once, and only when its work was kept on the branch (our convention).
-  const retryable = step?.detail?.failure_kind === 'other' || (step?.detail?.failure_kind === 'timeout' && Boolean(step.detail.wip_commit) && !step.detail.timed_out_twice);
+  const retryable = step?.detail?.failure_kind === 'other' || step?.detail?.failure_kind === 'tdd_red' || (step?.detail?.failure_kind === 'timeout' && Boolean(step.detail.wip_commit) && !step.detail.timed_out_twice);
   if (!step || !retryable) return null;
   const latest = await s.db
     .selectFrom('build_steps')
@@ -572,7 +580,9 @@ async function retryBuilder(s: Services, r: Run): Promise<number | null> {
   const reason =
     step.detail?.failure_kind === 'timeout'
       ? 'The builder ran out of time; its work is committed on the branch and a new attempt continues from it.'
-      : `The builder ended with exit code ${step.detail?.exit_code ?? 'unknown'}; trying once more.`;
+      : step.detail?.failure_kind === 'tdd_red'
+        ? 'The tests were still red after the builder was sent back (RED or GREEN); nothing was pushed. A new attempt continues from the work on the branch.'
+        : `The builder ended with exit code ${step.detail?.exit_code ?? 'unknown'}; trying once more.`;
   await record({ ...r, attempt: r.attempt + 1 }, 'repo', 'started', { started_by: formatActor(BUILD), automatic: true, reason });
   return r.attempt + 1;
 }
@@ -776,7 +786,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       }
     })();
     const feedback: Feedback = { ...feedbackBase, history: earlierContext.history };
-    const result = await d.runBuilder(
+    const first = await d.runBuilder(
       {
         worktreeHostPath: hostPathOf(worktree.path),
         gitDir: { hostPath: hostPathOf(join(info.repoDir, '.git')), containerPath: join(info.repoDir, '.git') },
@@ -792,9 +802,56 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       { worktreePath: worktree.path, signal: control.signal, containerName: `demiurgo-build-${requestId}` },
     ).finally(async () => {
       if (builders.get(requestId) === control) builders.delete(requestId);
-      // Success, failure, timeout or withdrawal: the build's database goes with the attempt.
-      if (prepared) await d.teardownEnvironment(slug, requestId).catch(() => undefined);
     });
+    // Test-driven gate (tdd.ts), before the commit and the push: the task's criterion tests must fail on main (RED) and the
+    // selected suite must pass with the change (GREEN); otherwise the builder is sent back in its session (up to TDD_MAX_LOOPS).
+    // It runs inside this step, in the builder's environment, so the step order does not change.
+    const gate =
+      first.state === 'ok' && prepared
+        ? await (async () => {
+            builders.set(requestId, control);
+            try {
+              const row = await s0.db.selectFrom('build_requests').select('task_id').where('id', '=', requestId).executeTakeFirstOrThrow();
+              const criteria = await taskCoversOf(s0.db, row.task_id);
+              const affectedBy = await loadAffectedCriteria(s0.db, projectId, { id: row.task_id, versionId: info.taskVersionId }, await changedWithPending(worktree.path).catch(() => [])).catch(() => null);
+              return await verifyTdd({
+                worktreePath: worktree.path,
+                requestId,
+                criteria,
+                affected: affectedBy,
+                prepared,
+                ...(d.tddExec ? { exec: d.tddExec } : {}),
+                signal: control.signal,
+                session: first.sessionId ?? sessionId,
+                rerun: (prompt, loop, session) =>
+                  d.runBuilder(
+                    {
+                      worktreeHostPath: hostPathOf(worktree.path),
+                      gitDir: { hostPath: hostPathOf(join(info.repoDir, '.git')), containerPath: join(info.repoDir, '.git') },
+                      provider,
+                      model: resolution.model,
+                      effort: resolution.effort ?? 'medium',
+                      prompt,
+                      session: { mode: 'resumed', id: session, hostDir: hostPathOf(sessionDir) },
+                      maxTimeMs: Math.min(agent.timeLimitSeconds * 1000, BUILDER_MAX_TIME_MS),
+                      limits: { cpus: 2, memoryMb: 4096, pids: 512 },
+                      network: prepared.network,
+                      storeVolume: prepared.storeVolume,
+                      env: prepared.env,
+                    },
+                    { worktreePath: worktree.path, signal: control.signal, containerName: `demiurgo-build-${requestId}-tdd${loop}` },
+                  ),
+              });
+            } catch {
+              return null;
+            } finally {
+              if (builders.get(requestId) === control) builders.delete(requestId);
+            }
+          })()
+        : null;
+    // Success, failure, timeout or withdrawal: the build's database goes with the attempt (after the gate used it).
+    if (prepared) await d.teardownEnvironment(slug, requestId).catch(() => undefined);
+    const result = gate ? mergeBuilderResults(first, gate.runs) : first;
     // The progress notes (Anthropic, «Effective harnesses for long-running agents») go to the step and the next attempt's prompt.
     const progressText = ((await readWorktreeFile(worktree.path, PROGRESS_PATH)) ?? '').trim().slice(0, PROGRESS_MAX_CHARS);
     // The report and the notes are DEMIURGO's, not the project's: they never enter the commit (nor the WIP one).
@@ -827,11 +884,14 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       ...(code.lines.length > 0 ? { code_to_extend: { commit: code.commit, files: code.files, classifier_id: code.classifier_id, section: codeLines.join('\n') } } : {}),
       ...(wip ? { wip_commit: wip.sha, wip_files: wip.files, ...(wip.pushError ? { wip_push_error: wip.pushError } : {}) } : {}),
       ...(twice ? { timed_out_twice: true, branch: worktree.branch } : {}),
+      ...(gate ? { tdd: gate.detail } : {}),
       ...(kind ? { failure_kind: kind, transcript_excerpt: failureExcerpt({ stderr: result.stderrTail, transcript: result.transcriptTail }) } : {}),
     };
     if (failed) {
       return { outcome: 'failed' as const, detail: { ...detail, error: `The builder ended with ${result.failureKind ?? `exit code ${result.exitCode}`}.` } };
     }
+    // Still red after the cap (or with no session to resume): nothing is committed or pushed; the next attempt gets the failing tests.
+    if (gate?.stopped === 'red') return { outcome: 'failed' as const, detail: { ...detail, failure_kind: 'tdd_red', error: tddSummary(gate.detail) } };
     return { value: { report: result.report }, detail };
   });
   // The builder step tears the environment down itself; this covers a builder that failed before it ran.

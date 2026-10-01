@@ -648,6 +648,7 @@ export type FeatureTask = {
   dropped?: boolean;
 };
 
+type TaskSupersession = { code: string; title: string; version: number; point: string | null };
 type TaskLink = { ref: string; title: string; code: string | null; state: string };
 
 /** A task's whole page: the same shape for an approved task and for a draft the task planner proposed. */
@@ -706,6 +707,9 @@ export type TaskView = {
   touches?: TaskTouches;
   depends_on: TaskLink[];
   blocks: TaskLink[];
+  /** `supersedes` links: the tasks this one supersedes, and the later tasks that supersede it (with the point). */
+  supersedes: TaskSupersession[];
+  superseded_by: TaskSupersession[];
   dod: { item: string; met: boolean }[];
   development: {
     branch: string | null;
@@ -1285,6 +1289,24 @@ export type DeliveryMetrics = {
 
 export type TimelineSegment = { stage: string; kind: 'prep' | 'builder' | 'light' | 'review' | 'wait' | 'main'; start: string; end: string; outcome: string; reason?: string };
 
+export type TimelineTdd = {
+  status: 'passed' | 'red' | 'skipped';
+  loops: number;
+  skipped: string | null;
+  stopped: string | null;
+  notes: string[];
+  red: { criterion: string; test: string; path: string; outcome: string; reason: string | null }[];
+  green: {
+    passed: number;
+    failed: number;
+    failing_on_main: number;
+    criterion: { passed: number; failed: number };
+    selected: { passed: number; failed: number };
+    scope: string | null;
+    tests: { test: string; path: string | null; outcome: string; reason: string | null }[];
+  } | null;
+};
+
 export type TimelineAttempt = {
   n: number;
   start: string;
@@ -1324,6 +1346,7 @@ export type TimelineAttempt = {
     wip_files: number;
     wip_file_names: string[];
     test_reuse: { count: number; first: { criterion: string; path: string }[] } | null;
+    tdd: TimelineTdd | null;
   } | null;
   out: {
     pr_number: number | null;

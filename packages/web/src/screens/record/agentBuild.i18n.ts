@@ -37,6 +37,8 @@ export const AGENT_BUILD = messages(
             : 'Stopped: the builder ran out of time and left nothing to continue from. The task may be too big: consider splitting it.';
         case 'out_of_memory':
           return 'Stopped: the builder ran out of memory and was killed.';
+        case 'tdd_red':
+          return 'Stopped: the tests were still red after the builder was sent back (a new test passed on main without the change, or a test failed with it). Nothing was pushed.';
         case 'cancelled':
           return 'Stopped: the build was cancelled.';
         case 'infra':
@@ -106,6 +108,8 @@ export const AGENT_BUILD = messages(
             : 'Detenida: el constructor se quedó sin tiempo y no dejó nada desde lo que continuar. Puede que la tarea sea demasiado grande: plantéate dividirla.';
         case 'out_of_memory':
           return 'Detenida: el constructor se quedó sin memoria y se cortó.';
+        case 'tdd_red':
+          return 'Detenida: las pruebas seguían en rojo tras devolver el trabajo al constructor (una prueba nueva pasaba en main sin el cambio, o una prueba fallaba con él). No se subió nada.';
         case 'cancelled':
           return 'Detenida: la construcción se canceló.';
         case 'infra':

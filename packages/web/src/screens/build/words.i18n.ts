@@ -276,6 +276,35 @@ export const BUILD = messages(
     tpBuilderRun: 'Builder run',
     tpSaid: 'What the builder said',
     tpTests: 'Tests written',
+    tpTdd: 'Test-driven',
+    tpTddSkipped: (reason: string) => `Not checked: ${reason}`,
+    tpTddRedOk: (failed: number, already: number) =>
+      `${failed > 0 ? `Red: ${failed} ${failed === 1 ? 'test fails' : 'tests fail'} without the change ✓` : 'Red: no new test to check'}${already > 0 ? ` · ${already} already green on main` : ''}`,
+    tpTddRedBad: (n: number) => `Red: ${n} ${n === 1 ? 'test passes' : 'tests pass'} on main without the change ✗`,
+    tpTddGreen: (passed: number, total: number, selected: number, ok: boolean) => `Green: ${passed}/${total} + ${selected} selected ${ok ? '✓' : '✗'}`,
+    tpTddMain: (n: number) => `${n} failing on main too (not caused by this change, does not block)`,
+    tpTddLoops: (n: number) => `${n} ${n === 1 ? 'loop' : 'loops'} back to the builder`,
+    tpTddStopped: (why: string): string =>
+      why === 'cap'
+        ? 'Still red after the limit of loops: nothing was committed or pushed.'
+        : why === 'no_session'
+          ? 'Still red and the builder session could not be resumed: nothing was committed or pushed.'
+          : 'The builder stopped while sending it back.',
+    tpTddShow: 'Show each test',
+    tpTddOutcome: (outcome: string): string =>
+      outcome === 'failed'
+        ? 'fails'
+        : outcome === 'passed'
+          ? 'passes'
+          : outcome === 'already_green_on_main'
+            ? 'already green on main'
+            : outcome === 'failing_on_main'
+              ? 'fails on main too'
+              : outcome === 'not_run'
+                ? 'not run'
+                : outcome,
+    tpTddRedLabel: 'Red (main)',
+    tpTddGreenLabel: 'Green (change)',
     tpPr: 'Pull request',
     tpCi: 'CI',
     tpCiValue: (c: string, updated: boolean) => `${c}${updated ? ', again after updating the branch with main' : ''}`,
@@ -560,6 +589,35 @@ export const BUILD = messages(
     tpBuilderRun: 'Ejecución del constructor',
     tpSaid: 'Lo que dijo el constructor',
     tpTests: 'Pruebas escritas',
+    tpTdd: 'Guiado por pruebas',
+    tpTddSkipped: (reason: string) => `No comprobado: ${reason}`,
+    tpTddRedOk: (failed: number, already: number) =>
+      `${failed > 0 ? `Rojo: ${failed} ${failed === 1 ? 'prueba falla' : 'pruebas fallan'} sin el cambio ✓` : 'Rojo: ninguna prueba nueva que comprobar'}${already > 0 ? ` · ${already} ya en verde en main` : ''}`,
+    tpTddRedBad: (n: number) => `Rojo: ${n} ${n === 1 ? 'prueba pasa' : 'pruebas pasan'} en main sin el cambio ✗`,
+    tpTddGreen: (passed: number, total: number, selected: number, ok: boolean) => `Verde: ${passed}/${total} + ${selected} seleccionadas ${ok ? '✓' : '✗'}`,
+    tpTddMain: (n: number) => `${n} también ${n === 1 ? 'falla' : 'fallan'} en main (no las causa este cambio, no bloquea)`,
+    tpTddLoops: (n: number) => `${n} ${n === 1 ? 'vuelta' : 'vueltas'} al constructor`,
+    tpTddStopped: (why: string): string =>
+      why === 'cap'
+        ? 'Sigue en rojo tras el límite de vueltas: no se hizo commit ni push.'
+        : why === 'no_session'
+          ? 'Sigue en rojo y no se pudo reanudar la sesión del constructor: no se hizo commit ni push.'
+          : 'El constructor se detuvo cuando se le devolvía el trabajo.',
+    tpTddShow: 'Ver cada prueba',
+    tpTddOutcome: (outcome: string): string =>
+      outcome === 'failed'
+        ? 'falla'
+        : outcome === 'passed'
+          ? 'pasa'
+          : outcome === 'already_green_on_main'
+            ? 'ya en verde en main'
+            : outcome === 'failing_on_main'
+              ? 'falla también en main'
+              : outcome === 'not_run'
+                ? 'no se ejecutó'
+                : outcome,
+    tpTddRedLabel: 'Rojo (main)',
+    tpTddGreenLabel: 'Verde (cambio)',
     tpPr: 'Pull request',
     tpCi: 'CI',
     tpCiValue: (c: string, updated: boolean) => `${c}${updated ? ', otra vez tras actualizar la rama con main' : ''}`,

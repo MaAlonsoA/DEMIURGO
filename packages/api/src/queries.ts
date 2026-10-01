@@ -49,6 +49,7 @@ import {
   composeBrief,
   coherenceStatus,
   githubConfig,
+  loadProjectMap,
 } from '@demiurgo/core';
 import type { Credential } from './credentials.ts';
 
@@ -420,6 +421,12 @@ registerQueries([
     queryName: 'query.events',
     respond: ({ services, params, query }) =>
       changesSince(services.db, uuid(params.projectId, 'project'), /^\d+$/.test(query.since ?? '') ? String(query.since) : '0'),
+  },
+  {
+    // The code map: features onto files, hotspots and owners (core build/project-map.ts).
+    path: '/api/projects/:projectId/code-map',
+    queryName: 'query.records',
+    respond: ({ services, params }) => loadProjectMap(services.db, uuid(params.projectId, 'project')),
   },
   {
     // The project's repository (core repo/repo.ts): its folder and the commits DEMIURGO made, newest first.

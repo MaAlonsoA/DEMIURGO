@@ -3,6 +3,7 @@
 
 import { queryOptions } from '@tanstack/react-query';
 import { ApiError, get, setCsrf } from './client.ts';
+import type { CodeMap } from './code-map-types.ts';
 import type {
   TaskView,
   AgentToken,
@@ -322,6 +323,13 @@ export const commitsQuery = (p: string) =>
     queryKey: ['p', p, 'commits'] as const,
     queryFn: () => get<ProjectCommits>(`${P(p)}/commits`),
     refetchInterval: 5000,
+  });
+
+/** How features map onto code: files per feature, hotspots and owners of tables and routes. */
+export const codeMapQuery = (p: string) =>
+  queryOptions({
+    queryKey: ['p', p, 'code-map'] as const,
+    queryFn: () => get<CodeMap>(`${P(p)}/code-map`),
   });
 
 /** What the project's agents consumed, per agent. Under 'runs' so every run event refreshes it. */

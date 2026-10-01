@@ -61,7 +61,9 @@ import { affectedTests, affectedTestsLine, buildCodeMap } from './code-map.ts';
 import type { Services } from '../services.ts';
 import { commitAll, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, changedOnBranch, addedOnBranch, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
 import { existsSync } from 'node:fs';
-import { rm } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { type BuilderSession, builderSessionPlan, sessionFilesExist } from './session.ts';
 import { basename, join } from 'node:path';
 
 const BUILD = system('build', '1');
@@ -253,7 +255,7 @@ type Feedback = { blocking: string[]; failing: string[]; design: string[]; owner
 
 const NO_FEEDBACK: Feedback = { blocking: [], failing: [], design: [], ownership: [], flaky: [], conflicts: [] };
 
-type BuilderStepDetail = { failure_kind?: string; exit_code?: number | null; wip_commit?: string; wip_files?: string[]; timed_out_twice?: boolean; progress?: string };
+type BuilderStepDetail = { provider?: string; model?: string; session?: { mode: 'fresh' | 'resumed'; id?: string; reason?: string }; failure_kind?: string; exit_code?: number | null; wip_commit?: string; wip_files?: string[]; timed_out_twice?: boolean; progress?: string };
 
 /** Characters of the builder's progress notes kept and handed to the next attempt (our convention). */
 const PROGRESS_MAX_CHARS = 4000;
@@ -272,6 +274,30 @@ async function failedBuilderStep(s: Services, requestId: string, attempt: number
     .orderBy('id', 'desc')
     .executeTakeFirst();
   return (row?.detail as BuilderStepDetail | null | undefined) ?? null;
+}
+
+/** The session plan of an attempt from the builder steps (ok or failed) of the earlier attempts of the request. */
+async function previousSessionPlan(s: Services, requestId: string, attempt: number, sessionDir: string, engine: { provider: string; model: string }): Promise<BuilderSession> {
+  if (attempt < 2) return builderSessionPlan([], engine);
+  const rows = await s.db
+    .selectFrom('build_steps')
+    .select('detail')
+    .where('build_request_id', '=', requestId)
+    .where('attempt', '<', attempt)
+    .where('stage', '=', 'builder')
+    .where('outcome', 'in', ['ok', 'failed'])
+    .orderBy('attempt')
+    .orderBy('created_at')
+    .orderBy('id')
+    .execute();
+  // Steps that reused an earlier builder (only the commit had failed) ran no agent: they carry no provider.
+  const ran = rows.map((x) => x.detail as BuilderStepDetail | null).filter((x): x is BuilderStepDetail & { provider: string; model: string } => Boolean(x?.provider && x.model));
+  const lastId = ran.at(-1)?.session?.id;
+  const filesExist = lastId ? await sessionFilesExist(sessionDir, lastId) : false;
+  return builderSessionPlan(
+    ran.map((x, i) => ({ provider: x.provider, model: x.model, session: x.session, filesExist: i === ran.length - 1 && filesExist })),
+    engine,
+  );
 }
 
 /** The progress notes the builder of an attempt left (ok or failed), or undefined. */
@@ -381,9 +407,14 @@ function promptOf(
   f: Feedback,
   design: { manifest: DesignManifest; manifestText: string; tokensText: string } | null = null,
   code: string[] = [],
+  resumed = false,
 ): string {
-  const lines = [body, '', '# Brief', brief, ...(code.length > 0 ? ['', ...code] : []), ...designSection(design)];
-  if (attempt > 1 && (f.wip || f.conflicts.length > 0 || f.blocking.length > 0 || f.failing.length > 0 || f.design.length > 0 || f.ownership.length > 0 || f.flaky.length > 0 || f.progress)) {
+  // A continued session already has the brief, the design system and its own notes: it only gets what is new.
+  const lines = resumed
+    ? [`# Continue (attempt ${attempt} on the same branch)`, 'You are continuing your previous session on this task: the brief and your earlier work are in this conversation. Read the new feedback below, fix what it names and keep to the same rules and report format.', ...(code.length > 0 ? ['', ...code] : [])]
+    : [body, '', '# Brief', brief, ...(code.length > 0 ? ['', ...code] : []), ...designSection(design)];
+  const progress = resumed ? undefined : f.progress;
+  if (attempt > 1 && (f.wip || f.conflicts.length > 0 || f.blocking.length > 0 || f.failing.length > 0 || f.design.length > 0 || f.ownership.length > 0 || f.flaky.length > 0 || progress)) {
     lines.push('', `# Feedback on the previous attempt (this is attempt ${attempt} on the same branch)`);
     if (f.wip) {
       lines.push(
@@ -392,7 +423,7 @@ function promptOf(
         "Finish within the time limit by keeping to the task's scope: do only what its criteria ask.",
       );
     }
-    if (f.progress) lines.push('Progress notes from the previous attempt:', f.progress.trim());
+    if (progress) lines.push('Progress notes from the previous attempt:', progress.trim());
     if (f.conflicts.length > 0) {
       lines.push(
         `The branch conflicts with main: the merge of origin/main into this branch is in progress and these files have conflict markers: ${f.conflicts.join(', ')}.`,
@@ -669,14 +700,23 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
     await storeCodeOpinions(s0.db, { projectId, buildRequestId: requestId, attempt, versionId: info.taskVersionId }, code).catch(() => undefined);
     const affected = await affectedLine(worktree.path, code.files, attempt > 1 && feedback.failing.length > 0);
     const codeLines = [...code.lines, ...(affected ? [affected] : [])];
+    // The session of this attempt: continued from the previous one or fresh (see `builderSessionPlan`). Its folder is per request and goes with the worktree.
+    const sessionDir = join(projectsDir() ?? '', '.sessions', requestId);
+    await mkdir(sessionDir, { recursive: true });
+    const provider = resolution.provider as 'claude' | 'codex';
+    const plan = await previousSessionPlan(s0, requestId, attempt, sessionDir, { provider, model: resolution.model });
+    // Claude takes the id of a new session up front; Codex announces it and the runner reports it back.
+    const freshId = plan.mode === 'fresh' && provider === 'claude' ? randomUUID() : undefined;
+    const sessionId = plan.mode === 'resumed' ? plan.id : freshId;
     const result = await d.runBuilder(
       {
         worktreeHostPath: hostPathOf(worktree.path),
         gitDir: { hostPath: hostPathOf(join(info.repoDir, '.git')), containerPath: join(info.repoDir, '.git') },
-        provider: resolution.provider as 'claude' | 'codex',
+        provider,
         model: resolution.model,
         effort: resolution.effort ?? 'medium',
-        prompt: promptOf(agent.body, info.brief, attempt, feedback, designSystem, codeLines),
+        prompt: promptOf(agent.body, info.brief, attempt, feedback, designSystem, codeLines, plan.mode === 'resumed'),
+        session: { mode: plan.mode, ...(sessionId ? { id: sessionId } : {}), hostDir: hostPathOf(sessionDir) },
         maxTimeMs: Math.min(agent.timeLimitSeconds * 1000, BUILDER_MAX_TIME_MS),
         limits: { cpus: 2, memoryMb: 4096, pids: 512 },
         ...(prepared ? { network: prepared.network, storeVolume: prepared.storeVolume, env: prepared.env } : {}),
@@ -703,6 +743,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       agent_version: agent.version,
       provider: resolution.provider,
       model: resolution.model,
+      session: { mode: plan.mode, ...(result.sessionId ?? sessionId ? { id: result.sessionId ?? sessionId } : {}), reason: plan.reason },
       exit_code: result.exitCode,
       duration_ms: result.durationMs,
       transcript_tail_length: result.transcriptTail.length,
@@ -1204,6 +1245,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
   });
   await plain('cleanup', async () => {
     await removeWorktree(info.repoDir, worktree.path).catch(() => undefined);
+    await rm(join(projectsDir() ?? '', '.sessions', requestId), { recursive: true, force: true }).catch(() => undefined);
   });
   return 'done';
 }

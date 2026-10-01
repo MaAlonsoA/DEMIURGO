@@ -61,6 +61,12 @@ export type BuilderSpec = {
   storeVolume?: string;
   /** Variables of the prepared environment (the CI's `DATABASE_URL`, ...). */
   env?: Record<string, string>;
+  /**
+   * The agent session of the task: `hostDir` is a per-task host folder mounted where the CLI keeps its sessions
+   * (Claude `projects/`, Codex `sessions/`) so it survives the container. Claude needs the id up front
+   * (`--session-id` when fresh, `--resume` when resumed); a fresh Codex session has none and reports it back.
+   */
+  session?: { mode: 'fresh' | 'resumed'; id?: string; hostDir: string };
 };
 
 export type BuilderResult = {
@@ -74,6 +80,8 @@ export type BuilderResult = {
   stderrTail?: string;
   report: BuildReport | null;
   container: string;
+  /** The agent session this run used or started, when the spec asked for one. */
+  sessionId?: string;
 };
 
 export type BuilderOptions = {
@@ -182,6 +190,9 @@ export function setupArguments(spec: SetupSpec, containerName: string, environme
 }
 
 const CLAUDE_TOOLS = 'Read,Edit,Write,Glob,Grep,Bash,WebSearch';
+const SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{7,99}$/;
+/** The thread id Codex announces in its first event. */
+const THREAD_STARTED = /"type"\s*:\s*"thread\.started"[^\n]*?"thread_id"\s*:\s*"([A-Za-z0-9_-]{8,100})"/;
 
 /** The CLI command inside the container (prompt on stdin). */
 function cliCommand(spec: BuilderSpec): string[] {
@@ -196,6 +207,22 @@ function cliCommand(spec: BuilderSpec): string[] {
       '--allowedTools', CLAUDE_TOOLS,
       '--disallowedTools', 'WebFetch',
       '--setting-sources', '',
+      ...(spec.session?.mode === 'resumed' && spec.session.id ? ['--resume', spec.session.id] : []),
+      ...(spec.session?.mode === 'fresh' && spec.session.id ? ['--session-id', spec.session.id] : []),
+    ];
+  }
+  if (spec.session?.mode === 'resumed' && spec.session.id) {
+    // `exec resume` has no -C: it runs in the container's working directory (/workspace).
+    return [
+      'codex', 'exec', 'resume', '--json',
+      '-m', spec.model,
+      '--dangerously-bypass-approvals-and-sandbox',
+      '-c', `model_reasoning_effort=${JSON.stringify(spec.effort)}`,
+      '-c', 'web_search="live"',
+      '--skip-git-repo-check',
+      '--ignore-user-config',
+      spec.session.id,
+      '-',
     ];
   }
   return [
@@ -256,6 +283,11 @@ export function builderArguments(spec: BuilderSpec, containerName: string, envir
   const copy = token
     ? `if [ -f /auth/${dir}/.claude.json ]; then cp /auth/${dir}/.claude.json "${config}"/; fi`
     : `cd /auth/${dir}; tar -cf - --exclude='*.lock' . | tar -xf - -C "${config}"`;
+  if (spec.session) {
+    if (!spec.session.hostDir.startsWith('/') || /[:,\0\n]/.test(spec.session.hostDir)) throw new Error(`Invalid session path: ${JSON.stringify(spec.session.hostDir)}.`);
+    if (spec.session.id !== undefined && !SESSION_ID.test(spec.session.id)) throw new Error('Invalid session id.');
+    if (spec.session.mode === 'resumed' && !spec.session.id) throw new Error('A resumed session needs its id.');
+  }
   const script = `set -eu; mkdir -p "${config}"; ${copy}; cd /workspace; exec "$@"`;
   const extra = environmentVariables(spec.env);
   const env: Record<string, string> = {
@@ -291,6 +323,7 @@ export function builderArguments(spec: BuilderSpec, containerName: string, envir
     '--mount', `type=bind,source=${spec.worktreeHostPath},target=/workspace`,
     ...(spec.gitDir ? ['--mount', `type=bind,source=${spec.gitDir.hostPath},target=${spec.gitDir.containerPath},readonly`] : []),
     '--mount', `type=volume,source=${volume},target=/auth,readonly`,
+    ...(spec.session ? ['--mount', `type=bind,source=${spec.session.hostDir},target=${config}/${spec.provider === 'claude' ? 'projects' : 'sessions'}`] : []),
     '--mount', `type=volume,source=${browsersVolume},target=${PW_BROWSERS_DIR}`,
     ...storeArguments(spec.storeVolume),
     '--workdir', '/workspace',
@@ -335,6 +368,9 @@ export async function runBuilder(spec: BuilderSpec, options: BuilderOptions = {}
   const errors = collector(64 * 1024);
   let stopReason: 'timeout' | 'cancelled' | undefined;
   let startupError: Error | undefined;
+  // A fresh Codex session announces its id in the first events: keep only the head of the stream to find it.
+  let threadId: string | undefined;
+  let head = '';
 
   const code = await new Promise<number | null>((resolve) => {
     let finished = false;
@@ -370,7 +406,13 @@ export async function runBuilder(spec: BuilderSpec, options: BuilderOptions = {}
       return;
     }
     options.signal?.addEventListener('abort', onAbort, { once: true });
-    child.stdout?.on('data', (t: Buffer) => output.add(t));
+    child.stdout?.on('data', (t: Buffer) => {
+      output.add(t);
+      if (spec.provider === 'codex' && spec.session?.mode === 'fresh' && threadId === undefined && head.length < 65_536) {
+        head += t.toString('utf8');
+        threadId = THREAD_STARTED.exec(head)?.[1];
+      }
+    });
     child.stderr?.on('data', (t: Buffer) => errors.add(t));
     child.on('error', (e) => {
       if (child.pid !== undefined) return;
@@ -386,6 +428,7 @@ export async function runBuilder(spec: BuilderSpec, options: BuilderOptions = {}
 
   const stderr = errors.text();
   const stdout = output.text();
+  const sessionId = spec.session ? (spec.provider === 'codex' && spec.session.mode === 'fresh' ? threadId : spec.session.id) : undefined;
   const base = {
     exitCode: code,
     durationMs: Math.round(performance.now() - start),
@@ -393,6 +436,7 @@ export async function runBuilder(spec: BuilderSpec, options: BuilderOptions = {}
     stderrTail: stderr.slice(-4000),
     report: await readReport(worktree),
     container: name,
+    ...(sessionId ? { sessionId } : {}),
   };
   if (stopReason !== undefined) return { state: 'failure', ...base, failureKind: stopReason };
   if (startupError !== undefined || code === null || code === 125 || (code !== 0 && DEAD_DAEMON_PATTERN.test(stderr))) {

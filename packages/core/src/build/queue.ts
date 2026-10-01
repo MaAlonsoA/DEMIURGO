@@ -55,6 +55,8 @@ export type QueueTask = {
   title: string;
   version: number | null;
   feature: { code: string; title: string } | null;
+  /** A technical task (an enabler: CI, tests, infrastructure): what it is based on instead of a feature; null for a feature's task. */
+  technical: { code: string; title: string; type: string } | null;
   epic: { code: string; title: string } | null;
   size: TaskSize | null;
   points: number | null;
@@ -316,7 +318,9 @@ export async function buildQueue(
   };
 
   const lineOf = (task: StateRow): QueueTask => {
-    const feature = task.based_on ? rows.byCode.get(task.based_on) : undefined;
+    const basis = task.based_on ? rows.byCode.get(task.based_on) : undefined;
+    const feature = basis?.type === "fdr" ? basis : undefined;
+    const technical = basis && !feature ? { code: basis.code, title: basis.title, type: basis.type } : null;
     const epic = epicOf(feature, rows);
     const size = task.effort?.size ?? null;
     return {
@@ -324,6 +328,7 @@ export async function buildQueue(
       title: task.title,
       version: task.current,
       feature: feature ? { code: feature.code, title: feature.title } : null,
+      technical,
       epic: epic ? { code: epic.code, title: epic.title } : null,
       size,
       points: size ? SIZE_POINTS[size] : null,
@@ -373,7 +378,7 @@ export async function buildQueue(
         // The one reason a changed feature gives, in the words of the Build page.
         reasons: suspect
           ? [
-              `Its feature changed: review before building (${suspect.upstream} v${suspect.from} is now v${suspect.to}).`,
+              `${t.based_on && rows.byCode.get(t.based_on)?.type !== "fdr" ? "What it is based on" : "Its feature"} changed: review before building (${suspect.upstream} v${suspect.from} is now v${suspect.to}).`,
               ...reasons.filter((r) => r !== suspectReason(suspect)),
             ]
           : reasons,
@@ -547,7 +552,8 @@ async function reuseContext(db: Db, projectId: string, code: string, rows: Rows)
   const row = rows.byCode.get(code);
   if (!row) return null;
   const deps = await loadTaskDependencies(db, projectId);
-  const feature = row.based_on;
+  // Only a feature's tasks touch the same files; tasks sharing a decision or the definition need not.
+  const feature = row.based_on && rows.byCode.get(row.based_on)?.type === "fdr" ? row.based_on : null;
   const group = new Map<string, number>();
   const put = (c: string, g: number) => {
     if (c !== code && !group.has(c)) group.set(c, g);
@@ -724,13 +730,20 @@ export async function composeBrief(
     .orderBy("position")
     .execute();
   const feature =
-    row.type === "task" && row.based_on
+    row.type === "task" && row.based_on && rows.byCode.get(row.based_on)?.type === "fdr"
+      ? rows.byCode.get(row.based_on)
+      : undefined;
+  // A technical task (an enabler) has no feature: it rests on a decision, a quality requirement or the definition.
+  const technicalBasis =
+    row.type === "task" && !feature && row.based_on
       ? rows.byCode.get(row.based_on)
       : undefined;
   const framed = feature ?? row;
   const epic = epicOf(framed, rows);
   const kind = row.type === "adr" ? "decision" : "feature";
-  const of = feature
+  const of = technicalBasis
+    ? `, a technical task (it improves how the product is built, tested or run; it is not a user feature) based on ${technicalBasis.code} "${technicalBasis.title}"`
+    : feature
     ? `, a task of feature ${feature.code} "${feature.title}"${epic ? ` in epic ${epic.code} "${epic.title}"` : ""}`
     : epic && epic.code !== row.code
       ? `, a ${kind} of epic ${epic.code} "${epic.title}"`
@@ -738,6 +751,7 @@ export async function composeBrief(
   const paths = [
     designPath(row.type, row.code),
     ...(feature ? [designPath("fdr", feature.code)] : []),
+    ...(technicalBasis ? [designPath(technicalBasis.type, technicalBasis.code)] : []),
     ...(epic && epic.code !== row.code ? [designPath("epic", epic.code)] : []),
   ];
   const repo = await repositoryOf(db, projectId);

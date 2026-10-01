@@ -1235,6 +1235,8 @@ export type QueueTask = {
   title: string;
   version: number | null;
   feature: { code: string; title: string } | null;
+  /** A technical task (enabler): what it rests on instead of a feature; absent or null for a feature's task. */
+  technical?: { code: string; title: string; type: string } | null;
   epic: { code: string; title: string } | null;
   size: TaskSize | null;
   points: number | null;

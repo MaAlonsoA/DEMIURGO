@@ -143,7 +143,10 @@ export async function versionReadiness(db: Db, projectId: string, versionId: str
   const basedOn: ReadinessInput['basedOn'] = [];
   const needs: ReadinessInput['needs'] = [];
   const linksUnderReview: string[] = [];
-  const bases = READINESS_BASES[v.type as RecordType] ?? [];
+  let bases = READINESS_BASES[v.type as RecordType] ?? [];
+  // A task rests on its feature; only one with no feature is a technical task (an enabler) resting on a decision,
+  // a quality requirement or the product definition.
+  if (v.type === 'task' && links.some((e) => e.type === 'based_on' && e.targetType === 'fdr')) bases = ['fdr'];
   for (const e of links) {
     if (e.type === 'based_on' && bases.includes(e.targetType as RecordType)) {
       const current = await currentOf(db, e.recordId);

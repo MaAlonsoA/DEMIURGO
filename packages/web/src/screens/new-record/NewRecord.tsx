@@ -127,6 +127,11 @@ export function NewRecordScreen() {
               <p id={hintId} className="text-sm text-fg-2" aria-live="polite">
                 {t.hint(form.type)}
               </p>
+              {form.type === 'task' ? (
+                <p className="text-sm text-fg-2" data-technical-task-help>
+                  {t.technicalTaskHelp}
+                </p>
+              ) : null}
               {form.kept.length > 0 ? (
                 <Notice tone="info" title={t.keptFromPreviousType}>
                   <p>{t.keptBody}</p>

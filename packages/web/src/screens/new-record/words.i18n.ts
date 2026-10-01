@@ -31,6 +31,8 @@ export const NEW_RECORD = messages(
       }`,
     savedAnnounce: (code: string, version: number) => `Saved: ${code} v${version} is a draft.`,
     product: 'Product',
+    technicalTaskHelp:
+      'Technical task: work that improves how the product is built, tested or run (CI, tests, infrastructure), not a user feature (SAFe enabler). Base it on the product definition, a decision or a quality requirement in Links, instead of a feature.',
     hint: (type: RecordType): string =>
       (
         ({
@@ -82,6 +84,8 @@ export const NEW_RECORD = messages(
       }`,
     savedAnnounce: (code: string, version: number) => `Guardado: ${code} v${version} es un borrador.`,
     product: 'Producto',
+    technicalTaskHelp:
+      'Tarea técnica: trabajo que mejora cómo se construye, prueba o ejecuta el producto (CI, pruebas, infraestructura), no una funcionalidad para el usuario (habilitador de SAFe). Basa la tarea en la definición del producto, una decisión o un requisito de calidad en Enlaces, en vez de una funcionalidad.',
     hint: (type: RecordType): string =>
       (
         ({

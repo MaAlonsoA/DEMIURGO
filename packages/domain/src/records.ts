@@ -260,14 +260,20 @@ export type Readiness = { ready: boolean; reasons: string[]; warnings: string[] 
 export const READINESS_BASES: Partial<Record<RecordType, readonly RecordType[]>> = {
   fdr: ['epic', 'product_definition', 'decision'],
   adr: ['fdr', 'product_definition', 'decision'],
-  task: ['fdr'],
+  // A feature, or, for a technical task (an enabler, SAFe), the product definition, a decision or a quality requirement.
+  task: ['fdr', 'adr', 'quality_requirement', 'product_definition'],
 };
+
+/** The types a technical task (one not based on a feature) can rest on. */
+export const TECHNICAL_BASES: readonly RecordType[] = ['adr', 'quality_requirement', 'product_definition'];
 
 const BASIS_NOUN: Record<string, string> = {
   epic: 'epic',
   product_definition: 'product definition',
   decision: 'decision',
   fdr: 'feature',
+  adr: 'decision',
+  quality_requirement: 'quality requirement',
 };
 
 const QUESTION_REASONS: Record<string, string> = {
@@ -317,7 +323,7 @@ export function readiness(e: ReadinessInput): Readiness {
         e.type === 'fdr'
           ? 'It is not based on any epic or on the product definition.'
           : e.type === 'task'
-            ? 'It is not based on any feature.'
+            ? 'It is not based on any feature, decision, quality requirement or the product definition.'
             : 'It is not based on any feature, on the product definition or on a decision.',
       );
     }

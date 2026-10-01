@@ -37,6 +37,7 @@ import { Bounces } from "./Bounces.tsx";
 import { BuildTimelineView } from "./Timeline.tsx";
 import { groupModuleWaiting, itemLabel, kindsOf } from "./moduleWaitingLogic.ts";
 import { sharesLine } from "./timelineLogic.ts";
+import { workKind } from "./technical.ts";
 import { BUILD } from "./words.i18n.ts";
 
 type Words = typeof BUILD.en;
@@ -76,6 +77,11 @@ function TaskLine({
         {task.feature ? (
           <span>
             {t.feature} <Code>{task.feature.code}</Code> {task.feature.title}
+          </span>
+        ) : null}
+        {workKind(task) === "technical" && task.technical ? (
+          <span data-technical-work>
+            {t.technicalWork} · {t.basedOn} <Code>{task.technical.code}</Code> {task.technical.title}
           </span>
         ) : null}
         {task.epic ? (

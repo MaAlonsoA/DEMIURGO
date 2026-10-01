@@ -811,6 +811,8 @@ export function Rail({
   const basedOn = version.links
     .filter((l) => l.type === 'based_on' && l.to_code)
     .map((l) => ({ code: l.to_code as string, title: l.to_title ?? (l.to_code as string) }));
+  // A task based on no feature is a technical task (an enabler): it rests on a decision, a quality requirement or the definition.
+  const technical = record.type === 'task' && basedOn.length > 0 && !basedOn.some((b) => b.code.startsWith('FDR-'));
   const child = record.type === 'fdr' ? 'task' : record.type === 'epic' ? 'fdr' : null;
   const seen = new Set<string>();
   const depends = record.incoming
@@ -825,6 +827,11 @@ export function Rail({
           <StatusWord status={status} />
         </Prop>
         {sized ? <Prop label={t.size}>{record.size ?? <span className="text-fg-3">{t.noSize}</span>}</Prop> : null}
+        {technical ? (
+          <Prop label={t.technicalTask} wide>
+            <span className="text-fg-2">{t.technicalTaskHelp}</span>
+          </Prop>
+        ) : null}
         {basedOn.length > 0 ? (
           <Prop label={t.basedOn} wide>
             <CodeLinks projectId={projectId} items={basedOn} />

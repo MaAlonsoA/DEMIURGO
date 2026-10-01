@@ -910,6 +910,7 @@ export const TASK_PAGE = messages(
     verdictApprove: 'Approved',
     verdictChanges: 'Changes requested',
     reviewComments: 'What the reviewer found',
+    severityFix: 'fix before merge',
     // Side panel.
     state: 'State',
     size: 'Size',
@@ -1010,6 +1011,7 @@ export const TASK_PAGE = messages(
     verdictApprove: 'Aprobada',
     verdictChanges: 'Pide cambios',
     reviewComments: 'Lo que ha encontrado el revisor',
+    severityFix: 'arreglar antes de fusionar',
     state: 'Estado',
     size: 'Tamaño',
     noSize: 'Sin tamaño',

@@ -70,3 +70,48 @@ export async function previousReviewOf(db: Services['db'], requestId: string, cu
     .executeTakeFirst();
   return shapePreviousReview(row, commit?.sha ?? null, currentHeadSha);
 }
+
+export type ApprovingReview = { id: string; summary: string; comments: { path: string; line: number | null; severity: string; body: string; needs_person?: boolean }[]; head_sha: string };
+
+/**
+ * The review that approved with fixes in the attempt before `attempt` (its merge row says `lgtm_with_comments`), with the
+ * head it reviewed; null when the previous attempt did not end that way or anything is missing.
+ */
+export async function approvingReviewOf(db: Services['db'], requestId: string, attempt: number): Promise<ApprovingReview | null> {
+  if (attempt < 2) return null;
+  const merge = await db
+    .selectFrom('build_steps')
+    .select('detail')
+    .where('build_request_id', '=', requestId)
+    .where('attempt', '=', attempt - 1)
+    .where('stage', '=', 'merge')
+    .where('outcome', '=', 'changes_requested')
+    .orderBy('created_at', 'desc')
+    .orderBy('id', 'desc')
+    .executeTakeFirst();
+  if ((merge?.detail as { lgtm_with_comments?: boolean } | null)?.lgtm_with_comments !== true) return null;
+  const review = await db
+    .selectFrom('build_steps')
+    .select(sql<string | null>`detail->>'run_id'`.as('run_id'))
+    .where('build_request_id', '=', requestId)
+    .where('attempt', '=', attempt - 1)
+    .where('stage', '=', 'review')
+    .where('outcome', '=', 'ok')
+    .orderBy('created_at', 'desc')
+    .orderBy('id', 'desc')
+    .executeTakeFirst();
+  if (!review?.run_id) return null;
+  const row = await db.selectFrom('pr_reviews').select(['id', 'summary', 'comments', 'verdict']).where('run_id', '=', review.run_id).executeTakeFirst();
+  if (!row || row.verdict !== 'approve') return null;
+  const commit = await db
+    .selectFrom('build_steps')
+    .select(sql<string | null>`detail->>'sha'`.as('sha'))
+    .where('build_request_id', '=', requestId)
+    .where('stage', '=', 'commit')
+    .where('outcome', '=', 'ok')
+    .where('attempt', '=', attempt - 1)
+    .orderBy('created_at', 'desc')
+    .executeTakeFirst();
+  if (!commit?.sha) return null;
+  return { id: row.id, summary: row.summary, comments: row.comments as ApprovingReview['comments'], head_sha: commit.sha };
+}

@@ -733,7 +733,9 @@ export const prReviewOutput = z
           .object({
             path: z.string().trim().min(1).max(500),
             line: z.number().int().positive().nullable().describe('The line in the new file, or null for the whole file.'),
-            severity: z.enum(['blocking', 'nit', 'question']),
+            severity: z
+              .enum(['blocking', 'fix', 'nit', 'question'])
+              .describe('blocking: must change and needs a new review. fix: a minor change that must be made before merging and needs no new review (the builder applies it, you still approve). nit: optional. question: a doubt to answer.'),
             body: text(1500),
             needs_person: z
               .boolean()

@@ -67,10 +67,11 @@ import { checkTestGuard, existingTestsLines, readRepoTests, testGuardFeedback } 
 import { affectedTests, affectedTestsLine, buildCodeMap } from './code-map.ts';
 import { decideRecheck } from './recheck.ts';
 import { decideGate } from './gate.ts';
-import { previousReviewOf, truncateChanges } from './previous-review.ts';
+import { approvingReviewOf, previousReviewOf, truncateChanges } from './previous-review.ts';
+import { approvedWithFixes, countFixes, fixCommentsOf, waiveReview } from './lgtm.ts';
 import { isTransientRunError, REVIEW_MAX_RETRIES, REVIEW_RETRY_BACKOFF_MS } from './review-retry.ts';
 import type { Services } from '../services.ts';
-import { commitAll, headWithWork, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, changedOnBranch, changedWithPending, addedOnBranch, diffBetween, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
+import { commitAll, headWithWork, commitFiles, unresolvedConflicts, hostPathOf, prepareWorktree, changedOnBranch, changedWithPending, addedOnBranch, changedBetween, diffBetween, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
 import { existsSync } from 'node:fs';
 import { mkdir, rm } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
@@ -264,9 +265,9 @@ async function load(s: Services, r: Run): Promise<Loaded> {
   };
 }
 
-type Feedback = { blocking: string[]; failing: string[]; design: string[]; ownership: string[]; flaky: string[]; conflicts: string[]; wip?: { sha: string; files: string[] }; progress?: string };
+type Feedback = { blocking: string[]; fixes: string[]; failing: string[]; design: string[]; ownership: string[]; flaky: string[]; conflicts: string[]; wip?: { sha: string; files: string[] }; progress?: string };
 
-const NO_FEEDBACK: Feedback = { blocking: [], failing: [], design: [], ownership: [], flaky: [], conflicts: [] };
+const NO_FEEDBACK: Feedback = { blocking: [], fixes: [], failing: [], design: [], ownership: [], flaky: [], conflicts: [] };
 
 type BuilderStepDetail = { provider?: string; model?: string; session?: { mode: 'fresh' | 'resumed'; id?: string; reason?: string }; failure_kind?: string; exit_code?: number | null; wip_commit?: string; wip_files?: string[]; timed_out_twice?: boolean; progress?: string };
 
@@ -358,6 +359,7 @@ async function feedbackOf(s: Services, r: Run): Promise<Feedback> {
   const blocking = comments
     .filter((c) => c.severity === 'blocking')
     .map((c) => `${c.needs_person === true ? '[needs the person] ' : ''}${c.path}${c.line ? `:${c.line}` : ''}: ${c.body}`);
+  const fixes = fixCommentsOf(comments).map((c) => `${c.path}${c.line ? `:${c.line}` : ''}: ${c.body}`);
   const evidence = await s.db
     .selectFrom('build_steps')
     .select('detail')
@@ -384,7 +386,7 @@ async function feedbackOf(s: Services, r: Run): Promise<Feedback> {
   const previous = r.attempt > 1 ? await failedBuilderStep(s, r.requestId, r.attempt - 1) : null;
   const wip = previous?.failure_kind === 'timeout' && previous.wip_commit ? { sha: previous.wip_commit, files: previous.wip_files ?? [] } : undefined;
   const progress = r.attempt > 1 ? await previousProgress(s, r.requestId, r.attempt - 1) : undefined;
-  return { blocking, failing: recorded.map((t) => t.code), design: violations.map(violationLine), ownership, flaky: (evidenceDetail?.flaky ?? []).filter((c) => !(evidenceDetail?.quarantined ?? []).includes(c)), conflicts: [], ...(wip ? { wip } : {}), ...(progress ? { progress } : {}) };
+  return { blocking, fixes, failing: recorded.map((t) => t.code), design: violations.map(violationLine), ownership, flaky: (evidenceDetail?.flaky ?? []).filter((c) => !(evidenceDetail?.quarantined ?? []).includes(c)), conflicts: [], ...(wip ? { wip } : {}), ...(progress ? { progress } : {}) };
 }
 
 const violationLine = (v: DesignViolation): string => `${v.path}${v.line ? `:${v.line}` : ''} (rule ${v.rule}): ${v.message}`;
@@ -427,7 +429,7 @@ function promptOf(
     ? [`# Continue (attempt ${attempt} on the same branch)`, 'You are continuing your previous session on this task: the brief and your earlier work are in this conversation. Read the new feedback below, fix what it names and keep to the same rules and report format.', ...(code.length > 0 ? ['', ...code] : [])]
     : [body, '', '# Brief', brief, ...(code.length > 0 ? ['', ...code] : []), ...designSection(design)];
   const progress = resumed ? undefined : f.progress;
-  if (attempt > 1 && (f.wip || f.conflicts.length > 0 || f.blocking.length > 0 || f.failing.length > 0 || f.design.length > 0 || f.ownership.length > 0 || f.flaky.length > 0 || progress)) {
+  if (attempt > 1 && (f.wip || f.conflicts.length > 0 || f.blocking.length > 0 || f.fixes.length > 0 || f.failing.length > 0 || f.design.length > 0 || f.ownership.length > 0 || f.flaky.length > 0 || progress)) {
     lines.push('', `# Feedback on the previous attempt (this is attempt ${attempt} on the same branch)`);
     if (f.wip) {
       lines.push(
@@ -444,6 +446,13 @@ function promptOf(
       );
     }
     if (f.blocking.length > 0) lines.push('The reviewer asked for these changes:', ...f.blocking.map((b) => `- ${b}`));
+    if (f.fixes.length > 0)
+      lines.push(
+        f.blocking.length > 0
+          ? 'The reviewer also left these fixes to make before merging:'
+          : 'The reviewer approved with these fixes to make before merging (apply exactly these, nothing else):',
+        ...f.fixes.map((b) => `- ${b}`),
+      );
     if (f.failing.length > 0) lines.push(`The tests of these criteria failed in CI: ${f.failing.join(', ')}.`);
     if (f.flaky.length > 0) lines.push(flakyNote(f.flaky));
     if (f.ownership.length > 0) lines.push('The ownership check failed, fix these:', ...f.ownership.map((v) => `- ${v}`));
@@ -523,7 +532,10 @@ async function automaticAttempts(s: Services, requestId: string): Promise<number
     .execute();
   let automatic = 0;
   for (const row of started) {
-    if ((row.detail as { automatic?: boolean } | null)?.automatic !== true) break;
+    const detail = row.detail as { automatic?: boolean; lgtm_fixes?: boolean } | null;
+    if (detail?.automatic !== true) break;
+    // The cheap round of an approval with fixes (no new review) does not use up the automatic follow-ups.
+    if (detail.lgtm_fixes === true) continue;
     automatic++;
   }
   return automatic;
@@ -993,15 +1005,39 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       }
     }
   };
-  const requested = await stage(
-    r,
-    'review',
-    async () => {
-      const id = await startReview();
-      return { value: { runId: id }, detail: { run_id: id, ci: 'parallel' }, outcome: 'waiting' as const };
-    },
-    { announce: true },
-  );
+  // LGTM with comments: the previous attempt approved with fixes. The review is not requested again when this attempt only
+  // touched the files the fixes name (see build/lgtm.ts). The lookup reads immutable rows of the previous attempt; the git
+  // comparison is its own checkpointed step, taken only on this path (an attempt in flight never takes it).
+  const approving = attempt > 1 ? await approvingReviewOf(s0.db, requestId, attempt).catch(() => null) : null;
+  const waiver = approving
+    ? await plain('lgtm-waiver', async () => {
+        try {
+          const changed = await changedBetween(worktree.path, approving.head_sha, headSha);
+          return waiveReview({ fixPaths: fixCommentsOf(approving.comments).map((c) => c.path), changedFiles: changed });
+        } catch {
+          return { waive: false, outside: [] as string[] };
+        }
+      })
+    : null;
+  const waived = approving !== null && waiver?.waive === true;
+  const requested = waived
+    ? await stage(r, 'review', async () => ({
+        value: { runId: '' },
+        detail: { waived: 'lgtm_with_comments', approved_review_id: approving.id },
+      }))
+    : await stage(
+        r,
+        'review',
+        async () => {
+          const id = await startReview();
+          return {
+            value: { runId: id },
+            detail: { run_id: id, ci: 'parallel', ...(waiver && !waiver.waive && waiver.outside.length > 0 ? { waiver_refused: 'files_outside_fixes', files_outside_fixes: waiver.outside.slice(0, 50) } : {}) },
+            outcome: 'waiting' as const,
+          };
+        },
+        { announce: true },
+      );
   if (!requested.ok) return stop('review', requested.outcome);
   let runId = requested.value.runId;
   let reviewRetries = 0;
@@ -1018,8 +1054,8 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
   let conclusion: string | null = null;
   let quarantined: string[] = [];
   let evidenceValue = { tests: [] as { code: string; result: 'pass' | 'fail' }[], flaky: [] as string[], quarantined: [] as string[], forgiven: false };
-  let reviewState: 'pending' | 'approved' | 'rejected' | 'failed' = 'pending';
-  let reviewVerdict: Verdict | null = null;
+  let reviewState: 'pending' | 'approved' | 'rejected' | 'failed' = waived ? 'approved' : 'pending';
+  let reviewVerdict: Verdict | null = waived && approving ? { id: approving.id, verdict: 'approve', summary: approving.summary, comments: approving.comments } : null;
   let runState = 'queued';
   let gate = decideGate({ ci: 'pending', review: 'pending' });
   /** CI of this head is cancelled once the review rejects first: its result no longer matters to this attempt. */
@@ -1041,6 +1077,8 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
   for (;;) {
     const snap = await plain('gate-poll', async () => {
       const { state, conclusion: raw } = ciDone ? { state: 'done' as const, conclusion: rawConclusion } : ciStatusOf(await d.github.checkRunsFor(cfg, owner, repoName, headSha));
+      // A waived review has no run: the approving review already stands.
+      if (waived) return { ci: { state, conclusion: raw }, run: 'ended', ended: false, verdict: null, error: null };
       const run = await s0.db.selectFrom('ai_runs').select(['state', 'error']).where('id', '=', runId).executeTakeFirstOrThrow();
       const ended = !['queued', 'running'].includes(run.state);
       const row = ended
@@ -1115,6 +1153,8 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
 
     gate = decideGate({ ci: !ciDone ? 'pending' : conclusion === 'success' ? 'green' : 'red', review: reviewState });
     if (gate !== 'wait') break;
+    // Approved with fixes: the attempt ends for them without waiting for CI, which is cancelled below.
+    if (reviewState === 'approved' && !waived && reviewVerdict && approvedWithFixes(reviewVerdict.verdict, reviewVerdict.comments)) break;
 
     // CI that never shows up or never ends fails the attempt, as it did when CI was awaited alone.
     if (!ciDone) {
@@ -1145,9 +1185,12 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
   }
   if (!reviewVerdict) return stop('review', 'failed');
   const verdict: Verdict = reviewVerdict;
+  // LGTM with comments: approved, CI not red, and fixes left to make before merging (a red CI is an ordinary rejection).
+  const lgtmStop = !waived && approvedWithFixes(verdict.verdict, verdict.comments) && (gate === 'wait' || gate === 'pass');
+  if (lgtmStop) await cancelCi('approved_with_fixes');
 
   // publish: the review on the pull request and the required status
-  const approved = verdict.verdict === 'approve' && conclusion === 'success';
+  const approved = verdict.verdict === 'approve' && conclusion === 'success' && !lgtmStop;
   const published = await stage(r, 'publish', async () => {
     const inline = verdict.comments.filter((c) => c.line !== null && c.line > 0);
     const loose = verdict.comments.filter((c) => c.line === null || c.line <= 0);
@@ -1157,23 +1200,30 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       verdict.summary,
       ...(loose.length > 0 ? ['', ...loose.map((c) => `- [${c.severity}] ${c.path}: ${c.body}`)] : []),
     ].join('\n');
-    await d.github.postReview(cfg, owner, repoName, pull.number, {
-      body,
-      comments: inline.map((c) => ({ path: c.path, line: c.line as number, body: `[${c.severity}] ${c.body}` })),
-    });
+    // A waived review was already posted on the pull request by the attempt that approved with fixes.
+    if (!waived) {
+      await d.github.postReview(cfg, owner, repoName, pull.number, {
+        body,
+        comments: inline.map((c) => ({ path: c.path, line: c.line as number, body: `[${c.severity}] ${c.body}` })),
+      });
+    }
     await d.github.setCommitStatus(cfg, owner, repoName, headSha, {
       context: REVIEW_STATUS,
       state: approved ? 'success' : 'failure',
       description: approved
-        ? 'The reviewer agent approved and CI is green.'
-        : conclusion === 'success' || ciCancelled
+        ? waived
+          ? 'The reviewer agent approved with fixes, the fixes are applied and CI is green.'
+          : 'The reviewer agent approved and CI is green.'
+        : lgtmStop
+          ? 'The reviewer agent approved with fixes to make before merging.'
+          : conclusion === 'success' || ciCancelled
           ? 'The reviewer agent asked for changes.'
           : `CI concluded ${conclusion ?? 'without a result'}.`,
       target_url: pull.url,
     });
     return {
       value: true,
-      detail: { status: approved ? 'success' : 'failure', verdict: verdict.verdict, ci_conclusion: conclusion, ...(ciCancelled ? { ci_cancelled: true } : {}) },
+      detail: { status: approved ? 'success' : 'failure', verdict: verdict.verdict, ...(waived ? { waived: 'lgtm_with_comments' } : {}), ...(lgtmStop ? { lgtm_with_comments: true } : {}), ci_conclusion: conclusion, ...(ciCancelled ? { ci_cancelled: true } : {}) },
       extra: { published_review: verdict.id },
     };
   });
@@ -1184,7 +1234,7 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
    * The attempt ends needing changes (the reviewer's verdict, a red CI, a conflict with main). DEMIURGO starts the next
    * attempts itself first (up to `autoFollowUps`) and only then leaves it to the person.
    */
-  const stopForChanges = async (reason: string, opts: { blocking: number; fixable: boolean; extra?: Record<string, unknown>; escalate?: number }): Promise<void> => {
+  const stopForChanges = async (reason: string, opts: { blocking: number; fixable: boolean; extra?: Record<string, unknown>; escalate?: number; cheap?: boolean }): Promise<void> => {
     const next = await plain('merge-stop', async () => {
       // The attempts started by DEMIURGO itself since the person's last one (our convention, see autoFollowUps).
       const automatic = await automaticAttempts(s0, requestId);
@@ -1197,7 +1247,8 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       const current = Number(latest?.attempt ?? attempt) === attempt;
       // Escalated: resolving it needs something only a person can provide, so no automatic follow-up.
       const escalated = (opts.escalate ?? 0) > 0;
-      const follow = current && opts.fixable && !escalated && automatic < d.autoFollowUps;
+      // A cheap round (approved with fixes, no new review) always follows up and does not count against the limit.
+      const follow = current && opts.fixable && !escalated && (opts.cheap === true || automatic < d.autoFollowUps);
       await record(r, 'merge', 'changes_requested', {
         reason,
         blocking: opts.blocking,
@@ -1208,13 +1259,23 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
       });
       if (!follow) return null;
       // The same first step the person's «Address the review» leaves (build.start), by the system actor.
-      await record({ ...r, attempt: attempt + 1 }, 'repo', 'started', { started_by: formatActor(BUILD), automatic: true, reason });
+      await record({ ...r, attempt: attempt + 1 }, 'repo', 'started', { started_by: formatActor(BUILD), automatic: true, reason, ...(opts.cheap ? { lgtm_fixes: true } : {}) });
       return attempt + 1;
     });
     // Durable and idempotent: the workflow id is the attempt's, so a replay (or a person who pressed the
     // button first and got there before) never starts it twice.
     if (next !== null) await DBOS.startWorkflow(buildWorkflowRegistered, { workflowID: buildWorkflowId(requestId, next) })(projectId, requestId, next);
   };
+  if (lgtmStop) {
+    await stopForChanges('The reviewer approved with fixes to make before merging.', {
+      blocking: 0,
+      fixable: true,
+      // Only one cheap round in a row: a fix attempt approved with fixes again counts like any other follow-up.
+      cheap: approving === null,
+      extra: { lgtm_with_comments: true, fixes: countFixes(verdict.comments) },
+    });
+    return stop('merge', 'changes_requested');
+  }
   if (!approved) {
     const blocking = verdict.comments.filter((c) => c.severity === 'blocking').length;
     const ciRed = ciDone && conclusion !== 'success';

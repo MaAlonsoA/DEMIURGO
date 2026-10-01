@@ -557,7 +557,7 @@ function Development({
                           {c.path}
                           {c.line ? `:${c.line}` : ''}
                         </code>{' '}
-                        <span className={cn('text-xs font-medium', c.severity === 'blocking' ? 'text-danger-text' : 'text-fg-3')}>{c.severity}</span>
+                        <span className={cn('text-xs font-medium', c.severity === 'blocking' ? 'text-danger-text' : 'text-fg-3')}>{c.severity === 'fix' ? t.severityFix : c.severity}</span>
                       </span>
                       <span className="max-w-prose text-fg-2">{c.body}</span>
                     </li>

@@ -251,7 +251,7 @@ registerChecker('pr_review', async ({ db, run, output }) => {
       notes.push(`${c.code} is marked covered but CI has no passing test for it: mark it \`covered: false\` (not run) and say why.`);
   const blocking = output.comments.filter((c) => c.severity === 'blocking');
   if (output.verdict === 'approve') {
-    if (blocking.length > 0) notes.push('An approval has no `blocking` comment: change the verdict to request_changes or downgrade the comment to a nit.');
+    if (blocking.length > 0) notes.push('An approval has no `blocking` comment: change the verdict to request_changes or downgrade the comment to `fix` (a minor change to make before merging, no new review) or a nit.');
     for (const c of output.criteria) {
       // A manual criterion is checked by a person after the merge, and a release one automatically against the
       // deployed candidate (its evidence is recorded on the feature): neither ever blocks an agent's pull request, covered or not.

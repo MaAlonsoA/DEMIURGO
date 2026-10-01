@@ -152,6 +152,12 @@ export async function diffBetween(path: string, from: string, to: string): Promi
   return stdout;
 }
 
+/** Names of the files that differ between two commits. */
+export async function changedBetween(path: string, from: string, to: string): Promise<string[]> {
+  const { stdout } = await git(path, ['diff', '--name-only', from, to]);
+  return stdout.split('\n').map((l) => l.trim()).filter(Boolean);
+}
+
 /** Tool caches that never belong in a commit (DEMIURGO's own ignore list, our convention). */
 export const EXCLUDED_PATHS = ['.pw-browsers/', '.cache/', 'playwright-report/', 'test-results/', 'node_modules/', '.next/', '*.tsbuildinfo', 'core', 'core.[0-9]*', '*.core', '.demiurgo/'];
 

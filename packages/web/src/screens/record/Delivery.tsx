@@ -496,8 +496,8 @@ export const sectionOf = (v: RecordVersion, title: string) =>
   v.sections.find((s) => s.title.toLowerCase() === title.toLowerCase());
 
 /** A prose section under its own heading; nothing when it is empty. */
-export function Prose({ version, title, label, empty }: { version: RecordVersion; title: string; label: string; empty?: string }) {
-  const s = sectionOf(version, title);
+export function Prose({ version, section, label, empty }: { version: RecordVersion; section: string; label: string; empty?: string }) {
+  const s = sectionOf(version, section);
   const text = s?.content.trim();
   if (!text && !empty) return null;
   return (
@@ -674,10 +674,10 @@ export function FeatureBody({
   const t = useMessages(DELIVERY);
   return (
     <>
-      <Prose version={version} title="Goal" label={t.goal} />
-      <Prose version={version} title="Scope" label={t.scope} />
+      <Prose version={version} section="Goal" label={t.goal} />
+      <Prose version={version} section="Scope" label={t.scope} />
       <Flow version={version} recording={recording} />
-      <Prose version={version} title="Out of scope" label={t.outOfScope} />
+      <Prose version={version} section="Out of scope" label={t.outOfScope} />
       {version.state === 'draft' ? null : (
         <TasksRollup projectId={projectId} record={record} primaryIsDraft={primaryIsDraft} />
       )}
@@ -711,8 +711,8 @@ export function TaskBody({
   const build = record.build;
   return (
     <>
-      <Prose version={version} title="Goal" label={t.goal} />
-      <Prose version={version} title="Scope" label={t.scope} />
+      <Prose version={version} section="Goal" label={t.goal} />
+      <Prose version={version} section="Scope" label={t.scope} />
       {covers.length > 0 ? (
         <Block title={t.covers} note={parentCode ? <span className="font-mono text-xs">{parentCode}</span> : undefined}>
           {covered.length > 0 ? (

@@ -208,8 +208,8 @@ describe('what a record touches and what of it waits for the person', () => {
       proposals: [
         {
           id: 'p1',
-          type: 'decision',
-          payload: {},
+          type: 'design_record',
+          payload: { code: 'FDR-CAT-001' },
           state: 'pending',
           epistemic_status: 'proposed',
           obsolescence: [],
@@ -218,8 +218,8 @@ describe('what a record touches and what of it waits for the person', () => {
         },
         {
           id: 'p2',
-          type: 'decision',
-          payload: {},
+          type: 'record_change',
+          payload: { record: { code: 'FDR-CAT-001' } },
           state: 'pending',
           epistemic_status: 'proposed',
           obsolescence: [],

@@ -135,7 +135,7 @@ export function EpicBody({
       : [];
   return (
     <>
-      <Prose version={version} title="Goal" label={d.goal} />
+      <Prose version={version} section="Goal" label={d.goal} />
       <Block
         title={d.features}
         note={plan && plan.lines.length > 0 ? progressWords(t, plan.counts, plan.lines.length) : undefined}
@@ -167,7 +167,7 @@ export function EpicBody({
         {doneText ? <Markdown className="max-w-prose">{doneText}</Markdown> : null}
         <CriteriaList criteria={version.criteria} recording={recording} />
       </Block>
-      <Prose version={version} title="Out of scope" label={d.outOfScope} empty={d.notWritten} />
+      <Prose version={version} section="Out of scope" label={d.outOfScope} empty={d.notWritten} />
       <OtherSections version={version} used={['Goal', 'Done when', 'Out of scope']} />
       {found && plan ? (
         <details className="flex flex-col" data-epic-more>

@@ -152,7 +152,7 @@ describe('While you were away', () => {
     ]);
     expect(lines.map(lineText)).toEqual([
       'You approved version 2 of De la intención a «Listo para construir».',
-      'DEMIURGO drafted Change Set y pruebas congeladas (6 checks).',
+      'DEMIURGO drafted Change Set y pruebas congeladas (6 criteria).',
       'An agent proposed 3 changes to Change Set.',
       'Knowledge found a conflict in Reimplementar DEMIURGO como v2.',
       'DEMIURGO answered in Change Set and frozen tests and asked 1 question.',

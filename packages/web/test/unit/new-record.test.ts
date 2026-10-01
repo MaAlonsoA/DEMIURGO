@@ -30,7 +30,7 @@ describe('a record written by hand', () => {
       'Write the Options section.',
       'Write the Decision section.',
       'Write the Consequences section.',
-      'Add at least one check: a tech decision needs them.',
+      'Add at least one acceptance criterion: a tech decision needs them.',
     ]);
     const decision = {
       ...blankRecord('decision'),
@@ -41,7 +41,7 @@ describe('a record written by hand', () => {
     expect(recordMissing(decision)).toEqual(['The area can only have lowercase letters and underscores, like club_life.']);
     expect(recordMissing({ ...decision, domain: 'club_life' })).toEqual([]);
     const withCheck = addCheck({ ...blankRecord('adr'), title: 't', domain: 'club' });
-    expect(recordMissing(withCheck)).toContain('Give the new check a title, a statement and how it is checked.');
+    expect(recordMissing(withCheck)).toContain('Give the new criterion a title, a statement and how it is verified.');
   });
 
   it('becomes record.create with its template sections and new checks', () => {

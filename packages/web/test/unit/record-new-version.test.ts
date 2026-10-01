@@ -48,10 +48,10 @@ const link = (id: string, to: string, state = 'current') => ({ id, type: 'based_
 describe('the new version form', () => {
   it('AC-INT-001-06 cannot be saved without a note or a choice for every check, and says what is missing', () => {
     let form = initialForm(base);
-    expect(missing(form)).toEqual(['Say what changed.', 'Choose Keep, Change or Drop for 3 checks.']);
+    expect(missing(form)).toEqual(['Say what changed.', 'Choose Keep, Change or Drop for 3 criteria.']);
     form = { ...form, note: 'Past activities get their own tab.' };
     form = { ...form, checks: form.checks.map((c, i) => (i < 2 ? { ...c, choice: 'keep' as const } : c)) };
-    expect(missing(form)).toEqual(['Choose Keep, Change or Drop for 1 check.']);
+    expect(missing(form)).toEqual(['Choose Keep, Change or Drop for 1 criterion.']);
     form = {
       ...form,
       checks: form.checks.map((c) => ({
@@ -62,7 +62,7 @@ describe('the new version form', () => {
     };
     expect(missing(form)).toEqual(['Give AC-CAT-001-03 a title, a statement and how it is checked.']);
     form = addCheck({ ...form, checks: form.checks.map((c) => ({ ...c, statement: 'When x, then y.' })) });
-    expect(missing(form)).toEqual(['Give the new check a title, a statement and how it is checked.']);
+    expect(missing(form)).toEqual(['Give the new criterion a title, a statement and how it is verified.']);
     form = {
       ...form,
       sections: [

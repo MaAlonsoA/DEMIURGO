@@ -39,13 +39,13 @@ describe('the package page', () => {
     expect(rows.map((r) => [r.kind, r.origin, r.inPackage, r.same])).toEqual([
       ['Records', 13, 13, true],
       ['Versions', 13, 13, true],
-      ['Checks', 114, 114, true],
+      ['Acceptance criteria', 114, 114, true],
       ['Links', 12, 12, true],
       ['Taxonomies', 1, 1, true],
       ['Annexes', 2, 2, true],
     ]);
     const differ = countRows({ origin: counts, package: { ...counts, criteria: 113 } });
-    expect(differ.find((r) => r.kind === 'Checks')?.same).toBe(false);
+    expect(differ.find((r) => r.kind === 'Acceptance criteria')?.same).toBe(false);
     expect(countRows({ origin: null, package: counts })[0]?.origin).toBeNull();
   });
 

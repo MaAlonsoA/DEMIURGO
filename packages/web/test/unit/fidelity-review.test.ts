@@ -32,12 +32,12 @@ describe('the guided review of a feature', () => {
       [1, 'context', 'Context'],
       [2, 'what', "What it's for"],
       [3, 'how', 'How it works'],
-      [4, 'checks', 'Checks'],
+      [4, 'checks', 'Acceptance criteria'],
       [5, 'assumed', 'What DEMIURGO assumed'],
     ]);
     expect(parts[1]?.sections).toEqual([0, 1, 2]);
     expect(parts[2]?.sections).toEqual([3]);
-    expect(parts[3]?.question).toBe('Would these 3 checks prove it works?');
+    expect(parts[3]?.question).toBe('Would these 3 criteria prove it works?');
     expect(parts[3]?.hint).toBe('2 are automatic. 1 is yours to try, once it is built.');
     expect(parts[4]?.question).toBe('Nothing assumed');
     expect(parts[4]?.quiet).toBe(true);
@@ -48,7 +48,7 @@ describe('the guided review of a feature', () => {
     expect(odd[1]?.sections).toEqual([0, 1]);
     expect(odd[2]?.sections).toEqual([2, 3]);
     const adr = reviewParts('adr', version({ sections: sections('Context', 'Options', 'Decision', 'Consequences') }));
-    expect(adr.map((p) => p.name)).toEqual(['Context', "Why it's needed", 'What it decides', 'Checks', 'What DEMIURGO assumed']);
+    expect(adr.map((p) => p.name)).toEqual(['Context', "Why it's needed", 'What it decides', 'Acceptance criteria', 'What DEMIURGO assumed']);
     expect(adr[1]?.sections).toEqual([0, 1]);
     expect(adr[2]?.sections).toEqual([2, 3]);
   });
@@ -84,10 +84,10 @@ describe('the guided review of a feature', () => {
 
   it('tells in the banner how many checks and about how long it takes', () => {
     expect(reviewBanner(version())).toEqual({
-      title: 'Review it: context, details and 3 checks',
+      title: 'Review it: context, details and 3 criteria',
       detail: '5 short parts · about 2 minutes. Nothing is final until you confirm.',
     });
-    expect(reviewBanner(version({ criteria: [criterion(1, 'manual')] })).title).toBe('Review it: context, details and 1 check');
+    expect(reviewBanner(version({ criteria: [criterion(1, 'manual')] })).title).toBe('Review it: context, details and 1 criterion');
     expect(reviewBanner(version({ criteria: [] })).title).toBe('Review it: context and details');
     const long = version({ sections: [{ title: 'Goal', content: 'word '.repeat(900) }] });
     expect(reviewMinutes(long)).toBe(6);

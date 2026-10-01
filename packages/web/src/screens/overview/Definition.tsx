@@ -6,12 +6,12 @@
 // person approves it. "Change" reopens the section's question with a reason and confirms the new
 // answer: the system then proposes the change. The versions only show in the history.
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { type FormEvent, useState } from 'react';
 import { ApiError } from '../../api/client.ts';
-import { useCommand } from '../../api/commands.ts';
-import { definitionQuery } from '../../api/queries.ts';
+import { runCommand, useCommand } from '../../api/commands.ts';
+import { definitionQuery, keys } from '../../api/queries.ts';
 import type {
   DefinitionChange,
   DefinitionEvidence,
@@ -39,6 +39,7 @@ import {
   currentVersion,
   draftVersion,
   keyOfSection,
+  orderedChanges,
   previousVersion,
   reasonFor,
   sectionChanges,
@@ -129,7 +130,12 @@ export function ProductDefinitionSection({
   );
 }
 
-/** Changes to a section decided in threads, each one approved on its own. */
+/**
+ * Changes to a section decided in threads. One change is a block on its own; two or more are one
+ * block («2 changes to the definition»): each section with its Before and After, approved together
+ * with one button or one by one. Approving them in turn is safe: the server moves the others onto
+ * the version just approved (commands/effects.ts, definition_change).
+ */
 function ThreadChanges({
   projectId,
   changes,
@@ -140,17 +146,52 @@ function ThreadChanges({
   current: DefinitionVersion;
 }) {
   const t = useMessages(DEFINITION);
+  const client = useQueryClient();
+  const ordered = orderedChanges(changes);
+  const many = ordered.length > 1;
+  const [progress, setProgress] = useState<number | null>(null);
+  const [error, setError] = useState<unknown>(null);
+  async function approveAll() {
+    setError(null);
+    setProgress(0);
+    try {
+      for (const [i, c] of ordered.entries()) {
+        await runCommand(projectId, { command: 'proposal.accept', entityId: c.id, data: { approve: true } });
+        setProgress(i + 1);
+      }
+      announce(t.changeApproved);
+    } catch (e) {
+      setError(e instanceof ApiError ? e : String(e));
+    } finally {
+      setProgress(null);
+      await client.invalidateQueries({ queryKey: keys.project(projectId) });
+    }
+  }
   return (
     <div data-definition-changes className="flex flex-col gap-3 border-l-2 border-accent pl-5">
       <div className="flex flex-col gap-1">
-        <h3 className="text-base font-semibold text-fg">{t.threadChangesTitle}</h3>
-        <p className="max-w-prose text-sm text-fg-2">{t.threadChangesNote}</p>
+        <h3 className="text-base font-semibold text-fg">{many ? t.changesTitle(ordered.length) : t.threadChangesTitle}</h3>
+        <p className="max-w-prose text-sm text-fg-2">{many ? t.changesNote : t.threadChangesNote}</p>
       </div>
       <div className="flex flex-col">
-        {changes.map((c) => (
-          <ThreadChange key={c.id} projectId={projectId} change={c} current={current} />
+        {ordered.map((c) => (
+          <ThreadChange key={c.id} projectId={projectId} change={c} current={current} grouped={many} busy={progress !== null} />
         ))}
       </div>
+      {error ? <ErrorNotice error={error} /> : null}
+      {many ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="primary"
+            data-command="proposal.accept"
+            pending={progress !== null}
+            pendingLabel={t.approvingAll(progress ?? 0, ordered.length)}
+            onClick={() => void approveAll()}
+          >
+            {t.approveAll(ordered.length)}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -159,13 +200,20 @@ function ThreadChange({
   projectId,
   change,
   current,
+  grouped = false,
+  busy = false,
 }: {
   projectId: string;
   change: DefinitionChange;
   current: DefinitionVersion;
+  /** One of several changes shown together: its Before and After are labelled. */
+  grouped?: boolean;
+  /** Another approval is running: nothing here can be pressed. */
+  busy?: boolean;
 }) {
   const t = useMessages(DEFINITION);
   const accept = useCommand(projectId);
+  const reject = useCommand(projectId);
   const reading = useReading(projectId, 'proposal', change.id);
   const key = keyOfSection(change.section);
   const before = current.sections.find((s) => s.title === change.section)?.content ?? null;
@@ -178,25 +226,50 @@ function ThreadChange({
       <div className="flex min-w-0 flex-col gap-2">
         <h4 className="text-base font-semibold text-fg">{key ? t.section(key) : change.section}</h4>
         {reading.mark ? <div>{reading.mark}</div> : null}
-        <Markdown size="sm" className="max-w-prose">
-          {reading.text('content', change.content)}
-        </Markdown>
+        {grouped ? (
+          <div className="grid max-w-prose grid-cols-[4rem_minmax(0,1fr)] gap-x-3 text-sm" data-definition-after>
+            <span className="font-medium text-fg-2">{t.after}</span>
+            <Markdown size="sm">{reading.text('content', change.content)}</Markdown>
+          </div>
+        ) : (
+          <Markdown size="sm" className="max-w-prose">
+            {reading.text('content', change.content)}
+          </Markdown>
+        )}
         {before !== null ? <Before text={before} /> : null}
         {accept.error ? <ErrorNotice error={accept.error} /> : null}
+        {reject.error ? <ErrorNotice error={reject.error} /> : null}
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <Button
-            variant="primary"
+            variant={grouped ? 'secondary' : 'primary'}
             size="sm"
+            disabled={busy || reject.isPending}
             pending={accept.isPending}
             pendingLabel={t.approving}
             onClick={() =>
               accept.mutate(
-                { command: 'proposal.accept', entityId: change.id, data: {} },
+                { command: 'proposal.accept', entityId: change.id, data: { approve: true } },
                 { onSuccess: () => announce(t.changeApproved) },
               )
             }
           >
             {t.approveNext}
+          </Button>
+          <Button
+            variant="quiet"
+            size="sm"
+            data-command="proposal.reject"
+            disabled={busy || accept.isPending}
+            pending={reject.isPending}
+            pendingLabel={t.rejecting}
+            onClick={() =>
+              reject.mutate(
+                { command: 'proposal.reject', entityId: change.id, data: {} },
+                { onSuccess: () => announce(t.changeRejected) },
+              )
+            }
+          >
+            {t.rejectChange}
           </Button>
           <Link
             to="/p/$projectId/batches/$batchId"

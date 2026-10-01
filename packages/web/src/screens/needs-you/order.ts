@@ -3,7 +3,7 @@
 // reasons the server gives (packages/domain/src/records.ts, readiness()): nothing is invented.
 
 import { questionReason } from '../../../../domain/src/records.ts';
-import type { Inbox, InboxBatch, InboxLink, InboxProposal, InboxQuestion, InboxVersion, ProductRow, SuspectRecord } from '../../api/types.ts';
+import type { Inbox, InboxBatch, NextStepNeed, InboxLink, InboxProposal, InboxQuestion, InboxVersion, ProductRow, SuspectRecord } from '../../api/types.ts';
 import { taskDraftsFeature } from '../../lib/attention.ts';
 import { ORDER } from './words.i18n.ts';
 
@@ -11,13 +11,15 @@ export type Classification = Inbox['classifications_to_review'][number];
 export type FailedUpdate = Inbox['rejected_updates'][number];
 
 export type Need =
+  /** The onboarding step that waits on the person (it has no record of its own: the path is on Product). */
+  | { kind: 'next_step'; key: string; step: NextStepNeed }
   /** A review knowledge proposes: something may contradict a record. */
   | { kind: 'conflict'; key: string; batch: InboxBatch; proposal: InboxProposal; approved: boolean }
   | { kind: 'question'; key: string; question: InboxQuestion }
   /** A package (an import or DEMIURGO's): it is resolved whole, on its page. */
   | { kind: 'package'; key: string; batch: InboxBatch }
   /** One proposal of a batch resolved item by item. */
-  | { kind: 'proposal'; key: string; batch: InboxBatch; proposal: InboxProposal; position: number }
+  | { kind: 'proposal'; key: string; batch: InboxBatch; proposal: InboxProposal; position: number; of: number }
   | { kind: 'version'; key: string; version: InboxVersion }
   | { kind: 'link'; key: string; link: InboxLink }
   /** A record whose basis got a newer approved version since it was written (suspect link). */
@@ -27,9 +29,10 @@ export type Need =
 
 export type NeedItem = Need & { unblocks: string[]; minutes: number };
 
-export type GroupKey = 'conflicts' | 'questions' | 'proposals' | 'versions' | 'links' | 'suspects' | 'classifications' | 'updates';
+export type GroupKey = 'next' | 'conflicts' | 'questions' | 'proposals' | 'versions' | 'links' | 'suspects' | 'classifications' | 'updates';
 
 export const GROUPS: { key: GroupKey; kinds: Need['kind'][] }[] = [
+  { key: 'next', kinds: ['next_step'] },
   { key: 'conflicts', kinds: ['conflict'] },
   { key: 'questions', kinds: ['question'] },
   { key: 'proposals', kinds: ['proposal', 'package'] },
@@ -42,6 +45,7 @@ export const GROUPS: { key: GroupKey; kinds: Need['kind'][] }[] = [
 
 /** About how long each thing takes, as the canvas estimates it (a question, a minute). */
 const MINUTES: Record<Need['kind'], number> = {
+  next_step: 2,
   conflict: 2,
   question: 1,
   package: 3,
@@ -108,9 +112,21 @@ function isApproved(rows: readonly ProductRow[], record: { code?: string; versio
   return !!row && row.current !== null && (record?.version === undefined || row.current === record.version);
 }
 
+/** «n of N» of a proposal: its place in its whole batch, so it reads the same however many are decided. */
+export function placeOf(batch: InboxBatch, proposal: InboxProposal, index: number): { position: number; of: number } {
+  const of = Math.max(batch.size ?? 0, batch.proposals.length);
+  return { position: proposal.ordinal ?? index + 1, of };
+}
+
+/** How many distinct things the inbox lists (a package or a task plan is one thing, not its proposals). */
+export function needsCount(inbox: Inbox): number {
+  return needsOf(inbox, []).length;
+}
+
 /** The inbox as things, in the groups and order of the list. */
 export function needsOf(inbox: Inbox, rows: readonly ProductRow[]): NeedItem[] {
   const needs: Need[] = [];
+  if (inbox.next_step) needs.push({ kind: 'next_step', key: `next_step:${inbox.next_step.key}`, step: inbox.next_step });
   for (const b of inbox.batches.filter((x) => x.type === 'knowledge')) {
     for (const p of b.proposals) {
       const record = p.payload.record as { code?: string; version?: number } | undefined;
@@ -127,7 +143,7 @@ export function needsOf(inbox: Inbox, rows: readonly ProductRow[]): NeedItem[] {
     if (b.resolution === 'package' || taskDraftsFeature(b)) needs.push({ kind: 'package', key: `package:${b.id}`, batch: b });
     else
       b.proposals.forEach((proposal, i) =>
-        needs.push({ kind: 'proposal', key: `proposal:${proposal.id}`, batch: b, proposal, position: i + 1 }),
+        needs.push({ kind: 'proposal', key: `proposal:${proposal.id}`, batch: b, proposal, ...placeOf(b, proposal, i) }),
       );
   }
   needs.push(...inbox.versions_to_approve.map((version): Need => ({ kind: 'version', key: `version:${version.id}`, version })));
@@ -148,6 +164,8 @@ export function needsOf(inbox: Inbox, rows: readonly ProductRow[]): NeedItem[] {
  */
 export function catchUpRank(n: NeedItem): number {
   switch (n.kind) {
+    case 'next_step':
+      return 0;
     case 'conflict':
       return n.approved ? 1 : 3;
     case 'question':

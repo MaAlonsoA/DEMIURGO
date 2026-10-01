@@ -312,6 +312,8 @@ export type InboxProposal = {
   type: string;
   payload: Record<string, unknown>;
   state: string;
+  /** Its place (from 1) among every proposal of its batch, decided or not. */
+  ordinal?: number;
   epistemic_status: Epistemic;
   obsolescence: string[];
   assessment: IdeaAssessmentSummary | null;
@@ -366,6 +368,8 @@ export type InboxBatch = {
   summary: string | null;
   run_id: string | null;
   created: string;
+  /** How many proposals the batch holds in all, decided or not. */
+  size?: number;
   dependencies: Dependency[];
   proposals: InboxProposal[];
 };
@@ -417,6 +421,13 @@ export type InboxLink = {
   to_title: string;
 };
 
+export type NextStepNeed = {
+  key: string;
+  title: string;
+  action: 'pass_stage' | 'open_stage' | 'design_system' | 'epics' | 'feature' | 'repository' | 'build' | 'plan_backlog' | 'answer_stage';
+  code: string | null;
+};
+
 export type Inbox = {
   total: number;
   batches: InboxBatch[];
@@ -425,6 +436,8 @@ export type Inbox = {
   versions_to_approve: InboxVersion[];
   links_under_review: InboxLink[];
   suspect_records?: SuspectRecord[];
+  /** The onboarding step that waits on the person, when it is theirs to take (domain nextStepNeed). */
+  next_step?: NextStepNeed | null;
   classifications_to_review: {
     id: string;
     node_ref: string;
@@ -1173,6 +1186,8 @@ export type QueueTask = {
 
 export type BuildQueue = {
   ready: QueueTask[];
+  /** Tasks a person put on hold with a reason: the queue skips them. */
+  held: (QueueTask & { hold: { reason: string; held_by: string; held_at: string } })[];
   waiting: (QueueTask & { reasons: string[] })[];
   stale: QueueTask[];
   built: (QueueTask & { pr_url: string | null; done_at: string | null })[];

@@ -17,6 +17,7 @@ import { CommandMenu, openCommandMenu } from './CommandMenu.tsx';
 import { ConnectionBanner } from './Connection.tsx';
 import { useRouteFocus } from './focus.ts';
 import { Sidebar } from './Sidebar.tsx';
+import { needsCount } from '../screens/needs-you/order.ts';
 import { setTitleCount } from './title.ts';
 import { PROJECT_SHELL } from './words.i18n.ts';
 
@@ -37,7 +38,8 @@ export function ProjectShell() {
   useRouteFocus();
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const [drawer, setDrawer] = useState(false);
-  const needs = useQuery(inboxQuery(projectId)).data?.total ?? 0;
+  const inbox = useQuery(inboxQuery(projectId)).data;
+  const needs = inbox ? needsCount(inbox) : 0;
   const project = (useQuery(projectsQuery).data ?? []).find((p) => p.id === projectId);
 
   useEffect(() => {

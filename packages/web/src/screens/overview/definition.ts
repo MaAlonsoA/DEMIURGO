@@ -94,3 +94,13 @@ export function sectionTrace(versions: readonly DefinitionVersion[], title: stri
     return now !== null && now !== text(approved[i + 1]);
   });
 }
+
+/** Pending changes to the definition in the order of its sections (then by age), so they read as one list. */
+export function orderedChanges<T extends { section: string; created_at: string }>(changes: readonly T[]): T[] {
+  const rank = (c: T) => {
+    const key = keyOfSection(c.section);
+    const i = key ? DEFINITION_KEYS.indexOf(key) : -1;
+    return i < 0 ? DEFINITION_KEYS.length : i;
+  };
+  return changes.toSorted((a, b) => rank(a) - rank(b) || a.created_at.localeCompare(b.created_at));
+}

@@ -494,10 +494,19 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
       await ctx.execute({ command: 'question.reopen', actor: ctx.actor, entityId: question.id, data: { reason: c.reason } });
     }
     await ctx.execute({ command: 'question.confirm', actor: ctx.actor, entityId: question.id, data: { conclusion: c.content } });
+    // The change lands on the version in force NOW, not on the one it was proposed against: when two
+    // sections change at once, the second must keep the first (it would otherwise bring it back).
+    const inForce = await ctx.trx
+      .selectFrom('record_versions')
+      .select('id')
+      .where('record_id', '=', v.recordId)
+      .where('state', '=', 'approved')
+      .orderBy('n', 'desc')
+      .executeTakeFirst();
     const base = await ctx.trx
       .selectFrom('record_versions')
       .select(['title', 'sections'])
-      .where('id', '=', v.versionId)
+      .where('id', '=', inForce?.id ?? v.versionId)
       .executeTakeFirstOrThrow();
     const sections = (base.sections as Section[]).map((s) =>
       s.title === c.section ? { title: s.title, content: c.content } : s,
@@ -515,6 +524,46 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
     });
     const res = r.result as { versionId: string; version: number; code: string };
     await ctx.execute({ command: 'record_version.approve', actor: ctx.actor, entityId: res.versionId, data: {} });
+    // Other changes waiting for another section of the same definition are still right: they now rest
+    // on the version just approved (without this they would all become obsolete, and approving two
+    // together would be impossible). A change to this same section is left to go obsolete.
+    const waiting = await ctx.trx
+      .selectFrom('proposals')
+      .select(['id', 'batch_id', 'payload', 'dependencies'])
+      .where('project_id', '=', ctx.projectId)
+      .where('type', '=', 'definition_change')
+      .where('state', '=', 'pending')
+      .where('id', '<>', proposalId)
+      .execute();
+    for (const w of waiting) {
+      const other = PAYLOADS.definition_change.parse(w.payload);
+      if (other.section === c.section || other.record.code !== res.code) continue;
+      const deps = ((w.dependencies ?? []) as { id?: string; version?: number }[]).map((d) =>
+        d.id === v.recordId ? { ...d, version: res.version } : d,
+      );
+      await ctx.trx
+        .updateTable('proposals')
+        .set({
+          payload: JSON.stringify({ ...other, record: { ...other.record, version: res.version } }),
+          dependencies: JSON.stringify(deps),
+        })
+        .where('id', '=', w.id)
+        .execute();
+      // The batch may declare the same dependency: it moves too, or the whole batch would go obsolete.
+      const batch = await ctx.trx.selectFrom('proposal_batches').select('dependencies').where('id', '=', w.batch_id).executeTakeFirst();
+      if (batch)
+        await ctx.trx
+          .updateTable('proposal_batches')
+          .set({
+            dependencies: JSON.stringify(
+              ((batch.dependencies ?? []) as { id?: string; version?: number }[]).map((d) =>
+                d.id === v.recordId ? { ...d, version: res.version } : d,
+              ),
+            ),
+          })
+          .where('id', '=', w.batch_id)
+          .execute();
+    }
     await proposeDefinitionIfCovered(ctx, stageId, { afterChange: true });
     return {
       type: 'record',

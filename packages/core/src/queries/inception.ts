@@ -112,7 +112,7 @@ export async function inceptionOf(
   for (const s of stageRows) {
     const questions = await db
       .selectFrom("questions")
-      .select("state")
+      .select(["state", "shown_at"])
       .where("stage_id", "=", s.id)
       .where("stage_key", "is not", null)
       .execute();
@@ -123,6 +123,11 @@ export async function inceptionOf(
       thread: s.exploration_id,
       uncovered: questions.filter(
         (q) =>
+          !(COVERED_QUESTION_STATES as readonly string[]).includes(q.state),
+      ).length,
+      open: questions.filter(
+        (q) =>
+          q.shown_at !== null &&
           !(COVERED_QUESTION_STATES as readonly string[]).includes(q.state),
       ).length,
     });

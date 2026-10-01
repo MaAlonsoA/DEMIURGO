@@ -10,6 +10,7 @@ import type { Exploration, ProductRow, Taxonomy } from '../../api/types.ts';
 import { Code } from '../../components/Badge.tsx';
 import {
   AlertTriangleIcon,
+  ArrowRightIcon,
   HelpIcon,
   type IconProps,
   KnowledgeIcon,
@@ -42,6 +43,8 @@ export type NeedContext = {
 /** The icon of a thing: its record or proposal type where it has one, else its kind. */
 export function kindIcon(item: NeedItem): ComponentType<IconProps> {
   switch (item.kind) {
+    case 'next_step':
+      return ArrowRightIcon;
     case 'conflict':
       return AlertTriangleIcon;
     case 'question':

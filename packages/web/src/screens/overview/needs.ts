@@ -8,6 +8,7 @@ import { type Aspect } from '../../aspects.ts';
 import { ASPECT_WORDS } from '../../aspects.i18n.ts';
 import { EPISTEMIC_MARK, type MarkKind } from '../../words.ts';
 import { aspectOfNeed } from '../needs-you/titles.ts';
+import { TITLES } from '../needs-you/words.i18n.ts';
 import { type NeedItem, catchUpOrder, needsOf } from '../needs-you/order.ts';
 
 export type NeedsKind = NeedItem['kind'];
@@ -53,6 +54,16 @@ function describe(n: NeedItem, state: ProductState | undefined): NeedsItem {
   const records = new Map([...(state?.designs ?? []), ...(state?.decisions ?? [])].map((r) => [r.code, r]));
   const base = { key: n.key, kind: n.kind, unblocks: n.unblocks, aspect: aspectOfNeed(n) };
   switch (n.kind) {
+    case 'next_step':
+      return {
+        ...base,
+        label: 'Next step',
+        title: TITLES.en.nextStepTitle(n.step.action, n.step.title),
+        from: TITLES.en.nextStepReason(n.step.title),
+        mark: 'proposed',
+        target: { to: '/p/$projectId/needs-you', params: {} },
+        code: null,
+      };
     case 'conflict': {
       const cited = (n.proposal.payload.record as { code?: string } | undefined)?.code ?? '';
       return {
@@ -99,7 +110,7 @@ function describe(n: NeedItem, state: ProductState | undefined): NeedsItem {
         ...base,
         label: 'Proposal',
         title: payloadTitle(p.payload) ?? n.batch.summary ?? 'A proposal',
-        from: `${base.aspect ? `${ASPECT_WORDS.en[base.aspect]} · ` : ''}${n.position} of ${n.batch.proposals.length}`,
+        from: `${base.aspect ? `${ASPECT_WORDS.en[base.aspect]} · ` : ''}${n.position} of ${n.of}`,
         mark: p.obsolescence.length > 0 ? 'stale' : epistemic(p.epistemic_status),
         target: { to: '/p/$projectId/batches/$batchId', params: { batchId: n.batch.id } },
         code: null,

@@ -16,6 +16,7 @@ import {
   type RecordType,
   type TaskBuildState,
   criterionState,
+  effectiveMultiple,
   featureDone,
   taskBuildState,
   epistemicOfObservation,
@@ -26,6 +27,7 @@ import {
   suspectOf,
   relationOf,
   behaviorSteps,
+  nextStepNeed,
 } from '@demiurgo/domain';
 import type { Db } from '../db/connection.ts';
 import { staleDependencies } from '../commands/proposals.ts';
@@ -512,6 +514,16 @@ export async function inbox(db: Db, projectId: string) {
       .orderBy('position')
       .execute();
     if (proposals.length === 0) continue;
+    // «n of N» is the proposal's place in its whole batch, whatever has been decided since: it must not
+    // shrink as the person accepts them (it read «1 of 6» and then «1 of 1» for the same batch).
+    const everyId = await db
+      .selectFrom('proposals')
+      .select('id')
+      .where('batch_id', '=', l.id)
+      .where('type', '<>', 'exploration')
+      .orderBy('position')
+      .execute();
+    const batchSize = everyId.length;
     const refs = await basisRefsOf(db, projectId, proposals);
     const withWarning = [];
     for (const p of proposals) {
@@ -522,6 +534,7 @@ export async function inbox(db: Db, projectId: string) {
         type: p.type,
         payload: p.payload,
         state: p.state,
+        ordinal: everyId.findIndex((x) => x.id === p.id) + 1,
         epistemic_status: epistemicOfProposal(p.state),
         obsolescence: warnings,
         // Only what an agent proposes of its own is checked against the knowledge (knowledge/workflows.ts).
@@ -539,6 +552,7 @@ export async function inbox(db: Db, projectId: string) {
       summary: l.summary,
       run_id: l.run_id,
       created: l.created_at,
+      size: batchSize,
       dependencies: (l.dependencies ?? []) as Dependency[],
       proposals: withWarning,
     });
@@ -627,6 +641,8 @@ export async function inbox(db: Db, projectId: string) {
     .execute();
   const extra = await pendingKnowledge(db, projectId);
   const suspects = await suspectRecords(db, projectId);
+  // The onboarding step that waits on the person, as one more thing of Needs you (when it is theirs to take).
+  const nextStep = nextStepNeed(await inceptionOf(db, projectId), questions.length + open.length);
   const total =
     batchItems.reduce((n, l) => n + l.proposals.length, 0) +
     questions.length +
@@ -634,6 +650,7 @@ export async function inbox(db: Db, projectId: string) {
     drafts.length +
     links.length +
     suspects.length +
+    (nextStep ? 1 : 0) +
     extra.total;
   return {
     total,
@@ -658,6 +675,7 @@ export async function inbox(db: Db, projectId: string) {
     links_under_review: links.map((e) => ({ ...e, epistemic_status: 'pending' as const })),
     // Records whose basis has a newer approved version since they were written (suspect links).
     suspect_records: suspects,
+    next_step: nextStep,
     ...extra.sections,
   };
 }
@@ -1256,7 +1274,16 @@ export async function explorationDetail(db: Db, projectId: string, id: string) {
     .orderBy('created_at')
     .orderBy('id')
     .execute();
-  const questions = await db.selectFrom('questions').selectAll().where('exploration_id', '=', id).orderBy('created_at').execute();
+  const rawQuestions = await db
+    .selectFrom('questions')
+    .leftJoin('stages', 'stages.id', 'questions.stage_id')
+    .selectAll('questions')
+    .select('stages.stage as stage_name')
+    .where('questions.exploration_id', '=', id)
+    .orderBy('questions.created_at')
+    .execute();
+  // A stage's list questions take several answers even when the row was raised before that rule.
+  const questions = rawQuestions.map(({ stage_name, ...q }) => ({ ...q, multiple: effectiveMultiple(stage_name, q.stage_key, q.multiple) }));
   const children = await db.selectFrom('explorations').select(['id', 'purpose', 'state']).where('parent_id', '=', id).execute();
   return {
     ...e,

@@ -55,6 +55,8 @@ export function updateTitle(
 /** A thing's title, as the queue, the detail and Catch up name it. */
 export function needTitle(item: NeedItem, rows: readonly ProductRow[], words: Words = TITLES.en): string {
   switch (item.kind) {
+    case 'next_step':
+      return words.nextStepTitle(item.step.action, item.step.title);
     case 'conflict':
       return conflictTitle(item, rows, words);
     case 'question':
@@ -81,6 +83,8 @@ export type ReasonContext = { rows: readonly ProductRow[]; threads: readonly Pic
 /** Why a thing is in Needs you, in one line of the queue ("Asked by DEMIURGO in Global quality"). */
 export function needReason(item: NeedItem, ctx: ReasonContext, words: Words = TITLES.en): string {
   switch (item.kind) {
+    case 'next_step':
+      return words.nextStepReason(item.step.title);
     case 'conflict':
       // A coherence finding (FDR-KNO-056) was found reading the whole epic, not after one change.
       if (item.proposal.payload.quotes) return words.foundByCoherence(String(item.proposal.payload.epic ?? ''));
@@ -96,7 +100,7 @@ export function needReason(item: NeedItem, ctx: ReasonContext, words: Words = TI
     }
     case 'proposal': {
       const aspect = aspectOfProposal(item.proposal);
-      return words.proposalReason(aspect ? words.aspectWord(aspect) : null, item.position, item.batch.proposals.length);
+      return words.proposalReason(aspect ? words.aspectWord(aspect) : null, item.position, item.of);
     }
     case 'version': {
       const aspect = aspectOfType(item.version.type);
@@ -197,6 +201,8 @@ export function saidOf(
 /** The id of the entity a thing's commands act on. */
 export function entityOf(item: NeedItem): string {
   switch (item.kind) {
+    case 'next_step':
+      return item.step.key;
     case 'conflict':
     case 'proposal':
       return item.proposal.id;

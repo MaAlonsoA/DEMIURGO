@@ -111,7 +111,7 @@ export function NeedsYouScreen() {
   const ctx: NeedContext = { projectId, rows, threads, taxonomies };
 
   const items = inbox.data && (state.data || state.error) ? needsOf(inbox.data, rows) : null;
-  const total = inbox.data?.total ?? 0;
+  const total = items?.length ?? 0;
   useDecisionResults(items, total);
   // One title for the tab, set here only (a child's would be overwritten by this one).
   usePageTitle([items?.length === 0 ? t.upToDate : catchUp ? t.catchingUp : t.needsYou, project?.name]);

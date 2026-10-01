@@ -62,7 +62,8 @@ export function NeedsSummary({
   const inception = useInceptionCurrent(projectId);
   const data = inbox.data;
   const items = data ? needsItems(data, state) : [];
-  const total = data?.total ?? 0;
+  // The number of distinct things listed, as Needs you and the sidebar count them.
+  const total = items.length;
   const rows = [...(state?.designs ?? []), ...(state?.decisions ?? [])];
   const minutes = data ? minutesOf(needsOf(data, rows)) : 0;
   const ratified = justRatified(state, data);
@@ -86,7 +87,7 @@ export function NeedsSummary({
         {waiting ? (
           <p className="text-xs text-fg-2" data-needs-summary>
             {t.summaryThings(total)}
-            {packages && items.length !== total ? t.inDecisions(items.length, packages) : ''} · {t.aboutMinutes(minutes)}
+            {packages ? ` (${packages})` : ''} · {t.aboutMinutes(minutes)}
           </p>
         ) : null}
       </div>

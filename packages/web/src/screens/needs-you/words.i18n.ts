@@ -15,6 +15,7 @@ export const TITLES = messages(
     kindWord: (kind: Kind): string =>
       (
         ({
+          next_step: 'Next step',
           conflict: 'Conflict',
           question: 'Question',
           package: 'Package',
@@ -46,6 +47,23 @@ export const TITLES = messages(
     updateChange: "Knowledge couldn't take in a change",
     proposalFallback: 'A proposal',
     linkTitle: (from: string, to: string) => `${from} is based on ${to}`,
+    nextStepTitle: (action: string, title: string): string =>
+      `Next step: ${
+        (
+          {
+            pass_stage: `pass “${title}”`,
+            open_stage: `start “${title}”`,
+            design_system: 'open the design system',
+            epics: 'open the epics',
+            feature: `design ${title.toLowerCase()}`,
+            repository: 'connect the repository',
+            build: 'go to Build',
+            plan_backlog: 'map the first version',
+            answer_stage: `answer the questions of “${title}”`,
+          } as Record<string, string>
+        )[action] ?? title
+      }`,
+    nextStepReason: (title: string) => `Onboarding · ${title}`,
     suspectTitle: (from: string) => `${from} may be out of date`,
     suspectReason: (upstream: string, from: number, to: number) => `${upstream} changed: v${from} to v${to}`,
     foundApproved: 'Found by knowledge · with something you approved',
@@ -93,6 +111,7 @@ export const TITLES = messages(
     kindWord: (kind: Kind): string =>
       (
         ({
+          next_step: 'Siguiente paso',
           conflict: 'Conflicto',
           question: 'Pregunta',
           package: 'Paquete',
@@ -126,6 +145,23 @@ export const TITLES = messages(
     updateChange: 'El conocimiento no pudo incorporar un cambio',
     proposalFallback: 'Una propuesta',
     linkTitle: (from: string, to: string) => `${from} se basa en ${to}`,
+    nextStepTitle: (action: string, title: string): string =>
+      `Siguiente paso: ${
+        (
+          {
+            pass_stage: `superar «${title}»`,
+            open_stage: `empezar «${title}»`,
+            design_system: 'abrir el sistema de diseño',
+            epics: 'abrir las épicas',
+            feature: `diseñar ${title.toLowerCase()}`,
+            repository: 'conectar el repositorio',
+            build: 'ir a Construir',
+            plan_backlog: 'mapear la primera versión',
+            answer_stage: `responder a las preguntas de «${title}»`,
+          } as Record<string, string>
+        )[action] ?? title
+      }`,
+    nextStepReason: (title: string) => `Primeros pasos · ${title}`,
     suspectTitle: (from: string) => `Revisar ${from}`,
     suspectReason: (upstream: string, from: number, to: number) => `${upstream} cambió: de la v${from} a la v${to}`,
     foundApproved: 'Encontrado por el conocimiento · con algo que aprobaste',
@@ -177,6 +213,7 @@ export const ORDER = messages(
     groupTitle: (key: GroupKey): string =>
       (
         ({
+          next: 'Next step',
           conflicts: 'Conflicts',
           questions: 'Questions',
           proposals: 'Proposals',
@@ -192,6 +229,7 @@ export const ORDER = messages(
     groupTitle: (key: GroupKey): string =>
       (
         ({
+          next: 'Siguiente paso',
           conflicts: 'Conflictos',
           questions: 'Preguntas',
           proposals: 'Propuestas',
@@ -422,6 +460,7 @@ export const QUEUE = messages(
     hint: (key: GroupKey): string =>
       (
         ({
+          next: 'The step of the way to the first build that is yours to take.',
           conflicts: 'Knowledge found them. DEMIURGO recommends; you decide.',
           questions: 'Each opens in its thread. The ones that block something come first.',
           proposals: 'Each opens where it is decided: its record, or its batch.',
@@ -434,14 +473,15 @@ export const QUEUE = messages(
       )[key],
     waitingSince: 'waiting since',
     listboxLabel: 'What needs you',
-    homeWord: (to: 'record' | 'thread' | 'batch' | 'product'): string =>
-      ({ record: 'On its page', thread: 'In its thread', batch: 'In its batch', product: 'On the Product page' })[to],
+    homeWord: (to: 'record' | 'thread' | 'batch' | 'product' | 'path'): string =>
+      ({ record: 'On its page', thread: 'In its thread', batch: 'In its batch', product: 'On the Product page', path: 'On the Product page' })[to],
     decideHere: 'Decided here',
   },
   {
     hint: (key: GroupKey): string =>
       (
         ({
+          next: 'El paso del camino a la primera construcción que te toca dar.',
           conflicts: 'El conocimiento los encontró. DEMIURGO recomienda; tú decides.',
           questions: 'Cada una se abre en su hilo. Las que bloquean algo van primero.',
           proposals: 'Cada una se abre donde se decide: su registro o su lote.',
@@ -454,8 +494,8 @@ export const QUEUE = messages(
       )[key],
     waitingSince: 'esperando desde',
     listboxLabel: 'Lo que te necesita',
-    homeWord: (to: 'record' | 'thread' | 'batch' | 'product'): string =>
-      ({ record: 'En su página', thread: 'En su hilo', batch: 'En su lote', product: 'En la página de Producto' })[to],
+    homeWord: (to: 'record' | 'thread' | 'batch' | 'product' | 'path'): string =>
+      ({ record: 'En su página', thread: 'En su hilo', batch: 'En su lote', product: 'En la página de Producto', path: 'En la página de Producto' })[to],
     decideHere: 'Se decide aquí',
   },
 );

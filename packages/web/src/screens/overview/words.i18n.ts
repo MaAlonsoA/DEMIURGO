@@ -416,6 +416,15 @@ export const DEFINITION = messages(
     lastChange: 'Last change',
     history: 'History',
     historyOf: (code: string) => `${code} keeps every change, newest first.`,
+    changesTitle: (n: number) => `${n} changes to the definition`,
+    changesNote:
+      'Each one comes from something you decided in a thread. Approving them together updates the definition once; what it said before stays in the history.',
+    approveAll: (n: number) => (n === 2 ? 'Approve both' : `Approve all ${n}`),
+    approvingAll: (done: number, total: number) => `Approving ${done} of ${total}…`,
+    rejectChange: 'Reject',
+    rejecting: 'Rejecting…',
+    changeRejected: 'Change rejected: the definition stays as it is.',
+    after: 'After',
     threadChangesTitle: 'Changes decided in threads',
     threadChangesNote:
       'Something decided in a thread changes the definition. Approving a change updates it now; what it said before stays in the history.',
@@ -490,6 +499,15 @@ export const DEFINITION = messages(
     lastChange: 'Último cambio',
     history: 'Historia',
     historyOf: (code: string) => `${code} guarda cada cambio, del más reciente al primero.`,
+    changesTitle: (n: number) => `${n} cambios a la definición`,
+    changesNote:
+      'Cada uno viene de algo que decidiste en un hilo. Aprobarlos juntos actualiza la definición una vez; lo que decía antes queda en la historia.',
+    approveAll: (n: number) => (n === 2 ? 'Aprobar los dos' : `Aprobar los ${n}`),
+    approvingAll: (done: number, total: number) => `Aprobando ${done} de ${total}…`,
+    rejectChange: 'Rechazar',
+    rejecting: 'Rechazando…',
+    changeRejected: 'Cambio rechazado: la definición sigue como está.',
+    after: 'Después',
     threadChangesTitle: 'Cambios decididos en hilos',
     threadChangesNote:
       'Algo decidido en un hilo cambia la definición. Al aprobar un cambio se actualiza ya; lo que decía antes queda en la historia.',

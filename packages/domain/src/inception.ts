@@ -82,6 +82,8 @@ export type InceptionInput = {
     state: string;
     thread: string | null;
     uncovered: number;
+    /** Questions of the stage open for the person right now (shown, neither confirmed nor discarded). */
+    open?: number;
   }[];
   definition: InceptionRecord | null;
   /** A product definition proposal (the first draft or a change to a section) is pending. */
@@ -159,6 +161,11 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
         }
       : null;
   };
+  // A step whose own questions are open is not done, even when its stage had passed (a follow-up
+  // question can arrive after): the person still has to answer them.
+  const openQuestions = (key: string) => stage(key)?.open ?? 0;
+  const answerOpen = (key: string): InceptionAction | null =>
+    openQuestions(key) > 0 ? { kind: "answer_stage", stage: key, thread: stage(key)?.thread ?? null } : null;
   // A step with proposals of its own kind waiting is not done: the person still has to decide them.
   const hasPending = (...types: string[]) => input.pending.some((x) => types.includes(x.type));
   const draftEpic = input.epics.find((e) => !e.approved);
@@ -171,12 +178,12 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       why: "It says what the product is for and for whom: everything else is checked against it.",
       blocks: null,
       source: "ISO/IEC/IEEE 29148 (stakeholder requirements)",
-      done: input.definition?.approved === true && passed("requirements"),
+      done: input.definition?.approved === true && passed("requirements") && openQuestions("requirements") === 0,
       // The definition closes when the person approves it (that also passes its stage).
       action: () =>
         input.definitionProposal
           ? { kind: "review_definition" }
-          : (draftOf(input.definition) ?? stageAction("requirements")),
+          : (draftOf(input.definition) ?? answerOpen("requirements") ?? stageAction("requirements")),
     },
     {
       key: "quality",
@@ -190,12 +197,13 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       done:
         passed("quality") &&
         !(input.definitionProposal && !stage("principles")) &&
-        !hasPending("quality_requirement"),
+        !hasPending("quality_requirement") &&
+        openQuestions("quality") === 0,
       action: () =>
         passed("quality")
           ? input.definitionProposal && !stage("principles")
             ? { kind: "review_definition" }
-            : (pendingOf("quality_requirement") ?? { kind: "review_definition" })
+            : (pendingOf("quality_requirement") ?? answerOpen("quality") ?? { kind: "review_definition" })
           : stageAction("quality"),
     },
     {
@@ -205,10 +213,12 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       blocks: null,
       source: "arc42 §2 constraints, §3 context and scope",
       // Passing the stage proposes its section of the definition: done once that is approved too.
-      done: passed("principles") && !input.definitionProposal,
+      done: passed("principles") && !input.definitionProposal && openQuestions("principles") === 0,
       // Covering the stage proposes its section of the definition; approving it passes the stage.
       action: () =>
-        input.definitionProposal && stage("principles") ? { kind: "review_definition" } : stageAction("principles"),
+        input.definitionProposal && stage("principles")
+          ? { kind: "review_definition" }
+          : (answerOpen("principles") ?? stageAction("principles")),
     },
     {
       key: "design_system",
@@ -277,9 +287,10 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       source: "arc42, C4 model, MADR",
       // The stage exists to decide: it is done once it has passed with at least one approved ADR
       // (our convention; an Architecture stage with no decision leaves the tasks without a basis).
-      done: passed("architecture") && input.approvedDecisions > 0 && !hasPending("adr", "decision"),
+      done: passed("architecture") && input.approvedDecisions > 0 && !hasPending("adr", "decision") && openQuestions("architecture") === 0,
       action: () =>
         pendingOf("adr", "decision") ??
+        answerOpen("architecture") ??
         (passed("architecture") ? { kind: "answer_stage", stage: "architecture", thread: stage("architecture")?.thread ?? null } : stageAction("architecture")),
     },
     {
@@ -288,8 +299,8 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
       why: "The threats and mitigations the first tasks have to include.",
       blocks: "Build",
       source: "Microsoft SDL, STRIDE",
-      done: passed("security") && !hasPending("threat_model"),
-      action: () => pendingOf("threat_model") ?? stageAction("security"),
+      done: passed("security") && !hasPending("threat_model") && openQuestions("security") === 0,
+      action: () => pendingOf("threat_model") ?? answerOpen("security") ?? stageAction("security"),
     },
     {
       key: "tasks",
@@ -341,5 +352,46 @@ export function inceptionPath(input: InceptionInput): InceptionPath {
     current,
     done: counted.filter((s) => s.state === "done").length,
     total: counted.length,
+  };
+}
+
+/** The kinds of action that wait on the person alone, with nothing of theirs already listed in Needs you. */
+const PERSON_ACTIONS = [
+  "pass_stage",
+  "open_stage",
+  "design_system",
+  "epics",
+  "feature",
+  "repository",
+  "build",
+  "plan_backlog",
+  "answer_stage",
+] as const;
+
+export type NextStepNeed = {
+  key: InceptionStepKey;
+  title: string;
+  action: (typeof PERSON_ACTIONS)[number];
+  /** The record the action is about, when it is one (feature, build). */
+  code: string | null;
+};
+
+/**
+ * The current step as one thing for Needs you, when its action is the person's to take and is not
+ * already listed there: the proposals, the drafts to approve and the open questions are their own
+ * items (a step «waiting on DEMIURGO» is a thread to continue, not a thing for the person).
+ * `visibleQuestions` is how many questions Needs you already lists.
+ */
+export function nextStepNeed(path: InceptionPath, visibleQuestions: number): NextStepNeed | null {
+  const step = path.steps.find((s) => s.key === path.current && s.state === "current");
+  const action = step?.action;
+  if (!step || !action) return null;
+  if (!(PERSON_ACTIONS as readonly string[]).includes(action.kind)) return null;
+  if (action.kind === "answer_stage" && visibleQuestions > 0) return null;
+  return {
+    key: step.key,
+    title: step.title,
+    action: action.kind as NextStepNeed["action"],
+    code: "code" in action ? action.code : null,
   };
 }

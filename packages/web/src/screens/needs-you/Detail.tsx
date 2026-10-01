@@ -39,6 +39,8 @@ export function NeedDetail(props: DetailProps) {
   const { item } = props;
   const kindWords = useMessages(TITLES);
   switch (item.kind) {
+    case 'next_step':
+      return <GoDetail {...props} />;
     case 'conflict':
       return <Conflict {...(props as DetailProps<'conflict'>)} title={needTitle(item, props.ctx.rows, kindWords)} />;
     case 'question':

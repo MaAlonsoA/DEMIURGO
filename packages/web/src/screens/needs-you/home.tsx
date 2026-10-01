@@ -11,13 +11,16 @@ export type Home =
   | { to: 'record'; code: string; version?: number; hash?: string; tab?: 'tasks' }
   | { to: 'thread'; id: string }
   | { to: 'batch'; id: string }
-  | { to: 'product' };
+  | { to: 'product' }
+  | { to: 'path' };
 
 export type Homed = Exclude<NeedItem['kind'], 'conflict' | 'link' | 'suspect' | 'classification' | 'update'>;
 
 /** The page a thing is decided on, or null when it is still decided here. */
 export function homeOf(item: NeedItem): Home | null {
   switch (item.kind) {
+    case 'next_step':
+      return { to: 'path' };
     case 'question':
       return { to: 'thread', id: item.question.exploration_id };
     case 'version':
@@ -74,6 +77,12 @@ export function HomeLink({
     case 'product':
       return (
         <Link to="/p/$projectId" params={{ projectId }} hash="definition" className={className} {...rest}>
+          {children}
+        </Link>
+      );
+    case 'path':
+      return (
+        <Link to="/p/$projectId" params={{ projectId }} hash="inception" className={className} {...rest}>
           {children}
         </Link>
       );

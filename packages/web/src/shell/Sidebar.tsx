@@ -22,6 +22,7 @@ import { useSafeLocale } from '../words.ts';
 import { openCommandMenu } from './CommandMenu.tsx';
 import { LiveStatus } from './Connection.tsx';
 import { openHelp } from './Help.tsx';
+import { needsCount } from '../screens/needs-you/order.ts';
 import { NAV, type NavItem, navLabelFor, sectionOf } from './nav.ts';
 import { PersonMenu } from './PersonMenu.tsx';
 import { ProjectSwitcher } from './ProjectSwitcher.tsx';
@@ -31,7 +32,8 @@ type Signal = { indicator: ReactNode; words: string };
 type SidebarWords = Translation<typeof SIDEBAR.en>;
 
 function useNeedsSignal(projectId: string, t: SidebarWords): Signal {
-  const total = useQuery(inboxQuery(projectId)).data?.total ?? 0;
+  const inbox = useQuery(inboxQuery(projectId)).data;
+  const total = inbox ? needsCount(inbox) : 0;
   return {
     indicator: <Count n={total} label={t.needsYouIndicator(total)} />,
     words: total > 0 ? t.thingsWait(total) : t.nothingWaits,

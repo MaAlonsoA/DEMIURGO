@@ -53,13 +53,16 @@ const touchesPath = (files: readonly string[], path: string): boolean => path !=
 
 /**
  * The files one `commit ok` step changed on its own (not the whole branch diff the step stores in `files`).
- * `own_files` when the step has it (the commit's own change). Else the symmetric difference of `files` against the
+ * `own_files` when the step has it (the commit's own change), else the row `own-files-backfill` recorded from git for its
+ * sha (`backfilled`, stage `footprint`, keyed by sha). Else the symmetric difference of `files` against the
  * previous commit's `files`, so a file the builder removed from the branch diff (a revert) counts as touched too; this
  * fallback cannot see a file that was edited but was already in both lists. Null when nothing stored says; without a
  * previous commit the baseline is empty. «Own files» is our reading of «what the builder did after the review».
  */
-export function ownFilesOf(step: Row<'build_steps'>, previous: Row<'build_steps'> | undefined): string[] | null {
+export function ownFilesOf(step: Row<'build_steps'>, previous: Row<'build_steps'> | undefined, backfilled?: ReadonlyMap<string, string[]>): string[] | null {
   const d = detailOf(step);
+  const filled = typeof d.sha === 'string' ? backfilled?.get(d.sha) : undefined;
+  if (!Array.isArray(d.own_files) && filled) return filled.map(normalPath);
   if (Array.isArray(d.own_files)) return asArray(d.own_files).filter((f): f is string => typeof f === 'string').map(normalPath);
   if (!Array.isArray(d.files)) return null;
   const now = new Set(commitFiles(step));
@@ -89,6 +92,11 @@ export const reviewFindingOutcome: Rule = (inputs) => {
   const out: Finding[] = [];
   const reviews = orderedReviews(inputs);
   const commits = stepsOf(inputs, 'commit').filter((s) => s.outcome === 'ok');
+  const backfilled = new Map<string, string[]>();
+  for (const s of stepsOf(inputs, 'footprint')) {
+    const d = detailOf(s);
+    if (d.backfilled === true && typeof d.sha === 'string' && Array.isArray(d.own_files)) backfilled.set(d.sha, asArray(d.own_files).filter((f): f is string => typeof f === 'string'));
+  }
   reviews.forEach((review, i) => {
     const attempt = attemptOfReview(inputs, review);
     const later = reviews.slice(i + 1);
@@ -99,7 +107,7 @@ export const reviewFindingOutcome: Rule = (inputs) => {
     const before = commits.filter((s) => timeOf(s.created_at) <= from).at(-1);
     // The builder's answer to this review: its commits before the next review.
     const answers = commits.filter((s) => timeOf(s.created_at) > from && timeOf(s.created_at) <= to);
-    const owned = answers.map((s, k) => ({ step: s, own: ownFilesOf(s, k === 0 ? before : answers[k - 1]) }));
+    const owned = answers.map((s, k) => ({ step: s, own: ownFilesOf(s, k === 0 ? before : answers[k - 1], backfilled) }));
     const changed = answers.some((s, k) => {
       const previous = k === 0 ? before : answers[k - 1];
       const sha = detailOf(s).sha;

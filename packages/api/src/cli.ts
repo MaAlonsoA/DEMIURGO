@@ -17,6 +17,7 @@
 //   node packages/api/src/cli.ts harness escapes [--project <id>]                (records the escapes from design: deterministic, idempotent)
 //   node packages/api/src/cli.ts harness check [--project <id>]                  (runs the periodic check of the harness now: deterministic, idempotent)
 //   node packages/api/src/cli.ts harness recompute [--project <id>] [--request <id>]   (computes the harness post-mortems of ended builds; idempotent)
+//   node packages/api/src/cli.ts own-files-backfill --project <projectId>   (records, from git, the files each attempt's commit changed on its own where the commit step lacks own_files)
 //   node packages/api/src/cli.ts build-footprint-backfill --project <projectId>   (records the merge commit and files of merged tasks that lack them; needs GitHub env)
 //   node packages/api/src/cli.ts code-map --project <projectId> [--query "text"] [--ref main] [--budget 6000]   (prints the ranked code map of the project's repository; read-only)
 //   node packages/api/src/cli.ts layers-backfill --project <projectId>           (Jev's schema opinion for tasks that have none; needs TYPESAFE_API_KEY)
@@ -72,6 +73,7 @@ import {
   runCheck,
   describeRegression,
   taskFootprints,
+  planOwnFilesBackfill,
   classifyTaskTestability,
   classifyReviewFindings,
   ensureTaskLayers,
@@ -715,6 +717,48 @@ commands['build-footprint-backfill'] = async () => {
       }
     }
     console.log(JSON.stringify({ merged: merged.length, written }));
+    await services.observer.flush(5000);
+  });
+};
+
+commands['own-files-backfill'] = async () => {
+  const i = args.indexOf('--project');
+  const projectId = i >= 0 ? args[i + 1] : undefined;
+  if (!projectId) throw new Error('Usage: own-files-backfill --project <projectId>');
+  await withDatabase(async (c) => {
+    const services = {
+      db: c.db,
+      clock: () => new Date(),
+      providers: createProviders(config),
+      classifierFor: () => Promise.reject(new Error('An own-files backfill classifies nothing.')),
+      agentSessionsDir: config.agentSessionsDir,
+      engine: inertEngine(),
+      logger: cliLogger,
+      observer: createObserver(config.observe, cliLogger),
+    };
+    const repo = await repositoryOf(c.db, projectId);
+    if (!repo.path) throw new Error('The project has no repository (DEMIURGO_PROJECTS_DIR).');
+    const plan = await planOwnFilesBackfill(c.db, projectId, repo.path, repo.branch);
+    const actor = system('cli');
+    let written = 0;
+    for (const row of plan.rows) {
+      await interaction(services.observer, actor, projectId, () =>
+        executeCommand(services, {
+          command: 'build_step.record',
+          actor,
+          projectId,
+          data: {
+            build_request_id: row.requestId,
+            attempt: row.attempt,
+            stage: 'footprint',
+            outcome: 'ok',
+            detail: { commit_step_id: row.commitStepId, sha: row.sha, own_files: row.ownFiles, backfilled: true },
+          },
+        }),
+      );
+      written++;
+    }
+    console.log(JSON.stringify({ commits: plan.commits, already: plan.already, missing_sha: plan.missing, written }));
     await services.observer.flush(5000);
   });
 };

@@ -59,6 +59,7 @@ export { runCheck, dueCheck, runDueChecks, regressionsOf, containmentOf, describ
 export { PIECE_NAMES, pieceLabel } from './harness/pieces.ts';
 import './harness/register.ts';
 export * from './build/footprint.ts';
+export * from './build/own-files.ts';
 export * from './build/project-map.ts';
 export * from './build/code-map.ts';
 export { classifyTaskTestability } from './classifier/testability.ts';

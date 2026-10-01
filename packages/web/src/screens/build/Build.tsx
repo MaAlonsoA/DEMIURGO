@@ -104,7 +104,7 @@ function RequestState({ task, t }: { task: QueueTask; t: Words }) {
           {a[`s_${task.stage.stage}` as const]} · {a[`o_${task.stage.outcome}` as const]}
         </span>
       ) : null}
-      {task.stage?.stage === "builder" && task.stage.outcome === "failed" ? (
+      {task.stage?.outcome === "failed" ? (
         <BuilderFailure kind={task.stage.failure?.kind} excerpt={task.stage.failure?.excerpt} />
       ) : null}
       {r.pr_url ? (

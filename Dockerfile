@@ -26,6 +26,13 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends docker-ce-cli \
  && rm -rf /var/lib/apt/lists/*
 
+# Librerías del sistema que Chromium necesita para los e2e de Playwright (los builders las usan: la
+# imagen no lleva navegadores, cada proyecto fija su versión de Playwright y se descargan al volumen
+# pw-browsers). Lista oficial: `playwright install-deps chromium`, fijada a Playwright 1.63.0 (la que usa el primer
+# proyecto construido con DEMIURGO); sube la versión aquí si el instalador pide otras librerías.
+RUN npx -y playwright@1.63.0 install-deps chromium \
+ && rm -rf /var/lib/apt/lists/* /root/.npm
+
 # pnpm por corepack (la versión la fija package.json) y las CLI de Claude y Codex para Linux, siempre
 # en su última versión: cada build descarga la ficha de la última versión publicada en npm, y cuando
 # cambia invalida la capa de abajo, así que `pnpm stack:up` las actualiza en cuanto sale una nueva
@@ -39,8 +46,8 @@ RUN corepack enable \
 # Usuario no root con el mismo uid que la cuenta del mini, para poder escribir en el repo montado.
 RUN groupadd -g "${GID}" demiurgo \
  && useradd -m -u "${UID}" -g "${GID}" -s /bin/bash demiurgo \
- && mkdir -p /app /var/lib/demiurgo/sessions /var/lib/demiurgo/cli-auth \
- && chown -R demiurgo:demiurgo /app /var/lib/demiurgo
+ && mkdir -p /app /var/lib/demiurgo/sessions /var/lib/demiurgo/cli-auth /ms-playwright \
+ && chown -R demiurgo:demiurgo /app /var/lib/demiurgo /ms-playwright
 
 COPY docker/entrypoint.sh /usr/local/bin/demiurgo-entrypoint
 RUN chmod 755 /usr/local/bin/demiurgo-entrypoint

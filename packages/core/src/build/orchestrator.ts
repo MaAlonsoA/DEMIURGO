@@ -42,6 +42,7 @@ import { projectsDir } from '../repo/repo.ts';
 import { BUILDER_MAX_TIME_MS, type BuildReport, runBuilder } from '../runner/builder.ts';
 import type { Services } from '../services.ts';
 import { commitAll, hostPathOf, prepareWorktree, readWorktreeFile, readWorktreeFiles, removeWorktree } from './workspace.ts';
+import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -357,6 +358,38 @@ async function retryBuilder(s: Services, r: Run): Promise<number | null> {
   return r.attempt + 1;
 }
 
+/**
+ * Resume from the commit stage: the latest earlier attempt ended with the builder ok and a failed
+ * commit (nothing else after it), and its worktree is still on disk. Returns the builder's report
+ * to reuse, or null (then the attempt runs in full).
+ */
+async function resumableBuilder(s: Services, r: Run, hasBranch: boolean): Promise<{ report: BuildReport | null; from: number } | null> {
+  if (!hasBranch || r.attempt < 2) return null;
+  const root = projectsDir();
+  if (!root || !existsSync(join(root, '.worktrees', r.requestId))) return null;
+  const prior = await s.db
+    .selectFrom('build_steps')
+    .select((eb) => eb.fn.max('attempt').as('attempt'))
+    .where('build_request_id', '=', r.requestId)
+    .where('attempt', '<', r.attempt)
+    .executeTakeFirst();
+  if (prior?.attempt === null || prior?.attempt === undefined) return null;
+  const from = Number(prior.attempt);
+  const rows = await s.db
+    .selectFrom('build_steps')
+    .select(['stage', 'outcome', 'detail'])
+    .where('build_request_id', '=', r.requestId)
+    .where('attempt', '=', from)
+    .orderBy('created_at')
+    .orderBy('id')
+    .execute();
+  const builder = rows.filter((x) => x.stage === 'builder' && x.outcome === 'ok').at(-1);
+  const commits = rows.filter((x) => x.stage === 'commit' && x.outcome !== 'started');
+  const last = rows.filter((x) => x.outcome !== 'started').at(-1);
+  if (!builder || commits.length === 0 || commits.some((x) => x.outcome === 'ok') || last?.stage !== 'commit' || last.outcome !== 'failed') return null;
+  return { report: (builder.detail as { report?: BuildReport | null } | null)?.report ?? null, from };
+}
+
 /** The whole flow of one attempt. Returns how it ended. */
 async function buildWorkflow(projectId: string, requestId: string, attempt: number): Promise<string> {
   const r: Run = { projectId, requestId, attempt };
@@ -375,16 +408,24 @@ async function buildWorkflow(projectId: string, requestId: string, attempt: numb
   if (!repo.ok) return stop('repo', repo.outcome);
   const { owner, repo: repoName } = repo.value;
 
+  // a failed commit after a good builder resumes here, with the same worktree, without the builder
+  const resume = await plain('resume-check', () => resumableBuilder(s0, r, Boolean(info.branch)));
+
   // worktree
   const tree = await stage(r, 'worktree', async () => {
-    const w = await prepareWorktree({ repoDir: info.repoDir, taskCode: info.taskCode, buildId: requestId, existingBranch: info.branch });
+    const w = await prepareWorktree({ repoDir: info.repoDir, taskCode: info.taskCode, buildId: requestId, existingBranch: info.branch, skipIntegrate: resume !== null });
     return { value: w, detail: { branch: w.branch, reused: Boolean(info.branch) }, extra: { branch: w.branch } };
   });
   if (!tree.ok) return stop('worktree', tree.outcome);
   const worktree = tree.value;
 
   // builder
-  const built = await stage(r, 'builder', async () => {
+  const built = resume
+    ? await stage(r, 'builder', async () => ({
+        value: { report: resume.report },
+        detail: { resumed: true, resumed_from_attempt: resume.from, report: resume.report, note: 'The builder is not run again: the previous attempt built it and only the commit failed.' },
+      }))
+    : await stage(r, 'builder', async () => {
     const catalog = await loadAgentCatalog();
     const agent = catalog.get('builder');
     if (!agent) throw new DomainError('not_found', 'The builder agent does not exist.');

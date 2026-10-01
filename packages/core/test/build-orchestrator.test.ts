@@ -5,7 +5,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { canonicalPrettyJson, human, sha256Hex, system } from '@demiurgo/domain';
@@ -387,6 +387,35 @@ describe('build.start', () => {
     expect(calls.statuses.map((s) => `${s.context}:${s.state}`)).toContain('demiurgo/design:success');
     const design = (await steps(requestId)).filter((s) => s.stage === 'design' && s.outcome === 'ok').at(-1);
     expect(design?.detail).toMatchObject({ version: 'DSY-001@1', violations: [] });
+  });
+
+  it('a failed commit after a good builder: «Build again» resumes at the commit, reusing the worktree, without running the builder', async () => {
+    const base = fakes({ ciConclusion: 'success' });
+    let unreadable = '';
+    setBuildDeps({
+      ...base,
+      runBuilder: async (spec, options) => {
+        const result = await (base.runBuilder as NonNullable<BuildDeps['runBuilder']>)(spec, options);
+        // A directory git cannot read and DEMIURGO does not ignore: `git add -A` fails.
+        unreadable = join(options?.worktreePath ?? '', 'locked');
+        mkdirSync(join(unreadable, 'inner'), { recursive: true });
+        writeFileSync(join(unreadable, 'inner', 'f.txt'), 'x\n');
+        chmodSync(join(unreadable, 'inner'), 0o444);
+        return result;
+      },
+    });
+    const requestId = await newRequest();
+    await cmd('build.start', { task: taskCode });
+    expect(await finished(requestId, 1)).toBe('failed:commit');
+    const runsBefore = builderRuns;
+
+    chmodSync(join(unreadable, 'inner'), 0o700);
+    setBuildDeps({ ...fakes({ ciConclusion: 'success' }), runBuilder: async () => { throw new Error('the builder must not run again'); } });
+    expect((await cmd('build.start', { task: taskCode })).result).toMatchObject({ attempt: 2 });
+    expect(await finished(requestId, 2)).toBe('done');
+    expect(builderRuns).toBe(runsBefore);
+    const second = (await steps(requestId)).filter((x) => x.attempt === 2 && x.stage === 'builder' && x.outcome === 'ok');
+    expect(second[0]?.detail).toMatchObject({ resumed: true, resumed_from_attempt: 1 });
   });
 
   it('GitHub plan without protection: DEMIURGO merges itself (squash) when ci, review and design are green, without auto-merge', async () => {

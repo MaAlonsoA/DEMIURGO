@@ -78,6 +78,10 @@ services:
       - web-dist:/app/packages/web/dist
       - agent-sessions:/var/lib/demiurgo/sessions
       - cli-auth:/var/lib/demiurgo/cli-auth
+      # Navegadores de Playwright de los builders (volumen demiurgo_pw-browsers). Se monta aquí para que
+      # compose lo cree con el propietario de /ms-playwright de la imagen (uid DEMIURGO_UID); el builder lo monta
+      # en lectura y escritura.
+      - pw-browsers:/ms-playwright
       # El opencode.json del Mac mini (modelos locales de OpenCode), en la ruta por defecto de DEMIURGO.
       - ${HOME}/.config/opencode:/home/demiurgo/.config/opencode:ro
       # El runner (packages/core/src/runner) lanza contenedores: necesita el socket del motor.
@@ -232,6 +236,7 @@ volumes:
   web-dist:
   agent-sessions:
   cli-auth:
+  pw-browsers:
   evidence-data:
   evidence-archive:
   evidence-queue:

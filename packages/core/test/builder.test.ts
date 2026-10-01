@@ -1,10 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type BuilderSpec, builderArguments } from '../src/runner/builder.ts';
-import { branchName, commitAll, diffStat, hostPathOf, prepareWorktree, removeWorktree } from '../src/build/workspace.ts';
+import { branchName, commitAll, writeExcludes, diffStat, hostPathOf, prepareWorktree, removeWorktree } from '../src/build/workspace.ts';
 
 const spec: BuilderSpec = {
   worktreeHostPath: '/Users/x/Development/Demiurgo-projects/.worktrees/b1',
@@ -28,11 +28,12 @@ describe('builderArguments', () => {
     expect(mounts).toEqual([
       `type=bind,source=${spec.worktreeHostPath},target=/workspace`,
       'type=volume,source=demiurgo_cli-auth,target=/auth,readonly',
+      'type=volume,source=demiurgo_pw-browsers,target=/ms-playwright',
     ]);
     expect(args.join(' ')).not.toContain('docker.sock');
     expect(args).toContain('demiurgo/app:local');
     const envs = args.filter((_, i) => args[i - 1] === '--env');
-    expect(envs).toEqual(['CI=1', 'CLAUDE_CONFIG_DIR=/home/demiurgo/.claude-auth', 'HOME=/home/demiurgo', 'LANG=C.UTF-8', 'TZ=UTC']);
+    expect(envs).toEqual(['CI=1', 'CLAUDE_CONFIG_DIR=/home/demiurgo/.claude-auth', 'HOME=/home/demiurgo', 'LANG=C.UTF-8', 'PLAYWRIGHT_BROWSERS_PATH=/ms-playwright', 'TZ=UTC']);
     expect(args.slice(args.indexOf('builder') + 1)).toEqual([
       'claude', '-p', '--model', 'opus', '--output-format', 'stream-json', '--verbose', '--effort', 'high',
       '--permission-mode', 'acceptEdits', '--allowedTools', 'Read,Edit,Write,Glob,Grep,Bash,WebSearch',
@@ -46,10 +47,12 @@ describe('builderArguments', () => {
       DEMIURGO_GID: '1001',
       DEMIURGO_BUILDER_IMAGE: 'img:x',
       DEMIURGO_CLI_AUTH_VOLUME: 'vol',
+      DEMIURGO_PW_BROWSERS_VOLUME: 'pwvol',
     });
     expect(args).toContain('1000:1001');
     expect(args).toContain('img:x');
     expect(args).toContain('type=volume,source=vol,target=/auth,readonly');
+    expect(args).toContain('type=volume,source=pwvol,target=/ms-playwright');
     const cli = args.slice(args.indexOf('builder') + 1);
     expect(cli.slice(0, 4)).toEqual(['codex', 'exec', '--json', '-m']);
     expect(cli).toContain('sandbox_mode="workspace-write"');
@@ -139,6 +142,26 @@ describe('worktree helpers', () => {
     const again = await prepareWorktree({ repoDir: repo, taskCode: 'TSK-C-3', buildId: 'aaaaaaaa1111', existingBranch: first.branch });
     expect(existsSync(join(again.path, 'theirs.txt'))).toBe(true);
     expect(existsSync(join(again.path, 'mine.txt'))).toBe(true);
+  });
+
+  it('the commit ignores tool caches, even unreadable ones, and writing the exclude list twice is harmless', async () => {
+    const wt = await prepareWorktree({ repoDir: repo, taskCode: 'TSK-D-4', buildId: 'bbbbbbbb2222' });
+    const cache = join(wt.path, '.pw-browsers', 'sysroot', 'etc');
+    mkdirSync(cache, { recursive: true });
+    writeFileSync(join(cache, 'x.conf'), 'x\n');
+    chmodSync(cache, 0o000);
+    writeFileSync(join(wt.path, 'real.txt'), 'x\n');
+    try {
+      const file = await writeExcludes(wt.path);
+      await writeExcludes(wt.path);
+      const text = readFileSync(file, 'utf8');
+      for (const p of ['.pw-browsers/', '.cache/', 'playwright-report/', 'test-results/', 'node_modules/', '.next/', '*.tsbuildinfo']) expect(text).toContain(p);
+      expect(text.match(/DEMIURGO: tool caches/g)).toHaveLength(1);
+      expect(await commitAll(wt.path, 'real')).toMatch(/^[0-9a-f]{40}$/);
+      expect(sh(wt.path, 'show', '--name-only', '--format=', 'HEAD')).toBe('real.txt');
+    } finally {
+      chmodSync(cache, 0o700);
+    }
   });
 
   it('maps container paths to host paths', () => {

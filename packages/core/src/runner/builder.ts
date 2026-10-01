@@ -27,6 +27,7 @@ export const BUILDER_MAX_TIME_MS = 3_600_000;
 const TRANSCRIPT_TAIL = 20_000;
 const OUTPUT_LIMIT = 4 * 1024 * 1024;
 const REPORT_PATH = '.demiurgo/build-report.json';
+export const PW_BROWSERS_DIR = '/ms-playwright';
 const SAFE_VALUE = /^[A-Za-z0-9][A-Za-z0-9_.:/+-]{0,99}$/;
 
 export const buildReportSchema = z.object({
@@ -123,6 +124,7 @@ export function builderArguments(spec: BuilderSpec, containerName: string, envir
   if (!/^\d+$/.test(uid) || !/^\d+$/.test(gid)) throw new Error('DEMIURGO_UID and DEMIURGO_GID must be numbers.');
   const image = environment.DEMIURGO_BUILDER_IMAGE?.trim() || 'demiurgo/app:local';
   const volume = environment.DEMIURGO_CLI_AUTH_VOLUME?.trim() || 'demiurgo_cli-auth';
+  const browsersVolume = environment.DEMIURGO_PW_BROWSERS_VOLUME?.trim() || 'demiurgo_pw-browsers';
   const dir = spec.provider === 'claude' ? 'claude' : 'codex';
   const home = '/home/demiurgo';
   const config = `${home}/.${dir}-auth`;
@@ -132,6 +134,8 @@ export function builderArguments(spec: BuilderSpec, containerName: string, envir
   const env: Record<string, string> = {
     CI: '1',
     HOME: home,
+    // Playwright browsers live in a named volume, outside the worktree: they download once per version.
+    PLAYWRIGHT_BROWSERS_PATH: PW_BROWSERS_DIR,
     LANG: environment.LANG?.trim() || 'C.UTF-8',
     TZ: environment.TZ?.trim() || 'UTC',
     [stateVariable]: config,
@@ -153,6 +157,7 @@ export function builderArguments(spec: BuilderSpec, containerName: string, envir
     '--cpus', String(cpus),
     '--mount', `type=bind,source=${spec.worktreeHostPath},target=/workspace`,
     '--mount', `type=volume,source=${volume},target=/auth,readonly`,
+    '--mount', `type=volume,source=${browsersVolume},target=${PW_BROWSERS_DIR}`,
     '--workdir', '/workspace',
   ];
   for (const [key, value] of Object.entries(env).sort(([a], [b]) => a.localeCompare(b))) args.push('--env', `${key}=${value}`);

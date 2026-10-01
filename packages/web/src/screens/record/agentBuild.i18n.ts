@@ -38,6 +38,10 @@ export const AGENT_BUILD = messages(
           return 'Stopped: the build was cancelled.';
         case 'infra':
           return 'Stopped: the builder container could not run (Docker problem).';
+        case 'unreadable_files':
+          return 'Stopped: the commit could not read some files the builder left behind (tool caches such as downloaded browsers). Build again to retry from the commit.';
+        case 'stage':
+          return 'Stopped: this step failed.';
         default:
           return 'Stopped: the builder exited with an error.';
       }
@@ -98,6 +102,10 @@ export const AGENT_BUILD = messages(
           return 'Detenida: la construcción se canceló.';
         case 'infra':
           return 'Detenida: el contenedor del constructor no pudo ejecutarse (problema de Docker).';
+        case 'unreadable_files':
+          return 'Detenida: el commit no pudo leer unos ficheros que dejó el constructor (cachés de herramientas, como navegadores descargados). Construye de nuevo para reintentar desde el commit.';
+        case 'stage':
+          return 'Detenida: este paso falló.';
         default:
           return 'Detenida: el constructor terminó con un error.';
       }

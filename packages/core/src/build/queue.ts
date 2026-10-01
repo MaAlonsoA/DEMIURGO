@@ -17,6 +17,7 @@ import { mergedBuildOf, productState } from "../queries/read.ts";
 import { taskCoversOf } from "../queries/sizes.ts";
 import { projectsDir } from "../repo/repo.ts";
 import type { AutoStatus } from "./auto.ts";
+import { stageFailure } from "./failure.ts";
 
 type StateRow = Awaited<ReturnType<typeof productState>>["designs"][number];
 
@@ -223,6 +224,7 @@ export async function buildQueue(
           "outcome",
           sql<string | null>`detail->>'failure_kind'`.as("failure_kind"),
           sql<string | null>`detail->>'transcript_excerpt'`.as("excerpt"),
+          sql<string | null>`detail->>'error'`.as("error"),
         ])
         .where("build_request_id", "in", open.map((o) => o.id))
         .orderBy("attempt")
@@ -237,7 +239,13 @@ export async function buildQueue(
     return {
       stage: last.stage,
       outcome: last.outcome,
-      ...(last.outcome === "failed" && last.failure_kind ? { failure: { kind: last.failure_kind, excerpt: last.excerpt } } : {}),
+      ...(last.outcome === "failed"
+        ? last.stage === "builder"
+          ? last.failure_kind
+            ? { failure: { kind: last.failure_kind, excerpt: last.excerpt } }
+            : {}
+          : { failure: stageFailure(last.stage, last.error) }
+        : {}),
     };
   };
 

@@ -84,3 +84,14 @@ export function failureExcerpt(
   const parts = [meaningful(input.transcript ?? '').trim(), (input.stderr ?? '').trim()].filter((p) => p !== '');
   return redactSecrets(parts.join('\n').slice(-EXCERPT_LENGTH), env).trim();
 }
+
+/**
+ * Why a stage other than the builder failed, for the Build screen: a kind the interface words in plain
+ * language (`unreadable_files` for a commit that git could not read, `stage` otherwise) and the last
+ * characters of the recorded error, redacted.
+ */
+export function stageFailure(stage: string, error: string | null | undefined, env: Readonly<Record<string, string | undefined>> = process.env): { kind: string; excerpt: string | null } {
+  const text = (error ?? '').trim();
+  const unreadable = stage === 'commit' && /unable to (?:stat|open|read)|permission denied|insufficient permission/i.test(text);
+  return { kind: unreadable ? 'unreadable_files' : 'stage', excerpt: text === '' ? null : redactSecrets(text.slice(-EXCERPT_LENGTH), env).trim() };
+}

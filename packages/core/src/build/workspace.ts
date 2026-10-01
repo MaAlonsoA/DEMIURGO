@@ -4,8 +4,8 @@
 
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { appendFile, mkdir, readFile, stat } from 'node:fs/promises';
+import { isAbsolute, join } from 'node:path';
 import { promisify } from 'node:util';
 import { projectsDir } from '../repo/repo.ts';
 import { runGit } from '../github/client.ts';
@@ -69,7 +69,7 @@ async function integrateOriginMain(repoDir: string, worktree: string): Promise<v
  * `existingBranch` (a second attempt on the same pull request) it reuses the worktree if it is still
  * there, else checks the branch out (from the local branch, or from origin's).
  */
-export async function prepareWorktree(input: { repoDir: string; taskCode: string; buildId: string; existingBranch?: string | null }): Promise<Worktree> {
+export async function prepareWorktree(input: { repoDir: string; taskCode: string; buildId: string; existingBranch?: string | null; skipIntegrate?: boolean }): Promise<Worktree> {
   const root = projectsDir();
   if (!root) throw new Error('DEMIURGO_PROJECTS_DIR is not set.');
   const path = join(root, '.worktrees', input.buildId);
@@ -78,7 +78,7 @@ export async function prepareWorktree(input: { repoDir: string; taskCode: string
   if (input.existingBranch) {
     const branch = input.existingBranch;
     if (existsSync(path)) {
-      if (origin) await integrateOriginMain(input.repoDir, path);
+      if (origin && !input.skipIntegrate) await integrateOriginMain(input.repoDir, path);
       return { path, branch };
     }
     await git(input.repoDir, ['worktree', 'prune']);
@@ -106,13 +106,35 @@ export async function prepareWorktree(input: { repoDir: string; taskCode: string
 
 /** `git diff --stat` of everything the builder changed, new files included. */
 export async function diffStat(path: string): Promise<string> {
+  await writeExcludes(path);
   await git(path, ['add', '-A', '--intent-to-add']);
   const { stdout } = await git(path, ['diff', '--stat', 'HEAD']);
   return stdout.trim();
 }
 
+/** Tool caches that never belong in a commit (DEMIURGO's own ignore list, our convention). */
+export const EXCLUDED_PATHS = ['.pw-browsers/', '.cache/', 'playwright-report/', 'test-results/', 'node_modules/', '.next/', '*.tsbuildinfo'];
+const EXCLUDE_MARKER = '# DEMIURGO: tool caches that are never committed';
+
+/**
+ * Writes DEMIURGO's ignore list into the worktree's git exclude file (local to the clone, never
+ * committed), so `git add -A` skips caches the builder may have left (and cannot even read).
+ * Idempotent. Returns the path of the exclude file.
+ */
+export async function writeExcludes(path: string): Promise<string> {
+  const { stdout } = await git(path, ['rev-parse', '--git-path', 'info/exclude']);
+  const raw = stdout.trim();
+  const file = isAbsolute(raw) ? raw : join(path, raw);
+  const current = await readFile(file, 'utf8').catch(() => '');
+  if (current.includes(EXCLUDE_MARKER)) return file;
+  await mkdir(join(file, '..'), { recursive: true });
+  await appendFile(file, `${current === '' || current.endsWith('\n') ? '' : '\n'}${EXCLUDE_MARKER}\n${EXCLUDED_PATHS.join('\n')}\n`);
+  return file;
+}
+
 /** Commits every change; returns the sha, or null when nothing changed. */
 export async function commitAll(path: string, message: string, author: string = BUILDER_AUTHOR): Promise<string | null> {
+  await writeExcludes(path);
   await git(path, ['add', '-A']);
   const { stdout: status } = await git(path, ['status', '--porcelain']);
   if (!status.trim()) return null;

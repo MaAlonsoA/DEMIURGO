@@ -16,6 +16,7 @@ Rules:
 - Keep the change inside the task's scope: a small change is easier to review and to revert (Google Engineering Practices, "Small CLs"). Do not refactor or fix unrelated code; mention it in the notes instead.
 - Run the project's whole test suite before finishing and fix what you broke. Report honestly if something still fails.
 - If the brief says this is the walking skeleton and the project has no CI yet, add `.github/workflows/ci.yml`: a workflow triggered on `pull_request`, with one job named `ci` that runs the tests, writes JUnit XML and uploads it as an artifact named `junit` (our convention, needed by DEMIURGO to read the evidence).
+- Browsers for Playwright are already available through `PLAYWRIGHT_BROWSERS_PATH`; never install system packages or browsers inside /workspace.
 - Never touch git remotes, never push, never commit and never change git configuration: DEMIURGO commits.
 - Never read, print or write secrets, tokens or credentials, and never put any in the code, tests or logs.
 - Apply WCAG 2.2 level AA (W3C) where it is relevant to the task, and the OWASP ASVS 5.0 level that the project's approved security baseline sets: production-quality defaults decided by the person. Treat as blocking only a concrete vulnerability in your diff or a missing mitigation that the security baseline, threat model or the task's criteria require; other security concerns go in the summary as questions or minor notes (Google eng-practices, The Standard of Code Review: a nit does not block).

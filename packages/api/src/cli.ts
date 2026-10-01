@@ -14,6 +14,7 @@
 //   node packages/api/src/cli.ts translate-records <projectId> [limit]         (proposes English versions; calls the translator)
 //   node packages/api/src/cli.ts evidence-junit <projectId> <file.xml> [--pr <url>] [--ref <sha>]   (posts CI results to the running API; token in DEMIURGO_AGENT_TOKEN, URL in DEMIURGO_URL or http://127.0.0.1:8100)
 //   node packages/api/src/cli.ts import-design <projectId> [dir]                (creates the H1 pending batch)
+//   node packages/api/src/cli.ts harness recompute [--project <id>] [--request <id>]   (computes the harness post-mortems of ended builds; idempotent)
 //   node packages/api/src/cli.ts build-footprint-backfill --project <projectId>   (records the merge commit and files of merged tasks that lack them; needs GitHub env)
 //   node packages/api/src/cli.ts code-map --project <projectId> [--query "text"] [--ref main] [--budget 6000]   (prints the ranked code map of the project's repository; read-only)
 //   node packages/api/src/cli.ts layers-backfill --project <projectId>           (Jev's schema opinion for tasks that have none; needs TYPESAFE_API_KEY)
@@ -58,6 +59,9 @@ import {
   pullRequest,
   pullRequestFiles,
   pullRequestFootprint,
+  RULES_VERSION,
+  runPostmortem,
+  pendingPostmortems,
   taskFootprints,
   classifyTaskTestability,
   classifyReviewFindings,
@@ -568,6 +572,39 @@ commands['link-supersedes'] = async () => {
       }),
     );
     console.log(JSON.stringify({ created: true, link: r.entityId, from: `${fromCode} v${from.n}`, to: `${toCode} v${to.n}` }));
+    await services.observer.flush(5000);
+  });
+};
+
+commands.harness = async () => {
+  if (args[0] !== 'recompute') throw new Error('Usage: harness recompute [--project <id>] [--request <id>]');
+  const flag = (name: string) => {
+    const i = args.indexOf(name);
+    return i >= 0 ? args[i + 1] : undefined;
+  };
+  const projectId = flag('--project');
+  const requestId = flag('--request');
+  await withDatabase(async (c) => {
+    const services = {
+      db: c.db,
+      clock: () => new Date(),
+      providers: createProviders(config),
+      classifierFor: () => Promise.reject(new Error('A post-mortem classifies nothing.')),
+      agentSessionsDir: config.agentSessionsDir,
+      engine: inertEngine(),
+      logger: cliLogger,
+      observer: createObserver(config.observe, cliLogger),
+    };
+    const ids = requestId
+      ? [requestId]
+      : (await pendingPostmortems(c.db)).filter((p) => !projectId || p.project_id === projectId).map((p) => p.id);
+    const counts = { recorded: 0, unchanged: 0, not_ended: 0 };
+    for (const id of ids) {
+      const r = await runPostmortem(services, id, RULES_VERSION);
+      counts[r.status]++;
+      console.log(`${id}: ${r.status}${r.status === 'recorded' ? ` (${r.findings} finding(s))` : ''}`);
+    }
+    console.log(JSON.stringify({ rules_version: RULES_VERSION, requests: ids.length, ...counts }));
     await services.observer.flush(5000);
   });
 };

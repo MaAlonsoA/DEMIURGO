@@ -357,6 +357,14 @@ entities:
       - { command: build.start, from: new, to: recorded, guards: [build_can_start] }
       - { command: build_step.record, from: new, to: recorded }
 
+  harness_postmortem:
+    label: Harness post-mortem
+    implemented_in: S4
+    states: { recorded: Recorded }
+    authority: []
+    transitions:
+      - { command: harness.postmortem, from: new, to: recorded }
+
   pr_review:
     label: PR review
     implemented_in: S4

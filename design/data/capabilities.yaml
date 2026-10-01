@@ -152,6 +152,7 @@ commands:
   task.hold: { entity: project, allowed: [human], decisive: false, description: "Put a task on hold with the reason it cannot be built yet (an external prerequisite): «Build the queue» skips it and takes the next ready one." }
   task.release: { entity: project, allowed: [human], decisive: false, description: "Take a task off hold: it is ready to build again." }
   build_step.record: { entity: build_step, allowed: [system], decisive: false, description: "Record one stage of a build (started, ok, failed, waiting or changes requested) with its detail." }
+  harness.postmortem: { entity: harness_postmortem, allowed: [system], decisive: false, description: "Record the deterministic post-mortem of an ended build request: what each piece of the harness decided and cost, as classified findings (no model call)." }
   pr_review.record: { entity: pr_review, allowed: [system], decisive: false, description: "Record the verdict of the reviewer agent on the pull request of a build request (the required status demiurgo/review); applied by the system from its validated output." }
 
   issue.open: { entity: issue, allowed: [human, system], decisive: false, description: "Open an issue: a bug a person reports, or a review escalation DEMIURGO opens when the reviewer hands over something only a person can resolve." }
@@ -166,6 +167,7 @@ queries:
   query.inbox: { allowed: [human, agent_external], description: "Inbox of proposals and pending items." }
   query.explorations: { allowed: [human, agent_external], description: "Explorations, threads and questions." }
   query.records: { allowed: [human, agent_external], description: "Records, versions, criteria, links and readiness." }
+  query.harness_health: { allowed: [human, agent_external], description: "Harness health: post-mortems and findings of the builds, per piece of the harness." }
   query.batches: { allowed: [human, agent_external], description: "Batches and proposals." }
   query.runs: { allowed: [human, agent_external], description: "Runs and their context packs." }
   query.knowledge: { allowed: [human, agent_external], description: "Derived knowledge, freshness and search." }

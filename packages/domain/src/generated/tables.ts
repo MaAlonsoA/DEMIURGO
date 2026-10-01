@@ -992,6 +992,14 @@ export const CAPABILITIES = {
       "decisive": false,
       "description": "Record one stage of a build (started, ok, failed, waiting or changes requested) with its detail."
     },
+    "harness.postmortem": {
+      "entity": "harness_postmortem",
+      "allowed": [
+        "system"
+      ],
+      "decisive": false,
+      "description": "Record the deterministic post-mortem of an ended build request: what each piece of the harness decided and cost, as classified findings (no model call)."
+    },
     "pr_review.record": {
       "entity": "pr_review",
       "allowed": [
@@ -1068,6 +1076,13 @@ export const CAPABILITIES = {
         "agent_external"
       ],
       "description": "Records, versions, criteria, links and readiness."
+    },
+    "query.harness_health": {
+      "allowed": [
+        "human",
+        "agent_external"
+      ],
+      "description": "Harness health: post-mortems and findings of the builds, per piece of the harness."
     },
     "query.batches": {
       "allowed": [
@@ -2565,6 +2580,21 @@ export const TRANSITIONS = {
         },
         {
           "command": "build_step.record",
+          "from": "new",
+          "to": "recorded"
+        }
+      ]
+    },
+    "harness_postmortem": {
+      "label": "Harness post-mortem",
+      "implemented_in": "S4",
+      "states": {
+        "recorded": "Recorded"
+      },
+      "authority": [],
+      "transitions": [
+        {
+          "command": "harness.postmortem",
           "from": "new",
           "to": "recorded"
         }

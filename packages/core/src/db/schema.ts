@@ -916,6 +916,8 @@ export type DB = {
   build_steps: BuildStepsTable;
   issues: IssuesTable;
   test_runs: TestRunsTable;
+  harness_postmortems: HarnessPostmortemsTable;
+  harness_findings: HarnessFindingsTable;
 };
 
 export type TestRunsTable = {
@@ -933,6 +935,38 @@ export type TestRunsTable = {
   /** The failure message and text of a failing case, capped. */
   failure: string | null;
   recorded_at: Generated<Timestamp>;
+};
+
+/** One deterministic post-mortem of an ended build request (append-only; unique per request, rules version and inputs hash). */
+export type HarnessPostmortemsTable = {
+  id: Generated<string>;
+  project_id: string;
+  build_request_id: string;
+  rules_version: string;
+  harness_version_id: string | null;
+  inputs_hash: string;
+  attempts: number;
+  outcome: 'merged' | 'withdrawn' | 'failed' | 'needs_you';
+  findings: number;
+  computed_at: Generated<Timestamp>;
+};
+
+/** One classified fact of a post-mortem: what a piece of the harness decided or cost (append-only). */
+export type HarnessFindingsTable = {
+  id: Generated<string>;
+  project_id: string;
+  postmortem_id: string;
+  build_request_id: string;
+  attempt: number | null;
+  piece: string;
+  finding: string;
+  class: 'tp' | 'fp' | 'fn' | 'tn' | 'benefit' | 'cost' | 'info';
+  ground_truth: string | null;
+  value: ColumnType<string | null, number | string | null | undefined, number | string | null>;
+  unit: 'min' | 'ci_runs' | 'tokens' | 'usd' | 'person_actions' | 'files' | 'tests' | 'loops' | 'attempts' | null;
+  subject: string | null;
+  evidence: Json;
+  created_at: Generated<Timestamp>;
 };
 
 export type Row<T extends keyof DB> = Selectable<DB[T]>;

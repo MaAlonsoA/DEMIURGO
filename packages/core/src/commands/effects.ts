@@ -536,7 +536,7 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
     if (!v) throw new DomainError('not_found', `There is no ${c.record.code}@${c.record.version}.`);
     const base = await ctx.trx
       .selectFrom('record_versions')
-      .select(['title', 'sections'])
+      .select(['title', 'sections', 'spec'])
       .where('id', '=', v.versionId)
       .executeTakeFirstOrThrow();
     const changed = new Map(recordChangeSections(c).map((x) => [x.section, x.content]));
@@ -576,6 +576,8 @@ export const APPLICATIONS: Partial<Record<ProposalType, Application>> = {
         record_id: v.recordId,
         title: base.title,
         sections,
+        // The machine-readable part (screen design, design system) is not a section: it is carried over as is.
+        ...(base.spec ? { spec: base.spec as never } : {}),
         criteria,
         discarded,
         links: await outgoingLinks(ctx, v.versionId, true),

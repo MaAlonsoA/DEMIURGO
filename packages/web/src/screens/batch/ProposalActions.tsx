@@ -15,6 +15,7 @@ import { useAllows } from '../../components/actions.tsx';
 import { announce } from '../../components/announce.tsx';
 import { Button } from '../../components/Button.tsx';
 import { ConfirmDialog, PromptDialog } from '../../components/Dialog.tsx';
+import { ErrorNotice } from '../../components/Notice.tsx';
 import { Field, TextArea, TextInput } from '../../components/Field.tsx';
 import { ASPECT_WORDS } from '../../aspects.i18n.ts';
 import { useMessages } from '../../i18n/define.ts';
@@ -165,6 +166,8 @@ export function ProposalDecision({
 
   return (
     <>
+      {/* The refusal stays on the page when its dialog is gone (closed by the person or remounted), never silent. */}
+      {!dialog && command.error ? <ErrorNotice error={command.error} /> : null}
       <DecisionBar
         sticky={sticky}
         caption={

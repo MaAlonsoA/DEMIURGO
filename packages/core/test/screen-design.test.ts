@@ -209,4 +209,43 @@ describe('the screen design of a feature', () => {
     expect(second.version).toBe(2);
     expect(await recordDetail(db(), projectId, other.code)).toMatchObject({ screens: { code: first.code, version: 2, state: 'approved' } });
   });
+  // H50: a record_change edits sections only; the machine-readable spec is carried over from the version it changes.
+  it('a change to one section of an approved screen design keeps its spec in the new version', async () => {
+    const other = await newFeature('Change one section');
+    const p = scrPayload({ code: other.code, version: 1 }, { screens: [screen('all', [1, 2, 3], ['Button'])] });
+    const created = (await submitAndAccept('screen_design', p)).result as { code: string; recordId: string };
+    const thread = (await cmd('exploration.open', { purpose: 'Review the screens' })).entityId;
+    const message = (await cmd('message.post', { exploration_id: thread, text: 'List the components used on each screen.', respond: false })).entityId;
+    const batch = await cmd(
+      'batch.submit',
+      {
+        summary: 'From the thread.',
+        batch_type: 'agent',
+        resolution: 'item',
+        proposals: [
+          {
+            type: 'record_change',
+            payload: {
+              record: { code: created.code, version: 1 },
+              section: 'Components',
+              content: prose('Button on every screen'),
+              reason: 'Say which components each screen uses.',
+              evidence: [{ message_id: message, quote: 'List the components used' }],
+            },
+          },
+        ],
+      },
+      undefined,
+      system('exploration'),
+    );
+    const proposal = await db().selectFrom('proposals').select('id').where('batch_id', '=', batch.entityId).executeTakeFirstOrThrow();
+    const r = await cmd('proposal.accept', { approve: true }, proposal.id);
+    expect(r.result).toMatchObject({ type: 'record', code: created.code, version: 2, approved: true });
+    const versions = await db().selectFrom('record_versions').select(['n', 'spec', 'sections']).where('record_id', '=', created.recordId).orderBy('n').execute();
+    expect(versions).toHaveLength(2);
+    expect(versions[1]!.spec).toEqual(versions[0]!.spec);
+    expect(versions[1]!.spec).toMatchObject({ feature: { code: other.code, version: 1 } });
+    expect((versions[1]!.sections as { title: string; content: string }[]).find((x) => x.title === 'Components')?.content).toBe(prose('Button on every screen'));
+    expect((versions[0]!.sections as { title: string; content: string }[]).find((x) => x.title === 'Components')?.content).toBe(prose('Components'));
+  });
 });

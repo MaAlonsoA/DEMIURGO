@@ -558,10 +558,10 @@ export function BuildScreen() {
               )}
             </Section>
 
-            {q.held.length > 0 ? (
-              <Section id="build-held" title={t.held(q.held.length)} note={t.heldNote}>
+            {(q.held ?? []).length > 0 ? (
+              <Section id="build-held" title={t.held((q.held ?? []).length)} note={t.heldNote}>
                 <ul className="flex flex-col divide-y divide-edge-subtle" data-build-held>
-                  {q.held.map((task) => (
+                  {(q.held ?? []).map((task) => (
                     <HeldLine key={task.code} projectId={projectId} task={task} t={t} />
                   ))}
                 </ul>
